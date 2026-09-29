@@ -20,11 +20,31 @@ Personal desktop app for trading Taiwan and US stocks: an agent analyzes and pro
 | `packages/core` (`@solyx/core`)       | Market rules (tick sizes, board and odd lots, trading sessions), the `checkOrder` risk checks, the `BrokerAdapter` contract and the `OrderDesk` order flow                                   |
 | `packages/brokers` (`@solyx/brokers`) | One module per broker. `./paper` is the paper broker and the only one the app wires today; `./fubon` loads the user's own Fubon SDK at runtime and does not implement accounts or orders yet |
 | `packages/utils` (`@solyx/utils`)     | Cross-runtime, domain-neutral utilities; boundaries in [`packages/utils/AGENTS.md`](packages/utils/AGENTS.md)                                                                                |
-| `apps/desktop` (`@solyx/desktop`)     | Electron. `src/main` hosts the core and brokers, `src/preload` exposes `window.solyx` through contextBridge, `src/renderer` is the React UI and `src/shared/ipc.ts` is the IPC contract      |
+| `packages/i18n` (`@solyx/i18n`)       | JSON translation catalogs per consumer, `en-US` as the source locale; boundaries in [`packages/i18n/AGENTS.md`](packages/i18n/AGENTS.md)                                                     |
+| `apps/desktop` (`@solyx/desktop`)     | Electron, split by process first and module second; layout under [Desktop layout](#desktop-layout)                                                                                           |
 | `tools/oxlint/anti-slop`              | Vendored anti-slop Oxlint plugin; its source and local deviations are recorded in `UPSTREAM.md`                                                                                              |
 
 - Desktop main and preload are bundled with `vp pack`, which inlines `@solyx/*`; the renderer is built with `vp build`.
-- Change the three sides of the IPC contract together: `src/shared/ipc.ts` (types and channels), `src/preload/index.ts` and `src/main/ipc.ts`.
+- The main process is the only backend and owns all I/O: broker SDKs, market-data HTTP through `ky`, LLM calls and secrets. The renderer makes no network requests and holds no keys. There is no local HTTP server; if an external client such as an MCP server ever needs one, add it as a thin host over the packages, bound to localhost, and never expose `confirm`.
+- The renderer uses TanStack Router with hash history (builds load from `file://`), TanStack Query for everything read from the main process, and zustand for client-only state. HeroUI v3 on Tailwind CSS v4 is used directly; compose `react-aria-components` where HeroUI has no equivalent and add no other primitive library.
+- The production CSP forbids eval and remote sources, so zod runs `jitless` in the renderer and inline `<style>` is the only relaxation.
+
+## Desktop layout
+
+`apps/desktop/src` splits by process first, so each tsconfig keeps Node and DOM apart, then by module (`account`, `market`, `proposals`, `settings`, …). A module keeps one name across every process.
+
+| Path                                           | Holds                                                                                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `shared/ipc/<module>.ts`                       | The module's IPC contract: an `XxxApi` interface and `xxxChannels`. `solyx-api.ts` composes them into `window.solyx`; imported as `#shared/*`                            |
+| `main/modules/<module>/`                       | IPC handlers and main-side logic. Handlers bind through `ipcModule<XxxApi>(channels, schemas)`, which parses every argument with zod because renderer input is untrusted |
+| `main/ipc/`, `main/shell/`, `main/services.ts` | IPC infrastructure and registration; windows and future menus or updaters; the composition root                                                                          |
+| `preload/index.ts`                             | The contextBridge that maps each module's channels onto `window.solyx.<module>`                                                                                          |
+| `renderer/modules/<module>/`                   | The module's TanStack Query options (`xxxQueryKeys`, `xxxQuery()`), components, form schemas and hooks                                                                   |
+| `renderer/pages/`                              | Route components that only compose modules                                                                                                                               |
+| `renderer/app/`                                | Router, root layout, i18n, query client, theme and zod setup                                                                                                             |
+
+- Adding or changing a channel touches its contract, handler, preload bridge and renderer call site together.
+- Modules may use another module's query keys to invalidate what they change (a confirmed order refreshes `account`); anything shared more widely moves to a package.
 
 ## Trading invariants
 
@@ -37,11 +57,14 @@ Personal desktop app for trading Taiwan and US stocks: an agent analyzes and pro
 
 ## Repository rules
 
-- Write documentation, comments and UI copy in English.
+- Write documentation and comments in English. UI copy lives in `@solyx/i18n` and reaches the renderer through `react-i18next`; components never hard-code user-facing strings.
+- Forms use react-hook-form with `zodResolver`; each HeroUI field is wrapped in a `Controller`, and validation messages come from the catalog.
 - Put dependency versions in the appropriate catalog in `pnpm-workspace.yaml`; package manifests reference catalog keys. Internal dependencies use `workspace:*`.
 - `@solyx/*` packages export source and need no build step. Each `exports` key mirrors one module under `src/`; do not add a root export or sibling-only barrel.
+- Take general-purpose helpers (debounce, memoize, retry, groupBy, …) from `es-toolkit`, imported from its root; `@solyx/utils` holds only what es-toolkit lacks.
 - Import a symbol at the call site. Do not rename or re-export it through a local wrapper; wrap only when adding behavior.
-- An enum is a PascalCase const object with PascalCase keys plus a same-named type, `export type Foo = (typeof Foo)[keyof typeof Foo]`; no TS `enum`, bare string-literal unions or `as const` arrays. Untyped input narrows with `isEnumValue` from `@solyx/utils/is`.
+- An enum is a PascalCase const object with PascalCase keys plus a same-named type, `export type Foo = (typeof Foo)[keyof typeof Foo]`; no TS `enum`, bare string-literal unions or `as const` arrays. Schemas derive from it (`z.enum(Foo)`) and untyped input narrows with `isEnumValue` from `@solyx/utils/is`.
+- zod is imported as `import * as z from "zod"`. Schemas are camelCase with a `Schema` suffix, sit beside the const object or type they validate, and types derive from them with `z.infer`.
 - A type assertion needs a `SAFETY:` comment; prefer narrowing, `satisfies` or a parser at the boundary so the assertion is not needed.
 - Use the Oxlint, Oxfmt and Vitest that ship with Vite+. Lint, format and staged rules live in the root `vite.config.ts` because Vite+ ignores nested configs; the pre-commit hook in `.vite-hooks/pre-commit` runs `vp staged`.
 - `vp run` executes tasks in a clean environment, so most variables set outside it do not reach the task.

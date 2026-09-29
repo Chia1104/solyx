@@ -10,7 +10,5 @@
 
 - Plugin source is unmodified.
 - `effect/` is copied but not registered: the repository has no direct `effect` dependency.
-- Registration lives in the root `vite.config.ts` (`lint.jsPlugins`, `lint.rules`); `oxc/no-accumulating-spread` and every generic rule are at `error`, with two exceptions:
-  - `no-array-filter-map` is off: its preferred iterator-helper form is not in the repository's es2023 `lib`.
-  - `no-runtime-typeof` sets `allowInTypeGuards: true`: without a schema library, named type guards decode external input.
+- Registration lives in the root `vite.config.ts` (`lint.jsPlugins`, `lint.rules`); `oxc/no-accumulating-spread` and every generic rule are at `error`, except `no-array-filter-map`, which is off because its preferred iterator-helper form is not in the repository's es2023 `lib`.
 - Migrated from the configuration in `chia1104.dev/toolings/oxlint`, whose rule sources were an older, locally unmodified snapshot. Its test-file override that turned off `anti-slop/no-module-mocking` was not carried over.

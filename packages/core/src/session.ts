@@ -1,3 +1,5 @@
+import { memoize } from "es-toolkit";
+
 import { Market } from "./market.ts";
 
 export const Session = {
@@ -53,24 +55,22 @@ const SCHEDULES: Record<
   },
 };
 
-const clockFormatters = new Map<string, Intl.DateTimeFormat>();
-
-function localClock(timeZone: string, at: Date) {
-  let formatter = clockFormatters.get(timeZone);
-
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat("en-US", {
+const clockFormatter = memoize(
+  (timeZone: string) =>
+    new Intl.DateTimeFormat("en-US", {
       timeZone,
       weekday: "short",
       hour: "numeric",
       minute: "numeric",
       hourCycle: "h23",
-    });
-    clockFormatters.set(timeZone, formatter);
-  }
+    })
+);
 
+function localClock(timeZone: string, at: Date) {
   const parts = Object.fromEntries(
-    formatter.formatToParts(at).map((p) => [p.type, p.value])
+    clockFormatter(timeZone)
+      .formatToParts(at)
+      .map((p) => [p.type, p.value])
   );
 
   return {

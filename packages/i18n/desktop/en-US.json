@@ -1,0 +1,101 @@
+{
+  "nav": {
+    "overview": "Overview",
+    "proposals": "Proposals",
+    "settings": "Settings"
+  },
+  "broker-mode": {
+    "paper": "Paper trading",
+    "live": "Live trading"
+  },
+  "common": {
+    "loading": "Loading…"
+  },
+  "market": {
+    "TW": "Taiwan",
+    "US": "US"
+  },
+  "session": {
+    "pre": "Pre-market",
+    "regular": "Regular",
+    "post": "After-hours",
+    "closed": "Closed"
+  },
+  "side": {
+    "buy": "Buy",
+    "sell": "Sell"
+  },
+  "kind": {
+    "stock": "Stock",
+    "etf": "ETF"
+  },
+  "source": {
+    "agent": "Agent",
+    "user": "Manual"
+  },
+  "status": {
+    "awaiting-confirmation": "Awaiting confirmation",
+    "submitting": "Submitting",
+    "submitted": "Submitted",
+    "rejected": "Rejected by risk checks",
+    "dismissed": "Dismissed",
+    "failed": "Failed"
+  },
+  "market-sessions": {
+    "title": "Market sessions",
+    "chip": "{{market}}: {{session}}"
+  },
+  "account": {
+    "title": "Account",
+    "positions": "Positions",
+    "symbol": "Symbol",
+    "shares": "Shares",
+    "avg-price": "Avg. price",
+    "no-positions": "No positions"
+  },
+  "proposals": {
+    "form-title": "New order proposal",
+    "form-description": "Proposals pass the risk checks here and again when you confirm them.",
+    "empty": "No proposals yet",
+    "summary": "{{side}} {{quantity, number}} shares @ {{price}}",
+    "market-price": "market",
+    "confirm": "Confirm and submit",
+    "dismiss": "Dismiss"
+  },
+  "order-form": {
+    "market": "Market",
+    "kind": "Type",
+    "side": "Side",
+    "symbol": "Symbol",
+    "symbol-placeholder": "2330",
+    "quantity": "Shares",
+    "limit-price": "Limit price",
+    "rationale": "Rationale",
+    "rationale-placeholder": "Kept with the proposal for later review",
+    "submit": "Create proposal",
+    "errors": {
+      "required": "Required",
+      "whole-shares": "Use whole shares",
+      "positive": "Must be greater than zero"
+    }
+  },
+  "risk": {
+    "invalid-quantity-tw": "Taiwan orders must be 1–999 odd-lot shares or a multiple of 1,000",
+    "invalid-quantity-us": "US orders must be a positive whole number of shares",
+    "invalid-price": "Price {{price, number(maximumFractionDigits: 4)}} is not a multiple of the {{tick, number(maximumFractionDigits: 4)}} tick size",
+    "odd-lot-market-order": "Odd-lot orders must be limit orders",
+    "outside-price-band": "Price is outside the daily limit band {{low, number}}–{{high, number}}",
+    "missing-reference-price": "Market orders need a last price to estimate their value",
+    "order-too-large": "Order value {{notional, number}} {{currency}} exceeds the {{max, number}} limit",
+    "session-not-allowed": "Orders are not allowed in the {{session}} session"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "language-description": "Applies to the whole app and is kept on this computer."
+  },
+  "locale": {
+    "en-US": "English",
+    "zh-TW": "繁體中文"
+  }
+}

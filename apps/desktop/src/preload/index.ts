@@ -1,14 +1,24 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import { IPC_CHANNELS } from "../shared/ipc.ts";
-import type { SolyxApi } from "../shared/ipc.ts";
+import { accountChannels } from "#shared/ipc/account.ts";
+import { marketChannels } from "#shared/ipc/market.ts";
+import { proposalsChannels } from "#shared/ipc/proposals.ts";
+import type { SolyxApi } from "#shared/ipc/solyx-api.ts";
 
 const api: SolyxApi = {
-  getOverview: () => ipcRenderer.invoke(IPC_CHANNELS.getOverview),
-  proposeOrder: (order, rationale) =>
-    ipcRenderer.invoke(IPC_CHANNELS.proposeOrder, order, rationale),
-  confirmProposal: (id) => ipcRenderer.invoke(IPC_CHANNELS.confirmProposal, id),
-  dismissProposal: (id) => ipcRenderer.invoke(IPC_CHANNELS.dismissProposal, id),
+  account: {
+    summary: () => ipcRenderer.invoke(accountChannels.summary),
+  },
+  market: {
+    sessions: () => ipcRenderer.invoke(marketChannels.sessions),
+  },
+  proposals: {
+    list: () => ipcRenderer.invoke(proposalsChannels.list),
+    propose: (order, rationale) =>
+      ipcRenderer.invoke(proposalsChannels.propose, order, rationale),
+    confirm: (id) => ipcRenderer.invoke(proposalsChannels.confirm, id),
+    dismiss: (id) => ipcRenderer.invoke(proposalsChannels.dismiss, id),
+  },
 };
 
 contextBridge.exposeInMainWorld("solyx", api);

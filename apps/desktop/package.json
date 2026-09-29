@@ -4,24 +4,41 @@
   "private": true,
   "type": "module",
   "main": "dist/main/index.mjs",
+  "imports": {
+    "#shared/*": "./src/shared/*"
+  },
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "vp build && vp pack",
     "start": "electron ."
   },
   "devDependencies": {
+    "@heroui/react": "catalog:heroui-v3",
+    "@heroui/styles": "catalog:heroui-v3",
+    "@hookform/resolvers": "catalog:forms",
     "@solyx/brokers": "workspace:*",
     "@solyx/core": "workspace:*",
+    "@solyx/i18n": "workspace:*",
     "@solyx/utils": "workspace:*",
+    "@tailwindcss/vite": "catalog:tailwindcss",
+    "@tanstack/react-query": "catalog:tanstack",
+    "@tanstack/react-router": "catalog:tanstack",
     "@types/node": "catalog:",
     "@types/react": "catalog:react",
     "@types/react-dom": "catalog:react",
     "@vitejs/plugin-react": "catalog:react",
     "electron": "catalog:electron",
+    "es-toolkit": "catalog:",
+    "i18next": "catalog:i18n",
     "react": "catalog:react",
+    "react-aria-components": "catalog:heroui-v3",
     "react-dom": "catalog:react",
+    "react-hook-form": "catalog:forms",
+    "react-i18next": "catalog:i18n",
+    "tailwindcss": "catalog:tailwindcss",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "zod": "catalog:"
   }
 }

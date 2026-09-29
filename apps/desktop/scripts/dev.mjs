@@ -2,6 +2,8 @@
 // pack `onSuccess` hook in vite.config.ts once both bundles exist.
 import { spawn } from "node:child_process";
 
+import { retry } from "es-toolkit";
+
 // Must match `server.port` in vite.config.ts.
 const RENDERER_URL = "http://localhost:5173";
 
@@ -25,24 +27,18 @@ function shutdown(code) {
   process.exit(code);
 }
 
-async function waitForRenderer() {
-  for (;;) {
-    try {
-      await fetch(RENDERER_URL);
-
-      return;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-  }
-}
-
 process.on("SIGINT", () => shutdown(0));
 
 process.on("SIGTERM", () => shutdown(0));
 
 start(["dev"]);
 
-await waitForRenderer();
+// The dev server answers within seconds; give up after ~30s instead of hanging.
+try {
+  await retry(() => fetch(RENDERER_URL), { retries: 150, delay: 200 });
+} catch {
+  console.error(`[dev] renderer never answered at ${RENDERER_URL}`);
+  shutdown(1);
+}
 
 start(["pack", "--watch"]);

@@ -1,3 +1,6 @@
+import * as z from "zod";
+
+import { instrumentSchema } from "./market.ts";
 import type { Currency, Instrument } from "./market.ts";
 
 export const Side = {
@@ -7,6 +10,8 @@ export const Side = {
 
 export type Side = (typeof Side)[keyof typeof Side];
 
+export const sideSchema = z.enum(Side);
+
 export const OrderType = {
   Limit: "limit",
   Market: "market",
@@ -14,16 +19,23 @@ export const OrderType = {
 
 export type OrderType = (typeof OrderType)[keyof typeof OrderType];
 
-interface OrderBase {
-  instrument: Instrument;
-  side: Side;
+const orderBaseSchema = z.object({
+  instrument: instrumentSchema,
+  side: sideSchema,
   /** Always in shares, including Taiwan board lots of 1,000 shares. */
-  quantity: number;
-}
+  quantity: z.number(),
+});
 
-export type OrderRequest =
-  | (OrderBase & { type: typeof OrderType.Limit; limitPrice: number })
-  | (OrderBase & { type: typeof OrderType.Market });
+/** Checks structure only; `checkOrder` owns the trading rules so violations read as domain messages. */
+export const orderRequestSchema = z.discriminatedUnion("type", [
+  orderBaseSchema.extend({
+    type: z.literal(OrderType.Limit),
+    limitPrice: z.number(),
+  }),
+  orderBaseSchema.extend({ type: z.literal(OrderType.Market) }),
+]);
+
+export type OrderRequest = z.infer<typeof orderRequestSchema>;
 
 export interface Position {
   instrument: Instrument;

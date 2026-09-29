@@ -1,0 +1,18 @@
+{
+  "name": "@solyx/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./desktop/*.json": "./desktop/*.json"
+  },
+  "scripts": {
+    "test": "vp test"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "es-toolkit": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

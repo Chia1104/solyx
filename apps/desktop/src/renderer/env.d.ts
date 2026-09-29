@@ -1,4 +1,4 @@
-import type { SolyxApi } from "../shared/ipc.ts";
+import type { SolyxApi } from "#shared/ipc/solyx-api.ts";
 
 declare global {
   interface Window {

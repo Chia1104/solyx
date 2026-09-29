@@ -16,6 +16,10 @@
   "scripts": {
     "test": "vp test"
   },
+  "dependencies": {
+    "es-toolkit": "catalog:",
+    "zod": "catalog:"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
     "typescript": "catalog:",

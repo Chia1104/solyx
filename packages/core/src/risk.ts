@@ -34,10 +34,24 @@ export const RiskViolationCode = {
 export type RiskViolationCode =
   (typeof RiskViolationCode)[keyof typeof RiskViolationCode];
 
-export interface RiskViolation {
-  code: RiskViolationCode;
-  message: string;
-}
+/** Carries the data behind a rejection, not text; presenters localize it. */
+export type RiskViolation =
+  | { code: typeof RiskViolationCode.InvalidQuantity; market: Market }
+  | { code: typeof RiskViolationCode.InvalidPrice; price: number; tick: number }
+  | { code: typeof RiskViolationCode.OddLotMarketOrder }
+  | {
+      code: typeof RiskViolationCode.OutsidePriceBand;
+      low: number;
+      high: number;
+    }
+  | { code: typeof RiskViolationCode.MissingReferencePrice }
+  | {
+      code: typeof RiskViolationCode.OrderTooLarge;
+      notional: number;
+      currency: Currency;
+      max: number;
+    }
+  | { code: typeof RiskViolationCode.SessionNotAllowed; session: Session };
 
 function tickSize(instrument: Instrument, price: number): number {
   return instrument.market === Market.TW
@@ -58,73 +72,65 @@ export function checkOrder(
   context: RiskContext
 ): RiskViolation[] {
   const violations: RiskViolation[] = [];
-
-  const add = (code: RiskViolationCode, message: string) =>
-    violations.push({ code, message });
-
   const { instrument, quantity } = order;
   const isTw = instrument.market === Market.TW;
 
   if (isTw ? !isValidTwQuantity(quantity) : !isValidUsQuantity(quantity)) {
-    add(
-      RiskViolationCode.InvalidQuantity,
-      isTw
-        ? "Taiwan orders must be 1–999 odd-lot shares or a multiple of 1,000"
-        : "US orders must be a positive whole number of shares"
-    );
+    violations.push({
+      code: RiskViolationCode.InvalidQuantity,
+      market: instrument.market,
+    });
   }
 
   if (order.type === OrderType.Limit) {
     const tick = tickSize(instrument, order.limitPrice);
 
     if (!(order.limitPrice > 0) || !isOnTick(order.limitPrice, tick)) {
-      add(
-        RiskViolationCode.InvalidPrice,
-        `Price ${order.limitPrice} is not a multiple of the ${tick} tick size`
-      );
+      violations.push({
+        code: RiskViolationCode.InvalidPrice,
+        price: order.limitPrice,
+        tick,
+      });
     }
 
     const band = context.priceBand;
 
     if (band && (order.limitPrice < band.low || order.limitPrice > band.high)) {
-      add(
-        RiskViolationCode.OutsidePriceBand,
-        `Price is outside the daily limit band ${band.low}–${band.high}`
-      );
+      violations.push({
+        code: RiskViolationCode.OutsidePriceBand,
+        low: band.low,
+        high: band.high,
+      });
     }
   } else if (isTw && isTwOddLot(quantity)) {
-    add(
-      RiskViolationCode.OddLotMarketOrder,
-      "Odd-lot orders must be limit orders"
-    );
+    violations.push({ code: RiskViolationCode.OddLotMarketOrder });
   }
 
   const referencePrice =
     order.type === OrderType.Limit ? order.limitPrice : context.lastPrice;
 
   if (referencePrice === undefined) {
-    add(
-      RiskViolationCode.MissingReferencePrice,
-      "Market orders need a last price to estimate their value"
-    );
+    violations.push({ code: RiskViolationCode.MissingReferencePrice });
   } else {
     const currency = currencyOf(instrument.market);
     const notional = referencePrice * quantity;
     const max = limits.maxOrderNotional[currency];
 
     if (notional > max) {
-      add(
-        RiskViolationCode.OrderTooLarge,
-        `Order value ${notional} ${currency} exceeds the ${max} limit`
-      );
+      violations.push({
+        code: RiskViolationCode.OrderTooLarge,
+        notional,
+        currency,
+        max,
+      });
     }
   }
 
   if (!limits.allowedSessions.includes(context.session)) {
-    add(
-      RiskViolationCode.SessionNotAllowed,
-      `Orders are not allowed in the ${context.session} session`
-    );
+    violations.push({
+      code: RiskViolationCode.SessionNotAllowed,
+      session: context.session,
+    });
   }
 
   return violations;

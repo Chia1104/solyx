@@ -1,0 +1,101 @@
+{
+  "nav": {
+    "overview": "總覽",
+    "proposals": "提案",
+    "settings": "設定"
+  },
+  "broker-mode": {
+    "paper": "模擬交易",
+    "live": "真實交易"
+  },
+  "common": {
+    "loading": "載入中…"
+  },
+  "market": {
+    "TW": "台股",
+    "US": "美股"
+  },
+  "session": {
+    "pre": "盤前",
+    "regular": "盤中",
+    "post": "盤後",
+    "closed": "休市"
+  },
+  "side": {
+    "buy": "買進",
+    "sell": "賣出"
+  },
+  "kind": {
+    "stock": "股票",
+    "etf": "ETF"
+  },
+  "source": {
+    "agent": "Agent",
+    "user": "手動"
+  },
+  "status": {
+    "awaiting-confirmation": "待確認",
+    "submitting": "送出中",
+    "submitted": "已送出",
+    "rejected": "風控拒絕",
+    "dismissed": "已取消",
+    "failed": "送出失敗"
+  },
+  "market-sessions": {
+    "title": "市場時段",
+    "chip": "{{market}}：{{session}}"
+  },
+  "account": {
+    "title": "帳戶",
+    "positions": "庫存",
+    "symbol": "代號",
+    "shares": "股數",
+    "avg-price": "均價",
+    "no-positions": "尚無庫存"
+  },
+  "proposals": {
+    "form-title": "建立下單提案",
+    "form-description": "提案會先在這裡經過風控檢查，確認送出時會再檢查一次。",
+    "empty": "還沒有提案",
+    "summary": "{{side}} {{quantity, number}} 股 @ {{price}}",
+    "market-price": "市價",
+    "confirm": "確認送出",
+    "dismiss": "取消"
+  },
+  "order-form": {
+    "market": "市場",
+    "kind": "類型",
+    "side": "買賣",
+    "symbol": "代號",
+    "symbol-placeholder": "2330",
+    "quantity": "股數",
+    "limit-price": "限價",
+    "rationale": "理由",
+    "rationale-placeholder": "會跟提案一起保存，方便日後回顧",
+    "submit": "建立提案",
+    "errors": {
+      "required": "必填",
+      "whole-shares": "請輸入整數股",
+      "positive": "必須大於零"
+    }
+  },
+  "risk": {
+    "invalid-quantity-tw": "台股數量須為 1–999 股零股，或 1,000 股的整數倍",
+    "invalid-quantity-us": "美股數量須為正整數股",
+    "invalid-price": "價格 {{price, number(maximumFractionDigits: 4)}} 不符合升降單位 {{tick, number(maximumFractionDigits: 4)}}",
+    "odd-lot-market-order": "零股只能下限價單",
+    "outside-price-band": "價格超出漲跌停範圍 {{low, number}}–{{high, number}}",
+    "missing-reference-price": "市價單需要最新成交價才能估算金額",
+    "order-too-large": "單筆金額 {{notional, number}} {{currency}} 超過上限 {{max, number}}",
+    "session-not-allowed": "目前時段（{{session}}）不允許下單"
+  },
+  "settings": {
+    "title": "設定",
+    "language": "語言",
+    "language-description": "套用到整個 app，並保存在這台電腦上。"
+  },
+  "locale": {
+    "en-US": "English",
+    "zh-TW": "繁體中文"
+  }
+}

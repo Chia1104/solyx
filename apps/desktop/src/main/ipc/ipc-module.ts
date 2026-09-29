@@ -1,0 +1,30 @@
+import { ipcMain } from "electron";
+import type * as z from "zod";
+
+type Method = (...args: never) => void;
+
+type MethodArgs<F> = F extends (...args: infer A) => void ? A : never;
+
+export type ArgumentSchemas<Api> = {
+  [K in keyof Api]: z.ZodType<MethodArgs<Api[K]>>;
+};
+
+/**
+ * Binds one module's IPC contract to `ipcMain`. Renderer input is untrusted, so every
+ * channel parses its arguments with the module's zod schemas before reaching a handler.
+ */
+export function ipcModule<Api extends Record<keyof Api, Method>>(
+  channels: Record<keyof Api, string>,
+  schemas: ArgumentSchemas<Api>
+) {
+  return function handle<K extends keyof Api>(
+    name: K,
+    handler: (...args: MethodArgs<Api[K]>) => ReturnType<Api[K]>
+  ) {
+    const schema: z.ZodType<MethodArgs<Api[K]>> = schemas[name];
+
+    ipcMain.handle(channels[name], (_event, ...args) =>
+      handler(...schema.parse(args))
+    );
+  };
+}

@@ -66,6 +66,11 @@ export default defineConfig({
         },
       ],
     },
+    sortTailwindcss: {
+      stylesheet: "./apps/desktop/src/renderer/styles.css",
+      functions: ["clsx", "cn"],
+      preserveWhitespace: true,
+    },
   },
   lint: {
     extends: [baseConfig],
@@ -97,8 +102,7 @@ export default defineConfig({
       "anti-slop/no-object-parameters": "error",
       "anti-slop/no-reflect-apply": "error",
       "anti-slop/no-reflect-get": "error",
-      // Without a schema library, named type guards are where external input gets decoded.
-      "anti-slop/no-runtime-typeof": ["error", { allowInTypeGuards: true }],
+      "anti-slop/no-runtime-typeof": "error",
       "anti-slop/no-shape-in-symbol-names": "error",
       "anti-slop/no-unknown-parameters": "error",
       "anti-slop/no-unknown-returns": "error",
