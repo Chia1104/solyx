@@ -10,10 +10,19 @@ import type { RiskLimits } from "@solyx/core/risk";
 import { Session, getSession } from "@solyx/core/session";
 import { openCache } from "@solyx/db/cache";
 import { withCandleCache } from "@solyx/market-data/candle-cache";
-import { createFugleMarketData } from "@solyx/market-data/fugle";
+import {
+  FUGLE_PLANS,
+  FuglePlan,
+  createFugleMarketData,
+  createFugleStream,
+  fuglePlanSchema,
+} from "@solyx/market-data/fugle";
 
 import { MARKET_DATA_SECRET } from "#shared/ipc/settings.ts";
+import type { ProviderPlans } from "#shared/ipc/settings.ts";
 
+import { createLiveCandles } from "./modules/market/live-candles.ts";
+import { createConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
 
@@ -49,7 +58,18 @@ export function createServices() {
     join(import.meta.dirname, "migrations", "cache")
   );
 
-  // The key is read per request, so a key saved in settings applies without a restart.
+  const config = createConfigFile(join(app.getPath("userData"), "config.json"));
+
+  // A plan the provider no longer sells, or a hand edit it does not know, means its free plan.
+  const fuglePlan = () =>
+    fuglePlanSchema.catch(FuglePlan.Basic).parse(config.providerPlan("fugle"));
+
+  let fugle:
+    | { apiKey: string; plan: FuglePlan; provider: MarketDataProvider }
+    | undefined;
+
+  // One provider per key and plan, so its request budgets hold across requests; the key is
+  // read per request, so a key saved in settings applies without a restart.
   async function marketData(
     market: Market
   ): Promise<MarketDataProvider | undefined> {
@@ -57,12 +77,59 @@ export function createServices() {
 
     const apiKey = await secrets.get(MARKET_DATA_SECRET[Market.TW]);
 
-    return apiKey === undefined
-      ? undefined
-      : withCandleCache(createFugleMarketData({ apiKey }), cache.candles);
+    if (apiKey === undefined) return undefined;
+
+    const plan = fuglePlan();
+
+    if (fugle?.apiKey !== apiKey || fugle.plan !== plan) {
+      fugle = {
+        apiKey,
+        plan,
+        provider: withCandleCache(
+          createFugleMarketData({ apiKey, plan }),
+          cache.candles
+        ),
+      };
+    }
+
+    return fugle.provider;
   }
 
-  return { broker, desk, secrets, marketData };
+  const liveCandles = createLiveCandles({
+    async openStream() {
+      const apiKey = await secrets.get(MARKET_DATA_SECRET[Market.TW]);
+
+      return apiKey === undefined
+        ? undefined
+        : createFugleStream({ apiKey, plan: fuglePlan() });
+    },
+    async dailyCandles(request) {
+      const provider = await marketData(request.symbol.market);
+
+      return provider ? provider.getCandles(request) : [];
+    },
+  });
+
+  const providerPlans = {
+    current: (): ProviderPlans => ({
+      fugle: { plan: fuglePlan(), plans: Object.values(FUGLE_PLANS) },
+    }),
+
+    async set(provider: keyof ProviderPlans, plan: string) {
+      config.setProviderPlan(provider, fuglePlanSchema.parse(plan));
+      // The stream's capacity comes from the plan, so it reopens under the new one.
+      await liveCandles.restart();
+    },
+  };
+
+  return {
+    broker,
+    desk,
+    secrets,
+    marketData,
+    liveCandles,
+    providerPlans,
+  };
 }
 
 export type Services = ReturnType<typeof createServices>;

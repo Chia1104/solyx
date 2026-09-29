@@ -13,6 +13,7 @@
   "dependencies": {
     "@solyx/core": "workspace:*",
     "@solyx/db": "workspace:*",
+    "@solyx/utils": "workspace:*",
     "es-toolkit": "catalog:",
     "ky": "catalog:",
     "zod": "catalog:"

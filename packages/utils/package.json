@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./is": "./src/is.ts"
+    "./is": "./src/is.ts",
+    "./rate-limit": "./src/rate-limit.ts"
   },
   "scripts": {
     "test": "vp test"

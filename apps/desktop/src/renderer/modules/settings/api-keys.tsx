@@ -8,7 +8,7 @@ import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
 import { ApiKeyForm } from "./api-key-form.tsx";
-import { secretsQuery } from "./secrets-query.ts";
+import { secretsQuery } from "./settings-query.ts";
 
 export function ApiKeys() {
   const { t } = useTranslation();

@@ -152,6 +152,20 @@
         "missing": "未設定",
         "unreadable": "無法讀取"
       }
+    },
+    "providers": {
+      "title": "行情供應商",
+      "description": "選擇金鑰所屬的方案，Solyx 會依該方案的限制調整請求速度與即時股票數量。",
+      "fugle": {
+        "plan": "富果方案",
+        "plans": {
+          "basic": "基本用戶（免費）",
+          "developer": "開發者",
+          "advanced": "進階用戶"
+        }
+      },
+      "limits": "即時 {{symbols, number}} 檔・每分鐘盤中 {{intraday, number}} 次、歷史 {{historical, number}} 次",
+      "save-failed": "無法儲存方案"
     }
   },
   "locale": {

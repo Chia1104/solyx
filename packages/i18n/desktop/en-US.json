@@ -152,6 +152,20 @@
         "missing": "Not set",
         "unreadable": "Unreadable"
       }
+    },
+    "providers": {
+      "title": "Market data providers",
+      "description": "Choose the plan your key belongs to. Solyx paces its requests and live symbols to that plan's limits.",
+      "fugle": {
+        "plan": "Fugle plan",
+        "plans": {
+          "basic": "Basic (free)",
+          "developer": "Developer",
+          "advanced": "Advanced"
+        }
+      },
+      "limits": "{{symbols, number}} live symbols · {{intraday, number}} intraday and {{historical, number}} history requests a minute",
+      "save-failed": "Couldn't save the plan"
     }
   },
   "locale": {

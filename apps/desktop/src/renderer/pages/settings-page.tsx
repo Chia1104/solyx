@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { ApiKeys } from "../modules/settings/api-keys.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
+import { ProviderPlans } from "../modules/settings/provider-plans.tsx";
 
 export function SettingsPage() {
   const { t } = useTranslation();
@@ -26,6 +27,17 @@ export function SettingsPage() {
         </Card.Header>
         <Card.Content>
           <ApiKeys />
+        </Card.Content>
+      </Card>
+      <Card>
+        <Card.Header>
+          <Card.Title>{t("settings.providers.title")}</Card.Title>
+          <Card.Description>
+            {t("settings.providers.description")}
+          </Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <ProviderPlans />
         </Card.Content>
       </Card>
     </div>

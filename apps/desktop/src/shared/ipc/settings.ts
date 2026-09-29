@@ -1,4 +1,6 @@
 import type { Market } from "@solyx/core/market";
+import type { MarketDataPlan } from "@solyx/core/market-data";
+import type { FuglePlan } from "@solyx/market-data/fugle";
 
 /** Secrets the main process keeps encrypted by the OS; the renderer can save or delete one but never read it back. */
 export const Secret = {
@@ -28,14 +30,30 @@ export interface SecretsStatus {
   states: Record<Secret, SecretState>;
 }
 
+/** The plans a provider sells, in its order, and the one the user holds. */
+export interface PlanChoice<Plan extends string> {
+  plan: Plan;
+  plans: MarketDataPlan<Plan>[];
+}
+
+/** Each market data provider's plans, by the provider's `id`. */
+export interface ProviderPlans {
+  fugle: PlanChoice<FuglePlan>;
+}
+
 export interface SettingsApi {
   secrets(): Promise<SecretsStatus>;
   saveSecret(secret: Secret, value: string): Promise<void>;
   deleteSecret(secret: Secret): Promise<void>;
+  providerPlans(): Promise<ProviderPlans>;
+  /** Saves the plan the user holds; request budgets and the live stream follow it at once. */
+  setProviderPlan(provider: keyof ProviderPlans, plan: string): Promise<void>;
 }
 
 export const settingsChannels = {
   secrets: "settings:secrets",
   saveSecret: "settings:save-secret",
   deleteSecret: "settings:delete-secret",
+  providerPlans: "settings:provider-plans",
+  setProviderPlan: "settings:set-provider-plan",
 } as const satisfies Record<keyof SettingsApi, string>;

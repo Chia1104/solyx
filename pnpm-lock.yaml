@@ -466,6 +466,9 @@ importers:
       '@solyx/db':
         specifier: workspace:*
         version: link:../db
+      '@solyx/utils':
+        specifier: workspace:*
+        version: link:../utils
       es-toolkit:
         specifier: 'catalog:'
         version: 1.52.0
@@ -488,6 +491,9 @@ importers:
 
   packages/trading-chart:
     dependencies:
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.52.0
       lightweight-charts:
         specifier: catalog:charts
         version: 5.2.1

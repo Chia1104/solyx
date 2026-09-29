@@ -1,4 +1,5 @@
 import { ipcMain } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 import type * as z from "zod";
 
 type Method = (...args: never) => void;
@@ -19,12 +20,15 @@ export function ipcModule<Api extends Record<keyof Api, Method>>(
 ) {
   return function handle<K extends keyof Api>(
     name: K,
-    handler: (...args: MethodArgs<Api[K]>) => ReturnType<Api[K]>
+    // The invoking event comes last, for handlers that need to know which window asked.
+    handler: (
+      ...args: [...MethodArgs<Api[K]>, IpcMainInvokeEvent]
+    ) => ReturnType<Api[K]>
   ) {
     const schema: z.ZodType<MethodArgs<Api[K]>> = schemas[name];
 
-    ipcMain.handle(channels[name], (_event, ...args) =>
-      handler(...schema.parse(args))
+    ipcMain.handle(channels[name], (event, ...args) =>
+      handler(...schema.parse(args), event)
     );
   };
 }

@@ -12,6 +12,7 @@
     "test": "vp test"
   },
   "dependencies": {
+    "es-toolkit": "catalog:",
     "lightweight-charts": "catalog:charts"
   },
   "devDependencies": {

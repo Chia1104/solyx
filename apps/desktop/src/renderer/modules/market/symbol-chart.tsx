@@ -12,9 +12,10 @@ import type { Secret } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { ErrorFallback } from "../../components/error-fallback.tsx";
-import { secretsQuery } from "../settings/secrets-query.ts";
+import { secretsQuery } from "../settings/settings-query.ts";
 
 import { candlesQuery } from "./candles-query.ts";
+import { useLiveCandles } from "./live-candles.ts";
 import { PRICE_CHART_CLASS, PriceChart } from "./price-chart.tsx";
 
 function KeyRequired({ secret }: { secret: Secret }) {
@@ -55,8 +56,10 @@ export function SymbolChart({
   const hasKey =
     secret === null || secrets.data?.states[secret] === SecretState.Saved;
 
+  const live = useLiveCandles(symbol, interval, hasKey);
+
   const candles = useQuery({
-    ...candlesQuery(symbol, interval),
+    ...candlesQuery(symbol, interval, live),
     enabled: hasKey,
   });
 

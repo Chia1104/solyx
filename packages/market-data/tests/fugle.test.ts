@@ -1,4 +1,4 @@
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 
 import { Interval } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
@@ -414,4 +414,39 @@ test("weekly bars merge whole weeks of daily bars and today's session", async ()
     [Date.parse("2026-09-20T16:00:00Z") / 1000, 2450, 3000],
     [Date.parse("2026-09-27T16:00:00Z") / 1000, 2475, 7000],
   ]);
+});
+
+test("history requests past the plan's budget wait for the window to slide", async () => {
+  vi.useFakeTimers({ now: DURING_SESSION });
+
+  try {
+    const { fetch, requests } = fakeFugle([]);
+
+    const provider = createFugleMarketData({
+      apiKey: "test-key",
+      fetch,
+      now: () => DURING_SESSION,
+    });
+
+    const loads = Array.from({ length: 61 }, () =>
+      provider.getCandles({
+        symbol: TSMC,
+        interval: Interval.OneDay,
+        from: "2026-09-01",
+        to: "2026-09-24",
+      })
+    );
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(requests).toHaveLength(60);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(requests).toHaveLength(61);
+
+    await Promise.all(loads);
+  } finally {
+    vi.useRealTimers();
+  }
 });

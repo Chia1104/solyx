@@ -1,7 +1,7 @@
 import { groupBy, sumBy } from "es-toolkit";
 import * as z from "zod";
 
-import { exchangeDate, shiftDate } from "./market.ts";
+import { exchangeDate, exchangeMidnight, shiftDate } from "./market.ts";
 import type { Market } from "./market.ts";
 
 export const Interval = {
@@ -25,7 +25,13 @@ const DAILY_OR_LONGER: ReadonlySet<Interval> = new Set([
   Interval.OneMonth,
 ]);
 
-export function isIntraday(interval: Interval): boolean {
+/** Bars shorter than a day. */
+export type IntradayInterval = Exclude<
+  Interval,
+  typeof Interval.OneDay | CalendarInterval
+>;
+
+export function isIntraday(interval: Interval): interval is IntradayInterval {
   return !DAILY_OR_LONGER.has(interval);
 }
 
@@ -83,4 +89,71 @@ export function resampleDaily(
   );
 
   return Object.values(periods).map(mergeCandles);
+}
+
+const INTRADAY_SECONDS: Record<IntradayInterval, number> = {
+  [Interval.OneMinute]: 60,
+  [Interval.FiveMinutes]: 5 * 60,
+  [Interval.FifteenMinutes]: 15 * 60,
+  [Interval.ThirtyMinutes]: 30 * 60,
+  [Interval.OneHour]: 60 * 60,
+};
+
+/**
+ * The bar of `interval` holding the minute at `time`, merged from one session's minute bars in
+ * time order; weekly and monthly bars also merge the period's earlier daily bars. Intraday bars
+ * align to the clock, as providers align them for a session that opens on the hour.
+ */
+export function liveBar(
+  minutes: readonly Candle[],
+  time: number,
+  interval: Interval,
+  market: Market,
+  earlierDaily: readonly Candle[] = []
+): Candle | undefined {
+  if (isIntraday(interval)) {
+    const size = INTRADAY_SECONDS[interval];
+    const start = time - (time % size);
+
+    const bucket = minutes.filter(
+      (minute) => minute.time >= start && minute.time < start + size
+    );
+
+    return bucket.length === 0
+      ? undefined
+      : { ...mergeCandles(bucket), time: start };
+  }
+
+  if (minutes.length === 0) return undefined;
+
+  const day = {
+    ...mergeCandles(minutes),
+    time: exchangeMidnight(market, exchangeDate(market, new Date(time * 1000))),
+  };
+
+  return interval === Interval.OneDay
+    ? day
+    : mergeCandles([...earlierDaily, day]);
+}
+
+/** Replaces bars with the same time and inserts the rest in time order, returning a new array. */
+export function upsertCandles(
+  candles: readonly Candle[],
+  updates: readonly Candle[]
+): Candle[] {
+  const next = [...candles];
+
+  for (const candle of updates) {
+    let index = next.length;
+
+    while (index > 0 && next[index - 1].time > candle.time) index--;
+
+    if (index > 0 && next[index - 1].time === candle.time) {
+      next[index - 1] = candle;
+    } else {
+      next.splice(index, 0, candle);
+    }
+  }
+
+  return next;
 }

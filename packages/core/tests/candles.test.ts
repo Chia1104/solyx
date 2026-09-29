@@ -2,9 +2,11 @@ import { describe, expect, test } from "vite-plus/test";
 
 import {
   Interval,
+  liveBar,
   mergeCandles,
   periodStart,
   resampleDaily,
+  upsertCandles,
 } from "../src/candles.ts";
 import type { Candle } from "../src/candles.ts";
 import { Market } from "../src/market.ts";
@@ -72,5 +74,105 @@ describe("resampleDaily", () => {
       [daily[0].time, 3000],
       [daily[3].time, 1000],
     ]);
+  });
+});
+
+function minute(clock: string, close: number, volume = 100): Candle {
+  return {
+    time: Date.parse(`2026-09-29T${clock}:00+08:00`) / 1000,
+    open: close,
+    high: close,
+    low: close,
+    close,
+    volume,
+  };
+}
+
+describe("liveBar", () => {
+  // No trades between the 13:25 call auction and the 13:30 close, as on a real session.
+  const minutes = [
+    minute("09:00", 10),
+    minute("09:04", 12),
+    minute("09:05", 11),
+    minute("13:24", 13),
+    minute("13:30", 14, 500),
+  ];
+
+  test("five-minute bars align to the clock", () => {
+    expect(
+      liveBar(minutes, minute("09:04", 0).time, Interval.FiveMinutes, Market.TW)
+    ).toEqual({
+      ...mergeCandles(minutes.slice(0, 2)),
+      time: minute("09:00", 0).time,
+    });
+  });
+
+  test("the closing auction opens its own five-minute bar", () => {
+    expect(
+      liveBar(minutes, minute("13:30", 0).time, Interval.FiveMinutes, Market.TW)
+    ).toEqual(minute("13:30", 14, 500));
+  });
+
+  test("the last hourly bar includes the closing auction", () => {
+    const bar = liveBar(
+      minutes,
+      minute("13:30", 0).time,
+      Interval.OneHour,
+      Market.TW
+    );
+
+    expect(bar?.time).toBe(minute("13:00", 0).time);
+    expect(bar?.volume).toBe(600);
+  });
+
+  test("the daily bar spans the session and opens at midnight", () => {
+    expect(
+      liveBar(minutes, minute("13:30", 0).time, Interval.OneDay, Market.TW)
+    ).toEqual({
+      ...mergeCandles(minutes),
+      time: Date.parse("2026-09-29T00:00:00+08:00") / 1000,
+    });
+  });
+
+  test("weekly bars add the week's earlier sessions", () => {
+    const monday = session("2026-09-28", 9, 9);
+
+    const week = liveBar(
+      minutes,
+      minute("13:30", 0).time,
+      Interval.OneWeek,
+      Market.TW,
+      [monday]
+    );
+
+    expect(week?.time).toBe(monday.time);
+    expect(week?.open).toBe(9);
+    expect(week?.close).toBe(14);
+    expect(week?.volume).toBe(1000 + 900);
+  });
+});
+
+describe("upsertCandles", () => {
+  const bars = [minute("09:00", 1), minute("09:01", 2)];
+
+  test("replaces the bar with the same time", () => {
+    expect(upsertCandles(bars, [minute("09:01", 3)])).toEqual([
+      bars[0],
+      minute("09:01", 3),
+    ]);
+  });
+
+  test("appends newer bars and inserts missing ones in order", () => {
+    expect(
+      upsertCandles(bars, [minute("09:03", 4), minute("08:59", 0)]).map(
+        (bar) => bar.close
+      )
+    ).toEqual([0, 1, 2, 4]);
+  });
+
+  test("leaves the input untouched", () => {
+    upsertCandles(bars, [minute("09:01", 3)]);
+
+    expect(bars[1].close).toBe(2);
   });
 });

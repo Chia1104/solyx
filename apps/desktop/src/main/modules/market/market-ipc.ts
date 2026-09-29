@@ -30,9 +30,11 @@ const LOOKBACK_DAYS: Record<Interval, number> = {
 const handle = ipcModule<MarketApi>(marketChannels, {
   sessions: z.tuple([]),
   candles: z.tuple([symbolRefSchema, intervalSchema]),
+  watchCandles: z.tuple([symbolRefSchema, intervalSchema]),
+  unwatchCandles: z.tuple([symbolRefSchema, intervalSchema]),
 });
 
-export function registerMarketIpc({ marketData }: Services) {
+export function registerMarketIpc({ marketData, liveCandles }: Services) {
   handle("sessions", async () => ({
     [Market.TW]: getSession(Market.TW),
     [Market.US]: getSession(Market.US),
@@ -56,4 +58,12 @@ export function registerMarketIpc({ marketData }: Services) {
       to,
     });
   });
+
+  handle("watchCandles", (symbol, interval, event) =>
+    liveCandles.watch(event.sender, symbol, interval)
+  );
+
+  handle("unwatchCandles", async (symbol, interval, event) =>
+    liveCandles.unwatch(event.sender, symbol, interval)
+  );
 }

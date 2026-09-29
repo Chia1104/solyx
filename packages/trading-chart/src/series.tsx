@@ -1,4 +1,4 @@
-import { useImperativeHandle, useLayoutEffect, useState } from "react";
+import { useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import type { Ref } from "react";
 
 import type {
@@ -14,6 +14,7 @@ import type {
 } from "lightweight-charts";
 
 import { isChartRemoved, useChart } from "./chart.tsx";
+import { liveTail } from "./live-tail.ts";
 
 export interface SeriesProps<T extends SeriesType> {
   definition: SeriesDefinition<T>;
@@ -35,7 +36,8 @@ export interface SeriesProps<T extends SeriesType> {
 
 /**
  * One series on the enclosing chart. It is recreated only when the definition or pane changes;
- * options, data, price lines and price scale options are applied to the live series.
+ * options, data, price lines and price scale options are applied to the live series. Data that
+ * only moves its last bar, or adds one, goes through `update`, which is cheaper and keeps the view.
  */
 export function Series<T extends SeriesType>({
   definition,
@@ -49,6 +51,11 @@ export function Series<T extends SeriesType>({
 }: SeriesProps<T>) {
   const chart = useChart();
   const [series, setSeries] = useState<ISeriesApi<T> | null>(null);
+
+  const applied = useRef<{
+    series: ISeriesApi<T>;
+    data: SeriesDataItemTypeMap<Time>[T][];
+  } | null>(null);
 
   useLayoutEffect(() => {
     const instance = chart.addSeries(definition, undefined, pane);
@@ -67,7 +74,20 @@ export function Series<T extends SeriesType>({
   }, [series, options]);
 
   useLayoutEffect(() => {
-    series?.setData(data);
+    if (!series) return;
+
+    const previous =
+      applied.current?.series === series ? applied.current.data : undefined;
+
+    const tail = previous && liveTail(previous, data);
+
+    if (tail) {
+      for (const item of tail) series.update(item);
+    } else {
+      series.setData(data);
+    }
+
+    applied.current = { series, data };
   }, [series, data]);
 
   useLayoutEffect(() => {

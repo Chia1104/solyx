@@ -22,9 +22,13 @@ export interface CandleSet {
 
 /**
  * Switching intervals keeps the listing's current bars on screen until the new ones arrive.
- * Intraday charts refresh every minute until streaming quotes arrive.
+ * Intraday charts without a `live` stream refresh every minute.
  */
-export const candlesQuery = (symbol: SymbolRef, interval: Interval) =>
+export const candlesQuery = (
+  symbol: SymbolRef,
+  interval: Interval,
+  live = false
+) =>
   queryOptions({
     queryKey: candlesQueryKeys.of(symbol, interval),
     queryFn: async (): Promise<CandleSet> => ({
@@ -34,5 +38,5 @@ export const candlesQuery = (symbol: SymbolRef, interval: Interval) =>
     }),
     placeholderData: (previous) =>
       previous && isEqual(previous.symbol, symbol) ? previous : undefined,
-    refetchInterval: isIntraday(interval) ? 60 * 1000 : false,
+    refetchInterval: isIntraday(interval) && !live ? 60 * 1000 : false,
   });

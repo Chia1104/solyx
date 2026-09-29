@@ -22,7 +22,7 @@ import type { Secret } from "#shared/ipc/settings.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { candlesQueryKeys } from "../market/candles-query.ts";
 
-import { settingsQueryKeys } from "./secrets-query.ts";
+import { settingsQueryKeys } from "./settings-query.ts";
 
 const STATE_COLOR: Record<SecretState, ChipProps["color"]> = {
   [SecretState.Saved]: "success",

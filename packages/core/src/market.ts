@@ -67,6 +67,44 @@ export function exchangeDate(market: Market, at: Date = new Date()): string {
   return exchangeDateFormatter(MARKET_TIME_ZONE[market]).format(at);
 }
 
+const exchangeClockFormatter = memoize(
+  (timeZone: string) =>
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+    })
+);
+
+/** UTC seconds at which an exchange-local calendar date (`YYYY-MM-DD`) begins. */
+export function exchangeMidnight(market: Market, date: string): number {
+  const utcMidnight = Date.parse(`${date}T00:00:00Z`);
+
+  const parts = exchangeClockFormatter(MARKET_TIME_ZONE[market]).formatToParts(
+    new Date(utcMidnight)
+  );
+
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((candidate) => candidate.type === type)?.value);
+
+  const local = Date.UTC(
+    part("year"),
+    part("month") - 1,
+    part("day"),
+    part("hour"),
+    part("minute"),
+    part("second")
+  );
+
+  // The zone's offset at UTC midnight; exchanges do not change clocks around their midnight.
+  return (utcMidnight - (local - utcMidnight)) / 1000;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Moves a `YYYY-MM-DD` calendar date by whole days. */
