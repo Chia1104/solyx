@@ -44,9 +44,14 @@ const api: SolyxApi = {
       ipcRenderer.invoke(settingsChannels.saveSecret, secret, value),
     deleteSecret: (secret) =>
       ipcRenderer.invoke(settingsChannels.deleteSecret, secret),
-    providerPlans: () => ipcRenderer.invoke(settingsChannels.providerPlans),
-    setProviderPlan: (provider, plan) =>
-      ipcRenderer.invoke(settingsChannels.setProviderPlan, provider, plan),
+    marketData: () => ipcRenderer.invoke(settingsChannels.marketData),
+    setMarketDataSource: (market, source) =>
+      ipcRenderer.invoke(settingsChannels.setMarketDataSource, market, source),
+    setFuglePlan: (plan) =>
+      ipcRenderer.invoke(settingsChannels.setFuglePlan, plan),
+    chooseFubonFile: (file) =>
+      ipcRenderer.invoke(settingsChannels.chooseFubonFile, file),
+    signInFubon: () => ipcRenderer.invoke(settingsChannels.signInFubon),
   },
 };
 

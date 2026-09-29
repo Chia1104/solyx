@@ -1,9 +1,12 @@
 import { Card } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
-import { ApiKeys } from "../modules/settings/api-keys.tsx";
+import { MarketDataSource } from "#shared/ipc/settings.ts";
+
+import { FubonSettings } from "../modules/settings/fubon-settings.tsx";
+import { FugleSettings } from "../modules/settings/fugle-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
-import { ProviderPlans } from "../modules/settings/provider-plans.tsx";
+import { MarketDataSourceSelect } from "../modules/settings/market-data-source.tsx";
 
 export function SettingsPage() {
   const { t } = useTranslation();
@@ -20,24 +23,35 @@ export function SettingsPage() {
       </Card>
       <Card>
         <Card.Header>
-          <Card.Title>{t("settings.api-keys.title")}</Card.Title>
+          <Card.Title>{t("settings.market-data.title")}</Card.Title>
           <Card.Description>
-            {t("settings.api-keys.description")}
+            {t("settings.market-data.description")}
           </Card.Description>
         </Card.Header>
         <Card.Content>
-          <ApiKeys />
+          <MarketDataSourceSelect />
         </Card.Content>
       </Card>
       <Card>
         <Card.Header>
-          <Card.Title>{t("settings.providers.title")}</Card.Title>
-          <Card.Description>
-            {t("settings.providers.description")}
-          </Card.Description>
+          <Card.Title>
+            {t(`settings.market-data.sources.${MarketDataSource.Fugle}`)}
+          </Card.Title>
+          <Card.Description>{t("settings.fugle.description")}</Card.Description>
         </Card.Header>
         <Card.Content>
-          <ProviderPlans />
+          <FugleSettings />
+        </Card.Content>
+      </Card>
+      <Card>
+        <Card.Header>
+          <Card.Title>
+            {t(`settings.market-data.sources.${MarketDataSource.Fubon}`)}
+          </Card.Title>
+          <Card.Description>{t("settings.fubon.description")}</Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <FubonSettings />
         </Card.Content>
       </Card>
     </div>

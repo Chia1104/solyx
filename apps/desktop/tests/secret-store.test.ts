@@ -61,6 +61,9 @@ describe("createSecretStore", () => {
     expect(await store.get(Secret.FugleApiKey)).toBe(KEY);
     expect(await store.states()).toEqual({
       [Secret.FugleApiKey]: SecretState.Saved,
+      [Secret.FubonPersonalId]: SecretState.Missing,
+      [Secret.FubonApiKey]: SecretState.Missing,
+      [Secret.FubonCertPassword]: SecretState.Missing,
     });
     expect(await readFile(file, "utf8")).not.toContain(KEY);
 
@@ -76,7 +79,7 @@ describe("createSecretStore", () => {
     await store.delete(Secret.FugleApiKey);
 
     expect(await store.get(Secret.FugleApiKey)).toBeUndefined();
-    expect(await store.states()).toEqual({
+    expect(await store.states()).toMatchObject({
       [Secret.FugleApiKey]: SecretState.Missing,
     });
   });
@@ -89,7 +92,7 @@ describe("createSecretStore", () => {
     os.keyId = "k2";
 
     expect(await store.get(Secret.FugleApiKey)).toBeUndefined();
-    expect(await store.states()).toEqual({
+    expect(await store.states()).toMatchObject({
       [Secret.FugleApiKey]: SecretState.Unreadable,
     });
   });
@@ -124,7 +127,7 @@ describe("createSecretStore", () => {
 
     await writeFile(file, "not json");
 
-    expect(await store.states()).toEqual({
+    expect(await store.states()).toMatchObject({
       [Secret.FugleApiKey]: SecretState.Missing,
     });
 

@@ -86,7 +86,7 @@
       "close": "C",
       "volume": "Vol"
     },
-    "key-required": "Save your {{name}} in Settings to load this chart.",
+    "setup-required": "Set up {{source}} in Settings to load this chart.",
     "open-settings": "Open settings"
   },
   "proposals": {
@@ -132,41 +132,76 @@
     "title": "Settings",
     "language": "Language",
     "language-description": "Applies to the whole app and is kept on this computer.",
-    "api-keys": {
-      "title": "API keys",
-      "description": "Encrypted by your operating system (the Keychain on macOS, DPAPI on Windows) and used only on this computer. A saved key is never shown again.",
-      "unavailable": "This computer has no secure storage, so keys can't be saved. On Linux, install and unlock GNOME Keyring or KWallet, then restart Solyx.",
-      "unreadable": "The saved key can't be decrypted on this computer anymore, for example after moving to another computer or user account. Enter it again.",
-      "placeholder": "Paste your key",
-      "replace-placeholder": "Paste a new key to replace the saved one",
+    "market-data": {
+      "title": "Market data",
+      "description": "Keys and sign-in details are encrypted by your operating system (the Keychain on macOS, DPAPI on Windows), used only on this computer and never shown again.",
+      "tw-source": "Taiwan stocks",
+      "source-description": "Where Taiwan charts and live bars come from. Set the source up in its section below.",
+      "sources": {
+        "fugle": "Fugle",
+        "fubon": "Fubon Neo"
+      },
+      "limits": "{{symbols, number}} live symbols · {{intraday, number}} intraday and {{historical, number}} history requests a minute",
+      "edit-file": "You can also edit {{file}}; saving it applies the change.",
+      "save-failed": "Couldn't save the setting"
+    },
+    "secrets": {
+      "unavailable": "This computer has no secure storage, so keys and sign-in details can't be saved. On Linux, install and unlock GNOME Keyring or KWallet, then restart Solyx.",
+      "unreadable": "The saved value can't be decrypted on this computer anymore, for example after moving to another computer or user account. Enter it again.",
+      "replace-placeholder": "Enter a new value to replace the saved one",
       "save": "Save",
       "remove": "Remove",
-      "save-failed": "Couldn't save the key",
-      "remove-failed": "Couldn't remove the key",
-      "required": "Enter a key",
-      "names": {
-        "fugle-api-key": "Fugle API key"
-      },
+      "save-failed": "Couldn't save it",
+      "remove-failed": "Couldn't remove it",
+      "required": "Enter a value",
       "states": {
         "saved": "Saved",
         "missing": "Not set",
         "unreadable": "Unreadable"
+      },
+      "fugle-api-key": {
+        "label": "API key",
+        "placeholder": "Paste your key"
+      },
+      "fubon-personal-id": {
+        "label": "ID number",
+        "placeholder": "The ID number your account is under, e.g. A123456789"
+      },
+      "fubon-api-key": {
+        "label": "API key",
+        "placeholder": "Paste a key from Fubon's API key page"
+      },
+      "fubon-cert-password": {
+        "label": "Certificate password",
+        "placeholder": "Leave unset if it's your ID number"
       }
     },
-    "providers": {
-      "title": "Market data providers",
-      "description": "Choose the plan your key belongs to. Solyx paces its requests and live symbols to that plan's limits.",
-      "fugle": {
-        "plan": "Fugle plan",
-        "plans": {
-          "basic": "Basic (free)",
-          "developer": "Developer",
-          "advanced": "Advanced"
+    "fugle": {
+      "description": "Market data with your own Fugle API key. Choose the plan the key belongs to; Solyx paces its requests and live symbols to that plan.",
+      "plan": "Plan",
+      "plans": {
+        "basic": "Basic (free)",
+        "developer": "Developer",
+        "advanced": "Advanced"
+      }
+    },
+    "fubon": {
+      "description": "Market data through your Fubon Securities account, signed in with an API key and the certificate exported from Fubon's website. A key limited to market data can't place orders.",
+      "files": {
+        "sdk": {
+          "label": "SDK folder",
+          "hint": "The folder extracted from the Node.js SDK (fubon-neo-<version>.tgz) downloaded from Fubon."
+        },
+        "certificate": {
+          "label": "Certificate",
+          "hint": "The .pfx file exported from Fubon's website."
         }
       },
-      "limits": "{{symbols, number}} live symbols · {{intraday, number}} intraday and {{historical, number}} history requests a minute",
-      "edit-file": "You can also edit {{file}}; saving it applies the change.",
-      "save-failed": "Couldn't save the plan"
+      "not-chosen": "Not chosen",
+      "choose": "Choose…",
+      "sign-in": "Sign in",
+      "signed-in": "Signed in · {{count, number}} accounts",
+      "sign-in-failed": "Couldn't sign in to Fubon"
     }
   },
   "locale": {

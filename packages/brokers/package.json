@@ -11,7 +11,8 @@
     "test": "vp test"
   },
   "dependencies": {
-    "@solyx/core": "workspace:*"
+    "@solyx/core": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

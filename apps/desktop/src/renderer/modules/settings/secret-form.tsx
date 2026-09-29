@@ -31,7 +31,7 @@ const STATE_COLOR: Record<SecretState, ChipProps["color"]> = {
 };
 
 /** Rebuilt per language so the field error comes out localized. */
-function useApiKeySchema() {
+function useSecretSchema() {
   const { t } = useTranslation();
 
   return useMemo(
@@ -40,14 +40,14 @@ function useApiKeySchema() {
         value: z
           .string()
           .trim()
-          .min(1, { error: t("settings.api-keys.required") }),
+          .min(1, { error: t("settings.secrets.required") }),
       }),
     [t]
   );
 }
 
-/** Saves or removes one key; the saved value is never read back, so the field always starts empty. */
-export function ApiKeyForm({
+/** Saves or removes one secret; the saved value is never read back, so the field always starts empty. */
+export function SecretForm({
   secret,
   state,
 }: {
@@ -56,7 +56,7 @@ export function ApiKeyForm({
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const schema = useApiKeySchema();
+  const schema = useSecretSchema();
 
   const form = useForm({
     resolver: zodResolver(schema),
@@ -64,7 +64,7 @@ export function ApiKeyForm({
     defaultValues: { value: "" },
   });
 
-  // Market data reads keys per request, so charts refetch with the new key.
+  // Market data reads secrets per request, so charts refetch with the new value.
   const refresh = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all }),
@@ -99,9 +99,9 @@ export function ApiKeyForm({
             isInvalid={fieldState.invalid}
             className="max-w-md">
             <div className="flex items-center gap-2">
-              <Label>{t(`settings.api-keys.names.${secret}`)}</Label>
+              <Label>{t(`settings.secrets.${secret}.label`)}</Label>
               <Chip size="sm" color={STATE_COLOR[state]}>
-                {t(`settings.api-keys.states.${state}`)}
+                {t(`settings.secrets.states.${state}`)}
               </Chip>
             </div>
             <Input
@@ -109,11 +109,11 @@ export function ApiKeyForm({
               type="password"
               autoComplete="off"
               spellCheck={false}
-              placeholder={t(
+              placeholder={
                 state === SecretState.Missing
-                  ? "settings.api-keys.placeholder"
-                  : "settings.api-keys.replace-placeholder"
-              )}
+                  ? t(`settings.secrets.${secret}.placeholder`)
+                  : t("settings.secrets.replace-placeholder")
+              }
             />
             <FieldError>{fieldState.error?.message}</FieldError>
           </TextField>
@@ -121,7 +121,7 @@ export function ApiKeyForm({
       />
       {state === SecretState.Unreadable ? (
         <p className="text-sm text-warning">
-          {t("settings.api-keys.unreadable")}
+          {t("settings.secrets.unreadable")}
         </p>
       ) : null}
       <div className="flex gap-2">
@@ -130,7 +130,7 @@ export function ApiKeyForm({
           size="sm"
           isPending={save.isPending}
           isDisabled={remove.isPending}>
-          {t("settings.api-keys.save")}
+          {t("settings.secrets.save")}
         </Button>
         {state === SecretState.Missing ? null : (
           <Button
@@ -139,19 +139,19 @@ export function ApiKeyForm({
             isPending={remove.isPending}
             isDisabled={save.isPending}
             onPress={() => remove.mutate()}>
-            {t("settings.api-keys.remove")}
+            {t("settings.secrets.remove")}
           </Button>
         )}
       </div>
       {save.error ? (
         <ErrorAlert
-          title={t("settings.api-keys.save-failed")}
+          title={t("settings.secrets.save-failed")}
           description={save.error.message}
         />
       ) : null}
       {remove.error ? (
         <ErrorAlert
-          title={t("settings.api-keys.remove-failed")}
+          title={t("settings.secrets.remove-failed")}
           description={remove.error.message}
         />
       ) : null}

@@ -4,8 +4,8 @@ import type { Candle } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import type { MinuteListener } from "@solyx/core/market-data";
 
+import type { StreamSocket } from "../src/fugle-api.ts";
 import { createFugleStream } from "../src/fugle.ts";
-import type { StreamSocket } from "../src/fugle.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 

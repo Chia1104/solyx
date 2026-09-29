@@ -2,24 +2,27 @@ import { Description, Label, ListBox, Select } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import type { FuglePlan } from "@solyx/market-data/fugle";
+
+import { Secret } from "#shared/ipc/settings.ts";
+
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
-import { providerPlansQuery, settingsQueryKeys } from "./settings-query.ts";
+import { PlanLimits } from "./plan-limits.tsx";
+import { SecretFields } from "./secret-fields.tsx";
+import { marketDataQuery, settingsQueryKeys } from "./settings-query.ts";
 
-/** The plan held with each market data provider, which sets how hard Solyx may use it. */
-export function ProviderPlans() {
+/** The Fugle key and the plan it belongs to, which sets how hard Solyx may use it. */
+export function FugleSettings() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data, error, refetch } = useQuery(providerPlansQuery());
+  const { data, error, refetch } = useQuery(marketDataQuery());
 
   const save = useMutation({
-    mutationFn: (plan: string) =>
-      window.solyx.settings.setProviderPlan("fugle", plan),
+    mutationFn: (plan: FuglePlan) => window.solyx.settings.setFuglePlan(plan),
     onSettled: () =>
-      queryClient.invalidateQueries({
-        queryKey: settingsQueryKeys.providerPlans,
-      }),
+      queryClient.invalidateQueries({ queryKey: settingsQueryKeys.marketData }),
   });
 
   if (error) {
@@ -34,11 +37,12 @@ export function ProviderPlans() {
 
   if (!data) return <LoadingState />;
 
-  const { plan, plans } = data.providers.fugle;
+  const { plan, plans } = data.fugle;
   const selected = plans.find((option) => option.id === plan);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-6">
+      <SecretFields secrets={[Secret.FugleApiKey]} />
       <Select
         className="max-w-xs"
         value={plan}
@@ -48,18 +52,14 @@ export function ProviderPlans() {
 
           if (next && next.id !== plan) save.mutate(next.id);
         }}>
-        <Label>{t("settings.providers.fugle.plan")}</Label>
+        <Label>{t("settings.fugle.plan")}</Label>
         <Select.Trigger>
           <Select.Value />
           <Select.Indicator />
         </Select.Trigger>
         {selected ? (
           <Description>
-            {t("settings.providers.limits", {
-              symbols: selected.streamSymbols,
-              intraday: selected.requestsPerMinute.intraday,
-              historical: selected.requestsPerMinute.historical,
-            })}
+            <PlanLimits plan={selected} />
           </Description>
         ) : null}
         <Select.Popover>
@@ -68,20 +68,17 @@ export function ProviderPlans() {
               <ListBox.Item
                 key={option.id}
                 id={option.id}
-                textValue={t(`settings.providers.fugle.plans.${option.id}`)}>
-                {t(`settings.providers.fugle.plans.${option.id}`)}
+                textValue={t(`settings.fugle.plans.${option.id}`)}>
+                {t(`settings.fugle.plans.${option.id}`)}
                 <ListBox.ItemIndicator />
               </ListBox.Item>
             ))}
           </ListBox>
         </Select.Popover>
       </Select>
-      <p className="text-sm text-muted">
-        {t("settings.providers.edit-file", { file: data.file })}
-      </p>
       {save.error ? (
         <ErrorAlert
-          title={t("settings.providers.save-failed")}
+          title={t("settings.market-data.save-failed")}
           description={save.error.message}
         />
       ) : null}

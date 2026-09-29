@@ -7,18 +7,17 @@ import { useTranslation } from "react-i18next";
 import type { Interval } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
 
-import { MARKET_DATA_SECRET, SecretState } from "#shared/ipc/settings.ts";
-import type { Secret } from "#shared/ipc/settings.ts";
+import type { MarketDataSource } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { ErrorFallback } from "../../components/error-fallback.tsx";
-import { secretsQuery } from "../settings/settings-query.ts";
+import { marketDataQuery } from "../settings/settings-query.ts";
 
 import { candlesQuery } from "./candles-query.ts";
 import { useLiveCandles } from "./live-candles.ts";
 import { PRICE_CHART_CLASS, PriceChart } from "./price-chart.tsx";
 
-function KeyRequired({ secret }: { secret: Secret }) {
+function SetupRequired({ source }: { source: MarketDataSource }) {
   const { t } = useTranslation();
 
   return (
@@ -26,8 +25,8 @@ function KeyRequired({ secret }: { secret: Secret }) {
       <Alert.Indicator />
       <Alert.Content>
         <Alert.Title>
-          {t("chart.key-required", {
-            name: t(`settings.api-keys.names.${secret}`),
+          {t("chart.setup-required", {
+            source: t(`settings.market-data.sources.${source}`),
           })}
         </Alert.Title>
       </Alert.Content>
@@ -49,36 +48,41 @@ export function SymbolChart({
   interval: Interval;
 }) {
   const { t } = useTranslation();
-  const secret = MARKET_DATA_SECRET[symbol.market];
-  const secrets = useQuery({ ...secretsQuery(), enabled: secret !== null });
+  const settings = useQuery(marketDataQuery());
+  const source = settings.data?.markets[symbol.market];
 
-  // Without its provider's key a market has no data, so the chart asks for the key instead.
-  const hasKey =
-    secret === null || secrets.data?.states[secret] === SecretState.Saved;
+  // A source missing its settings has no data, so the chart asks for them instead. A market
+  // without a source still loads, so the main process can say why it has none.
+  const ready = source === null || source?.ready === true;
 
-  const live = useLiveCandles(symbol, interval, hasKey);
+  const live = useLiveCandles(symbol, interval, ready);
 
   const candles = useQuery({
     ...candlesQuery(symbol, interval, live),
-    enabled: hasKey,
+    enabled: ready,
   });
 
-  const error = secrets.error ?? candles.error;
-
-  if (error) {
+  if (settings.error) {
     return (
       <ErrorAlert
         title={t("common.load-failed")}
-        description={error.message}
-        onRetry={() =>
-          void (secrets.error ? secrets.refetch() : candles.refetch())
-        }
+        description={settings.error.message}
+        onRetry={() => void settings.refetch()}
       />
     );
   }
 
-  if (secret !== null && secrets.data && !hasKey) {
-    return <KeyRequired secret={secret} />;
+  // Checked before the bars' error, which may predate the change that left the source unready.
+  if (source && !source.ready) return <SetupRequired source={source.source} />;
+
+  if (candles.error) {
+    return (
+      <ErrorAlert
+        title={t("common.load-failed")}
+        description={candles.error.message}
+        onRetry={() => void candles.refetch()}
+      />
+    );
   }
 
   const { data, isPlaceholderData } = candles;

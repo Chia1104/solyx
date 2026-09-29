@@ -41,11 +41,11 @@ export function registerMarketIpc({ marketData, liveCandles }: Services) {
   }));
 
   handle("candles", async (symbol, interval) => {
-    const provider = await marketData(symbol.market);
+    const provider = await marketData.provider(symbol.market);
 
     if (!provider) {
       throw new Error(
-        `No market data for ${symbol.market}: no provider covers it or its key is not saved`
+        `No market data for ${symbol.market}: no source covers it or its settings are incomplete`
       );
     }
 

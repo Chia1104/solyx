@@ -17,14 +17,23 @@ beforeEach(async () => {
 
 afterEach(() => rm(directory, { recursive: true, force: true }));
 
-test("a new file starts from a commented template on the free plan", async () => {
+const fuglePlan = (config: ReturnType<typeof createConfigFile>) =>
+  config.read().providers?.fugle?.plan;
+
+test("a new file starts from a commented template on Fugle's free plan", async () => {
   const config = createConfigFile(file);
 
-  expect(config.providerPlan("fugle")).toBeUndefined();
+  expect(fuglePlan(config)).toBeUndefined();
 
   config.create();
 
-  expect(config.providerPlan("fugle")).toBe("basic");
+  expect(config.read().marketData?.TW).toBe("fugle");
+  expect(fuglePlan(config)).toBe("basic");
+  // The template's empty paths read as not chosen.
+  expect(config.read().providers?.fubon).toEqual({
+    sdk: undefined,
+    certificate: undefined,
+  });
   expect(await readFile(file, "utf8")).toMatch(/^\/\/ /);
 
   if (process.platform !== "win32") {
@@ -49,13 +58,15 @@ test("saving a plan edits it in place, keeping comments and other keys", async (
     ].join("\n")
   );
 
-  expect(config.providerPlan("fugle")).toBe("developer");
+  expect(fuglePlan(config)).toBe("developer");
 
-  config.setProviderPlan("fugle", "advanced");
+  config.set(["providers", "fugle", "plan"], "advanced");
+  config.set(["providers", "fubon", "sdk"], "/sdk/package");
 
   const text = await readFile(file, "utf8");
 
-  expect(config.providerPlan("fugle")).toBe("advanced");
+  expect(fuglePlan(config)).toBe("advanced");
+  expect(config.read().providers?.fubon?.sdk).toBe("/sdk/package");
   expect(text).toContain("// my notes");
   expect(text).toContain('"theme": "dark", // kept');
   expect(text).toContain('"region": "tw"');
@@ -68,8 +79,8 @@ test("a file with syntax errors reads as defaults and is never overwritten", asy
   config.create();
   await writeFile(file, broken);
 
-  expect(config.providerPlan("fugle")).toBeUndefined();
-  expect(() => config.setProviderPlan("fugle", "basic")).toThrow(
+  expect(fuglePlan(config)).toBeUndefined();
+  expect(() => config.set(["providers", "fugle", "plan"], "basic")).toThrow(
     /syntax errors/
   );
   expect(await readFile(file, "utf8")).toBe(broken);
@@ -90,5 +101,29 @@ test("changes made outside the app are reported", async () => {
   await writeFile(file, '{ "providers": { "fugle": { "plan": "advanced" } } }');
   await changed;
 
-  expect(config.providerPlan("fugle")).toBe("advanced");
+  expect(fuglePlan(config)).toBe("advanced");
+});
+
+test("an entry of the wrong shape reads as missing and leaves the rest in force", async () => {
+  const config = createConfigFile(file);
+
+  config.create();
+  await writeFile(
+    file,
+    JSON.stringify({
+      marketData: { TW: 5 },
+      providers: {
+        fugle: "developer",
+        fubon: { sdk: "/sdk", certificate: [] },
+      },
+    })
+  );
+
+  expect(config.read()).toMatchObject({
+    marketData: { TW: undefined },
+    providers: {
+      fugle: undefined,
+      fubon: { sdk: "/sdk", certificate: undefined },
+    },
+  });
 });

@@ -86,7 +86,7 @@
       "close": "收",
       "volume": "量"
     },
-    "key-required": "請先到設定儲存{{name}}，才能載入這張圖。",
+    "setup-required": "請先到設定完成{{source}}的設定，才能載入這張圖。",
     "open-settings": "前往設定"
   },
   "proposals": {
@@ -132,41 +132,76 @@
     "title": "設定",
     "language": "語言",
     "language-description": "套用到整個 app，並保存在這台電腦上。",
-    "api-keys": {
-      "title": "API 金鑰",
-      "description": "由作業系統加密保存（macOS 用鑰匙圈、Windows 用 DPAPI），只在這台電腦上使用。儲存後不會再顯示金鑰內容。",
-      "unavailable": "這台電腦沒有可用的安全儲存，無法儲存金鑰。Linux 請安裝並解鎖 GNOME Keyring 或 KWallet，再重新啟動 Solyx。",
-      "unreadable": "已儲存的金鑰無法在這台電腦上解密，例如換了電腦或使用者帳號。請重新輸入。",
-      "placeholder": "貼上金鑰",
-      "replace-placeholder": "貼上新的金鑰以取代已儲存的金鑰",
+    "market-data": {
+      "title": "行情",
+      "description": "金鑰與登入資料由作業系統加密保存（macOS 用鑰匙圈、Windows 用 DPAPI），只在這台電腦上使用，儲存後不會再顯示。",
+      "tw-source": "台股",
+      "source-description": "台股圖表與即時 K 線的來源，請在下方對應的區塊完成設定。",
+      "sources": {
+        "fugle": "富果",
+        "fubon": "富邦新一代 API"
+      },
+      "limits": "即時 {{symbols, number}} 檔・每分鐘盤中 {{intraday, number}} 次、歷史 {{historical, number}} 次",
+      "edit-file": "也可以直接編輯 {{file}}，存檔後立即生效。",
+      "save-failed": "無法儲存設定"
+    },
+    "secrets": {
+      "unavailable": "這台電腦沒有可用的安全儲存，無法儲存金鑰與登入資料。Linux 請安裝並解鎖 GNOME Keyring 或 KWallet，再重新啟動 Solyx。",
+      "unreadable": "已儲存的內容無法在這台電腦上解密，例如換了電腦或使用者帳號。請重新輸入。",
+      "replace-placeholder": "輸入新的內容以取代已儲存的值",
       "save": "儲存",
       "remove": "移除",
-      "save-failed": "無法儲存金鑰",
-      "remove-failed": "無法移除金鑰",
-      "required": "請輸入金鑰",
-      "names": {
-        "fugle-api-key": "富果 API 金鑰"
-      },
+      "save-failed": "無法儲存",
+      "remove-failed": "無法移除",
+      "required": "請輸入內容",
       "states": {
         "saved": "已儲存",
         "missing": "未設定",
         "unreadable": "無法讀取"
+      },
+      "fugle-api-key": {
+        "label": "API 金鑰",
+        "placeholder": "貼上金鑰"
+      },
+      "fubon-personal-id": {
+        "label": "身分證字號",
+        "placeholder": "開戶使用的身分證字號，例如 A123456789"
+      },
+      "fubon-api-key": {
+        "label": "API 金鑰",
+        "placeholder": "貼上在富邦 API 金鑰頁面申請的金鑰"
+      },
+      "fubon-cert-password": {
+        "label": "憑證密碼",
+        "placeholder": "與身分證字號相同時免填"
       }
     },
-    "providers": {
-      "title": "行情供應商",
-      "description": "選擇金鑰所屬的方案，Solyx 會依該方案的限制調整請求速度與即時股票數量。",
-      "fugle": {
-        "plan": "富果方案",
-        "plans": {
-          "basic": "基本用戶（免費）",
-          "developer": "開發者",
-          "advanced": "進階用戶"
+    "fugle": {
+      "description": "使用你自己的富果 API 金鑰取得行情。請選擇金鑰所屬的方案，Solyx 會依該方案調整請求速度與即時股票數量。",
+      "plan": "方案",
+      "plans": {
+        "basic": "基本用戶（免費）",
+        "developer": "開發者",
+        "advanced": "進階用戶"
+      }
+    },
+    "fubon": {
+      "description": "透過你的富邦證券帳戶取得行情，以 API 金鑰與富邦網站匯出的憑證登入。只開行情權限的金鑰無法下單。",
+      "files": {
+        "sdk": {
+          "label": "SDK 資料夾",
+          "hint": "從富邦下載的 Node.js SDK（fubon-neo-<版本>.tgz）解壓縮後的資料夾。"
+        },
+        "certificate": {
+          "label": "憑證",
+          "hint": "從富邦網站匯出的 .pfx 檔。"
         }
       },
-      "limits": "即時 {{symbols, number}} 檔・每分鐘盤中 {{intraday, number}} 次、歷史 {{historical, number}} 次",
-      "edit-file": "也可以直接編輯 {{file}}，存檔後立即生效。",
-      "save-failed": "無法儲存方案"
+      "not-chosen": "尚未選擇",
+      "choose": "選擇…",
+      "sign-in": "登入",
+      "signed-in": "已登入・{{count, number}} 個帳戶",
+      "sign-in-failed": "無法登入富邦"
     }
   },
   "locale": {

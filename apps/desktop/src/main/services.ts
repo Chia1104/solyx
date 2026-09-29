@@ -4,28 +4,13 @@ import { app } from "electron";
 import { kebabCase } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
-import { Market } from "@solyx/core/market";
-import type { MarketDataProvider } from "@solyx/core/market-data";
 import { OrderDesk } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
 import { Session, getSession } from "@solyx/core/session";
 import { openCache } from "@solyx/db/cache";
-import { withCandleCache } from "@solyx/market-data/candle-cache";
-import {
-  FUGLE_PLANS,
-  FuglePlan,
-  createFugleMarketData,
-  createFugleStream,
-  fuglePlanSchema,
-} from "@solyx/market-data/fugle";
-
-import { MARKET_DATA_SECRET } from "#shared/ipc/settings.ts";
-import type {
-  ProviderPlans,
-  ProviderPlansStatus,
-} from "#shared/ipc/settings.ts";
 
 import { createLiveCandles } from "./modules/market/live-candles.ts";
+import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
@@ -71,91 +56,46 @@ export function createServices() {
 
   config.create();
 
-  // A plan the provider no longer sells, or a hand edit it does not know, means its free plan.
-  const fuglePlan = () =>
-    fuglePlanSchema.catch(FuglePlan.Basic).parse(config.providerPlan("fugle"));
-
-  let fugle:
-    | { apiKey: string; plan: FuglePlan; provider: MarketDataProvider }
-    | undefined;
-
-  // One provider per key and plan, so its request budgets hold across requests; the key is
-  // read per request, so a key saved in settings applies without a restart.
-  async function marketData(
-    market: Market
-  ): Promise<MarketDataProvider | undefined> {
-    if (market !== Market.TW) return undefined;
-
-    const apiKey = await secrets.get(MARKET_DATA_SECRET[Market.TW]);
-
-    if (apiKey === undefined) return undefined;
-
-    const plan = fuglePlan();
-
-    if (fugle?.apiKey !== apiKey || fugle.plan !== plan) {
-      fugle = {
-        apiKey,
-        plan,
-        provider: withCandleCache(
-          createFugleMarketData({ apiKey, plan }),
-          cache.candles
-        ),
-      };
-    }
-
-    return fugle.provider;
-  }
+  const marketData = createMarketDataSources({
+    config,
+    secrets,
+    candles: cache.candles,
+    fubonLogDir: join(app.getPath("userData"), "fubon"),
+  });
 
   const liveCandles = createLiveCandles({
-    async openStream() {
-      const apiKey = await secrets.get(MARKET_DATA_SECRET[Market.TW]);
-
-      return apiKey === undefined
-        ? undefined
-        : createFugleStream({ apiKey, plan: fuglePlan() });
-    },
+    openStream: () => marketData.openStream(),
     async dailyCandles(request) {
-      const provider = await marketData(request.symbol.market);
+      const provider = await marketData.provider(request.symbol.market);
 
       return provider ? provider.getCandles(request) : [];
     },
   });
 
-  let appliedPlan = fuglePlan();
+  let appliedStreamSettings = marketData.streamSettings();
 
-  // A plan changes from the settings page or a hand edit; the stream's capacity follows either.
-  async function applyPlan() {
-    const plan = fuglePlan();
+  // Sources and plans change from the settings page or a hand edit; the live stream follows either.
+  async function applySettings() {
+    const next = marketData.streamSettings();
 
-    if (plan === appliedPlan) return;
+    if (next === appliedStreamSettings) return;
 
-    appliedPlan = plan;
+    appliedStreamSettings = next;
     await liveCandles.restart();
   }
 
-  config.watch(() => void applyPlan());
-
-  const providerPlans = {
-    current: (): ProviderPlansStatus => ({
-      file: config.file.replace(home, "~"),
-      providers: {
-        fugle: { plan: fuglePlan(), plans: Object.values(FUGLE_PLANS) },
-      },
-    }),
-
-    async set(provider: keyof ProviderPlans, plan: string) {
-      config.setProviderPlan(provider, fuglePlanSchema.parse(plan));
-      await applyPlan();
-    },
-  };
+  config.watch(() => void applySettings());
 
   return {
     broker,
     desk,
     secrets,
+    config,
+    /** The config file as shown to the user. */
+    configFile: config.file.replace(home, "~"),
+    applySettings,
     marketData,
     liveCandles,
-    providerPlans,
   };
 }
 

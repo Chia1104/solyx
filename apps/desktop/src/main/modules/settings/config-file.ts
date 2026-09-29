@@ -12,27 +12,57 @@ import { applyEdits, modify, parse } from "jsonc-parser";
 import type { ParseError } from "jsonc-parser";
 import * as z from "zod";
 
+import type { Market } from "@solyx/core/market";
 import { FuglePlan } from "@solyx/market-data/fugle";
+
+import { MarketDataSource } from "#shared/ipc/settings.ts";
+import type { FubonFile } from "#shared/ipc/settings.ts";
 
 const PARSE_OPTIONS = { allowTrailingComma: true };
 
+// An entry of the wrong shape reads as missing, so one bad edit leaves the rest of the file in force.
+const textSchema = z.string().trim().min(1).optional().catch(undefined);
+
 // Loose objects keep keys this build does not know, so saving never drops someone's edits.
 const configSchema = z.looseObject({
+  marketData: z.looseObject({ TW: textSchema }).optional().catch(undefined),
   providers: z
-    .record(z.string(), z.looseObject({ plan: z.string().optional() }))
-    .default({}),
+    .looseObject({
+      fugle: z.looseObject({ plan: textSchema }).optional().catch(undefined),
+      fubon: z
+        .looseObject({ sdk: textSchema, certificate: textSchema })
+        .optional()
+        .catch(undefined),
+    })
+    .optional()
+    .catch(undefined),
 });
 
 type Config = z.infer<typeof configSchema>;
 
+/** The values the app edits; the file may hold others a person added. */
+export type ConfigPath =
+  | ["marketData", typeof Market.TW]
+  | ["providers", "fugle", "plan"]
+  | ["providers", "fubon", FubonFile];
+
+const quoted = (values: Record<string, string>) =>
+  Object.values(values)
+    .map((value) => `"${value}"`)
+    .join(", ");
+
 const TEMPLATE = [
   "// Settings Solyx reads. Edit them here or on the settings page; saving this file applies them.",
   "{",
+  '  "marketData": {',
+  `    // Where Taiwan charts come from: ${quoted(MarketDataSource)}.`,
+  `    "TW": "${MarketDataSource.Fugle}"`,
+  "  },",
   '  "providers": {',
-  `    // Your key's plan: ${Object.values(FuglePlan)
-    .map((plan) => `"${plan}"`)
-    .join(", ")}.`,
-  `    "fugle": { "plan": "${FuglePlan.Basic}" }`,
+  `    // Your key's plan: ${quoted(FuglePlan)}.`,
+  `    "fugle": { "plan": "${FuglePlan.Basic}" },`,
+  "    // The folder extracted from Fubon's SDK download, and the certificate exported from its website.",
+  '    "fubon": { "sdk": "", "certificate": "" }',
   "  }",
   "}",
   "",
@@ -64,17 +94,6 @@ function hasSyntaxErrors(text: string): boolean {
  * and is never overwritten, and the app edits values in place so comments survive.
  */
 export function createConfigFile(file: string) {
-  function read(): Config {
-    const text = readText(file);
-    const errors: ParseError[] = [];
-    const value = text === undefined ? {} : parse(text, errors, PARSE_OPTIONS);
-
-    return (
-      (errors.length === 0 ? configSchema.safeParse(value).data : undefined) ??
-      configSchema.parse({})
-    );
-  }
-
   function write(text: string) {
     const temporary = `${file}.tmp`;
 
@@ -92,11 +111,22 @@ export function createConfigFile(file: string) {
       if (readText(file) === undefined) write(TEMPLATE);
     },
 
-    /** The plan saved for a provider; the provider decides whether it still sells it. */
-    providerPlan: (provider: string): string | undefined =>
-      read().providers[provider]?.plan,
+    /** The saved settings; whoever reads a value decides whether it is still valid. */
+    read(): Config {
+      const text = readText(file);
+      const errors: ParseError[] = [];
 
-    setProviderPlan(provider: string, plan: string) {
+      const value =
+        text === undefined ? {} : parse(text, errors, PARSE_OPTIONS);
+
+      return (
+        (errors.length === 0
+          ? configSchema.safeParse(value).data
+          : undefined) ?? {}
+      );
+    },
+
+    set(path: ConfigPath, value: string) {
       const text = readText(file) ?? TEMPLATE;
 
       if (hasSyntaxErrors(text)) {
@@ -106,7 +136,7 @@ export function createConfigFile(file: string) {
       write(
         applyEdits(
           text,
-          modify(text, ["providers", provider, "plan"], plan, {
+          modify(text, path, value, {
             formattingOptions: { insertSpaces: true, tabSize: 2 },
           })
         )

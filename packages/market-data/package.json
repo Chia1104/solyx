@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./candle-cache": "./src/candle-cache.ts",
+    "./fubon": "./src/fubon.ts",
     "./fugle": "./src/fugle.ts"
   },
   "scripts": {
