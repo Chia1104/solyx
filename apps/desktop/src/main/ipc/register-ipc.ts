@@ -5,6 +5,6 @@ import type { Services } from "../services.ts";
 
 export function registerIpc(services: Services) {
   registerAccountIpc(services);
-  registerMarketIpc();
+  registerMarketIpc(services);
   registerProposalsIpc(services);
 }

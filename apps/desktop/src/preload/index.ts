@@ -11,6 +11,8 @@ const api: SolyxApi = {
   },
   market: {
     sessions: () => ipcRenderer.invoke(marketChannels.sessions),
+    candles: (symbol, interval) =>
+      ipcRenderer.invoke(marketChannels.candles, symbol, interval),
   },
   proposals: {
     list: () => ipcRenderer.invoke(proposalsChannels.list),

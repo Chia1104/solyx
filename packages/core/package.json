@@ -5,7 +5,10 @@
   "type": "module",
   "exports": {
     "./broker": "./src/broker.ts",
+    "./candles": "./src/candles.ts",
+    "./indicators": "./src/indicators.ts",
     "./market": "./src/market.ts",
+    "./market-data": "./src/market-data.ts",
     "./order": "./src/order.ts",
     "./order-desk": "./src/order-desk.ts",
     "./risk": "./src/risk.ts",

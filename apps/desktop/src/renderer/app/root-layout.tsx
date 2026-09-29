@@ -4,6 +4,7 @@ import { I18nProvider } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
 import { BrokerModeChip } from "../modules/account/broker-mode-chip.tsx";
+import { SymbolSearch } from "../modules/market/symbol-search.tsx";
 
 const navLinkClass = buttonVariants({ variant: "ghost", size: "sm" });
 
@@ -15,11 +16,14 @@ export function RootLayout() {
   return (
     // react-aria formats numbers and announces built-in strings in this locale.
     <I18nProvider locale={i18n.language}>
-      <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6">
         <header className="flex items-center gap-3">
           <h1 className="text-xl font-semibold">Solyx</h1>
           <BrokerModeChip />
-          <nav className="ml-auto flex gap-1">
+          <div className="ml-auto">
+            <SymbolSearch />
+          </div>
+          <nav className="flex gap-1">
             <Link
               to="/"
               className={navLinkClass}

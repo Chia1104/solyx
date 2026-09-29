@@ -1,6 +1,6 @@
 import { memoize } from "es-toolkit";
 
-import { Market } from "./market.ts";
+import { MARKET_TIME_ZONE, Market } from "./market.ts";
 
 export const Session = {
   Pre: "pre",
@@ -32,27 +32,18 @@ function sessionWindow(
 }
 
 // Exchange holidays, typhoon closures and US early closes are not modelled yet.
-const SCHEDULES: Record<
-  Market,
-  { timeZone: string; windows: SessionWindow[] }
-> = {
+const SESSION_WINDOWS: Record<Market, SessionWindow[]> = {
   // Pre-open matching → regular session → after-hours fixed-price trading
-  [Market.TW]: {
-    timeZone: "Asia/Taipei",
-    windows: [
-      sessionWindow(Session.Pre, "08:30", "09:00"),
-      sessionWindow(Session.Regular, "09:00", "13:30"),
-      sessionWindow(Session.Post, "14:00", "14:30"),
-    ],
-  },
-  [Market.US]: {
-    timeZone: "America/New_York",
-    windows: [
-      sessionWindow(Session.Pre, "04:00", "09:30"),
-      sessionWindow(Session.Regular, "09:30", "16:00"),
-      sessionWindow(Session.Post, "16:00", "20:00"),
-    ],
-  },
+  [Market.TW]: [
+    sessionWindow(Session.Pre, "08:30", "09:00"),
+    sessionWindow(Session.Regular, "09:00", "13:30"),
+    sessionWindow(Session.Post, "14:00", "14:30"),
+  ],
+  [Market.US]: [
+    sessionWindow(Session.Pre, "04:00", "09:30"),
+    sessionWindow(Session.Regular, "09:30", "16:00"),
+    sessionWindow(Session.Post, "16:00", "20:00"),
+  ],
 };
 
 const clockFormatter = memoize(
@@ -80,8 +71,8 @@ function localClock(timeZone: string, at: Date) {
 }
 
 export function getSession(market: Market, at: Date = new Date()): Session {
-  const { timeZone, windows } = SCHEDULES[market];
-  const { weekday, minutes } = localClock(timeZone, at);
+  const windows = SESSION_WINDOWS[market];
+  const { weekday, minutes } = localClock(MARKET_TIME_ZONE[market], at);
 
   if (weekday === "Sat" || weekday === "Sun") return Session.Closed;
 

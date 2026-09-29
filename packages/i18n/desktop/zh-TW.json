@@ -9,7 +9,10 @@
     "live": "真實交易"
   },
   "common": {
-    "loading": "載入中…"
+    "loading": "載入中…",
+    "load-failed": "無法載入資料",
+    "error-title": "發生錯誤",
+    "retry": "重試"
   },
   "market": {
     "TW": "台股",
@@ -53,6 +56,37 @@
     "avg-price": "均價",
     "no-positions": "尚無庫存"
   },
+  "chart": {
+    "search-label": "代號",
+    "search-placeholder": "代號，例如 2330",
+    "no-data": "這段期間沒有 K 線資料。",
+    "intervals-label": "週期",
+    "intervals": {
+      "1m": "1分",
+      "5m": "5分",
+      "15m": "15分",
+      "30m": "30分",
+      "1h": "60分",
+      "1d": "日",
+      "1w": "週",
+      "1mo": "月"
+    },
+    "indicators-label": "技術指標",
+    "indicators": {
+      "ma": "均線",
+      "boll": "布林",
+      "macd": "MACD",
+      "rsi": "RSI",
+      "kd": "KD"
+    },
+    "legend": {
+      "open": "開",
+      "high": "高",
+      "low": "低",
+      "close": "收",
+      "volume": "量"
+    }
+  },
   "proposals": {
     "form-title": "建立下單提案",
     "form-description": "提案會先在這裡經過風控檢查，確認送出時會再檢查一次。",
@@ -60,7 +94,10 @@
     "summary": "{{side}} {{quantity, number}} 股 @ {{price}}",
     "market-price": "市價",
     "confirm": "確認送出",
-    "dismiss": "取消"
+    "dismiss": "取消",
+    "propose-failed": "無法建立提案",
+    "violations-title": "未通過風控檢查",
+    "submit-failed": "送單失敗；再次下單前請先到券商確認"
   },
   "order-form": {
     "market": "市場",

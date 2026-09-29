@@ -20,6 +20,8 @@ import { OrderType, Side } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 import { isEnumValue } from "@solyx/utils/is";
 
+import { ErrorAlert } from "../../components/error-alert.tsx";
+
 import { useOrderFormSchema } from "./order-form-schema.ts";
 import type { OrderFormValues } from "./order-form-schema.ts";
 import { proposalsQueryKeys } from "./proposals-query.ts";
@@ -252,9 +254,12 @@ export function ProposalForm() {
             {t("order-form.submit")}
           </Button>
         </div>
-        {propose.error && (
-          <p className="text-sm text-danger">{propose.error.message}</p>
-        )}
+        {propose.error ? (
+          <ErrorAlert
+            title={t("proposals.propose-failed")}
+            description={propose.error.message}
+          />
+        ) : null}
       </div>
     </Form>
   );

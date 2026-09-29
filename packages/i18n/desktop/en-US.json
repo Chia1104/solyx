@@ -9,7 +9,10 @@
     "live": "Live trading"
   },
   "common": {
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "load-failed": "Couldn't load data",
+    "error-title": "Something went wrong",
+    "retry": "Retry"
   },
   "market": {
     "TW": "Taiwan",
@@ -53,6 +56,37 @@
     "avg-price": "Avg. price",
     "no-positions": "No positions"
   },
+  "chart": {
+    "search-label": "Symbol",
+    "search-placeholder": "Symbol, e.g. 2330",
+    "no-data": "No candles in this range.",
+    "intervals-label": "Interval",
+    "intervals": {
+      "1m": "1m",
+      "5m": "5m",
+      "15m": "15m",
+      "30m": "30m",
+      "1h": "1H",
+      "1d": "D",
+      "1w": "W",
+      "1mo": "M"
+    },
+    "indicators-label": "Indicators",
+    "indicators": {
+      "ma": "MA",
+      "boll": "BOLL",
+      "macd": "MACD",
+      "rsi": "RSI",
+      "kd": "KD"
+    },
+    "legend": {
+      "open": "O",
+      "high": "H",
+      "low": "L",
+      "close": "C",
+      "volume": "Vol"
+    }
+  },
   "proposals": {
     "form-title": "New order proposal",
     "form-description": "Proposals pass the risk checks here and again when you confirm them.",
@@ -60,7 +94,10 @@
     "summary": "{{side}} {{quantity, number}} shares @ {{price}}",
     "market-price": "market",
     "confirm": "Confirm and submit",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "propose-failed": "Couldn't create the proposal",
+    "violations-title": "Blocked by risk checks",
+    "submit-failed": "Submission failed; check your broker before placing it again"
   },
   "order-form": {
     "market": "Market",

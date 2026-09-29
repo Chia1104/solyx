@@ -1,7 +1,9 @@
 import { createPaperBroker } from "@solyx/brokers/paper";
+import type { MarketDataProvider } from "@solyx/core/market-data";
 import { OrderDesk } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
 import { Session, getSession } from "@solyx/core/session";
+import { createFugleMarketData } from "@solyx/market-data/fugle";
 
 const PAPER_CASH = { TWD: 1_000_000, USD: 30_000 };
 
@@ -10,6 +12,14 @@ const PAPER_LIMITS: RiskLimits = {
   maxOrderNotional: PAPER_CASH,
   allowedSessions: Object.values(Session),
 };
+
+// Development reads FUGLE_API_KEY from the repo-root .env through scripts/dev.mjs;
+// encrypted, user-entered keys come with the settings module.
+function createMarketData(): MarketDataProvider | undefined {
+  const apiKey = process.env.FUGLE_API_KEY;
+
+  return apiKey ? createFugleMarketData({ apiKey }) : undefined;
+}
 
 /** Composition root. A live broker is only ever wired here after the user explicitly turns it on. */
 export function createServices() {
@@ -24,7 +34,7 @@ export function createServices() {
     }),
   });
 
-  return { broker, desk };
+  return { broker, desk, marketData: createMarketData() };
 }
 
 export type Services = ReturnType<typeof createServices>;

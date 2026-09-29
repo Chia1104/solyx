@@ -1,0 +1,23 @@
+{
+  "name": "@solyx/market-data",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./fugle": "./src/fugle.ts"
+  },
+  "scripts": {
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@solyx/core": "workspace:*",
+    "es-toolkit": "catalog:",
+    "ky": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

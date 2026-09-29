@@ -1,0 +1,26 @@
+{
+  "name": "@solyx/trading-chart",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./chart": "./src/chart.tsx",
+    "./series": "./src/series.tsx",
+    "./time-format": "./src/time-format.ts"
+  },
+  "scripts": {
+    "test": "vp test"
+  },
+  "dependencies": {
+    "lightweight-charts": "catalog:charts"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:react",
+    "react": "catalog:react",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:react"
+  }
+}

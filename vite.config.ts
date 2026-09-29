@@ -121,7 +121,7 @@ export default defineConfig({
         },
       },
       {
-        files: ["apps/desktop/src/renderer/**"],
+        files: ["apps/desktop/src/renderer/**", "packages/trading-chart/**"],
         plugins: react.plugins,
         rules: react.rules,
       },

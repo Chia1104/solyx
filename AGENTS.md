@@ -15,17 +15,21 @@ Personal desktop app for trading Taiwan and US stocks: an agent analyzes and pro
 
 ## Architecture
 
-| Path                                  | Role                                                                                                                                                                                         |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/core` (`@solyx/core`)       | Market rules (tick sizes, board and odd lots, trading sessions), the `checkOrder` risk checks, the `BrokerAdapter` contract and the `OrderDesk` order flow                                   |
-| `packages/brokers` (`@solyx/brokers`) | One module per broker. `./paper` is the paper broker and the only one the app wires today; `./fubon` loads the user's own Fubon SDK at runtime and does not implement accounts or orders yet |
-| `packages/utils` (`@solyx/utils`)     | Cross-runtime, domain-neutral utilities; boundaries in [`packages/utils/AGENTS.md`](packages/utils/AGENTS.md)                                                                                |
-| `packages/i18n` (`@solyx/i18n`)       | JSON translation catalogs per consumer, `en-US` as the source locale; boundaries in [`packages/i18n/AGENTS.md`](packages/i18n/AGENTS.md)                                                     |
-| `apps/desktop` (`@solyx/desktop`)     | Electron, split by process first and module second; layout under [Desktop layout](#desktop-layout)                                                                                           |
-| `tools/oxlint/anti-slop`              | Vendored anti-slop Oxlint plugin; its source and local deviations are recorded in `UPSTREAM.md`                                                                                              |
+| Path                                              | Role                                                                                                                                                                                                                   |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core` (`@solyx/core`)                   | Market rules (tick sizes, board and odd lots, trading sessions), candles and technical indicators, the `BrokerAdapter` and `MarketDataProvider` contracts, the `checkOrder` risk checks and the `OrderDesk` order flow |
+| `packages/brokers` (`@solyx/brokers`)             | One module per broker. `./paper` is the paper broker and the only one the app wires today; `./fubon` loads the user's own Fubon SDK at runtime and does not implement accounts or orders yet                           |
+| `packages/market-data` (`@solyx/market-data`)     | One module per market data provider; `./fugle` covers Taiwan listings. Main process only; boundaries in [`packages/market-data/AGENTS.md`](packages/market-data/AGENTS.md)                                             |
+| `packages/trading-chart` (`@solyx/trading-chart`) | Domain-free React bindings for Lightweight Charts v5; boundaries in [`packages/trading-chart/AGENTS.md`](packages/trading-chart/AGENTS.md)                                                                             |
+| `packages/utils` (`@solyx/utils`)                 | Cross-runtime, domain-neutral utilities; boundaries in [`packages/utils/AGENTS.md`](packages/utils/AGENTS.md)                                                                                                          |
+| `packages/i18n` (`@solyx/i18n`)                   | JSON translation catalogs per consumer, `en-US` as the source locale; boundaries in [`packages/i18n/AGENTS.md`](packages/i18n/AGENTS.md)                                                                               |
+| `apps/desktop` (`@solyx/desktop`)                 | Electron, split by process first and module second; layout under [Desktop layout](#desktop-layout)                                                                                                                     |
+| `tools/oxlint/anti-slop`                          | Vendored anti-slop Oxlint plugin; its source and local deviations are recorded in `UPSTREAM.md`                                                                                                                        |
 
 - Desktop main and preload are bundled with `vp pack`, which inlines `@solyx/*`; the renderer is built with `vp build`.
 - The main process is the only backend and owns all I/O: broker SDKs, market-data HTTP through `ky`, LLM calls and secrets. The renderer makes no network requests and holds no keys. There is no local HTTP server; if an external client such as an MCP server ever needs one, add it as a thin host over the packages, bound to localhost, and never expose `confirm`.
+- Technical indicators are pure functions in `@solyx/core/indicators`, one value per bar and `null` while warming up, so charts and future agents read the same numbers.
+- In development `scripts/dev.mjs` loads provider keys such as `FUGLE_API_KEY` from the gitignored repo-root `.env`; user-entered keys will be encrypted with `safeStorage` by the settings module.
 - The renderer uses TanStack Router with hash history (builds load from `file://`), TanStack Query for everything read from the main process, and zustand for client-only state. HeroUI v3 on Tailwind CSS v4 is used directly; compose `react-aria-components` where HeroUI has no equivalent and add no other primitive library.
 - The production CSP forbids eval and remote sources, so zod runs `jitless` in the renderer and inline `<style>` is the only relaxation.
 
@@ -41,10 +45,12 @@ Personal desktop app for trading Taiwan and US stocks: an agent analyzes and pro
 | `preload/index.ts`                             | The contextBridge that maps each module's channels onto `window.solyx.<module>`                                                                                          |
 | `renderer/modules/<module>/`                   | The module's TanStack Query options (`xxxQueryKeys`, `xxxQuery()`), components, form schemas and hooks                                                                   |
 | `renderer/pages/`                              | Route components that only compose modules                                                                                                                               |
+| `renderer/components/`                         | Module-neutral components composed from HeroUI: the error boundary fallback and the loading and error states every module renders                                        |
 | `renderer/app/`                                | Router, root layout, i18n, query client, theme and zod setup                                                                                                             |
 
 - Adding or changing a channel touches its contract, handler, preload bridge and renderer call site together.
 - Modules may use another module's query keys to invalidate what they change (a confirmed order refreshes `account`); anything shared more widely moves to a package.
+- Routes fall back to `ErrorFallback` through the router's `defaultErrorComponent`. A widget that can fail on its own, such as the chart, sits in TanStack Router's `CatchBoundary` so the rest of its page stays usable.
 
 ## Trading invariants
 

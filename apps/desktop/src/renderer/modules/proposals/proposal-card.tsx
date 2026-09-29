@@ -1,4 +1,4 @@
-import { Button, Card, Chip } from "@heroui/react";
+import { Alert, Button, Card, Chip } from "@heroui/react";
 import type { ChipProps } from "@heroui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -7,6 +7,7 @@ import { OrderType } from "@solyx/core/order";
 import { ProposalStatus } from "@solyx/core/order-desk";
 import type { TradeProposal } from "@solyx/core/order-desk";
 
+import { ErrorAlert } from "../../components/error-alert.tsx";
 import { accountQueryKeys } from "../account/account-query.ts";
 
 import { proposalsQueryKeys } from "./proposals-query.ts";
@@ -43,7 +44,7 @@ export function ProposalCard({ proposal }: { proposal: TradeProposal }) {
   });
 
   const { order } = proposal;
-  const failure = proposal.error ?? (confirm.error ?? dismiss.error)?.message;
+  const actionError = confirm.error ?? dismiss.error;
 
   return (
     <Card>
@@ -75,14 +76,32 @@ export function ProposalCard({ proposal }: { proposal: TradeProposal }) {
         {proposal.rationale && (
           <p className="text-sm text-muted">{proposal.rationale}</p>
         )}
-        {proposal.violations.length > 0 && (
-          <ul className="text-sm text-danger">
-            {proposal.violations.map((violation) => (
-              <li key={violation.code}>{violationMessage(t, violation)}</li>
-            ))}
-          </ul>
-        )}
-        {failure && <p className="text-sm text-danger">{failure}</p>}
+        {proposal.violations.length > 0 ? (
+          <Alert status="danger">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{t("proposals.violations-title")}</Alert.Title>
+              <ul className="list-disc pl-4 text-sm text-muted">
+                {proposal.violations.map((violation) => (
+                  <li key={violation.code}>{violationMessage(t, violation)}</li>
+                ))}
+              </ul>
+            </Alert.Content>
+          </Alert>
+        ) : null}
+        {/* A failed submission is terminal: the broker may have taken the order, so no retry is offered. */}
+        {proposal.error ? (
+          <ErrorAlert
+            title={t("proposals.submit-failed")}
+            description={proposal.error}
+          />
+        ) : null}
+        {actionError ? (
+          <ErrorAlert
+            title={t("common.error-title")}
+            description={actionError.message}
+          />
+        ) : null}
       </Card.Content>
       {proposal.status === ProposalStatus.AwaitingConfirmation && (
         <Card.Footer className="flex gap-2">

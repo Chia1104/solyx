@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 export const marketQueryKeys = {
+  all: ["market"] as const,
   sessions: ["market", "sessions"] as const,
 };
 

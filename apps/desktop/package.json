@@ -19,6 +19,8 @@
     "@solyx/brokers": "workspace:*",
     "@solyx/core": "workspace:*",
     "@solyx/i18n": "workspace:*",
+    "@solyx/market-data": "workspace:*",
+    "@solyx/trading-chart": "workspace:*",
     "@solyx/utils": "workspace:*",
     "@tailwindcss/vite": "catalog:tailwindcss",
     "@tanstack/react-query": "catalog:tanstack",
@@ -30,6 +32,7 @@
     "electron": "catalog:electron",
     "es-toolkit": "catalog:",
     "i18next": "catalog:i18n",
+    "lightweight-charts": "catalog:charts",
     "react": "catalog:react",
     "react-aria-components": "catalog:heroui-v3",
     "react-dom": "catalog:react",
@@ -39,6 +42,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "zustand": "catalog:ui"
   }
 }
