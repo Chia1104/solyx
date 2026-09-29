@@ -85,7 +85,9 @@
       "low": "低",
       "close": "收",
       "volume": "量"
-    }
+    },
+    "key-required": "請先到設定儲存{{name}}，才能載入這張圖。",
+    "open-settings": "前往設定"
   },
   "proposals": {
     "form-title": "建立下單提案",
@@ -129,7 +131,28 @@
   "settings": {
     "title": "設定",
     "language": "語言",
-    "language-description": "套用到整個 app，並保存在這台電腦上。"
+    "language-description": "套用到整個 app，並保存在這台電腦上。",
+    "api-keys": {
+      "title": "API 金鑰",
+      "description": "由作業系統加密保存（macOS 用鑰匙圈、Windows 用 DPAPI），只在這台電腦上使用。儲存後不會再顯示金鑰內容。",
+      "unavailable": "這台電腦沒有可用的安全儲存，無法儲存金鑰。Linux 請安裝並解鎖 GNOME Keyring 或 KWallet，再重新啟動 Solyx。",
+      "unreadable": "已儲存的金鑰無法在這台電腦上解密，例如換了電腦或使用者帳號。請重新輸入。",
+      "placeholder": "貼上金鑰",
+      "replace-placeholder": "貼上新的金鑰以取代已儲存的金鑰",
+      "save": "儲存",
+      "remove": "移除",
+      "save-failed": "無法儲存金鑰",
+      "remove-failed": "無法移除金鑰",
+      "required": "請輸入金鑰",
+      "names": {
+        "fugle-api-key": "富果 API 金鑰"
+      },
+      "states": {
+        "saved": "已儲存",
+        "missing": "未設定",
+        "unreadable": "無法讀取"
+      }
+    }
   },
   "locale": {
     "en-US": "English",

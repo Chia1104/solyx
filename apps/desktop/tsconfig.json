@@ -15,5 +15,11 @@
     "erasableSyntaxOnly": true,
     "skipLibCheck": true
   },
-  "include": ["src/main", "src/preload", "src/shared", "vite.config.ts"]
+  "include": [
+    "src/main",
+    "src/preload",
+    "src/shared",
+    "tests",
+    "vite.config.ts"
+  ]
 }

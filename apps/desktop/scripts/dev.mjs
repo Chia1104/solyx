@@ -1,14 +1,8 @@
 // Renderer dev server + watched main/preload builds. Electron itself is (re)started by the
 // pack `onSuccess` hook in vite.config.ts once both bundles exist.
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
 
 import { retry } from "es-toolkit";
-
-// Development keys such as FUGLE_API_KEY live in the repo-root .env; `vp run` starts clean.
-const ENV_FILE = new URL("../../../.env", import.meta.url);
-
-if (existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
 
 // Must match `server.port` in vite.config.ts.
 const RENDERER_URL = "http://localhost:5173";

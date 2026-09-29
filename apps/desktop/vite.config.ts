@@ -62,6 +62,8 @@ export default defineConfig({
   base: "./",
   plugins: [react(), tailwindcss(), contentSecurityPolicy],
   server: { port: 5173, strictPort: true },
+  // Tests cover main-process code under tests/, outside the renderer root.
+  test: { root: import.meta.dirname },
   build: { outDir: "../../dist/renderer", emptyOutDir: true },
   pack: [
     {

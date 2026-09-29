@@ -85,7 +85,9 @@
       "low": "L",
       "close": "C",
       "volume": "Vol"
-    }
+    },
+    "key-required": "Save your {{name}} in Settings to load this chart.",
+    "open-settings": "Open settings"
   },
   "proposals": {
     "form-title": "New order proposal",
@@ -129,7 +131,28 @@
   "settings": {
     "title": "Settings",
     "language": "Language",
-    "language-description": "Applies to the whole app and is kept on this computer."
+    "language-description": "Applies to the whole app and is kept on this computer.",
+    "api-keys": {
+      "title": "API keys",
+      "description": "Encrypted by your operating system (the Keychain on macOS, DPAPI on Windows) and used only on this computer. A saved key is never shown again.",
+      "unavailable": "This computer has no secure storage, so keys can't be saved. On Linux, install and unlock GNOME Keyring or KWallet, then restart Solyx.",
+      "unreadable": "The saved key can't be decrypted on this computer anymore, for example after moving to another computer or user account. Enter it again.",
+      "placeholder": "Paste your key",
+      "replace-placeholder": "Paste a new key to replace the saved one",
+      "save": "Save",
+      "remove": "Remove",
+      "save-failed": "Couldn't save the key",
+      "remove-failed": "Couldn't remove the key",
+      "required": "Enter a key",
+      "names": {
+        "fugle-api-key": "Fugle API key"
+      },
+      "states": {
+        "saved": "Saved",
+        "missing": "Not set",
+        "unreadable": "Unreadable"
+      }
+    }
   },
   "locale": {
     "en-US": "English",

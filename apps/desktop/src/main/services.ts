@@ -1,9 +1,19 @@
+import { join } from "node:path";
+
+import { app } from "electron";
+
 import { createPaperBroker } from "@solyx/brokers/paper";
+import { Market } from "@solyx/core/market";
 import type { MarketDataProvider } from "@solyx/core/market-data";
 import { OrderDesk } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
 import { Session, getSession } from "@solyx/core/session";
 import { createFugleMarketData } from "@solyx/market-data/fugle";
+
+import { MARKET_DATA_SECRET } from "#shared/ipc/settings.ts";
+
+import { electronCipher } from "./modules/settings/electron-cipher.ts";
+import { createSecretStore } from "./modules/settings/secret-store.ts";
 
 const PAPER_CASH = { TWD: 1_000_000, USD: 30_000 };
 
@@ -12,14 +22,6 @@ const PAPER_LIMITS: RiskLimits = {
   maxOrderNotional: PAPER_CASH,
   allowedSessions: Object.values(Session),
 };
-
-// Development reads FUGLE_API_KEY from the repo-root .env through scripts/dev.mjs;
-// encrypted, user-entered keys come with the settings module.
-function createMarketData(): MarketDataProvider | undefined {
-  const apiKey = process.env.FUGLE_API_KEY;
-
-  return apiKey ? createFugleMarketData({ apiKey }) : undefined;
-}
 
 /** Composition root. A live broker is only ever wired here after the user explicitly turns it on. */
 export function createServices() {
@@ -34,7 +36,23 @@ export function createServices() {
     }),
   });
 
-  return { broker, desk, marketData: createMarketData() };
+  const secrets = createSecretStore(
+    join(app.getPath("userData"), "secrets.json"),
+    electronCipher
+  );
+
+  // The key is read per request, so a key saved in settings applies without a restart.
+  async function marketData(
+    market: Market
+  ): Promise<MarketDataProvider | undefined> {
+    if (market !== Market.TW) return undefined;
+
+    const apiKey = await secrets.get(MARKET_DATA_SECRET[Market.TW]);
+
+    return apiKey === undefined ? undefined : createFugleMarketData({ apiKey });
+  }
+
+  return { broker, desk, secrets, marketData };
 }
 
 export type Services = ReturnType<typeof createServices>;

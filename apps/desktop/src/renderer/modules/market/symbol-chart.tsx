@@ -1,16 +1,43 @@
-import { EmptyState, Skeleton, Spinner } from "@heroui/react";
+import { Alert, EmptyState, Skeleton, Spinner } from "@heroui/react";
+import { buttonVariants } from "@heroui/styles";
 import { useQuery } from "@tanstack/react-query";
-import { CatchBoundary } from "@tanstack/react-router";
+import { CatchBoundary, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { Interval } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
 
+import { MARKET_DATA_SECRET, SecretState } from "#shared/ipc/settings.ts";
+import type { Secret } from "#shared/ipc/settings.ts";
+
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { ErrorFallback } from "../../components/error-fallback.tsx";
+import { secretsQuery } from "../settings/secrets-query.ts";
 
 import { candlesQuery } from "./candles-query.ts";
 import { PRICE_CHART_CLASS, PriceChart } from "./price-chart.tsx";
+
+function KeyRequired({ secret }: { secret: Secret }) {
+  const { t } = useTranslation();
+
+  return (
+    <Alert status="accent">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Title>
+          {t("chart.key-required", {
+            name: t(`settings.api-keys.names.${secret}`),
+          })}
+        </Alert.Title>
+      </Alert.Content>
+      <Link
+        to="/settings"
+        className={buttonVariants({ size: "sm", variant: "secondary" })}>
+        {t("chart.open-settings")}
+      </Link>
+    </Alert>
+  );
+}
 
 /** One listing's chart with its load, empty and error states; a chart that fails to render leaves the toolbar usable. */
 export function SymbolChart({
@@ -21,20 +48,37 @@ export function SymbolChart({
   interval: Interval;
 }) {
   const { t } = useTranslation();
+  const secret = MARKET_DATA_SECRET[symbol.market];
+  const secrets = useQuery({ ...secretsQuery(), enabled: secret !== null });
 
-  const { data, error, refetch, isPlaceholderData } = useQuery(
-    candlesQuery(symbol, interval)
-  );
+  // Without its provider's key a market has no data, so the chart asks for the key instead.
+  const hasKey =
+    secret === null || secrets.data?.states[secret] === SecretState.Saved;
+
+  const candles = useQuery({
+    ...candlesQuery(symbol, interval),
+    enabled: hasKey,
+  });
+
+  const error = secrets.error ?? candles.error;
 
   if (error) {
     return (
       <ErrorAlert
         title={t("common.load-failed")}
         description={error.message}
-        onRetry={() => void refetch()}
+        onRetry={() =>
+          void (secrets.error ? secrets.refetch() : candles.refetch())
+        }
       />
     );
   }
+
+  if (secret !== null && secrets.data && !hasKey) {
+    return <KeyRequired secret={secret} />;
+  }
+
+  const { data, isPlaceholderData } = candles;
 
   if (!data) return <Skeleton className={`${PRICE_CHART_CLASS} rounded-xl`} />;
 

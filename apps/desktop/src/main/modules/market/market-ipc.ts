@@ -39,13 +39,17 @@ export function registerMarketIpc({ marketData }: Services) {
   }));
 
   handle("candles", async (symbol, interval) => {
-    if (!marketData?.markets.includes(symbol.market)) {
-      throw new Error(`No market data provider covers ${symbol.market}`);
+    const provider = await marketData(symbol.market);
+
+    if (!provider) {
+      throw new Error(
+        `No market data for ${symbol.market}: no provider covers it or its key is not saved`
+      );
     }
 
     const to = exchangeDate(symbol.market);
 
-    return marketData.getCandles({
+    return provider.getCandles({
       symbol,
       interval,
       from: shiftDate(to, -LOOKBACK_DAYS[interval]),
