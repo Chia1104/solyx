@@ -3,25 +3,69 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  redirect,
 } from "@tanstack/react-router";
 import * as z from "zod";
 
 import { Interval, intervalSchema } from "@solyx/core/candles";
-import { symbolRefSchema } from "@solyx/core/market";
+import { Market, symbolRefSchema } from "@solyx/core/market";
 
 import { ErrorFallback } from "../components/error-fallback.tsx";
 import { NotFound } from "../components/not-found.tsx";
 import {
+  OnboardingStep,
+  onboardingStepSchema,
+} from "../modules/onboarding/onboarding-step.ts";
+import { useOnboardingStore } from "../modules/onboarding/onboarding-store.ts";
+import { marketDataQuery } from "../modules/settings/settings-query.ts";
+import {
   SettingsSection,
   settingsSectionSchema,
 } from "../modules/settings/settings-section.ts";
+import { OnboardingPage } from "../pages/onboarding-page.tsx";
 import { OverviewPage } from "../pages/overview-page.tsx";
 import { SettingsPage } from "../pages/settings-page.tsx";
 import { SymbolPage } from "../pages/symbol-page.tsx";
 
+import { queryClient } from "./query-client.ts";
 import { RootLayout } from "./root-layout.tsx";
 
-const rootRoute = createRootRoute({ component: RootLayout });
+const rootRoute = createRootRoute({
+  component: RootLayout,
+  // First-run setup comes before the workspace until it is finished or skipped. Someone whose
+  // market data already works, as after editing the config file by hand, never sees it.
+  beforeLoad: async ({ location }) => {
+    const onboarding = useOnboardingStore.getState();
+
+    if (onboarding.finished || location.pathname === "/onboarding") return;
+
+    // A failed check never keeps anyone out of the app.
+    const status = await queryClient
+      .query(marketDataQuery())
+      .catch(() => undefined);
+
+    if (!status) return;
+
+    if (status.markets[Market.TW]?.ready) {
+      onboarding.finish();
+
+      return;
+    }
+
+    throw redirect({ to: "/onboarding" });
+  },
+});
+
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "onboarding",
+  validateSearch: z.object({
+    step: onboardingStepSchema
+      .default(OnboardingStep.Welcome)
+      .catch(OnboardingStep.Welcome),
+  }),
+  component: OnboardingPage,
+});
 
 const overviewRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -61,7 +105,12 @@ const settingsRoute = createRoute({
 
 /** Builds load from file://, so routes live in the hash to survive reloads and open in new windows. */
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([overviewRoute, symbolRoute, settingsRoute]),
+  routeTree: rootRoute.addChildren([
+    overviewRoute,
+    symbolRoute,
+    settingsRoute,
+    onboardingRoute,
+  ]),
   history: createHashHistory(),
   defaultErrorComponent: ErrorFallback,
   defaultNotFoundComponent: NotFound,

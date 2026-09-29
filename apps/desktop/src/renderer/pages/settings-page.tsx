@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { Section } from "../components/section.tsx";
 import { Sheet } from "../components/sheet.tsx";
+import { SetupGuideLink } from "../modules/onboarding/setup-guide-link.tsx";
 import { AboutSettings } from "../modules/settings/about-settings.tsx";
 import { CacheSettings } from "../modules/settings/cache-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
@@ -25,6 +26,7 @@ export function SettingsPage() {
         <div className="flex flex-col gap-6">
           <ThemeSelect />
           <LanguageSelect />
+          <SetupGuideLink />
         </div>
       </Section>
     ),

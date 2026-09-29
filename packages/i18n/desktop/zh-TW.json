@@ -117,6 +117,38 @@
     "title": "Agent",
     "not-connected": "Agent 尚未接上。提案會出現在這裡，每一筆都等你確認。"
   },
+  "onboarding": {
+    "title": "設定 Solyx",
+    "skip": "略過設定",
+    "back": "上一步",
+    "next": "繼續",
+    "start": "開始設定",
+    "later": "稍後再設定",
+    "finish": "開始使用",
+    "steps": {
+      "welcome": "歡迎",
+      "market-data": "行情",
+      "done": "完成"
+    },
+    "welcome": {
+      "title": "歡迎使用 Solyx",
+      "description": "Agent 分析行情並提出交易提案，每一筆下單都要等你確認。行情與模型都用你自己的金鑰，資料直接從供應商送到這台電腦。"
+    },
+    "done": {
+      "title": "準備好了",
+      "description": "這些都可以隨時在設定頁調整。",
+      "market-data": "台股行情",
+      "ready": "已就緒",
+      "incomplete": "尚未完成",
+      "trading": "交易模式",
+      "paper-note": "下單都送到模擬帳戶，不會動到真實資金。"
+    },
+    "restart": {
+      "label": "設定導覽",
+      "description": "再走一次 Solyx 的初始設定。",
+      "action": "開啟設定導覽"
+    }
+  },
   "proposals": {
     "form-title": "建立下單提案",
     "form-description": "提案會先在這裡經過風控檢查，確認送出時會再檢查一次。",

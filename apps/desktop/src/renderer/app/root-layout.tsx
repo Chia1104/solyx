@@ -2,7 +2,7 @@ import { useRef } from "react";
 import type { ReactNode, RefObject } from "react";
 
 import { cn } from "@heroui/react";
-import { Outlet } from "@tanstack/react-router";
+import { Outlet, useMatchRoute } from "@tanstack/react-router";
 import { I18nProvider } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
@@ -109,8 +109,8 @@ function SidePane({
   );
 }
 
-export function RootLayout() {
-  const { i18n } = useTranslation();
+/** The panes around the routed main view, under the window's title bar. */
+function Workspace() {
   const workspace = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const panes = useLayoutStore((state) => state.panes);
@@ -129,29 +129,41 @@ export function RootLayout() {
   };
 
   return (
+    <div className="flex h-dvh flex-col overflow-hidden text-sm">
+      <TitleBar searchRef={searchRef} />
+      <BrokerModeRule />
+      <div
+        ref={workspace}
+        className="grid min-h-0 flex-1 transition-[grid-template-columns] duration-200 ease-out motion-reduce:transition-none [html[data-pane-resizing]_&]:transition-none"
+        style={{
+          ...widths,
+          gridTemplateColumns: `${column(Pane.Symbols)} minmax(0, 1fr) ${column(Pane.Agent)}`,
+        }}>
+        <SidePane pane={Pane.Symbols} workspace={workspace}>
+          <SymbolsPane />
+        </SidePane>
+        <main className="@container/main min-w-0 overflow-y-auto">
+          <Outlet />
+        </main>
+        <SidePane pane={Pane.Agent} workspace={workspace}>
+          <AgentPane />
+        </SidePane>
+      </div>
+    </div>
+  );
+}
+
+export function RootLayout() {
+  const { i18n } = useTranslation();
+  const matchRoute = useMatchRoute();
+
+  // First-run setup takes the whole window, without the workspace around it.
+  const onboarding = matchRoute({ to: "/onboarding" }) !== false;
+
+  return (
     // react-aria formats numbers and announces built-in strings in this locale.
     <I18nProvider locale={i18n.language}>
-      <div className="flex h-dvh flex-col overflow-hidden text-sm">
-        <TitleBar searchRef={searchRef} />
-        <BrokerModeRule />
-        <div
-          ref={workspace}
-          className="grid min-h-0 flex-1 transition-[grid-template-columns] duration-200 ease-out motion-reduce:transition-none [html[data-pane-resizing]_&]:transition-none"
-          style={{
-            ...widths,
-            gridTemplateColumns: `${column(Pane.Symbols)} minmax(0, 1fr) ${column(Pane.Agent)}`,
-          }}>
-          <SidePane pane={Pane.Symbols} workspace={workspace}>
-            <SymbolsPane />
-          </SidePane>
-          <main className="@container/main min-w-0 overflow-y-auto">
-            <Outlet />
-          </main>
-          <SidePane pane={Pane.Agent} workspace={workspace}>
-            <AgentPane />
-          </SidePane>
-        </div>
-      </div>
+      {onboarding ? <Outlet /> : <Workspace />}
     </I18nProvider>
   );
 }

@@ -117,6 +117,38 @@
     "title": "Agent",
     "not-connected": "The agent isn't connected yet. Proposals land here, and each one waits for you to confirm it."
   },
+  "onboarding": {
+    "title": "Set up Solyx",
+    "skip": "Skip setup",
+    "back": "Back",
+    "next": "Continue",
+    "start": "Get started",
+    "later": "Set up later",
+    "finish": "Start using Solyx",
+    "steps": {
+      "welcome": "Welcome",
+      "market-data": "Market data",
+      "done": "Done"
+    },
+    "welcome": {
+      "title": "Welcome to Solyx",
+      "description": "An agent analyzes the market and proposes trades, and every order waits for you to confirm it. Market data and models use your own keys, and data comes straight from the provider to this computer."
+    },
+    "done": {
+      "title": "You're set",
+      "description": "You can change any of this in Settings.",
+      "market-data": "Taiwan market data",
+      "ready": "Ready",
+      "incomplete": "Not set up yet",
+      "trading": "Trading",
+      "paper-note": "Orders go to a paper account, so no real money moves."
+    },
+    "restart": {
+      "label": "Setup guide",
+      "description": "Walk through Solyx's first-run setup again.",
+      "action": "Open setup guide"
+    }
+  },
   "proposals": {
     "form-title": "New order proposal",
     "form-description": "Proposals pass the risk checks here and again when you confirm them.",

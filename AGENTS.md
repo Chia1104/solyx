@@ -39,6 +39,7 @@ Personal desktop app for trading Taiwan and US stocks: an agent analyzes and pro
 - The app's name selects its `userData`, config folder and OS secret store entry. Unpackaged runs rename it to `<productName> Dev`, so development never touches an installed build's data or credentials; packaged channels, such as a future nightly, are separated by the product name they are built with.
 - The renderer uses TanStack Router with hash history (builds load from `file://`), TanStack Query for everything read from the main process, and zustand for client-only state. HeroUI v3 on Tailwind CSS v4 is used directly; compose `react-aria-components` where HeroUI has no equivalent and add no other primitive library.
 - The workspace is drawn in pencil and ink: hatching and dashed rules mark what is not real yet (paper trading, proposals awaiting confirmation), the accent marks what is, and confirming a proposal is the only accent-filled button. Red and green belong to price direction alone, which Taiwan quotes the opposite way from the US.
+- First-run setup is the `/onboarding` route, which takes the whole window until it is finished or skipped, and never shows once market data already works. Each `OnboardingStep` reuses its feature's settings components, so setup a new feature needs, such as an LLM key or a live broker, becomes another step rather than a separate flow.
 - The production CSP forbids eval and remote sources, so zod runs `jitless` in the renderer and inline `<style>` is the only relaxation.
 
 ## Desktop layout
