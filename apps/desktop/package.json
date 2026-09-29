@@ -1,0 +1,27 @@
+{
+  "name": "@solyx/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main/index.mjs",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "vp build && vp pack",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "@solyx/brokers": "workspace:*",
+    "@solyx/core": "workspace:*",
+    "@solyx/utils": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:react",
+    "@types/react-dom": "catalog:react",
+    "@vitejs/plugin-react": "catalog:react",
+    "electron": "catalog:electron",
+    "react": "catalog:react",
+    "react-dom": "catalog:react",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

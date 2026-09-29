@@ -5,11 +5,27 @@ packages:
 
 catalogMode: prefer
 
+# The default catalog holds the Vite+ toolchain: `overrides` and `vp upgrade` both target it.
 catalog:
   "@types/node": ^26
   typescript: ^7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@1.0.0
   vite-plus: 1.0.0
+
+catalogs:
+  chiastack:
+    "@chiastack/oxlint": ^1.1.0
+  electron:
+    electron: ^44.4.5
+  oxc:
+    # Pinned to the oxlint bundled by vite-plus; upgrade both together.
+    "@oxlint/plugins": 1.85.0
+  react:
+    "@types/react": ^19.3.0
+    "@types/react-dom": ^19.3.0
+    "@vitejs/plugin-react": ^6.1.1
+    react: ^19.3.0
+    react-dom: ^19.3.0
 overrides:
   vite@*: "catalog:"
 peerDependencyRules:

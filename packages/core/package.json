@@ -1,0 +1,24 @@
+{
+  "name": "@solyx/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./broker": "./src/broker.ts",
+    "./market": "./src/market.ts",
+    "./order": "./src/order.ts",
+    "./order-desk": "./src/order-desk.ts",
+    "./risk": "./src/risk.ts",
+    "./rules/tw": "./src/rules/tw.ts",
+    "./rules/us": "./src/rules/us.ts",
+    "./session": "./src/session.ts"
+  },
+  "scripts": {
+    "test": "vp test"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

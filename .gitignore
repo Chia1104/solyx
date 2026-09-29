@@ -29,5 +29,11 @@ dist-ssr
 *.sln
 *.sw?
 
+# Broker certificates and SDKs: user-supplied, never committed or redistributed
+*.pfx
+*.p12
+fubon-neo*
+fubon_neo*
+
 # AI agent worktrees
 .claude/worktrees/
