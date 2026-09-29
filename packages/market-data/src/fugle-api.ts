@@ -16,8 +16,10 @@ import {
   exchangeMidnight,
   shiftDate,
 } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import type {
   CandleRequest,
+  Listing,
   MarketDataPlan,
   MarketDataProvider,
   MarketDataStream,
@@ -92,6 +94,11 @@ const barSchema = z.object({
 type Bar = z.infer<typeof barSchema>;
 
 const historicalCandlesSchema = z.object({ data: z.array(barSchema) });
+
+const tickerSchema = z.object({
+  name: z.string(),
+  nameEn: z.string().optional(),
+});
 
 const intradayCandlesSchema = z.object({
   date: z.string(),
@@ -246,18 +253,37 @@ export function createFugleApiProvider(
       : bars;
   }
 
+  function assertTaiwan(symbol: SymbolRef) {
+    if (symbol.market !== Market.TW) {
+      throw new Error(`${access.id} has no data for ${symbol.market} listings`);
+    }
+  }
+
   return {
     id: access.id,
     markets: [Market.TW],
 
     async getCandles(request: CandleRequest) {
-      if (request.symbol.market !== Market.TW) {
-        throw new Error(
-          `${access.id} has no data for ${request.symbol.market} listings`
-        );
-      }
+      assertTaiwan(request.symbol);
 
       return loadCandles(request);
+    },
+
+    async getListing(symbol: SymbolRef): Promise<Listing | null> {
+      assertTaiwan(symbol);
+
+      const response = await intradayBudget(() =>
+        api.get(
+          `intraday/ticker/${encodeURIComponent(symbol.symbol)}`,
+          NOT_FOUND_IS_EMPTY
+        )
+      );
+
+      if (response.status === 404) return null;
+
+      const ticker = tickerSchema.parse(await response.json());
+
+      return { name: ticker.name, englishName: ticker.nameEn ?? null };
     },
   };
 }

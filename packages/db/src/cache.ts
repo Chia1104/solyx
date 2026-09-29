@@ -1,42 +1,27 @@
-import { rmSync } from "node:fs";
-import { DatabaseSync } from "node:sqlite";
+import { rmSync, statSync } from "node:fs";
 
-import { and, asc, eq, gte, lt, lte, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-sqlite";
+import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  eq,
+  gte,
+  lt,
+  lte,
+  sql,
+} from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
-import { migrate } from "drizzle-orm/node-sqlite/migrator";
 import { chunk } from "es-toolkit";
 
 import type { Candle, Interval } from "@solyx/core/candles";
 import type { Market } from "@solyx/core/market";
 
 import { candleSeries, candles } from "./cache-schema.ts";
-
-const CONNECTION_PRAGMAS = `
-  PRAGMA journal_mode = WAL;
-  PRAGMA synchronous = NORMAL;
-  PRAGMA foreign_keys = ON;
-`;
+import { connect } from "./connection.ts";
 
 // SQLite caps bound parameters per statement; eight columns per bar stays well under it.
 const INSERT_BATCH = 1000;
-
-function connect(path: string, migrationsFolder: string) {
-  const client = new DatabaseSync(path);
-
-  try {
-    client.exec(CONNECTION_PRAGMAS);
-
-    const db = drizzle({ client });
-
-    migrate(db, { migrationsFolder });
-
-    return { client, db };
-  } catch (error) {
-    client.close();
-    throw error;
-  }
-}
 
 export interface CandleSeriesKey {
   /** The provider's `id`, so providers never mix bars. */
@@ -174,6 +159,22 @@ function candleStore(db: NodeSQLiteDatabase) {
 
 export type CandleStore = ReturnType<typeof candleStore>;
 
+/** What one provider's bars take up in the cache. */
+export interface SourceUsage {
+  /** The provider's `id`. */
+  source: string;
+  series: number;
+  bars: number;
+}
+
+export interface CacheUsage {
+  /** The file on disk, with its write-ahead log. */
+  bytes: number;
+  sources: SourceUsage[];
+}
+
+const FILE_SUFFIXES = ["", "-wal", "-shm"];
+
 /**
  * The cache database, holding only what can be fetched again. A file that is corrupt, or
  * holds a schema these migrations do not know, is deleted and rebuilt; a second failure is
@@ -185,16 +186,49 @@ export function openCache(path: string, migrationsFolder: string) {
   try {
     connection = connect(path, migrationsFolder);
   } catch {
-    for (const suffix of ["", "-wal", "-shm"]) {
+    for (const suffix of FILE_SUFFIXES) {
       rmSync(`${path}${suffix}`, { force: true });
     }
 
     connection = connect(path, migrationsFolder);
   }
 
+  const { client, db } = connection;
+
   return {
-    candles: candleStore(connection.db),
-    close: () => connection.client.close(),
+    candles: candleStore(db),
+
+    usage(): CacheUsage {
+      const bytes = FILE_SUFFIXES.reduce(
+        (total, suffix) =>
+          total +
+          (statSync(`${path}${suffix}`, { throwIfNoEntry: false })?.size ?? 0),
+        0
+      );
+
+      const sources = db
+        .select({
+          source: candleSeries.source,
+          series: countDistinct(candleSeries.id),
+          bars: count(candles.time),
+        })
+        .from(candleSeries)
+        .leftJoin(candles, eq(candles.seriesId, candleSeries.id))
+        .groupBy(candleSeries.source)
+        .orderBy(asc(candleSeries.source))
+        .all();
+
+      return { bytes, sources };
+    },
+
+    /** Deletes every series and its bars, and gives the space back to the disk. */
+    clear() {
+      db.delete(candleSeries).run();
+      // VACUUM rewrites the file through the log, so the log is truncated after it.
+      client.exec("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);");
+    },
+
+    close: () => client.close(),
   };
 }
 

@@ -7,19 +7,36 @@ import type { LiveCandle } from "#shared/ipc/market.ts";
 import { proposalsChannels } from "#shared/ipc/proposals.ts";
 import { settingsChannels } from "#shared/ipc/settings.ts";
 import type { SolyxApi } from "#shared/ipc/solyx-api.ts";
+import { watchlistChannels } from "#shared/ipc/watchlist.ts";
+
+// Electron prefixes a failed handler's error with its channel; the renderer shows the main
+// process's own message.
+const REMOTE_ERROR_PREFIX =
+  /^Error invoking remote method '[^']+': (?:\w*Error: )?/;
+
+const invoke: typeof ipcRenderer.invoke = async (channel, ...args) => {
+  try {
+    return await ipcRenderer.invoke(channel, ...args);
+  } catch (error) {
+    throw error instanceof Error
+      ? new Error(error.message.replace(REMOTE_ERROR_PREFIX, ""))
+      : error;
+  }
+};
 
 const api: SolyxApi = {
   account: {
-    summary: () => ipcRenderer.invoke(accountChannels.summary),
+    summary: () => invoke(accountChannels.summary),
   },
   market: {
-    sessions: () => ipcRenderer.invoke(marketChannels.sessions),
+    sessions: () => invoke(marketChannels.sessions),
+    listing: (symbol) => invoke(marketChannels.listing, symbol),
     candles: (symbol, interval) =>
-      ipcRenderer.invoke(marketChannels.candles, symbol, interval),
+      invoke(marketChannels.candles, symbol, interval),
     watchCandles: (symbol, interval) =>
-      ipcRenderer.invoke(marketChannels.watchCandles, symbol, interval),
+      invoke(marketChannels.watchCandles, symbol, interval),
     unwatchCandles: (symbol, interval) =>
-      ipcRenderer.invoke(marketChannels.unwatchCandles, symbol, interval),
+      invoke(marketChannels.unwatchCandles, symbol, interval),
     onLiveCandles: (listener) => {
       const forward = (_event: IpcRendererEvent, updates: LiveCandle[]) =>
         listener(updates);
@@ -32,26 +49,34 @@ const api: SolyxApi = {
     },
   },
   proposals: {
-    list: () => ipcRenderer.invoke(proposalsChannels.list),
+    list: () => invoke(proposalsChannels.list),
     propose: (order, rationale) =>
-      ipcRenderer.invoke(proposalsChannels.propose, order, rationale),
-    confirm: (id) => ipcRenderer.invoke(proposalsChannels.confirm, id),
-    dismiss: (id) => ipcRenderer.invoke(proposalsChannels.dismiss, id),
+      invoke(proposalsChannels.propose, order, rationale),
+    confirm: (id) => invoke(proposalsChannels.confirm, id),
+    dismiss: (id) => invoke(proposalsChannels.dismiss, id),
   },
   settings: {
-    secrets: () => ipcRenderer.invoke(settingsChannels.secrets),
+    theme: () => invoke(settingsChannels.theme),
+    setTheme: (theme) => invoke(settingsChannels.setTheme, theme),
+    secrets: () => invoke(settingsChannels.secrets),
     saveSecret: (secret, value) =>
-      ipcRenderer.invoke(settingsChannels.saveSecret, secret, value),
-    deleteSecret: (secret) =>
-      ipcRenderer.invoke(settingsChannels.deleteSecret, secret),
-    marketData: () => ipcRenderer.invoke(settingsChannels.marketData),
+      invoke(settingsChannels.saveSecret, secret, value),
+    deleteSecret: (secret) => invoke(settingsChannels.deleteSecret, secret),
+    marketData: () => invoke(settingsChannels.marketData),
     setMarketDataSource: (market, source) =>
-      ipcRenderer.invoke(settingsChannels.setMarketDataSource, market, source),
-    setFuglePlan: (plan) =>
-      ipcRenderer.invoke(settingsChannels.setFuglePlan, plan),
-    chooseFubonFile: (file) =>
-      ipcRenderer.invoke(settingsChannels.chooseFubonFile, file),
-    signInFubon: () => ipcRenderer.invoke(settingsChannels.signInFubon),
+      invoke(settingsChannels.setMarketDataSource, market, source),
+    setFuglePlan: (plan) => invoke(settingsChannels.setFuglePlan, plan),
+    chooseFubonFile: (file) => invoke(settingsChannels.chooseFubonFile, file),
+    signInFubon: () => invoke(settingsChannels.signInFubon),
+    cacheUsage: () => invoke(settingsChannels.cacheUsage),
+    clearCache: () => invoke(settingsChannels.clearCache),
+    about: () => invoke(settingsChannels.about),
+    reveal: (location) => invoke(settingsChannels.reveal, location),
+  },
+  watchlist: {
+    list: () => invoke(watchlistChannels.list),
+    add: (symbol) => invoke(watchlistChannels.add, symbol),
+    remove: (symbol) => invoke(watchlistChannels.remove, symbol),
   },
 };
 

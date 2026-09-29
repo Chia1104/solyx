@@ -28,6 +28,15 @@ export interface SecretsStatus {
   states: Record<Secret, SecretState>;
 }
 
+/** The app's appearance; `system` follows the computer. Electron's `nativeTheme.themeSource` takes the same values. */
+export const Theme = {
+  System: "system",
+  Light: "light",
+  Dark: "dark",
+} as const;
+
+export type Theme = (typeof Theme)[keyof typeof Theme];
+
 /** Where a market's charts and live bars come from. */
 export const MarketDataSource = {
   Fugle: "fugle",
@@ -59,16 +68,74 @@ export interface PlanChoice<Plan extends string> {
   plans: MarketDataPlan<Plan>[];
 }
 
+export const FubonSessionState = {
+  /** Not signed in with the saved settings yet; the first Taiwan chart signs in. */
+  SignedOut: "signed-out",
+  SignedIn: "signed-in",
+  /** Kept until the settings change or the user signs in again, since retries could lock the account. */
+  Failed: "failed",
+} as const;
+
+export type FubonSessionState =
+  (typeof FubonSessionState)[keyof typeof FubonSessionState];
+
+export type FubonSessionStatus =
+  | { state: typeof FubonSessionState.SignedOut }
+  | { state: typeof FubonSessionState.SignedIn; accounts: number }
+  | { state: typeof FubonSessionState.Failed; message: string };
+
 export interface MarketDataStatus {
-  /** The config file that holds these settings, for editing by hand. */
-  file: string;
   /** `null` where no source covers the market yet. */
   markets: Record<Market, MarketSource | null>;
   fugle: PlanChoice<FuglePlan>;
-  fubon: { plan: MarketDataPlan; files: Record<FubonFile, string | null> };
+  fubon: {
+    plan: MarketDataPlan;
+    files: Record<FubonFile, string | null>;
+    session: FubonSessionStatus;
+  };
+}
+
+/** What the candle cache holds for one provider, by its `id`. */
+export interface CacheSourceUsage {
+  source: string;
+  series: number;
+  bars: number;
+}
+
+export interface CacheUsage {
+  /** On disk, with the write-ahead log. */
+  bytes: number;
+  sources: CacheSourceUsage[];
+}
+
+/** Places on disk the app can show in the system file manager. */
+export const AppLocation = {
+  /** The app's `userData`: secrets, databases and caches. */
+  Data: "data",
+  /** The hand-editable config file. */
+  Config: "config",
+} as const;
+
+export type AppLocation = (typeof AppLocation)[keyof typeof AppLocation];
+
+export interface AppInfo {
+  /** The app's name, which also tells development builds apart. */
+  name: string;
+  version: string;
+  packaged: boolean;
+  electron: string;
+  chromium: string;
+  node: string;
+  /** The OS as people name it, with its version and architecture. */
+  os: string;
+  /** Paths are shown with the home folder as `~`. */
+  locations: Record<AppLocation, string>;
 }
 
 export interface SettingsApi {
+  theme(): Promise<Theme>;
+  /** Saves the theme; every window switches at once. */
+  setTheme(theme: Theme): Promise<void>;
   secrets(): Promise<SecretsStatus>;
   saveSecret(secret: Secret, value: string): Promise<void>;
   deleteSecret(secret: Secret): Promise<void>;
@@ -82,11 +149,18 @@ export interface SettingsApi {
   setFuglePlan(plan: FuglePlan): Promise<void>;
   /** Asks for the file in a dialog and saves its path; resolves the path, or `null` when cancelled. */
   chooseFubonFile(file: FubonFile): Promise<string | null>;
-  /** Signs in to Fubon again with the saved settings; resolves how many accounts it holds. */
-  signInFubon(): Promise<number>;
+  /** Signs in to Fubon again with the saved settings; the market data status reports the outcome. */
+  signInFubon(): Promise<void>;
+  cacheUsage(): Promise<CacheUsage>;
+  /** Closed sessions are fetched again from the provider when charts need them. */
+  clearCache(): Promise<void>;
+  about(): Promise<AppInfo>;
+  reveal(location: AppLocation): Promise<void>;
 }
 
 export const settingsChannels = {
+  theme: "settings:theme",
+  setTheme: "settings:set-theme",
   secrets: "settings:secrets",
   saveSecret: "settings:save-secret",
   deleteSecret: "settings:delete-secret",
@@ -95,4 +169,8 @@ export const settingsChannels = {
   setFuglePlan: "settings:set-fugle-plan",
   chooseFubonFile: "settings:choose-fubon-file",
   signInFubon: "settings:sign-in-fubon",
+  cacheUsage: "settings:cache-usage",
+  clearCache: "settings:clear-cache",
+  about: "settings:about",
+  reveal: "settings:reveal",
 } as const satisfies Record<keyof SettingsApi, string>;

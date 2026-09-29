@@ -1,14 +1,17 @@
-import { BrowserWindow, dialog } from "electron";
+import { BrowserWindow, app, dialog, shell } from "electron";
 import type { OpenDialogOptions } from "electron";
+import { mapValues } from "es-toolkit";
 import * as z from "zod";
 
 import { Market } from "@solyx/core/market";
 import { fuglePlanSchema } from "@solyx/market-data/fugle";
 
 import {
+  AppLocation,
   FubonFile,
   MarketDataSource,
   Secret,
+  Theme,
   settingsChannels,
 } from "#shared/ipc/settings.ts";
 import type { SettingsApi } from "#shared/ipc/settings.ts";
@@ -19,6 +22,8 @@ import type { Services } from "../../services.ts";
 const secretSchema = z.enum(Secret);
 
 const handle = ipcModule<SettingsApi>(settingsChannels, {
+  theme: z.tuple([]),
+  setTheme: z.tuple([z.enum(Theme)]),
   secrets: z.tuple([]),
   saveSecret: z.tuple([secretSchema, z.string().trim().min(1).max(1024)]),
   deleteSecret: z.tuple([secretSchema]),
@@ -30,7 +35,18 @@ const handle = ipcModule<SettingsApi>(settingsChannels, {
   setFuglePlan: z.tuple([fuglePlanSchema]),
   chooseFubonFile: z.tuple([z.enum(FubonFile)]),
   signInFubon: z.tuple([]),
+  cacheUsage: z.tuple([]),
+  clearCache: z.tuple([]),
+  about: z.tuple([]),
+  reveal: z.tuple([z.enum(AppLocation)]),
 });
+
+// People know these by name rather than by Node's platform ids.
+const OS_NAME: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: "macOS",
+  win32: "Windows",
+  linux: "Linux",
+};
 
 const FUBON_FILE_DIALOG: Record<FubonFile, OpenDialogOptions> = {
   [FubonFile.Sdk]: { properties: ["openDirectory"] },
@@ -41,13 +57,24 @@ const FUBON_FILE_DIALOG: Record<FubonFile, OpenDialogOptions> = {
 };
 
 export function registerSettingsIpc({
+  theme,
+  applyTheme,
   secrets,
   config,
-  configFile,
+  cache,
+  home,
+  locations,
   applySettings,
   marketData,
   liveCandles,
 }: Services) {
+  handle("theme", async () => theme());
+
+  handle("setTheme", async (next) => {
+    config.set(["theme"], next);
+    applyTheme();
+  });
+
   handle("secrets", async () => ({
     available: await secrets.available(),
     states: await secrets.states(),
@@ -64,10 +91,7 @@ export function registerSettingsIpc({
     await liveCandles.restart();
   });
 
-  handle("marketData", async () => ({
-    file: configFile,
-    ...(await marketData.status()),
-  }));
+  handle("marketData", () => marketData.status());
 
   handle("setMarketDataSource", async (market, source) => {
     config.set(["marketData", market], source);
@@ -99,10 +123,26 @@ export function registerSettingsIpc({
 
   // The stream keeps the session it opened with, so a new sign-in reopens it.
   handle("signInFubon", async () => {
-    const accounts = await marketData.signInFubon();
-
+    await marketData.signInFubon();
     await liveCandles.restart();
-
-    return accounts;
   });
+
+  handle("cacheUsage", async () => cache.usage());
+
+  handle("clearCache", async () => cache.clear());
+
+  handle("about", async () => ({
+    name: app.getName(),
+    version: app.getVersion(),
+    packaged: app.isPackaged,
+    electron: process.versions.electron,
+    chromium: process.versions.chrome,
+    node: process.versions.node,
+    os: `${OS_NAME[process.platform] ?? process.platform} ${process.getSystemVersion()} (${process.arch})`,
+    locations: mapValues(locations, (path) => path.replace(home, "~")),
+  }));
+
+  handle("reveal", async (location) =>
+    shell.showItemInFolder(locations[location])
+  );
 }

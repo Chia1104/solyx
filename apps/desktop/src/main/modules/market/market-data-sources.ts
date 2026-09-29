@@ -23,8 +23,17 @@ import {
   fuglePlanSchema,
 } from "@solyx/market-data/fugle";
 
-import { MarketDataSource, Secret, SecretState } from "#shared/ipc/settings.ts";
-import type { FubonFile, MarketDataStatus } from "#shared/ipc/settings.ts";
+import {
+  FubonSessionState,
+  MarketDataSource,
+  Secret,
+  SecretState,
+} from "#shared/ipc/settings.ts";
+import type {
+  FubonFile,
+  FubonSessionStatus,
+  MarketDataStatus,
+} from "#shared/ipc/settings.ts";
 
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
@@ -159,6 +168,29 @@ export function createMarketDataSources({
     return current.connection;
   }
 
+  // Reports without signing in: that blocks until Fubon answers.
+  async function fubonSession(): Promise<FubonSessionStatus> {
+    const options = await fubonSettings();
+
+    // A sign-in with other settings no longer says anything about these.
+    if (!fubon || !options || fubon.settings !== JSON.stringify(options)) {
+      return { state: FubonSessionState.SignedOut };
+    }
+
+    return "connection" in fubon
+      ? {
+          state: FubonSessionState.SignedIn,
+          accounts: fubon.connection.session.accounts.length,
+        }
+      : {
+          state: FubonSessionState.Failed,
+          message:
+            fubon.failure instanceof Error
+              ? fubon.failure.message
+              : String(fubon.failure),
+        };
+  }
+
   async function fugleProvider(): Promise<MarketDataProvider | undefined> {
     const apiKey = await secrets.get(Secret.FugleApiKey);
 
@@ -215,7 +247,7 @@ export function createMarketDataSources({
     streamSettings: () =>
       JSON.stringify([twSource(), fuglePlan(), fubonFiles()]),
 
-    async status(): Promise<Omit<MarketDataStatus, "file">> {
+    async status(): Promise<MarketDataStatus> {
       const states = await secrets.states();
       const saved = (secret: Secret) => states[secret] === SecretState.Saved;
       const source = twSource();
@@ -231,12 +263,12 @@ export function createMarketDataSources({
       return {
         markets: { [Market.TW]: { source, ready }, [Market.US]: null },
         fugle: { plan: fuglePlan(), plans: Object.values(FUGLE_PLANS) },
-        fubon: { plan: FUBON_PLAN, files },
+        fubon: { plan: FUBON_PLAN, files, session: await fubonSession() },
       };
     },
 
-    /** Signs in again with the saved settings, even after a failure; resolves how many accounts it holds. */
-    async signInFubon(): Promise<number> {
+    /** Signs in again with the saved settings, even after a failure. */
+    async signInFubon(): Promise<void> {
       const connection = await fubonConnection(true);
 
       if (!connection) {
@@ -244,8 +276,6 @@ export function createMarketDataSources({
           "Choose the SDK folder and certificate, and save your ID number and API key first"
         );
       }
-
-      return connection.session.accounts.length;
     },
   };
 }

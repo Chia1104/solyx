@@ -9,7 +9,12 @@ import type { FubonSession } from "@solyx/brokers/fubon";
 import { Market } from "@solyx/core/market";
 import { openCache } from "@solyx/db/cache";
 
-import { FubonFile, MarketDataSource, Secret } from "#shared/ipc/settings.ts";
+import {
+  FubonFile,
+  FubonSessionState,
+  MarketDataSource,
+  Secret,
+} from "#shared/ipc/settings.ts";
 
 import { createMarketDataSources } from "../src/main/modules/market/market-data-sources.ts";
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
@@ -144,11 +149,40 @@ test("a failed Fubon sign-in is not retried until the user asks", async () => {
   await expect(sources.provider(Market.TW)).rejects.toThrow("API key rejected");
   expect(await sources.openStream()).toBeUndefined();
   expect(openFubonSession).toHaveBeenCalledTimes(1);
+  expect((await sources.status()).fubon.session).toEqual({
+    state: FubonSessionState.Failed,
+    message: "Fubon login failed: API key rejected",
+  });
 
   vi.mocked(openFubonSession).mockImplementation(fakeSession);
 
-  expect(await sources.signInFubon()).toBe(1);
+  await sources.signInFubon();
+
   expect(openFubonSession).toHaveBeenCalledTimes(2);
+  expect((await sources.status()).fubon.session).toEqual({
+    state: FubonSessionState.SignedIn,
+    accounts: 1,
+  });
+});
+
+test("the Fubon session is reported without signing in, and only for the saved settings", async () => {
+  vi.mocked(openFubonSession).mockImplementation(fakeSession);
+
+  const { secrets, sources, useFubon } = setup();
+
+  await useFubon();
+
+  expect((await sources.status()).fubon.session).toEqual({
+    state: FubonSessionState.SignedOut,
+  });
+  expect(openFubonSession).not.toHaveBeenCalled();
+
+  await sources.provider(Market.TW);
+  await secrets.save(Secret.FubonApiKey, "another-key");
+
+  expect((await sources.status()).fubon.session).toEqual({
+    state: FubonSessionState.SignedOut,
+  });
 });
 
 test("switching Taiwan back to Fugle signs out of Fubon", async () => {

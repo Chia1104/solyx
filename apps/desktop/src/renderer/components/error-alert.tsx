@@ -19,7 +19,9 @@ export function ErrorAlert({
       <Alert.Content>
         <Alert.Title>{title}</Alert.Title>
         {description ? (
-          <Alert.Description>{description}</Alert.Description>
+          <Alert.Description className="whitespace-pre-line">
+            {description}
+          </Alert.Description>
         ) : null}
       </Alert.Content>
       {onRetry ? (

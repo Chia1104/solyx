@@ -1,8 +1,13 @@
 {
   "nav": {
     "overview": "Overview",
-    "proposals": "Proposals",
     "settings": "Settings"
+  },
+  "workspace": {
+    "symbols": "Watchlist and positions",
+    "agent": "Agent",
+    "toggle": "Show or hide {{pane}}",
+    "resize": "Resize {{pane}}"
   },
   "broker-mode": {
     "paper": "Paper trading",
@@ -12,7 +17,13 @@
     "loading": "Loading…",
     "load-failed": "Couldn't load data",
     "error-title": "Something went wrong",
-    "retry": "Retry"
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "not-found": {
+      "title": "This page doesn't exist",
+      "description": "Nothing in Solyx lives at this address.",
+      "action": "Go to overview"
+    }
   },
   "market": {
     "TW": "Taiwan",
@@ -45,8 +56,7 @@
     "failed": "Failed"
   },
   "market-sessions": {
-    "title": "Market sessions",
-    "chip": "{{market}}: {{session}}"
+    "title": "Market sessions"
   },
   "account": {
     "title": "Account",
@@ -54,7 +64,17 @@
     "symbol": "Symbol",
     "shares": "Shares",
     "avg-price": "Avg. price",
-    "no-positions": "No positions"
+    "no-positions": "No positions",
+    "cash": "Cash",
+    "shares-count": "{{count, number}} sh"
+  },
+  "watchlist": {
+    "title": "Watchlist",
+    "empty": "Search a symbol, then add it from above its chart.",
+    "add": "Add to watchlist",
+    "remove": "Remove from watchlist",
+    "remove-symbol": "Remove {{symbol}} from watchlist",
+    "update-failed": "Couldn't update the watchlist"
   },
   "chart": {
     "search-label": "Symbol",
@@ -87,19 +107,27 @@
       "volume": "Vol"
     },
     "setup-required": "Set up {{source}} in Settings to load this chart.",
-    "open-settings": "Open settings"
+    "open-settings": "Open settings",
+    "quote": {
+      "last": "Last price",
+      "change": "Change from the previous close"
+    }
+  },
+  "agent": {
+    "title": "Agent",
+    "not-connected": "The agent isn't connected yet. Proposals land here, and each one waits for you to confirm it."
   },
   "proposals": {
     "form-title": "New order proposal",
     "form-description": "Proposals pass the risk checks here and again when you confirm them.",
-    "empty": "No proposals yet",
     "summary": "{{side}} {{quantity, number}} shares @ {{price}}",
     "market-price": "market",
     "confirm": "Confirm and submit",
     "dismiss": "Dismiss",
     "propose-failed": "Couldn't create the proposal",
     "violations-title": "Blocked by risk checks",
-    "submit-failed": "Submission failed; check your broker before placing it again"
+    "submit-failed": "Submission failed; check your broker before placing it again",
+    "history": "History"
   },
   "order-form": {
     "market": "Market",
@@ -130,27 +158,47 @@
   },
   "settings": {
     "title": "Settings",
+    "sections": {
+      "general": "General",
+      "market-data": "Market data",
+      "storage": "Storage",
+      "about": "About"
+    },
+    "general": "General",
+    "save-failed": "Couldn't save the setting",
     "language": "Language",
     "language-description": "Applies to the whole app and is kept on this computer.",
+    "theme": "Theme",
+    "theme-description": "System follows your computer's light or dark appearance.",
+    "themes": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
     "market-data": {
       "title": "Market data",
+      "source-title": "Taiwan market data",
       "description": "Keys and sign-in details are encrypted by your operating system (the Keychain on macOS, DPAPI on Windows), used only on this computer and never shown again.",
-      "tw-source": "Taiwan stocks",
-      "source-description": "Where Taiwan charts and live bars come from. Set the source up in its section below.",
+      "source-description": "Charts and live bars for Taiwan listings come from here. Set up the source you pick below.",
       "sources": {
         "fugle": "Fugle",
         "fubon": "Fubon Neo"
       },
-      "limits": "{{symbols, number}} live symbols · {{intraday, number}} intraday and {{historical, number}} history requests a minute",
-      "edit-file": "You can also edit {{file}}; saving it applies the change.",
-      "save-failed": "Couldn't save the setting"
+      "source-hints": {
+        "fugle": "With your own Fugle API key.",
+        "fubon": "Through your Fubon Securities account."
+      },
+      "limits": "{{symbols, number}} live symbols; {{intraday, number}} intraday and {{historical, number}} history requests a minute"
     },
     "secrets": {
       "unavailable": "This computer has no secure storage, so keys and sign-in details can't be saved. On Linux, install and unlock GNOME Keyring or KWallet, then restart Solyx.",
       "unreadable": "The saved value can't be decrypted on this computer anymore, for example after moving to another computer or user account. Enter it again.",
       "replace-placeholder": "Enter a new value to replace the saved one",
       "save": "Save",
+      "set": "Set",
+      "replace": "Replace",
       "remove": "Remove",
+      "optional": "Optional",
       "save-failed": "Couldn't save it",
       "remove-failed": "Couldn't remove it",
       "required": "Enter a value",
@@ -161,19 +209,19 @@
       },
       "fugle-api-key": {
         "label": "API key",
-        "placeholder": "Paste your key"
+        "hint": "The API key from your Fugle account."
       },
       "fubon-personal-id": {
         "label": "ID number",
-        "placeholder": "The ID number your account is under, e.g. A123456789"
+        "hint": "The ID number your account is under, e.g. A123456789."
       },
       "fubon-api-key": {
         "label": "API key",
-        "placeholder": "Paste a key from Fubon's API key page"
+        "hint": "A key from Fubon's API key page."
       },
       "fubon-cert-password": {
         "label": "Certificate password",
-        "placeholder": "Leave unset if it's your ID number"
+        "hint": "Leave it unset if it's your ID number."
       }
     },
     "fugle": {
@@ -197,11 +245,45 @@
           "hint": "The .pfx file exported from Fubon's website."
         }
       },
+      "connection": "Connection",
       "not-chosen": "Not chosen",
       "choose": "Choose…",
+      "change": "Change…",
       "sign-in": "Sign in",
-      "signed-in": "Signed in · {{count, number}} accounts",
+      "sign-in-again": "Sign in again",
+      "signed-in": "Signed in to {{count, number}} accounts",
+      "signed-out": "Not signed in",
+      "signed-out-hint": "Solyx signs in when a Taiwan chart first needs data.",
+      "incomplete": "Setup incomplete",
       "sign-in-failed": "Couldn't sign in to Fubon"
+    },
+    "storage": {
+      "title": "Candle cache",
+      "description": "Closed sessions are kept on this computer so charts don't download them again. After clearing, charts fetch them from your market data source when needed, which uses your plan's request budget.",
+      "size": "On disk",
+      "bars": "{{count, number}} bars",
+      "series": "{{count, number}} symbol and interval pairs",
+      "empty": "Nothing cached yet",
+      "clear": "Clear cache",
+      "confirm-title": "Clear the candle cache?",
+      "confirm-body": "Charts will download closed sessions again as they need them. Your watchlist, proposals and settings stay.",
+      "confirm": "Clear",
+      "clear-failed": "Couldn't clear the cache"
+    },
+    "about": {
+      "version": "Version {{version}}",
+      "development": "Development build",
+      "electron": "Electron",
+      "chromium": "Chromium",
+      "node": "Node.js",
+      "os": "Operating system",
+      "data": "Data folder",
+      "data-hint": "Keys, databases and caches are kept here.",
+      "config": "Config file",
+      "config-hint": "You can also edit it by hand; saving applies the change.",
+      "reveal-mac": "Show in Finder",
+      "reveal": "Show in folder",
+      "license": "License"
     }
   },
   "locale": {

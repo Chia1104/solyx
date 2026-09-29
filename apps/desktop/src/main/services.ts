@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { app } from "electron";
+import { app, nativeTheme } from "electron";
 import { kebabCase } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
@@ -8,6 +8,9 @@ import { OrderDesk } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
 import { Session, getSession } from "@solyx/core/session";
 import { openCache } from "@solyx/db/cache";
+import { openUserData } from "@solyx/db/user";
+
+import { AppLocation, Theme } from "#shared/ipc/settings.ts";
 
 import { createLiveCandles } from "./modules/market/live-candles.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
@@ -47,6 +50,11 @@ export function createServices() {
     join(import.meta.dirname, "migrations", "cache")
   );
 
+  const userData = openUserData(
+    join(app.getPath("userData"), "user.sqlite"),
+    join(import.meta.dirname, "migrations", "user")
+  );
+
   const home = app.getPath("home");
 
   // Settings a person edits live in a dotfolder named after the app, so each channel keeps its own.
@@ -84,18 +92,37 @@ export function createServices() {
     await liveCandles.restart();
   }
 
-  config.watch(() => void applySettings());
+  const theme = () => config.read().theme ?? Theme.System;
+
+  // Windows and their renderers' prefers-color-scheme follow themeSource.
+  const applyTheme = () => {
+    nativeTheme.themeSource = theme();
+  };
+
+  applyTheme();
+
+  config.watch(() => {
+    applyTheme();
+    void applySettings();
+  });
 
   return {
     broker,
     desk,
     secrets,
     config,
-    /** The config file as shown to the user. */
-    configFile: config.file.replace(home, "~"),
+    cache,
+    home,
+    locations: {
+      [AppLocation.Data]: app.getPath("userData"),
+      [AppLocation.Config]: config.file,
+    },
     applySettings,
+    theme,
+    applyTheme,
     marketData,
     liveCandles,
+    userData,
   };
 }
 

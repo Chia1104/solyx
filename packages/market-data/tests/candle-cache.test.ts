@@ -49,6 +49,7 @@ function fakeProvider(
   const provider: MarketDataProvider = {
     id,
     markets: [Market.TW],
+    getListing: async () => null,
     async getCandles({ interval, from, to }) {
       calls.push({ interval, from, to });
 

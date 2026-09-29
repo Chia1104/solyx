@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./cache": "./src/cache.ts"
+    "./cache": "./src/cache.ts",
+    "./user": "./src/user.ts"
   },
   "scripts": {
-    "db:generate": "drizzle-kit generate --config drizzle.cache.config.ts",
+    "db:generate": "drizzle-kit generate --config drizzle.cache.config.ts && drizzle-kit generate --config drizzle.user.config.ts",
     "test": "vp test"
   },
   "dependencies": {

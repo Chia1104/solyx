@@ -1,8 +1,13 @@
 {
   "nav": {
     "overview": "總覽",
-    "proposals": "提案",
     "settings": "設定"
+  },
+  "workspace": {
+    "symbols": "自選與庫存",
+    "agent": "Agent",
+    "toggle": "顯示或隱藏{{pane}}",
+    "resize": "調整{{pane}}寬度"
   },
   "broker-mode": {
     "paper": "模擬交易",
@@ -12,7 +17,13 @@
     "loading": "載入中…",
     "load-failed": "無法載入資料",
     "error-title": "發生錯誤",
-    "retry": "重試"
+    "retry": "重試",
+    "cancel": "取消",
+    "not-found": {
+      "title": "找不到這個頁面",
+      "description": "Solyx 裡沒有這個位址對應的內容。",
+      "action": "回到總覽"
+    }
   },
   "market": {
     "TW": "台股",
@@ -45,8 +56,7 @@
     "failed": "送出失敗"
   },
   "market-sessions": {
-    "title": "市場時段",
-    "chip": "{{market}}：{{session}}"
+    "title": "市場時段"
   },
   "account": {
     "title": "帳戶",
@@ -54,7 +64,17 @@
     "symbol": "代號",
     "shares": "股數",
     "avg-price": "均價",
-    "no-positions": "尚無庫存"
+    "no-positions": "尚無庫存",
+    "cash": "現金",
+    "shares-count": "{{count, number}} 股"
+  },
+  "watchlist": {
+    "title": "自選",
+    "empty": "搜尋代號後，在圖表上方加入自選。",
+    "add": "加入自選",
+    "remove": "移出自選",
+    "remove-symbol": "將 {{symbol}} 移出自選",
+    "update-failed": "無法更新自選"
   },
   "chart": {
     "search-label": "代號",
@@ -87,19 +107,27 @@
       "volume": "量"
     },
     "setup-required": "請先到設定完成{{source}}的設定，才能載入這張圖。",
-    "open-settings": "前往設定"
+    "open-settings": "前往設定",
+    "quote": {
+      "last": "最新價",
+      "change": "與前一日收盤相比"
+    }
+  },
+  "agent": {
+    "title": "Agent",
+    "not-connected": "Agent 尚未接上。提案會出現在這裡，每一筆都等你確認。"
   },
   "proposals": {
     "form-title": "建立下單提案",
     "form-description": "提案會先在這裡經過風控檢查，確認送出時會再檢查一次。",
-    "empty": "還沒有提案",
     "summary": "{{side}} {{quantity, number}} 股 @ {{price}}",
     "market-price": "市價",
     "confirm": "確認送出",
     "dismiss": "取消",
     "propose-failed": "無法建立提案",
     "violations-title": "未通過風控檢查",
-    "submit-failed": "送單失敗；再次下單前請先到券商確認"
+    "submit-failed": "送單失敗；再次下單前請先到券商確認",
+    "history": "紀錄"
   },
   "order-form": {
     "market": "市場",
@@ -130,27 +158,47 @@
   },
   "settings": {
     "title": "設定",
+    "sections": {
+      "general": "一般",
+      "market-data": "行情",
+      "storage": "儲存空間",
+      "about": "關於"
+    },
+    "general": "一般",
+    "save-failed": "無法儲存設定",
     "language": "語言",
     "language-description": "套用到整個 app，並保存在這台電腦上。",
+    "theme": "主題",
+    "theme-description": "「跟隨系統」會依電腦的淺色或深色外觀切換。",
+    "themes": {
+      "system": "跟隨系統",
+      "light": "淺色",
+      "dark": "深色"
+    },
     "market-data": {
       "title": "行情",
+      "source-title": "台股行情來源",
       "description": "金鑰與登入資料由作業系統加密保存（macOS 用鑰匙圈、Windows 用 DPAPI），只在這台電腦上使用，儲存後不會再顯示。",
-      "tw-source": "台股",
-      "source-description": "台股圖表與即時 K 線的來源，請在下方對應的區塊完成設定。",
+      "source-description": "台股圖表與即時 K 線從這裡來，請在下方完成所選來源的設定。",
       "sources": {
         "fugle": "富果",
         "fubon": "富邦新一代 API"
       },
-      "limits": "即時 {{symbols, number}} 檔・每分鐘盤中 {{intraday, number}} 次、歷史 {{historical, number}} 次",
-      "edit-file": "也可以直接編輯 {{file}}，存檔後立即生效。",
-      "save-failed": "無法儲存設定"
+      "source-hints": {
+        "fugle": "使用你自己的富果 API 金鑰。",
+        "fubon": "透過你的富邦證券帳戶登入。"
+      },
+      "limits": "即時 {{symbols, number}} 檔；每分鐘盤中 {{intraday, number}} 次、歷史 {{historical, number}} 次"
     },
     "secrets": {
       "unavailable": "這台電腦沒有可用的安全儲存，無法儲存金鑰與登入資料。Linux 請安裝並解鎖 GNOME Keyring 或 KWallet，再重新啟動 Solyx。",
       "unreadable": "已儲存的內容無法在這台電腦上解密，例如換了電腦或使用者帳號。請重新輸入。",
       "replace-placeholder": "輸入新的內容以取代已儲存的值",
       "save": "儲存",
+      "set": "設定",
+      "replace": "取代",
       "remove": "移除",
+      "optional": "選填",
       "save-failed": "無法儲存",
       "remove-failed": "無法移除",
       "required": "請輸入內容",
@@ -161,19 +209,19 @@
       },
       "fugle-api-key": {
         "label": "API 金鑰",
-        "placeholder": "貼上金鑰"
+        "hint": "你在富果申請的 API 金鑰。"
       },
       "fubon-personal-id": {
         "label": "身分證字號",
-        "placeholder": "開戶使用的身分證字號，例如 A123456789"
+        "hint": "開戶使用的身分證字號，例如 A123456789。"
       },
       "fubon-api-key": {
         "label": "API 金鑰",
-        "placeholder": "貼上在富邦 API 金鑰頁面申請的金鑰"
+        "hint": "在富邦 API 金鑰頁面申請的金鑰。"
       },
       "fubon-cert-password": {
         "label": "憑證密碼",
-        "placeholder": "與身分證字號相同時免填"
+        "hint": "與身分證字號相同時免填。"
       }
     },
     "fugle": {
@@ -197,11 +245,45 @@
           "hint": "從富邦網站匯出的 .pfx 檔。"
         }
       },
+      "connection": "連線",
       "not-chosen": "尚未選擇",
       "choose": "選擇…",
+      "change": "變更…",
       "sign-in": "登入",
-      "signed-in": "已登入・{{count, number}} 個帳戶",
+      "sign-in-again": "重新登入",
+      "signed-in": "已登入，{{count, number}} 個帳戶",
+      "signed-out": "尚未登入",
+      "signed-out-hint": "第一次開啟需要資料的台股圖表時會自動登入。",
+      "incomplete": "尚未完成設定",
       "sign-in-failed": "無法登入富邦"
+    },
+    "storage": {
+      "title": "K 線快取",
+      "description": "已收盤的 K 線會存在這台電腦上，圖表就不必每次重新下載。清除後，圖表需要時會再向行情來源下載，並用掉你方案的請求額度。",
+      "size": "磁碟用量",
+      "bars": "{{count, number}} 根 K 線",
+      "series": "{{count, number}} 組代號與週期",
+      "empty": "目前沒有快取",
+      "clear": "清除快取",
+      "confirm-title": "清除 K 線快取？",
+      "confirm-body": "圖表之後需要時會重新下載已收盤的 K 線。自選、提案與設定都會保留。",
+      "confirm": "清除",
+      "clear-failed": "無法清除快取"
+    },
+    "about": {
+      "version": "版本 {{version}}",
+      "development": "開發版",
+      "electron": "Electron",
+      "chromium": "Chromium",
+      "node": "Node.js",
+      "os": "作業系統",
+      "data": "資料夾",
+      "data-hint": "金鑰、資料庫與快取都存在這裡。",
+      "config": "設定檔",
+      "config-hint": "也可以直接編輯，存檔後立即生效。",
+      "reveal-mac": "在 Finder 中顯示",
+      "reveal": "開啟所在資料夾",
+      "license": "授權"
     }
   },
   "locale": {

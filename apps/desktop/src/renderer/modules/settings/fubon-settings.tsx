@@ -1,35 +1,33 @@
-import {
-  Button,
-  Chip,
-  Description,
-  Input,
-  Label,
-  TextField,
-} from "@heroui/react";
+import { Button } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { FubonFile, Secret } from "#shared/ipc/settings.ts";
+import {
+  FubonFile,
+  FubonSessionState,
+  Secret,
+  SecretState,
+} from "#shared/ipc/settings.ts";
+import type { MarketDataStatus } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { candlesQueryKeys } from "../market/candles-query.ts";
 
 import { PlanLimits } from "./plan-limits.tsx";
-import { SecretFields } from "./secret-fields.tsx";
-import { marketDataQuery, settingsQueryKeys } from "./settings-query.ts";
+import { SecretRow, SecretsUnavailable } from "./secret-row.tsx";
+import { SettingsList, SettingsRow } from "./settings-list.tsx";
+import { secretsQuery, settingsQueryKeys } from "./settings-query.ts";
 
-const FUBON_SECRETS = [
-  Secret.FubonPersonalId,
-  Secret.FubonApiKey,
-  Secret.FubonCertPassword,
-];
+const REQUIRED_SECRETS = [Secret.FubonPersonalId, Secret.FubonApiKey];
 
-/** What signing in to Fubon takes: the SDK the user downloads, their certificate, ID and API key. */
-export function FubonSettings() {
+const fileName = (path: string) => path.split(/[\\/]/).at(-1) ?? path;
+
+/** What signing in to Fubon takes, one row each, under the state of the session they sign in. */
+export function FubonSettings({ status }: { status: MarketDataStatus }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data, error, refetch } = useQuery(marketDataQuery());
+  const secrets = useQuery(secretsQuery());
 
   // Charts sign in again with the new settings.
   const refresh = () =>
@@ -49,72 +47,122 @@ export function FubonSettings() {
     onSettled: refresh,
   });
 
-  if (error) {
+  if (secrets.error) {
     return (
       <ErrorAlert
         title={t("common.load-failed")}
-        description={error.message}
-        onRetry={() => void refetch()}
+        description={secrets.error.message}
+        onRetry={() => void secrets.refetch()}
       />
     );
   }
 
-  if (!data) return <LoadingState />;
+  if (!secrets.data) return <LoadingState />;
+
+  const { available, states } = secrets.data;
+  const { files, plan, session } = status.fubon;
+
+  const complete =
+    Boolean(files.sdk && files.certificate) &&
+    REQUIRED_SECRETS.every((secret) => states[secret] === SecretState.Saved);
+
+  const sessionValue = !complete
+    ? t("settings.fubon.incomplete")
+    : session.state === FubonSessionState.SignedIn
+      ? t("settings.fubon.signed-in", { count: session.accounts })
+      : session.state === FubonSessionState.Failed
+        ? t("settings.fubon.sign-in-failed")
+        : t("settings.fubon.signed-out");
 
   return (
-    <div className="flex flex-col gap-6">
-      {Object.values(FubonFile).map((file) => (
-        <TextField
-          key={file}
-          isReadOnly
-          className="max-w-md"
-          value={data.fubon.files[file] ?? ""}>
-          <Label>{t(`settings.fubon.files.${file}.label`)}</Label>
-          <div className="flex gap-2">
-            <Input
-              className="grow"
-              placeholder={t("settings.fubon.not-chosen")}
-            />
+    <div className="flex flex-col gap-3">
+      {available ? null : <SecretsUnavailable />}
+      <SettingsList>
+        <SettingsRow
+          label={t("settings.fubon.connection")}
+          description={<PlanLimits plan={plan} />}
+          value={
+            <span
+              className={
+                complete && session.state === FubonSessionState.Failed
+                  ? "text-danger"
+                  : ""
+              }>
+              {sessionValue}
+            </span>
+          }
+          actions={
             <Button
+              size="sm"
               variant="secondary"
-              isPending={choose.isPending && choose.variables === file}
-              isDisabled={choose.isPending}
-              onPress={() => choose.mutate(file)}>
-              {t("settings.fubon.choose")}
+              isDisabled={!complete}
+              isPending={signIn.isPending}
+              onPress={() => signIn.mutate()}>
+              {session.state === FubonSessionState.SignedOut
+                ? t("settings.fubon.sign-in")
+                : t("settings.fubon.sign-in-again")}
             </Button>
-          </div>
-          <Description>{t(`settings.fubon.files.${file}.hint`)}</Description>
-        </TextField>
-      ))}
+          }>
+          {complete && session.state === FubonSessionState.Failed ? (
+            <p className="text-xs text-danger">{session.message}</p>
+          ) : null}
+          {complete && session.state === FubonSessionState.SignedOut ? (
+            <p className="text-xs text-muted">
+              {t("settings.fubon.signed-out-hint")}
+            </p>
+          ) : null}
+          {/* A failure the session reports already shows above. */}
+          {signIn.error && session.state !== FubonSessionState.Failed ? (
+            <ErrorAlert
+              title={t("settings.fubon.sign-in-failed")}
+              description={signIn.error.message}
+            />
+          ) : null}
+        </SettingsRow>
+        {Object.values(FubonFile).map((file) => {
+          const path = files[file];
+
+          return (
+            <SettingsRow
+              key={file}
+              label={t(`settings.fubon.files.${file}.label`)}
+              description={t(`settings.fubon.files.${file}.hint`)}
+              value={
+                path ? (
+                  <span title={path}>{fileName(path)}</span>
+                ) : (
+                  t("settings.fubon.not-chosen")
+                )
+              }
+              actions={
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  isPending={choose.isPending && choose.variables === file}
+                  isDisabled={choose.isPending}
+                  onPress={() => choose.mutate(file)}>
+                  {path
+                    ? t("settings.fubon.change")
+                    : t("settings.fubon.choose")}
+                </Button>
+              }
+            />
+          );
+        })}
+        {[...REQUIRED_SECRETS, Secret.FubonCertPassword].map((secret) => (
+          <SecretRow
+            key={secret}
+            secret={secret}
+            state={states[secret]}
+            available={available}
+            optional={secret === Secret.FubonCertPassword}
+          />
+        ))}
+      </SettingsList>
       {choose.error ? (
         <ErrorAlert
-          title={t("settings.market-data.save-failed")}
+          title={t("settings.save-failed")}
           description={choose.error.message}
-        />
-      ) : null}
-      <SecretFields secrets={FUBON_SECRETS} />
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            isPending={signIn.isPending}
-            onPress={() => signIn.mutate()}>
-            {t("settings.fubon.sign-in")}
-          </Button>
-          {signIn.isSuccess ? (
-            <Chip size="sm" color="success">
-              {t("settings.fubon.signed-in", { count: signIn.data })}
-            </Chip>
-          ) : null}
-        </div>
-        <p className="text-sm text-muted">
-          <PlanLimits plan={data.fubon.plan} />
-        </p>
-      </div>
-      {signIn.error ? (
-        <ErrorAlert
-          title={t("settings.fubon.sign-in-failed")}
-          description={signIn.error.message}
         />
       ) : null}
     </div>

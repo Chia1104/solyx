@@ -81,6 +81,11 @@ export default defineConfig({
           to: "dist/main/migrations",
           rename: "cache",
         },
+        {
+          from: "../../packages/db/migrations/user",
+          to: "dist/main/migrations",
+          rename: "user",
+        },
       ],
     },
     {

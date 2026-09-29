@@ -51,9 +51,6 @@ import {
 } from "./indicator-panes.tsx";
 import { ChartIndicator, useIndicatorStore } from "./indicator-store.ts";
 
-/** Also sizes the loading placeholder, so the page keeps its height when the chart appears. */
-export const PRICE_CHART_CLASS = "h-[620px] w-full";
-
 // Oscillators each get a pane below volume, in this order.
 const PANE_INDICATORS: readonly ChartIndicator[] = [
   ChartIndicator.Macd,
@@ -186,7 +183,7 @@ export function PriceChart({
     2 + oscillators.indexOf(indicator);
 
   return (
-    <Chart options={options} className={PRICE_CHART_CLASS}>
+    <Chart options={options} className="size-full">
       <Series
         definition={CandlestickSeries}
         data={bars.candles}

@@ -125,7 +125,7 @@ export function ProposalForm() {
     // Validation runs through the schema, so native browser messages never appear.
     <Form
       validationBehavior="aria"
-      className="grid grid-cols-3 gap-4"
+      className="grid grid-cols-2 gap-3"
       onSubmit={(event) => void submit(event)}>
       <Controller
         control={form.control}
@@ -250,7 +250,10 @@ export function ProposalForm() {
       />
       <div className="col-span-full flex flex-col gap-2">
         <div>
-          <Button type="submit" isPending={propose.isPending}>
+          <Button
+            type="submit"
+            variant="secondary"
+            isPending={propose.isPending}>
             {t("order-form.submit")}
           </Button>
         </div>

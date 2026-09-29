@@ -5,14 +5,15 @@ export interface ChartPalette {
   grid: string;
 }
 
+// The canvas cannot read CSS variables, so these follow --muted and --separator in styles.css.
 export const LIGHT_PALETTE: ChartPalette = {
-  text: "#3f3f46",
-  grid: "rgba(0, 0, 0, 0.06)",
+  text: "#646c7b",
+  grid: "#dce0e7",
 };
 
 export const DARK_PALETTE: ChartPalette = {
-  text: "#d4d4d8",
-  grid: "rgba(255, 255, 255, 0.07)",
+  text: "#8a94a6",
+  grid: "#232c3a",
 };
 
 export interface DirectionColors {

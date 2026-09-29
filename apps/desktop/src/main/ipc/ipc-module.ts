@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
-import type * as z from "zod";
+import * as z from "zod";
 
 type Method = (...args: never) => void;
 
@@ -27,8 +27,17 @@ export function ipcModule<Api extends Record<keyof Api, Method>>(
   ) {
     const schema: z.ZodType<MethodArgs<Api[K]>> = schemas[name];
 
-    ipcMain.handle(channels[name], (event, ...args) =>
-      handler(...schema.parse(args), event)
-    );
+    ipcMain.handle(channels[name], (event, ...args) => {
+      const parsed = schema.safeParse(args);
+
+      // The issues' own JSON is unreadable once it reaches the renderer's error message.
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid arguments for ${channels[name]}: ${z.prettifyError(parsed.error)}`
+        );
+      }
+
+      return handler(...parsed.data, event);
+    });
   };
 }

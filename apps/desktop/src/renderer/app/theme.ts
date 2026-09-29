@@ -10,7 +10,10 @@ function applySystemTheme() {
   document.documentElement.dataset.theme = theme;
 }
 
-/** HeroUI switches palettes by class, so mirror the OS appearance that Electron forwards. */
+/**
+ * HeroUI switches palettes by class, so mirror the appearance Electron forwards, which is the
+ * theme chosen in settings or else the computer's.
+ */
 export function followSystemTheme() {
   applySystemTheme();
   darkScheme.addEventListener("change", applySystemTheme);

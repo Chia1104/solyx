@@ -15,7 +15,7 @@ import * as z from "zod";
 import type { Market } from "@solyx/core/market";
 import { FuglePlan } from "@solyx/market-data/fugle";
 
-import { MarketDataSource } from "#shared/ipc/settings.ts";
+import { MarketDataSource, Theme } from "#shared/ipc/settings.ts";
 import type { FubonFile } from "#shared/ipc/settings.ts";
 
 const PARSE_OPTIONS = { allowTrailingComma: true };
@@ -25,6 +25,7 @@ const textSchema = z.string().trim().min(1).optional().catch(undefined);
 
 // Loose objects keep keys this build does not know, so saving never drops someone's edits.
 const configSchema = z.looseObject({
+  theme: z.enum(Theme).optional().catch(undefined),
   marketData: z.looseObject({ TW: textSchema }).optional().catch(undefined),
   providers: z
     .looseObject({
@@ -42,6 +43,7 @@ type Config = z.infer<typeof configSchema>;
 
 /** The values the app edits; the file may hold others a person added. */
 export type ConfigPath =
+  | ["theme"]
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle", "plan"]
   | ["providers", "fubon", FubonFile];
@@ -54,6 +56,8 @@ const quoted = (values: Record<string, string>) =>
 const TEMPLATE = [
   "// Settings Solyx reads. Edit them here or on the settings page; saving this file applies them.",
   "{",
+  `  // Light or dark, or follow the computer: ${quoted(Theme)}.`,
+  `  "theme": "${Theme.System}",`,
   '  "marketData": {',
   `    // Where Taiwan charts come from: ${quoted(MarketDataSource)}.`,
   `    "TW": "${MarketDataSource.Fugle}"`,

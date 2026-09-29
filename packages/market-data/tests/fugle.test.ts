@@ -450,3 +450,50 @@ test("history requests past the plan's budget wait for the window to slide", asy
     vi.useRealTimers();
   }
 });
+
+test("a listing is named from the intraday ticker", async () => {
+  const { fetch, requests } = fakeFugle([
+    {
+      path: "/intraday/ticker/2330",
+      body: JSON.stringify({
+        date: "2026-09-29",
+        type: "EQUITY",
+        symbol: "2330",
+        name: "台積電",
+        referencePrice: 2475,
+      }),
+    },
+  ]);
+
+  const provider = createFugleMarketData({
+    apiKey: "test-key",
+    fetch,
+    now: () => DURING_SESSION,
+  });
+
+  expect(await provider.getListing(TSMC)).toEqual({
+    name: "台積電",
+    englishName: null,
+  });
+  expect(requests).toHaveLength(1);
+});
+
+test("a symbol Fugle does not list has no listing", async () => {
+  const { fetch } = fakeFugle([
+    {
+      path: "/intraday/ticker/9999",
+      status: 404,
+      body: JSON.stringify({ statusCode: 404, message: "Resource Not Found" }),
+    },
+  ]);
+
+  const provider = createFugleMarketData({
+    apiKey: "test-key",
+    fetch,
+    now: () => DURING_SESSION,
+  });
+
+  expect(
+    await provider.getListing({ market: Market.TW, symbol: "9999" })
+  ).toBeNull();
+});

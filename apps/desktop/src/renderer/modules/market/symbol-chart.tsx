@@ -1,6 +1,5 @@
 import { Alert, EmptyState, Skeleton, Spinner } from "@heroui/react";
 import { buttonVariants } from "@heroui/styles";
-import { useQuery } from "@tanstack/react-query";
 import { CatchBoundary, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
@@ -11,11 +10,11 @@ import type { MarketDataSource } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { ErrorFallback } from "../../components/error-fallback.tsx";
-import { marketDataQuery } from "../settings/settings-query.ts";
+import { FallbackFrame } from "../../components/fallback-frame.tsx";
+import { SettingsSection } from "../settings/settings-section.ts";
 
-import { candlesQuery } from "./candles-query.ts";
-import { useLiveCandles } from "./live-candles.ts";
-import { PRICE_CHART_CLASS, PriceChart } from "./price-chart.tsx";
+import { PriceChart } from "./price-chart.tsx";
+import { useCandles } from "./use-candles.ts";
 
 function SetupRequired({ source }: { source: MarketDataSource }) {
   const { t } = useTranslation();
@@ -32,6 +31,7 @@ function SetupRequired({ source }: { source: MarketDataSource }) {
       </Alert.Content>
       <Link
         to="/settings"
+        search={{ section: SettingsSection.MarketData }}
         className={buttonVariants({ size: "sm", variant: "secondary" })}>
         {t("chart.open-settings")}
       </Link>
@@ -39,7 +39,10 @@ function SetupRequired({ source }: { source: MarketDataSource }) {
   );
 }
 
-/** One listing's chart with its load, empty and error states; a chart that fails to render leaves the toolbar usable. */
+/**
+ * One listing's chart with its load, empty and error states, filling its container; a chart
+ * that fails to render leaves the toolbar usable.
+ */
 export function SymbolChart({
   symbol,
   interval,
@@ -48,56 +51,59 @@ export function SymbolChart({
   interval: Interval;
 }) {
   const { t } = useTranslation();
-  const settings = useQuery(marketDataQuery());
-  const source = settings.data?.markets[symbol.market];
-
-  // A source missing its settings has no data, so the chart asks for them instead. A market
-  // without a source still loads, so the main process can say why it has none.
-  const ready = source === null || source?.ready === true;
-
-  const live = useLiveCandles(symbol, interval, ready);
-
-  const candles = useQuery({
-    ...candlesQuery(symbol, interval, live),
-    enabled: ready,
-  });
+  const { settings, source, candles } = useCandles(symbol, interval);
 
   if (settings.error) {
     return (
-      <ErrorAlert
-        title={t("common.load-failed")}
-        description={settings.error.message}
-        onRetry={() => void settings.refetch()}
-      />
+      <FallbackFrame>
+        <ErrorAlert
+          title={t("common.load-failed")}
+          description={settings.error.message}
+          onRetry={() => void settings.refetch()}
+        />
+      </FallbackFrame>
     );
   }
 
-  // Checked before the bars' error, which may predate the change that left the source unready.
-  if (source && !source.ready) return <SetupRequired source={source.source} />;
+  // A source missing its settings has no data, so the chart asks for them instead. This is
+  // checked before the bars' error, which may predate the change that left the source unready.
+  if (source && !source.ready) {
+    return (
+      <FallbackFrame>
+        <SetupRequired source={source.source} />
+      </FallbackFrame>
+    );
+  }
 
   if (candles.error) {
     return (
-      <ErrorAlert
-        title={t("common.load-failed")}
-        description={candles.error.message}
-        onRetry={() => void candles.refetch()}
-      />
+      <FallbackFrame>
+        <ErrorAlert
+          title={t("common.load-failed")}
+          description={candles.error.message}
+          onRetry={() => void candles.refetch()}
+        />
+      </FallbackFrame>
     );
   }
 
   const { data, isPlaceholderData } = candles;
 
-  if (!data) return <Skeleton className={`${PRICE_CHART_CLASS} rounded-xl`} />;
+  if (!data) return <Skeleton className="size-full rounded-sm" />;
 
   if (data.candles.length === 0) {
-    return <EmptyState>{t("chart.no-data")}</EmptyState>;
+    return (
+      <FallbackFrame>
+        <EmptyState className="text-center">{t("chart.no-data")}</EmptyState>
+      </FallbackFrame>
+    );
   }
 
   // Each listing and interval gets a fresh chart, time scale and error boundary.
   const dataset = `${data.symbol.market}:${data.symbol.symbol}:${data.interval}`;
 
   return (
-    <div className="relative" aria-busy={isPlaceholderData}>
+    <div className="relative size-full" aria-busy={isPlaceholderData}>
       <CatchBoundary getResetKey={() => dataset} errorComponent={ErrorFallback}>
         <PriceChart
           key={dataset}

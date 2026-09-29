@@ -1,11 +1,14 @@
-import { AccountCard } from "../modules/account/account-card.tsx";
-import { MarketSessionsCard } from "../modules/market/market-sessions-card.tsx";
+import { useTranslation } from "react-i18next";
+
+import { Sheet } from "../components/sheet.tsx";
+import { AccountSummary } from "../modules/account/account-summary.tsx";
 
 export function OverviewPage() {
+  const { t } = useTranslation();
+
   return (
-    <div className="flex flex-col gap-6">
-      <MarketSessionsCard />
-      <AccountCard />
-    </div>
+    <Sheet title={t("nav.overview")}>
+      <AccountSummary />
+    </Sheet>
   );
 }

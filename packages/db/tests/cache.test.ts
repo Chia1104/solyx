@@ -8,7 +8,7 @@ import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { Interval } from "@solyx/core/candles";
-import { Market } from "@solyx/core/market";
+import { Market, shiftDate } from "@solyx/core/market";
 
 import { candleSeries, candles } from "../src/cache-schema.ts";
 import { openCache } from "../src/cache.ts";
@@ -218,5 +218,54 @@ describe("candle store", () => {
 
     expect(store.coverage(other)).toBeUndefined();
     expect(store.read(other, "2026-09-01", "2026-09-30")).toEqual([]);
+  });
+});
+
+describe("cache usage", () => {
+  test("bars are counted per source", () => {
+    const cache = open();
+    const other = { ...DAILY, source: "fubon", symbol: "2317" };
+
+    cache.candles.store(DAILY, [session("2026-09-23"), session("2026-09-24")], {
+      from: "2026-09-23",
+      to: "2026-09-24",
+    });
+    cache.candles.store(other, [session("2026-09-24")], {
+      from: "2026-09-24",
+      to: "2026-09-24",
+    });
+
+    const usage = cache.usage();
+
+    expect(usage.bytes).toBeGreaterThan(0);
+    expect(usage.sources).toEqual([
+      { source: "fubon", series: 1, bars: 1 },
+      { source: "fugle", series: 1, bars: 2 },
+    ]);
+  });
+
+  test("clearing drops every bar and shrinks the file", () => {
+    const cache = open();
+
+    const dates = Array.from({ length: 2000 }, (_, day) =>
+      shiftDate("2020-01-01", day)
+    );
+
+    cache.candles.store(
+      DAILY,
+      dates.map((date) => session(date)),
+      { from: dates[0], to: dates.at(-1) ?? dates[0] }
+    );
+
+    const before = cache.usage().bytes;
+
+    cache.clear();
+
+    expect(cache.usage()).toEqual({
+      bytes: expect.any(Number),
+      sources: [],
+    });
+    expect(cache.usage().bytes).toBeLessThan(before);
+    expect(cache.candles.coverage(DAILY)).toBeUndefined();
   });
 });

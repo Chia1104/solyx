@@ -9,12 +9,21 @@ export interface CandleRequest {
   to: string;
 }
 
+/** How the exchange names a listing. */
+export interface Listing {
+  /** The exchange's own name, such as 台積電. */
+  name: string;
+  englishName: string | null;
+}
+
 /** One implementation per data provider (`@solyx/market-data/*`); it runs only in the main process. */
 export interface MarketDataProvider {
   readonly id: string;
   readonly markets: readonly Market[];
   /** Returns bars in strictly ascending time, including today's session when `to` reaches today; a symbol the provider does not list has none. */
   getCandles(request: CandleRequest): Promise<Candle[]>;
+  /** `null` for a symbol the provider does not list. */
+  getListing(symbol: SymbolRef): Promise<Listing | null>;
 }
 
 export interface MinuteListener {

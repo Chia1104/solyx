@@ -127,3 +127,23 @@ test("an entry of the wrong shape reads as missing and leaves the rest in force"
     },
   });
 });
+
+test("the theme follows the computer until one the app knows is saved", async () => {
+  const config = createConfigFile(file);
+
+  config.create();
+
+  expect(config.read().theme).toBe("system");
+
+  await writeFile(
+    file,
+    '{ "theme": "sepia", "marketData": { "TW": "fubon" } }'
+  );
+
+  expect(config.read().theme).toBeUndefined();
+
+  config.set(["theme"], "dark");
+
+  expect(config.read().theme).toBe("dark");
+  expect(config.read().marketData?.TW).toBe("fubon");
+});

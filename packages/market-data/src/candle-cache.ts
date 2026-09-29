@@ -105,6 +105,8 @@ export function withCandleCache(
     id: provider.id,
     markets: provider.markets,
 
+    getListing: (symbol) => provider.getListing(symbol),
+
     async getCandles(request) {
       if (!isCalendarInterval(request.interval)) return barCandles(request);
 

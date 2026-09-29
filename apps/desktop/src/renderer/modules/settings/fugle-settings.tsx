@@ -1,23 +1,25 @@
-import { Description, Label, ListBox, Select } from "@heroui/react";
+import { ListBox, Select } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type { FuglePlan } from "@solyx/market-data/fugle";
 
 import { Secret } from "#shared/ipc/settings.ts";
+import type { MarketDataStatus } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
 import { PlanLimits } from "./plan-limits.tsx";
-import { SecretFields } from "./secret-fields.tsx";
-import { marketDataQuery, settingsQueryKeys } from "./settings-query.ts";
+import { SecretRow, SecretsUnavailable } from "./secret-row.tsx";
+import { SettingsList, SettingsRow } from "./settings-list.tsx";
+import { secretsQuery, settingsQueryKeys } from "./settings-query.ts";
 
 /** The Fugle key and the plan it belongs to, which sets how hard Solyx may use it. */
-export function FugleSettings() {
+export function FugleSettings({ status }: { status: MarketDataStatus }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data, error, refetch } = useQuery(marketDataQuery());
+  const secrets = useQuery(secretsQuery());
 
   const save = useMutation({
     mutationFn: (plan: FuglePlan) => window.solyx.settings.setFuglePlan(plan),
@@ -25,60 +27,70 @@ export function FugleSettings() {
       queryClient.invalidateQueries({ queryKey: settingsQueryKeys.marketData }),
   });
 
-  if (error) {
+  if (secrets.error) {
     return (
       <ErrorAlert
         title={t("common.load-failed")}
-        description={error.message}
-        onRetry={() => void refetch()}
+        description={secrets.error.message}
+        onRetry={() => void secrets.refetch()}
       />
     );
   }
 
-  if (!data) return <LoadingState />;
+  if (!secrets.data) return <LoadingState />;
 
-  const { plan, plans } = data.fugle;
+  const { available, states } = secrets.data;
+  const { plan, plans } = status.fugle;
   const selected = plans.find((option) => option.id === plan);
+  const planLabel = t("settings.fugle.plan");
 
   return (
-    <div className="flex flex-col gap-6">
-      <SecretFields secrets={[Secret.FugleApiKey]} />
-      <Select
-        className="max-w-xs"
-        value={plan}
-        isDisabled={save.isPending}
-        onChange={(key) => {
-          const next = plans.find((option) => option.id === key);
+    <div className="flex flex-col gap-3">
+      {available ? null : <SecretsUnavailable />}
+      <SettingsList>
+        <SecretRow
+          secret={Secret.FugleApiKey}
+          state={states[Secret.FugleApiKey]}
+          available={available}
+        />
+        <SettingsRow
+          label={planLabel}
+          description={selected ? <PlanLimits plan={selected} /> : null}
+          actions={
+            <Select
+              aria-label={planLabel}
+              className="w-44"
+              value={plan}
+              isDisabled={save.isPending}
+              onChange={(key) => {
+                const next = plans.find((option) => option.id === key);
 
-          if (next && next.id !== plan) save.mutate(next.id);
-        }}>
-        <Label>{t("settings.fugle.plan")}</Label>
-        <Select.Trigger>
-          <Select.Value />
-          <Select.Indicator />
-        </Select.Trigger>
-        {selected ? (
-          <Description>
-            <PlanLimits plan={selected} />
-          </Description>
-        ) : null}
-        <Select.Popover>
-          <ListBox>
-            {plans.map((option) => (
-              <ListBox.Item
-                key={option.id}
-                id={option.id}
-                textValue={t(`settings.fugle.plans.${option.id}`)}>
-                {t(`settings.fugle.plans.${option.id}`)}
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-            ))}
-          </ListBox>
-        </Select.Popover>
-      </Select>
+                if (next && next.id !== plan) save.mutate(next.id);
+              }}>
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {plans.map((option) => (
+                    <ListBox.Item
+                      key={option.id}
+                      id={option.id}
+                      textValue={t(`settings.fugle.plans.${option.id}`)}>
+                      {t(`settings.fugle.plans.${option.id}`)}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          }
+        />
+      </SettingsList>
       {save.error ? (
         <ErrorAlert
-          title={t("settings.market-data.save-failed")}
+          title={t("settings.save-failed")}
           description={save.error.message}
         />
       ) : null}
