@@ -34,7 +34,7 @@ export function ProviderPlans() {
 
   if (!data) return <LoadingState />;
 
-  const { plan, plans } = data.fugle;
+  const { plan, plans } = data.providers.fugle;
   const selected = plans.find((option) => option.id === plan);
 
   return (
@@ -76,6 +76,9 @@ export function ProviderPlans() {
           </ListBox>
         </Select.Popover>
       </Select>
+      <p className="text-sm text-muted">
+        {t("settings.providers.edit-file", { file: data.file })}
+      </p>
       {save.error ? (
         <ErrorAlert
           title={t("settings.providers.save-failed")}

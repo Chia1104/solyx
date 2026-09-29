@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { app } from "electron";
+import { kebabCase } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
 import { Market } from "@solyx/core/market";
@@ -19,7 +20,10 @@ import {
 } from "@solyx/market-data/fugle";
 
 import { MARKET_DATA_SECRET } from "#shared/ipc/settings.ts";
-import type { ProviderPlans } from "#shared/ipc/settings.ts";
+import type {
+  ProviderPlans,
+  ProviderPlansStatus,
+} from "#shared/ipc/settings.ts";
 
 import { createLiveCandles } from "./modules/market/live-candles.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
@@ -58,7 +62,14 @@ export function createServices() {
     join(import.meta.dirname, "migrations", "cache")
   );
 
-  const config = createConfigFile(join(app.getPath("userData"), "config.json"));
+  const home = app.getPath("home");
+
+  // Settings a person edits live in a dotfolder named after the app, so each channel keeps its own.
+  const config = createConfigFile(
+    join(home, `.${kebabCase(app.getName())}`, "config.jsonc")
+  );
+
+  config.create();
 
   // A plan the provider no longer sells, or a hand edit it does not know, means its free plan.
   const fuglePlan = () =>
@@ -110,15 +121,31 @@ export function createServices() {
     },
   });
 
+  let appliedPlan = fuglePlan();
+
+  // A plan changes from the settings page or a hand edit; the stream's capacity follows either.
+  async function applyPlan() {
+    const plan = fuglePlan();
+
+    if (plan === appliedPlan) return;
+
+    appliedPlan = plan;
+    await liveCandles.restart();
+  }
+
+  config.watch(() => void applyPlan());
+
   const providerPlans = {
-    current: (): ProviderPlans => ({
-      fugle: { plan: fuglePlan(), plans: Object.values(FUGLE_PLANS) },
+    current: (): ProviderPlansStatus => ({
+      file: config.file.replace(home, "~"),
+      providers: {
+        fugle: { plan: fuglePlan(), plans: Object.values(FUGLE_PLANS) },
+      },
     }),
 
     async set(provider: keyof ProviderPlans, plan: string) {
       config.setProviderPlan(provider, fuglePlanSchema.parse(plan));
-      // The stream's capacity comes from the plan, so it reopens under the new one.
-      await liveCandles.restart();
+      await applyPlan();
     },
   };
 

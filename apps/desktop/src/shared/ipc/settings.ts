@@ -41,11 +41,17 @@ export interface ProviderPlans {
   fugle: PlanChoice<FuglePlan>;
 }
 
+export interface ProviderPlansStatus {
+  /** The config file that also holds the plans, for editing by hand. */
+  file: string;
+  providers: ProviderPlans;
+}
+
 export interface SettingsApi {
   secrets(): Promise<SecretsStatus>;
   saveSecret(secret: Secret, value: string): Promise<void>;
   deleteSecret(secret: Secret): Promise<void>;
-  providerPlans(): Promise<ProviderPlans>;
+  providerPlans(): Promise<ProviderPlansStatus>;
   /** Saves the plan the user holds; request budgets and the live stream follow it at once. */
   setProviderPlan(provider: keyof ProviderPlans, plan: string): Promise<void>;
 }

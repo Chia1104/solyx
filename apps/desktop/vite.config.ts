@@ -71,6 +71,9 @@ export default defineConfig({
       entry: { index: "src/main/index.ts" },
       outDir: "dist/main",
       format: "esm",
+      // Its package lacks `exports`, so node resolution would take the UMD build, whose inner
+      // requires escape the bundle.
+      alias: { "jsonc-parser": "jsonc-parser/lib/esm/main.js" },
       // drizzle's migrator reads SQL files at runtime, so they ship beside the bundle.
       copy: [
         {

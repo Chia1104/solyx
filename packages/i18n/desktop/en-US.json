@@ -165,6 +165,7 @@
         }
       },
       "limits": "{{symbols, number}} live symbols · {{intraday, number}} intraday and {{historical, number}} history requests a minute",
+      "edit-file": "You can also edit {{file}}; saving it applies the change.",
       "save-failed": "Couldn't save the plan"
     }
   },

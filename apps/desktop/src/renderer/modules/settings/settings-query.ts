@@ -13,8 +13,10 @@ export const secretsQuery = () =>
     queryFn: () => window.solyx.settings.secrets(),
   });
 
+/** Always stale, since the plans can also change by hand in the config file. */
 export const providerPlansQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.providerPlans,
     queryFn: () => window.solyx.settings.providerPlans(),
+    staleTime: 0,
   });

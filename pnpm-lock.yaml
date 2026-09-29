@@ -178,6 +178,9 @@ catalogs:
     es-toolkit:
       specifier: 1.52.0
       version: 1.52.0
+    jsonc-parser:
+      specifier: 3.3.1
+      version: 3.3.1
     ky:
       specifier: ^2.1.0
       version: 2.1.0
@@ -346,6 +349,9 @@ importers:
       i18next:
         specifier: catalog:i18n
         version: 26.4.2(typescript@7.0.2)
+      jsonc-parser:
+        specifier: 'catalog:'
+        version: 3.3.1
       lightweight-charts:
         specifier: catalog:charts
         version: 5.2.1
@@ -2193,6 +2199,9 @@ packages:
   jsbi@4.3.2:
     resolution: {integrity: sha512-9fqMSQbhJykSeii05nxKl4m6Eqn2P6rOlYiS+C5Dr/HPIU/7yZxu5qzbs40tgaFORiw2Amd0mirjxatXYMkIew==}
 
+  jsonc-parser@3.3.1:
+    resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
+
   ky@2.1.0:
     resolution: {integrity: sha512-nIKwelw+7qVqKOlX4Eht6GXfEXlDHcdIjyLWV3s119kYt5s+70ayTnYS+0fRNmtgGRRAfqdeWQbh8YizqkS0ng==}
     engines: {node: '>=22'}
@@ -3770,6 +3779,8 @@ snapshots:
   js-tokens@4.0.0: {}
 
   jsbi@4.3.2: {}
+
+  jsonc-parser@3.3.1: {}
 
   ky@2.1.0: {}
 

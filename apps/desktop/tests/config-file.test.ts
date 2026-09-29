@@ -12,66 +12,83 @@ let file: string;
 
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "solyx-config-"));
-  file = join(directory, "config.json");
+  file = join(directory, ".solyx", "config.jsonc");
 });
 
 afterEach(() => rm(directory, { recursive: true, force: true }));
 
-test("a missing file has no saved plans", () => {
-  expect(createConfigFile(file).providerPlan("fugle")).toBeUndefined();
-});
-
-test("a saved plan is written as readable JSON and read back", async () => {
+test("a new file starts from a commented template on the free plan", async () => {
   const config = createConfigFile(file);
 
-  config.setProviderPlan("fugle", "developer");
-  config.setProviderPlan("fugle", "advanced");
+  expect(config.providerPlan("fugle")).toBeUndefined();
 
-  expect(config.providerPlan("fugle")).toBe("advanced");
-  expect(await readFile(file, "utf8")).toBe(
-    `${JSON.stringify({ providers: { fugle: { plan: "advanced" } } }, null, 2)}\n`
-  );
+  config.create();
+
+  expect(config.providerPlan("fugle")).toBe("basic");
+  expect(await readFile(file, "utf8")).toMatch(/^\/\/ /);
 
   if (process.platform !== "win32") {
     expect((await stat(file)).mode & 0o777).toBe(0o600);
   }
 });
 
-test("hand edits apply to the next read and survive a save", async () => {
+test("saving a plan edits it in place, keeping comments and other keys", async () => {
   const config = createConfigFile(file);
 
+  config.create();
   await writeFile(
     file,
-    JSON.stringify({
-      note: "kept",
-      providers: {
-        fugle: { plan: "developer", region: "tw" },
-        other: { plan: "pro" },
-      },
-    })
+    [
+      "// my notes",
+      "{",
+      '  "theme": "dark", // kept',
+      '  "providers": {',
+      '    "fugle": { "plan": "developer", "region": "tw" },',
+      "  },",
+      "}",
+    ].join("\n")
   );
 
   expect(config.providerPlan("fugle")).toBe("developer");
 
-  config.setProviderPlan("fugle", "basic");
+  config.setProviderPlan("fugle", "advanced");
 
-  expect(JSON.parse(await readFile(file, "utf8"))).toEqual({
-    note: "kept",
-    providers: {
-      fugle: { plan: "basic", region: "tw" },
-      other: { plan: "pro" },
-    },
-  });
+  const text = await readFile(file, "utf8");
+
+  expect(config.providerPlan("fugle")).toBe("advanced");
+  expect(text).toContain("// my notes");
+  expect(text).toContain('"theme": "dark", // kept');
+  expect(text).toContain('"region": "tw"');
 });
 
-test("a file that no longer parses counts as empty until the next save", async () => {
+test("a file with syntax errors reads as defaults and is never overwritten", async () => {
   const config = createConfigFile(file);
+  const broken = '{ "providers": { "fugle": { "plan": "developer" }';
 
-  await writeFile(file, "{ not json");
+  config.create();
+  await writeFile(file, broken);
 
   expect(config.providerPlan("fugle")).toBeUndefined();
+  expect(() => config.setProviderPlan("fugle", "basic")).toThrow(
+    /syntax errors/
+  );
+  expect(await readFile(file, "utf8")).toBe(broken);
+});
 
-  config.setProviderPlan("fugle", "developer");
+test("changes made outside the app are reported", async () => {
+  const config = createConfigFile(file);
 
-  expect(config.providerPlan("fugle")).toBe("developer");
+  config.create();
+
+  const changed = new Promise<void>((resolve) => {
+    const stop = config.watch(() => {
+      stop();
+      resolve();
+    });
+  });
+
+  await writeFile(file, '{ "providers": { "fugle": { "plan": "advanced" } } }');
+  await changed;
+
+  expect(config.providerPlan("fugle")).toBe("advanced");
 });

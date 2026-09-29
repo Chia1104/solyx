@@ -165,6 +165,7 @@
         }
       },
       "limits": "即時 {{symbols, number}} 檔・每分鐘盤中 {{intraday, number}} 次、歷史 {{historical, number}} 次",
+      "edit-file": "也可以直接編輯 {{file}}，存檔後立即生效。",
       "save-failed": "無法儲存方案"
     }
   },

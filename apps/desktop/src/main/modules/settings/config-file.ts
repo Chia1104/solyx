@@ -1,72 +1,133 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import {
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  watch,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname } from "node:path";
 
+import { debounce } from "es-toolkit";
+import { applyEdits, modify, parse } from "jsonc-parser";
+import type { ParseError } from "jsonc-parser";
 import * as z from "zod";
 
-const providerConfigSchema = z.looseObject({ plan: z.string().optional() });
+import { FuglePlan } from "@solyx/market-data/fugle";
+
+const PARSE_OPTIONS = { allowTrailingComma: true };
 
 // Loose objects keep keys this build does not know, so saving never drops someone's edits.
 const configSchema = z.looseObject({
-  providers: z.record(z.string(), providerConfigSchema).default({}),
+  providers: z
+    .record(z.string(), z.looseObject({ plan: z.string().optional() }))
+    .default({}),
 });
 
 type Config = z.infer<typeof configSchema>;
 
+const TEMPLATE = [
+  "// Settings Solyx reads. Edit them here or on the settings page; saving this file applies them.",
+  "{",
+  '  "providers": {',
+  `    // Your key's plan: ${Object.values(FuglePlan)
+    .map((plan) => `"${plan}"`)
+    .join(", ")}.`,
+  `    "fugle": { "plan": "${FuglePlan.Basic}" }`,
+  "  }",
+  "}",
+  "",
+].join("\n");
+
+function readText(file: string): string | undefined {
+  try {
+    return readFileSync(file, "utf8");
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
+function hasSyntaxErrors(text: string): boolean {
+  const errors: ParseError[] = [];
+
+  parse(text, errors, PARSE_OPTIONS);
+
+  return errors.length > 0;
+}
+
 /**
- * Settings the main process reads, kept as JSON a person can edit. Every read parses the file,
- * so hand edits apply to the next request; a file that no longer parses counts as empty.
+ * Settings the main process reads, kept as JSONC for a person to edit. Every read parses the
+ * file, so saved edits apply to the next request; a file with syntax errors reads as defaults
+ * and is never overwritten, and the app edits values in place so comments survive.
  */
 export function createConfigFile(file: string) {
   function read(): Config {
-    let text: string;
+    const text = readText(file);
+    const errors: ParseError[] = [];
+    const value = text === undefined ? {} : parse(text, errors, PARSE_OPTIONS);
 
-    try {
-      text = readFileSync(file, "utf8");
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        error.code === "ENOENT"
-      ) {
-        return configSchema.parse({});
-      }
-
-      throw error;
-    }
-
-    try {
-      return configSchema.parse(JSON.parse(text));
-    } catch {
-      return configSchema.parse({});
-    }
+    return (
+      (errors.length === 0 ? configSchema.safeParse(value).data : undefined) ??
+      configSchema.parse({})
+    );
   }
 
-  function write(config: Config) {
+  function write(text: string) {
     const temporary = `${file}.tmp`;
 
     mkdirSync(dirname(file), { recursive: true });
     // Written aside and renamed into place, so a crash mid-write keeps the previous file.
-    writeFileSync(temporary, `${JSON.stringify(config, null, 2)}\n`, {
-      mode: 0o600,
-    });
+    writeFileSync(temporary, text, { mode: 0o600 });
     renameSync(temporary, file);
   }
 
   return {
+    file,
+
+    /** Writes a commented template when the file does not exist yet, so there is something to edit. */
+    create() {
+      if (readText(file) === undefined) write(TEMPLATE);
+    },
+
     /** The plan saved for a provider; the provider decides whether it still sells it. */
     providerPlan: (provider: string): string | undefined =>
       read().providers[provider]?.plan,
 
     setProviderPlan(provider: string, plan: string) {
-      const config = read();
+      const text = readText(file) ?? TEMPLATE;
 
-      write({
-        ...config,
-        providers: {
-          ...config.providers,
-          [provider]: { ...config.providers[provider], plan },
-        },
+      if (hasSyntaxErrors(text)) {
+        throw new Error(`Fix the syntax errors in ${file} before saving`);
+      }
+
+      write(
+        applyEdits(
+          text,
+          modify(text, ["providers", provider, "plan"], plan, {
+            formattingOptions: { insertSpaces: true, tabSize: 2 },
+          })
+        )
+      );
+    },
+
+    /** Calls `onChange` shortly after the file changes on disk, whoever changed it. */
+    watch(onChange: () => void): () => void {
+      const notify = debounce(onChange, 200);
+
+      mkdirSync(dirname(file), { recursive: true });
+
+      // Editors often save by renaming a new file into place, so the folder is watched.
+      const watcher = watch(dirname(file), (_event, name) => {
+        if (name === basename(file)) notify();
       });
+
+      return () => {
+        notify.cancel();
+        watcher.close();
+      };
     },
   };
 }
