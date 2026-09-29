@@ -1,4 +1,4 @@
-import ky, { isHTTPError } from "ky";
+import ky from "ky";
 import * as z from "zod";
 
 import {
@@ -30,6 +30,12 @@ const TIMEFRAME: Record<BarInterval, string> = {
   [Interval.ThirtyMinutes]: "30",
   [Interval.OneHour]: "60",
   [Interval.OneDay]: "D",
+};
+
+// Fugle answers 404 both for symbols it does not list and for ranges without a session,
+// such as a weekend, so a 404 means no bars for that one request.
+const NOT_FOUND_IS_EMPTY = {
+  throwHttpErrors: (status: number) => status !== 404,
 };
 
 // Fugle rejects historical ranges of a year or more.
@@ -111,8 +117,10 @@ export function createFugleMarketData(
     from: string,
     to: string
   ): Promise<Candle[]> {
-    const response = await api
-      .get(`historical/candles/${encodeURIComponent(symbol)}`, {
+    const response = await api.get(
+      `historical/candles/${encodeURIComponent(symbol)}`,
+      {
+        ...NOT_FOUND_IS_EMPTY,
         searchParams: {
           from,
           to,
@@ -120,11 +128,13 @@ export function createFugleMarketData(
           fields: "open,high,low,close,volume",
           sort: "asc",
         },
-      })
-      .json();
+      }
+    );
+
+    if (response.status === 404) return [];
 
     return historicalCandlesSchema
-      .parse(response)
+      .parse(await response.json())
       .data.map((bar) => toCandle(bar, interval));
   }
 
@@ -135,19 +145,22 @@ export function createFugleMarketData(
     // Today's daily bar is built from the session's hourly bars.
     const timeframe = isIntraday(interval) ? interval : Interval.OneHour;
 
-    const response = intradayCandlesSchema.parse(
-      await api
-        .get(`intraday/candles/${encodeURIComponent(symbol)}`, {
-          searchParams: { timeframe: TIMEFRAME[timeframe] },
-        })
-        .json()
+    const response = await api.get(
+      `intraday/candles/${encodeURIComponent(symbol)}`,
+      {
+        ...NOT_FOUND_IS_EMPTY,
+        searchParams: { timeframe: TIMEFRAME[timeframe] },
+      }
     );
 
-    const bars = response.data.map((bar) => toCandle(bar, timeframe));
+    if (response.status === 404) return [];
+
+    const session = intradayCandlesSchema.parse(await response.json());
+    const bars = session.data.map((bar) => toCandle(bar, timeframe));
 
     if (isIntraday(interval) || bars.length === 0) return bars;
 
-    return [{ ...mergeCandles(bars), time: midnightInTaipei(response.date) }];
+    return [{ ...mergeCandles(bars), time: midnightInTaipei(session.date) }];
   }
 
   async function loadCandles({
@@ -160,9 +173,13 @@ export function createFugleMarketData(
       ? Interval.OneDay
       : interval;
 
+    const currentDate = exchangeDate(Market.TW, now());
+    const lastClose = shiftDate(currentDate, -1);
+
+    // History never holds today, so a range that starts today costs one intraday request.
     const ranges = splitRange(
       isCalendarInterval(interval) ? periodStart(from, interval) : from,
-      to
+      to < lastClose ? to : lastClose
     );
 
     const [history, session] = await Promise.all([
@@ -171,9 +188,7 @@ export function createFugleMarketData(
           historical(symbol.symbol, barInterval, start, end)
         )
       ),
-      to >= exchangeDate(Market.TW, now())
-        ? today(symbol.symbol, barInterval)
-        : [],
+      to >= currentDate ? today(symbol.symbol, barInterval) : [],
     ]);
 
     const bars = history.flat();
@@ -197,14 +212,7 @@ export function createFugleMarketData(
         );
       }
 
-      try {
-        return await loadCandles(request);
-      } catch (error) {
-        // Fugle answers 404 for symbols it does not list.
-        if (isHTTPError(error) && error.response.status === 404) return [];
-
-        throw error;
-      }
+      return loadCandles(request);
     },
   };
 }

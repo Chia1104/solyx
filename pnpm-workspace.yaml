@@ -22,6 +22,10 @@ catalogs:
     "@chiastack/oxlint": ^1.1.0
   electron:
     electron: ^44.4.5
+  drizzle:
+    # 1.0.0-rc.5 ships only as commit builds; drizzle-kit must match drizzle-orm exactly.
+    drizzle-kit: 1.0.0-rc.5-5935859
+    drizzle-orm: 1.0.0-rc.5-5935859
   forms:
     "@hookform/resolvers": ^5.9.1
     react-hook-form: ^7.89.0
@@ -49,6 +53,10 @@ catalogs:
     "@tanstack/react-router": 1.170.40
   ui:
     zustand: 5.0.15
+
+# esbuild (through drizzle-kit) runs from its platform package; its install script only verifies it.
+allowBuilds:
+  esbuild: false
 
 overrides:
   vite@*: "catalog:"

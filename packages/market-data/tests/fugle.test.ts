@@ -219,11 +219,40 @@ test("today's bars already in the history are not repeated", async () => {
   const candles = await provider.getCandles({
     symbol: TSMC,
     interval: Interval.FiveMinutes,
-    from: "2026-09-29",
+    from: "2026-09-28",
     to: "2026-09-29",
   });
 
   expect(candles).toHaveLength(2);
+});
+
+test("a range that starts today asks only for the session", async () => {
+  const { fetch, requests } = fakeFugle([
+    {
+      path: "/intraday/candles/2330",
+      body: JSON.stringify({
+        date: "2026-09-29",
+        data: [bar("2026-09-29T09:00:00.000+08:00", 2475, 5651)],
+      }),
+    },
+  ]);
+
+  const provider = createFugleMarketData({
+    apiKey: "test-key",
+    fetch,
+    now: () => DURING_SESSION,
+  });
+
+  await provider.getCandles({
+    symbol: TSMC,
+    interval: Interval.FiveMinutes,
+    from: "2026-09-29",
+    to: "2026-09-29",
+  });
+
+  expect(requests.map((url) => url.pathname)).toEqual([
+    "/marketdata/v1.0/stock/intraday/candles/2330",
+  ]);
 });
 
 test("ranges of a year or more are split into shorter requests", async () => {
@@ -305,6 +334,39 @@ test("symbols Fugle does not list have no candles", async () => {
   });
 
   expect(candles).toEqual([]);
+});
+
+test("a range without sessions still returns today's bars", async () => {
+  const { fetch } = fakeFugle([
+    {
+      path: "/historical/candles/2330",
+      status: 404,
+      body: JSON.stringify({ statusCode: 404, message: "Resource Not Found" }),
+    },
+    {
+      path: "/intraday/candles/2330",
+      body: JSON.stringify({
+        date: "2026-09-29",
+        data: [bar("2026-09-29T09:00:00.000+08:00", 2475, 5651)],
+      }),
+    },
+  ]);
+
+  const provider = createFugleMarketData({
+    apiKey: "test-key",
+    fetch,
+    now: () => DURING_SESSION,
+  });
+
+  // The weekend of 2026-09-26 has no sessions, which Fugle answers with 404.
+  const candles = await provider.getCandles({
+    symbol: TSMC,
+    interval: Interval.FiveMinutes,
+    from: "2026-09-26",
+    to: "2026-09-29",
+  });
+
+  expect(candles.map((candle) => candle.close)).toEqual([2475]);
 });
 
 // Fugle clips weekly bars to the range, so chunks splitting a week once produced two bars with one time.

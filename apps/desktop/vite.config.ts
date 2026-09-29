@@ -71,6 +71,14 @@ export default defineConfig({
       entry: { index: "src/main/index.ts" },
       outDir: "dist/main",
       format: "esm",
+      // drizzle's migrator reads SQL files at runtime, so they ship beside the bundle.
+      copy: [
+        {
+          from: "../../packages/db/migrations/cache",
+          to: "dist/main/migrations",
+          rename: "cache",
+        },
+      ],
     },
     {
       ...nodeBundle,

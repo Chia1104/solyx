@@ -19,6 +19,7 @@
     "@hookform/resolvers": "catalog:forms",
     "@solyx/brokers": "workspace:*",
     "@solyx/core": "workspace:*",
+    "@solyx/db": "workspace:*",
     "@solyx/i18n": "workspace:*",
     "@solyx/market-data": "workspace:*",
     "@solyx/trading-chart": "workspace:*",
