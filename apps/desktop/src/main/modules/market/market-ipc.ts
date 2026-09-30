@@ -1,6 +1,6 @@
 import * as z from "zod";
 
-import { Interval, intervalSchema } from "@solyx/core/candles";
+import { LOOKBACK_DAYS, intervalSchema } from "@solyx/core/candles";
 import {
   Market,
   exchangeDate,
@@ -14,18 +14,6 @@ import type { MarketApi } from "#shared/ipc/market.ts";
 
 import { ipcModule } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";
-
-// Enough bars for the slowest indicator to warm up, within Fugle's free-tier rate limit.
-const LOOKBACK_DAYS: Record<Interval, number> = {
-  [Interval.OneMinute]: 5,
-  [Interval.FiveMinutes]: 30,
-  [Interval.FifteenMinutes]: 60,
-  [Interval.ThirtyMinutes]: 120,
-  [Interval.OneHour]: 180,
-  [Interval.OneDay]: 540,
-  [Interval.OneWeek]: 3 * 365,
-  [Interval.OneMonth]: 5 * 365,
-};
 
 const handle = ipcModule<MarketApi>(marketChannels, {
   sessions: z.tuple([]),

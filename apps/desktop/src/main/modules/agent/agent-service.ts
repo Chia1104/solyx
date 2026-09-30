@@ -1,0 +1,83 @@
+import { BrowserWindow } from "electron";
+
+import { formatContext } from "@solyx/agent/prompt";
+import { createAgentRuntime } from "@solyx/agent/runtime";
+import { createTradingTools } from "@solyx/agent/tools";
+import type { AgentSessionStore } from "@solyx/agent/transcript";
+import type { BrokerAdapter } from "@solyx/core/broker";
+import { Market } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
+import type { MarketDataProvider } from "@solyx/core/market-data";
+import type { OrderDesk } from "@solyx/core/order-desk";
+import { getSession } from "@solyx/core/session";
+
+import { agentEvents } from "#shared/ipc/agent.ts";
+import type { AgentFocus, AgentUpdate } from "#shared/ipc/agent.ts";
+
+import type { ConfigFile } from "../settings/config-file.ts";
+import type { SecretStore } from "../settings/secret-store.ts";
+
+import { createAgentModels } from "./agent-models.ts";
+
+export interface AgentServiceOptions {
+  config: ConfigFile;
+  secrets: SecretStore;
+  sessions: AgentSessionStore;
+  marketData: (market: Market) => Promise<MarketDataProvider | undefined>;
+  watchlist: () => SymbolRef[];
+  broker: BrokerAdapter;
+  desk: OrderDesk;
+}
+
+// Every window shows the same conversations, so every window hears every run.
+function broadcast(update: AgentUpdate) {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(agentEvents.onEvent, update);
+  }
+}
+
+/** The agent as the app wires it: the user's model and key, the trading tools and the desk. */
+export function createAgentService(options: AgentServiceOptions) {
+  const models = createAgentModels(options);
+
+  const runtime = createAgentRuntime({
+    store: options.sessions,
+    streamFn: (model, context, streamOptions) =>
+      models.catalog.streamSimple(model, context, streamOptions),
+    model: () => models.choice(),
+    tools: () =>
+      createTradingTools({
+        marketData: options.marketData,
+        watchlist: options.watchlist,
+        account: () => options.broker.getAccount(),
+        brokerMode: options.broker.mode,
+        desk: options.desk,
+      }),
+    onEvent: (sessionId, event) => broadcast({ sessionId, event }),
+  });
+
+  return {
+    models,
+    runtime,
+
+    send(id: string, text: string, focus: AgentFocus | null, locale: string) {
+      const now = new Date();
+
+      return runtime.send(id, {
+        text,
+        context: formatContext({
+          now,
+          sessions: {
+            [Market.TW]: getSession(Market.TW, now),
+            [Market.US]: getSession(Market.US, now),
+          },
+          brokerMode: options.broker.mode,
+          focus: focus ?? undefined,
+          locale,
+        }),
+      });
+    },
+  };
+}
+
+export type AgentService = ReturnType<typeof createAgentService>;

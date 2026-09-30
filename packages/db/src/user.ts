@@ -1,12 +1,18 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { omit } from "es-toolkit";
 
+import type { AgentSessionStore } from "@solyx/agent/transcript";
 import type { SymbolRef } from "@solyx/core/market";
 import type { ProposalStore, TradeProposal } from "@solyx/core/order-desk";
 
 import { connect } from "./connection.ts";
-import { proposals, watchlist } from "./user-schema.ts";
+import {
+  agentMessages,
+  agentSessions,
+  proposals,
+  watchlist,
+} from "./user-schema.ts";
 
 function watchlistStore(db: NodeSQLiteDatabase) {
   const listing = (ref: SymbolRef) =>
@@ -78,6 +84,61 @@ function proposalStore(db: NodeSQLiteDatabase): ProposalStore {
   };
 }
 
+function agentSessionStore(db: NodeSQLiteDatabase): AgentSessionStore {
+  const session = {
+    id: agentSessions.id,
+    title: agentSessions.title,
+    createdAt: agentSessions.createdAt,
+    updatedAt: agentSessions.updatedAt,
+  };
+
+  return {
+    list: () =>
+      db
+        .select(session)
+        .from(agentSessions)
+        .orderBy(desc(agentSessions.updatedAt), desc(agentSessions.seq))
+        .all(),
+
+    get: (id) =>
+      db
+        .select(session)
+        .from(agentSessions)
+        .where(eq(agentSessions.id, id))
+        .get(),
+
+    create(value) {
+      db.insert(agentSessions).values(value).run();
+    },
+
+    update(value) {
+      db.update(agentSessions)
+        .set(value)
+        .where(eq(agentSessions.id, value.id))
+        .run();
+    },
+
+    delete(id) {
+      // Its messages go with it through the foreign key.
+      db.delete(agentSessions).where(eq(agentSessions.id, id)).run();
+    },
+
+    entries: (sessionId) =>
+      db
+        .select({ id: agentMessages.id, message: agentMessages.message })
+        .from(agentMessages)
+        .where(eq(agentMessages.sessionId, sessionId))
+        .orderBy(asc(agentMessages.seq))
+        .all(),
+
+    append(sessionId, entry) {
+      db.insert(agentMessages)
+        .values({ sessionId, ...entry })
+        .run();
+    },
+  };
+}
+
 /**
  * The user's database, holding what cannot be fetched again. It is never deleted, so a
  * file its migrations cannot open is an error. `migrationsFolder` is `migrations/user`
@@ -89,6 +150,7 @@ export function openUserData(path: string, migrationsFolder: string) {
   return {
     watchlist: watchlistStore(connection.db),
     proposals: proposalStore(connection.db),
+    agentSessions: agentSessionStore(connection.db),
     close: () => connection.client.close(),
   };
 }

@@ -115,7 +115,54 @@
   },
   "agent": {
     "title": "Agent",
-    "not-connected": "Agent 尚未接上。提案會出現在這裡，每一筆都等你確認。"
+    "tabs": {
+      "chat": "對話",
+      "proposals": "提案"
+    },
+    "new-chat": "新對話",
+    "conversations": "對話紀錄",
+    "untitled": "新對話",
+    "delete": "刪除對話",
+    "delete-failed": "無法刪除對話",
+    "empty-title": "問問個股或你的帳戶",
+    "empty-description": "Agent 會讀取 K 線、技術指標和你的模擬帳戶，也能提出下單建議，每一筆都要你確認才會送出。",
+    "placeholder": "問 Agent…",
+    "send": "送出",
+    "stop": "停止",
+    "send-failed": "無法送出訊息",
+    "setup-title": "設定 Agent",
+    "setup-description": "選擇服務商並儲存它的 API 金鑰後即可開始。",
+    "open-settings": "開啟設定",
+    "thinking": "思考中",
+    "working": "處理中…",
+    "notices": {
+      "aborted": "已停止。",
+      "error": "Agent 因錯誤而停止",
+      "interrupted": "Agent 完成前 Solyx 就關閉了。"
+    },
+    "tools": {
+      "get_market_status": "查看市場狀態",
+      "get_candles": "讀取 K 線",
+      "get_indicators": "讀取技術指標",
+      "get_watchlist": "讀取自選股",
+      "get_account": "讀取帳戶",
+      "list_proposals": "讀取提案",
+      "check_order": "檢查委託",
+      "propose_order": "提出下單建議",
+      "read_skill": "讀取操作手冊"
+    },
+    "tool-status": {
+      "running": "執行中",
+      "ok": "完成",
+      "error": "失敗",
+      "aborted": "已停止"
+    },
+    "link": {
+      "title": "要開啟這個連結嗎？",
+      "description": "連結會在瀏覽器開啟。這是 Agent 寫出的網址，請先確認。",
+      "open": "開啟",
+      "cancel": "取消"
+    }
   },
   "onboarding": {
     "title": "設定 Solyx",
@@ -195,7 +242,8 @@
       "general": "一般",
       "market-data": "行情",
       "storage": "儲存空間",
-      "about": "關於"
+      "about": "關於",
+      "agent": "AI Agent"
     },
     "general": "一般",
     "save-failed": "無法儲存設定",
@@ -255,6 +303,22 @@
       "fubon-cert-password": {
         "label": "憑證密碼",
         "hint": "與身分證字號相同時免填。"
+      },
+      "anthropic-api-key": {
+        "label": "Anthropic API 金鑰",
+        "hint": "在 Anthropic Console 建立的金鑰。"
+      },
+      "openai-api-key": {
+        "label": "OpenAI API 金鑰",
+        "hint": "在 OpenAI Platform 建立的金鑰。"
+      },
+      "google-api-key": {
+        "label": "Gemini API 金鑰",
+        "hint": "在 Google AI Studio 建立的金鑰。"
+      },
+      "openrouter-api-key": {
+        "label": "OpenRouter API 金鑰",
+        "hint": "在 OpenRouter 帳號建立的金鑰。"
       }
     },
     "fugle": {
@@ -289,6 +353,27 @@
       "signed-out-hint": "第一次開啟需要資料的台股圖表時會自動登入。",
       "incomplete": "尚未完成設定",
       "sign-in-failed": "無法登入富邦"
+    },
+    "agent": {
+      "title": "AI Agent",
+      "description": "Agent 使用你自己的 API 金鑰。請求直接從這台電腦送到你選的服務商，費用由服務商向你的帳號收取。",
+      "provider": "服務商",
+      "providers": {
+        "anthropic": "Anthropic",
+        "openai": "OpenAI",
+        "google": "Google Gemini",
+        "openrouter": "OpenRouter"
+      },
+      "model": "模型",
+      "model-description": "較大的模型推理較好，每則訊息的費用也較高。",
+      "thinking": "思考",
+      "thinking-description": "模型回答前思考多久。不支援推理的模型會忽略這項設定。",
+      "thinkings": {
+        "off": "關閉",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      }
     },
     "storage": {
       "title": "K 線快取",

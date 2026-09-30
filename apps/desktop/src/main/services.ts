@@ -12,6 +12,7 @@ import { openUserData } from "@solyx/db/user";
 
 import { AppLocation, Theme } from "#shared/ipc/settings.ts";
 
+import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createLiveCandles } from "./modules/market/live-candles.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
@@ -81,6 +82,16 @@ export function createServices() {
     },
   });
 
+  const agent = createAgentService({
+    config,
+    secrets,
+    sessions: userData.agentSessions,
+    marketData: (market) => marketData.provider(market),
+    watchlist: () => userData.watchlist.list(),
+    broker,
+    desk,
+  });
+
   let appliedStreamSettings = marketData.streamSettings();
 
   // Sources and plans change from the settings page or a hand edit; the live stream follows either.
@@ -124,6 +135,7 @@ export function createServices() {
     marketData,
     liveCandles,
     userData,
+    agent,
   };
 }
 

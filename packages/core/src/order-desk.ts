@@ -103,7 +103,7 @@ export class OrderDesk {
     const { now = Date.now, createId = () => crypto.randomUUID() } =
       this.#options;
 
-    const violations = await this.#check(input.order);
+    const violations = await this.check(input.order);
 
     const proposal: TradeProposal = {
       id: createId(),
@@ -134,7 +134,7 @@ export class OrderDesk {
 
     try {
       // Prices and sessions move between propose and confirm; check again.
-      const violations = await this.#check(proposal.order);
+      const violations = await this.check(proposal.order);
 
       if (violations.length > 0) {
         proposal = { ...proposal, status: ProposalStatus.Rejected, violations };
@@ -176,7 +176,8 @@ export class OrderDesk {
     return proposal;
   }
 
-  async #check(order: OrderRequest): Promise<RiskViolation[]> {
+  /** The risk checks alone, so an order can be tried before it is proposed. */
+  async check(order: OrderRequest): Promise<RiskViolation[]> {
     return checkOrder(
       order,
       this.#options.limits,

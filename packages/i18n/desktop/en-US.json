@@ -115,7 +115,54 @@
   },
   "agent": {
     "title": "Agent",
-    "not-connected": "The agent isn't connected yet. Proposals land here, and each one waits for you to confirm it."
+    "tabs": {
+      "chat": "Chat",
+      "proposals": "Proposals"
+    },
+    "new-chat": "New conversation",
+    "conversations": "Conversations",
+    "untitled": "New conversation",
+    "delete": "Delete conversation",
+    "delete-failed": "Couldn't delete the conversation",
+    "empty-title": "Ask about a listing or your account",
+    "empty-description": "The agent reads charts, indicators and your paper account. It can suggest an order, and each one waits for you to confirm it.",
+    "placeholder": "Ask the agent…",
+    "send": "Send",
+    "stop": "Stop",
+    "send-failed": "Couldn't send the message",
+    "setup-title": "Set up the agent",
+    "setup-description": "Pick a provider and save its API key to start.",
+    "open-settings": "Open settings",
+    "thinking": "Thinking",
+    "working": "Working…",
+    "notices": {
+      "aborted": "Stopped.",
+      "error": "The agent stopped with an error",
+      "interrupted": "Solyx closed before the agent finished."
+    },
+    "tools": {
+      "get_market_status": "Checked market status",
+      "get_candles": "Read candles",
+      "get_indicators": "Read indicators",
+      "get_watchlist": "Read your watchlist",
+      "get_account": "Read your account",
+      "list_proposals": "Read your proposals",
+      "check_order": "Checked an order",
+      "propose_order": "Proposed an order",
+      "read_skill": "Read a playbook"
+    },
+    "tool-status": {
+      "running": "Running",
+      "ok": "Done",
+      "error": "Failed",
+      "aborted": "Stopped"
+    },
+    "link": {
+      "title": "Open this link?",
+      "description": "It opens in your browser. The agent wrote it, so check the address first.",
+      "open": "Open",
+      "cancel": "Cancel"
+    }
   },
   "onboarding": {
     "title": "Set up Solyx",
@@ -195,7 +242,8 @@
       "general": "General",
       "market-data": "Market data",
       "storage": "Storage",
-      "about": "About"
+      "about": "About",
+      "agent": "AI agent"
     },
     "general": "General",
     "save-failed": "Couldn't save the setting",
@@ -255,6 +303,22 @@
       "fubon-cert-password": {
         "label": "Certificate password",
         "hint": "Leave it unset if it's your ID number."
+      },
+      "anthropic-api-key": {
+        "label": "Anthropic API key",
+        "hint": "A key from the Anthropic Console."
+      },
+      "openai-api-key": {
+        "label": "OpenAI API key",
+        "hint": "A key from the OpenAI Platform."
+      },
+      "google-api-key": {
+        "label": "Gemini API key",
+        "hint": "A key from Google AI Studio."
+      },
+      "openrouter-api-key": {
+        "label": "OpenRouter API key",
+        "hint": "A key from your OpenRouter account."
       }
     },
     "fugle": {
@@ -289,6 +353,27 @@
       "signed-out-hint": "Solyx signs in when a Taiwan chart first needs data.",
       "incomplete": "Setup incomplete",
       "sign-in-failed": "Couldn't sign in to Fubon"
+    },
+    "agent": {
+      "title": "AI agent",
+      "description": "The agent runs on your own API key. Requests go straight from this computer to the provider you pick, which bills your account for them.",
+      "provider": "Provider",
+      "providers": {
+        "anthropic": "Anthropic",
+        "openai": "OpenAI",
+        "google": "Google Gemini",
+        "openrouter": "OpenRouter"
+      },
+      "model": "Model",
+      "model-description": "Larger models reason better and cost more per message.",
+      "thinking": "Thinking",
+      "thinking-description": "How long the model thinks before it answers. Models that don't reason ignore it.",
+      "thinkings": {
+        "off": "Off",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      }
     },
     "storage": {
       "title": "Candle cache",

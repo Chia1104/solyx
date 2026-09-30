@@ -3,6 +3,11 @@ import type { OpenDialogOptions } from "electron";
 import { mapValues } from "es-toolkit";
 import * as z from "zod";
 
+import {
+  DEFAULT_MODEL,
+  agentProviderSchema,
+  agentThinkingSchema,
+} from "@solyx/agent/providers";
 import { Market } from "@solyx/core/market";
 import { fuglePlanSchema } from "@solyx/market-data/fugle";
 
@@ -35,6 +40,10 @@ const handle = ipcModule<SettingsApi>(settingsChannels, {
   setFuglePlan: z.tuple([fuglePlanSchema]),
   chooseFubonFile: z.tuple([z.enum(FubonFile)]),
   signInFubon: z.tuple([]),
+  agent: z.tuple([]),
+  setAgentProvider: z.tuple([agentProviderSchema]),
+  setAgentModel: z.tuple([z.string().trim().min(1).max(200)]),
+  setAgentThinking: z.tuple([agentThinkingSchema]),
   cacheUsage: z.tuple([]),
   clearCache: z.tuple([]),
   about: z.tuple([]),
@@ -67,6 +76,7 @@ export function registerSettingsIpc({
   applySettings,
   marketData,
   liveCandles,
+  agent,
 }: Services) {
   handle("theme", async () => theme());
 
@@ -125,6 +135,22 @@ export function registerSettingsIpc({
   handle("signInFubon", async () => {
     await marketData.signInFubon();
     await liveCandles.restart();
+  });
+
+  handle("agent", () => agent.models.settings());
+
+  // A model id means nothing to another provider, so switching starts from its default.
+  handle("setAgentProvider", async (provider) => {
+    config.set(["agent", "provider"], provider);
+    config.set(["agent", "model"], DEFAULT_MODEL[provider]);
+  });
+
+  handle("setAgentModel", async (model) => {
+    config.set(["agent", "model"], model);
+  });
+
+  handle("setAgentThinking", async (thinking) => {
+    config.set(["agent", "thinking"], thinking);
   });
 
   handle("cacheUsage", async () => cache.usage());

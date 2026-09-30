@@ -12,6 +12,11 @@ import { applyEdits, modify, parse } from "jsonc-parser";
 import type { ParseError } from "jsonc-parser";
 import * as z from "zod";
 
+import {
+  AgentProvider,
+  AgentThinking,
+  DEFAULT_MODEL,
+} from "@solyx/agent/providers";
 import type { Market } from "@solyx/core/market";
 import { FuglePlan } from "@solyx/market-data/fugle";
 
@@ -37,6 +42,14 @@ const configSchema = z.looseObject({
     })
     .optional()
     .catch(undefined),
+  agent: z
+    .looseObject({
+      provider: textSchema,
+      model: textSchema,
+      thinking: textSchema,
+    })
+    .optional()
+    .catch(undefined),
 });
 
 type Config = z.infer<typeof configSchema>;
@@ -46,7 +59,8 @@ export type ConfigPath =
   | ["theme"]
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle", "plan"]
-  | ["providers", "fubon", FubonFile];
+  | ["providers", "fubon", FubonFile]
+  | ["agent", "provider" | "model" | "thinking"];
 
 const quoted = (values: Record<string, string>) =>
   Object.values(values)
@@ -67,6 +81,14 @@ const TEMPLATE = [
   `    "fugle": { "plan": "${FuglePlan.Basic}" },`,
   "    // The folder extracted from Fubon's SDK download, and the certificate exported from its website.",
   '    "fubon": { "sdk": "", "certificate": "" }',
+  "  },",
+  '  "agent": {',
+  `    // Whose models run the agent, on the key saved in the app: ${quoted(AgentProvider)}.`,
+  `    "provider": "${AgentProvider.Anthropic}",`,
+  "    // The provider's model id; the settings page lists them.",
+  `    "model": "${DEFAULT_MODEL[AgentProvider.Anthropic]}",`,
+  `    // How long the model thinks before it answers: ${quoted(AgentThinking)}.`,
+  `    "thinking": "${AgentThinking.Medium}"`,
   "  }",
   "}",
   "",

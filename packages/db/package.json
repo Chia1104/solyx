@@ -12,6 +12,7 @@
     "test": "vp test"
   },
   "dependencies": {
+    "@solyx/agent": "workspace:*",
     "@solyx/core": "workspace:*",
     "drizzle-orm": "catalog:drizzle",
     "es-toolkit": "catalog:"

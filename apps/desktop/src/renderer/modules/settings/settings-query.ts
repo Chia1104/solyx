@@ -7,6 +7,7 @@ export const settingsQueryKeys = {
   about: ["settings", "about"] as const,
   secrets: ["settings", "secrets"] as const,
   marketData: ["settings", "market-data"] as const,
+  agent: ["settings", "agent"] as const,
 };
 
 /** Which secrets are saved; their values never leave the main process. */
@@ -45,4 +46,12 @@ export const aboutQuery = () =>
     queryKey: settingsQueryKeys.about,
     queryFn: () => window.solyx.settings.about(),
     staleTime: Infinity,
+  });
+
+/** Always stale, since the settings can also change by hand in the config file. */
+export const agentSettingsQuery = () =>
+  queryOptions({
+    queryKey: settingsQueryKeys.agent,
+    queryFn: () => window.solyx.settings.agent(),
+    staleTime: 0,
   });

@@ -1,3 +1,5 @@
+import { AgentProvider } from "@solyx/agent/providers";
+import type { AgentThinking } from "@solyx/agent/providers";
 import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { FuglePlan } from "@solyx/market-data/fugle";
@@ -9,9 +11,21 @@ export const Secret = {
   FubonApiKey: "fubon-api-key",
   /** Optional: Fubon falls back to the ID number, the password of certificates exported from its website. */
   FubonCertPassword: "fubon-cert-password",
+  AnthropicApiKey: "anthropic-api-key",
+  OpenAIApiKey: "openai-api-key",
+  GoogleApiKey: "google-api-key",
+  OpenRouterApiKey: "openrouter-api-key",
 } as const;
 
 export type Secret = (typeof Secret)[keyof typeof Secret];
+
+/** The key each agent provider runs on. */
+export const AGENT_PROVIDER_SECRET: Record<AgentProvider, Secret> = {
+  [AgentProvider.Anthropic]: Secret.AnthropicApiKey,
+  [AgentProvider.OpenAI]: Secret.OpenAIApiKey,
+  [AgentProvider.Google]: Secret.GoogleApiKey,
+  [AgentProvider.OpenRouter]: Secret.OpenRouterApiKey,
+};
 
 export const SecretState = {
   Saved: "saved",
@@ -108,6 +122,24 @@ export interface CacheUsage {
   sources: CacheSourceUsage[];
 }
 
+/** A model the agent can run on, from its provider's catalog. */
+export interface AgentModelOption {
+  id: string;
+  name: string;
+  /** Whether the thinking setting applies to it. */
+  reasoning: boolean;
+}
+
+export interface AgentSettings {
+  provider: AgentProvider;
+  model: string;
+  thinking: AgentThinking;
+  /** The provider's chat models, in its catalog's order. */
+  models: AgentModelOption[];
+  /** The provider's key is saved and its catalog has the model, so the agent can run. */
+  ready: boolean;
+}
+
 /** Places on disk the app can show in the system file manager. */
 export const AppLocation = {
   /** The app's `userData`: secrets, databases and caches. */
@@ -151,6 +183,11 @@ export interface SettingsApi {
   chooseFubonFile(file: FubonFile): Promise<string | null>;
   /** Signs in to Fubon again with the saved settings; the market data status reports the outcome. */
   signInFubon(): Promise<void>;
+  agent(): Promise<AgentSettings>;
+  /** Switches the agent to the provider's default model as well. */
+  setAgentProvider(provider: AgentProvider): Promise<void>;
+  setAgentModel(model: string): Promise<void>;
+  setAgentThinking(thinking: AgentThinking): Promise<void>;
   cacheUsage(): Promise<CacheUsage>;
   /** Closed sessions are fetched again from the provider when charts need them. */
   clearCache(): Promise<void>;
@@ -169,6 +206,10 @@ export const settingsChannels = {
   setFuglePlan: "settings:set-fugle-plan",
   chooseFubonFile: "settings:choose-fubon-file",
   signInFubon: "settings:sign-in-fubon",
+  agent: "settings:agent",
+  setAgentProvider: "settings:set-agent-provider",
+  setAgentModel: "settings:set-agent-model",
+  setAgentThinking: "settings:set-agent-thinking",
   cacheUsage: "settings:cache-usage",
   clearCache: "settings:clear-cache",
   about: "settings:about",

@@ -19,6 +19,18 @@ export type Interval = (typeof Interval)[keyof typeof Interval];
 
 export const intervalSchema = z.enum(Interval);
 
+/** Calendar days of history to read per interval: enough bars for the slowest indicator to warm up, within Fugle's free-tier rate limit. */
+export const LOOKBACK_DAYS: Record<Interval, number> = {
+  [Interval.OneMinute]: 5,
+  [Interval.FiveMinutes]: 30,
+  [Interval.FifteenMinutes]: 60,
+  [Interval.ThirtyMinutes]: 120,
+  [Interval.OneHour]: 180,
+  [Interval.OneDay]: 540,
+  [Interval.OneWeek]: 3 * 365,
+  [Interval.OneMonth]: 5 * 365,
+};
+
 const DAILY_OR_LONGER: ReadonlySet<Interval> = new Set([
   Interval.OneDay,
   Interval.OneWeek,

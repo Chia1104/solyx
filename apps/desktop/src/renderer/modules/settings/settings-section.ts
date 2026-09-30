@@ -4,6 +4,7 @@ import * as z from "zod";
 export const SettingsSection = {
   General: "general",
   MarketData: "market-data",
+  Agent: "agent",
   Storage: "storage",
   About: "about",
 } as const;

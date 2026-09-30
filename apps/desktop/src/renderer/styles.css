@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 
+/* Streamdown's elements carry their own utility classes. */
+@source "../../node_modules/streamdown/dist/*.js";
+
 /*
  * Solyx is drawn like a drafting sheet: agents draft in pencil, the user signs in ink. Pencil
  * (hatching, dashed rules) marks what is not real yet, such as paper trading or a proposal

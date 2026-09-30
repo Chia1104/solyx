@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { app, BrowserWindow } from "electron";
+import { delay } from "es-toolkit";
 
 import { registerIpc } from "./ipc/register-ipc.ts";
 import { createServices } from "./services.ts";
@@ -13,15 +14,37 @@ if (!app.isPackaged) {
   app.setPath("userData", join(app.getPath("appData"), app.getName()));
 }
 
+// Long enough for providers to acknowledge an abort, short enough never to hold up quitting.
+const STOP_RUNS_TIMEOUT_MS = 3000;
+
+let quitting = false;
+
 void app.whenReady().then(() => {
-  registerIpc(createServices());
+  const services = createServices();
+
+  registerIpc(services);
   createMainWindow();
+
+  // Stopped runs keep what they streamed and end as aborted instead of cut off mid-message.
+  app.on("before-quit", (event) => {
+    if (quitting) return;
+
+    quitting = true;
+    event.preventDefault();
+
+    void Promise.race([
+      services.agent.runtime.stopAll(),
+      delay(STOP_RUNS_TIMEOUT_MS),
+    ]).finally(() => app.quit());
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
   });
 });
 
+// A quit that a signal such as SIGTERM started closes the windows but stops there once
+// before-quit has deferred it, so closing the last window finishes it.
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  if (process.platform !== "darwin" || quitting) app.quit();
 });

@@ -60,10 +60,10 @@ describe("createSecretStore", () => {
 
     expect(await store.get(Secret.FugleApiKey)).toBe(KEY);
     expect(await store.states()).toEqual({
+      ...Object.fromEntries(
+        Object.values(Secret).map((secret) => [secret, SecretState.Missing])
+      ),
       [Secret.FugleApiKey]: SecretState.Saved,
-      [Secret.FubonPersonalId]: SecretState.Missing,
-      [Secret.FubonApiKey]: SecretState.Missing,
-      [Secret.FubonCertPassword]: SecretState.Missing,
     });
     expect(await readFile(file, "utf8")).not.toContain(KEY);
 
