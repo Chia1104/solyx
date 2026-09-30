@@ -9,6 +9,9 @@ import { ColumnHeader } from "./column-header.tsx";
  * is wider than the column it gains hairline rails, so rules that run the full width look
  * drawn across one sheet; narrower, it fills the view and leaves the pane borders alone.
  */
+export const RAILED_COLUMN =
+  "mx-auto w-full max-w-3xl border-separator @min-[50rem]/main:border-x";
+
 export function RailedColumn({
   className,
   children,
@@ -16,15 +19,7 @@ export function RailedColumn({
   className?: string;
   children?: ReactNode;
 }) {
-  return (
-    <div
-      className={cn(
-        "mx-auto w-full max-w-3xl border-separator @min-[50rem]/main:border-x",
-        className
-      )}>
-      {children}
-    </div>
-  );
+  return <div className={cn(RAILED_COLUMN, className)}>{children}</div>;
 }
 
 /** A titled page of ruled sections inside a railed column that runs to the bottom of the view. */

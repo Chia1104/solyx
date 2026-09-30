@@ -11,8 +11,8 @@ import { AgentSettings } from "../modules/settings/agent-settings.tsx";
 import { CacheSettings } from "../modules/settings/cache-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
 import { MarketDataSettings } from "../modules/settings/market-data-settings.tsx";
-import { SettingsNav } from "../modules/settings/settings-nav.tsx";
 import { SettingsSection } from "../modules/settings/settings-section.ts";
+import { SettingsTabs } from "../modules/settings/settings-tabs.tsx";
 import { ThemeSelect } from "../modules/settings/theme-select.tsx";
 
 const route = getRouteApi("/settings");
@@ -20,6 +20,7 @@ const route = getRouteApi("/settings");
 export function SettingsPage() {
   const { t } = useTranslation();
   const { section } = route.useSearch();
+  const navigate = route.useNavigate();
 
   const content: Record<SettingsSection, ReactNode> = {
     [SettingsSection.General]: (
@@ -45,8 +46,11 @@ export function SettingsPage() {
 
   return (
     <Sheet title={t("settings.title")}>
-      <SettingsNav current={section} />
-      {content[section]}
+      <SettingsTabs
+        current={section}
+        onChange={(next) => void navigate({ search: { section: next } })}
+        panels={content}
+      />
     </Sheet>
   );
 }
