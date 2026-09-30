@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./chatgpt-oauth": "./src/chatgpt-oauth.ts",
     "./models": "./src/models.ts",
     "./prompt": "./src/prompt.ts",
     "./providers": "./src/providers.ts",

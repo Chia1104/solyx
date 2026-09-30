@@ -1,5 +1,5 @@
 import { AgentProvider } from "@solyx/agent/providers";
-import type { AgentThinking } from "@solyx/agent/providers";
+import type { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { FuglePlan } from "@solyx/market-data/fugle";
@@ -15,12 +15,17 @@ export const Secret = {
   OpenAIApiKey: "openai-api-key",
   GoogleApiKey: "google-api-key",
   OpenRouterApiKey: "openrouter-api-key",
+  /** The ChatGPT sign-in's OAuth tokens; the main process saves and refreshes them, nobody types them. */
+  OpenAIChatGPT: "openai-chatgpt",
 } as const;
 
 export type Secret = (typeof Secret)[keyof typeof Secret];
 
+/** The secrets a person types in, which the renderer may save or delete. */
+export type EnteredSecret = Exclude<Secret, typeof Secret.OpenAIChatGPT>;
+
 /** The key each agent provider runs on. */
-export const AGENT_PROVIDER_SECRET: Record<AgentProvider, Secret> = {
+export const AGENT_PROVIDER_SECRET: Record<AgentProvider, EnteredSecret> = {
   [AgentProvider.Anthropic]: Secret.AnthropicApiKey,
   [AgentProvider.OpenAI]: Secret.OpenAIApiKey,
   [AgentProvider.Google]: Secret.GoogleApiKey,
@@ -134,9 +139,13 @@ export interface AgentSettings {
   provider: AgentProvider;
   model: string;
   thinking: AgentThinking;
+  /** Always `api-key` for a provider without a subscription sign-in. */
+  auth: AgentAuth;
+  /** `null` for a provider without a subscription sign-in. */
+  subscription: { signedIn: boolean } | null;
   /** The provider's chat models, in its catalog's order. */
   models: AgentModelOption[];
-  /** The provider's key is saved and its catalog has the model, so the agent can run. */
+  /** The key is saved or the subscription signed in, and the catalog has the model, so the agent can run. */
   ready: boolean;
 }
 
@@ -169,8 +178,8 @@ export interface SettingsApi {
   /** Saves the theme; every window switches at once. */
   setTheme(theme: Theme): Promise<void>;
   secrets(): Promise<SecretsStatus>;
-  saveSecret(secret: Secret, value: string): Promise<void>;
-  deleteSecret(secret: Secret): Promise<void>;
+  saveSecret(secret: EnteredSecret, value: string): Promise<void>;
+  deleteSecret(secret: EnteredSecret): Promise<void>;
   marketData(): Promise<MarketDataStatus>;
   /** Charts and the live stream switch to the source at once. */
   setMarketDataSource(
@@ -188,6 +197,14 @@ export interface SettingsApi {
   setAgentProvider(provider: AgentProvider): Promise<void>;
   setAgentModel(model: string): Promise<void>;
   setAgentThinking(thinking: AgentThinking): Promise<void>;
+  setAgentAuth(auth: AgentAuth): Promise<void>;
+  /**
+   * Signs in to the agent provider's subscription in the browser, resolving once the sign-in is
+   * saved or cancelled. The page the browser lands on is written in `locale`.
+   */
+  signInSubscription(locale: string): Promise<void>;
+  cancelSignIn(): Promise<void>;
+  signOutSubscription(): Promise<void>;
   cacheUsage(): Promise<CacheUsage>;
   /** Closed sessions are fetched again from the provider when charts need them. */
   clearCache(): Promise<void>;
@@ -210,6 +227,10 @@ export const settingsChannels = {
   setAgentProvider: "settings:set-agent-provider",
   setAgentModel: "settings:set-agent-model",
   setAgentThinking: "settings:set-agent-thinking",
+  setAgentAuth: "settings:set-agent-auth",
+  signInSubscription: "settings:sign-in-subscription",
+  cancelSignIn: "settings:cancel-sign-in",
+  signOutSubscription: "settings:sign-out-subscription",
   cacheUsage: "settings:cache-usage",
   clearCache: "settings:clear-cache",
   about: "settings:about",

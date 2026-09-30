@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { app, nativeTheme } from "electron";
+import { app, nativeTheme, shell } from "electron";
 import { kebabCase } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
@@ -16,8 +16,11 @@ import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createLiveCandles } from "./modules/market/live-candles.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
+import { createCredentialStore } from "./modules/settings/credential-store.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
+import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
+import { signInPage } from "./modules/settings/sign-in-page.ts";
 
 const PAPER_CASH = { TWD: 1_000_000, USD: 30_000 };
 
@@ -85,6 +88,12 @@ export function createServices() {
   const agent = createAgentService({
     config,
     secrets,
+    credentials: createCredentialStore(secrets),
+    getDeviceId: installationId(
+      join(app.getPath("userData"), "installation-id")
+    ),
+    openExternal: (url) => void shell.openExternal(url),
+    signInPage,
     sessions: userData.agentSessions,
     marketData: (market) => marketData.provider(market),
     watchlist: () => userData.watchlist.list(),

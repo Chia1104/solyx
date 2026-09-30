@@ -14,6 +14,7 @@
     "test": "vp test"
   },
   "devDependencies": {
+    "@earendil-works/pi-ai": "catalog:agent",
     "@heroui/react": "catalog:heroui-v3",
     "@heroui/styles": "catalog:heroui-v3",
     "@hookform/resolvers": "catalog:forms",

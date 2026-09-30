@@ -131,7 +131,7 @@
     "stop": "停止",
     "send-failed": "無法送出訊息",
     "setup-title": "設定 Agent",
-    "setup-description": "選擇服務商並儲存它的 API 金鑰後即可開始。",
+    "setup-description": "選擇服務商並儲存它的 API 金鑰，或使用 ChatGPT 登入後即可開始。",
     "open-settings": "開啟設定",
     "thinking": "思考中",
     "working": "處理中…",
@@ -356,8 +356,26 @@
     },
     "agent": {
       "title": "AI Agent",
-      "description": "Agent 使用你自己的 API 金鑰。請求直接從這台電腦送到你選的服務商，費用由服務商向你的帳號收取。",
+      "description": "Agent 使用你自己的 API 金鑰；OpenAI 也可以改用你的 ChatGPT 訂閱。請求直接從這台電腦送到你選的服務商。",
       "provider": "服務商",
+      "auth": "付費方式",
+      "auth-description": "訂閱會用你方案內的額度執行 Agent，不按每次請求計費。",
+      "auths": {
+        "api-key": "API 金鑰",
+        "subscription": "ChatGPT 訂閱"
+      },
+      "chatgpt": {
+        "label": "ChatGPT 帳號",
+        "hint": "透過瀏覽器登入。OpenAI 顯示的名稱是 Pi，也就是 Solyx 的 Agent 所使用的函式庫。",
+        "signed-in": "已登入",
+        "signed-out": "尚未登入",
+        "waiting": "等待瀏覽器",
+        "sign-in": "使用 ChatGPT 登入",
+        "sign-out": "登出",
+        "continue-in-browser": "請在瀏覽器完成登入，完成後這裡會自動更新。",
+        "sign-in-failed": "無法使用 ChatGPT 登入",
+        "sign-out-failed": "無法登出"
+      },
       "providers": {
         "anthropic": "Anthropic",
         "openai": "OpenAI",
@@ -407,5 +425,15 @@
   "locale": {
     "en-US": "English",
     "zh-TW": "繁體中文"
+  },
+  "sign-in-page": {
+    "signed-in": {
+      "title": "已登入 ChatGPT",
+      "body": "可以關閉這個分頁，回到 Solyx。"
+    },
+    "failed": {
+      "title": "ChatGPT 沒有連接成功",
+      "body": "請回到 Solyx 再登入一次。"
+    }
   }
 }

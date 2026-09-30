@@ -2,7 +2,11 @@ import { ListBox, Select } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { AgentProvider, AgentThinking } from "@solyx/agent/providers";
+import {
+  AgentAuth,
+  AgentProvider,
+  AgentThinking,
+} from "@solyx/agent/providers";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { AGENT_PROVIDER_SECRET } from "#shared/ipc/settings.ts";
@@ -12,6 +16,7 @@ import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 
+import { ChatGPTSignIn } from "./chatgpt-sign-in.tsx";
 import { SecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import {
@@ -70,7 +75,10 @@ function OptionSelect({
   );
 }
 
-/** Whose model runs the agent, which one, how long it thinks, and the key it runs on. */
+/**
+ * Whose model runs the agent and how it is paid for (a key, or a subscription where the provider
+ * offers one), which model, and how long it thinks.
+ */
 export function AgentSettings() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -104,7 +112,9 @@ export function AgentSettings() {
 
   if (!settings.data || !secrets.data) return <LoadingState />;
 
-  const { provider, model, thinking, models } = settings.data;
+  const { provider, model, thinking, auth, subscription, models } =
+    settings.data;
+
   const { available, states } = secrets.data;
   const secret = AGENT_PROVIDER_SECRET[provider];
   const reasoning = models.find((option) => option.id === model)?.reasoning;
@@ -112,6 +122,7 @@ export function AgentSettings() {
   const providerLabel = t("settings.agent.provider");
   const modelLabel = t("settings.agent.model");
   const thinkingLabel = t("settings.agent.thinking");
+  const authLabel = t("settings.agent.auth");
 
   return (
     <Section
@@ -141,11 +152,39 @@ export function AgentSettings() {
               />
             }
           />
-          <SecretRow
-            secret={secret}
-            state={states[secret]}
-            available={available}
-          />
+          {subscription ? (
+            <SettingsRow
+              label={authLabel}
+              description={t("settings.agent.auth-description")}
+              actions={
+                <OptionSelect
+                  label={authLabel}
+                  value={auth}
+                  isDisabled={save.isPending}
+                  options={Object.values(AgentAuth).map((id) => ({
+                    id,
+                    label: t(`settings.agent.auths.${id}`),
+                  }))}
+                  onChange={(next) => {
+                    if (isEnumValue(AgentAuth, next)) {
+                      save.mutate(() =>
+                        window.solyx.settings.setAgentAuth(next)
+                      );
+                    }
+                  }}
+                />
+              }
+            />
+          ) : null}
+          {subscription && auth === AgentAuth.Subscription ? (
+            <ChatGPTSignIn signedIn={subscription.signedIn} />
+          ) : (
+            <SecretRow
+              secret={secret}
+              state={states[secret]}
+              available={available}
+            />
+          )}
           <SettingsRow
             label={modelLabel}
             description={t("settings.agent.model-description")}

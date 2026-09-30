@@ -5,6 +5,7 @@ import * as z from "zod";
 
 import {
   DEFAULT_MODEL,
+  agentAuthSchema,
   agentProviderSchema,
   agentThinkingSchema,
 } from "@solyx/agent/providers";
@@ -24,7 +25,8 @@ import type { SettingsApi } from "#shared/ipc/settings.ts";
 import { ipcModule } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";
 
-const secretSchema = z.enum(Secret);
+// A sign-in's tokens are saved by the sign-in itself, never typed in or replaced from here.
+const secretSchema = z.enum(Secret).exclude(["OpenAIChatGPT"]);
 
 const handle = ipcModule<SettingsApi>(settingsChannels, {
   theme: z.tuple([]),
@@ -44,6 +46,10 @@ const handle = ipcModule<SettingsApi>(settingsChannels, {
   setAgentProvider: z.tuple([agentProviderSchema]),
   setAgentModel: z.tuple([z.string().trim().min(1).max(200)]),
   setAgentThinking: z.tuple([agentThinkingSchema]),
+  setAgentAuth: z.tuple([agentAuthSchema]),
+  signInSubscription: z.tuple([z.string().min(2).max(35)]),
+  cancelSignIn: z.tuple([]),
+  signOutSubscription: z.tuple([]),
   cacheUsage: z.tuple([]),
   clearCache: z.tuple([]),
   about: z.tuple([]),
@@ -152,6 +158,16 @@ export function registerSettingsIpc({
   handle("setAgentThinking", async (thinking) => {
     config.set(["agent", "thinking"], thinking);
   });
+
+  handle("setAgentAuth", async (auth) => {
+    config.set(["agent", "auth"], auth);
+  });
+
+  handle("signInSubscription", (locale) => agent.models.signIn(locale));
+
+  handle("cancelSignIn", async () => agent.models.cancelSignIn());
+
+  handle("signOutSubscription", () => agent.models.signOut());
 
   handle("cacheUsage", async () => cache.usage());
 

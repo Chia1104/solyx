@@ -1,5 +1,7 @@
+import type { CredentialStore } from "@earendil-works/pi-ai";
 import { BrowserWindow } from "electron";
 
+import type { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
 import { formatContext } from "@solyx/agent/prompt";
 import { createAgentRuntime } from "@solyx/agent/runtime";
 import { createTradingTools } from "@solyx/agent/tools";
@@ -22,6 +24,14 @@ import { createAgentModels } from "./agent-models.ts";
 export interface AgentServiceOptions {
   config: ConfigFile;
   secrets: SecretStore;
+  credentials: CredentialStore;
+  getDeviceId: () => string;
+  openExternal: (url: string) => void;
+  signInPage: (
+    locale: string,
+    outcome: SignInOutcome,
+    detail?: string
+  ) => string;
   sessions: AgentSessionStore;
   marketData: (market: Market) => Promise<MarketDataProvider | undefined>;
   watchlist: () => SymbolRef[];

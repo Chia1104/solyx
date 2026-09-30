@@ -7,39 +7,10 @@ import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import { Secret, SecretState } from "#shared/ipc/settings.ts";
 
 import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
-import type { SecretCipher } from "../src/main/modules/settings/secret-store.ts";
+
+import { fakeCipher } from "./fake-cipher.ts";
 
 const KEY = "fugle-test-key-1234";
-
-/** Tags ciphertext with a key id and reverses the text, so plain text never appears on disk. */
-function fakeCipher() {
-  const os = {
-    available: true,
-    keyId: "k1",
-    /** Key ids that still decrypt but ask for re-encryption. */
-    retiredKeyIds: new Set<string>(),
-  };
-
-  const cipher: SecretCipher = {
-    isAvailable: async () => os.available,
-    encrypt: async (plainText) =>
-      Buffer.from(`${os.keyId}:${[...plainText].toReversed().join("")}`),
-    decrypt: async (encrypted) => {
-      const [keyId, body] = encrypted.toString().split(":");
-
-      if (keyId !== os.keyId && !os.retiredKeyIds.has(keyId)) {
-        throw new Error("Unknown key");
-      }
-
-      return {
-        plainText: [...body].toReversed().join(""),
-        shouldReEncrypt: keyId !== os.keyId,
-      };
-    },
-  };
-
-  return { os, cipher };
-}
 
 let directory: string;
 

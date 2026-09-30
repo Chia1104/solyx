@@ -24,7 +24,8 @@ import type { AgentWireEvent } from "./wire.ts";
 /** The model the user configured and the key it runs on. */
 export interface AgentModelChoice {
   model: Model<Api>;
-  apiKey: string;
+  /** Unset when the provider's stored credential, such as a ChatGPT sign-in, authenticates instead. */
+  apiKey?: string;
   thinking: AgentThinking;
 }
 

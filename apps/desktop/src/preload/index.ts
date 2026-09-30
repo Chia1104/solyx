@@ -95,6 +95,11 @@ const api: SolyxApi = {
     setAgentModel: (model) => invoke(settingsChannels.setAgentModel, model),
     setAgentThinking: (thinking) =>
       invoke(settingsChannels.setAgentThinking, thinking),
+    setAgentAuth: (auth) => invoke(settingsChannels.setAgentAuth, auth),
+    signInSubscription: (locale) =>
+      invoke(settingsChannels.signInSubscription, locale),
+    cancelSignIn: () => invoke(settingsChannels.cancelSignIn),
+    signOutSubscription: () => invoke(settingsChannels.signOutSubscription),
     cacheUsage: () => invoke(settingsChannels.cacheUsage),
     clearCache: () => invoke(settingsChannels.clearCache),
     about: () => invoke(settingsChannels.about),

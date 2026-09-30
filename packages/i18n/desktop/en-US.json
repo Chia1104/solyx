@@ -131,7 +131,7 @@
     "stop": "Stop",
     "send-failed": "Couldn't send the message",
     "setup-title": "Set up the agent",
-    "setup-description": "Pick a provider and save its API key to start.",
+    "setup-description": "Pick a provider and save its API key, or sign in with ChatGPT, to start.",
     "open-settings": "Open settings",
     "thinking": "Thinking",
     "working": "Working…",
@@ -356,8 +356,26 @@
     },
     "agent": {
       "title": "AI agent",
-      "description": "The agent runs on your own API key. Requests go straight from this computer to the provider you pick, which bills your account for them.",
+      "description": "The agent runs on your own API key, or on your ChatGPT subscription for OpenAI. Requests go straight from this computer to the provider you pick.",
       "provider": "Provider",
+      "auth": "Pay with",
+      "auth-description": "A subscription runs the agent on your plan's allowance instead of billing each request.",
+      "auths": {
+        "api-key": "API key",
+        "subscription": "ChatGPT subscription"
+      },
+      "chatgpt": {
+        "label": "ChatGPT account",
+        "hint": "Signs in through your browser. OpenAI names the app Pi, the library Solyx's agent runs on.",
+        "signed-in": "Signed in",
+        "signed-out": "Not signed in",
+        "waiting": "Waiting for your browser",
+        "sign-in": "Sign in with ChatGPT",
+        "sign-out": "Sign out",
+        "continue-in-browser": "Finish signing in in your browser; this page updates once it returns.",
+        "sign-in-failed": "Couldn't sign in with ChatGPT",
+        "sign-out-failed": "Couldn't sign out"
+      },
       "providers": {
         "anthropic": "Anthropic",
         "openai": "OpenAI",
@@ -407,5 +425,15 @@
   "locale": {
     "en-US": "English",
     "zh-TW": "繁體中文"
+  },
+  "sign-in-page": {
+    "signed-in": {
+      "title": "Signed in to ChatGPT",
+      "body": "You can close this tab and return to Solyx."
+    },
+    "failed": {
+      "title": "ChatGPT was not connected",
+      "body": "Return to Solyx and try signing in again."
+    }
   }
 }

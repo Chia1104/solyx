@@ -13,6 +13,7 @@ import type { ParseError } from "jsonc-parser";
 import * as z from "zod";
 
 import {
+  AgentAuth,
   AgentProvider,
   AgentThinking,
   DEFAULT_MODEL,
@@ -47,6 +48,7 @@ const configSchema = z.looseObject({
       provider: textSchema,
       model: textSchema,
       thinking: textSchema,
+      auth: textSchema,
     })
     .optional()
     .catch(undefined),
@@ -60,7 +62,7 @@ export type ConfigPath =
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle", "plan"]
   | ["providers", "fubon", FubonFile]
-  | ["agent", "provider" | "model" | "thinking"];
+  | ["agent", "provider" | "model" | "thinking" | "auth"];
 
 const quoted = (values: Record<string, string>) =>
   Object.values(values)
@@ -88,7 +90,9 @@ const TEMPLATE = [
   "    // The provider's model id; the settings page lists them.",
   `    "model": "${DEFAULT_MODEL[AgentProvider.Anthropic]}",`,
   `    // How long the model thinks before it answers: ${quoted(AgentThinking)}.`,
-  `    "thinking": "${AgentThinking.Medium}"`,
+  `    "thinking": "${AgentThinking.Medium}",`,
+  `    // How the provider is paid for: ${quoted(AgentAuth)}; a subscription applies to OpenAI, signed in with ChatGPT.`,
+  `    "auth": "${AgentAuth.ApiKey}"`,
   "  }",
   "}",
   "",
