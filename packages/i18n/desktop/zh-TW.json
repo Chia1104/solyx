@@ -429,6 +429,7 @@
       "states": {
         "connecting": "連線中",
         "connected": "已連線",
+        "needs-sign-in": "需要登入",
         "failed": "失敗"
       },
       "kinds": {
@@ -436,6 +437,18 @@
         "http": "遠端"
       },
       "reconnect": "重新連線",
+      "sign-in": {
+        "label": "帳號",
+        "hint": "透過瀏覽器登入，在 server 的頁面允許 Solyx。Solyx 會加密保存授權，不會顯示出來。",
+        "signed-in": "已登入",
+        "signed-out": "尚未登入",
+        "waiting": "等待瀏覽器",
+        "sign-in": "登入",
+        "sign-out": "登出",
+        "continue-in-browser": "請在瀏覽器完成登入，完成後這裡會自動更新。",
+        "sign-in-failed": "無法登入",
+        "sign-out-failed": "無法登出"
+      },
       "no-tools": "這個 server 沒有提供 tool。",
       "read-only": "唯讀",
       "policy-label": "Agent 使用 {{tool}} 時",
@@ -479,13 +492,25 @@
     "zh-TW": "繁體中文"
   },
   "sign-in-page": {
-    "signed-in": {
-      "title": "已登入 ChatGPT",
-      "body": "可以關閉這個分頁，回到 Solyx。"
+    "chatgpt": {
+      "signed-in": {
+        "title": "已登入 ChatGPT",
+        "body": "可以關閉這個分頁，回到 Solyx。"
+      },
+      "failed": {
+        "title": "ChatGPT 沒有連接成功",
+        "body": "請回到 Solyx 再登入一次。"
+      }
     },
-    "failed": {
-      "title": "ChatGPT 沒有連接成功",
-      "body": "請回到 Solyx 再登入一次。"
+    "mcp": {
+      "signed-in": {
+        "title": "已將授權交給 Solyx",
+        "body": "可以關閉這個分頁，Solyx 會完成 MCP server 的連線。"
+      },
+      "failed": {
+        "title": "MCP server 沒有連接成功",
+        "body": "請回到 Solyx 再登入一次。"
+      }
     }
   }
 }

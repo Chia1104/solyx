@@ -35,6 +35,7 @@ import { mcpQuery, settingsQueryKeys } from "./settings-query.ts";
 const STATE_COLOR: Record<McpServerState, ChipProps["color"]> = {
   [McpServerState.Connecting]: "default",
   [McpServerState.Connected]: "success",
+  [McpServerState.NeedsSignIn]: "warning",
   [McpServerState.Failed]: "danger",
 };
 
@@ -171,6 +172,92 @@ function McpSecretRow({
   );
 }
 
+/**
+ * The account a remote server runs on. Signing in happens in the browser and comes back to this
+ * computer on its own; the main process saves the grant and refreshes it, and never shows it.
+ */
+function McpSignInRow({ server }: { server: McpServerSetting }) {
+  const { t, i18n } = useTranslation();
+  const refresh = useRefresh();
+
+  const signIn = useMutation({
+    mutationFn: () =>
+      window.solyx.settings.signInMcp(server.name, i18n.language),
+    onSettled: refresh,
+  });
+
+  const cancel = useMutation({
+    mutationFn: () => window.solyx.settings.cancelMcpSignIn(),
+  });
+
+  const signOut = useMutation({
+    mutationFn: () => window.solyx.settings.signOutMcp(server.name),
+    onSettled: refresh,
+  });
+
+  const state = signIn.isPending
+    ? t("settings.mcp.sign-in.waiting")
+    : server.signedIn && server.state !== McpServerState.NeedsSignIn
+      ? t("settings.mcp.sign-in.signed-in")
+      : t("settings.mcp.sign-in.signed-out");
+
+  return (
+    <SettingsRow
+      label={t("settings.mcp.sign-in.label")}
+      description={t("settings.mcp.sign-in.hint")}
+      value={state}
+      actions={
+        signIn.isPending ? (
+          <Button
+            size="sm"
+            variant="tertiary"
+            isPending={cancel.isPending}
+            onPress={() => cancel.mutate()}>
+            {t("common.cancel")}
+          </Button>
+        ) : (
+          <>
+            {server.state === McpServerState.NeedsSignIn ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={() => signIn.mutate()}>
+                {t("settings.mcp.sign-in.sign-in")}
+              </Button>
+            ) : null}
+            {server.signedIn ? (
+              <Button
+                size="sm"
+                variant="tertiary"
+                isPending={signOut.isPending}
+                onPress={() => signOut.mutate()}>
+                {t("settings.mcp.sign-in.sign-out")}
+              </Button>
+            ) : null}
+          </>
+        )
+      }>
+      {signIn.isPending ? (
+        <p className="text-xs text-muted">
+          {t("settings.mcp.sign-in.continue-in-browser")}
+        </p>
+      ) : null}
+      {signIn.error ? (
+        <ErrorAlert
+          title={t("settings.mcp.sign-in.sign-in-failed")}
+          description={signIn.error.message}
+        />
+      ) : null}
+      {signOut.error ? (
+        <ErrorAlert
+          title={t("settings.mcp.sign-in.sign-out-failed")}
+          description={signOut.error.message}
+        />
+      ) : null}
+    </SettingsRow>
+  );
+}
+
 function ToolRow({ server, tool }: { server: string; tool: McpToolSetting }) {
   const { t } = useTranslation();
   const refresh = useRefresh();
@@ -286,6 +373,9 @@ function ServerSection({ server }: { server: McpServerSetting }) {
         </Alert>
       ) : null}
       <SettingsList>
+        {server.state === McpServerState.NeedsSignIn || server.signedIn ? (
+          <McpSignInRow server={server} />
+        ) : null}
         {server.secrets.map((secret) => (
           <McpSecretRow
             key={secret.name}

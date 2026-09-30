@@ -39,17 +39,26 @@ p { margin: 0; color: var(--muted); }
 code { display: block; margin-top: 0.75rem; font-size: 12px; overflow-wrap: anywhere; }
 `;
 
+/** The sign-in the browser returns from, which picks the page's copy. */
+export const SignInFlow = {
+  ChatGPT: "chatgpt",
+  Mcp: "mcp",
+} as const;
+
+export type SignInFlow = (typeof SignInFlow)[keyof typeof SignInFlow];
+
 /**
- * The page the browser lands on when a ChatGPT sign-in returns, in the app's language: signed in
- * in ink, or not connected in pencil, with OpenAI's error code when it sent one.
+ * The page the browser lands on when a sign-in returns, in the app's language: signed in in ink,
+ * or not connected in pencil, with the error the provider sent when it sent one.
  */
 export function signInPage(
   locale: string,
+  flow: SignInFlow,
   outcome: SignInOutcome,
   detail?: string
 ): string {
   const catalog = locale === "zh-TW" ? zhTW : enUS;
-  const copy = catalog["sign-in-page"][outcome];
+  const copy = catalog["sign-in-page"][flow][outcome];
 
   return `<!doctype html>
 <html lang="${locale === "zh-TW" ? "zh-TW" : "en-US"}">

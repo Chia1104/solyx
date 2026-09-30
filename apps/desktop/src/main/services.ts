@@ -21,7 +21,7 @@ import { createCredentialStore } from "./modules/settings/credential-store.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
-import { signInPage } from "./modules/settings/sign-in-page.ts";
+import { SignInFlow, signInPage } from "./modules/settings/sign-in-page.ts";
 
 const PAPER_CASH = { TWD: 1_000_000, USD: 30_000 };
 
@@ -92,11 +92,16 @@ export function createServices() {
     shared: join(home, ".agents", "skills"),
   };
 
+  const openExternal = (url: string) => void shell.openExternal(url);
+
   const mcp = createMcpServers({
     file: join(dirname(config.file), "mcp.json"),
     config,
     secrets,
     version: app.getVersion(),
+    openExternal,
+    signInPage: (locale, outcome, detail) =>
+      signInPage(locale, SignInFlow.Mcp, outcome, detail),
   });
 
   const agent = createAgentService({
@@ -106,8 +111,9 @@ export function createServices() {
     getDeviceId: installationId(
       join(app.getPath("userData"), "installation-id")
     ),
-    openExternal: (url) => void shell.openExternal(url),
-    signInPage,
+    openExternal,
+    signInPage: (locale, outcome, detail) =>
+      signInPage(locale, SignInFlow.ChatGPT, outcome, detail),
     skillFolders,
     instructionsFile: join(dirname(config.file), "AGENTS.md"),
     mcp,

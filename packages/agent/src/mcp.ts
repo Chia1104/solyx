@@ -1,12 +1,28 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import {
+  McpAuthRequiredError,
   McpClient,
   StdioTransport,
   StreamableHttpTransport,
   toLlmContent,
 } from "@earendil-works/pi-mcp";
 import type { McpTransport, Tool } from "@earendil-works/pi-mcp";
-import { delay, isEqual } from "es-toolkit";
+import {
+  McpOAuthAuthorizationRequiredError,
+  McpOAuthProvider,
+  MemoryOAuthStateStore,
+  OAuthCallbackServer,
+  adaptOAuthProvider,
+  authorizeMcp,
+  parseWwwAuthenticate,
+} from "@earendil-works/pi-mcp/oauth";
+import type {
+  McpOAuthState,
+  McpOAuthStateStore,
+  OAuthCallbackPage,
+  OAuthChallenge,
+} from "@earendil-works/pi-mcp/oauth";
+import { delay, isEqual, once } from "es-toolkit";
 import * as z from "zod";
 
 import {
@@ -38,6 +54,8 @@ export interface McpServerStatus {
   secrets: string[];
   /** Those of them not saved yet. */
   missingSecrets: string[];
+  /** A sign-in is saved for this remote server, and its requests carry the grant. */
+  signedIn: boolean;
 }
 
 /** What an MCP tool is called with, as pi-mcp sends it. */
@@ -59,6 +77,20 @@ export interface McpHubOptions {
   path(): Promise<string | undefined>;
   /** A server connected, failed or changed its tools. */
   onStatus?(): void;
+  /** Each remote server's sign-in, as text the host keeps encrypted; writing `undefined` forgets it. */
+  signIns: {
+    read(server: string): Promise<string | undefined>;
+    write(server: string, value: string | undefined): Promise<void>;
+  };
+}
+
+export interface McpSignInOptions {
+  /** Opens the server's authorization page in the system browser. */
+  open(url: string): void;
+  /** The page the browser lands on when it returns to this computer. */
+  page(result: OAuthCallbackPage): string;
+  /** Aborting it stops waiting for the browser. */
+  signal?: AbortSignal;
 }
 
 export interface McpToolOptions {
@@ -74,11 +106,70 @@ interface Connection {
   client?: McpClient;
   tools: Tool[];
   started: Promise<void>;
+  /** What the server's last 401 asked for, which points a sign-in at its authorization server. */
+  challenge?: OAuthChallenge;
 }
 
 const argsSchema = z.record(z.string(), z.unknown());
 
 const STDERR_TAIL = 2000;
+
+// What a sign-in keeps between runs. Discovery is looked up again, and an authorization in
+// progress never outlives the sign-in that started it.
+const savedSignInSchema = z.object({
+  serverUrl: z.string(),
+  clientInformation: z
+    .object({
+      client_id: z.string(),
+      client_secret: z.string().optional(),
+      client_id_issued_at: z.number().optional(),
+      client_secret_expires_at: z.number().optional(),
+      token_endpoint_auth_method: z.string().optional(),
+      redirect_uris: z.array(z.string()).optional(),
+    })
+    .optional(),
+  tokens: z
+    .object({
+      access_token: z.string(),
+      token_type: z.string(),
+      expires_in: z.number().optional(),
+      scope: z.string().optional(),
+      refresh_token: z.string().optional(),
+      id_token: z.string().optional(),
+    })
+    .optional(),
+  tokensExpireAt: z.number().optional(),
+});
+
+type SavedSignIn = z.infer<typeof savedSignInSchema>;
+
+// Requests never finish an authorization, so their redirect only names a client registered again
+// after the server dropped the old one; the next sign-in registers for its own port.
+const UNREGISTERED_REDIRECT = "http://127.0.0.1/callback";
+
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
+/** A server's metadata could name any scheme, and only web pages belong in the browser. */
+const browsable = (url: URL) =>
+  url.protocol === "https:" ||
+  (url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname));
+
+/** Listens where the saved registration redirects to, or on any free port once that is taken. */
+async function listenForCallback(
+  saved: SavedSignIn | undefined,
+  renderPage: McpSignInOptions["page"]
+) {
+  const registered = saved?.clientInformation?.redirect_uris?.[0];
+  const port = Number(URL.parse(registered ?? "")?.port ?? 0);
+
+  try {
+    return await OAuthCallbackServer.listen({ port, renderPage });
+  } catch (error) {
+    if (port === 0) throw error;
+
+    return OAuthCallbackServer.listen({ renderPage });
+  }
+}
 
 // Providers accept at most 64 characters of [A-Za-z0-9_-] in a tool name.
 const toolName = (server: string, tool: string) =>
@@ -103,6 +194,30 @@ export function createMcpHub(options: McpHubOptions) {
 
   const changed = () => options.onStatus?.();
 
+  async function readSignIn(server: string): Promise<SavedSignIn | undefined> {
+    const text = await options.signIns.read(server);
+
+    if (text === undefined) return undefined;
+
+    try {
+      return savedSignInSchema.safeParse(JSON.parse(text)).data;
+    } catch {
+      return undefined;
+    }
+  }
+
+  const writeSignIn = (server: string, state: McpOAuthState) =>
+    options.signIns.write(
+      server,
+      JSON.stringify(savedSignInSchema.parse(state))
+    );
+
+  /** Requests read the saved grant and save the one a refresh replaces it with. */
+  const savedStore = (server: string): McpOAuthStateStore => ({
+    load: () => readSignIn(server),
+    save: (state) => writeSignIn(server, state),
+  });
+
   async function resolve(values: Record<string, string> | undefined) {
     const resolved: Record<string, string> = {};
     const missing: string[] = [];
@@ -124,6 +239,7 @@ export function createMcpHub(options: McpHubOptions) {
   }
 
   async function transportFor(
+    name: string,
     config: McpServerConfig,
     status: McpServerStatus,
     stderr: { tail: string }
@@ -141,9 +257,31 @@ export function createMcpHub(options: McpHubOptions) {
     }
 
     if (config.kind === McpTransportKind.Http) {
+      const saved = await readSignIn(name);
+
+      // A grant holds for the URL it was given for, and refreshing it needs the client registered.
+      status.signedIn =
+        saved?.serverUrl === String(new URL(config.url)) &&
+        saved.tokens !== undefined &&
+        saved.clientInformation !== undefined;
+
       return new StreamableHttpTransport({
         url: config.url,
         headers: resolved,
+        authProvider: status.signedIn
+          ? adaptOAuthProvider(
+              new McpOAuthProvider({
+                serverUrl: config.url,
+                redirectUrl:
+                  saved?.clientInformation?.redirect_uris?.[0] ??
+                  UNREGISTERED_REDIRECT,
+                clientMetadata: { client_name: options.client.name },
+                store: savedStore(name),
+                // A grant that can no longer be refreshed waits for the user to sign in again.
+                onRedirect: () => undefined,
+              })
+            )
+          : undefined,
       });
     }
 
@@ -175,6 +313,7 @@ export function createMcpHub(options: McpHubOptions) {
           : config.url,
       state: McpServerState.Connecting,
       tools: [],
+      signedIn: false,
       secrets: Object.values(
         (config?.kind === McpTransportKind.Stdio
           ? config.env
@@ -206,7 +345,7 @@ export function createMcpHub(options: McpHubOptions) {
       }
 
       const stderr = { tail: "" };
-      const transport = await transportFor(entry.config, status, stderr);
+      const transport = await transportFor(name, entry.config, status, stderr);
 
       if (!transport) {
         changed();
@@ -249,6 +388,20 @@ export function createMcpHub(options: McpHubOptions) {
       } catch (error) {
         await client.close().catch(() => undefined);
 
+        if (
+          error instanceof McpAuthRequiredError ||
+          error instanceof McpOAuthAuthorizationRequiredError
+        ) {
+          connection.challenge =
+            error instanceof McpAuthRequiredError
+              ? parseWwwAuthenticate(error.wwwAuthenticate)
+              : undefined;
+          status.state = McpServerState.NeedsSignIn;
+          changed();
+
+          return;
+        }
+
         const [lastLine] = stderr.tail.trim().split("\n").slice(-1);
         const message = error instanceof Error ? error.message : String(error);
 
@@ -267,6 +420,17 @@ export function createMcpHub(options: McpHubOptions) {
   async function stop(connection: Connection) {
     await connection.started;
     await connection.client?.close().catch(() => undefined);
+  }
+
+  /** Starts one server again, as after the user saved a secret it names or signed in to it. */
+  function reconnect(name: string) {
+    const connection = connections.get(name);
+
+    if (!connection) return;
+
+    connections.set(name, start(connection.entry));
+    void stop(connection);
+    changed();
   }
 
   return {
@@ -290,15 +454,99 @@ export function createMcpHub(options: McpHubOptions) {
       changed();
     },
 
-    /** Starts one server again, as after the user saved a secret it names. */
-    reconnect(name: string) {
+    reconnect,
+
+    /**
+     * Signs in to a remote server in the browser, with PKCE and a client registered with its
+     * authorization server, then reconnects it with the grant. A registration is reused while the
+     * loopback port it redirects to is free.
+     */
+    async signIn(name: string, { open, page, signal }: McpSignInOptions) {
       const connection = connections.get(name);
 
-      if (!connection) return;
+      const config =
+        connection && "config" in connection.entry
+          ? connection.entry.config
+          : undefined;
 
-      connections.set(name, start(connection.entry));
-      void stop(connection);
-      changed();
+      if (!connection || config?.kind !== McpTransportKind.Http) {
+        throw new Error(`${name} is not a remote server in mcp.json`);
+      }
+
+      const saved = await readSignIn(name);
+      const callback = await listenForCallback(saved, page);
+      const close = once(() => callback.close());
+      const cancel = () => void close();
+
+      signal?.addEventListener("abort", cancel, { once: true });
+
+      try {
+        // Kept in memory until the grant arrives, so a sign-in that stops halfway changes nothing.
+        const store = new MemoryOAuthStateStore();
+
+        if (saved) store.save(saved);
+
+        const provider = new McpOAuthProvider({
+          serverUrl: config.url,
+          redirectUrl: callback.redirectUrl,
+          clientMetadata: { client_name: options.client.name },
+          store,
+          onRedirect(url) {
+            signal?.throwIfAborted();
+
+            if (!browsable(url)) {
+              throw new Error(
+                `${name} asked to open ${url.protocol} in the browser`
+              );
+            }
+
+            open(url.href);
+          },
+        });
+
+        // A client registered for another port would refuse this redirect.
+        if (
+          !saved?.clientInformation?.redirect_uris?.includes(
+            callback.redirectUrl
+          )
+        ) {
+          await provider.invalidateCredentials("client");
+        }
+
+        const flow = {
+          serverUrl: config.url,
+          resourceMetadataUrl: connection.challenge?.resourceMetadataUrl,
+          scope: connection.challenge?.scope,
+        };
+
+        const returned = callback.waitForCallback(await provider.state());
+
+        // Settled here too, so a flow that fails before the browser opens leaves nothing unhandled.
+        returned.catch(() => undefined);
+
+        await authorizeMcp(provider, { ...flow, skipRefresh: true });
+
+        const { code } = await returned;
+
+        await authorizeMcp(provider, { ...flow, authorizationCode: code });
+
+        const granted = store.load();
+
+        if (!granted?.tokens) throw new Error(`${name} granted no tokens`);
+
+        await writeSignIn(name, granted);
+      } finally {
+        signal?.removeEventListener("abort", cancel);
+        await close();
+      }
+
+      reconnect(name);
+    },
+
+    /** Forgets the server's grant here; the server may still hold it until it expires. */
+    async signOut(name: string) {
+      await options.signIns.write(name, undefined);
+      reconnect(name);
     },
 
     /** Waits until every server has connected or failed, or `timeoutMs` has passed. */
@@ -362,14 +610,25 @@ export function createMcpHub(options: McpHubOptions) {
                 throw new Error("The user did not allow this call");
               }
 
-              const result = await client.callTool(tool.name, args, { signal });
+              try {
+                const result = await client.callTool(tool.name, args, {
+                  signal,
+                });
 
-              // MCP reports a tool's own failure in the result rather than as an error.
-              return {
-                content: toLlmContent(result),
-                details: { server, tool: tool.name },
-                isError: result.isError === true,
-              };
+                // MCP reports a tool's own failure in the result rather than as an error.
+                return {
+                  content: toLlmContent(result),
+                  details: { server, tool: tool.name },
+                  isError: result.isError === true,
+                };
+              } catch (error) {
+                if (error instanceof McpOAuthAuthorizationRequiredError) {
+                  connection.status.state = McpServerState.NeedsSignIn;
+                  changed();
+                }
+
+                throw error;
+              }
             },
           });
         }

@@ -75,6 +75,9 @@ const handle = ipcModule<SettingsApi>(settingsChannels, {
   ]),
   deleteMcpSecret: z.tuple([z.string().min(1).max(128), mcpSecretNameSchema]),
   reconnectMcp: z.tuple([z.string().min(1).max(128)]),
+  signInMcp: z.tuple([z.string().min(1).max(128), z.string().min(2).max(35)]),
+  cancelMcpSignIn: z.tuple([]),
+  signOutMcp: z.tuple([z.string().min(1).max(128)]),
   cacheUsage: z.tuple([]),
   clearCache: z.tuple([]),
   about: z.tuple([]),
@@ -261,6 +264,7 @@ export function registerSettingsIpc({
           name,
           saved: saved.includes(`mcp:${name}`),
         })),
+        signedIn: server.signedIn,
       })),
     };
   });
@@ -281,6 +285,12 @@ export function registerSettingsIpc({
   });
 
   handle("reconnectMcp", async (server) => mcp.reconnect(server));
+
+  handle("signInMcp", (server, locale) => mcp.signIn(server, locale));
+
+  handle("cancelMcpSignIn", async () => mcp.cancelSignIn());
+
+  handle("signOutMcp", (server) => mcp.signOut(server));
 
   handle("cacheUsage", async () => cache.usage());
 

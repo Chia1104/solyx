@@ -5,6 +5,7 @@ import { basename, dirname } from "node:path";
 
 import { debounce } from "es-toolkit";
 
+import { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
 import { createMcpHub } from "@solyx/agent/mcp";
 import type { McpToolCall } from "@solyx/agent/mcp";
 import { mcpToolPolicySchema, parseMcpFile } from "@solyx/agent/mcp-config";
@@ -33,18 +34,36 @@ export function createMcpServers({
   config,
   secrets,
   version,
+  openExternal,
+  signInPage,
 }: {
   file: string;
   config: ConfigFile;
   secrets: SecretStore;
   version: string;
+  /** Opens a server's authorization page in the system browser. */
+  openExternal: (url: string) => void;
+  /** The page the browser lands on once a sign-in returns, in the language it was started in. */
+  signInPage: (
+    locale: string,
+    outcome: SignInOutcome,
+    detail?: string
+  ) => string;
 }) {
   const hub = createMcpHub({
     client: { name: "Solyx", version },
     secret: (name) => secrets.get(`mcp:${name}`),
     path: loginShellPath(),
+    signIns: {
+      read: (server) => secrets.get(`mcp-oauth:${server}`),
+      write: (server, value) =>
+        value === undefined
+          ? secrets.delete(`mcp-oauth:${server}`)
+          : secrets.save(`mcp-oauth:${server}`, value),
+    },
   });
 
+  let signIn: AbortController | undefined;
   let fileError: string | undefined;
   let started: Promise<void> | undefined;
   let watcher: FSWatcher | undefined;
@@ -126,6 +145,40 @@ export function createMcpServers({
     },
 
     reconnect: (name: string) => hub.reconnect(name),
+
+    /** Resolves once the sign-in is saved, or quietly once it is cancelled. */
+    async signIn(name: string, locale: string) {
+      if (signIn) throw new Error("A sign-in is already open");
+
+      const controller = new AbortController();
+
+      signIn = controller;
+
+      try {
+        await hub.signIn(name, {
+          open: openExternal,
+          page: (result) =>
+            result.ok
+              ? signInPage(locale, SignInOutcome.SignedIn)
+              : signInPage(
+                  locale,
+                  SignInOutcome.Failed,
+                  result.details ?? result.message
+                ),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (!controller.signal.aborted) throw error;
+      } finally {
+        signIn = undefined;
+      }
+    },
+
+    cancelSignIn() {
+      signIn?.abort();
+    },
+
+    signOut: (name: string) => hub.signOut(name),
 
     /** Writes an empty server list, so there is a file to open and fill. */
     async create() {

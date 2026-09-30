@@ -113,6 +113,10 @@ const api: SolyxApi = {
     deleteMcpSecret: (server, name) =>
       invoke(settingsChannels.deleteMcpSecret, server, name),
     reconnectMcp: (server) => invoke(settingsChannels.reconnectMcp, server),
+    signInMcp: (server, locale) =>
+      invoke(settingsChannels.signInMcp, server, locale),
+    cancelMcpSignIn: () => invoke(settingsChannels.cancelMcpSignIn),
+    signOutMcp: (server) => invoke(settingsChannels.signOutMcp, server),
     cacheUsage: () => invoke(settingsChannels.cacheUsage),
     clearCache: () => invoke(settingsChannels.clearCache),
     about: () => invoke(settingsChannels.about),

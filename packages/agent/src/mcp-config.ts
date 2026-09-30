@@ -16,6 +16,8 @@ export const mcpToolPolicySchema = z.enum(McpToolPolicy);
 export const McpServerState = {
   Connecting: "connecting",
   Connected: "connected",
+  /** A remote server that waits for the user to sign in to it in the browser. */
+  NeedsSignIn: "needs-sign-in",
   Failed: "failed",
 } as const;
 

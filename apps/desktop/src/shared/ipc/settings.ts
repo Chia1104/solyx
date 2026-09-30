@@ -33,8 +33,11 @@ export type EnteredSecret = Exclude<Secret, typeof Secret.OpenAIChatGPT>;
 /** A secret an mcp.json entry names as `secret:NAME`, saved under `mcp:NAME`. */
 export type McpSecretKey = `mcp:${string}`;
 
+/** A remote MCP server's sign-in, saved by the sign-in under the server's name in mcp.json. */
+export type McpSignInKey = `mcp-oauth:${string}`;
+
 /** Every key the secret store saves under. */
-export type SecretKey = Secret | McpSecretKey;
+export type SecretKey = Secret | McpSecretKey | McpSignInKey;
 
 /** The key each agent provider runs on. */
 export const AGENT_PROVIDER_SECRET: Record<AgentProvider, EnteredSecret> = {
@@ -201,6 +204,8 @@ export interface McpServerSetting {
   tools: McpToolSetting[];
   /** The secrets its entry names as `secret:NAME`, and whether each is saved. */
   secrets: { name: string; saved: boolean }[];
+  /** A sign-in is saved for this remote server. */
+  signedIn: boolean;
 }
 
 export interface McpSettings {
@@ -285,6 +290,13 @@ export interface SettingsApi {
   saveMcpSecret(server: string, name: string, value: string): Promise<void>;
   deleteMcpSecret(server: string, name: string): Promise<void>;
   reconnectMcp(server: string): Promise<void>;
+  /**
+   * Signs in to a remote server in the browser, resolving once the sign-in is saved and the server
+   * reconnects, or once it is cancelled. The page the browser lands on is written in `locale`.
+   */
+  signInMcp(server: string, locale: string): Promise<void>;
+  cancelMcpSignIn(): Promise<void>;
+  signOutMcp(server: string): Promise<void>;
   cacheUsage(): Promise<CacheUsage>;
   /** Closed sessions are fetched again from the provider when charts need them. */
   clearCache(): Promise<void>;
@@ -318,6 +330,9 @@ export const settingsChannels = {
   saveMcpSecret: "settings:save-mcp-secret",
   deleteMcpSecret: "settings:delete-mcp-secret",
   reconnectMcp: "settings:reconnect-mcp",
+  signInMcp: "settings:sign-in-mcp",
+  cancelMcpSignIn: "settings:cancel-mcp-sign-in",
+  signOutMcp: "settings:sign-out-mcp",
   cacheUsage: "settings:cache-usage",
   clearCache: "settings:clear-cache",
   about: "settings:about",

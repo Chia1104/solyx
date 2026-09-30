@@ -429,6 +429,7 @@
       "states": {
         "connecting": "Connecting",
         "connected": "Connected",
+        "needs-sign-in": "Needs sign-in",
         "failed": "Failed"
       },
       "kinds": {
@@ -436,6 +437,18 @@
         "http": "Remote"
       },
       "reconnect": "Reconnect",
+      "sign-in": {
+        "label": "Account",
+        "hint": "Signs in through your browser, where the server asks you to allow Solyx. Solyx keeps the grant encrypted and never shows it.",
+        "signed-in": "Signed in",
+        "signed-out": "Not signed in",
+        "waiting": "Waiting for your browser",
+        "sign-in": "Sign in",
+        "sign-out": "Sign out",
+        "continue-in-browser": "Finish signing in in your browser; this page updates once it returns.",
+        "sign-in-failed": "Couldn't sign in",
+        "sign-out-failed": "Couldn't sign out"
+      },
       "no-tools": "This server offers no tools.",
       "read-only": "Read-only",
       "policy-label": "When the agent uses {{tool}}",
@@ -479,13 +492,25 @@
     "zh-TW": "繁體中文"
   },
   "sign-in-page": {
-    "signed-in": {
-      "title": "Signed in to ChatGPT",
-      "body": "You can close this tab and return to Solyx."
+    "chatgpt": {
+      "signed-in": {
+        "title": "Signed in to ChatGPT",
+        "body": "You can close this tab and return to Solyx."
+      },
+      "failed": {
+        "title": "ChatGPT was not connected",
+        "body": "Return to Solyx and try signing in again."
+      }
     },
-    "failed": {
-      "title": "ChatGPT was not connected",
-      "body": "Return to Solyx and try signing in again."
+    "mcp": {
+      "signed-in": {
+        "title": "Authorization sent to Solyx",
+        "body": "You can close this tab. Solyx finishes connecting the MCP server."
+      },
+      "failed": {
+        "title": "The MCP server was not connected",
+        "body": "Return to Solyx and try signing in again."
+      }
     }
   }
 }

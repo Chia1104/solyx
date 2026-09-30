@@ -10,7 +10,9 @@ import {
   parseMcpFile,
 } from "../src/mcp-config.ts";
 import { createMcpHub, effectivePolicy } from "../src/mcp.ts";
-import type { McpHub } from "../src/mcp.ts";
+import type { McpHub, McpSignInOptions } from "../src/mcp.ts";
+
+import { browse, startOAuthMcpServer } from "./fixtures/oauth-mcp-server.ts";
 
 const SERVER = fileURLToPath(
   new URL("fixtures/mcp-server.mjs", import.meta.url)
@@ -22,11 +24,21 @@ afterEach(async () => {
   await Promise.all(hubs.splice(0).map((hub) => hub.close()));
 });
 
-function setup(secrets: Record<string, string> = { fake: "s3cret" }) {
+function setup(
+  secrets: Record<string, string> = { fake: "s3cret" },
+  signIns = new Map<string, string>()
+) {
   const hub = createMcpHub({
     client: { name: "solyx-test", version: "0.0.0" },
     secret: async (name) => secrets[name],
     path: async () => undefined,
+    signIns: {
+      read: async (server) => signIns.get(server),
+      async write(server, value) {
+        if (value === undefined) signIns.delete(server);
+        else signIns.set(server, value);
+      },
+    },
   });
 
   hubs.push(hub);
@@ -184,4 +196,150 @@ test("a server taken out of mcp.json is disconnected", async () => {
   hub.sync([]);
 
   expect(hub.status()).toEqual([]);
+});
+
+describe("a remote server that asks to sign in", () => {
+  const servers: Awaited<ReturnType<typeof startOAuthMcpServer>>[] = [];
+
+  afterEach(async () => {
+    await Promise.all(servers.splice(0).map((server) => server.close()));
+  });
+
+  const pages: string[] = [];
+
+  const browser: McpSignInOptions = {
+    open: (url) => void browse(url).then((page) => pages.push(page)),
+    page: (result) => (result.ok ? "signed in" : `failed: ${result.message}`),
+  };
+
+  async function remote() {
+    const server = await startOAuthMcpServer();
+    const signIns = new Map<string, string>();
+    const hub = setup({}, signIns);
+
+    servers.push(server);
+    hub.sync(
+      parseMcpFile(
+        JSON.stringify({ mcpServers: { remote: { url: server.url } } })
+      )
+    );
+    await hub.settled(10_000);
+
+    return { server, signIns, hub };
+  }
+
+  async function signedIn() {
+    const setup = await remote();
+
+    await setup.hub.signIn("remote", browser);
+    await setup.hub.settled(10_000);
+
+    const [whoami] = setup.hub.tools({
+      policies: { "remote/whoami": McpToolPolicy.Auto },
+      allow: async () => false,
+    });
+
+    const call = async (id: string) =>
+      contentText((await whoami.execute(id, {})).content);
+
+    const saved = () => JSON.parse(setup.signIns.get("remote") ?? "{}");
+
+    return { ...setup, call, saved };
+  }
+
+  test("waits for the user, then connects with the grant it saves", async () => {
+    pages.length = 0;
+
+    const { hub, call, saved } = await signedIn();
+
+    expect(hub.status()).toMatchObject([
+      {
+        name: "remote",
+        state: McpServerState.Connected,
+        signedIn: true,
+        tools: [{ name: "whoami", readOnly: true }],
+      },
+    ]);
+    expect(await call("a")).toBe("token=access-1");
+    await vi.waitFor(() => expect(pages).toEqual(["signed in"]));
+
+    // Only what outlives the sign-in is kept.
+    expect(Object.keys(saved()).sort()).toEqual([
+      "clientInformation",
+      "serverUrl",
+      "tokens",
+      "tokensExpireAt",
+    ]);
+  });
+
+  test("starts out waiting for a sign-in", async () => {
+    const { hub } = await remote();
+
+    expect(hub.status()).toMatchObject([
+      { state: McpServerState.NeedsSignIn, signedIn: false, tools: [] },
+    ]);
+  });
+
+  test("an expired token is refreshed and the new grant saved", async () => {
+    const { server, call, saved } = await signedIn();
+
+    server.expireAccessTokens();
+
+    expect(await call("a")).toBe("token=access-2");
+    expect(saved().tokens).toMatchObject({
+      access_token: "access-2",
+      refresh_token: "refresh-2",
+    });
+  });
+
+  test("a revoked grant asks again, and signing in again reuses the registration", async () => {
+    const { server, hub, call } = await signedIn();
+
+    server.revoke();
+
+    await expect(call("a")).rejects.toThrow("user interaction");
+    expect(hub.status()[0]?.state).toBe(McpServerState.NeedsSignIn);
+
+    await hub.signIn("remote", browser);
+    await hub.settled(10_000);
+
+    expect(hub.status()[0]?.state).toBe(McpServerState.Connected);
+    expect(server.registrations()).toBe(1);
+  });
+
+  test("signing out forgets the grant", async () => {
+    const { hub, signIns } = await signedIn();
+
+    await hub.signOut("remote");
+    await hub.settled(10_000);
+
+    expect(signIns.has("remote")).toBe(false);
+    expect(hub.status()).toMatchObject([
+      { state: McpServerState.NeedsSignIn, signedIn: false },
+    ]);
+  });
+
+  test("a cancelled sign-in saves nothing", async () => {
+    const { hub, signIns } = await remote();
+    const controller = new AbortController();
+
+    await expect(
+      hub.signIn("remote", {
+        open: () => controller.abort(),
+        page: () => "",
+        signal: controller.signal,
+      })
+    ).rejects.toThrow();
+    expect(signIns.has("remote")).toBe(false);
+  });
+
+  test("only a remote server signs in", async () => {
+    const hub = setup();
+
+    hub.sync(fakeServer());
+
+    await expect(hub.signIn("fake", browser)).rejects.toThrow(
+      "not a remote server"
+    );
+  });
 });
