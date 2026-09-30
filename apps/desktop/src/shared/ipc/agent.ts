@@ -28,6 +28,8 @@ export interface AgentApi {
     locale: string
   ): Promise<void>;
   abort(id: string): Promise<void>;
+  /** Answers a call waiting for the user to allow it. */
+  approve(id: string, toolCallId: string, approved: boolean): Promise<void>;
 }
 
 export interface AgentUpdate {
@@ -47,6 +49,7 @@ export const agentChannels = {
   transcript: "agent:transcript",
   send: "agent:send",
   abort: "agent:abort",
+  approve: "agent:approve",
 } as const satisfies Record<keyof AgentApi, string>;
 
 export const agentEvents = {

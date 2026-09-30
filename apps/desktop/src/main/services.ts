@@ -13,6 +13,7 @@ import { openUserData } from "@solyx/db/user";
 import { AppLocation, Theme } from "#shared/ipc/settings.ts";
 
 import { createAgentService } from "./modules/agent/agent-service.ts";
+import { createMcpServers } from "./modules/agent/mcp-servers.ts";
 import { createLiveCandles } from "./modules/market/live-candles.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
@@ -91,6 +92,13 @@ export function createServices() {
     shared: join(home, ".agents", "skills"),
   };
 
+  const mcp = createMcpServers({
+    file: join(dirname(config.file), "mcp.json"),
+    config,
+    secrets,
+    version: app.getVersion(),
+  });
+
   const agent = createAgentService({
     config,
     secrets,
@@ -102,6 +110,7 @@ export function createServices() {
     signInPage,
     skillFolders,
     instructionsFile: join(dirname(config.file), "AGENTS.md"),
+    mcp,
     sessions: userData.agentSessions,
     marketData: (market) => marketData.provider(market),
     watchlist: () => userData.watchlist.list(),
@@ -146,6 +155,7 @@ export function createServices() {
       [AppLocation.Data]: app.getPath("userData"),
       [AppLocation.Config]: config.file,
       [AppLocation.Skills]: skillFolders.solyx,
+      [AppLocation.Mcp]: mcp.file,
     },
     applySettings,
     theme,
@@ -154,6 +164,7 @@ export function createServices() {
     liveCandles,
     userData,
     agent,
+    mcp,
   };
 }
 

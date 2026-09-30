@@ -12,6 +12,7 @@ import { AgentSkills } from "../modules/settings/agent-skills.tsx";
 import { CacheSettings } from "../modules/settings/cache-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
 import { MarketDataSettings } from "../modules/settings/market-data-settings.tsx";
+import { McpSettings } from "../modules/settings/mcp-settings.tsx";
 import { SettingsSection } from "../modules/settings/settings-section.ts";
 import { SettingsTabs } from "../modules/settings/settings-tabs.tsx";
 import { ThemeSelect } from "../modules/settings/theme-select.tsx";
@@ -36,6 +37,7 @@ export function SettingsPage() {
     [SettingsSection.MarketData]: <MarketDataSettings />,
     [SettingsSection.Agent]: <AgentSettings />,
     [SettingsSection.Skills]: <AgentSkills />,
+    [SettingsSection.Mcp]: <McpSettings />,
     [SettingsSection.Storage]: (
       <Section
         title={t("settings.storage.title")}

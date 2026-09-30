@@ -6,6 +6,12 @@ import type { OpenDialogOptions } from "electron";
 import { mapValues, uniq } from "es-toolkit";
 import * as z from "zod";
 
+import { effectivePolicy } from "@solyx/agent/mcp";
+import {
+  mcpSecretNameSchema,
+  mcpToolKey,
+  mcpToolPolicySchema,
+} from "@solyx/agent/mcp-config";
 import {
   DEFAULT_MODEL,
   agentAuthSchema,
@@ -56,6 +62,19 @@ const handle = ipcModule<SettingsApi>(settingsChannels, {
   signOutSubscription: z.tuple([]),
   agentSkills: z.tuple([]),
   setSharedSkill: z.tuple([z.string().min(1).max(64), z.boolean()]),
+  mcp: z.tuple([]),
+  setMcpToolPolicy: z.tuple([
+    z.string().min(1).max(128),
+    z.string().min(1).max(128),
+    mcpToolPolicySchema,
+  ]),
+  saveMcpSecret: z.tuple([
+    z.string().min(1).max(128),
+    mcpSecretNameSchema,
+    z.string().trim().min(1).max(4096),
+  ]),
+  deleteMcpSecret: z.tuple([z.string().min(1).max(128), mcpSecretNameSchema]),
+  reconnectMcp: z.tuple([z.string().min(1).max(128)]),
   cacheUsage: z.tuple([]),
   clearCache: z.tuple([]),
   about: z.tuple([]),
@@ -89,6 +108,7 @@ export function registerSettingsIpc({
   marketData,
   liveCandles,
   agent,
+  mcp,
 }: Services) {
   handle("theme", async () => theme());
 
@@ -213,6 +233,55 @@ export function registerSettingsIpc({
     );
   });
 
+  handle("mcp", async () => {
+    const [{ error, servers }, saved] = await Promise.all([
+      mcp.status(),
+      secrets.saved(),
+    ]);
+
+    const policies = mcp.policies();
+
+    return {
+      path: mcp.file.replace(home, "~"),
+      error,
+      servers: servers.map((server) => ({
+        name: server.name,
+        kind: server.kind,
+        target: server.target.replace(home, "~"),
+        state: server.state,
+        error: server.error,
+        tools: server.tools.map((tool) => ({
+          ...tool,
+          policy: effectivePolicy(
+            policies[mcpToolKey(server.name, tool.name)],
+            tool.readOnly
+          ),
+        })),
+        secrets: server.secrets.map((name) => ({
+          name,
+          saved: saved.includes(`mcp:${name}`),
+        })),
+      })),
+    };
+  });
+
+  handle("setMcpToolPolicy", async (server, tool, policy) => {
+    config.set(["agent", "mcpTools", mcpToolKey(server, tool)], policy);
+  });
+
+  // A server reads its secrets as it connects, so a changed one reconnects it.
+  handle("saveMcpSecret", async (server, name, value) => {
+    await secrets.save(`mcp:${name}`, value);
+    mcp.reconnect(server);
+  });
+
+  handle("deleteMcpSecret", async (server, name) => {
+    await secrets.delete(`mcp:${name}`);
+    mcp.reconnect(server);
+  });
+
+  handle("reconnectMcp", async (server) => mcp.reconnect(server));
+
   handle("cacheUsage", async () => cache.usage());
 
   handle("clearCache", async () => cache.clear());
@@ -233,6 +302,8 @@ export function registerSettingsIpc({
     if (location === AppLocation.Skills) {
       await mkdir(locations[location], { recursive: true });
     }
+
+    if (location === AppLocation.Mcp) await mcp.create();
 
     shell.showItemInFolder(locations[location]);
   });

@@ -1,3 +1,8 @@
+import type {
+  McpServerState,
+  McpToolPolicy,
+  McpTransportKind,
+} from "@solyx/agent/mcp-config";
 import { AgentProvider } from "@solyx/agent/providers";
 import type { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import type { SkillSource } from "@solyx/agent/skills";
@@ -24,6 +29,12 @@ export type Secret = (typeof Secret)[keyof typeof Secret];
 
 /** The secrets a person types in, which the renderer may save or delete. */
 export type EnteredSecret = Exclude<Secret, typeof Secret.OpenAIChatGPT>;
+
+/** A secret an mcp.json entry names as `secret:NAME`, saved under `mcp:NAME`. */
+export type McpSecretKey = `mcp:${string}`;
+
+/** Every key the secret store saves under. */
+export type SecretKey = Secret | McpSecretKey;
 
 /** The key each agent provider runs on. */
 export const AGENT_PROVIDER_SECRET: Record<AgentProvider, EnteredSecret> = {
@@ -171,6 +182,35 @@ export interface AgentSkills {
   paths: { skills: string; shared: string; instructions: string };
 }
 
+export interface McpToolSetting {
+  name: string;
+  title?: string;
+  description?: string;
+  /** Its server marks it read-only, so it may run without asking. */
+  readOnly: boolean;
+  policy: McpToolPolicy;
+}
+
+export interface McpServerSetting {
+  name: string;
+  kind: McpTransportKind;
+  /** The command line or URL, so the user recognizes the entry. */
+  target: string;
+  state: McpServerState;
+  error?: string;
+  tools: McpToolSetting[];
+  /** The secrets its entry names as `secret:NAME`, and whether each is saved. */
+  secrets: { name: string; saved: boolean }[];
+}
+
+export interface McpSettings {
+  /** Shown with the home folder as `~`. */
+  path: string;
+  /** Why mcp.json does not parse; the servers already running keep going. */
+  error?: string;
+  servers: McpServerSetting[];
+}
+
 /** Places on disk the app can show in the system file manager. */
 export const AppLocation = {
   /** The app's `userData`: secrets, databases and caches. */
@@ -179,6 +219,8 @@ export const AppLocation = {
   Config: "config",
   /** `skills/` beside the config file, where the user's own skills live. */
   Skills: "skills",
+  /** mcp.json beside the config file, which lists the MCP servers the agent may use. */
+  Mcp: "mcp",
 } as const;
 
 export type AppLocation = (typeof AppLocation)[keyof typeof AppLocation];
@@ -232,6 +274,17 @@ export interface SettingsApi {
   agentSkills(): Promise<AgentSkills>;
   /** Offers a skill from ~/.agents/skills to the agent, or stops offering it. */
   setSharedSkill(name: string, enabled: boolean): Promise<void>;
+  /** Connects the servers in mcp.json on first use. */
+  mcp(): Promise<McpSettings>;
+  setMcpToolPolicy(
+    server: string,
+    tool: string,
+    policy: McpToolPolicy
+  ): Promise<void>;
+  /** Saves a secret an entry names as `secret:NAME`; the server reconnects with it. */
+  saveMcpSecret(server: string, name: string, value: string): Promise<void>;
+  deleteMcpSecret(server: string, name: string): Promise<void>;
+  reconnectMcp(server: string): Promise<void>;
   cacheUsage(): Promise<CacheUsage>;
   /** Closed sessions are fetched again from the provider when charts need them. */
   clearCache(): Promise<void>;
@@ -260,6 +313,11 @@ export const settingsChannels = {
   signOutSubscription: "settings:sign-out-subscription",
   agentSkills: "settings:agent-skills",
   setSharedSkill: "settings:set-shared-skill",
+  mcp: "settings:mcp",
+  setMcpToolPolicy: "settings:set-mcp-tool-policy",
+  saveMcpSecret: "settings:save-mcp-secret",
+  deleteMcpSecret: "settings:delete-mcp-secret",
+  reconnectMcp: "settings:reconnect-mcp",
   cacheUsage: "settings:cache-usage",
   clearCache: "settings:clear-cache",
   about: "settings:about",

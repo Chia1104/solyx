@@ -170,6 +170,9 @@ catalogs:
     '@earendil-works/pi-ai':
       specifier: 0.99.1
       version: 0.99.1
+    '@earendil-works/pi-mcp':
+      specifier: 0.99.1
+      version: 0.99.1
   charts:
     lightweight-charts:
       specifier: 5.2.1
@@ -429,6 +432,9 @@ importers:
       '@earendil-works/pi-ai':
         specifier: catalog:agent
         version: 0.99.1(@aws-sdk/credential-provider-node@3.972.84)(@smithy/signature-v4@5.7.4)(undici@7.30.0)(ws@8.22.0)(zod@4.6.5)
+      '@earendil-works/pi-mcp':
+        specifier: catalog:agent
+        version: 0.99.1
       '@solyx/core':
         specifier: workspace:*
         version: link:../core
@@ -739,6 +745,10 @@ packages:
     resolution: {integrity: sha512-4nV9JKc94iPX8bwdGPc2nTuVPKIPsffhnp3WoN9NYCNqbtoOF8LhYcIs/+Sn/alroqJK/5QRu6/Z6Ck+n0hyBA==}
     engines: {node: '>=22.19.0'}
     hasBin: true
+
+  '@earendil-works/pi-mcp@0.99.1':
+    resolution: {integrity: sha512-YCFGPkmDzLwQuIzwfbP6Vuk/g/ukKpZhwTpbcfzomuI1Fkiu6hHRkOGwAqsO3G8cTkZWkM8vmOkFJjStQNC4qA==}
+    engines: {node: '>=22.19.0'}
 
   '@earendil-works/pi-telemetry@0.99.1':
     resolution: {integrity: sha512-9PBPjGk+TXRtuMianpqBbHBpYpyKusESF6rwdmgD0WTZSTUQXhcKEO0hAINRLuSwy4V7yPvXV+EVV0ONY7mbpQ==}
@@ -2404,6 +2414,10 @@ packages:
   cookie-es@3.1.1:
     resolution: {integrity: sha512-UaXxwISYJPTr9hwQxMFYZ7kNhSXboMXP+Z3TRX6f1/NyaGPfuNUZOWP1pUEb75B2HjfklIYLVRfWiFZJyC6Npg==}
 
+  cross-spawn@7.0.6:
+    resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
+    engines: {node: '>= 8'}
+
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
 
@@ -2795,6 +2809,9 @@ packages:
   isbot@5.2.2:
     resolution: {integrity: sha512-iQcBXcd+Rv/pkubRyGh2utW2j1oPG5hZY6TUhVPpqK4G+o3IbxpJNx04hgksjc/N7GK5pEorUxDeg31cFgEk/w==}
     engines: {node: '>=18'}
+
+  isexe@2.0.0:
+    resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
@@ -3280,6 +3297,10 @@ packages:
   partial-json@0.1.7:
     resolution: {integrity: sha512-Njv/59hHaokb/hRUjce3Hdv12wd60MtM9Z5Olmn+nehe0QDAsRtRbJPvJ0Z91TusF0SuZRIvnM+S4l6EIP8leA==}
 
+  path-key@3.1.1:
+    resolution: {integrity: sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==}
+    engines: {node: '>=8'}
+
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
 
@@ -3460,6 +3481,14 @@ packages:
   seroval@1.6.7:
     resolution: {integrity: sha512-AeDcLh0yO2SFm9W71essgnSzLV9DI8ZH0x0knXn2DMnUZj728mpLbxjlbB6IqKCmqh8JA3cEqRyGoNkt584JcQ==}
     engines: {node: '>=10'}
+
+  shebang-command@2.0.0:
+    resolution: {integrity: sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==}
+    engines: {node: '>=8'}
+
+  shebang-regex@3.0.0:
+    resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
+    engines: {node: '>=8'}
 
   siginfo@2.0.0:
     resolution: {integrity: sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g==}
@@ -3674,6 +3703,11 @@ packages:
   web-streams-polyfill@3.3.3:
     resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
     engines: {node: '>= 8'}
+
+  which@2.0.2:
+    resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
+    engines: {node: '>= 8'}
+    hasBin: true
 
   why-is-node-running@2.3.0:
     resolution: {integrity: sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w==}
@@ -4021,6 +4055,10 @@ snapshots:
       - utf-8-validate
       - ws
       - zod
+
+  '@earendil-works/pi-mcp@0.99.1':
+    dependencies:
+      cross-spawn: 7.0.6
 
   '@earendil-works/pi-telemetry@0.99.1': {}
 
@@ -5126,6 +5164,12 @@ snapshots:
 
   cookie-es@3.1.1: {}
 
+  cross-spawn@7.0.6:
+    dependencies:
+      path-key: 3.1.1
+      shebang-command: 2.0.0
+      which: 2.0.2
+
   csstype@3.2.3: {}
 
   data-uri-to-buffer@4.0.1: {}
@@ -5461,6 +5505,8 @@ snapshots:
   is-plain-obj@4.1.0: {}
 
   isbot@5.2.2: {}
+
+  isexe@2.0.0: {}
 
   jiti@2.7.0: {}
 
@@ -6127,6 +6173,8 @@ snapshots:
 
   partial-json@0.1.7: {}
 
+  path-key@3.1.1: {}
+
   pathe@2.0.3: {}
 
   picocolors@1.1.1: {}
@@ -6335,6 +6383,12 @@ snapshots:
       seroval: 1.6.7
 
   seroval@1.6.7: {}
+
+  shebang-command@2.0.0:
+    dependencies:
+      shebang-regex: 3.0.0
+
+  shebang-regex@3.0.0: {}
 
   siginfo@2.0.0: {}
 
@@ -6599,6 +6653,10 @@ snapshots:
   web-namespaces@2.0.1: {}
 
   web-streams-polyfill@3.3.3: {}
+
+  which@2.0.2:
+    dependencies:
+      isexe: 2.0.0
 
   why-is-node-running@2.3.0:
     dependencies:

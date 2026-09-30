@@ -31,6 +31,8 @@ export const AgentEventType = {
   AssistantEnd: "assistant:end",
   ToolStart: "tool:start",
   ToolEnd: "tool:end",
+  ApprovalRequest: "approval:request",
+  ApprovalResolved: "approval:resolved",
   RunEnd: "run:end",
 } as const;
 
@@ -46,6 +48,8 @@ export type DeltaChannel = (typeof DeltaChannel)[keyof typeof DeltaChannel];
 
 export const ToolCallStatus = {
   Running: "running",
+  /** Waits for the user to allow it before it runs. */
+  AwaitingApproval: "awaiting-approval",
   Ok: "ok",
   Error: "error",
   /** The call never got a result: the run stopped or the app exited first. */
@@ -99,11 +103,20 @@ export type AgentWireEvent =
       type: typeof AgentEventType.ToolEnd;
       toolCallId: string;
       toolName: string;
-      status: Exclude<ToolCallStatus, typeof ToolCallStatus.Running>;
+      status: Exclude<
+        ToolCallStatus,
+        typeof ToolCallStatus.Running | typeof ToolCallStatus.AwaitingApproval
+      >;
       /** The first line of what a failed call returned. */
       error?: string;
       /** The tool's own view model, which the renderer narrows by tool name. */
       details?: unknown;
+    }
+  | { type: typeof AgentEventType.ApprovalRequest; toolCallId: string }
+  | {
+      type: typeof AgentEventType.ApprovalResolved;
+      toolCallId: string;
+      approved: boolean;
     }
   | {
       type: typeof AgentEventType.RunEnd;
@@ -265,12 +278,32 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
       return { ...view, items };
     }
 
+    case AgentEventType.ApprovalRequest:
+    case AgentEventType.ApprovalResolved: {
+      const index = findTool(event.toolCallId);
+      const tool = items[index];
+
+      if (tool?.kind !== AgentItemKind.Tool) return view;
+
+      // Refused, the call still ends through its own `tool:end`, as an error.
+      items[index] = {
+        ...tool,
+        status:
+          event.type === AgentEventType.ApprovalRequest
+            ? ToolCallStatus.AwaitingApproval
+            : ToolCallStatus.Running,
+      };
+
+      return { ...view, items };
+    }
+
     case AgentEventType.RunEnd: {
       // The run is over, so a call still running will get no result, and no message streams on.
       const settled = items.map((item): AgentViewItem => {
         if (
           item.kind === AgentItemKind.Tool &&
-          item.status === ToolCallStatus.Running
+          (item.status === ToolCallStatus.Running ||
+            item.status === ToolCallStatus.AwaitingApproval)
         ) {
           return { ...item, status: ToolCallStatus.Aborted };
         }

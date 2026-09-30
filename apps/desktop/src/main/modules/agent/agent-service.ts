@@ -8,6 +8,7 @@ import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
 import type { SkillFolders } from "@solyx/agent/skills";
 import { createTradingTools } from "@solyx/agent/tools";
 import type { AgentSessionStore } from "@solyx/agent/transcript";
+import type { AgentWireEvent } from "@solyx/agent/wire";
 import type { BrokerAdapter } from "@solyx/core/broker";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -22,6 +23,8 @@ import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
 
 import { createAgentModels } from "./agent-models.ts";
+import type { McpServers } from "./mcp-servers.ts";
+import { createToolApprovals } from "./tool-approvals.ts";
 
 export interface AgentServiceOptions {
   config: ConfigFile;
@@ -42,6 +45,7 @@ export interface AgentServiceOptions {
   watchlist: () => SymbolRef[];
   broker: BrokerAdapter;
   desk: OrderDesk;
+  mcp: McpServers;
 }
 
 // Every window shows the same conversations, so every window hears every run.
@@ -64,29 +68,43 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const instructions = () => loadInstructions(options.instructionsFile);
 
+  const onEvent = (sessionId: string, event: AgentWireEvent) =>
+    broadcast({ sessionId, event });
+
+  const approvals = createToolApprovals(onEvent);
+
   const runtime = createAgentRuntime({
     store: options.sessions,
     streamFn: (model, context, streamOptions) =>
       models.catalog.streamSimple(model, context, streamOptions),
     model: () => models.choice(),
-    async prepare() {
-      const [catalog, standing] = await Promise.all([skills(), instructions()]);
+    async prepare(sessionId) {
+      const [catalog, standing, mcpTools] = await Promise.all([
+        skills(),
+        instructions(),
+        options.mcp.tools((call, signal) =>
+          approvals.request(sessionId, call.toolCallId, signal)
+        ),
+      ]);
 
       const offered = catalog.skills.filter((skill) => skill.offered);
 
       return {
         systemPrompt: systemPrompt({ skills: offered, instructions: standing }),
-        tools: createTradingTools({
-          marketData: options.marketData,
-          watchlist: options.watchlist,
-          account: () => options.broker.getAccount(),
-          brokerMode: options.broker.mode,
-          desk: options.desk,
-          skills: offered,
-        }),
+        tools: [
+          ...createTradingTools({
+            marketData: options.marketData,
+            watchlist: options.watchlist,
+            account: () => options.broker.getAccount(),
+            brokerMode: options.broker.mode,
+            desk: options.desk,
+            skills: offered,
+          }),
+          ...mcpTools,
+        ],
       };
     },
-    onEvent: (sessionId, event) => broadcast({ sessionId, event }),
+    onEvent,
   });
 
   return {
@@ -94,6 +112,21 @@ export function createAgentService(options: AgentServiceOptions) {
     runtime,
     skills,
     instructions,
+
+    /** The conversation as wire events, with calls still waiting for the user asked again. */
+    transcript: (id: string) => [
+      ...runtime.transcript(id),
+      ...approvals.open(id),
+    ],
+
+    approve: (id: string, toolCallId: string, approved: boolean) =>
+      approvals.decide(id, toolCallId, approved),
+
+    /** Stops every run, then the MCP servers they used, as the app quits. */
+    async close() {
+      await runtime.stopAll();
+      await options.mcp.close();
+    },
 
     send(id: string, text: string, focus: AgentFocus | null, locale: string) {
       const now = new Date();

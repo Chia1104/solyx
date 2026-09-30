@@ -1,5 +1,5 @@
-import { Spinner, cn } from "@heroui/react";
-import { useQuery } from "@tanstack/react-query";
+import { Button, Spinner, cn } from "@heroui/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
@@ -9,6 +9,7 @@ import { intervalSchema } from "@solyx/core/candles";
 import { marketSchema, symbolRefSchema } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
 
+import { ErrorAlert } from "../../components/error-alert.tsx";
 import { ProposalItem } from "../proposals/proposal-item.tsx";
 import { proposalsQuery } from "../proposals/proposals-query.ts";
 
@@ -39,6 +40,7 @@ function subjectOf(tool: ToolCallView): string | undefined {
 
 const STATUS_MARK: Record<ToolCallStatus, string> = {
   [ToolCallStatus.Running]: "",
+  [ToolCallStatus.AwaitingApproval]: "?",
   [ToolCallStatus.Ok]: "✓",
   [ToolCallStatus.Error]: "!",
   [ToolCallStatus.Aborted]: "–",
@@ -56,7 +58,68 @@ function ProposalCard({ id }: { id: string }) {
   ) : null;
 }
 
-export function AgentToolCall({ tool }: { tool: ToolCallView }) {
+/**
+ * A call that waits for the user, with what it is about to send. Neither answer is ink: only
+ * confirming a proposal makes anything real.
+ */
+function ApprovalCard({
+  sessionId,
+  tool,
+}: {
+  sessionId: string;
+  tool: ToolCallView;
+}) {
+  const { t } = useTranslation();
+
+  const answer = useMutation({
+    mutationFn: (approved: boolean) =>
+      window.solyx.agent.approve(sessionId, tool.toolCallId, approved),
+  });
+
+  return (
+    <div className="flex flex-col gap-2 rounded-sm border border-dashed border-separator p-3">
+      <p className="text-sm font-medium">{t("agent.approval.title")}</p>
+      <p className="text-xs text-muted">
+        {t("agent.approval.description", { tool: tool.toolName })}
+      </p>
+      <pre className="max-h-40 overflow-auto rounded-sm bg-surface-secondary p-2 font-mono text-xs whitespace-pre-wrap">
+        {JSON.stringify(tool.args, null, 2)}
+      </pre>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="secondary"
+          isPending={answer.isPending && answer.variables}
+          isDisabled={answer.isPending}
+          onPress={() => answer.mutate(true)}>
+          {t("agent.approval.allow")}
+        </Button>
+        <Button
+          size="sm"
+          variant="tertiary"
+          isPending={answer.isPending && !answer.variables}
+          isDisabled={answer.isPending}
+          onPress={() => answer.mutate(false)}>
+          {t("agent.approval.deny")}
+        </Button>
+      </div>
+      {answer.error ? (
+        <ErrorAlert
+          title={t("agent.approval.failed")}
+          description={answer.error.message}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+export function AgentToolCall({
+  sessionId,
+  tool,
+}: {
+  sessionId: string;
+  tool: ToolCallView;
+}) {
   const { t } = useTranslation();
   const subject = subjectOf(tool);
 
@@ -91,6 +154,9 @@ export function AgentToolCall({ tool }: { tool: ToolCallView }) {
       </div>
       {tool.error ? (
         <p className="pl-6 text-xs text-danger">{tool.error}</p>
+      ) : null}
+      {tool.status === ToolCallStatus.AwaitingApproval ? (
+        <ApprovalCard sessionId={sessionId} tool={tool} />
       ) : null}
       {proposal ? <ProposalCard id={proposal.proposalId} /> : null}
     </div>

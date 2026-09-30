@@ -5,6 +5,7 @@ import { Mutex, omit } from "es-toolkit";
 import * as z from "zod";
 
 import { Secret, SecretState } from "#shared/ipc/settings.ts";
+import type { SecretKey } from "#shared/ipc/settings.ts";
 
 export interface Decrypted {
   plainText: string;
@@ -80,7 +81,7 @@ export function createSecretStore(file: string, cipher: SecretCipher) {
     }
   }
 
-  async function save(secret: Secret, value: string) {
+  async function save(secret: SecretKey, value: string) {
     if (!(await cipher.isAvailable())) {
       throw new Error("This system has no secure storage to save secrets in");
     }
@@ -95,10 +96,10 @@ export function createSecretStore(file: string, cipher: SecretCipher) {
 
     save,
 
-    delete: (secret: Secret) => update((entries) => omit(entries, [secret])),
+    delete: (secret: SecretKey) => update((entries) => omit(entries, [secret])),
 
     /** The decrypted value, or `undefined` when it is missing or unreadable. */
-    async get(secret: Secret): Promise<string | undefined> {
+    async get(secret: SecretKey): Promise<string | undefined> {
       const entry = (await read())[secret];
       const decrypted = entry === undefined ? undefined : await decrypt(entry);
 
@@ -112,6 +113,9 @@ export function createSecretStore(file: string, cipher: SecretCipher) {
 
       return decrypted?.plainText;
     },
+
+    /** The keys saved, without decrypting anything. */
+    saved: async (): Promise<string[]> => Object.keys(await read()),
 
     async states(): Promise<Record<Secret, SecretState>> {
       const entries = await read();

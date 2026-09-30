@@ -20,6 +20,7 @@ catalogs:
   agent:
     "@earendil-works/pi-agent-core": 0.99.1
     "@earendil-works/pi-ai": 0.99.1
+    "@earendil-works/pi-mcp": 0.99.1
   charts:
     lightweight-charts: 5.2.1
   chiastack:
@@ -91,3 +92,4 @@ minimumReleaseAgeExclude:
   - '@earendil-works/pi-agent-core@0.99.1'
   - '@earendil-works/pi-ai@0.99.1'
   - '@earendil-works/pi-telemetry@0.99.1'
+  - '@earendil-works/pi-mcp@0.99.1'

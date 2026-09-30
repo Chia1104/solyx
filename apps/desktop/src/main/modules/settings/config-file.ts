@@ -50,6 +50,8 @@ const configSchema = z.looseObject({
       thinking: textSchema,
       auth: textSchema,
       sharedSkills: z.array(z.string()).optional().catch(undefined),
+      // Values are checked one by one where they are read, so one bad entry keeps the rest.
+      mcpTools: z.record(z.string(), z.string()).optional().catch(undefined),
     })
     .optional()
     .catch(undefined),
@@ -63,7 +65,8 @@ export type ConfigPath =
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle", "plan"]
   | ["providers", "fubon", FubonFile]
-  | ["agent", "provider" | "model" | "thinking" | "auth" | "sharedSkills"];
+  | ["agent", "provider" | "model" | "thinking" | "auth" | "sharedSkills"]
+  | ["agent", "mcpTools", string];
 
 const quoted = (values: Record<string, string>) =>
   Object.values(values)

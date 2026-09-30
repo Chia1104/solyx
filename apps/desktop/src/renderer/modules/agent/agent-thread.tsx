@@ -42,14 +42,14 @@ function keyOf(item: AgentViewItem, index: number): string {
   }
 }
 
-function Item({ item }: { item: AgentViewItem }) {
+function Item({ sessionId, item }: { sessionId: string; item: AgentViewItem }) {
   switch (item.kind) {
     case AgentItemKind.User:
       return <UserMessage message={item} />;
     case AgentItemKind.Assistant:
       return <AssistantMessage message={item} />;
     case AgentItemKind.Tool:
-      return <AgentToolCall tool={item} />;
+      return <AgentToolCall sessionId={sessionId} tool={item} />;
     default:
       return <Notice notice={item} />;
   }
@@ -115,7 +115,7 @@ export function AgentThread({ sessionId }: { sessionId: string }) {
       }}>
       <div className="flex flex-col gap-4 px-4 py-4">
         {data.items.map((item, index) => (
-          <Item key={keyOf(item, index)} item={item} />
+          <Item key={keyOf(item, index)} sessionId={sessionId} item={item} />
         ))}
         {working ? (
           <p className="flex items-center gap-2 text-xs text-muted">

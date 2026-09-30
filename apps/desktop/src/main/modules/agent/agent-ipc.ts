@@ -24,6 +24,7 @@ const handle = ipcModule<AgentApi>(agentChannels, {
     z.string().min(2).max(35),
   ]),
   abort: z.tuple([idSchema]),
+  approve: z.tuple([idSchema, idSchema, z.boolean()]),
 });
 
 export function registerAgentIpc({ agent, userData }: Services) {
@@ -51,11 +52,15 @@ export function registerAgentIpc({ agent, userData }: Services) {
     sessions.delete(id);
   });
 
-  handle("transcript", async (id) => agent.runtime.transcript(id));
+  handle("transcript", async (id) => agent.transcript(id));
 
   handle("send", (id, text, focus, locale) =>
     agent.send(id, text, focus, locale)
   );
 
   handle("abort", async (id) => agent.runtime.abort(id));
+
+  handle("approve", async (id, toolCallId, approved) =>
+    agent.approve(id, toolCallId, approved)
+  );
 }

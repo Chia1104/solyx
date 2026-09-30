@@ -153,6 +153,7 @@
     },
     "tool-status": {
       "running": "Running",
+      "awaiting-approval": "Waiting for you",
       "ok": "Done",
       "error": "Failed",
       "aborted": "Stopped"
@@ -162,6 +163,13 @@
       "description": "It opens in your browser. The agent wrote it, so check the address first.",
       "open": "Open",
       "cancel": "Cancel"
+    },
+    "approval": {
+      "title": "Allow this call?",
+      "description": "{{tool}} comes from an MCP server outside Solyx. Check what it's about to send.",
+      "allow": "Allow",
+      "deny": "Don't allow",
+      "failed": "Couldn't send your answer"
     }
   },
   "onboarding": {
@@ -244,7 +252,8 @@
       "storage": "Storage",
       "about": "About",
       "agent": "AI agent",
-      "skills": "Skills"
+      "skills": "Skills",
+      "mcp": "MCP"
     },
     "general": "General",
     "save-failed": "Couldn't save the setting",
@@ -410,6 +419,31 @@
       "instructions-found": "{{count, number}} characters",
       "instructions-missing": "Not written",
       "warnings-title": "Some skill files don't follow the Agent Skills format"
+    },
+    "mcp": {
+      "title": "MCP servers",
+      "description": "Servers listed in {{path}}, in the mcpServers format Claude, Cursor and pi use. Write keys as secret:NAME and save them here, where your system encrypts them. Each call waits for you to allow it, unless you let a read-only tool run on its own.",
+      "open-file": "Open mcp.json",
+      "empty": "No servers yet. Add one to mcp.json and it connects here.",
+      "file-error": "mcp.json couldn't be read",
+      "states": {
+        "connecting": "Connecting",
+        "connected": "Connected",
+        "failed": "Failed"
+      },
+      "kinds": {
+        "stdio": "Local",
+        "http": "Remote"
+      },
+      "reconnect": "Reconnect",
+      "no-tools": "This server offers no tools.",
+      "read-only": "Read-only",
+      "policy-label": "When the agent uses {{tool}}",
+      "policies": {
+        "off": "Off",
+        "ask": "Ask each time",
+        "auto": "Run on its own"
+      }
     },
     "storage": {
       "title": "Candle cache",

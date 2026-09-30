@@ -38,6 +38,8 @@ const api: SolyxApi = {
     send: (id, text, focus, locale) =>
       invoke(agentChannels.send, id, text, focus, locale),
     abort: (id) => invoke(agentChannels.abort, id),
+    approve: (id, toolCallId, approved) =>
+      invoke(agentChannels.approve, id, toolCallId, approved),
     onEvent: (listener) => {
       const forward = (_event: IpcRendererEvent, update: AgentUpdate) =>
         listener(update);
@@ -103,6 +105,14 @@ const api: SolyxApi = {
     agentSkills: () => invoke(settingsChannels.agentSkills),
     setSharedSkill: (name, enabled) =>
       invoke(settingsChannels.setSharedSkill, name, enabled),
+    mcp: () => invoke(settingsChannels.mcp),
+    setMcpToolPolicy: (server, tool, policy) =>
+      invoke(settingsChannels.setMcpToolPolicy, server, tool, policy),
+    saveMcpSecret: (server, name, value) =>
+      invoke(settingsChannels.saveMcpSecret, server, name, value),
+    deleteMcpSecret: (server, name) =>
+      invoke(settingsChannels.deleteMcpSecret, server, name),
+    reconnectMcp: (server) => invoke(settingsChannels.reconnectMcp, server),
     cacheUsage: () => invoke(settingsChannels.cacheUsage),
     clearCache: () => invoke(settingsChannels.clearCache),
     about: () => invoke(settingsChannels.about),

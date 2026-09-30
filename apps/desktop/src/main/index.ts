@@ -25,7 +25,8 @@ void app.whenReady().then(() => {
   registerIpc(services);
   createMainWindow();
 
-  // Stopped runs keep what they streamed and end as aborted instead of cut off mid-message.
+  // Stopped runs keep what they streamed and end as aborted instead of cut off mid-message, and
+  // stdio MCP servers are shut down rather than left running without the app.
   app.on("before-quit", (event) => {
     if (quitting) return;
 
@@ -33,7 +34,7 @@ void app.whenReady().then(() => {
     event.preventDefault();
 
     void Promise.race([
-      services.agent.runtime.stopAll(),
+      services.agent.close(),
       delay(STOP_RUNS_TIMEOUT_MS),
     ]).finally(() => app.quit());
   });

@@ -37,7 +37,10 @@ export interface AgentRuntimeOptions {
    * The system prompt and tools for one run, built again for every run: skills and the user's
    * instructions are read afresh, and per-run limits start over.
    */
-  prepare(): Promise<{ systemPrompt: string; tools: AgentTool[] }>;
+  prepare(sessionId: string): Promise<{
+    systemPrompt: string;
+    tools: AgentTool[];
+  }>;
   onEvent(sessionId: string, event: AgentWireEvent): void;
   now?: () => number;
   createId?: () => string;
@@ -257,7 +260,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       if (!session) throw new Error(`Conversation ${sessionId} not found`);
 
       const [{ model, apiKey, thinking }, { systemPrompt, tools }] =
-        await Promise.all([options.model(), options.prepare()]);
+        await Promise.all([options.model(), options.prepare(sessionId)]);
 
       // Another send may have started while the model and prompt were prepared.
       claimIdle(sessionId);

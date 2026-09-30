@@ -5,6 +5,8 @@
   "type": "module",
   "exports": {
     "./chatgpt-oauth": "./src/chatgpt-oauth.ts",
+    "./mcp": "./src/mcp.ts",
+    "./mcp-config": "./src/mcp-config.ts",
     "./models": "./src/models.ts",
     "./prompt": "./src/prompt.ts",
     "./providers": "./src/providers.ts",
@@ -20,6 +22,7 @@
   "dependencies": {
     "@earendil-works/pi-agent-core": "catalog:agent",
     "@earendil-works/pi-ai": "catalog:agent",
+    "@earendil-works/pi-mcp": "catalog:agent",
     "@solyx/core": "workspace:*",
     "es-toolkit": "catalog:",
     "zod": "catalog:"
