@@ -243,7 +243,8 @@
       "market-data": "行情",
       "storage": "儲存空間",
       "about": "關於",
-      "agent": "AI Agent"
+      "agent": "AI Agent",
+      "skills": "Skills"
     },
     "general": "一般",
     "save-failed": "無法儲存設定",
@@ -366,7 +367,7 @@
       },
       "chatgpt": {
         "label": "ChatGPT 帳號",
-        "hint": "透過瀏覽器登入。OpenAI 顯示的名稱是 Pi，也就是 Solyx 的 Agent 所使用的函式庫。",
+        "hint": "透過瀏覽器登入，在 OpenAI 頁面允許 Solyx 後會自動回到這裡。",
         "signed-in": "已登入",
         "signed-out": "尚未登入",
         "waiting": "等待瀏覽器",
@@ -392,6 +393,23 @@
         "medium": "中",
         "high": "高"
       }
+    },
+    "skills": {
+      "title": "Skills",
+      "description": "Agent 遇到相關任務時會讀取的操作手冊。{{skills}} 裡含 SKILL.md 的資料夾是你自己的 skills，優先於內建的。{{shared}} 裡與其他 agent 共用的 skills，要開啟後才會提供給 Agent。",
+      "open-folder": "打開 skills 資料夾",
+      "sources": {
+        "solyx": "你的",
+        "built-in": "內建",
+        "shared": "共用"
+      },
+      "shared": "共用 skills",
+      "offer": "將 {{name}} 提供給 Agent",
+      "instructions": "固定指示",
+      "instructions-description": "Agent 在每次對話都會遵守的規則，例如你的風險預算，寫在 {{path}}。每則訊息都會送出整份檔案。",
+      "instructions-found": "{{count, number}} 字元",
+      "instructions-missing": "尚未建立",
+      "warnings-title": "有些 skill 檔案不符合 Agent Skills 格式"
     },
     "storage": {
       "title": "K 線快取",

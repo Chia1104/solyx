@@ -59,18 +59,21 @@ function setup(options?: Parameters<typeof fauxProvider>[0]) {
       apiKey: "test-key",
       thinking: AgentThinking.Off,
     }),
-    tools: () => [
-      {
-        name: "get_watchlist",
-        label: "Watchlist",
-        description: "The watchlist",
-        parameters: { type: "object", properties: {} },
-        execute: async () => ({
-          content: [{ type: "text", text: watchlist() }],
-          details: { count: 1 },
-        }),
-      },
-    ],
+    prepare: async () => ({
+      systemPrompt: "You are a test agent.",
+      tools: [
+        {
+          name: "get_watchlist",
+          label: "Watchlist",
+          description: "The watchlist",
+          parameters: { type: "object", properties: {} },
+          execute: async () => ({
+            content: [{ type: "text", text: watchlist() }],
+            details: { count: 1 },
+          }),
+        },
+      ],
+    }),
     onEvent: (_sessionId, event) => events.push(event),
   });
 
@@ -221,7 +224,7 @@ test("a model that is not set up rejects before anything is stored", async () =>
     model: async () => {
       throw new Error("Save an API key first");
     },
-    tools: () => [],
+    prepare: async () => ({ systemPrompt: "", tools: [] }),
     onEvent: vi.fn(),
   });
 

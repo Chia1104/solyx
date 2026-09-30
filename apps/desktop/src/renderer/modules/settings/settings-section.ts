@@ -5,6 +5,7 @@ export const SettingsSection = {
   General: "general",
   MarketData: "market-data",
   Agent: "agent",
+  Skills: "skills",
   Storage: "storage",
   About: "about",
 } as const;

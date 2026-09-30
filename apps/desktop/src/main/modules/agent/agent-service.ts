@@ -2,8 +2,10 @@ import type { CredentialStore } from "@earendil-works/pi-ai";
 import { BrowserWindow } from "electron";
 
 import type { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
-import { formatContext } from "@solyx/agent/prompt";
+import { formatContext, systemPrompt } from "@solyx/agent/prompt";
 import { createAgentRuntime } from "@solyx/agent/runtime";
+import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
+import type { SkillFolders } from "@solyx/agent/skills";
 import { createTradingTools } from "@solyx/agent/tools";
 import type { AgentSessionStore } from "@solyx/agent/transcript";
 import type { BrokerAdapter } from "@solyx/core/broker";
@@ -32,6 +34,9 @@ export interface AgentServiceOptions {
     outcome: SignInOutcome,
     detail?: string
   ) => string;
+  skillFolders: SkillFolders;
+  /** AGENTS.md beside the config file. */
+  instructionsFile: string;
   sessions: AgentSessionStore;
   marketData: (market: Market) => Promise<MarketDataProvider | undefined>;
   watchlist: () => SymbolRef[];
@@ -50,25 +55,45 @@ function broadcast(update: AgentUpdate) {
 export function createAgentService(options: AgentServiceOptions) {
   const models = createAgentModels(options);
 
+  // Read for every run and every settings view, so edits apply without a restart.
+  const skills = () =>
+    loadSkillCatalog(
+      options.skillFolders,
+      new Set(options.config.read().agent?.sharedSkills)
+    );
+
+  const instructions = () => loadInstructions(options.instructionsFile);
+
   const runtime = createAgentRuntime({
     store: options.sessions,
     streamFn: (model, context, streamOptions) =>
       models.catalog.streamSimple(model, context, streamOptions),
     model: () => models.choice(),
-    tools: () =>
-      createTradingTools({
-        marketData: options.marketData,
-        watchlist: options.watchlist,
-        account: () => options.broker.getAccount(),
-        brokerMode: options.broker.mode,
-        desk: options.desk,
-      }),
+    async prepare() {
+      const [catalog, standing] = await Promise.all([skills(), instructions()]);
+
+      const offered = catalog.skills.filter((skill) => skill.offered);
+
+      return {
+        systemPrompt: systemPrompt({ skills: offered, instructions: standing }),
+        tools: createTradingTools({
+          marketData: options.marketData,
+          watchlist: options.watchlist,
+          account: () => options.broker.getAccount(),
+          brokerMode: options.broker.mode,
+          desk: options.desk,
+          skills: offered,
+        }),
+      };
+    },
     onEvent: (sessionId, event) => broadcast({ sessionId, event }),
   });
 
   return {
     models,
     runtime,
+    skills,
+    instructions,
 
     send(id: string, text: string, focus: AgentFocus | null, locale: string) {
       const now = new Date();

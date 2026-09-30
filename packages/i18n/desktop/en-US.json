@@ -243,7 +243,8 @@
       "market-data": "Market data",
       "storage": "Storage",
       "about": "About",
-      "agent": "AI agent"
+      "agent": "AI agent",
+      "skills": "Skills"
     },
     "general": "General",
     "save-failed": "Couldn't save the setting",
@@ -366,7 +367,7 @@
       },
       "chatgpt": {
         "label": "ChatGPT account",
-        "hint": "Signs in through your browser. OpenAI names the app Pi, the library Solyx's agent runs on.",
+        "hint": "Signs in through your browser, where OpenAI asks you to allow Solyx, then comes back here on its own.",
         "signed-in": "Signed in",
         "signed-out": "Not signed in",
         "waiting": "Waiting for your browser",
@@ -392,6 +393,23 @@
         "medium": "Medium",
         "high": "High"
       }
+    },
+    "skills": {
+      "title": "Skills",
+      "description": "Playbooks the agent reads when a task calls for one. Folders with a SKILL.md in {{skills}} are your own and come ahead of the built-ins. Skills in {{shared}}, shared with other agents, are offered only once you switch them on.",
+      "open-folder": "Open skills folder",
+      "sources": {
+        "solyx": "Yours",
+        "built-in": "Built-in",
+        "shared": "Shared"
+      },
+      "shared": "Shared skills",
+      "offer": "Offer {{name}} to the agent",
+      "instructions": "Standing instructions",
+      "instructions-description": "Rules the agent keeps in every conversation, such as your risk budget, written in {{path}}. The whole file is sent with every message.",
+      "instructions-found": "{{count, number}} characters",
+      "instructions-missing": "Not written",
+      "warnings-title": "Some skill files don't follow the Agent Skills format"
     },
     "storage": {
       "title": "Candle cache",

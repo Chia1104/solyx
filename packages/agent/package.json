@@ -9,6 +9,7 @@
     "./prompt": "./src/prompt.ts",
     "./providers": "./src/providers.ts",
     "./runtime": "./src/runtime.ts",
+    "./skills": "./src/skills.ts",
     "./tools": "./src/tools.ts",
     "./transcript": "./src/transcript.ts",
     "./wire": "./src/wire.ts"

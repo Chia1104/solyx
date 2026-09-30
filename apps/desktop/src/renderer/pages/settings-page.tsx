@@ -8,6 +8,7 @@ import { Sheet } from "../components/sheet.tsx";
 import { SetupGuideLink } from "../modules/onboarding/setup-guide-link.tsx";
 import { AboutSettings } from "../modules/settings/about-settings.tsx";
 import { AgentSettings } from "../modules/settings/agent-settings.tsx";
+import { AgentSkills } from "../modules/settings/agent-skills.tsx";
 import { CacheSettings } from "../modules/settings/cache-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
 import { MarketDataSettings } from "../modules/settings/market-data-settings.tsx";
@@ -34,6 +35,7 @@ export function SettingsPage() {
     ),
     [SettingsSection.MarketData]: <MarketDataSettings />,
     [SettingsSection.Agent]: <AgentSettings />,
+    [SettingsSection.Skills]: <AgentSkills />,
     [SettingsSection.Storage]: (
       <Section
         title={t("settings.storage.title")}

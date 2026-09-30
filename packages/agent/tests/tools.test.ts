@@ -12,6 +12,7 @@ import { ProposalSource, ProposalStatus } from "@solyx/core/order-desk";
 import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
 import { RiskViolationCode } from "@solyx/core/risk";
 
+import { SkillSource } from "../src/skills.ts";
 import { createTradingTools } from "../src/tools.ts";
 import { AgentToolName } from "../src/wire.ts";
 
@@ -76,6 +77,14 @@ function setup(candles: Candle[] = dailyBars(80)) {
     account: async () => ({ cash: { TWD: 1_000_000 }, positions: [] }),
     brokerMode: BrokerMode.Paper,
     desk,
+    skills: [
+      {
+        name: "breakout-watch",
+        description: "Mine",
+        body: "# Breakout watch",
+        source: SkillSource.Solyx,
+      },
+    ],
     now: () => NOW,
   });
 
@@ -201,10 +210,10 @@ test("skills are read by name", async () => {
   const { run } = setup();
 
   const { text } = await run(AgentToolName.ReadSkill, {
-    name: "order-proposal",
+    name: "breakout-watch",
   });
 
-  expect(text).toContain("# Order proposal");
+  expect(text).toBe("# Breakout watch");
   await expect(run(AgentToolName.ReadSkill, { name: "nope" })).rejects.toThrow(
     "No skill"
   );

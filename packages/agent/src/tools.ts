@@ -24,7 +24,7 @@ import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
 import { getSession } from "@solyx/core/session";
 
 import { exchangeTime } from "./format.ts";
-import { SKILLS, findSkill } from "./skills.ts";
+import type { AgentSkill } from "./skills.ts";
 import { AgentToolName } from "./wire.ts";
 import type { ProposeOrderDetails } from "./wire.ts";
 
@@ -36,6 +36,8 @@ export interface TradingToolPorts {
   account(): Promise<AccountSnapshot>;
   brokerMode: BrokerMode;
   desk: Pick<OrderDesk, "check" | "propose" | "list">;
+  /** The skills this run is offered, which `read_skill` reads. */
+  skills: readonly AgentSkill[];
   now?: () => Date;
 }
 
@@ -430,10 +432,12 @@ export function createTradingTools(ports: TradingToolPorts): AgentTool[] {
       label: "Read skill",
       description: "Reads one of the playbooks listed in the system prompt.",
       parameters: z.object({
-        name: z.string().describe(SKILLS.map((skill) => skill.name).join(", ")),
+        name: z
+          .string()
+          .describe(ports.skills.map((skill) => skill.name).join(", ")),
       }),
       execute: async ({ name }) => {
-        const skill = findSkill(name);
+        const skill = ports.skills.find((candidate) => candidate.name === name);
 
         if (!skill) throw new Error(`No skill named ${name}`);
 

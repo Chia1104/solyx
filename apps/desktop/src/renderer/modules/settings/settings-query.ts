@@ -8,6 +8,7 @@ export const settingsQueryKeys = {
   secrets: ["settings", "secrets"] as const,
   marketData: ["settings", "market-data"] as const,
   agent: ["settings", "agent"] as const,
+  agentSkills: ["settings", "agent-skills"] as const,
 };
 
 /** Which secrets are saved; their values never leave the main process. */
@@ -53,5 +54,13 @@ export const agentSettingsQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.agent,
     queryFn: () => window.solyx.settings.agent(),
+    staleTime: 0,
+  });
+
+/** Always stale, since skills and instructions are files the user edits outside the app. */
+export const agentSkillsQuery = () =>
+  queryOptions({
+    queryKey: settingsQueryKeys.agentSkills,
+    queryFn: () => window.solyx.settings.agentSkills(),
     staleTime: 0,
   });

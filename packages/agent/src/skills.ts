@@ -1,16 +1,38 @@
+import { readFile } from "node:fs/promises";
+import { basename, dirname } from "node:path";
+
+import {
+  BACKGROUND_CONTEXT,
+  loadSourcedSkills,
+} from "@earendil-works/pi-agent-core";
+import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
+
+/** Where a skill comes from, which decides whether it is offered and which one wins a name. */
+export const SkillSource = {
+  /** `skills/` in the app's config folder: the user's own, always offered, ahead of built-ins. */
+  Solyx: "solyx",
+  BuiltIn: "built-in",
+  /** `~/.agents/skills`, shared with other agents: offered only once the user switches one on. */
+  Shared: "shared",
+} as const;
+
+export type SkillSource = (typeof SkillSource)[keyof typeof SkillSource];
+
 /** A playbook the agent reads with `read_skill` before a task it covers. */
-export interface Skill {
+export interface AgentSkill {
   name: string;
   /** Shown in the system prompt's catalog; says when the skill applies. */
   description: string;
   body: string;
+  source: SkillSource;
 }
 
 const lines = (...text: string[]) => text.join("\n");
 
-export const SKILLS: readonly Skill[] = [
+const BUILT_IN_SKILLS: readonly AgentSkill[] = [
   {
     name: "order-proposal",
+    source: SkillSource.BuiltIn,
     description:
       "Turning a trade idea into an order proposal: entry, invalidation, size and the rationale the user reviews. Read before calling check_order or propose_order.",
     body: lines(
@@ -30,6 +52,7 @@ export const SKILLS: readonly Skill[] = [
   },
   {
     name: "technical-read",
+    source: SkillSource.BuiltIn,
     description:
       "Reading a chart across timeframes with the indicators the app computes (MA, EMA, RSI, MACD, KD, Bollinger Bands). Read before giving a view on trend, momentum or levels.",
     body: lines(
@@ -47,6 +70,7 @@ export const SKILLS: readonly Skill[] = [
   },
   {
     name: "taiwan-market",
+    source: SkillSource.BuiltIn,
     description:
       "Taiwan (TWSE and TPEx) trading rules: sessions, board and odd lots, tick sizes, price limits, costs and settlement. Read before sizing or pricing a Taiwan order.",
     body: lines(
@@ -64,6 +88,7 @@ export const SKILLS: readonly Skill[] = [
   },
   {
     name: "us-market",
+    source: SkillSource.BuiltIn,
     description:
       "US equity trading rules: regular and extended hours, ticks, halts, settlement and day-trading limits. Read before sizing or pricing a US order.",
     body: lines(
@@ -80,6 +105,7 @@ export const SKILLS: readonly Skill[] = [
   },
   {
     name: "portfolio-review",
+    source: SkillSource.BuiltIn,
     description:
       "Reviewing the account: exposure, concentration, positions without a plan, and cash per currency. Read when the user asks how their account or positions look.",
     body: lines(
@@ -95,6 +121,101 @@ export const SKILLS: readonly Skill[] = [
   },
 ];
 
-export function findSkill(name: string): Skill | undefined {
-  return SKILLS.find((skill) => skill.name === name);
+export interface SkillFolders {
+  /** `skills/` in the app's config folder. */
+  solyx: string;
+  /** `~/.agents/skills`. */
+  shared: string;
+}
+
+export interface SkillCatalog {
+  /** Every skill found, the user's own first, each name once. */
+  skills: (AgentSkill & { offered: boolean })[];
+  /**
+   * Problems in the user's own skill files and in shared skills they switched on; a skill whose
+   * metadata breaks the Agent Skills format is still offered when it has a description.
+   */
+  warnings: string[];
+}
+
+/**
+ * The skills the agent may be offered: the user's own in the config folder, then the built-ins,
+ * then shared skills the user switched on in `sharedEnabled`. A name taken by an earlier source
+ * hides later ones, so a shared skill never replaces a trading playbook. Skills marked
+ * `disable-model-invocation` are left out.
+ */
+export async function loadSkillCatalog(
+  folders: SkillFolders,
+  sharedEnabled: ReadonlySet<string>
+): Promise<SkillCatalog> {
+  const { skills: found, diagnostics } = await loadSourcedSkills(
+    new NodeExecutionEnv({ cwd: folders.solyx }),
+    [
+      { path: folders.solyx, source: SkillSource.Solyx },
+      { path: folders.shared, source: SkillSource.Shared },
+    ],
+    undefined,
+    BACKGROUND_CONTEXT
+  );
+
+  const loaded = found
+    .filter(({ skill }) => !skill.disableModelInvocation)
+    .map(({ skill, source }) => ({
+      name: skill.name,
+      description: skill.description,
+      body: skill.content,
+      source,
+    }));
+
+  const byName = new Map<string, AgentSkill & { offered: boolean }>();
+
+  const add = (skill: AgentSkill, offered: boolean) => {
+    if (!byName.has(skill.name)) byName.set(skill.name, { ...skill, offered });
+  };
+
+  for (const skill of loaded) {
+    if (skill.source === SkillSource.Solyx) add(skill, true);
+  }
+
+  for (const skill of BUILT_IN_SKILLS) add(skill, true);
+
+  for (const skill of loaded) {
+    if (skill.source === SkillSource.Shared) {
+      add(skill, sharedEnabled.has(skill.name));
+    }
+  }
+
+  return {
+    skills: [...byName.values()],
+    // A shared skill left off is other agents' business, so its problems are not reported here.
+    warnings: diagnostics
+      .filter(
+        (diagnostic) =>
+          diagnostic.source === SkillSource.Solyx ||
+          sharedEnabled.has(basename(dirname(diagnostic.path)))
+      )
+      .map((diagnostic) => `${diagnostic.path}: ${diagnostic.message}`),
+  };
+}
+
+/**
+ * The user's standing instructions from `AGENTS.md` in the app's config folder, or `undefined`
+ * while there is none. Sent whole with every request; the settings page shows how long it is.
+ */
+export async function loadInstructions(
+  file: string
+): Promise<string | undefined> {
+  let text: string;
+
+  try {
+    text = (await readFile(file, "utf8")).trim();
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return undefined;
+    }
+
+    throw error;
+  }
+
+  return text || undefined;
 }

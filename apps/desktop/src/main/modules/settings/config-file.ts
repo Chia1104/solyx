@@ -49,6 +49,7 @@ const configSchema = z.looseObject({
       model: textSchema,
       thinking: textSchema,
       auth: textSchema,
+      sharedSkills: z.array(z.string()).optional().catch(undefined),
     })
     .optional()
     .catch(undefined),
@@ -62,7 +63,7 @@ export type ConfigPath =
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle", "plan"]
   | ["providers", "fubon", FubonFile]
-  | ["agent", "provider" | "model" | "thinking" | "auth"];
+  | ["agent", "provider" | "model" | "thinking" | "auth" | "sharedSkills"];
 
 const quoted = (values: Record<string, string>) =>
   Object.values(values)
@@ -92,7 +93,9 @@ const TEMPLATE = [
   `    // How long the model thinks before it answers: ${quoted(AgentThinking)}.`,
   `    "thinking": "${AgentThinking.Medium}",`,
   `    // How the provider is paid for: ${quoted(AgentAuth)}; a subscription applies to OpenAI, signed in with ChatGPT.`,
-  `    "auth": "${AgentAuth.ApiKey}"`,
+  `    "auth": "${AgentAuth.ApiKey}",`,
+  "    // Skills from ~/.agents/skills the agent may read, by name. The skills folder beside this file is always read.",
+  '    "sharedSkills": []',
   "  }",
   "}",
   "",
@@ -156,7 +159,7 @@ export function createConfigFile(file: string) {
       );
     },
 
-    set(path: ConfigPath, value: string) {
+    set(path: ConfigPath, value: string | string[]) {
       const text = readText(file) ?? TEMPLATE;
 
       if (hasSyntaxErrors(text)) {

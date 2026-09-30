@@ -7,7 +7,6 @@ import type {
 import { clampThinkingLevel, contentText } from "@earendil-works/pi-ai";
 import type { Api, Model } from "@earendil-works/pi-ai";
 
-import { SYSTEM_PROMPT } from "./prompt.ts";
 import type { AgentThinking } from "./providers.ts";
 import {
   assistantEndEvent,
@@ -34,8 +33,11 @@ export interface AgentRuntimeOptions {
   streamFn: StreamFn;
   /** Rejects with a message the user can act on while the model or its key is not set up. */
   model(): Promise<AgentModelChoice>;
-  /** Built again for every run, so per-run limits start over. */
-  tools(): AgentTool[];
+  /**
+   * The system prompt and tools for one run, built again for every run: skills and the user's
+   * instructions are read afresh, and per-run limits start over.
+   */
+  prepare(): Promise<{ systemPrompt: string; tools: AgentTool[] }>;
   onEvent(sessionId: string, event: AgentWireEvent): void;
   now?: () => number;
   createId?: () => string;
@@ -254,17 +256,18 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
       if (!session) throw new Error(`Conversation ${sessionId} not found`);
 
-      const { model, apiKey, thinking } = await options.model();
+      const [{ model, apiKey, thinking }, { systemPrompt, tools }] =
+        await Promise.all([options.model(), options.prepare()]);
 
-      // Another send may have started while the model was resolved.
+      // Another send may have started while the model and prompt were prepared.
       claimIdle(sessionId);
 
       const agent = new Agent({
         initialState: {
-          systemPrompt: SYSTEM_PROMPT,
+          systemPrompt,
           model,
           thinkingLevel: clampThinkingLevel(model, thinking),
-          tools: options.tools(),
+          tools,
           messages: store.entries(sessionId).map((entry) => entry.message),
         },
         streamFn: options.streamFn,

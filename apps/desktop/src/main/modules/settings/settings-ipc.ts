@@ -1,6 +1,9 @@
+import { mkdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
+
 import { BrowserWindow, app, dialog, shell } from "electron";
 import type { OpenDialogOptions } from "electron";
-import { mapValues } from "es-toolkit";
+import { mapValues, uniq } from "es-toolkit";
 import * as z from "zod";
 
 import {
@@ -9,6 +12,7 @@ import {
   agentProviderSchema,
   agentThinkingSchema,
 } from "@solyx/agent/providers";
+import { SkillSource } from "@solyx/agent/skills";
 import { Market } from "@solyx/core/market";
 import { fuglePlanSchema } from "@solyx/market-data/fugle";
 
@@ -50,6 +54,8 @@ const handle = ipcModule<SettingsApi>(settingsChannels, {
   signInSubscription: z.tuple([z.string().min(2).max(35)]),
   cancelSignIn: z.tuple([]),
   signOutSubscription: z.tuple([]),
+  agentSkills: z.tuple([]),
+  setSharedSkill: z.tuple([z.string().min(1).max(64), z.boolean()]),
   cacheUsage: z.tuple([]),
   clearCache: z.tuple([]),
   about: z.tuple([]),
@@ -169,6 +175,44 @@ export function registerSettingsIpc({
 
   handle("signOutSubscription", () => agent.models.signOut());
 
+  handle("agentSkills", async () => {
+    const [catalog, instructions] = await Promise.all([
+      agent.skills(),
+      agent.instructions(),
+    ]);
+
+    return {
+      skills: catalog.skills.map(({ name, description, source, offered }) => ({
+        name,
+        description,
+        source,
+        offered,
+        switchable: source === SkillSource.Shared,
+      })),
+      warnings: catalog.warnings.map((warning) => warning.replace(home, "~")),
+      instructions: instructions ? { characters: instructions.length } : null,
+      paths: {
+        skills: locations[AppLocation.Skills].replace(home, "~"),
+        shared: "~/.agents/skills",
+        instructions: join(dirname(config.file), "AGENTS.md").replace(
+          home,
+          "~"
+        ),
+      },
+    };
+  });
+
+  handle("setSharedSkill", async (name, enabled) => {
+    const current = config.read().agent?.sharedSkills ?? [];
+
+    config.set(
+      ["agent", "sharedSkills"],
+      enabled
+        ? uniq([...current, name])
+        : current.filter((skill) => skill !== name)
+    );
+  });
+
   handle("cacheUsage", async () => cache.usage());
 
   handle("clearCache", async () => cache.clear());
@@ -184,7 +228,12 @@ export function registerSettingsIpc({
     locations: mapValues(locations, (path) => path.replace(home, "~")),
   }));
 
-  handle("reveal", async (location) =>
-    shell.showItemInFolder(locations[location])
-  );
+  handle("reveal", async (location) => {
+    // The skills folder is the user's to create; showing it is the first step to filling it.
+    if (location === AppLocation.Skills) {
+      await mkdir(locations[location], { recursive: true });
+    }
+
+    shell.showItemInFolder(locations[location]);
+  });
 }

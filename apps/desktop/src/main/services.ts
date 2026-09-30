@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { app, nativeTheme, shell } from "electron";
 import { kebabCase } from "es-toolkit";
@@ -85,6 +85,12 @@ export function createServices() {
     },
   });
 
+  // The user's own skills and instructions sit beside the config file they edit.
+  const skillFolders = {
+    solyx: join(dirname(config.file), "skills"),
+    shared: join(home, ".agents", "skills"),
+  };
+
   const agent = createAgentService({
     config,
     secrets,
@@ -94,6 +100,8 @@ export function createServices() {
     ),
     openExternal: (url) => void shell.openExternal(url),
     signInPage,
+    skillFolders,
+    instructionsFile: join(dirname(config.file), "AGENTS.md"),
     sessions: userData.agentSessions,
     marketData: (market) => marketData.provider(market),
     watchlist: () => userData.watchlist.list(),
@@ -137,6 +145,7 @@ export function createServices() {
     locations: {
       [AppLocation.Data]: app.getPath("userData"),
       [AppLocation.Config]: config.file,
+      [AppLocation.Skills]: skillFolders.solyx,
     },
     applySettings,
     theme,

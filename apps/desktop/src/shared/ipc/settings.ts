@@ -1,5 +1,6 @@
 import { AgentProvider } from "@solyx/agent/providers";
 import type { AgentAuth, AgentThinking } from "@solyx/agent/providers";
+import type { SkillSource } from "@solyx/agent/skills";
 import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { FuglePlan } from "@solyx/market-data/fugle";
@@ -149,12 +150,35 @@ export interface AgentSettings {
   ready: boolean;
 }
 
+/** A playbook the agent can read, as the settings page lists it. */
+export interface AgentSkillInfo {
+  name: string;
+  description: string;
+  source: SkillSource;
+  /** Offered to the agent: the user's own and built-ins always, shared ones once switched on. */
+  offered: boolean;
+  /** Shared skills, which the user switches on one by one. */
+  switchable: boolean;
+}
+
+export interface AgentSkills {
+  skills: AgentSkillInfo[];
+  /** Problems in the user's own skill files and in shared skills they switched on. */
+  warnings: string[];
+  /** The length of AGENTS.md beside the config file, sent with every message; `null` while there is none. */
+  instructions: { characters: number } | null;
+  /** Shown with the home folder as `~`. */
+  paths: { skills: string; shared: string; instructions: string };
+}
+
 /** Places on disk the app can show in the system file manager. */
 export const AppLocation = {
   /** The app's `userData`: secrets, databases and caches. */
   Data: "data",
   /** The hand-editable config file. */
   Config: "config",
+  /** `skills/` beside the config file, where the user's own skills live. */
+  Skills: "skills",
 } as const;
 
 export type AppLocation = (typeof AppLocation)[keyof typeof AppLocation];
@@ -205,6 +229,9 @@ export interface SettingsApi {
   signInSubscription(locale: string): Promise<void>;
   cancelSignIn(): Promise<void>;
   signOutSubscription(): Promise<void>;
+  agentSkills(): Promise<AgentSkills>;
+  /** Offers a skill from ~/.agents/skills to the agent, or stops offering it. */
+  setSharedSkill(name: string, enabled: boolean): Promise<void>;
   cacheUsage(): Promise<CacheUsage>;
   /** Closed sessions are fetched again from the provider when charts need them. */
   clearCache(): Promise<void>;
@@ -231,6 +258,8 @@ export const settingsChannels = {
   signInSubscription: "settings:sign-in-subscription",
   cancelSignIn: "settings:cancel-sign-in",
   signOutSubscription: "settings:sign-out-subscription",
+  agentSkills: "settings:agent-skills",
+  setSharedSkill: "settings:set-shared-skill",
   cacheUsage: "settings:cache-usage",
   clearCache: "settings:clear-cache",
   about: "settings:about",
