@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { OrderType } from "@solyx/core/order";
-import { ProposalStatus } from "@solyx/core/order-desk";
+import { ProposalStatus, SubmissionFailureCode } from "@solyx/core/order-desk";
 import type { TradeProposal } from "@solyx/core/order-desk";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
@@ -109,10 +109,14 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
         </Alert>
       ) : null}
       {/* A failed submission is terminal: the broker may have taken the order, so no retry is offered. */}
-      {proposal.error ? (
+      {proposal.failure ? (
         <ErrorAlert
           title={t("proposals.submit-failed")}
-          description={proposal.error}
+          description={
+            proposal.failure.code === SubmissionFailureCode.Interrupted
+              ? t("proposals.submit-interrupted")
+              : proposal.failure.message
+          }
         />
       ) : null}
       {actionError ? (

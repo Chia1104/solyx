@@ -159,6 +159,7 @@
     "propose-failed": "Couldn't create the proposal",
     "violations-title": "Blocked by risk checks",
     "submit-failed": "Submission failed; check your broker before placing it again",
+    "submit-interrupted": "Solyx closed before the broker replied, so the order may have reached it.",
     "history": "History"
   },
   "order-form": {

@@ -7,9 +7,17 @@ import { fileURLToPath } from "node:url";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { Market } from "@solyx/core/market";
+import { InstrumentKind, Market } from "@solyx/core/market";
+import { OrderType, Side } from "@solyx/core/order";
+import {
+  ProposalSource,
+  ProposalStatus,
+  SubmissionFailureCode,
+} from "@solyx/core/order-desk";
+import type { TradeProposal } from "@solyx/core/order-desk";
+import { RiskViolationCode } from "@solyx/core/risk";
 
-import { watchlist } from "../src/user-schema.ts";
+import { proposals, watchlist } from "../src/user-schema.ts";
 import { openUserData } from "../src/user.ts";
 import type { UserData } from "../src/user.ts";
 
@@ -22,6 +30,25 @@ const TSMC = { market: Market.TW, symbol: "2330" };
 const FOXCONN = { market: Market.TW, symbol: "2317" };
 
 const APPLE = { market: Market.US, symbol: "AAPL" };
+
+function proposal(id: string, patch: Partial<TradeProposal> = {}) {
+  return {
+    id,
+    order: {
+      instrument: { ...TSMC, kind: InstrumentKind.Stock },
+      side: Side.Buy,
+      quantity: 1000,
+      type: OrderType.Limit,
+      limitPrice: 980,
+    },
+    source: ProposalSource.Agent,
+    rationale: "breakout",
+    createdAt: 1_700_000_000_000,
+    status: ProposalStatus.AwaitingConfirmation,
+    violations: [],
+    ...patch,
+  } satisfies TradeProposal;
+}
 
 let directory: string;
 
@@ -47,32 +74,35 @@ function open(file = "user.sqlite") {
 
 describe("openUserData", () => {
   // A schema change committed without `db:generate` fails here.
-  test("migrations build the tables the schema describes", () => {
-    open().close();
-    opened = [];
+  test.each([watchlist, proposals])(
+    "migrations build the tables the schema describes",
+    (table) => {
+      open().close();
+      opened = [];
 
-    const db = new DatabaseSync(join(directory, "user.sqlite"));
-    const config = getTableConfig(watchlist);
+      const db = new DatabaseSync(join(directory, "user.sqlite"));
+      const config = getTableConfig(table);
 
-    const columns = db
-      .prepare(`SELECT name, type, "notnull" FROM pragma_table_info(?)`)
-      .all(config.name)
-      .map((column) => [
-        column.name,
-        String(column.type).toLowerCase(),
-        column.notnull === 1,
-      ]);
+      const columns = db
+        .prepare(`SELECT name, type, "notnull" FROM pragma_table_info(?)`)
+        .all(config.name)
+        .map((column) => [
+          column.name,
+          String(column.type).toLowerCase(),
+          column.notnull === 1,
+        ]);
 
-    db.close();
+      db.close();
 
-    expect(columns).toEqual(
-      config.columns.map((column) => [
-        column.name,
-        column.getSQLType(),
-        column.notNull && !column.primary,
-      ])
-    );
-  });
+      expect(columns).toEqual(
+        config.columns.map((column) => [
+          column.name,
+          column.getSQLType(),
+          column.notNull && !column.primary,
+        ])
+      );
+    }
+  );
 
   test("a file that is not a database is kept and reported", async () => {
     const file = join(directory, "garbage.sqlite");
@@ -139,5 +169,62 @@ describe("watchlist store", () => {
     store.remove(listedTwice);
 
     expect(store.list()).toEqual([TSMC]);
+  });
+});
+
+describe("proposal store", () => {
+  test("proposals keep the order they were made in", () => {
+    const { proposals: store } = open();
+
+    store.add(proposal("b"));
+    store.add(proposal("a"));
+    store.add(proposal("c"));
+
+    expect(store.list().map(({ id }) => id)).toEqual(["b", "a", "c"]);
+  });
+
+  test("a proposal reads back as it was stored", () => {
+    const { proposals: store } = open();
+
+    const rejected = proposal("a", {
+      status: ProposalStatus.Rejected,
+      violations: [{ code: RiskViolationCode.OddLotMarketOrder }],
+    });
+
+    store.add(rejected);
+
+    expect(store.get("a")).toStrictEqual(rejected);
+    expect(store.get("missing")).toBeUndefined();
+  });
+
+  test("updating replaces what changed and keeps the rest", () => {
+    const { proposals: store } = open();
+
+    store.add(proposal("a"));
+    store.add(proposal("b"));
+
+    const failed = proposal("a", {
+      status: ProposalStatus.Failed,
+      failure: { code: SubmissionFailureCode.Error, message: "timeout" },
+    });
+
+    store.update(failed);
+
+    expect(store.list()).toStrictEqual([failed, proposal("b")]);
+  });
+
+  test("proposals outlive the connection", () => {
+    const first = open();
+
+    const submitted = proposal("a", {
+      status: ProposalStatus.Submitted,
+      brokerOrderId: "B-1",
+    });
+
+    first.proposals.add(submitted);
+    first.close();
+    opened = [];
+
+    expect(open().proposals.list()).toStrictEqual([submitted]);
   });
 });

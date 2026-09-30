@@ -159,6 +159,7 @@
     "propose-failed": "無法建立提案",
     "violations-title": "未通過風控檢查",
     "submit-failed": "送單失敗；再次下單前請先到券商確認",
+    "submit-interrupted": "券商回覆前 Solyx 就關閉了，這筆委託可能已經送達券商。",
     "history": "紀錄"
   },
   "order-form": {

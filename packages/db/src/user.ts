@@ -1,10 +1,12 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
+import { omit } from "es-toolkit";
 
 import type { SymbolRef } from "@solyx/core/market";
+import type { ProposalStore, TradeProposal } from "@solyx/core/order-desk";
 
 import { connect } from "./connection.ts";
-import { watchlist } from "./user-schema.ts";
+import { proposals, watchlist } from "./user-schema.ts";
 
 function watchlistStore(db: NodeSQLiteDatabase) {
   const listing = (ref: SymbolRef) =>
@@ -32,6 +34,50 @@ function watchlistStore(db: NodeSQLiteDatabase) {
 
 export type WatchlistStore = ReturnType<typeof watchlistStore>;
 
+function toProposal(row: typeof proposals.$inferSelect): TradeProposal {
+  const { brokerOrderId, failure, ...rest } = omit(row, ["seq"]);
+  const proposal: TradeProposal = rest;
+
+  if (brokerOrderId !== null) proposal.brokerOrderId = brokerOrderId;
+
+  if (failure !== null) proposal.failure = failure;
+
+  return proposal;
+}
+
+function proposalStore(db: NodeSQLiteDatabase): ProposalStore {
+  return {
+    list: () =>
+      db
+        .select()
+        .from(proposals)
+        .orderBy(asc(proposals.seq))
+        .all()
+        .map(toProposal),
+
+    get(id) {
+      const row = db.select().from(proposals).where(eq(proposals.id, id)).get();
+
+      return row && toProposal(row);
+    },
+
+    add(proposal) {
+      db.insert(proposals).values(proposal).run();
+    },
+
+    update(proposal) {
+      db.update(proposals)
+        .set({
+          ...proposal,
+          brokerOrderId: proposal.brokerOrderId ?? null,
+          failure: proposal.failure ?? null,
+        })
+        .where(eq(proposals.id, proposal.id))
+        .run();
+    },
+  };
+}
+
 /**
  * The user's database, holding what cannot be fetched again. It is never deleted, so a
  * file its migrations cannot open is an error. `migrationsFolder` is `migrations/user`
@@ -42,6 +88,7 @@ export function openUserData(path: string, migrationsFolder: string) {
 
   return {
     watchlist: watchlistStore(connection.db),
+    proposals: proposalStore(connection.db),
     close: () => connection.client.close(),
   };
 }

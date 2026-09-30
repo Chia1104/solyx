@@ -1,3 +1,4 @@
+import { noop } from "es-toolkit";
 import { expect, test, vi } from "vite-plus/test";
 
 import { BrokerMode } from "../src/broker.ts";
@@ -7,7 +8,9 @@ import {
   OrderDesk,
   ProposalSource,
   ProposalStatus,
+  SubmissionFailureCode,
 } from "../src/order-desk.ts";
+import type { ProposalStore, TradeProposal } from "../src/order-desk.ts";
 import { OrderType, Side } from "../src/order.ts";
 import type { OrderRequest } from "../src/order.ts";
 import type { RiskContext } from "../src/risk.ts";
@@ -21,7 +24,26 @@ const order: OrderRequest = {
   limitPrice: 980,
 };
 
-function setup(context: RiskContext = { session: Session.Regular }) {
+// Copies on the way in and out, like a database would, so the desk cannot lean on shared objects.
+function memoryStore(): ProposalStore {
+  const proposals = new Map<string, TradeProposal>();
+
+  const save = (proposal: TradeProposal) => {
+    proposals.set(proposal.id, structuredClone(proposal));
+  };
+
+  return {
+    list: () => [...proposals.values()].map((p) => structuredClone(p)),
+    get: (id) => structuredClone(proposals.get(id)),
+    add: save,
+    update: save,
+  };
+}
+
+function setup(
+  context: RiskContext = { session: Session.Regular },
+  store = memoryStore()
+) {
   const placeOrder = vi
     .fn<BrokerAdapter["placeOrder"]>()
     .mockResolvedValue({ orderId: "B-1" });
@@ -39,6 +61,7 @@ function setup(context: RiskContext = { session: Session.Regular }) {
 
   const desk = new OrderDesk({
     broker,
+    store,
     limits: {
       maxOrderNotional: { TWD: 5_000_000, USD: 10_000 },
       allowedSessions: [Session.Regular],
@@ -46,7 +69,7 @@ function setup(context: RiskContext = { session: Session.Regular }) {
     riskContext,
   });
 
-  return { desk, placeOrder, riskContext };
+  return { desk, placeOrder, riskContext, store };
 }
 
 function proposeFromAgent(desk: OrderDesk) {
@@ -113,8 +136,42 @@ test("a broker error is terminal", async () => {
 
   expect(await desk.confirm(id)).toMatchObject({
     status: ProposalStatus.Failed,
-    error: "timeout",
+    failure: { code: SubmissionFailureCode.Error, message: "timeout" },
   });
   await expect(desk.confirm(id)).rejects.toThrow();
   expect(placeOrder).toHaveBeenCalledTimes(1);
+});
+
+test("proposals outlive the desk", async () => {
+  const { desk, store } = setup();
+  const { id } = await proposeFromAgent(desk);
+
+  const reopened = setup(undefined, store);
+
+  expect(reopened.desk.list()).toEqual(desk.list());
+  expect(await reopened.desk.confirm(id)).toMatchObject({
+    status: ProposalStatus.Submitted,
+  });
+});
+
+test("a submission cut off by an exit fails and is never resubmitted", async () => {
+  const { desk, placeOrder, store } = setup();
+  const { id } = await proposeFromAgent(desk);
+
+  // Nothing settles the broker call, as if the app quit while it was out.
+  placeOrder.mockReturnValueOnce(new Promise(noop));
+  void desk.confirm(id);
+  await vi.waitFor(() => expect(placeOrder).toHaveBeenCalledOnce());
+
+  const reopened = setup(undefined, store);
+
+  expect(reopened.desk.list()).toMatchObject([
+    {
+      id,
+      status: ProposalStatus.Failed,
+      failure: { code: SubmissionFailureCode.Interrupted },
+    },
+  ]);
+  await expect(reopened.desk.confirm(id)).rejects.toThrow();
+  expect(reopened.placeOrder).not.toHaveBeenCalled();
 });

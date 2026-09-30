@@ -23,6 +23,17 @@ export const ProposalStatus = {
 export type ProposalStatus =
   (typeof ProposalStatus)[keyof typeof ProposalStatus];
 
+export const SubmissionFailureCode = {
+  /** Checking or placing the order threw. */
+  Error: "error",
+  /** The app exited before the broker answered. */
+  Interrupted: "interrupted",
+} as const;
+
+export type SubmissionFailure =
+  | { code: typeof SubmissionFailureCode.Error; message: string }
+  | { code: typeof SubmissionFailureCode.Interrupted };
+
 export interface TradeProposal {
   id: string;
   order: OrderRequest;
@@ -33,11 +44,25 @@ export interface TradeProposal {
   status: ProposalStatus;
   violations: RiskViolation[];
   brokerOrderId?: string;
-  error?: string;
+  failure?: SubmissionFailure;
+}
+
+/**
+ * Where the desk keeps proposals across restarts. Synchronous so the desk can claim a
+ * proposal before its first await, which is what stops a double click submitting twice.
+ */
+export interface ProposalStore {
+  /** Oldest first. */
+  list(): TradeProposal[];
+  get(id: string): TradeProposal | undefined;
+  add(proposal: TradeProposal): void;
+  /** Replaces the stored proposal with the same id. */
+  update(proposal: TradeProposal): void;
 }
 
 export interface OrderDeskOptions {
   broker: BrokerAdapter;
+  store: ProposalStore;
   limits: RiskLimits;
   riskContext: (order: OrderRequest) => Promise<RiskContext>;
   now?: () => number;
@@ -50,14 +75,24 @@ export interface OrderDeskOptions {
  */
 export class OrderDesk {
   readonly #options: OrderDeskOptions;
-  readonly #proposals = new Map<string, TradeProposal>();
 
   constructor(options: OrderDeskOptions) {
     this.#options = options;
+
+    // The app exited mid-submission, so the broker may hold the order: fail it, never resubmit.
+    for (const proposal of options.store.list()) {
+      if (proposal.status !== ProposalStatus.Submitting) continue;
+
+      options.store.update({
+        ...proposal,
+        status: ProposalStatus.Failed,
+        failure: { code: SubmissionFailureCode.Interrupted },
+      });
+    }
   }
 
   list(): TradeProposal[] {
-    return [...this.#proposals.values()].map((p) => structuredClone(p));
+    return this.#options.store.list();
   }
 
   async propose(input: {
@@ -81,44 +116,64 @@ export class OrderDesk {
       violations,
     };
 
-    this.#proposals.set(proposal.id, proposal);
+    this.#options.store.add(proposal);
 
-    return structuredClone(proposal);
+    return proposal;
   }
 
   async confirm(id: string): Promise<TradeProposal> {
-    const proposal = this.#pending(id);
+    const { broker, store } = this.#options;
+
     // Claim it before any await so a double click cannot submit twice.
-    proposal.status = ProposalStatus.Submitting;
+    let proposal: TradeProposal = {
+      ...this.#pending(id),
+      status: ProposalStatus.Submitting,
+    };
+
+    store.update(proposal);
 
     try {
       // Prices and sessions move between propose and confirm; check again.
-      proposal.violations = await this.#check(proposal.order);
+      const violations = await this.#check(proposal.order);
 
-      if (proposal.violations.length > 0) {
-        proposal.status = ProposalStatus.Rejected;
+      if (violations.length > 0) {
+        proposal = { ...proposal, status: ProposalStatus.Rejected, violations };
       } else {
-        const { orderId } = await this.#options.broker.placeOrder(
-          proposal.order
-        );
+        const { orderId } = await broker.placeOrder(proposal.order);
 
-        proposal.status = ProposalStatus.Submitted;
-        proposal.brokerOrderId = orderId;
+        proposal = {
+          ...proposal,
+          status: ProposalStatus.Submitted,
+          violations,
+          brokerOrderId: orderId,
+        };
       }
     } catch (error) {
       // Terminal on purpose: the broker may have accepted the order anyway, so never auto-retry.
-      proposal.status = ProposalStatus.Failed;
-      proposal.error = error instanceof Error ? error.message : String(error);
+      proposal = {
+        ...proposal,
+        status: ProposalStatus.Failed,
+        failure: {
+          code: SubmissionFailureCode.Error,
+          message: error instanceof Error ? error.message : String(error),
+        },
+      };
     }
 
-    return structuredClone(proposal);
+    store.update(proposal);
+
+    return proposal;
   }
 
   dismiss(id: string): TradeProposal {
-    const proposal = this.#pending(id);
-    proposal.status = ProposalStatus.Dismissed;
+    const proposal: TradeProposal = {
+      ...this.#pending(id),
+      status: ProposalStatus.Dismissed,
+    };
 
-    return structuredClone(proposal);
+    this.#options.store.update(proposal);
+
+    return proposal;
   }
 
   async #check(order: OrderRequest): Promise<RiskViolation[]> {
@@ -130,7 +185,7 @@ export class OrderDesk {
   }
 
   #pending(id: string): TradeProposal {
-    const proposal = this.#proposals.get(id);
+    const proposal = this.#options.store.get(id);
 
     if (!proposal) throw new Error(`Proposal ${id} not found`);
 

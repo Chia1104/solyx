@@ -30,8 +30,14 @@ const PAPER_LIMITS: RiskLimits = {
 export function createServices() {
   const broker = createPaperBroker({ cash: PAPER_CASH });
 
+  const userData = openUserData(
+    join(app.getPath("userData"), "user.sqlite"),
+    join(import.meta.dirname, "migrations", "user")
+  );
+
   const desk = new OrderDesk({
     broker,
+    store: userData.proposals,
     limits: PAPER_LIMITS,
     // No quote feed yet, so market orders are rejected for lack of a reference price.
     riskContext: async (order) => ({
@@ -48,11 +54,6 @@ export function createServices() {
     join(app.getPath("userData"), "cache.sqlite"),
     // vp pack copies the migrations next to the bundle; see vite.config.ts.
     join(import.meta.dirname, "migrations", "cache")
-  );
-
-  const userData = openUserData(
-    join(app.getPath("userData"), "user.sqlite"),
-    join(import.meta.dirname, "migrations", "user")
   );
 
   const home = app.getPath("home");
