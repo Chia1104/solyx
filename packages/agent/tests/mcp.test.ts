@@ -1,3 +1,5 @@
+import { connect } from "node:net";
+import type { Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -279,6 +281,34 @@ describe("a remote server that asks to sign in", () => {
 
     return { ...setup, call: callWhoami, saved };
   }
+
+  test("a connection the browser keeps open does not hold the sign-in", async () => {
+    const { hub } = await remote();
+    const spare: Socket[] = [];
+
+    await hub.signIn("remote", {
+      ...browser,
+      open(url) {
+        // Browsers connect ahead of need and may leave the connection unused.
+        const redirect = new URL(
+          new URL(url).searchParams.get("redirect_uri") ?? ""
+        );
+
+        spare.push(
+          connect(Number(redirect.port), redirect.hostname, () =>
+            browser.open(url)
+          )
+        );
+      },
+    });
+    await hub.settled(10_000);
+
+    expect(hub.status()).toMatchObject([
+      { state: McpServerState.Connected, signedIn: true },
+    ]);
+
+    for (const socket of spare) socket.destroy();
+  });
 
   test("waits for the user, then connects with the grant it saves", async () => {
     pages.length = 0;

@@ -479,10 +479,12 @@ export function createMcpHub(options: McpHubOptions) {
 
       const saved = await readSignIn(name);
       const callback = await listenForCallback(saved, page);
-      const close = once(() => callback.close());
-      const cancel = () => void close();
 
-      signal?.addEventListener("abort", cancel, { once: true });
+      // The port frees as soon as closing starts, but the close itself waits for every connection
+      // to end, and a browser keeps a spare one open as long as it likes. Nothing waits for it.
+      const close = once(() => void callback.close().catch(() => undefined));
+
+      signal?.addEventListener("abort", close, { once: true });
 
       try {
         // Kept in memory until the grant arrives, so a sign-in that stops halfway changes nothing.
@@ -546,8 +548,8 @@ export function createMcpHub(options: McpHubOptions) {
 
         await writeSignIn(name, granted);
       } finally {
-        signal?.removeEventListener("abort", cancel);
-        await close();
+        signal?.removeEventListener("abort", close);
+        close();
       }
 
       reconnect(name);

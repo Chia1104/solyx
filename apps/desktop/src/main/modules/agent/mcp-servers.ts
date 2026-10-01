@@ -149,9 +149,12 @@ export function createMcpServers({
 
     reconnect: (name: string) => hub.reconnect(name),
 
-    /** Resolves once the sign-in is saved, or quietly once it is cancelled. */
+    /**
+     * Resolves once the sign-in is saved, or quietly once it is cancelled. A sign-in still open,
+     * such as one whose browser page was closed, gives way to the new one.
+     */
     async signIn(name: string, locale: string) {
-      if (signIn) throw new Error("A sign-in is already open");
+      signIn?.abort();
 
       const controller = new AbortController();
 
@@ -173,7 +176,7 @@ export function createMcpServers({
       } catch (error) {
         if (!controller.signal.aborted) throw error;
       } finally {
-        signIn = undefined;
+        if (signIn === controller) signIn = undefined;
       }
     },
 
