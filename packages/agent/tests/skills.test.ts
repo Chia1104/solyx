@@ -2,14 +2,13 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import type { PromptInput } from "@earendil-works/pi-durable";
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
-import { systemPrompt } from "../src/prompt.ts";
-import {
-  SkillSource,
-  loadInstructions,
-  loadSkillCatalog,
-} from "../src/skills.ts";
+import { promptSections } from "../src/prompt.ts";
+import { SkillSource } from "../src/skill-source.ts";
+import { loadInstructions, loadSkillCatalog } from "../src/skills.ts";
 import type { SkillFolders } from "../src/skills.ts";
 
 let root: string;
@@ -132,13 +131,30 @@ test("standing instructions are read when present and follow the rules in the pr
   await writeFile(file, "\nRisk at most 0.5% per trade.\n");
 
   const instructions = await loadInstructions(file);
-  const prompt = systemPrompt({ skills: [], instructions });
+
+  const prompt = async (standing: string | undefined) => {
+    const sections = promptSections({
+      skills: async () => [],
+      instructions: async () => standing,
+    });
+
+    // SAFETY: these sections read nothing from the request they render for.
+    const input = {} as PromptInput;
+
+    return (
+      await Promise.all(
+        sections.map((section) => section.render(input, BACKGROUND_CONTEXT))
+      )
+    ).join("\n\n");
+  };
+
+  const withInstructions = await prompt(instructions);
 
   expect(instructions).toBe("Risk at most 0.5% per trade.");
-  expect(prompt.indexOf("# Orders")).toBeLessThan(
-    prompt.indexOf("Risk at most 0.5%")
+  expect(withInstructions.indexOf("# Orders")).toBeLessThan(
+    withInstructions.indexOf("Risk at most 0.5%")
   );
-  expect(systemPrompt({ skills: [] })).not.toContain("standing instructions");
+  expect(await prompt(undefined)).not.toContain("standing instructions");
 });
 
 test("only problems in skills the agent may use are reported", async () => {

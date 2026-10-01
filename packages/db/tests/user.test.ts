@@ -17,12 +17,7 @@ import {
 import type { TradeProposal } from "@solyx/core/order-desk";
 import { RiskViolationCode } from "@solyx/core/risk";
 
-import {
-  agentMessages,
-  agentSessions,
-  proposals,
-  watchlist,
-} from "../src/user-schema.ts";
+import { proposals, watchlist } from "../src/user-schema.ts";
 import { openUserData } from "../src/user.ts";
 import type { UserData } from "../src/user.ts";
 
@@ -79,7 +74,7 @@ function open(file = "user.sqlite") {
 
 describe("openUserData", () => {
   // A schema change committed without `db:generate` fails here.
-  test.each([watchlist, proposals, agentSessions, agentMessages])(
+  test.each([watchlist, proposals])(
     "migrations build the tables the schema describes",
     (table) => {
       open().close();
@@ -231,60 +226,5 @@ describe("proposal store", () => {
     opened = [];
 
     expect(open().proposals.list()).toStrictEqual([submitted]);
-  });
-});
-
-describe("agent session store", () => {
-  const session = (id: string, updatedAt: number) => ({
-    id,
-    title: "",
-    createdAt: 1,
-    updatedAt,
-  });
-
-  const said = (id: string, text: string) => ({
-    id,
-    message: { role: "user" as const, content: text, timestamp: 1 },
-  });
-
-  test("the most recently active conversation comes first", () => {
-    const { agentSessions: store } = open();
-
-    store.create(session("a", 1));
-    store.create(session("b", 2));
-    store.update({ ...session("a", 3), title: "2330" });
-
-    expect(store.list()).toEqual([
-      { ...session("a", 3), title: "2330" },
-      session("b", 2),
-    ]);
-    expect(store.get("b")).toEqual(session("b", 2));
-    expect(store.get("missing")).toBeUndefined();
-  });
-
-  test("messages read back in the order they were stored", () => {
-    const { agentSessions: store } = open();
-
-    store.create(session("a", 1));
-    store.create(session("b", 1));
-    store.append("a", said("m1", "first"));
-    store.append("b", said("m1", "other"));
-    store.append("a", said("m2", "second"));
-
-    expect(store.entries("a")).toEqual([
-      said("m1", "first"),
-      said("m2", "second"),
-    ]);
-  });
-
-  test("deleting a conversation deletes its messages", () => {
-    const first = open();
-
-    first.agentSessions.create(session("a", 1));
-    first.agentSessions.append("a", said("m1", "first"));
-    first.agentSessions.delete("a");
-    first.agentSessions.create(session("a", 2));
-
-    expect(first.agentSessions.entries("a")).toEqual([]);
   });
 });

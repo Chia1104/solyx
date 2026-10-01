@@ -1,4 +1,5 @@
-import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { defineExtension } from "@earendil-works/pi-durable";
+import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
 import {
   McpAuthRequiredError,
   McpClient,
@@ -15,6 +16,7 @@ import {
   adaptOAuthProvider,
   authorizeMcp,
   parseWwwAuthenticate,
+  stepUpScope,
 } from "@earendil-works/pi-mcp/oauth";
 import type {
   McpOAuthState,
@@ -63,6 +65,8 @@ type McpToolArguments = NonNullable<Parameters<McpClient["callTool"]>[1]>;
 
 /** A call waiting for the user to allow it. */
 export interface McpToolCall {
+  /** The conversation that made the call, as the runtime names it. */
+  sessionId: string;
   toolCallId: string;
   server: string;
   tool: string;
@@ -516,7 +520,8 @@ export function createMcpHub(options: McpHubOptions) {
         const flow = {
           serverUrl: config.url,
           resourceMetadataUrl: connection.challenge?.resourceMetadataUrl,
-          scope: connection.challenge?.scope,
+          // A challenge may name only the scopes missing, and a grant of just those loses the rest.
+          scope: stepUpScope(saved?.tokens?.scope, connection.challenge?.scope),
         };
 
         const returned = callback.waitForCallback(await provider.state());
@@ -526,9 +531,14 @@ export function createMcpHub(options: McpHubOptions) {
 
         await authorizeMcp(provider, { ...flow, skipRefresh: true });
 
-        const { code } = await returned;
+        const { code, iss } = await returned;
 
-        await authorizeMcp(provider, { ...flow, authorizationCode: code });
+        // `iss` lets pi-mcp refuse a code another authorization server sent (RFC 9207).
+        await authorizeMcp(provider, {
+          ...flow,
+          authorizationCode: code,
+          iss,
+        });
 
         const granted = store.load();
 
@@ -562,9 +572,12 @@ export function createMcpHub(options: McpHubOptions) {
         structuredClone(connection.status)
       ),
 
-    /** Every connected server's tools under their policies, for one run. */
-    tools({ policies, allow }: McpToolOptions): AgentTool[] {
-      const tools: AgentTool[] = [];
+    /**
+     * Every connected server's tools under their policies. A call cut off by the app exiting runs
+     * again only for a tool that may run without asking, which its server marks read-only.
+     */
+    extension({ policies, allow }: McpToolOptions): Extension {
+      const tools: ToolRegistration[] = [];
       const names = new Set<string>();
 
       for (const [server, connection] of connections) {
@@ -589,7 +602,6 @@ export function createMcpHub(options: McpHubOptions) {
           names.add(name);
           tools.push({
             name,
-            label: `${server} · ${tool.title ?? tool.name}`,
             description: `${tool.description ?? tool.title ?? tool.name}\n(A tool from the ${server} MCP server.)`,
             // Providers require an object schema, and some reject one without properties.
             parameters: {
@@ -597,13 +609,21 @@ export function createMcpHub(options: McpHubOptions) {
               type: "object",
               properties: tool.inputSchema.properties ?? {},
             },
-            async execute(toolCallId, params, signal) {
+            replay: policy === McpToolPolicy.Auto ? "safe" : "unsafe",
+            async execute(params, api, context) {
               const args = argsSchema.parse(params ?? {});
+              const signal = context.abortSignal;
 
               if (
                 policy === McpToolPolicy.Ask &&
                 !(await allow(
-                  { toolCallId, server, tool: tool.name, args },
+                  {
+                    sessionId: String(api.conversationId),
+                    toolCallId: api.callId,
+                    server,
+                    tool: tool.name,
+                    args,
+                  },
                   signal
                 ))
               ) {
@@ -634,7 +654,7 @@ export function createMcpHub(options: McpHubOptions) {
         }
       }
 
-      return tools;
+      return defineExtension({ name: "mcp", tools });
     },
 
     async close() {

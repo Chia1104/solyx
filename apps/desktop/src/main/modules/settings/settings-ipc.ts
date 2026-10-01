@@ -18,7 +18,7 @@ import {
   agentProviderSchema,
   agentThinkingSchema,
 } from "@solyx/agent/providers";
-import { SkillSource } from "@solyx/agent/skills";
+import { SkillSource } from "@solyx/agent/skill-source";
 import { Market } from "@solyx/core/market";
 import { fuglePlanSchema } from "@solyx/market-data/fugle";
 

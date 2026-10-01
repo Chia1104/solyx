@@ -1,22 +1,10 @@
-import { readFile } from "node:fs/promises";
-import { basename, dirname } from "node:path";
+import { readFile, readdir, stat } from "node:fs/promises";
+import { join } from "node:path";
 
-import {
-  BACKGROUND_CONTEXT,
-  loadSourcedSkills,
-} from "@earendil-works/pi-agent-core";
-import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
+import { parse } from "yaml";
+import * as z from "zod";
 
-/** Where a skill comes from, which decides whether it is offered and which one wins a name. */
-export const SkillSource = {
-  /** `skills/` in the app's config folder: the user's own, always offered, ahead of built-ins. */
-  Solyx: "solyx",
-  BuiltIn: "built-in",
-  /** `~/.agents/skills`, shared with other agents: offered only once the user switches one on. */
-  Shared: "shared",
-} as const;
-
-export type SkillSource = (typeof SkillSource)[keyof typeof SkillSource];
+import { SkillSource } from "./skill-source.ts";
 
 /** A playbook the agent reads with `read_skill` before a task it covers. */
 export interface AgentSkill {
@@ -138,6 +126,139 @@ export interface SkillCatalog {
   warnings: string[];
 }
 
+// The Agent Skills format's limits.
+const MAX_NAME_LENGTH = 64;
+
+const MAX_DESCRIPTION_LENGTH = 1024;
+
+const SKILL_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+const frontmatterSchema = z.looseObject({
+  name: z.string().optional(),
+  description: z.string().optional(),
+  "disable-model-invocation": z.boolean().optional(),
+});
+
+const FRONTMATTER = /^---\n([\s\S]*?)\n---(?:\n|$)/;
+
+interface SkillProblem {
+  /** The skill's folder name, which `agent.sharedSkills` switches on. */
+  folder: string;
+  path: string;
+  message: string;
+}
+
+/**
+ * Every `<folder>/<name>/SKILL.md` under `root`. A skill without a description is left out, and
+ * one hidden with `disable-model-invocation` too; other breaks of the format are reported but
+ * keep the skill.
+ */
+async function readSkillFolder(root: string, source: SkillSource) {
+  const skills: AgentSkill[] = [];
+  const problems: SkillProblem[] = [];
+
+  let names: string[];
+
+  try {
+    names = await readdir(root);
+  } catch (error) {
+    // A folder the user never made has no skills to report on.
+    if (
+      !(error instanceof Error && "code" in error && error.code === "ENOENT")
+    ) {
+      problems.push({ folder: "", path: root, message: String(error) });
+    }
+
+    return { skills, problems };
+  }
+
+  for (const folder of names.toSorted()) {
+    if (folder.startsWith(".") || folder === "node_modules") continue;
+
+    const path = join(root, folder, "SKILL.md");
+
+    const report = (message: string) =>
+      problems.push({ folder, path, message });
+
+    let text: string;
+
+    try {
+      // Followed through links, since shared skills are often linked into place.
+      if (!(await stat(join(root, folder))).isDirectory()) continue;
+
+      text = await readFile(path, "utf8");
+    } catch (error) {
+      // A folder without SKILL.md holds no skill.
+      if (
+        !(error instanceof Error && "code" in error && error.code === "ENOENT")
+      ) {
+        report(String(error));
+      }
+
+      continue;
+    }
+
+    const normalized = text.replace(/\r\n?/g, "\n");
+    const match = FRONTMATTER.exec(normalized);
+
+    let metadata: z.infer<typeof frontmatterSchema>;
+
+    try {
+      const parsed = frontmatterSchema.safeParse(
+        match ? (parse(match[1]) ?? {}) : {}
+      );
+
+      if (!parsed.success) {
+        report(z.prettifyError(parsed.error));
+
+        continue;
+      }
+
+      metadata = parsed.data;
+    } catch (error) {
+      report(error instanceof Error ? error.message : String(error));
+
+      continue;
+    }
+
+    const name = metadata.name || folder;
+    const description = metadata.description?.trim();
+
+    if (name !== folder) {
+      report(`name "${name}" does not match its folder "${folder}"`);
+    }
+
+    if (name.length > MAX_NAME_LENGTH || !SKILL_NAME.test(name)) {
+      report(
+        `name "${name}" must be up to ${MAX_NAME_LENGTH} lowercase letters, digits and single hyphens`
+      );
+    }
+
+    if (!description) {
+      report("description is required");
+
+      continue;
+    }
+
+    if (description.length > MAX_DESCRIPTION_LENGTH) {
+      report(
+        `description exceeds ${MAX_DESCRIPTION_LENGTH} characters (${description.length})`
+      );
+    }
+
+    if (metadata["disable-model-invocation"] === true) continue;
+
+    skills.push({
+      name,
+      description,
+      body: normalized.slice(match?.[0].length ?? 0).trim(),
+      source,
+    });
+  }
+
+  return { skills, problems };
+}
+
 /**
  * The skills the agent may be offered: the user's own in the config folder, then the built-ins,
  * then shared skills the user switched on in `sharedEnabled`. A name taken by an earlier source
@@ -148,24 +269,10 @@ export async function loadSkillCatalog(
   folders: SkillFolders,
   sharedEnabled: ReadonlySet<string>
 ): Promise<SkillCatalog> {
-  const { skills: found, diagnostics } = await loadSourcedSkills(
-    new NodeExecutionEnv({ cwd: folders.solyx }),
-    [
-      { path: folders.solyx, source: SkillSource.Solyx },
-      { path: folders.shared, source: SkillSource.Shared },
-    ],
-    undefined,
-    BACKGROUND_CONTEXT
-  );
-
-  const loaded = found
-    .filter(({ skill }) => !skill.disableModelInvocation)
-    .map(({ skill, source }) => ({
-      name: skill.name,
-      description: skill.description,
-      body: skill.content,
-      source,
-    }));
+  const [own, shared] = await Promise.all([
+    readSkillFolder(folders.solyx, SkillSource.Solyx),
+    readSkillFolder(folders.shared, SkillSource.Shared),
+  ]);
 
   const byName = new Map<string, AgentSkill & { offered: boolean }>();
 
@@ -173,28 +280,19 @@ export async function loadSkillCatalog(
     if (!byName.has(skill.name)) byName.set(skill.name, { ...skill, offered });
   };
 
-  for (const skill of loaded) {
-    if (skill.source === SkillSource.Solyx) add(skill, true);
-  }
+  for (const skill of own.skills) add(skill, true);
 
   for (const skill of BUILT_IN_SKILLS) add(skill, true);
 
-  for (const skill of loaded) {
-    if (skill.source === SkillSource.Shared) {
-      add(skill, sharedEnabled.has(skill.name));
-    }
-  }
+  for (const skill of shared.skills) add(skill, sharedEnabled.has(skill.name));
 
   return {
     skills: [...byName.values()],
     // A shared skill left off is other agents' business, so its problems are not reported here.
-    warnings: diagnostics
-      .filter(
-        (diagnostic) =>
-          diagnostic.source === SkillSource.Solyx ||
-          sharedEnabled.has(basename(dirname(diagnostic.path)))
-      )
-      .map((diagnostic) => `${diagnostic.path}: ${diagnostic.message}`),
+    warnings: [
+      ...own.problems,
+      ...shared.problems.filter((problem) => sharedEnabled.has(problem.folder)),
+    ].map((problem) => `${problem.path}: ${problem.message}`),
   };
 }
 

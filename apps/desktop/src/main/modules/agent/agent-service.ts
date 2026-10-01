@@ -1,13 +1,12 @@
-import type { CredentialStore } from "@earendil-works/pi-ai";
 import { BrowserWindow } from "electron";
 
 import type { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
-import { formatContext, systemPrompt } from "@solyx/agent/prompt";
+import { formatContext } from "@solyx/agent/prompt";
 import { createAgentRuntime } from "@solyx/agent/runtime";
+import type { AgentConversationStore } from "@solyx/agent/runtime";
 import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
 import type { SkillFolders } from "@solyx/agent/skills";
-import { createTradingTools } from "@solyx/agent/tools";
-import type { AgentSessionStore } from "@solyx/agent/transcript";
+import { createTradingExtension } from "@solyx/agent/tools";
 import type { AgentWireEvent } from "@solyx/agent/wire";
 import type { BrokerAdapter } from "@solyx/core/broker";
 import { Market } from "@solyx/core/market";
@@ -20,6 +19,7 @@ import { agentEvents } from "#shared/ipc/agent.ts";
 import type { AgentFocus, AgentUpdate } from "#shared/ipc/agent.ts";
 
 import type { ConfigFile } from "../settings/config-file.ts";
+import type { AgentCredentials } from "../settings/credential-store.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
 
 import { createAgentModels } from "./agent-models.ts";
@@ -29,7 +29,7 @@ import { createToolApprovals } from "./tool-approvals.ts";
 export interface AgentServiceOptions {
   config: ConfigFile;
   secrets: SecretStore;
-  credentials: CredentialStore;
+  credentials: AgentCredentials;
   getDeviceId: () => string;
   openExternal: (url: string) => void;
   signInPage: (
@@ -40,7 +40,8 @@ export interface AgentServiceOptions {
   skillFolders: SkillFolders;
   /** AGENTS.md beside the config file. */
   instructionsFile: string;
-  sessions: AgentSessionStore;
+  /** Where conversations persist, opening as the app starts. */
+  conversations: Promise<AgentConversationStore>;
   marketData: (market: Market) => Promise<MarketDataProvider | undefined>;
   watchlist: () => SymbolRef[];
   broker: BrokerAdapter;
@@ -59,7 +60,7 @@ function broadcast(update: AgentUpdate) {
 export function createAgentService(options: AgentServiceOptions) {
   const models = createAgentModels(options);
 
-  // Read for every run and every settings view, so edits apply without a restart.
+  // Read for every request and every settings view, so edits apply without a restart.
   const skills = () =>
     loadSkillCatalog(
       options.skillFolders,
@@ -73,58 +74,57 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const approvals = createToolApprovals(onEvent);
 
+  const trading = createTradingExtension({
+    marketData: options.marketData,
+    watchlist: options.watchlist,
+    account: () => options.broker.getAccount(),
+    brokerMode: options.broker.mode,
+    desk: options.desk,
+    skills: async () =>
+      (await skills()).skills.filter((skill) => skill.offered),
+    instructions,
+  });
+
   const runtime = createAgentRuntime({
-    store: options.sessions,
-    streamFn: (model, context, streamOptions) =>
-      models.catalog.streamSimple(model, context, streamOptions),
+    store: options.conversations,
+    models: models.catalog,
     model: () => models.choice(),
-    async prepare(sessionId) {
-      const [catalog, standing, mcpTools] = await Promise.all([
-        skills(),
-        instructions(),
-        options.mcp.tools((call, signal) =>
-          approvals.request(sessionId, call.toolCallId, signal)
-        ),
-      ]);
-
-      const offered = catalog.skills.filter((skill) => skill.offered);
-
-      return {
-        systemPrompt: systemPrompt({ skills: offered, instructions: standing }),
-        tools: [
-          ...createTradingTools({
-            marketData: options.marketData,
-            watchlist: options.watchlist,
-            account: () => options.broker.getAccount(),
-            brokerMode: options.broker.mode,
-            desk: options.desk,
-            skills: offered,
-          }),
-          ...mcpTools,
-        ],
-      };
-    },
+    extensions: async () => [
+      trading,
+      await options.mcp.extension((call, signal) =>
+        approvals.request(call.sessionId, call.toolCallId, signal)
+      ),
+    ],
     onEvent,
   });
 
   return {
     models,
-    runtime,
     skills,
     instructions,
 
+    resume: () => runtime.resume(),
+
+    sessions: () => runtime.sessions(),
+
+    createSession: () => runtime.create(),
+
+    deleteSession: (id: string) => runtime.delete(id),
+
     /** The conversation as wire events, with calls still waiting for the user asked again. */
-    transcript: (id: string) => [
-      ...runtime.transcript(id),
+    transcript: async (id: string) => [
+      ...(await runtime.transcript(id)),
       ...approvals.open(id),
     ],
+
+    abort: (id: string) => runtime.abort(id),
 
     approve: (id: string, toolCallId: string, approved: boolean) =>
       approvals.decide(id, toolCallId, approved),
 
-    /** Stops every run, then the MCP servers they used, as the app quits. */
+    /** Closes the conversations, then the MCP servers their runs used, as the app quits. */
     async close() {
-      await runtime.stopAll();
+      await runtime.close();
       await options.mcp.close();
     },
 

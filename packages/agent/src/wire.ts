@@ -4,6 +4,15 @@
  * module imports nothing from pi, so the renderer can use it.
  */
 
+/** One conversation with the agent. */
+export interface AgentSession {
+  id: string;
+  /** Empty until the first message names it. */
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** The agent's tools, which the renderer labels and whose `details` it narrows by name. */
 export const AgentToolName = {
   GetMarketStatus: "get_market_status",
@@ -243,16 +252,23 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
       return { ...view, items };
     }
 
-    case AgentEventType.ToolStart:
-      items.push({
+    case AgentEventType.ToolStart: {
+      const tool: ToolCallView = {
         kind: AgentItemKind.Tool,
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         args: event.args,
         status: ToolCallStatus.Running,
-      });
+      };
+
+      // A resumed round may start a call the replayed transcript already shows.
+      const index = findTool(event.toolCallId);
+
+      if (index === -1) items.push(tool);
+      else items[index] = tool;
 
       return { ...view, items };
+    }
 
     case AgentEventType.ToolEnd: {
       const index = findTool(event.toolCallId);

@@ -14,8 +14,8 @@ if (!app.isPackaged) {
   app.setPath("userData", join(app.getPath("appData"), app.getName()));
 }
 
-// Long enough for providers to acknowledge an abort, short enough never to hold up quitting.
-const STOP_RUNS_TIMEOUT_MS = 3000;
+// Long enough for runs to store where they stopped, short enough never to hold up quitting.
+const CLOSE_TIMEOUT_MS = 3000;
 
 let quitting = false;
 
@@ -25,8 +25,12 @@ void app.whenReady().then(() => {
   registerIpc(services);
   createMainWindow();
 
-  // Stopped runs keep what they streamed and end as aborted instead of cut off mid-message, and
-  // stdio MCP servers are shut down rather than left running without the app.
+  // Runs the last session left unfinished continue where they stopped. A store that cannot open
+  // fails every agent call too, which the renderer shows.
+  services.agent.resume().catch(console.error);
+
+  // Runs still going are stored where they stopped and continue at the next start, and stdio MCP
+  // servers are shut down rather than left running without the app.
   app.on("before-quit", (event) => {
     if (quitting) return;
 
@@ -35,7 +39,7 @@ void app.whenReady().then(() => {
 
     void Promise.race([
       services.agent.close(),
-      delay(STOP_RUNS_TIMEOUT_MS),
+      delay(CLOSE_TIMEOUT_MS),
     ]).finally(() => app.quit());
   });
 

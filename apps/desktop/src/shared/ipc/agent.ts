@@ -1,5 +1,4 @@
-import type { AgentSession } from "@solyx/agent/transcript";
-import type { AgentWireEvent } from "@solyx/agent/wire";
+import type { AgentSession, AgentWireEvent } from "@solyx/agent/wire";
 import type { SymbolRef } from "@solyx/core/market";
 
 /** The listing the user has open while writing, which the agent is told about. */

@@ -88,6 +88,24 @@ test("proposing never reaches the broker", async () => {
   expect(placeOrder).not.toHaveBeenCalled();
 });
 
+test("proposing again under the same id returns the first proposal", async () => {
+  const { desk, riskContext, store } = setup();
+
+  const input = {
+    id: "call-1",
+    order,
+    source: ProposalSource.Agent,
+    rationale: "test",
+  };
+
+  const first = await desk.propose(input);
+  const again = await desk.propose(input);
+
+  expect(again).toEqual(first);
+  expect(store.list()).toHaveLength(1);
+  expect(riskContext).toHaveBeenCalledTimes(1);
+});
+
 test("confirming submits exactly once", async () => {
   const { desk, placeOrder } = setup();
   const { id } = await proposeFromAgent(desk);

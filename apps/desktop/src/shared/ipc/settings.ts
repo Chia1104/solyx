@@ -5,7 +5,7 @@ import type {
 } from "@solyx/agent/mcp-config";
 import { AgentProvider } from "@solyx/agent/providers";
 import type { AgentAuth, AgentThinking } from "@solyx/agent/providers";
-import type { SkillSource } from "@solyx/agent/skills";
+import type { SkillSource } from "@solyx/agent/skill-source";
 import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { FuglePlan } from "@solyx/market-data/fugle";

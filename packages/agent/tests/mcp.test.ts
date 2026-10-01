@@ -1,6 +1,11 @@
 import { fileURLToPath } from "node:url";
 
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { contentText } from "@earendil-works/pi-ai";
+import type {
+  ToolExecutionApi,
+  ToolRegistration,
+} from "@earendil-works/pi-durable";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 import {
@@ -10,7 +15,12 @@ import {
   parseMcpFile,
 } from "../src/mcp-config.ts";
 import { createMcpHub, effectivePolicy } from "../src/mcp.ts";
-import type { McpHub, McpSignInOptions } from "../src/mcp.ts";
+import type {
+  McpHub,
+  McpSignInOptions,
+  McpToolCall,
+  McpToolOptions,
+} from "../src/mcp.ts";
 
 import { browse, startOAuthMcpServer } from "./fixtures/oauth-mcp-server.ts";
 
@@ -19,6 +29,23 @@ const SERVER = fileURLToPath(
 );
 
 const hubs: McpHub[] = [];
+
+const toolsOf = (hub: McpHub, options: McpToolOptions) =>
+  hub.extension(options).tools ?? [];
+
+/** Runs a tool as pi-durable would, for call `callId` in conversation 7. */
+function call(
+  tool: ToolRegistration | undefined,
+  args: McpToolCall["args"],
+  callId = "call-1"
+) {
+  if (!tool) throw new Error("No such tool");
+
+  // SAFETY: MCP tools read only the call's id and conversation from their api.
+  const api = { callId, conversationId: 7 } as ToolExecutionApi;
+
+  return tool.execute(args, api, BACKGROUND_CONTEXT);
+}
 
 afterEach(async () => {
   await Promise.all(hubs.splice(0).map((hub) => hub.close()));
@@ -110,12 +137,13 @@ describe("a connected server", () => {
     ]);
 
     const allow = vi.fn(async () => true);
-    const tools = hub.tools({ policies: {}, allow });
+    const tools = toolsOf(hub, { policies: {}, allow });
     const quote = tools.find((tool) => tool.name === "mcp_fake_quote");
-    const result = await quote?.execute("call-1", { symbol: "2330" });
+    const result = await call(quote, { symbol: "2330" });
 
     expect(allow).toHaveBeenCalledWith(
       {
+        sessionId: "7",
         toolCallId: "call-1",
         server: "fake",
         tool: "quote",
@@ -134,11 +162,12 @@ describe("a connected server", () => {
     hub.sync(fakeServer());
     await hub.settled(10_000);
 
-    const [order] = hub
-      .tools({ policies: {}, allow: async () => false })
-      .filter((tool) => tool.name === "mcp_fake_order");
+    const order = toolsOf(hub, {
+      policies: {},
+      allow: async () => false,
+    }).find((tool) => tool.name === "mcp_fake_order");
 
-    await expect(order.execute("call-1", {})).rejects.toThrow("did not allow");
+    await expect(call(order, {})).rejects.toThrow("did not allow");
   });
 
   test("policies decide what is offered and what still asks", async () => {
@@ -149,7 +178,7 @@ describe("a connected server", () => {
 
     const allow = vi.fn(async () => true);
 
-    const tools = hub.tools({
+    const tools = toolsOf(hub, {
       policies: {
         "fake/quote": McpToolPolicy.Auto,
         "fake/order": McpToolPolicy.Auto,
@@ -157,21 +186,25 @@ describe("a connected server", () => {
       allow,
     });
 
-    await tools
-      .find((tool) => tool.name === "mcp_fake_quote")
-      ?.execute("a", { symbol: "X" });
+    const quote = tools.find((tool) => tool.name === "mcp_fake_quote");
+    const order = tools.find((tool) => tool.name === "mcp_fake_order");
+
+    await call(quote, { symbol: "X" }, "a");
     expect(allow).not.toHaveBeenCalled();
 
     // Marked auto, but not read-only, so it still asks.
-    await tools
-      .find((tool) => tool.name === "mcp_fake_order")
-      ?.execute("b", {});
+    await call(order, {}, "b");
     expect(allow).toHaveBeenCalledOnce();
 
+    // Only a call that ran without asking may run again after a restart.
+    expect(quote?.replay).toBe("safe");
+    expect(order?.replay).toBe("unsafe");
+
     expect(
-      hub
-        .tools({ policies: { "fake/order": McpToolPolicy.Off }, allow })
-        .map((tool) => tool.name)
+      toolsOf(hub, {
+        policies: { "fake/order": McpToolPolicy.Off },
+        allow,
+      }).map((tool) => tool.name)
     ).toEqual(["mcp_fake_quote"]);
   });
 });
@@ -185,7 +218,7 @@ test("a server whose secret is not saved fails and names it", async () => {
   expect(hub.status()).toMatchObject([
     { state: McpServerState.Failed, missingSecrets: ["fake"] },
   ]);
-  expect(hub.tools({ policies: {}, allow: async () => true })).toEqual([]);
+  expect(toolsOf(hub, { policies: {}, allow: async () => true })).toEqual([]);
 });
 
 test("a server taken out of mcp.json is disconnected", async () => {
@@ -234,17 +267,17 @@ describe("a remote server that asks to sign in", () => {
     await setup.hub.signIn("remote", browser);
     await setup.hub.settled(10_000);
 
-    const [whoami] = setup.hub.tools({
+    const [whoami] = toolsOf(setup.hub, {
       policies: { "remote/whoami": McpToolPolicy.Auto },
       allow: async () => false,
     });
 
-    const call = async (id: string) =>
-      contentText((await whoami.execute(id, {})).content);
+    const callWhoami = async (id: string) =>
+      contentText((await call(whoami, {}, id)).content ?? []);
 
     const saved = () => JSON.parse(setup.signIns.get("remote") ?? "{}");
 
-    return { ...setup, call, saved };
+    return { ...setup, call: callWhoami, saved };
   }
 
   test("waits for the user, then connects with the grant it saves", async () => {

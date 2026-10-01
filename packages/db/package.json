@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./agent": "./src/agent.ts",
     "./cache": "./src/cache.ts",
     "./user": "./src/user.ts"
   },
@@ -12,12 +13,13 @@
     "test": "vp test"
   },
   "dependencies": {
-    "@solyx/agent": "workspace:*",
+    "@earendil-works/pi-durable": "catalog:agent",
     "@solyx/core": "workspace:*",
     "drizzle-orm": "catalog:drizzle",
     "es-toolkit": "catalog:"
   },
   "devDependencies": {
+    "@earendil-works/chord": "catalog:agent",
     "@types/node": "catalog:",
     "drizzle-kit": "catalog:drizzle",
     "typescript": "catalog:",

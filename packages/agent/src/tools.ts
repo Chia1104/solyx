@@ -1,4 +1,14 @@
-import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { Context, JsonValue } from "@earendil-works/chord";
+import {
+  LiveDoc,
+  defineDoc,
+  defineExtension,
+} from "@earendil-works/pi-durable";
+import type {
+  Extension,
+  ToolExecutionApi,
+  ToolRegistration,
+} from "@earendil-works/pi-durable";
 import { omit, takeRight } from "es-toolkit";
 import * as z from "zod";
 
@@ -24,36 +34,44 @@ import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
 import { getSession } from "@solyx/core/session";
 
 import { exchangeTime } from "./format.ts";
-import type { AgentSkill } from "./skills.ts";
+import { promptSections } from "./prompt.ts";
+import type { PromptSources } from "./prompt.ts";
 import { AgentToolName } from "./wire.ts";
 import type { ProposeOrderDetails } from "./wire.ts";
 
-/** What the tools read and the one thing they may do: propose. */
-export interface TradingToolPorts {
+/** What the tools and the prompt read, and the one thing the tools may do: propose. */
+export interface TradingToolPorts extends PromptSources {
   /** The market's provider, or `undefined` when no source covers it or its settings are incomplete. */
   marketData(market: Market): Promise<MarketDataProvider | undefined>;
   watchlist(): SymbolRef[];
   account(): Promise<AccountSnapshot>;
   brokerMode: BrokerMode;
   desk: Pick<OrderDesk, "check" | "propose" | "list">;
-  /** The skills this run is offered, which `read_skill` reads. */
-  skills: readonly AgentSkill[];
   now?: () => Date;
 }
 
 interface ToolOutput {
   /** What the model reads. */
   text: string;
-  /** What the renderer shows; JSON only. */
-  details?: unknown;
+  /** What the renderer shows. */
+  details?: JsonValue;
 }
 
 interface ToolSpec<Parameters extends z.ZodObject> {
   name: AgentToolName;
-  label: string;
   description: string;
   parameters: Parameters;
-  execute(params: z.infer<Parameters>): Promise<ToolOutput>;
+  /**
+   * `safe` lets a call the app's exit cut off run again when the app reopens: only for calls that
+   * change nothing, or whose change running twice cannot repeat. Otherwise the model is told the
+   * call was interrupted.
+   */
+  replay: ToolRegistration["replay"];
+  execute(
+    params: z.infer<Parameters>,
+    api: ToolExecutionApi,
+    context: Context
+  ): Promise<ToolOutput>;
 }
 
 /**
@@ -62,26 +80,38 @@ interface ToolSpec<Parameters extends z.ZodObject> {
  */
 function defineTool<Parameters extends z.ZodObject>(
   spec: ToolSpec<Parameters>
-): AgentTool {
+): ToolRegistration {
   return {
     name: spec.name,
-    label: spec.label,
     description: spec.description,
     // Providers read the schema inline; the dialect URI is noise to them.
     parameters: omit(z.toJSONSchema(spec.parameters, { io: "input" }), [
       "$schema",
     ]),
-    async execute(_toolCallId, params) {
+    replay: spec.replay,
+    async execute(params, api, context) {
       const parsed = spec.parameters.safeParse(params);
 
       if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
 
-      const { text, details } = await spec.execute(parsed.data);
+      const { text, details } = await spec.execute(parsed.data, api, context);
 
       return { content: [{ type: "text", text }], details };
     },
   };
 }
+
+/** The run that made the conversation's proposal, and the call that made it. */
+const ProposalClaimDoc = defineDoc<{
+  claim: { run: number | null; callId: string } | null;
+}>({
+  kind: "solyx.proposal-claim",
+  version: 1,
+  scope: "conversation",
+  history: "latest",
+  fork: "initial",
+  initial: () => ({ claim: null }),
+});
 
 const MAX_BARS = 200;
 
@@ -162,10 +192,11 @@ function describeProposal(proposal: TradeProposal): string {
   return parts.join(" | ");
 }
 
-/** The agent's tools for one run; build them again for every run so per-run limits start over. */
-export function createTradingTools(ports: TradingToolPorts): AgentTool[] {
+/** The agent's trading tools. Their per-run limits are kept with the conversation. */
+export function createTradingTools(
+  ports: TradingToolPorts
+): ToolRegistration[] {
   const now = ports.now ?? (() => new Date());
-  let proposed = false;
 
   async function candlesOf(
     symbol: SymbolRef,
@@ -209,7 +240,7 @@ export function createTradingTools(ports: TradingToolPorts): AgentTool[] {
   return [
     defineTool({
       name: AgentToolName.GetMarketStatus,
-      label: "Market status",
+      replay: "safe",
       description:
         "Each market's current session (pre, regular, post, closed) and its local time.",
       parameters: z.object({}),
@@ -229,7 +260,7 @@ export function createTradingTools(ports: TradingToolPorts): AgentTool[] {
 
     defineTool({
       name: AgentToolName.GetCandles,
-      label: "Candles",
+      replay: "safe",
       description:
         "Recent OHLCV bars for a listing, oldest first, with times on the exchange's clock. Volume is in shares.",
       parameters: z.object({
@@ -265,7 +296,7 @@ export function createTradingTools(ports: TradingToolPorts): AgentTool[] {
 
     defineTool({
       name: AgentToolName.GetIndicators,
-      label: "Indicators",
+      replay: "safe",
       description:
         "The latest and previous bar's MA(5, 20, 60), EMA(12, 26), RSI(14), MACD(12, 26, 9) as DIF/MACD/OSC, KD(9) and Bollinger Bands(20, 2) for a listing.",
       parameters: z.object({
@@ -308,7 +339,7 @@ export function createTradingTools(ports: TradingToolPorts): AgentTool[] {
 
     defineTool({
       name: AgentToolName.GetWatchlist,
-      label: "Watchlist",
+      replay: "safe",
       description: "The listings the user watches.",
       parameters: z.object({}),
       execute: async () => {
@@ -325,7 +356,7 @@ export function createTradingTools(ports: TradingToolPorts): AgentTool[] {
 
     defineTool({
       name: AgentToolName.GetAccount,
-      label: "Account",
+      replay: "safe",
       description:
         "Cash per currency and open positions with their average price, in the account the app trades.",
       parameters: z.object({}),
@@ -354,7 +385,7 @@ export function createTradingTools(ports: TradingToolPorts): AgentTool[] {
 
     defineTool({
       name: AgentToolName.ListProposals,
-      label: "Proposals",
+      replay: "safe",
       description:
         "The 20 most recent order proposals, newest first, with their status: awaiting confirmation, submitted, rejected, dismissed or failed.",
       parameters: z.object({}),
@@ -372,7 +403,7 @@ export function createTradingTools(ports: TradingToolPorts): AgentTool[] {
 
     defineTool({
       name: AgentToolName.CheckOrder,
-      label: "Check order",
+      replay: "safe",
       description:
         "Runs the app's risk checks on an order without proposing it: quantity and lot rules, tick size, price band, session and size limits.",
       parameters: z.object({ order: orderSchema }),
@@ -390,7 +421,7 @@ export function createTradingTools(ports: TradingToolPorts): AgentTool[] {
 
     defineTool({
       name: AgentToolName.ProposeOrder,
-      label: "Propose order",
+      replay: "safe",
       description:
         "Puts one order in front of the user for confirmation, after the app's risk checks. It never places the order; only the user can. Once per reply.",
       parameters: z.object({
@@ -403,41 +434,60 @@ export function createTradingTools(ports: TradingToolPorts): AgentTool[] {
             "Thesis, evidence with as_of times, entry, invalidation, target and reward-to-risk, in the user's language"
           ),
       }),
-      execute: async ({ order, rationale }) => {
-        if (proposed) {
+      execute: async ({ order, rationale }, api, context) => {
+        const request = toOrderRequest(order);
+
+        // Claimed in a commit, so calls the model makes at once in one reply cannot both pass.
+        const claimed = await api.commit(async (tx) => {
+          const run =
+            (await tx.doc(LiveDoc, api.conversationId)).run?.inputs[0] ?? null;
+
+          const proposal = await tx.doc(ProposalClaimDoc, api.conversationId);
+          const { claim } = proposal;
+
+          if (claim && claim.run === run && claim.callId !== api.callId) {
+            return false;
+          }
+
+          proposal.claim = { run, callId: api.callId };
+
+          return true;
+        }, context);
+
+        if (!claimed) {
           throw new Error(
             "Only one proposal per reply; ask the user before proposing another"
           );
         }
 
-        proposed = true;
+        // Kept with the call, so a call that runs again after a restart finds its proposal.
+        const id = await api.memo("proposal-id", crypto.randomUUID(), context);
 
         const proposal = await ports.desk.propose({
-          order: toOrderRequest(order),
+          id,
+          order: request,
           source: ProposalSource.Agent,
           rationale,
         });
 
-        const details: ProposeOrderDetails = { proposalId: proposal.id };
-
         return {
           text: `Proposal ${describeProposal(proposal)}. It waits for the user to confirm or dismiss it in the app.`,
-          details,
+          details: { proposalId: proposal.id } satisfies ProposeOrderDetails,
         };
       },
     }),
 
     defineTool({
       name: AgentToolName.ReadSkill,
-      label: "Read skill",
+      replay: "safe",
       description: "Reads one of the playbooks listed in the system prompt.",
       parameters: z.object({
-        name: z
-          .string()
-          .describe(ports.skills.map((skill) => skill.name).join(", ")),
+        name: z.string().describe("A name from the system prompt's skills"),
       }),
       execute: async ({ name }) => {
-        const skill = ports.skills.find((candidate) => candidate.name === name);
+        const skill = (await ports.skills()).find(
+          (candidate) => candidate.name === name
+        );
 
         if (!skill) throw new Error(`No skill named ${name}`);
 
@@ -445,4 +495,13 @@ export function createTradingTools(ports: TradingToolPorts): AgentTool[] {
       },
     }),
   ];
+}
+
+/** The tools and the system prompt the agent runs with in every conversation. */
+export function createTradingExtension(ports: TradingToolPorts): Extension {
+  return defineExtension({
+    name: "solyx",
+    tools: createTradingTools(ports),
+    sections: promptSections(ports),
+  });
 }

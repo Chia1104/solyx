@@ -7,6 +7,8 @@ import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
 import { AgentProvider } from "@solyx/agent/providers";
 
+import { Secret } from "#shared/ipc/settings.ts";
+
 import { createCredentialStore } from "../src/main/modules/settings/credential-store.ts";
 import { installationId } from "../src/main/modules/settings/installation-id.ts";
 import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
@@ -32,8 +34,11 @@ beforeEach(async () => {
 
 afterEach(() => rm(directory, { recursive: true, force: true }));
 
-const open = () =>
-  createCredentialStore(createSecretStore(secretsFile, fakeCipher().cipher));
+const secretsAt = () => createSecretStore(secretsFile, fakeCipher().cipher);
+
+/** A store whose providers run on their subscription, or on their key with `onKeys`. */
+const open = (onKeys = false) =>
+  createCredentialStore(secretsAt(), () => !onKeys);
 
 test("a sign-in is kept encrypted with the fields its flow added", async () => {
   const store = open();
@@ -60,18 +65,37 @@ test("a refresh sees the stored sign-in and replaces it", async () => {
   expect(await store.read(AgentProvider.OpenAI)).toEqual(refreshed);
 });
 
-test("clearing or deleting a sign-in removes it", async () => {
+test("a change that returns nothing leaves the sign-in, and signing out removes it", async () => {
   const store = open();
 
   await store.modify(AgentProvider.OpenAI, async () => SIGN_IN);
-  await store.modify(AgentProvider.OpenAI, async () => undefined);
 
-  expect(await store.read(AgentProvider.OpenAI)).toBeUndefined();
+  // pi-ai's refresh returns nothing once another request has refreshed the token.
+  expect(
+    await store.modify(AgentProvider.OpenAI, async () => undefined)
+  ).toEqual(SIGN_IN);
+  expect(await store.read(AgentProvider.OpenAI)).toEqual(SIGN_IN);
 
-  await store.modify(AgentProvider.OpenAI, async () => SIGN_IN);
   await store.delete(AgentProvider.OpenAI);
 
   expect(await store.list()).toEqual([]);
+});
+
+test("a provider on its key reads the key saved in Settings", async () => {
+  await secretsAt().save(Secret.OpenAIApiKey, "sk-test");
+
+  const store = open(true);
+
+  await store.modify(AgentProvider.OpenAI, async () => SIGN_IN);
+
+  expect(await store.read(AgentProvider.OpenAI)).toEqual({
+    type: "api_key",
+    key: "sk-test",
+  });
+  expect(await store.list()).toEqual([
+    { providerId: AgentProvider.OpenAI, type: "api_key" },
+  ]);
+  expect(await store.signedIn(AgentProvider.OpenAI)).toBe(true);
 });
 
 test("API keys are not stored as sign-ins", async () => {
@@ -87,7 +111,7 @@ test("API keys are not stored as sign-ins", async () => {
 });
 
 test("a provider without a subscription sign-in has nothing stored", async () => {
-  const store = open();
+  const store = open(true);
 
   expect(await store.read(AgentProvider.Anthropic)).toBeUndefined();
   await expect(

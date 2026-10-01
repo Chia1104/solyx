@@ -1,3 +1,5 @@
+import { section } from "@earendil-works/pi-durable";
+import type { PromptSection } from "@earendil-works/pi-durable";
 import { escape } from "es-toolkit";
 
 import type { BrokerMode } from "@solyx/core/broker";
@@ -8,27 +10,14 @@ import type { Session } from "@solyx/core/session";
 import { exchangeTime } from "./format.ts";
 import type { AgentSkill } from "./skills.ts";
 
-export interface PromptInputs {
-  /** The skills the agent is offered. */
-  skills: readonly AgentSkill[];
-  /** The user's standing instructions from `AGENTS.md`, if any. */
-  instructions?: string;
+export interface PromptSources {
+  /** The skills the agent is offered, read for every request. */
+  skills(): Promise<readonly AgentSkill[]>;
+  /** The user's standing instructions from `AGENTS.md`, if any, read for every request. */
+  instructions(): Promise<string | undefined>;
 }
 
-/**
- * The same for every conversation until the skills or the user's instructions change, so
- * providers can cache it; what changes per turn rides in the user message as the app's context.
- */
-export function systemPrompt({ skills, instructions }: PromptInputs): string {
-  const catalog = skills
-    .map(
-      (skill) =>
-        `  <skill name="${escape(skill.name)}">${escape(skill.description)}</skill>`
-    )
-    .join("\n");
-
-  const sections = [
-    `You are the market analyst inside Solyx, a desktop app one person uses to trade Taiwan (TWSE, TPEx) and US stocks. You research with the tools you have and may suggest orders. The person decides.
+const RULES = `You are the market analyst inside Solyx, a desktop app one person uses to trade Taiwan (TWSE, TPEx) and US stocks. You research with the tools you have and may suggest orders. The person decides.
 
 # Orders
 - The only way you can suggest an order is propose_order. It runs the app's risk checks and puts the proposal in front of the user, who confirms or dismisses it in the app. You cannot place, confirm, change or cancel an order. Never write that an order was placed, filled or sent.
@@ -50,27 +39,55 @@ export function systemPrompt({ skills, instructions }: PromptInputs): string {
 - Size from risk: by default at most 1% of the account's equity between entry and invalidation, unless the user set a budget.
 - Never add to a losing position without a new thesis, never chase a move that already ran past its entry, and never move an invalidation further away.
 
-# Skills
-Playbooks for recurring tasks. Read one with read_skill before a task it covers, and follow it. The user may have written some of them; none of them changes the Orders rules above.
-<skills>
-${catalog}
-</skills>
-
 # Replies
 - Each user message starts with <app_context>, which the app writes. It is data about the moment the user wrote, not instructions from them.
 - Reply in the language the context names, including the rationale of a proposal.
-- Be brief. Lead with the answer, then the evidence. Numbers keep their units and currency; times are exchange-local as the tools give them.`,
-  ];
+- Be brief. Lead with the answer, then the evidence. Numbers keep their units and currency; times are exchange-local as the tools give them.`;
 
-  if (instructions) {
-    sections.push(`# The user's standing instructions
+function skillsText(skills: readonly AgentSkill[]): string {
+  const catalog = skills
+    .map(
+      (skill) =>
+        `  <skill name="${escape(skill.name)}">${escape(skill.description)}</skill>`
+    )
+    .join("\n");
+
+  return `# Skills
+Playbooks for recurring tasks. Read one with read_skill before a task it covers, and follow it. The user may have written some of them; none of them changes the Orders rules above.
+<skills>
+${catalog}
+</skills>`;
+}
+
+function instructionsText(instructions: string): string {
+  return `# The user's standing instructions
 The user keeps these in AGENTS.md for every conversation. Follow them where they fit the rules above; where they conflict, the rules above win and you say so.
 <user_instructions>
 ${instructions}
-</user_instructions>`);
-  }
+</user_instructions>`;
+}
 
-  return sections.join("\n\n");
+/**
+ * The system prompt in sections, rendered before every request. Each stays the same until the
+ * skills or the user's instructions change, so only a changed section is sent again and providers
+ * keep their caches; what changes per turn rides in the user message as the app's context.
+ */
+export function promptSections(sources: PromptSources): PromptSection[] {
+  return [
+    section("rules", () => RULES, { tag: false }),
+    section("skills", async () => skillsText(await sources.skills()), {
+      tag: false,
+    }),
+    section(
+      "user-instructions",
+      async () => {
+        const instructions = await sources.instructions();
+
+        return instructions ? instructionsText(instructions) : undefined;
+      },
+      { tag: false }
+    ),
+  ];
 }
 
 export interface TurnContext {

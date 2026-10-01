@@ -1,5 +1,3 @@
-import type { CredentialStore } from "@earendil-works/pi-ai";
-
 import { chatgptOAuth } from "@solyx/agent/chatgpt-oauth";
 import type { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
 import { createModelCatalog } from "@solyx/agent/models";
@@ -19,10 +17,23 @@ import { AGENT_PROVIDER_SECRET, SecretState } from "#shared/ipc/settings.ts";
 import type { AgentSettings } from "#shared/ipc/settings.ts";
 
 import type { ConfigFile } from "../settings/config-file.ts";
+import type { AgentCredentials } from "../settings/credential-store.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
 
 // OpenAI shows it on the consent screen; development builds sign in under the same name.
 const APP_NAME = "Solyx";
+
+/** How the config file says `provider` is paid for; a provider without a subscription runs on a key. */
+export function agentAuth(
+  config: ConfigFile,
+  provider: AgentProvider
+): AgentAuth {
+  const saved = config.read().agent;
+
+  return SUBSCRIPTION_PROVIDERS.includes(provider)
+    ? (agentAuthSchema.safeParse(saved?.auth).data ?? AgentAuth.ApiKey)
+    : AgentAuth.ApiKey;
+}
 
 /**
  * The model the agent runs on and how it is paid for, as the config file, the saved keys and
@@ -39,7 +50,7 @@ export function createAgentModels({
 }: {
   config: ConfigFile;
   secrets: SecretStore;
-  credentials: CredentialStore;
+  credentials: AgentCredentials;
   /** This installation's stable id, which Sign in with ChatGPT requires. */
   getDeviceId: () => string;
   /** Opens a sign-in page in the system browser. */
@@ -75,23 +86,16 @@ export function createAgentModels({
       saved?.model ?? DEFAULT_MODEL[provider]
     );
 
-    const subscribable = SUBSCRIPTION_PROVIDERS.includes(provider);
-
     return {
       provider,
-      subscribable,
-      auth: subscribable
-        ? (agentAuthSchema.safeParse(saved?.auth).data ?? AgentAuth.ApiKey)
-        : AgentAuth.ApiKey,
+      subscribable: SUBSCRIPTION_PROVIDERS.includes(provider),
+      auth: agentAuth(config, provider),
       model: model ?? catalog.getModel(provider, DEFAULT_MODEL[provider]),
       thinking:
         agentThinkingSchema.safeParse(saved?.thinking).data ??
         AgentThinking.Medium,
     };
   }
-
-  const signedIn = async (provider: AgentProvider) =>
-    (await credentials.read(provider)) !== undefined;
 
   return {
     catalog,
@@ -101,7 +105,7 @@ export function createAgentModels({
       const states = await secrets.states();
 
       const subscription = subscribable
-        ? { signedIn: await signedIn(provider) }
+        ? { signedIn: await credentials.signedIn(provider) }
         : null;
 
       return {
@@ -130,22 +134,19 @@ export function createAgentModels({
         throw new Error(`Pick a model for ${provider} in Settings first`);
       }
 
-      // pi-ai resolves the stored sign-in and refreshes its token for each request.
+      // pi-ai reads the sign-in or the key through `credentials` for each request.
       if (auth === AgentAuth.Subscription) {
-        if (!(await signedIn(provider))) {
+        if (!(await credentials.signedIn(provider))) {
           throw new Error(`Sign in to ${provider} in Settings first`);
         }
-
-        return { model, thinking };
-      }
-
-      const apiKey = await secrets.get(AGENT_PROVIDER_SECRET[provider]);
-
-      if (!apiKey) {
+      } else if (
+        (await secrets.states())[AGENT_PROVIDER_SECRET[provider]] !==
+        SecretState.Saved
+      ) {
         throw new Error(`Save an API key for ${provider} in Settings first`);
       }
 
-      return { model, apiKey, thinking };
+      return { model, thinking };
     },
 
     /** Resolves once the sign-in is saved, or quietly once it is cancelled. */

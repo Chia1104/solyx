@@ -1,43 +1,22 @@
-import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { contentText } from "@earendil-works/pi-ai";
 import type {
   AssistantMessage,
   ToolResultMessage,
   UserMessage,
 } from "@earendil-works/pi-ai";
+import {
+  AssistantEntry,
+  ToolResultEntry,
+  UserEntry,
+} from "@earendil-works/pi-durable";
+import type { EntryRecord } from "@earendil-works/pi-durable";
 
 import { AgentEventType, RunEndReason, ToolCallStatus } from "./wire.ts";
 import type { AgentWireEvent } from "./wire.ts";
 
-/** One conversation with the agent. */
-export interface AgentSession {
-  id: string;
-  /** Empty until the first message names it. */
-  title: string;
-  createdAt: number;
-  updatedAt: number;
-}
+type RunEnd = Extract<AgentWireEvent, { type: typeof AgentEventType.RunEnd }>;
 
-/** A persisted message; `id` is also its wire `messageId`, live and replayed alike. */
-export interface TranscriptEntry {
-  id: string;
-  message: AgentMessage;
-}
-
-/** Where conversations persist. Synchronous, so a message is stored before its event is sent. */
-export interface AgentSessionStore {
-  /** Most recently active first. */
-  list(): AgentSession[];
-  get(id: string): AgentSession | undefined;
-  create(session: AgentSession): void;
-  /** Replaces the stored session with the same id. */
-  update(session: AgentSession): void;
-  /** Drops the session and its transcript. */
-  delete(id: string): void;
-  /** Oldest first. */
-  entries(sessionId: string): TranscriptEntry[];
-  append(sessionId: string, entry: TranscriptEntry): void;
-}
+type ToolEnd = Extract<AgentWireEvent, { type: typeof AgentEventType.ToolEnd }>;
 
 // The app's context rides in the user message it belongs to, so a replayed transcript sends the
 // provider the same bytes again and its prompt cache holds.
@@ -48,25 +27,23 @@ const CONTEXT_CLOSE = "</app_context>";
 const CONTEXT_BLOCK = /^<app_context>\n[\s\S]*?\n<\/app_context>\n/;
 
 /** What the user typed, preceded by the app's context for the model. */
-export function userMessage(
+export function userContent(
   text: string,
-  context: string,
-  timestamp: number
-): UserMessage {
-  return {
-    role: "user",
-    content: [
-      { type: "text", text: `${CONTEXT_OPEN}\n${context}\n${CONTEXT_CLOSE}` },
-      { type: "text", text },
-    ],
-    timestamp,
-  };
+  context: string
+): UserMessage["content"] {
+  return [
+    { type: "text", text: `${CONTEXT_OPEN}\n${context}\n${CONTEXT_CLOSE}` },
+    { type: "text", text },
+  ];
 }
 
 /** What the user typed, without the context the app attached. */
 export function userText(message: UserMessage): string {
   return contentText(message.content).replace(CONTEXT_BLOCK, "");
 }
+
+/** The wire id of a stored message, live and replayed alike. */
+export const messageId = (entry: EntryRecord) => String(entry.id);
 
 export function assistantEndEvent(
   messageId: string,
@@ -85,10 +62,12 @@ export function assistantEndEvent(
   };
 }
 
-/** How a run ended if this reply ends it; `undefined` while it goes on to run tools. */
-export function runEndOf(
-  message: AssistantMessage
-): Extract<AgentWireEvent, { type: typeof AgentEventType.RunEnd }> | undefined {
+/**
+ * How a reply ends its run; `undefined` while the run goes on to run tools. A reply that failed or
+ * was cut short may still be followed by a retry or by the run resuming after a restart, so its
+ * end holds only once nothing follows it in the run.
+ */
+export function runEndOf(message: AssistantMessage): RunEnd | undefined {
   switch (message.stopReason) {
     case "toolUse":
     case "pending":
@@ -114,37 +93,69 @@ function failureLine(text: string): string {
   return line.length > 160 ? `${line.slice(0, 160)}…` : line;
 }
 
-export function toolEndEvent(
-  result: Pick<
-    ToolResultMessage,
-    "toolCallId" | "toolName" | "isError" | "content" | "details"
-  >
-): AgentWireEvent {
+// Results pi-durable writes for calls that never finished: stopped with their run, or cut off by
+// the app exiting while they ran.
+const UNFINISHED = new Set(["aborted", "interrupted"]);
+
+/** Whether a stored tool result stands for a call that never finished. */
+function isUnfinished(entry: EntryRecord): boolean {
+  return (
+    ToolResultEntry.is(entry) &&
+    entry.data.diagnostics.some((diagnostic) =>
+      UNFINISHED.has(diagnostic.code ?? "")
+    )
+  );
+}
+
+/** The end of the call a stored tool result answers; `undefined` for any other entry. */
+export function toolEndEvent(entry: EntryRecord): ToolEnd | undefined {
+  const [message] = entry.model ?? [];
+
+  if (!ToolResultEntry.is(entry) || message?.role !== "toolResult") {
+    return undefined;
+  }
+
+  const result: ToolResultMessage = message;
+
+  const status = isUnfinished(entry)
+    ? ToolCallStatus.Aborted
+    : result.isError
+      ? ToolCallStatus.Error
+      : ToolCallStatus.Ok;
+
+  const diagnosed = entry.data.diagnostics.find(
+    (diagnostic) => diagnostic.severity === "error"
+  );
+
   return {
     type: AgentEventType.ToolEnd,
     toolCallId: result.toolCallId,
     toolName: result.toolName,
-    status: result.isError ? ToolCallStatus.Error : ToolCallStatus.Ok,
-    error: result.isError
-      ? failureLine(contentText(result.content))
-      : undefined,
+    status,
+    error:
+      status === ToolCallStatus.Error
+        ? failureLine(diagnosed?.message ?? contentText(result.content))
+        : undefined,
     details: result.details,
   };
 }
 
 /**
- * Rebuilds a transcript's wire events so a renderer that opens a conversation folds it like the
- * live stream. A completed reply arrives whole, without deltas. Calls whose results never came
- * are closed as aborted, and a transcript that stops mid-run ends as interrupted, unless the run
- * is still `running`.
+ * Rebuilds a transcript's wire events, oldest entry first, so a renderer that opens a
+ * conversation folds it like the live stream. A completed reply arrives whole, without deltas.
+ * Unless the conversation is `running`, calls whose results never came are closed as aborted,
+ * and a run that stops short ends as interrupted.
  */
 export function transcriptEvents(
-  entries: readonly TranscriptEntry[],
+  entries: readonly EntryRecord[],
   running: boolean
 ): AgentWireEvent[] {
   const events: AgentWireEvent[] = [];
   let open = new Map<string, string>();
   let inRun = false;
+  // How the run ends if nothing follows: a reply that failed or was cut short, or a call stopped
+  // with its run.
+  let pending: RunEnd | undefined;
 
   const closeOpen = () => {
     for (const [toolCallId, toolName] of open) {
@@ -159,62 +170,70 @@ export function transcriptEvents(
     open = new Map();
   };
 
-  for (const { id, message } of entries) {
-    if (message.role !== "toolResult") closeOpen();
+  const endRun = () => {
+    closeOpen();
 
-    switch (message.role) {
-      case "user":
-        if (inRun) {
-          events.push({
-            type: AgentEventType.RunEnd,
-            reason: RunEndReason.Interrupted,
-          });
+    if (inRun) {
+      events.push(
+        pending ?? {
+          type: AgentEventType.RunEnd,
+          reason: RunEndReason.Interrupted,
         }
+      );
+    }
 
-        events.push(
-          { type: AgentEventType.RunStart },
-          {
-            type: AgentEventType.User,
-            messageId: id,
-            text: userText(message),
-            at: message.timestamp,
-          }
-        );
-        inRun = true;
-        break;
+    inRun = false;
+    pending = undefined;
+  };
 
-      case "assistant": {
-        events.push(assistantEndEvent(id, message));
+  for (const entry of entries) {
+    const [message] = entry.model ?? [];
 
-        for (const part of message.content) {
-          if (part.type !== "toolCall") continue;
-
-          events.push({
-            type: AgentEventType.ToolStart,
-            toolCallId: part.id,
-            toolName: part.name,
-            args: part.arguments,
-          });
-          open.set(part.id, part.name);
+    if (UserEntry.is(entry) && message?.role === "user") {
+      endRun();
+      events.push(
+        { type: AgentEventType.RunStart },
+        {
+          type: AgentEventType.User,
+          messageId: messageId(entry),
+          text: userText(message),
+          at: message.timestamp,
         }
+      );
+      inRun = true;
+    } else if (AssistantEntry.is(entry) && message?.role === "assistant") {
+      closeOpen();
+      events.push(assistantEndEvent(messageId(entry), message));
 
-        const end = runEndOf(message);
+      for (const part of message.content) {
+        if (part.type !== "toolCall") continue;
 
-        if (end) {
-          events.push(end);
-          inRun = false;
-        }
-
-        break;
+        events.push({
+          type: AgentEventType.ToolStart,
+          toolCallId: part.id,
+          toolName: part.name,
+          args: part.arguments,
+        });
+        open.set(part.id, part.name);
       }
 
-      case "toolResult":
-        events.push(toolEndEvent(message));
-        open.delete(message.toolCallId);
-        break;
+      pending = runEndOf(message);
 
-      default:
-        break;
+      if (pending?.reason === RunEndReason.Done) endRun();
+    } else {
+      const toolEnd = toolEndEvent(entry);
+
+      if (toolEnd) {
+        events.push(toolEnd);
+        open.delete(toolEnd.toolCallId);
+
+        if (toolEnd.status === ToolCallStatus.Aborted) {
+          pending = {
+            type: AgentEventType.RunEnd,
+            reason: RunEndReason.Aborted,
+          };
+        }
+      }
     }
   }
 
@@ -222,14 +241,7 @@ export function transcriptEvents(
     // A run that has not stored its user message yet still shows as running.
     if (!inRun) events.push({ type: AgentEventType.RunStart });
   } else {
-    closeOpen();
-
-    if (inRun) {
-      events.push({
-        type: AgentEventType.RunEnd,
-        reason: RunEndReason.Interrupted,
-      });
-    }
+    endRun();
   }
 
   return events;

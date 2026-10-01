@@ -15,7 +15,10 @@ import { AgentAuth, AgentProvider } from "@solyx/agent/providers";
 
 import { Secret } from "#shared/ipc/settings.ts";
 
-import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
+import {
+  agentAuth,
+  createAgentModels,
+} from "../src/main/modules/agent/agent-models.ts";
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
 import { createCredentialStore } from "../src/main/modules/settings/credential-store.ts";
 import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
@@ -38,7 +41,10 @@ function setup() {
     fakeCipher().cipher
   );
 
-  const credentials = createCredentialStore(secrets);
+  const credentials = createCredentialStore(
+    secrets,
+    (provider) => agentAuth(config, provider) === AgentAuth.Subscription
+  );
 
   config.create();
 
@@ -81,10 +87,10 @@ describe("paying by subscription", () => {
       ready: true,
     });
 
-    const choice = await models.choice();
-
-    expect(choice.model.id).toBe("gpt-6.1-sol");
-    expect(choice.apiKey).toBeUndefined();
+    expect((await models.choice()).model.id).toBe("gpt-6.1-sol");
+    expect(await credentials.read(AgentProvider.OpenAI)).toMatchObject({
+      type: "oauth",
+    });
   });
 
   test("a saved key does not stand in for a missing sign-in", async () => {
@@ -98,7 +104,7 @@ describe("paying by subscription", () => {
   });
 
   test("applies only to providers that offer it", async () => {
-    const { config, secrets, models } = setup();
+    const { config, secrets, credentials, models } = setup();
 
     config.set(["agent", "provider"], AgentProvider.Anthropic);
     config.set(["agent", "auth"], AgentAuth.Subscription);
@@ -109,7 +115,11 @@ describe("paying by subscription", () => {
       subscription: null,
       ready: true,
     });
-    expect((await models.choice()).apiKey).toBe("sk-ant-test");
+    await expect(models.choice()).resolves.toBeDefined();
+    expect(await credentials.read(AgentProvider.Anthropic)).toEqual({
+      type: "api_key",
+      key: "sk-ant-test",
+    });
     await expect(models.signIn("en-US")).rejects.toThrow(
       "no subscription sign-in"
     );

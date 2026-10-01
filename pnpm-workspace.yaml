@@ -18,9 +18,11 @@ catalog:
 
 catalogs:
   agent:
-    "@earendil-works/pi-agent-core": 0.99.1
-    "@earendil-works/pi-ai": 0.99.1
-    "@earendil-works/pi-mcp": 0.99.1
+    "@earendil-works/chord": 1.0.0
+    "@earendil-works/pi-ai": 1.0.0
+    "@earendil-works/pi-durable": 1.0.0
+    "@earendil-works/pi-mcp": 1.0.0
+    yaml: 2.9.0
   charts:
     lightweight-charts: 5.2.1
   chiastack:
@@ -88,8 +90,8 @@ minimumReleaseAgeExclude:
   - "@voidzero-dev/vite-plus-win32-arm64-msvc@1.0.0"
   - "@voidzero-dev/vite-plus-win32-x64-msvc@1.0.0"
   - vite-plus@1.0.0
-  - '@earendil-works/chord@0.99.1'
-  - '@earendil-works/pi-agent-core@0.99.1'
-  - '@earendil-works/pi-ai@0.99.1'
-  - '@earendil-works/pi-telemetry@0.99.1'
-  - '@earendil-works/pi-mcp@0.99.1'
+  - '@earendil-works/chord@1.0.0'
+  - '@earendil-works/pi-ai@1.0.0'
+  - '@earendil-works/pi-durable@1.0.0'
+  - '@earendil-works/pi-mcp@1.0.0'
+  - '@earendil-works/pi-telemetry@1.0.0'

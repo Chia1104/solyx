@@ -3,15 +3,18 @@ import { dirname, join } from "node:path";
 import { app, nativeTheme, shell } from "electron";
 import { kebabCase } from "es-toolkit";
 
+import { AgentAuth } from "@solyx/agent/providers";
 import { createPaperBroker } from "@solyx/brokers/paper";
 import { OrderDesk } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
 import { Session, getSession } from "@solyx/core/session";
+import { openAgentStore } from "@solyx/db/agent";
 import { openCache } from "@solyx/db/cache";
 import { openUserData } from "@solyx/db/user";
 
 import { AppLocation, Theme } from "#shared/ipc/settings.ts";
 
+import { agentAuth } from "./modules/agent/agent-models.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
 import { createLiveCandles } from "./modules/market/live-candles.ts";
@@ -107,7 +110,10 @@ export function createServices() {
   const agent = createAgentService({
     config,
     secrets,
-    credentials: createCredentialStore(secrets),
+    credentials: createCredentialStore(
+      secrets,
+      (provider) => agentAuth(config, provider) === AgentAuth.Subscription
+    ),
     getDeviceId: installationId(
       join(app.getPath("userData"), "installation-id")
     ),
@@ -117,7 +123,9 @@ export function createServices() {
     skillFolders,
     instructionsFile: join(dirname(config.file), "AGENTS.md"),
     mcp,
-    sessions: userData.agentSessions,
+    conversations: openAgentStore(
+      join(app.getPath("userData"), "agent.sqlite")
+    ),
     marketData: (market) => marketData.provider(market),
     watchlist: () => userData.watchlist.list(),
     broker,

@@ -11,6 +11,7 @@
     "./prompt": "./src/prompt.ts",
     "./providers": "./src/providers.ts",
     "./runtime": "./src/runtime.ts",
+    "./skill-source": "./src/skill-source.ts",
     "./skills": "./src/skills.ts",
     "./tools": "./src/tools.ts",
     "./transcript": "./src/transcript.ts",
@@ -20,11 +21,13 @@
     "test": "vp test"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "catalog:agent",
+    "@earendil-works/chord": "catalog:agent",
     "@earendil-works/pi-ai": "catalog:agent",
+    "@earendil-works/pi-durable": "catalog:agent",
     "@earendil-works/pi-mcp": "catalog:agent",
     "@solyx/core": "workspace:*",
     "es-toolkit": "catalog:",
+    "yaml": "catalog:agent",
     "zod": "catalog:"
   },
   "devDependencies": {

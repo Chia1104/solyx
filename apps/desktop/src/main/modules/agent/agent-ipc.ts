@@ -27,38 +27,20 @@ const handle = ipcModule<AgentApi>(agentChannels, {
   approve: z.tuple([idSchema, idSchema, z.boolean()]),
 });
 
-export function registerAgentIpc({ agent, userData }: Services) {
-  const sessions = userData.agentSessions;
+export function registerAgentIpc({ agent }: Services) {
+  handle("sessions", () => agent.sessions());
 
-  handle("sessions", async () => sessions.list());
+  handle("createSession", () => agent.createSession());
 
-  handle("createSession", async () => {
-    const at = Date.now();
+  handle("deleteSession", (id) => agent.deleteSession(id));
 
-    const session = {
-      id: crypto.randomUUID(),
-      title: "",
-      createdAt: at,
-      updatedAt: at,
-    };
-
-    sessions.create(session);
-
-    return session;
-  });
-
-  handle("deleteSession", async (id) => {
-    await agent.runtime.stop(id);
-    sessions.delete(id);
-  });
-
-  handle("transcript", async (id) => agent.transcript(id));
+  handle("transcript", (id) => agent.transcript(id));
 
   handle("send", (id, text, focus, locale) =>
     agent.send(id, text, focus, locale)
   );
 
-  handle("abort", async (id) => agent.runtime.abort(id));
+  handle("abort", (id) => agent.abort(id));
 
   handle("approve", async (id, toolCallId, approved) =>
     agent.approve(id, toolCallId, approved)

@@ -134,14 +134,17 @@ export function createMcpServers({
       return { error: fileError, servers: hub.status() };
     },
 
-    /** The tools of every connected server for one run, each asking through `allow` as its policy says. */
-    async tools(
+    /**
+     * The tools of every connected server as the agent's extension, each asking through `allow` as
+     * its policy says. Servers get a moment to connect first.
+     */
+    async extension(
       allow: (call: McpToolCall, signal?: AbortSignal) => Promise<boolean>
     ) {
       await start();
       await hub.settled(CONNECT_WAIT_MS);
 
-      return hub.tools({ policies: policies(), allow });
+      return hub.extension({ policies: policies(), allow });
     },
 
     reconnect: (name: string) => hub.reconnect(name),
