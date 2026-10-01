@@ -149,7 +149,10 @@ export function createAgentModels({
       return { model, thinking };
     },
 
-    /** Resolves once the sign-in is saved, or quietly once it is cancelled. */
+    /**
+     * Resolves once the sign-in is saved, or quietly once it is cancelled. A sign-in still open,
+     * such as one whose browser page was closed, gives way to the new one.
+     */
     async signIn(locale: string) {
       const { provider, subscribable } = selection();
 
@@ -157,7 +160,7 @@ export function createAgentModels({
         throw new Error(`${provider} has no subscription sign-in`);
       }
 
-      if (signIn) throw new Error("A sign-in is already open");
+      signIn?.controller.abort();
 
       const current = { controller: new AbortController(), locale };
 
@@ -188,7 +191,7 @@ export function createAgentModels({
       } catch (error) {
         if (!current.controller.signal.aborted) throw error;
       } finally {
-        signIn = undefined;
+        if (signIn === current) signIn = undefined;
       }
     },
 

@@ -48,16 +48,18 @@ function setup() {
 
   config.create();
 
+  const openExternal = vi.fn();
+
   const models = createAgentModels({
     config,
     secrets,
     credentials,
     getDeviceId: () => "00000000-0000-4000-8000-000000000000",
-    openExternal: vi.fn(),
+    openExternal,
     signInPage: () => "",
   });
 
-  return { config, secrets, credentials, models };
+  return { config, secrets, credentials, models, openExternal };
 }
 
 describe("paying by subscription", () => {
@@ -91,6 +93,27 @@ describe("paying by subscription", () => {
     expect(await credentials.read(AgentProvider.OpenAI)).toMatchObject({
       type: "oauth",
     });
+  });
+
+  test("signing in again replaces a sign-in still open", async () => {
+    const { config, models, openExternal } = setup();
+
+    config.set(["agent", "provider"], AgentProvider.OpenAI);
+    config.set(["agent", "auth"], AgentAuth.Subscription);
+
+    const first = models.signIn("en-US");
+
+    await vi.waitFor(() => expect(openExternal).toHaveBeenCalledOnce());
+
+    // Its browser page was closed, so the user starts over.
+    const second = models.signIn("en-US");
+
+    await expect(first).resolves.toBeUndefined();
+    await vi.waitFor(() => expect(openExternal).toHaveBeenCalledTimes(2));
+
+    models.cancelSignIn();
+
+    await expect(second).resolves.toBeUndefined();
   });
 
   test("a saved key does not stand in for a missing sign-in", async () => {
