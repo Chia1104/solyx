@@ -512,6 +512,7 @@
   },
   "sign-in-page": {
     "chatgpt": {
+      "label": "Sign in with ChatGPT",
       "signed-in": {
         "title": "Signed in to ChatGPT",
         "body": "You can close this tab and return to Solyx."
@@ -522,6 +523,7 @@
       }
     },
     "mcp": {
+      "label": "MCP server sign-in",
       "signed-in": {
         "title": "Authorization sent to Solyx",
         "body": "You can close this tab. Solyx finishes connecting the MCP server."

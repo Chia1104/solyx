@@ -512,6 +512,7 @@
   },
   "sign-in-page": {
     "chatgpt": {
+      "label": "使用 ChatGPT 登入",
       "signed-in": {
         "title": "已登入 ChatGPT",
         "body": "可以關閉這個分頁，回到 Solyx。"
@@ -522,6 +523,7 @@
       }
     },
     "mcp": {
+      "label": "MCP server 登入",
       "signed-in": {
         "title": "已將授權交給 Solyx",
         "body": "可以關閉這個分頁，Solyx 會完成 MCP server 的連線。"
