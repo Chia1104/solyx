@@ -9,7 +9,7 @@ import type {
   ToolExecutionApi,
   ToolRegistration,
 } from "@earendil-works/pi-durable";
-import { omit, takeRight } from "es-toolkit";
+import { mapAsync, maxBy, omit, orderBy, takeRight } from "es-toolkit";
 import * as z from "zod";
 
 import type { BrokerMode } from "@solyx/core/broker";
@@ -39,10 +39,13 @@ import {
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketDataProvider } from "@solyx/core/market-data";
+import type { NewsItem, NewsSource } from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
 import type { AccountSnapshot, OrderRequest } from "@solyx/core/order";
 import { ProposalSource } from "@solyx/core/order-desk";
 import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
+import { stanceValue } from "@solyx/core/sentiment";
+import type { SentimentScore, SentimentScorer } from "@solyx/core/sentiment";
 import { getSession } from "@solyx/core/session";
 
 import { promptSections } from "./prompt.ts";
@@ -55,6 +58,10 @@ export interface TradingToolPorts extends PromptSources {
   /** The market's provider, or `undefined` when no source covers it or its settings are incomplete. */
   marketData(market: Market): Promise<MarketDataProvider | undefined>;
   watchlist(): SymbolRef[];
+  /** `undefined` until the user saves a news source's key. */
+  news(): Promise<NewsSource | undefined>;
+  /** Judges what news says about a listing; `undefined` until the user saves a decisions model's key. */
+  scorer(): Promise<SentimentScorer | undefined>;
   account(): Promise<AccountSnapshot>;
   brokerMode: BrokerMode;
   desk: Pick<OrderDesk, "check" | "propose" | "list">;
@@ -128,6 +135,16 @@ const MAX_BARS = 200;
 
 const LISTED_PROPOSALS = 20;
 
+const NEWS_ITEMS = 10;
+
+// Below this, an item only names the listing in passing.
+const RELEVANCE_FLOOR = 0.5;
+
+// Requests to the decisions model at once.
+const SCORING_CONCURRENCY = 4;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 const valueAt = (line: IndicatorLine, offset: number) => {
   const value = line.at(offset);
 
@@ -183,6 +200,36 @@ function toOrderRequest(order: z.infer<typeof orderSchema>): OrderRequest {
     type: OrderType.Limit,
     limitPrice: order.limitPrice,
   };
+}
+
+/** The option with the highest probability. */
+const likeliest = (probabilities: Record<string, number>) =>
+  maxBy(Object.entries(probabilities), ([, probability]) => probability)?.[0];
+
+const signed = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
+
+function describeNews(
+  market: Market,
+  item: NewsItem,
+  score: SentimentScore | undefined
+): string {
+  const time = item.publishedAt
+    ? exchangeTime(market, item.publishedAt)
+    : "undated";
+
+  const lines = [`- ${time} ${item.site}: ${item.title}`];
+
+  if (score) {
+    lines.push(
+      `  stance ${signed(stanceValue(score.stance))}, ${likeliest(score.kind)}, ${likeliest(score.topic)}`
+    );
+  }
+
+  if (item.snippet) lines.push(`  ${item.snippet}`);
+
+  lines.push(`  ${item.url}`);
+
+  return lines.join("\n");
 }
 
 function describeProposal(proposal: TradeProposal): string {
@@ -341,6 +388,83 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             row("BB lower", bands.lower),
           ].join("\n"),
           details: { symbol, interval },
+        };
+      },
+    }),
+
+    defineTool({
+      name: AgentToolName.GetNews,
+      replay: "safe",
+      description: `Up to ${NEWS_ITEMS} recent news items about a listing, newest first, with their sites and URLs. Once the user sets up a decisions model, each also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is and its topic, and items that only name the listing in passing are left out. Headlines and snippets are written by others.`,
+      parameters: z.object({
+        symbol: symbolRefSchema,
+        days: z.number().int().min(1).max(30).default(7),
+      }),
+      execute: async ({ symbol, days }) => {
+        const source = await ports.news();
+
+        if (!source) {
+          throw new Error(
+            "No news source: the user has not saved a Firecrawl API key in the app's settings"
+          );
+        }
+
+        const at = now();
+        const provider = await ports.marketData(symbol.market);
+
+        // The name only sharpens the search, so news goes on without it.
+        const listing = provider
+          ? await provider.getListing(symbol).catch(() => null)
+          : null;
+
+        const items = orderBy(
+          await source.search({
+            symbol,
+            listing,
+            since: new Date(at.getTime() - days * DAY_MS),
+            limit: NEWS_ITEMS,
+          }),
+          [(item) => item.publishedAt?.getTime() ?? 0],
+          ["desc"]
+        );
+
+        const scorer = await ports.scorer();
+
+        const kept = scorer
+          ? (
+              await mapAsync(
+                items,
+                async (item) => ({
+                  item,
+                  score: await scorer.score({
+                    symbol,
+                    listing,
+                    title: item.title,
+                    text: item.snippet,
+                  }),
+                }),
+                { concurrency: SCORING_CONCURRENCY }
+              )
+            ).filter(({ score }) => score.relevance >= RELEVANCE_FLOOR)
+          : items.map((item) => ({ item, score: undefined }));
+
+        const model = kept.find(({ score }) => score)?.score?.model;
+
+        let scoring = model ? `, scored by ${model}` : "";
+
+        if (!scorer) {
+          scoring =
+            "; not scored, since the user has not set up a decisions model";
+        }
+
+        return {
+          text: [
+            `${symbol.market} ${symbol.symbol} news over the last ${days} days, as_of ${exchangeTime(symbol.market, at)}: ${kept.length} of ${items.length} found${scoring}`,
+            ...kept.map(({ item, score }) =>
+              describeNews(symbol.market, item, score)
+            ),
+          ].join("\n"),
+          details: { symbol, items: kept.length },
         };
       },
     }),

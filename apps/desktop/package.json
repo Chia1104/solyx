@@ -25,6 +25,7 @@
     "@solyx/decisions": "workspace:*",
     "@solyx/i18n": "workspace:*",
     "@solyx/market-data": "workspace:*",
+    "@solyx/news": "workspace:*",
     "@solyx/trading-chart": "workspace:*",
     "@solyx/utils": "workspace:*",
     "@streamdown/cjk": "catalog:markdown",

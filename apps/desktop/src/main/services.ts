@@ -23,6 +23,7 @@ import { createDecisions } from "./modules/decisions/decisions.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createLiveCandles } from "./modules/market/live-candles.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
+import { createNews } from "./modules/news/news.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
 import { createCredentialStore } from "./modules/settings/credential-store.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
@@ -112,6 +113,10 @@ export function createServices() {
     openExternal,
   });
 
+  const decisions = createDecisions({ config, secrets });
+
+  const news = createNews({ secrets });
+
   const agent = createAgentService({
     config,
     secrets,
@@ -127,11 +132,11 @@ export function createServices() {
     conversations: openAgentStore(join(userDataDir, "agent.sqlite")),
     marketData: (market) => marketData.provider(market),
     watchlist: () => userData.watchlist.list(),
+    news: () => news.source(),
+    scorer: () => decisions.scorer(),
     broker,
     desk,
   });
-
-  const decisions = createDecisions({ config, secrets });
 
   let appliedStreamSettings = marketData.streamSettings();
 

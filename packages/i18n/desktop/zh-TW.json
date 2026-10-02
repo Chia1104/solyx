@@ -156,6 +156,7 @@
       "get_market_status": "查看市場狀態",
       "get_candles": "讀取 K 線",
       "get_indicators": "讀取技術指標",
+      "get_news": "讀取新聞",
       "get_watchlist": "讀取自選股",
       "get_account": "讀取帳戶",
       "list_proposals": "讀取提案",
@@ -411,6 +412,10 @@
       "decisions-api-key": {
         "label": "API 金鑰",
         "hint": "在 TypeSafe console 建立的金鑰。目前只支援 TypeSafe 的模型。"
+      },
+      "firecrawl-api-key": {
+        "label": "Firecrawl API 金鑰",
+        "hint": "在 Firecrawl 後台建立的金鑰。"
       }
     },
     "sign-in": {
@@ -486,6 +491,10 @@
         "medium": "中",
         "high": "高"
       }
+    },
+    "news": {
+      "title": "新聞",
+      "description": "Agent 會透過 Firecrawl 搜尋個股的近期新聞，使用你自己的金鑰。每次搜尋都會用掉 Firecrawl 額度，請求直接從這台電腦送到 Firecrawl。"
     },
     "decisions": {
       "title": "決策模型",

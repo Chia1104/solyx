@@ -156,6 +156,7 @@
       "get_market_status": "Checked market status",
       "get_candles": "Read candles",
       "get_indicators": "Read indicators",
+      "get_news": "Read news",
       "get_watchlist": "Read your watchlist",
       "get_account": "Read your account",
       "list_proposals": "Read your proposals",
@@ -411,6 +412,10 @@
       "decisions-api-key": {
         "label": "API key",
         "hint": "A key from the TypeSafe console. Only TypeSafe's models are supported for now."
+      },
+      "firecrawl-api-key": {
+        "label": "Firecrawl API key",
+        "hint": "A key from your Firecrawl dashboard."
       }
     },
     "sign-in": {
@@ -486,6 +491,10 @@
         "medium": "Medium",
         "high": "High"
       }
+    },
+    "news": {
+      "title": "News",
+      "description": "The agent searches recent news about a listing through Firecrawl, on your own key. Each search uses Firecrawl credits, and requests go straight from this computer to Firecrawl."
     },
     "decisions": {
       "title": "Decisions model",
