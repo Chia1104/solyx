@@ -79,6 +79,13 @@ const api: SolyxApi = {
     setTheme: (theme) => invoke(settingsChannels.setTheme, theme),
     setPalette: (scheme, palette) =>
       invoke(settingsChannels.setPalette, scheme, palette),
+    copyPalette: (palette, name) =>
+      invoke(settingsChannels.copyPalette, palette, name),
+    renamePalette: (palette, name) =>
+      invoke(settingsChannels.renamePalette, palette, name),
+    setPaletteColor: (palette, scheme, token, color) =>
+      invoke(settingsChannels.setPaletteColor, palette, scheme, token, color),
+    deletePalette: (palette) => invoke(settingsChannels.deletePalette, palette),
     setPriceColors: (priceColors) =>
       invoke(settingsChannels.setPriceColors, priceColors),
     secrets: () => invoke(settingsChannels.secrets),

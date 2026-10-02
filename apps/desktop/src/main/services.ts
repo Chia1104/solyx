@@ -14,7 +14,7 @@ import { openCache } from "@solyx/db/cache";
 import { openUserData } from "@solyx/db/user";
 
 import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
-import { ColorScheme, PALETTES } from "#shared/palette.ts";
+import { ColorScheme, resolvePalette } from "#shared/palette.ts";
 
 import { agentAuth } from "./modules/agent/agent-models.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
@@ -148,7 +148,9 @@ export function createServices() {
       ? ColorScheme.Dark
       : ColorScheme.Light;
 
-    return PALETTES[appearance().palette[scheme]][scheme];
+    const { palette, palettes } = appearance();
+
+    return resolvePalette(palette[scheme], palettes, scheme);
   }
 
   let appliedAppearance = appearance();

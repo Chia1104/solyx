@@ -39,6 +39,7 @@ test("a missing file reads as the defaults, which a new file's commented templat
     appearance: {
       theme: Theme.System,
       palette: { light: Palette.Blueprint, dark: Palette.Blueprint },
+      palettes: {},
       priceColors: PriceColors.Market,
     },
     marketData: { TW: MarketDataSource.Fugle },
@@ -118,6 +119,18 @@ test("an update saves every entry and keeps the file's comments", async () => {
   expect(await readFile(file, "utf8")).toMatch(/^\/\/ /);
 });
 
+test("saving beneath an entry of the wrong shape replaces it, since it reads as its default", async () => {
+  const config = createConfigFile(file);
+
+  config.create();
+  await writeFile(file, '{ "providers": { "fugle": "developer" } } // kept');
+
+  config.set(["providers", "fugle", "plan"], "advanced");
+
+  expect(fuglePlan(config)).toBe("advanced");
+  expect(await readFile(file, "utf8")).toContain("// kept");
+});
+
 test("a file with syntax errors reads as defaults and is never overwritten", async () => {
   const config = createConfigFile(file);
   const broken = '{ "providers": { "fugle": { "plan": "developer" }';
@@ -186,6 +199,7 @@ test("the appearance falls back entry by entry until values the app knows are sa
   const defaults = {
     theme: Theme.System,
     palette: { light: Palette.Blueprint, dark: Palette.Blueprint },
+    palettes: {},
     priceColors: PriceColors.Market,
   };
 
@@ -217,7 +231,65 @@ test("the appearance falls back entry by entry until values the app knows are sa
   expect(config.read().appearance).toEqual({
     theme: Theme.Dark,
     palette: { light: Palette.Iris, dark: Palette.Lagoon },
+    palettes: {},
     priceColors: PriceColors.RedUp,
   });
   expect(config.read().marketData.TW).toBe("fubon");
+});
+
+test("custom palettes keep what parses, and a palette is shown only while it exists", async () => {
+  const config = createConfigFile(file);
+
+  config.create();
+  await writeFile(
+    file,
+    JSON.stringify({
+      appearance: {
+        palette: { light: "dusk", dark: "missing" },
+        palettes: {
+          dusk: {
+            name: "Dusk",
+            extends: "iris",
+            light: { accent: "#AA3366", muted: "teal", glow: "#ffffff" },
+            dark: "none",
+          },
+          plain: { extends: "neon" },
+          broken: "#ffffff",
+          sepia: { name: "Mine", extends: "graphite" },
+        },
+      },
+    })
+  );
+
+  expect(config.read().appearance).toMatchObject({
+    palette: { light: "dusk", dark: Palette.Blueprint },
+    palettes: {
+      dusk: {
+        name: "Dusk",
+        extends: Palette.Iris,
+        light: { accent: "#aa3366" },
+        dark: {},
+      },
+      plain: { extends: Palette.Blueprint, light: {}, dark: {} },
+    },
+  });
+  expect(Object.keys(config.read().appearance.palettes)).toEqual([
+    "dusk",
+    "plain",
+  ]);
+
+  config.set(
+    ["appearance", "palettes", "dusk", "dark", "background"],
+    "#101010"
+  );
+  config.set(["appearance", "palettes", "dusk", "light", "accent"], undefined);
+
+  expect(config.read().appearance.palettes.dusk).toMatchObject({
+    light: {},
+    dark: { background: "#101010" },
+  });
+
+  config.set(["appearance", "palettes", "dusk"], undefined);
+
+  expect(config.read().appearance.palette.light).toBe(Palette.Blueprint);
 });

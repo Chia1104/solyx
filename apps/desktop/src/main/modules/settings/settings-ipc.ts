@@ -20,6 +20,7 @@ import {
 import { SkillSource } from "@solyx/agent/skill-source";
 import { Market } from "@solyx/core/market";
 import { fuglePlanSchema } from "@solyx/market-data/fugle";
+import { isEnumValue } from "@solyx/utils/is";
 
 import {
   AppLocation,
@@ -35,18 +36,43 @@ import {
   themeSchema,
 } from "#shared/ipc/settings.ts";
 import type { SettingsApi } from "#shared/ipc/settings.ts";
-import { colorSchemeSchema, paletteSchema } from "#shared/palette.ts";
+import {
+  ColorScheme,
+  Palette,
+  colorSchemeSchema,
+  hasPalette,
+  hexColorSchema,
+  isCustomPalette,
+  paletteTokenSchema,
+} from "#shared/palette.ts";
+import type { CustomPalette } from "#shared/palette.ts";
 
 import { ipcModule } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";
 
+import type { ConfigEntry } from "./config-file.ts";
+
 // An MCP server's or tool's name, as mcp.json and the server give it.
 const mcpNameSchema = z.string().min(1).max(128);
+
+// A palette's id, which a person may have written into the config file.
+const paletteIdSchema = z.string().min(1).max(128);
+
+const paletteNameSchema = z.string().trim().min(1).max(60);
 
 const handle = ipcModule<SettingsApi>(settingsChannels, {
   appearance: z.tuple([]),
   setTheme: z.tuple([themeSchema]),
-  setPalette: z.tuple([colorSchemeSchema, paletteSchema]),
+  setPalette: z.tuple([colorSchemeSchema, paletteIdSchema]),
+  copyPalette: z.tuple([paletteIdSchema, paletteNameSchema]),
+  renamePalette: z.tuple([paletteIdSchema, paletteNameSchema]),
+  setPaletteColor: z.tuple([
+    paletteIdSchema,
+    colorSchemeSchema,
+    paletteTokenSchema,
+    hexColorSchema.nullable(),
+  ]),
+  deletePalette: z.tuple([paletteIdSchema]),
   setPriceColors: z.tuple([priceColorsSchema]),
   secrets: z.tuple([]),
   saveSecret: z.tuple([
@@ -132,8 +158,78 @@ export function registerSettingsIpc({
     applyAppearance();
   });
 
+  /** The custom palette `id`, or an error for one that is built in or gone. */
+  function customPalette(id: string) {
+    const { palettes } = appearance();
+
+    if (!isCustomPalette(id, palettes)) {
+      throw new Error(`No custom palette "${id}"`);
+    }
+
+    return palettes[id];
+  }
+
   handle("setPalette", async (scheme, palette) => {
+    if (!hasPalette(palette, appearance().palettes)) {
+      throw new Error(`No palette "${palette}"`);
+    }
+
     config.set(["appearance", "palette", scheme], palette);
+    applyAppearance();
+  });
+
+  // A copy of a built-in palette sets nothing over it; a copy of a custom one keeps its colours.
+  handle("copyPalette", async (source, name) => {
+    const { palettes } = appearance();
+
+    const copy: CustomPalette | undefined = isCustomPalette(source, palettes)
+      ? { ...palettes[source], name }
+      : isEnumValue(Palette, source)
+        ? { name, extends: source, light: {}, dark: {} }
+        : undefined;
+
+    if (!copy) throw new Error(`No palette "${source}"`);
+
+    let number = 1;
+
+    while (Object.hasOwn(palettes, `custom-${number}`)) number += 1;
+
+    const id = `custom-${number}`;
+
+    config.set(["appearance", "palettes", id], copy);
+    applyAppearance();
+
+    return id;
+  });
+
+  handle("renamePalette", async (palette, name) => {
+    customPalette(palette);
+    config.set(["appearance", "palettes", palette, "name"], name);
+    applyAppearance();
+  });
+
+  handle("setPaletteColor", async (palette, scheme, token, color) => {
+    customPalette(palette);
+    config.set(
+      ["appearance", "palettes", palette, scheme, token],
+      color ?? undefined
+    );
+    applyAppearance();
+  });
+
+  handle("deletePalette", async (palette) => {
+    const { extends: base } = customPalette(palette);
+    const shown = appearance().palette;
+
+    config.update([
+      [["appearance", "palettes", palette], undefined],
+      ...Object.values(ColorScheme)
+        .filter((scheme) => shown[scheme] === palette)
+        .map((scheme): ConfigEntry => [
+          ["appearance", "palette", scheme],
+          base,
+        ]),
+    ]);
     applyAppearance();
   });
 

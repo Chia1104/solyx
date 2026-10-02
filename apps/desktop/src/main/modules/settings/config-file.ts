@@ -1,7 +1,13 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-import { applyEdits, modify, parse } from "jsonc-parser";
+import {
+  applyEdits,
+  findNodeAtLocation,
+  modify,
+  parse,
+  parseTree,
+} from "jsonc-parser";
 import type { ParseError } from "jsonc-parser";
 import * as z from "zod";
 
@@ -28,12 +34,20 @@ import {
   themeSchema,
 } from "#shared/ipc/settings.ts";
 import type { FubonFile } from "#shared/ipc/settings.ts";
-import { ColorScheme, Palette, paletteSchema } from "#shared/palette.ts";
+import {
+  ColorScheme,
+  Palette,
+  customPalettesSchema,
+  hasPalette,
+} from "#shared/palette.ts";
+import type { CustomPalette, PaletteToken } from "#shared/palette.ts";
 
 const PARSE_OPTIONS = { allowTrailingComma: true };
 
 // Text that is empty or of the wrong shape reads as missing.
 const textSchema = z.string().trim().min(1).optional().catch(undefined);
+
+const paletteIdSchema = z.string().min(1).catch(Palette.Blueprint);
 
 /** A section that is missing or of the wrong shape reads as empty, so each of its entries reads as its default. */
 function section<T extends z.ZodType>(schema: T) {
@@ -45,16 +59,31 @@ function section<T extends z.ZodType>(schema: T) {
 const configSchema = section(
   z.looseObject({
     appearance: section(
-      z.looseObject({
-        theme: themeSchema.catch(Theme.System),
-        palette: section(
-          z.looseObject({
-            [ColorScheme.Light]: paletteSchema.catch(Palette.Blueprint),
-            [ColorScheme.Dark]: paletteSchema.catch(Palette.Blueprint),
-          })
-        ),
-        priceColors: priceColorsSchema.catch(PriceColors.Market),
-      })
+      z
+        .looseObject({
+          theme: themeSchema.catch(Theme.System),
+          palette: section(
+            z.looseObject({
+              [ColorScheme.Light]: paletteIdSchema,
+              [ColorScheme.Dark]: paletteIdSchema,
+            })
+          ),
+          palettes: customPalettesSchema,
+          priceColors: priceColorsSchema.catch(PriceColors.Market),
+        })
+        .transform(({ palette, ...appearance }) => {
+          // A palette that is neither built in nor one of the user's reads as the default.
+          const known = (id: string) =>
+            hasPalette(id, appearance.palettes) ? id : Palette.Blueprint;
+
+          return {
+            ...appearance,
+            palette: {
+              [ColorScheme.Light]: known(palette.light),
+              [ColorScheme.Dark]: known(palette.dark),
+            },
+          };
+        })
     ),
     marketData: section(
       z.looseObject({
@@ -94,13 +123,19 @@ const DEFAULTS: Config = configSchema.parse({});
 type ConfigPath =
   | ["appearance", "theme" | "priceColors"]
   | ["appearance", "palette", ColorScheme]
+  | ["appearance", "palettes", string]
+  | ["appearance", "palettes", string, "name"]
+  | ["appearance", "palettes", string, ColorScheme, PaletteToken]
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle", "plan"]
   | ["providers", "fubon", FubonFile]
   | ["agent", "provider" | "model" | "thinking" | "auth" | "sharedSkills"]
   | ["agent", "mcpTools", string];
 
-type ConfigEntry = readonly [path: ConfigPath, value: string | string[]];
+/** `undefined` removes the entry. */
+type ConfigValue = string | string[] | CustomPalette | undefined;
+
+export type ConfigEntry = readonly [path: ConfigPath, value: ConfigValue];
 
 const FORMATTING = { formattingOptions: { insertSpaces: true, tabSize: 2 } };
 
@@ -117,6 +152,9 @@ const TEMPLATE = [
   `    "theme": "${DEFAULTS.appearance.theme}",`,
   `    // The palette each appearance shows: ${quoted(Palette)}.`,
   `    "palette": { "light": "${DEFAULTS.appearance.palette.light}", "dark": "${DEFAULTS.appearance.palette.dark}" },`,
+  '    // Your own palettes by id, which "palette" can name too. Each starts from a built-in one in "extends"',
+  '    // and sets the colours it changes as "#rrggbb", under "light" and "dark"; the settings page copies one.',
+  '    "palettes": {},',
   `    // Which colour marks a rise: ${quoted(PriceColors)}; "market" is red in Taiwan and green in the US.`,
   `    "priceColors": "${DEFAULTS.appearance.priceColors}"`,
   "  },",
@@ -156,6 +194,34 @@ function readText(file: string): string | undefined {
   }
 }
 
+/**
+ * Writes `value` at `path`, or removes the entry for `undefined`. An entry where an object should
+ * stand already reads as its default, so it is replaced by the object the value needs.
+ */
+function edit(text: string, path: ConfigPath, value: ConfigValue): string {
+  const root = parseTree(text, [], PARSE_OPTIONS);
+
+  for (let depth = 1; root && depth < path.length; depth += 1) {
+    const parent = path.slice(0, depth);
+    const node = findNodeAtLocation(root, parent);
+
+    // Missing objects are created along the way.
+    if (!node) break;
+
+    if (node.type !== "object") {
+      if (value === undefined) return text;
+
+      const nested = path
+        .slice(depth)
+        .reduceRight<unknown>((inner, key) => ({ [key]: inner }), value);
+
+      return applyEdits(text, modify(text, parent, nested, FORMATTING));
+    }
+  }
+
+  return applyEdits(text, modify(text, path, value, FORMATTING));
+}
+
 /** The file's settings, or `undefined` while it has syntax errors. */
 function parseConfig(text: string): Config | undefined {
   const errors: ParseError[] = [];
@@ -188,11 +254,7 @@ export function createConfigFile(file: string) {
     }
 
     write(
-      entries.reduce(
-        (edited, [path, value]) =>
-          applyEdits(edited, modify(edited, path, value, FORMATTING)),
-        text
-      )
+      entries.reduce((edited, [path, value]) => edit(edited, path, value), text)
     );
   }
 
@@ -212,7 +274,7 @@ export function createConfigFile(file: string) {
       return saved ?? configSchema.parse({});
     },
 
-    set(path: ConfigPath, value: string | string[]) {
+    set(path: ConfigPath, value: ConfigValue) {
       update([[path, value]]);
     },
 

@@ -12,7 +12,7 @@ import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { FuglePlan } from "@solyx/market-data/fugle";
 
-import type { ColorScheme, Palette } from "../palette.ts";
+import type { ColorScheme, CustomPalette, PaletteToken } from "../palette.ts";
 
 /** Secrets the main process keeps encrypted by the OS; the renderer can save or delete one but never read it back. */
 export const Secret = {
@@ -106,8 +106,13 @@ export const priceColorsSchema = z.enum(PriceColors);
 
 export interface Appearance {
   theme: Theme;
-  /** The palette each scheme shows; the theme or the computer decides which scheme that is. */
-  palette: Record<ColorScheme, Palette>;
+  /**
+   * The palette each scheme shows, a built-in one or a key of `palettes`; the theme or the
+   * computer decides which scheme that is.
+   */
+  palette: Record<ColorScheme, string>;
+  /** The user's own palettes, by id. */
+  palettes: Record<string, CustomPalette>;
   priceColors: PriceColors;
 }
 
@@ -299,7 +304,19 @@ export interface SettingsApi {
   appearance(): Promise<Appearance>;
   /** Saves the theme; every window switches at once. */
   setTheme(theme: Theme): Promise<void>;
-  setPalette(scheme: ColorScheme, palette: Palette): Promise<void>;
+  setPalette(scheme: ColorScheme, palette: string): Promise<void>;
+  /** Saves a custom palette that starts as a copy of `palette`, and resolves its id. */
+  copyPalette(palette: string, name: string): Promise<string>;
+  renamePalette(palette: string, name: string): Promise<void>;
+  /** Sets one colour of a custom palette, or with `null` goes back to its base palette's. */
+  setPaletteColor(
+    palette: string,
+    scheme: ColorScheme,
+    token: PaletteToken,
+    color: string | null
+  ): Promise<void>;
+  /** A scheme that showed it goes back to the palette it was copied from. */
+  deletePalette(palette: string): Promise<void>;
   setPriceColors(priceColors: PriceColors): Promise<void>;
   secrets(): Promise<SecretsStatus>;
   saveSecret(secret: EnteredSecret, value: string): Promise<void>;
@@ -368,6 +385,10 @@ export const settingsChannels = {
   appearance: "settings:appearance",
   setTheme: "settings:set-theme",
   setPalette: "settings:set-palette",
+  copyPalette: "settings:copy-palette",
+  renamePalette: "settings:rename-palette",
+  setPaletteColor: "settings:set-palette-color",
+  deletePalette: "settings:delete-palette",
   setPriceColors: "settings:set-price-colors",
   secrets: "settings:secrets",
   saveSecret: "settings:save-secret",

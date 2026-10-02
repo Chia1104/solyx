@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import { isEnumValue } from "@solyx/utils/is";
+
 /** The appearance a window shows, once `system` resolves to the computer's. */
 export const ColorScheme = {
   Light: "light",
@@ -10,7 +12,7 @@ export type ColorScheme = (typeof ColorScheme)[keyof typeof ColorScheme];
 
 export const colorSchemeSchema = z.enum(ColorScheme);
 
-/** The palettes the app ships; the user picks one for each scheme. */
+/** The palettes the app ships; the user picks one for each scheme, or one of their own. */
 export const Palette = {
   /** Drawn like a drafting sheet: slate-blue vellum by day and blueprint by night, inked in indigo. */
   Blueprint: "blueprint",
@@ -25,26 +27,39 @@ export type Palette = (typeof Palette)[keyof typeof Palette];
 export const paletteSchema = z.enum(Palette);
 
 /**
- * The workspace's colours in one scheme, as sRGB hex because the chart canvas and Electron's
- * window chrome accept nothing else. The renderer turns each key into a CSS custom property
- * (`surfaceSecondary` → `--surface-secondary`), which HeroUI and the stylesheet read.
+ * The colours a palette sets, each a CSS custom property the renderer writes for HeroUI and the
+ * stylesheet (`surfaceSecondary` → `--surface-secondary`).
  */
-export interface PaletteColors {
-  background: string;
-  foreground: string;
-  surface: string;
-  surfaceSecondary: string;
-  surfaceTertiary: string;
-  overlay: string;
-  fieldBackground: string;
-  segment: string;
-  default: string;
-  muted: string;
-  separator: string;
-  border: string;
-  /** Never red or green, which belong to price direction. */
-  accent: string;
-  accentForeground: string;
+export const PaletteToken = {
+  Background: "background",
+  Foreground: "foreground",
+  Surface: "surface",
+  SurfaceSecondary: "surfaceSecondary",
+  SurfaceTertiary: "surfaceTertiary",
+  Overlay: "overlay",
+  FieldBackground: "fieldBackground",
+  Segment: "segment",
+  Default: "default",
+  Muted: "muted",
+  Separator: "separator",
+  Border: "border",
+  /** Never red or green in a built-in palette, since those belong to price direction. */
+  Accent: "accent",
+  AccentForeground: "accentForeground",
+} as const;
+
+export type PaletteToken = (typeof PaletteToken)[keyof typeof PaletteToken];
+
+export const paletteTokenSchema = z.enum(PaletteToken);
+
+/** sRGB hex, the one form the chart canvas and Electron's window chrome both accept. */
+export const hexColorSchema = z
+  .string()
+  .regex(/^#[0-9a-f]{6}$/i)
+  .transform((color) => color.toLowerCase());
+
+/** One scheme of a palette, with the price colours every palette shares. */
+export interface PaletteColors extends Record<PaletteToken, string> {
   /** Quote text, readable on the surface. */
   quoteRed: string;
   quoteGreen: string;
@@ -254,3 +269,75 @@ export const PALETTES: Record<Palette, Record<ColorScheme, PaletteColors>> = {
     },
   },
 };
+
+/** A custom palette's colours over its base: a key that is no token, or no colour, reads as unset. */
+const tokenOverridesSchema = z
+  .record(z.string(), z.unknown())
+  .catch({})
+  .transform((entries): Partial<Record<PaletteToken, string>> =>
+    Object.fromEntries(
+      Object.values(PaletteToken).flatMap((token) => {
+        const color = hexColorSchema.safeParse(entries[token]);
+
+        return color.success ? [[token, color.data]] : [];
+      })
+    )
+  );
+
+/** A palette the user made, starting from a built-in one and setting only what it changes. */
+export const customPaletteSchema = z.object({
+  /** Shown instead of the id when set. */
+  name: z.string().trim().min(1).max(60).optional().catch(undefined),
+  extends: paletteSchema.catch(Palette.Blueprint),
+  [ColorScheme.Light]: tokenOverridesSchema,
+  [ColorScheme.Dark]: tokenOverridesSchema,
+});
+
+export type CustomPalette = z.infer<typeof customPaletteSchema>;
+
+/**
+ * Custom palettes by id. An entry that does not parse is dropped and the rest stay, and an id a
+ * built-in palette already has is dropped, since the built-in one wins.
+ */
+export const customPalettesSchema = z
+  .record(z.string(), z.unknown())
+  .catch({})
+  .transform((entries): Record<string, CustomPalette> =>
+    Object.fromEntries(
+      Object.entries(entries).flatMap(([id, entry]) => {
+        const palette = customPaletteSchema.safeParse(entry);
+
+        return palette.success && !isEnumValue(Palette, id)
+          ? [[id, palette.data]]
+          : [];
+      })
+    )
+  );
+
+/** Whether `id` names a built-in palette or one of `custom`. */
+export function hasPalette(id: string, custom: Record<string, CustomPalette>) {
+  return isEnumValue(Palette, id) || Object.hasOwn(custom, id);
+}
+
+/** A palette's colours in `scheme`; an id that names none reads as the default palette. */
+export function resolvePalette(
+  id: string,
+  custom: Record<string, CustomPalette>,
+  scheme: ColorScheme
+): PaletteColors {
+  if (isEnumValue(Palette, id)) return PALETTES[id][scheme];
+
+  const palette = Object.hasOwn(custom, id) ? custom[id] : undefined;
+
+  if (!palette) return PALETTES[Palette.Blueprint][scheme];
+
+  return { ...PALETTES[palette.extends][scheme], ...palette[scheme] };
+}
+
+/** Whether `id` names one of `custom`, which the user can edit, rather than a built-in palette. */
+export function isCustomPalette(
+  id: string,
+  custom: Record<string, CustomPalette>
+) {
+  return !isEnumValue(Palette, id) && Object.hasOwn(custom, id);
+}

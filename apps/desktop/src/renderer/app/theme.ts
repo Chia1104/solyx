@@ -1,10 +1,10 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { QueryObserver, useSuspenseQuery } from "@tanstack/react-query";
 import { kebabCase } from "es-toolkit";
 
 import type { Appearance } from "#shared/ipc/settings.ts";
-import { ColorScheme, PALETTES } from "#shared/palette.ts";
+import { ColorScheme, resolvePalette } from "#shared/palette.ts";
 import type { PaletteColors } from "#shared/palette.ts";
 
 import {
@@ -27,7 +27,7 @@ const SCHEME_SELECTOR: Record<ColorScheme, string> = {
 
 const paletteSheet = new CSSStyleSheet();
 
-let palettes: Appearance["palette"] | undefined;
+let applied: Appearance | undefined;
 
 function applyScheme() {
   const scheme = currentScheme();
@@ -38,17 +38,23 @@ function applyScheme() {
   root.dataset.theme = scheme;
 
   // styles.css keeps the page clear until this is set, so the window's own background shows.
-  if (palettes) root.dataset.palette = palettes[scheme];
+  if (applied) root.dataset.palette = applied.palette[scheme];
 }
 
 /** Writes each scheme's palette as the custom properties HeroUI and styles.css read. */
-function applyPalettes(next: Appearance["palette"]) {
-  palettes = next;
+function applyPalettes(appearance: Appearance) {
+  applied = appearance;
 
   paletteSheet.replaceSync(
     Object.values(ColorScheme)
       .map((scheme) => {
-        const properties = Object.entries(PALETTES[next[scheme]][scheme])
+        const colors = resolvePalette(
+          appearance.palette[scheme],
+          appearance.palettes,
+          scheme
+        );
+
+        const properties = Object.entries(colors)
           .map(([token, color]) => `--${kebabCase(token)}: ${color};`)
           .join(" ");
 
@@ -75,10 +81,14 @@ export async function followAppearance() {
 
   window.solyx.settings.onAppearance((appearance) => {
     queryClient.setQueryData(settingsQueryKeys.appearance, appearance);
-    applyPalettes(appearance.palette);
   });
 
-  applyPalettes((await queryClient.fetchQuery(appearanceQuery())).palette);
+  // Whatever the query holds shows, so a palette being edited shows before it is saved.
+  new QueryObserver(queryClient, appearanceQuery()).subscribe(({ data }) => {
+    if (data && data !== applied) applyPalettes(data);
+  });
+
+  applyPalettes(await queryClient.fetchQuery(appearanceQuery()));
 }
 
 function subscribeToScheme(onChange: () => void) {
@@ -87,14 +97,21 @@ function subscribeToScheme(onChange: () => void) {
   return () => darkScheme.removeEventListener("change", onChange);
 }
 
+/** The scheme the window shows now. */
+export function useColorScheme(): ColorScheme {
+  return useSyncExternalStore(subscribeToScheme, currentScheme);
+}
+
 /** For canvas renderers, such as charts, that cannot read CSS custom properties. */
 export function usePaletteColors(): PaletteColors {
-  const scheme = useSyncExternalStore(subscribeToScheme, currentScheme);
+  const scheme = useColorScheme();
 
-  const { data: palette } = useSuspenseQuery({
-    ...appearanceQuery(),
-    select: (appearance) => appearance.palette[scheme],
-  });
+  // A stable select runs again only when the appearance changes, so charts keep their options.
+  const select = useCallback(
+    (appearance: Appearance) =>
+      resolvePalette(appearance.palette[scheme], appearance.palettes, scheme),
+    [scheme]
+  );
 
-  return PALETTES[palette][scheme];
+  return useSuspenseQuery({ ...appearanceQuery(), select }).data;
 }
