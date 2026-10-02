@@ -21,7 +21,7 @@ const route = getRouteApi("/settings");
 
 export function SettingsPage() {
   const { t } = useTranslation();
-  const { section } = route.useSearch();
+  const { section, server } = route.useSearch();
   const navigate = route.useNavigate();
 
   const content: Record<SettingsSection, ReactNode> = {
@@ -37,7 +37,7 @@ export function SettingsPage() {
     [SettingsSection.MarketData]: <MarketDataSettings />,
     [SettingsSection.Agent]: <AgentSettings />,
     [SettingsSection.Skills]: <AgentSkills />,
-    [SettingsSection.Mcp]: <McpSettings />,
+    [SettingsSection.Mcp]: <McpSettings server={server} />,
     [SettingsSection.Storage]: (
       <Section
         title={t("settings.storage.title")}

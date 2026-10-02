@@ -415,7 +415,13 @@
         "built-in": "內建",
         "shared": "共用"
       },
-      "shared": "共用 skills",
+      "scope-label": "顯示的 skills",
+      "scopes": {
+        "always": "固定提供",
+        "shared": "共用"
+      },
+      "filter": "篩選 skills",
+      "no-matches": "沒有符合「{{query}}」的 skill。",
       "offer": "將 {{name}} 提供給 Agent",
       "instructions": "固定指示",
       "instructions-description": "Agent 在每次對話都會遵守的規則，例如你的風險預算，寫在 {{path}}。每則訊息都會送出整份檔案。",
@@ -440,6 +446,19 @@
         "http": "遠端"
       },
       "reconnect": "重新連線",
+      "missing-secret": "金鑰未儲存",
+      "tool-count_one": "{{count}} 個 tool",
+      "tool-count_other": "{{count}} 個 tool",
+      "tally": "{{off}} 個關閉、{{ask}} 個每次詢問、{{auto}} 個自動執行",
+      "legend": {
+        "off": "關閉",
+        "ask": "每次詢問",
+        "auto": "自動執行"
+      },
+      "connection": "連線",
+      "tools": "Tool",
+      "filter": "篩選 tool",
+      "no-matches": "沒有符合「{{query}}」的 tool。",
       "sign-in": {
         "label": "帳號",
         "hint": "透過瀏覽器登入，在 server 的頁面允許 Solyx。Solyx 會加密保存授權，不會顯示出來。",
@@ -451,8 +470,8 @@
       "policy-label": "Agent 使用 {{tool}} 時",
       "policies": {
         "off": "關閉",
-        "ask": "每次詢問",
-        "auto": "自動執行"
+        "ask": "詢問",
+        "auto": "自動"
       }
     },
     "storage": {

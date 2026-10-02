@@ -415,7 +415,13 @@
         "built-in": "Built-in",
         "shared": "Shared"
       },
-      "shared": "Shared skills",
+      "scope-label": "Skills to show",
+      "scopes": {
+        "always": "Always offered",
+        "shared": "Shared"
+      },
+      "filter": "Filter skills",
+      "no-matches": "No skills match “{{query}}”.",
       "offer": "Offer {{name}} to the agent",
       "instructions": "Standing instructions",
       "instructions-description": "Rules the agent keeps in every conversation, such as your risk budget, written in {{path}}. The whole file is sent with every message.",
@@ -440,6 +446,19 @@
         "http": "Remote"
       },
       "reconnect": "Reconnect",
+      "missing-secret": "Key not saved",
+      "tool-count_one": "{{count}} tool",
+      "tool-count_other": "{{count}} tools",
+      "tally": "{{off}} off, {{ask}} ask each time, {{auto}} run on their own",
+      "legend": {
+        "off": "Off",
+        "ask": "Asks each time",
+        "auto": "Runs on its own"
+      },
+      "connection": "Connection",
+      "tools": "Tools",
+      "filter": "Filter tools",
+      "no-matches": "No tools match “{{query}}”.",
       "sign-in": {
         "label": "Account",
         "hint": "Signs in through your browser, where the server asks you to allow Solyx. Solyx keeps the grant encrypted and never shows it.",
@@ -451,8 +470,8 @@
       "policy-label": "When the agent uses {{tool}}",
       "policies": {
         "off": "Off",
-        "ask": "Ask each time",
-        "auto": "Run on its own"
+        "ask": "Ask",
+        "auto": "Auto"
       }
     },
     "storage": {

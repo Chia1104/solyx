@@ -97,6 +97,8 @@ const settingsSearchSchema = z.object({
   section: settingsSectionSchema
     .default(SettingsSection.General)
     .catch(SettingsSection.General),
+  /** The MCP server opened from the MCP tab's list. */
+  server: z.string().min(1).optional().catch(undefined),
 });
 
 const settingsRoute = createRoute({

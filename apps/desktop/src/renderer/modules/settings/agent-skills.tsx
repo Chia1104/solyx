@@ -1,11 +1,22 @@
-import { Alert, Button, Disclosure, Switch } from "@heroui/react";
+import { useState } from "react";
+
+import {
+  Alert,
+  Button,
+  Switch,
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { partition } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
+import { isEnumValue } from "@solyx/utils/is";
+
 import { AppLocation } from "#shared/ipc/settings.ts";
 import type { AgentSkillInfo } from "#shared/ipc/settings.ts";
 
+import { FilterField, matchesFilter } from "../../components/filter-field.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
@@ -13,6 +24,14 @@ import { RailedColumn } from "../../components/sheet.tsx";
 
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { agentSkillsQuery, settingsQueryKeys } from "./settings-query.ts";
+
+/** Which skills the list shows: those always offered, or the shared ones switched on one by one. */
+const SkillScope = {
+  Always: "always",
+  Shared: "shared",
+} as const;
+
+type SkillScope = (typeof SkillScope)[keyof typeof SkillScope];
 
 function SkillRow({
   skill,
@@ -28,7 +47,11 @@ function SkillRow({
   return (
     <SettingsRow
       label={<span className="font-mono text-xs">{skill.name}</span>}
-      description={<span className="line-clamp-2">{skill.description}</span>}
+      description={
+        <span className="line-clamp-1" title={skill.description}>
+          {skill.description}
+        </span>
+      }
       value={
         skill.switchable
           ? undefined
@@ -64,6 +87,8 @@ export function AgentSkills() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data, error, refetch } = useQuery(agentSkillsQuery());
+  const [scope, setScope] = useState<SkillScope>(SkillScope.Always);
+  const [filter, setFilter] = useState("");
 
   const offer = useMutation({
     mutationFn: ({ name, offered }: { name: string; offered: boolean }) =>
@@ -89,6 +114,17 @@ export function AgentSkills() {
   if (!data) return <LoadingState />;
 
   const [shared, always] = partition(data.skills, (skill) => skill.switchable);
+
+  // A filter searches every skill, so a match never hides behind the other scope.
+  const filtering = filter.trim() !== "";
+
+  const shown = filtering
+    ? data.skills.filter((skill) =>
+        matchesFilter(filter, skill.name, skill.description)
+      )
+    : scope === SkillScope.Shared && shared.length > 0
+      ? shared
+      : always;
 
   const row = (skill: AgentSkillInfo) => (
     <SkillRow
@@ -136,25 +172,51 @@ export function AgentSkills() {
                 : t("settings.skills.instructions-missing")
             }
           />
-          {always.map(row)}
         </SettingsList>
-        {shared.length > 0 ? (
-          <Disclosure className="border-b border-separator">
-            <Disclosure.Heading>
-              <Disclosure.Trigger className="flex w-full items-center gap-2 py-2 text-sm font-medium">
-                {t("settings.skills.shared")}
-                <span className="text-xs text-muted tabular-nums">
+        <div className="flex flex-wrap items-center gap-3">
+          {shared.length > 0 && !filtering ? (
+            <ToggleButtonGroup
+              aria-label={t("settings.skills.scope-label")}
+              selectionMode="single"
+              disallowEmptySelection
+              size="sm"
+              selectedKeys={[scope]}
+              onSelectionChange={(keys) => {
+                const next = [...keys].find((key) =>
+                  isEnumValue(SkillScope, key)
+                );
+
+                if (next) setScope(next);
+              }}>
+              <ToggleButton id={SkillScope.Always}>
+                {t("settings.skills.scopes.always")}
+                <span className="text-xs tabular-nums opacity-70">
+                  {always.length}
+                </span>
+              </ToggleButton>
+              <ToggleButton id={SkillScope.Shared}>
+                {t("settings.skills.scopes.shared")}
+                <span className="text-xs tabular-nums opacity-70">
                   {shared.filter((skill) => skill.offered).length}/
                   {shared.length}
                 </span>
-                <Disclosure.Indicator className="ml-auto" />
-              </Disclosure.Trigger>
-            </Disclosure.Heading>
-            <Disclosure.Content>
-              <SettingsList>{shared.map(row)}</SettingsList>
-            </Disclosure.Content>
-          </Disclosure>
-        ) : null}
+              </ToggleButton>
+            </ToggleButtonGroup>
+          ) : null}
+          <FilterField
+            label={t("settings.skills.filter")}
+            value={filter}
+            onChange={setFilter}
+            className="ml-auto w-56"
+          />
+        </div>
+        {shown.length > 0 ? (
+          <SettingsList>{shown.map(row)}</SettingsList>
+        ) : (
+          <p className="text-xs text-muted">
+            {t("settings.skills.no-matches", { query: filter.trim() })}
+          </p>
+        )}
         <div>
           <Button size="sm" variant="secondary" onPress={() => reveal.mutate()}>
             {t("settings.skills.open-folder")}

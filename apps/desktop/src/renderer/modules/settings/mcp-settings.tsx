@@ -1,212 +1,84 @@
-import { Alert, Button, Chip } from "@heroui/react";
-import type { ChipProps } from "@heroui/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Chip, IconChevronRight } from "@heroui/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { McpServerState, McpToolPolicy } from "@solyx/agent/mcp-config";
+import { McpServerState } from "@solyx/agent/mcp-config";
 
-import { AppLocation, SecretState } from "#shared/ipc/settings.ts";
-import type { McpServerSetting, McpToolSetting } from "#shared/ipc/settings.ts";
+import { AppLocation } from "#shared/ipc/settings.ts";
+import type { McpServerSetting } from "#shared/ipc/settings.ts";
 
-import { currentLocale } from "../../app/i18n.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
-import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 
-import { SecretRow } from "./secret-row.tsx";
-import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import { mcpQuery, settingsQueryKeys } from "./settings-query.ts";
-import { SignInRow } from "./sign-in-row.tsx";
+import { PolicyLegend, PolicyTally } from "./mcp-policy.tsx";
+import { McpServer, McpStateChip } from "./mcp-server.tsx";
+import { SettingsList } from "./settings-list.tsx";
+import { mcpQuery } from "./settings-query.ts";
+import { SettingsSection } from "./settings-section.ts";
 
-const STATE_COLOR: Record<McpServerState, ChipProps["color"]> = {
-  [McpServerState.Connecting]: "default",
-  [McpServerState.Connected]: "success",
-  [McpServerState.NeedsSignIn]: "warning",
-  [McpServerState.Failed]: "danger",
-};
-
-function useRefresh() {
-  const queryClient = useQueryClient();
-
-  return () =>
-    queryClient.invalidateQueries({ queryKey: settingsQueryKeys.mcp });
-}
-
-/** A secret the server's entry names as `secret:NAME`. */
-function McpSecretRow({
-  server,
-  name,
-  saved,
-}: {
-  server: string;
-  name: string;
-  saved: boolean;
-}) {
-  const refresh = useRefresh();
-  const label = `secret:${name}`;
-
-  return (
-    <SecretRow
-      label={<span className="font-mono text-xs">{label}</span>}
-      fieldLabel={label}
-      state={saved ? SecretState.Saved : SecretState.Missing}
-      onSave={(value) =>
-        window.solyx.settings.saveMcpSecret(server, name, value)
-      }
-      onRemove={() => window.solyx.settings.deleteMcpSecret(server, name)}
-      onSettled={refresh}
-    />
-  );
-}
-
-/** The account a remote server runs on. */
-function McpSignInRow({ server }: { server: McpServerSetting }) {
+/**
+ * One server in the list, opening its page. A connected server shows what its tools may do; any
+ * other shows what it waits for.
+ */
+function ServerRow({ server }: { server: McpServerSetting }) {
   const { t } = useTranslation();
-  const refresh = useRefresh();
+  const missingSecret = server.secrets.some((secret) => !secret.saved);
 
   return (
-    <SignInRow
-      label={t("settings.mcp.sign-in.label")}
-      description={t("settings.mcp.sign-in.hint")}
-      signInLabel={t("settings.mcp.sign-in.sign-in")}
-      signInFailed={t("settings.mcp.sign-in.sign-in-failed")}
-      signedIn={server.signedIn}
-      needsSignIn={server.state === McpServerState.NeedsSignIn}
-      onSignIn={() =>
-        window.solyx.settings.signInMcp(server.name, currentLocale())
-      }
-      onCancel={() => window.solyx.settings.cancelMcpSignIn()}
-      onSignOut={() => window.solyx.settings.signOutMcp(server.name)}
-      onSettled={refresh}
-    />
-  );
-}
-
-function ToolRow({ server, tool }: { server: string; tool: McpToolSetting }) {
-  const { t } = useTranslation();
-  const refresh = useRefresh();
-  const label = t("settings.mcp.policy-label", { tool: tool.name });
-
-  const save = useMutation({
-    mutationFn: (policy: McpToolPolicy) =>
-      window.solyx.settings.setMcpToolPolicy(server, tool.name, policy),
-    onSettled: refresh,
-  });
-
-  return (
-    <SettingsRow
-      label={
-        <span className="flex items-center gap-2">
-          <span className="font-mono text-xs">{tool.name}</span>
-          {tool.readOnly ? (
-            <Chip size="sm" variant="soft">
-              {t("settings.mcp.read-only")}
-            </Chip>
-          ) : null}
-        </span>
-      }
-      description={
-        tool.description ? (
-          <span className="line-clamp-2">{tool.description}</span>
-        ) : undefined
-      }
-      actions={
-        <OptionSelect
-          aria-label={label}
-          className="w-44"
-          value={tool.policy}
-          isDisabled={save.isPending}
-          // Only a tool its server marks read-only may run without asking.
-          disabledKeys={tool.readOnly ? [] : [McpToolPolicy.Auto]}
-          options={Object.values(McpToolPolicy).map((policy) => ({
-            id: policy,
-            label: t(`settings.mcp.policies.${policy}`),
-          }))}
-          onChange={(policy) => save.mutate(policy)}
-        />
-      }
-    />
-  );
-}
-
-function ServerSection({ server }: { server: McpServerSetting }) {
-  const { t } = useTranslation();
-  const refresh = useRefresh();
-
-  const reconnect = useMutation({
-    mutationFn: () => window.solyx.settings.reconnectMcp(server.name),
-    onSettled: refresh,
-  });
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h3 className="text-sm font-semibold">{server.name}</h3>
-        <span className="text-xs text-muted">
-          {t(`settings.mcp.kinds.${server.kind}`)}
-        </span>
-        <Chip size="sm" variant="soft" color={STATE_COLOR[server.state]}>
-          {t(`settings.mcp.states.${server.state}`)}
-        </Chip>
-        <Button
-          size="sm"
-          variant="tertiary"
-          className="ml-auto"
-          isPending={reconnect.isPending}
-          isDisabled={server.state === McpServerState.Connecting}
-          onPress={() => reconnect.mutate()}>
-          {t("settings.mcp.reconnect")}
-        </Button>
-      </div>
-      {server.target ? (
-        <p
-          className="truncate font-mono text-xs text-muted"
-          title={server.target}>
-          {server.target}
-        </p>
-      ) : null}
-      {server.error ? (
-        <Alert status="danger">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Description className="break-all">
-              {server.error}
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
-      ) : null}
-      <SettingsList>
-        {server.state === McpServerState.NeedsSignIn || server.signedIn ? (
-          <McpSignInRow server={server} />
+    <li>
+      <Link
+        to="/settings"
+        search={{ section: SettingsSection.Mcp, server: server.name }}
+        className="-mx-3 flex items-center gap-4 rounded px-3 py-3 outline-none hover:bg-default/60 focus-visible:bg-default">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium">{server.name}</span>
+            <span className="shrink-0 text-xs text-muted">
+              {t(`settings.mcp.kinds.${server.kind}`)}
+            </span>
+            {server.state === McpServerState.Connected ? null : (
+              <McpStateChip state={server.state} />
+            )}
+            {missingSecret ? (
+              <Chip size="sm" variant="soft" color="warning">
+                {t("settings.mcp.missing-secret")}
+              </Chip>
+            ) : null}
+          </span>
+          {server.error ? (
+            <span className="truncate text-xs text-muted">{server.error}</span>
+          ) : (
+            <span className="truncate font-mono text-xs text-muted">
+              {server.target}
+            </span>
+          )}
+        </div>
+        {server.tools.length > 0 ? (
+          // A fixed column, so every server's tally starts from the same line and lengths compare.
+          <span className="flex shrink-0 items-center gap-3">
+            <span className="w-16 text-right text-xs text-muted tabular-nums">
+              {t("settings.mcp.tool-count", { count: server.tools.length })}
+            </span>
+            <span className="flex w-32">
+              <PolicyTally tools={server.tools} />
+            </span>
+          </span>
         ) : null}
-        {server.secrets.map((secret) => (
-          <McpSecretRow
-            key={secret.name}
-            server={server.name}
-            name={secret.name}
-            saved={secret.saved}
-          />
-        ))}
-        {server.tools.map((tool) => (
-          <ToolRow key={tool.name} server={server.name} tool={tool} />
-        ))}
-      </SettingsList>
-      {server.state === McpServerState.Connected &&
-      server.tools.length === 0 ? (
-        <p className="text-xs text-muted">{t("settings.mcp.no-tools")}</p>
-      ) : null}
-    </div>
+        <IconChevronRight aria-hidden className="size-4 shrink-0 text-muted" />
+      </Link>
+    </li>
   );
 }
 
 /**
- * The MCP servers in mcp.json, their secrets and what each tool may do. Servers connect when this
- * page or the agent first needs them.
+ * The MCP servers in mcp.json as a list, or the one `server` names with its secrets and what each
+ * tool may do. Servers connect when this page or the agent first needs them.
  */
-export function McpSettings() {
+export function McpSettings({ server }: { server?: string }) {
   const { t } = useTranslation();
   const { data, error, refetch } = useQuery(mcpQuery());
 
@@ -224,11 +96,16 @@ export function McpSettings() {
 
   if (!data) return <LoadingState />;
 
+  // A server removed from mcp.json while its page is open falls back to the list.
+  const opened = data.servers.find((entry) => entry.name === server);
+
+  if (opened) return <McpServer server={opened} />;
+
   return (
     <Section
       title={t("settings.mcp.title")}
       description={t("settings.mcp.description", { path: data.path })}>
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
         {data.error ? (
           <ErrorAlert
             title={t("settings.mcp.file-error")}
@@ -238,9 +115,14 @@ export function McpSettings() {
         {data.servers.length === 0 ? (
           <p className="text-sm text-muted">{t("settings.mcp.empty")}</p>
         ) : (
-          data.servers.map((server) => (
-            <ServerSection key={server.name} server={server} />
-          ))
+          <>
+            <SettingsList>
+              {data.servers.map((entry) => (
+                <ServerRow key={entry.name} server={entry} />
+              ))}
+            </SettingsList>
+            <PolicyLegend />
+          </>
         )}
         <div>
           <Button size="sm" variant="secondary" onPress={() => open.mutate()}>
