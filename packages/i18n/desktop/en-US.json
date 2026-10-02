@@ -133,7 +133,16 @@
     "setup-title": "Set up the agent",
     "setup-description": "Pick a provider and save its API key, or sign in with ChatGPT, to start.",
     "open-settings": "Open settings",
+    "context": {
+      "detached": "Not attached: {{label}}",
+      "attach": "Attach",
+      "detach": "Don't attach {{label}}"
+    },
+    "copy": "Copy",
+    "copied": "Copied",
+    "edit-message": "Edit as a new message",
     "thinking": "Thinking",
+    "thought": "Thought",
     "working": "Working…",
     "notices": {
       "aborted": "Stopped.",

@@ -1,22 +1,38 @@
 import { useLayoutEffect, useRef } from "react";
 
-import { Spinner } from "@heroui/react";
+import { ScrollShadow, Spinner } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { AgentItemKind, RunEndReason } from "@solyx/agent/wire";
+import { AgentItemKind, RunEndReason, ToolCallStatus } from "@solyx/agent/wire";
 import type { AgentViewItem, NoticeView } from "@solyx/agent/wire";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
+import { ActivityMark } from "./agent-activity.tsx";
 import { AssistantMessage, UserMessage } from "./agent-message.tsx";
 import { transcriptQuery } from "./agent-query.ts";
 import { AgentToolCall } from "./agent-tool-call.tsx";
 
 // Within this distance of the end, new content keeps the thread scrolled to it.
 const PIN_THRESHOLD = 32;
+
+/** Whether the item at the end of a running thread already shows the run moving. */
+function showsProgress(item: AgentViewItem | undefined): boolean {
+  switch (item?.kind) {
+    case AgentItemKind.Assistant:
+      return item.streaming && Boolean(item.text || item.thinking);
+    case AgentItemKind.Tool:
+      return (
+        item.status === ToolCallStatus.Running ||
+        item.status === ToolCallStatus.AwaitingApproval
+      );
+    default:
+      return false;
+  }
+}
 
 function Notice({ notice }: { notice: NoticeView }) {
   const { t } = useTranslation();
@@ -92,17 +108,13 @@ export function AgentThread({ sessionId }: { sessionId: string }) {
 
   if (data.items.length === 0 && !data.running) return <EmptyThread />;
 
-  const last = data.items.at(-1);
-
-  // A reply that is already writing shows itself; otherwise say the run is still going.
-  const working =
-    data.running &&
-    !(last?.kind === AgentItemKind.Assistant && last.streaming && last.text);
+  const working = data.running && !showsProgress(data.items.at(-1));
 
   return (
-    <div
+    <ScrollShadow
       ref={scroller}
-      className="h-full overflow-y-auto"
+      size={32}
+      className="h-full"
       onScroll={(event) => {
         const element = event.currentTarget;
 
@@ -110,17 +122,22 @@ export function AgentThread({ sessionId }: { sessionId: string }) {
           element.scrollHeight - element.scrollTop - element.clientHeight <
           PIN_THRESHOLD;
       }}>
-      <div className="flex flex-col gap-4 px-4 py-4">
+      {/* Messages stand apart; the rows the agent works through (`data-activity`) run together. */}
+      <div className="flex flex-col p-4 [&>*+*]:mt-4 [&>[data-activity]+[data-activity]]:mt-1.5">
         {data.items.map((item, index) => (
           <Item key={keyOf(item, index)} sessionId={sessionId} item={item} />
         ))}
         {working ? (
-          <p className="flex items-center gap-2 text-xs text-muted">
-            <Spinner size="sm" />
+          <p
+            data-activity
+            className="flex min-h-5 items-center gap-2 text-xs text-muted">
+            <ActivityMark>
+              <Spinner size="sm" color="current" className="size-3" />
+            </ActivityMark>
             {t("agent.working")}
           </p>
         ) : null}
       </div>
-    </div>
+    </ScrollShadow>
   );
 }

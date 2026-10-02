@@ -14,8 +14,16 @@ import { marketSchema, symbolRefSchema } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
+import {
+  CheckIcon,
+  ClockIcon,
+  CrossIcon,
+  DashIcon,
+} from "../../components/icons.tsx";
 import { ProposalItem } from "../proposals/proposal-item.tsx";
 import { proposalsQuery } from "../proposals/proposals-query.ts";
+
+import { ActivityMark } from "./agent-activity.tsx";
 
 // Only the fields a row names; the model's arguments are not trusted to hold them.
 const argumentsSchema = z.object({
@@ -41,13 +49,20 @@ function subjectOf(tool: ToolCallView): string | undefined {
   return args?.name ?? args?.query;
 }
 
-const STATUS_MARK: Record<ToolCallStatus, string> = {
-  [ToolCallStatus.Running]: "",
-  [ToolCallStatus.AwaitingApproval]: "?",
-  [ToolCallStatus.Ok]: "✓",
-  [ToolCallStatus.Error]: "!",
-  [ToolCallStatus.Aborted]: "–",
-};
+function StatusIcon({ status }: { status: ToolCallStatus }) {
+  switch (status) {
+    case ToolCallStatus.Running:
+      return <Spinner size="sm" color="current" className="size-3" />;
+    case ToolCallStatus.AwaitingApproval:
+      return <ClockIcon className="size-3" />;
+    case ToolCallStatus.Ok:
+      return <CheckIcon className="size-3" />;
+    case ToolCallStatus.Error:
+      return <CrossIcon className="size-3" />;
+    default:
+      return <DashIcon className="size-3" />;
+  }
+}
 
 /** The proposal the call made, as the queue shows it, so it can be confirmed where it was made. */
 function ProposalCard({ id }: { id: string }) {
@@ -133,20 +148,12 @@ export function AgentToolCall({
       : undefined;
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-xs text-muted">
-        <span
-          aria-hidden
-          className={cn(
-            "grid size-4 shrink-0 place-items-center",
-            tool.status === ToolCallStatus.Error && "text-danger"
-          )}>
-          {tool.status === ToolCallStatus.Running ? (
-            <Spinner size="sm" />
-          ) : (
-            STATUS_MARK[tool.status]
-          )}
-        </span>
+    <div data-activity className="flex flex-col gap-1.5">
+      <div className="flex min-h-5 items-center gap-2 text-xs text-muted">
+        <ActivityMark
+          className={cn(tool.status === ToolCallStatus.Error && "text-danger")}>
+          <StatusIcon status={tool.status} />
+        </ActivityMark>
         <span className="text-foreground">
           {isEnumValue(AgentToolName, tool.toolName)
             ? t(`agent.tools.${tool.toolName}`)
@@ -156,7 +163,7 @@ export function AgentToolCall({
         <span className="sr-only">{t(`agent.tool-status.${tool.status}`)}</span>
       </div>
       {tool.error ? (
-        <p className="pl-6 text-xs text-danger">{tool.error}</p>
+        <p className="pl-5.5 text-xs text-danger">{tool.error}</p>
       ) : null}
       {tool.status === ToolCallStatus.AwaitingApproval ? (
         <ApprovalCard sessionId={sessionId} tool={tool} />

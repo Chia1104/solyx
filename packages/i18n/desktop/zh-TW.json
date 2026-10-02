@@ -133,7 +133,16 @@
     "setup-title": "設定 Agent",
     "setup-description": "選擇服務商並儲存它的 API 金鑰，或使用 ChatGPT 登入後即可開始。",
     "open-settings": "開啟設定",
+    "context": {
+      "detached": "未附加：{{label}}",
+      "attach": "附加",
+      "detach": "不附加 {{label}}"
+    },
+    "copy": "複製",
+    "copied": "已複製",
+    "edit-message": "編輯成新訊息",
     "thinking": "思考中",
+    "thought": "已思考",
     "working": "處理中…",
     "notices": {
       "aborted": "已停止。",

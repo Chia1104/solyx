@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { cn } from "@heroui/react";
+
 import { SplitterEdge } from "./pane-splitter.tsx";
 
 /** A window outline with the side pane at `edge` filled in while the pane is open. */
@@ -37,12 +39,18 @@ export function PaneIcon({
   );
 }
 
-function StrokeIcon({ children }: { children: ReactNode }) {
+function StrokeIcon({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
   return (
     <svg
       aria-hidden
       viewBox="0 0 16 16"
-      className="size-4"
+      className={cn("size-4", className)}
       fill="none"
       stroke="currentColor"
       strokeWidth="1.25"
@@ -92,6 +100,67 @@ export function StopIcon() {
   return (
     <StrokeIcon>
       <rect x="4" y="4" width="8" height="8" rx="1" fill="currentColor" />
+    </StrokeIcon>
+  );
+}
+
+export function CheckIcon({ className }: { className?: string }) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M3.5 8.5l3 3 6-7" />
+    </StrokeIcon>
+  );
+}
+
+export function CrossIcon({ className }: { className?: string }) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+    </StrokeIcon>
+  );
+}
+
+export function DashIcon({ className }: { className?: string }) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M4.5 8h7" />
+    </StrokeIcon>
+  );
+}
+
+export function ClockIcon({ className }: { className?: string }) {
+  return (
+    <StrokeIcon className={className}>
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M8 5.5V8l1.75 1.25" />
+    </StrokeIcon>
+  );
+}
+
+export function CopyIcon({ className }: { className?: string }) {
+  return (
+    <StrokeIcon className={className}>
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+      <path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5" />
+    </StrokeIcon>
+  );
+}
+
+export function PencilIcon({ className }: { className?: string }) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M10.25 2.75l3 3-7.5 7.5h-3v-3zM8.75 4.25l3 3" />
+    </StrokeIcon>
+  );
+}
+
+/** Two candles, for a listing. */
+export function CandlesIcon({ className }: { className?: string }) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M5 2.5V5M5 10v3.5M11 3.5V6M11 10v2.5" />
+      <rect x="3.5" y="5" width="3" height="5" rx="0.5" />
+      <rect x="9.5" y="6" width="3" height="4" rx="0.5" />
     </StrokeIcon>
   );
 }
