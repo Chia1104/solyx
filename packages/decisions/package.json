@@ -1,0 +1,22 @@
+{
+  "name": "@solyx/decisions",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./typesafe": "./src/typesafe.ts"
+  },
+  "scripts": {
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@solyx/core": "workspace:*",
+    "@typesafe-ai/sdk": "catalog:decisions"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "zod": "catalog:"
+  }
+}

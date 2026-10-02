@@ -25,6 +25,7 @@ export const Secret = {
   OpenAIApiKey: "openai-api-key",
   GoogleApiKey: "google-api-key",
   OpenRouterApiKey: "openrouter-api-key",
+  DecisionsApiKey: "decisions-api-key",
   /** The ChatGPT sign-in's OAuth tokens; the main process saves and refreshes them, nobody types them. */
   OpenAIChatGPT: "openai-chatgpt",
 } as const;
@@ -218,6 +219,14 @@ export interface AgentSettings {
   ready: boolean;
 }
 
+/** The decisions model that scores texts; its key is the `decisions-api-key` secret. */
+export interface DecisionsSettings {
+  model: string;
+  baseURL: string;
+  /** What each reads as while the config file does not set it. */
+  defaults: { model: string; baseURL: string };
+}
+
 /** A playbook the agent can read, as the settings page lists it. */
 export interface AgentSkillInfo {
   name: string;
@@ -346,6 +355,11 @@ export interface SettingsApi {
   signInSubscription(locale: Locale): Promise<void>;
   cancelSignIn(): Promise<void>;
   signOutSubscription(): Promise<void>;
+  decisions(): Promise<DecisionsSettings>;
+  /** `null` goes back to the default. */
+  setDecisionsModel(model: string | null): Promise<void>;
+  /** `null` goes back to the default. */
+  setDecisionsBaseURL(baseURL: string | null): Promise<void>;
   agentSkills(): Promise<AgentSkills>;
   /** Offers a skill from ~/.agents/skills to the agent, or stops offering it. */
   setSharedSkill(name: string, enabled: boolean): Promise<void>;
@@ -406,6 +420,9 @@ export const settingsChannels = {
   signInSubscription: "settings:sign-in-subscription",
   cancelSignIn: "settings:cancel-sign-in",
   signOutSubscription: "settings:sign-out-subscription",
+  decisions: "settings:decisions",
+  setDecisionsModel: "settings:set-decisions-model",
+  setDecisionsBaseURL: "settings:set-decisions-base-url",
   agentSkills: "settings:agent-skills",
   setSharedSkill: "settings:set-shared-skill",
   mcp: "settings:mcp",

@@ -27,6 +27,8 @@ catalogs:
     lightweight-charts: 5.2.1
   chiastack:
     "@chiastack/oxlint": ^1.1.0
+  decisions:
+    "@typesafe-ai/sdk": 0.6.0
   electron:
     electron: ^44.4.5
   drizzle:

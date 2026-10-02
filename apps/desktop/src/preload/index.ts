@@ -109,6 +109,11 @@ const api: SolyxApi = {
       invoke(settingsChannels.signInSubscription, locale),
     cancelSignIn: () => invoke(settingsChannels.cancelSignIn),
     signOutSubscription: () => invoke(settingsChannels.signOutSubscription),
+    decisions: () => invoke(settingsChannels.decisions),
+    setDecisionsModel: (model) =>
+      invoke(settingsChannels.setDecisionsModel, model),
+    setDecisionsBaseURL: (baseURL) =>
+      invoke(settingsChannels.setDecisionsBaseURL, baseURL),
     agentSkills: () => invoke(settingsChannels.agentSkills),
     setSharedSkill: (name, enabled) =>
       invoke(settingsChannels.setSharedSkill, name, enabled),
