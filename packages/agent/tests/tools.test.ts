@@ -19,7 +19,12 @@ import type { Candle } from "@solyx/core/candles";
 import { InstrumentKind, Market } from "@solyx/core/market";
 import type { MarketDataProvider } from "@solyx/core/market-data";
 import { NewsChannel } from "@solyx/core/news";
-import type { NewsItem, NewsSource } from "@solyx/core/news";
+import type {
+  NewsItem,
+  NewsRecord,
+  NewsSource,
+  NewsStore,
+} from "@solyx/core/news";
 import { OrderType, Side } from "@solyx/core/order";
 import { ProposalSource, ProposalStatus } from "@solyx/core/order-desk";
 import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
@@ -62,6 +67,48 @@ function dailyBars(count: number): Candle[] {
       volume: 1000 * (i + 1),
     };
   });
+}
+
+/** Keeps news records in memory for one listing, as the database does. */
+function memoryNewsStore(): NewsStore {
+  const records: NewsRecord[] = [];
+
+  const listedAt = (record: NewsRecord) =>
+    (record.item.publishedAt ?? record.foundAt).getTime();
+
+  return {
+    save(_symbol, source, items, foundAt) {
+      for (const item of items) {
+        if (
+          !records.some(
+            (record) =>
+              record.source === source.id && record.item.id === item.id
+          )
+        ) {
+          records.push({
+            source: source.id,
+            channel: source.channel,
+            item,
+            foundAt,
+            score: null,
+          });
+        }
+      }
+    },
+    saveScore(_symbol, scored, score) {
+      const record = records.find(
+        (candidate) =>
+          candidate.source === scored.source &&
+          candidate.item.id === scored.item.id
+      );
+
+      if (record) record.score = score;
+    },
+    list: (_symbol, since) =>
+      records
+        .filter((record) => listedAt(record) >= since.getTime())
+        .toSorted((a, b) => listedAt(b) - listedAt(a)),
+  };
 }
 
 function setup(candles: Candle[] = dailyBars(80)) {
@@ -108,7 +155,8 @@ function setup(candles: Candle[] = dailyBars(80)) {
     marketData: async (market: Market) =>
       market === Market.TW ? provider : undefined,
     watchlist: () => [TSMC],
-    news: vi.fn(async (): Promise<NewsSource[]> => [news]),
+    newsSources: vi.fn(async (): Promise<NewsSource[]> => [news]),
+    newsStore: memoryNewsStore(),
     scorer: vi.fn(async (): Promise<SentimentScorer | undefined> => scorer),
     account: async () => ({ cash: { TWD: 1_000_000 }, positions: [] }),
     brokerMode: BrokerMode.Paper,
@@ -144,6 +192,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
 
 function newsItem(title: string, hoursAgo: number | null): NewsItem {
   return {
+    id: title,
     url: `https://news.test/${encodeURIComponent(title)}`,
     title,
     snippet: `${title} snippet`,
@@ -398,7 +447,7 @@ test("skills are read by name", async () => {
   );
 });
 
-test("news is scored, newest first, without items that only name the listing", async () => {
+test("news is scored once, newest first, without items that only name the listing", async () => {
   const { run, news, scorer, provider } = setup();
   const listing = { name: "台積電", englishName: "TSMC" };
 
@@ -412,10 +461,7 @@ test("news is scored, newest first, without items that only name the listing", a
     title === "大盤收紅" ? sentiment(0.2, 0) : sentiment(0.9, 0.6)
   );
 
-  const { text, details } = await run(AgentToolName.GetNews, {
-    symbol: TSMC,
-    days: 3,
-  });
+  const first = await run(AgentToolName.GetNews, { symbol: TSMC, days: 3 });
 
   expect(news.search).toHaveBeenCalledWith({
     symbol: TSMC,
@@ -429,9 +475,9 @@ test("news is scored, newest first, without items that only name the listing", a
     title: "法說前瞻",
     text: "法說前瞻 snippet",
   });
-  expect(text.split("\n")).toEqual([
+  expect(first.text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 3 days, as_of 2026-09-30 10:00, scored by jev-1.13.0",
-    "## article (fake-news): 2 of 3 found",
+    "## article: 2 of 3",
     "- 2026-09-30 05:00 news.test: 外資買超",
     "  stance +0.60, opinion, guidance",
     "  外資買超 snippet",
@@ -441,7 +487,15 @@ test("news is scored, newest first, without items that only name the listing", a
     "  法說前瞻 snippet",
     `  ${newsItem("法說前瞻", 30).url}`,
   ]);
-  expect(details).toEqual({ symbol: TSMC, items: 3 });
+  expect(first.details).toEqual({ symbol: TSMC, items: 3 });
+
+  // Found before, so a search that no longer finds them still lists them, without scoring again.
+  news.search.mockResolvedValue([]);
+
+  const second = await run(AgentToolName.GetNews, { symbol: TSMC, days: 3 });
+
+  expect(second.text).toBe(first.text);
+  expect(scorer.score).toHaveBeenCalledTimes(3);
 });
 
 test("without a decisions model, news is listed unscored", async () => {
@@ -454,7 +508,7 @@ test("without a decisions model, news is listed unscored", async () => {
 
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",
-    "## article (fake-news): 1 of 1 found",
+    "## article: 1 of 1",
     "- undated news.test: 無日期",
     "  無日期 snippet",
     `  ${newsItem("無日期", null).url}`,
@@ -471,7 +525,7 @@ test("without a source for the market, the tool says what is missing", async () 
   ).rejects.toThrow("No news source covers US");
 });
 
-test("each source gets a section, and a failed one leaves the others", async () => {
+test("channels get sections, and a failed source leaves the others", async () => {
   const { run, ports } = setup();
 
   const forum = {
@@ -480,6 +534,7 @@ test("each source gets a section, and a failed one leaves the others", async () 
     markets: [Market.TW],
     search: vi.fn<NewsSource["search"]>(async () => [
       {
+        id: "M.1.A.1",
         url: "https://www.ptt.cc/bbs/Stock/M.1.A.1.html",
         title: "[新聞] 台積電",
         snippet: "",
@@ -506,7 +561,7 @@ test("each source gets a section, and a failed one leaves the others", async () 
     search: vi.fn<NewsSource["search"]>(async () => []),
   };
 
-  ports.news.mockResolvedValue([forum, social, us]);
+  ports.newsSources.mockResolvedValue([forum, social, us]);
   ports.scorer.mockResolvedValue(undefined);
 
   const { text } = await run(AgentToolName.GetNews, { symbol: TSMC });
@@ -514,9 +569,9 @@ test("each source gets a section, and a failed one leaves the others", async () 
   expect(us.search).not.toHaveBeenCalled();
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",
-    "## forum (fake-forum): 1 of 1 found",
+    "## forum: 1 of 1",
     "- 2026-09-30 08:00 ptt.cc, votes +61: [新聞] 台積電",
     "  https://www.ptt.cc/bbs/Stock/M.1.A.1.html",
-    "## social (fake-social): failed, Firecrawl returned 402",
+    "Sources that failed this time: fake-social (Firecrawl returned 402)",
   ]);
 });

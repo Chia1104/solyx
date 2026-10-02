@@ -131,6 +131,7 @@ export function createFirecrawlNews(options: FirecrawlOptions): NewsSource {
 
         return [
           {
+            id: url,
             url,
             title,
             snippet,
@@ -183,6 +184,7 @@ export function createFirecrawlSocial(options: FirecrawlOptions): NewsSource {
 
         return [
           {
+            id: url,
             url,
             title,
             snippet: date && dated ? dated[2].trim() : description,
