@@ -494,7 +494,7 @@
     },
     "news": {
       "title": "新聞",
-      "description": "Agent 會透過 Firecrawl 搜尋個股的近期新聞，使用你自己的金鑰。每次搜尋都會用掉 Firecrawl 額度，請求直接從這台電腦送到 Firecrawl。"
+      "description": "Agent 會自行讀取台股公司的重大訊息和 PTT 股票板。填入 Firecrawl 金鑰後，還會搜尋新聞，並取樣台股的 Threads 與美股的 X 貼文；每次搜尋都會用掉 Firecrawl 額度。請求直接從這台電腦送到各個來源。"
     },
     "decisions": {
       "title": "決策模型",

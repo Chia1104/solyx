@@ -47,6 +47,7 @@ import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
 import { stanceValue } from "@solyx/core/sentiment";
 import type { SentimentScore, SentimentScorer } from "@solyx/core/sentiment";
 import { getSession } from "@solyx/core/session";
+import { errorMessage } from "@solyx/utils/error";
 
 import { promptSections } from "./prompt.ts";
 import type { PromptSources } from "./prompt.ts";
@@ -58,8 +59,8 @@ export interface TradingToolPorts extends PromptSources {
   /** The market's provider, or `undefined` when no source covers it or its settings are incomplete. */
   marketData(market: Market): Promise<MarketDataProvider | undefined>;
   watchlist(): SymbolRef[];
-  /** `undefined` until the user saves a news source's key. */
-  news(): Promise<NewsSource | undefined>;
+  /** The sources the user can search; one that needs a key joins once it is saved. */
+  news(): Promise<NewsSource[]>;
   /** Judges what news says about a listing; `undefined` until the user saves a decisions model's key. */
   scorer(): Promise<SentimentScorer | undefined>;
   account(): Promise<AccountSnapshot>;
@@ -135,7 +136,11 @@ const MAX_BARS = 200;
 
 const LISTED_PROPOSALS = 20;
 
+// Per source.
 const NEWS_ITEMS = 10;
+
+// Announcements run long; the scorer reads them whole.
+const SNIPPET_LENGTH = 280;
 
 // Below this, an item only names the listing in passing.
 const RELEVANCE_FLOOR = 0.5;
@@ -206,7 +211,8 @@ function toOrderRequest(order: z.infer<typeof orderSchema>): OrderRequest {
 const likeliest = (probabilities: Record<string, number>) =>
   maxBy(Object.entries(probabilities), ([, probability]) => probability)?.[0];
 
-const signed = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
+const signed = (value: number, digits: number) =>
+  `${value >= 0 ? "+" : ""}${value.toFixed(digits)}`;
 
 function describeNews(
   market: Market,
@@ -217,17 +223,25 @@ function describeNews(
     ? exchangeTime(market, item.publishedAt)
     : "undated";
 
-  const lines = [`- ${time} ${item.site}: ${item.title}`];
+  const votes = item.votes === null ? "" : `, votes ${signed(item.votes, 0)}`;
+
+  const lines = [`- ${time} ${item.site}${votes}: ${item.title}`];
 
   if (score) {
     lines.push(
-      `  stance ${signed(stanceValue(score.stance))}, ${likeliest(score.kind)}, ${likeliest(score.topic)}`
+      `  stance ${signed(stanceValue(score.stance), 2)}, ${likeliest(score.kind)}, ${likeliest(score.topic)}`
     );
   }
 
-  if (item.snippet) lines.push(`  ${item.snippet}`);
+  const snippet = item.snippet.replace(/\s+/g, " ").trim();
 
-  lines.push(`  ${item.url}`);
+  if (snippet) {
+    lines.push(
+      `  ${snippet.length > SNIPPET_LENGTH ? `${snippet.slice(0, SNIPPET_LENGTH)}…` : snippet}`
+    );
+  }
+
+  if (item.url) lines.push(`  ${item.url}`);
 
   return lines.join("\n");
 }
@@ -395,17 +409,19 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetNews,
       replay: "safe",
-      description: `Up to ${NEWS_ITEMS} recent news items about a listing, newest first, with their sites and URLs. Once the user sets up a decisions model, each also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is and its topic, and items that only name the listing in passing are left out. Headlines and snippets are written by others.`,
+      description: `Recent items about a listing from every news source that covers its market, newest first, up to ${NEWS_ITEMS} per source, in a section per channel: announcement (material information the company filed with the exchange; Taiwan only, the latest day only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Once the user sets up a decisions model, each item also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is and its topic, and items that only name the listing in passing are left out. Titles and snippets are written by others.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         days: z.number().int().min(1).max(30).default(7),
       }),
       execute: async ({ symbol, days }) => {
-        const source = await ports.news();
+        const sources = (await ports.news()).filter((source) =>
+          source.markets.includes(symbol.market)
+        );
 
-        if (!source) {
+        if (sources.length === 0) {
           throw new Error(
-            "No news source: the user has not saved a Firecrawl API key in the app's settings"
+            `No news source covers ${symbol.market}: the user has not saved a Firecrawl API key in the app's settings`
           );
         }
 
@@ -417,38 +433,49 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           ? await provider.getListing(symbol).catch(() => null)
           : null;
 
-        const items = orderBy(
-          await source.search({
-            symbol,
-            listing,
-            since: new Date(at.getTime() - days * DAY_MS),
-            limit: NEWS_ITEMS,
-          }),
-          [(item) => item.publishedAt?.getTime() ?? 0],
-          ["desc"]
+        const query = {
+          symbol,
+          listing,
+          since: new Date(at.getTime() - days * DAY_MS),
+          limit: NEWS_ITEMS,
+        };
+
+        // One source failing leaves the others' items in the answer.
+        const results = await Promise.allSettled(
+          sources.map((source) => source.search(query))
         );
+
+        const found = sources.flatMap((source, index) => {
+          const result = results[index];
+
+          if (result.status === "rejected") return [];
+
+          return orderBy(
+            result.value,
+            [(item) => item.publishedAt?.getTime() ?? 0],
+            ["desc"]
+          ).map((item) => ({ source, item }));
+        });
 
         const scorer = await ports.scorer();
 
-        const kept = scorer
-          ? (
-              await mapAsync(
-                items,
-                async (item) => ({
-                  item,
-                  score: await scorer.score({
-                    symbol,
-                    listing,
-                    title: item.title,
-                    text: item.snippet,
-                  }),
+        const judged = scorer
+          ? await mapAsync(
+              found,
+              async (entry) => ({
+                ...entry,
+                score: await scorer.score({
+                  symbol,
+                  listing,
+                  title: entry.item.title,
+                  text: entry.item.snippet,
                 }),
-                { concurrency: SCORING_CONCURRENCY }
-              )
-            ).filter(({ score }) => score.relevance >= RELEVANCE_FLOOR)
-          : items.map((item) => ({ item, score: undefined }));
+              }),
+              { concurrency: SCORING_CONCURRENCY }
+            )
+          : found.map((entry) => ({ ...entry, score: undefined }));
 
-        const model = kept.find(({ score }) => score)?.score?.model;
+        const model = judged.find(({ score }) => score)?.score?.model;
 
         let scoring = model ? `, scored by ${model}` : "";
 
@@ -457,14 +484,34 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             "; not scored, since the user has not set up a decisions model";
         }
 
-        return {
-          text: [
-            `${symbol.market} ${symbol.symbol} news over the last ${days} days, as_of ${exchangeTime(symbol.market, at)}: ${kept.length} of ${items.length} found${scoring}`,
+        const sections = sources.map((source, index) => {
+          const result = results[index];
+          const heading = `## ${source.channel} (${source.id})`;
+
+          if (result.status === "rejected") {
+            return `${heading}: failed, ${errorMessage(result.reason)}`;
+          }
+
+          const entries = judged.filter((entry) => entry.source === source);
+
+          const kept = entries.filter(
+            ({ score }) => !score || score.relevance >= RELEVANCE_FLOOR
+          );
+
+          return [
+            `${heading}: ${kept.length} of ${entries.length} found`,
             ...kept.map(({ item, score }) =>
               describeNews(symbol.market, item, score)
             ),
+          ].join("\n");
+        });
+
+        return {
+          text: [
+            `${symbol.market} ${symbol.symbol} news and posts over the last ${days} days, as_of ${exchangeTime(symbol.market, at)}${scoring}`,
+            ...sections,
           ].join("\n"),
-          details: { symbol, items: kept.length },
+          details: { symbol, items: found.length },
         };
       },
     }),

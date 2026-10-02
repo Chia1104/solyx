@@ -132,7 +132,7 @@ export function createServices() {
     conversations: openAgentStore(join(userDataDir, "agent.sqlite")),
     marketData: (market) => marketData.provider(market),
     watchlist: () => userData.watchlist.list(),
-    news: () => news.source(),
+    news: () => news.sources(),
     scorer: () => decisions.scorer(),
     broker,
     desk,

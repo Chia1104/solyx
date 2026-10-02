@@ -3,7 +3,10 @@ import { beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { Market } from "@solyx/core/market";
 
-import { createFirecrawlNews } from "../src/firecrawl.ts";
+import {
+  createFirecrawlNews,
+  createFirecrawlSocial,
+} from "../src/firecrawl.ts";
 
 const firecrawl = vi.hoisted(() => {
   const options: FirecrawlClientOptions[] = [];
@@ -102,6 +105,7 @@ test("dates results by their age and drops malformed or repeated ones", async ()
       snippet: "摩根大通看好台積電第三季營收",
       site: "ctee.com.tw",
       publishedAt: new Date("2026-10-02T23:30:00Z"),
+      votes: null,
     },
     {
       url: "https://stock.ltn.com.tw/article/2",
@@ -109,6 +113,7 @@ test("dates results by their age and drops malformed or repeated ones", async ()
       snippet: "",
       site: "stock.ltn.com.tw",
       publishedAt: new Date(Date.parse("Sep 29, 2026")),
+      votes: null,
     },
     {
       url: "https://udn.com/news/3",
@@ -116,6 +121,77 @@ test("dates results by their age and drops malformed or repeated ones", async ()
       snippet: "kept",
       site: "udn.com",
       publishedAt: null,
+      votes: null,
     },
   ]);
+});
+
+test("samples Threads posts in Taiwan, dated by the start of their description", async () => {
+  firecrawl.search.mockResolvedValue({
+    web: [
+      {
+        url: "https://www.threads.com/@someone/post/Dd-Bd",
+        title: "台積電第二個美國基地，可能要來了？",
+        description: "22 hours ago · 台積電擬規劃啟動美國第二園區建廠作業",
+      },
+      {
+        url: "https://www.threads.com/@other/post/Dd-Cc",
+        title: "台積電 · 盤整",
+        description: "沒有日期 · 但有分隔符號",
+      },
+    ],
+  });
+
+  const source = createFirecrawlSocial({ apiKey: "test-key", now: () => NOW });
+
+  const items = await source.search({
+    symbol: TSMC,
+    listing: { name: "台積電", englishName: "TSMC" },
+    since: new Date("2026-09-26T17:00:00Z"),
+    limit: 10,
+  });
+
+  expect(firecrawl.search).toHaveBeenCalledWith("台積電 site:threads.com", {
+    sources: ["web"],
+    limit: 10,
+    location: "Taiwan",
+    tbs: "cdr:1,cd_min:9/27/2026,cd_max:10/3/2026",
+    highlights: false,
+  });
+  expect(items).toEqual([
+    {
+      url: "https://www.threads.com/@someone/post/Dd-Bd",
+      title: "台積電第二個美國基地，可能要來了？",
+      snippet: "台積電擬規劃啟動美國第二園區建廠作業",
+      site: "threads.com",
+      publishedAt: new Date("2026-10-02T07:30:00Z"),
+      votes: null,
+    },
+    {
+      url: "https://www.threads.com/@other/post/Dd-Cc",
+      title: "台積電 · 盤整",
+      snippet: "沒有日期 · 但有分隔符號",
+      site: "threads.com",
+      publishedAt: null,
+      votes: null,
+    },
+  ]);
+});
+
+test("samples X posts by cashtag in the US", async () => {
+  firecrawl.search.mockResolvedValue({ web: [] });
+
+  const source = createFirecrawlSocial({ apiKey: "test-key", now: () => NOW });
+
+  await source.search({
+    symbol: { market: Market.US, symbol: "NVDA" },
+    listing: null,
+    since: new Date("2026-09-26T17:00:00Z"),
+    limit: 10,
+  });
+
+  expect(firecrawl.search).toHaveBeenCalledWith(
+    "$NVDA site:x.com",
+    expect.objectContaining({ location: "United States" })
+  );
 });

@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./firecrawl": "./src/firecrawl.ts"
+    "./announcements": "./src/announcements.ts",
+    "./firecrawl": "./src/firecrawl.ts",
+    "./ptt": "./src/ptt.ts"
   },
   "scripts": {
     "test": "vp test"
@@ -13,6 +15,7 @@
     "@solyx/core": "workspace:*",
     "es-toolkit": "catalog:",
     "firecrawl": "catalog:news",
+    "ky": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

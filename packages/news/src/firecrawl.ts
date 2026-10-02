@@ -3,15 +3,22 @@ import { Firecrawl } from "firecrawl";
 import * as z from "zod";
 
 import { Market, exchangeDate } from "@solyx/core/market";
+import { NewsChannel } from "@solyx/core/news";
 import type { NewsItem, NewsQuery, NewsSource } from "@solyx/core/news";
 
 /** Firecrawl's hosted API; passed so the SDK never reads `FIRECRAWL_API_URL`. */
 const FIRECRAWL_API_URL = "https://api.firecrawl.dev";
 
-// Google News ranks results for the searcher's location.
+// Google ranks results for the searcher's location.
 const MARKET_LOCATION: Record<Market, string> = {
   [Market.TW]: "Taiwan",
   [Market.US]: "United States",
+};
+
+// Taiwan's investors talk on Threads more than on X; US investors tag tickers on X.
+const SOCIAL_SITE: Record<Market, string> = {
+  [Market.TW]: "threads.com",
+  [Market.US]: "x.com",
 };
 
 const newsResultSchema = z.object({
@@ -19,6 +26,12 @@ const newsResultSchema = z.object({
   title: z.string().trim().min(1),
   snippet: z.string().trim().catch(""),
   date: z.string().optional().catch(undefined),
+});
+
+const webResultSchema = z.object({
+  url: z.url(),
+  title: z.string().trim().min(1),
+  description: z.string().trim().catch(""),
 });
 
 const AGE_PATTERN = /^(\d+)\s+(minute|hour|day|week)s?\s+ago$/i;
@@ -30,7 +43,10 @@ const UNIT_MS = new Map([
   ["week", 604_800_000],
 ]);
 
-/** Reads Google News's ages, such as `3 hours ago`, and dates such as `Sep 29, 2026`. */
+// Google starts a dated web result's description with its date: `22 hours ago · …`.
+const DATED_DESCRIPTION = /^(.{1,40}?) · ([\s\S]*)$/;
+
+/** Reads Google's ages, such as `3 hours ago`, and dates such as `Sep 29, 2026`. */
 function publishedAt(date: string | undefined, now: Date): Date | null {
   if (date === undefined) return null;
 
@@ -53,14 +69,16 @@ function rangeDate(market: Market, at: Date): string {
   return `${Number(month)}/${Number(day)}/${year}`;
 }
 
-export interface FirecrawlNewsOptions {
+const site = (url: string) => new URL(url).hostname.replace(/^www\./, "");
+
+export interface FirecrawlOptions {
   apiKey: string;
   /** @default () => new Date() */
   now?: () => Date;
 }
 
-/** Google News results through Firecrawl's search, on the user's own key. */
-export function createFirecrawlNews(options: FirecrawlNewsOptions): NewsSource {
+/** Searches through Firecrawl on the user's key, within the query's dates and market. */
+function firecrawlSearch(options: FirecrawlOptions) {
   const client = new Firecrawl({
     apiKey: options.apiKey,
     apiUrl: FIRECRAWL_API_URL,
@@ -68,25 +86,43 @@ export function createFirecrawlNews(options: FirecrawlNewsOptions): NewsSource {
 
   const now = options.now ?? (() => new Date());
 
+  return async (
+    text: string,
+    { symbol, since, limit }: NewsQuery,
+    source: "news" | "web"
+  ) => {
+    const at = now();
+
+    const data = await client.search(text, {
+      sources: [source],
+      limit,
+      location: MARKET_LOCATION[symbol.market],
+      tbs: `cdr:1,cd_min:${rangeDate(symbol.market, since)},cd_max:${rangeDate(symbol.market, at)}`,
+      // The text as published, rather than excerpts Firecrawl picks for the query.
+      highlights: false,
+    });
+
+    return { data, at };
+  };
+}
+
+/** Google News articles through Firecrawl's search. */
+export function createFirecrawlNews(options: FirecrawlOptions): NewsSource {
+  const search = firecrawlSearch(options);
+
   return {
-    id: "firecrawl",
+    id: "firecrawl-news",
+    channel: NewsChannel.Article,
+    markets: Object.values(Market),
 
-    async search({ symbol, listing, since, limit }: NewsQuery) {
-      const at = now();
-
-      const { news = [] } = await client.search(
-        compact([listing?.name, symbol.symbol]).join(" "),
-        {
-          sources: ["news"],
-          limit,
-          location: MARKET_LOCATION[symbol.market],
-          tbs: `cdr:1,cd_min:${rangeDate(symbol.market, since)},cd_max:${rangeDate(symbol.market, at)}`,
-          // The snippets as published, rather than excerpts Firecrawl picks for the query.
-          highlights: false,
-        }
+    async search(query: NewsQuery) {
+      const { data, at } = await search(
+        compact([query.listing?.name, query.symbol.symbol]).join(" "),
+        query,
+        "news"
       );
 
-      const items = news.flatMap((result): NewsItem[] => {
+      const items = (data.news ?? []).flatMap((result): NewsItem[] => {
         const parsed = newsResultSchema.safeParse(result);
 
         if (!parsed.success) return [];
@@ -98,8 +134,61 @@ export function createFirecrawlNews(options: FirecrawlNewsOptions): NewsSource {
             url,
             title,
             snippet,
-            site: new URL(url).hostname.replace(/^www\./, ""),
+            site: site(url),
             publishedAt: publishedAt(date, at),
+            votes: null,
+          },
+        ];
+      });
+
+      return uniqBy(items, (item) => item.url);
+    },
+  };
+}
+
+/**
+ * Posts on Threads in Taiwan and on X in the US, as Google indexed them: a sample that leans to
+ * popular accounts and lags by hours, not every post.
+ */
+export function createFirecrawlSocial(options: FirecrawlOptions): NewsSource {
+  const search = firecrawlSearch(options);
+
+  return {
+    id: "firecrawl-social",
+    channel: NewsChannel.Social,
+    markets: Object.values(Market),
+
+    async search(query: NewsQuery) {
+      const { symbol, listing } = query;
+
+      const subject =
+        symbol.market === Market.US
+          ? `$${symbol.symbol}`
+          : (listing?.name ?? symbol.symbol);
+
+      const { data, at } = await search(
+        `${subject} site:${SOCIAL_SITE[symbol.market]}`,
+        query,
+        "web"
+      );
+
+      const items = (data.web ?? []).flatMap((result): NewsItem[] => {
+        const parsed = webResultSchema.safeParse(result);
+
+        if (!parsed.success) return [];
+
+        const { url, title, description } = parsed.data;
+        const dated = DATED_DESCRIPTION.exec(description);
+        const date = dated ? publishedAt(dated[1], at) : null;
+
+        return [
+          {
+            url,
+            title,
+            snippet: date && dated ? dated[2].trim() : description,
+            site: site(url),
+            publishedAt: date,
+            votes: null,
           },
         ];
       });

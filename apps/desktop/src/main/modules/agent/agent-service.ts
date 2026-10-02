@@ -31,7 +31,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   conversations: Promise<AgentConversationStore>;
   marketData: (market: Market) => Promise<MarketDataProvider | undefined>;
   watchlist: () => SymbolRef[];
-  news: () => Promise<NewsSource | undefined>;
+  news: () => Promise<NewsSource[]>;
   scorer: () => Promise<SentimentScorer | undefined>;
   broker: BrokerAdapter;
   desk: OrderDesk;
