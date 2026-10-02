@@ -77,11 +77,14 @@ function setup(
 }
 
 const fakeServer = (
-  env: Record<string, string> = { FAKE_KEY: "secret:fake" }
+  env: Record<string, string> = { FAKE_KEY: "secret:fake" },
+  description?: string
 ) =>
   parseMcpFile(
     JSON.stringify({
-      mcpServers: { fake: { command: process.execPath, args: [SERVER], env } },
+      mcpServers: {
+        fake: { command: process.execPath, args: [SERVER], env, description },
+      },
     })
   );
 
@@ -90,10 +93,16 @@ describe("mcp.json", () => {
     const entries = parseMcpFile(
       JSON.stringify({
         mcpServers: {
-          local: { command: "npx", args: ["-y", "server"], transport: "stdio" },
+          local: {
+            command: "npx",
+            args: ["-y", "server"],
+            transport: "stdio",
+            description: "  Market news  ",
+          },
           remote: {
             url: "https://mcp.example.com/mcp",
             headers: { Authorization: "secret:token" },
+            description: 42,
           },
           broken: { args: ["no command"] },
         },
@@ -103,9 +112,17 @@ describe("mcp.json", () => {
     expect(entries).toMatchObject([
       {
         name: "local",
-        config: { kind: McpTransportKind.Stdio, command: "npx" },
+        config: {
+          kind: McpTransportKind.Stdio,
+          command: "npx",
+          description: "Market news",
+        },
       },
-      { name: "remote", config: { kind: McpTransportKind.Http } },
+      // A description that is not text reads as absent rather than failing the entry.
+      {
+        name: "remote",
+        config: { kind: McpTransportKind.Http, description: undefined },
+      },
       { name: "broken", error: expect.stringContaining("command") },
     ]);
   });
@@ -125,8 +142,11 @@ describe("a connected server", () => {
   test("lists its tools and runs a call once the user allows it, with its secret in place", async () => {
     const hub = setup();
 
+    // Set in the app's environment, which the server must not see.
+    vi.stubEnv("SOLYX_TEST_APP_ENV", "from-the-app");
     hub.sync(fakeServer());
     await hub.settled(10_000);
+    vi.unstubAllEnvs();
 
     expect(hub.status()).toMatchObject([
       {
@@ -154,8 +174,9 @@ describe("a connected server", () => {
       },
       undefined
     );
+    // The entry's own env and the user's home arrive; nothing else of the app's does.
     expect(contentText(result?.content ?? [])).toBe(
-      'quote {"symbol":"2330"} key=s3cret'
+      `quote {"symbol":"2330"} key=s3cret app=none home=${process.platform === "win32" ? "none" : "set"}`
     );
   });
 
@@ -201,6 +222,36 @@ describe("a connected server", () => {
 
     expect(missing.control).toBeUndefined();
     expect(contentText(missing.content ?? [])).toContain("No tools on fake");
+  });
+
+  test("the user's description names the server and leads a search to it", async () => {
+    const hub = setup();
+
+    hub.sync(
+      fakeServer(
+        { FAKE_KEY: "secret:fake" },
+        "Taiwan broker quotes\nand more lines"
+      )
+    );
+    await hub.settled(10_000);
+
+    const { search } = hub.extensions({
+      policies: {},
+      allow: async () => true,
+    });
+
+    const [find] = search.tools ?? [];
+    const [servers] = search.sections ?? [];
+
+    // SAFETY: the list of servers reads nothing from the request it renders for.
+    const input = {} as PromptInput;
+
+    expect(await servers?.render(input, BACKGROUND_CONTEXT)).toContain(
+      '<server name="fake" tools="2">Taiwan broker quotes</server>'
+    );
+    expect(
+      (await call(find, { query: "broker" })).control?.addTools
+    ).toHaveLength(2);
   });
 
   test("a refused call never reaches the server", async () => {

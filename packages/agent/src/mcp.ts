@@ -139,18 +139,33 @@ export interface McpExtensions {
 /** One server's tool as the agent may load it. */
 interface LoadableTool {
   server: string;
+  /** The description the user wrote for the server, which search reads too. */
+  serverDescription?: string;
   tool: Tool;
   registration: ToolRegistration;
 }
 
+/** A connected server as the prompt lists it. */
+interface ListedServer {
+  name: string;
+  /** The user's description of it, or else the name it gives itself. */
+  summary: string;
+  tools: number;
+}
+
+/** The first line of `text`, kept to `max` characters. */
+function firstLine(text: string, max: number) {
+  const [line = ""] = text.trim().split("\n");
+
+  return line.length > max ? `${line.slice(0, max)}…` : line;
+}
+
 /** The connected servers, so the agent knows what it may search for. */
-function serversText(
-  servers: { name: string; title: string; tools: number }[]
-) {
+function serversText(servers: readonly ListedServer[]) {
   const list = servers
     .map(
-      ({ name, title, tools }) =>
-        `  <server name="${escape(name)}" tools="${tools}">${escape(title)}</server>`
+      ({ name, summary, tools }) =>
+        `  <server name="${escape(name)}" tools="${tools}">${escape(firstLine(summary, 200))}</server>`
     )
     .join("\n");
 
@@ -194,6 +209,7 @@ function searchTool(loadable: readonly LoadableTool[]): ToolRegistration {
             ...names,
             entry.tool.title ?? "",
             entry.tool.description ?? "",
+            entry.serverDescription ?? "",
           ]
             .join(" ")
             .toLowerCase();
@@ -225,13 +241,10 @@ function searchTool(loadable: readonly LoadableTool[]): ToolRegistration {
         };
       }
 
-      const lines = found.map(({ server: from, tool, registration }) => {
-        const [summary = ""] = (tool.description ?? tool.title ?? "").split(
-          "\n"
-        );
-
-        return `- ${registration.name} (${from}): ${summary.slice(0, 160)}`;
-      });
+      const lines = found.map(
+        ({ server: from, tool, registration }) =>
+          `- ${registration.name} (${from}): ${firstLine(tool.description ?? tool.title ?? "", 160)}`
+      );
 
       if (matches.length > found.length) {
         lines.push(
@@ -254,6 +267,36 @@ function searchTool(loadable: readonly LoadableTool[]): ToolRegistration {
 }
 
 const STDERR_TAIL = 2000;
+
+// What a stdio server takes from the app's environment, as other MCP clients pass it: enough to
+// find its home, user and shell. Anything else, such as keys a terminal exported, stays out.
+const INHERITED_ENV =
+  process.platform === "win32"
+    ? [
+        "APPDATA",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "LOCALAPPDATA",
+        "PATH",
+        "PROCESSOR_ARCHITECTURE",
+        "PROGRAMFILES",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
+        "TEMP",
+        "USERNAME",
+        "USERPROFILE",
+      ]
+    : ["HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER"];
+
+function inheritedEnv(): Record<string, string> {
+  return Object.fromEntries(
+    INHERITED_ENV.flatMap((name) => {
+      const value = process.env[name];
+
+      return value === undefined ? [] : [[name, value]];
+    })
+  );
+}
 
 // What a sign-in keeps between runs. Discovery is looked up again, and an authorization in
 // progress never outlives the sign-in that started it.
@@ -427,12 +470,17 @@ export function createMcpHub(options: McpHubOptions) {
     }
 
     const path = await options.path();
+    const env = inheritedEnv();
+
+    if (path) env.PATH = path;
 
     return new StdioTransport({
       command: config.command,
       args: config.args,
       cwd: config.cwd,
-      env: path ? { PATH: path, ...resolved } : resolved,
+      // The entry's own env comes last, so it may set any variable, PATH included.
+      env: { ...env, ...resolved },
+      inheritEnv: false,
       stderr: "pipe",
       onStderr: (chunk) => {
         stderr.tail = (stderr.tail + chunk).slice(-STDERR_TAIL);
@@ -720,7 +768,7 @@ export function createMcpHub(options: McpHubOptions) {
     extensions({ policies, allow }: McpToolOptions): McpExtensions {
       const loadable: LoadableTool[] = [];
       const names = new Set<string>();
-      const servers: { name: string; title: string; tools: number }[] = [];
+      const servers: ListedServer[] = [];
 
       for (const [server, connection] of connections) {
         const { client } = connection;
@@ -730,6 +778,11 @@ export function createMcpHub(options: McpHubOptions) {
         }
 
         const before = loadable.length;
+
+        const serverDescription =
+          "config" in connection.entry
+            ? connection.entry.config.description
+            : undefined;
 
         for (const tool of connection.tools) {
           const readOnly = tool.annotations?.readOnlyHint === true;
@@ -746,6 +799,7 @@ export function createMcpHub(options: McpHubOptions) {
           names.add(name);
           loadable.push({
             server,
+            serverDescription,
             tool,
             registration: {
               name,
@@ -804,7 +858,11 @@ export function createMcpHub(options: McpHubOptions) {
         if (loadable.length > before) {
           servers.push({
             name: server,
-            title: client.serverInfo?.title ?? client.serverInfo?.name ?? "",
+            summary:
+              serverDescription ??
+              client.serverInfo?.title ??
+              client.serverInfo?.name ??
+              "",
             tools: loadable.length - before,
           });
         }

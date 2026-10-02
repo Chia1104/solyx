@@ -46,6 +46,12 @@ export function secretReference(value: string): string | undefined {
 
 const valuesSchema = z.record(z.string(), z.string());
 
+/**
+ * What the server offers, in the user's words, which names it to the agent. One that does not
+ * parse reads as absent rather than failing the entry.
+ */
+const descriptionSchema = z.string().trim().min(1).optional().catch(undefined);
+
 // Loose, since the same file often carries keys other clients read, such as pi's `transport`.
 export const mcpServerSchema = z.union([
   z
@@ -54,20 +60,27 @@ export const mcpServerSchema = z.union([
       args: z.array(z.string()).optional(),
       env: valuesSchema.optional(),
       cwd: z.string().optional(),
+      description: descriptionSchema,
     })
-    .transform(({ command, args, env, cwd }) => ({
+    .transform(({ command, args, env, cwd, description }) => ({
       kind: McpTransportKind.Stdio,
       command,
       args,
       env,
       cwd,
+      description,
     })),
   z
-    .looseObject({ url: z.url(), headers: valuesSchema.optional() })
-    .transform(({ url, headers }) => ({
+    .looseObject({
+      url: z.url(),
+      headers: valuesSchema.optional(),
+      description: descriptionSchema,
+    })
+    .transform(({ url, headers, description }) => ({
       kind: McpTransportKind.Http,
       url,
       headers,
+      description,
     })),
 ]);
 

@@ -50,7 +50,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
           content: [
             {
               type: "text",
-              text: `${params.name} ${JSON.stringify(params.arguments)} key=${process.env.FAKE_KEY}`,
+              text: `${params.name} ${JSON.stringify(params.arguments)} key=${process.env.FAKE_KEY} app=${process.env.SOLYX_TEST_APP_ENV ?? "none"} home=${process.env.HOME ? "set" : "none"}`,
             },
           ],
         },
