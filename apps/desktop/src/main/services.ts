@@ -19,6 +19,7 @@ import { ColorScheme, resolvePalette } from "#shared/palette.ts";
 import { agentAuth } from "./modules/agent/agent-models.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
+import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createLiveCandles } from "./modules/market/live-candles.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
@@ -80,6 +81,7 @@ export function createServices() {
     secrets,
     candles: cache.candles,
     fubonLogDir: join(userDataDir, "fubon"),
+    openFubonProcess,
   });
 
   const liveCandles = createLiveCandles({

@@ -99,5 +99,11 @@ export default defineConfig({
       // Sandboxed preloads cannot be ES modules.
       format: "cjs",
     },
+    {
+      ...nodeBundle,
+      entry: { fubon: "src/utility/fubon.ts" },
+      outDir: "dist/utility",
+      format: "esm",
+    },
   ],
 });

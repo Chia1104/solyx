@@ -109,8 +109,9 @@ export interface FubonSession {
 }
 
 /**
- * Signs in with an API key. The SDK's calls are synchronous and block until Fubon answers, and
- * it connects to Fubon as soon as it is created.
+ * Signs in with an API key. The SDK's calls are synchronous and block until Fubon answers, it
+ * connects to Fubon as soon as it is created, and it moves the process to `logDir`, so callers
+ * run it in a process of its own.
  */
 export function openFubonSession(options: FubonSessionOptions): FubonSession {
   const { CoreSdk, FugleRealtime, version } = loadFubonSdk(options.sdkDir);

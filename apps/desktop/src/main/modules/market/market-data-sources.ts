@@ -1,11 +1,6 @@
 import { isEqual } from "es-toolkit";
 
-import { openFubonSession } from "@solyx/brokers/fubon";
-import type {
-  FubonRealtime,
-  FubonSession,
-  FubonSessionOptions,
-} from "@solyx/brokers/fubon";
+import type { FubonRealtime, FubonSessionOptions } from "@solyx/brokers/fubon";
 import { Market } from "@solyx/core/market";
 import type {
   MarketDataProvider,
@@ -41,17 +36,23 @@ import type {
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
 
+import type { FubonProcess } from "./fubon-process.ts";
+
 interface FubonConnection {
-  session: FubonSession;
+  session: FubonProcess;
   realtime: FubonRealtime;
   provider: MarketDataProvider;
 }
 
+type FubonOutcome = { connection: FubonConnection } | { failure: unknown };
+
 /** The last sign-in, for the settings it used; a failure is kept so it is not retried unasked. */
-type FubonSignIn = { options: FubonSessionOptions } & (
-  | { connection: FubonConnection }
-  | { failure: unknown }
-);
+interface FubonSignIn {
+  options: FubonSessionOptions;
+  /** Settles once Fubon answers, and never rejects. */
+  outcome: Promise<FubonOutcome>;
+  settled: boolean;
+}
 
 interface MarketDataSourcesOptions {
   config: ConfigFile;
@@ -59,6 +60,7 @@ interface MarketDataSourcesOptions {
   candles: CandleStore;
   /** A private folder for the Fubon SDK's logs, which hold the ID number and account details. */
   fubonLogDir: string;
+  openFubonProcess: (options: FubonSessionOptions) => Promise<FubonProcess>;
 }
 
 /**
@@ -71,6 +73,7 @@ export function createMarketDataSources({
   secrets,
   candles,
   fubonLogDir,
+  openFubonProcess,
 }: MarketDataSourcesOptions) {
   let fugle:
     | { apiKey: string; plan: FuglePlan; provider: MarketDataProvider }
@@ -107,11 +110,13 @@ export function createMarketDataSources({
     };
   }
 
-  function signIn(options: FubonSessionOptions): FubonConnection {
-    const session = openFubonSession(options);
+  async function signIn(
+    options: FubonSessionOptions
+  ): Promise<FubonConnection> {
+    const session = await openFubonProcess(options);
 
     try {
-      const realtime = session.realtime();
+      const realtime = await session.realtime();
 
       return {
         session,
@@ -124,14 +129,34 @@ export function createMarketDataSources({
     }
   }
 
+  function startSignIn(options: FubonSessionOptions): FubonSignIn {
+    const current: FubonSignIn = {
+      options,
+      outcome: signIn(options).then(
+        (connection) => ({ connection }),
+        (cause: unknown) => ({ failure: cause })
+      ),
+      settled: false,
+    };
+
+    void current.outcome.then(() => {
+      current.settled = true;
+    });
+
+    return current;
+  }
+
   function signOutFubon() {
-    if (fubon && "connection" in fubon) fubon.connection.session.close();
+    // A sign-in still waiting for Fubon signs out once it answers.
+    void fubon?.outcome.then((outcome) => {
+      if ("connection" in outcome) outcome.connection.session.close();
+    });
 
     fubon = undefined;
   }
 
-  // Signing in blocks until Fubon answers, and repeated failures could lock the account, so it
-  // happens once per settings unless the user asks again.
+  // Repeated failures could lock the account, so signing in happens once per settings unless the
+  // user asks again.
   async function fubonConnection(
     retry = false
   ): Promise<FubonConnection | undefined> {
@@ -143,42 +168,37 @@ export function createMarketDataSources({
       return undefined;
     }
 
-    let current = fubon;
-
-    if (retry || !current || !isEqual(current.options, options)) {
+    if (retry || !fubon || !isEqual(fubon.options, options)) {
       signOutFubon();
-
-      try {
-        current = { options, connection: signIn(options) };
-      } catch (failure) {
-        current = { options, failure };
-      }
-
-      fubon = current;
+      fubon = startSignIn(options);
     }
 
-    if ("failure" in current) throw current.failure;
+    const outcome = await fubon.outcome;
 
-    return current.connection;
+    if ("failure" in outcome) throw outcome.failure;
+
+    return outcome.connection;
   }
 
-  // Reports without signing in: that blocks until Fubon answers.
-  function fubonSession(
+  // Reports without signing in, but waits for a sign-in Fubon has yet to answer.
+  async function fubonSession(
     options: FubonSessionOptions | undefined
-  ): FubonSessionStatus {
+  ): Promise<FubonSessionStatus> {
     // A sign-in with other settings no longer says anything about these.
     if (!fubon || !options || !isEqual(fubon.options, options)) {
       return { state: FubonSessionState.SignedOut };
     }
 
-    return "connection" in fubon
+    const outcome = await fubon.outcome;
+
+    return "connection" in outcome
       ? {
           state: FubonSessionState.SignedIn,
-          accounts: fubon.connection.session.accounts.length,
+          accounts: outcome.connection.session.accounts.length,
         }
       : {
           state: FubonSessionState.Failed,
-          message: errorMessage(fubon.failure),
+          message: errorMessage(outcome.failure),
         };
   }
 
@@ -252,14 +272,15 @@ export function createMarketDataSources({
         fubon: {
           plan: FUBON_PLAN,
           files: fubonFiles(),
-          session: fubonSession(fubonOptions),
+          session: await fubonSession(fubonOptions),
         },
       };
     },
 
     /** Signs in again with the saved settings, even after a failure. */
     async signInFubon(): Promise<void> {
-      const connection = await fubonConnection(true);
+      // Asking while Fubon has yet to answer waits for that answer rather than signing in twice.
+      const connection = await fubonConnection(fubon?.settled !== false);
 
       if (!connection) {
         throw new Error(
