@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { BrowserWindow, nativeTheme, shell } from "electron";
 
+import { PRODUCT_NAME } from "../product.ts";
+
 // Main is bundled into dist/main, next to dist/preload and dist/renderer.
 const bundleDir = fileURLToPath(new URL(".", import.meta.url));
 
@@ -40,7 +42,7 @@ export function createMainWindow() {
     // Room for the watchlist, a readable chart and the agent pane side by side.
     minWidth: 1024,
     minHeight: 640,
-    title: "Solyx",
+    title: PRODUCT_NAME,
     backgroundColor: currentPalette().background,
     titleBarStyle: "hidden",
     titleBarOverlay: titleBarOverlay(),

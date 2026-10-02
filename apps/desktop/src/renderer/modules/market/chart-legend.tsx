@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { memoize } from "es-toolkit";
 import { isUTCTimestamp } from "lightweight-charts";
 import type { MouseEventParams } from "lightweight-charts";
 import { useTranslation } from "react-i18next";
@@ -8,26 +7,13 @@ import { useTranslation } from "react-i18next";
 import type { Candle } from "@solyx/core/candles";
 import { useChart } from "@solyx/trading-chart/chart";
 
-export interface LegendLine {
+import { numberFormats } from "./number-formats.ts";
+
+interface LegendLine {
   label: string;
   color: string;
   values: (number | null)[];
 }
-
-// The legend renders on every crosshair move, so formatters are built once per locale.
-const legendFormats = memoize((locale: string) => ({
-  price: new Intl.NumberFormat(locale, { maximumFractionDigits: 4 }),
-  indicator: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }),
-  volume: new Intl.NumberFormat(locale, {
-    notation: "compact",
-    maximumFractionDigits: 2,
-  }),
-  change: new Intl.NumberFormat(locale, {
-    style: "percent",
-    signDisplay: "exceptZero",
-    maximumFractionDigits: 2,
-  }),
-}));
 
 /** OHLCV and overlay values for the bar under the crosshair, or the latest bar. */
 export function ChartLegend({
@@ -62,12 +48,14 @@ export function ChartLegend({
   const candle = candles[index];
   const previousClose = candles[index - 1]?.close;
 
-  const format = legendFormats(i18n.language);
+  const format = numberFormats(i18n.language);
 
   const change =
     previousClose === undefined
       ? null
-      : format.change.format((candle.close - previousClose) / previousClose);
+      : format.percentChange.format(
+          (candle.close - previousClose) / previousClose
+        );
 
   return (
     <div className="pointer-events-none absolute top-1 left-2 z-10 flex flex-col gap-0.5 text-xs tabular-nums">

@@ -13,7 +13,7 @@ import {
 
 import { AgentAuth, AgentProvider } from "@solyx/agent/providers";
 
-import { Secret } from "#shared/ipc/settings.ts";
+import { Locale, Secret } from "#shared/ipc/settings.ts";
 
 import {
   agentAuth,
@@ -56,7 +56,6 @@ function setup() {
     credentials,
     getDeviceId: () => "00000000-0000-4000-8000-000000000000",
     openExternal,
-    signInPage: () => "",
   });
 
   return { config, secrets, credentials, models, openExternal };
@@ -101,12 +100,12 @@ describe("paying by subscription", () => {
     config.set(["agent", "provider"], AgentProvider.OpenAI);
     config.set(["agent", "auth"], AgentAuth.Subscription);
 
-    const first = models.signIn("en-US");
+    const first = models.signIn(Locale.EnUS);
 
     await vi.waitFor(() => expect(openExternal).toHaveBeenCalledOnce());
 
     // Its browser page was closed, so the user starts over.
-    const second = models.signIn("en-US");
+    const second = models.signIn(Locale.EnUS);
 
     await expect(first).resolves.toBeUndefined();
     await vi.waitFor(() => expect(openExternal).toHaveBeenCalledTimes(2));
@@ -143,7 +142,7 @@ describe("paying by subscription", () => {
       type: "api_key",
       key: "sk-ant-test",
     });
-    await expect(models.signIn("en-US")).rejects.toThrow(
+    await expect(models.signIn(Locale.EnUS)).rejects.toThrow(
       "no subscription sign-in"
     );
   });

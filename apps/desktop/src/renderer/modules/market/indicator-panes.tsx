@@ -103,8 +103,8 @@ export function MacdPane({
       histogram: toHistogram(
         times,
         result.histogram,
-        direction.riseVolume,
-        direction.fallVolume
+        direction.rise.faded,
+        direction.fall.faded
       ),
       macd: toLine(times, result.macd),
       signal: toLine(times, result.signal),

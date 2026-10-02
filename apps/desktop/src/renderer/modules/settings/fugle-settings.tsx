@@ -1,4 +1,3 @@
-import { ListBox, Select } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +8,7 @@ import type { MarketDataStatus } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
+import { OptionSelect } from "../../components/option-select.tsx";
 
 import { PlanLimits } from "./plan-limits.tsx";
 import { SecretRow, SecretsUnavailable } from "./secret-row.tsx";
@@ -57,34 +57,17 @@ export function FugleSettings({ status }: { status: MarketDataStatus }) {
           label={planLabel}
           description={selected ? <PlanLimits plan={selected} /> : null}
           actions={
-            <Select
+            <OptionSelect
               aria-label={planLabel}
               className="w-44"
               value={plan}
               isDisabled={save.isPending}
-              onChange={(key) => {
-                const next = plans.find((option) => option.id === key);
-
-                if (next && next.id !== plan) save.mutate(next.id);
-              }}>
-              <Select.Trigger>
-                <Select.Value />
-                <Select.Indicator />
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  {plans.map((option) => (
-                    <ListBox.Item
-                      key={option.id}
-                      id={option.id}
-                      textValue={t(`settings.fugle.plans.${option.id}`)}>
-                      {t(`settings.fugle.plans.${option.id}`)}
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
+              options={plans.map((option) => ({
+                id: option.id,
+                label: t(`settings.fugle.plans.${option.id}`),
+              }))}
+              onChange={(next) => save.mutate(next)}
+            />
           }
         />
       </SettingsList>

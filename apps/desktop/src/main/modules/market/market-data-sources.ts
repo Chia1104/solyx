@@ -1,7 +1,11 @@
-import * as z from "zod";
+import { isEqual } from "es-toolkit";
 
 import { openFubonSession } from "@solyx/brokers/fubon";
-import type { FubonSession, FubonSessionOptions } from "@solyx/brokers/fubon";
+import type {
+  FubonRealtime,
+  FubonSession,
+  FubonSessionOptions,
+} from "@solyx/brokers/fubon";
 import { Market } from "@solyx/core/market";
 import type {
   MarketDataProvider,
@@ -14,14 +18,13 @@ import {
   createFubonMarketData,
   createFubonStream,
 } from "@solyx/market-data/fubon";
-import type { FubonRealtime } from "@solyx/market-data/fubon";
 import {
   FUGLE_PLANS,
-  FuglePlan,
   createFugleMarketData,
   createFugleStream,
-  fuglePlanSchema,
 } from "@solyx/market-data/fugle";
+import type { FuglePlan } from "@solyx/market-data/fugle";
+import { errorMessage } from "@solyx/utils/error";
 
 import {
   FubonSessionState,
@@ -38,8 +41,6 @@ import type {
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
 
-const marketDataSourceSchema = z.enum(MarketDataSource);
-
 interface FubonConnection {
   session: FubonSession;
   realtime: FubonRealtime;
@@ -47,12 +48,12 @@ interface FubonConnection {
 }
 
 /** The last sign-in, for the settings it used; a failure is kept so it is not retried unasked. */
-type FubonSignIn = { settings: string } & (
+type FubonSignIn = { options: FubonSessionOptions } & (
   | { connection: FubonConnection }
   | { failure: unknown }
 );
 
-export interface MarketDataSourcesOptions {
+interface MarketDataSourcesOptions {
   config: ConfigFile;
   secrets: SecretStore;
   candles: CandleStore;
@@ -77,23 +78,17 @@ export function createMarketDataSources({
 
   let fubon: FubonSignIn | undefined;
 
-  // A value this build does not know, from a hand edit or another build, reads as the default.
-  const twSource = () =>
-    marketDataSourceSchema
-      .catch(MarketDataSource.Fugle)
-      .parse(config.read().marketData?.TW);
+  const twSource = () => config.read().marketData.TW;
 
-  const fuglePlan = () =>
-    fuglePlanSchema
-      .catch(FuglePlan.Basic)
-      .parse(config.read().providers?.fugle?.plan);
+  const fuglePlan = () => config.read().providers.fugle.plan;
 
   function fubonFiles(): Record<FubonFile, string | null> {
-    const saved = config.read().providers?.fubon;
+    const { sdk, certificate } = config.read().providers.fubon;
 
-    return { sdk: saved?.sdk ?? null, certificate: saved?.certificate ?? null };
+    return { sdk: sdk ?? null, certificate: certificate ?? null };
   }
 
+  /** Everything Fubon signs in with, or `undefined` until all of it is saved. */
   async function fubonSettings(): Promise<FubonSessionOptions | undefined> {
     const { sdk, certificate } = fubonFiles();
 
@@ -148,16 +143,15 @@ export function createMarketDataSources({
       return undefined;
     }
 
-    const settings = JSON.stringify(options);
     let current = fubon;
 
-    if (retry || current?.settings !== settings) {
+    if (retry || !current || !isEqual(current.options, options)) {
       signOutFubon();
 
       try {
-        current = { settings, connection: signIn(options) };
+        current = { options, connection: signIn(options) };
       } catch (failure) {
-        current = { settings, failure };
+        current = { options, failure };
       }
 
       fubon = current;
@@ -169,11 +163,11 @@ export function createMarketDataSources({
   }
 
   // Reports without signing in: that blocks until Fubon answers.
-  async function fubonSession(): Promise<FubonSessionStatus> {
-    const options = await fubonSettings();
-
+  function fubonSession(
+    options: FubonSessionOptions | undefined
+  ): FubonSessionStatus {
     // A sign-in with other settings no longer says anything about these.
-    if (!fubon || !options || fubon.settings !== JSON.stringify(options)) {
+    if (!fubon || !options || !isEqual(fubon.options, options)) {
       return { state: FubonSessionState.SignedOut };
     }
 
@@ -184,10 +178,7 @@ export function createMarketDataSources({
         }
       : {
           state: FubonSessionState.Failed,
-          message:
-            fubon.failure instanceof Error
-              ? fubon.failure.message
-              : String(fubon.failure),
+          message: errorMessage(fubon.failure),
         };
   }
 
@@ -244,26 +235,25 @@ export function createMarketDataSources({
     },
 
     /** What the live stream depends on in the config file, to reopen it when that changes. */
-    streamSettings: () =>
-      JSON.stringify([twSource(), fuglePlan(), fubonFiles()]),
+    streamSettings: () => [twSource(), fuglePlan(), fubonFiles()],
 
     async status(): Promise<MarketDataStatus> {
-      const states = await secrets.states();
-      const saved = (secret: Secret) => states[secret] === SecretState.Saved;
       const source = twSource();
-      const files = fubonFiles();
+      const fubonOptions = await fubonSettings();
 
       const ready =
         source === MarketDataSource.Fubon
-          ? Boolean(files.sdk && files.certificate) &&
-            saved(Secret.FubonPersonalId) &&
-            saved(Secret.FubonApiKey)
-          : saved(Secret.FugleApiKey);
+          ? fubonOptions !== undefined
+          : (await secrets.state(Secret.FugleApiKey)) === SecretState.Saved;
 
       return {
         markets: { [Market.TW]: { source, ready }, [Market.US]: null },
         fugle: { plan: fuglePlan(), plans: Object.values(FUGLE_PLANS) },
-        fubon: { plan: FUBON_PLAN, files, session: await fubonSession() },
+        fubon: {
+          plan: FUBON_PLAN,
+          files: fubonFiles(),
+          session: fubonSession(fubonOptions),
+        },
       };
     },
 
@@ -279,5 +269,3 @@ export function createMarketDataSources({
     },
   };
 }
-
-export type MarketDataSources = ReturnType<typeof createMarketDataSources>;

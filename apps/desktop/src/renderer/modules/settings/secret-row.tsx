@@ -7,6 +7,7 @@ import {
   Form,
   Input,
   TextField,
+  cn,
 } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -23,8 +24,8 @@ import { candlesQueryKeys } from "../market/candles-query.ts";
 import { SettingsRow } from "./settings-list.tsx";
 import { settingsQueryKeys } from "./settings-query.ts";
 
-/** Rebuilt per language so the field error comes out localized. */
-function useSecretSchema() {
+/** A secret's entered value; rebuilt per language so the field error comes out localized. */
+export function useSecretSchema() {
   const { t } = useTranslation();
 
   return useMemo(
@@ -115,7 +116,7 @@ export function SecretRow({
       description={t(`settings.secrets.${secret}.hint`)}
       value={
         <span
-          className={state === SecretState.Unreadable ? "text-warning" : ""}>
+          className={cn(state === SecretState.Unreadable && "text-warning")}>
           {t(`settings.secrets.states.${state}`)}
         </span>
       }

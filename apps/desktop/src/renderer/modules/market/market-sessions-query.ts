@@ -1,8 +1,10 @@
 import { queryOptions } from "@tanstack/react-query";
 
+const all = ["market"] as const;
+
 export const marketQueryKeys = {
-  all: ["market"] as const,
-  sessions: ["market", "sessions"] as const,
+  all,
+  sessions: [...all, "sessions"] as const,
 };
 
 /** Sessions change with the clock rather than with any write, so they poll. */

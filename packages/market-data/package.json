@@ -12,6 +12,7 @@
     "test": "vp test"
   },
   "dependencies": {
+    "@solyx/brokers": "workspace:*",
     "@solyx/core": "workspace:*",
     "@solyx/db": "workspace:*",
     "@solyx/utils": "workspace:*",

@@ -8,7 +8,7 @@ import {
 import * as z from "zod";
 
 import { Interval, intervalSchema } from "@solyx/core/candles";
-import { Market, symbolRefSchema } from "@solyx/core/market";
+import { symbolRefSchema } from "@solyx/core/market";
 
 import { ErrorFallback } from "../components/error-fallback.tsx";
 import { NotFound } from "../components/not-found.tsx";
@@ -17,7 +17,10 @@ import {
   onboardingStepSchema,
 } from "../modules/onboarding/onboarding-step.ts";
 import { useOnboardingStore } from "../modules/onboarding/onboarding-store.ts";
-import { marketDataQuery } from "../modules/settings/settings-query.ts";
+import {
+  isMarketDataReady,
+  marketDataQuery,
+} from "../modules/settings/settings-query.ts";
 import {
   SettingsSection,
   settingsSectionSchema,
@@ -46,7 +49,7 @@ const rootRoute = createRootRoute({
 
     if (!status) return;
 
-    if (status.markets[Market.TW]?.ready) {
+    if (isMarketDataReady(status)) {
       onboarding.finish();
 
       return;

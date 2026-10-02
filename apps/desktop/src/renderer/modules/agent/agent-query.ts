@@ -2,10 +2,12 @@ import { queryOptions } from "@tanstack/react-query";
 
 import { foldEvents } from "@solyx/agent/wire";
 
+const all = ["agent"] as const;
+
 export const agentQueryKeys = {
-  all: ["agent"] as const,
-  sessions: ["agent", "sessions"] as const,
-  transcript: (id: string) => ["agent", "transcript", id] as const,
+  all,
+  sessions: [...all, "sessions"] as const,
+  transcript: (id: string) => [...all, "transcript", id] as const,
 };
 
 /** Most recently active first. */

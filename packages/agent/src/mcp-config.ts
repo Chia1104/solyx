@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import { errorMessage } from "@solyx/utils/error";
+
 /** How a tool from an MCP server reaches the agent. */
 export const McpToolPolicy = {
   Off: "off",
@@ -53,7 +55,7 @@ const valuesSchema = z.record(z.string(), z.string());
 const descriptionSchema = z.string().trim().min(1).optional().catch(undefined);
 
 // Loose, since the same file often carries keys other clients read, such as pi's `transport`.
-export const mcpServerSchema = z.union([
+const mcpServerSchema = z.union([
   z
     .looseObject({
       command: z.string().min(1),
@@ -105,10 +107,9 @@ export function parseMcpFile(text: string): McpServerEntry[] {
   try {
     json = JSON.parse(text);
   } catch (error) {
-    throw new Error(
-      `mcp.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
-      { cause: error }
-    );
+    throw new Error(`mcp.json is not valid JSON: ${errorMessage(error)}`, {
+      cause: error,
+    });
   }
 
   const file = fileSchema.safeParse(json);
@@ -133,3 +134,13 @@ export function parseMcpFile(text: string): McpServerEntry[] {
 
 /** The key a tool's policy is saved under in the config file. */
 export const mcpToolKey = (server: string, tool: string) => `${server}/${tool}`;
+
+/** The policy a tool actually runs under: `auto` holds only for tools marked read-only. */
+export function effectivePolicy(
+  saved: McpToolPolicy | undefined,
+  readOnly: boolean
+): McpToolPolicy {
+  if (saved === McpToolPolicy.Auto && !readOnly) return McpToolPolicy.Ask;
+
+  return saved ?? McpToolPolicy.Ask;
+}

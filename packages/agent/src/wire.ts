@@ -4,6 +4,8 @@
  * module imports nothing from pi, so the renderer can use it.
  */
 
+import * as z from "zod";
+
 /** One conversation with the agent. */
 export interface AgentSession {
   id: string;
@@ -29,9 +31,9 @@ export const AgentToolName = {
 
 export type AgentToolName = (typeof AgentToolName)[keyof typeof AgentToolName];
 
-export interface ProposeOrderDetails {
-  proposalId: string;
-}
+export const proposeOrderDetailsSchema = z.object({ proposalId: z.string() });
+
+export type ProposeOrderDetails = z.infer<typeof proposeOrderDetailsSchema>;
 
 export const AgentEventType = {
   RunStart: "run:start",
@@ -134,6 +136,16 @@ export type AgentWireEvent =
       /** The provider's or the runtime's message when `reason` is `error`. */
       error?: string;
     };
+
+export type RunEndEvent = Extract<
+  AgentWireEvent,
+  { type: typeof AgentEventType.RunEnd }
+>;
+
+export type ToolEndEvent = Extract<
+  AgentWireEvent,
+  { type: typeof AgentEventType.ToolEnd }
+>;
 
 export const AgentItemKind = {
   User: "user",

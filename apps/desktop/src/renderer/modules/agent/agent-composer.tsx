@@ -9,6 +9,7 @@ import { emptyAgentView } from "@solyx/agent/wire";
 
 import type { AgentFocus } from "#shared/ipc/agent.ts";
 
+import { currentLocale } from "../../app/i18n.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { SendIcon, StopIcon } from "../../components/icons.tsx";
 
@@ -31,7 +32,7 @@ export function AgentComposer({
   running: boolean;
   focus: AgentFocus | null;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const select = useAgentStore((state) => state.select);
 
@@ -56,7 +57,7 @@ export function AgentComposer({
         select(id);
       }
 
-      await window.solyx.agent.send(id, message, focus, i18n.language);
+      await window.solyx.agent.send(id, message, focus, currentLocale());
     },
     onSuccess: () => form.reset(),
     onSettled: () =>

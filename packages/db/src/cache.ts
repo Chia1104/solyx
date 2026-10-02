@@ -12,7 +12,7 @@ import {
   sql,
 } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
-import { chunk } from "es-toolkit";
+import { chunk, sumBy } from "es-toolkit";
 
 import type { Candle, Interval } from "@solyx/core/candles";
 import type { Market } from "@solyx/core/market";
@@ -199,11 +199,10 @@ export function openCache(path: string, migrationsFolder: string) {
     candles: candleStore(db),
 
     usage(): CacheUsage {
-      const bytes = FILE_SUFFIXES.reduce(
-        (total, suffix) =>
-          total +
-          (statSync(`${path}${suffix}`, { throwIfNoEntry: false })?.size ?? 0),
-        0
+      const bytes = sumBy(
+        FILE_SUFFIXES,
+        (suffix) =>
+          statSync(`${path}${suffix}`, { throwIfNoEntry: false })?.size ?? 0
       );
 
       const sources = db

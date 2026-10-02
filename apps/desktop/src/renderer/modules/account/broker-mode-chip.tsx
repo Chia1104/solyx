@@ -19,9 +19,7 @@ export function BrokerModeChip() {
     <span
       className={cn(
         "inline-flex h-6 items-center rounded-sm px-2 text-xs font-medium",
-        paper
-          ? "border border-dashed border-border bg-background hatch text-foreground"
-          : "bg-accent text-accent-foreground"
+        paper ? "pencil text-foreground" : "bg-accent text-accent-foreground"
       )}>
       {t(`broker-mode.${data.brokerMode}`)}
     </span>

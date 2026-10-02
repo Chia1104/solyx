@@ -1,17 +1,22 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
+import { Market } from "@solyx/core/market";
+
+import type { MarketDataStatus } from "#shared/ipc/settings.ts";
+
+const all = ["settings"] as const;
 
 export const settingsQueryKeys = {
-  all: ["settings"] as const,
-  theme: ["settings", "theme"] as const,
-  cacheUsage: ["settings", "cache-usage"] as const,
-  about: ["settings", "about"] as const,
-  secrets: ["settings", "secrets"] as const,
-  marketData: ["settings", "market-data"] as const,
-  agent: ["settings", "agent"] as const,
-  agentSkills: ["settings", "agent-skills"] as const,
-  mcp: ["settings", "mcp"] as const,
+  all,
+  theme: [...all, "theme"] as const,
+  cacheUsage: [...all, "cache-usage"] as const,
+  about: [...all, "about"] as const,
+  secrets: [...all, "secrets"] as const,
+  marketData: [...all, "market-data"] as const,
+  agent: [...all, "agent"] as const,
+  agentSkills: [...all, "agent-skills"] as const,
+  mcp: [...all, "mcp"] as const,
 };
 
 /** Which secrets are saved; their values never leave the main process. */
@@ -28,6 +33,11 @@ export const marketDataQuery = () =>
     queryFn: () => window.solyx.settings.marketData(),
     staleTime: 0,
   });
+
+/** Whether Taiwan market data has everything its source connects with saved. */
+export function isMarketDataReady(status: MarketDataStatus | undefined) {
+  return status?.markets[Market.TW]?.ready === true;
+}
 
 /** Always stale, since the theme can also change by hand in the config file. */
 export const themeQuery = () =>

@@ -4,6 +4,10 @@ import type { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
 import enUS from "@solyx/i18n/desktop/en-US.json" with { type: "json" };
 import zhTW from "@solyx/i18n/desktop/zh-TW.json" with { type: "json" };
 
+import { Locale } from "#shared/ipc/settings.ts";
+
+import { PRODUCT_NAME } from "../../product.ts";
+
 // The same inks as the renderer's styles.css, since the browser shows this page outside the app.
 const STYLE = `
 :root {
@@ -52,25 +56,25 @@ export type SignInFlow = (typeof SignInFlow)[keyof typeof SignInFlow];
  * or not connected in pencil, with the error the provider sent when it sent one.
  */
 export function signInPage(
-  locale: string,
+  locale: Locale,
   flow: SignInFlow,
   outcome: SignInOutcome,
   detail?: string
 ): string {
-  const catalog = locale === "zh-TW" ? zhTW : enUS;
+  const catalog = locale === Locale.ZhTW ? zhTW : enUS;
   const copy = catalog["sign-in-page"][flow][outcome];
 
   return `<!doctype html>
-<html lang="${locale === "zh-TW" ? "zh-TW" : "en-US"}">
+<html lang="${locale}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solyx</title>
+<title>${PRODUCT_NAME}</title>
 <style>${STYLE}</style>
 </head>
 <body>
 <main data-outcome="${outcome}">
-<p class="name">Solyx</p>
+<p class="name">${PRODUCT_NAME}</p>
 <h1>${escape(copy.title)}</h1>
 <p>${escape(copy.body)}</p>
 ${detail ? `<code>${escape(detail)}</code>` : ""}

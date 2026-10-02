@@ -7,20 +7,22 @@ import type {
 import { Mutex } from "es-toolkit";
 import * as z from "zod";
 
-import { AgentProvider, agentProviderSchema } from "@solyx/agent/providers";
+import { AgentProvider } from "@solyx/agent/providers";
+import { isEnumValue } from "@solyx/utils/is";
 
 import {
   AGENT_PROVIDER_SECRET,
-  Secret,
+  AGENT_SIGN_IN_SECRET,
   SecretState,
 } from "#shared/ipc/settings.ts";
 
 import type { SecretStore } from "./secret-store.ts";
 
-/** The secret each subscription sign-in's tokens are kept under, by pi-ai provider id. */
-const SIGN_IN_SECRET = new Map<string, Secret>([
-  [AgentProvider.OpenAI, Secret.OpenAIChatGPT],
-]);
+/** The secret a subscription sign-in's tokens are kept under, by pi-ai provider id. */
+const signInSecret = (providerId: string) =>
+  isEnumValue(AgentProvider, providerId)
+    ? AGENT_SIGN_IN_SECRET[providerId]
+    : undefined;
 
 // Loose, since flows keep their own fields beside the tokens, such as ChatGPT's issued client id.
 const oauthCredentialSchema = z.looseObject({
@@ -57,7 +59,7 @@ export function createCredentialStore(
   const mutex = new Mutex();
 
   const signInSecretOf = (providerId: string) => {
-    const secret = SIGN_IN_SECRET.get(providerId);
+    const secret = signInSecret(providerId);
 
     if (!secret) throw new Error(`${providerId} has no subscription sign-in`);
 
@@ -65,7 +67,7 @@ export function createCredentialStore(
   };
 
   async function readSignIn(providerId: string) {
-    const secret = SIGN_IN_SECRET.get(providerId);
+    const secret = signInSecret(providerId);
     const text = secret ? await secrets.get(secret) : undefined;
 
     return text === undefined ? undefined : parseSignIn(text);
@@ -81,36 +83,37 @@ export function createCredentialStore(
 
   return {
     async read(providerId) {
-      const provider = agentProviderSchema.safeParse(providerId).data;
+      if (!isEnumValue(AgentProvider, providerId)) return undefined;
 
-      if (!provider) return undefined;
-
-      return runsOnSubscription(provider)
-        ? readSignIn(provider)
-        : readKey(provider);
+      return runsOnSubscription(providerId)
+        ? readSignIn(providerId)
+        : readKey(providerId);
     },
 
     async list() {
-      const states = await secrets.states();
+      const listed = await Promise.all(
+        Object.values(AgentProvider).map(
+          async (provider): Promise<CredentialInfo[]> => {
+            const subscription = runsOnSubscription(provider);
 
-      return Object.values(AgentProvider).flatMap(
-        (provider): CredentialInfo[] => {
-          const subscription = runsOnSubscription(provider);
+            const secret = subscription
+              ? AGENT_SIGN_IN_SECRET[provider]
+              : AGENT_PROVIDER_SECRET[provider];
 
-          const secret = subscription
-            ? SIGN_IN_SECRET.get(provider)
-            : AGENT_PROVIDER_SECRET[provider];
-
-          return secret && states[secret] === SecretState.Saved
-            ? [
-                {
-                  providerId: provider,
-                  type: subscription ? "oauth" : "api_key",
-                },
-              ]
-            : [];
-        }
+            return secret !== undefined &&
+              (await secrets.state(secret)) === SecretState.Saved
+              ? [
+                  {
+                    providerId: provider,
+                    type: subscription ? "oauth" : "api_key",
+                  },
+                ]
+              : [];
+          }
+        )
       );
+
+      return listed.flat();
     },
 
     async modify(providerId, change) {
@@ -144,11 +147,11 @@ export function createCredentialStore(
     },
 
     async signedIn(provider) {
-      const secret = SIGN_IN_SECRET.get(provider);
+      const secret = AGENT_SIGN_IN_SECRET[provider];
 
       return (
         secret !== undefined &&
-        (await secrets.states())[secret] === SecretState.Saved
+        (await secrets.state(secret)) === SecretState.Saved
       );
     },
   };

@@ -1,13 +1,6 @@
-import {
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  watch,
-  writeFileSync,
-} from "node:fs";
-import { basename, dirname } from "node:path";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
-import { debounce } from "es-toolkit";
 import { applyEdits, modify, parse } from "jsonc-parser";
 import type { ParseError } from "jsonc-parser";
 import * as z from "zod";
@@ -17,50 +10,74 @@ import {
   AgentProvider,
   AgentThinking,
   DEFAULT_MODEL,
+  agentAuthSchema,
+  agentProviderSchema,
+  agentThinkingSchema,
 } from "@solyx/agent/providers";
 import type { Market } from "@solyx/core/market";
-import { FuglePlan } from "@solyx/market-data/fugle";
+import { FuglePlan, fuglePlanSchema } from "@solyx/market-data/fugle";
+import { isErrnoError } from "@solyx/utils/error";
+import { watchFile } from "@solyx/utils/server";
 
-import { MarketDataSource, Theme } from "#shared/ipc/settings.ts";
+import {
+  MarketDataSource,
+  Theme,
+  marketDataSourceSchema,
+  themeSchema,
+} from "#shared/ipc/settings.ts";
 import type { FubonFile } from "#shared/ipc/settings.ts";
 
 const PARSE_OPTIONS = { allowTrailingComma: true };
 
-// An entry of the wrong shape reads as missing, so one bad edit leaves the rest of the file in force.
+// Text that is empty or of the wrong shape reads as missing.
 const textSchema = z.string().trim().min(1).optional().catch(undefined);
 
-// Loose objects keep keys this build does not know, so saving never drops someone's edits.
-const configSchema = z.looseObject({
-  theme: z.enum(Theme).optional().catch(undefined),
-  marketData: z.looseObject({ TW: textSchema }).optional().catch(undefined),
-  providers: z
-    .looseObject({
-      fugle: z.looseObject({ plan: textSchema }).optional().catch(undefined),
-      fubon: z
-        .looseObject({ sdk: textSchema, certificate: textSchema })
-        .optional()
-        .catch(undefined),
-    })
-    .optional()
-    .catch(undefined),
-  agent: z
-    .looseObject({
-      provider: textSchema,
-      model: textSchema,
-      thinking: textSchema,
-      auth: textSchema,
-      sharedSkills: z.array(z.string()).optional().catch(undefined),
-      // Values are checked one by one where they are read, so one bad entry keeps the rest.
-      mcpTools: z.record(z.string(), z.string()).optional().catch(undefined),
-    })
-    .optional()
-    .catch(undefined),
-});
+/** A section that is missing or of the wrong shape reads as empty, so each of its entries reads as its default. */
+function section<T extends z.ZodType>(schema: T) {
+  return schema.catch(() => schema.parse({}));
+}
+
+// An entry that no longer parses reads as its default, so one bad edit leaves the rest of the file
+// in force. Loose objects keep keys this build does not know, so saving never drops someone's edits.
+const configSchema = section(
+  z.looseObject({
+    theme: themeSchema.catch(Theme.System),
+    marketData: section(
+      z.looseObject({
+        TW: marketDataSourceSchema.catch(MarketDataSource.Fugle),
+      })
+    ),
+    providers: section(
+      z.looseObject({
+        fugle: section(
+          z.looseObject({ plan: fuglePlanSchema.catch(FuglePlan.Basic) })
+        ),
+        fubon: section(
+          z.looseObject({ sdk: textSchema, certificate: textSchema })
+        ),
+      })
+    ),
+    agent: section(
+      z.looseObject({
+        provider: agentProviderSchema.catch(AgentProvider.Anthropic),
+        // Model ids differ by provider, so the reader falls back to the provider's default.
+        model: textSchema,
+        thinking: agentThinkingSchema.catch(AgentThinking.Medium),
+        auth: agentAuthSchema.catch(AgentAuth.ApiKey),
+        sharedSkills: z.array(z.string()).catch([]),
+        // Values are checked one by one where they are read, so one bad entry keeps the rest.
+        mcpTools: z.record(z.string(), z.string()).catch({}),
+      })
+    ),
+  })
+);
 
 type Config = z.infer<typeof configSchema>;
 
+const DEFAULTS: Config = configSchema.parse({});
+
 /** The values the app edits; the file may hold others a person added. */
-export type ConfigPath =
+type ConfigPath =
   | ["theme"]
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle", "plan"]
@@ -77,26 +94,26 @@ const TEMPLATE = [
   "// Settings Solyx reads. Edit them here or on the settings page; saving this file applies them.",
   "{",
   `  // Light or dark, or follow the computer: ${quoted(Theme)}.`,
-  `  "theme": "${Theme.System}",`,
+  `  "theme": "${DEFAULTS.theme}",`,
   '  "marketData": {',
   `    // Where Taiwan charts come from: ${quoted(MarketDataSource)}.`,
-  `    "TW": "${MarketDataSource.Fugle}"`,
+  `    "TW": "${DEFAULTS.marketData.TW}"`,
   "  },",
   '  "providers": {',
   `    // Your key's plan: ${quoted(FuglePlan)}.`,
-  `    "fugle": { "plan": "${FuglePlan.Basic}" },`,
+  `    "fugle": { "plan": "${DEFAULTS.providers.fugle.plan}" },`,
   "    // The folder extracted from Fubon's SDK download, and the certificate exported from its website.",
   '    "fubon": { "sdk": "", "certificate": "" }',
   "  },",
   '  "agent": {',
   `    // Whose models run the agent, on the key saved in the app: ${quoted(AgentProvider)}.`,
-  `    "provider": "${AgentProvider.Anthropic}",`,
+  `    "provider": "${DEFAULTS.agent.provider}",`,
   "    // The provider's model id; the settings page lists them.",
-  `    "model": "${DEFAULT_MODEL[AgentProvider.Anthropic]}",`,
+  `    "model": "${DEFAULT_MODEL[DEFAULTS.agent.provider]}",`,
   `    // How long the model thinks before it answers: ${quoted(AgentThinking)}.`,
-  `    "thinking": "${AgentThinking.Medium}",`,
+  `    "thinking": "${DEFAULTS.agent.thinking}",`,
   `    // How the provider is paid for: ${quoted(AgentAuth)}; a subscription applies to OpenAI, signed in with ChatGPT.`,
-  `    "auth": "${AgentAuth.ApiKey}",`,
+  `    "auth": "${DEFAULTS.agent.auth}",`,
   "    // Skills from ~/.agents/skills the agent may read, by name. The skills folder beside this file is always read.",
   '    "sharedSkills": []',
   "  }",
@@ -108,20 +125,18 @@ function readText(file: string): string | undefined {
   try {
     return readFileSync(file, "utf8");
   } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-      return undefined;
-    }
+    if (isErrnoError(error, "ENOENT")) return undefined;
 
     throw error;
   }
 }
 
-function hasSyntaxErrors(text: string): boolean {
+/** The file's settings, or `undefined` while it has syntax errors. */
+function parseConfig(text: string): Config | undefined {
   const errors: ParseError[] = [];
+  const value: unknown = parse(text, errors, PARSE_OPTIONS);
 
-  parse(text, errors, PARSE_OPTIONS);
-
-  return errors.length > 0;
+  return errors.length > 0 ? undefined : configSchema.parse(value);
 }
 
 /**
@@ -147,25 +162,18 @@ export function createConfigFile(file: string) {
       if (readText(file) === undefined) write(TEMPLATE);
     },
 
-    /** The saved settings; whoever reads a value decides whether it is still valid. */
+    /** The saved settings, with the default for every entry that is missing or no longer parses. */
     read(): Config {
       const text = readText(file);
-      const errors: ParseError[] = [];
+      const saved = text === undefined ? undefined : parseConfig(text);
 
-      const value =
-        text === undefined ? {} : parse(text, errors, PARSE_OPTIONS);
-
-      return (
-        (errors.length === 0
-          ? configSchema.safeParse(value).data
-          : undefined) ?? {}
-      );
+      return saved ?? configSchema.parse({});
     },
 
     set(path: ConfigPath, value: string | string[]) {
       const text = readText(file) ?? TEMPLATE;
 
-      if (hasSyntaxErrors(text)) {
+      if (parseConfig(text) === undefined) {
         throw new Error(`Fix the syntax errors in ${file} before saving`);
       }
 
@@ -181,19 +189,9 @@ export function createConfigFile(file: string) {
 
     /** Calls `onChange` shortly after the file changes on disk, whoever changed it. */
     watch(onChange: () => void): () => void {
-      const notify = debounce(onChange, 200);
-
       mkdirSync(dirname(file), { recursive: true });
 
-      // Editors often save by renaming a new file into place, so the folder is watched.
-      const watcher = watch(dirname(file), (_event, name) => {
-        if (name === basename(file)) notify();
-      });
-
-      return () => {
-        notify.cancel();
-        watcher.close();
-      };
+      return watchFile(file, onChange);
     },
   };
 }

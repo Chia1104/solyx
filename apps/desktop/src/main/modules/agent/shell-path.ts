@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import { once } from "es-toolkit";
+
 const execFileAsync = promisify(execFile);
 
 // Brackets the value, since interactive shells may print banners around it.
@@ -27,7 +29,5 @@ async function read(): Promise<string | undefined> {
  * with a bare PATH, where stdio MCP servers launched through `npx` or `uvx` would not be found.
  */
 export function loginShellPath(): () => Promise<string | undefined> {
-  let path: Promise<string | undefined> | undefined;
-
-  return () => (path ??= read());
+  return once(read);
 }

@@ -2,6 +2,7 @@ import { CloseButton } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
@@ -37,7 +38,7 @@ export function Watchlist() {
 
   if (data.length === 0) {
     return (
-      <p className="mx-4 rounded-sm border border-dashed border-border bg-background hatch px-3 py-3 text-xs text-muted">
+      <p className="mx-4 rounded-sm pencil px-3 py-3 text-xs text-muted">
         {t("watchlist.empty")}
       </p>
     );
@@ -47,9 +48,7 @@ export function Watchlist() {
     <>
       <ul>
         {data.map((symbol) => (
-          <li
-            key={`${symbol.market}:${symbol.symbol}`}
-            className="group relative">
+          <li key={symbolKey(symbol)} className="group relative">
             <SymbolRow symbol={symbol} />
             <CloseButton
               aria-label={t("watchlist.remove-symbol", {

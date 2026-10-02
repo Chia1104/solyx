@@ -37,22 +37,6 @@ export function PaneIcon({
   );
 }
 
-export function GearIcon() {
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 16 16"
-      className="size-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.25"
-      strokeLinejoin="round">
-      <path d="M13.06 6.43 L14.8 6.83 L14.8 9.17 L13.06 9.57 L12.69 10.47 L13.63 11.98 L11.98 13.63 L10.47 12.69 L9.57 13.06 L9.17 14.8 L6.83 14.8 L6.43 13.06 L5.53 12.69 L4.02 13.63 L2.37 11.98 L3.31 10.47 L2.94 9.57 L1.2 9.17 L1.2 6.83 L2.94 6.43 L3.31 5.53 L2.37 4.02 L4.02 2.37 L5.53 3.31 L6.43 2.94 L6.83 1.2 L9.17 1.2 L9.57 2.94 L10.47 3.31 L11.98 2.37 L13.63 4.02 L12.69 5.53 Z" />
-      <circle cx="8" cy="8" r="2.25" />
-    </svg>
-  );
-}
-
 function StrokeIcon({ children }: { children: ReactNode }) {
   return (
     <svg
@@ -66,6 +50,15 @@ function StrokeIcon({ children }: { children: ReactNode }) {
       strokeLinejoin="round">
       {children}
     </svg>
+  );
+}
+
+export function GearIcon() {
+  return (
+    <StrokeIcon>
+      <path d="M13.06 6.43 L14.8 6.83 L14.8 9.17 L13.06 9.57 L12.69 10.47 L13.63 11.98 L11.98 13.63 L10.47 12.69 L9.57 13.06 L9.17 14.8 L6.83 14.8 L6.43 13.06 L5.53 12.69 L4.02 13.63 L2.37 11.98 L3.31 10.47 L2.94 9.57 L1.2 9.17 L1.2 6.83 L2.94 6.43 L3.31 5.53 L2.37 4.02 L4.02 2.37 L5.53 3.31 L6.43 2.94 L6.83 1.2 L9.17 1.2 L9.57 2.94 L10.47 3.31 L11.98 2.37 L13.63 4.02 L12.69 5.53 Z" />
+      <circle cx="8" cy="8" r="2.25" />
+    </StrokeIcon>
   );
 }
 

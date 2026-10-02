@@ -26,6 +26,7 @@
     "@earendil-works/pi-durable": "catalog:agent",
     "@earendil-works/pi-mcp": "catalog:agent",
     "@solyx/core": "workspace:*",
+    "@solyx/utils": "workspace:*",
     "es-toolkit": "catalog:",
     "yaml": "catalog:agent",
     "zod": "catalog:"

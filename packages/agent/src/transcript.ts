@@ -11,12 +11,9 @@ import {
 } from "@earendil-works/pi-durable";
 import type { EntryRecord } from "@earendil-works/pi-durable";
 
+import { firstLine } from "./text.ts";
 import { AgentEventType, RunEndReason, ToolCallStatus } from "./wire.ts";
-import type { AgentWireEvent } from "./wire.ts";
-
-type RunEnd = Extract<AgentWireEvent, { type: typeof AgentEventType.RunEnd }>;
-
-type ToolEnd = Extract<AgentWireEvent, { type: typeof AgentEventType.ToolEnd }>;
+import type { AgentWireEvent, RunEndEvent, ToolEndEvent } from "./wire.ts";
 
 // The app's context rides in the user message it belongs to, so a replayed transcript sends the
 // provider the same bytes again and its prompt cache holds.
@@ -45,18 +42,28 @@ export function userText(message: UserMessage): string {
 /** The wire id of a stored message, live and replayed alike. */
 export const messageId = (entry: EntryRecord) => String(entry.id);
 
+/** A reply's text and its thinking, each with its parts joined as they streamed. */
+export function replyText(
+  content: readonly AssistantMessage["content"][number][]
+) {
+  return {
+    text: contentText(content, ""),
+    thinking: content
+      .flatMap((part) => (part.type === "thinking" ? [part.thinking] : []))
+      .join(""),
+  };
+}
+
 export function assistantEndEvent(
   messageId: string,
   message: AssistantMessage
 ): AgentWireEvent {
-  const thinking = message.content
-    .flatMap((part) => (part.type === "thinking" ? [part.thinking] : []))
-    .join("");
+  const { text, thinking } = replyText(message.content);
 
   return {
     type: AgentEventType.AssistantEnd,
     messageId,
-    text: contentText(message.content, ""),
+    text,
     thinking: thinking || undefined,
     at: message.timestamp,
   };
@@ -67,7 +74,7 @@ export function assistantEndEvent(
  * was cut short may still be followed by a retry or by the run resuming after a restart, so its
  * end holds only once nothing follows it in the run.
  */
-export function runEndOf(message: AssistantMessage): RunEnd | undefined {
+export function runEndOf(message: AssistantMessage): RunEndEvent | undefined {
   switch (message.stopReason) {
     case "toolUse":
     case "pending":
@@ -86,13 +93,6 @@ export function runEndOf(message: AssistantMessage): RunEnd | undefined {
   }
 }
 
-/** The first line of a failed call's text, kept to one short line. */
-function failureLine(text: string): string {
-  const [line = ""] = text.split("\n");
-
-  return line.length > 160 ? `${line.slice(0, 160)}…` : line;
-}
-
 // Results pi-durable writes for calls that never finished: stopped with their run, or cut off by
 // the app exiting while they ran.
 const UNFINISHED = new Set(["aborted", "interrupted"]);
@@ -108,7 +108,7 @@ function isUnfinished(entry: EntryRecord): boolean {
 }
 
 /** The end of the call a stored tool result answers; `undefined` for any other entry. */
-export function toolEndEvent(entry: EntryRecord): ToolEnd | undefined {
+export function toolEndEvent(entry: EntryRecord): ToolEndEvent | undefined {
   const [message] = entry.model ?? [];
 
   if (!ToolResultEntry.is(entry) || message?.role !== "toolResult") {
@@ -134,7 +134,7 @@ export function toolEndEvent(entry: EntryRecord): ToolEnd | undefined {
     status,
     error:
       status === ToolCallStatus.Error
-        ? failureLine(diagnosed?.message ?? contentText(result.content))
+        ? firstLine(diagnosed?.message ?? contentText(result.content), 160)
         : undefined,
     details: result.details,
   };
@@ -155,7 +155,7 @@ export function transcriptEvents(
   let inRun = false;
   // How the run ends if nothing follows: a reply that failed or was cut short, or a call stopped
   // with its run.
-  let pending: RunEnd | undefined;
+  let pending: RunEndEvent | undefined;
 
   const closeOpen = () => {
     for (const [toolCallId, toolName] of open) {

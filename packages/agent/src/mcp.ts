@@ -24,17 +24,21 @@ import type {
   OAuthCallbackPage,
   OAuthChallenge,
 } from "@earendil-works/pi-mcp/oauth";
-import { delay, escape, isEqual, omit, once } from "es-toolkit";
+import { delay, escape, isEqual, noop, omit, once } from "es-toolkit";
 import * as z from "zod";
+
+import { errorMessage } from "@solyx/utils/error";
 
 import {
   McpServerState,
   McpToolPolicy,
   McpTransportKind,
+  effectivePolicy,
   mcpToolKey,
   secretReference,
 } from "./mcp-config.ts";
 import type { McpServerConfig, McpServerEntry } from "./mcp-config.ts";
+import { firstLine } from "./text.ts";
 import { AgentToolName } from "./wire.ts";
 
 export interface McpToolInfo {
@@ -55,8 +59,6 @@ export interface McpServerStatus {
   tools: McpToolInfo[];
   /** Secrets the entry names as `secret:NAME`. */
   secrets: string[];
-  /** Those of them not saved yet. */
-  missingSecrets: string[];
   /** A sign-in is saved for this remote server, and its requests carry the grant. */
   signedIn: boolean;
 }
@@ -80,8 +82,6 @@ export interface McpHubOptions {
   secret(name: string): Promise<string | undefined>;
   /** The PATH stdio servers start with, since apps opened from the Dock do not get the shell's. */
   path(): Promise<string | undefined>;
-  /** A server connected, failed or changed its tools. */
-  onStatus?(): void;
   /** Each remote server's sign-in, as text the host keeps encrypted; writing `undefined` forgets it. */
   signIns: {
     read(server: string): Promise<string | undefined>;
@@ -153,13 +153,6 @@ interface ListedServer {
   tools: number;
 }
 
-/** The first line of `text`, kept to `max` characters. */
-function firstLine(text: string, max: number) {
-  const [line = ""] = text.trim().split("\n");
-
-  return line.length > max ? `${line.slice(0, max)}…` : line;
-}
-
 /** The connected servers, so the agent knows what it may search for. */
 function serversText(servers: readonly ListedServer[]) {
   const list = servers
@@ -200,7 +193,7 @@ function searchTool(loadable: readonly LoadableTool[]): ToolRegistration {
 
       const matches = loadable
         .filter((entry) => server === undefined || entry.server === server)
-        .map((entry, index) => {
+        .map((entry) => {
           const names = [entry.registration.name, entry.tool.name].map((name) =>
             name.toLowerCase()
           );
@@ -221,10 +214,10 @@ function searchTool(loadable: readonly LoadableTool[]): ToolRegistration {
             (named ? terms.length + 1 : 0) +
             terms.filter((term) => text.includes(term)).length;
 
-          return { entry, score, index };
+          return { entry, score };
         })
         .filter((match) => match.score > 0)
-        .sort((a, b) => b.score - a.score || a.index - b.index);
+        .sort((a, b) => b.score - a.score);
 
       const found = matches.slice(0, MAX_FOUND).map((match) => match.entry);
       const names = found.map((entry) => entry.registration.name);
@@ -355,19 +348,17 @@ async function listenForCallback(
   }
 }
 
+/** The entry's settings, or `undefined` when they did not parse. */
+const configOf = (entry: McpServerEntry) =>
+  "config" in entry ? entry.config : undefined;
+
+/** The env or headers an entry sets, whose values may name secrets. */
+const envOrHeaders = (config: McpServerConfig) =>
+  config.kind === McpTransportKind.Stdio ? config.env : config.headers;
+
 // Providers accept at most 64 characters of [A-Za-z0-9_-] in a tool name.
 const toolName = (server: string, tool: string) =>
   `mcp_${server}_${tool}`.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 64);
-
-/** The policy a tool actually runs under: `auto` holds only for tools marked read-only. */
-export function effectivePolicy(
-  saved: McpToolPolicy | undefined,
-  readOnly: boolean
-): McpToolPolicy {
-  if (saved === McpToolPolicy.Auto && !readOnly) return McpToolPolicy.Ask;
-
-  return saved ?? McpToolPolicy.Ask;
-}
 
 /**
  * The MCP servers the user listed, kept connected through pi-mcp. An entry whose settings change
@@ -375,8 +366,6 @@ export function effectivePolicy(
  */
 export function createMcpHub(options: McpHubOptions) {
   const connections = new Map<string, Connection>();
-
-  const changed = () => options.onStatus?.();
 
   async function readSignIn(server: string): Promise<SavedSignIn | undefined> {
     const text = await options.signIns.read(server);
@@ -425,15 +414,11 @@ export function createMcpHub(options: McpHubOptions) {
   async function transportFor(
     name: string,
     config: McpServerConfig,
-    status: McpServerStatus,
-    stderr: { tail: string }
+    status: McpServerStatus
   ): Promise<McpTransport | undefined> {
-    const { resolved, missing } = await resolve(
-      config.kind === McpTransportKind.Stdio ? config.env : config.headers
-    );
+    const { resolved, missing } = await resolve(envOrHeaders(config));
 
     if (missing.length > 0) {
-      status.missingSecrets = missing;
       status.state = McpServerState.Failed;
       status.error = `Save the secrets it names: ${missing.join(", ")}`;
 
@@ -462,7 +447,7 @@ export function createMcpHub(options: McpHubOptions) {
                 clientMetadata: { client_name: options.client.name },
                 store: savedStore(name),
                 // A grant that can no longer be refreshed waits for the user to sign in again.
-                onRedirect: () => undefined,
+                onRedirect: noop,
               })
             )
           : undefined,
@@ -482,15 +467,13 @@ export function createMcpHub(options: McpHubOptions) {
       env: { ...env, ...resolved },
       inheritEnv: false,
       stderr: "pipe",
-      onStderr: (chunk) => {
-        stderr.tail = (stderr.tail + chunk).slice(-STDERR_TAIL);
-      },
+      maxStderrBytes: STDERR_TAIL,
     });
   }
 
   function start(entry: McpServerEntry): Connection {
     const { name } = entry;
-    const config = "config" in entry ? entry.config : undefined;
+    const config = configOf(entry);
 
     const status: McpServerStatus = {
       name,
@@ -503,12 +486,9 @@ export function createMcpHub(options: McpHubOptions) {
       state: McpServerState.Connecting,
       tools: [],
       signedIn: false,
-      secrets: Object.values(
-        (config?.kind === McpTransportKind.Stdio
-          ? config.env
-          : config?.headers) ?? {}
-      ).flatMap((value) => secretReference(value) ?? []),
-      missingSecrets: [],
+      secrets: Object.values((config && envOrHeaders(config)) ?? {}).flatMap(
+        (value) => secretReference(value) ?? []
+      ),
     };
 
     const connection: Connection = {
@@ -523,7 +503,6 @@ export function createMcpHub(options: McpHubOptions) {
     const fail = (message: string) => {
       status.state = McpServerState.Failed;
       status.error = message;
-      changed();
     };
 
     async function run() {
@@ -533,14 +512,9 @@ export function createMcpHub(options: McpHubOptions) {
         return;
       }
 
-      const stderr = { tail: "" };
-      const transport = await transportFor(name, entry.config, status, stderr);
+      const transport = await transportFor(name, entry.config, status);
 
-      if (!transport) {
-        changed();
-
-        return;
-      }
+      if (!transport) return;
 
       const client = new McpClient(options.client);
 
@@ -562,7 +536,7 @@ export function createMcpHub(options: McpHubOptions) {
         await listTools();
 
         client.onNotification("notifications/tools/list_changed", () => {
-          void listTools().then(changed, () => undefined);
+          void listTools().catch(noop);
         });
 
         client.onClose(() => {
@@ -573,9 +547,8 @@ export function createMcpHub(options: McpHubOptions) {
 
         status.state = McpServerState.Connected;
         status.error = undefined;
-        changed();
       } catch (error) {
-        await client.close().catch(() => undefined);
+        await client.close().catch(noop);
 
         if (
           error instanceof McpAuthRequiredError ||
@@ -586,13 +559,15 @@ export function createMcpHub(options: McpHubOptions) {
               ? parseWwwAuthenticate(error.wwwAuthenticate)
               : undefined;
           status.state = McpServerState.NeedsSignIn;
-          changed();
 
           return;
         }
 
-        const [lastLine] = stderr.tail.trim().split("\n").slice(-1);
-        const message = error instanceof Error ? error.message : String(error);
+        const stderr =
+          transport instanceof StdioTransport ? transport.stderr : "";
+
+        const [lastLine] = stderr.trim().split("\n").slice(-1);
+        const message = errorMessage(error);
 
         fail(lastLine ? `${message}: ${lastLine}` : message);
       }
@@ -608,7 +583,7 @@ export function createMcpHub(options: McpHubOptions) {
 
   async function stop(connection: Connection) {
     await connection.started;
-    await connection.client?.close().catch(() => undefined);
+    await connection.client?.close().catch(noop);
   }
 
   /** Starts one server again, as after the user saved a secret it names or signed in to it. */
@@ -619,7 +594,6 @@ export function createMcpHub(options: McpHubOptions) {
 
     connections.set(name, start(connection.entry));
     void stop(connection);
-    changed();
   }
 
   return {
@@ -639,8 +613,6 @@ export function createMcpHub(options: McpHubOptions) {
           connections.set(entry.name, start(entry));
         }
       }
-
-      changed();
     },
 
     reconnect,
@@ -653,10 +625,7 @@ export function createMcpHub(options: McpHubOptions) {
     async signIn(name: string, { open, page, signal }: McpSignInOptions) {
       const connection = connections.get(name);
 
-      const config =
-        connection && "config" in connection.entry
-          ? connection.entry.config
-          : undefined;
+      const config = connection && configOf(connection.entry);
 
       if (!connection || config?.kind !== McpTransportKind.Http) {
         throw new Error(`${name} is not a remote server in mcp.json`);
@@ -667,7 +636,7 @@ export function createMcpHub(options: McpHubOptions) {
 
       // The port frees as soon as closing starts, but the close itself waits for every connection
       // to end, and a browser keeps a spare one open as long as it likes. Nothing waits for it.
-      const close = once(() => void callback.close().catch(() => undefined));
+      const close = once(() => void callback.close().catch(noop));
 
       signal?.addEventListener("abort", close, { once: true });
 
@@ -714,7 +683,7 @@ export function createMcpHub(options: McpHubOptions) {
         const returned = callback.waitForCallback(await provider.state());
 
         // Settled here too, so a flow that fails before the browser opens leaves nothing unhandled.
-        returned.catch(() => undefined);
+        returned.catch(noop);
 
         await authorizeMcp(provider, { ...flow, skipRefresh: true });
 
@@ -779,10 +748,7 @@ export function createMcpHub(options: McpHubOptions) {
 
         const before = loadable.length;
 
-        const serverDescription =
-          "config" in connection.entry
-            ? connection.entry.config.description
-            : undefined;
+        const serverDescription = configOf(connection.entry)?.description;
 
         for (const tool of connection.tools) {
           const readOnly = tool.annotations?.readOnlyHint === true;
@@ -845,7 +811,6 @@ export function createMcpHub(options: McpHubOptions) {
                 } catch (error) {
                   if (error instanceof McpOAuthAuthorizationRequiredError) {
                     connection.status.state = McpServerState.NeedsSignIn;
-                    changed();
                   }
 
                   throw error;

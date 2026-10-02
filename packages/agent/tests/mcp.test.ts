@@ -15,9 +15,10 @@ import {
   McpServerState,
   McpToolPolicy,
   McpTransportKind,
+  effectivePolicy,
   parseMcpFile,
 } from "../src/mcp-config.ts";
-import { createMcpHub, effectivePolicy } from "../src/mcp.ts";
+import { createMcpHub } from "../src/mcp.ts";
 import type {
   McpHub,
   McpSignInOptions,
@@ -314,7 +315,11 @@ test("a server whose secret is not saved fails and names it", async () => {
   await hub.settled(10_000);
 
   expect(hub.status()).toMatchObject([
-    { state: McpServerState.Failed, missingSecrets: ["fake"] },
+    {
+      state: McpServerState.Failed,
+      secrets: ["fake"],
+      error: "Save the secrets it names: fake",
+    },
   ]);
 
   const { search, tools } = hub.extensions({

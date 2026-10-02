@@ -2,13 +2,14 @@ import { noop, throttle } from "es-toolkit";
 
 import {
   Interval,
+  candleDate,
   isCalendarInterval,
   isIntraday,
   liveBar,
   periodStart,
 } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
-import { exchangeDate, shiftDate } from "@solyx/core/market";
+import { exchangeDate, shiftDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { CandleRequest, MarketDataStream } from "@solyx/core/market-data";
 
@@ -47,7 +48,7 @@ interface LiveSymbol {
   watches: Map<string, Watch>;
 }
 
-export interface LiveCandlesOptions {
+interface LiveCandlesOptions {
   /** Opens the provider's stream, or resolves `undefined` when its key is not saved. */
   openStream(): Promise<MarketDataStream | undefined>;
   /** Closed daily bars, which the current week's and month's bars start from. */
@@ -55,8 +56,6 @@ export interface LiveCandlesOptions {
   /** @default () => new Date() */
   now?: () => Date;
 }
-
-const symbolKey = (symbol: SymbolRef) => `${symbol.market}:${symbol.symbol}`;
 
 const watchKey = (sender: LiveSender, interval: Interval) =>
   `${sender.id}:${interval}`;
@@ -71,9 +70,6 @@ export function createLiveCandles(options: LiveCandlesOptions) {
   const trackedSenders = new Set<number>();
   let stream: MarketDataStream | undefined;
   let opening: Promise<MarketDataStream | undefined> | undefined;
-
-  const dateOf = (state: LiveSymbol, candle: Candle) =>
-    exchangeDate(state.symbol.market, new Date(candle.time * 1000));
 
   function ensureStream() {
     if (stream) return Promise.resolve(stream);
@@ -169,7 +165,10 @@ export function createLiveCandles(options: LiveCandlesOptions) {
 
       const today = exchangeDate(state.symbol.market, now());
 
-      if (minutes.length === 0 || dateOf(state, minutes[0]) !== today) {
+      if (
+        minutes.length === 0 ||
+        candleDate(state.symbol.market, minutes[0].time) !== today
+      ) {
         continue;
       }
 
@@ -207,7 +206,11 @@ export function createLiveCandles(options: LiveCandlesOptions) {
         const first = state.minutes.values().next().value;
 
         // A minute from a later session starts that session over.
-        if (first && dateOf(state, first) !== dateOf(state, minute)) {
+        if (
+          first &&
+          candleDate(state.symbol.market, first.time) !==
+            candleDate(state.symbol.market, minute.time)
+        ) {
           state.minutes.clear();
         }
 
@@ -335,5 +338,3 @@ export function createLiveCandles(options: LiveCandlesOptions) {
     },
   };
 }
-
-export type LiveCandles = ReturnType<typeof createLiveCandles>;

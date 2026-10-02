@@ -1,40 +1,16 @@
 import { cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
-import { memoize } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import { Interval } from "@solyx/core/candles";
-import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
-import { Locale } from "../../app/i18n.ts";
+import { Locale } from "#shared/ipc/settings.ts";
 
+import { DIRECTION_COLORS } from "./chart-palette.ts";
 import { listingQuery } from "./listing-query.ts";
+import { numberFormats } from "./number-formats.ts";
 import { useCandles } from "./use-candles.ts";
-
-const quoteFormats = memoize((locale: string) => ({
-  price: new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  }),
-  change: new Intl.NumberFormat(locale, {
-    signDisplay: "exceptZero",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  }),
-  percent: new Intl.NumberFormat(locale, {
-    style: "percent",
-    signDisplay: "exceptZero",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }),
-}));
-
-// Taiwan quotes rising prices in red and falling ones in green; US quotes do the opposite.
-const DIRECTION_CLASS: Record<Market, { rise: string; fall: string }> = {
-  [Market.TW]: { rise: "text-quote-red", fall: "text-quote-green" },
-  [Market.US]: { rise: "text-quote-green", fall: "text-quote-red" },
-};
 
 /** The listing's code and name, and its last daily close against the close before it, on one line. */
 export function SymbolQuote({ symbol }: { symbol: SymbolRef }) {
@@ -45,7 +21,8 @@ export function SymbolQuote({ symbol }: { symbol: SymbolRef }) {
   const bars = candles.data?.candles ?? [];
   const last = bars.at(-1);
   const previous = bars.at(-2);
-  const format = quoteFormats(i18n.language);
+  const format = numberFormats(i18n.language);
+  const direction = DIRECTION_COLORS[symbol.market];
 
   const change = last && previous ? last.close - previous.close : null;
 
@@ -68,7 +45,7 @@ export function SymbolQuote({ symbol }: { symbol: SymbolRef }) {
         <dl className="flex shrink-0 items-baseline gap-2">
           <dt className="sr-only">{t("chart.quote.last")}</dt>
           <dd className="text-base font-semibold tabular-nums">
-            {format.price.format(last.close)}
+            {format.quotePrice.format(last.close)}
           </dd>
           {previous && change !== null ? (
             <>
@@ -76,11 +53,13 @@ export function SymbolQuote({ symbol }: { symbol: SymbolRef }) {
               <dd
                 className={cn(
                   "flex gap-1.5 text-xs font-medium tabular-nums",
-                  change > 0 && DIRECTION_CLASS[symbol.market].rise,
-                  change < 0 && DIRECTION_CLASS[symbol.market].fall
+                  change > 0 && direction.rise.text,
+                  change < 0 && direction.fall.text
                 )}>
-                <span>{format.change.format(change)}</span>
-                <span>{format.percent.format(change / previous.close)}</span>
+                <span>{format.quoteChange.format(change)}</span>
+                <span>
+                  {format.quotePercentChange.format(change / previous.close)}
+                </span>
               </dd>
             </>
           ) : null}

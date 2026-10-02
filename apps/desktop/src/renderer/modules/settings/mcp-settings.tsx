@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import {
   Alert,
@@ -7,8 +7,6 @@ import {
   FieldError,
   Form,
   Input,
-  ListBox,
-  Select,
   TextField,
 } from "@heroui/react";
 import type { ChipProps } from "@heroui/react";
@@ -16,19 +14,20 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import * as z from "zod";
 
 import { McpServerState, McpToolPolicy } from "@solyx/agent/mcp-config";
-import { isEnumValue } from "@solyx/utils/is";
 
 import { AppLocation } from "#shared/ipc/settings.ts";
 import type { McpServerSetting, McpToolSetting } from "#shared/ipc/settings.ts";
 
+import { currentLocale } from "../../app/i18n.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
+import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 
+import { useSecretSchema } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { mcpQuery, settingsQueryKeys } from "./settings-query.ts";
 
@@ -46,22 +45,6 @@ function useRefresh() {
     queryClient.invalidateQueries({ queryKey: settingsQueryKeys.mcp });
 }
 
-/** Rebuilt per language so the field error comes out localized. */
-function useValueSchema() {
-  const { t } = useTranslation();
-
-  return useMemo(
-    () =>
-      z.object({
-        value: z
-          .string()
-          .trim()
-          .min(1, { error: t("settings.secrets.required") }),
-      }),
-    [t]
-  );
-}
-
 /** A secret the server's entry names as `secret:NAME`; its value is never read back. */
 function McpSecretRow({
   server,
@@ -74,7 +57,7 @@ function McpSecretRow({
 }) {
   const { t } = useTranslation();
   const refresh = useRefresh();
-  const schema = useValueSchema();
+  const schema = useSecretSchema();
   const [editing, setEditing] = useState(false);
   const label = `secret:${name}`;
 
@@ -177,12 +160,12 @@ function McpSecretRow({
  * computer on its own; the main process saves the grant and refreshes it, and never shows it.
  */
 function McpSignInRow({ server }: { server: McpServerSetting }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const refresh = useRefresh();
 
   const signIn = useMutation({
     mutationFn: () =>
-      window.solyx.settings.signInMcp(server.name, i18n.language),
+      window.solyx.settings.signInMcp(server.name, currentLocale()),
     onSettled: refresh,
   });
 
@@ -287,40 +270,19 @@ function ToolRow({ server, tool }: { server: string; tool: McpToolSetting }) {
         ) : undefined
       }
       actions={
-        <Select
+        <OptionSelect
           aria-label={label}
           className="w-44"
           value={tool.policy}
           isDisabled={save.isPending}
           // Only a tool its server marks read-only may run without asking.
           disabledKeys={tool.readOnly ? [] : [McpToolPolicy.Auto]}
-          onChange={(key) => {
-            if (
-              key !== null &&
-              isEnumValue(McpToolPolicy, key) &&
-              key !== tool.policy
-            ) {
-              save.mutate(key);
-            }
-          }}>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {Object.values(McpToolPolicy).map((policy) => (
-                <ListBox.Item
-                  key={policy}
-                  id={policy}
-                  textValue={t(`settings.mcp.policies.${policy}`)}>
-                  {t(`settings.mcp.policies.${policy}`)}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
+          options={Object.values(McpToolPolicy).map((policy) => ({
+            id: policy,
+            label: t(`settings.mcp.policies.${policy}`),
+          }))}
+          onChange={(policy) => save.mutate(policy)}
+        />
       }
     />
   );

@@ -14,7 +14,7 @@ export const candlesQueryKeys = {
 };
 
 /** Bars with the listing and interval they belong to, which stay attached while they stand in for another query. */
-export interface CandleSet {
+interface CandleSet {
   symbol: SymbolRef;
   interval: Interval;
   candles: Candle[];

@@ -4,6 +4,7 @@ import { CatchBoundary, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { Interval } from "@solyx/core/candles";
+import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
 import type { MarketDataSource } from "#shared/ipc/settings.ts";
@@ -100,7 +101,7 @@ export function SymbolChart({
   }
 
   // Each listing and interval gets a fresh chart, time scale and error boundary.
-  const dataset = `${data.symbol.market}:${data.symbol.symbol}:${data.interval}`;
+  const dataset = `${symbolKey(data.symbol)}:${data.interval}`;
 
   return (
     <div className="relative size-full" aria-busy={isPlaceholderData}>

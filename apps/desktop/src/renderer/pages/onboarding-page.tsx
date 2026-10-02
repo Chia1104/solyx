@@ -4,15 +4,16 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { Market } from "@solyx/core/market";
-
 import { Section } from "../components/section.tsx";
 import { OnboardingFlow } from "../modules/onboarding/onboarding-flow.tsx";
 import { OnboardingStep } from "../modules/onboarding/onboarding-step.ts";
 import { SetupSummary } from "../modules/onboarding/setup-summary.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
 import { MarketDataSettings } from "../modules/settings/market-data-settings.tsx";
-import { marketDataQuery } from "../modules/settings/settings-query.ts";
+import {
+  isMarketDataReady,
+  marketDataQuery,
+} from "../modules/settings/settings-query.ts";
 import { ThemeSelect } from "../modules/settings/theme-select.tsx";
 
 const route = getRouteApi("/onboarding");
@@ -40,7 +41,7 @@ export function OnboardingPage() {
       ),
     },
     [OnboardingStep.MarketData]: {
-      complete: marketData.data?.markets[Market.TW]?.ready === true,
+      complete: isMarketDataReady(marketData.data),
       content: <MarketDataSettings />,
     },
     [OnboardingStep.Done]: {

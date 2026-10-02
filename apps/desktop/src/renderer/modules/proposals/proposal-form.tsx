@@ -4,12 +4,9 @@ import {
   Form,
   Input,
   Label,
-  ListBox,
   NumberField,
-  Select,
   TextField,
 } from "@heroui/react";
-import type { Key } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
@@ -18,62 +15,13 @@ import { useTranslation } from "react-i18next";
 import { InstrumentKind, Market } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
-import { isEnumValue } from "@solyx/utils/is";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
+import { OptionSelect } from "../../components/option-select.tsx";
 
 import { useOrderFormSchema } from "./order-form-schema.ts";
 import type { OrderFormValues } from "./order-form-schema.ts";
 import { proposalsQueryKeys } from "./proposals-query.ts";
-
-interface SelectOption {
-  id: string;
-  label: string;
-}
-
-function OptionSelect({
-  label,
-  value,
-  options,
-  onChange,
-  errorMessage,
-}: {
-  label: string;
-  value: string;
-  options: SelectOption[];
-  onChange: (key: Key) => void;
-  errorMessage?: string;
-}) {
-  return (
-    <Select
-      isRequired
-      value={value}
-      isInvalid={errorMessage !== undefined}
-      onChange={(key) => {
-        if (key !== null && !Array.isArray(key)) onChange(key);
-      }}>
-      <Label>{label}</Label>
-      <Select.Trigger>
-        <Select.Value />
-        <Select.Indicator />
-      </Select.Trigger>
-      <FieldError>{errorMessage}</FieldError>
-      <Select.Popover>
-        <ListBox>
-          {options.map((option) => (
-            <ListBox.Item
-              key={option.id}
-              id={option.id}
-              textValue={option.label}>
-              {option.label}
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          ))}
-        </ListBox>
-      </Select.Popover>
-    </Select>
-  );
-}
 
 function toOrderRequest(values: OrderFormValues): OrderRequest {
   return {
@@ -132,6 +80,7 @@ export function ProposalForm() {
         name="market"
         render={({ field, fieldState }) => (
           <OptionSelect
+            isRequired
             label={t("order-form.market")}
             value={field.value}
             errorMessage={fieldState.error?.message}
@@ -139,9 +88,7 @@ export function ProposalForm() {
               id: market,
               label: t(`market.${market}`),
             }))}
-            onChange={(key) => {
-              if (isEnumValue(Market, key)) field.onChange(key);
-            }}
+            onChange={field.onChange}
           />
         )}
       />
@@ -150,6 +97,7 @@ export function ProposalForm() {
         name="kind"
         render={({ field, fieldState }) => (
           <OptionSelect
+            isRequired
             label={t("order-form.kind")}
             value={field.value}
             errorMessage={fieldState.error?.message}
@@ -157,9 +105,7 @@ export function ProposalForm() {
               id: kind,
               label: t(`kind.${kind}`),
             }))}
-            onChange={(key) => {
-              if (isEnumValue(InstrumentKind, key)) field.onChange(key);
-            }}
+            onChange={field.onChange}
           />
         )}
       />
@@ -168,6 +114,7 @@ export function ProposalForm() {
         name="side"
         render={({ field, fieldState }) => (
           <OptionSelect
+            isRequired
             label={t("order-form.side")}
             value={field.value}
             errorMessage={fieldState.error?.message}
@@ -175,9 +122,7 @@ export function ProposalForm() {
               id: side,
               label: t(`side.${side}`),
             }))}
-            onChange={(key) => {
-              if (isEnumValue(Side, key)) field.onChange(key);
-            }}
+            onChange={field.onChange}
           />
         )}
       />

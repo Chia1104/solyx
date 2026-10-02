@@ -1,13 +1,8 @@
-import { Button } from "@heroui/react";
+import { Button, cn } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import {
-  FubonFile,
-  FubonSessionState,
-  Secret,
-  SecretState,
-} from "#shared/ipc/settings.ts";
+import { FubonFile, FubonSessionState, Secret } from "#shared/ipc/settings.ts";
 import type { MarketDataStatus } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
@@ -17,13 +12,24 @@ import { candlesQueryKeys } from "../market/candles-query.ts";
 import { PlanLimits } from "./plan-limits.tsx";
 import { SecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import { secretsQuery, settingsQueryKeys } from "./settings-query.ts";
+import {
+  isMarketDataReady,
+  secretsQuery,
+  settingsQueryKeys,
+} from "./settings-query.ts";
 
-const REQUIRED_SECRETS = [Secret.FubonPersonalId, Secret.FubonApiKey];
+const FUBON_SECRETS = [
+  Secret.FubonPersonalId,
+  Secret.FubonApiKey,
+  Secret.FubonCertPassword,
+];
 
 const fileName = (path: string) => path.split(/[\\/]/).at(-1) ?? path;
 
-/** What signing in to Fubon takes, one row each, under the state of the session they sign in. */
+/**
+ * What signing in to Fubon takes, one row each, under the state of the session they sign in.
+ * Rendered only while Fubon is the Taiwan source, so the market's readiness is Fubon's.
+ */
 export function FubonSettings({ status }: { status: MarketDataStatus }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -62,9 +68,7 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
   const { available, states } = secrets.data;
   const { files, plan, session } = status.fubon;
 
-  const complete =
-    Boolean(files.sdk && files.certificate) &&
-    REQUIRED_SECRETS.every((secret) => states[secret] === SecretState.Saved);
+  const complete = isMarketDataReady(status);
 
   const sessionValue = !complete
     ? t("settings.fubon.incomplete")
@@ -83,11 +87,11 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
           description={<PlanLimits plan={plan} />}
           value={
             <span
-              className={
-                complete && session.state === FubonSessionState.Failed
-                  ? "text-danger"
-                  : ""
-              }>
+              className={cn(
+                complete &&
+                  session.state === FubonSessionState.Failed &&
+                  "text-danger"
+              )}>
               {sessionValue}
             </span>
           }
@@ -149,7 +153,7 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
             />
           );
         })}
-        {[...REQUIRED_SECRETS, Secret.FubonCertPassword].map((secret) => (
+        {FUBON_SECRETS.map((secret) => (
           <SecretRow
             key={secret}
             secret={secret}

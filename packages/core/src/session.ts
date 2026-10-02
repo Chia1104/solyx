@@ -1,6 +1,4 @@
-import { memoize } from "es-toolkit";
-
-import { MARKET_TIME_ZONE, Market } from "./market.ts";
+import { Market, exchangeClock } from "./market.ts";
 
 export const Session = {
   Pre: "pre",
@@ -46,38 +44,14 @@ const SESSION_WINDOWS: Record<Market, SessionWindow[]> = {
   ],
 };
 
-const clockFormatter = memoize(
-  (timeZone: string) =>
-    new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      weekday: "short",
-      hour: "numeric",
-      minute: "numeric",
-      hourCycle: "h23",
-    })
-);
-
-function localClock(timeZone: string, at: Date) {
-  const parts = Object.fromEntries(
-    clockFormatter(timeZone)
-      .formatToParts(at)
-      .map((p) => [p.type, p.value])
-  );
-
-  return {
-    weekday: parts.weekday,
-    minutes: Number(parts.hour) * 60 + Number(parts.minute),
-  };
-}
-
 export function getSession(market: Market, at: Date = new Date()): Session {
-  const windows = SESSION_WINDOWS[market];
-  const { weekday, minutes } = localClock(MARKET_TIME_ZONE[market], at);
+  const { weekday, hour, minute } = exchangeClock(market, at);
+  const minutes = Number(hour) * 60 + Number(minute);
 
   if (weekday === "Sat" || weekday === "Sun") return Session.Closed;
 
   return (
-    windows.find((w) => minutes >= w.start && minutes < w.end)?.session ??
-    Session.Closed
+    SESSION_WINDOWS[market].find((w) => minutes >= w.start && minutes < w.end)
+      ?.session ?? Session.Closed
   );
 }

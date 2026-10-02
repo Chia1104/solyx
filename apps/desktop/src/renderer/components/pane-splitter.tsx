@@ -7,7 +7,7 @@ import { clamp } from "es-toolkit";
 const KEYBOARD_STEP = 16;
 
 /** Set on `<html>` while a pane is dragged, so width transitions pause and the cursor holds. */
-export const PANE_RESIZING_ATTRIBUTE = "data-pane-resizing";
+const PANE_RESIZING_ATTRIBUTE = "data-pane-resizing";
 
 export const SplitterEdge = {
   /** The pane sits at the window's start, so the splitter is on its end edge. */

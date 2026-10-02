@@ -66,11 +66,11 @@ const MOVING_AVERAGES = [
 ].map((average) => ({ ...average, options: lineOptions(average.color) }));
 
 const CANDLE_OPTIONS: Record<Market, CandlestickSeriesPartialOptions> =
-  mapValues(DIRECTION_COLORS, (direction) => ({
-    upColor: direction.rise,
-    downColor: direction.fall,
-    wickUpColor: direction.rise,
-    wickDownColor: direction.fall,
+  mapValues(DIRECTION_COLORS, ({ rise, fall }) => ({
+    upColor: rise.solid,
+    downColor: fall.solid,
+    wickUpColor: rise.solid,
+    wickDownColor: fall.solid,
     borderVisible: false,
   }));
 
@@ -152,8 +152,8 @@ export function PriceChart({
         value: candle.volume,
         color:
           candle.close >= candle.open
-            ? direction.riseVolume
-            : direction.fallVolume,
+            ? direction.rise.faded
+            : direction.fall.faded,
       })),
     }),
     [candles, times, direction]

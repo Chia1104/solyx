@@ -2,6 +2,8 @@ import * as z from "zod";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { persistOptions } from "../../app/persist.ts";
+
 export const ChartIndicator = {
   MovingAverage: "ma",
   Bollinger: "boll",
@@ -13,7 +15,7 @@ export const ChartIndicator = {
 export type ChartIndicator =
   (typeof ChartIndicator)[keyof typeof ChartIndicator];
 
-export const chartIndicatorSchema = z.enum(ChartIndicator);
+const chartIndicatorSchema = z.enum(ChartIndicator);
 
 interface IndicatorState {
   enabled: ChartIndicator[];
@@ -23,7 +25,7 @@ interface IndicatorActions {
   setEnabled: (enabled: ChartIndicator[]) => void;
 }
 
-export type IndicatorStore = IndicatorState & IndicatorActions;
+type IndicatorStore = IndicatorState & IndicatorActions;
 
 const defaultState: IndicatorState = {
   enabled: [ChartIndicator.MovingAverage, ChartIndicator.Kd],
@@ -39,14 +41,9 @@ export const useIndicatorStore = create<IndicatorStore>()(
       ...defaultState,
       setEnabled: (enabled) => set({ enabled }),
     }),
-    {
-      name: "solyx.chart-indicators",
-      version: 1,
-      // Local storage outlives app versions, so anything that no longer parses is dropped.
-      merge: (persisted, current) => ({
-        ...current,
-        ...persistedIndicatorsSchema.safeParse(persisted).data,
-      }),
-    }
+    persistOptions<IndicatorStore>(
+      "chart-indicators",
+      persistedIndicatorsSchema
+    )
   )
 );

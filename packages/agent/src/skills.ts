@@ -1,8 +1,11 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
+import { uniqBy } from "es-toolkit";
 import { parse } from "yaml";
 import * as z from "zod";
+
+import { errorMessage, isErrnoError } from "@solyx/utils/error";
 
 import { SkillSource } from "./skill-source.ts";
 
@@ -163,10 +166,8 @@ async function readSkillFolder(root: string, source: SkillSource) {
     names = await readdir(root);
   } catch (error) {
     // A folder the user never made has no skills to report on.
-    if (
-      !(error instanceof Error && "code" in error && error.code === "ENOENT")
-    ) {
-      problems.push({ folder: "", path: root, message: String(error) });
+    if (!isErrnoError(error, "ENOENT")) {
+      problems.push({ folder: "", path: root, message: errorMessage(error) });
     }
 
     return { skills, problems };
@@ -189,11 +190,7 @@ async function readSkillFolder(root: string, source: SkillSource) {
       text = await readFile(path, "utf8");
     } catch (error) {
       // A folder without SKILL.md holds no skill.
-      if (
-        !(error instanceof Error && "code" in error && error.code === "ENOENT")
-      ) {
-        report(String(error));
-      }
+      if (!isErrnoError(error, "ENOENT")) report(errorMessage(error));
 
       continue;
     }
@@ -216,7 +213,7 @@ async function readSkillFolder(root: string, source: SkillSource) {
 
       metadata = parsed.data;
     } catch (error) {
-      report(error instanceof Error ? error.message : String(error));
+      report(errorMessage(error));
 
       continue;
     }
@@ -274,20 +271,15 @@ export async function loadSkillCatalog(
     readSkillFolder(folders.shared, SkillSource.Shared),
   ]);
 
-  const byName = new Map<string, AgentSkill & { offered: boolean }>();
-
-  const add = (skill: AgentSkill, offered: boolean) => {
-    if (!byName.has(skill.name)) byName.set(skill.name, { ...skill, offered });
-  };
-
-  for (const skill of own.skills) add(skill, true);
-
-  for (const skill of BUILT_IN_SKILLS) add(skill, true);
-
-  for (const skill of shared.skills) add(skill, sharedEnabled.has(skill.name));
-
   return {
-    skills: [...byName.values()],
+    skills: uniqBy(
+      [...own.skills, ...BUILT_IN_SKILLS, ...shared.skills],
+      (skill) => skill.name
+    ).map((skill) => ({
+      ...skill,
+      offered:
+        skill.source !== SkillSource.Shared || sharedEnabled.has(skill.name),
+    })),
     // A shared skill left off is other agents' business, so its problems are not reported here.
     warnings: [
       ...own.problems,
@@ -308,9 +300,7 @@ export async function loadInstructions(
   try {
     text = (await readFile(file, "utf8")).trim();
   } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-      return undefined;
-    }
+    if (isErrnoError(error, "ENOENT")) return undefined;
 
     throw error;
   }

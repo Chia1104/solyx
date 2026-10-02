@@ -4,6 +4,16 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
+import {
+  AgentAuth,
+  AgentProvider,
+  AgentThinking,
+  DEFAULT_MODEL,
+} from "@solyx/agent/providers";
+import { FuglePlan } from "@solyx/market-data/fugle";
+
+import { MarketDataSource, Theme } from "#shared/ipc/settings.ts";
+
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
 
 let directory: string;
@@ -18,21 +28,34 @@ beforeEach(async () => {
 afterEach(() => rm(directory, { recursive: true, force: true }));
 
 const fuglePlan = (config: ReturnType<typeof createConfigFile>) =>
-  config.read().providers?.fugle?.plan;
+  config.read().providers.fugle.plan;
 
-test("a new file starts from a commented template on Fugle's free plan", async () => {
+test("a missing file reads as the defaults, which a new file's commented template holds", async () => {
   const config = createConfigFile(file);
+  const defaults = config.read();
 
-  expect(fuglePlan(config)).toBeUndefined();
+  expect(defaults).toEqual({
+    theme: Theme.System,
+    marketData: { TW: MarketDataSource.Fugle },
+    providers: { fugle: { plan: FuglePlan.Basic }, fubon: {} },
+    agent: {
+      provider: AgentProvider.Anthropic,
+      thinking: AgentThinking.Medium,
+      auth: AgentAuth.ApiKey,
+      sharedSkills: [],
+      mcpTools: {},
+    },
+  });
 
   config.create();
 
-  expect(config.read().marketData?.TW).toBe("fugle");
-  expect(fuglePlan(config)).toBe("basic");
-  // The template's empty paths read as not chosen.
-  expect(config.read().providers?.fubon).toEqual({
-    sdk: undefined,
-    certificate: undefined,
+  // The template names the default provider's model, and its empty paths read as not chosen.
+  expect(config.read()).toEqual({
+    ...defaults,
+    agent: {
+      ...defaults.agent,
+      model: DEFAULT_MODEL[defaults.agent.provider],
+    },
   });
   expect(await readFile(file, "utf8")).toMatch(/^\/\/ /);
 
@@ -66,7 +89,7 @@ test("saving a plan edits it in place, keeping comments and other keys", async (
   const text = await readFile(file, "utf8");
 
   expect(fuglePlan(config)).toBe("advanced");
-  expect(config.read().providers?.fubon?.sdk).toBe("/sdk/package");
+  expect(config.read().providers.fubon.sdk).toBe("/sdk/package");
   expect(text).toContain("// my notes");
   expect(text).toContain('"theme": "dark", // kept');
   expect(text).toContain('"region": "tw"');
@@ -79,7 +102,7 @@ test("a file with syntax errors reads as defaults and is never overwritten", asy
   config.create();
   await writeFile(file, broken);
 
-  expect(fuglePlan(config)).toBeUndefined();
+  expect(fuglePlan(config)).toBe(FuglePlan.Basic);
   expect(() => config.set(["providers", "fugle", "plan"], "basic")).toThrow(
     /syntax errors/
   );
@@ -104,7 +127,7 @@ test("changes made outside the app are reported", async () => {
   expect(fuglePlan(config)).toBe("advanced");
 });
 
-test("an entry of the wrong shape reads as missing and leaves the rest in force", async () => {
+test("an entry of the wrong shape reads as its default and leaves the rest in force", async () => {
   const config = createConfigFile(file);
 
   config.create();
@@ -116,14 +139,20 @@ test("an entry of the wrong shape reads as missing and leaves the rest in force"
         fugle: "developer",
         fubon: { sdk: "/sdk", certificate: [] },
       },
+      agent: { provider: "openai", thinking: "forever", sharedSkills: "all" },
     })
   );
 
   expect(config.read()).toMatchObject({
-    marketData: { TW: undefined },
+    marketData: { TW: MarketDataSource.Fugle },
     providers: {
-      fugle: undefined,
+      fugle: { plan: FuglePlan.Basic },
       fubon: { sdk: "/sdk", certificate: undefined },
+    },
+    agent: {
+      provider: AgentProvider.OpenAI,
+      thinking: AgentThinking.Medium,
+      sharedSkills: [],
     },
   });
 });
@@ -140,10 +169,10 @@ test("the theme follows the computer until one the app knows is saved", async ()
     '{ "theme": "sepia", "marketData": { "TW": "fubon" } }'
   );
 
-  expect(config.read().theme).toBeUndefined();
+  expect(config.read().theme).toBe("system");
 
   config.set(["theme"], "dark");
 
   expect(config.read().theme).toBe("dark");
-  expect(config.read().marketData?.TW).toBe("fubon");
+  expect(config.read().marketData.TW).toBe("fubon");
 });

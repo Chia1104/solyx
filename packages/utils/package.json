@@ -4,11 +4,16 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./error": "./src/error.ts",
     "./is": "./src/is.ts",
-    "./rate-limit": "./src/rate-limit.ts"
+    "./rate-limit": "./src/rate-limit.ts",
+    "./server": "./src/server.ts"
   },
   "scripts": {
     "test": "vp test"
+  },
+  "dependencies": {
+    "es-toolkit": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

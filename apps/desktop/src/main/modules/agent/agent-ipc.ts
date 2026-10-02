@@ -4,6 +4,7 @@ import { symbolRefSchema } from "@solyx/core/market";
 
 import { agentChannels } from "#shared/ipc/agent.ts";
 import type { AgentApi } from "#shared/ipc/agent.ts";
+import { localeSchema } from "#shared/ipc/settings.ts";
 
 import { ipcModule } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";
@@ -21,7 +22,7 @@ const handle = ipcModule<AgentApi>(agentChannels, {
     z
       .object({ symbol: symbolRefSchema, name: z.string().max(200).optional() })
       .nullable(),
-    z.string().min(2).max(35),
+    localeSchema,
   ]),
   abort: z.tuple([idSchema]),
   approve: z.tuple([idSchema, idSchema, z.boolean()]),

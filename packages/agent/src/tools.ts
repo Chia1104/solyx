@@ -13,16 +13,20 @@ import { omit, takeRight } from "es-toolkit";
 import * as z from "zod";
 
 import type { BrokerMode } from "@solyx/core/broker";
-import { LOOKBACK_DAYS, intervalSchema, isIntraday } from "@solyx/core/candles";
+import {
+  candleDate,
+  intervalSchema,
+  isIntraday,
+  lookbackRange,
+} from "@solyx/core/candles";
 import type { Candle, Interval } from "@solyx/core/candles";
 import { bollinger, ema, kd, macd, rsi, sma } from "@solyx/core/indicators";
 import type { IndicatorLine } from "@solyx/core/indicators";
 import {
   Market,
-  exchangeDate,
+  exchangeTime,
   instrumentKindSchema,
   marketSchema,
-  shiftDate,
   symbolRefSchema,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -33,7 +37,6 @@ import { ProposalSource } from "@solyx/core/order-desk";
 import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
 import { getSession } from "@solyx/core/session";
 
-import { exchangeTime } from "./format.ts";
 import { promptSections } from "./prompt.ts";
 import type { PromptSources } from "./prompt.ts";
 import { AgentToolName } from "./wire.ts";
@@ -115,17 +118,21 @@ const ProposalClaimDoc = defineDoc<{
 
 const MAX_BARS = 200;
 
-const round = (value: number) => Number(value.toPrecision(8));
+const LISTED_PROPOSALS = 20;
 
 const valueAt = (line: IndicatorLine, offset: number) => {
   const value = line.at(offset);
 
-  return value === null || value === undefined ? "n/a" : round(value);
+  return value === null || value === undefined
+    ? "n/a"
+    : Number(value.toPrecision(8));
 };
 
 const orderSchema = z.object({
   market: marketSchema,
-  symbol: z.string().min(1).describe("Exchange code, such as 2330 or AAPL"),
+  symbol: symbolRefSchema.shape.symbol.describe(
+    "Exchange code, such as 2330 or AAPL"
+  ),
   kind: instrumentKindSchema,
   side: sideSchema,
   quantity: z
@@ -144,7 +151,7 @@ const orderSchema = z.object({
 function toOrderRequest(order: z.infer<typeof orderSchema>): OrderRequest {
   const instrument = {
     market: order.market,
-    symbol: order.symbol.trim().toUpperCase(),
+    symbol: order.symbol,
     kind: order.kind,
   };
 
@@ -176,7 +183,7 @@ function describeProposal(proposal: TradeProposal): string {
 
   const parts = [
     proposal.id,
-    exchangeTime(order.instrument.market, proposal.createdAt),
+    exchangeTime(order.instrument.market, new Date(proposal.createdAt)),
     `${order.instrument.market} ${order.instrument.symbol}`,
     `${order.side} ${order.quantity} @ ${price}`,
     proposal.status,
@@ -193,9 +200,7 @@ function describeProposal(proposal: TradeProposal): string {
 }
 
 /** The agent's trading tools. Their per-run limits are kept with the conversation. */
-export function createTradingTools(
-  ports: TradingToolPorts
-): ToolRegistration[] {
+function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
   const now = ports.now ?? (() => new Date());
 
   async function candlesOf(
@@ -210,13 +215,10 @@ export function createTradingTools(
       );
     }
 
-    const to = exchangeDate(symbol.market, now());
-
     const candles = await provider.getCandles({
       symbol,
       interval,
-      from: shiftDate(to, -LOOKBACK_DAYS[interval]),
-      to,
+      ...lookbackRange(symbol.market, interval, now()),
     });
 
     if (candles.length === 0) {
@@ -228,11 +230,10 @@ export function createTradingTools(
     return candles;
   }
 
-  const barTime = (symbol: SymbolRef, interval: Interval, candle: Candle) => {
-    const time = exchangeTime(symbol.market, candle.time * 1000);
-
-    return isIntraday(interval) ? time : time.slice(0, 10);
-  };
+  const barTime = (symbol: SymbolRef, interval: Interval, candle: Candle) =>
+    isIntraday(interval)
+      ? exchangeTime(symbol.market, new Date(candle.time * 1000))
+      : candleDate(symbol.market, candle.time);
 
   const heading = (symbol: SymbolRef, interval: Interval, last: Candle) =>
     `${symbol.market} ${symbol.symbol}, ${interval} bars, as_of ${barTime(symbol, interval, last)} (session ${getSession(symbol.market, now())}; the latest bar is still forming while its session is open)`;
@@ -251,7 +252,7 @@ export function createTradingTools(
           text: Object.values(Market)
             .map(
               (market) =>
-                `${market}: ${getSession(market, at)}, local time ${exchangeTime(market, at.getTime())}`
+                `${market}: ${getSession(market, at)}, local time ${exchangeTime(market, at)}`
             )
             .join("\n"),
         };
@@ -386,11 +387,13 @@ export function createTradingTools(
     defineTool({
       name: AgentToolName.ListProposals,
       replay: "safe",
-      description:
-        "The 20 most recent order proposals, newest first, with their status: awaiting confirmation, submitted, rejected, dismissed or failed.",
+      description: `The ${LISTED_PROPOSALS} most recent order proposals, newest first, with their status: awaiting confirmation, submitted, rejected, dismissed or failed.`,
       parameters: z.object({}),
       execute: async () => {
-        const proposals = takeRight(ports.desk.list(), 20).toReversed();
+        const proposals = takeRight(
+          ports.desk.list(),
+          LISTED_PROPOSALS
+        ).toReversed();
 
         return {
           text:

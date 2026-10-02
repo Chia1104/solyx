@@ -24,7 +24,7 @@ export function twTickSize(price: number, kind: InstrumentKind): number {
 export function isValidTwQuantity(quantity: number): boolean {
   if (!Number.isInteger(quantity) || quantity <= 0) return false;
 
-  return quantity < TW_BOARD_LOT || quantity % TW_BOARD_LOT === 0;
+  return isTwOddLot(quantity) || quantity % TW_BOARD_LOT === 0;
 }
 
 export function isTwOddLot(quantity: number): boolean {

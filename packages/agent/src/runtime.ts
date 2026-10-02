@@ -23,21 +23,24 @@ import type {
   AgentEventStream,
   Conversation,
   ConversationId,
+  Cursor,
   EntryId,
-  EntryRecord,
   Extension,
   HarnessSettings,
   MessageChange,
+  Page,
   Storage,
   SubmissionRecord,
 } from "@earendil-works/pi-durable";
-import { isEqual, maxBy } from "es-toolkit";
+import { isEqual, maxBy, noop } from "es-toolkit";
 import * as z from "zod";
 
 import type { AgentThinking } from "./providers.ts";
+import { firstLine } from "./text.ts";
 import {
   assistantEndEvent,
   messageId,
+  replyText,
   runEndOf,
   toolEndEvent,
   transcriptEvents,
@@ -50,7 +53,7 @@ import {
   RunEndReason,
   ToolCallStatus,
 } from "./wire.ts";
-import type { AgentSession, AgentWireEvent } from "./wire.ts";
+import type { AgentSession, AgentWireEvent, RunEndEvent } from "./wire.ts";
 
 /** The model the user configured, which pi-ai authenticates through the host's credentials. */
 export interface AgentModelChoice {
@@ -81,8 +84,6 @@ export interface AgentRuntimeOptions {
   }>;
   onEvent(sessionId: string, event: AgentWireEvent): void;
   settings?: HarnessSettings;
-  now?: () => number;
-  createId?: () => string;
 }
 
 export interface AgentTurn {
@@ -104,8 +105,6 @@ const SessionDoc = defineDoc<{
   initial: () => ({ title: "", createdAt: 0, updatedAt: 0 }),
 });
 
-type RunEnd = Extract<AgentWireEvent, { type: typeof AgentEventType.RunEnd }>;
-
 type Block = AssistantMessage["content"][number];
 
 /** A conversation whose events go out as they happen. */
@@ -120,31 +119,28 @@ interface Watch {
   /** The run's last reply, whose stop reason decides how the run ended. */
   lastReply?: AssistantMessage;
   /** Why the run's input went unanswered, when it ended without a final reply. */
-  failure?: RunEnd;
+  failure?: RunEndEvent;
 }
 
 const TITLE_LENGTH = 60;
 
 const PAGE = 200;
 
-const context = BACKGROUND_CONTEXT;
+/** Every item of a paged scan, in the order its pages list them. */
+async function readAll<Item>(
+  read: (cursor: Cursor | undefined) => Promise<Page<Item, Cursor>>
+): Promise<Item[]> {
+  const items: Item[] = [];
+  let cursor: Cursor | undefined;
 
-function titleOf(text: string): string {
-  const [line = ""] = text.trim().split("\n");
+  do {
+    const page = await read(cursor);
 
-  return line.length > TITLE_LENGTH ? `${line.slice(0, TITLE_LENGTH)}…` : line;
-}
+    items.push(...page.items);
+    cursor = page.next;
+  } while (cursor !== undefined);
 
-function textOf(content: readonly Block[]) {
-  let text = "";
-  let thinking = "";
-
-  for (const part of content) {
-    if (part.type === "text") text += part.text;
-    else if (part.type === "thinking") thinking += part.thinking;
-  }
-
-  return { text, thinking };
+  return items;
 }
 
 function applyChanges(content: Block[], changes: readonly MessageChange[]) {
@@ -190,7 +186,7 @@ function applyChanges(content: Block[], changes: readonly MessageChange[]) {
 /** How an input went unanswered, as pi-durable settles it, in the run's terms. */
 function failureOf(
   record: Extract<SubmissionRecord, { status: "unanswered" }>
-): RunEnd {
+): RunEndEvent {
   if (record.reason === "aborted") {
     return { type: AgentEventType.RunEnd, reason: RunEndReason.Aborted };
   }
@@ -213,11 +209,7 @@ function failureOf(
  * stopped once `resume` runs at the next start.
  */
 export function createAgentRuntime(options: AgentRuntimeOptions) {
-  const {
-    onEvent,
-    now = Date.now,
-    createId = () => crypto.randomUUID(),
-  } = options;
+  const { onEvent } = options;
 
   const registry = createRegistry();
   const watches = new Map<ConversationId, Promise<Watch>>();
@@ -226,13 +218,13 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     store,
     harness: await Harness.open(
       store.storage,
-      { models: options.models, registry, settings: options.settings, now },
-      context
+      { models: options.models, registry, settings: options.settings },
+      BACKGROUND_CONTEXT
     ),
   }));
 
   // A store that fails to open fails every call that waits for it instead.
-  opened.catch(() => undefined);
+  opened.catch(noop);
 
   /** Installs the extensions and returns the tools every request offers. */
   async function reload() {
@@ -252,7 +244,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
     const found = /^[1-9]\d*$/.test(sessionId)
       ? // SAFETY: the brand only marks pi-durable's ids; looking the id up checks it names one.
-        await harness.conversation(Number(sessionId) as ConversationId, context)
+        await harness.conversation(
+          Number(sessionId) as ConversationId,
+          BACKGROUND_CONTEXT
+        )
       : undefined;
 
     if (!found) throw new Error(`Conversation ${sessionId} not found`);
@@ -265,20 +260,14 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
    * entries up to that one.
    */
   async function history(conversation: Conversation, through?: EntryId) {
-    const entries: EntryRecord[] = [];
-    let cursor;
-
-    do {
-      const page = await conversation.entries(
+    const entries = await readAll((cursor) =>
+      conversation.entries(
         through === undefined ? {} : { maxEntryId: through },
         PAGE,
         cursor,
-        context
-      );
-
-      entries.push(...page.items);
-      cursor = page.next;
-    } while (cursor !== undefined);
+        BACKGROUND_CONTEXT
+      )
+    );
 
     return entries.reverse();
   }
@@ -313,21 +302,23 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
       if (!streaming) return;
 
-      const next = textOf(streaming.content);
+      const next = replyText(streaming.content);
 
       for (const channel of [DeltaChannel.Thinking, DeltaChannel.Text]) {
-        const key = channel === DeltaChannel.Text ? "text" : "thinking";
-        const sent = streaming[key];
+        const sent = streaming[channel];
 
         // A rewrite of what was sent cannot go out as a delta; the reply's end replaces it whole.
-        if (next[key].length > sent.length && next[key].startsWith(sent)) {
+        if (
+          next[channel].length > sent.length &&
+          next[channel].startsWith(sent)
+        ) {
           emit({
             type: AgentEventType.AssistantDelta,
             messageId: streaming.id,
             channel,
-            delta: next[key].slice(sent.length),
+            delta: next[channel].slice(sent.length),
           });
-          streaming[key] = next[key];
+          streaming[channel] = next[channel];
         }
       }
     };
@@ -356,7 +347,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         case "message_start":
           if (event.message.role === "assistant") {
             watch.streaming = {
-              id: createId(),
+              id: crypto.randomUUID(),
               content: structuredClone(event.message.content),
               text: "",
               thinking: "",
@@ -455,7 +446,13 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
     const watch = (async (): Promise<Watch> => {
       const { harness } = await opened;
-      const stream = await watchEvents(harness, conversation.id, context);
+
+      const stream = await watchEvents(
+        harness,
+        conversation.id,
+        BACKGROUND_CONTEXT
+      );
+
       const { snapshot } = stream;
 
       // Stored entries never change and ids only grow, so the history up to the newest entry the
@@ -470,8 +467,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       const created: Watch = { stream, base, log: [] };
 
       if (running && partial) {
-        const id = createId();
-        const { text, thinking } = textOf(partial.content);
+        const id = crypto.randomUUID();
+        const { text, thinking } = replyText(partial.content);
 
         created.streaming = {
           id,
@@ -524,12 +521,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
       await reload();
 
-      const { tasks } = await harness.inspect(context);
+      const { tasks } = await harness.inspect(BACKGROUND_CONTEXT);
 
       for (const id of new Set(
         tasks.map((task) => task.record.conversationId)
       )) {
-        const conversation = await harness.conversation(id, context);
+        const conversation = await harness.conversation(id, BACKGROUND_CONTEXT);
 
         if (conversation) await attach(conversation);
       }
@@ -541,19 +538,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     async sessions(): Promise<AgentSession[]> {
       const { harness } = await opened;
 
-      const records = await harness.commit(async (tx) => {
-        const found = [];
-        let cursor;
-
-        do {
-          const page = await tx.scanConversations({}, PAGE, cursor);
-
-          found.push(...page.items);
-          cursor = page.next;
-        } while (cursor !== undefined);
-
-        return found;
-      }, context);
+      const records = await harness.commit(
+        (tx) => readAll((cursor) => tx.scanConversations({}, PAGE, cursor)),
+        BACKGROUND_CONTEXT
+      );
 
       const sessions = await Promise.all(
         records
@@ -561,8 +549,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
           .filter((record) => record.owner === undefined)
           .map(async (record) => ({
             id: String(record.id),
-            ...((await harness.snapshot(SessionDoc, record.id, context)) ??
-              SessionDoc.definition.initial()),
+            ...((await harness.snapshot(
+              SessionDoc,
+              record.id,
+              BACKGROUND_CONTEXT
+            )) ?? SessionDoc.definition.initial()),
           }))
       );
 
@@ -573,7 +564,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
     async create(): Promise<AgentSession> {
       const { harness } = await opened;
-      const at = now();
+      const at = Date.now();
 
       const conversation = await harness.createConversation(
         {
@@ -585,7 +576,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
             session.updatedAt = at;
           },
         },
-        context
+        BACKGROUND_CONTEXT
       );
 
       return {
@@ -604,7 +595,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       if (watch) return [...watch.base, ...watch.log];
 
       const { harness } = await opened;
-      const live = await harness.snapshot(LiveDoc, conversation.id, context);
+
+      const live = await harness.snapshot(
+        LiveDoc,
+        conversation.id,
+        BACKGROUND_CONTEXT
+      );
 
       return transcriptEvents(
         await history(conversation),
@@ -624,7 +620,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         "The agent is still answering in this conversation"
       );
 
-      if ((await harness.snapshot(LiveDoc, conversation.id, context))?.run) {
+      if (
+        (await harness.snapshot(LiveDoc, conversation.id, BACKGROUND_CONTEXT))
+          ?.run
+      ) {
         throw busy;
       }
 
@@ -633,7 +632,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
       await attach(conversation);
 
-      const at = now();
+      const at = Date.now();
 
       // The model is the conversation's from here on, so it is set before the input can start a run.
       await conversation.commit(async (tx) => {
@@ -655,9 +654,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
         const session = await tx.doc(SessionDoc, conversation.id);
 
-        session.title ||= titleOf(turn.text);
+        session.title ||= firstLine(turn.text, TITLE_LENGTH);
         session.updatedAt = at;
-      }, context);
+      }, BACKGROUND_CONTEXT);
 
       try {
         await conversation.submit(
@@ -666,7 +665,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
             content: userContent(turn.text, turn.context),
             whenBusy: "reject",
           },
-          context
+          BACKGROUND_CONTEXT
         );
       } catch (error) {
         throw error instanceof ConversationBusy ? busy : error;
@@ -675,7 +674,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
     /** Stops a run; what it streamed so far is kept, ending as aborted. */
     async abort(sessionId: string) {
-      await (await conversationOf(sessionId)).abort(context);
+      await (await conversationOf(sessionId)).abort(BACKGROUND_CONTEXT);
     },
 
     /** Stops the conversation's run, if one is going, then erases it. */
@@ -683,7 +682,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       const conversation = await conversationOf(sessionId);
       const { store } = await opened;
 
-      await conversation.abort(context);
+      await conversation.abort(BACKGROUND_CONTEXT);
       await detach(conversation.id);
       await store.deleteConversation(conversation.id);
     },
@@ -693,9 +692,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       await Promise.all([...watches.keys()].map(detach));
 
       // A store that never opened has nothing to close.
-      await (await opened.catch(() => undefined))?.harness.close(context);
+      await (
+        await opened.catch(() => undefined)
+      )?.harness.close(BACKGROUND_CONTEXT);
     },
   };
 }
-
-export type AgentRuntime = ReturnType<typeof createAgentRuntime>;

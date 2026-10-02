@@ -1,13 +1,15 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
-import { Mutex, omit } from "es-toolkit";
+import { Mutex, omit, zipObject } from "es-toolkit";
 import * as z from "zod";
+
+import { isErrnoError } from "@solyx/utils/error";
 
 import { Secret, SecretState } from "#shared/ipc/settings.ts";
 import type { SecretKey } from "#shared/ipc/settings.ts";
 
-export interface Decrypted {
+interface Decrypted {
   plainText: string;
   /** The OS rotated its key; storing the value again moves it to the new key. */
   shouldReEncrypt: boolean;
@@ -44,13 +46,7 @@ export function createSecretStore(file: string, cipher: SecretCipher) {
     try {
       return parseSecretFile(await readFile(file, "utf8"));
     } catch (error) {
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        error.code === "ENOENT"
-      ) {
-        return {};
-      }
+      if (isErrnoError(error, "ENOENT")) return {};
 
       throw error;
     }
@@ -79,6 +75,14 @@ export function createSecretStore(file: string, cipher: SecretCipher) {
     } catch {
       return undefined;
     }
+  }
+
+  async function stateOf(entry: string | undefined): Promise<SecretState> {
+    if (entry === undefined) return SecretState.Missing;
+
+    return (await decrypt(entry)) === undefined
+      ? SecretState.Unreadable
+      : SecretState.Saved;
   }
 
   async function save(secret: SecretKey, value: string) {
@@ -117,27 +121,18 @@ export function createSecretStore(file: string, cipher: SecretCipher) {
     /** The keys saved, without decrypting anything. */
     saved: async (): Promise<string[]> => Object.keys(await read()),
 
+    /** One secret's state, decrypting only it. */
+    state: async (secret: SecretKey): Promise<SecretState> =>
+      stateOf((await read())[secret]),
+
     async states(): Promise<Record<Secret, SecretState>> {
       const entries = await read();
+      const secrets = Object.values(Secret);
 
-      const states = await Promise.all(
-        Object.values(Secret).map(async (secret) => {
-          const entry = entries[secret];
-
-          if (entry === undefined)
-            return [secret, SecretState.Missing] as const;
-
-          return [
-            secret,
-            (await decrypt(entry)) === undefined
-              ? SecretState.Unreadable
-              : SecretState.Saved,
-          ] as const;
-        })
+      return zipObject(
+        secrets,
+        await Promise.all(secrets.map((secret) => stateOf(entries[secret])))
       );
-
-      // SAFETY: `states` holds one entry for every value of `Secret`.
-      return Object.fromEntries(states) as Record<Secret, SecretState>;
     },
   };
 }

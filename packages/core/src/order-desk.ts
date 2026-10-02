@@ -1,3 +1,5 @@
+import { errorMessage } from "@solyx/utils/error";
+
 import type { BrokerAdapter } from "./broker.ts";
 import type { OrderRequest } from "./order.ts";
 import { checkOrder } from "./risk.ts";
@@ -170,7 +172,7 @@ export class OrderDesk {
         status: ProposalStatus.Failed,
         failure: {
           code: SubmissionFailureCode.Error,
-          message: error instanceof Error ? error.message : String(error),
+          message: errorMessage(error),
         },
       };
     }

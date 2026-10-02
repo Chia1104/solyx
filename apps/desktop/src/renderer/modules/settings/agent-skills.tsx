@@ -1,5 +1,6 @@
 import { Alert, Button, Disclosure, Switch } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { partition } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import { AppLocation } from "#shared/ipc/settings.ts";
@@ -91,8 +92,7 @@ export function AgentSkills() {
 
   if (!data) return <LoadingState />;
 
-  const always = data.skills.filter((skill) => !skill.switchable);
-  const shared = data.skills.filter((skill) => skill.switchable);
+  const [shared, always] = partition(data.skills, (skill) => skill.switchable);
 
   const row = (skill: AgentSkillInfo) => (
     <SkillRow

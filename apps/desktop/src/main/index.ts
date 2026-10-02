@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { app, BrowserWindow } from "electron";
-import { delay } from "es-toolkit";
+import { withTimeout } from "es-toolkit";
 
 import { registerIpc } from "./ipc/register-ipc.ts";
 import { createServices } from "./services.ts";
@@ -37,10 +37,9 @@ void app.whenReady().then(() => {
     quitting = true;
     event.preventDefault();
 
-    void Promise.race([
-      services.agent.close(),
-      delay(CLOSE_TIMEOUT_MS),
-    ]).finally(() => app.quit());
+    void withTimeout(() => services.agent.close(), CLOSE_TIMEOUT_MS)
+      .catch(console.error)
+      .finally(() => app.quit());
   });
 
   app.on("activate", () => {

@@ -26,7 +26,7 @@ import { RiskViolationCode } from "@solyx/core/risk";
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
 import { SkillSource } from "../src/skill-source.ts";
-import { createTradingExtension, createTradingTools } from "../src/tools.ts";
+import { createTradingExtension } from "../src/tools.ts";
 import {
   AgentEventType,
   AgentItemKind,
@@ -110,7 +110,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     now: () => NOW,
   };
 
-  const tools = createTradingTools(ports);
+  const tools = createTradingExtension(ports).tools ?? [];
 
   const run = async (name: AgentToolName, params: ToolArguments) => {
     const tool = tools.find((candidate) => candidate.name === name);

@@ -1,13 +1,12 @@
 import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
 
 import { BrowserWindow, app, dialog, shell } from "electron";
 import type { OpenDialogOptions } from "electron";
 import { mapValues, uniq } from "es-toolkit";
 import * as z from "zod";
 
-import { effectivePolicy } from "@solyx/agent/mcp";
 import {
+  effectivePolicy,
   mcpSecretNameSchema,
   mcpToolKey,
   mcpToolPolicySchema,
@@ -25,63 +24,67 @@ import { fuglePlanSchema } from "@solyx/market-data/fugle";
 import {
   AppLocation,
   FubonFile,
-  MarketDataSource,
-  Secret,
-  Theme,
+  appLocationSchema,
+  enteredSecretSchema,
+  fubonFileSchema,
+  localeSchema,
+  marketDataSourceSchema,
+  mcpSecretKey,
   settingsChannels,
+  themeSchema,
 } from "#shared/ipc/settings.ts";
 import type { SettingsApi } from "#shared/ipc/settings.ts";
 
 import { ipcModule } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";
 
-// A sign-in's tokens are saved by the sign-in itself, never typed in or replaced from here.
-const secretSchema = z.enum(Secret).exclude(["OpenAIChatGPT"]);
+// An MCP server's or tool's name, as mcp.json and the server give it.
+const mcpNameSchema = z.string().min(1).max(128);
 
 const handle = ipcModule<SettingsApi>(settingsChannels, {
   theme: z.tuple([]),
-  setTheme: z.tuple([z.enum(Theme)]),
+  setTheme: z.tuple([themeSchema]),
   secrets: z.tuple([]),
-  saveSecret: z.tuple([secretSchema, z.string().trim().min(1).max(1024)]),
-  deleteSecret: z.tuple([secretSchema]),
-  marketData: z.tuple([]),
-  setMarketDataSource: z.tuple([
-    z.literal(Market.TW),
-    z.enum(MarketDataSource),
+  saveSecret: z.tuple([
+    enteredSecretSchema,
+    z.string().trim().min(1).max(1024),
   ]),
+  deleteSecret: z.tuple([enteredSecretSchema]),
+  marketData: z.tuple([]),
+  setMarketDataSource: z.tuple([z.literal(Market.TW), marketDataSourceSchema]),
   setFuglePlan: z.tuple([fuglePlanSchema]),
-  chooseFubonFile: z.tuple([z.enum(FubonFile)]),
+  chooseFubonFile: z.tuple([fubonFileSchema]),
   signInFubon: z.tuple([]),
   agent: z.tuple([]),
   setAgentProvider: z.tuple([agentProviderSchema]),
   setAgentModel: z.tuple([z.string().trim().min(1).max(200)]),
   setAgentThinking: z.tuple([agentThinkingSchema]),
   setAgentAuth: z.tuple([agentAuthSchema]),
-  signInSubscription: z.tuple([z.string().min(2).max(35)]),
+  signInSubscription: z.tuple([localeSchema]),
   cancelSignIn: z.tuple([]),
   signOutSubscription: z.tuple([]),
   agentSkills: z.tuple([]),
   setSharedSkill: z.tuple([z.string().min(1).max(64), z.boolean()]),
   mcp: z.tuple([]),
   setMcpToolPolicy: z.tuple([
-    z.string().min(1).max(128),
-    z.string().min(1).max(128),
+    mcpNameSchema,
+    mcpNameSchema,
     mcpToolPolicySchema,
   ]),
   saveMcpSecret: z.tuple([
-    z.string().min(1).max(128),
+    mcpNameSchema,
     mcpSecretNameSchema,
     z.string().trim().min(1).max(4096),
   ]),
-  deleteMcpSecret: z.tuple([z.string().min(1).max(128), mcpSecretNameSchema]),
-  reconnectMcp: z.tuple([z.string().min(1).max(128)]),
-  signInMcp: z.tuple([z.string().min(1).max(128), z.string().min(2).max(35)]),
+  deleteMcpSecret: z.tuple([mcpNameSchema, mcpSecretNameSchema]),
+  reconnectMcp: z.tuple([mcpNameSchema]),
+  signInMcp: z.tuple([mcpNameSchema, localeSchema]),
   cancelMcpSignIn: z.tuple([]),
-  signOutMcp: z.tuple([z.string().min(1).max(128)]),
+  signOutMcp: z.tuple([mcpNameSchema]),
   cacheUsage: z.tuple([]),
   clearCache: z.tuple([]),
   about: z.tuple([]),
-  reveal: z.tuple([z.enum(AppLocation)]),
+  reveal: z.tuple([appLocationSchema]),
 });
 
 // People know these by name rather than by Node's platform ids.
@@ -107,12 +110,17 @@ export function registerSettingsIpc({
   cache,
   home,
   locations,
+  skillFolders,
+  instructionsFile,
   applySettings,
   marketData,
   liveCandles,
   agent,
   mcp,
 }: Services) {
+  // Paths are shown with the home folder as `~`.
+  const tildify = (path: string) => path.replace(home, "~");
+
   handle("theme", async () => theme());
 
   handle("setTheme", async (next) => {
@@ -212,21 +220,18 @@ export function registerSettingsIpc({
         offered,
         switchable: source === SkillSource.Shared,
       })),
-      warnings: catalog.warnings.map((warning) => warning.replace(home, "~")),
+      warnings: catalog.warnings.map(tildify),
       instructions: instructions ? { characters: instructions.length } : null,
       paths: {
-        skills: locations[AppLocation.Skills].replace(home, "~"),
-        shared: "~/.agents/skills",
-        instructions: join(dirname(config.file), "AGENTS.md").replace(
-          home,
-          "~"
-        ),
+        skills: tildify(skillFolders.solyx),
+        shared: tildify(skillFolders.shared),
+        instructions: tildify(instructionsFile),
       },
     };
   });
 
   handle("setSharedSkill", async (name, enabled) => {
-    const current = config.read().agent?.sharedSkills ?? [];
+    const current = config.read().agent.sharedSkills;
 
     config.set(
       ["agent", "sharedSkills"],
@@ -245,12 +250,12 @@ export function registerSettingsIpc({
     const policies = mcp.policies();
 
     return {
-      path: mcp.file.replace(home, "~"),
+      path: tildify(mcp.file),
       error,
       servers: servers.map((server) => ({
         name: server.name,
         kind: server.kind,
-        target: server.target.replace(home, "~"),
+        target: tildify(server.target),
         state: server.state,
         error: server.error,
         tools: server.tools.map((tool) => ({
@@ -262,7 +267,7 @@ export function registerSettingsIpc({
         })),
         secrets: server.secrets.map((name) => ({
           name,
-          saved: saved.includes(`mcp:${name}`),
+          saved: saved.includes(mcpSecretKey(name)),
         })),
         signedIn: server.signedIn,
       })),
@@ -275,12 +280,12 @@ export function registerSettingsIpc({
 
   // A server reads its secrets as it connects, so a changed one reconnects it.
   handle("saveMcpSecret", async (server, name, value) => {
-    await secrets.save(`mcp:${name}`, value);
+    await secrets.save(mcpSecretKey(name), value);
     mcp.reconnect(server);
   });
 
   handle("deleteMcpSecret", async (server, name) => {
-    await secrets.delete(`mcp:${name}`);
+    await secrets.delete(mcpSecretKey(name));
     mcp.reconnect(server);
   });
 
@@ -304,7 +309,7 @@ export function registerSettingsIpc({
     chromium: process.versions.chrome,
     node: process.versions.node,
     os: `${OS_NAME[process.platform] ?? process.platform} ${process.getSystemVersion()} (${process.arch})`,
-    locations: mapValues(locations, (path) => path.replace(home, "~")),
+    locations: mapValues(locations, tildify),
   }));
 
   handle("reveal", async (location) => {

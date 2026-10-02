@@ -5,7 +5,10 @@ import { Market } from "@solyx/core/market";
 
 import { accountQuery } from "../account/account-query.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
-import { marketDataQuery } from "../settings/settings-query.ts";
+import {
+  isMarketDataReady,
+  marketDataQuery,
+} from "../settings/settings-query.ts";
 
 /** What first-run setup left in place, so the last step says what works and what is still to do. */
 export function SetupSummary() {
@@ -23,7 +26,7 @@ export function SetupSummary() {
           source ? t(`settings.market-data.sources.${source.source}`) : null
         }
         value={
-          source?.ready
+          isMarketDataReady(marketData.data)
             ? t("onboarding.done.ready")
             : t("onboarding.done.incomplete")
         }

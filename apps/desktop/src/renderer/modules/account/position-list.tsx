@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { symbolKey } from "@solyx/core/market";
+
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { SymbolRow } from "../../components/symbol-row.tsx";
@@ -35,7 +37,7 @@ export function PositionList() {
   return (
     <ul>
       {data.positions.map((position) => (
-        <li key={`${position.instrument.market}:${position.instrument.symbol}`}>
+        <li key={symbolKey(position.instrument)}>
           <SymbolRow
             symbol={{
               market: position.instrument.market,

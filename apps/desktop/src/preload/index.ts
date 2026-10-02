@@ -3,9 +3,7 @@ import type { IpcRendererEvent } from "electron";
 
 import { accountChannels } from "#shared/ipc/account.ts";
 import { agentChannels, agentEvents } from "#shared/ipc/agent.ts";
-import type { AgentUpdate } from "#shared/ipc/agent.ts";
 import { marketChannels, marketEvents } from "#shared/ipc/market.ts";
-import type { LiveCandle } from "#shared/ipc/market.ts";
 import { proposalsChannels } from "#shared/ipc/proposals.ts";
 import { settingsChannels } from "#shared/ipc/settings.ts";
 import type { SolyxApi } from "#shared/ipc/solyx-api.ts";
@@ -26,6 +24,21 @@ const invoke: typeof ipcRenderer.invoke = async (channel, ...args) => {
   }
 };
 
+/** Hands each push on `channel` to `listener` until the returned function is called. */
+function subscribe<Payload>(
+  channel: string,
+  listener: (payload: Payload) => void
+): () => void {
+  const forward = (_event: IpcRendererEvent, payload: Payload) =>
+    listener(payload);
+
+  ipcRenderer.on(channel, forward);
+
+  return () => {
+    ipcRenderer.removeListener(channel, forward);
+  };
+}
+
 const api: SolyxApi = {
   account: {
     summary: () => invoke(accountChannels.summary),
@@ -40,16 +53,7 @@ const api: SolyxApi = {
     abort: (id) => invoke(agentChannels.abort, id),
     approve: (id, toolCallId, approved) =>
       invoke(agentChannels.approve, id, toolCallId, approved),
-    onEvent: (listener) => {
-      const forward = (_event: IpcRendererEvent, update: AgentUpdate) =>
-        listener(update);
-
-      ipcRenderer.on(agentEvents.onEvent, forward);
-
-      return () => {
-        ipcRenderer.removeListener(agentEvents.onEvent, forward);
-      };
-    },
+    onEvent: (listener) => subscribe(agentEvents.onEvent, listener),
   },
   market: {
     sessions: () => invoke(marketChannels.sessions),
@@ -60,16 +64,8 @@ const api: SolyxApi = {
       invoke(marketChannels.watchCandles, symbol, interval),
     unwatchCandles: (symbol, interval) =>
       invoke(marketChannels.unwatchCandles, symbol, interval),
-    onLiveCandles: (listener) => {
-      const forward = (_event: IpcRendererEvent, updates: LiveCandle[]) =>
-        listener(updates);
-
-      ipcRenderer.on(marketEvents.onLiveCandles, forward);
-
-      return () => {
-        ipcRenderer.removeListener(marketEvents.onLiveCandles, forward);
-      };
-    },
+    onLiveCandles: (listener) =>
+      subscribe(marketEvents.onLiveCandles, listener),
   },
   proposals: {
     list: () => invoke(proposalsChannels.list),

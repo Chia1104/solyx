@@ -1,9 +1,11 @@
-import { clamp } from "es-toolkit";
+import { clamp, mapValues } from "es-toolkit";
 import * as z from "zod";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { SplitterEdge } from "../components/pane-splitter.tsx";
+
+import { persistOptions } from "./persist.ts";
 
 /** The workspace's side panes; the main view between them never collapses. */
 export const Pane = {
@@ -21,7 +23,7 @@ export const PANE_EDGE: Record<Pane, SplitterEdge> = {
 /** The pane element's id, which its toggle and splitter point to. */
 export const paneId = (pane: Pane) => `pane-${pane}`;
 
-export interface PaneLimits {
+interface PaneLimits {
   min: number;
   max: number;
   default: number;
@@ -35,12 +37,10 @@ export const PANE_LIMITS: Record<Pane, PaneLimits> = {
 /** Dragging stops before the main view gets narrower than this. */
 export const MAIN_MIN_WIDTH = 480;
 
-const paneStateSchema = z.object({
-  width: z.number(),
-  open: z.boolean(),
-});
-
-type PaneState = z.infer<typeof paneStateSchema>;
+interface PaneState {
+  width: number;
+  open: boolean;
+}
 
 interface LayoutState {
   panes: Record<Pane, PaneState>;
@@ -51,27 +51,30 @@ interface LayoutActions {
   toggle: (pane: Pane) => void;
 }
 
-export type LayoutStore = LayoutState & LayoutActions;
+type LayoutStore = LayoutState & LayoutActions;
 
-const defaultState: LayoutState = {
-  panes: {
-    [Pane.Symbols]: { width: PANE_LIMITS[Pane.Symbols].default, open: true },
-    [Pane.Agent]: { width: PANE_LIMITS[Pane.Agent].default, open: true },
-  },
-};
-
-const persistedLayoutSchema = z.object({
-  panes: z.object({
-    [Pane.Symbols]: paneStateSchema,
-    [Pane.Agent]: paneStateSchema,
-  }),
-});
-
-export function clampPaneWidth(pane: Pane, width: number) {
-  const limits = PANE_LIMITS[pane];
-
+function clampWidth(limits: PaneLimits, width: number) {
   return Math.round(clamp(width, limits.min, limits.max));
 }
+
+const defaultState: LayoutState = {
+  panes: mapValues(PANE_LIMITS, (limits) => ({
+    width: limits.default,
+    open: true,
+  })),
+};
+
+// Limits can change between versions, so saved widths are clamped as they load.
+const persistedLayoutSchema = z.object({
+  panes: z.object(
+    mapValues(PANE_LIMITS, (limits) =>
+      z.object({
+        width: z.number().transform((width) => clampWidth(limits, width)),
+        open: z.boolean(),
+      })
+    )
+  ),
+});
 
 export const useLayoutStore = create<LayoutStore>()(
   persist(
@@ -83,7 +86,7 @@ export const useLayoutStore = create<LayoutStore>()(
             ...state.panes,
             [pane]: {
               ...state.panes[pane],
-              width: clampPaneWidth(pane, width),
+              width: clampWidth(PANE_LIMITS[pane], width),
             },
           },
         })),
@@ -95,14 +98,6 @@ export const useLayoutStore = create<LayoutStore>()(
           },
         })),
     }),
-    {
-      name: "solyx.workspace-layout",
-      version: 1,
-      // Local storage outlives app versions, so anything that no longer parses is dropped.
-      merge: (persisted, current) => ({
-        ...current,
-        ...persistedLayoutSchema.safeParse(persisted).data,
-      }),
-    }
+    persistOptions<LayoutStore>("workspace-layout", persistedLayoutSchema)
   )
 );

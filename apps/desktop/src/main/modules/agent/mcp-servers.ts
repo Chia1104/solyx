@@ -1,18 +1,21 @@
-import { watch } from "node:fs";
-import type { FSWatcher } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname } from "node:path";
-
-import { debounce } from "es-toolkit";
+import { dirname } from "node:path";
 
 import { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
 import { createMcpHub } from "@solyx/agent/mcp";
 import type { McpToolCall } from "@solyx/agent/mcp";
 import { mcpToolPolicySchema, parseMcpFile } from "@solyx/agent/mcp-config";
 import type { McpToolPolicy } from "@solyx/agent/mcp-config";
+import { errorMessage, isErrnoError } from "@solyx/utils/error";
+import { watchFile } from "@solyx/utils/server";
 
+import { mcpSecretKey, mcpSignInKey } from "#shared/ipc/settings.ts";
+import type { Locale } from "#shared/ipc/settings.ts";
+
+import { PRODUCT_NAME } from "../../product.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
+import { SignInFlow, signInPage } from "../settings/sign-in-page.ts";
 
 import { loginShellPath } from "./shell-path.ts";
 
@@ -35,7 +38,6 @@ export function createMcpServers({
   secrets,
   version,
   openExternal,
-  signInPage,
 }: {
   file: string;
   config: ConfigFile;
@@ -43,30 +45,24 @@ export function createMcpServers({
   version: string;
   /** Opens a server's authorization page in the system browser. */
   openExternal: (url: string) => void;
-  /** The page the browser lands on once a sign-in returns, in the language it was started in. */
-  signInPage: (
-    locale: string,
-    outcome: SignInOutcome,
-    detail?: string
-  ) => string;
 }) {
   const hub = createMcpHub({
-    client: { name: "Solyx", version },
-    secret: (name) => secrets.get(`mcp:${name}`),
+    client: { name: PRODUCT_NAME, version },
+    secret: (name) => secrets.get(mcpSecretKey(name)),
     path: loginShellPath(),
     signIns: {
-      read: (server) => secrets.get(`mcp-oauth:${server}`),
+      read: (server) => secrets.get(mcpSignInKey(server)),
       write: (server, value) =>
         value === undefined
-          ? secrets.delete(`mcp-oauth:${server}`)
-          : secrets.save(`mcp-oauth:${server}`, value),
+          ? secrets.delete(mcpSignInKey(server))
+          : secrets.save(mcpSignInKey(server), value),
     },
   });
 
   let signIn: AbortController | undefined;
   let fileError: string | undefined;
   let started: Promise<void> | undefined;
-  let watcher: FSWatcher | undefined;
+  let stopWatching: (() => void) | undefined;
 
   async function load() {
     let text: string;
@@ -74,11 +70,7 @@ export function createMcpServers({
     try {
       text = await readFile(file, "utf8");
     } catch (error) {
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        error.code === "ENOENT"
-      ) {
+      if (isErrnoError(error, "ENOENT")) {
         fileError = undefined;
         hub.sync([]);
 
@@ -94,18 +86,13 @@ export function createMcpServers({
       fileError = undefined;
       hub.sync(entries);
     } catch (error) {
-      fileError = error instanceof Error ? error.message : String(error);
+      fileError = errorMessage(error);
     }
   }
 
   function start() {
     started ??= load().then(() => {
-      const reload = debounce(() => void load(), 200);
-
-      // Editors often save by renaming a new file into place, so the folder is watched.
-      watcher = watch(dirname(file), (_event, name) => {
-        if (name === basename(file)) reload();
-      });
+      stopWatching = watchFile(file, () => void load());
     });
 
     return started;
@@ -114,13 +101,11 @@ export function createMcpServers({
   /** Saved policies by tool key; an entry that no longer parses reads as asking. */
   function policies(): Record<string, McpToolPolicy> {
     return Object.fromEntries(
-      Object.entries(config.read().agent?.mcpTools ?? {}).flatMap(
-        ([key, value]) => {
-          const policy = mcpToolPolicySchema.safeParse(value).data;
+      Object.entries(config.read().agent.mcpTools).flatMap(([key, value]) => {
+        const policy = mcpToolPolicySchema.safeParse(value).data;
 
-          return policy ? [[key, policy]] : [];
-        }
-      )
+        return policy ? [[key, policy]] : [];
+      })
     );
   }
 
@@ -153,7 +138,7 @@ export function createMcpServers({
      * Resolves once the sign-in is saved, or quietly once it is cancelled. A sign-in still open,
      * such as one whose browser page was closed, gives way to the new one.
      */
-    async signIn(name: string, locale: string) {
+    async signIn(name: string, locale: Locale) {
       signIn?.abort();
 
       const controller = new AbortController();
@@ -165,9 +150,10 @@ export function createMcpServers({
           open: openExternal,
           page: (result) =>
             result.ok
-              ? signInPage(locale, SignInOutcome.SignedIn)
+              ? signInPage(locale, SignInFlow.Mcp, SignInOutcome.SignedIn)
               : signInPage(
                   locale,
+                  SignInFlow.Mcp,
                   SignInOutcome.Failed,
                   result.details ?? result.message
                 ),
@@ -194,20 +180,12 @@ export function createMcpServers({
         await writeFile(file, TEMPLATE, { flag: "wx" });
       } catch (error) {
         // One already there is the user's; leave it as it is.
-        if (
-          !(
-            error instanceof Error &&
-            "code" in error &&
-            error.code === "EEXIST"
-          )
-        ) {
-          throw error;
-        }
+        if (!isErrnoError(error, "EEXIST")) throw error;
       }
     },
 
     async close() {
-      watcher?.close();
+      stopWatching?.();
       await hub.close();
     },
   };

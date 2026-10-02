@@ -1,3 +1,4 @@
+import type { FubonRealtime } from "@solyx/brokers/fubon";
 import type {
   MarketDataPlan,
   MarketDataProvider,
@@ -17,18 +18,6 @@ export const FUBON_PLAN = {
   streamSymbols: 300,
   requestsPerMinute: { intraday: 300, historical: 60 },
 } satisfies MarketDataPlan<"neo">;
-
-/**
- * A signed-in Fubon Neo session's market data token and the endpoints that take it, as
- * `@solyx/brokers/fubon` exchanges them. The stream must be the Normal-mode one, the only
- * mode that serves candles.
- */
-export interface FubonRealtime {
-  sdkToken: string;
-  /** Host and path prefix, as the SDK reports them. */
-  restBaseUrl: string;
-  streamBaseUrl: string;
-}
 
 // Fubon serves Fugle's market data API; its session tokens stand in for a Fugle key.
 const fubonAccess = (realtime: FubonRealtime): FugleApiAccess => ({

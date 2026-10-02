@@ -1,5 +1,6 @@
 import { Button } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isEqual } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
@@ -12,11 +13,7 @@ export function WatchToggle({ symbol }: { symbol: SymbolRef }) {
   const queryClient = useQueryClient();
   const { data } = useQuery(watchlistQuery());
 
-  const watched =
-    data?.some(
-      (other) =>
-        other.market === symbol.market && other.symbol === symbol.symbol
-    ) ?? false;
+  const watched = data?.some((other) => isEqual(other, symbol)) ?? false;
 
   const update = useMutation({
     mutationFn: () =>

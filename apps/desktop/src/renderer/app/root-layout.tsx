@@ -3,6 +3,7 @@ import type { ReactNode, RefObject } from "react";
 
 import { cn } from "@heroui/react";
 import { Outlet, useMatchRoute } from "@tanstack/react-router";
+import { clamp } from "es-toolkit";
 import { I18nProvider } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
@@ -16,7 +17,6 @@ import {
   PANE_EDGE,
   PANE_LIMITS,
   Pane,
-  clampPaneWidth,
   paneId,
   useLayoutStore,
 } from "./layout-store.ts";
@@ -48,8 +48,7 @@ function SidePane({
   const panes = useLayoutStore((state) => state.panes);
   const setWidth = useLayoutStore((state) => state.setWidth);
 
-  const { open } = panes[pane];
-  const width = clampPaneWidth(pane, panes[pane].width);
+  const { open, width } = panes[pane];
   const edge = PANE_EDGE[pane];
   const other = pane === Pane.Symbols ? Pane.Agent : Pane.Symbols;
 
@@ -57,13 +56,12 @@ function SidePane({
   const maxWidth = () => {
     const total = workspace.current?.clientWidth ?? window.innerWidth;
 
-    const otherWidth = panes[other].open
-      ? clampPaneWidth(other, panes[other].width)
-      : 0;
+    const otherWidth = panes[other].open ? panes[other].width : 0;
 
-    return Math.max(
+    return clamp(
+      total - MAIN_MIN_WIDTH - otherWidth,
       PANE_LIMITS[pane].min,
-      Math.min(PANE_LIMITS[pane].max, total - MAIN_MIN_WIDTH - otherWidth)
+      PANE_LIMITS[pane].max
     );
   };
 
@@ -122,10 +120,8 @@ function Workspace() {
 
   // Spread in, since CSSProperties does not list custom properties.
   const widths = {
-    [WIDTH_VARIABLE[Pane.Symbols]]:
-      `${clampPaneWidth(Pane.Symbols, panes[Pane.Symbols].width)}px`,
-    [WIDTH_VARIABLE[Pane.Agent]]:
-      `${clampPaneWidth(Pane.Agent, panes[Pane.Agent].width)}px`,
+    [WIDTH_VARIABLE[Pane.Symbols]]: `${panes[Pane.Symbols].width}px`,
+    [WIDTH_VARIABLE[Pane.Agent]]: `${panes[Pane.Agent].width}px`,
   };
 
   return (

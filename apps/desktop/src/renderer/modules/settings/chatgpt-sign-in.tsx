@@ -2,6 +2,7 @@ import { Button } from "@heroui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { currentLocale } from "../../app/i18n.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 import { SettingsRow } from "./settings-list.tsx";
@@ -13,14 +14,14 @@ import { settingsQueryKeys } from "./settings-query.ts";
  * and refreshes them, and never shows them.
  */
 export function ChatGPTSignIn({ signedIn }: { signedIn: boolean }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all });
 
   const signIn = useMutation({
-    mutationFn: () => window.solyx.settings.signInSubscription(i18n.language),
+    mutationFn: () => window.solyx.settings.signInSubscription(currentLocale()),
     onSettled: refresh,
   });
 

@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { debounce } from "es-toolkit";
+import { debounce, omit } from "es-toolkit";
 import { defineConfig } from "vite-plus";
 import type { Plugin } from "vite-plus";
 import type { PackUserConfig } from "vite-plus/pack";
@@ -14,9 +14,11 @@ const MAIN_BUNDLE = "dist/main/index.mjs";
 
 const PRELOAD_BUNDLE = "dist/preload/index.cjs";
 
-// Set by scripts/dev.mjs. Electron then loads the renderer from the dev server and
-// restarts after every successful main/preload build.
-const isDev = Boolean(process.env.SOLYX_RENDERER_URL);
+// Set by scripts/dev.mjs, which picks the dev server's port with it. Electron then loads the
+// renderer from the dev server and restarts after every successful main/preload build.
+const rendererUrl = process.env.SOLYX_RENDERER_URL;
+
+const isDev = Boolean(rendererUrl);
 
 let electron: ChildProcess | undefined;
 
@@ -27,8 +29,7 @@ const restartElectron = debounce(() => {
   // SAFETY: outside Electron, the `electron` package's entry exports the path to its binary.
   const electronBinary = createRequire(import.meta.url)("electron") as string;
   // Terminals hosted by Electron apps export this, which would boot Electron as plain Node.
-  const env = { ...process.env };
-  delete env.ELECTRON_RUN_AS_NODE;
+  const env = omit(process.env, ["ELECTRON_RUN_AS_NODE"]);
   electron = spawn(electronBinary, ["."], { stdio: "inherit", env });
 }, 200);
 
@@ -61,7 +62,10 @@ export default defineConfig({
   root: "src/renderer",
   base: "./",
   plugins: [react(), tailwindcss(), contentSecurityPolicy],
-  server: { port: 5173, strictPort: true },
+  server: {
+    port: rendererUrl ? Number(new URL(rendererUrl).port) : undefined,
+    strictPort: true,
+  },
   // Tests cover main-process code under tests/, outside the renderer root.
   test: { root: import.meta.dirname },
   build: { outDir: "../../dist/renderer", emptyOutDir: true },

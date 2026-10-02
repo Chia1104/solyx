@@ -13,6 +13,8 @@ import { SymbolSearch } from "../modules/market/symbol-search.tsx";
 import { PANE_HOTKEY } from "./hotkeys.ts";
 import { PANE_EDGE, Pane, paneId, useLayoutStore } from "./layout-store.ts";
 
+const TOOLTIP_DELAY = 600;
+
 function PaneToggle({ pane }: { pane: Pane }) {
   const { t } = useTranslation();
   const open = useLayoutStore((state) => state.panes[pane].open);
@@ -21,7 +23,7 @@ function PaneToggle({ pane }: { pane: Pane }) {
   const label = t("workspace.toggle", { pane: t(`workspace.${pane}`) });
 
   return (
-    <Tooltip delay={600}>
+    <Tooltip delay={TOOLTIP_DELAY}>
       <Button
         isIconOnly
         size="sm"
@@ -50,7 +52,7 @@ function SettingsButton() {
   const open = matchRoute({ to: "/settings" }) !== false;
 
   return (
-    <Tooltip delay={600}>
+    <Tooltip delay={TOOLTIP_DELAY}>
       <Button
         isIconOnly
         size="sm"

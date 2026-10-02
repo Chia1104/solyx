@@ -1,3 +1,5 @@
+import * as z from "zod";
+
 import type {
   McpServerState,
   McpToolPolicy,
@@ -27,14 +29,24 @@ export const Secret = {
 
 export type Secret = (typeof Secret)[keyof typeof Secret];
 
-/** The secrets a person types in, which the renderer may save or delete. */
-export type EnteredSecret = Exclude<Secret, typeof Secret.OpenAIChatGPT>;
+/** The secrets a person types in, which the renderer may save or delete; a sign-in saves its own tokens. */
+export const enteredSecretSchema = z.enum(Secret).exclude(["OpenAIChatGPT"]);
+
+export type EnteredSecret = z.infer<typeof enteredSecretSchema>;
 
 /** A secret an mcp.json entry names as `secret:NAME`, saved under `mcp:NAME`. */
 export type McpSecretKey = `mcp:${string}`;
 
+export function mcpSecretKey(name: string): McpSecretKey {
+  return `mcp:${name}`;
+}
+
 /** A remote MCP server's sign-in, saved by the sign-in under the server's name in mcp.json. */
 export type McpSignInKey = `mcp-oauth:${string}`;
+
+export function mcpSignInKey(server: string): McpSignInKey {
+  return `mcp-oauth:${server}`;
+}
 
 /** Every key the secret store saves under. */
 export type SecretKey = Secret | McpSecretKey | McpSignInKey;
@@ -45,6 +57,11 @@ export const AGENT_PROVIDER_SECRET: Record<AgentProvider, EnteredSecret> = {
   [AgentProvider.OpenAI]: Secret.OpenAIApiKey,
   [AgentProvider.Google]: Secret.GoogleApiKey,
   [AgentProvider.OpenRouter]: Secret.OpenRouterApiKey,
+};
+
+/** The providers that can run on a subscription instead of a key, and the secret each sign-in is kept under. */
+export const AGENT_SIGN_IN_SECRET: Partial<Record<AgentProvider, Secret>> = {
+  [AgentProvider.OpenAI]: Secret.OpenAIChatGPT,
 };
 
 export const SecretState = {
@@ -71,6 +88,18 @@ export const Theme = {
 
 export type Theme = (typeof Theme)[keyof typeof Theme];
 
+export const themeSchema = z.enum(Theme);
+
+/** The languages the app has catalogs for, as BCP 47 tags. */
+export const Locale = {
+  EnUS: "en-US",
+  ZhTW: "zh-TW",
+} as const;
+
+export type Locale = (typeof Locale)[keyof typeof Locale];
+
+export const localeSchema = z.enum(Locale);
+
 /** Where a market's charts and live bars come from. */
 export const MarketDataSource = {
   Fugle: "fugle",
@@ -79,6 +108,8 @@ export const MarketDataSource = {
 
 export type MarketDataSource =
   (typeof MarketDataSource)[keyof typeof MarketDataSource];
+
+export const marketDataSourceSchema = z.enum(MarketDataSource);
 
 /** Files Fubon sign-in reads, saved as paths in the config file. */
 export const FubonFile = {
@@ -90,16 +121,12 @@ export const FubonFile = {
 
 export type FubonFile = (typeof FubonFile)[keyof typeof FubonFile];
 
+export const fubonFileSchema = z.enum(FubonFile);
+
 /** A market's source and whether everything it connects with is saved. */
 export interface MarketSource {
   source: MarketDataSource;
   ready: boolean;
-}
-
-/** The plans a provider sells, in its order, and the one the user holds. */
-export interface PlanChoice<Plan extends string> {
-  plan: Plan;
-  plans: MarketDataPlan<Plan>[];
 }
 
 export const FubonSessionState = {
@@ -121,7 +148,8 @@ export type FubonSessionStatus =
 export interface MarketDataStatus {
   /** `null` where no source covers the market yet. */
   markets: Record<Market, MarketSource | null>;
-  fugle: PlanChoice<FuglePlan>;
+  /** The plans Fugle sells, in its order, and the one the user holds. */
+  fugle: { plan: FuglePlan; plans: MarketDataPlan<FuglePlan>[] };
   fubon: {
     plan: MarketDataPlan;
     files: Record<FubonFile, string | null>;
@@ -230,6 +258,8 @@ export const AppLocation = {
 
 export type AppLocation = (typeof AppLocation)[keyof typeof AppLocation];
 
+export const appLocationSchema = z.enum(AppLocation);
+
 export interface AppInfo {
   /** The app's name, which also tells development builds apart. */
   name: string;
@@ -273,7 +303,7 @@ export interface SettingsApi {
    * Signs in to the agent provider's subscription in the browser, resolving once the sign-in is
    * saved or cancelled. The page the browser lands on is written in `locale`.
    */
-  signInSubscription(locale: string): Promise<void>;
+  signInSubscription(locale: Locale): Promise<void>;
   cancelSignIn(): Promise<void>;
   signOutSubscription(): Promise<void>;
   agentSkills(): Promise<AgentSkills>;
@@ -294,7 +324,7 @@ export interface SettingsApi {
    * Signs in to a remote server in the browser, resolving once the sign-in is saved and the server
    * reconnects, or once it is cancelled. The page the browser lands on is written in `locale`.
    */
-  signInMcp(server: string, locale: string): Promise<void>;
+  signInMcp(server: string, locale: Locale): Promise<void>;
   cancelMcpSignIn(): Promise<void>;
   signOutMcp(server: string): Promise<void>;
   cacheUsage(): Promise<CacheUsage>;

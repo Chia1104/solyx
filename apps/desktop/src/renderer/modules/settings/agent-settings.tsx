@@ -1,4 +1,3 @@
-import { ListBox, Select } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -7,12 +6,12 @@ import {
   AgentProvider,
   AgentThinking,
 } from "@solyx/agent/providers";
-import { isEnumValue } from "@solyx/utils/is";
 
 import { AGENT_PROVIDER_SECRET } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
+import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 
@@ -24,56 +23,6 @@ import {
   secretsQuery,
   settingsQueryKeys,
 } from "./settings-query.ts";
-
-interface Option {
-  id: string;
-  label: string;
-}
-
-function OptionSelect({
-  label,
-  value,
-  options,
-  isDisabled,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: Option[];
-  isDisabled: boolean;
-  onChange: (id: string) => void;
-}) {
-  return (
-    <Select
-      aria-label={label}
-      className="w-56"
-      value={value}
-      isDisabled={isDisabled}
-      onChange={(key) => {
-        const next = options.find((option) => option.id === key);
-
-        if (next && next.id !== value) onChange(next.id);
-      }}>
-      <Select.Trigger>
-        <Select.Value />
-        <Select.Indicator />
-      </Select.Trigger>
-      <Select.Popover>
-        <ListBox>
-          {options.map((option) => (
-            <ListBox.Item
-              key={option.id}
-              id={option.id}
-              textValue={option.label}>
-              {option.label}
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          ))}
-        </ListBox>
-      </Select.Popover>
-    </Select>
-  );
-}
 
 /**
  * Whose model runs the agent and how it is paid for (a key, or a subscription where the provider
@@ -135,20 +84,19 @@ export function AgentSettings() {
             label={providerLabel}
             actions={
               <OptionSelect
-                label={providerLabel}
+                aria-label={providerLabel}
+                className="w-56"
                 value={provider}
                 isDisabled={save.isPending}
                 options={Object.values(AgentProvider).map((id) => ({
                   id,
                   label: t(`settings.agent.providers.${id}`),
                 }))}
-                onChange={(next) => {
-                  if (isEnumValue(AgentProvider, next)) {
-                    save.mutate(() =>
-                      window.solyx.settings.setAgentProvider(next)
-                    );
-                  }
-                }}
+                onChange={(next) =>
+                  save.mutate(() =>
+                    window.solyx.settings.setAgentProvider(next)
+                  )
+                }
               />
             }
           />
@@ -158,20 +106,17 @@ export function AgentSettings() {
               description={t("settings.agent.auth-description")}
               actions={
                 <OptionSelect
-                  label={authLabel}
+                  aria-label={authLabel}
+                  className="w-56"
                   value={auth}
                   isDisabled={save.isPending}
                   options={Object.values(AgentAuth).map((id) => ({
                     id,
                     label: t(`settings.agent.auths.${id}`),
                   }))}
-                  onChange={(next) => {
-                    if (isEnumValue(AgentAuth, next)) {
-                      save.mutate(() =>
-                        window.solyx.settings.setAgentAuth(next)
-                      );
-                    }
-                  }}
+                  onChange={(next) =>
+                    save.mutate(() => window.solyx.settings.setAgentAuth(next))
+                  }
                 />
               }
             />
@@ -190,7 +135,8 @@ export function AgentSettings() {
             description={t("settings.agent.model-description")}
             actions={
               <OptionSelect
-                label={modelLabel}
+                aria-label={modelLabel}
+                className="w-56"
                 value={model}
                 isDisabled={save.isPending}
                 options={models.map((option) => ({
@@ -208,20 +154,19 @@ export function AgentSettings() {
             description={t("settings.agent.thinking-description")}
             actions={
               <OptionSelect
-                label={thinkingLabel}
+                aria-label={thinkingLabel}
+                className="w-56"
                 value={thinking}
                 isDisabled={save.isPending || reasoning === false}
                 options={Object.values(AgentThinking).map((id) => ({
                   id,
                   label: t(`settings.agent.thinkings.${id}`),
                 }))}
-                onChange={(next) => {
-                  if (isEnumValue(AgentThinking, next)) {
-                    save.mutate(() =>
-                      window.solyx.settings.setAgentThinking(next)
-                    );
-                  }
-                }}
+                onChange={(next) =>
+                  save.mutate(() =>
+                    window.solyx.settings.setAgentThinking(next)
+                  )
+                }
               />
             }
           />

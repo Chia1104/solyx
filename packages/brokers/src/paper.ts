@@ -1,6 +1,6 @@
 import { BrokerMode } from "@solyx/core/broker";
 import type { BrokerAdapter } from "@solyx/core/broker";
-import { Market, currencyOf } from "@solyx/core/market";
+import { Market, currencyOf, symbolKey } from "@solyx/core/market";
 import type { Currency, Instrument } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
 import type { OrderRequest, Position } from "@solyx/core/order";
@@ -46,7 +46,7 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
     async placeOrder(order) {
       const price = await fillPrice(order);
       const currency = currencyOf(order.instrument.market);
-      const key = `${order.instrument.market}:${order.instrument.symbol}`;
+      const key = symbolKey(order.instrument);
       const held = positions.get(key);
       const notional = price * order.quantity;
 

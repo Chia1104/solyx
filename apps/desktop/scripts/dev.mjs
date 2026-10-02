@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 
 import { retry } from "es-toolkit";
 
-// Must match `server.port` in vite.config.ts.
+// vite.config.ts serves the renderer on this URL's port.
 const RENDERER_URL = "http://localhost:5173";
 
 const env = { ...process.env, SOLYX_RENDERER_URL: RENDERER_URL };

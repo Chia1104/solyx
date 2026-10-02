@@ -3,8 +3,6 @@ import { dirname } from "node:path";
 
 import * as z from "zod";
 
-const idSchema = z.uuid();
-
 /**
  * This installation's id, created on first use and the same ever after; Sign in with ChatGPT
  * names the agent host by it. Synchronous because pi-ai asks for it synchronously.
@@ -16,7 +14,7 @@ export function installationId(file: string): () => string {
     if (id) return id;
 
     try {
-      id = idSchema.parse(readFileSync(file, "utf8").trim());
+      id = z.uuid().parse(readFileSync(file, "utf8").trim());
     } catch {
       // Missing or damaged: a new id only means OpenAI sees a new agent host.
       id = crypto.randomUUID();

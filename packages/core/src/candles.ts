@@ -20,7 +20,7 @@ export type Interval = (typeof Interval)[keyof typeof Interval];
 export const intervalSchema = z.enum(Interval);
 
 /** Calendar days of history to read per interval: enough bars for the slowest indicator to warm up, within Fugle's free-tier rate limit. */
-export const LOOKBACK_DAYS: Record<Interval, number> = {
+const LOOKBACK_DAYS: Record<Interval, number> = {
   [Interval.OneMinute]: 5,
   [Interval.FiveMinutes]: 30,
   [Interval.FifteenMinutes]: 60,
@@ -31,11 +31,16 @@ export const LOOKBACK_DAYS: Record<Interval, number> = {
   [Interval.OneMonth]: 5 * 365,
 };
 
-const DAILY_OR_LONGER: ReadonlySet<Interval> = new Set([
-  Interval.OneDay,
-  Interval.OneWeek,
-  Interval.OneMonth,
-]);
+/** The exchange-local dates, `YYYY-MM-DD`, of the history charts and the agent read for `interval`. */
+export function lookbackRange(
+  market: Market,
+  interval: Interval,
+  at: Date = new Date()
+) {
+  const to = exchangeDate(market, at);
+
+  return { from: shiftDate(to, -LOOKBACK_DAYS[interval]), to };
+}
 
 /** Bars shorter than a day. */
 export type IntradayInterval = Exclude<
@@ -44,7 +49,7 @@ export type IntradayInterval = Exclude<
 >;
 
 export function isIntraday(interval: Interval): interval is IntradayInterval {
-  return !DAILY_OR_LONGER.has(interval);
+  return interval !== Interval.OneDay && !isCalendarInterval(interval);
 }
 
 export interface Candle {
@@ -56,6 +61,11 @@ export interface Candle {
   close: number;
   /** Shares traded. */
   volume: number;
+}
+
+/** The exchange-local date, `YYYY-MM-DD`, of the session a bar opening at `time` belongs to. */
+export function candleDate(market: Market, time: Candle["time"]): string {
+  return exchangeDate(market, new Date(time * 1000));
 }
 
 /** Weekly and monthly bars, which cover whole calendar periods of sessions. */
@@ -97,7 +107,7 @@ export function resampleDaily(
   market: Market
 ): Candle[] {
   const periods = groupBy(daily, (candle) =>
-    periodStart(exchangeDate(market, new Date(candle.time * 1000)), interval)
+    periodStart(candleDate(market, candle.time), interval)
   );
 
   return Object.values(periods).map(mergeCandles);
@@ -140,7 +150,7 @@ export function liveBar(
 
   const day = {
     ...mergeCandles(minutes),
-    time: exchangeMidnight(market, exchangeDate(market, new Date(time * 1000))),
+    time: exchangeMidnight(market, candleDate(market, time)),
   };
 
   return interval === Interval.OneDay

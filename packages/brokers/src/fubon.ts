@@ -96,6 +96,7 @@ export interface FubonSessionOptions {
 /** A market data token and the endpoints that take it; the stream is Normal mode's, the one with candles. */
 export interface FubonRealtime {
   sdkToken: string;
+  /** Host and path prefix, as the SDK reports them. */
   restBaseUrl: string;
   streamBaseUrl: string;
 }

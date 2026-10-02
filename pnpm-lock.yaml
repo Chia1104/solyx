@@ -447,6 +447,9 @@ importers:
       '@solyx/core':
         specifier: workspace:*
         version: link:../core
+      '@solyx/utils':
+        specifier: workspace:*
+        version: link:../utils
       es-toolkit:
         specifier: 'catalog:'
         version: 1.52.0
@@ -488,6 +491,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@solyx/utils':
+        specifier: workspace:*
+        version: link:../utils
       es-toolkit:
         specifier: 'catalog:'
         version: 1.52.0
@@ -553,6 +559,9 @@ importers:
 
   packages/market-data:
     dependencies:
+      '@solyx/brokers':
+        specifier: workspace:*
+        version: link:../brokers
       '@solyx/core':
         specifier: workspace:*
         version: link:../core
@@ -605,6 +614,10 @@ importers:
         version: 1.0.0(@types/node@26.6.3)(@vitest/ui@5.0.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1)
 
   packages/utils:
+    dependencies:
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.52.0
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

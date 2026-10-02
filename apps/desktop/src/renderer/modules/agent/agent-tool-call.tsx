@@ -3,7 +3,11 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { AgentToolName, ToolCallStatus } from "@solyx/agent/wire";
+import {
+  AgentToolName,
+  ToolCallStatus,
+  proposeOrderDetailsSchema,
+} from "@solyx/agent/wire";
 import type { ToolCallView } from "@solyx/agent/wire";
 import { intervalSchema } from "@solyx/core/candles";
 import { marketSchema, symbolRefSchema } from "@solyx/core/market";
@@ -21,8 +25,6 @@ const argumentsSchema = z.object({
   name: z.string().optional(),
   query: z.string().optional(),
 });
-
-const proposalDetailsSchema = z.object({ proposalId: z.string() });
 
 /** What a call was about: a listing and its interval, an order's listing, a playbook or a search. */
 function subjectOf(tool: ToolCallView): string | undefined {
@@ -127,7 +129,7 @@ export function AgentToolCall({
   const proposal =
     tool.toolName === AgentToolName.ProposeOrder &&
     tool.status === ToolCallStatus.Ok
-      ? proposalDetailsSchema.safeParse(tool.details).data
+      ? proposeOrderDetailsSchema.safeParse(tool.details).data
       : undefined;
 
   return (

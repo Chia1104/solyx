@@ -1,6 +1,5 @@
 import { BrowserWindow } from "electron";
 
-import type { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
 import { formatContext } from "@solyx/agent/prompt";
 import { createAgentRuntime } from "@solyx/agent/runtime";
 import type { AgentConversationStore } from "@solyx/agent/runtime";
@@ -9,34 +8,20 @@ import type { SkillFolders } from "@solyx/agent/skills";
 import { createTradingExtension } from "@solyx/agent/tools";
 import type { AgentWireEvent } from "@solyx/agent/wire";
 import type { BrokerAdapter } from "@solyx/core/broker";
-import { Market } from "@solyx/core/market";
-import type { SymbolRef } from "@solyx/core/market";
+import type { Market, SymbolRef } from "@solyx/core/market";
 import type { MarketDataProvider } from "@solyx/core/market-data";
 import type { OrderDesk } from "@solyx/core/order-desk";
-import { getSession } from "@solyx/core/session";
 
 import { agentEvents } from "#shared/ipc/agent.ts";
 import type { AgentFocus, AgentUpdate } from "#shared/ipc/agent.ts";
-
-import type { ConfigFile } from "../settings/config-file.ts";
-import type { AgentCredentials } from "../settings/credential-store.ts";
-import type { SecretStore } from "../settings/secret-store.ts";
+import type { Locale } from "#shared/ipc/settings.ts";
 
 import { createAgentModels } from "./agent-models.ts";
+import type { AgentModelsOptions } from "./agent-models.ts";
 import type { McpServers } from "./mcp-servers.ts";
 import { createToolApprovals } from "./tool-approvals.ts";
 
-export interface AgentServiceOptions {
-  config: ConfigFile;
-  secrets: SecretStore;
-  credentials: AgentCredentials;
-  getDeviceId: () => string;
-  openExternal: (url: string) => void;
-  signInPage: (
-    locale: string,
-    outcome: SignInOutcome,
-    detail?: string
-  ) => string;
+interface AgentServiceOptions extends AgentModelsOptions {
   skillFolders: SkillFolders;
   /** AGENTS.md beside the config file. */
   instructionsFile: string;
@@ -49,13 +34,6 @@ export interface AgentServiceOptions {
   mcp: McpServers;
 }
 
-// Every window shows the same conversations, so every window hears every run.
-function broadcast(update: AgentUpdate) {
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(agentEvents.onEvent, update);
-  }
-}
-
 /** The agent as the app wires it: the user's model and key, the trading tools and the desk. */
 export function createAgentService(options: AgentServiceOptions) {
   const models = createAgentModels(options);
@@ -64,13 +42,19 @@ export function createAgentService(options: AgentServiceOptions) {
   const skills = () =>
     loadSkillCatalog(
       options.skillFolders,
-      new Set(options.config.read().agent?.sharedSkills)
+      new Set(options.config.read().agent.sharedSkills)
     );
 
   const instructions = () => loadInstructions(options.instructionsFile);
 
-  const onEvent = (sessionId: string, event: AgentWireEvent) =>
-    broadcast({ sessionId, event });
+  // Every window shows the same conversations, so every window hears every run.
+  const onEvent = (sessionId: string, event: AgentWireEvent) => {
+    const update: AgentUpdate = { sessionId, event };
+
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(agentEvents.onEvent, update);
+    }
+  };
 
   const approvals = createToolApprovals(onEvent);
 
@@ -130,17 +114,11 @@ export function createAgentService(options: AgentServiceOptions) {
       await options.mcp.close();
     },
 
-    send(id: string, text: string, focus: AgentFocus | null, locale: string) {
-      const now = new Date();
-
+    send(id: string, text: string, focus: AgentFocus | null, locale: Locale) {
       return runtime.send(id, {
         text,
         context: formatContext({
-          now,
-          sessions: {
-            [Market.TW]: getSession(Market.TW, now),
-            [Market.US]: getSession(Market.US, now),
-          },
+          now: new Date(),
           brokerMode: options.broker.mode,
           focus: focus ?? undefined,
           locale,
@@ -149,5 +127,3 @@ export function createAgentService(options: AgentServiceOptions) {
     },
   };
 }
-
-export type AgentService = ReturnType<typeof createAgentService>;

@@ -1,41 +1,24 @@
-import { Description, Label, ListBox, Select } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
-import { isEnumValue } from "@solyx/utils/is";
+import { Locale } from "#shared/ipc/settings.ts";
 
-import { Locale, changeLocale } from "../../app/i18n.ts";
+import { changeLocale, currentLocale } from "../../app/i18n.ts";
+import { OptionSelect } from "../../components/option-select.tsx";
 
 export function LanguageSelect() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   return (
-    <Select
+    <OptionSelect
       className="max-w-xs"
-      value={i18n.language}
-      onChange={(key) => {
-        if (key !== null && isEnumValue(Locale, key)) {
-          void changeLocale(key);
-        }
-      }}>
-      <Label>{t("settings.language")}</Label>
-      <Select.Trigger>
-        <Select.Value />
-        <Select.Indicator />
-      </Select.Trigger>
-      <Description>{t("settings.language-description")}</Description>
-      <Select.Popover>
-        <ListBox>
-          {Object.values(Locale).map((locale) => (
-            <ListBox.Item
-              key={locale}
-              id={locale}
-              textValue={t(`locale.${locale}`)}>
-              {t(`locale.${locale}`)}
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          ))}
-        </ListBox>
-      </Select.Popover>
-    </Select>
+      label={t("settings.language")}
+      description={t("settings.language-description")}
+      value={currentLocale()}
+      options={Object.values(Locale).map((locale) => ({
+        id: locale,
+        label: t(`locale.${locale}`),
+      }))}
+      onChange={(locale) => void changeLocale(locale)}
+    />
   );
 }

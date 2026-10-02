@@ -1,5 +1,6 @@
 import { Disclosure } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
+import { partition } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import { ProposalStatus } from "@solyx/core/order-desk";
@@ -34,14 +35,8 @@ export function ProposalQueue() {
 
   if (!data) return <LoadingState />;
 
-  const newestFirst = data.toReversed();
-
-  const pending = newestFirst.filter((proposal) =>
+  const [pending, decided] = partition(data.toReversed(), (proposal) =>
     PENDING.includes(proposal.status)
-  );
-
-  const decided = newestFirst.filter(
-    (proposal) => !PENDING.includes(proposal.status)
   );
 
   return (

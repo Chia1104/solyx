@@ -1,6 +1,8 @@
 import type { AgentSession, AgentWireEvent } from "@solyx/agent/wire";
 import type { SymbolRef } from "@solyx/core/market";
 
+import type { Locale } from "./settings.ts";
+
 /** The listing the user has open while writing, which the agent is told about. */
 export interface AgentFocus {
   symbol: SymbolRef;
@@ -24,7 +26,7 @@ export interface AgentApi {
     id: string,
     text: string,
     focus: AgentFocus | null,
-    locale: string
+    locale: Locale
   ): Promise<void>;
   abort(id: string): Promise<void>;
   /** Answers a call waiting for the user to allow it. */

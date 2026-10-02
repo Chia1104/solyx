@@ -1,6 +1,7 @@
 import {
   Interval,
   isCalendarInterval,
+  candleDate,
   isIntraday,
   periodStart,
   resampleDaily,
@@ -77,7 +78,7 @@ export function withCandleCache(
 
     const dated = fetched.flat().map((candle) => ({
       candle,
-      date: exchangeDate(symbol.market, new Date(candle.time * 1000)),
+      date: candleDate(symbol.market, candle.time),
     }));
 
     const closed = dated.filter(({ date }) => date < today);

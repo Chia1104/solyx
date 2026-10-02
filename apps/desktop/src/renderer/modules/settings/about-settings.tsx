@@ -58,7 +58,7 @@ export function AboutSettings() {
           {t("settings.about.version", { version: data.version })}
           {/* A development build is a draft, drawn in pencil like paper trading. */}
           {data.packaged ? null : (
-            <span className="rounded-sm border border-dashed border-border bg-background hatch px-1.5 text-xs text-foreground">
+            <span className="rounded-sm pencil px-1.5 text-xs text-foreground">
               {t("settings.about.development")}
             </span>
           )}

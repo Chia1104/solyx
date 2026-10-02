@@ -3,11 +3,10 @@ import type { PromptSection } from "@earendil-works/pi-durable";
 import { escape } from "es-toolkit";
 
 import type { BrokerMode } from "@solyx/core/broker";
-import { Market } from "@solyx/core/market";
+import { Market, exchangeTime } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import type { Session } from "@solyx/core/session";
+import { getSession } from "@solyx/core/session";
 
-import { exchangeTime } from "./format.ts";
 import type { AgentSkill } from "./skills.ts";
 
 export interface PromptSources {
@@ -92,7 +91,6 @@ export function promptSections(sources: PromptSources): PromptSection[] {
 
 export interface TurnContext {
   now: Date;
-  sessions: Record<Market, Session>;
   brokerMode: BrokerMode;
   /** The listing the user has open, if any. */
   focus?: { symbol: SymbolRef; name?: string };
@@ -102,10 +100,10 @@ export interface TurnContext {
 
 /** What the model should know about the moment a message was written. */
 export function formatContext(context: TurnContext): string {
-  const at = context.now.getTime();
+  const at = context.now;
 
   const lines = [
-    `time: Taipei ${exchangeTime(Market.TW, at)} (TW ${context.sessions[Market.TW]}), New York ${exchangeTime(Market.US, at)} (US ${context.sessions[Market.US]})`,
+    `time: Taipei ${exchangeTime(Market.TW, at)} (TW ${getSession(Market.TW, at)}), New York ${exchangeTime(Market.US, at)} (US ${getSession(Market.US, at)})`,
     `account: ${context.brokerMode}`,
     `language: ${context.locale}`,
   ];

@@ -1,20 +1,14 @@
 import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
-import * as z from "zod";
 
 import enUS from "@solyx/i18n/desktop/en-US.json";
 import zhTW from "@solyx/i18n/desktop/zh-TW.json";
 
-export const Locale = {
-  EnUS: "en-US",
-  ZhTW: "zh-TW",
-} as const;
+import { Locale, localeSchema } from "#shared/ipc/settings.ts";
 
-export type Locale = (typeof Locale)[keyof typeof Locale];
+import { storageKey } from "./persist.ts";
 
-export const localeSchema = z.enum(Locale);
-
-const LOCALE_STORAGE_KEY = "solyx.locale";
+const LOCALE_STORAGE_KEY = storageKey("locale");
 
 function initialLocale(): Locale {
   const stored = localeSchema.safeParse(
@@ -27,6 +21,11 @@ function initialLocale(): Locale {
   return navigator.language.toLowerCase().startsWith("zh")
     ? Locale.ZhTW
     : Locale.EnUS;
+}
+
+/** The language the app is showing; i18next only ever switches to a `Locale`. */
+export function currentLocale(): Locale {
+  return localeSchema.parse(i18next.language);
 }
 
 export function changeLocale(locale: Locale) {

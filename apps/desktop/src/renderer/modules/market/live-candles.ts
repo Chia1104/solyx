@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useQueryClient } from "@tanstack/react-query";
+import { isEqual } from "es-toolkit";
 
 import { upsertCandles } from "@solyx/core/candles";
 import type { Interval } from "@solyx/core/candles";
@@ -31,9 +32,7 @@ export function useLiveCandles(
       const bars = updates
         .filter(
           (update) =>
-            update.interval === interval &&
-            update.symbol.market === market &&
-            update.symbol.symbol === code
+            update.interval === interval && isEqual(update.symbol, watched)
         )
         .map((update) => update.candle);
 

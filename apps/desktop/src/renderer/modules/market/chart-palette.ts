@@ -1,6 +1,6 @@
 import { Market } from "@solyx/core/market";
 
-export interface ChartPalette {
+interface ChartPalette {
   text: string;
   grid: string;
 }
@@ -16,41 +16,50 @@ export const DARK_PALETTE: ChartPalette = {
   grid: "#232c3a",
 };
 
-export interface DirectionColors {
-  rise: string;
-  fall: string;
-  riseVolume: string;
-  fallVolume: string;
+interface PriceColor {
+  solid: string;
+  faded: string;
+  /** The class for quote text, which takes the --quote-* pair in styles.css rather than these. */
+  text: string;
 }
 
-const RED = { solid: "rgb(229, 72, 77)", faded: "rgba(229, 72, 77, 0.45)" };
+const RED: PriceColor = {
+  solid: "rgb(229, 72, 77)",
+  faded: "rgba(229, 72, 77, 0.45)",
+  text: "text-quote-red",
+};
 
-const GREEN = { solid: "rgb(48, 164, 108)", faded: "rgba(48, 164, 108, 0.45)" };
+const GREEN: PriceColor = {
+  solid: "rgb(48, 164, 108)",
+  faded: "rgba(48, 164, 108, 0.45)",
+  text: "text-quote-green",
+};
+
+export interface DirectionColors {
+  rise: PriceColor;
+  fall: PriceColor;
+}
 
 // Taiwan quotes rising prices in red and falling ones in green; US quotes do the opposite.
 export const DIRECTION_COLORS: Record<Market, DirectionColors> = {
-  [Market.TW]: {
-    rise: RED.solid,
-    fall: GREEN.solid,
-    riseVolume: RED.faded,
-    fallVolume: GREEN.faded,
-  },
-  [Market.US]: {
-    rise: GREEN.solid,
-    fall: RED.solid,
-    riseVolume: GREEN.faded,
-    fallVolume: RED.faded,
-  },
+  [Market.TW]: { rise: RED, fall: GREEN },
+  [Market.US]: { rise: GREEN, fall: RED },
 };
 
+const AMBER = "#f59e0b";
+
+const BLUE = "#3b82f6";
+
+const PURPLE = "#a855f7";
+
 export const LINE_COLORS = {
-  ma5: "#f59e0b",
-  ma10: "#3b82f6",
-  ma20: "#a855f7",
+  ma5: AMBER,
+  ma10: BLUE,
+  ma20: PURPLE,
   ma60: "#14b8a6",
   bollinger: "#94a3b8",
-  fast: "#3b82f6",
-  slow: "#f59e0b",
-  oscillator: "#a855f7",
+  fast: BLUE,
+  slow: AMBER,
+  oscillator: PURPLE,
   level: "#a1a1aa",
 };

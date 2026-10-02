@@ -6,7 +6,7 @@ type Method = (...args: never) => void;
 
 type MethodArgs<F> = F extends (...args: infer A) => void ? A : never;
 
-export type ArgumentSchemas<Api> = {
+type ArgumentSchemas<Api> = {
   [K in keyof Api]: z.ZodType<MethodArgs<Api[K]>>;
 };
 

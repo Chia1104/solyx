@@ -1,10 +1,11 @@
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 import { app, nativeTheme, shell } from "electron";
-import { kebabCase } from "es-toolkit";
+import { isEqual, kebabCase } from "es-toolkit";
 
 import { AgentAuth } from "@solyx/agent/providers";
 import { createPaperBroker } from "@solyx/brokers/paper";
+import { Currency } from "@solyx/core/market";
 import { OrderDesk } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
 import { Session, getSession } from "@solyx/core/session";
@@ -12,7 +13,7 @@ import { openAgentStore } from "@solyx/db/agent";
 import { openCache } from "@solyx/db/cache";
 import { openUserData } from "@solyx/db/user";
 
-import { AppLocation, Theme } from "#shared/ipc/settings.ts";
+import { AppLocation } from "#shared/ipc/settings.ts";
 
 import { agentAuth } from "./modules/agent/agent-models.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
@@ -24,9 +25,8 @@ import { createCredentialStore } from "./modules/settings/credential-store.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
-import { SignInFlow, signInPage } from "./modules/settings/sign-in-page.ts";
 
-const PAPER_CASH = { TWD: 1_000_000, USD: 30_000 };
+const PAPER_CASH = { [Currency.TWD]: 1_000_000, [Currency.USD]: 30_000 };
 
 // Paper trading is allowed around the clock so the flow can be tried after the close.
 const PAPER_LIMITS: RiskLimits = {
@@ -37,9 +37,14 @@ const PAPER_LIMITS: RiskLimits = {
 /** Composition root. A live broker is only ever wired here after the user explicitly turns it on. */
 export function createServices() {
   const broker = createPaperBroker({ cash: PAPER_CASH });
+  const userDataDir = app.getPath("userData");
+  const home = app.getPath("home");
+
+  // Settings a person edits live in a dotfolder named after the app, so each channel keeps its own.
+  const configDir = join(home, `.${kebabCase(app.getName())}`);
 
   const userData = openUserData(
-    join(app.getPath("userData"), "user.sqlite"),
+    join(userDataDir, "user.sqlite"),
     join(import.meta.dirname, "migrations", "user")
   );
 
@@ -54,22 +59,17 @@ export function createServices() {
   });
 
   const secrets = createSecretStore(
-    join(app.getPath("userData"), "secrets.json"),
+    join(userDataDir, "secrets.json"),
     electronCipher
   );
 
   const cache = openCache(
-    join(app.getPath("userData"), "cache.sqlite"),
+    join(userDataDir, "cache.sqlite"),
     // vp pack copies the migrations next to the bundle; see vite.config.ts.
     join(import.meta.dirname, "migrations", "cache")
   );
 
-  const home = app.getPath("home");
-
-  // Settings a person edits live in a dotfolder named after the app, so each channel keeps its own.
-  const config = createConfigFile(
-    join(home, `.${kebabCase(app.getName())}`, "config.jsonc")
-  );
+  const config = createConfigFile(join(configDir, "config.jsonc"));
 
   config.create();
 
@@ -77,7 +77,7 @@ export function createServices() {
     config,
     secrets,
     candles: cache.candles,
-    fubonLogDir: join(app.getPath("userData"), "fubon"),
+    fubonLogDir: join(userDataDir, "fubon"),
   });
 
   const liveCandles = createLiveCandles({
@@ -91,20 +91,20 @@ export function createServices() {
 
   // The user's own skills and instructions sit beside the config file they edit.
   const skillFolders = {
-    solyx: join(dirname(config.file), "skills"),
+    solyx: join(configDir, "skills"),
     shared: join(home, ".agents", "skills"),
   };
+
+  const instructionsFile = join(configDir, "AGENTS.md");
 
   const openExternal = (url: string) => void shell.openExternal(url);
 
   const mcp = createMcpServers({
-    file: join(dirname(config.file), "mcp.json"),
+    file: join(configDir, "mcp.json"),
     config,
     secrets,
     version: app.getVersion(),
     openExternal,
-    signInPage: (locale, outcome, detail) =>
-      signInPage(locale, SignInFlow.Mcp, outcome, detail),
   });
 
   const agent = createAgentService({
@@ -114,18 +114,12 @@ export function createServices() {
       secrets,
       (provider) => agentAuth(config, provider) === AgentAuth.Subscription
     ),
-    getDeviceId: installationId(
-      join(app.getPath("userData"), "installation-id")
-    ),
+    getDeviceId: installationId(join(userDataDir, "installation-id")),
     openExternal,
-    signInPage: (locale, outcome, detail) =>
-      signInPage(locale, SignInFlow.ChatGPT, outcome, detail),
     skillFolders,
-    instructionsFile: join(dirname(config.file), "AGENTS.md"),
+    instructionsFile,
     mcp,
-    conversations: openAgentStore(
-      join(app.getPath("userData"), "agent.sqlite")
-    ),
+    conversations: openAgentStore(join(userDataDir, "agent.sqlite")),
     marketData: (market) => marketData.provider(market),
     watchlist: () => userData.watchlist.list(),
     broker,
@@ -138,13 +132,13 @@ export function createServices() {
   async function applySettings() {
     const next = marketData.streamSettings();
 
-    if (next === appliedStreamSettings) return;
+    if (isEqual(next, appliedStreamSettings)) return;
 
     appliedStreamSettings = next;
     await liveCandles.restart();
   }
 
-  const theme = () => config.read().theme ?? Theme.System;
+  const theme = () => config.read().theme;
 
   // Windows and their renderers' prefers-color-scheme follow themeSource.
   const applyTheme = () => {
@@ -165,8 +159,10 @@ export function createServices() {
     config,
     cache,
     home,
+    skillFolders,
+    instructionsFile,
     locations: {
-      [AppLocation.Data]: app.getPath("userData"),
+      [AppLocation.Data]: userDataDir,
       [AppLocation.Config]: config.file,
       [AppLocation.Skills]: skillFolders.solyx,
       [AppLocation.Mcp]: mcp.file,

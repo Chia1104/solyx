@@ -3,19 +3,20 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { symbolKey } from "@solyx/core/market";
 import type { Position } from "@solyx/core/order";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
+import { numberFormats } from "../market/number-formats.ts";
 
 import { accountQuery } from "./account-query.ts";
 
 export function AccountSummary() {
   const { t, i18n } = useTranslation();
   const { data, error, refetch } = useQuery(accountQuery());
-
-  const formatNumber = (value: number) => value.toLocaleString(i18n.language);
+  const format = numberFormats(i18n.language);
 
   return (
     <Section title={t("account.title")}>
@@ -34,15 +35,12 @@ export function AccountSummary() {
                   {t("account.cash")} {currency}
                 </dt>
                 <dd className="text-xl font-semibold tabular-nums">
-                  {formatNumber(amount ?? 0)}
+                  {format.price.format(amount ?? 0)}
                 </dd>
               </div>
             ))}
           </dl>
-          <PositionsTable
-            positions={data.positions}
-            formatNumber={formatNumber}
-          />
+          <PositionsTable positions={data.positions} />
         </div>
       ) : (
         <LoadingState />
@@ -51,14 +49,9 @@ export function AccountSummary() {
   );
 }
 
-function PositionsTable({
-  positions,
-  formatNumber,
-}: {
-  positions: Position[];
-  formatNumber: (value: number) => string;
-}) {
-  const { t } = useTranslation();
+function PositionsTable({ positions }: { positions: Position[] }) {
+  const { t, i18n } = useTranslation();
+  const format = numberFormats(i18n.language);
 
   return (
     <Table variant="secondary">
@@ -77,8 +70,7 @@ function PositionsTable({
             )}>
             <Table.Collection items={positions}>
               {(position) => (
-                <Table.Row
-                  id={`${position.instrument.market}:${position.instrument.symbol}`}>
+                <Table.Row id={symbolKey(position.instrument)}>
                   <Table.Cell>
                     <Link
                       to="/symbol/$market/$symbol"
@@ -92,10 +84,10 @@ function PositionsTable({
                     </Link>
                   </Table.Cell>
                   <Table.Cell className="tabular-nums">
-                    {formatNumber(position.quantity)}
+                    {format.price.format(position.quantity)}
                   </Table.Cell>
                   <Table.Cell className="tabular-nums">
-                    {formatNumber(position.avgPrice)}
+                    {format.price.format(position.avgPrice)}
                   </Table.Cell>
                 </Table.Row>
               )}

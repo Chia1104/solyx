@@ -215,44 +215,6 @@ export function createFugleApiProvider(
     ];
   }
 
-  async function loadCandles({
-    symbol,
-    interval,
-    from,
-    to,
-  }: CandleRequest): Promise<Candle[]> {
-    const barInterval = isCalendarInterval(interval)
-      ? Interval.OneDay
-      : interval;
-
-    const currentDate = exchangeDate(Market.TW, now());
-    const lastClose = shiftDate(currentDate, -1);
-
-    // History never holds today, so a range that starts today costs one intraday request.
-    const ranges = splitRange(
-      isCalendarInterval(interval) ? periodStart(from, interval) : from,
-      to < lastClose ? to : lastClose
-    );
-
-    const [history, session] = await Promise.all([
-      Promise.all(
-        ranges.map(([start, end]) =>
-          historical(symbol.symbol, barInterval, start, end)
-        )
-      ),
-      to >= currentDate ? today(symbol.symbol, barInterval) : [],
-    ]);
-
-    const bars = history.flat();
-    const lastTime = bars.at(-1)?.time ?? -Infinity;
-
-    bars.push(...session.filter((bar) => bar.time > lastTime));
-
-    return isCalendarInterval(interval)
-      ? resampleDaily(bars, interval, Market.TW)
-      : bars;
-  }
-
   function assertTaiwan(symbol: SymbolRef) {
     if (symbol.market !== Market.TW) {
       throw new Error(`${access.id} has no data for ${symbol.market} listings`);
@@ -263,10 +225,44 @@ export function createFugleApiProvider(
     id: access.id,
     markets: [Market.TW],
 
-    async getCandles(request: CandleRequest) {
-      assertTaiwan(request.symbol);
+    async getCandles({
+      symbol,
+      interval,
+      from,
+      to,
+    }: CandleRequest): Promise<Candle[]> {
+      assertTaiwan(symbol);
 
-      return loadCandles(request);
+      const barInterval = isCalendarInterval(interval)
+        ? Interval.OneDay
+        : interval;
+
+      const currentDate = exchangeDate(Market.TW, now());
+      const lastClose = shiftDate(currentDate, -1);
+
+      // History never holds today, so a range that starts today costs one intraday request.
+      const ranges = splitRange(
+        isCalendarInterval(interval) ? periodStart(from, interval) : from,
+        to < lastClose ? to : lastClose
+      );
+
+      const [history, session] = await Promise.all([
+        Promise.all(
+          ranges.map(([start, end]) =>
+            historical(symbol.symbol, barInterval, start, end)
+          )
+        ),
+        to >= currentDate ? today(symbol.symbol, barInterval) : [],
+      ]);
+
+      const bars = history.flat();
+      const lastTime = bars.at(-1)?.time ?? -Infinity;
+
+      bars.push(...session.filter((bar) => bar.time > lastTime));
+
+      return isCalendarInterval(interval)
+        ? resampleDaily(bars, interval, Market.TW)
+        : bars;
     },
 
     async getListing(symbol: SymbolRef): Promise<Listing | null> {

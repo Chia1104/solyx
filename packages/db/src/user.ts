@@ -32,8 +32,6 @@ function watchlistStore(db: NodeSQLiteDatabase) {
   };
 }
 
-export type WatchlistStore = ReturnType<typeof watchlistStore>;
-
 function toProposal(row: typeof proposals.$inferSelect): TradeProposal {
   const { brokerOrderId, failure, ...rest } = omit(row, ["seq"]);
   const proposal: TradeProposal = rest;

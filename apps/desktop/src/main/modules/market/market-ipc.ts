@@ -1,12 +1,7 @@
 import * as z from "zod";
 
-import { LOOKBACK_DAYS, intervalSchema } from "@solyx/core/candles";
-import {
-  Market,
-  exchangeDate,
-  shiftDate,
-  symbolRefSchema,
-} from "@solyx/core/market";
+import { intervalSchema, lookbackRange } from "@solyx/core/candles";
+import { Market, symbolRefSchema } from "@solyx/core/market";
 import { getSession } from "@solyx/core/session";
 
 import { marketChannels } from "#shared/ipc/market.ts";
@@ -44,13 +39,10 @@ export function registerMarketIpc({ marketData, liveCandles }: Services) {
       );
     }
 
-    const to = exchangeDate(symbol.market);
-
     return provider.getCandles({
       symbol,
       interval,
-      from: shiftDate(to, -LOOKBACK_DAYS[interval]),
-      to,
+      ...lookbackRange(symbol.market, interval),
     });
   });
 

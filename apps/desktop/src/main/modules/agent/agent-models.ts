@@ -1,53 +1,37 @@
 import { chatgptOAuth } from "@solyx/agent/chatgpt-oauth";
-import type { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
 import { createModelCatalog } from "@solyx/agent/models";
-import {
-  AgentAuth,
-  AgentProvider,
-  AgentThinking,
-  DEFAULT_MODEL,
-  SUBSCRIPTION_PROVIDERS,
-  agentAuthSchema,
-  agentProviderSchema,
-  agentThinkingSchema,
-} from "@solyx/agent/providers";
+import { AgentAuth, DEFAULT_MODEL } from "@solyx/agent/providers";
+import type { AgentProvider } from "@solyx/agent/providers";
 import type { AgentModelChoice } from "@solyx/agent/runtime";
 
-import { AGENT_PROVIDER_SECRET, SecretState } from "#shared/ipc/settings.ts";
+import {
+  AGENT_PROVIDER_SECRET,
+  AGENT_SIGN_IN_SECRET,
+  Locale,
+  SecretState,
+} from "#shared/ipc/settings.ts";
 import type { AgentSettings } from "#shared/ipc/settings.ts";
 
+import { PRODUCT_NAME } from "../../product.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { AgentCredentials } from "../settings/credential-store.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
+import { SignInFlow, signInPage } from "../settings/sign-in-page.ts";
 
-// OpenAI shows it on the consent screen; development builds sign in under the same name.
-const APP_NAME = "Solyx";
+const hasSubscription = (provider: AgentProvider) =>
+  AGENT_SIGN_IN_SECRET[provider] !== undefined;
 
 /** How the config file says `provider` is paid for; a provider without a subscription runs on a key. */
 export function agentAuth(
   config: ConfigFile,
   provider: AgentProvider
 ): AgentAuth {
-  const saved = config.read().agent;
-
-  return SUBSCRIPTION_PROVIDERS.includes(provider)
-    ? (agentAuthSchema.safeParse(saved?.auth).data ?? AgentAuth.ApiKey)
+  return hasSubscription(provider)
+    ? config.read().agent.auth
     : AgentAuth.ApiKey;
 }
 
-/**
- * The model the agent runs on and how it is paid for, as the config file, the saved keys and
- * subscription sign-ins pick them. An entry that no longer parses reads as its default, and a
- * model the provider does not list as the provider's.
- */
-export function createAgentModels({
-  config,
-  secrets,
-  credentials,
-  getDeviceId,
-  openExternal,
-  signInPage,
-}: {
+export interface AgentModelsOptions {
   config: ConfigFile;
   secrets: SecretStore;
   credentials: AgentCredentials;
@@ -55,45 +39,53 @@ export function createAgentModels({
   getDeviceId: () => string;
   /** Opens a sign-in page in the system browser. */
   openExternal: (url: string) => void;
-  /** The page the browser lands on once a sign-in returns, in the language it was started in. */
-  signInPage: (
-    locale: string,
-    outcome: SignInOutcome,
-    detail?: string
-  ) => string;
-}) {
+}
+
+/**
+ * The model the agent runs on and how it is paid for, as the config file, the saved keys and
+ * subscription sign-ins pick them. A model the provider does not list reads as the provider's
+ * default.
+ */
+export function createAgentModels({
+  config,
+  secrets,
+  credentials,
+  getDeviceId,
+  openExternal,
+}: AgentModelsOptions) {
   // The sign-in that is open, if any, and the language its page is written in.
-  let signIn: { controller: AbortController; locale: string } | undefined;
+  let signIn: { controller: AbortController; locale: Locale } | undefined;
 
   const catalog = createModelCatalog(
     credentials,
     chatgptOAuth({
-      appName: APP_NAME,
+      // OpenAI shows it on the consent screen; development builds sign in under the same name.
+      appName: PRODUCT_NAME,
       callbackPage: (outcome, detail) =>
-        signInPage(signIn?.locale ?? "en-US", outcome, detail),
+        signInPage(
+          signIn?.locale ?? Locale.EnUS,
+          SignInFlow.ChatGPT,
+          outcome,
+          detail
+        ),
     })
   );
 
+  const keySaved = async (provider: AgentProvider) =>
+    (await secrets.state(AGENT_PROVIDER_SECRET[provider])) ===
+    SecretState.Saved;
+
   function selection() {
-    const saved = config.read().agent;
-
-    const provider =
-      agentProviderSchema.safeParse(saved?.provider).data ??
-      AgentProvider.Anthropic;
-
-    const model = catalog.getModel(
-      provider,
-      saved?.model ?? DEFAULT_MODEL[provider]
-    );
+    const { provider, model, thinking } = config.read().agent;
 
     return {
       provider,
-      subscribable: SUBSCRIPTION_PROVIDERS.includes(provider),
+      subscribable: hasSubscription(provider),
       auth: agentAuth(config, provider),
-      model: model ?? catalog.getModel(provider, DEFAULT_MODEL[provider]),
-      thinking:
-        agentThinkingSchema.safeParse(saved?.thinking).data ??
-        AgentThinking.Medium,
+      model:
+        catalog.getModel(provider, model ?? DEFAULT_MODEL[provider]) ??
+        catalog.getModel(provider, DEFAULT_MODEL[provider]),
+      thinking,
     };
   }
 
@@ -102,7 +94,6 @@ export function createAgentModels({
 
     async settings(): Promise<AgentSettings> {
       const { provider, subscribable, auth, model, thinking } = selection();
-      const states = await secrets.states();
 
       const subscription = subscribable
         ? { signedIn: await credentials.signedIn(provider) }
@@ -123,7 +114,7 @@ export function createAgentModels({
           model !== undefined &&
           (auth === AgentAuth.Subscription
             ? subscription?.signedIn === true
-            : states[AGENT_PROVIDER_SECRET[provider]] === SecretState.Saved),
+            : await keySaved(provider)),
       };
     },
 
@@ -139,10 +130,7 @@ export function createAgentModels({
         if (!(await credentials.signedIn(provider))) {
           throw new Error(`Sign in to ${provider} in Settings first`);
         }
-      } else if (
-        (await secrets.states())[AGENT_PROVIDER_SECRET[provider]] !==
-        SecretState.Saved
-      ) {
+      } else if (!(await keySaved(provider))) {
         throw new Error(`Save an API key for ${provider} in Settings first`);
       }
 
@@ -153,7 +141,7 @@ export function createAgentModels({
      * Resolves once the sign-in is saved, or quietly once it is cancelled. A sign-in still open,
      * such as one whose browser page was closed, gives way to the new one.
      */
-    async signIn(locale: string) {
+    async signIn(locale: Locale) {
       const { provider, subscribable } = selection();
 
       if (!subscribable) {
@@ -204,5 +192,3 @@ export function createAgentModels({
     },
   };
 }
-
-export type AgentModels = ReturnType<typeof createAgentModels>;

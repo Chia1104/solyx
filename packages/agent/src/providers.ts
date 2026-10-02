@@ -22,11 +22,6 @@ export type AgentAuth = (typeof AgentAuth)[keyof typeof AgentAuth];
 
 export const agentAuthSchema = z.enum(AgentAuth);
 
-/** Providers that can run on a subscription instead of a key: OpenAI through Sign in with ChatGPT. */
-export const SUBSCRIPTION_PROVIDERS: readonly AgentProvider[] = [
-  AgentProvider.OpenAI,
-];
-
 /** How long the model may think before it answers; pi-ai clamps it to what a model supports. */
 export const AgentThinking = {
   Off: "off",
