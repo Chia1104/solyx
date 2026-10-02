@@ -311,9 +311,10 @@ export interface SettingsApi {
   setSharedSkill(name: string, enabled: boolean): Promise<void>;
   /** Connects the servers in mcp.json on first use. */
   mcp(): Promise<McpSettings>;
+  /** Lets the agent do the same with each of a server's `tools`, saved in one write. */
   setMcpToolPolicy(
     server: string,
-    tool: string,
+    tools: string[],
     policy: McpToolPolicy
   ): Promise<void>;
   /** Saves a secret an entry names as `secret:NAME`; the server reconnects with it. */

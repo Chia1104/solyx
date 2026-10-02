@@ -102,8 +102,8 @@ const api: SolyxApi = {
     setSharedSkill: (name, enabled) =>
       invoke(settingsChannels.setSharedSkill, name, enabled),
     mcp: () => invoke(settingsChannels.mcp),
-    setMcpToolPolicy: (server, tool, policy) =>
-      invoke(settingsChannels.setMcpToolPolicy, server, tool, policy),
+    setMcpToolPolicy: (server, tools, policy) =>
+      invoke(settingsChannels.setMcpToolPolicy, server, tools, policy),
     saveMcpSecret: (server, name, value) =>
       invoke(settingsChannels.saveMcpSecret, server, name, value),
     deleteMcpSecret: (server, name) =>

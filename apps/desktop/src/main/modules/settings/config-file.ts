@@ -85,6 +85,10 @@ type ConfigPath =
   | ["agent", "provider" | "model" | "thinking" | "auth" | "sharedSkills"]
   | ["agent", "mcpTools", string];
 
+type ConfigEntry = readonly [path: ConfigPath, value: string | string[]];
+
+const FORMATTING = { formattingOptions: { insertSpaces: true, tabSize: 2 } };
+
 const quoted = (values: Record<string, string>) =>
   Object.values(values)
     .map((value) => `"${value}"`)
@@ -154,6 +158,23 @@ export function createConfigFile(file: string) {
     renameSync(temporary, file);
   }
 
+  /** Saves every entry in one write, so the file never holds only some of them. */
+  function update(entries: readonly ConfigEntry[]) {
+    const text = readText(file) ?? TEMPLATE;
+
+    if (parseConfig(text) === undefined) {
+      throw new Error(`Fix the syntax errors in ${file} before saving`);
+    }
+
+    write(
+      entries.reduce(
+        (edited, [path, value]) =>
+          applyEdits(edited, modify(edited, path, value, FORMATTING)),
+        text
+      )
+    );
+  }
+
   return {
     file,
 
@@ -171,21 +192,10 @@ export function createConfigFile(file: string) {
     },
 
     set(path: ConfigPath, value: string | string[]) {
-      const text = readText(file) ?? TEMPLATE;
-
-      if (parseConfig(text) === undefined) {
-        throw new Error(`Fix the syntax errors in ${file} before saving`);
-      }
-
-      write(
-        applyEdits(
-          text,
-          modify(text, path, value, {
-            formattingOptions: { insertSpaces: true, tabSize: 2 },
-          })
-        )
-      );
+      update([[path, value]]);
     },
+
+    update,
 
     /** Calls `onChange` shortly after the file changes on disk, whoever changed it. */
     watch(onChange: () => void): () => void {

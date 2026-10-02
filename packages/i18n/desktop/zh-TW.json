@@ -459,6 +459,9 @@
       "tools": "Tool",
       "filter": "篩選 tool",
       "no-matches": "沒有符合「{{query}}」的 tool。",
+      "set-all": "全部 {{count}} 個 tool 設為",
+      "set-matching": "符合的 {{count}} 個 tool 設為",
+      "set-label": "Agent 使用這 {{count}} 個 tool 時",
       "sign-in": {
         "label": "帳號",
         "hint": "透過瀏覽器登入，在 server 的頁面允許 Solyx。Solyx 會加密保存授權，不會顯示出來。",

@@ -68,7 +68,7 @@ const handle = ipcModule<SettingsApi>(settingsChannels, {
   mcp: z.tuple([]),
   setMcpToolPolicy: z.tuple([
     mcpNameSchema,
-    mcpNameSchema,
+    z.array(mcpNameSchema).min(1).max(1024),
     mcpToolPolicySchema,
   ]),
   saveMcpSecret: z.tuple([
@@ -274,8 +274,13 @@ export function registerSettingsIpc({
     };
   });
 
-  handle("setMcpToolPolicy", async (server, tool, policy) => {
-    config.set(["agent", "mcpTools", mcpToolKey(server, tool)], policy);
+  handle("setMcpToolPolicy", async (server, tools, policy) => {
+    config.update(
+      tools.map((tool) => [
+        ["agent", "mcpTools", mcpToolKey(server, tool)],
+        policy,
+      ])
+    );
   });
 
   // A server reads its secrets as it connects, so a changed one reconnects it.

@@ -95,6 +95,24 @@ test("saving a plan edits it in place, keeping comments and other keys", async (
   expect(text).toContain('"region": "tw"');
 });
 
+test("an update saves every entry and keeps the file's comments", async () => {
+  const config = createConfigFile(file);
+
+  config.create();
+  config.update([
+    [["agent", "mcpTools", "github/create_issue"], "off"],
+    [["agent", "mcpTools", "github/get_issue"], "auto"],
+    [["theme"], "dark"],
+  ]);
+
+  expect(config.read().agent.mcpTools).toEqual({
+    "github/create_issue": "off",
+    "github/get_issue": "auto",
+  });
+  expect(config.read().theme).toBe("dark");
+  expect(await readFile(file, "utf8")).toMatch(/^\/\/ /);
+});
+
 test("a file with syntax errors reads as defaults and is never overwritten", async () => {
   const config = createConfigFile(file);
   const broken = '{ "providers": { "fugle": { "plan": "developer" }';

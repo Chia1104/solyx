@@ -459,6 +459,9 @@
       "tools": "Tools",
       "filter": "Filter tools",
       "no-matches": "No tools match “{{query}}”.",
+      "set-all": "Set all {{count}} tools to",
+      "set-matching": "Set the {{count}} matching tools to",
+      "set-label": "When the agent uses any of these {{count}} tools",
       "sign-in": {
         "label": "Account",
         "hint": "Signs in through your browser, where the server asks you to allow Solyx. Solyx keeps the grant encrypted and never shows it.",

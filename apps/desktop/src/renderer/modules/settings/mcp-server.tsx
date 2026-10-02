@@ -4,6 +4,7 @@ import { Alert, Button, Chip } from "@heroui/react";
 import type { ChipProps } from "@heroui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { uniq } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
@@ -30,8 +31,8 @@ const STATE_COLOR: Record<McpServerState, ChipProps["color"]> = {
   [McpServerState.Failed]: "danger",
 };
 
-/** Below this many tools a server's list is short enough to read without filtering. */
-const FILTER_FROM = 8;
+/** From this many tools a server's list gains a filter and a row that sets every tool it shows. */
+const LONG_LIST = 8;
 
 export function McpStateChip({ state }: { state: McpServerState }) {
   const { t } = useTranslation();
@@ -148,7 +149,7 @@ function ToolRow({ server, tool }: { server: string; tool: McpToolSetting }) {
 
   const save = useMutation({
     mutationFn: (policy: McpToolPolicy) =>
-      window.solyx.settings.setMcpToolPolicy(server, tool.name, policy),
+      window.solyx.settings.setMcpToolPolicy(server, [tool.name], policy),
     onSettled: refresh,
   });
 
@@ -173,13 +174,63 @@ function ToolRow({ server, tool }: { server: string; tool: McpToolSetting }) {
       }
       actions={
         <PolicyToggle
-          tool={tool}
+          label={t("settings.mcp.policy-label", { tool: tool.name })}
           // Shows the choice while it saves rather than after the list reloads.
           value={(save.isPending ? save.variables : undefined) ?? tool.policy}
+          allowsAuto={tool.readOnly}
           onChange={(policy) => save.mutate(policy)}
         />
       }
     />
+  );
+}
+
+/**
+ * Sets every tool the list shows, all of them or those the filter matches, and shows their policy
+ * while they share one.
+ */
+function SetEveryRow({
+  server,
+  tools,
+  filtering,
+}: {
+  server: string;
+  tools: McpToolSetting[];
+  filtering: boolean;
+}) {
+  const { t } = useTranslation();
+  const refresh = useRefresh();
+
+  const save = useMutation({
+    mutationFn: (policy: McpToolPolicy) =>
+      window.solyx.settings.setMcpToolPolicy(
+        server,
+        tools.map((tool) => tool.name),
+        policy
+      ),
+    onSettled: refresh,
+  });
+
+  const policies = uniq(tools.map((tool) => tool.policy));
+  const count = tools.length;
+
+  return (
+    <div className="flex items-center gap-4">
+      <span className="min-w-0 flex-1 text-xs text-muted">
+        {filtering
+          ? t("settings.mcp.set-matching", { count })
+          : t("settings.mcp.set-all", { count })}
+      </span>
+      <PolicyToggle
+        label={t("settings.mcp.set-label", { count })}
+        value={
+          (save.isPending ? save.variables : undefined) ??
+          (policies.length === 1 ? policies[0] : undefined)
+        }
+        allowsAuto={tools.every((tool) => tool.readOnly)}
+        onChange={(policy) => save.mutate(policy)}
+      />
+    </div>
   );
 }
 
@@ -199,7 +250,7 @@ function ToolList({ server }: { server: McpServerSetting }) {
           {server.tools.length}
         </span>
         <PolicyTally tools={server.tools} />
-        {server.tools.length >= FILTER_FROM ? (
+        {server.tools.length >= LONG_LIST ? (
           <FilterField
             label={t("settings.mcp.filter")}
             value={filter}
@@ -208,6 +259,13 @@ function ToolList({ server }: { server: McpServerSetting }) {
           />
         ) : null}
       </div>
+      {server.tools.length >= LONG_LIST && shown.length > 1 ? (
+        <SetEveryRow
+          server={server.name}
+          tools={shown}
+          filtering={filter.trim() !== ""}
+        />
+      ) : null}
       <SettingsList>
         {shown.map((tool) => (
           <ToolRow key={tool.name} server={server.name} tool={tool} />

@@ -95,25 +95,28 @@ export function PolicyLegend() {
   );
 }
 
-/** What the agent may do with one tool; only a tool its server marks read-only may run on its own. */
+/** What the agent may do with a tool, or with several at once; `value` is unset while they differ. */
 export function PolicyToggle({
-  tool,
+  label,
   value,
+  allowsAuto,
   onChange,
 }: {
-  tool: McpToolSetting;
-  value: McpToolPolicy;
+  label: string;
+  value: McpToolPolicy | undefined;
+  /** Only tools their server marks read-only may run on their own. */
+  allowsAuto: boolean;
   onChange: (policy: McpToolPolicy) => void;
 }) {
   const { t } = useTranslation();
 
   return (
     <ToggleButtonGroup
-      aria-label={t("settings.mcp.policy-label", { tool: tool.name })}
+      aria-label={label}
       selectionMode="single"
       disallowEmptySelection
       size="sm"
-      selectedKeys={[value]}
+      selectedKeys={value ? [value] : []}
       onSelectionChange={(keys) => {
         const next = [...keys].find((key) => isEnumValue(McpToolPolicy, key));
 
@@ -124,7 +127,7 @@ export function PolicyToggle({
           key={policy}
           id={policy}
           variant="ghost"
-          isDisabled={policy === McpToolPolicy.Auto && !tool.readOnly}>
+          isDisabled={policy === McpToolPolicy.Auto && !allowsAuto}>
           <PolicyMark policy={policy} />
           {t(`settings.mcp.policies.${policy}`)}
         </ToggleButton>
