@@ -1,22 +1,19 @@
 import { cn } from "@heroui/react";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { Interval } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
 
-import { Locale } from "#shared/ipc/settings.ts";
-
 import { DIRECTION_COLORS } from "./chart-palette.ts";
-import { listingQuery } from "./listing-query.ts";
+import { useListingName } from "./listing-name.tsx";
 import { numberFormats } from "./number-formats.ts";
 import { useCandles } from "./use-candles.ts";
 
 /** The listing's code and name, and its last daily close against the close before it, on one line. */
 export function SymbolQuote({ symbol }: { symbol: SymbolRef }) {
   const { t, i18n } = useTranslation();
-  const { ready, candles } = useCandles(symbol, Interval.OneDay);
-  const listing = useQuery({ ...listingQuery(symbol), enabled: ready });
+  const { candles } = useCandles(symbol, Interval.OneDay);
+  const name = useListingName(symbol);
 
   const bars = candles.data?.candles ?? [];
   const last = bars.at(-1);
@@ -25,12 +22,6 @@ export function SymbolQuote({ symbol }: { symbol: SymbolRef }) {
   const direction = DIRECTION_COLORS[symbol.market];
 
   const change = last && previous ? last.close - previous.close : null;
-
-  // Exchanges name listings in their own language; the English name is used when there is one.
-  const name =
-    i18n.language === Locale.EnUS
-      ? (listing.data?.englishName ?? listing.data?.name)
-      : listing.data?.name;
 
   return (
     <div className="flex min-w-0 items-baseline gap-4">

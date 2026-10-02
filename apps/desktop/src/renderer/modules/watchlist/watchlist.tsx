@@ -9,6 +9,7 @@ import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { SymbolRow } from "../../components/symbol-row.tsx";
+import { ListingName } from "../market/listing-name.tsx";
 
 import { watchlistQuery, watchlistQueryKeys } from "./watchlist-query.ts";
 
@@ -46,7 +47,7 @@ export function Watchlist() {
       <ul>
         {data.map((symbol) => (
           <li key={symbolKey(symbol)} className="group relative">
-            <SymbolRow symbol={symbol} />
+            <SymbolRow symbol={symbol} name={<ListingName symbol={symbol} />} />
             <CloseButton
               aria-label={t("watchlist.remove-symbol", {
                 symbol: symbol.symbol,

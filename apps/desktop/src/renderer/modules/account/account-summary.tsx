@@ -9,6 +9,7 @@ import type { Position } from "@solyx/core/order";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
+import { ListingName } from "../market/listing-name.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
 import { accountQuery } from "./account-query.ts";
@@ -74,9 +75,14 @@ function PositionsTable({ positions }: { positions: Position[] }) {
                         market: position.instrument.market,
                         symbol: position.instrument.symbol,
                       }}
-                      className="hover:underline">
-                      {t(`market.${position.instrument.market}`)}{" "}
-                      {position.instrument.symbol}
+                      className="flex min-w-0 items-baseline gap-1.5 hover:underline">
+                      <span className="shrink-0 font-medium">
+                        {position.instrument.symbol}
+                      </span>
+                      <ListingName symbol={position.instrument} />
+                      <span className="shrink-0 text-xs text-muted">
+                        {t(`market.${position.instrument.market}`)}
+                      </span>
                     </Link>
                   </Table.Cell>
                   <Table.Cell className="tabular-nums">

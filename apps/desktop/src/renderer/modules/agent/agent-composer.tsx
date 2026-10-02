@@ -17,12 +17,13 @@ import * as z from "zod";
 
 import { emptyAgentView } from "@solyx/agent/wire";
 import { symbolKey } from "@solyx/core/market";
-
-import type { AgentFocus } from "#shared/ipc/agent.ts";
+import type { SymbolRef } from "@solyx/core/market";
 
 import { currentLocale } from "../../app/i18n.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { CandlesIcon, SendIcon, StopIcon } from "../../components/icons.tsx";
+import { listingName, useListingName } from "../market/listing-name.tsx";
+import { listingQuery } from "../market/listing-query.ts";
 
 import { agentQueryKeys } from "./agent-query.ts";
 import { useAgentStore } from "./agent-store.ts";
@@ -31,14 +32,15 @@ import { useAgentStore } from "./agent-store.ts";
 const composerSchema = z.object({ text: z.string().trim().min(1) });
 
 /** The listing on screen, sent with each message unless the user detaches it. */
-function FocusAttachment({ focus }: { focus: AgentFocus }) {
+function FocusAttachment({ focus }: { focus: SymbolRef }) {
   const { t } = useTranslation();
+  const name = useListingName(focus);
   const detachedFocus = useAgentStore((state) => state.detachedFocus);
   const setDetachedFocus = useAgentStore((state) => state.setDetachedFocus);
 
-  const key = symbolKey(focus.symbol);
+  const key = symbolKey(focus);
   const attached = key !== detachedFocus;
-  const label = [focus.symbol.symbol, focus.name].filter(Boolean).join(" ");
+  const label = [focus.symbol, name].filter(Boolean).join(" ");
 
   return (
     <div
@@ -53,7 +55,7 @@ function FocusAttachment({ focus }: { focus: AgentFocus }) {
       {attached ? (
         <>
           <Chip size="sm" variant="soft">
-            {t(`market.${focus.symbol.market}`)}
+            {t(`market.${focus.market}`)}
           </Chip>
           <CloseButton
             aria-label={t("agent.context.detach", { label })}
@@ -85,7 +87,8 @@ export function AgentComposer({
 }: {
   sessionId: string | null;
   running: boolean;
-  focus: AgentFocus | null;
+  /** The listing on screen. */
+  focus: SymbolRef | null;
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -102,7 +105,7 @@ export function AgentComposer({
   const text = useWatch({ control: form.control, name: "text" });
 
   const attachedFocus =
-    focus && symbolKey(focus.symbol) !== detachedFocus ? focus : null;
+    focus && symbolKey(focus) !== detachedFocus ? focus : null;
 
   // A message handed back for editing replaces what is being written.
   useEffect(() => {
@@ -127,11 +130,20 @@ export function AgentComposer({
         select(id);
       }
 
+      const locale = currentLocale();
+
       await window.solyx.agent.send(
         id,
         message,
-        attachedFocus,
-        currentLocale()
+        attachedFocus && {
+          symbol: attachedFocus,
+          // The attachment above the input has already asked for it.
+          name: listingName(
+            queryClient.getQueryData(listingQuery(attachedFocus).queryKey),
+            locale
+          ),
+        },
+        locale
       );
     },
     onSuccess: () => form.reset(),

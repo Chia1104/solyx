@@ -1,10 +1,9 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useMatch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import type { AgentFocus } from "#shared/ipc/agent.ts";
+import type { SymbolRef } from "@solyx/core/market";
 
-import { listingQuery } from "../market/listing-query.ts";
 import { agentSettingsQuery } from "../settings/settings-query.ts";
 import { SettingsSection } from "../settings/settings-section.ts";
 
@@ -13,22 +12,15 @@ import { transcriptQuery } from "./agent-query.ts";
 import { AgentThread, EmptyThread } from "./agent-thread.tsx";
 
 /** The listing on screen, which the agent is told about with each message. */
-function useFocus(): AgentFocus | null {
-  const queryClient = useQueryClient();
-
+function useFocus(): SymbolRef | null {
   const match = useMatch({
     from: "/symbol/$market/$symbol",
     shouldThrow: false,
   });
 
-  if (!match) return null;
-
-  const symbol = { market: match.params.market, symbol: match.params.symbol };
-
-  // The symbol page has already looked the name up.
-  const listing = queryClient.getQueryData(listingQuery(symbol).queryKey);
-
-  return { symbol, name: listing?.name };
+  return match
+    ? { market: match.params.market, symbol: match.params.symbol }
+    : null;
 }
 
 function AgentSetup() {
@@ -55,7 +47,7 @@ function SessionChat({
 }: {
   sessionId: string;
   ready: boolean;
-  focus: AgentFocus | null;
+  focus: SymbolRef | null;
 }) {
   const { data } = useQuery(transcriptQuery(sessionId));
 

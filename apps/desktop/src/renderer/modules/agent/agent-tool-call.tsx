@@ -20,6 +20,7 @@ import {
   CrossIcon,
   DashIcon,
 } from "../../components/icons.tsx";
+import { ListingName } from "../market/listing-name.tsx";
 import { ProposalItem } from "../proposals/proposal-item.tsx";
 import { proposalsQuery } from "../proposals/proposals-query.ts";
 
@@ -35,18 +36,30 @@ const argumentsSchema = z.object({
 });
 
 /** What a call was about: a listing and its interval, an order's listing, a playbook or a search. */
-function subjectOf(tool: ToolCallView): string | undefined {
+function Subject({ tool }: { tool: ToolCallView }) {
+  const { t } = useTranslation();
   const args = argumentsSchema.safeParse(tool.args).data;
+  const listing = args?.symbol ?? args?.order;
 
-  if (args?.symbol) {
-    const listing = `${args.symbol.market} ${args.symbol.symbol}`;
+  if (listing) {
+    const symbol = { market: listing.market, symbol: listing.symbol };
 
-    return args.interval ? `${listing} · ${args.interval}` : listing;
+    return (
+      <span className="flex min-w-0 items-center gap-1">
+        <span className="shrink-0">{symbol.symbol}</span>
+        <ListingName symbol={symbol} />
+        {args?.interval ? (
+          <span className="shrink-0">
+            · {t(`chart.intervals.${args.interval}`)}
+          </span>
+        ) : null}
+      </span>
+    );
   }
 
-  if (args?.order) return `${args.order.market} ${args.order.symbol}`;
+  const text = args?.name ?? args?.query;
 
-  return args?.name ?? args?.query;
+  return text ? <span className="truncate">{text}</span> : null;
 }
 
 function StatusIcon({ status }: { status: ToolCallStatus }) {
@@ -139,7 +152,6 @@ export function AgentToolCall({
   tool: ToolCallView;
 }) {
   const { t } = useTranslation();
-  const subject = subjectOf(tool);
 
   const proposal =
     tool.toolName === AgentToolName.ProposeOrder &&
@@ -159,7 +171,7 @@ export function AgentToolCall({
             ? t(`agent.tools.${tool.toolName}`)
             : tool.toolName}
         </span>
-        {subject ? <span className="truncate">{subject}</span> : null}
+        <Subject tool={tool} />
         <span className="sr-only">{t(`agent.tool-status.${tool.status}`)}</span>
       </div>
       {tool.error ? (

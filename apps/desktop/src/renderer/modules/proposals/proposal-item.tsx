@@ -9,6 +9,7 @@ import type { TradeProposal } from "@solyx/core/order-desk";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { accountQueryKeys } from "../account/account-query.ts";
+import { ListingName } from "../market/listing-name.tsx";
 
 import { proposalsQueryKeys } from "./proposals-query.ts";
 import { violationMessage } from "./violation-message.ts";
@@ -66,9 +67,12 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
         )}
       />
       <header className="flex items-center gap-2">
-        <h3 className="flex items-baseline gap-1.5">
-          <span className="font-semibold">{order.instrument.symbol}</span>
-          <span className="text-xs text-muted">
+        <h3 className="flex min-w-0 items-baseline gap-1.5">
+          <span className="shrink-0 font-semibold">
+            {order.instrument.symbol}
+          </span>
+          <ListingName symbol={order.instrument} className="text-sm" />
+          <span className="shrink-0 text-xs text-muted">
             {t(`market.${order.instrument.market}`)}
           </span>
         </h3>

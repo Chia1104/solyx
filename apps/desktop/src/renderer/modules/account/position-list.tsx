@@ -6,6 +6,7 @@ import { symbolKey } from "@solyx/core/market";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { SymbolRow } from "../../components/symbol-row.tsx";
+import { ListingName } from "../market/listing-name.tsx";
 
 import { accountQuery } from "./account-query.ts";
 
@@ -32,17 +33,20 @@ export function PositionList() {
 
   return (
     <ul>
-      {data.positions.map((position) => (
-        <li key={symbolKey(position.instrument)}>
-          <SymbolRow
-            symbol={{
-              market: position.instrument.market,
-              symbol: position.instrument.symbol,
-            }}>
-            {t("account.shares-count", { count: position.quantity })}
-          </SymbolRow>
-        </li>
-      ))}
+      {data.positions.map((position) => {
+        const symbol = {
+          market: position.instrument.market,
+          symbol: position.instrument.symbol,
+        };
+
+        return (
+          <li key={symbolKey(position.instrument)}>
+            <SymbolRow symbol={symbol} name={<ListingName symbol={symbol} />}>
+              {t("account.shares-count", { count: position.quantity })}
+            </SymbolRow>
+          </li>
+        );
+      })}
     </ul>
   );
 }
