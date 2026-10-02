@@ -1,4 +1,4 @@
-import { defineExtension } from "@earendil-works/pi-durable";
+import { defineExtension, section } from "@earendil-works/pi-durable";
 import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
 import {
   McpAuthRequiredError,
@@ -24,7 +24,7 @@ import type {
   OAuthCallbackPage,
   OAuthChallenge,
 } from "@earendil-works/pi-mcp/oauth";
-import { delay, isEqual, once } from "es-toolkit";
+import { delay, escape, isEqual, omit, once } from "es-toolkit";
 import * as z from "zod";
 
 import {
@@ -35,6 +35,7 @@ import {
   secretReference,
 } from "./mcp-config.ts";
 import type { McpServerConfig, McpServerEntry } from "./mcp-config.ts";
+import { AgentToolName } from "./wire.ts";
 
 export interface McpToolInfo {
   name: string;
@@ -115,6 +116,142 @@ interface Connection {
 }
 
 const argsSchema = z.record(z.string(), z.unknown());
+
+const searchSchema = z.object({
+  query: z
+    .string()
+    .min(1)
+    .describe("What the tool should do, in a few words, or tool names"),
+  server: z.string().optional().describe("Only this server's tools"),
+});
+
+// Enough to cover one task without loading a server's whole catalog at once.
+const MAX_FOUND = 8;
+
+/** The servers' tools as the agent's extensions. */
+export interface McpExtensions {
+  /** `search_tools` and the list of servers, offered in every request. */
+  search: Extension;
+  /** Every server's tools, offered once `search_tools` loads them. */
+  tools: Extension;
+}
+
+/** One server's tool as the agent may load it. */
+interface LoadableTool {
+  server: string;
+  tool: Tool;
+  registration: ToolRegistration;
+}
+
+/** The connected servers, so the agent knows what it may search for. */
+function serversText(
+  servers: { name: string; title: string; tools: number }[]
+) {
+  const list = servers
+    .map(
+      ({ name, title, tools }) =>
+        `  <server name="${escape(name)}" tools="${tools}">${escape(title)}</server>`
+    )
+    .join("\n");
+
+  return `# MCP servers
+The user connected these MCP servers. Their tools are not loaded: find the ones a task needs with search_tools, which loads them for your next step, and call an MCP tool only once it is loaded.
+<mcp_servers>
+${list}
+</mcp_servers>`;
+}
+
+/**
+ * Finds tools by the words of `query` in their names and descriptions, best first, and loads them
+ * with pi-durable's `addTools`, so they are offered from the next request on.
+ */
+function searchTool(loadable: readonly LoadableTool[]): ToolRegistration {
+  return {
+    name: AgentToolName.SearchTools,
+    description:
+      "Finds tools on the user's MCP servers by what they do and loads them, so you can call them from your next step.",
+    // Providers read the schema inline; the dialect URI is noise to them.
+    parameters: omit(z.toJSONSchema(searchSchema, { io: "input" }), [
+      "$schema",
+    ]),
+    replay: "safe",
+    async execute(params) {
+      const { query, server } = searchSchema.parse(params);
+
+      const terms = query
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter(Boolean);
+
+      const matches = loadable
+        .filter((entry) => server === undefined || entry.server === server)
+        .map((entry, index) => {
+          const names = [entry.registration.name, entry.tool.name].map((name) =>
+            name.toLowerCase()
+          );
+
+          const text = [
+            ...names,
+            entry.tool.title ?? "",
+            entry.tool.description ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
+
+          // A tool named outright comes before any that only mention the words.
+          const named = terms.some((term) => names.includes(term));
+
+          const score =
+            (named ? terms.length + 1 : 0) +
+            terms.filter((term) => text.includes(term)).length;
+
+          return { entry, score, index };
+        })
+        .filter((match) => match.score > 0)
+        .sort((a, b) => b.score - a.score || a.index - b.index);
+
+      const found = matches.slice(0, MAX_FOUND).map((match) => match.entry);
+      const names = found.map((entry) => entry.registration.name);
+
+      if (found.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No tools${server ? ` on ${server}` : ""} match "${query}". Try other words.`,
+            },
+          ],
+          details: { tools: names },
+        };
+      }
+
+      const lines = found.map(({ server: from, tool, registration }) => {
+        const [summary = ""] = (tool.description ?? tool.title ?? "").split(
+          "\n"
+        );
+
+        return `- ${registration.name} (${from}): ${summary.slice(0, 160)}`;
+      });
+
+      if (matches.length > found.length) {
+        lines.push(
+          `${matches.length - found.length} more match; narrow the search to load them.`
+        );
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Loaded for your next step:\n${lines.join("\n")}`,
+          },
+        ],
+        details: { tools: names },
+        control: { addTools: names },
+      };
+    },
+  };
+}
 
 const STDERR_TAIL = 2000;
 
@@ -575,12 +712,15 @@ export function createMcpHub(options: McpHubOptions) {
       ),
 
     /**
-     * Every connected server's tools under their policies. A call cut off by the app exiting runs
-     * again only for a tool that may run without asking, which its server marks read-only.
+     * Every connected server's tools under their policies, as `tools`, which wait for the agent to
+     * load them, and `search`, which lists the servers and finds and loads their tools. A call cut
+     * off by the app exiting runs again only for a tool that may run without asking, which its
+     * server marks read-only.
      */
-    extension({ policies, allow }: McpToolOptions): Extension {
-      const tools: ToolRegistration[] = [];
+    extensions({ policies, allow }: McpToolOptions): McpExtensions {
+      const loadable: LoadableTool[] = [];
       const names = new Set<string>();
+      const servers: { name: string; title: string; tools: number }[] = [];
 
       for (const [server, connection] of connections) {
         const { client } = connection;
@@ -588,6 +728,8 @@ export function createMcpHub(options: McpHubOptions) {
         if (!client || connection.status.state !== McpServerState.Connected) {
           continue;
         }
+
+        const before = loadable.length;
 
         for (const tool of connection.tools) {
           const readOnly = tool.annotations?.readOnlyHint === true;
@@ -602,61 +744,90 @@ export function createMcpHub(options: McpHubOptions) {
           if (policy === McpToolPolicy.Off || names.has(name)) continue;
 
           names.add(name);
-          tools.push({
-            name,
-            description: `${tool.description ?? tool.title ?? tool.name}\n(A tool from the ${server} MCP server.)`,
-            // Providers require an object schema, and some reject one without properties.
-            parameters: {
-              ...tool.inputSchema,
-              type: "object",
-              properties: tool.inputSchema.properties ?? {},
-            },
-            replay: policy === McpToolPolicy.Auto ? "safe" : "unsafe",
-            async execute(params, api, context) {
-              const args = argsSchema.parse(params ?? {});
-              const signal = context.abortSignal;
+          loadable.push({
+            server,
+            tool,
+            registration: {
+              name,
+              description: `${tool.description ?? tool.title ?? tool.name}\n(A tool from the ${server} MCP server.)`,
+              // Providers require an object schema, and some reject one without properties.
+              parameters: {
+                ...tool.inputSchema,
+                type: "object",
+                properties: tool.inputSchema.properties ?? {},
+              },
+              replay: policy === McpToolPolicy.Auto ? "safe" : "unsafe",
+              async execute(params, api, context) {
+                const args = argsSchema.parse(params ?? {});
+                const signal = context.abortSignal;
 
-              if (
-                policy === McpToolPolicy.Ask &&
-                !(await allow(
-                  {
-                    sessionId: String(api.conversationId),
-                    toolCallId: api.callId,
-                    server,
-                    tool: tool.name,
-                    args,
-                  },
-                  signal
-                ))
-              ) {
-                throw new Error("The user did not allow this call");
-              }
-
-              try {
-                const result = await client.callTool(tool.name, args, {
-                  signal,
-                });
-
-                // MCP reports a tool's own failure in the result rather than as an error.
-                return {
-                  content: toLlmContent(result),
-                  details: { server, tool: tool.name },
-                  isError: result.isError === true,
-                };
-              } catch (error) {
-                if (error instanceof McpOAuthAuthorizationRequiredError) {
-                  connection.status.state = McpServerState.NeedsSignIn;
-                  changed();
+                if (
+                  policy === McpToolPolicy.Ask &&
+                  !(await allow(
+                    {
+                      sessionId: String(api.conversationId),
+                      toolCallId: api.callId,
+                      server,
+                      tool: tool.name,
+                      args,
+                    },
+                    signal
+                  ))
+                ) {
+                  throw new Error("The user did not allow this call");
                 }
 
-                throw error;
-              }
+                try {
+                  const result = await client.callTool(tool.name, args, {
+                    signal,
+                  });
+
+                  // MCP reports a tool's own failure in the result rather than as an error.
+                  return {
+                    content: toLlmContent(result),
+                    details: { server, tool: tool.name },
+                    isError: result.isError === true,
+                  };
+                } catch (error) {
+                  if (error instanceof McpOAuthAuthorizationRequiredError) {
+                    connection.status.state = McpServerState.NeedsSignIn;
+                    changed();
+                  }
+
+                  throw error;
+                }
+              },
             },
+          });
+        }
+
+        if (loadable.length > before) {
+          servers.push({
+            name: server,
+            title: client.serverInfo?.title ?? client.serverInfo?.name ?? "",
+            tools: loadable.length - before,
           });
         }
       }
 
-      return defineExtension({ name: "mcp", tools });
+      return {
+        // Nothing to search for leaves the agent without the tool and the list.
+        search: defineExtension({
+          name: "mcp-search",
+          tools: loadable.length > 0 ? [searchTool(loadable)] : [],
+          sections: [
+            section(
+              "mcp-servers",
+              () => (servers.length > 0 ? serversText(servers) : undefined),
+              { tag: false }
+            ),
+          ],
+        }),
+        tools: defineExtension({
+          name: "mcp",
+          tools: loadable.map((entry) => entry.registration),
+        }),
+      };
     },
 
     async close() {

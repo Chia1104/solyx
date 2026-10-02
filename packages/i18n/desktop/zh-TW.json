@@ -149,7 +149,8 @@
       "list_proposals": "讀取提案",
       "check_order": "檢查委託",
       "propose_order": "提出下單建議",
-      "read_skill": "讀取操作手冊"
+      "read_skill": "讀取操作手冊",
+      "search_tools": "搜尋 MCP 工具"
     },
     "tool-status": {
       "running": "執行中",

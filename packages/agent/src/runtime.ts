@@ -7,6 +7,7 @@ import type {
   Models,
 } from "@earendil-works/pi-ai";
 import {
+  AgentDoc,
   AssistantEntry,
   ConversationBusy,
   Harness,
@@ -30,7 +31,7 @@ import type {
   Storage,
   SubmissionRecord,
 } from "@earendil-works/pi-durable";
-import { maxBy } from "es-toolkit";
+import { isEqual, maxBy } from "es-toolkit";
 import * as z from "zod";
 
 import type { AgentThinking } from "./providers.ts";
@@ -71,9 +72,13 @@ export interface AgentRuntimeOptions {
   model(): Promise<AgentModelChoice>;
   /**
    * The agent's tools and prompt sections, installed again before every run and before resuming,
-   * so a run sees the servers and policies of the moment it starts.
+   * so a run sees the servers and policies of the moment it starts. The tools of `deferred` are
+   * offered only once a tool result loads them with pi-durable's `addTools`.
    */
-  extensions(): Promise<readonly Extension[]>;
+  extensions(): Promise<{
+    offered: readonly Extension[];
+    deferred: readonly Extension[];
+  }>;
   onEvent(sessionId: string, event: AgentWireEvent): void;
   settings?: HarnessSettings;
   now?: () => number;
@@ -229,10 +234,17 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
   // A store that fails to open fails every call that waits for it instead.
   opened.catch(() => undefined);
 
+  /** Installs the extensions and returns the tools every request offers. */
   async function reload() {
-    for (const extension of await options.extensions()) {
+    const { offered, deferred } = await options.extensions();
+
+    for (const extension of [...offered, ...deferred]) {
       registry.install(extension);
     }
+
+    return offered
+      .flatMap((extension) => extension.tools ?? [])
+      .map((tool) => tool.name);
   }
 
   async function conversationOf(sessionId: string): Promise<Conversation> {
@@ -617,8 +629,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       }
 
       const { model, thinking } = await options.model();
+      const offered = await reload();
 
-      await reload();
       await attach(conversation);
 
       const at = now();
@@ -629,6 +641,17 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
           model: { provider: model.provider, modelId: model.id },
           thinkingLevel: clampThinkingLevel(model, thinking),
         });
+
+        // The app's own tools lead, and the tools this conversation loaded stay after them.
+        const agent = await tx.doc(AgentDoc, conversation.id);
+
+        const loaded = Array.isArray(agent.tools)
+          ? agent.tools.filter((name) => !offered.includes(name))
+          : [];
+
+        const tools = [...offered, ...loaded];
+
+        if (!isEqual(agent.tools, tools)) agent.tools = tools;
 
         const session = await tx.doc(SessionDoc, conversation.id);
 

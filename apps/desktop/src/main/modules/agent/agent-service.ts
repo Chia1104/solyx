@@ -89,12 +89,14 @@ export function createAgentService(options: AgentServiceOptions) {
     store: options.conversations,
     models: models.catalog,
     model: () => models.choice(),
-    extensions: async () => [
-      trading,
-      await options.mcp.extension((call, signal) =>
+    async extensions() {
+      const mcp = await options.mcp.extensions((call, signal) =>
         approvals.request(call.sessionId, call.toolCallId, signal)
-      ),
-    ],
+      );
+
+      // MCP tools wait until the agent finds them, so only the servers' names ride every request.
+      return { offered: [trading, mcp.search], deferred: [mcp.tools] };
+    },
     onEvent,
   });
 

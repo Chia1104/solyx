@@ -145,7 +145,10 @@ function agentOn(ports: ReturnType<typeof setup>["ports"]) {
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    extensions: async () => [createTradingExtension(ports)],
+    extensions: async () => ({
+      offered: [createTradingExtension(ports)],
+      deferred: [],
+    }),
     onEvent: (_sessionId, event) => events.push(event),
   });
 

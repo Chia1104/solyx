@@ -24,6 +24,7 @@ export const AgentToolName = {
   CheckOrder: "check_order",
   ProposeOrder: "propose_order",
   ReadSkill: "read_skill",
+  SearchTools: "search_tools",
 } as const;
 
 export type AgentToolName = (typeof AgentToolName)[keyof typeof AgentToolName];

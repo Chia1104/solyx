@@ -149,7 +149,8 @@
       "list_proposals": "Read your proposals",
       "check_order": "Checked an order",
       "propose_order": "Proposed an order",
-      "read_skill": "Read a playbook"
+      "read_skill": "Read a playbook",
+      "search_tools": "Searched MCP tools"
     },
     "tool-status": {
       "running": "Running",

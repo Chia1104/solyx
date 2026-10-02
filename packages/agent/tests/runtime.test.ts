@@ -8,7 +8,13 @@ import {
   fauxProvider,
   fauxToolCall,
 } from "@earendil-works/pi-ai";
+import type {
+  AssistantMessage,
+  FauxResponseFactory,
+} from "@earendil-works/pi-ai";
+import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { MemoryStorage, defineExtension } from "@earendil-works/pi-durable";
+import type { ToolRegistration } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
@@ -59,23 +65,26 @@ function setup({
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    extensions: async () => [
-      defineExtension({
-        name: "test",
-        tools: [
-          {
-            name: "get_watchlist",
-            description: "The watchlist",
-            parameters: { type: "object", properties: {} },
-            replay: "safe",
-            execute: async () => ({
-              content: [{ type: "text", text: watchlist() }],
-              details: { count: 1 },
-            }),
-          },
-        ],
-      }),
-    ],
+    extensions: async () => ({
+      offered: [
+        defineExtension({
+          name: "test",
+          tools: [
+            {
+              name: "get_watchlist",
+              description: "The watchlist",
+              parameters: { type: "object", properties: {} },
+              replay: "safe",
+              execute: async () => ({
+                content: [{ type: "text", text: watchlist() }],
+                details: { count: 1 },
+              }),
+            },
+          ],
+        }),
+      ],
+      deferred: [],
+    }),
     onEvent: (_sessionId, event) => events.push(event),
   });
 
@@ -124,6 +133,107 @@ test("a run stores every message and streams the same conversation it replays", 
     type: AgentEventType.RunEnd,
     reason: RunEndReason.Done,
   });
+
+  await runtime.close();
+});
+
+test("a deferred tool is offered once a search loads it, and stays loaded", async () => {
+  const faux = fauxProvider();
+  const models = createModels();
+  const events: AgentWireEvent[] = [];
+  const quote = vi.fn(() => "2330 at 1000");
+
+  models.setProvider(faux.provider);
+
+  const tool = (
+    name: string,
+    run: () => ReturnType<ToolRegistration["execute"]>
+  ): ToolRegistration => ({
+    name,
+    description: name,
+    parameters: { type: "object", properties: {} },
+    replay: "safe",
+    execute: run,
+  });
+
+  const runtime = createAgentRuntime({
+    store: Promise.resolve(memoryStore()),
+    models,
+    model: async () => ({
+      model: faux.getModel(),
+      thinking: AgentThinking.Off,
+    }),
+    extensions: async () => ({
+      offered: [
+        defineExtension({
+          name: "search",
+          tools: [
+            tool("search_tools", async () => ({
+              content: [{ type: "text", text: "Loaded quote" }],
+              control: { addTools: ["quote"] },
+            })),
+          ],
+        }),
+      ],
+      deferred: [
+        defineExtension({
+          name: "quotes",
+          tools: [
+            tool("quote", async () => ({
+              content: [{ type: "text", text: quote() }],
+            })),
+          ],
+        }),
+      ],
+    }),
+    onEvent: (_sessionId, event) => events.push(event),
+  });
+
+  const offered: string[][] = [];
+
+  // Answers with `message`, noting which tools the request offered.
+  const answer =
+    (message: AssistantMessage): FauxResponseFactory =>
+    (context) => {
+      offered.push(getCurrentTools(context.messages).map((each) => each.name));
+
+      return message;
+    };
+
+  faux.setResponses([
+    answer(
+      fauxAssistantMessage(fauxToolCall("search_tools", {}), {
+        stopReason: "toolUse",
+      })
+    ),
+    answer(
+      fauxAssistantMessage(fauxToolCall("quote", {}), { stopReason: "toolUse" })
+    ),
+    answer(fauxAssistantMessage("2330 is at 1000.")),
+    answer(fauxAssistantMessage("Still 1000.")),
+  ]);
+
+  const ended = (count: number) =>
+    vi.waitFor(() =>
+      expect(
+        events.filter((event) => event.type === AgentEventType.RunEnd)
+      ).toHaveLength(count)
+    );
+
+  const { id } = await runtime.create();
+
+  await runtime.send(id, { text: "Quote 2330", context: "" });
+  await ended(1);
+  await runtime.send(id, { text: "And now?", context: "" });
+  await ended(2);
+
+  expect(quote).toHaveBeenCalledOnce();
+  expect(offered).toEqual([
+    ["search_tools"],
+    ["search_tools", "quote"],
+    ["search_tools", "quote"],
+    ["search_tools", "quote"],
+  ]);
 
   await runtime.close();
 });
@@ -241,7 +351,7 @@ test("a model that is not set up rejects before anything is stored", async () =>
     model: async () => {
       throw new Error("Save an API key first");
     },
-    extensions: async () => [],
+    extensions: async () => ({ offered: [], deferred: [] }),
     onEvent: vi.fn(),
   });
 
@@ -342,7 +452,7 @@ test("a compacted conversation still shows every message once", async () => {
         model: faux.getModel(),
         thinking: AgentThinking.Off,
       }),
-      extensions: async () => [],
+      extensions: async () => ({ offered: [], deferred: [] }),
       onEvent: (_sessionId, event) => events.push(event),
       settings: {
         compaction: {

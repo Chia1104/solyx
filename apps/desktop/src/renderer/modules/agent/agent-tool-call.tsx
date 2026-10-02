@@ -19,11 +19,12 @@ const argumentsSchema = z.object({
   interval: intervalSchema.optional(),
   order: z.object({ market: marketSchema, symbol: z.string() }).optional(),
   name: z.string().optional(),
+  query: z.string().optional(),
 });
 
 const proposalDetailsSchema = z.object({ proposalId: z.string() });
 
-/** What a call was about: a listing and its interval, an order's listing, or a playbook. */
+/** What a call was about: a listing and its interval, an order's listing, a playbook or a search. */
 function subjectOf(tool: ToolCallView): string | undefined {
   const args = argumentsSchema.safeParse(tool.args).data;
 
@@ -35,7 +36,7 @@ function subjectOf(tool: ToolCallView): string | undefined {
 
   if (args?.order) return `${args.order.market} ${args.order.symbol}`;
 
-  return args?.name;
+  return args?.name ?? args?.query;
 }
 
 const STATUS_MARK: Record<ToolCallStatus, string> = {

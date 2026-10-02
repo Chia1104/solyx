@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { contentText } from "@earendil-works/pi-ai";
 import type {
+  PromptInput,
   ToolExecutionApi,
   ToolRegistration,
 } from "@earendil-works/pi-durable";
@@ -33,7 +34,7 @@ const SERVER = fileURLToPath(
 const hubs: McpHub[] = [];
 
 const toolsOf = (hub: McpHub, options: McpToolOptions) =>
-  hub.extension(options).tools ?? [];
+  hub.extensions(options).tools.tools ?? [];
 
 /** Runs a tool as pi-durable would, for call `callId` in conversation 7. */
 function call(
@@ -158,6 +159,50 @@ describe("a connected server", () => {
     );
   });
 
+  test("its tools wait for a search, which loads those that match", async () => {
+    const hub = setup();
+
+    hub.sync(fakeServer());
+    await hub.settled(10_000);
+
+    const { search, tools } = hub.extensions({
+      policies: {},
+      allow: async () => true,
+    });
+
+    expect(tools.tools?.map((tool) => tool.name)).toEqual([
+      "mcp_fake_quote",
+      "mcp_fake_order",
+    ]);
+
+    const [find] = search.tools ?? [];
+    const [servers] = search.sections ?? [];
+
+    // SAFETY: the list of servers reads nothing from the request it renders for.
+    const input = {} as PromptInput;
+
+    expect(await servers?.render(input, BACKGROUND_CONTEXT)).toContain(
+      '<server name="fake" tools="2">fake</server>'
+    );
+
+    const found = await call(find, { query: "latest price" });
+
+    expect(found.control).toEqual({ addTools: ["mcp_fake_quote"] });
+    expect(contentText(found.content ?? [])).toContain(
+      "mcp_fake_quote (fake): Latest price"
+    );
+
+    // Named outright, a tool comes before one that only mentions the words.
+    expect((await call(find, { query: "price order" })).control).toEqual({
+      addTools: ["mcp_fake_order", "mcp_fake_quote"],
+    });
+
+    const missing = await call(find, { query: "weather", server: "fake" });
+
+    expect(missing.control).toBeUndefined();
+    expect(contentText(missing.content ?? [])).toContain("No tools on fake");
+  });
+
   test("a refused call never reaches the server", async () => {
     const hub = setup();
 
@@ -220,7 +265,14 @@ test("a server whose secret is not saved fails and names it", async () => {
   expect(hub.status()).toMatchObject([
     { state: McpServerState.Failed, missingSecrets: ["fake"] },
   ]);
-  expect(toolsOf(hub, { policies: {}, allow: async () => true })).toEqual([]);
+
+  const { search, tools } = hub.extensions({
+    policies: {},
+    allow: async () => true,
+  });
+
+  expect(tools.tools).toEqual([]);
+  expect(search.tools).toEqual([]);
 });
 
 test("a server taken out of mcp.json is disconnected", async () => {
