@@ -12,6 +12,8 @@ import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { FuglePlan } from "@solyx/market-data/fugle";
 
+import type { ColorScheme, Palette } from "../palette.ts";
+
 /** Secrets the main process keeps encrypted by the OS; the renderer can save or delete one but never read it back. */
 export const Secret = {
   FugleApiKey: "fugle-api-key",
@@ -104,6 +106,8 @@ export const priceColorsSchema = z.enum(PriceColors);
 
 export interface Appearance {
   theme: Theme;
+  /** The palette each scheme shows; the theme or the computer decides which scheme that is. */
+  palette: Record<ColorScheme, Palette>;
   priceColors: PriceColors;
 }
 
@@ -295,6 +299,7 @@ export interface SettingsApi {
   appearance(): Promise<Appearance>;
   /** Saves the theme; every window switches at once. */
   setTheme(theme: Theme): Promise<void>;
+  setPalette(scheme: ColorScheme, palette: Palette): Promise<void>;
   setPriceColors(priceColors: PriceColors): Promise<void>;
   secrets(): Promise<SecretsStatus>;
   saveSecret(secret: EnteredSecret, value: string): Promise<void>;
@@ -362,6 +367,7 @@ export interface SettingsEvents {
 export const settingsChannels = {
   appearance: "settings:appearance",
   setTheme: "settings:set-theme",
+  setPalette: "settings:set-palette",
   setPriceColors: "settings:set-price-colors",
   secrets: "settings:secrets",
   saveSecret: "settings:save-secret",

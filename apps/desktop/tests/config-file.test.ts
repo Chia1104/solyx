@@ -13,6 +13,7 @@ import {
 import { FuglePlan } from "@solyx/market-data/fugle";
 
 import { MarketDataSource, PriceColors, Theme } from "#shared/ipc/settings.ts";
+import { Palette } from "#shared/palette.ts";
 
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
 
@@ -35,7 +36,11 @@ test("a missing file reads as the defaults, which a new file's commented templat
   const defaults = config.read();
 
   expect(defaults).toEqual({
-    appearance: { theme: Theme.System, priceColors: PriceColors.Market },
+    appearance: {
+      theme: Theme.System,
+      palette: { light: Palette.Blueprint, dark: Palette.Blueprint },
+      priceColors: PriceColors.Market,
+    },
     marketData: { TW: MarketDataSource.Fugle },
     providers: { fugle: { plan: FuglePlan.Basic }, fubon: {} },
     agent: {
@@ -175,31 +180,43 @@ test("an entry of the wrong shape reads as its default and leaves the rest in fo
   });
 });
 
-test("the appearance follows the computer and each market until values the app knows are saved", async () => {
+test("the appearance falls back entry by entry until values the app knows are saved", async () => {
   const config = createConfigFile(file);
+
+  const defaults = {
+    theme: Theme.System,
+    palette: { light: Palette.Blueprint, dark: Palette.Blueprint },
+    priceColors: PriceColors.Market,
+  };
 
   config.create();
 
-  expect(config.read().appearance).toEqual({
-    theme: Theme.System,
-    priceColors: PriceColors.Market,
-  });
+  expect(config.read().appearance).toEqual(defaults);
 
   await writeFile(
     file,
-    '{ "appearance": { "theme": "sepia", "priceColors": "blue-up" }, "marketData": { "TW": "fubon" } }'
+    JSON.stringify({
+      appearance: {
+        theme: "sepia",
+        palette: { light: "iris", dark: "neon" },
+        priceColors: "blue-up",
+      },
+      marketData: { TW: "fubon" },
+    })
   );
 
   expect(config.read().appearance).toEqual({
-    theme: Theme.System,
-    priceColors: PriceColors.Market,
+    ...defaults,
+    palette: { light: Palette.Iris, dark: Palette.Blueprint },
   });
 
   config.set(["appearance", "theme"], "dark");
+  config.set(["appearance", "palette", "dark"], "lagoon");
   config.set(["appearance", "priceColors"], "red-up");
 
   expect(config.read().appearance).toEqual({
     theme: Theme.Dark,
+    palette: { light: Palette.Iris, dark: Palette.Lagoon },
     priceColors: PriceColors.RedUp,
   });
   expect(config.read().marketData.TW).toBe("fubon");

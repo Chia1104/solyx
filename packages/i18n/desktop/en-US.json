@@ -279,6 +279,16 @@
       "light": "Light",
       "dark": "Dark"
     },
+    "palette": "Palette",
+    "palette-description": "Pick one for light and one for dark; the theme decides which one shows.",
+    "palette-swatch": "{{palette}}, {{scheme}}",
+    "palettes": {
+      "blueprint": "Blueprint",
+      "graphite": "Graphite",
+      "sepia": "Sepia",
+      "iris": "Iris",
+      "lagoon": "Lagoon"
+    },
     "price-colors": "Price colors",
     "price-colors-description": "By market follows each market's own convention: red for a rise in Taiwan, green in the US.",
     "price-colors-options": {

@@ -13,6 +13,7 @@ import { CacheSettings } from "../modules/settings/cache-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
 import { MarketDataSettings } from "../modules/settings/market-data-settings.tsx";
 import { McpSettings } from "../modules/settings/mcp-settings.tsx";
+import { PalettePicker } from "../modules/settings/palette-picker.tsx";
 import { PriceColorsSelect } from "../modules/settings/price-colors-select.tsx";
 import { SettingsSection } from "../modules/settings/settings-section.ts";
 import { SettingsTabs } from "../modules/settings/settings-tabs.tsx";
@@ -30,6 +31,7 @@ export function SettingsPage() {
       <Section title={t("settings.sections.general")}>
         <div className="flex flex-col gap-6">
           <ThemeSelect />
+          <PalettePicker />
           <PriceColorsSelect />
           <LanguageSelect />
           <SetupGuideLink />

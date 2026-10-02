@@ -28,6 +28,7 @@ import {
   themeSchema,
 } from "#shared/ipc/settings.ts";
 import type { FubonFile } from "#shared/ipc/settings.ts";
+import { ColorScheme, Palette, paletteSchema } from "#shared/palette.ts";
 
 const PARSE_OPTIONS = { allowTrailingComma: true };
 
@@ -46,6 +47,12 @@ const configSchema = section(
     appearance: section(
       z.looseObject({
         theme: themeSchema.catch(Theme.System),
+        palette: section(
+          z.looseObject({
+            [ColorScheme.Light]: paletteSchema.catch(Palette.Blueprint),
+            [ColorScheme.Dark]: paletteSchema.catch(Palette.Blueprint),
+          })
+        ),
         priceColors: priceColorsSchema.catch(PriceColors.Market),
       })
     ),
@@ -86,6 +93,7 @@ const DEFAULTS: Config = configSchema.parse({});
 /** The values the app edits; the file may hold others a person added. */
 type ConfigPath =
   | ["appearance", "theme" | "priceColors"]
+  | ["appearance", "palette", ColorScheme]
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle", "plan"]
   | ["providers", "fubon", FubonFile]
@@ -107,6 +115,8 @@ const TEMPLATE = [
   '  "appearance": {',
   `    // Light or dark, or follow the computer: ${quoted(Theme)}.`,
   `    "theme": "${DEFAULTS.appearance.theme}",`,
+  `    // The palette each appearance shows: ${quoted(Palette)}.`,
+  `    "palette": { "light": "${DEFAULTS.appearance.palette.light}", "dark": "${DEFAULTS.appearance.palette.dark}" },`,
   `    // Which colour marks a rise: ${quoted(PriceColors)}; "market" is red in Taiwan and green in the US.`,
   `    "priceColors": "${DEFAULTS.appearance.priceColors}"`,
   "  },",

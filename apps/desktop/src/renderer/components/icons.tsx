@@ -172,3 +172,20 @@ export function CandlesIcon({ className }: { className?: string }) {
     </StrokeIcon>
   );
 }
+
+export function SunIcon({ className }: { className?: string }) {
+  return (
+    <StrokeIcon className={className}>
+      <circle cx="8" cy="8" r="2.75" />
+      <path d="M8 1.5v1.25M8 13.25v1.25M1.5 8h1.25M13.25 8h1.25M3.4 3.4l.9.9M11.7 11.7l.9.9M3.4 12.6l.9-.9M11.7 4.3l.9-.9" />
+    </StrokeIcon>
+  );
+}
+
+export function MoonIcon({ className }: { className?: string }) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M13.25 9.75A5.5 5.5 0 1 1 6.25 2.75a4.5 4.5 0 0 0 7 7z" />
+    </StrokeIcon>
+  );
+}

@@ -11,7 +11,7 @@ import { queryClient } from "./app/query-client.ts";
 import { router } from "./app/router.tsx";
 import { followAppearance } from "./app/theme.ts";
 
-followAppearance();
+await followAppearance();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 
 import { Market } from "@solyx/core/market";
 
@@ -42,7 +42,7 @@ function priceColor(solid: string, text: string): PriceColor {
 export function useDirectionColors(market: Market): DirectionColors {
   const colors = usePaletteColors();
 
-  const { data: priceColors = PriceColors.Market } = useQuery({
+  const { data: priceColors } = useSuspenseQuery({
     ...appearanceQuery(),
     select: selectPriceColors,
   });

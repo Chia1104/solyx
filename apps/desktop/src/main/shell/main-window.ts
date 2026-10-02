@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { BrowserWindow, nativeTheme, shell } from "electron";
 
-import { ColorScheme, PALETTE } from "#shared/palette.ts";
+import type { PaletteColors } from "#shared/palette.ts";
 
 import { PRODUCT_NAME } from "../product.ts";
 
@@ -15,26 +15,32 @@ const rendererUrl = process.env.SOLYX_RENDERER_URL;
 /** The renderer's title bar height; it lays itself out around the controls through `env(titlebar-area-*)`. */
 const TITLE_BAR_HEIGHT = 44;
 
-// The window shows the background until the page paints, and Windows and Linux draw their
-// window controls in the background and foreground.
-function currentPalette() {
-  return PALETTE[
-    nativeTheme.shouldUseDarkColors ? ColorScheme.Dark : ColorScheme.Light
-  ];
-}
-
-function titleBarOverlay() {
-  const palette = currentPalette();
-
+function titleBarOverlay(colors: PaletteColors) {
   return {
-    color: palette.background,
-    symbolColor: palette.foreground,
+    color: colors.background,
+    symbolColor: colors.foreground,
     height: TITLE_BAR_HEIGHT,
   };
 }
 
-/** The renderer is sandboxed and can only reach the main process through the preload bridge. */
-export function createMainWindow() {
+/**
+ * Paints the window's own background, which shows until the page paints, and the window
+ * controls Windows and Linux draw.
+ */
+export function paintWindow(win: BrowserWindow, colors: PaletteColors) {
+  win.setBackgroundColor(colors.background);
+
+  if (process.platform !== "darwin")
+    win.setTitleBarOverlay(titleBarOverlay(colors));
+}
+
+/**
+ * The renderer is sandboxed and can only reach the main process through the preload bridge.
+ * `colors` gives the palette the window shows at the moment.
+ */
+export function createMainWindow(colors: () => PaletteColors) {
+  const initial = colors();
+
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -42,9 +48,9 @@ export function createMainWindow() {
     minWidth: 1024,
     minHeight: 640,
     title: PRODUCT_NAME,
-    backgroundColor: currentPalette().background,
+    backgroundColor: initial.background,
     titleBarStyle: "hidden",
-    titleBarOverlay: titleBarOverlay(),
+    titleBarOverlay: titleBarOverlay(initial),
     // Centers the traffic lights in the title bar.
     trafficLightPosition: { x: 14, y: 15 },
     webPreferences: {
@@ -56,12 +62,7 @@ export function createMainWindow() {
   });
 
   // The theme can change from settings as well as from the OS.
-  const followTheme = () => {
-    win.setBackgroundColor(currentPalette().background);
-
-    if (process.platform !== "darwin")
-      win.setTitleBarOverlay(titleBarOverlay());
-  };
+  const followTheme = () => paintWindow(win, colors());
 
   nativeTheme.on("updated", followTheme);
   win.on("closed", () => nativeTheme.off("updated", followTheme));

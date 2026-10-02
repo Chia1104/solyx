@@ -35,6 +35,7 @@ import {
   themeSchema,
 } from "#shared/ipc/settings.ts";
 import type { SettingsApi } from "#shared/ipc/settings.ts";
+import { colorSchemeSchema, paletteSchema } from "#shared/palette.ts";
 
 import { ipcModule } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";
@@ -45,6 +46,7 @@ const mcpNameSchema = z.string().min(1).max(128);
 const handle = ipcModule<SettingsApi>(settingsChannels, {
   appearance: z.tuple([]),
   setTheme: z.tuple([themeSchema]),
+  setPalette: z.tuple([colorSchemeSchema, paletteSchema]),
   setPriceColors: z.tuple([priceColorsSchema]),
   secrets: z.tuple([]),
   saveSecret: z.tuple([
@@ -127,6 +129,11 @@ export function registerSettingsIpc({
 
   handle("setTheme", async (theme) => {
     config.set(["appearance", "theme"], theme);
+    applyAppearance();
+  });
+
+  handle("setPalette", async (scheme, palette) => {
+    config.set(["appearance", "palette", scheme], palette);
     applyAppearance();
   });
 

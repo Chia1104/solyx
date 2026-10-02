@@ -23,7 +23,7 @@ void app.whenReady().then(() => {
   const services = createServices();
 
   registerIpc(services);
-  createMainWindow();
+  createMainWindow(services.windowColors);
 
   // Runs the last session left unfinished continue where they stopped. A store that cannot open
   // fails every agent call too, which the renderer shows.
@@ -43,7 +43,8 @@ void app.whenReady().then(() => {
   });
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+    if (BrowserWindow.getAllWindows().length === 0)
+      createMainWindow(services.windowColors);
   });
 });
 

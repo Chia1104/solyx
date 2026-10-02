@@ -14,6 +14,7 @@ import { openCache } from "@solyx/db/cache";
 import { openUserData } from "@solyx/db/user";
 
 import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
+import { ColorScheme, PALETTES } from "#shared/palette.ts";
 
 import { agentAuth } from "./modules/agent/agent-models.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
@@ -25,6 +26,7 @@ import { createCredentialStore } from "./modules/settings/credential-store.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
+import { paintWindow } from "./shell/main-window.ts";
 
 const PAPER_CASH = { [Currency.TWD]: 1_000_000, [Currency.USD]: 30_000 };
 
@@ -140,6 +142,15 @@ export function createServices() {
 
   const appearance = () => config.read().appearance;
 
+  /** The palette windows show now, in the scheme the theme or the computer picks. */
+  function windowColors() {
+    const scheme = nativeTheme.shouldUseDarkColors
+      ? ColorScheme.Dark
+      : ColorScheme.Light;
+
+    return PALETTES[appearance().palette[scheme]][scheme];
+  }
+
   let appliedAppearance = appearance();
 
   // Windows and their renderers' prefers-color-scheme follow themeSource; the rest is pushed to
@@ -154,6 +165,7 @@ export function createServices() {
     appliedAppearance = next;
 
     for (const window of BrowserWindow.getAllWindows()) {
+      paintWindow(window, windowColors());
       window.webContents.send(settingsEvents.onAppearance, next);
     }
   }
@@ -183,6 +195,7 @@ export function createServices() {
     applySettings,
     appearance,
     applyAppearance,
+    windowColors,
     marketData,
     liveCandles,
     userData,

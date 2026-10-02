@@ -279,6 +279,16 @@
       "light": "淺色",
       "dark": "深色"
     },
+    "palette": "配色",
+    "palette-description": "淺色與深色各選一套，主題決定顯示哪一套。",
+    "palette-swatch": "{{palette}}，{{scheme}}",
+    "palettes": {
+      "blueprint": "藍圖",
+      "graphite": "石墨",
+      "sepia": "茶褐",
+      "iris": "鳶尾",
+      "lagoon": "潟湖"
+    },
     "price-colors": "漲跌顏色",
     "price-colors-description": "「依市場慣例」會照各市場的習慣上色：台股紅漲綠跌、美股綠漲紅跌。",
     "price-colors-options": {
