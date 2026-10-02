@@ -1,3 +1,11 @@
+import type {
+  McpServerState,
+  McpToolPolicy,
+  McpTransportKind,
+} from "@solyx/agent/mcp-config";
+import { AgentProvider } from "@solyx/agent/providers";
+import type { AgentAuth, AgentThinking } from "@solyx/agent/providers";
+import type { SkillSource } from "@solyx/agent/skill-source";
 import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { FuglePlan } from "@solyx/market-data/fugle";
@@ -9,9 +17,35 @@ export const Secret = {
   FubonApiKey: "fubon-api-key",
   /** Optional: Fubon falls back to the ID number, the password of certificates exported from its website. */
   FubonCertPassword: "fubon-cert-password",
+  AnthropicApiKey: "anthropic-api-key",
+  OpenAIApiKey: "openai-api-key",
+  GoogleApiKey: "google-api-key",
+  OpenRouterApiKey: "openrouter-api-key",
+  /** The ChatGPT sign-in's OAuth tokens; the main process saves and refreshes them, nobody types them. */
+  OpenAIChatGPT: "openai-chatgpt",
 } as const;
 
 export type Secret = (typeof Secret)[keyof typeof Secret];
+
+/** The secrets a person types in, which the renderer may save or delete. */
+export type EnteredSecret = Exclude<Secret, typeof Secret.OpenAIChatGPT>;
+
+/** A secret an mcp.json entry names as `secret:NAME`, saved under `mcp:NAME`. */
+export type McpSecretKey = `mcp:${string}`;
+
+/** A remote MCP server's sign-in, saved by the sign-in under the server's name in mcp.json. */
+export type McpSignInKey = `mcp-oauth:${string}`;
+
+/** Every key the secret store saves under. */
+export type SecretKey = Secret | McpSecretKey | McpSignInKey;
+
+/** The key each agent provider runs on. */
+export const AGENT_PROVIDER_SECRET: Record<AgentProvider, EnteredSecret> = {
+  [AgentProvider.Anthropic]: Secret.AnthropicApiKey,
+  [AgentProvider.OpenAI]: Secret.OpenAIApiKey,
+  [AgentProvider.Google]: Secret.GoogleApiKey,
+  [AgentProvider.OpenRouter]: Secret.OpenRouterApiKey,
+};
 
 export const SecretState = {
   Saved: "saved",
@@ -108,12 +142,90 @@ export interface CacheUsage {
   sources: CacheSourceUsage[];
 }
 
+/** A model the agent can run on, from its provider's catalog. */
+export interface AgentModelOption {
+  id: string;
+  name: string;
+  /** Whether the thinking setting applies to it. */
+  reasoning: boolean;
+}
+
+export interface AgentSettings {
+  provider: AgentProvider;
+  model: string;
+  thinking: AgentThinking;
+  /** Always `api-key` for a provider without a subscription sign-in. */
+  auth: AgentAuth;
+  /** `null` for a provider without a subscription sign-in. */
+  subscription: { signedIn: boolean } | null;
+  /** The provider's chat models, in its catalog's order. */
+  models: AgentModelOption[];
+  /** The key is saved or the subscription signed in, and the catalog has the model, so the agent can run. */
+  ready: boolean;
+}
+
+/** A playbook the agent can read, as the settings page lists it. */
+export interface AgentSkillInfo {
+  name: string;
+  description: string;
+  source: SkillSource;
+  /** Offered to the agent: the user's own and built-ins always, shared ones once switched on. */
+  offered: boolean;
+  /** Shared skills, which the user switches on one by one. */
+  switchable: boolean;
+}
+
+export interface AgentSkills {
+  skills: AgentSkillInfo[];
+  /** Problems in the user's own skill files and in shared skills they switched on. */
+  warnings: string[];
+  /** The length of AGENTS.md beside the config file, sent with every message; `null` while there is none. */
+  instructions: { characters: number } | null;
+  /** Shown with the home folder as `~`. */
+  paths: { skills: string; shared: string; instructions: string };
+}
+
+export interface McpToolSetting {
+  name: string;
+  title?: string;
+  description?: string;
+  /** Its server marks it read-only, so it may run without asking. */
+  readOnly: boolean;
+  policy: McpToolPolicy;
+}
+
+export interface McpServerSetting {
+  name: string;
+  kind: McpTransportKind;
+  /** The command line or URL, so the user recognizes the entry. */
+  target: string;
+  state: McpServerState;
+  error?: string;
+  tools: McpToolSetting[];
+  /** The secrets its entry names as `secret:NAME`, and whether each is saved. */
+  secrets: { name: string; saved: boolean }[];
+  /** A sign-in is saved for this remote server. */
+  signedIn: boolean;
+}
+
+export interface McpSettings {
+  /** Shown with the home folder as `~`. */
+  path: string;
+  /** Why mcp.json does not parse; the servers already running keep going. */
+  error?: string;
+  servers: McpServerSetting[];
+}
+
 /** Places on disk the app can show in the system file manager. */
 export const AppLocation = {
   /** The app's `userData`: secrets, databases and caches. */
   Data: "data",
   /** The hand-editable config file. */
   Config: "config",
+  /** `skills/` beside the config file, where the user's own skills live. */
+  Skills: "skills",
+  /** mcp.json beside the config file, which lists the MCP servers the agent may use. */
+  Mcp: "mcp",
 } as const;
 
 export type AppLocation = (typeof AppLocation)[keyof typeof AppLocation];
@@ -137,8 +249,8 @@ export interface SettingsApi {
   /** Saves the theme; every window switches at once. */
   setTheme(theme: Theme): Promise<void>;
   secrets(): Promise<SecretsStatus>;
-  saveSecret(secret: Secret, value: string): Promise<void>;
-  deleteSecret(secret: Secret): Promise<void>;
+  saveSecret(secret: EnteredSecret, value: string): Promise<void>;
+  deleteSecret(secret: EnteredSecret): Promise<void>;
   marketData(): Promise<MarketDataStatus>;
   /** Charts and the live stream switch to the source at once. */
   setMarketDataSource(
@@ -151,6 +263,40 @@ export interface SettingsApi {
   chooseFubonFile(file: FubonFile): Promise<string | null>;
   /** Signs in to Fubon again with the saved settings; the market data status reports the outcome. */
   signInFubon(): Promise<void>;
+  agent(): Promise<AgentSettings>;
+  /** Switches the agent to the provider's default model as well. */
+  setAgentProvider(provider: AgentProvider): Promise<void>;
+  setAgentModel(model: string): Promise<void>;
+  setAgentThinking(thinking: AgentThinking): Promise<void>;
+  setAgentAuth(auth: AgentAuth): Promise<void>;
+  /**
+   * Signs in to the agent provider's subscription in the browser, resolving once the sign-in is
+   * saved or cancelled. The page the browser lands on is written in `locale`.
+   */
+  signInSubscription(locale: string): Promise<void>;
+  cancelSignIn(): Promise<void>;
+  signOutSubscription(): Promise<void>;
+  agentSkills(): Promise<AgentSkills>;
+  /** Offers a skill from ~/.agents/skills to the agent, or stops offering it. */
+  setSharedSkill(name: string, enabled: boolean): Promise<void>;
+  /** Connects the servers in mcp.json on first use. */
+  mcp(): Promise<McpSettings>;
+  setMcpToolPolicy(
+    server: string,
+    tool: string,
+    policy: McpToolPolicy
+  ): Promise<void>;
+  /** Saves a secret an entry names as `secret:NAME`; the server reconnects with it. */
+  saveMcpSecret(server: string, name: string, value: string): Promise<void>;
+  deleteMcpSecret(server: string, name: string): Promise<void>;
+  reconnectMcp(server: string): Promise<void>;
+  /**
+   * Signs in to a remote server in the browser, resolving once the sign-in is saved and the server
+   * reconnects, or once it is cancelled. The page the browser lands on is written in `locale`.
+   */
+  signInMcp(server: string, locale: string): Promise<void>;
+  cancelMcpSignIn(): Promise<void>;
+  signOutMcp(server: string): Promise<void>;
   cacheUsage(): Promise<CacheUsage>;
   /** Closed sessions are fetched again from the provider when charts need them. */
   clearCache(): Promise<void>;
@@ -169,6 +315,24 @@ export const settingsChannels = {
   setFuglePlan: "settings:set-fugle-plan",
   chooseFubonFile: "settings:choose-fubon-file",
   signInFubon: "settings:sign-in-fubon",
+  agent: "settings:agent",
+  setAgentProvider: "settings:set-agent-provider",
+  setAgentModel: "settings:set-agent-model",
+  setAgentThinking: "settings:set-agent-thinking",
+  setAgentAuth: "settings:set-agent-auth",
+  signInSubscription: "settings:sign-in-subscription",
+  cancelSignIn: "settings:cancel-sign-in",
+  signOutSubscription: "settings:sign-out-subscription",
+  agentSkills: "settings:agent-skills",
+  setSharedSkill: "settings:set-shared-skill",
+  mcp: "settings:mcp",
+  setMcpToolPolicy: "settings:set-mcp-tool-policy",
+  saveMcpSecret: "settings:save-mcp-secret",
+  deleteMcpSecret: "settings:delete-mcp-secret",
+  reconnectMcp: "settings:reconnect-mcp",
+  signInMcp: "settings:sign-in-mcp",
+  cancelMcpSignIn: "settings:cancel-mcp-sign-in",
+  signOutMcp: "settings:sign-out-mcp",
   cacheUsage: "settings:cache-usage",
   clearCache: "settings:clear-cache",
   about: "settings:about",

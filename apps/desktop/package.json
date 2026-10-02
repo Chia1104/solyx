@@ -14,9 +14,11 @@
     "test": "vp test"
   },
   "devDependencies": {
+    "@earendil-works/pi-ai": "catalog:agent",
     "@heroui/react": "catalog:heroui-v3",
     "@heroui/styles": "catalog:heroui-v3",
     "@hookform/resolvers": "catalog:forms",
+    "@solyx/agent": "workspace:*",
     "@solyx/brokers": "workspace:*",
     "@solyx/core": "workspace:*",
     "@solyx/db": "workspace:*",
@@ -24,6 +26,7 @@
     "@solyx/market-data": "workspace:*",
     "@solyx/trading-chart": "workspace:*",
     "@solyx/utils": "workspace:*",
+    "@streamdown/cjk": "catalog:markdown",
     "@tailwindcss/vite": "catalog:tailwindcss",
     "@tanstack/react-hotkeys": "catalog:tanstack",
     "@tanstack/react-query": "catalog:tanstack",
@@ -42,6 +45,7 @@
     "react-dom": "catalog:react",
     "react-hook-form": "catalog:forms",
     "react-i18next": "catalog:i18n",
+    "streamdown": "catalog:markdown",
     "tailwindcss": "catalog:tailwindcss",
     "typescript": "catalog:",
     "vite": "catalog:",

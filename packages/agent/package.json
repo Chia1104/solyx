@@ -1,0 +1,38 @@
+{
+  "name": "@solyx/agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./chatgpt-oauth": "./src/chatgpt-oauth.ts",
+    "./mcp": "./src/mcp.ts",
+    "./mcp-config": "./src/mcp-config.ts",
+    "./models": "./src/models.ts",
+    "./prompt": "./src/prompt.ts",
+    "./providers": "./src/providers.ts",
+    "./runtime": "./src/runtime.ts",
+    "./skill-source": "./src/skill-source.ts",
+    "./skills": "./src/skills.ts",
+    "./tools": "./src/tools.ts",
+    "./transcript": "./src/transcript.ts",
+    "./wire": "./src/wire.ts"
+  },
+  "scripts": {
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@earendil-works/chord": "catalog:agent",
+    "@earendil-works/pi-ai": "catalog:agent",
+    "@earendil-works/pi-durable": "catalog:agent",
+    "@earendil-works/pi-mcp": "catalog:agent",
+    "@solyx/core": "workspace:*",
+    "es-toolkit": "catalog:",
+    "yaml": "catalog:agent",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

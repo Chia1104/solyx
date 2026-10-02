@@ -12,6 +12,12 @@ import { applyEdits, modify, parse } from "jsonc-parser";
 import type { ParseError } from "jsonc-parser";
 import * as z from "zod";
 
+import {
+  AgentAuth,
+  AgentProvider,
+  AgentThinking,
+  DEFAULT_MODEL,
+} from "@solyx/agent/providers";
 import type { Market } from "@solyx/core/market";
 import { FuglePlan } from "@solyx/market-data/fugle";
 
@@ -37,6 +43,18 @@ const configSchema = z.looseObject({
     })
     .optional()
     .catch(undefined),
+  agent: z
+    .looseObject({
+      provider: textSchema,
+      model: textSchema,
+      thinking: textSchema,
+      auth: textSchema,
+      sharedSkills: z.array(z.string()).optional().catch(undefined),
+      // Values are checked one by one where they are read, so one bad entry keeps the rest.
+      mcpTools: z.record(z.string(), z.string()).optional().catch(undefined),
+    })
+    .optional()
+    .catch(undefined),
 });
 
 type Config = z.infer<typeof configSchema>;
@@ -46,7 +64,9 @@ export type ConfigPath =
   | ["theme"]
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle", "plan"]
-  | ["providers", "fubon", FubonFile];
+  | ["providers", "fubon", FubonFile]
+  | ["agent", "provider" | "model" | "thinking" | "auth" | "sharedSkills"]
+  | ["agent", "mcpTools", string];
 
 const quoted = (values: Record<string, string>) =>
   Object.values(values)
@@ -67,6 +87,18 @@ const TEMPLATE = [
   `    "fugle": { "plan": "${FuglePlan.Basic}" },`,
   "    // The folder extracted from Fubon's SDK download, and the certificate exported from its website.",
   '    "fubon": { "sdk": "", "certificate": "" }',
+  "  },",
+  '  "agent": {',
+  `    // Whose models run the agent, on the key saved in the app: ${quoted(AgentProvider)}.`,
+  `    "provider": "${AgentProvider.Anthropic}",`,
+  "    // The provider's model id; the settings page lists them.",
+  `    "model": "${DEFAULT_MODEL[AgentProvider.Anthropic]}",`,
+  `    // How long the model thinks before it answers: ${quoted(AgentThinking)}.`,
+  `    "thinking": "${AgentThinking.Medium}",`,
+  `    // How the provider is paid for: ${quoted(AgentAuth)}; a subscription applies to OpenAI, signed in with ChatGPT.`,
+  `    "auth": "${AgentAuth.ApiKey}",`,
+  "    // Skills from ~/.agents/skills the agent may read, by name. The skills folder beside this file is always read.",
+  '    "sharedSkills": []',
   "  }",
   "}",
   "",
@@ -130,7 +162,7 @@ export function createConfigFile(file: string) {
       );
     },
 
-    set(path: ConfigPath, value: string) {
+    set(path: ConfigPath, value: string | string[]) {
       const text = readText(file) ?? TEMPLATE;
 
       if (hasSyntaxErrors(text)) {

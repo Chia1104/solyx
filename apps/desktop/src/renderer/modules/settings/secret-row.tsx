@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
 import { SecretState } from "#shared/ipc/settings.ts";
-import type { Secret } from "#shared/ipc/settings.ts";
+import type { EnteredSecret } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { candlesQueryKeys } from "../market/candles-query.ts";
@@ -49,7 +49,7 @@ export function SecretRow({
   available,
   optional = false,
 }: {
-  secret: Secret;
+  secret: EnteredSecret;
   state: SecretState;
   /** False when the OS has no secret store, so nothing can be saved. */
   available: boolean;

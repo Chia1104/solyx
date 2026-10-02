@@ -95,18 +95,33 @@ export class OrderDesk {
     return this.#options.store.list();
   }
 
-  async propose(input: {
+  /**
+   * A caller that may run again after a crash passes the same `id` each time, and gets back the
+   * proposal already made under it instead of a second one.
+   */
+  async propose({
+    id,
+    ...input
+  }: {
+    id?: string;
     order: OrderRequest;
     source: ProposalSource;
     rationale: string;
   }): Promise<TradeProposal> {
-    const { now = Date.now, createId = () => crypto.randomUUID() } =
-      this.#options;
+    const {
+      store,
+      now = Date.now,
+      createId = () => crypto.randomUUID(),
+    } = this.#options;
 
-    const violations = await this.#check(input.order);
+    const made = id === undefined ? undefined : store.get(id);
+
+    if (made) return made;
+
+    const violations = await this.check(input.order);
 
     const proposal: TradeProposal = {
-      id: createId(),
+      id: id ?? createId(),
       ...input,
       createdAt: now(),
       status:
@@ -116,7 +131,7 @@ export class OrderDesk {
       violations,
     };
 
-    this.#options.store.add(proposal);
+    store.add(proposal);
 
     return proposal;
   }
@@ -134,7 +149,7 @@ export class OrderDesk {
 
     try {
       // Prices and sessions move between propose and confirm; check again.
-      const violations = await this.#check(proposal.order);
+      const violations = await this.check(proposal.order);
 
       if (violations.length > 0) {
         proposal = { ...proposal, status: ProposalStatus.Rejected, violations };
@@ -176,7 +191,8 @@ export class OrderDesk {
     return proposal;
   }
 
-  async #check(order: OrderRequest): Promise<RiskViolation[]> {
+  /** The risk checks alone, so an order can be tried before it is proposed. */
+  async check(order: OrderRequest): Promise<RiskViolation[]> {
     return checkOrder(
       order,
       this.#options.limits,

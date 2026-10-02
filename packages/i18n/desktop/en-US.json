@@ -115,7 +115,63 @@
   },
   "agent": {
     "title": "Agent",
-    "not-connected": "The agent isn't connected yet. Proposals land here, and each one waits for you to confirm it."
+    "tabs": {
+      "chat": "Chat",
+      "proposals": "Proposals"
+    },
+    "new-chat": "New conversation",
+    "conversations": "Conversations",
+    "untitled": "New conversation",
+    "delete": "Delete conversation",
+    "delete-failed": "Couldn't delete the conversation",
+    "empty-title": "Ask about a listing or your account",
+    "empty-description": "The agent reads charts, indicators and your paper account. It can suggest an order, and each one waits for you to confirm it.",
+    "placeholder": "Ask the agent…",
+    "send": "Send",
+    "stop": "Stop",
+    "send-failed": "Couldn't send the message",
+    "setup-title": "Set up the agent",
+    "setup-description": "Pick a provider and save its API key, or sign in with ChatGPT, to start.",
+    "open-settings": "Open settings",
+    "thinking": "Thinking",
+    "working": "Working…",
+    "notices": {
+      "aborted": "Stopped.",
+      "error": "The agent stopped with an error",
+      "interrupted": "Solyx closed before the agent finished."
+    },
+    "tools": {
+      "get_market_status": "Checked market status",
+      "get_candles": "Read candles",
+      "get_indicators": "Read indicators",
+      "get_watchlist": "Read your watchlist",
+      "get_account": "Read your account",
+      "list_proposals": "Read your proposals",
+      "check_order": "Checked an order",
+      "propose_order": "Proposed an order",
+      "read_skill": "Read a playbook",
+      "search_tools": "Searched MCP tools"
+    },
+    "tool-status": {
+      "running": "Running",
+      "awaiting-approval": "Waiting for you",
+      "ok": "Done",
+      "error": "Failed",
+      "aborted": "Stopped"
+    },
+    "link": {
+      "title": "Open this link?",
+      "description": "It opens in your browser. The agent wrote it, so check the address first.",
+      "open": "Open",
+      "cancel": "Cancel"
+    },
+    "approval": {
+      "title": "Allow this call?",
+      "description": "{{tool}} comes from an MCP server outside Solyx. Check what it's about to send.",
+      "allow": "Allow",
+      "deny": "Don't allow",
+      "failed": "Couldn't send your answer"
+    }
   },
   "onboarding": {
     "title": "Set up Solyx",
@@ -195,7 +251,10 @@
       "general": "General",
       "market-data": "Market data",
       "storage": "Storage",
-      "about": "About"
+      "about": "About",
+      "agent": "AI agent",
+      "skills": "Skills",
+      "mcp": "MCP"
     },
     "general": "General",
     "save-failed": "Couldn't save the setting",
@@ -255,6 +314,22 @@
       "fubon-cert-password": {
         "label": "Certificate password",
         "hint": "Leave it unset if it's your ID number."
+      },
+      "anthropic-api-key": {
+        "label": "Anthropic API key",
+        "hint": "A key from the Anthropic Console."
+      },
+      "openai-api-key": {
+        "label": "OpenAI API key",
+        "hint": "A key from the OpenAI Platform."
+      },
+      "google-api-key": {
+        "label": "Gemini API key",
+        "hint": "A key from Google AI Studio."
+      },
+      "openrouter-api-key": {
+        "label": "OpenRouter API key",
+        "hint": "A key from your OpenRouter account."
       }
     },
     "fugle": {
@@ -290,6 +365,100 @@
       "incomplete": "Setup incomplete",
       "sign-in-failed": "Couldn't sign in to Fubon"
     },
+    "agent": {
+      "title": "AI agent",
+      "description": "The agent runs on your own API key, or on your ChatGPT subscription for OpenAI. Requests go straight from this computer to the provider you pick.",
+      "provider": "Provider",
+      "auth": "Pay with",
+      "auth-description": "A subscription runs the agent on your plan's allowance instead of billing each request.",
+      "auths": {
+        "api-key": "API key",
+        "subscription": "ChatGPT subscription"
+      },
+      "chatgpt": {
+        "label": "ChatGPT account",
+        "hint": "Signs in through your browser, where OpenAI asks you to allow Solyx, then comes back here on its own.",
+        "signed-in": "Signed in",
+        "signed-out": "Not signed in",
+        "waiting": "Waiting for your browser",
+        "sign-in": "Sign in with ChatGPT",
+        "sign-out": "Sign out",
+        "continue-in-browser": "Finish signing in in your browser; this page updates once it returns.",
+        "sign-in-failed": "Couldn't sign in with ChatGPT",
+        "sign-out-failed": "Couldn't sign out"
+      },
+      "providers": {
+        "anthropic": "Anthropic",
+        "openai": "OpenAI",
+        "google": "Google Gemini",
+        "openrouter": "OpenRouter"
+      },
+      "model": "Model",
+      "model-description": "Larger models reason better and cost more per message.",
+      "thinking": "Thinking",
+      "thinking-description": "How long the model thinks before it answers. Models that don't reason ignore it.",
+      "thinkings": {
+        "off": "Off",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      }
+    },
+    "skills": {
+      "title": "Skills",
+      "description": "Playbooks the agent reads when a task calls for one. Folders with a SKILL.md in {{skills}} are your own and come ahead of the built-ins. Skills in {{shared}}, shared with other agents, are offered only once you switch them on.",
+      "open-folder": "Open skills folder",
+      "sources": {
+        "solyx": "Yours",
+        "built-in": "Built-in",
+        "shared": "Shared"
+      },
+      "shared": "Shared skills",
+      "offer": "Offer {{name}} to the agent",
+      "instructions": "Standing instructions",
+      "instructions-description": "Rules the agent keeps in every conversation, such as your risk budget, written in {{path}}. The whole file is sent with every message.",
+      "instructions-found": "{{count, number}} characters",
+      "instructions-missing": "Not written",
+      "warnings-title": "Some skill files don't follow the Agent Skills format"
+    },
+    "mcp": {
+      "title": "MCP servers",
+      "description": "Servers listed in {{path}}, in the mcpServers format Claude, Cursor and pi use. Write keys as secret:NAME and save them here, where your system encrypts them. Each call waits for you to allow it, unless you let a read-only tool run on its own.",
+      "open-file": "Open mcp.json",
+      "empty": "No servers yet. Add one to mcp.json and it connects here.",
+      "file-error": "mcp.json couldn't be read",
+      "states": {
+        "connecting": "Connecting",
+        "connected": "Connected",
+        "needs-sign-in": "Needs sign-in",
+        "failed": "Failed"
+      },
+      "kinds": {
+        "stdio": "Local",
+        "http": "Remote"
+      },
+      "reconnect": "Reconnect",
+      "sign-in": {
+        "label": "Account",
+        "hint": "Signs in through your browser, where the server asks you to allow Solyx. Solyx keeps the grant encrypted and never shows it.",
+        "signed-in": "Signed in",
+        "signed-out": "Not signed in",
+        "waiting": "Waiting for your browser",
+        "sign-in": "Sign in",
+        "sign-out": "Sign out",
+        "continue-in-browser": "Finish signing in in your browser; this page updates once it returns.",
+        "sign-in-failed": "Couldn't sign in",
+        "sign-out-failed": "Couldn't sign out"
+      },
+      "no-tools": "This server offers no tools.",
+      "read-only": "Read-only",
+      "policy-label": "When the agent uses {{tool}}",
+      "policies": {
+        "off": "Off",
+        "ask": "Ask each time",
+        "auto": "Run on its own"
+      }
+    },
     "storage": {
       "title": "Candle cache",
       "description": "Closed sessions are kept on this computer so charts don't download them again. After clearing, charts fetch them from your market data source when needed, which uses your plan's request budget.",
@@ -322,5 +491,27 @@
   "locale": {
     "en-US": "English",
     "zh-TW": "繁體中文"
+  },
+  "sign-in-page": {
+    "chatgpt": {
+      "signed-in": {
+        "title": "Signed in to ChatGPT",
+        "body": "You can close this tab and return to Solyx."
+      },
+      "failed": {
+        "title": "ChatGPT was not connected",
+        "body": "Return to Solyx and try signing in again."
+      }
+    },
+    "mcp": {
+      "signed-in": {
+        "title": "Authorization sent to Solyx",
+        "body": "You can close this tab. Solyx finishes connecting the MCP server."
+      },
+      "failed": {
+        "title": "The MCP server was not connected",
+        "body": "Return to Solyx and try signing in again."
+      }
+    }
   }
 }

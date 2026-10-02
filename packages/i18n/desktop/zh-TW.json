@@ -115,7 +115,63 @@
   },
   "agent": {
     "title": "Agent",
-    "not-connected": "Agent 尚未接上。提案會出現在這裡，每一筆都等你確認。"
+    "tabs": {
+      "chat": "對話",
+      "proposals": "提案"
+    },
+    "new-chat": "新對話",
+    "conversations": "對話紀錄",
+    "untitled": "新對話",
+    "delete": "刪除對話",
+    "delete-failed": "無法刪除對話",
+    "empty-title": "問問個股或你的帳戶",
+    "empty-description": "Agent 會讀取 K 線、技術指標和你的模擬帳戶，也能提出下單建議，每一筆都要你確認才會送出。",
+    "placeholder": "問 Agent…",
+    "send": "送出",
+    "stop": "停止",
+    "send-failed": "無法送出訊息",
+    "setup-title": "設定 Agent",
+    "setup-description": "選擇服務商並儲存它的 API 金鑰，或使用 ChatGPT 登入後即可開始。",
+    "open-settings": "開啟設定",
+    "thinking": "思考中",
+    "working": "處理中…",
+    "notices": {
+      "aborted": "已停止。",
+      "error": "Agent 因錯誤而停止",
+      "interrupted": "Agent 完成前 Solyx 就關閉了。"
+    },
+    "tools": {
+      "get_market_status": "查看市場狀態",
+      "get_candles": "讀取 K 線",
+      "get_indicators": "讀取技術指標",
+      "get_watchlist": "讀取自選股",
+      "get_account": "讀取帳戶",
+      "list_proposals": "讀取提案",
+      "check_order": "檢查委託",
+      "propose_order": "提出下單建議",
+      "read_skill": "讀取操作手冊",
+      "search_tools": "搜尋 MCP 工具"
+    },
+    "tool-status": {
+      "running": "執行中",
+      "awaiting-approval": "等待你允許",
+      "ok": "完成",
+      "error": "失敗",
+      "aborted": "已停止"
+    },
+    "link": {
+      "title": "要開啟這個連結嗎？",
+      "description": "連結會在瀏覽器開啟。這是 Agent 寫出的網址，請先確認。",
+      "open": "開啟",
+      "cancel": "取消"
+    },
+    "approval": {
+      "title": "要允許這次呼叫嗎？",
+      "description": "{{tool}} 來自 Solyx 以外的 MCP server，請先確認它要送出的內容。",
+      "allow": "允許",
+      "deny": "不允許",
+      "failed": "無法送出你的回覆"
+    }
   },
   "onboarding": {
     "title": "設定 Solyx",
@@ -195,7 +251,10 @@
       "general": "一般",
       "market-data": "行情",
       "storage": "儲存空間",
-      "about": "關於"
+      "about": "關於",
+      "agent": "AI Agent",
+      "skills": "Skills",
+      "mcp": "MCP"
     },
     "general": "一般",
     "save-failed": "無法儲存設定",
@@ -255,6 +314,22 @@
       "fubon-cert-password": {
         "label": "憑證密碼",
         "hint": "與身分證字號相同時免填。"
+      },
+      "anthropic-api-key": {
+        "label": "Anthropic API 金鑰",
+        "hint": "在 Anthropic Console 建立的金鑰。"
+      },
+      "openai-api-key": {
+        "label": "OpenAI API 金鑰",
+        "hint": "在 OpenAI Platform 建立的金鑰。"
+      },
+      "google-api-key": {
+        "label": "Gemini API 金鑰",
+        "hint": "在 Google AI Studio 建立的金鑰。"
+      },
+      "openrouter-api-key": {
+        "label": "OpenRouter API 金鑰",
+        "hint": "在 OpenRouter 帳號建立的金鑰。"
       }
     },
     "fugle": {
@@ -290,6 +365,100 @@
       "incomplete": "尚未完成設定",
       "sign-in-failed": "無法登入富邦"
     },
+    "agent": {
+      "title": "AI Agent",
+      "description": "Agent 使用你自己的 API 金鑰；OpenAI 也可以改用你的 ChatGPT 訂閱。請求直接從這台電腦送到你選的服務商。",
+      "provider": "服務商",
+      "auth": "付費方式",
+      "auth-description": "訂閱會用你方案內的額度執行 Agent，不按每次請求計費。",
+      "auths": {
+        "api-key": "API 金鑰",
+        "subscription": "ChatGPT 訂閱"
+      },
+      "chatgpt": {
+        "label": "ChatGPT 帳號",
+        "hint": "透過瀏覽器登入，在 OpenAI 頁面允許 Solyx 後會自動回到這裡。",
+        "signed-in": "已登入",
+        "signed-out": "尚未登入",
+        "waiting": "等待瀏覽器",
+        "sign-in": "使用 ChatGPT 登入",
+        "sign-out": "登出",
+        "continue-in-browser": "請在瀏覽器完成登入，完成後這裡會自動更新。",
+        "sign-in-failed": "無法使用 ChatGPT 登入",
+        "sign-out-failed": "無法登出"
+      },
+      "providers": {
+        "anthropic": "Anthropic",
+        "openai": "OpenAI",
+        "google": "Google Gemini",
+        "openrouter": "OpenRouter"
+      },
+      "model": "模型",
+      "model-description": "較大的模型推理較好，每則訊息的費用也較高。",
+      "thinking": "思考",
+      "thinking-description": "模型回答前思考多久。不支援推理的模型會忽略這項設定。",
+      "thinkings": {
+        "off": "關閉",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      }
+    },
+    "skills": {
+      "title": "Skills",
+      "description": "Agent 遇到相關任務時會讀取的操作手冊。{{skills}} 裡含 SKILL.md 的資料夾是你自己的 skills，優先於內建的。{{shared}} 裡與其他 agent 共用的 skills，要開啟後才會提供給 Agent。",
+      "open-folder": "打開 skills 資料夾",
+      "sources": {
+        "solyx": "你的",
+        "built-in": "內建",
+        "shared": "共用"
+      },
+      "shared": "共用 skills",
+      "offer": "將 {{name}} 提供給 Agent",
+      "instructions": "固定指示",
+      "instructions-description": "Agent 在每次對話都會遵守的規則，例如你的風險預算，寫在 {{path}}。每則訊息都會送出整份檔案。",
+      "instructions-found": "{{count, number}} 字元",
+      "instructions-missing": "尚未建立",
+      "warnings-title": "有些 skill 檔案不符合 Agent Skills 格式"
+    },
+    "mcp": {
+      "title": "MCP server",
+      "description": "列在 {{path}} 的 server，格式和 Claude、Cursor、pi 使用的 mcpServers 相同。金鑰請寫成 secret:NAME，再在這裡儲存，由系統加密保管。每次呼叫都會先等你允許，除非你讓唯讀的 tool 自動執行。",
+      "open-file": "打開 mcp.json",
+      "empty": "還沒有 server。在 mcp.json 加入後就會在這裡連線。",
+      "file-error": "無法讀取 mcp.json",
+      "states": {
+        "connecting": "連線中",
+        "connected": "已連線",
+        "needs-sign-in": "需要登入",
+        "failed": "失敗"
+      },
+      "kinds": {
+        "stdio": "本機",
+        "http": "遠端"
+      },
+      "reconnect": "重新連線",
+      "sign-in": {
+        "label": "帳號",
+        "hint": "透過瀏覽器登入，在 server 的頁面允許 Solyx。Solyx 會加密保存授權，不會顯示出來。",
+        "signed-in": "已登入",
+        "signed-out": "尚未登入",
+        "waiting": "等待瀏覽器",
+        "sign-in": "登入",
+        "sign-out": "登出",
+        "continue-in-browser": "請在瀏覽器完成登入，完成後這裡會自動更新。",
+        "sign-in-failed": "無法登入",
+        "sign-out-failed": "無法登出"
+      },
+      "no-tools": "這個 server 沒有提供 tool。",
+      "read-only": "唯讀",
+      "policy-label": "Agent 使用 {{tool}} 時",
+      "policies": {
+        "off": "關閉",
+        "ask": "每次詢問",
+        "auto": "自動執行"
+      }
+    },
     "storage": {
       "title": "K 線快取",
       "description": "已收盤的 K 線會存在這台電腦上，圖表就不必每次重新下載。清除後，圖表需要時會再向行情來源下載，並用掉你方案的請求額度。",
@@ -322,5 +491,27 @@
   "locale": {
     "en-US": "English",
     "zh-TW": "繁體中文"
+  },
+  "sign-in-page": {
+    "chatgpt": {
+      "signed-in": {
+        "title": "已登入 ChatGPT",
+        "body": "可以關閉這個分頁，回到 Solyx。"
+      },
+      "failed": {
+        "title": "ChatGPT 沒有連接成功",
+        "body": "請回到 Solyx 再登入一次。"
+      }
+    },
+    "mcp": {
+      "signed-in": {
+        "title": "已將授權交給 Solyx",
+        "body": "可以關閉這個分頁，Solyx 會完成 MCP server 的連線。"
+      },
+      "failed": {
+        "title": "MCP server 沒有連接成功",
+        "body": "請回到 Solyx 再登入一次。"
+      }
+    }
   }
 }

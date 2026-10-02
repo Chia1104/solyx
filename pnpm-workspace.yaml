@@ -17,6 +17,12 @@ catalog:
   zod: 4.6.5
 
 catalogs:
+  agent:
+    "@earendil-works/chord": 1.0.0
+    "@earendil-works/pi-ai": 1.0.0
+    "@earendil-works/pi-durable": 1.0.0
+    "@earendil-works/pi-mcp": 1.0.0
+    yaml: 2.9.0
   charts:
     lightweight-charts: 5.2.1
   chiastack:
@@ -37,6 +43,9 @@ catalogs:
   i18n:
     i18next: 26.4.2
     react-i18next: 17.0.15
+  markdown:
+    "@streamdown/cjk": 1.0.3
+    streamdown: 2.6.0
   oxc:
     # Pinned to the oxlint bundled by vite-plus; upgrade both together.
     "@oxlint/plugins": 1.85.0
@@ -57,8 +66,11 @@ catalogs:
     zustand: 5.0.15
 
 # esbuild (through drizzle-kit) runs from its platform package; its install script only verifies it.
+# pi-ai's Google SDK and protobufjs only print notices from theirs.
 allowBuilds:
+  "@google/genai": false
   esbuild: false
+  protobufjs: false
 
 overrides:
   vite@*: "catalog:"
@@ -78,3 +90,8 @@ minimumReleaseAgeExclude:
   - "@voidzero-dev/vite-plus-win32-arm64-msvc@1.0.0"
   - "@voidzero-dev/vite-plus-win32-x64-msvc@1.0.0"
   - vite-plus@1.0.0
+  - '@earendil-works/chord@1.0.0'
+  - '@earendil-works/pi-ai@1.0.0'
+  - '@earendil-works/pi-durable@1.0.0'
+  - '@earendil-works/pi-mcp@1.0.0'
+  - '@earendil-works/pi-telemetry@1.0.0'

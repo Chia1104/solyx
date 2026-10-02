@@ -1,22 +1,30 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
-import { app, nativeTheme } from "electron";
+import { app, nativeTheme, shell } from "electron";
 import { kebabCase } from "es-toolkit";
 
+import { AgentAuth } from "@solyx/agent/providers";
 import { createPaperBroker } from "@solyx/brokers/paper";
 import { OrderDesk } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
 import { Session, getSession } from "@solyx/core/session";
+import { openAgentStore } from "@solyx/db/agent";
 import { openCache } from "@solyx/db/cache";
 import { openUserData } from "@solyx/db/user";
 
 import { AppLocation, Theme } from "#shared/ipc/settings.ts";
 
+import { agentAuth } from "./modules/agent/agent-models.ts";
+import { createAgentService } from "./modules/agent/agent-service.ts";
+import { createMcpServers } from "./modules/agent/mcp-servers.ts";
 import { createLiveCandles } from "./modules/market/live-candles.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
+import { createCredentialStore } from "./modules/settings/credential-store.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
+import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
+import { SignInFlow, signInPage } from "./modules/settings/sign-in-page.ts";
 
 const PAPER_CASH = { TWD: 1_000_000, USD: 30_000 };
 
@@ -81,6 +89,49 @@ export function createServices() {
     },
   });
 
+  // The user's own skills and instructions sit beside the config file they edit.
+  const skillFolders = {
+    solyx: join(dirname(config.file), "skills"),
+    shared: join(home, ".agents", "skills"),
+  };
+
+  const openExternal = (url: string) => void shell.openExternal(url);
+
+  const mcp = createMcpServers({
+    file: join(dirname(config.file), "mcp.json"),
+    config,
+    secrets,
+    version: app.getVersion(),
+    openExternal,
+    signInPage: (locale, outcome, detail) =>
+      signInPage(locale, SignInFlow.Mcp, outcome, detail),
+  });
+
+  const agent = createAgentService({
+    config,
+    secrets,
+    credentials: createCredentialStore(
+      secrets,
+      (provider) => agentAuth(config, provider) === AgentAuth.Subscription
+    ),
+    getDeviceId: installationId(
+      join(app.getPath("userData"), "installation-id")
+    ),
+    openExternal,
+    signInPage: (locale, outcome, detail) =>
+      signInPage(locale, SignInFlow.ChatGPT, outcome, detail),
+    skillFolders,
+    instructionsFile: join(dirname(config.file), "AGENTS.md"),
+    mcp,
+    conversations: openAgentStore(
+      join(app.getPath("userData"), "agent.sqlite")
+    ),
+    marketData: (market) => marketData.provider(market),
+    watchlist: () => userData.watchlist.list(),
+    broker,
+    desk,
+  });
+
   let appliedStreamSettings = marketData.streamSettings();
 
   // Sources and plans change from the settings page or a hand edit; the live stream follows either.
@@ -117,6 +168,8 @@ export function createServices() {
     locations: {
       [AppLocation.Data]: app.getPath("userData"),
       [AppLocation.Config]: config.file,
+      [AppLocation.Skills]: skillFolders.solyx,
+      [AppLocation.Mcp]: mcp.file,
     },
     applySettings,
     theme,
@@ -124,6 +177,8 @@ export function createServices() {
     marketData,
     liveCandles,
     userData,
+    agent,
+    mcp,
   };
 }
 
