@@ -9,6 +9,7 @@ import { isEnumValue } from "@solyx/utils/is";
 import { MarketDataSource } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
+import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { candlesQueryKeys } from "../market/candles-query.ts";
 
@@ -55,13 +56,7 @@ export function CacheSettings() {
   });
 
   if (error) {
-    return (
-      <ErrorAlert
-        title={t("common.load-failed")}
-        description={error.message}
-        onRetry={() => void refetch()}
-      />
-    );
+    return <LoadError error={error} onRetry={() => void refetch()} />;
   }
 
   if (!data) return <LoadingState />;

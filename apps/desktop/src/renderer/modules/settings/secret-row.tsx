@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 import {
   Alert,
@@ -25,7 +26,7 @@ import { SettingsRow } from "./settings-list.tsx";
 import { settingsQueryKeys } from "./settings-query.ts";
 
 /** A secret's entered value; rebuilt per language so the field error comes out localized. */
-export function useSecretSchema() {
+function useSecretSchema() {
   const { t } = useTranslation();
 
   return useMemo(
@@ -45,19 +46,28 @@ export function useSecretSchema() {
  * opens an empty field in the row.
  */
 export function SecretRow({
-  secret,
+  label,
+  fieldLabel,
+  description,
   state,
-  available,
-  optional = false,
+  available = true,
+  onSave,
+  onRemove,
+  onSettled,
 }: {
-  secret: EnteredSecret;
+  label: ReactNode;
+  /** The field's accessible name, since `label` sits outside it. */
+  fieldLabel: string;
+  description?: ReactNode;
   state: SecretState;
   /** False when the OS has no secret store, so nothing can be saved. */
-  available: boolean;
-  optional?: boolean;
+  available?: boolean;
+  onSave: (value: string) => Promise<void>;
+  onRemove: () => Promise<void>;
+  /** Refreshes what reads the secret once a save or removal settles. */
+  onSettled: () => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const schema = useSecretSchema();
   const [editing, setEditing] = useState(false);
 
@@ -67,27 +77,16 @@ export function SecretRow({
     defaultValues: { value: "" },
   });
 
-  // Market data reads secrets per request, so charts refetch with the new value.
-  const refresh = () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all }),
-      queryClient.invalidateQueries({ queryKey: candlesQueryKeys.all }),
-    ]);
-
   const save = useMutation({
-    mutationFn: (value: string) =>
-      window.solyx.settings.saveSecret(secret, value),
+    mutationFn: onSave,
     onSuccess: () => {
       form.reset();
       setEditing(false);
     },
-    onSettled: refresh,
+    onSettled,
   });
 
-  const remove = useMutation({
-    mutationFn: () => window.solyx.settings.deleteSecret(secret),
-    onSettled: refresh,
-  });
+  const remove = useMutation({ mutationFn: onRemove, onSettled });
 
   const submit = form.handleSubmit(({ value }) => save.mutate(value));
 
@@ -97,23 +96,10 @@ export function SecretRow({
     setEditing(false);
   };
 
-  const label = t(`settings.secrets.${secret}.label`);
-
   return (
     <SettingsRow
-      label={
-        optional ? (
-          <>
-            {label}{" "}
-            <span className="font-normal text-muted">
-              {t("settings.secrets.optional")}
-            </span>
-          </>
-        ) : (
-          label
-        )
-      }
-      description={t(`settings.secrets.${secret}.hint`)}
+      label={label}
+      description={description}
       value={
         <span
           className={cn(state === SecretState.Unreadable && "text-warning")}>
@@ -161,7 +147,7 @@ export function SecretRow({
               <TextField
                 isRequired
                 autoFocus
-                aria-label={label}
+                aria-label={fieldLabel}
                 isInvalid={fieldState.invalid}
                 className="grow">
                 <Input
@@ -203,6 +189,55 @@ export function SecretRow({
         />
       ) : null}
     </SettingsRow>
+  );
+}
+
+/** One of the app's own keys, for a market data or model provider. */
+export function AppSecretRow({
+  secret,
+  state,
+  available,
+  optional = false,
+}: {
+  secret: EnteredSecret;
+  state: SecretState;
+  available: boolean;
+  optional?: boolean;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const label = t(`settings.secrets.${secret}.label`);
+
+  // Market data reads secrets per request, so charts refetch with the new value.
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all }),
+      queryClient.invalidateQueries({ queryKey: candlesQueryKeys.all }),
+    ]);
+  };
+
+  return (
+    <SecretRow
+      label={
+        optional ? (
+          <>
+            {label}{" "}
+            <span className="font-normal text-muted">
+              {t("settings.secrets.optional")}
+            </span>
+          </>
+        ) : (
+          label
+        )
+      }
+      fieldLabel={label}
+      description={t(`settings.secrets.${secret}.hint`)}
+      state={state}
+      available={available}
+      onSave={(value) => window.solyx.settings.saveSecret(secret, value)}
+      onRemove={() => window.solyx.settings.deleteSecret(secret)}
+      onSettled={refresh}
+    />
   );
 }
 

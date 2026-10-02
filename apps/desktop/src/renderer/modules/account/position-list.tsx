@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { symbolKey } from "@solyx/core/market";
 
-import { ErrorAlert } from "../../components/error-alert.tsx";
+import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { SymbolRow } from "../../components/symbol-row.tsx";
 
@@ -17,11 +17,7 @@ export function PositionList() {
   if (error) {
     return (
       <div className="px-4">
-        <ErrorAlert
-          title={t("common.load-failed")}
-          description={error.message}
-          onRetry={() => void refetch()}
-        />
+        <LoadError error={error} onRetry={() => void refetch()} />
       </div>
     );
   }

@@ -1,90 +1,30 @@
-import { Button } from "@heroui/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { currentLocale } from "../../app/i18n.ts";
-import { ErrorAlert } from "../../components/error-alert.tsx";
 
-import { SettingsRow } from "./settings-list.tsx";
 import { settingsQueryKeys } from "./settings-query.ts";
+import { SignInRow } from "./sign-in-row.tsx";
 
-/**
- * The ChatGPT account the OpenAI provider runs on when paid by subscription. Signing in happens
- * in the browser and comes back to this computer on its own; the main process saves the tokens
- * and refreshes them, and never shows them.
- */
+/** The ChatGPT account the OpenAI provider runs on when paid by subscription. */
 export function ChatGPTSignIn({ signedIn }: { signedIn: boolean }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all });
-
-  const signIn = useMutation({
-    mutationFn: () => window.solyx.settings.signInSubscription(currentLocale()),
-    onSettled: refresh,
-  });
-
-  const cancel = useMutation({
-    mutationFn: () => window.solyx.settings.cancelSignIn(),
-  });
-
-  const signOut = useMutation({
-    mutationFn: () => window.solyx.settings.signOutSubscription(),
-    onSettled: refresh,
-  });
-
-  const state = signIn.isPending
-    ? t("settings.agent.chatgpt.waiting")
-    : signedIn
-      ? t("settings.agent.chatgpt.signed-in")
-      : t("settings.agent.chatgpt.signed-out");
-
   return (
-    <SettingsRow
+    <SignInRow
       label={t("settings.agent.chatgpt.label")}
       description={t("settings.agent.chatgpt.hint")}
-      value={state}
-      actions={
-        signIn.isPending ? (
-          <Button
-            size="sm"
-            variant="tertiary"
-            isPending={cancel.isPending}
-            onPress={() => cancel.mutate()}>
-            {t("common.cancel")}
-          </Button>
-        ) : signedIn ? (
-          <Button
-            size="sm"
-            variant="tertiary"
-            isPending={signOut.isPending}
-            onPress={() => signOut.mutate()}>
-            {t("settings.agent.chatgpt.sign-out")}
-          </Button>
-        ) : (
-          <Button size="sm" variant="secondary" onPress={() => signIn.mutate()}>
-            {t("settings.agent.chatgpt.sign-in")}
-          </Button>
-        )
-      }>
-      {signIn.isPending ? (
-        <p className="text-xs text-muted">
-          {t("settings.agent.chatgpt.continue-in-browser")}
-        </p>
-      ) : null}
-      {signIn.error ? (
-        <ErrorAlert
-          title={t("settings.agent.chatgpt.sign-in-failed")}
-          description={signIn.error.message}
-        />
-      ) : null}
-      {signOut.error ? (
-        <ErrorAlert
-          title={t("settings.agent.chatgpt.sign-out-failed")}
-          description={signOut.error.message}
-        />
-      ) : null}
-    </SettingsRow>
+      signInLabel={t("settings.agent.chatgpt.sign-in")}
+      signInFailed={t("settings.agent.chatgpt.sign-in-failed")}
+      signedIn={signedIn}
+      needsSignIn={!signedIn}
+      onSignIn={() => window.solyx.settings.signInSubscription(currentLocale())}
+      onCancel={() => window.solyx.settings.cancelSignIn()}
+      onSignOut={() => window.solyx.settings.signOutSubscription()}
+      onSettled={() =>
+        queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all })
+      }
+    />
   );
 }

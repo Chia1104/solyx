@@ -332,6 +332,14 @@
         "hint": "A key from your OpenRouter account."
       }
     },
+    "sign-in": {
+      "signed-in": "Signed in",
+      "signed-out": "Not signed in",
+      "waiting": "Waiting for your browser",
+      "sign-out": "Sign out",
+      "continue-in-browser": "Finish signing in in your browser; this page updates once it returns.",
+      "sign-out-failed": "Couldn't sign out"
+    },
     "fugle": {
       "description": "Market data with your own Fugle API key. Choose the plan the key belongs to; Solyx paces its requests and live symbols to that plan.",
       "plan": "Plan",
@@ -378,14 +386,8 @@
       "chatgpt": {
         "label": "ChatGPT account",
         "hint": "Signs in through your browser, where OpenAI asks you to allow Solyx, then comes back here on its own.",
-        "signed-in": "Signed in",
-        "signed-out": "Not signed in",
-        "waiting": "Waiting for your browser",
         "sign-in": "Sign in with ChatGPT",
-        "sign-out": "Sign out",
-        "continue-in-browser": "Finish signing in in your browser; this page updates once it returns.",
-        "sign-in-failed": "Couldn't sign in with ChatGPT",
-        "sign-out-failed": "Couldn't sign out"
+        "sign-in-failed": "Couldn't sign in with ChatGPT"
       },
       "providers": {
         "anthropic": "Anthropic",
@@ -441,14 +443,8 @@
       "sign-in": {
         "label": "Account",
         "hint": "Signs in through your browser, where the server asks you to allow Solyx. Solyx keeps the grant encrypted and never shows it.",
-        "signed-in": "Signed in",
-        "signed-out": "Not signed in",
-        "waiting": "Waiting for your browser",
         "sign-in": "Sign in",
-        "sign-out": "Sign out",
-        "continue-in-browser": "Finish signing in in your browser; this page updates once it returns.",
-        "sign-in-failed": "Couldn't sign in",
-        "sign-out-failed": "Couldn't sign out"
+        "sign-in-failed": "Couldn't sign in"
       },
       "no-tools": "This server offers no tools.",
       "read-only": "Read-only",

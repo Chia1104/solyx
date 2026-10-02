@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { RailedColumn } from "../../components/sheet.tsx";
+import { WindowTitleBar } from "../../components/window-title-bar.tsx";
 import { BrokerModeRule } from "../account/broker-mode-chip.tsx";
 
 import { ONBOARDING_STEPS, OnboardingStep } from "./onboarding-step.ts";
@@ -73,15 +74,13 @@ export function OnboardingFlow({
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden text-sm">
-      <header className="h-11 shrink-0 app-drag">
-        <div className="ml-[env(titlebar-area-x,0px)] flex h-full w-[env(titlebar-area-width,100%)] items-center gap-3 px-4">
-          <span className="text-sm font-semibold">Solyx</span>
-          <span className="text-sm text-muted">{t("onboarding.title")}</span>
-          <Button size="sm" variant="ghost" className="ml-auto" onPress={leave}>
-            {t("onboarding.skip")}
-          </Button>
-        </div>
-      </header>
+      <WindowTitleBar className="px-4">
+        <span className="text-sm font-semibold">Solyx</span>
+        <span className="text-sm text-muted">{t("onboarding.title")}</span>
+        <Button size="sm" variant="ghost" className="ml-auto" onPress={leave}>
+          {t("onboarding.skip")}
+        </Button>
+      </WindowTitleBar>
       <BrokerModeRule />
       <div className="@container/main min-h-0 flex-1 overflow-y-auto">
         <div className="flex min-h-full flex-col">

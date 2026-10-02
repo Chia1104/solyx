@@ -8,6 +8,7 @@ import { AgentItemKind, RunEndReason } from "@solyx/agent/wire";
 import type { AgentViewItem, NoticeView } from "@solyx/agent/wire";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
+import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
 import { AssistantMessage, UserMessage } from "./agent-message.tsx";
@@ -82,11 +83,7 @@ export function AgentThread({ sessionId }: { sessionId: string }) {
   if (error) {
     return (
       <div className="p-4">
-        <ErrorAlert
-          title={t("common.load-failed")}
-          description={error.message}
-          onRetry={() => void refetch()}
-        />
+        <LoadError error={error} onRetry={() => void refetch()} />
       </div>
     );
   }

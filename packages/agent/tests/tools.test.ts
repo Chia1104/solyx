@@ -213,6 +213,7 @@ test("indicators report the latest and previous values", async () => {
 
   expect(text).toContain("close: 1079 (previous 1078)");
   expect(text).toContain("MA5: 1077 (previous 1076)");
+  expect(text).toContain("MA10: 1074.5 (previous 1073.5)");
 });
 
 test("a limit order needs its price", async () => {

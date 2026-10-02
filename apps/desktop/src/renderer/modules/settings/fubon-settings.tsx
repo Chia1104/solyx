@@ -6,11 +6,12 @@ import { FubonFile, FubonSessionState, Secret } from "#shared/ipc/settings.ts";
 import type { MarketDataStatus } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
+import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { candlesQueryKeys } from "../market/candles-query.ts";
 
 import { PlanLimits } from "./plan-limits.tsx";
-import { SecretRow, SecretsUnavailable } from "./secret-row.tsx";
+import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import {
   isMarketDataReady,
@@ -55,11 +56,7 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
 
   if (secrets.error) {
     return (
-      <ErrorAlert
-        title={t("common.load-failed")}
-        description={secrets.error.message}
-        onRetry={() => void secrets.refetch()}
-      />
+      <LoadError error={secrets.error} onRetry={() => void secrets.refetch()} />
     );
   }
 
@@ -154,7 +151,7 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
           );
         })}
         {FUBON_SECRETS.map((secret) => (
-          <SecretRow
+          <AppSecretRow
             key={secret}
             secret={secret}
             state={states[secret]}

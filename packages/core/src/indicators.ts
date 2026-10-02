@@ -3,6 +3,9 @@ import type { Candle } from "./candles.ts";
 /** One value per input bar; `null` while the indicator is still warming up. */
 export type IndicatorLine = (number | null)[];
 
+/** The simple moving averages charts draw and the agent reads, shortest first. */
+export const MOVING_AVERAGE_PERIODS: readonly number[] = [5, 10, 20, 60];
+
 export function sma(values: readonly number[], period: number): IndicatorLine {
   const line: IndicatorLine = [];
   let sum = 0;

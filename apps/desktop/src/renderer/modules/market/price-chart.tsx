@@ -18,7 +18,7 @@ import { useTranslation } from "react-i18next";
 
 import { isIntraday } from "@solyx/core/candles";
 import type { Candle, Interval } from "@solyx/core/candles";
-import { sma } from "@solyx/core/indicators";
+import { MOVING_AVERAGE_PERIODS, sma } from "@solyx/core/indicators";
 import { MARKET_TIME_ZONE } from "@solyx/core/market";
 import type { Market } from "@solyx/core/market";
 import { Chart } from "@solyx/trading-chart/chart";
@@ -35,7 +35,7 @@ import {
   DARK_PALETTE,
   DIRECTION_COLORS,
   LIGHT_PALETTE,
-  LINE_COLORS,
+  MOVING_AVERAGE_COLORS,
 } from "./chart-palette.ts";
 import {
   LOWER_PANE_STRETCH,
@@ -58,12 +58,11 @@ const PANE_INDICATORS: readonly ChartIndicator[] = [
   ChartIndicator.Kd,
 ];
 
-const MOVING_AVERAGES = [
-  { period: 5, color: LINE_COLORS.ma5 },
-  { period: 10, color: LINE_COLORS.ma10 },
-  { period: 20, color: LINE_COLORS.ma20 },
-  { period: 60, color: LINE_COLORS.ma60 },
-].map((average) => ({ ...average, options: lineOptions(average.color) }));
+const MOVING_AVERAGES = MOVING_AVERAGE_PERIODS.map((period, index) => {
+  const color = MOVING_AVERAGE_COLORS[index];
+
+  return { period, color, options: lineOptions(color) };
+});
 
 const CANDLE_OPTIONS: Record<Market, CandlestickSeriesPartialOptions> =
   mapValues(DIRECTION_COLORS, ({ rise, fall }) => ({

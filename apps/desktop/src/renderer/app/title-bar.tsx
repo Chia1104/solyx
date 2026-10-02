@@ -6,6 +6,7 @@ import { Link, useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { GearIcon, PaneIcon } from "../components/icons.tsx";
+import { WindowTitleBar } from "../components/window-title-bar.tsx";
 import { BrokerModeChip } from "../modules/account/broker-mode-chip.tsx";
 import { MarketSessions } from "../modules/market/market-sessions.tsx";
 import { SymbolSearch } from "../modules/market/symbol-search.tsx";
@@ -67,33 +68,25 @@ function SettingsButton() {
   );
 }
 
-/**
- * The window's own title bar: it moves the window and sits inside the room the OS leaves
- * beside its window controls.
- */
+/** The workspace's title bar: the pane toggles, search, market sessions and settings. */
 export function TitleBar({ searchRef }: { searchRef: Ref<HTMLInputElement> }) {
   const { t } = useTranslation();
 
   return (
-    <header className="h-11 shrink-0 app-drag">
-      <div className="ml-[env(titlebar-area-x,0px)] flex h-full w-[env(titlebar-area-width,100%)] items-center gap-3 px-2">
-        <PaneToggle pane={Pane.Symbols} />
-        <Link
-          to="/"
-          title={t("nav.overview")}
-          className="text-sm font-semibold">
-          Solyx
-        </Link>
-        <SymbolSearch inputRef={searchRef} />
-        <div className="ml-auto flex items-center gap-4">
-          <MarketSessions />
-          <BrokerModeChip />
-          <div className="flex items-center gap-1">
-            <SettingsButton />
-            <PaneToggle pane={Pane.Agent} />
-          </div>
+    <WindowTitleBar className="px-2">
+      <PaneToggle pane={Pane.Symbols} />
+      <Link to="/" title={t("nav.overview")} className="text-sm font-semibold">
+        Solyx
+      </Link>
+      <SymbolSearch inputRef={searchRef} />
+      <div className="ml-auto flex items-center gap-4">
+        <MarketSessions />
+        <BrokerModeChip />
+        <div className="flex items-center gap-1">
+          <SettingsButton />
+          <PaneToggle pane={Pane.Agent} />
         </div>
       </div>
-    </header>
+    </WindowTitleBar>
   );
 }

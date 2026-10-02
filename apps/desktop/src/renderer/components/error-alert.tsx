@@ -16,16 +16,21 @@ export function ErrorAlert({
   return (
     <Alert status="danger" role="alert">
       <Alert.Indicator />
-      <Alert.Content>
+      {/* Lets the text wrap instead of pushing the retry button out, even through a long URL. */}
+      <Alert.Content className="min-w-0">
         <Alert.Title>{title}</Alert.Title>
         {description ? (
-          <Alert.Description className="whitespace-pre-line">
+          <Alert.Description className="wrap-anywhere whitespace-pre-line">
             {description}
           </Alert.Description>
         ) : null}
       </Alert.Content>
       {onRetry ? (
-        <Button size="sm" variant="danger-soft" onPress={onRetry}>
+        <Button
+          size="sm"
+          variant="danger-soft"
+          className="shrink-0"
+          onPress={onRetry}>
           {t("common.retry")}
         </Button>
       ) : null}

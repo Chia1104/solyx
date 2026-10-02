@@ -9,9 +9,9 @@ import type { SymbolRef } from "@solyx/core/market";
 
 import type { MarketDataSource } from "#shared/ipc/settings.ts";
 
-import { ErrorAlert } from "../../components/error-alert.tsx";
 import { ErrorFallback } from "../../components/error-fallback.tsx";
 import { FallbackFrame } from "../../components/fallback-frame.tsx";
+import { LoadError } from "../../components/load-error.tsx";
 import { SettingsSection } from "../settings/settings-section.ts";
 
 import { PriceChart } from "./price-chart.tsx";
@@ -57,9 +57,8 @@ export function SymbolChart({
   if (settings.error) {
     return (
       <FallbackFrame>
-        <ErrorAlert
-          title={t("common.load-failed")}
-          description={settings.error.message}
+        <LoadError
+          error={settings.error}
           onRetry={() => void settings.refetch()}
         />
       </FallbackFrame>
@@ -79,9 +78,8 @@ export function SymbolChart({
   if (candles.error) {
     return (
       <FallbackFrame>
-        <ErrorAlert
-          title={t("common.load-failed")}
-          description={candles.error.message}
+        <LoadError
+          error={candles.error}
           onRetry={() => void candles.refetch()}
         />
       </FallbackFrame>

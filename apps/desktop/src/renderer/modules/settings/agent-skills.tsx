@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { AppLocation } from "#shared/ipc/settings.ts";
 import type { AgentSkillInfo } from "#shared/ipc/settings.ts";
 
-import { ErrorAlert } from "../../components/error-alert.tsx";
+import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
@@ -81,11 +81,7 @@ export function AgentSkills() {
   if (error) {
     return (
       <RailedColumn className="px-6 py-5">
-        <ErrorAlert
-          title={t("common.load-failed")}
-          description={error.message}
-          onRetry={() => void refetch()}
-        />
+        <LoadError error={error} onRetry={() => void refetch()} />
       </RailedColumn>
     );
   }

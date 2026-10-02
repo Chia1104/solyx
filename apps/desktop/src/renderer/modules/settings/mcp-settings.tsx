@@ -1,35 +1,25 @@
-import { useState } from "react";
-
-import {
-  Alert,
-  Button,
-  Chip,
-  FieldError,
-  Form,
-  Input,
-  TextField,
-} from "@heroui/react";
+import { Alert, Button, Chip } from "@heroui/react";
 import type { ChipProps } from "@heroui/react";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { McpServerState, McpToolPolicy } from "@solyx/agent/mcp-config";
 
-import { AppLocation } from "#shared/ipc/settings.ts";
+import { AppLocation, SecretState } from "#shared/ipc/settings.ts";
 import type { McpServerSetting, McpToolSetting } from "#shared/ipc/settings.ts";
 
 import { currentLocale } from "../../app/i18n.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
+import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 
-import { useSecretSchema } from "./secret-row.tsx";
+import { SecretRow } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { mcpQuery, settingsQueryKeys } from "./settings-query.ts";
+import { SignInRow } from "./sign-in-row.tsx";
 
 const STATE_COLOR: Record<McpServerState, ChipProps["color"]> = {
   [McpServerState.Connecting]: "default",
@@ -45,7 +35,7 @@ function useRefresh() {
     queryClient.invalidateQueries({ queryKey: settingsQueryKeys.mcp });
 }
 
-/** A secret the server's entry names as `secret:NAME`; its value is never read back. */
+/** A secret the server's entry names as `secret:NAME`. */
 function McpSecretRow({
   server,
   name,
@@ -55,189 +45,43 @@ function McpSecretRow({
   name: string;
   saved: boolean;
 }) {
-  const { t } = useTranslation();
   const refresh = useRefresh();
-  const schema = useSecretSchema();
-  const [editing, setEditing] = useState(false);
   const label = `secret:${name}`;
 
-  const form = useForm({
-    resolver: zodResolver(schema),
-    reValidateMode: "onSubmit",
-    defaultValues: { value: "" },
-  });
-
-  const save = useMutation({
-    mutationFn: (value: string) =>
-      window.solyx.settings.saveMcpSecret(server, name, value),
-    onSuccess: () => {
-      form.reset();
-      setEditing(false);
-    },
-    onSettled: refresh,
-  });
-
-  const remove = useMutation({
-    mutationFn: () => window.solyx.settings.deleteMcpSecret(server, name),
-    onSettled: refresh,
-  });
-
-  const submit = form.handleSubmit((values) => save.mutate(values.value));
-
   return (
-    <SettingsRow
+    <SecretRow
       label={<span className="font-mono text-xs">{label}</span>}
-      value={
-        saved
-          ? t("settings.secrets.states.saved")
-          : t("settings.secrets.states.missing")
+      fieldLabel={label}
+      state={saved ? SecretState.Saved : SecretState.Missing}
+      onSave={(value) =>
+        window.solyx.settings.saveMcpSecret(server, name, value)
       }
-      actions={
-        editing || !saved ? null : (
-          <>
-            <Button
-              size="sm"
-              variant="secondary"
-              onPress={() => setEditing(true)}>
-              {t("settings.secrets.replace")}
-            </Button>
-            <Button
-              size="sm"
-              variant="tertiary"
-              isPending={remove.isPending}
-              onPress={() => remove.mutate()}>
-              {t("settings.secrets.remove")}
-            </Button>
-          </>
-        )
-      }>
-      {editing || !saved ? (
-        <Form
-          validationBehavior="aria"
-          className="flex items-start gap-2"
-          onSubmit={(event) => void submit(event)}>
-          <Controller
-            control={form.control}
-            name="value"
-            render={({ field, fieldState }) => (
-              <TextField
-                isRequired
-                aria-label={label}
-                isInvalid={fieldState.invalid}
-                className="grow">
-                <Input
-                  {...field}
-                  type="password"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <FieldError>{fieldState.error?.message}</FieldError>
-              </TextField>
-            )}
-          />
-          <Button type="submit" variant="secondary" isPending={save.isPending}>
-            {t("settings.secrets.save")}
-          </Button>
-          {saved ? (
-            <Button variant="tertiary" onPress={() => setEditing(false)}>
-              {t("common.cancel")}
-            </Button>
-          ) : null}
-        </Form>
-      ) : null}
-      {save.error ? (
-        <ErrorAlert
-          title={t("settings.secrets.save-failed")}
-          description={save.error.message}
-        />
-      ) : null}
-    </SettingsRow>
+      onRemove={() => window.solyx.settings.deleteMcpSecret(server, name)}
+      onSettled={refresh}
+    />
   );
 }
 
-/**
- * The account a remote server runs on. Signing in happens in the browser and comes back to this
- * computer on its own; the main process saves the grant and refreshes it, and never shows it.
- */
+/** The account a remote server runs on. */
 function McpSignInRow({ server }: { server: McpServerSetting }) {
   const { t } = useTranslation();
   const refresh = useRefresh();
 
-  const signIn = useMutation({
-    mutationFn: () =>
-      window.solyx.settings.signInMcp(server.name, currentLocale()),
-    onSettled: refresh,
-  });
-
-  const cancel = useMutation({
-    mutationFn: () => window.solyx.settings.cancelMcpSignIn(),
-  });
-
-  const signOut = useMutation({
-    mutationFn: () => window.solyx.settings.signOutMcp(server.name),
-    onSettled: refresh,
-  });
-
-  const state = signIn.isPending
-    ? t("settings.mcp.sign-in.waiting")
-    : server.signedIn && server.state !== McpServerState.NeedsSignIn
-      ? t("settings.mcp.sign-in.signed-in")
-      : t("settings.mcp.sign-in.signed-out");
-
   return (
-    <SettingsRow
+    <SignInRow
       label={t("settings.mcp.sign-in.label")}
       description={t("settings.mcp.sign-in.hint")}
-      value={state}
-      actions={
-        signIn.isPending ? (
-          <Button
-            size="sm"
-            variant="tertiary"
-            isPending={cancel.isPending}
-            onPress={() => cancel.mutate()}>
-            {t("common.cancel")}
-          </Button>
-        ) : (
-          <>
-            {server.state === McpServerState.NeedsSignIn ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                onPress={() => signIn.mutate()}>
-                {t("settings.mcp.sign-in.sign-in")}
-              </Button>
-            ) : null}
-            {server.signedIn ? (
-              <Button
-                size="sm"
-                variant="tertiary"
-                isPending={signOut.isPending}
-                onPress={() => signOut.mutate()}>
-                {t("settings.mcp.sign-in.sign-out")}
-              </Button>
-            ) : null}
-          </>
-        )
-      }>
-      {signIn.isPending ? (
-        <p className="text-xs text-muted">
-          {t("settings.mcp.sign-in.continue-in-browser")}
-        </p>
-      ) : null}
-      {signIn.error ? (
-        <ErrorAlert
-          title={t("settings.mcp.sign-in.sign-in-failed")}
-          description={signIn.error.message}
-        />
-      ) : null}
-      {signOut.error ? (
-        <ErrorAlert
-          title={t("settings.mcp.sign-in.sign-out-failed")}
-          description={signOut.error.message}
-        />
-      ) : null}
-    </SettingsRow>
+      signInLabel={t("settings.mcp.sign-in.sign-in")}
+      signInFailed={t("settings.mcp.sign-in.sign-in-failed")}
+      signedIn={server.signedIn}
+      needsSignIn={server.state === McpServerState.NeedsSignIn}
+      onSignIn={() =>
+        window.solyx.settings.signInMcp(server.name, currentLocale())
+      }
+      onCancel={() => window.solyx.settings.cancelMcpSignIn()}
+      onSignOut={() => window.solyx.settings.signOutMcp(server.name)}
+      onSettled={refresh}
+    />
   );
 }
 
@@ -373,11 +217,7 @@ export function McpSettings() {
   if (error) {
     return (
       <RailedColumn className="px-6 py-5">
-        <ErrorAlert
-          title={t("common.load-failed")}
-          description={error.message}
-          onRetry={() => void refetch()}
-        />
+        <LoadError error={error} onRetry={() => void refetch()} />
       </RailedColumn>
     );
   }

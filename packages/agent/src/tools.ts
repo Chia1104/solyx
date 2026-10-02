@@ -20,7 +20,15 @@ import {
   lookbackRange,
 } from "@solyx/core/candles";
 import type { Candle, Interval } from "@solyx/core/candles";
-import { bollinger, ema, kd, macd, rsi, sma } from "@solyx/core/indicators";
+import {
+  MOVING_AVERAGE_PERIODS,
+  bollinger,
+  ema,
+  kd,
+  macd,
+  rsi,
+  sma,
+} from "@solyx/core/indicators";
 import type { IndicatorLine } from "@solyx/core/indicators";
 import {
   Market,
@@ -298,8 +306,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetIndicators,
       replay: "safe",
-      description:
-        "The latest and previous bar's MA(5, 20, 60), EMA(12, 26), RSI(14), MACD(12, 26, 9) as DIF/MACD/OSC, KD(9) and Bollinger Bands(20, 2) for a listing.",
+      description: `The latest and previous bar's MA(${MOVING_AVERAGE_PERIODS.join(", ")}), EMA(12, 26), RSI(14), MACD(12, 26, 9) as DIF/MACD/OSC, KD(9) and Bollinger Bands(20, 2) for a listing.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         interval: intervalSchema,
@@ -318,9 +325,9 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           text: [
             heading(symbol, interval, candles[candles.length - 1]),
             `close: ${closes[closes.length - 1]} (previous ${closes.at(-2) ?? "n/a"})`,
-            row("MA5", sma(closes, 5)),
-            row("MA20", sma(closes, 20)),
-            row("MA60", sma(closes, 60)),
+            ...MOVING_AVERAGE_PERIODS.map((period) =>
+              row(`MA${period}`, sma(closes, period))
+            ),
             row("EMA12", ema(closes, 12)),
             row("EMA26", ema(closes, 26)),
             row("RSI14", rsi(closes)),

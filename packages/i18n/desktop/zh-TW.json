@@ -332,6 +332,14 @@
         "hint": "在 OpenRouter 帳號建立的金鑰。"
       }
     },
+    "sign-in": {
+      "signed-in": "已登入",
+      "signed-out": "尚未登入",
+      "waiting": "等待瀏覽器",
+      "sign-out": "登出",
+      "continue-in-browser": "請在瀏覽器完成登入，完成後這裡會自動更新。",
+      "sign-out-failed": "無法登出"
+    },
     "fugle": {
       "description": "使用你自己的富果 API 金鑰取得行情。請選擇金鑰所屬的方案，Solyx 會依該方案調整請求速度與即時股票數量。",
       "plan": "方案",
@@ -378,14 +386,8 @@
       "chatgpt": {
         "label": "ChatGPT 帳號",
         "hint": "透過瀏覽器登入，在 OpenAI 頁面允許 Solyx 後會自動回到這裡。",
-        "signed-in": "已登入",
-        "signed-out": "尚未登入",
-        "waiting": "等待瀏覽器",
         "sign-in": "使用 ChatGPT 登入",
-        "sign-out": "登出",
-        "continue-in-browser": "請在瀏覽器完成登入，完成後這裡會自動更新。",
-        "sign-in-failed": "無法使用 ChatGPT 登入",
-        "sign-out-failed": "無法登出"
+        "sign-in-failed": "無法使用 ChatGPT 登入"
       },
       "providers": {
         "anthropic": "Anthropic",
@@ -441,14 +443,8 @@
       "sign-in": {
         "label": "帳號",
         "hint": "透過瀏覽器登入，在 server 的頁面允許 Solyx。Solyx 會加密保存授權，不會顯示出來。",
-        "signed-in": "已登入",
-        "signed-out": "尚未登入",
-        "waiting": "等待瀏覽器",
         "sign-in": "登入",
-        "sign-out": "登出",
-        "continue-in-browser": "請在瀏覽器完成登入，完成後這裡會自動更新。",
-        "sign-in-failed": "無法登入",
-        "sign-out-failed": "無法登出"
+        "sign-in-failed": "無法登入"
       },
       "no-tools": "這個 server 沒有提供 tool。",
       "read-only": "唯讀",

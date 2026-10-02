@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { symbolKey } from "@solyx/core/market";
 import type { Position } from "@solyx/core/order";
 
-import { ErrorAlert } from "../../components/error-alert.tsx";
+import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
 import { numberFormats } from "../market/number-formats.ts";
@@ -21,11 +21,7 @@ export function AccountSummary() {
   return (
     <Section title={t("account.title")}>
       {error ? (
-        <ErrorAlert
-          title={t("common.load-failed")}
-          description={error.message}
-          onRetry={() => void refetch()}
-        />
+        <LoadError error={error} onRetry={() => void refetch()} />
       ) : data ? (
         <div className="flex flex-col gap-6">
           <dl className="flex flex-wrap gap-x-10 gap-y-3">

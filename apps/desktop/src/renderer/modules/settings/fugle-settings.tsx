@@ -7,11 +7,12 @@ import { Secret } from "#shared/ipc/settings.ts";
 import type { MarketDataStatus } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
+import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 
 import { PlanLimits } from "./plan-limits.tsx";
-import { SecretRow, SecretsUnavailable } from "./secret-row.tsx";
+import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { secretsQuery, settingsQueryKeys } from "./settings-query.ts";
 
@@ -29,11 +30,7 @@ export function FugleSettings({ status }: { status: MarketDataStatus }) {
 
   if (secrets.error) {
     return (
-      <ErrorAlert
-        title={t("common.load-failed")}
-        description={secrets.error.message}
-        onRetry={() => void secrets.refetch()}
-      />
+      <LoadError error={secrets.error} onRetry={() => void secrets.refetch()} />
     );
   }
 
@@ -48,7 +45,7 @@ export function FugleSettings({ status }: { status: MarketDataStatus }) {
     <div className="flex flex-col gap-3">
       {available ? null : <SecretsUnavailable />}
       <SettingsList>
-        <SecretRow
+        <AppSecretRow
           secret={Secret.FugleApiKey}
           state={states[Secret.FugleApiKey]}
           available={available}
