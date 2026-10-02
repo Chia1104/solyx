@@ -14,7 +14,6 @@ import { bollinger, kd, macd, rsi } from "@solyx/core/indicators";
 import { Series } from "@solyx/trading-chart/series";
 
 import { LINE_COLORS } from "./chart-palette.ts";
-import type { DirectionColors } from "./chart-palette.ts";
 import {
   LOWER_PANE_STRETCH,
   level,
@@ -22,6 +21,7 @@ import {
   toHistogram,
   toLine,
 } from "./chart-series.ts";
+import type { DirectionColors } from "./price-colors.ts";
 
 const BOLLINGER_OPTIONS = lineOptions(LINE_COLORS.bollinger);
 

@@ -9,7 +9,7 @@ const all = ["settings"] as const;
 
 export const settingsQueryKeys = {
   all,
-  theme: [...all, "theme"] as const,
+  appearance: [...all, "appearance"] as const,
   cacheUsage: [...all, "cache-usage"] as const,
   about: [...all, "about"] as const,
   secrets: [...all, "secrets"] as const,
@@ -39,12 +39,12 @@ export function isMarketDataReady(status: MarketDataStatus | undefined) {
   return status?.markets[Market.TW]?.ready === true;
 }
 
-/** Always stale, since the theme can also change by hand in the config file. */
-export const themeQuery = () =>
+/** Never stale, since the main process pushes every change, hand edits to the config file included. */
+export const appearanceQuery = () =>
   queryOptions({
-    queryKey: settingsQueryKeys.theme,
-    queryFn: () => window.solyx.settings.theme(),
-    staleTime: 0,
+    queryKey: settingsQueryKeys.appearance,
+    queryFn: () => window.solyx.settings.appearance(),
+    staleTime: Infinity,
   });
 
 export const cacheUsageQuery = () =>

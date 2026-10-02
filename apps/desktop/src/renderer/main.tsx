@@ -9,9 +9,9 @@ import { RouterProvider } from "@tanstack/react-router";
 
 import { queryClient } from "./app/query-client.ts";
 import { router } from "./app/router.tsx";
-import { followSystemTheme } from "./app/theme.ts";
+import { followAppearance } from "./app/theme.ts";
 
-followSystemTheme();
+followAppearance();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

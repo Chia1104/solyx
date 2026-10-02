@@ -4,9 +4,9 @@ import { useTranslation } from "react-i18next";
 import { Interval } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
 
-import { DIRECTION_COLORS } from "./chart-palette.ts";
 import { useListingName } from "./listing-name.tsx";
 import { numberFormats } from "./number-formats.ts";
+import { useDirectionColors } from "./price-colors.ts";
 import { useCandles } from "./use-candles.ts";
 
 /** The listing's code and name, and its last daily close against the close before it, on one line. */
@@ -19,7 +19,7 @@ export function SymbolQuote({ symbol }: { symbol: SymbolRef }) {
   const last = bars.at(-1);
   const previous = bars.at(-2);
   const format = numberFormats(i18n.language);
-  const direction = DIRECTION_COLORS[symbol.market];
+  const direction = useDirectionColors(symbol.market);
 
   const change = last && previous ? last.close - previous.close : null;
 

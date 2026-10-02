@@ -6,13 +6,13 @@ import { useTranslation } from "react-i18next";
 
 import { isEnumValue } from "@solyx/utils/is";
 
-import { Theme } from "#shared/ipc/settings.ts";
+import { PriceColors } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 import { appearanceQuery } from "./settings-query.ts";
 
-export function ThemeSelect() {
+export function PriceColorsSelect() {
   const { t } = useTranslation();
   const labelId = useId();
   const descriptionId = useId();
@@ -20,13 +20,14 @@ export function ThemeSelect() {
 
   // The main process pushes the saved appearance, which the query takes.
   const save = useMutation({
-    mutationFn: (theme: Theme) => window.solyx.settings.setTheme(theme),
+    mutationFn: (priceColors: PriceColors) =>
+      window.solyx.settings.setPriceColors(priceColors),
   });
 
   return (
     <div className="flex flex-col gap-2">
       <span id={labelId} className="text-sm font-medium">
-        {t("settings.theme")}
+        {t("settings.price-colors")}
       </span>
       <ToggleButtonGroup
         aria-labelledby={labelId}
@@ -35,20 +36,21 @@ export function ThemeSelect() {
         disallowEmptySelection
         size="sm"
         isDisabled={!data || save.isPending}
-        selectedKeys={data ? [data.theme] : []}
+        selectedKeys={data ? [data.priceColors] : []}
         onSelectionChange={(keys) => {
           const [next] = keys;
 
-          if (next !== undefined && isEnumValue(Theme, next)) save.mutate(next);
+          if (next !== undefined && isEnumValue(PriceColors, next))
+            save.mutate(next);
         }}>
-        {Object.values(Theme).map((theme) => (
-          <ToggleButton key={theme} id={theme}>
-            {t(`settings.themes.${theme}`)}
+        {Object.values(PriceColors).map((priceColors) => (
+          <ToggleButton key={priceColors} id={priceColors}>
+            {t(`settings.price-colors-options.${priceColors}`)}
           </ToggleButton>
         ))}
       </ToggleButtonGroup>
       <Description id={descriptionId}>
-        {t("settings.theme-description")}
+        {t("settings.price-colors-description")}
       </Description>
       {save.error ? (
         <ErrorAlert

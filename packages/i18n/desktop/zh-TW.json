@@ -279,6 +279,13 @@
       "light": "淺色",
       "dark": "深色"
     },
+    "price-colors": "漲跌顏色",
+    "price-colors-description": "「依市場慣例」會照各市場的習慣上色：台股紅漲綠跌、美股綠漲紅跌。",
+    "price-colors-options": {
+      "market": "依市場慣例",
+      "red-up": "紅漲綠跌",
+      "green-up": "綠漲紅跌"
+    },
     "market-data": {
       "title": "行情",
       "source-title": "台股行情來源",

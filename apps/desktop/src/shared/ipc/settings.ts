@@ -90,6 +90,23 @@ export type Theme = (typeof Theme)[keyof typeof Theme];
 
 export const themeSchema = z.enum(Theme);
 
+/** Which colour marks a rising price: each market's own convention, or the same one for every market. */
+export const PriceColors = {
+  /** Red in Taiwan, green in the US. */
+  Market: "market",
+  RedUp: "red-up",
+  GreenUp: "green-up",
+} as const;
+
+export type PriceColors = (typeof PriceColors)[keyof typeof PriceColors];
+
+export const priceColorsSchema = z.enum(PriceColors);
+
+export interface Appearance {
+  theme: Theme;
+  priceColors: PriceColors;
+}
+
 /** The languages the app has catalogs for, as BCP 47 tags. */
 export const Locale = {
   EnUS: "en-US",
@@ -275,9 +292,10 @@ export interface AppInfo {
 }
 
 export interface SettingsApi {
-  theme(): Promise<Theme>;
+  appearance(): Promise<Appearance>;
   /** Saves the theme; every window switches at once. */
   setTheme(theme: Theme): Promise<void>;
+  setPriceColors(priceColors: PriceColors): Promise<void>;
   secrets(): Promise<SecretsStatus>;
   saveSecret(secret: EnteredSecret, value: string): Promise<void>;
   deleteSecret(secret: EnteredSecret): Promise<void>;
@@ -335,9 +353,16 @@ export interface SettingsApi {
   reveal(location: AppLocation): Promise<void>;
 }
 
+/** Pushes from the main process; each subscription returns a function that stops listening. */
+export interface SettingsEvents {
+  /** Every change to the appearance, whether saved here or by hand in the config file. */
+  onAppearance(listener: (appearance: Appearance) => void): () => void;
+}
+
 export const settingsChannels = {
-  theme: "settings:theme",
+  appearance: "settings:appearance",
   setTheme: "settings:set-theme",
+  setPriceColors: "settings:set-price-colors",
   secrets: "settings:secrets",
   saveSecret: "settings:save-secret",
   deleteSecret: "settings:delete-secret",
@@ -369,3 +394,7 @@ export const settingsChannels = {
   about: "settings:about",
   reveal: "settings:reveal",
 } as const satisfies Record<keyof SettingsApi, string>;
+
+export const settingsEvents = {
+  onAppearance: "settings:appearance-changed",
+} as const satisfies Record<keyof SettingsEvents, string>;

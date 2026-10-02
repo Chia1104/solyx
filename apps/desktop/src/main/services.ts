@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { app, nativeTheme, shell } from "electron";
+import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import { isEqual, kebabCase } from "es-toolkit";
 
 import { AgentAuth } from "@solyx/agent/providers";
@@ -13,7 +13,7 @@ import { openAgentStore } from "@solyx/db/agent";
 import { openCache } from "@solyx/db/cache";
 import { openUserData } from "@solyx/db/user";
 
-import { AppLocation } from "#shared/ipc/settings.ts";
+import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
 
 import { agentAuth } from "./modules/agent/agent-models.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
@@ -138,17 +138,30 @@ export function createServices() {
     await liveCandles.restart();
   }
 
-  const theme = () => config.read().theme;
+  const appearance = () => config.read().appearance;
 
-  // Windows and their renderers' prefers-color-scheme follow themeSource.
-  const applyTheme = () => {
-    nativeTheme.themeSource = theme();
-  };
+  let appliedAppearance = appearance();
 
-  applyTheme();
+  // Windows and their renderers' prefers-color-scheme follow themeSource; the rest is pushed to
+  // every renderer, so a hand edit applies as the settings page's does.
+  function applyAppearance() {
+    const next = appearance();
+
+    nativeTheme.themeSource = next.theme;
+
+    if (isEqual(next, appliedAppearance)) return;
+
+    appliedAppearance = next;
+
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(settingsEvents.onAppearance, next);
+    }
+  }
+
+  applyAppearance();
 
   config.watch(() => {
-    applyTheme();
+    applyAppearance();
     void applySettings();
   });
 
@@ -168,8 +181,8 @@ export function createServices() {
       [AppLocation.Mcp]: mcp.file,
     },
     applySettings,
-    theme,
-    applyTheme,
+    appearance,
+    applyAppearance,
     marketData,
     liveCandles,
     userData,

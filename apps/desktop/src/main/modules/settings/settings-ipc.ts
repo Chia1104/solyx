@@ -30,6 +30,7 @@ import {
   localeSchema,
   marketDataSourceSchema,
   mcpSecretKey,
+  priceColorsSchema,
   settingsChannels,
   themeSchema,
 } from "#shared/ipc/settings.ts";
@@ -42,8 +43,9 @@ import type { Services } from "../../services.ts";
 const mcpNameSchema = z.string().min(1).max(128);
 
 const handle = ipcModule<SettingsApi>(settingsChannels, {
-  theme: z.tuple([]),
+  appearance: z.tuple([]),
   setTheme: z.tuple([themeSchema]),
+  setPriceColors: z.tuple([priceColorsSchema]),
   secrets: z.tuple([]),
   saveSecret: z.tuple([
     enteredSecretSchema,
@@ -103,8 +105,8 @@ const FUBON_FILE_DIALOG: Record<FubonFile, OpenDialogOptions> = {
 };
 
 export function registerSettingsIpc({
-  theme,
-  applyTheme,
+  appearance,
+  applyAppearance,
   secrets,
   config,
   cache,
@@ -121,11 +123,16 @@ export function registerSettingsIpc({
   // Paths are shown with the home folder as `~`.
   const tildify = (path: string) => path.replace(home, "~");
 
-  handle("theme", async () => theme());
+  handle("appearance", async () => appearance());
 
-  handle("setTheme", async (next) => {
-    config.set(["theme"], next);
-    applyTheme();
+  handle("setTheme", async (theme) => {
+    config.set(["appearance", "theme"], theme);
+    applyAppearance();
+  });
+
+  handle("setPriceColors", async (priceColors) => {
+    config.set(["appearance", "priceColors"], priceColors);
+    applyAppearance();
   });
 
   handle("secrets", async () => ({

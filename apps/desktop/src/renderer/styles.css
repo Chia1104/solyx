@@ -7,69 +7,30 @@
 /*
  * Solyx is drawn like a drafting sheet: agents draft in pencil, the user signs in ink. Pencil
  * (hatching, dashed rules) marks what is not real yet, such as paper trading or a proposal
- * awaiting confirmation; ink (the accent) marks what is. Neutrals carry a trace of slate blue,
- * vellum by day and blueprint by night. Red and green belong to prices alone.
+ * awaiting confirmation; ink (the accent) marks what is. The palette itself comes from
+ * `#shared/palette.ts`, which app/theme.ts writes as custom properties; these derive from it.
  */
 :root,
 .light,
-[data-theme="light"] {
-  --background: oklch(96.95% 0.0045 258.3);
-  --foreground: oklch(27.22% 0.016 264.3);
-  --surface: oklch(99.36% 0.0017 247.8);
+[data-theme="light"],
+.dark,
+[data-theme="dark"] {
   --surface-foreground: var(--foreground);
-  --surface-secondary: oklch(95.3% 0.006 262);
-  --surface-tertiary: oklch(93.65% 0.0087 264.5);
-  --overlay: oklch(99.36% 0.0017 247.8);
   --overlay-foreground: var(--foreground);
-  --field-background: oklch(99.36% 0.0017 247.8);
   --field-foreground: var(--foreground);
   --field-placeholder: var(--muted);
-  --segment: oklch(99.36% 0.0017 247.8);
   --segment-foreground: var(--foreground);
-  --default: oklch(93.65% 0.0087 264.5);
   --default-foreground: var(--foreground);
-  --muted: oklch(52.98% 0.0255 263.1);
-  --separator: oklch(90.57% 0.0105 261.8);
-  --border: oklch(87.77% 0.0123 259.8);
-  --accent: oklch(47.34% 0.2191 268);
-  --accent-foreground: oklch(99.36% 0.0017 247.8);
   --focus: var(--accent);
 
   --hatch: color-mix(in oklab, var(--muted) 40%, transparent);
-  /* Quote text; the chart's candles use their own, brighter pair. */
-  --quote-red: oklch(54.5% 0.19 23);
-  --quote-green: oklch(50% 0.12 155);
 
   --radius: 0.375rem;
 }
 
 .dark,
 [data-theme="dark"] {
-  --background: oklch(19% 0.0181 259.7);
-  --foreground: oklch(93% 0.0104 261.8);
-  --surface: oklch(22.58% 0.0234 262.3);
-  --surface-foreground: var(--foreground);
-  --surface-secondary: oklch(25% 0.026 262);
-  --surface-tertiary: oklch(27.97% 0.0284 261.5);
-  --overlay: oklch(22.58% 0.0234 262.3);
-  --overlay-foreground: var(--foreground);
-  --field-background: oklch(25% 0.026 262);
-  --field-foreground: var(--foreground);
-  --field-placeholder: var(--muted);
-  --segment: oklch(32.68% 0.0317 259.7);
-  --segment-foreground: var(--foreground);
-  --default: oklch(27.97% 0.0284 261.5);
-  --default-foreground: var(--foreground);
-  --muted: oklch(66.45% 0.0291 262.3);
-  --separator: oklch(29.1% 0.0287 259.1);
-  --border: oklch(32.68% 0.0317 259.7);
-  --accent: oklch(70.47% 0.1541 272.5);
-  --accent-foreground: oklch(19% 0.0181 259.7);
-  --focus: var(--accent);
-
   --hatch: color-mix(in oklab, var(--muted) 35%, transparent);
-  --quote-red: oklch(68% 0.17 22);
-  --quote-green: oklch(72% 0.15 155);
 }
 
 @theme {

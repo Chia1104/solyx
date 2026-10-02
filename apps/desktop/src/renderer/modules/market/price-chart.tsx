@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 
-import { mapValues } from "es-toolkit";
 import {
   CandlestickSeries,
   ColorType,
@@ -28,15 +27,10 @@ import {
   utcTimestamp,
 } from "@solyx/trading-chart/time-format";
 
-import { useIsDarkTheme } from "../../app/theme.ts";
+import { usePaletteColors } from "../../app/theme.ts";
 
 import { ChartLegend } from "./chart-legend.tsx";
-import {
-  DARK_PALETTE,
-  DIRECTION_COLORS,
-  LIGHT_PALETTE,
-  MOVING_AVERAGE_COLORS,
-} from "./chart-palette.ts";
+import { MOVING_AVERAGE_COLORS } from "./chart-palette.ts";
 import {
   LOWER_PANE_STRETCH,
   PRICE_PANE_STRETCH,
@@ -50,6 +44,7 @@ import {
   RsiPane,
 } from "./indicator-panes.tsx";
 import { ChartIndicator, useIndicatorStore } from "./indicator-store.ts";
+import { useDirectionColors } from "./price-colors.ts";
 
 // Oscillators each get a pane below volume, in this order.
 const PANE_INDICATORS: readonly ChartIndicator[] = [
@@ -63,15 +58,6 @@ const MOVING_AVERAGES = MOVING_AVERAGE_PERIODS.map((period, index) => {
 
   return { period, color, options: lineOptions(color) };
 });
-
-const CANDLE_OPTIONS: Record<Market, CandlestickSeriesPartialOptions> =
-  mapValues(DIRECTION_COLORS, ({ rise, fall }) => ({
-    upColor: rise.solid,
-    downColor: fall.solid,
-    wickUpColor: rise.solid,
-    wickDownColor: fall.solid,
-    borderVisible: false,
-  }));
 
 const VOLUME_OPTIONS: HistogramSeriesPartialOptions = {
   priceFormat: { type: "volume" },
@@ -90,13 +76,11 @@ export function PriceChart({
   interval: Interval;
 }) {
   const { i18n } = useTranslation();
-  const isDark = useIsDarkTheme();
+  const colors = usePaletteColors();
   const enabled = useIndicatorStore((state) => state.enabled);
-  const direction = DIRECTION_COLORS[market];
+  const direction = useDirectionColors(market);
 
   const options = useMemo<DeepPartial<ChartOptions>>(() => {
-    const palette = isDark ? DARK_PALETTE : LIGHT_PALETTE;
-
     const time = exchangeTimeFormat(
       MARKET_TIME_ZONE[market],
       i18n.language,
@@ -106,12 +90,12 @@ export function PriceChart({
     return {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: palette.text,
-        panes: { separatorColor: palette.grid },
+        textColor: colors.muted,
+        panes: { separatorColor: colors.separator },
       },
       grid: {
-        vertLines: { color: palette.grid },
-        horzLines: { color: palette.grid },
+        vertLines: { color: colors.separator },
+        horzLines: { color: colors.separator },
       },
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: { borderVisible: false },
@@ -125,7 +109,18 @@ export function PriceChart({
         timeFormatter: time.timeFormatter,
       },
     };
-  }, [isDark, market, interval, i18n.language]);
+  }, [colors, market, interval, i18n.language]);
+
+  const candleOptions = useMemo<CandlestickSeriesPartialOptions>(
+    () => ({
+      upColor: direction.rise.solid,
+      downColor: direction.fall.solid,
+      wickUpColor: direction.rise.solid,
+      wickDownColor: direction.fall.solid,
+      borderVisible: false,
+    }),
+    [direction]
+  );
 
   const times = useMemo(
     () => candles.map((candle) => utcTimestamp(candle.time)),
@@ -186,7 +181,7 @@ export function PriceChart({
       <Series
         definition={CandlestickSeries}
         data={bars.candles}
-        options={CANDLE_OPTIONS[market]}
+        options={candleOptions}
         paneStretch={PRICE_PANE_STRETCH}
       />
       {movingAverages.map((average) => (

@@ -279,6 +279,13 @@
       "light": "Light",
       "dark": "Dark"
     },
+    "price-colors": "Price colors",
+    "price-colors-description": "By market follows each market's own convention: red for a rise in Taiwan, green in the US.",
+    "price-colors-options": {
+      "market": "By market",
+      "red-up": "Red up, green down",
+      "green-up": "Green up, red down"
+    },
     "market-data": {
       "title": "Market data",
       "source-title": "Taiwan market data",

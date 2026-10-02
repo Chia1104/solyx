@@ -5,7 +5,7 @@ import { accountChannels } from "#shared/ipc/account.ts";
 import { agentChannels, agentEvents } from "#shared/ipc/agent.ts";
 import { marketChannels, marketEvents } from "#shared/ipc/market.ts";
 import { proposalsChannels } from "#shared/ipc/proposals.ts";
-import { settingsChannels } from "#shared/ipc/settings.ts";
+import { settingsChannels, settingsEvents } from "#shared/ipc/settings.ts";
 import type { SolyxApi } from "#shared/ipc/solyx-api.ts";
 import { watchlistChannels } from "#shared/ipc/watchlist.ts";
 
@@ -75,8 +75,10 @@ const api: SolyxApi = {
     dismiss: (id) => invoke(proposalsChannels.dismiss, id),
   },
   settings: {
-    theme: () => invoke(settingsChannels.theme),
+    appearance: () => invoke(settingsChannels.appearance),
     setTheme: (theme) => invoke(settingsChannels.setTheme, theme),
+    setPriceColors: (priceColors) =>
+      invoke(settingsChannels.setPriceColors, priceColors),
     secrets: () => invoke(settingsChannels.secrets),
     saveSecret: (secret, value) =>
       invoke(settingsChannels.saveSecret, secret, value),
@@ -117,6 +119,8 @@ const api: SolyxApi = {
     clearCache: () => invoke(settingsChannels.clearCache),
     about: () => invoke(settingsChannels.about),
     reveal: (location) => invoke(settingsChannels.reveal, location),
+    onAppearance: (listener) =>
+      subscribe(settingsEvents.onAppearance, listener),
   },
   watchlist: {
     list: () => invoke(watchlistChannels.list),

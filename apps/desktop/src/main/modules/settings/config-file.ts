@@ -21,8 +21,10 @@ import { watchFile } from "@solyx/utils/server";
 
 import {
   MarketDataSource,
+  PriceColors,
   Theme,
   marketDataSourceSchema,
+  priceColorsSchema,
   themeSchema,
 } from "#shared/ipc/settings.ts";
 import type { FubonFile } from "#shared/ipc/settings.ts";
@@ -41,7 +43,12 @@ function section<T extends z.ZodType>(schema: T) {
 // in force. Loose objects keep keys this build does not know, so saving never drops someone's edits.
 const configSchema = section(
   z.looseObject({
-    theme: themeSchema.catch(Theme.System),
+    appearance: section(
+      z.looseObject({
+        theme: themeSchema.catch(Theme.System),
+        priceColors: priceColorsSchema.catch(PriceColors.Market),
+      })
+    ),
     marketData: section(
       z.looseObject({
         TW: marketDataSourceSchema.catch(MarketDataSource.Fugle),
@@ -78,7 +85,7 @@ const DEFAULTS: Config = configSchema.parse({});
 
 /** The values the app edits; the file may hold others a person added. */
 type ConfigPath =
-  | ["theme"]
+  | ["appearance", "theme" | "priceColors"]
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle", "plan"]
   | ["providers", "fubon", FubonFile]
@@ -97,8 +104,12 @@ const quoted = (values: Record<string, string>) =>
 const TEMPLATE = [
   "// Settings Solyx reads. Edit them here or on the settings page; saving this file applies them.",
   "{",
-  `  // Light or dark, or follow the computer: ${quoted(Theme)}.`,
-  `  "theme": "${DEFAULTS.theme}",`,
+  '  "appearance": {',
+  `    // Light or dark, or follow the computer: ${quoted(Theme)}.`,
+  `    "theme": "${DEFAULTS.appearance.theme}",`,
+  `    // Which colour marks a rise: ${quoted(PriceColors)}; "market" is red in Taiwan and green in the US.`,
+  `    "priceColors": "${DEFAULTS.appearance.priceColors}"`,
+  "  },",
   '  "marketData": {',
   `    // Where Taiwan charts come from: ${quoted(MarketDataSource)}.`,
   `    "TW": "${DEFAULTS.marketData.TW}"`,

@@ -12,7 +12,7 @@ import {
 } from "@solyx/agent/providers";
 import { FuglePlan } from "@solyx/market-data/fugle";
 
-import { MarketDataSource, Theme } from "#shared/ipc/settings.ts";
+import { MarketDataSource, PriceColors, Theme } from "#shared/ipc/settings.ts";
 
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
 
@@ -35,7 +35,7 @@ test("a missing file reads as the defaults, which a new file's commented templat
   const defaults = config.read();
 
   expect(defaults).toEqual({
-    theme: Theme.System,
+    appearance: { theme: Theme.System, priceColors: PriceColors.Market },
     marketData: { TW: MarketDataSource.Fugle },
     providers: { fugle: { plan: FuglePlan.Basic }, fubon: {} },
     agent: {
@@ -73,7 +73,7 @@ test("saving a plan edits it in place, keeping comments and other keys", async (
     [
       "// my notes",
       "{",
-      '  "theme": "dark", // kept',
+      '  "appearance": { "theme": "dark" }, // kept',
       '  "providers": {',
       '    "fugle": { "plan": "developer", "region": "tw" },',
       "  },",
@@ -91,7 +91,7 @@ test("saving a plan edits it in place, keeping comments and other keys", async (
   expect(fuglePlan(config)).toBe("advanced");
   expect(config.read().providers.fubon.sdk).toBe("/sdk/package");
   expect(text).toContain("// my notes");
-  expect(text).toContain('"theme": "dark", // kept');
+  expect(text).toContain('"appearance": { "theme": "dark" }, // kept');
   expect(text).toContain('"region": "tw"');
 });
 
@@ -102,14 +102,14 @@ test("an update saves every entry and keeps the file's comments", async () => {
   config.update([
     [["agent", "mcpTools", "github/create_issue"], "off"],
     [["agent", "mcpTools", "github/get_issue"], "auto"],
-    [["theme"], "dark"],
+    [["appearance", "theme"], "dark"],
   ]);
 
   expect(config.read().agent.mcpTools).toEqual({
     "github/create_issue": "off",
     "github/get_issue": "auto",
   });
-  expect(config.read().theme).toBe("dark");
+  expect(config.read().appearance.theme).toBe("dark");
   expect(await readFile(file, "utf8")).toMatch(/^\/\/ /);
 });
 
@@ -175,22 +175,32 @@ test("an entry of the wrong shape reads as its default and leaves the rest in fo
   });
 });
 
-test("the theme follows the computer until one the app knows is saved", async () => {
+test("the appearance follows the computer and each market until values the app knows are saved", async () => {
   const config = createConfigFile(file);
 
   config.create();
 
-  expect(config.read().theme).toBe("system");
+  expect(config.read().appearance).toEqual({
+    theme: Theme.System,
+    priceColors: PriceColors.Market,
+  });
 
   await writeFile(
     file,
-    '{ "theme": "sepia", "marketData": { "TW": "fubon" } }'
+    '{ "appearance": { "theme": "sepia", "priceColors": "blue-up" }, "marketData": { "TW": "fubon" } }'
   );
 
-  expect(config.read().theme).toBe("system");
+  expect(config.read().appearance).toEqual({
+    theme: Theme.System,
+    priceColors: PriceColors.Market,
+  });
 
-  config.set(["theme"], "dark");
+  config.set(["appearance", "theme"], "dark");
+  config.set(["appearance", "priceColors"], "red-up");
 
-  expect(config.read().theme).toBe("dark");
+  expect(config.read().appearance).toEqual({
+    theme: Theme.Dark,
+    priceColors: PriceColors.RedUp,
+  });
   expect(config.read().marketData.TW).toBe("fubon");
 });

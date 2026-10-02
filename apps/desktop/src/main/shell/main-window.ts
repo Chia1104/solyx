@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { BrowserWindow, nativeTheme, shell } from "electron";
 
+import { ColorScheme, PALETTE } from "#shared/palette.ts";
+
 import { PRODUCT_NAME } from "../product.ts";
 
 // Main is bundled into dist/main, next to dist/preload and dist/renderer.
@@ -13,15 +15,12 @@ const rendererUrl = process.env.SOLYX_RENDERER_URL;
 /** The renderer's title bar height; it lays itself out around the controls through `env(titlebar-area-*)`. */
 const TITLE_BAR_HEIGHT = 44;
 
-// Mirrors --background and --foreground in the renderer's styles.css: the window shows the
-// background until the page paints, and Windows and Linux draw their window controls in both.
-const PALETTE = {
-  light: { background: "#f3f5f8", foreground: "#23272f" },
-  dark: { background: "#0f141c", foreground: "#e4e8ef" },
-};
-
+// The window shows the background until the page paints, and Windows and Linux draw their
+// window controls in the background and foreground.
 function currentPalette() {
-  return nativeTheme.shouldUseDarkColors ? PALETTE.dark : PALETTE.light;
+  return PALETTE[
+    nativeTheme.shouldUseDarkColors ? ColorScheme.Dark : ColorScheme.Light
+  ];
 }
 
 function titleBarOverlay() {
