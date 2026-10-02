@@ -146,6 +146,14 @@ export function CopyIcon({ className }: { className?: string }) {
   );
 }
 
+export function TrashIcon({ className }: { className?: string }) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M2.5 4.5h11M6.5 4.5V3a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v1.5M4 4.5l.6 8.1a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9L12 4.5" />
+    </StrokeIcon>
+  );
+}
+
 export function PencilIcon({ className }: { className?: string }) {
   return (
     <StrokeIcon className={className}>

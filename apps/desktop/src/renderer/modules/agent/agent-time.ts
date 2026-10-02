@@ -12,12 +12,8 @@ const timeFormats = memoize((locale: string) => ({
   }),
 }));
 
-/** The time of day for today's messages, the date and time for older ones. */
-export function formatMessageTime(
-  at: number,
-  locale: string,
-  now = new Date()
-): string {
+/** The time of day for a moment today, the date and time for an earlier one. */
+export function formatTime(at: number, locale: string, now = new Date()) {
   const date = new Date(at);
   const formats = timeFormats(locale);
 
@@ -26,6 +22,6 @@ export function formatMessageTime(
     : formats.dateTime.format(date);
 }
 
-export function formatMessageTimeFull(at: number, locale: string): string {
+export function formatFullTime(at: number, locale: string): string {
   return timeFormats(locale).full.format(at);
 }

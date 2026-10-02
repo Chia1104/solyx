@@ -10,7 +10,7 @@ import { CheckIcon } from "../../components/icons.tsx";
 import { ActivityMark } from "./agent-activity.tsx";
 import { AgentMarkdown } from "./agent-markdown.tsx";
 import { CopyAction, EditAction } from "./agent-message-actions.tsx";
-import { formatMessageTime, formatMessageTimeFull } from "./agent-time.ts";
+import { formatTime, formatFullTime } from "./agent-time.ts";
 
 /** When a message was sent, and its actions, which show while the pointer or focus is on it. */
 function MessageMeta({
@@ -36,9 +36,9 @@ function MessageMeta({
       {at === undefined ? null : (
         <time
           dateTime={new Date(at).toISOString()}
-          title={formatMessageTimeFull(at, i18n.language)}
+          title={formatFullTime(at, i18n.language)}
           className="tabular-nums">
-          {formatMessageTime(at, i18n.language)}
+          {formatTime(at, i18n.language)}
         </time>
       )}
       <span className="flex items-center opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">
