@@ -22,12 +22,15 @@ export function SymbolPage() {
           <WatchToggle symbol={symbol} />
         </div>
       </ColumnHeader>
-      <div className="flex flex-wrap items-center gap-3 border-b border-separator px-6 py-2">
-        <IntervalSelect
-          value={interval}
-          onChange={(next) => void navigate({ search: { interval: next } })}
-        />
-        <IndicatorToggles />
+      {/* A 40px row over its rule, like the agent pane's tabs, so the rules line up across columns. */}
+      <div className="shrink-0 border-b border-separator">
+        <div className="flex min-h-10 flex-wrap items-center gap-3 px-6 py-1.5">
+          <IntervalSelect
+            value={interval}
+            onChange={(next) => void navigate({ search: { interval: next } })}
+          />
+          <IndicatorToggles />
+        </div>
       </div>
       <div className="min-h-0 flex-1 p-3">
         <SymbolChart symbol={symbol} interval={interval} />
