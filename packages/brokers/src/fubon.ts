@@ -147,14 +147,11 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
   };
 }
 
-export interface FubonBroker extends BrokerAdapter {
-  connect(): void;
-  disconnect(): void;
-}
-
-export function createFubonBroker(options: FubonSessionOptions): FubonBroker {
-  let session: FubonSession | undefined;
-
+/**
+ * Never signs in itself: the SDK runs only in a process of its own, and market data and trading
+ * share one sign-in, since repeated sign-ins could lock the account.
+ */
+export function createFubonBroker(): BrokerAdapter {
   // Trading calls stay unimplemented until they are verified against Fubon's test environment.
   const notVerified = (what: string) =>
     new Error(
@@ -165,15 +162,6 @@ export function createFubonBroker(options: FubonSessionOptions): FubonBroker {
     id: "fubon",
     mode: BrokerMode.Live,
     markets: [Market.TW],
-
-    connect() {
-      session = openFubonSession(options);
-    },
-
-    disconnect() {
-      session?.close();
-      session = undefined;
-    },
 
     async getAccount() {
       throw notVerified("account queries");
