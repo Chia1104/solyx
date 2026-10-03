@@ -5,7 +5,12 @@ import type { SymbolRef } from "@solyx/core/market";
 import type { NewsRecord, NewsStore } from "@solyx/core/news";
 
 import { connect } from "./connection.ts";
-import { listingNews, newsItems } from "./news-schema.ts";
+import {
+  listingNews,
+  newsCollections,
+  newsItems,
+  newsSourceHealth,
+} from "./news-schema.ts";
 
 type ItemRow = typeof newsItems.$inferSelect;
 
@@ -125,6 +130,83 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
         .orderBy(desc(listedAt))
         .all()
         .map((row) => toRecord(row.news_items, row.listing_news)),
+
+    lastCollected(symbol) {
+      const row = db
+        .select({ collectedAt: newsCollections.collectedAt })
+        .from(newsCollections)
+        .where(
+          and(
+            eq(newsCollections.market, symbol.market),
+            eq(newsCollections.symbol, symbol.symbol)
+          )
+        )
+        .get();
+
+      return row ? new Date(row.collectedAt) : null;
+    },
+
+    markCollected(symbol, at) {
+      db.insert(newsCollections)
+        .values({
+          market: symbol.market,
+          symbol: symbol.symbol,
+          collectedAt: at.getTime(),
+        })
+        .onConflictDoUpdate({
+          target: [newsCollections.market, newsCollections.symbol],
+          set: { collectedAt: at.getTime() },
+        })
+        .run();
+    },
+
+    markSearched(source, at, error) {
+      const time = at.getTime();
+
+      if (error === null) {
+        db.insert(newsSourceHealth)
+          .values({ source, lastSuccessAt: time, failureStreak: 0 })
+          .onConflictDoUpdate({
+            target: newsSourceHealth.source,
+            set: { lastSuccessAt: time, failureStreak: 0 },
+          })
+          .run();
+
+        return;
+      }
+
+      db.insert(newsSourceHealth)
+        .values({
+          source,
+          lastFailureAt: time,
+          failureStreak: 1,
+          lastError: error,
+        })
+        .onConflictDoUpdate({
+          target: newsSourceHealth.source,
+          set: {
+            lastFailureAt: time,
+            failureStreak: sql`${newsSourceHealth.failureStreak} + 1`,
+            lastError: error,
+          },
+        })
+        .run();
+    },
+
+    sourceHealth: () =>
+      db
+        .select()
+        .from(newsSourceHealth)
+        .all()
+        .map((row) => ({
+          source: row.source,
+          lastSuccessAt:
+            row.lastSuccessAt === null ? null : new Date(row.lastSuccessAt),
+          lastFailureAt:
+            row.lastFailureAt === null ? null : new Date(row.lastFailureAt),
+          failureStreak: row.failureStreak,
+          lastError: row.lastError,
+        })),
   };
 }
 

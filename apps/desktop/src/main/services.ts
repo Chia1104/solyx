@@ -14,6 +14,7 @@ import { openCache } from "@solyx/db/cache";
 import { openNews } from "@solyx/db/news";
 import { openUserData } from "@solyx/db/user";
 
+import { newsEvents } from "#shared/ipc/news.ts";
 import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
 import { ColorScheme, resolvePalette } from "#shared/palette.ts";
 
@@ -24,6 +25,7 @@ import { createDecisions } from "./modules/decisions/decisions.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createLiveCandles } from "./modules/market/live-candles.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
+import { createNewsCollector } from "./modules/news/news-collector.ts";
 import { createNews } from "./modules/news/news.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
 import { createCredentialStore } from "./modules/settings/credential-store.ts";
@@ -116,12 +118,19 @@ export function createServices() {
 
   const decisions = createDecisions({ config, secrets });
 
-  const news = createNews({ secrets });
-
-  const newsData = openNews(
-    join(userDataDir, "news.sqlite"),
-    join(import.meta.dirname, "migrations", "news")
-  );
+  const news = createNews({
+    secrets,
+    store: openNews(
+      join(userDataDir, "news.sqlite"),
+      join(import.meta.dirname, "migrations", "news")
+    ).store,
+    // Every window's chart may show the listing.
+    onChange(symbol) {
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send(newsEvents.onChanged, symbol);
+      }
+    },
+  });
 
   const agent = createAgentService({
     config,
@@ -139,10 +148,19 @@ export function createServices() {
     marketData: (market) => marketData.provider(market),
     watchlist: () => userData.watchlist.list(),
     newsSources: () => news.sources(),
-    newsStore: newsData.store,
+    newsStore: news.store,
     scorer: () => decisions.scorer(),
     broker,
     desk,
+  });
+
+  const newsCollector = createNewsCollector({
+    sources: () => news.sources(),
+    store: news.store,
+    scorer: () => decisions.scorer(),
+    marketData: (market) => marketData.provider(market),
+    watchlist: () => userData.watchlist.list(),
+    collectEveryHours: () => config.read().news.collectEveryHours,
   });
 
   let appliedStreamSettings = marketData.streamSettings();
@@ -221,6 +239,8 @@ export function createServices() {
     agent,
     mcp,
     decisions,
+    news,
+    newsCollector,
   };
 }
 

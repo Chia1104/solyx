@@ -9,7 +9,7 @@ import type {
   ToolExecutionApi,
   ToolRegistration,
 } from "@earendil-works/pi-durable";
-import { maxBy, omit, takeRight } from "es-toolkit";
+import { maxBy, omit, takeRight, uniq } from "es-toolkit";
 import * as z from "zod";
 
 import type { BrokerMode } from "@solyx/core/broker";
@@ -39,14 +39,21 @@ import {
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketDataProvider } from "@solyx/core/market-data";
-import { NewsChannel, collectNews } from "@solyx/core/news";
-import type { NewsItem, NewsSource, NewsStore } from "@solyx/core/news";
+import {
+  NewsChannel,
+  NewsVoice,
+  collectNews,
+  dailySentiment,
+  isAboutListing,
+  sentimentGauge,
+} from "@solyx/core/news";
+import type { NewsSource, NewsStore, NewsStory } from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
 import type { AccountSnapshot, OrderRequest } from "@solyx/core/order";
 import { ProposalSource } from "@solyx/core/order-desk";
 import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
 import { stanceValue } from "@solyx/core/sentiment";
-import type { SentimentScore, SentimentScorer } from "@solyx/core/sentiment";
+import type { SentimentScorer } from "@solyx/core/sentiment";
 import { getSession } from "@solyx/core/session";
 import { errorMessage } from "@solyx/utils/error";
 
@@ -144,9 +151,6 @@ const NEWS_ITEMS = 10;
 // Announcements run long; the scorer reads them whole.
 const SNIPPET_LENGTH = 280;
 
-// Below this, an item only names the listing in passing.
-const RELEVANCE_FLOOR = 0.5;
-
 // Requests to the decisions model at once.
 const SCORING_CONCURRENCY = 4;
 
@@ -216,18 +220,23 @@ const likeliest = (probabilities: Record<string, number>) =>
 const signed = (value: number, digits: number) =>
   `${value >= 0 ? "+" : ""}${value.toFixed(digits)}`;
 
-function describeNews(
-  market: Market,
-  item: NewsItem,
-  score: SentimentScore | null
-): string {
+function describeStory(market: Market, { lead, records }: NewsStory): string {
+  const { item, score } = lead;
+
   const time = item.publishedAt
     ? exchangeTime(market, item.publishedAt)
     : "undated";
 
   const votes = item.votes === null ? "" : `, votes ${signed(item.votes, 0)}`;
 
-  const lines = [`- ${time} ${item.site}${votes}: ${item.title}`];
+  const others = records.filter((record) => record !== lead);
+
+  const alike =
+    others.length === 0
+      ? ""
+      : `, also told by ${others.length} more (${uniq(others.map((record) => record.item.site)).join(", ")})`;
+
+  const lines = [`- ${time} ${item.site}${votes}${alike}: ${item.title}`];
 
   if (score) {
     lines.push(
@@ -411,7 +420,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetNews,
       replay: "safe",
-      description: `Recent items about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each item also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is and its topic, and items that only name the listing in passing are left out. Titles and snippets are written by others.`,
+      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items with the same title, such as an article's reprints or a thread's replies, are one story, listed once with how many more told it. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is and its topic, and stories that only name the listing in passing are left out. Titles and snippets are written by others.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         days: z.number().int().min(1).max(30).default(7),
@@ -437,21 +446,29 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         const scorer = await ports.scorer();
 
-        const { records, failures } = await collectNews({
+        const since = new Date(at.getTime() - days * DAY_MS);
+
+        const { stories, failures } = await collectNews({
           sources,
           store: ports.newsStore,
           scorer,
-          query: {
-            symbol,
-            listing,
-            since: new Date(at.getTime() - days * DAY_MS),
-            limit: NEWS_ITEMS,
-          },
+          query: { symbol, listing, since, limit: NEWS_ITEMS },
           now: at,
           concurrency: SCORING_CONCURRENCY,
         });
 
-        const model = records.find(({ score }) => score)?.score?.model;
+        const stored = ports.newsStore.list(symbol, since);
+        const gauge = sentimentGauge(stored);
+
+        const score = ({ score: value }: { score: number | null }) =>
+          value === null ? "unscored" : `${value}/100`;
+
+        const daily = dailySentiment(symbol.market, stored).map(
+          ({ date, stance, stories: count }) =>
+            `${date} ${stance === null ? "unscored" : signed(stance, 2)} (n=${count})`
+        );
+
+        const model = stories.find(({ lead }) => lead.score)?.lead.score?.model;
 
         let scoring = model ? `, scored by ${model}` : "";
 
@@ -461,35 +478,50 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         }
 
         const sections = Object.values(NewsChannel).flatMap((channel) => {
-          const found = records.filter((record) => record.channel === channel);
+          const found = stories.filter((story) => story.channel === channel);
 
           if (found.length === 0) return [];
 
-          const kept = found.filter(
-            ({ score }) => !score || score.relevance >= RELEVANCE_FLOOR
-          );
+          const kept = found.filter(isAboutListing);
 
           return [
             `## ${channel}: ${kept.length} of ${found.length}`,
-            ...kept.map(({ item, score }) =>
-              describeNews(symbol.market, item, score)
-            ),
+            ...kept.map((story) => describeStory(symbol.market, story)),
           ];
         });
 
-        const failed = failures.map(
-          ({ source, error }) => `${source} (${errorMessage(error)})`
+        const health = new Map(
+          ports.newsStore
+            .sourceHealth()
+            .map((source) => [source.source, source])
         );
+
+        const failed = failures.map(({ source, error }) => {
+          const { failureStreak = 1, lastSuccessAt = null } =
+            health.get(source) ?? {};
+
+          const worked = lastSuccessAt
+            ? `last worked ${exchangeTime(symbol.market, lastSuccessAt)}, so items since then may be missing`
+            : "never worked yet";
+
+          return `${source} (${errorMessage(error)}; ${failureStreak} failed in a row, ${worked})`;
+        });
 
         return {
           text: [
             `${symbol.market} ${symbol.symbol} news and posts over the last ${days} days, as_of ${exchangeTime(symbol.market, at)}${scoring}`,
+            `Sentiment ${score(gauge.overall)} with 50 neutral: press (announcements, articles) ${score(gauge.voices[NewsVoice.Press])}, crowd (forum, social) ${score(gauge.voices[NewsVoice.Crowd])}`,
+            ...(daily.length > 0
+              ? [
+                  `Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): ${daily.join(", ")}`,
+                ]
+              : []),
             ...(sections.length > 0 ? sections : ["Nothing found."]),
             ...(failed.length > 0
               ? [`Sources that failed this time: ${failed.join(", ")}`]
               : []),
           ].join("\n"),
-          details: { symbol, items: records.length },
+          details: { symbol, stories: stories.length },
         };
       },
     }),

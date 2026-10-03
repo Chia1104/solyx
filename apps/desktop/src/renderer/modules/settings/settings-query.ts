@@ -15,6 +15,7 @@ export const settingsQueryKeys = {
   secrets: [...all, "secrets"] as const,
   marketData: [...all, "market-data"] as const,
   agent: [...all, "agent"] as const,
+  news: [...all, "news"] as const,
   decisions: [...all, "decisions"] as const,
   agentSkills: [...all, "agent-skills"] as const,
   mcp: [...all, "mcp"] as const,
@@ -68,6 +69,14 @@ export const agentSettingsQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.agent,
     queryFn: () => window.solyx.settings.agent(),
+    staleTime: 0,
+  });
+
+/** Always stale, since the settings can also change by hand in the config file. */
+export const newsSettingsQuery = () =>
+  queryOptions({
+    queryKey: settingsQueryKeys.news,
+    queryFn: () => window.solyx.settings.news(),
     staleTime: 0,
   });
 

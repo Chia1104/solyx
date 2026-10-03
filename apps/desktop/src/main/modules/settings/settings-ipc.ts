@@ -31,6 +31,7 @@ import {
   localeSchema,
   marketDataSourceSchema,
   mcpSecretKey,
+  newsIntervalSchema,
   priceColorsSchema,
   settingsChannels,
   themeSchema,
@@ -94,6 +95,8 @@ const handle = ipcModule<SettingsApi>(settingsChannels, {
   signInSubscription: z.tuple([localeSchema]),
   cancelSignIn: z.tuple([]),
   signOutSubscription: z.tuple([]),
+  news: z.tuple([]),
+  setNewsCollectEveryHours: z.tuple([newsIntervalSchema]),
   decisions: z.tuple([]),
   setDecisionsModel: z.tuple([z.string().trim().min(1).max(200).nullable()]),
   setDecisionsBaseURL: z.tuple([endpointSchema.nullable()]),
@@ -320,6 +323,14 @@ export function registerSettingsIpc({
   handle("cancelSignIn", async () => agent.models.cancelSignIn());
 
   handle("signOutSubscription", () => agent.models.signOut());
+
+  handle("news", async () => ({
+    collectEveryHours: config.read().news.collectEveryHours,
+  }));
+
+  handle("setNewsCollectEveryHours", async (hours) => {
+    config.set(["news", "collectEveryHours"], hours);
+  });
 
   handle("decisions", async () => decisions.settings());
 

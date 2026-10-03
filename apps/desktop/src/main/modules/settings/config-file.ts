@@ -31,9 +31,11 @@ import { watchFile } from "@solyx/utils/server";
 
 import {
   MarketDataSource,
+  NEWS_COLLECTION_DEFAULT_HOURS,
   PriceColors,
   Theme,
   marketDataSourceSchema,
+  newsIntervalSchema,
   priceColorsSchema,
   themeSchema,
 } from "#shared/ipc/settings.ts";
@@ -119,6 +121,13 @@ const configSchema = section(
         mcpTools: z.record(z.string(), z.string()).catch({}),
       })
     ),
+    news: section(
+      z.looseObject({
+        collectEveryHours: newsIntervalSchema.catch(
+          NEWS_COLLECTION_DEFAULT_HOURS
+        ),
+      })
+    ),
     // Missing entries read as the decisions model's defaults where they are read.
     decisions: section(
       z.looseObject({
@@ -145,10 +154,11 @@ type ConfigPath =
   | ["providers", "fubon", FubonFile]
   | ["agent", "provider" | "model" | "thinking" | "auth" | "sharedSkills"]
   | ["agent", "mcpTools", string]
+  | ["news", "collectEveryHours"]
   | ["decisions", "model" | "baseURL"];
 
 /** `undefined` removes the entry. */
-type ConfigValue = string | string[] | CustomPalette | undefined;
+type ConfigValue = string | number | string[] | CustomPalette | undefined;
 
 export type ConfigEntry = readonly [path: ConfigPath, value: ConfigValue];
 
@@ -194,6 +204,11 @@ const TEMPLATE = [
   `    "auth": "${DEFAULTS.agent.auth}",`,
   "    // Skills from ~/.agents/skills the agent may read, by name. The skills folder beside this file is always read.",
   '    "sharedSkills": []',
+  "  },",
+  '  "news": {',
+  "    // How often news is collected for each watched listing, in hours; 0 turns automatic collection off.",
+  "    // Each collection uses Firecrawl credits once its key is saved, and exchange announcements only reach back a day.",
+  `    "collectEveryHours": ${DEFAULTS.news.collectEveryHours}`,
   "  },",
   '  "decisions": {',
   "    // The decisions model that scores news and posts, on the key saved in the app; TypeSafe's models, such as Jev.",

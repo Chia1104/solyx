@@ -4,6 +4,7 @@ import type { IpcRendererEvent } from "electron";
 import { accountChannels } from "#shared/ipc/account.ts";
 import { agentChannels, agentEvents } from "#shared/ipc/agent.ts";
 import { marketChannels, marketEvents } from "#shared/ipc/market.ts";
+import { newsChannels, newsEvents } from "#shared/ipc/news.ts";
 import { proposalsChannels } from "#shared/ipc/proposals.ts";
 import { settingsChannels, settingsEvents } from "#shared/ipc/settings.ts";
 import type { SolyxApi } from "#shared/ipc/solyx-api.ts";
@@ -67,6 +68,11 @@ const api: SolyxApi = {
     onLiveCandles: (listener) =>
       subscribe(marketEvents.onLiveCandles, listener),
   },
+  news: {
+    records: (symbol, days) => invoke(newsChannels.records, symbol, days),
+    coverage: (symbol) => invoke(newsChannels.coverage, symbol),
+    onChanged: (listener) => subscribe(newsEvents.onChanged, listener),
+  },
   proposals: {
     list: () => invoke(proposalsChannels.list),
     propose: (order, rationale) =>
@@ -109,6 +115,9 @@ const api: SolyxApi = {
       invoke(settingsChannels.signInSubscription, locale),
     cancelSignIn: () => invoke(settingsChannels.cancelSignIn),
     signOutSubscription: () => invoke(settingsChannels.signOutSubscription),
+    news: () => invoke(settingsChannels.news),
+    setNewsCollectEveryHours: (hours) =>
+      invoke(settingsChannels.setNewsCollectEveryHours, hours),
     decisions: () => invoke(settingsChannels.decisions),
     setDecisionsModel: (model) =>
       invoke(settingsChannels.setDecisionsModel, model),

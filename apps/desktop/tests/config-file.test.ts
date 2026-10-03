@@ -16,7 +16,12 @@ import {
 } from "@solyx/decisions/typesafe";
 import { FuglePlan } from "@solyx/market-data/fugle";
 
-import { MarketDataSource, PriceColors, Theme } from "#shared/ipc/settings.ts";
+import {
+  MarketDataSource,
+  NEWS_COLLECTION_DEFAULT_HOURS,
+  PriceColors,
+  Theme,
+} from "#shared/ipc/settings.ts";
 import { Palette } from "#shared/palette.ts";
 
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
@@ -55,6 +60,7 @@ test("a missing file reads as the defaults, which a new file's commented templat
       sharedSkills: [],
       mcpTools: {},
     },
+    news: { collectEveryHours: NEWS_COLLECTION_DEFAULT_HOURS },
     decisions: {},
   });
 

@@ -5,6 +5,8 @@ import { IndicatorToggles } from "../modules/market/indicator-toggles.tsx";
 import { IntervalSelect } from "../modules/market/interval-select.tsx";
 import { SymbolChart } from "../modules/market/symbol-chart.tsx";
 import { SymbolQuote } from "../modules/market/symbol-quote.tsx";
+import { NewsList } from "../modules/news/news-list.tsx";
+import { SentimentGauge } from "../modules/news/sentiment-gauge.tsx";
 import { WatchToggle } from "../modules/watchlist/watch-toggle.tsx";
 
 const route = getRouteApi("/symbol/$market/$symbol");
@@ -18,7 +20,8 @@ export function SymbolPage() {
     <div className="flex h-full min-h-0 flex-col">
       <ColumnHeader className="px-6">
         <SymbolQuote symbol={symbol} />
-        <div className="ml-auto shrink-0">
+        <div className="ml-auto flex shrink-0 items-center gap-4">
+          <SentimentGauge symbol={symbol} />
           <WatchToggle symbol={symbol} />
         </div>
       </ColumnHeader>
@@ -35,6 +38,7 @@ export function SymbolPage() {
       <div className="min-h-0 flex-1 p-3">
         <SymbolChart symbol={symbol} interval={interval} />
       </div>
+      <NewsList symbol={symbol} />
     </div>
   );
 }
