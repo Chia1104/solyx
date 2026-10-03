@@ -1,6 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
 import { Market } from "@solyx/core/market";
+import { TimePrecision } from "@solyx/core/news";
 
 import { createPtt } from "../src/ptt.ts";
 
@@ -68,7 +69,10 @@ test("finds board titles by the listing's name, with their time and net pushes",
       title: "[標的] 2330 台積電 多",
       snippet: "",
       site: "ptt.cc",
-      publishedAt: new Date(1_790_943_882_000),
+      published: {
+        at: new Date(1_790_943_882_000),
+        precision: TimePrecision.Minute,
+      },
       votes: 100,
     },
     {
@@ -77,7 +81,10 @@ test("finds board titles by the listing's name, with their time and net pushes",
       title: "[新聞] 台積電 & 德州",
       snippet: "",
       site: "ptt.cc",
-      publishedAt: new Date(1_790_933_335_000),
+      published: {
+        at: new Date(1_790_933_335_000),
+        precision: TimePrecision.Minute,
+      },
       votes: -20,
     },
     {
@@ -86,7 +93,10 @@ test("finds board titles by the listing's name, with their time and net pushes",
       title: "[請益] 台積電還能上車嗎",
       snippet: "",
       site: "ptt.cc",
-      publishedAt: new Date(1_790_900_000_000),
+      published: {
+        at: new Date(1_790_900_000_000),
+        precision: TimePrecision.Minute,
+      },
       votes: 0,
     },
   ]);

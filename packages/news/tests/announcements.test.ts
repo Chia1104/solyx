@@ -1,6 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
 import { Market } from "@solyx/core/market";
+import { TimePrecision } from "@solyx/core/news";
 
 import { createAnnouncements } from "../src/announcements.ts";
 
@@ -85,7 +86,10 @@ test("finds a listed company's announcements, newest first on Taipei's clock", a
       snippet: "1.標的物之名稱：機器設備\n2.交易數量：一批",
       site: "mops.twse.com.tw",
       // 14:30:05 in Taipei
-      publishedAt: new Date("2026-10-02T06:30:05Z"),
+      published: {
+        at: new Date("2026-10-02T06:30:05Z"),
+        precision: TimePrecision.Minute,
+      },
       votes: null,
     },
     {
@@ -95,7 +99,10 @@ test("finds a listed company's announcements, newest first on Taipei's clock", a
       snippet: "1.董事會決議日期：115/10/02",
       site: "mops.twse.com.tw",
       // 07:00:03 in Taipei
-      publishedAt: new Date("2026-10-01T23:00:03Z"),
+      published: {
+        at: new Date("2026-10-01T23:00:03Z"),
+        precision: TimePrecision.Minute,
+      },
       votes: null,
     },
   ]);

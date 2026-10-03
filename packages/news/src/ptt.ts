@@ -2,7 +2,7 @@ import { unescape } from "es-toolkit";
 import ky from "ky";
 
 import { Market } from "@solyx/core/market";
-import { NewsChannel } from "@solyx/core/news";
+import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { NewsItem, NewsQuery, NewsSource } from "@solyx/core/news";
 
 const PTT_URL = "https://www.ptt.cc";
@@ -70,7 +70,7 @@ export function createPtt(options: PttOptions = {}): NewsSource {
           title: unescape(link[3]).trim(),
           snippet: "",
           site: "ptt.cc",
-          publishedAt,
+          published: { at: publishedAt, precision: TimePrecision.Minute },
           votes: votes(VOTES_PATTERN.exec(entry)?.[1]),
         });
       }

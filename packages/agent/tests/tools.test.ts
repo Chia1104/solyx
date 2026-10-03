@@ -18,7 +18,7 @@ import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { InstrumentKind, Market } from "@solyx/core/market";
 import type { MarketDataProvider } from "@solyx/core/market-data";
-import { NewsChannel } from "@solyx/core/news";
+import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type {
   NewsItem,
   NewsRecord,
@@ -77,7 +77,7 @@ function memoryNewsStore(): NewsStore {
   let collected: Date | null = null;
 
   const listedAt = (record: NewsRecord) =>
-    (record.item.publishedAt ?? record.foundAt).getTime();
+    (record.item.published?.at ?? record.foundAt).getTime();
 
   return {
     save(_symbol, source, items, foundAt) {
@@ -216,10 +216,14 @@ function newsItem(title: string, hoursAgo: number | null): NewsItem {
     title,
     snippet: `${title} snippet`,
     site: "news.test",
-    publishedAt:
+    // Ages from a search engine, so only to about the hour.
+    published:
       hoursAgo === null
         ? null
-        : new Date(NOW.getTime() - hoursAgo * 60 * 60 * 1000),
+        : {
+            at: new Date(NOW.getTime() - hoursAgo * 60 * 60 * 1000),
+            precision: TimePrecision.Hour,
+          },
     votes: null,
   };
 }
@@ -499,11 +503,11 @@ test("news is scored once, newest first, without items that only name the listin
     "Sentiment 80/100 with 50 neutral: press (announcements, articles) 80/100, crowd (forum, social) unscored",
     "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-29 +0.60 (n=1), 2026-09-30 +0.60 (n=1)",
     "## article: 2 of 3",
-    "- 2026-09-30 05:00 news.test: 外資買超",
+    "- ~2026-09-30 05:00 news.test: 外資買超",
     "  stance +0.60, opinion, guidance",
     "  外資買超 snippet",
     `  ${newsItem("外資買超", 5).url}`,
-    "- 2026-09-29 04:00 news.test: 法說前瞻",
+    "- ~2026-09-29 04:00 news.test: 法說前瞻",
     "  stance +0.60, opinion, guidance",
     "  法說前瞻 snippet",
     `  ${newsItem("法說前瞻", 30).url}`,
@@ -523,18 +527,30 @@ test("without a decisions model, news is listed unscored", async () => {
   const { run, news, ports } = setup();
 
   ports.scorer.mockResolvedValue(undefined);
-  news.search.mockResolvedValue([newsItem("無日期", null)]);
+  news.search.mockResolvedValue([
+    newsItem("無日期", null),
+    {
+      ...newsItem("只知道日期", null),
+      published: {
+        at: new Date("2026-09-27T16:00:00Z"),
+        precision: TimePrecision.Day,
+      },
+    },
+  ]);
 
   const { text } = await run(AgentToolName.GetNews, { symbol: TSMC });
 
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",
     "Sentiment unscored with 50 neutral: press (announcements, articles) unscored, crowd (forum, social) unscored",
-    "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-30 unscored (n=1)",
-    "## article: 1 of 1",
+    "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-28 unscored (n=1), 2026-09-30 unscored (n=1)",
+    "## article: 2 of 2",
     "- undated news.test: 無日期",
     "  無日期 snippet",
     `  ${newsItem("無日期", null).url}`,
+    "- 2026-09-28 news.test: 只知道日期",
+    "  只知道日期 snippet",
+    `  ${newsItem("只知道日期", null).url}`,
   ]);
 });
 
@@ -562,7 +578,10 @@ test("channels get sections, a thread is one story, and a failed source leaves t
         title: "[新聞] 台積電擬赴美設第二園區",
         snippet: "",
         site: "ptt.cc",
-        publishedAt: new Date("2026-09-30T00:00:00Z"),
+        published: {
+          at: new Date("2026-09-30T00:00:00Z"),
+          precision: TimePrecision.Minute,
+        },
         votes: 61,
       },
       {
@@ -571,7 +590,10 @@ test("channels get sections, a thread is one story, and a failed source leaves t
         title: "Re: [新聞] 台積電擬赴美設第二園區",
         snippet: "",
         site: "ptt.cc",
-        publishedAt: new Date("2026-09-30T01:00:00Z"),
+        published: {
+          at: new Date("2026-09-30T01:00:00Z"),
+          precision: TimePrecision.Minute,
+        },
         votes: 3,
       },
     ]),

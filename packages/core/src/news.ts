@@ -22,6 +22,24 @@ export const NewsChannel = {
 
 export type NewsChannel = (typeof NewsChannel)[keyof typeof NewsChannel];
 
+/** How exactly a source tells when an item was published. */
+export const TimePrecision = {
+  /** To the minute, such as a filing's time or a post id's. */
+  Minute: "minute",
+  /** To about an hour, such as a search engine's "3 hours ago". */
+  Hour: "hour",
+  /** Only the day, such as "2 days ago" or a date without a time. */
+  Day: "day",
+} as const;
+
+export type TimePrecision = (typeof TimePrecision)[keyof typeof TimePrecision];
+
+export interface Published {
+  /** Exact only to its precision; a date given without a time is the start of that day on the exchange's calendar. */
+  at: Date;
+  precision: TimePrecision;
+}
+
 /** An announcement, article or post a news source found. */
 export interface NewsItem {
   /** Identifies it within its source, such as its address, so finding it again recognizes it. */
@@ -34,7 +52,7 @@ export interface NewsItem {
   /** The host it was published on, without `www.`. */
   site: string;
   /** `null` when the source gives no time it can be read from. */
-  publishedAt: Date | null;
+  published: Published | null;
   /** Net votes where the source counts them, such as PTT's pushes minus boos. */
   votes: number | null;
 }
@@ -82,8 +100,8 @@ export interface SourceHealth {
 /** Keeps what sources found per listing, so history outlives each source's window. */
 export interface NewsStore {
   /**
-   * Stores what a source found for a listing. An item stored before keeps its score and takes
-   * the latest title, snippet and votes.
+   * Stores what a source found for a listing. An item stored before keeps its score and the first
+   * publication time it was given, and takes the latest title, snippet and votes.
    */
   save(
     symbol: SymbolRef,
@@ -137,7 +155,7 @@ const STORY_GAP_MS = 3 * DAY_MS;
 
 /** Undated records count from when they were found. */
 const datedAt = (record: NewsRecord) =>
-  record.item.publishedAt ?? record.foundAt;
+  record.item.published?.at ?? record.foundAt;
 
 /** The title's letters and digits without reply prefixes; `null` when too short to compare. */
 function storyTitle(title: string): string | null {

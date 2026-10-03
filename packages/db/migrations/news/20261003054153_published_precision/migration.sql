@@ -1,0 +1,1 @@
+ALTER TABLE `news_items` ADD `published_precision` text;

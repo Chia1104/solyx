@@ -9,17 +9,41 @@ import { exchangeTime } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import {
   NewsChannel,
+  TimePrecision,
   isAboutListing,
   newsStories,
   storyScore,
 } from "@solyx/core/news";
-import type { NewsStory } from "@solyx/core/news";
+import type { NewsStory, Published } from "@solyx/core/news";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
 import { newsRecordsQuery, useNewsChanges } from "./news-query.ts";
 import { GaugeBar } from "./sentiment-gauge.tsx";
+
+/** A publication time no more exact than its source tells it, without the year. */
+function PublishedTime({
+  market,
+  published,
+}: {
+  market: Market;
+  published: Published | null;
+}) {
+  const { t } = useTranslation();
+
+  if (!published) return t("news.undated");
+
+  const time = exchangeTime(market, published.at).slice("YYYY-".length);
+
+  const shown: Record<TimePrecision, string> = {
+    [TimePrecision.Minute]: time,
+    [TimePrecision.Hour]: t("news.approximate", { time }),
+    [TimePrecision.Day]: time.slice(0, "MM-DD".length),
+  };
+
+  return shown[published.precision];
+}
 
 function StoryRow({ market, story }: { market: Market; story: NewsStory }) {
   const { t } = useTranslation();
@@ -30,10 +54,8 @@ function StoryRow({ market, story }: { market: Market; story: NewsStory }) {
 
   return (
     <li className="flex items-start gap-3 px-6 py-2">
-      <span className="w-20 shrink-0 pt-0.5 text-xs text-muted tabular-nums">
-        {item.publishedAt
-          ? exchangeTime(market, item.publishedAt).slice(5)
-          : t("news.undated")}
+      <span className="w-24 shrink-0 pt-0.5 text-xs text-muted tabular-nums">
+        <PublishedTime market={market} published={item.published} />
       </span>
       <span className="w-8 shrink-0 pt-0.5 text-xs text-muted">
         {t(`news.channels.${story.channel}`)}

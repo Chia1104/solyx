@@ -3,7 +3,7 @@ import ky from "ky";
 import * as z from "zod";
 
 import { Market, exchangeMidnight } from "@solyx/core/market";
-import { NewsChannel } from "@solyx/core/news";
+import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { NewsQuery, NewsSource } from "@solyx/core/news";
 
 // Each lists the previous day's material information, for listed and OTC companies.
@@ -105,14 +105,17 @@ export function createAnnouncements(
           title: row.主旨.replace(/\s+/g, " ").trim(),
           snippet: row.說明.replace(/\r\n/g, "\n").trim(),
           site: "mops.twse.com.tw",
-          publishedAt: announcedAt(row.發言日期, row.發言時間),
+          published: {
+            at: announcedAt(row.發言日期, row.發言時間),
+            precision: TimePrecision.Minute,
+          },
           votes: null,
         }))
-        .filter((item) => item.publishedAt >= since);
+        .filter((item) => item.published.at >= since);
 
       return orderBy(
         items,
-        [(item) => item.publishedAt.getTime()],
+        [(item) => item.published.at.getTime()],
         ["desc"]
       ).slice(0, limit);
     },

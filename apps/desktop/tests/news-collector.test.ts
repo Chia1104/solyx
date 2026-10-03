@@ -7,7 +7,7 @@ import { noop } from "es-toolkit";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { Market } from "@solyx/core/market";
-import { NewsChannel } from "@solyx/core/news";
+import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { NewsSource } from "@solyx/core/news";
 import { openNews } from "@solyx/db/news";
 import type { NewsData } from "@solyx/db/news";
@@ -102,7 +102,10 @@ test("a listing whose collection fails leaves the rest collected", async () => {
             title: "[新聞] 台積電",
             snippet: "",
             site: "ptt.cc",
-            publishedAt: new Date("2026-10-03T01:00:00Z"),
+            published: {
+              at: new Date("2026-10-03T01:00:00Z"),
+              precision: TimePrecision.Minute,
+            },
             votes: 3,
           },
         ]

@@ -2,6 +2,7 @@ import type { FirecrawlClientOptions } from "firecrawl";
 import { beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { Market } from "@solyx/core/market";
+import { TimePrecision } from "@solyx/core/news";
 
 import {
   createFirecrawlNews,
@@ -105,7 +106,10 @@ test("dates results by their age and drops malformed or repeated ones", async ()
       title: "台積電法說前外資唱大戲",
       snippet: "摩根大通看好台積電第三季營收",
       site: "ctee.com.tw",
-      publishedAt: new Date("2026-10-02T23:30:00Z"),
+      published: {
+        at: new Date("2026-10-02T23:30:00Z"),
+        precision: TimePrecision.Hour,
+      },
       votes: null,
     },
     {
@@ -114,7 +118,11 @@ test("dates results by their age and drops malformed or repeated ones", async ()
       title: "千金股解密",
       snippet: "",
       site: "stock.ltn.com.tw",
-      publishedAt: new Date(Date.parse("Sep 29, 2026")),
+      // The start of that day in Taipei, wherever this computer is.
+      published: {
+        at: new Date("2026-09-28T16:00:00Z"),
+        precision: TimePrecision.Day,
+      },
       votes: null,
     },
     {
@@ -123,9 +131,38 @@ test("dates results by their age and drops malformed or repeated ones", async ()
       title: "Undated",
       snippet: "kept",
       site: "udn.com",
-      publishedAt: null,
+      published: null,
       votes: null,
     },
+  ]);
+});
+
+test("ages are as exact as their unit, and dates name a day on the market's calendar", async () => {
+  firecrawl.search.mockResolvedValue({
+    news: [
+      { title: "Minutes", url: "https://news.test/1", date: "5 minutes ago" },
+      { title: "Days", url: "https://news.test/2", date: "2 days ago" },
+      { title: "Date", url: "https://news.test/3", date: "Sep 29, 2026" },
+    ],
+  });
+
+  const source = createFirecrawlNews({ apiKey: "test-key", now: () => NOW });
+
+  const items = await source.search({
+    symbol: { market: Market.US, symbol: "AAPL" },
+    listing: null,
+    since: new Date("2026-09-26T17:00:00Z"),
+    limit: 10,
+  });
+
+  expect(items.map((item) => item.published)).toEqual([
+    {
+      at: new Date("2026-10-03T05:25:00Z"),
+      precision: TimePrecision.Minute,
+    },
+    { at: new Date("2026-10-01T05:30:00Z"), precision: TimePrecision.Day },
+    // Midnight in New York, on daylight time.
+    { at: new Date("2026-09-29T04:00:00Z"), precision: TimePrecision.Day },
   ]);
 });
 
@@ -168,7 +205,10 @@ test("samples Threads posts in Taiwan, dated by the start of their description",
       title: "台積電第二個美國基地，可能要來了？",
       snippet: "台積電擬規劃啟動美國第二園區建廠作業",
       site: "threads.com",
-      publishedAt: new Date("2026-10-02T07:30:00Z"),
+      published: {
+        at: new Date("2026-10-02T07:30:00Z"),
+        precision: TimePrecision.Hour,
+      },
       votes: null,
     },
     {
@@ -177,7 +217,7 @@ test("samples Threads posts in Taiwan, dated by the start of their description",
       title: "台積電 · 盤整",
       snippet: "沒有日期 · 但有分隔符號",
       site: "threads.com",
-      publishedAt: null,
+      published: null,
       votes: null,
     },
   ]);
