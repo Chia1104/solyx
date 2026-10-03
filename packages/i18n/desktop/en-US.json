@@ -144,6 +144,7 @@
     "alike_one": "+{{count}} alike",
     "alike_other": "+{{count}} alike",
     "undated": "Undated",
+    "approximate": "~{{time}}",
     "empty": "Nothing collected in the last 7 days. News is collected at the interval set in Settings, or when you ask the agent."
   },
   "agent": {

@@ -9,7 +9,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 import type { Market } from "@solyx/core/market";
-import type { NewsChannel } from "@solyx/core/news";
+import type { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { Stance, TextKind, TextTopic } from "@solyx/core/sentiment";
 
 // drizzle-kit generates ../migrations/news from these tables.
@@ -30,6 +30,8 @@ export const newsItems = sqliteTable(
     /** Unix milliseconds; `null` when the source gives no time. */
     publishedAt: integer("published_at"),
     votes: integer(),
+    /** Set exactly when `publishedAt` is. */
+    publishedPrecision: text("published_precision").$type<TimePrecision>(),
   },
   (table) => [unique().on(table.source, table.key)]
 );

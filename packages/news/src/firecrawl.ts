@@ -2,9 +2,14 @@ import { compact, uniqBy } from "es-toolkit";
 import { Firecrawl } from "firecrawl";
 import * as z from "zod";
 
-import { Market, exchangeDate } from "@solyx/core/market";
-import { NewsChannel } from "@solyx/core/news";
-import type { NewsItem, NewsQuery, NewsSource } from "@solyx/core/news";
+import { Market, exchangeDate, exchangeMidnight } from "@solyx/core/market";
+import { NewsChannel, TimePrecision } from "@solyx/core/news";
+import type {
+  NewsItem,
+  NewsQuery,
+  NewsSource,
+  Published,
+} from "@solyx/core/news";
 
 /** Firecrawl's hosted API; passed so the SDK never reads `FIRECRAWL_API_URL`. */
 const FIRECRAWL_API_URL = "https://api.firecrawl.dev";
@@ -36,30 +41,51 @@ const webResultSchema = z.object({
 
 const AGE_PATTERN = /^(\d+)\s+(minute|hour|day|week)s?\s+ago$/i;
 
-const UNIT_MS = new Map([
-  ["minute", 60_000],
-  ["hour", 3_600_000],
-  ["day", 86_400_000],
-  ["week", 604_800_000],
+// An age is as exact as its unit; weeks are rare within the days a search covers.
+const AGE_UNITS = new Map([
+  ["minute", { ms: 60_000, precision: TimePrecision.Minute }],
+  ["hour", { ms: 3_600_000, precision: TimePrecision.Hour }],
+  ["day", { ms: 86_400_000, precision: TimePrecision.Day }],
+  ["week", { ms: 604_800_000, precision: TimePrecision.Day }],
 ]);
 
 // Google starts a dated web result's description with its date: `22 hours ago · …`.
 const DATED_DESCRIPTION = /^(.{1,40}?) · ([\s\S]*)$/;
 
-/** Reads Google's ages, such as `3 hours ago`, and dates such as `Sep 29, 2026`. */
-function publishedAt(date: string | undefined, now: Date): Date | null {
+/**
+ * Reads Google's ages, such as `3 hours ago`, and dates such as `Sep 29, 2026`, which name a day
+ * on the market's calendar.
+ */
+function published(
+  date: string | undefined,
+  market: Market,
+  now: Date
+): Published | null {
   if (date === undefined) return null;
 
   const age = AGE_PATTERN.exec(date.trim());
-  const unitMs = age ? UNIT_MS.get(age[2].toLowerCase()) : undefined;
+  const unit = age ? AGE_UNITS.get(age[2].toLowerCase()) : undefined;
 
-  if (age && unitMs !== undefined) {
-    return new Date(now.getTime() - Number(age[1]) * unitMs);
+  if (age && unit) {
+    return {
+      at: new Date(now.getTime() - Number(age[1]) * unit.ms),
+      precision: unit.precision,
+    };
   }
 
-  const parsed = Date.parse(date);
+  // Parsed on this computer's clock only to read which day it names.
+  const parsed = new Date(date);
 
-  return Number.isNaN(parsed) ? null : new Date(parsed);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const day = [parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate()]
+    .map((part) => String(part).padStart(2, "0"))
+    .join("-");
+
+  return {
+    at: new Date(exchangeMidnight(market, day) * 1000),
+    precision: TimePrecision.Day,
+  };
 }
 
 /** The exchange-local date as Google's date range reads it, `M/D/YYYY`. */
@@ -136,7 +162,7 @@ export function createFirecrawlNews(options: FirecrawlOptions): NewsSource {
             title,
             snippet,
             site: site(url),
-            publishedAt: publishedAt(date, at),
+            published: published(date, query.symbol.market, at),
             votes: null,
           },
         ];
@@ -180,7 +206,7 @@ export function createFirecrawlSocial(options: FirecrawlOptions): NewsSource {
 
         const { url, title, description } = parsed.data;
         const dated = DATED_DESCRIPTION.exec(description);
-        const date = dated ? publishedAt(dated[1], at) : null;
+        const date = dated ? published(dated[1], symbol.market, at) : null;
 
         return [
           {
@@ -189,7 +215,7 @@ export function createFirecrawlSocial(options: FirecrawlOptions): NewsSource {
             title,
             snippet: date && dated ? dated[2].trim() : description,
             site: site(url),
-            publishedAt: date,
+            published: date,
             votes: null,
           },
         ];
