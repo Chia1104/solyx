@@ -113,6 +113,39 @@
       "change": "與前一日收盤相比"
     }
   },
+  "news": {
+    "title": "新聞與討論",
+    "channels-label": "管道",
+    "channels": {
+      "announcement": "公告",
+      "article": "新聞",
+      "forum": "論壇",
+      "social": "社群"
+    },
+    "gauge": {
+      "overall": "情緒 {{score}}",
+      "voices": "新聞 {{press}} / 社群 {{crowd}}",
+      "stories_one": "{{count}} 則",
+      "stories_other": "{{count}} 則",
+      "hint": "近 {{days}} 天收集到的新聞與討論，經決策模型評分，50 為中性。新聞含公告與媒體報導，社群含論壇與社群網站。標題相同的內容（例如轉載和回文）算作同一則。"
+    },
+    "coverage": {
+      "collected": "收集於 {{time}}",
+      "never": "尚未收集",
+      "failing_one": "{{count}} 個來源失敗",
+      "failing_other": "{{count}} 個來源失敗",
+      "failure_one": "{{source}}：連續失敗 {{count}} 次",
+      "failure_other": "{{source}}：連續失敗 {{count}} 次",
+      "last-worked": "上次正常 {{time}}",
+      "never-worked": "還沒成功過",
+      "missing": "這段期間它該找到的內容可能缺漏。自動收集會每隔幾小時重試持續失敗的來源；請 agent 查詢則會立刻重試。"
+    },
+    "votes": "推文 {{votes}}",
+    "alike_one": "另 {{count}} 則相同",
+    "alike_other": "另 {{count}} 則相同",
+    "undated": "無日期",
+    "empty": "近 7 天還沒有收集到內容。新聞會依設定頁的頻率自動收集，也可以請 agent 查詢。"
+  },
   "agent": {
     "title": "Agent",
     "tabs": {
@@ -494,7 +527,15 @@
     },
     "news": {
       "title": "新聞",
-      "description": "Agent 會自行讀取台股公司的重大訊息和 PTT 股票板。填入 Firecrawl 金鑰後，還會搜尋新聞，並取樣台股的 Threads 與美股的 X 貼文；每次搜尋都會用掉 Firecrawl 額度。請求直接從這台電腦送到各個來源。"
+      "description": "Agent 會自行讀取台股公司的重大訊息和 PTT 股票板。填入 Firecrawl 金鑰後，還會搜尋新聞，並取樣台股的 Threads 與美股的 X 貼文；每次搜尋都會用掉 Firecrawl 額度。請求直接從這台電腦送到各個來源。",
+      "collect-every": "自動收集",
+      "collect-every-description": "Solyx 開著時，每檔自選股多久收集一次新聞。有 Firecrawl 金鑰時每次收集都會用掉額度；重大訊息只提供前一天的資料，間隔越長漏掉越多。",
+      "intervals": {
+        "off": "關閉",
+        "daily": "每天",
+        "days": "每 {{n}} 天",
+        "hours": "每 {{n}} 小時"
+      }
     },
     "decisions": {
       "title": "決策模型",

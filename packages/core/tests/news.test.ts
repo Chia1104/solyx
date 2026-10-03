@@ -2,12 +2,20 @@ import { orderBy } from "es-toolkit";
 import { expect, test, vi } from "vite-plus/test";
 
 import { Market } from "../src/market.ts";
-import { NewsChannel, collectNews } from "../src/news.ts";
+import {
+  NewsChannel,
+  NewsVoice,
+  collectNews,
+  dailySentiment,
+  newsStories,
+  sentimentGauge,
+} from "../src/news.ts";
 import type {
   NewsItem,
   NewsRecord,
   NewsSource,
   NewsStore,
+  SourceHealth,
 } from "../src/news.ts";
 import { Stance, TextKind, TextTopic } from "../src/sentiment.ts";
 import type { SentimentScore, SentimentScorer } from "../src/sentiment.ts";
@@ -65,6 +73,8 @@ const SCORE: SentimentScore = {
 /** Keeps records in memory for one listing, as the database does. */
 function memoryStore(initial: NewsRecord[] = []) {
   const records = [...initial];
+  const health = new Map<string, SourceHealth>();
+  let collected: Date | null = null;
 
   const store: NewsStore = {
     save(_symbol, source, items, foundAt) {
@@ -94,6 +104,33 @@ function memoryStore(initial: NewsRecord[] = []) {
 
       if (record) record.score = score;
     },
+    lastCollected: () => collected,
+    markCollected(_symbol, at) {
+      collected = at;
+    },
+    markSearched(source, at, error) {
+      const before = health.get(source);
+
+      health.set(
+        source,
+        error === null
+          ? {
+              source,
+              lastSuccessAt: at,
+              lastFailureAt: before?.lastFailureAt ?? null,
+              failureStreak: 0,
+              lastError: before?.lastError ?? null,
+            }
+          : {
+              source,
+              lastSuccessAt: before?.lastSuccessAt ?? null,
+              lastFailureAt: at,
+              failureStreak: (before?.failureStreak ?? 0) + 1,
+              lastError: error,
+            }
+      );
+    },
+    sourceHealth: () => [...health.values()],
     list: (_symbol, since) =>
       orderBy(
         records.filter(
@@ -115,7 +152,7 @@ function source(
   return { id, channel, markets: [Market.TW], search };
 }
 
-test("stores what each source finds and scores each channel's newest unscored records once", async () => {
+test("stores what each source finds and scores each channel's newest unscored stories once", async () => {
   const { store, records } = memoryStore([
     {
       source: "news",
@@ -151,7 +188,7 @@ test("stores what each source finds and scores each channel's newest unscored re
     "post",
   ]);
   expect(
-    collection.records.map((record) => [record.item.id, record.score])
+    collection.stories.map(({ lead }) => [lead.item.id, lead.score])
   ).toEqual([
     ["scored before", SCORE],
     ["new", SCORE],
@@ -191,7 +228,293 @@ test("a failed source is reported and what it stored before is kept", async () =
   });
 
   expect(collection.failures).toEqual([{ source: "social", error }]);
-  expect(collection.records.map((record) => record.item.id)).toEqual([
+  expect(collection.stories.map(({ lead }) => lead.item.id)).toEqual([
     "earlier post",
   ]);
+});
+
+test("each search's outcome is recorded against its source", async () => {
+  const { store } = memoryStore();
+
+  await collectNews({
+    sources: [
+      source("news", NewsChannel.Article, async () => []),
+      source("social", NewsChannel.Social, async () => {
+        throw new Error("Firecrawl returned 402");
+      }),
+    ],
+    store,
+    scorer: undefined,
+    query: QUERY,
+    now: NOW,
+    concurrency: 2,
+  });
+
+  expect(store.sourceHealth()).toEqual([
+    {
+      source: "news",
+      lastSuccessAt: NOW,
+      lastFailureAt: null,
+      failureStreak: 0,
+      lastError: null,
+    },
+    {
+      source: "social",
+      lastSuccessAt: null,
+      lastFailureAt: NOW,
+      failureStreak: 1,
+      lastError: "Firecrawl returned 402",
+    },
+  ]);
+});
+
+test("collecting marks the listing collected, even when a source fails", async () => {
+  const { store } = memoryStore();
+
+  await collectNews({
+    sources: [
+      source("social", NewsChannel.Social, async () => {
+        throw new Error("down");
+      }),
+    ],
+    store,
+    scorer: undefined,
+    query: QUERY,
+    now: NOW,
+    concurrency: 2,
+  });
+
+  expect(store.lastCollected(TSMC)).toEqual(NOW);
+});
+
+function record(
+  hour: string,
+  score: SentimentScore | null,
+  publishedAt: string | null = hour
+): NewsRecord {
+  return {
+    source: "news",
+    channel: NewsChannel.Article,
+    item: {
+      ...item(hour, 1),
+      publishedAt: publishedAt === null ? null : new Date(publishedAt),
+    },
+    foundAt: new Date("2026-10-03T01:00:00Z"),
+    score,
+  };
+}
+
+function scored(relevance: number, positive: number, promotion = 0) {
+  return {
+    ...SCORE,
+    relevance,
+    stance: {
+      ...SCORE.stance,
+      [Stance.Neutral]: 1 - positive,
+      [Stance.Positive]: positive,
+    },
+    kind: {
+      [TextKind.Report]: 1 - promotion,
+      [TextKind.Opinion]: 0,
+      [TextKind.Promotion]: promotion,
+    },
+  };
+}
+
+test("each day's stance weighs items by relevance and leaves promotions out", () => {
+  const days = dailySentiment(Market.TW, [
+    // 2026-10-02 in Taipei
+    record("2026-10-02T02:00:00Z", scored(1, 1)),
+    record("2026-10-02T03:00:00Z", scored(0.5, 0)),
+    record("2026-10-02T04:00:00Z", scored(1, 1, 1)),
+    // Only names the listing in passing, so it neither counts nor weighs.
+    record("2026-10-02T05:00:00Z", scored(0.2, 1)),
+    record("2026-10-02T06:00:00Z", null),
+    // 2026-10-01 in Taipei, 23:30 the day before in UTC
+    record("2026-09-30T16:30:00Z", null),
+    // Undated, so it counts on the day it was found: 2026-10-03 in Taipei.
+    record("undated", null, null),
+  ]);
+
+  expect(days).toEqual([
+    { date: "2026-10-01", stance: null, weight: 0, stories: 1 },
+    { date: "2026-10-02", stance: 2 / 3, weight: 1.5, stories: 4 },
+    { date: "2026-10-03", stance: null, weight: 0, stories: 1 },
+  ]);
+});
+
+test("the gauge reads 0 to 100 overall and for the press and the crowd apart", () => {
+  const forum = (hour: string, score: SentimentScore | null): NewsRecord => ({
+    ...record(hour, score),
+    source: "ptt",
+    channel: NewsChannel.Forum,
+  });
+
+  expect(
+    sentimentGauge([
+      record("2026-10-02T02:00:00Z", scored(1, 1)),
+      record("2026-10-02T03:00:00Z", scored(0.2, 0)),
+      forum("2026-10-02T04:00:00Z", scored(1, 0)),
+      forum("2026-10-02T05:00:00Z", null),
+    ])
+  ).toEqual({
+    overall: { score: 75, stories: 3 },
+    voices: {
+      [NewsVoice.Press]: { score: 100, stories: 1 },
+      [NewsVoice.Crowd]: { score: 50, stories: 2 },
+    },
+  });
+
+  expect(sentimentGauge([])).toEqual({
+    overall: { score: null, stories: 0 },
+    voices: {
+      [NewsVoice.Press]: { score: null, stories: 0 },
+      [NewsVoice.Crowd]: { score: null, stories: 0 },
+    },
+  });
+});
+
+function told(
+  title: string,
+  publishedAt: string,
+  {
+    channel = NewsChannel.Article,
+    site = "news.test",
+    score = null,
+  }: {
+    channel?: NewsChannel;
+    site?: string;
+    score?: SentimentScore | null;
+  } = {}
+): NewsRecord {
+  return {
+    source: channel,
+    channel,
+    item: {
+      id: `${site}/${title}/${publishedAt}`,
+      url: null,
+      title,
+      snippet: "",
+      site,
+      publishedAt: new Date(publishedAt),
+      votes: null,
+    },
+    foundAt: NOW,
+    score,
+  };
+}
+
+const storyTitles = (records: NewsRecord[]) =>
+  newsStories(records).map((story) =>
+    story.records.map(({ item }) => `${item.site} ${item.title}`)
+  );
+
+test("reprints and replies are one story, newest story first", () => {
+  expect(
+    storyTitles([
+      told("台積電法說會：上修全年營收展望", "2026-10-02T02:00:00Z", {
+        site: "money.udn.com",
+      }),
+      told("台積電法說會 上修全年營收展望", "2026-10-02T03:00:00Z", {
+        site: "tw.stock.yahoo.com",
+      }),
+      told("[新聞] 台積電擬赴美設第二園區", "2026-10-01T02:00:00Z", {
+        channel: NewsChannel.Forum,
+        site: "ptt.cc",
+      }),
+      told("Re: [新聞] 台積電擬赴美設第二園區", "2026-10-01T05:00:00Z", {
+        channel: NewsChannel.Forum,
+        site: "ptt.cc",
+      }),
+    ])
+  ).toEqual([
+    [
+      "money.udn.com 台積電法說會：上修全年營收展望",
+      "tw.stock.yahoo.com 台積電法說會 上修全年營收展望",
+    ],
+    [
+      "ptt.cc [新聞] 台積電擬赴美設第二園區",
+      "ptt.cc Re: [新聞] 台積電擬赴美設第二園區",
+    ],
+  ]);
+});
+
+test("titles that differ, are short, lie days apart or sit in other channels stay apart", () => {
+  expect(
+    newsStories([
+      // One word apart, and saying the opposite.
+      told("外資調升台積電目標價至1500元", "2026-10-02T02:00:00Z"),
+      told("外資調降台積電目標價至1500元", "2026-10-02T03:00:00Z"),
+      // Too short to tell two posts apart.
+      told("台積電", "2026-10-02T02:00:00Z", { channel: NewsChannel.Social }),
+      told("台積電", "2026-10-02T03:00:00Z", { channel: NewsChannel.Social }),
+      // A column that runs under one title every week.
+      told("本週法人買賣超排行", "2026-09-22T02:00:00Z"),
+      told("本週法人買賣超排行", "2026-09-29T02:00:00Z"),
+      // The same words in two voices are told apart.
+      told("台積電擬赴美設第二園區", "2026-10-01T02:00:00Z"),
+      told("台積電擬赴美設第二園區", "2026-10-01T03:00:00Z", {
+        channel: NewsChannel.Forum,
+      }),
+    ])
+  ).toHaveLength(8);
+});
+
+test("a story is led by its earliest scored record and weighed once", () => {
+  const stories = newsStories([
+    told("台積電法說會上修全年營收展望", "2026-10-02T02:00:00Z"),
+    told("台積電法說會上修全年營收展望", "2026-10-02T03:00:00Z", {
+      score: scored(1, 1),
+    }),
+    told("台積電法說會上修全年營收展望", "2026-10-02T04:00:00Z", {
+      score: scored(1, 0),
+    }),
+  ]);
+
+  expect(stories).toHaveLength(1);
+  expect(stories[0].lead.item.publishedAt).toEqual(
+    new Date("2026-10-02T03:00:00Z")
+  );
+
+  expect(
+    sentimentGauge([
+      ...stories[0].records,
+      told("台積電擴大資本支出", "2026-10-02T05:00:00Z", {
+        score: scored(1, 0),
+      }),
+    ]).overall
+  ).toEqual({ score: 75, stories: 2 });
+});
+
+test("collecting scores one record of each story", async () => {
+  const { store } = memoryStore();
+  const scorer = { score: vi.fn<SentimentScorer["score"]>(async () => SCORE) };
+
+  const reprint = (site: string, day: number) => ({
+    ...item(`${site}/reprint`, day),
+    title: "台積電法說會上修全年營收展望",
+    site,
+  });
+
+  const collection = await collectNews({
+    sources: [
+      source("news", NewsChannel.Article, async () => [
+        reprint("money.udn.com", 29),
+        reprint("tw.stock.yahoo.com", 30),
+      ]),
+    ],
+    store,
+    scorer,
+    query: QUERY,
+    now: NOW,
+    concurrency: 2,
+  });
+
+  expect(scorer.score).toHaveBeenCalledOnce();
+  expect(collection.stories).toHaveLength(1);
+  expect(collection.stories[0].lead).toMatchObject({
+    item: { site: "money.udn.com" },
+    score: SCORE,
+  });
+  expect(collection.stories[0].records).toHaveLength(2);
 });

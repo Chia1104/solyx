@@ -59,3 +59,26 @@ export const listingNews = sqliteTable(
     index("listing_news_listing").on(table.market, table.symbol),
   ]
 );
+
+/** When news was last collected for each listing, so collection runs at the interval the user set. */
+export const newsCollections = sqliteTable(
+  "news_collections",
+  {
+    market: text().$type<Market>().notNull(),
+    symbol: text().notNull(),
+    /** Unix milliseconds. */
+    collectedAt: integer("collected_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.market, table.symbol] })]
+);
+
+/** How each source's searches have gone, across every listing. */
+export const newsSourceHealth = sqliteTable("news_source_health", {
+  source: text().primaryKey(),
+  /** Unix milliseconds. */
+  lastSuccessAt: integer("last_success_at"),
+  /** Unix milliseconds. */
+  lastFailureAt: integer("last_failure_at"),
+  failureStreak: integer("failure_streak").notNull(),
+  lastError: text("last_error"),
+});

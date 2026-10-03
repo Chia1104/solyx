@@ -13,7 +13,12 @@ import type { NewsItem } from "@solyx/core/news";
 import { Stance, TextKind, TextTopic } from "@solyx/core/sentiment";
 import type { SentimentScore } from "@solyx/core/sentiment";
 
-import { listingNews, newsItems } from "../src/news-schema.ts";
+import {
+  listingNews,
+  newsCollections,
+  newsItems,
+  newsSourceHealth,
+} from "../src/news-schema.ts";
 import { openNews } from "../src/news.ts";
 import type { NewsData } from "../src/news.ts";
 
@@ -93,7 +98,7 @@ function open() {
 }
 
 // A schema change committed without `db:generate` fails here.
-test.each([newsItems, listingNews])(
+test.each([newsItems, listingNews, newsCollections, newsSourceHealth])(
   "migrations build the tables the schema describes",
   (table) => {
     open().close();
@@ -201,4 +206,55 @@ test("records outlive the connection", () => {
   expect(
     open().store.list(TSMC, new Date("2026-09-26T00:00:00Z"))
   ).toHaveLength(1);
+});
+
+test("the last collection is kept per listing", () => {
+  const { store } = open();
+  const later = new Date("2026-10-04T05:00:00Z");
+
+  expect(store.lastCollected(TSMC)).toBeNull();
+
+  store.markCollected(TSMC, FOUND);
+  store.markCollected(TSMC, later);
+  store.markCollected(FOXCONN, FOUND);
+
+  expect(store.lastCollected(TSMC)).toEqual(later);
+  expect(store.lastCollected(FOXCONN)).toEqual(FOUND);
+});
+
+test("a source's failures count up until a search of it works", () => {
+  const { store } = open();
+  const at = (hour: number) => new Date(Date.UTC(2026, 9, 3, hour));
+
+  expect(store.sourceHealth()).toEqual([]);
+
+  store.markSearched(NEWS.id, at(1), null);
+  store.markSearched(NEWS.id, at(2), "402 Payment Required");
+  store.markSearched(NEWS.id, at(3), "402 Payment Required");
+  store.markSearched(PTT.id, at(3), "timed out");
+
+  expect(store.sourceHealth()).toEqual(
+    expect.arrayContaining([
+      {
+        source: NEWS.id,
+        lastSuccessAt: at(1),
+        lastFailureAt: at(3),
+        failureStreak: 2,
+        lastError: "402 Payment Required",
+      },
+      {
+        source: PTT.id,
+        lastSuccessAt: null,
+        lastFailureAt: at(3),
+        failureStreak: 1,
+        lastError: "timed out",
+      },
+    ])
+  );
+
+  store.markSearched(NEWS.id, at(4), null);
+
+  expect(
+    store.sourceHealth().find((health) => health.source === NEWS.id)
+  ).toMatchObject({ lastSuccessAt: at(4), failureStreak: 0 });
 });
