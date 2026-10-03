@@ -63,6 +63,7 @@ test("finds board titles by the listing's name, with their time and net pushes",
   );
   expect(items).toEqual([
     {
+      id: "https://www.ptt.cc/bbs/Stock/M.1790943882.A.49A.html",
       url: "https://www.ptt.cc/bbs/Stock/M.1790943882.A.49A.html",
       title: "[標的] 2330 台積電 多",
       snippet: "",
@@ -71,6 +72,7 @@ test("finds board titles by the listing's name, with their time and net pushes",
       votes: 100,
     },
     {
+      id: "https://www.ptt.cc/bbs/Stock/M.1790933335.A.EC9.html",
       url: "https://www.ptt.cc/bbs/Stock/M.1790933335.A.EC9.html",
       title: "[新聞] 台積電 & 德州",
       snippet: "",
@@ -79,6 +81,7 @@ test("finds board titles by the listing's name, with their time and net pushes",
       votes: -20,
     },
     {
+      id: "https://www.ptt.cc/bbs/Stock/M.1790900000.A.001.html",
       url: "https://www.ptt.cc/bbs/Stock/M.1790900000.A.001.html",
       title: "[請益] 台積電還能上車嗎",
       snippet: "",

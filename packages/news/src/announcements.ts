@@ -99,6 +99,8 @@ export function createAnnouncements(
         .flat()
         .filter((row) => row.code.trim() === symbol.symbol)
         .map((row) => ({
+          // An announcement has no address; its company, time and subject tell it apart.
+          id: `${row.code}:${row.發言日期}:${row.發言時間}:${row.主旨}`,
           url: null,
           title: row.主旨.replace(/\s+/g, " ").trim(),
           snippet: row.說明.replace(/\r\n/g, "\n").trim(),

@@ -65,6 +65,7 @@ export function createPtt(options: PttOptions = {}): NewsSource {
         if (publishedAt < since) continue;
 
         items.push({
+          id: `${PTT_URL}${link[1]}`,
           url: `${PTT_URL}${link[1]}`,
           title: unescape(link[3]).trim(),
           snippet: "",
