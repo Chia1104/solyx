@@ -48,6 +48,8 @@ catalogs:
   markdown:
     "@streamdown/cjk": 1.0.3
     streamdown: 2.6.0
+  news:
+    firecrawl: 4.42.1
   oxc:
     # Pinned to the oxlint bundled by vite-plus; upgrade both together.
     "@oxlint/plugins": 1.85.0

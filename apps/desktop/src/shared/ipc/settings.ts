@@ -26,6 +26,7 @@ export const Secret = {
   GoogleApiKey: "google-api-key",
   OpenRouterApiKey: "openrouter-api-key",
   DecisionsApiKey: "decisions-api-key",
+  FirecrawlApiKey: "firecrawl-api-key",
   /** The ChatGPT sign-in's OAuth tokens; the main process saves and refreshes them, nobody types them. */
   OpenAIChatGPT: "openai-chatgpt",
 } as const;
