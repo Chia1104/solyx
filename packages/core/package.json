@@ -14,6 +14,7 @@
     "./risk": "./src/risk.ts",
     "./rules/tw": "./src/rules/tw.ts",
     "./rules/us": "./src/rules/us.ts",
+    "./sentiment": "./src/sentiment.ts",
     "./session": "./src/session.ts"
   },
   "scripts": {

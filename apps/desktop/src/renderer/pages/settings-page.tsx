@@ -10,6 +10,7 @@ import { AboutSettings } from "../modules/settings/about-settings.tsx";
 import { AgentSettings } from "../modules/settings/agent-settings.tsx";
 import { AgentSkills } from "../modules/settings/agent-skills.tsx";
 import { CacheSettings } from "../modules/settings/cache-settings.tsx";
+import { DecisionsSettings } from "../modules/settings/decisions-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
 import { MarketDataSettings } from "../modules/settings/market-data-settings.tsx";
 import { McpSettings } from "../modules/settings/mcp-settings.tsx";
@@ -39,7 +40,12 @@ export function SettingsPage() {
       </Section>
     ),
     [SettingsSection.MarketData]: <MarketDataSettings />,
-    [SettingsSection.Agent]: <AgentSettings />,
+    [SettingsSection.Agent]: (
+      <>
+        <AgentSettings />
+        <DecisionsSettings />
+      </>
+    ),
     [SettingsSection.Skills]: <AgentSkills />,
     [SettingsSection.Mcp]: <McpSettings server={server} />,
     [SettingsSection.Storage]: (

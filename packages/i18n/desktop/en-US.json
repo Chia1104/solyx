@@ -270,6 +270,9 @@
     },
     "general": "General",
     "save-failed": "Couldn't save the setting",
+    "edit": "Edit",
+    "save": "Save",
+    "use-default": "Use default",
     "language": "Language",
     "language-description": "Applies to the whole app and is kept on this computer.",
     "theme": "Theme",
@@ -404,6 +407,10 @@
       "openrouter-api-key": {
         "label": "OpenRouter API key",
         "hint": "A key from your OpenRouter account."
+      },
+      "decisions-api-key": {
+        "label": "API key",
+        "hint": "A key from the TypeSafe console. Only TypeSafe's models are supported for now."
       }
     },
     "sign-in": {
@@ -479,6 +486,16 @@
         "medium": "Medium",
         "high": "High"
       }
+    },
+    "decisions": {
+      "title": "Decisions model",
+      "description": "Scores news and posts with typed answers and their probabilities instead of written text, on your own key. Requests go straight from this computer to the provider. Only TypeSafe's models, such as Jev, are supported for now.",
+      "model": "Model",
+      "model-description": "The model's id. The questions are written against the default, so another version may judge texts differently.",
+      "model-required": "Enter a model id",
+      "base-url": "Endpoint",
+      "base-url-description": "Where requests go. Change it only for a proxy or a compatible service.",
+      "base-url-invalid": "Enter an http or https URL"
     },
     "skills": {
       "title": "Skills",

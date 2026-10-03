@@ -10,6 +10,10 @@ import {
   AgentThinking,
   DEFAULT_MODEL,
 } from "@solyx/agent/providers";
+import {
+  TYPESAFE_BASE_URL,
+  TYPESAFE_DEFAULT_MODEL,
+} from "@solyx/decisions/typesafe";
 import { FuglePlan } from "@solyx/market-data/fugle";
 
 import { MarketDataSource, PriceColors, Theme } from "#shared/ipc/settings.ts";
@@ -51,17 +55,19 @@ test("a missing file reads as the defaults, which a new file's commented templat
       sharedSkills: [],
       mcpTools: {},
     },
+    decisions: {},
   });
 
   config.create();
 
-  // The template names the default provider's model, and its empty paths read as not chosen.
+  // The template names the default models and endpoint, and its empty paths read as not chosen.
   expect(config.read()).toEqual({
     ...defaults,
     agent: {
       ...defaults.agent,
       model: DEFAULT_MODEL[defaults.agent.provider],
     },
+    decisions: { model: TYPESAFE_DEFAULT_MODEL, baseURL: TYPESAFE_BASE_URL },
   });
   expect(await readFile(file, "utf8")).toMatch(/^\/\/ /);
 
@@ -176,6 +182,7 @@ test("an entry of the wrong shape reads as its default and leaves the rest in fo
         fubon: { sdk: "/sdk", certificate: [] },
       },
       agent: { provider: "openai", thinking: "forever", sharedSkills: "all" },
+      decisions: { model: " ", baseURL: "file:///etc/hosts" },
     })
   );
 
@@ -190,6 +197,7 @@ test("an entry of the wrong shape reads as its default and leaves the rest in fo
       thinking: AgentThinking.Medium,
       sharedSkills: [],
     },
+    decisions: { model: undefined, baseURL: undefined },
   });
 });
 

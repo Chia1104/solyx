@@ -21,6 +21,10 @@ import {
   agentThinkingSchema,
 } from "@solyx/agent/providers";
 import type { Market } from "@solyx/core/market";
+import {
+  TYPESAFE_BASE_URL,
+  TYPESAFE_DEFAULT_MODEL,
+} from "@solyx/decisions/typesafe";
 import { FuglePlan, fuglePlanSchema } from "@solyx/market-data/fugle";
 import { isErrnoError } from "@solyx/utils/error";
 import { watchFile } from "@solyx/utils/server";
@@ -48,6 +52,9 @@ const PARSE_OPTIONS = { allowTrailingComma: true };
 const textSchema = z.string().trim().min(1).optional().catch(undefined);
 
 const paletteIdSchema = z.string().min(1).catch(Palette.Blueprint);
+
+/** An http(s) endpoint, which a proxy on this computer may serve without TLS. */
+export const endpointSchema = z.url({ protocol: /^https?$/ }).max(2048);
 
 /** A section that is missing or of the wrong shape reads as empty, so each of its entries reads as its default. */
 function section<T extends z.ZodType>(schema: T) {
@@ -112,6 +119,13 @@ const configSchema = section(
         mcpTools: z.record(z.string(), z.string()).catch({}),
       })
     ),
+    // Missing entries read as the decisions model's defaults where they are read.
+    decisions: section(
+      z.looseObject({
+        model: textSchema,
+        baseURL: endpointSchema.optional().catch(undefined),
+      })
+    ),
   })
 );
 
@@ -130,7 +144,8 @@ type ConfigPath =
   | ["providers", "fugle", "plan"]
   | ["providers", "fubon", FubonFile]
   | ["agent", "provider" | "model" | "thinking" | "auth" | "sharedSkills"]
-  | ["agent", "mcpTools", string];
+  | ["agent", "mcpTools", string]
+  | ["decisions", "model" | "baseURL"];
 
 /** `undefined` removes the entry. */
 type ConfigValue = string | string[] | CustomPalette | undefined;
@@ -179,6 +194,12 @@ const TEMPLATE = [
   `    "auth": "${DEFAULTS.agent.auth}",`,
   "    // Skills from ~/.agents/skills the agent may read, by name. The skills folder beside this file is always read.",
   '    "sharedSkills": []',
+  "  },",
+  '  "decisions": {',
+  "    // The decisions model that scores news and posts, on the key saved in the app; TypeSafe's models, such as Jev.",
+  `    "model": "${TYPESAFE_DEFAULT_MODEL}",`,
+  "    // Where its requests go; change it only for a proxy or a compatible endpoint.",
+  `    "baseURL": "${TYPESAFE_BASE_URL}"`,
   "  }",
   "}",
   "",
