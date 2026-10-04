@@ -17,7 +17,7 @@ import {
 import type { TradeProposal } from "@solyx/core/order-desk";
 import { RiskViolationCode } from "@solyx/core/risk";
 
-import { proposals, watchlist } from "../src/user-schema.ts";
+import { paperAccount, proposals, watchlist } from "../src/user-schema.ts";
 import { openUserData } from "../src/user.ts";
 import type { UserData } from "../src/user.ts";
 
@@ -74,7 +74,7 @@ function open(file = "user.sqlite") {
 
 describe("openUserData", () => {
   // A schema change committed without `db:generate` fails here.
-  test.each([watchlist, proposals])(
+  test.each([watchlist, proposals, paperAccount])(
     "migrations build the tables the schema describes",
     (table) => {
       open().close();
@@ -211,6 +211,30 @@ describe("proposal store", () => {
     store.update(failed);
 
     expect(store.list()).toStrictEqual([failed, proposal("b")]);
+  });
+
+  test("the paper account has none until written, then reads back what was written last", () => {
+    const store = open().paperAccount;
+
+    expect(store.read()).toBeUndefined();
+
+    store.write({ cash: { TWD: 1_000_000 }, positions: [], orders: 0 });
+
+    const after = {
+      cash: { TWD: 20_000, USD: 30_000 },
+      positions: [
+        {
+          instrument: { ...TSMC, kind: InstrumentKind.Stock },
+          quantity: 1000,
+          avgPrice: 980,
+        },
+      ],
+      orders: 1,
+    };
+
+    store.write(after);
+
+    expect(store.read()).toStrictEqual(after);
   });
 
   test("proposals outlive the connection", () => {

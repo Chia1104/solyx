@@ -58,7 +58,10 @@ export function createServices() {
   );
 
   const desk = new OrderDesk({
-    broker: createPaperBroker({ cash: PAPER_CASH }),
+    broker: createPaperBroker({
+      cash: PAPER_CASH,
+      ledger: userData.paperAccount,
+    }),
     store: userData.proposals,
     limits: PAPER_LIMITS,
   });
