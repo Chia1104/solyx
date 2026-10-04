@@ -67,7 +67,7 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const runtime = createAgentRuntime({
     store: options.conversations,
-    models: models.catalog,
+    models: models.models,
     model: () => models.choice(),
     tools: trading,
     mcp: (allow) => options.mcp.extensions(allow),

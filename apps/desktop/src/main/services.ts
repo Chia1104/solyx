@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import { kebabCase } from "es-toolkit";
 
-import { AgentAuth } from "@solyx/agent/providers";
 import { createPaperBroker } from "@solyx/brokers/paper";
 import { Currency } from "@solyx/core/market";
 import { OrderDesk } from "@solyx/core/order-desk";
@@ -19,7 +18,6 @@ import { newsEvents } from "#shared/ipc/news.ts";
 import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
 import { ColorScheme } from "#shared/palette.ts";
 
-import { agentAuth } from "./modules/agent/agent-models.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
 import { createDecisions } from "./modules/decisions/decisions.ts";
@@ -31,7 +29,6 @@ import { createNewsSources } from "./modules/news/news-sources.ts";
 import { createNews } from "./modules/news/news.ts";
 import { createAppearance } from "./modules/settings/appearance.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
-import { createCredentialStore } from "./modules/settings/credential-store.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
@@ -136,10 +133,6 @@ export function createServices() {
   const agent = createAgentService({
     config,
     secrets,
-    credentials: createCredentialStore(
-      secrets,
-      (provider) => agentAuth(config, provider) === AgentAuth.Subscription
-    ),
     getDeviceId: installationId(join(userDataDir, "installation-id")),
     openExternal,
     skillFolders,

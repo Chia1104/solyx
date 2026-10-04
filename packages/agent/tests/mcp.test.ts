@@ -490,17 +490,12 @@ describe("a remote server that asks to sign in", () => {
     ]);
   });
 
-  test("a cancelled sign-in saves nothing", async () => {
+  test("a cancelled sign-in ends quietly and saves nothing", async () => {
     const { hub, signIns } = await remote();
-    const controller = new AbortController();
 
     await expect(
-      hub.signIn("remote", {
-        open: () => controller.abort(),
-        page: () => "",
-        signal: controller.signal,
-      })
-    ).rejects.toThrow();
+      hub.signIn("remote", { open: () => hub.cancelSignIn(), page: () => "" })
+    ).resolves.toBeUndefined();
     expect(signIns.has("remote")).toBe(false);
   });
 

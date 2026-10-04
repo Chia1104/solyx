@@ -59,7 +59,6 @@ export function createMcpServers({
     },
   });
 
-  let signIn: AbortController | undefined;
   let fileError: string | undefined;
   let started: Promise<void> | undefined;
   let stopWatching: (() => void) | undefined;
@@ -134,41 +133,22 @@ export function createMcpServers({
 
     reconnect: (name: string) => hub.reconnect(name),
 
-    /**
-     * Resolves once the sign-in is saved, or quietly once it is cancelled. A sign-in still open,
-     * such as one whose browser page was closed, gives way to the new one.
-     */
-    async signIn(name: string, locale: Locale) {
-      signIn?.abort();
+    /** Resolves once the sign-in is saved, or quietly once it is cancelled; the page is written in `locale`. */
+    signIn: (name: string, locale: Locale) =>
+      hub.signIn(name, {
+        open: openExternal,
+        page: (result) =>
+          result.ok
+            ? signInPage(locale, SignInFlow.Mcp, SignInOutcome.SignedIn)
+            : signInPage(
+                locale,
+                SignInFlow.Mcp,
+                SignInOutcome.Failed,
+                result.details ?? result.message
+              ),
+      }),
 
-      const controller = new AbortController();
-
-      signIn = controller;
-
-      try {
-        await hub.signIn(name, {
-          open: openExternal,
-          page: (result) =>
-            result.ok
-              ? signInPage(locale, SignInFlow.Mcp, SignInOutcome.SignedIn)
-              : signInPage(
-                  locale,
-                  SignInFlow.Mcp,
-                  SignInOutcome.Failed,
-                  result.details ?? result.message
-                ),
-          signal: controller.signal,
-        });
-      } catch (error) {
-        if (!controller.signal.aborted) throw error;
-      } finally {
-        if (signIn === controller) signIn = undefined;
-      }
-    },
-
-    cancelSignIn() {
-      signIn?.abort();
-    },
+    cancelSignIn: () => hub.cancelSignIn(),
 
     signOut: (name: string) => hub.signOut(name),
 
