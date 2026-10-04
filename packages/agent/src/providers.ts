@@ -12,6 +12,10 @@ export type AgentProvider = (typeof AgentProvider)[keyof typeof AgentProvider];
 
 export const agentProviderSchema = z.enum(AgentProvider);
 
+/** Whether the provider can run on the user's subscription, signed in through the app's own flow, instead of a key. */
+export const hasSubscription = (provider: AgentProvider) =>
+  provider === AgentProvider.OpenAI;
+
 /** How the provider is paid for: per request on an API key, or on the user's subscription plan. */
 export const AgentAuth = {
   ApiKey: "api-key",
