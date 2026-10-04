@@ -113,6 +113,39 @@
       "change": "Change from the previous close"
     }
   },
+  "news": {
+    "title": "News and posts",
+    "channels-label": "Channels",
+    "channels": {
+      "announcement": "Filing",
+      "article": "News",
+      "forum": "Forum",
+      "social": "Social"
+    },
+    "gauge": {
+      "overall": "Sentiment {{score}}",
+      "voices": "Press {{press}} / Crowd {{crowd}}",
+      "stories_one": "{{count}} story",
+      "stories_other": "{{count}} stories",
+      "hint": "News and posts collected over the last {{days}} days, scored by the decisions model; 50 is neutral. Press covers filings and news, crowd covers forums and social networks. Items with the same title, such as reprints and replies, count as one story."
+    },
+    "coverage": {
+      "collected": "Collected {{time}}",
+      "never": "Not collected yet",
+      "failing_one": "{{count}} source failing",
+      "failing_other": "{{count}} sources failing",
+      "failure_one": "{{source}}: failed {{count}} time in a row",
+      "failure_other": "{{source}}: failed {{count}} times in a row",
+      "last-worked": "Last worked {{time}}",
+      "never-worked": "Hasn't worked yet",
+      "missing": "What it would have found since may be missing. Automatic collection retries a source that keeps failing every few hours; asking the agent tries it right away."
+    },
+    "votes": "Pushes {{votes}}",
+    "alike_one": "+{{count}} alike",
+    "alike_other": "+{{count}} alike",
+    "undated": "Undated",
+    "empty": "Nothing collected in the last 7 days. News is collected at the interval set in Settings, or when you ask the agent."
+  },
   "agent": {
     "title": "Agent",
     "tabs": {
@@ -494,7 +527,15 @@
     },
     "news": {
       "title": "News",
-      "description": "The agent reads Taiwan companies' material announcements and PTT's Stock board on its own. With your Firecrawl key it also searches news articles and samples posts on Threads in Taiwan and X in the US; each search uses Firecrawl credits. Requests go straight from this computer to each source."
+      "description": "The agent reads Taiwan companies' material announcements and PTT's Stock board on its own. With your Firecrawl key it also searches news articles and samples posts on Threads in Taiwan and X in the US; each search uses Firecrawl credits. Requests go straight from this computer to each source.",
+      "collect-every": "Collect automatically",
+      "collect-every-description": "How often each watched listing's news is collected while Solyx runs. With a Firecrawl key, every collection uses credits; exchange announcements only reach back a day, so longer intervals miss some.",
+      "intervals": {
+        "off": "Off",
+        "daily": "Every day",
+        "days": "Every {{n}} days",
+        "hours": "Every {{n}} hours"
+      }
     },
     "decisions": {
       "title": "Decisions model",

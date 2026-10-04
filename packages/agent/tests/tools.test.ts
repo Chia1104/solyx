@@ -24,6 +24,7 @@ import type {
   NewsRecord,
   NewsSource,
   NewsStore,
+  SourceHealth,
 } from "@solyx/core/news";
 import { OrderType, Side } from "@solyx/core/order";
 import { ProposalSource, ProposalStatus } from "@solyx/core/order-desk";
@@ -72,6 +73,8 @@ function dailyBars(count: number): Candle[] {
 /** Keeps news records in memory for one listing, as the database does. */
 function memoryNewsStore(): NewsStore {
   const records: NewsRecord[] = [];
+  const health = new Map<string, SourceHealth>();
+  let collected: Date | null = null;
 
   const listedAt = (record: NewsRecord) =>
     (record.item.publishedAt ?? record.foundAt).getTime();
@@ -104,6 +107,22 @@ function memoryNewsStore(): NewsStore {
 
       if (record) record.score = score;
     },
+    lastCollected: () => collected,
+    markCollected(_symbol, at) {
+      collected = at;
+    },
+    markSearched(source, at, error) {
+      const before = health.get(source);
+
+      health.set(source, {
+        source,
+        lastSuccessAt: error === null ? at : (before?.lastSuccessAt ?? null),
+        lastFailureAt: error === null ? (before?.lastFailureAt ?? null) : at,
+        failureStreak: error === null ? 0 : (before?.failureStreak ?? 0) + 1,
+        lastError: error ?? before?.lastError ?? null,
+      });
+    },
+    sourceHealth: () => [...health.values()],
     list: (_symbol, since) =>
       records
         .filter((record) => listedAt(record) >= since.getTime())
@@ -477,6 +496,8 @@ test("news is scored once, newest first, without items that only name the listin
   });
   expect(first.text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 3 days, as_of 2026-09-30 10:00, scored by jev-1.13.0",
+    "Sentiment 80/100 with 50 neutral: press (announcements, articles) 80/100, crowd (forum, social) unscored",
+    "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-29 +0.60 (n=1), 2026-09-30 +0.60 (n=1)",
     "## article: 2 of 3",
     "- 2026-09-30 05:00 news.test: 外資買超",
     "  stance +0.60, opinion, guidance",
@@ -487,7 +508,7 @@ test("news is scored once, newest first, without items that only name the listin
     "  法說前瞻 snippet",
     `  ${newsItem("法說前瞻", 30).url}`,
   ]);
-  expect(first.details).toEqual({ symbol: TSMC, items: 3 });
+  expect(first.details).toEqual({ symbol: TSMC, stories: 3 });
 
   // Found before, so a search that no longer finds them still lists them, without scoring again.
   news.search.mockResolvedValue([]);
@@ -508,6 +529,8 @@ test("without a decisions model, news is listed unscored", async () => {
 
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",
+    "Sentiment unscored with 50 neutral: press (announcements, articles) unscored, crowd (forum, social) unscored",
+    "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-30 unscored (n=1)",
     "## article: 1 of 1",
     "- undated news.test: 無日期",
     "  無日期 snippet",
@@ -525,7 +548,7 @@ test("without a source for the market, the tool says what is missing", async () 
   ).rejects.toThrow("No news source covers US");
 });
 
-test("channels get sections, and a failed source leaves the others", async () => {
+test("channels get sections, a thread is one story, and a failed source leaves the others", async () => {
   const { run, ports } = setup();
 
   const forum = {
@@ -536,11 +559,20 @@ test("channels get sections, and a failed source leaves the others", async () =>
       {
         id: "M.1.A.1",
         url: "https://www.ptt.cc/bbs/Stock/M.1.A.1.html",
-        title: "[新聞] 台積電",
+        title: "[新聞] 台積電擬赴美設第二園區",
         snippet: "",
         site: "ptt.cc",
         publishedAt: new Date("2026-09-30T00:00:00Z"),
         votes: 61,
+      },
+      {
+        id: "M.2.A.2",
+        url: "https://www.ptt.cc/bbs/Stock/M.2.A.2.html",
+        title: "Re: [新聞] 台積電擬赴美設第二園區",
+        snippet: "",
+        site: "ptt.cc",
+        publishedAt: new Date("2026-09-30T01:00:00Z"),
+        votes: 3,
       },
     ]),
   };
@@ -569,9 +601,11 @@ test("channels get sections, and a failed source leaves the others", async () =>
   expect(us.search).not.toHaveBeenCalled();
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",
+    "Sentiment unscored with 50 neutral: press (announcements, articles) unscored, crowd (forum, social) unscored",
+    "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-30 unscored (n=1)",
     "## forum: 1 of 1",
-    "- 2026-09-30 08:00 ptt.cc, votes +61: [新聞] 台積電",
+    "- 2026-09-30 08:00 ptt.cc, votes +61, also told by 1 more (ptt.cc): [新聞] 台積電擬赴美設第二園區",
     "  https://www.ptt.cc/bbs/Stock/M.1.A.1.html",
-    "Sources that failed this time: fake-social (Firecrawl returned 402)",
+    "Sources that failed this time: fake-social (Firecrawl returned 402; 1 failed in a row, never worked yet)",
   ]);
 });

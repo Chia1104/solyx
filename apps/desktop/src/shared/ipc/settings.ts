@@ -220,6 +220,25 @@ export interface AgentSettings {
   ready: boolean;
 }
 
+/** Hours between automatic news collections for each watched listing; 0 turns it off. */
+export const newsIntervalSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(24 * 30);
+
+/** Every three days, so Firecrawl's free credits cover a watchlist of about ten listings. */
+export const NEWS_COLLECTION_DEFAULT_HOURS = 72;
+
+/** The intervals the settings page offers, in hours; the config file takes any. */
+export const NEWS_COLLECTION_PRESETS: readonly number[] = [
+  0, 6, 12, 24, 72, 168,
+];
+
+export interface NewsSettings {
+  collectEveryHours: number;
+}
+
 /** The decisions model that scores texts; its key is the `decisions-api-key` secret. */
 export interface DecisionsSettings {
   model: string;
@@ -356,6 +375,8 @@ export interface SettingsApi {
   signInSubscription(locale: Locale): Promise<void>;
   cancelSignIn(): Promise<void>;
   signOutSubscription(): Promise<void>;
+  news(): Promise<NewsSettings>;
+  setNewsCollectEveryHours(hours: number): Promise<void>;
   decisions(): Promise<DecisionsSettings>;
   /** `null` goes back to the default. */
   setDecisionsModel(model: string | null): Promise<void>;
@@ -421,6 +442,8 @@ export const settingsChannels = {
   signInSubscription: "settings:sign-in-subscription",
   cancelSignIn: "settings:cancel-sign-in",
   signOutSubscription: "settings:sign-out-subscription",
+  news: "settings:news",
+  setNewsCollectEveryHours: "settings:set-news-collect-every-hours",
   decisions: "settings:decisions",
   setDecisionsModel: "settings:set-decisions-model",
   setDecisionsBaseURL: "settings:set-decisions-base-url",
