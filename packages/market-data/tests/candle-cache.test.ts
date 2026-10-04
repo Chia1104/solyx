@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { Interval, isIntraday } from "@solyx/core/candles";
-import type { Candle } from "@solyx/core/candles";
+import type { BarInterval, Candle } from "@solyx/core/candles";
 import { Market, exchangeDate, shiftDate } from "@solyx/core/market";
 import type {
   CandleRequest,
@@ -120,7 +120,7 @@ function setup(today = "2026-09-29", holidays: string[] = []) {
     now: () => clock.now,
   });
 
-  const get = (interval: Interval, from: string, to: string) =>
+  const get = (interval: BarInterval, from: string, to: string) =>
     cached.getCandles({ symbol: TSMC, interval, from, to });
 
   return { clock, calls, get };
@@ -196,29 +196,6 @@ describe("withCandleCache", () => {
     expect(next.find((bar) => bar.time === taipei("2026-09-29"))?.close).toBe(
       29
     );
-  });
-
-  test("weekly and monthly bars are merged from cached daily bars", async () => {
-    const { calls, get } = setup();
-
-    const weeks = await get(Interval.OneWeek, "2026-09-01", "2026-09-29");
-    const months = await get(Interval.OneMonth, "2026-09-01", "2026-09-29");
-
-    expect(calls.map((call) => call.interval)).toEqual([
-      Interval.OneDay,
-      Interval.OneDay,
-    ]);
-    expect(calls[0].from).toBe("2026-08-31");
-    expect(weeks.map((week) => week.time)).toEqual(
-      [
-        "2026-08-31",
-        "2026-09-07",
-        "2026-09-14",
-        "2026-09-21",
-        "2026-09-28",
-      ].map((date) => taipei(date))
-    );
-    expect(months).toHaveLength(1);
   });
 
   test("intraday series keep only the requested window", async () => {

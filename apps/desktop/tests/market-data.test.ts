@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vite-plus/test";
 
-import { Interval, lookbackRange } from "@solyx/core/candles";
+import { Interval, lookbackRange, periodStart } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import type {
   MarketDataProvider,
@@ -14,6 +14,8 @@ import { createMarketData } from "../src/main/modules/market/market-data.ts";
 const TSMC = { market: Market.TW, symbol: "2330" };
 
 const NOW = new Date("2026-09-29T10:00:00+08:00");
+
+const taipei = (date: string) => Date.parse(`${date}T00:00:00+08:00`) / 1000;
 
 /** A stream that takes as many symbols as `room` allows. */
 function fakeStream(room = Infinity) {
@@ -102,6 +104,39 @@ test("bars reach back the interval's lookback, from the market's source", async 
     name: "台積電",
     englishName: "TSMC",
   });
+});
+
+test("weekly bars merge whole weeks of the source's daily bars", async () => {
+  const { marketData, provider } = setup();
+
+  vi.mocked(provider.getCandles).mockResolvedValue(
+    ["2026-08-31", "2026-09-04", "2026-09-07", "2026-09-29"].map(
+      (date, close) => ({
+        time: taipei(date),
+        open: close,
+        high: close,
+        low: close,
+        close,
+        volume: 1000,
+      })
+    )
+  );
+
+  const weeks = await marketData.candles(TSMC, Interval.OneWeek);
+  const { from, to } = lookbackRange(Market.TW, Interval.OneWeek, NOW);
+
+  expect(provider.getCandles).toHaveBeenCalledWith({
+    symbol: TSMC,
+    interval: Interval.OneDay,
+    from: periodStart(from, Interval.OneWeek),
+    to,
+  });
+  expect(weeks.map((week) => [week.time, week.close, week.volume])).toEqual([
+    [taipei("2026-08-31"), 1, 2000],
+    [taipei("2026-09-07"), 2, 1000],
+    // A week opens with its first session.
+    [taipei("2026-09-29"), 3, 1000],
+  ]);
 });
 
 test("a market without a source is reported, not guessed", async () => {

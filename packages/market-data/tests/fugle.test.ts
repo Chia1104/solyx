@@ -369,53 +369,6 @@ test("a range without sessions still returns today's bars", async () => {
   expect(candles.map((candle) => candle.close)).toEqual([2475]);
 });
 
-// Fugle clips weekly bars to the range, so chunks splitting a week once produced two bars with one time.
-test("weekly bars merge whole weeks of daily bars and today's session", async () => {
-  const { fetch, requests } = fakeFugle([
-    {
-      path: "/historical/candles/2330",
-      body: JSON.stringify({
-        data: [
-          bar("2026-09-21", 2400, 1000),
-          bar("2026-09-24", 2450, 2000),
-          bar("2026-09-28", 2460, 3000),
-        ],
-      }),
-    },
-    {
-      path: "/intraday/candles/2330",
-      body: JSON.stringify({
-        date: "2026-09-29",
-        data: [bar("2026-09-29T09:00:00.000+08:00", 2475, 4)],
-      }),
-    },
-  ]);
-
-  const provider = createFugleMarketData({
-    apiKey: "test-key",
-    fetch,
-    now: () => DURING_SESSION,
-  });
-
-  const candles = await provider.getCandles({
-    symbol: TSMC,
-    interval: Interval.OneWeek,
-    from: "2026-09-23",
-    to: "2026-09-29",
-  });
-
-  const history = requestTo(requests, "historical");
-
-  expect(history?.searchParams.get("timeframe")).toBe("D");
-  expect(history?.searchParams.get("from")).toBe("2026-09-21");
-  expect(
-    candles.map((candle) => [candle.time, candle.close, candle.volume])
-  ).toEqual([
-    [Date.parse("2026-09-20T16:00:00Z") / 1000, 2450, 3000],
-    [Date.parse("2026-09-27T16:00:00Z") / 1000, 2475, 7000],
-  ]);
-});
-
 test("history requests past the plan's budget wait for the window to slide", async () => {
   vi.useFakeTimers({ now: DURING_SESSION });
 
