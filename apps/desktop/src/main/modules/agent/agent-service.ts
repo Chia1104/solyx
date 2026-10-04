@@ -70,7 +70,7 @@ export function createAgentService(options: AgentServiceOptions) {
     models: models.models,
     model: () => models.choice(),
     tools: trading,
-    mcp: (allow) => options.mcp.extensions(allow),
+    mcp: (guard) => options.mcp.extensions(guard),
     onEvent,
   });
 

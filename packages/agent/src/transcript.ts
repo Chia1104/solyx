@@ -11,6 +11,8 @@ import {
 } from "@earendil-works/pi-durable";
 import type { EntryRecord } from "@earendil-works/pi-durable";
 
+import { approvalEvents } from "./approval.ts";
+import type { ApprovalAnswers } from "./approval.ts";
 import { firstLine } from "./text.ts";
 import { AgentEventType, RunEndReason, ToolCallStatus } from "./wire.ts";
 import type { AgentWireEvent, RunEndEvent, ToolEndEvent } from "./wire.ts";
@@ -142,13 +144,15 @@ export function toolEndEvent(entry: EntryRecord): ToolEndEvent | undefined {
 
 /**
  * Rebuilds a transcript's wire events, oldest entry first, so a renderer that opens a
- * conversation folds it like the live stream. A completed reply arrives whole, without deltas.
+ * conversation folds it like the live stream. A completed reply arrives whole, without deltas,
+ * and a call that asked the user is followed by its question and the answer in `approvals`.
  * Unless the conversation is `running`, calls whose results never came are closed as aborted,
  * and a run that stops short ends as interrupted.
  */
 export function transcriptEvents(
   entries: readonly EntryRecord[],
-  running: boolean
+  running: boolean,
+  approvals: ApprovalAnswers
 ): AgentWireEvent[] {
   const events: AgentWireEvent[] = [];
   let open = new Map<string, string>();
@@ -214,6 +218,7 @@ export function transcriptEvents(
           toolName: part.name,
           args: part.arguments,
         });
+        events.push(...approvalEvents(approvals, part.id));
         open.set(part.id, part.name);
       }
 

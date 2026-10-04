@@ -35,7 +35,9 @@ import type {
 import { isEqual, maxBy, noop } from "es-toolkit";
 import * as z from "zod";
 
-import type { McpExtensions, McpToolCall } from "./mcp.ts";
+import { ApprovalDoc, createApprovalGate } from "./approval.ts";
+import type { ToolGuard } from "./approval.ts";
+import type { McpExtensions } from "./mcp.ts";
 import type { AgentThinking } from "./providers.ts";
 import { firstLine } from "./text.ts";
 import {
@@ -78,12 +80,10 @@ export interface AgentRuntimeOptions {
   tools: Extension;
   /**
    * The MCP servers' tools, built again before every run and before resuming, so a run sees the
-   * servers and policies of the moment it starts. A call its policy asks about waits on `allow`,
-   * which the user answers through `approve`.
+   * servers and policies of the moment it starts. A tool its policy asks about goes through
+   * `guard`, so each of its calls waits until the user answers through `approve`.
    */
-  mcp(
-    allow: (call: McpToolCall, signal?: AbortSignal) => Promise<boolean>
-  ): Promise<McpExtensions>;
+  mcp(guard: ToolGuard): Promise<McpExtensions>;
   onEvent(sessionId: string, event: AgentWireEvent): void;
   settings?: HarnessSettings;
 }
@@ -223,12 +223,6 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
   // The watches started so far by session id, for the approvals asked in them.
   const watchesBySession = new Map<string, Watch>();
 
-  /** Calls waiting for the user to allow them, by tool call id. */
-  const approvals = new Map<
-    string,
-    { sessionId: string; decide: (approved: boolean) => void }
-  >();
-
   const opened = options.store.then(async (store) => ({
     store,
     harness: await Harness.open(
@@ -262,48 +256,25 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     onEvent(sessionId, event);
   }
 
-  /**
-   * Resolves whether the user allowed the call; a withdrawn question counts as refused. The call
-   * runs in memory, so one left waiting when the app quits ends with its run as interrupted.
-   */
-  function allow(call: McpToolCall, signal?: AbortSignal): Promise<boolean> {
-    const { sessionId, toolCallId } = call;
+  const gate = createApprovalGate((sessionId, event) => {
     const watch = watchesBySession.get(sessionId);
 
-    // A call's start arrives with its commit, which can come after the call asks.
-    const tell = (event: AgentWireEvent) => {
-      if (!watch) {
-        onEvent(sessionId, event);
-      } else if (watch.started.has(toolCallId)) {
-        publish(watch, sessionId, event);
-      } else {
-        watch.held.set(toolCallId, [
-          ...(watch.held.get(toolCallId) ?? []),
-          event,
-        ]);
-      }
-    };
-
-    return new Promise<boolean>((resolve) => {
-      const decide = (approved: boolean) => {
-        if (!approvals.delete(toolCallId)) return;
-
-        tell({ type: AgentEventType.ApprovalResolved, toolCallId, approved });
-        resolve(approved);
-      };
-
-      approvals.set(toolCallId, { sessionId, decide });
-      tell({ type: AgentEventType.ApprovalRequest, toolCallId });
-
-      if (signal?.aborted) decide(false);
-      else
-        signal?.addEventListener("abort", () => decide(false), { once: true });
-    });
-  }
+    if (!watch) {
+      onEvent(sessionId, event);
+    } else if (watch.started.has(event.toolCallId)) {
+      publish(watch, sessionId, event);
+    } else {
+      // A call's start arrives with its commit, which can come after the call asks.
+      watch.held.set(event.toolCallId, [
+        ...(watch.held.get(event.toolCallId) ?? []),
+        event,
+      ]);
+    }
+  });
 
   /** Installs the extensions and returns the tools every request offers. */
   async function reload() {
-    const mcp = await options.mcp(allow);
+    const mcp = await options.mcp(gate.guard);
 
     // MCP tools wait until the agent finds them, so only the servers' names ride every request.
     const offered = [options.tools, mcp.search];
@@ -348,6 +319,15 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     );
 
     return entries.reverse();
+  }
+
+  async function approvalsOf(id: ConversationId) {
+    const { harness } = await opened;
+
+    return (
+      (await harness.snapshot(ApprovalDoc, id, BACKGROUND_CONTEXT))?.answers ??
+      {}
+    );
   }
 
   function handle(
@@ -529,7 +509,13 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       const entries = newest ? await history(conversation, newest.id) : [];
 
       const running = snapshot.run !== undefined;
-      const base = transcriptEvents(entries, running);
+
+      const base = transcriptEvents(
+        entries,
+        running,
+        await approvalsOf(conversation.id)
+      );
+
       const partial = snapshot.generation?.message;
 
       const created: Watch = {
@@ -687,7 +673,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
       return transcriptEvents(
         await history(conversation),
-        live?.run !== undefined
+        live?.run !== undefined,
+        await approvalsOf(conversation.id)
       );
     },
 
@@ -755,16 +742,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       }
     },
 
-    /** Answers a call waiting for the user to allow it. */
-    approve(sessionId: string, toolCallId: string, approved: boolean) {
-      const call = approvals.get(toolCallId);
-
-      if (!call || call.sessionId !== sessionId) {
-        throw new Error("That call is no longer waiting for an answer");
-      }
-
-      call.decide(approved);
-    },
+    approve: gate.approve,
 
     /** Stops a run; what it streamed so far is kept, ending as aborted. */
     async abort(sessionId: string) {

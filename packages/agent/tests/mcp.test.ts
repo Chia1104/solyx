@@ -19,12 +19,7 @@ import {
   parseMcpFile,
 } from "../src/mcp-config.ts";
 import { createMcpHub } from "../src/mcp.ts";
-import type {
-  McpHub,
-  McpSignInOptions,
-  McpToolCall,
-  McpToolOptions,
-} from "../src/mcp.ts";
+import type { McpHub, McpSignInOptions, McpToolOptions } from "../src/mcp.ts";
 
 import { browse, startOAuthMcpServer } from "./fixtures/oauth-mcp-server.ts";
 
@@ -37,10 +32,22 @@ const hubs: McpHub[] = [];
 const toolsOf = (hub: McpHub, options: McpToolOptions) =>
   hub.extensions(options).tools.tools ?? [];
 
+/** A guard whose calls ask `allow` in place of the user. */
+const guardWith =
+  (allow: () => Promise<boolean>): McpToolOptions["guard"] =>
+  (tool) => ({
+    ...tool,
+    async execute(params, api, context) {
+      if (!(await allow())) throw new Error("The user did not allow this call");
+
+      return tool.execute(params, api, context);
+    },
+  });
+
 /** Runs a tool as pi-durable would, for call `callId` in conversation 7. */
 function call(
   tool: ToolRegistration | undefined,
-  args: McpToolCall["args"],
+  args: Parameters<ToolRegistration["execute"]>[0],
   callId = "call-1"
 ) {
   if (!tool) throw new Error("No such tool");
@@ -161,20 +168,12 @@ describe("a connected server", () => {
     ]);
 
     const allow = vi.fn(async () => true);
-    const tools = toolsOf(hub, { policies: {}, allow });
+    const tools = toolsOf(hub, { policies: {}, guard: guardWith(allow) });
     const quote = tools.find((tool) => tool.name === "mcp_fake_quote");
     const result = await call(quote, { symbol: "2330" });
 
-    expect(allow).toHaveBeenCalledWith(
-      {
-        sessionId: "7",
-        toolCallId: "call-1",
-        server: "fake",
-        tool: "quote",
-        args: { symbol: "2330" },
-      },
-      undefined
-    );
+    // Without a saved policy the tool asks.
+    expect(allow).toHaveBeenCalledOnce();
     // The entry's own env and the user's home arrive; nothing else of the app's does.
     expect(contentText(result?.content ?? [])).toBe(
       `quote {"symbol":"2330"} key=s3cret app=none home=${process.platform === "win32" ? "none" : "set"}`
@@ -189,7 +188,7 @@ describe("a connected server", () => {
 
     const { search, tools } = hub.extensions({
       policies: {},
-      allow: async () => true,
+      guard: guardWith(async () => true),
     });
 
     expect(tools.tools?.map((tool) => tool.name)).toEqual([
@@ -238,7 +237,7 @@ describe("a connected server", () => {
 
     const { search } = hub.extensions({
       policies: {},
-      allow: async () => true,
+      guard: guardWith(async () => true),
     });
 
     const [find] = search.tools ?? [];
@@ -263,7 +262,7 @@ describe("a connected server", () => {
 
     const order = toolsOf(hub, {
       policies: {},
-      allow: async () => false,
+      guard: guardWith(async () => false),
     }).find((tool) => tool.name === "mcp_fake_order");
 
     await expect(call(order, {})).rejects.toThrow("did not allow");
@@ -282,7 +281,7 @@ describe("a connected server", () => {
         "fake/quote": McpToolPolicy.Auto,
         "fake/order": McpToolPolicy.Auto,
       },
-      allow,
+      guard: guardWith(allow),
     });
 
     const quote = tools.find((tool) => tool.name === "mcp_fake_quote");
@@ -302,7 +301,7 @@ describe("a connected server", () => {
     expect(
       toolsOf(hub, {
         policies: { "fake/order": McpToolPolicy.Off },
-        allow,
+        guard: guardWith(allow),
       }).map((tool) => tool.name)
     ).toEqual(["mcp_fake_quote"]);
   });
@@ -324,7 +323,7 @@ test("a server whose secret is not saved fails and names it", async () => {
 
   const { search, tools } = hub.extensions({
     policies: {},
-    allow: async () => true,
+    guard: guardWith(async () => true),
   });
 
   expect(tools.tools).toEqual([]);
@@ -379,7 +378,7 @@ describe("a remote server that asks to sign in", () => {
 
     const [whoami] = toolsOf(setup.hub, {
       policies: { "remote/whoami": McpToolPolicy.Auto },
-      allow: async () => false,
+      guard: guardWith(async () => false),
     });
 
     const callWhoami = async (id: string) =>

@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 
 import { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
 import { createMcpHub } from "@solyx/agent/mcp";
-import type { McpToolCall } from "@solyx/agent/mcp";
+import type { McpToolOptions } from "@solyx/agent/mcp";
 import { mcpToolPolicySchema, parseMcpFile } from "@solyx/agent/mcp-config";
 import type { McpToolPolicy } from "@solyx/agent/mcp-config";
 import { errorMessage, isErrnoError } from "@solyx/utils/error";
@@ -119,16 +119,14 @@ export function createMcpServers({
     },
 
     /**
-     * The tools of every connected server as the agent's extensions, each asking through `allow` as
+     * The tools of every connected server as the agent's extensions, each asking through `guard` as
      * its policy says. Servers get a moment to connect first.
      */
-    async extensions(
-      allow: (call: McpToolCall, signal?: AbortSignal) => Promise<boolean>
-    ) {
+    async extensions(guard: McpToolOptions["guard"]) {
       await start();
       await hub.settled(CONNECT_WAIT_MS);
 
-      return hub.extensions({ policies: policies(), allow });
+      return hub.extensions({ policies: policies(), guard });
     },
 
     reconnect: (name: string) => hub.reconnect(name),

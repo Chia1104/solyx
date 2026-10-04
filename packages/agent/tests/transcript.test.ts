@@ -87,7 +87,7 @@ test("the thread shows what the user typed, not the app's context", () => {
 
 test("a finished conversation replays idle", () => {
   const view = foldEvents(
-    transcriptEvents([user(1, "hi"), reply(2, "hello")], false)
+    transcriptEvents([user(1, "hi"), reply(2, "hello")], false, {})
   );
 
   expect(view.running).toBe(false);
@@ -99,7 +99,7 @@ test("a finished conversation replays idle", () => {
 
 test("a run that stops short replays as interrupted", () => {
   const view = foldEvents(
-    transcriptEvents([user(1, "hi"), toolCall(2)], false)
+    transcriptEvents([user(1, "hi"), toolCall(2)], false, {})
   );
 
   expect(view.running).toBe(false);
@@ -112,7 +112,9 @@ test("a run that stops short replays as interrupted", () => {
 });
 
 test("a run still going replays running, with its calls open", () => {
-  const view = foldEvents(transcriptEvents([user(1, "hi"), toolCall(2)], true));
+  const view = foldEvents(
+    transcriptEvents([user(1, "hi"), toolCall(2)], true, {})
+  );
 
   expect(view.running).toBe(true);
   expect(view.items.at(-1)).toMatchObject({
@@ -135,7 +137,8 @@ test("a call stopped with its run replays the run as aborted", () => {
           },
         ]),
       ],
-      false
+      false,
+      {}
     )
   );
 
@@ -153,7 +156,8 @@ test("a failed reply a retry answered replays as done", () => {
         reply(2, "", { stopReason: "error", errorMessage: "overloaded" }),
         reply(3, "hello"),
       ],
-      false
+      false,
+      {}
     )
   );
 
@@ -173,7 +177,8 @@ test("a reply cut short and resumed after a restart replays as one run", () => {
         reply(3, "hello"),
         user(4, "again"),
       ],
-      false
+      false,
+      {}
     )
   );
 
@@ -190,7 +195,8 @@ test("an interrupted run is closed before the next one starts", () => {
   const view = foldEvents(
     transcriptEvents(
       [user(1, "hi"), user(2, "again"), reply(3, "hello")],
-      false
+      false,
+      {}
     )
   );
 

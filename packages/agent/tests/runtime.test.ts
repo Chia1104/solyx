@@ -522,7 +522,7 @@ test("a compacted conversation still shows every message once", async () => {
 });
 
 /** A run that loads an MCP tool the user must allow, as `search_tools` would, and calls it. */
-function approvalSetup() {
+function approvalSetup(store = memoryStore()) {
   const faux = fauxProvider();
   const models = createModels();
   const events: AgentWireEvent[] = [];
@@ -531,14 +531,14 @@ function approvalSetup() {
   models.setProvider(faux.provider);
 
   const runtime = createAgentRuntime({
-    store: Promise.resolve(memoryStore()),
+    store: Promise.resolve(store),
     models,
     model: async () => ({
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
     tools: NO_TOOLS,
-    mcp: async (allow) => ({
+    mcp: async (guard) => ({
       search: defineExtension({
         name: "search",
         tools: [
@@ -557,28 +557,15 @@ function approvalSetup() {
       tools: defineExtension({
         name: "broker",
         tools: [
-          {
+          guard({
             name: "place_order",
             description: "Places an order",
             parameters: { type: "object", properties: {} },
             replay: "unsafe",
-            async execute(_params, api, context) {
-              const allowed = await allow(
-                {
-                  sessionId: String(api.conversationId),
-                  toolCallId: api.callId,
-                  server: "broker",
-                  tool: "place_order",
-                  args: {},
-                },
-                context.abortSignal
-              );
-
-              if (!allowed) throw new Error("The user did not allow this call");
-
-              return { content: [{ type: "text", text: placed() }] };
-            },
-          },
+            execute: async () => ({
+              content: [{ type: "text", text: placed() }],
+            }),
+          }),
         ],
       }),
     }),
@@ -680,4 +667,36 @@ test("another conversation cannot answer a call, and stopping the run withdraws 
   );
 
   await runtime.close();
+});
+
+test("a transcript read from storage still shows what the user answered", async () => {
+  const path = join(directory, "agent.sqlite");
+
+  const fileStore = async (): Promise<AgentConversationStore> => ({
+    storage: await openNodeSqliteStorage(path),
+    deleteConversation: vi.fn(async () => undefined),
+  });
+
+  const first = approvalSetup(await fileStore());
+  const { id, toolCallId } = await first.ask();
+
+  first.runtime.approve(id, toolCallId, true);
+  await first.ended();
+  await first.runtime.close();
+
+  const second = approvalSetup(await fileStore());
+  const replayed = await second.runtime.transcript(id);
+
+  expect(
+    replayed.filter(
+      (event) => "toolCallId" in event && event.toolCallId === toolCallId
+    )
+  ).toMatchObject([
+    { type: AgentEventType.ToolStart },
+    { type: AgentEventType.ApprovalRequest },
+    { type: AgentEventType.ApprovalResolved, approved: true },
+    { type: AgentEventType.ToolEnd, status: ToolCallStatus.Ok },
+  ]);
+
+  await second.runtime.close();
 });

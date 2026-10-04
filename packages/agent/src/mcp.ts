@@ -29,6 +29,7 @@ import * as z from "zod";
 
 import { errorMessage } from "@solyx/utils/error";
 
+import type { ToolGuard } from "./approval.ts";
 import {
   McpServerState,
   McpToolPolicy,
@@ -64,19 +65,6 @@ export interface McpServerStatus {
   signedIn: boolean;
 }
 
-/** What an MCP tool is called with, as pi-mcp sends it. */
-type McpToolArguments = NonNullable<Parameters<McpClient["callTool"]>[1]>;
-
-/** A call waiting for the user to allow it. */
-export interface McpToolCall {
-  /** The conversation that made the call, as the runtime names it. */
-  sessionId: string;
-  toolCallId: string;
-  server: string;
-  tool: string;
-  args: McpToolArguments;
-}
-
 export interface McpHubOptions {
   client: { name: string; version: string };
   /** A secret the user saved, by the name an entry references. */
@@ -100,8 +88,8 @@ export interface McpSignInOptions {
 export interface McpToolOptions {
   /** Saved policies by `mcpToolKey`; a tool without one is asked about. */
   policies: Readonly<Record<string, McpToolPolicy>>;
-  /** Resolves whether the user allows the call; aborting `signal` withdraws the question. */
-  allow(call: McpToolCall, signal?: AbortSignal): Promise<boolean>;
+  /** Makes each call of a tool whose policy asks wait for the user to allow it. */
+  guard: ToolGuard;
 }
 
 interface Connection {
@@ -750,7 +738,7 @@ export function createMcpHub(options: McpHubOptions) {
      * off by the app exiting runs again only for a tool that may run without asking, which its
      * server marks read-only.
      */
-    extensions({ policies, allow }: McpToolOptions): McpExtensions {
+    extensions({ policies, guard }: McpToolOptions): McpExtensions {
       const loadable: LoadableTool[] = [];
       const names = new Set<string>();
       const servers: ListedServer[] = [];
@@ -779,60 +767,47 @@ export function createMcpHub(options: McpHubOptions) {
           if (policy === McpToolPolicy.Off || names.has(name)) continue;
 
           names.add(name);
+
+          const registration: ToolRegistration = {
+            name,
+            description: `${tool.description ?? tool.title ?? tool.name}\n(A tool from the ${server} MCP server.)`,
+            // Providers require an object schema, and some reject one without properties.
+            parameters: {
+              ...tool.inputSchema,
+              type: "object",
+              properties: tool.inputSchema.properties ?? {},
+            },
+            replay: policy === McpToolPolicy.Auto ? "safe" : "unsafe",
+            async execute(params, _api, context) {
+              const args = argsSchema.parse(params ?? {});
+
+              try {
+                const result = await client.callTool(tool.name, args, {
+                  signal: context.abortSignal,
+                });
+
+                // MCP reports a tool's own failure in the result rather than as an error.
+                return {
+                  content: toLlmContent(result),
+                  details: { server, tool: tool.name },
+                  isError: result.isError === true,
+                };
+              } catch (error) {
+                if (error instanceof McpOAuthAuthorizationRequiredError) {
+                  connection.status.state = McpServerState.NeedsSignIn;
+                }
+
+                throw error;
+              }
+            },
+          };
+
           loadable.push({
             server,
             serverDescription,
             tool,
-            registration: {
-              name,
-              description: `${tool.description ?? tool.title ?? tool.name}\n(A tool from the ${server} MCP server.)`,
-              // Providers require an object schema, and some reject one without properties.
-              parameters: {
-                ...tool.inputSchema,
-                type: "object",
-                properties: tool.inputSchema.properties ?? {},
-              },
-              replay: policy === McpToolPolicy.Auto ? "safe" : "unsafe",
-              async execute(params, api, context) {
-                const args = argsSchema.parse(params ?? {});
-                const signal = context.abortSignal;
-
-                if (
-                  policy === McpToolPolicy.Ask &&
-                  !(await allow(
-                    {
-                      sessionId: String(api.conversationId),
-                      toolCallId: api.callId,
-                      server,
-                      tool: tool.name,
-                      args,
-                    },
-                    signal
-                  ))
-                ) {
-                  throw new Error("The user did not allow this call");
-                }
-
-                try {
-                  const result = await client.callTool(tool.name, args, {
-                    signal,
-                  });
-
-                  // MCP reports a tool's own failure in the result rather than as an error.
-                  return {
-                    content: toLlmContent(result),
-                    details: { server, tool: tool.name },
-                    isError: result.isError === true,
-                  };
-                } catch (error) {
-                  if (error instanceof McpOAuthAuthorizationRequiredError) {
-                    connection.status.state = McpServerState.NeedsSignIn;
-                  }
-
-                  throw error;
-                }
-              },
-            },
+            registration:
+              policy === McpToolPolicy.Ask ? guard(registration) : registration,
           });
         }
 
