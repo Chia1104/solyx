@@ -19,7 +19,6 @@ import type { Locale } from "#shared/ipc/settings.ts";
 import { createAgentModels } from "./agent-models.ts";
 import type { AgentModelsOptions } from "./agent-models.ts";
 import type { McpServers } from "./mcp-servers.ts";
-import { createToolApprovals } from "./tool-approvals.ts";
 
 interface AgentServiceOptions extends AgentModelsOptions {
   skillFolders: SkillFolders;
@@ -56,8 +55,6 @@ export function createAgentService(options: AgentServiceOptions) {
     }
   };
 
-  const approvals = createToolApprovals(onEvent);
-
   const trading = createTradingExtension({
     marketData: options.marketData,
     watchlist: options.watchlist,
@@ -72,14 +69,8 @@ export function createAgentService(options: AgentServiceOptions) {
     store: options.conversations,
     models: models.catalog,
     model: () => models.choice(),
-    async extensions() {
-      const mcp = await options.mcp.extensions((call, signal) =>
-        approvals.request(call.sessionId, call.toolCallId, signal)
-      );
-
-      // MCP tools wait until the agent finds them, so only the servers' names ride every request.
-      return { offered: [trading, mcp.search], deferred: [mcp.tools] };
-    },
+    tools: trading,
+    mcp: (allow) => options.mcp.extensions(allow),
     onEvent,
   });
 
@@ -96,16 +87,12 @@ export function createAgentService(options: AgentServiceOptions) {
 
     deleteSession: (id: string) => runtime.delete(id),
 
-    /** The conversation as wire events, with calls still waiting for the user asked again. */
-    transcript: async (id: string) => [
-      ...(await runtime.transcript(id)),
-      ...approvals.open(id),
-    ],
+    transcript: (id: string) => runtime.transcript(id),
 
     abort: (id: string) => runtime.abort(id),
 
     approve: (id: string, toolCallId: string, approved: boolean) =>
-      approvals.decide(id, toolCallId, approved),
+      runtime.approve(id, toolCallId, approved),
 
     /** Closes the conversations, then the MCP servers their runs used, as the app quits. */
     async close() {

@@ -6,7 +6,7 @@ import {
   fauxProvider,
   fauxToolCall,
 } from "@earendil-works/pi-ai";
-import { MemoryStorage } from "@earendil-works/pi-durable";
+import { MemoryStorage, defineExtension } from "@earendil-works/pi-durable";
 import type {
   ToolExecutionApi,
   ToolRegistration,
@@ -226,9 +226,10 @@ function agentOn(ports: ReturnType<typeof setup>["ports"]) {
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    extensions: async () => ({
-      offered: [createTradingExtension(ports)],
-      deferred: [],
+    tools: createTradingExtension(ports),
+    mcp: async () => ({
+      search: defineExtension({ name: "mcp-search" }),
+      tools: defineExtension({ name: "mcp-tools" }),
     }),
     onEvent: (_sessionId, event) => events.push(event),
   });

@@ -23,6 +23,7 @@ import { createAgentRuntime } from "../src/runtime.ts";
 import type { AgentConversationStore } from "../src/runtime.ts";
 import {
   AgentEventType,
+  AgentItemKind,
   RunEndReason,
   ToolCallStatus,
   foldEvents,
@@ -36,6 +37,14 @@ beforeEach(async () => {
 });
 
 afterEach(() => rm(directory, { recursive: true, force: true }));
+
+// Hosts without MCP servers offer no search and no deferred tools.
+const NO_MCP = {
+  search: defineExtension({ name: "mcp-search" }),
+  tools: defineExtension({ name: "mcp-tools" }),
+};
+
+const NO_TOOLS = defineExtension({ name: "app" });
 
 function memoryStore(): AgentConversationStore {
   return {
@@ -65,26 +74,22 @@ function setup({
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    extensions: async () => ({
-      offered: [
-        defineExtension({
-          name: "test",
-          tools: [
-            {
-              name: "get_watchlist",
-              description: "The watchlist",
-              parameters: { type: "object", properties: {} },
-              replay: "safe",
-              execute: async () => ({
-                content: [{ type: "text", text: watchlist() }],
-                details: { count: 1 },
-              }),
-            },
-          ],
-        }),
+    tools: defineExtension({
+      name: "test",
+      tools: [
+        {
+          name: "get_watchlist",
+          description: "The watchlist",
+          parameters: { type: "object", properties: {} },
+          replay: "safe",
+          execute: async () => ({
+            content: [{ type: "text", text: watchlist() }],
+            details: { count: 1 },
+          }),
+        },
       ],
-      deferred: [],
     }),
+    mcp: async () => NO_MCP,
     onEvent: (_sessionId, event) => events.push(event),
   });
 
@@ -137,7 +142,7 @@ test("a run stores every message and streams the same conversation it replays", 
   await runtime.close();
 });
 
-test("a deferred tool is offered once a search loads it, and stays loaded", async () => {
+test("an MCP tool is offered once a search loads it, and stays loaded", async () => {
   const faux = fauxProvider();
   const models = createModels();
   const events: AgentWireEvent[] = [];
@@ -163,28 +168,25 @@ test("a deferred tool is offered once a search loads it, and stays loaded", asyn
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    extensions: async () => ({
-      offered: [
-        defineExtension({
-          name: "search",
-          tools: [
-            tool("search_tools", async () => ({
-              content: [{ type: "text", text: "Loaded quote" }],
-              control: { addTools: ["quote"] },
-            })),
-          ],
-        }),
-      ],
-      deferred: [
-        defineExtension({
-          name: "quotes",
-          tools: [
-            tool("quote", async () => ({
-              content: [{ type: "text", text: quote() }],
-            })),
-          ],
-        }),
-      ],
+    tools: NO_TOOLS,
+    mcp: async () => ({
+      search: defineExtension({
+        name: "search",
+        tools: [
+          tool("search_tools", async () => ({
+            content: [{ type: "text", text: "Loaded quote" }],
+            control: { addTools: ["quote"] },
+          })),
+        ],
+      }),
+      tools: defineExtension({
+        name: "quotes",
+        tools: [
+          tool("quote", async () => ({
+            content: [{ type: "text", text: quote() }],
+          })),
+        ],
+      }),
     }),
     onEvent: (_sessionId, event) => events.push(event),
   });
@@ -351,7 +353,8 @@ test("a model that is not set up rejects before anything is stored", async () =>
     model: async () => {
       throw new Error("Save an API key first");
     },
-    extensions: async () => ({ offered: [], deferred: [] }),
+    tools: NO_TOOLS,
+    mcp: async () => NO_MCP,
     onEvent: vi.fn(),
   });
 
@@ -452,7 +455,8 @@ test("a compacted conversation still shows every message once", async () => {
         model: faux.getModel(),
         thinking: AgentThinking.Off,
       }),
-      extensions: async () => ({ offered: [], deferred: [] }),
+      tools: NO_TOOLS,
+      mcp: async () => NO_MCP,
       onEvent: (_sessionId, event) => events.push(event),
       settings: {
         compaction: {
@@ -515,4 +519,165 @@ test("a compacted conversation still shows every message once", async () => {
   expect(users).toEqual(["first", "second", "third", "fourth"]);
 
   await third.runtime.close();
+});
+
+/** A run that loads an MCP tool the user must allow, as `search_tools` would, and calls it. */
+function approvalSetup() {
+  const faux = fauxProvider();
+  const models = createModels();
+  const events: AgentWireEvent[] = [];
+  const placed = vi.fn(() => "Placed");
+
+  models.setProvider(faux.provider);
+
+  const runtime = createAgentRuntime({
+    store: Promise.resolve(memoryStore()),
+    models,
+    model: async () => ({
+      model: faux.getModel(),
+      thinking: AgentThinking.Off,
+    }),
+    tools: NO_TOOLS,
+    mcp: async (allow) => ({
+      search: defineExtension({
+        name: "search",
+        tools: [
+          {
+            name: "search_tools",
+            description: "Finds tools",
+            parameters: { type: "object", properties: {} },
+            replay: "safe",
+            execute: async () => ({
+              content: [{ type: "text", text: "Loaded place_order" }],
+              control: { addTools: ["place_order"] },
+            }),
+          },
+        ],
+      }),
+      tools: defineExtension({
+        name: "broker",
+        tools: [
+          {
+            name: "place_order",
+            description: "Places an order",
+            parameters: { type: "object", properties: {} },
+            replay: "unsafe",
+            async execute(_params, api, context) {
+              const allowed = await allow(
+                {
+                  sessionId: String(api.conversationId),
+                  toolCallId: api.callId,
+                  server: "broker",
+                  tool: "place_order",
+                  args: {},
+                },
+                context.abortSignal
+              );
+
+              if (!allowed) throw new Error("The user did not allow this call");
+
+              return { content: [{ type: "text", text: placed() }] };
+            },
+          },
+        ],
+      }),
+    }),
+    onEvent: (_sessionId, event) => events.push(event),
+  });
+
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall("search_tools", {}), {
+      stopReason: "toolUse",
+    }),
+    fauxAssistantMessage(fauxToolCall("place_order", {}), {
+      stopReason: "toolUse",
+    }),
+    fauxAssistantMessage("Done."),
+  ]);
+
+  const order = () =>
+    foldEvents(events).items.find(
+      (item) =>
+        item.kind === AgentItemKind.Tool && item.toolName === "place_order"
+    );
+
+  /** Starts the run and resolves the call's id once it waits for the user. */
+  async function ask() {
+    const { id } = await runtime.create();
+
+    await runtime.send(id, { text: "Buy 2330", context: "" });
+    await vi.waitFor(() =>
+      expect(order()).toMatchObject({
+        status: ToolCallStatus.AwaitingApproval,
+      })
+    );
+
+    const call = order();
+
+    if (call?.kind !== AgentItemKind.Tool) throw new Error("No call");
+
+    return { id, toolCallId: call.toolCallId };
+  }
+
+  const ended = () =>
+    vi.waitFor(() =>
+      expect(events.at(-1)).toMatchObject({ type: AgentEventType.RunEnd })
+    );
+
+  return { runtime, events, placed, order, ask, ended };
+}
+
+test("a call the user must allow waits in its conversation, which a reload shows, until they do", async () => {
+  const { runtime, events, placed, order, ask, ended } = approvalSetup();
+  const { id, toolCallId } = await ask();
+
+  // The question follows its call's start, so every fold finds the call it asks about.
+  expect(
+    events.findIndex(
+      (event) =>
+        event.type === AgentEventType.ApprovalRequest &&
+        event.toolCallId === toolCallId
+    )
+  ).toBeGreaterThan(
+    events.findIndex(
+      (event) =>
+        event.type === AgentEventType.ToolStart &&
+        event.toolCallId === toolCallId
+    )
+  );
+  expect(foldEvents(await runtime.transcript(id)).items).toEqual(
+    foldEvents(events).items
+  );
+  expect(placed).not.toHaveBeenCalled();
+
+  runtime.approve(id, toolCallId, true);
+  await ended();
+
+  expect(placed).toHaveBeenCalledOnce();
+  expect(order()).toMatchObject({ status: ToolCallStatus.Ok });
+  expect(() => runtime.approve(id, toolCallId, true)).toThrow(
+    "no longer waiting"
+  );
+
+  await runtime.close();
+});
+
+test("another conversation cannot answer a call, and stopping the run withdraws its question as refused", async () => {
+  const { runtime, placed, ask, ended } = approvalSetup();
+  const { id, toolCallId } = await ask();
+  const other = await runtime.create();
+
+  expect(() => runtime.approve(other.id, toolCallId, true)).toThrow(
+    "no longer waiting"
+  );
+
+  await runtime.abort(id);
+  await ended();
+
+  expect(placed).not.toHaveBeenCalled();
+  expect(() => runtime.approve(id, toolCallId, true)).toThrow(
+    "no longer waiting"
+  );
+
+  await runtime.close();
 });
