@@ -12,7 +12,6 @@ import type {
 import { maxBy, omit, takeRight, uniq } from "es-toolkit";
 import * as z from "zod";
 
-import type { BrokerMode } from "@solyx/core/broker";
 import { candleDate, intervalSchema, isIntraday } from "@solyx/core/candles";
 import type { Candle, Interval } from "@solyx/core/candles";
 import {
@@ -50,9 +49,9 @@ import type {
   Published,
 } from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
-import type { AccountSnapshot, OrderRequest } from "@solyx/core/order";
+import type { OrderRequest } from "@solyx/core/order";
 import { ProposalSource } from "@solyx/core/order-desk";
-import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
+import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
 import { stanceValue } from "@solyx/core/sentiment";
 import type { SentimentScorer } from "@solyx/core/sentiment";
 import { getSession } from "@solyx/core/session";
@@ -72,9 +71,7 @@ export interface TradingToolPorts extends PromptSources {
   newsStore: NewsStore;
   /** Judges what news says about a listing; `undefined` until the user saves a decisions model's key. */
   scorer(): Promise<SentimentScorer | undefined>;
-  account(): Promise<AccountSnapshot>;
-  brokerMode: BrokerMode;
-  desk: Pick<OrderDesk, "check" | "propose" | "list">;
+  desk: ProposingDesk;
   now?: () => Date;
 }
 
@@ -546,7 +543,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         "Cash per currency and open positions with their average price, in the account the app trades.",
       parameters: z.object({}),
       execute: async () => {
-        const account = await ports.account();
+        const account = await ports.desk.account();
 
         const cash = Object.entries(account.cash).map(
           ([currency, amount]) => `${currency} ${amount}`
@@ -559,7 +556,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         return {
           text: [
-            `account: ${ports.brokerMode}`,
+            `account: ${ports.desk.mode}`,
             `cash: ${cash.join(", ") || "none"}`,
             "positions:",
             ...(positions.length > 0 ? positions : ["none"]),

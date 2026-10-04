@@ -12,8 +12,8 @@ import {
 } from "../src/order-desk.ts";
 import type { ProposalStore, TradeProposal } from "../src/order-desk.ts";
 import { OrderType, Side } from "../src/order.ts";
-import type { OrderRequest } from "../src/order.ts";
-import type { RiskContext } from "../src/risk.ts";
+import type { AccountSnapshot, OrderRequest } from "../src/order.ts";
+import { RiskViolationCode } from "../src/risk.ts";
 import { Session } from "../src/session.ts";
 
 const order: OrderRequest = {
@@ -40,10 +40,20 @@ function memoryStore(): ProposalStore {
   };
 }
 
-function setup(
-  context: RiskContext = { session: Session.Regular },
-  store = memoryStore()
-) {
+const DURING_SESSION = Date.parse("2026-09-29T10:00:00+08:00");
+
+const AFTER_CLOSE = Date.parse("2026-09-29T15:00:00+08:00");
+
+function setup(store = memoryStore()) {
+  const clock = { now: DURING_SESSION };
+
+  const account: AccountSnapshot = {
+    cash: { TWD: 5_000_000 },
+    positions: [],
+  };
+
+  const getAccount = vi.fn(async () => structuredClone(account));
+
   const placeOrder = vi
     .fn<BrokerAdapter["placeOrder"]>()
     .mockResolvedValue({ orderId: "B-1" });
@@ -52,12 +62,9 @@ function setup(
     id: "fake",
     mode: BrokerMode.Paper,
     markets: [Market.TW],
-    getAccount: async () => ({ cash: {}, positions: [] }),
+    getAccount,
     placeOrder,
-    cancelOrder: vi.fn<BrokerAdapter["cancelOrder"]>().mockResolvedValue(),
   };
-
-  const riskContext = vi.fn(async () => context);
 
   const desk = new OrderDesk({
     broker,
@@ -66,10 +73,10 @@ function setup(
       maxOrderNotional: { TWD: 5_000_000, USD: 10_000 },
       allowedSessions: [Session.Regular],
     },
-    riskContext,
+    now: () => clock.now,
   });
 
-  return { desk, placeOrder, riskContext, store };
+  return { desk, placeOrder, getAccount, account, clock, store };
 }
 
 function proposeFromAgent(desk: OrderDesk) {
@@ -89,7 +96,7 @@ test("proposing never reaches the broker", async () => {
 });
 
 test("proposing again under the same id returns the first proposal", async () => {
-  const { desk, riskContext, store } = setup();
+  const { desk, getAccount, store } = setup();
 
   const input = {
     id: "call-1",
@@ -103,7 +110,7 @@ test("proposing again under the same id returns the first proposal", async () =>
 
   expect(again).toEqual(first);
   expect(store.list()).toHaveLength(1);
-  expect(riskContext).toHaveBeenCalledTimes(1);
+  expect(getAccount).toHaveBeenCalledTimes(1);
 });
 
 test("confirming submits exactly once", async () => {
@@ -124,9 +131,11 @@ test("confirming submits exactly once", async () => {
 });
 
 test("risk is checked again on confirm", async () => {
-  const { desk, placeOrder, riskContext } = setup();
+  const { desk, placeOrder, clock } = setup();
   const { id } = await proposeFromAgent(desk);
-  riskContext.mockResolvedValueOnce({ session: Session.Closed });
+
+  clock.now = AFTER_CLOSE;
+
   const confirmed = await desk.confirm(id);
 
   expect(confirmed.status).toBe(ProposalStatus.Rejected);
@@ -134,7 +143,10 @@ test("risk is checked again on confirm", async () => {
 });
 
 test("rejected proposals cannot be confirmed", async () => {
-  const { desk, placeOrder } = setup({ session: Session.Closed });
+  const { desk, placeOrder, clock } = setup();
+
+  clock.now = AFTER_CLOSE;
+
   const { id, status } = await proposeFromAgent(desk);
 
   expect(status).toBe(ProposalStatus.Rejected);
@@ -164,7 +176,7 @@ test("proposals outlive the desk", async () => {
   const { desk, store } = setup();
   const { id } = await proposeFromAgent(desk);
 
-  const reopened = setup(undefined, store);
+  const reopened = setup(store);
 
   expect(reopened.desk.list()).toEqual(desk.list());
   expect(await reopened.desk.confirm(id)).toMatchObject({
@@ -181,7 +193,7 @@ test("a submission cut off by an exit fails and is never resubmitted", async () 
   void desk.confirm(id);
   await vi.waitFor(() => expect(placeOrder).toHaveBeenCalledOnce());
 
-  const reopened = setup(undefined, store);
+  const reopened = setup(store);
 
   expect(reopened.desk.list()).toMatchObject([
     {
@@ -192,4 +204,52 @@ test("a submission cut off by an exit fails and is never resubmitted", async () 
   ]);
   await expect(reopened.desk.confirm(id)).rejects.toThrow();
   expect(reopened.placeOrder).not.toHaveBeenCalled();
+});
+
+test("what the account cannot pay for or does not hold is rejected, never sent to fail", async () => {
+  const { desk, placeOrder, account } = setup();
+
+  account.cash = { TWD: 100_000 };
+
+  const buy = await proposeFromAgent(desk);
+
+  const sale = await desk.propose({
+    order: { ...order, side: Side.Sell },
+    source: ProposalSource.User,
+    rationale: "test",
+  });
+
+  expect(buy).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [{ code: RiskViolationCode.InsufficientCash }],
+  });
+  expect(sale).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [{ code: RiskViolationCode.InsufficientShares, held: 0 }],
+  });
+  expect(placeOrder).not.toHaveBeenCalled();
+});
+
+test("a market the broker does not trade is rejected", async () => {
+  const { desk } = setup();
+
+  const proposal = await desk.propose({
+    order: {
+      ...order,
+      instrument: {
+        market: Market.US,
+        symbol: "AAPL",
+        kind: InstrumentKind.Stock,
+      },
+      quantity: 10,
+      limitPrice: 230,
+    },
+    source: ProposalSource.Agent,
+    rationale: "test",
+  });
+
+  expect(proposal.violations).toContainEqual({
+    code: RiskViolationCode.UnsupportedMarket,
+    market: Market.US,
+  });
 });

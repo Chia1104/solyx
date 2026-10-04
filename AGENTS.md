@@ -69,7 +69,7 @@ Personal desktop app for trading Taiwan and US stocks: an agent analyzes and pro
 
 ## Trading invariants
 
-1. **One road to an order:** `OrderDesk.propose` → `checkOrder` → the user confirms in the UI → `OrderDesk.confirm` → `broker.placeOrder`. Agent tools may only call `propose`; `confirm` is reachable only from a user action in the renderer. Nothing else calls `broker.placeOrder`. Tools from MCP servers run outside the `OrderDesk`, so each of their calls waits for the user to allow it, unless the user lets a tool its server marks read-only run on its own.
+1. **One road to an order:** `OrderDesk.propose` → `checkOrder` → the user confirms in the UI → `OrderDesk.confirm` → `broker.placeOrder`. Agent tools may only call `propose`; `confirm` is reachable only from a user action in the renderer. The desk is the broker's only holder and builds every check's context itself (session, account, the broker's markets); others read the account through it, and the agent gets a `ProposingDesk`. Tools from MCP servers run outside the `OrderDesk`, so each of their calls waits for the user to allow it, unless the user lets a tool its server marks read-only run on its own.
 2. **Failed submissions are never retried:** `failed` is terminal. The broker may have accepted the order anyway, so a retry could duplicate it. A proposal still submitting when the app exits fails the next time the `OrderDesk` opens, for the same reason.
 3. **Broker SDKs stay out of the repository and the installer:** users download SDKs such as `fubon-neo` themselves, and the app loads them at runtime from a path the user chooses.
 4. **Secrets never persist in plain text:** certificates (`.pfx`), passwords and API keys never reach the repository, logs or error reports.

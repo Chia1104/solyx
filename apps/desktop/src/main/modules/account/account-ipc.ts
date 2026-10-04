@@ -10,9 +10,9 @@ const handle = ipcModule<AccountApi>(accountChannels, {
   summary: z.tuple([]),
 });
 
-export function registerAccountIpc({ broker }: Services) {
+export function registerAccountIpc({ desk }: Services) {
   handle("summary", async () => ({
-    brokerMode: broker.mode,
-    ...(await broker.getAccount()),
+    brokerMode: desk.mode,
+    ...(await desk.account()),
   }));
 }

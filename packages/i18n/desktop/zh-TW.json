@@ -290,7 +290,10 @@
     "outside-price-band": "價格超出漲跌停範圍 {{low, number}}–{{high, number}}",
     "missing-reference-price": "市價單需要最新成交價才能估算金額",
     "order-too-large": "單筆金額 {{notional, number}} {{currency}} 超過上限 {{max, number}}",
-    "session-not-allowed": "目前時段（{{session}}）不允許下單"
+    "session-not-allowed": "目前時段（{{session}}）不允許下單",
+    "unsupported-market": "此帳戶不交易{{market}}標的",
+    "insufficient-cash": "單筆金額 {{notional, number}} {{currency}} 超過帳戶現金 {{cash, number}} {{currency}}",
+    "insufficient-shares": "欲賣出 {{quantity, number}} 股，但帳戶只持有 {{held, number}} 股"
   },
   "settings": {
     "title": "設定",

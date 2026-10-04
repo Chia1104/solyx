@@ -8,7 +8,7 @@ import { createPaperBroker } from "@solyx/brokers/paper";
 import { Currency } from "@solyx/core/market";
 import { OrderDesk } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
-import { Session, getSession } from "@solyx/core/session";
+import { Session } from "@solyx/core/session";
 import { openAgentStore } from "@solyx/db/agent";
 import { openCache } from "@solyx/db/cache";
 import { openNews } from "@solyx/db/news";
@@ -46,7 +46,6 @@ const PAPER_LIMITS: RiskLimits = {
 
 /** Composition root. A live broker is only ever wired here after the user explicitly turns it on. */
 export function createServices() {
-  const broker = createPaperBroker({ cash: PAPER_CASH });
   const userDataDir = app.getPath("userData");
   const home = app.getPath("home");
 
@@ -59,13 +58,9 @@ export function createServices() {
   );
 
   const desk = new OrderDesk({
-    broker,
+    broker: createPaperBroker({ cash: PAPER_CASH }),
     store: userData.proposals,
     limits: PAPER_LIMITS,
-    // No quote feed yet, so market orders are rejected for lack of a reference price.
-    riskContext: async (order) => ({
-      session: getSession(order.instrument.market),
-    }),
   });
 
   const secrets = createSecretStore(
@@ -150,7 +145,6 @@ export function createServices() {
     newsSources: () => news.sources(),
     newsStore: news.store,
     scorer: () => decisions.scorer(),
-    broker,
     desk,
   });
 
@@ -188,7 +182,6 @@ export function createServices() {
   config.watch();
 
   return {
-    broker,
     desk,
     secrets,
     config,

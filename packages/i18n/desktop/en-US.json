@@ -290,7 +290,10 @@
     "outside-price-band": "Price is outside the daily limit band {{low, number}}–{{high, number}}",
     "missing-reference-price": "Market orders need a last price to estimate their value",
     "order-too-large": "Order value {{notional, number}} {{currency}} exceeds the {{max, number}} limit",
-    "session-not-allowed": "Orders are not allowed in the {{session}} session"
+    "session-not-allowed": "Orders are not allowed in the {{session}} session",
+    "unsupported-market": "The account does not trade {{market}} listings",
+    "insufficient-cash": "Order value {{notional, number}} {{currency}} exceeds the {{cash, number}} {{currency}} in the account",
+    "insufficient-shares": "Selling {{quantity, number}} shares, but the account holds {{held, number}}"
   },
   "settings": {
     "title": "Settings",

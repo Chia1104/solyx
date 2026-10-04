@@ -79,11 +79,5 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
 
       return { orderId: `paper-${nextOrderId++}` };
     },
-
-    async cancelOrder() {
-      throw new Error(
-        "Paper orders fill on submission, so there is nothing to cancel"
-      );
-    },
   };
 }

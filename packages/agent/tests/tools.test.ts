@@ -157,6 +157,8 @@ function setup(candles: Candle[] = dailyBars(80)) {
     check: vi.fn<OrderDesk["check"]>(async () => []),
     propose: vi.fn<OrderDesk["propose"]>(async () => proposal({})),
     list: vi.fn<OrderDesk["list"]>(() => []),
+    account: async () => ({ cash: { TWD: 1_000_000 }, positions: [] }),
+    mode: BrokerMode.Paper,
   };
 
   const news = {
@@ -174,8 +176,6 @@ function setup(candles: Candle[] = dailyBars(80)) {
     newsSources: vi.fn(async (): Promise<NewsSource[]> => [news]),
     newsStore: memoryNewsStore(),
     scorer: vi.fn(async (): Promise<SentimentScorer | undefined> => scorer),
-    account: async () => ({ cash: { TWD: 1_000_000 }, positions: [] }),
-    brokerMode: BrokerMode.Paper,
     desk,
     skills: async () => [
       {
