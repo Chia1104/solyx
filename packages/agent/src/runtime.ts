@@ -40,16 +40,8 @@ import type { ToolGuard } from "./approval.ts";
 import type { McpExtensions } from "./mcp.ts";
 import type { AgentThinking } from "./providers.ts";
 import { firstLine } from "./text.ts";
-import {
-  assistantEndEvent,
-  messageId,
-  replyText,
-  runEndOf,
-  toolEndEvent,
-  transcriptEvents,
-  userContent,
-  userText,
-} from "./transcript.ts";
+import { createTranscriber, replyText, userContent } from "./transcript.ts";
+import type { Transcriber } from "./transcript.ts";
 import {
   AgentEventType,
   DeltaChannel,
@@ -116,14 +108,10 @@ interface Watch {
   base: AgentWireEvent[];
   /** Every event sent since, consecutive deltas merged. */
   log: AgentWireEvent[];
-  /** Calls whose start went out, which their approval events follow. */
-  started: Set<string>;
-  /** Approval events waiting for their call's start to go out, which arrives with its commit. */
-  held: Map<string, AgentWireEvent[]>;
+  /** Read `base` from storage, and turns what the stream stores since into events. */
+  transcriber: Transcriber;
   /** The reply streaming now, and the text and thinking already sent of it. */
   streaming?: { id: string; content: Block[]; text: string; thinking: string };
-  /** The run's last reply, whose stop reason decides how the run ended. */
-  lastReply?: AssistantMessage;
   /** Why the run's input went unanswered, when it ended without a final reply. */
   failure?: RunEndEvent;
 }
@@ -261,14 +249,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
     if (!watch) {
       onEvent(sessionId, event);
-    } else if (watch.started.has(event.toolCallId)) {
-      publish(watch, sessionId, event);
-    } else {
-      // A call's start arrives with its commit, which can come after the call asks.
-      watch.held.set(event.toolCallId, [
-        ...(watch.held.get(event.toolCallId) ?? []),
-        event,
-      ]);
+
+      return;
+    }
+
+    for (const sent of watch.transcriber.approval(event)) {
+      publish(watch, sessionId, sent);
     }
   });
 
@@ -335,6 +321,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     sessionId: string,
     events: readonly AgentEvent[]
   ) {
+    const { transcriber } = watch;
     const emit = (event: AgentWireEvent) => publish(watch, sessionId, event);
 
     const sendDeltas = () => {
@@ -379,9 +366,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     for (const event of events) {
       switch (event.type) {
         case "run_start":
-          watch.lastReply = undefined;
           watch.failure = undefined;
-          emit({ type: AgentEventType.RunStart });
+          transcriber.runStart().forEach(emit);
           break;
 
         case "message_start":
@@ -409,74 +395,44 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
           break;
 
-        case "message_end": {
-          const { entry } = event;
-          const [message] = entry.model ?? [];
-
-          if (AssistantEntry.is(entry) && message?.role === "assistant") {
-            emit(
-              assistantEndEvent(
-                watch.streaming?.id ?? messageId(entry),
-                message
-              )
-            );
+        case "message_end":
+          if (AssistantEntry.is(event.entry)) {
+            transcriber.message(event.entry, watch.streaming?.id).forEach(emit);
             watch.streaming = undefined;
-            watch.lastReply = message;
-          } else if (UserEntry.is(entry) && message?.role === "user") {
-            emit({
-              type: AgentEventType.User,
-              messageId: messageId(entry),
-              text: userText(message),
-              at: message.timestamp,
-            });
+          } else if (UserEntry.is(event.entry)) {
+            transcriber.message(event.entry).forEach(emit);
           }
 
           break;
-        }
 
         case "tool_execution_start":
-          emit({
-            type: AgentEventType.ToolStart,
-            toolCallId: event.toolCallId,
-            toolName: event.toolName,
-            args: event.args,
-          });
-          watch.started.add(event.toolCallId);
-
-          for (const held of watch.held.get(event.toolCallId) ?? []) {
-            emit(held);
-          }
-
-          watch.held.delete(event.toolCallId);
+          transcriber
+            .toolStart({
+              type: AgentEventType.ToolStart,
+              toolCallId: event.toolCallId,
+              toolName: event.toolName,
+              args: event.args,
+            })
+            .forEach(emit);
           break;
 
         case "tool_execution_end":
-          watch.started.delete(event.toolCallId);
-          emit(
-            (event.entry && toolEndEvent(event.entry)) ?? {
-              type: AgentEventType.ToolEnd,
-              toolCallId: event.toolCallId,
-              toolName: event.toolName,
-              status: ToolCallStatus.Aborted,
-            }
-          );
+          (event.entry
+            ? transcriber.toolResult(event.entry)
+            : transcriber.toolEnd({
+                type: AgentEventType.ToolEnd,
+                toolCallId: event.toolCallId,
+                toolName: event.toolName,
+                status: ToolCallStatus.Aborted,
+              })
+          ).forEach(emit);
           break;
 
-        case "run_end": {
-          const reply = watch.lastReply && runEndOf(watch.lastReply);
-
-          emit(
-            reply ??
-              watch.failure ?? {
-                type: AgentEventType.RunEnd,
-                reason: RunEndReason.Interrupted,
-              }
-          );
+        case "run_end":
+          transcriber.runEnd(watch.failure).forEach(emit);
           watch.streaming = undefined;
-          watch.lastReply = undefined;
           watch.failure = undefined;
           break;
-        }
 
         default:
           break;
@@ -510,25 +466,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
       const running = snapshot.run !== undefined;
 
-      const base = transcriptEvents(
-        entries,
-        running,
-        await approvalsOf(conversation.id)
-      );
+      const transcriber = createTranscriber(await approvalsOf(conversation.id));
 
+      const base = transcriber.replay(entries, running);
       const partial = snapshot.generation?.message;
 
-      const created: Watch = {
-        stream,
-        base,
-        log: [],
-        started: new Set(
-          base.flatMap((event) =>
-            event.type === AgentEventType.ToolStart ? [event.toolCallId] : []
-          )
-        ),
-        held: new Map(),
-      };
+      const created: Watch = { stream, base, log: [], transcriber };
 
       if (running && partial) {
         const id = crypto.randomUUID();
@@ -671,10 +614,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         BACKGROUND_CONTEXT
       );
 
-      return transcriptEvents(
+      return createTranscriber(await approvalsOf(conversation.id)).replay(
         await history(conversation),
-        live?.run !== undefined,
-        await approvalsOf(conversation.id)
+        live?.run !== undefined
       );
     },
 

@@ -13,8 +13,17 @@ import type {
 } from "@earendil-works/pi-durable";
 import { expect, test } from "vite-plus/test";
 
-import { transcriptEvents, userContent, userText } from "../src/transcript.ts";
-import { RunEndReason, ToolCallStatus, foldEvents } from "../src/wire.ts";
+import { createTranscriber, userContent, userText } from "../src/transcript.ts";
+import {
+  AgentEventType,
+  RunEndReason,
+  ToolCallStatus,
+  foldEvents,
+} from "../src/wire.ts";
+
+/** A transcript read from storage in which no call asked the user. */
+const transcriptEvents = (entries: readonly EntryRecord[], running: boolean) =>
+  createTranscriber({}).replay(entries, running);
 
 function entry(
   id: number,
@@ -87,7 +96,7 @@ test("the thread shows what the user typed, not the app's context", () => {
 
 test("a finished conversation replays idle", () => {
   const view = foldEvents(
-    transcriptEvents([user(1, "hi"), reply(2, "hello")], false, {})
+    transcriptEvents([user(1, "hi"), reply(2, "hello")], false)
   );
 
   expect(view.running).toBe(false);
@@ -99,7 +108,7 @@ test("a finished conversation replays idle", () => {
 
 test("a run that stops short replays as interrupted", () => {
   const view = foldEvents(
-    transcriptEvents([user(1, "hi"), toolCall(2)], false, {})
+    transcriptEvents([user(1, "hi"), toolCall(2)], false)
   );
 
   expect(view.running).toBe(false);
@@ -112,9 +121,7 @@ test("a run that stops short replays as interrupted", () => {
 });
 
 test("a run still going replays running, with its calls open", () => {
-  const view = foldEvents(
-    transcriptEvents([user(1, "hi"), toolCall(2)], true, {})
-  );
+  const view = foldEvents(transcriptEvents([user(1, "hi"), toolCall(2)], true));
 
   expect(view.running).toBe(true);
   expect(view.items.at(-1)).toMatchObject({
@@ -137,8 +144,7 @@ test("a call stopped with its run replays the run as aborted", () => {
           },
         ]),
       ],
-      false,
-      {}
+      false
     )
   );
 
@@ -156,8 +162,7 @@ test("a failed reply a retry answered replays as done", () => {
         reply(2, "", { stopReason: "error", errorMessage: "overloaded" }),
         reply(3, "hello"),
       ],
-      false,
-      {}
+      false
     )
   );
 
@@ -177,8 +182,7 @@ test("a reply cut short and resumed after a restart replays as one run", () => {
         reply(3, "hello"),
         user(4, "again"),
       ],
-      false,
-      {}
+      false
     )
   );
 
@@ -195,8 +199,7 @@ test("an interrupted run is closed before the next one starts", () => {
   const view = foldEvents(
     transcriptEvents(
       [user(1, "hi"), user(2, "again"), reply(3, "hello")],
-      false,
-      {}
+      false
     )
   );
 
@@ -206,4 +209,33 @@ test("an interrupted run is closed before the next one starts", () => {
     { kind: "user", text: "again" },
     { kind: "assistant", text: "hello" },
   ]);
+});
+
+test("a question asked before its call's start goes out follows the start", () => {
+  const transcriber = createTranscriber({});
+
+  expect(
+    transcriber.approval({
+      type: AgentEventType.ApprovalRequest,
+      toolCallId: "c1",
+    })
+  ).toEqual([]);
+  expect(
+    transcriber.toolStart({
+      type: AgentEventType.ToolStart,
+      toolCallId: "c1",
+      toolName: "place_order",
+      args: {},
+    })
+  ).toMatchObject([
+    { type: AgentEventType.ToolStart, toolCallId: "c1" },
+    { type: AgentEventType.ApprovalRequest, toolCallId: "c1" },
+  ]);
+  expect(
+    transcriber.approval({
+      type: AgentEventType.ApprovalResolved,
+      toolCallId: "c1",
+      approved: true,
+    })
+  ).toHaveLength(1);
 });

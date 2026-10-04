@@ -12,10 +12,15 @@ import {
 import type { EntryRecord } from "@earendil-works/pi-durable";
 
 import { approvalEvents } from "./approval.ts";
-import type { ApprovalAnswers } from "./approval.ts";
+import type { ApprovalAnswers, ApprovalEvent } from "./approval.ts";
 import { firstLine } from "./text.ts";
 import { AgentEventType, RunEndReason, ToolCallStatus } from "./wire.ts";
-import type { AgentWireEvent, RunEndEvent, ToolEndEvent } from "./wire.ts";
+import type {
+  AgentWireEvent,
+  RunEndEvent,
+  ToolEndEvent,
+  ToolStartEvent,
+} from "./wire.ts";
 
 // The app's context rides in the user message it belongs to, so a replayed transcript sends the
 // provider the same bytes again and its prompt cache holds.
@@ -42,7 +47,7 @@ export function userText(message: UserMessage): string {
 }
 
 /** The wire id of a stored message, live and replayed alike. */
-export const messageId = (entry: EntryRecord) => String(entry.id);
+const messageId = (entry: EntryRecord) => String(entry.id);
 
 /** A reply's text and its thinking, each with its parts joined as they streamed. */
 export function replyText(
@@ -56,7 +61,7 @@ export function replyText(
   };
 }
 
-export function assistantEndEvent(
+function assistantEndEvent(
   messageId: string,
   message: AssistantMessage
 ): AgentWireEvent {
@@ -76,7 +81,7 @@ export function assistantEndEvent(
  * was cut short may still be followed by a retry or by the run resuming after a restart, so its
  * end holds only once nothing follows it in the run.
  */
-export function runEndOf(message: AssistantMessage): RunEndEvent | undefined {
+function runEndOf(message: AssistantMessage): RunEndEvent | undefined {
   switch (message.stopReason) {
     case "toolUse":
     case "pending":
@@ -110,7 +115,7 @@ function isUnfinished(entry: EntryRecord): boolean {
 }
 
 /** The end of the call a stored tool result answers; `undefined` for any other entry. */
-export function toolEndEvent(entry: EntryRecord): ToolEndEvent | undefined {
+function toolEndEvent(entry: EntryRecord): ToolEndEvent | undefined {
   const [message] = entry.model ?? [];
 
   if (!ToolResultEntry.is(entry) || message?.role !== "toolResult") {
@@ -143,111 +148,184 @@ export function toolEndEvent(entry: EntryRecord): ToolEndEvent | undefined {
 }
 
 /**
- * Rebuilds a transcript's wire events, oldest entry first, so a renderer that opens a
- * conversation folds it like the live stream. A completed reply arrives whole, without deltas,
- * and a call that asked the user is followed by its question and the answer in `approvals`.
- * Unless the conversation is `running`, calls whose results never came are closed as aborted,
- * and a run that stops short ends as interrupted.
+ * Turns a conversation's stored entries and its runs' boundaries into wire events, so a renderer
+ * folds a transcript read from storage like the live stream. `replay` reads what storage holds,
+ * and the other methods carry on from there as a run goes on, so both follow the same rules. A
+ * completed reply arrives whole, without deltas, and a call that asked the user is followed by its
+ * question and the answer.
  */
-export function transcriptEvents(
-  entries: readonly EntryRecord[],
-  running: boolean,
-  approvals: ApprovalAnswers
-): AgentWireEvent[] {
-  const events: AgentWireEvent[] = [];
+export function createTranscriber(approvals: ApprovalAnswers) {
+  /** Calls whose start went out and whose result has not, with their tool's name. */
   let open = new Map<string, string>();
+  /** Approval events waiting for their call's start to go out, which arrives with its commit. */
+  const held = new Map<string, ApprovalEvent[]>();
   let inRun = false;
   // How the run ends if nothing follows: a reply that failed or was cut short, or a call stopped
   // with its run.
   let pending: RunEndEvent | undefined;
 
-  const closeOpen = () => {
-    for (const [toolCallId, toolName] of open) {
-      events.push({
-        type: AgentEventType.ToolEnd,
-        toolCallId,
-        toolName,
-        status: ToolCallStatus.Aborted,
-      });
-    }
+  /** Closes the calls whose results never came. */
+  function closeOpen(): AgentWireEvent[] {
+    const events = [...open].map(([toolCallId, toolName]): AgentWireEvent => ({
+      type: AgentEventType.ToolEnd,
+      toolCallId,
+      toolName,
+      status: ToolCallStatus.Aborted,
+    }));
 
     open = new Map();
-  };
 
-  const endRun = () => {
-    closeOpen();
+    return events;
+  }
+
+  function runStart(): AgentWireEvent[] {
+    inRun = true;
+    pending = undefined;
+
+    return [{ type: AgentEventType.RunStart }];
+  }
+
+  /** Ends the run under way, if any: as its last reply or stopped call says, else as `failure`. */
+  function runEnd(failure?: RunEndEvent): AgentWireEvent[] {
+    const events = closeOpen();
 
     if (inRun) {
       events.push(
-        pending ?? {
-          type: AgentEventType.RunEnd,
-          reason: RunEndReason.Interrupted,
-        }
+        pending ??
+          failure ?? {
+            type: AgentEventType.RunEnd,
+            reason: RunEndReason.Interrupted,
+          }
       );
     }
 
     inRun = false;
     pending = undefined;
-  };
 
-  for (const entry of entries) {
-    const [message] = entry.model ?? [];
+    return events;
+  }
 
-    if (UserEntry.is(entry) && message?.role === "user") {
-      endRun();
-      events.push(
-        { type: AgentEventType.RunStart },
+  /** A stored user message or reply; `id` names a reply that streamed under an id of its own. */
+  function message(
+    entry: EntryRecord,
+    id = messageId(entry)
+  ): AgentWireEvent[] {
+    const [stored] = entry.model ?? [];
+
+    if (UserEntry.is(entry) && stored?.role === "user") {
+      return [
         {
           type: AgentEventType.User,
-          messageId: messageId(entry),
-          text: userText(message),
-          at: message.timestamp,
-        }
-      );
-      inRun = true;
-    } else if (AssistantEntry.is(entry) && message?.role === "assistant") {
-      closeOpen();
-      events.push(assistantEndEvent(messageId(entry), message));
-
-      for (const part of message.content) {
-        if (part.type !== "toolCall") continue;
-
-        events.push({
-          type: AgentEventType.ToolStart,
-          toolCallId: part.id,
-          toolName: part.name,
-          args: part.arguments,
-        });
-        events.push(...approvalEvents(approvals, part.id));
-        open.set(part.id, part.name);
-      }
-
-      pending = runEndOf(message);
-
-      if (pending?.reason === RunEndReason.Done) endRun();
-    } else {
-      const toolEnd = toolEndEvent(entry);
-
-      if (toolEnd) {
-        events.push(toolEnd);
-        open.delete(toolEnd.toolCallId);
-
-        if (toolEnd.status === ToolCallStatus.Aborted) {
-          pending = {
-            type: AgentEventType.RunEnd,
-            reason: RunEndReason.Aborted,
-          };
-        }
-      }
+          messageId: id,
+          text: userText(stored),
+          at: stored.timestamp,
+        },
+      ];
     }
+
+    if (AssistantEntry.is(entry) && stored?.role === "assistant") {
+      pending = runEndOf(stored);
+
+      return [...closeOpen(), assistantEndEvent(id, stored)];
+    }
+
+    return [];
   }
 
-  if (running) {
-    // A run that has not stored its user message yet still shows as running.
-    if (!inRun) events.push({ type: AgentEventType.RunStart });
-  } else {
-    endRun();
+  function toolStart(event: ToolStartEvent): AgentWireEvent[] {
+    const { toolCallId } = event;
+    const asked = held.get(toolCallId) ?? approvalEvents(approvals, toolCallId);
+
+    open.set(toolCallId, event.toolName);
+    held.delete(toolCallId);
+
+    return [event, ...asked];
   }
 
-  return events;
+  function toolEnd(event: ToolEndEvent): AgentWireEvent[] {
+    open.delete(event.toolCallId);
+
+    return [event];
+  }
+
+  /** The end of the call a stored tool result answers; nothing for any other entry. */
+  function toolResult(entry: EntryRecord): AgentWireEvent[] {
+    const event = toolEndEvent(entry);
+
+    if (!event) return [];
+
+    if (event.status === ToolCallStatus.Aborted) {
+      pending = { type: AgentEventType.RunEnd, reason: RunEndReason.Aborted };
+    }
+
+    return toolEnd(event);
+  }
+
+  return {
+    runStart,
+    runEnd,
+    message,
+    toolStart,
+    toolEnd,
+    toolResult,
+
+    /** A question or its answer as it happens, which follows its call's start. */
+    approval(event: ApprovalEvent): AgentWireEvent[] {
+      if (open.has(event.toolCallId)) return [event];
+
+      held.set(event.toolCallId, [
+        ...(held.get(event.toolCallId) ?? []),
+        event,
+      ]);
+
+      return [];
+    },
+
+    /**
+     * The events of stored entries, oldest first. Unless the conversation is `running`, calls
+     * whose results never came are closed as aborted, and a run that stops short ends as
+     * interrupted.
+     */
+    replay(
+      entries: readonly EntryRecord[],
+      running: boolean
+    ): AgentWireEvent[] {
+      const events: AgentWireEvent[] = [];
+
+      for (const entry of entries) {
+        const [stored] = entry.model ?? [];
+
+        if (UserEntry.is(entry) && stored?.role === "user") {
+          events.push(...runEnd(), ...runStart());
+        }
+
+        events.push(...message(entry), ...toolResult(entry));
+
+        if (AssistantEntry.is(entry) && stored?.role === "assistant") {
+          for (const part of stored.content) {
+            if (part.type !== "toolCall") continue;
+
+            events.push(
+              ...toolStart({
+                type: AgentEventType.ToolStart,
+                toolCallId: part.id,
+                toolName: part.name,
+                args: part.arguments,
+              })
+            );
+          }
+
+          if (pending?.reason === RunEndReason.Done) events.push(...runEnd());
+        }
+      }
+
+      if (!running) events.push(...runEnd());
+      // A run that has not stored its user message yet still shows as running.
+      else if (!inRun) events.push(...runStart());
+
+      return events;
+    },
+  };
 }
+
+export type Transcriber = ReturnType<typeof createTranscriber>;

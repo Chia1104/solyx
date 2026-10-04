@@ -143,6 +143,11 @@ export type RunEndEvent = Extract<
   { type: typeof AgentEventType.RunEnd }
 >;
 
+export type ToolStartEvent = Extract<
+  AgentWireEvent,
+  { type: typeof AgentEventType.ToolStart }
+>;
+
 export type ToolEndEvent = Extract<
   AgentWireEvent,
   { type: typeof AgentEventType.ToolEnd }
