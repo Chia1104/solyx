@@ -3,10 +3,18 @@ import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { omit } from "es-toolkit";
 
 import type { SymbolRef } from "@solyx/core/market";
+import type { AccountSnapshot } from "@solyx/core/order";
 import type { ProposalStore, TradeProposal } from "@solyx/core/order-desk";
 
 import { connect } from "./connection.ts";
-import { proposals, watchlist } from "./user-schema.ts";
+import { paperAccount, proposals, watchlist } from "./user-schema.ts";
+
+// The paper account is a single row.
+const PAPER_ACCOUNT_ID = 1;
+
+interface PaperAccount extends AccountSnapshot {
+  orders: number;
+}
 
 function watchlistStore(db: NodeSQLiteDatabase) {
   const listing = (ref: SymbolRef) =>
@@ -76,6 +84,24 @@ function proposalStore(db: NodeSQLiteDatabase): ProposalStore {
   };
 }
 
+function paperAccountStore(db: NodeSQLiteDatabase) {
+  return {
+    /** `undefined` before the account's first order. */
+    read(): PaperAccount | undefined {
+      const row = db.select().from(paperAccount).get();
+
+      return row && omit(row, ["id"]);
+    },
+
+    write(account: PaperAccount) {
+      db.insert(paperAccount)
+        .values({ id: PAPER_ACCOUNT_ID, ...account })
+        .onConflictDoUpdate({ target: paperAccount.id, set: account })
+        .run();
+    },
+  };
+}
+
 /**
  * The user's database, holding what cannot be fetched again. It is never deleted, so a
  * file its migrations cannot open is an error. `migrationsFolder` is `migrations/user`
@@ -87,6 +113,7 @@ export function openUserData(path: string, migrationsFolder: string) {
   return {
     watchlist: watchlistStore(connection.db),
     proposals: proposalStore(connection.db),
+    paperAccount: paperAccountStore(connection.db),
     close: () => connection.client.close(),
   };
 }
