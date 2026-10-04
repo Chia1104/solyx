@@ -24,6 +24,8 @@ export interface MarketApi {
 /** Pushes from the main process; each subscription returns a function that stops listening. */
 export interface MarketEvents {
   onLiveCandles(listener: (updates: LiveCandle[]) => void): () => void;
+  /** Where some market's bars come from changed, by the settings page or a hand edit: load and watch again. */
+  onSourcesChanged(listener: () => void): () => void;
 }
 
 export const marketChannels = {
@@ -36,4 +38,5 @@ export const marketChannels = {
 
 export const marketEvents = {
   onLiveCandles: "market:live-candles",
+  onSourcesChanged: "market:sources-changed",
 } as const satisfies Record<keyof MarketEvents, string>;

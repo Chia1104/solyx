@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -78,11 +79,13 @@ describe("createSecretStore", () => {
     await expect(stat(file)).rejects.toThrow();
   });
 
-  test("keys under a rotated OS key move to the new one when read", async () => {
+  test("keys under a rotated OS key move to the new one when read, which changes nothing anyone reads", async () => {
     const { os, cipher } = fakeCipher();
     const store = createSecretStore(file, cipher);
+    const changed: string[] = [];
 
     await store.save(Secret.FugleApiKey, KEY);
+    store.onChange((secret) => changed.push(secret));
     os.retiredKeyIds.add("k1");
     os.keyId = "k2";
 
@@ -91,6 +94,27 @@ describe("createSecretStore", () => {
     const [entry] = Object.values(JSON.parse(await readFile(file, "utf8")));
 
     expect(Buffer.from(String(entry), "base64").toString()).toMatch(/^k2:/);
+    expect(changed).toEqual([]);
+  });
+
+  test("saves and deletes are reported once written", async () => {
+    const store = createSecretStore(file, fakeCipher().cipher);
+    const changed: { secret: string; saved: string[] }[] = [];
+
+    store.onChange((secret) => {
+      changed.push({
+        secret,
+        saved: Object.keys(JSON.parse(readFileSync(file, "utf8"))),
+      });
+    });
+
+    await store.save(Secret.FugleApiKey, KEY);
+    await store.delete(Secret.FugleApiKey);
+
+    expect(changed).toEqual([
+      { secret: Secret.FugleApiKey, saved: [Secret.FugleApiKey] },
+      { secret: Secret.FugleApiKey, saved: [] },
+    ]);
   });
 
   test("a file that no longer parses is replaced by the next save", async () => {

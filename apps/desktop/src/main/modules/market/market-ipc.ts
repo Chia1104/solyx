@@ -1,6 +1,6 @@
 import * as z from "zod";
 
-import { intervalSchema, lookbackRange } from "@solyx/core/candles";
+import { intervalSchema } from "@solyx/core/candles";
 import { Market, symbolRefSchema } from "@solyx/core/market";
 import { getSession } from "@solyx/core/session";
 
@@ -18,39 +18,21 @@ const handle = ipcModule<MarketApi>(marketChannels, {
   unwatchCandles: z.tuple([symbolRefSchema, intervalSchema]),
 });
 
-export function registerMarketIpc({ marketData, liveCandles }: Services) {
+export function registerMarketIpc({ marketData }: Services) {
   handle("sessions", async () => ({
     [Market.TW]: getSession(Market.TW),
     [Market.US]: getSession(Market.US),
   }));
 
-  handle("listing", async (symbol) => {
-    const provider = await marketData.provider(symbol.market);
+  handle("listing", (symbol) => marketData.listing(symbol));
 
-    return provider ? provider.getListing(symbol) : null;
-  });
-
-  handle("candles", async (symbol, interval) => {
-    const provider = await marketData.provider(symbol.market);
-
-    if (!provider) {
-      throw new Error(
-        `No market data for ${symbol.market}: no source covers it or its settings are incomplete`
-      );
-    }
-
-    return provider.getCandles({
-      symbol,
-      interval,
-      ...lookbackRange(symbol.market, interval),
-    });
-  });
+  handle("candles", (symbol, interval) => marketData.candles(symbol, interval));
 
   handle("watchCandles", (symbol, interval, event) =>
-    liveCandles.watch(event.sender, symbol, interval)
+    marketData.watch(event.sender, symbol, interval)
   );
 
   handle("unwatchCandles", async (symbol, interval, event) =>
-    liveCandles.unwatch(event.sender, symbol, interval)
+    marketData.unwatch(event.sender, symbol, interval)
   );
 }

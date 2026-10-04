@@ -149,9 +149,7 @@ export function registerSettingsIpc({
   locations,
   skillFolders,
   instructionsFile,
-  applySettings,
   marketData,
-  liveCandles,
   agent,
   mcp,
   decisions,
@@ -251,27 +249,18 @@ export function registerSettingsIpc({
     states: await secrets.states(),
   }));
 
-  // The live stream authenticates once per connection, so a changed key reopens it.
-  handle("saveSecret", async (secret, value) => {
-    await secrets.save(secret, value);
-    await liveCandles.restart();
-  });
+  handle("saveSecret", (secret, value) => secrets.save(secret, value));
 
-  handle("deleteSecret", async (secret) => {
-    await secrets.delete(secret);
-    await liveCandles.restart();
-  });
+  handle("deleteSecret", (secret) => secrets.delete(secret));
 
   handle("marketData", () => marketData.status());
 
   handle("setMarketDataSource", async (market, source) => {
     config.set(["marketData", market], source);
-    await applySettings();
   });
 
   handle("setFuglePlan", async (plan) => {
     config.set(["providers", "fugle", "plan"], plan);
-    await applySettings();
   });
 
   handle("chooseFubonFile", async (file, event) => {
@@ -287,16 +276,11 @@ export function registerSettingsIpc({
     if (canceled || path === undefined) return null;
 
     config.set(["providers", "fubon", file], path);
-    await applySettings();
 
     return path;
   });
 
-  // The stream keeps the session it opened with, so a new sign-in reopens it.
-  handle("signInFubon", async () => {
-    await marketData.signInFubon();
-    await liveCandles.restart();
-  });
+  handle("signInFubon", () => marketData.signInFubon());
 
   handle("agent", () => agent.models.settings());
 

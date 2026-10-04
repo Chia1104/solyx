@@ -17,7 +17,7 @@ import { BrokerMode } from "@solyx/core/broker";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { InstrumentKind, Market } from "@solyx/core/market";
-import type { MarketDataProvider } from "@solyx/core/market-data";
+import type { MarketData } from "@solyx/core/market-data";
 import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type {
   NewsItem,
@@ -131,11 +131,9 @@ function memoryNewsStore(): NewsStore {
 }
 
 function setup(candles: Candle[] = dailyBars(80)) {
-  const provider: MarketDataProvider = {
-    id: "fake",
-    markets: [Market.TW],
-    getCandles: vi.fn(async () => candles),
-    getListing: vi.fn(async () => null),
+  const marketData = {
+    candles: vi.fn<MarketData["candles"]>(async () => candles),
+    listing: vi.fn<MarketData["listing"]>(async () => null),
   };
 
   const proposal = (overrides: Partial<TradeProposal>): TradeProposal => ({
@@ -171,8 +169,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
   const scorer = { score: vi.fn<SentimentScorer["score"]>() };
 
   const ports = {
-    marketData: async (market: Market) =>
-      market === Market.TW ? provider : undefined,
+    marketData,
     watchlist: () => [TSMC],
     newsSources: vi.fn(async (): Promise<NewsSource[]> => [news]),
     newsStore: memoryNewsStore(),
@@ -206,7 +203,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     return { text: contentText(result.content ?? []), details: result.details };
   };
 
-  return { run, desk, ports, provider, news, scorer };
+  return { run, desk, ports, marketData, news, scorer };
 }
 
 function newsItem(title: string, hoursAgo: number | null): NewsItem {
@@ -320,17 +317,6 @@ test("candles come oldest first on the exchange's clock, capped to the count", a
     "2026-09-28,1076,1081,1074,1078,79000",
     "2026-09-29,1077,1082,1075,1079,80000",
   ]);
-});
-
-test("a market without a source is reported, not guessed", async () => {
-  const { run } = setup();
-
-  await expect(
-    run(AgentToolName.GetCandles, {
-      symbol: { market: Market.US, symbol: "AAPL" },
-      interval: Interval.OneDay,
-    })
-  ).rejects.toThrow("No market data for US");
 });
 
 test("indicators report the latest and previous values", async () => {
@@ -471,10 +457,10 @@ test("skills are read by name", async () => {
 });
 
 test("news is scored once, newest first, without items that only name the listing", async () => {
-  const { run, news, scorer, provider } = setup();
+  const { run, news, scorer, marketData } = setup();
   const listing = { name: "台積電", englishName: "TSMC" };
 
-  vi.mocked(provider.getListing).mockResolvedValue(listing);
+  marketData.listing.mockResolvedValue(listing);
   news.search.mockResolvedValue([
     newsItem("法說前瞻", 30),
     newsItem("大盤收紅", 2),

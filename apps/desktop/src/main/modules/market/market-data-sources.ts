@@ -46,6 +46,16 @@ interface FubonConnection {
 
 type FubonOutcome = { connection: FubonConnection } | { failure: unknown };
 
+// What each source's stream signs in with.
+const STREAM_SECRETS: Record<MarketDataSource, readonly Secret[]> = {
+  [MarketDataSource.Fugle]: [Secret.FugleApiKey],
+  [MarketDataSource.Fubon]: [
+    Secret.FubonPersonalId,
+    Secret.FubonApiKey,
+    Secret.FubonCertPassword,
+  ],
+};
+
 /** The last sign-in, for the settings it used; a failure is kept so it is not retried unasked. */
 interface FubonSignIn {
   options: FubonSessionOptions;
@@ -66,7 +76,8 @@ interface MarketDataSourcesOptions {
 /**
  * The provider and stream behind each market's charts, as the user's settings pick them. Keeps
  * one provider per credential and plan, so request budgets hold across requests, and one Fubon
- * session, signed in on first use.
+ * session, signed in on first use. Follows the config file and the secret store itself, and says
+ * when the stream it would open changes, whoever changed what it reads.
  */
 export function createMarketDataSources({
   config,
@@ -81,6 +92,8 @@ export function createMarketDataSources({
 
   let fubon: FubonSignIn | undefined;
 
+  const streamListeners = new Set<() => void>();
+
   const twSource = () => config.read().marketData.TW;
 
   const fuglePlan = () => config.read().providers.fugle.plan;
@@ -90,6 +103,33 @@ export function createMarketDataSources({
 
     return { sdk: sdk ?? null, certificate: certificate ?? null };
   }
+
+  function streamChanged() {
+    for (const listener of streamListeners) listener();
+  }
+
+  // What the stream opens with in the config file; the other source's settings do not touch it.
+  const streamSettings = () =>
+    twSource() === MarketDataSource.Fubon
+      ? [MarketDataSource.Fubon, fubonFiles()]
+      : [MarketDataSource.Fugle, fuglePlan()];
+
+  let appliedStreamSettings = streamSettings();
+
+  config.onChange(() => {
+    const next = streamSettings();
+
+    if (isEqual(next, appliedStreamSettings)) return;
+
+    appliedStreamSettings = next;
+    streamChanged();
+  });
+
+  secrets.onChange((secret) => {
+    if (STREAM_SECRETS[twSource()].some((read) => read === secret)) {
+      streamChanged();
+    }
+  });
 
   /** Everything Fubon signs in with, or `undefined` until all of it is saved. */
   async function fubonSettings(): Promise<FubonSessionOptions | undefined> {
@@ -254,8 +294,14 @@ export function createMarketDataSources({
         : createFugleStream({ apiKey, plan: fuglePlan() });
     },
 
-    /** What the live stream depends on in the config file, to reopen it when that changes. */
-    streamSettings: () => [twSource(), fuglePlan(), fubonFiles()],
+    /** Calls `listener` whenever the stream `openStream` gives would differ from the last one's. */
+    onStreamChange(listener: () => void): () => void {
+      streamListeners.add(listener);
+
+      return () => {
+        streamListeners.delete(listener);
+      };
+    },
 
     async status(): Promise<MarketDataStatus> {
       const source = twSource();
@@ -277,7 +323,7 @@ export function createMarketDataSources({
       };
     },
 
-    /** Signs in again with the saved settings, even after a failure. */
+    /** Signs in again with the saved settings, even after a failure; the stream follows the new session. */
     async signInFubon(): Promise<void> {
       // Asking while Fubon has yet to answer waits for that answer rather than signing in twice.
       const connection = await fubonConnection(fubon?.settled !== false);
@@ -287,6 +333,10 @@ export function createMarketDataSources({
           "Choose the SDK folder and certificate, and save your ID number and API key first"
         );
       }
+
+      if (twSource() === MarketDataSource.Fubon) streamChanged();
     },
   };
 }
+
+export type MarketDataSources = ReturnType<typeof createMarketDataSources>;

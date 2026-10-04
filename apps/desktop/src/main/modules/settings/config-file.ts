@@ -272,6 +272,17 @@ function parseConfig(text: string): Config | undefined {
  * and is never overwritten, and the app edits values in place so comments survive.
  */
 export function createConfigFile(file: string) {
+  const listeners = new Set<() => void>();
+
+  // The text listeners last heard about, so the watcher skips the app's own saves.
+  let announced: string | undefined;
+
+  function announce(text: string | undefined) {
+    announced = text;
+
+    for (const listener of listeners) listener();
+  }
+
   function write(text: string) {
     const temporary = `${file}.tmp`;
 
@@ -289,9 +300,13 @@ export function createConfigFile(file: string) {
       throw new Error(`Fix the syntax errors in ${file} before saving`);
     }
 
-    write(
-      entries.reduce((edited, [path, value]) => edit(edited, path, value), text)
+    const edited = entries.reduce(
+      (current, [path, value]) => edit(current, path, value),
+      text
     );
+
+    write(edited);
+    announce(edited);
   }
 
   return {
@@ -299,7 +314,10 @@ export function createConfigFile(file: string) {
 
     /** Writes a commented template when the file does not exist yet, so there is something to edit. */
     create() {
-      if (readText(file) === undefined) write(TEMPLATE);
+      if (readText(file) !== undefined) return;
+
+      write(TEMPLATE);
+      announced = TEMPLATE;
     },
 
     /** The saved settings, with the default for every entry that is missing or no longer parses. */
@@ -316,11 +334,28 @@ export function createConfigFile(file: string) {
 
     update,
 
-    /** Calls `onChange` shortly after the file changes on disk, whoever changed it. */
-    watch(onChange: () => void): () => void {
-      mkdirSync(dirname(file), { recursive: true });
+    /**
+     * Calls `listener` after every change: the app's own saves as they are written, and edits
+     * made outside the app while `watch` runs. Listeners read what they need and compare it.
+     */
+    onChange(listener: () => void): () => void {
+      listeners.add(listener);
 
-      return watchFile(file, onChange);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+
+    /** Reports edits made outside the app to `onChange` shortly after they land, until the returned function stops. */
+    watch(): () => void {
+      mkdirSync(dirname(file), { recursive: true });
+      announced ??= readText(file);
+
+      return watchFile(file, () => {
+        const text = readText(file);
+
+        if (text !== announced) announce(text);
+      });
     },
   };
 }
