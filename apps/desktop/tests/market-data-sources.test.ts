@@ -16,7 +16,7 @@ import {
   Secret,
 } from "#shared/ipc/settings.ts";
 
-import type { FubonProcess } from "../src/main/modules/market/fubon-process.ts";
+import type { FubonProcess } from "../src/main/modules/market/fubon-client.ts";
 import { createMarketDataSources } from "../src/main/modules/market/market-data-sources.ts";
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
 import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";

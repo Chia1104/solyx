@@ -36,7 +36,7 @@ import type {
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
 
-import type { FubonProcess } from "./fubon-process.ts";
+import type { FubonProcess } from "./fubon-client.ts";
 
 interface FubonConnection {
   session: FubonProcess;
