@@ -27,6 +27,7 @@ import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
 import { createNewsCollector } from "./modules/news/news-collector.ts";
+import { createNewsSources } from "./modules/news/news-sources.ts";
 import { createNews } from "./modules/news/news.ts";
 import { createAppearance } from "./modules/settings/appearance.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
@@ -117,11 +118,13 @@ export function createServices() {
   const decisions = createDecisions({ config, secrets });
 
   const news = createNews({
-    secrets,
+    sources: createNewsSources(secrets),
     store: openNews(
       join(userDataDir, "news.sqlite"),
       join(import.meta.dirname, "migrations", "news")
     ).store,
+    scorer: () => decisions.scorer(),
+    marketData,
     // Every window's chart may show the listing.
     onChange(symbol) {
       for (const window of BrowserWindow.getAllWindows()) {
@@ -145,17 +148,12 @@ export function createServices() {
     conversations: openAgentStore(join(userDataDir, "agent.sqlite")),
     marketData,
     watchlist: () => userData.watchlist.list(),
-    newsSources: () => news.sources(),
-    newsStore: news.store,
-    scorer: () => decisions.scorer(),
+    news,
     desk,
   });
 
   const newsCollector = createNewsCollector({
-    sources: () => news.sources(),
-    store: news.store,
-    scorer: () => decisions.scorer(),
-    marketData,
+    news,
     watchlist: () => userData.watchlist.list(),
     collectEveryHours: () => config.read().news.collectEveryHours,
   });

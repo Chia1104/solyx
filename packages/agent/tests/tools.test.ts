@@ -18,20 +18,19 @@ import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { InstrumentKind, Market } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
-import { NewsChannel, TimePrecision } from "@solyx/core/news";
+import { NewsChannel, TimePrecision, newsStories } from "@solyx/core/news";
 import type {
+  NewsCollection,
+  NewsDesk,
   NewsItem,
   NewsRecord,
-  NewsSource,
-  NewsStore,
-  SourceHealth,
 } from "@solyx/core/news";
 import { OrderType, Side } from "@solyx/core/order";
 import { ProposalSource, ProposalStatus } from "@solyx/core/order-desk";
 import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
 import { RiskViolationCode } from "@solyx/core/risk";
 import { Stance, TextKind, TextTopic } from "@solyx/core/sentiment";
-import type { SentimentScore, SentimentScorer } from "@solyx/core/sentiment";
+import type { SentimentScore } from "@solyx/core/sentiment";
 
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
@@ -70,63 +69,25 @@ function dailyBars(count: number): Candle[] {
   });
 }
 
-/** Keeps news records in memory for one listing, as the database does. */
-function memoryNewsStore(): NewsStore {
-  const records: NewsRecord[] = [];
-  const health = new Map<string, SourceHealth>();
-  let collected: Date | null = null;
+function newsRecord(
+  item: NewsItem,
+  score: SentimentScore | null = null,
+  channel: NewsChannel = NewsChannel.Article
+): NewsRecord {
+  return { source: "fake-news", channel, item, foundAt: NOW, score };
+}
 
-  const listedAt = (record: NewsRecord) =>
-    (record.item.published?.at ?? record.foundAt).getTime();
-
+/** What the news desk hands back for `records`, as it groups and orders them. */
+function collection(
+  records: NewsRecord[],
+  overrides: Partial<NewsCollection> = {}
+): NewsCollection {
   return {
-    save(_symbol, source, items, foundAt) {
-      for (const item of items) {
-        if (
-          !records.some(
-            (record) =>
-              record.source === source.id && record.item.id === item.id
-          )
-        ) {
-          records.push({
-            source: source.id,
-            channel: source.channel,
-            item,
-            foundAt,
-            score: null,
-          });
-        }
-      }
-    },
-    saveScore(_symbol, scored, score) {
-      const record = records.find(
-        (candidate) =>
-          candidate.source === scored.source &&
-          candidate.item.id === scored.item.id
-      );
-
-      if (record) record.score = score;
-    },
-    lastCollected: () => collected,
-    markCollected(_symbol, at) {
-      collected = at;
-    },
-    markSearched(source, at, error) {
-      const before = health.get(source);
-
-      health.set(source, {
-        source,
-        lastSuccessAt: error === null ? at : (before?.lastSuccessAt ?? null),
-        lastFailureAt: error === null ? (before?.lastFailureAt ?? null) : at,
-        failureStreak: error === null ? 0 : (before?.failureStreak ?? 0) + 1,
-        lastError: error ?? before?.lastError ?? null,
-      });
-    },
-    sourceHealth: () => [...health.values()],
-    list: (_symbol, since) =>
-      records
-        .filter((record) => listedAt(record) >= since.getTime())
-        .toSorted((a, b) => listedAt(b) - listedAt(a)),
+    stories: newsStories(records),
+    records,
+    failures: [],
+    scored: true,
+    ...overrides,
   };
 }
 
@@ -162,20 +123,13 @@ function setup(candles: Candle[] = dailyBars(80)) {
   };
 
   const news = {
-    id: "fake-news",
-    channel: NewsChannel.Article,
-    markets: [Market.TW],
-    search: vi.fn<NewsSource["search"]>(async () => []),
+    collect: vi.fn<NewsDesk["collect"]>(async () => collection([])),
   };
-
-  const scorer = { score: vi.fn<SentimentScorer["score"]>() };
 
   const ports = {
     marketData,
     watchlist: () => [TSMC],
-    newsSources: vi.fn(async (): Promise<NewsSource[]> => [news]),
-    newsStore: memoryNewsStore(),
-    scorer: vi.fn(async (): Promise<SentimentScorer | undefined> => scorer),
+    news,
     desk,
     skills: async () => [
       {
@@ -203,7 +157,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     return { text: contentText(result.content ?? []), details: result.details };
   };
 
-  return { run, desk, ports, marketData, news, scorer };
+  return { run, desk, ports, marketData, news };
 }
 
 function newsItem(title: string, hoursAgo: number | null): NewsItem {
@@ -456,35 +410,28 @@ test("skills are read by name", async () => {
   );
 });
 
-test("news is scored once, newest first, without items that only name the listing", async () => {
-  const { run, news, scorer, marketData } = setup();
-  const listing = { name: "台積電", englishName: "TSMC" };
+test("news reads newest first, leaving out stories that only name the listing", async () => {
+  const { run, news } = setup();
 
-  marketData.listing.mockResolvedValue(listing);
-  news.search.mockResolvedValue([
-    newsItem("法說前瞻", 30),
-    newsItem("大盤收紅", 2),
-    newsItem("外資買超", 5),
-  ]);
-  scorer.score.mockImplementation(async ({ title }) =>
-    title === "大盤收紅" ? sentiment(0.2, 0) : sentiment(0.9, 0.6)
+  news.collect.mockResolvedValue(
+    collection([
+      newsRecord(newsItem("法說前瞻", 30), sentiment(0.9, 0.6)),
+      newsRecord(newsItem("大盤收紅", 2), sentiment(0.2, 0)),
+      newsRecord(newsItem("外資買超", 5), sentiment(0.9, 0.6)),
+    ])
   );
 
-  const first = await run(AgentToolName.GetNews, { symbol: TSMC, days: 3 });
+  const { text, details } = await run(AgentToolName.GetNews, {
+    symbol: TSMC,
+    days: 3,
+  });
 
-  expect(news.search).toHaveBeenCalledWith({
-    symbol: TSMC,
-    listing,
-    since: new Date("2026-09-27T02:00:00Z"),
-    limit: 10,
-  });
-  expect(scorer.score).toHaveBeenCalledWith({
-    symbol: TSMC,
-    listing,
-    title: "法說前瞻",
-    text: "法說前瞻 snippet",
-  });
-  expect(first.text.split("\n")).toEqual([
+  expect(news.collect).toHaveBeenCalledWith(
+    TSMC,
+    new Date("2026-09-27T02:00:00Z"),
+    10
+  );
+  expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 3 days, as_of 2026-09-30 10:00, scored by jev-1.13.0",
     "Sentiment 80/100 with 50 neutral: press (announcements, articles) 80/100, crowd (forum, social) unscored",
     "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-29 +0.60 (n=1), 2026-09-30 +0.60 (n=1)",
@@ -498,31 +445,27 @@ test("news is scored once, newest first, without items that only name the listin
     "  法說前瞻 snippet",
     `  ${newsItem("法說前瞻", 30).url}`,
   ]);
-  expect(first.details).toEqual({ symbol: TSMC, stories: 3 });
-
-  // Found before, so a search that no longer finds them still lists them, without scoring again.
-  news.search.mockResolvedValue([]);
-
-  const second = await run(AgentToolName.GetNews, { symbol: TSMC, days: 3 });
-
-  expect(second.text).toBe(first.text);
-  expect(scorer.score).toHaveBeenCalledTimes(3);
+  expect(details).toEqual({ symbol: TSMC, stories: 3 });
 });
 
 test("without a decisions model, news is listed unscored", async () => {
-  const { run, news, ports } = setup();
+  const { run, news } = setup();
 
-  ports.scorer.mockResolvedValue(undefined);
-  news.search.mockResolvedValue([
-    newsItem("無日期", null),
-    {
-      ...newsItem("只知道日期", null),
-      published: {
-        at: new Date("2026-09-27T16:00:00Z"),
-        precision: TimePrecision.Day,
-      },
-    },
-  ]);
+  news.collect.mockResolvedValue(
+    collection(
+      [
+        newsRecord(newsItem("無日期", null)),
+        newsRecord({
+          ...newsItem("只知道日期", null),
+          published: {
+            at: new Date("2026-09-27T16:00:00Z"),
+            precision: TimePrecision.Day,
+          },
+        }),
+      ],
+      { scored: false }
+    )
+  );
 
   const { text } = await run(AgentToolName.GetNews, { symbol: TSMC });
 
@@ -540,73 +483,53 @@ test("without a decisions model, news is listed unscored", async () => {
   ]);
 });
 
-test("without a source for the market, the tool says what is missing", async () => {
-  const { run } = setup();
+test("channels get sections, a thread is one story, and a failed source says how it has gone", async () => {
+  const { run, news } = setup();
 
-  await expect(
-    run(AgentToolName.GetNews, {
-      symbol: { market: Market.US, symbol: "NVDA" },
-    })
-  ).rejects.toThrow("No news source covers US");
-});
+  const post = (id: string, title: string, hour: string, votes: number) => ({
+    id,
+    url: `https://www.ptt.cc/bbs/Stock/${id}.html`,
+    title,
+    snippet: "",
+    site: "ptt.cc",
+    published: {
+      at: new Date(`2026-09-30T${hour}:00:00Z`),
+      precision: TimePrecision.Minute,
+    },
+    votes,
+  });
 
-test("channels get sections, a thread is one story, and a failed source leaves the others", async () => {
-  const { run, ports } = setup();
-
-  const forum = {
-    id: "fake-forum",
-    channel: NewsChannel.Forum,
-    markets: [Market.TW],
-    search: vi.fn<NewsSource["search"]>(async () => [
+  news.collect.mockResolvedValue(
+    collection(
+      [
+        newsRecord(
+          post("M.1.A.1", "[新聞] 台積電擬赴美設第二園區", "00", 61),
+          null,
+          NewsChannel.Forum
+        ),
+        newsRecord(
+          post("M.2.A.2", "Re: [新聞] 台積電擬赴美設第二園區", "01", 3),
+          null,
+          NewsChannel.Forum
+        ),
+      ],
       {
-        id: "M.1.A.1",
-        url: "https://www.ptt.cc/bbs/Stock/M.1.A.1.html",
-        title: "[新聞] 台積電擬赴美設第二園區",
-        snippet: "",
-        site: "ptt.cc",
-        published: {
-          at: new Date("2026-09-30T00:00:00Z"),
-          precision: TimePrecision.Minute,
-        },
-        votes: 61,
-      },
-      {
-        id: "M.2.A.2",
-        url: "https://www.ptt.cc/bbs/Stock/M.2.A.2.html",
-        title: "Re: [新聞] 台積電擬赴美設第二園區",
-        snippet: "",
-        site: "ptt.cc",
-        published: {
-          at: new Date("2026-09-30T01:00:00Z"),
-          precision: TimePrecision.Minute,
-        },
-        votes: 3,
-      },
-    ]),
-  };
-
-  const social = {
-    id: "fake-social",
-    channel: NewsChannel.Social,
-    markets: [Market.TW],
-    search: vi.fn<NewsSource["search"]>(async () => {
-      throw new Error("Firecrawl returned 402");
-    }),
-  };
-
-  const us = {
-    id: "fake-us",
-    channel: NewsChannel.Article,
-    markets: [Market.US],
-    search: vi.fn<NewsSource["search"]>(async () => []),
-  };
-
-  ports.newsSources.mockResolvedValue([forum, social, us]);
-  ports.scorer.mockResolvedValue(undefined);
+        scored: false,
+        failures: [
+          {
+            source: "fake-social",
+            lastSuccessAt: null,
+            lastFailureAt: NOW,
+            failureStreak: 1,
+            lastError: "Firecrawl returned 402",
+          },
+        ],
+      }
+    )
+  );
 
   const { text } = await run(AgentToolName.GetNews, { symbol: TSMC });
 
-  expect(us.search).not.toHaveBeenCalled();
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",
     "Sentiment unscored with 50 neutral: press (announcements, articles) unscored, crowd (forum, social) unscored",

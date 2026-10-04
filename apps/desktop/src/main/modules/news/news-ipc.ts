@@ -17,25 +17,8 @@ const handle = ipcModule<NewsApi>(newsChannels, {
 
 export function registerNewsIpc({ news }: Services) {
   handle("records", async (symbol, days) =>
-    news.store.list(symbol, new Date(Date.now() - days * DAY_MS))
+    news.records(symbol, new Date(Date.now() - days * DAY_MS))
   );
 
-  handle("coverage", async (symbol) => {
-    const health = new Map(
-      news.store.sourceHealth().map((source) => [source.source, source])
-    );
-
-    const sources = await news.sources();
-
-    return {
-      collectedAt: news.store.lastCollected(symbol),
-      sources: sources
-        .filter((source) => source.markets.includes(symbol.market))
-        .map(({ id, channel }) => ({
-          id,
-          channel,
-          health: health.get(id) ?? null,
-        })),
-    };
-  });
+  handle("coverage", (symbol) => news.coverage(symbol));
 }
