@@ -97,3 +97,5 @@ export function createMarketData({
     signInFubon: () => sources.signInFubon(),
   };
 }
+
+export type MarketDataModule = ReturnType<typeof createMarketData>;

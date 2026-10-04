@@ -113,3 +113,5 @@ export function createAgentService(options: AgentServiceOptions) {
     },
   };
 }
+
+export type AgentService = ReturnType<typeof createAgentService>;
