@@ -137,3 +137,5 @@ export function createAppearance({ config, onChange }: AppearanceOptions) {
     },
   };
 }
+
+export type AppearanceSettings = ReturnType<typeof createAppearance>;
