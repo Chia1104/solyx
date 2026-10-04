@@ -6,26 +6,34 @@ type Method = (...args: never) => void;
 
 type MethodArgs<F> = F extends (...args: infer A) => void ? A : never;
 
+type MethodResult<F> = F extends (...args: never) => infer R ? R : never;
+
 type ArgumentSchemas<Api> = {
   [K in keyof Api]: z.ZodType<MethodArgs<Api[K]>>;
 };
 
 /**
- * Binds one module's IPC contract to `ipcMain`. Renderer input is untrusted, so every
- * channel parses its arguments with the module's zod schemas before reaching a handler.
+ * A module's handlers: its contract's methods, each also handed the invoking event last, which
+ * only a handler that needs the asking window declares.
  */
-export function ipcModule<Api extends Record<keyof Api, Method>>(
+export type IpcHandlers<Api> = {
+  [K in keyof Api]: (
+    ...args: [...MethodArgs<Api[K]>, IpcMainInvokeEvent]
+  ) => MethodResult<Api[K]>;
+};
+
+/**
+ * Binds every channel of one module's IPC contract to its handler. Renderer input is untrusted,
+ * so every channel parses its arguments with the module's zod schemas before reaching a handler.
+ */
+export function bindIpc<Api extends Record<keyof Api, Method>>(
   channels: Record<keyof Api, string>,
-  schemas: ArgumentSchemas<Api>
+  schemas: ArgumentSchemas<Api>,
+  handlers: IpcHandlers<Api>
 ) {
-  return function handle<K extends keyof Api>(
-    name: K,
-    // The invoking event comes last, for handlers that need to know which window asked.
-    handler: (
-      ...args: [...MethodArgs<Api[K]>, IpcMainInvokeEvent]
-    ) => ReturnType<Api[K]>
-  ) {
+  function bind<K extends keyof Api>(name: K) {
     const schema: z.ZodType<MethodArgs<Api[K]>> = schemas[name];
+    const handler = handlers[name];
 
     ipcMain.handle(channels[name], (event, ...args) => {
       const parsed = schema.safeParse(args);
@@ -39,5 +47,9 @@ export function ipcModule<Api extends Record<keyof Api, Method>>(
 
       return handler(...parsed.data, event);
     });
-  };
+  }
+
+  // SAFETY: a contract's channel map holds exactly its method names, which the
+  // `satisfies Record<keyof Api, string>` beside its declaration checks.
+  for (const name of Object.keys(channels) as (keyof Api)[]) bind(name);
 }

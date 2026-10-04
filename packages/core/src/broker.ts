@@ -9,8 +9,8 @@ export const BrokerMode = {
 export type BrokerMode = (typeof BrokerMode)[keyof typeof BrokerMode];
 
 /**
- * One implementation per broker (`@solyx/brokers/*`). Nothing outside
- * `OrderDesk.confirm` may call `placeOrder`.
+ * One implementation per broker (`@solyx/brokers/*`). Only the `OrderDesk` holds one, and nothing
+ * outside `OrderDesk.confirm` may call `placeOrder`.
  */
 export interface BrokerAdapter {
   readonly id: string;
@@ -18,5 +18,4 @@ export interface BrokerAdapter {
   readonly markets: readonly Market[];
   getAccount(): Promise<AccountSnapshot>;
   placeOrder(order: OrderRequest): Promise<{ orderId: string }>;
-  cancelOrder(orderId: string): Promise<void>;
 }

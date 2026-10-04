@@ -1,9 +1,10 @@
 import { errorMessage } from "@solyx/utils/error";
 
-import type { BrokerAdapter } from "./broker.ts";
-import type { OrderRequest } from "./order.ts";
+import type { BrokerAdapter, BrokerMode } from "./broker.ts";
+import type { AccountSnapshot, OrderRequest } from "./order.ts";
 import { checkOrder } from "./risk.ts";
-import type { RiskContext, RiskLimits, RiskViolation } from "./risk.ts";
+import type { RiskLimits, RiskViolation } from "./risk.ts";
+import { getSession } from "./session.ts";
 
 export const ProposalSource = {
   Agent: "agent",
@@ -63,17 +64,25 @@ export interface ProposalStore {
 }
 
 export interface OrderDeskOptions {
+  /** The desk is its only holder, so nothing else can reach `placeOrder`. */
   broker: BrokerAdapter;
   store: ProposalStore;
   limits: RiskLimits;
-  riskContext: (order: OrderRequest) => Promise<RiskContext>;
+  /** Called after every change to a proposal, so whoever shows them can refresh. */
+  onChange?: () => void;
   now?: () => number;
   createId?: () => string;
 }
 
+/** The desk as an agent may use it: proposing and reading, never confirming or dismissing. */
+export type ProposingDesk = Pick<
+  OrderDesk,
+  "check" | "propose" | "list" | "account" | "mode"
+>;
+
 /**
  * The only road from an idea to a real order: propose → risk check → human confirm → broker.
- * Agents get `propose` and nothing else; `confirm` must stay behind a user action in the UI.
+ * Agents get a `ProposingDesk`; `confirm` must stay behind a user action in the UI.
  */
 export class OrderDesk {
   readonly #options: OrderDeskOptions;
@@ -85,7 +94,7 @@ export class OrderDesk {
     for (const proposal of options.store.list()) {
       if (proposal.status !== ProposalStatus.Submitting) continue;
 
-      options.store.update({
+      this.#save({
         ...proposal,
         status: ProposalStatus.Failed,
         failure: { code: SubmissionFailureCode.Interrupted },
@@ -95,6 +104,14 @@ export class OrderDesk {
 
   list(): TradeProposal[] {
     return this.#options.store.list();
+  }
+
+  get mode(): BrokerMode {
+    return this.#options.broker.mode;
+  }
+
+  account(): Promise<AccountSnapshot> {
+    return this.#options.broker.getAccount();
   }
 
   /**
@@ -134,12 +151,13 @@ export class OrderDesk {
     };
 
     store.add(proposal);
+    this.#options.onChange?.();
 
     return proposal;
   }
 
   async confirm(id: string): Promise<TradeProposal> {
-    const { broker, store } = this.#options;
+    const { broker } = this.#options;
 
     // Claim it before any await so a double click cannot submit twice.
     let proposal: TradeProposal = {
@@ -147,7 +165,7 @@ export class OrderDesk {
       status: ProposalStatus.Submitting,
     };
 
-    store.update(proposal);
+    this.#save(proposal);
 
     try {
       // Prices and sessions move between propose and confirm; check again.
@@ -177,7 +195,7 @@ export class OrderDesk {
       };
     }
 
-    store.update(proposal);
+    this.#save(proposal);
 
     return proposal;
   }
@@ -188,18 +206,28 @@ export class OrderDesk {
       status: ProposalStatus.Dismissed,
     };
 
-    this.#options.store.update(proposal);
+    this.#save(proposal);
 
     return proposal;
   }
 
-  /** The risk checks alone, so an order can be tried before it is proposed. */
+  /**
+   * The risk checks alone, so an order can be tried before it is proposed. There is no quote
+   * feed yet, so market orders are rejected for lack of a reference price.
+   */
   async check(order: OrderRequest): Promise<RiskViolation[]> {
-    return checkOrder(
-      order,
-      this.#options.limits,
-      await this.#options.riskContext(order)
-    );
+    const { broker, limits, now = Date.now } = this.#options;
+
+    return checkOrder(order, limits, {
+      session: getSession(order.instrument.market, new Date(now())),
+      markets: broker.markets,
+      account: await broker.getAccount(),
+    });
+  }
+
+  #save(proposal: TradeProposal) {
+    this.#options.store.update(proposal);
+    this.#options.onChange?.();
   }
 
   #pending(id: string): TradeProposal {

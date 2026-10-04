@@ -1,9 +1,10 @@
-import type { Candle, Interval } from "./candles.ts";
+import type { BarInterval, Candle, Interval } from "./candles.ts";
 import type { Market, SymbolRef } from "./market.ts";
 
 export interface CandleRequest {
   symbol: SymbolRef;
-  interval: Interval;
+  /** Weekly and monthly bars are merged from daily ones where they are charted, since a provider may clip its own to the requested range. */
+  interval: BarInterval;
   /** Exchange-local dates (`YYYY-MM-DD`), inclusive. */
   from: string;
   to: string;
@@ -24,6 +25,14 @@ export interface MarketDataProvider {
   getCandles(request: CandleRequest): Promise<Candle[]>;
   /** `null` for a symbol the provider does not list. */
   getListing(symbol: SymbolRef): Promise<Listing | null>;
+}
+
+/** Bars and names in every market, from the source the user picked for it. */
+export interface MarketData {
+  /** Bars over the interval's lookback, oldest first; rejects while no source covers the market. */
+  candles(symbol: SymbolRef, interval: Interval): Promise<Candle[]>;
+  /** `null` when no source covers the market or the source does not list the symbol. */
+  listing(symbol: SymbolRef): Promise<Listing | null>;
 }
 
 export interface MinuteListener {

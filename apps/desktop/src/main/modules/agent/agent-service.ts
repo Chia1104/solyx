@@ -7,12 +7,10 @@ import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
 import type { SkillFolders } from "@solyx/agent/skills";
 import { createTradingExtension } from "@solyx/agent/tools";
 import type { AgentWireEvent } from "@solyx/agent/wire";
-import type { BrokerAdapter } from "@solyx/core/broker";
-import type { Market, SymbolRef } from "@solyx/core/market";
-import type { MarketDataProvider } from "@solyx/core/market-data";
-import type { NewsSource, NewsStore } from "@solyx/core/news";
-import type { OrderDesk } from "@solyx/core/order-desk";
-import type { SentimentScorer } from "@solyx/core/sentiment";
+import type { SymbolRef } from "@solyx/core/market";
+import type { MarketData } from "@solyx/core/market-data";
+import type { NewsDesk } from "@solyx/core/news";
+import type { ProposingDesk } from "@solyx/core/order-desk";
 
 import { agentEvents } from "#shared/ipc/agent.ts";
 import type { AgentFocus, AgentUpdate } from "#shared/ipc/agent.ts";
@@ -21,7 +19,6 @@ import type { Locale } from "#shared/ipc/settings.ts";
 import { createAgentModels } from "./agent-models.ts";
 import type { AgentModelsOptions } from "./agent-models.ts";
 import type { McpServers } from "./mcp-servers.ts";
-import { createToolApprovals } from "./tool-approvals.ts";
 
 interface AgentServiceOptions extends AgentModelsOptions {
   skillFolders: SkillFolders;
@@ -29,13 +26,10 @@ interface AgentServiceOptions extends AgentModelsOptions {
   instructionsFile: string;
   /** Where conversations persist, opening as the app starts. */
   conversations: Promise<AgentConversationStore>;
-  marketData: (market: Market) => Promise<MarketDataProvider | undefined>;
+  marketData: MarketData;
   watchlist: () => SymbolRef[];
-  newsSources: () => Promise<NewsSource[]>;
-  newsStore: NewsStore;
-  scorer: () => Promise<SentimentScorer | undefined>;
-  broker: BrokerAdapter;
-  desk: OrderDesk;
+  news: NewsDesk;
+  desk: ProposingDesk;
   mcp: McpServers;
 }
 
@@ -61,16 +55,10 @@ export function createAgentService(options: AgentServiceOptions) {
     }
   };
 
-  const approvals = createToolApprovals(onEvent);
-
   const trading = createTradingExtension({
     marketData: options.marketData,
     watchlist: options.watchlist,
-    newsSources: options.newsSources,
-    newsStore: options.newsStore,
-    scorer: options.scorer,
-    account: () => options.broker.getAccount(),
-    brokerMode: options.broker.mode,
+    news: options.news,
     desk: options.desk,
     skills: async () =>
       (await skills()).skills.filter((skill) => skill.offered),
@@ -79,16 +67,10 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const runtime = createAgentRuntime({
     store: options.conversations,
-    models: models.catalog,
+    models: models.models,
     model: () => models.choice(),
-    async extensions() {
-      const mcp = await options.mcp.extensions((call, signal) =>
-        approvals.request(call.sessionId, call.toolCallId, signal)
-      );
-
-      // MCP tools wait until the agent finds them, so only the servers' names ride every request.
-      return { offered: [trading, mcp.search], deferred: [mcp.tools] };
-    },
+    tools: trading,
+    mcp: (allow) => options.mcp.extensions(allow),
     onEvent,
   });
 
@@ -105,16 +87,12 @@ export function createAgentService(options: AgentServiceOptions) {
 
     deleteSession: (id: string) => runtime.delete(id),
 
-    /** The conversation as wire events, with calls still waiting for the user asked again. */
-    transcript: async (id: string) => [
-      ...(await runtime.transcript(id)),
-      ...approvals.open(id),
-    ],
+    transcript: (id: string) => runtime.transcript(id),
 
     abort: (id: string) => runtime.abort(id),
 
     approve: (id: string, toolCallId: string, approved: boolean) =>
-      approvals.decide(id, toolCallId, approved),
+      runtime.approve(id, toolCallId, approved),
 
     /** Closes the conversations, then the MCP servers their runs used, as the app quits. */
     async close() {
@@ -127,7 +105,7 @@ export function createAgentService(options: AgentServiceOptions) {
         text,
         context: formatContext({
           now: new Date(),
-          brokerMode: options.broker.mode,
+          brokerMode: options.desk.mode,
           focus: focus ?? undefined,
           locale,
         }),
@@ -135,3 +113,5 @@ export function createAgentService(options: AgentServiceOptions) {
     },
   };
 }
+
+export type AgentService = ReturnType<typeof createAgentService>;

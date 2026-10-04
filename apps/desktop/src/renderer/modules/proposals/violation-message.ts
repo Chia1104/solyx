@@ -34,5 +34,20 @@ export function violationMessage(t: TFunction, violation: RiskViolation) {
       return t("risk.session-not-allowed", {
         session: t(`session.${violation.session}`),
       });
+    case RiskViolationCode.UnsupportedMarket:
+      return t("risk.unsupported-market", {
+        market: t(`market.${violation.market}`),
+      });
+    case RiskViolationCode.InsufficientCash:
+      return t("risk.insufficient-cash", {
+        notional: violation.notional,
+        cash: violation.cash,
+        currency: violation.currency,
+      });
+    case RiskViolationCode.InsufficientShares:
+      return t("risk.insufficient-shares", {
+        quantity: violation.quantity,
+        held: violation.held,
+      });
   }
 }

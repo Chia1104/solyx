@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
@@ -13,17 +13,12 @@ import { RailedColumn } from "../../components/sheet.tsx";
 
 import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList } from "./settings-list.tsx";
-import {
-  decisionsSettingsQuery,
-  secretsQuery,
-  settingsQueryKeys,
-} from "./settings-query.ts";
+import { decisionsSettingsQuery, secretsQuery } from "./settings-query.ts";
 import { TextSettingRow } from "./text-setting-row.tsx";
 
 /** The decisions model that scores news and posts: its key, model and endpoint. */
 export function DecisionsSettings() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const settings = useQuery(decisionsSettingsQuery());
   const secrets = useQuery(secretsQuery());
 
@@ -47,9 +42,6 @@ export function DecisionsSettings() {
     }),
     [t]
   );
-
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: settingsQueryKeys.decisions });
 
   const error = settings.error ?? secrets.error;
 
@@ -91,7 +83,6 @@ export function DecisionsSettings() {
             isDefault={model === defaults.model}
             schema={schemas.model}
             onSave={(next) => window.solyx.settings.setDecisionsModel(next)}
-            onSettled={refresh}
           />
           <TextSettingRow
             label={t("settings.decisions.base-url")}
@@ -100,7 +91,6 @@ export function DecisionsSettings() {
             isDefault={baseURL === defaults.baseURL}
             schema={schemas.baseURL}
             onSave={(next) => window.solyx.settings.setDecisionsBaseURL(next)}
-            onSettled={refresh}
           />
         </SettingsList>
       </div>

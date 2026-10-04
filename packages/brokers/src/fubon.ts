@@ -170,9 +170,5 @@ export function createFubonBroker(): BrokerAdapter {
     async placeOrder() {
       throw notVerified("order placement");
     },
-
-    async cancelOrder() {
-      throw notVerified("order cancellation");
-    },
   };
 }

@@ -1,6 +1,6 @@
 import { Alert, Button, Chip, cn } from "@heroui/react";
 import type { ChipProps } from "@heroui/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { OrderType } from "@solyx/core/order";
@@ -8,10 +8,8 @@ import { ProposalStatus, SubmissionFailureCode } from "@solyx/core/order-desk";
 import type { TradeProposal } from "@solyx/core/order-desk";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { accountQueryKeys } from "../account/account-query.ts";
 import { ListingName } from "../market/listing-name.tsx";
 
-import { proposalsQueryKeys } from "./proposals-query.ts";
 import { violationMessage } from "./violation-message.ts";
 
 const STATUS_COLOR: Record<ProposalStatus, ChipProps["color"]> = {
@@ -35,23 +33,13 @@ const STATUS_RULE: Record<ProposalStatus, string> = {
 
 export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
-
-  // A confirmed order moves cash and positions, so the account refreshes too.
-  const refresh = () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: proposalsQueryKeys.all }),
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.all }),
-    ]);
 
   const confirm = useMutation({
     mutationFn: () => window.solyx.proposals.confirm(proposal.id),
-    onSettled: refresh,
   });
 
   const dismiss = useMutation({
     mutationFn: () => window.solyx.proposals.dismiss(proposal.id),
-    onSettled: refresh,
   });
 
   const { order } = proposal;

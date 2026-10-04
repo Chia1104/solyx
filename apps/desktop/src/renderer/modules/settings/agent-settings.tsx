@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -19,11 +19,7 @@ import { RailedColumn } from "../../components/sheet.tsx";
 import { ChatGPTSignIn } from "./chatgpt-sign-in.tsx";
 import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import {
-  agentSettingsQuery,
-  secretsQuery,
-  settingsQueryKeys,
-} from "./settings-query.ts";
+import { agentSettingsQuery, secretsQuery } from "./settings-query.ts";
 
 /**
  * Whose model runs the agent and how it is paid for (a key, or a subscription where the provider
@@ -31,16 +27,11 @@ import {
  */
 export function AgentSettings() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const settings = useQuery(agentSettingsQuery());
   const secrets = useQuery(secretsQuery());
 
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: settingsQueryKeys.agent });
-
   const save = useMutation({
     mutationFn: (change: () => Promise<void>) => change(),
-    onSettled: refresh,
   });
 
   const error = settings.error ?? secrets.error;

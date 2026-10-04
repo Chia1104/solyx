@@ -12,13 +12,7 @@ import type {
 import { maxBy, omit, takeRight, uniq } from "es-toolkit";
 import * as z from "zod";
 
-import type { BrokerMode } from "@solyx/core/broker";
-import {
-  candleDate,
-  intervalSchema,
-  isIntraday,
-  lookbackRange,
-} from "@solyx/core/candles";
+import { candleDate, intervalSchema, isIntraday } from "@solyx/core/candles";
 import type { Candle, Interval } from "@solyx/core/candles";
 import {
   MOVING_AVERAGE_PERIODS,
@@ -38,30 +32,22 @@ import {
   symbolRefSchema,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import type { MarketDataProvider } from "@solyx/core/market-data";
+import type { MarketData } from "@solyx/core/market-data";
 import {
   NewsChannel,
   NewsVoice,
   TimePrecision,
-  collectNews,
   dailySentiment,
   isAboutListing,
   sentimentGauge,
 } from "@solyx/core/news";
-import type {
-  NewsSource,
-  NewsStore,
-  NewsStory,
-  Published,
-} from "@solyx/core/news";
+import type { NewsDesk, NewsStory, Published } from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
-import type { AccountSnapshot, OrderRequest } from "@solyx/core/order";
+import type { OrderRequest } from "@solyx/core/order";
 import { ProposalSource } from "@solyx/core/order-desk";
-import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
+import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
 import { stanceValue } from "@solyx/core/sentiment";
-import type { SentimentScorer } from "@solyx/core/sentiment";
 import { getSession } from "@solyx/core/session";
-import { errorMessage } from "@solyx/utils/error";
 
 import { promptSections } from "./prompt.ts";
 import type { PromptSources } from "./prompt.ts";
@@ -70,17 +56,10 @@ import type { ProposeOrderDetails } from "./wire.ts";
 
 /** What the tools and the prompt read, and the one thing the tools may do: propose. */
 export interface TradingToolPorts extends PromptSources {
-  /** The market's provider, or `undefined` when no source covers it or its settings are incomplete. */
-  marketData(market: Market): Promise<MarketDataProvider | undefined>;
+  marketData: MarketData;
   watchlist(): SymbolRef[];
-  /** The sources the user can search; one that needs a key joins once it is saved. */
-  newsSources(): Promise<NewsSource[]>;
-  newsStore: NewsStore;
-  /** Judges what news says about a listing; `undefined` until the user saves a decisions model's key. */
-  scorer(): Promise<SentimentScorer | undefined>;
-  account(): Promise<AccountSnapshot>;
-  brokerMode: BrokerMode;
-  desk: Pick<OrderDesk, "check" | "propose" | "list">;
+  news: NewsDesk;
+  desk: ProposingDesk;
   now?: () => Date;
 }
 
@@ -156,9 +135,6 @@ const NEWS_ITEMS = 10;
 
 // Announcements run long; the scorer reads them whole.
 const SNIPPET_LENGTH = 280;
-
-// Requests to the decisions model at once.
-const SCORING_CONCURRENCY = 4;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -302,19 +278,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     symbol: SymbolRef,
     interval: Interval
   ): Promise<Candle[]> {
-    const provider = await ports.marketData(symbol.market);
-
-    if (!provider) {
-      throw new Error(
-        `No market data for ${symbol.market}: no source covers it or its settings are incomplete`
-      );
-    }
-
-    const candles = await provider.getCandles({
-      symbol,
-      interval,
-      ...lookbackRange(symbol.market, interval, now()),
-    });
+    const candles = await ports.marketData.candles(symbol, interval);
 
     if (candles.length === 0) {
       throw new Error(
@@ -441,44 +405,21 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         days: z.number().int().min(1).max(30).default(7),
       }),
       execute: async ({ symbol, days }) => {
-        const sources = (await ports.newsSources()).filter((source) =>
-          source.markets.includes(symbol.market)
-        );
-
-        if (sources.length === 0) {
-          throw new Error(
-            `No news source covers ${symbol.market}: the user has not saved a Firecrawl API key in the app's settings`
-          );
-        }
-
         const at = now();
-        const provider = await ports.marketData(symbol.market);
-
-        // The name only sharpens the search, so news goes on without it.
-        const listing = provider
-          ? await provider.getListing(symbol).catch(() => null)
-          : null;
-
-        const scorer = await ports.scorer();
-
         const since = new Date(at.getTime() - days * DAY_MS);
 
-        const { stories, failures } = await collectNews({
-          sources,
-          store: ports.newsStore,
-          scorer,
-          query: { symbol, listing, since, limit: NEWS_ITEMS },
-          now: at,
-          concurrency: SCORING_CONCURRENCY,
-        });
+        const { stories, records, failures, scored } = await ports.news.collect(
+          symbol,
+          since,
+          NEWS_ITEMS
+        );
 
-        const stored = ports.newsStore.list(symbol, since);
-        const gauge = sentimentGauge(stored);
+        const gauge = sentimentGauge(records);
 
         const score = ({ score: value }: { score: number | null }) =>
           value === null ? "unscored" : `${value}/100`;
 
-        const daily = dailySentiment(symbol.market, stored).map(
+        const daily = dailySentiment(symbol.market, records).map(
           ({ date, stance, stories: count }) =>
             `${date} ${stance === null ? "unscored" : signed(stance, 2)} (n=${count})`
         );
@@ -487,7 +428,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         let scoring = model ? `, scored by ${model}` : "";
 
-        if (!scorer) {
+        if (!scored) {
           scoring =
             "; not scored, since the user has not set up a decisions model";
         }
@@ -505,22 +446,15 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           ];
         });
 
-        const health = new Map(
-          ports.newsStore
-            .sourceHealth()
-            .map((source) => [source.source, source])
+        const failed = failures.map(
+          ({ source, lastError, failureStreak, lastSuccessAt }) => {
+            const worked = lastSuccessAt
+              ? `last worked ${exchangeTime(symbol.market, lastSuccessAt)}, so items since then may be missing`
+              : "never worked yet";
+
+            return `${source} (${lastError}; ${failureStreak} failed in a row, ${worked})`;
+          }
         );
-
-        const failed = failures.map(({ source, error }) => {
-          const { failureStreak = 1, lastSuccessAt = null } =
-            health.get(source) ?? {};
-
-          const worked = lastSuccessAt
-            ? `last worked ${exchangeTime(symbol.market, lastSuccessAt)}, so items since then may be missing`
-            : "never worked yet";
-
-          return `${source} (${errorMessage(error)}; ${failureStreak} failed in a row, ${worked})`;
-        });
 
         return {
           text: [
@@ -565,7 +499,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         "Cash per currency and open positions with their average price, in the account the app trades.",
       parameters: z.object({}),
       execute: async () => {
-        const account = await ports.account();
+        const account = await ports.desk.account();
 
         const cash = Object.entries(account.cash).map(
           ([currency, amount]) => `${currency} ${amount}`
@@ -578,7 +512,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         return {
           text: [
-            `account: ${ports.brokerMode}`,
+            `account: ${ports.desk.mode}`,
             `cash: ${cash.join(", ") || "none"}`,
             "positions:",
             ...(positions.length > 0 ? positions : ["none"]),

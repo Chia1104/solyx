@@ -38,6 +38,7 @@ import {
   secretReference,
 } from "./mcp-config.ts";
 import type { McpServerConfig, McpServerEntry } from "./mcp-config.ts";
+import { createSignInSlot } from "./sign-in.ts";
 import { firstLine } from "./text.ts";
 import { AgentToolName } from "./wire.ts";
 
@@ -94,8 +95,6 @@ export interface McpSignInOptions {
   open(url: string): void;
   /** The page the browser lands on when it returns to this computer. */
   page(result: OAuthCallbackPage): string;
-  /** Aborting it stops waiting for the browser. */
-  signal?: AbortSignal;
 }
 
 export interface McpToolOptions {
@@ -365,6 +364,7 @@ const toolName = (server: string, tool: string) =>
  * reconnects; one that fails stays failed with its reason until its entry or secrets change.
  */
 export function createMcpHub(options: McpHubOptions) {
+  const signIns = createSignInSlot();
   const connections = new Map<string, Connection>();
 
   async function readSignIn(server: string): Promise<SavedSignIn | undefined> {
@@ -596,6 +596,90 @@ export function createMcpHub(options: McpHubOptions) {
     void stop(connection);
   }
 
+  /** One server's sign-in, which `signal` cancels; reconnects it with the grant once saved. */
+  async function signInTo(
+    name: string,
+    connection: Connection,
+    serverUrl: string,
+    { open, page }: McpSignInOptions,
+    signal: AbortSignal
+  ) {
+    const saved = await readSignIn(name);
+    const callback = await listenForCallback(saved, page);
+
+    // The port frees as soon as closing starts, but the close itself waits for every connection
+    // to end, and a browser keeps a spare one open as long as it likes. Nothing waits for it.
+    const close = once(() => void callback.close().catch(noop));
+
+    signal.addEventListener("abort", close, { once: true });
+
+    try {
+      // Kept in memory until the grant arrives, so a sign-in that stops halfway changes nothing.
+      const store = new MemoryOAuthStateStore();
+
+      if (saved) store.save(saved);
+
+      const provider = new McpOAuthProvider({
+        serverUrl: serverUrl,
+        redirectUrl: callback.redirectUrl,
+        clientMetadata: { client_name: options.client.name },
+        store,
+        onRedirect(url) {
+          signal.throwIfAborted();
+
+          if (!browsable(url)) {
+            throw new Error(
+              `${name} asked to open ${url.protocol} in the browser`
+            );
+          }
+
+          open(url.href);
+        },
+      });
+
+      // A client registered for another port would refuse this redirect.
+      if (
+        !saved?.clientInformation?.redirect_uris?.includes(callback.redirectUrl)
+      ) {
+        await provider.invalidateCredentials("client");
+      }
+
+      const flow = {
+        serverUrl: serverUrl,
+        resourceMetadataUrl: connection.challenge?.resourceMetadataUrl,
+        // A challenge may name only the scopes missing, and a grant of just those loses the rest.
+        scope: stepUpScope(saved?.tokens?.scope, connection.challenge?.scope),
+      };
+
+      const returned = callback.waitForCallback(await provider.state());
+
+      // Settled here too, so a flow that fails before the browser opens leaves nothing unhandled.
+      returned.catch(noop);
+
+      await authorizeMcp(provider, { ...flow, skipRefresh: true });
+
+      const { code, iss } = await returned;
+
+      // `iss` lets pi-mcp refuse a code another authorization server sent (RFC 9207).
+      await authorizeMcp(provider, {
+        ...flow,
+        authorizationCode: code,
+        iss,
+      });
+
+      const granted = store.load();
+
+      if (!granted?.tokens) throw new Error(`${name} granted no tokens`);
+
+      await writeSignIn(name, granted);
+    } finally {
+      signal.removeEventListener("abort", close);
+      close();
+    }
+
+    reconnect(name);
+  }
+
   return {
     /** Connects entries that are new or changed and closes those that are gone. */
     sync(entries: readonly McpServerEntry[]) {
@@ -620,9 +704,10 @@ export function createMcpHub(options: McpHubOptions) {
     /**
      * Signs in to a remote server in the browser, with PKCE and a client registered with its
      * authorization server, then reconnects it with the grant. A registration is reused while the
-     * loopback port it redirects to is free.
+     * loopback port it redirects to is free. Resolves once the grant is saved, or quietly once the
+     * sign-in is cancelled; a sign-in still open gives way to the new one.
      */
-    async signIn(name: string, { open, page, signal }: McpSignInOptions) {
+    async signIn(name: string, { open, page }: McpSignInOptions) {
       const connection = connections.get(name);
 
       const config = connection && configOf(connection.entry);
@@ -631,82 +716,13 @@ export function createMcpHub(options: McpHubOptions) {
         throw new Error(`${name} is not a remote server in mcp.json`);
       }
 
-      const saved = await readSignIn(name);
-      const callback = await listenForCallback(saved, page);
+      await signIns.run((signal) =>
+        signInTo(name, connection, config.url, { open, page }, signal)
+      );
+    },
 
-      // The port frees as soon as closing starts, but the close itself waits for every connection
-      // to end, and a browser keeps a spare one open as long as it likes. Nothing waits for it.
-      const close = once(() => void callback.close().catch(noop));
-
-      signal?.addEventListener("abort", close, { once: true });
-
-      try {
-        // Kept in memory until the grant arrives, so a sign-in that stops halfway changes nothing.
-        const store = new MemoryOAuthStateStore();
-
-        if (saved) store.save(saved);
-
-        const provider = new McpOAuthProvider({
-          serverUrl: config.url,
-          redirectUrl: callback.redirectUrl,
-          clientMetadata: { client_name: options.client.name },
-          store,
-          onRedirect(url) {
-            signal?.throwIfAborted();
-
-            if (!browsable(url)) {
-              throw new Error(
-                `${name} asked to open ${url.protocol} in the browser`
-              );
-            }
-
-            open(url.href);
-          },
-        });
-
-        // A client registered for another port would refuse this redirect.
-        if (
-          !saved?.clientInformation?.redirect_uris?.includes(
-            callback.redirectUrl
-          )
-        ) {
-          await provider.invalidateCredentials("client");
-        }
-
-        const flow = {
-          serverUrl: config.url,
-          resourceMetadataUrl: connection.challenge?.resourceMetadataUrl,
-          // A challenge may name only the scopes missing, and a grant of just those loses the rest.
-          scope: stepUpScope(saved?.tokens?.scope, connection.challenge?.scope),
-        };
-
-        const returned = callback.waitForCallback(await provider.state());
-
-        // Settled here too, so a flow that fails before the browser opens leaves nothing unhandled.
-        returned.catch(noop);
-
-        await authorizeMcp(provider, { ...flow, skipRefresh: true });
-
-        const { code, iss } = await returned;
-
-        // `iss` lets pi-mcp refuse a code another authorization server sent (RFC 9207).
-        await authorizeMcp(provider, {
-          ...flow,
-          authorizationCode: code,
-          iss,
-        });
-
-        const granted = store.load();
-
-        if (!granted?.tokens) throw new Error(`${name} granted no tokens`);
-
-        await writeSignIn(name, granted);
-      } finally {
-        signal?.removeEventListener("abort", close);
-        close();
-      }
-
-      reconnect(name);
+    cancelSignIn() {
+      signIns.cancel();
     },
 
     /** Forgets the server's grant here; the server may still hold it until it expires. */

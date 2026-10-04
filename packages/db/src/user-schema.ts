@@ -1,7 +1,11 @@
 import { integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 
 import type { Market } from "@solyx/core/market";
-import type { OrderRequest } from "@solyx/core/order";
+import type {
+  AccountSnapshot,
+  OrderRequest,
+  Position,
+} from "@solyx/core/order";
 import type {
   ProposalSource,
   ProposalStatus,
@@ -36,4 +40,12 @@ export const proposals = sqliteTable("proposals", {
   violations: text({ mode: "json" }).$type<RiskViolation[]>().notNull(),
   brokerOrderId: text("broker_order_id"),
   failure: text({ mode: "json" }).$type<SubmissionFailure>(),
+});
+
+/** The paper account, in one row: what it holds and how many orders it filled. */
+export const paperAccount = sqliteTable("paper_account", {
+  id: integer().primaryKey(),
+  cash: text({ mode: "json" }).$type<AccountSnapshot["cash"]>().notNull(),
+  positions: text({ mode: "json" }).$type<Position[]>().notNull(),
+  orders: integer().notNull(),
 });

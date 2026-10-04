@@ -8,7 +8,6 @@ import type { MarketDataStatus } from "#shared/ipc/settings.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
-import { candlesQueryKeys } from "../market/candles-query.ts";
 
 import { PlanLimits } from "./plan-limits.tsx";
 import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
@@ -36,12 +35,8 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
   const queryClient = useQueryClient();
   const secrets = useQuery(secretsQuery());
 
-  // Charts sign in again with the new settings.
   const refresh = () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: settingsQueryKeys.marketData }),
-      queryClient.invalidateQueries({ queryKey: candlesQueryKeys.all }),
-    ]);
+    queryClient.invalidateQueries({ queryKey: settingsQueryKeys.marketData });
 
   const choose = useMutation({
     mutationFn: (file: FubonFile) =>

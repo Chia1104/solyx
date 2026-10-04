@@ -3,13 +3,10 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { groupBy } from "es-toolkit";
 
-import { AgentEventType, AgentToolName, applyEvent } from "@solyx/agent/wire";
+import { AgentEventType, applyEvent } from "@solyx/agent/wire";
 import type { AgentView } from "@solyx/agent/wire";
 
 import type { AgentUpdate } from "#shared/ipc/agent.ts";
-
-import { accountQueryKeys } from "../account/account-query.ts";
-import { proposalsQueryKeys } from "../proposals/proposals-query.ts";
 
 import { agentQueryKeys } from "./agent-query.ts";
 
@@ -48,24 +45,6 @@ export function useAgentEvents() {
         if (events.some((event) => event.type === AgentEventType.RunStart)) {
           void queryClient.invalidateQueries({
             queryKey: agentQueryKeys.sessions,
-          });
-        }
-
-        if (
-          events.some(
-            (event) =>
-              event.type === AgentEventType.ToolEnd &&
-              event.toolName === AgentToolName.ProposeOrder
-          )
-        ) {
-          void queryClient.invalidateQueries({
-            queryKey: proposalsQueryKeys.all,
-          });
-        }
-
-        if (events.some((event) => event.type === AgentEventType.RunEnd)) {
-          void queryClient.invalidateQueries({
-            queryKey: accountQueryKeys.all,
           });
         }
       }

@@ -1,34 +1,36 @@
 import { join } from "node:path";
 
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
-import { isEqual, kebabCase } from "es-toolkit";
+import type { WebContents } from "electron";
+import { kebabCase } from "es-toolkit";
 
-import { AgentAuth } from "@solyx/agent/providers";
 import { createPaperBroker } from "@solyx/brokers/paper";
 import { Currency } from "@solyx/core/market";
 import { OrderDesk } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
-import { Session, getSession } from "@solyx/core/session";
+import { Session } from "@solyx/core/session";
 import { openAgentStore } from "@solyx/db/agent";
 import { openCache } from "@solyx/db/cache";
 import { openNews } from "@solyx/db/news";
 import { openUserData } from "@solyx/db/user";
 
+import { marketEvents } from "#shared/ipc/market.ts";
 import { newsEvents } from "#shared/ipc/news.ts";
+import { proposalsEvents } from "#shared/ipc/proposals.ts";
 import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
-import { ColorScheme, resolvePalette } from "#shared/palette.ts";
+import { ColorScheme } from "#shared/palette.ts";
 
-import { agentAuth } from "./modules/agent/agent-models.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
 import { createDecisions } from "./modules/decisions/decisions.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
-import { createLiveCandles } from "./modules/market/live-candles.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
+import { createMarketData } from "./modules/market/market-data.ts";
 import { createNewsCollector } from "./modules/news/news-collector.ts";
+import { createNewsSources } from "./modules/news/news-sources.ts";
 import { createNews } from "./modules/news/news.ts";
+import { createAppearance } from "./modules/settings/appearance.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
-import { createCredentialStore } from "./modules/settings/credential-store.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
@@ -42,9 +44,15 @@ const PAPER_LIMITS: RiskLimits = {
   allowedSessions: Object.values(Session),
 };
 
+/** Pushes to every window, since each may show what changed. */
+function broadcast(...push: Parameters<WebContents["send"]>) {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(...push);
+  }
+}
+
 /** Composition root. A live broker is only ever wired here after the user explicitly turns it on. */
 export function createServices() {
-  const broker = createPaperBroker({ cash: PAPER_CASH });
   const userDataDir = app.getPath("userData");
   const home = app.getPath("home");
 
@@ -57,13 +65,13 @@ export function createServices() {
   );
 
   const desk = new OrderDesk({
-    broker,
+    broker: createPaperBroker({
+      cash: PAPER_CASH,
+      ledger: userData.paperAccount,
+    }),
     store: userData.proposals,
     limits: PAPER_LIMITS,
-    // No quote feed yet, so market orders are rejected for lack of a reference price.
-    riskContext: async (order) => ({
-      session: getSession(order.instrument.market),
-    }),
+    onChange: () => broadcast(proposalsEvents.onChanged),
   });
 
   const secrets = createSecretStore(
@@ -81,21 +89,15 @@ export function createServices() {
 
   config.create();
 
-  const marketData = createMarketDataSources({
-    config,
-    secrets,
-    candles: cache.candles,
-    fubonLogDir: join(userDataDir, "fubon"),
-    openFubonProcess,
-  });
-
-  const liveCandles = createLiveCandles({
-    openStream: () => marketData.openStream(),
-    async dailyCandles(request) {
-      const provider = await marketData.provider(request.symbol.market);
-
-      return provider ? provider.getCandles(request) : [];
-    },
+  const marketData = createMarketData({
+    sources: createMarketDataSources({
+      config,
+      secrets,
+      candles: cache.candles,
+      fubonLogDir: join(userDataDir, "fubon"),
+      openFubonProcess,
+    }),
+    onSourcesChanged: () => broadcast(marketEvents.onSourcesChanged),
   });
 
   // The user's own skills and instructions sit beside the config file they edit.
@@ -119,103 +121,65 @@ export function createServices() {
   const decisions = createDecisions({ config, secrets });
 
   const news = createNews({
-    secrets,
+    sources: createNewsSources(secrets),
     store: openNews(
       join(userDataDir, "news.sqlite"),
       join(import.meta.dirname, "migrations", "news")
     ).store,
-    // Every window's chart may show the listing.
-    onChange(symbol) {
-      for (const window of BrowserWindow.getAllWindows()) {
-        window.webContents.send(newsEvents.onChanged, symbol);
-      }
-    },
+    scorer: () => decisions.scorer(),
+    marketData,
+    onChange: (symbol) => broadcast(newsEvents.onChanged, symbol),
   });
 
   const agent = createAgentService({
     config,
     secrets,
-    credentials: createCredentialStore(
-      secrets,
-      (provider) => agentAuth(config, provider) === AgentAuth.Subscription
-    ),
     getDeviceId: installationId(join(userDataDir, "installation-id")),
     openExternal,
     skillFolders,
     instructionsFile,
     mcp,
     conversations: openAgentStore(join(userDataDir, "agent.sqlite")),
-    marketData: (market) => marketData.provider(market),
+    marketData,
     watchlist: () => userData.watchlist.list(),
-    newsSources: () => news.sources(),
-    newsStore: news.store,
-    scorer: () => decisions.scorer(),
-    broker,
+    news,
     desk,
   });
 
   const newsCollector = createNewsCollector({
-    sources: () => news.sources(),
-    store: news.store,
-    scorer: () => decisions.scorer(),
-    marketData: (market) => marketData.provider(market),
+    news,
     watchlist: () => userData.watchlist.list(),
     collectEveryHours: () => config.read().news.collectEveryHours,
   });
 
-  let appliedStreamSettings = marketData.streamSettings();
+  const appearance = createAppearance({
+    config,
+    // Windows and their renderers' prefers-color-scheme follow themeSource; the rest is pushed to
+    // every renderer, so a hand edit applies as the settings page's does.
+    onChange(next) {
+      nativeTheme.themeSource = next.theme;
 
-  // Sources and plans change from the settings page or a hand edit; the live stream follows either.
-  async function applySettings() {
-    const next = marketData.streamSettings();
-
-    if (isEqual(next, appliedStreamSettings)) return;
-
-    appliedStreamSettings = next;
-    await liveCandles.restart();
-  }
-
-  const appearance = () => config.read().appearance;
+      for (const window of BrowserWindow.getAllWindows()) {
+        paintWindow(window, windowColors());
+        window.webContents.send(settingsEvents.onAppearance, next);
+      }
+    },
+  });
 
   /** The palette windows show now, in the scheme the theme or the computer picks. */
   function windowColors() {
-    const scheme = nativeTheme.shouldUseDarkColors
-      ? ColorScheme.Dark
-      : ColorScheme.Light;
-
-    const { palette, palettes } = appearance();
-
-    return resolvePalette(palette[scheme], palettes, scheme);
+    return appearance.colors(
+      nativeTheme.shouldUseDarkColors ? ColorScheme.Dark : ColorScheme.Light
+    );
   }
 
-  let appliedAppearance = appearance();
+  nativeTheme.themeSource = appearance.read().theme;
 
-  // Windows and their renderers' prefers-color-scheme follow themeSource; the rest is pushed to
-  // every renderer, so a hand edit applies as the settings page's does.
-  function applyAppearance() {
-    const next = appearance();
-
-    nativeTheme.themeSource = next.theme;
-
-    if (isEqual(next, appliedAppearance)) return;
-
-    appliedAppearance = next;
-
-    for (const window of BrowserWindow.getAllWindows()) {
-      paintWindow(window, windowColors());
-      window.webContents.send(settingsEvents.onAppearance, next);
-    }
-  }
-
-  applyAppearance();
-
-  config.watch(() => {
-    applyAppearance();
-    void applySettings();
-  });
+  config.onChange(() => broadcast(settingsEvents.onChanged));
+  secrets.onChange(() => broadcast(settingsEvents.onChanged));
+  config.watch();
 
   return {
-    broker,
     desk,
     secrets,
     config,
@@ -229,12 +193,9 @@ export function createServices() {
       [AppLocation.Skills]: skillFolders.solyx,
       [AppLocation.Mcp]: mcp.file,
     },
-    applySettings,
     appearance,
-    applyAppearance,
     windowColors,
     marketData,
-    liveCandles,
     userData,
     agent,
     mcp,

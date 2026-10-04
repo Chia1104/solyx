@@ -71,17 +71,37 @@ export function createLiveCandles(options: LiveCandlesOptions) {
   let stream: MarketDataStream | undefined;
   let opening: Promise<MarketDataStream | undefined> | undefined;
 
-  function ensureStream() {
+  function ensureStream(): Promise<MarketDataStream | undefined> {
     if (stream) return Promise.resolve(stream);
 
-    opening ??= options.openStream().then((opened) => {
-      stream = opened;
-      opening = undefined;
-
-      return opened;
-    });
+    opening ??= open();
 
     return opening;
+  }
+
+  function open() {
+    const attempt: Promise<MarketDataStream | undefined> = options
+      .openStream()
+      .then((opened) => {
+        // A restart while this one opened makes its stream stale, so callers get the current one.
+        if (opening !== attempt) {
+          opened?.close();
+
+          return ensureStream();
+        }
+
+        stream = opened;
+        opening = undefined;
+
+        return opened;
+      });
+
+    // A failed open is tried again by the next caller.
+    void attempt.catch(() => {
+      if (opening === attempt) opening = undefined;
+    });
+
+    return attempt;
   }
 
   function loadPeriod(state: LiveSymbol, watch: Watch, date: string) {
@@ -311,7 +331,10 @@ export function createLiveCandles(options: LiveCandlesOptions) {
       release(state);
     },
 
-    /** Reopens the stream, as after the provider's key changes, and watches every symbol again. */
+    /**
+     * Reopens the stream, as after the provider's key changes, and watches every symbol again;
+     * a symbol the new stream refuses stops being live.
+     */
     async restart() {
       const previous = stream;
 

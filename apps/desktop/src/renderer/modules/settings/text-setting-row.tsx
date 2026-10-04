@@ -34,7 +34,8 @@ export function TextSettingRow({
   /** `null` goes back to the default. */
   onSave: (value: string | null) => Promise<void>;
   /** Refreshes what reads the setting once a save settles. */
-  onSettled: () => Promise<void>;
+  /** Refreshes what the change reaches that the settings push does not. */
+  onSettled?: () => Promise<void>;
 }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);

@@ -41,6 +41,11 @@ function parseSecretFile(text: string): SecretFile {
 export function createSecretStore(file: string, cipher: SecretCipher) {
   // A save reads, changes and rewrites the file, so saves run one at a time.
   const mutex = new Mutex();
+  const listeners = new Set<(secret: SecretKey) => void>();
+
+  function changed(secret: SecretKey) {
+    for (const listener of listeners) listener(secret);
+  }
 
   async function read(): Promise<SecretFile> {
     try {
@@ -85,7 +90,7 @@ export function createSecretStore(file: string, cipher: SecretCipher) {
       : SecretState.Saved;
   }
 
-  async function save(secret: SecretKey, value: string) {
+  async function store(secret: SecretKey, value: string) {
     if (!(await cipher.isAvailable())) {
       throw new Error("This system has no secure storage to save secrets in");
     }
@@ -98,18 +103,34 @@ export function createSecretStore(file: string, cipher: SecretCipher) {
   return {
     available: () => cipher.isAvailable(),
 
-    save,
+    async save(secret: SecretKey, value: string) {
+      await store(secret, value);
+      changed(secret);
+    },
 
-    delete: (secret: SecretKey) => update((entries) => omit(entries, [secret])),
+    async delete(secret: SecretKey) {
+      await update((entries) => omit(entries, [secret]));
+      changed(secret);
+    },
+
+    /** Calls `listener` after each save or delete, so whoever reads a secret can follow it. */
+    onChange(listener: (secret: SecretKey) => void): () => void {
+      listeners.add(listener);
+
+      return () => {
+        listeners.delete(listener);
+      };
+    },
 
     /** The decrypted value, or `undefined` when it is missing or unreadable. */
     async get(secret: SecretKey): Promise<string | undefined> {
       const entry = (await read())[secret];
       const decrypted = entry === undefined ? undefined : await decrypt(entry);
 
+      // The value stays the same, so nobody hears about it.
       if (decrypted?.shouldReEncrypt) {
         try {
-          await save(secret, decrypted.plainText);
+          await store(secret, decrypted.plainText);
         } catch {
           // Best effort: the current ciphertext still decrypts with the previous key.
         }

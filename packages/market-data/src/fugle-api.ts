@@ -1,15 +1,8 @@
 import ky from "ky";
 import * as z from "zod";
 
-import {
-  Interval,
-  isCalendarInterval,
-  isIntraday,
-  mergeCandles,
-  periodStart,
-  resampleDaily,
-} from "@solyx/core/candles";
-import type { CalendarInterval, Candle } from "@solyx/core/candles";
+import { Interval, isIntraday, mergeCandles } from "@solyx/core/candles";
+import type { BarInterval, Candle } from "@solyx/core/candles";
 import {
   Market,
   exchangeDate,
@@ -59,10 +52,6 @@ const MINUTE_MS = 60_000;
 
 // A 429 means something else shares the key's budget; retry briefly rather than hang the chart.
 const MAX_RETRY_AFTER_MS = 10_000;
-
-// Fugle clips weekly and monthly bars to the requested range, so a range split into requests
-// would break a period in two; those bars are merged from daily bars instead.
-type BarInterval = Exclude<Interval, CalendarInterval>;
 
 const TIMEFRAME: Record<BarInterval, string> = {
   [Interval.OneMinute]: "1",
@@ -233,26 +222,19 @@ export function createFugleApiProvider(
     }: CandleRequest): Promise<Candle[]> {
       assertTaiwan(symbol);
 
-      const barInterval = isCalendarInterval(interval)
-        ? Interval.OneDay
-        : interval;
-
       const currentDate = exchangeDate(Market.TW, now());
       const lastClose = shiftDate(currentDate, -1);
 
       // History never holds today, so a range that starts today costs one intraday request.
-      const ranges = splitRange(
-        isCalendarInterval(interval) ? periodStart(from, interval) : from,
-        to < lastClose ? to : lastClose
-      );
+      const ranges = splitRange(from, to < lastClose ? to : lastClose);
 
       const [history, session] = await Promise.all([
         Promise.all(
           ranges.map(([start, end]) =>
-            historical(symbol.symbol, barInterval, start, end)
+            historical(symbol.symbol, interval, start, end)
           )
         ),
-        to >= currentDate ? today(symbol.symbol, barInterval) : [],
+        to >= currentDate ? today(symbol.symbol, interval) : [],
       ]);
 
       const bars = history.flat();
@@ -260,9 +242,7 @@ export function createFugleApiProvider(
 
       bars.push(...session.filter((bar) => bar.time > lastTime));
 
-      return isCalendarInterval(interval)
-        ? resampleDaily(bars, interval, Market.TW)
-        : bars;
+      return bars;
     },
 
     async getListing(symbol: SymbolRef): Promise<Listing | null> {

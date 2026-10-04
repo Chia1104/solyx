@@ -79,6 +79,9 @@ export function isCalendarInterval(
   return interval === Interval.OneWeek || interval === Interval.OneMonth;
 }
 
+/** Bars of one session or shorter, the ones providers serve. */
+export type BarInterval = Exclude<Interval, CalendarInterval>;
+
 /** The `YYYY-MM-DD` date that opens the week (Monday) or month containing `date`. */
 export function periodStart(date: string, interval: CalendarInterval): string {
   if (interval === Interval.OneMonth) return `${date.slice(0, 8)}01`;

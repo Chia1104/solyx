@@ -35,6 +35,7 @@ import type {
 import { isEqual, maxBy, noop } from "es-toolkit";
 import * as z from "zod";
 
+import type { McpExtensions, McpToolCall } from "./mcp.ts";
 import type { AgentThinking } from "./providers.ts";
 import { firstLine } from "./text.ts";
 import {
@@ -73,15 +74,16 @@ export interface AgentRuntimeOptions {
   models: Models;
   /** Rejects with a message the user can act on while the model or its key is not set up. */
   model(): Promise<AgentModelChoice>;
+  /** The app's own tools and prompt sections, offered in every request. */
+  tools: Extension;
   /**
-   * The agent's tools and prompt sections, installed again before every run and before resuming,
-   * so a run sees the servers and policies of the moment it starts. The tools of `deferred` are
-   * offered only once a tool result loads them with pi-durable's `addTools`.
+   * The MCP servers' tools, built again before every run and before resuming, so a run sees the
+   * servers and policies of the moment it starts. A call its policy asks about waits on `allow`,
+   * which the user answers through `approve`.
    */
-  extensions(): Promise<{
-    offered: readonly Extension[];
-    deferred: readonly Extension[];
-  }>;
+  mcp(
+    allow: (call: McpToolCall, signal?: AbortSignal) => Promise<boolean>
+  ): Promise<McpExtensions>;
   onEvent(sessionId: string, event: AgentWireEvent): void;
   settings?: HarnessSettings;
 }
@@ -114,6 +116,10 @@ interface Watch {
   base: AgentWireEvent[];
   /** Every event sent since, consecutive deltas merged. */
   log: AgentWireEvent[];
+  /** Calls whose start went out, which their approval events follow. */
+  started: Set<string>;
+  /** Approval events waiting for their call's start to go out, which arrives with its commit. */
+  held: Map<string, AgentWireEvent[]>;
   /** The reply streaming now, and the text and thinking already sent of it. */
   streaming?: { id: string; content: Block[]; text: string; thinking: string };
   /** The run's last reply, whose stop reason decides how the run ended. */
@@ -214,6 +220,15 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
   const registry = createRegistry();
   const watches = new Map<ConversationId, Promise<Watch>>();
 
+  // The watches started so far by session id, for the approvals asked in them.
+  const watchesBySession = new Map<string, Watch>();
+
+  /** Calls waiting for the user to allow them, by tool call id. */
+  const approvals = new Map<
+    string,
+    { sessionId: string; decide: (approved: boolean) => void }
+  >();
+
   const opened = options.store.then(async (store) => ({
     store,
     harness: await Harness.open(
@@ -226,11 +241,74 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
   // A store that fails to open fails every call that waits for it instead.
   opened.catch(noop);
 
+  /** Sends an event, keeping it for `transcript`. */
+  function publish(watch: Watch, sessionId: string, event: AgentWireEvent) {
+    const last = watch.log.at(-1);
+
+    if (
+      event.type === AgentEventType.AssistantDelta &&
+      last?.type === AgentEventType.AssistantDelta &&
+      last.messageId === event.messageId &&
+      last.channel === event.channel
+    ) {
+      watch.log[watch.log.length - 1] = {
+        ...last,
+        delta: last.delta + event.delta,
+      };
+    } else {
+      watch.log.push(event);
+    }
+
+    onEvent(sessionId, event);
+  }
+
+  /**
+   * Resolves whether the user allowed the call; a withdrawn question counts as refused. The call
+   * runs in memory, so one left waiting when the app quits ends with its run as interrupted.
+   */
+  function allow(call: McpToolCall, signal?: AbortSignal): Promise<boolean> {
+    const { sessionId, toolCallId } = call;
+    const watch = watchesBySession.get(sessionId);
+
+    // A call's start arrives with its commit, which can come after the call asks.
+    const tell = (event: AgentWireEvent) => {
+      if (!watch) {
+        onEvent(sessionId, event);
+      } else if (watch.started.has(toolCallId)) {
+        publish(watch, sessionId, event);
+      } else {
+        watch.held.set(toolCallId, [
+          ...(watch.held.get(toolCallId) ?? []),
+          event,
+        ]);
+      }
+    };
+
+    return new Promise<boolean>((resolve) => {
+      const decide = (approved: boolean) => {
+        if (!approvals.delete(toolCallId)) return;
+
+        tell({ type: AgentEventType.ApprovalResolved, toolCallId, approved });
+        resolve(approved);
+      };
+
+      approvals.set(toolCallId, { sessionId, decide });
+      tell({ type: AgentEventType.ApprovalRequest, toolCallId });
+
+      if (signal?.aborted) decide(false);
+      else
+        signal?.addEventListener("abort", () => decide(false), { once: true });
+    });
+  }
+
   /** Installs the extensions and returns the tools every request offers. */
   async function reload() {
-    const { offered, deferred } = await options.extensions();
+    const mcp = await options.mcp(allow);
 
-    for (const extension of [...offered, ...deferred]) {
+    // MCP tools wait until the agent finds them, so only the servers' names ride every request.
+    const offered = [options.tools, mcp.search];
+
+    for (const extension of [...offered, mcp.tools]) {
       registry.install(extension);
     }
 
@@ -277,25 +355,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     sessionId: string,
     events: readonly AgentEvent[]
   ) {
-    const emit = (event: AgentWireEvent) => {
-      const last = watch.log.at(-1);
-
-      if (
-        event.type === AgentEventType.AssistantDelta &&
-        last?.type === AgentEventType.AssistantDelta &&
-        last.messageId === event.messageId &&
-        last.channel === event.channel
-      ) {
-        watch.log[watch.log.length - 1] = {
-          ...last,
-          delta: last.delta + event.delta,
-        };
-      } else {
-        watch.log.push(event);
-      }
-
-      onEvent(sessionId, event);
-    };
+    const emit = (event: AgentWireEvent) => publish(watch, sessionId, event);
 
     const sendDeltas = () => {
       const { streaming } = watch;
@@ -401,9 +461,17 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
             toolName: event.toolName,
             args: event.args,
           });
+          watch.started.add(event.toolCallId);
+
+          for (const held of watch.held.get(event.toolCallId) ?? []) {
+            emit(held);
+          }
+
+          watch.held.delete(event.toolCallId);
           break;
 
         case "tool_execution_end":
+          watch.started.delete(event.toolCallId);
           emit(
             (event.entry && toolEndEvent(event.entry)) ?? {
               type: AgentEventType.ToolEnd,
@@ -464,7 +532,17 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       const base = transcriptEvents(entries, running);
       const partial = snapshot.generation?.message;
 
-      const created: Watch = { stream, base, log: [] };
+      const created: Watch = {
+        stream,
+        base,
+        log: [],
+        started: new Set(
+          base.flatMap((event) =>
+            event.type === AgentEventType.ToolStart ? [event.toolCallId] : []
+          )
+        ),
+        held: new Map(),
+      };
 
       if (running && partial) {
         const id = crypto.randomUUID();
@@ -493,6 +571,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         );
       }
 
+      watchesBySession.set(sessionId, created);
       stream.start(async (events) => handle(created, sessionId, events));
 
       return created;
@@ -508,6 +587,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     const watch = watches.get(id);
 
     watches.delete(id);
+    watchesBySession.delete(String(id));
     await (await watch?.catch(() => undefined))?.stream.stop();
   }
 
@@ -587,7 +667,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       };
     },
 
-    /** Everything a renderer needs to show the conversation, including a reply still streaming. */
+    /**
+     * Everything a renderer needs to show the conversation, including a reply still streaming and
+     * calls still waiting for the user.
+     */
     async transcript(sessionId: string): Promise<AgentWireEvent[]> {
       const conversation = await conversationOf(sessionId);
       const watch = await watches.get(conversation.id)?.catch(() => undefined);
@@ -670,6 +753,17 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       } catch (error) {
         throw error instanceof ConversationBusy ? busy : error;
       }
+    },
+
+    /** Answers a call waiting for the user to allow it. */
+    approve(sessionId: string, toolCallId: string, approved: boolean) {
+      const call = approvals.get(toolCallId);
+
+      if (!call || call.sessionId !== sessionId) {
+        throw new Error("That call is no longer waiting for an answer");
+      }
+
+      call.decide(approved);
     },
 
     /** Stops a run; what it streamed so far is kept, ending as aborted. */
