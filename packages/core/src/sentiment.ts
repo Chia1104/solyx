@@ -1,3 +1,5 @@
+import { sumBy } from "es-toolkit";
+
 import type { Listing } from "./market-data.ts";
 import type { SymbolRef } from "./market.ts";
 
@@ -67,4 +69,21 @@ export interface SentimentScorer {
     input: SentimentInput,
     options?: { signal?: AbortSignal }
   ): Promise<SentimentScore>;
+}
+
+// Each level's place on a scale from clearly bad news for the share price to clearly good.
+const STANCE_WEIGHT: Record<Stance, number> = {
+  [Stance.Negative]: -1,
+  [Stance.LeanNegative]: -0.5,
+  [Stance.Neutral]: 0,
+  [Stance.LeanPositive]: 0.5,
+  [Stance.Positive]: 1,
+};
+
+/** The expected stance, from −1 for clearly bad news for the share price to 1 for clearly good. */
+export function stanceValue(stance: Record<Stance, number>): number {
+  return sumBy(
+    Object.values(Stance),
+    (level) => stance[level] * STANCE_WEIGHT[level]
+  );
 }

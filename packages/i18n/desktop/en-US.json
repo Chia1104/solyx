@@ -156,6 +156,7 @@
       "get_market_status": "Checked market status",
       "get_candles": "Read candles",
       "get_indicators": "Read indicators",
+      "get_news": "Read news",
       "get_watchlist": "Read your watchlist",
       "get_account": "Read your account",
       "list_proposals": "Read your proposals",
@@ -411,6 +412,10 @@
       "decisions-api-key": {
         "label": "API key",
         "hint": "A key from the TypeSafe console. Only TypeSafe's models are supported for now."
+      },
+      "firecrawl-api-key": {
+        "label": "Firecrawl API key",
+        "hint": "A key from your Firecrawl dashboard."
       }
     },
     "sign-in": {
@@ -486,6 +491,10 @@
         "medium": "Medium",
         "high": "High"
       }
+    },
+    "news": {
+      "title": "News",
+      "description": "The agent reads Taiwan companies' material announcements and PTT's Stock board on its own. With your Firecrawl key it also searches news articles and samples posts on Threads in Taiwan and X in the US; each search uses Firecrawl credits. Requests go straight from this computer to each source."
     },
     "decisions": {
       "title": "Decisions model",
