@@ -5,6 +5,7 @@ import { Market } from "../src/market.ts";
 import {
   NewsChannel,
   NewsVoice,
+  TimePrecision,
   collectNews,
   dailySentiment,
   newsStories,
@@ -38,7 +39,10 @@ function item(id: string, day: number): NewsItem {
     title: id,
     snippet: "",
     site: "news.test",
-    publishedAt: new Date(Date.UTC(2026, 8, day)),
+    published: {
+      at: new Date(Date.UTC(2026, 8, day)),
+      precision: TimePrecision.Minute,
+    },
     votes: null,
   };
 }
@@ -134,9 +138,9 @@ function memoryStore(initial: NewsRecord[] = []) {
     list: (_symbol, since) =>
       orderBy(
         records.filter(
-          (record) => (record.item.publishedAt ?? record.foundAt) >= since
+          (record) => (record.item.published?.at ?? record.foundAt) >= since
         ),
-        [(record) => (record.item.publishedAt ?? record.foundAt).getTime()],
+        [(record) => (record.item.published?.at ?? record.foundAt).getTime()],
         ["desc"]
       ),
   };
@@ -297,7 +301,10 @@ function record(
     channel: NewsChannel.Article,
     item: {
       ...item(hour, 1),
-      publishedAt: publishedAt === null ? null : new Date(publishedAt),
+      published:
+        publishedAt === null
+          ? null
+          : { at: new Date(publishedAt), precision: TimePrecision.Minute },
     },
     foundAt: new Date("2026-10-03T01:00:00Z"),
     score,
@@ -396,7 +403,7 @@ function told(
       title,
       snippet: "",
       site,
-      publishedAt: new Date(publishedAt),
+      published: { at: new Date(publishedAt), precision: TimePrecision.Minute },
       votes: null,
     },
     foundAt: NOW,
@@ -472,7 +479,7 @@ test("a story is led by its earliest scored record and weighed once", () => {
   ]);
 
   expect(stories).toHaveLength(1);
-  expect(stories[0].lead.item.publishedAt).toEqual(
+  expect(stories[0].lead.item.published?.at).toEqual(
     new Date("2026-10-02T03:00:00Z")
   );
 

@@ -28,8 +28,13 @@ function toRecord(item: ItemRow, listing: ListingRow): NewsRecord {
       title: item.title,
       snippet: item.snippet,
       site: item.site,
-      publishedAt:
-        item.publishedAt === null ? null : new Date(item.publishedAt),
+      published:
+        item.publishedAt === null || item.publishedPrecision === null
+          ? null
+          : {
+              at: new Date(item.publishedAt),
+              precision: item.publishedPrecision,
+            },
       votes: item.votes,
     },
     foundAt: new Date(listing.foundAt),
@@ -68,7 +73,8 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
               title: item.title,
               snippet: item.snippet,
               site: item.site,
-              publishedAt: item.publishedAt?.getTime() ?? null,
+              publishedAt: item.published?.at.getTime() ?? null,
+              publishedPrecision: item.published?.precision ?? null,
               votes: item.votes,
             })
             .onConflictDoUpdate({
@@ -77,8 +83,10 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
                 url: sql`excluded.url`,
                 title: sql`excluded.title`,
                 snippet: sql`excluded.snippet`,
-                // Ages such as "6 hours ago" read a little differently on every search.
+                // Ages such as "6 hours ago" read a little differently, and less exactly, on every
+                // search, so the first time given is kept with its precision.
                 publishedAt: sql`coalesce(${newsItems.publishedAt}, excluded.published_at)`,
+                publishedPrecision: sql`case when ${newsItems.publishedAt} is null then excluded.published_precision else ${newsItems.publishedPrecision} end`,
                 votes: sql`excluded.votes`,
               },
             })

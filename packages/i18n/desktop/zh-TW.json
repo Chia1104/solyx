@@ -144,6 +144,7 @@
     "alike_one": "另 {{count}} 則相同",
     "alike_other": "另 {{count}} 則相同",
     "undated": "無日期",
+    "approximate": "約 {{time}}",
     "empty": "近 7 天還沒有收集到內容。新聞會依設定頁的頻率自動收集，也可以請 agent 查詢。"
   },
   "agent": {

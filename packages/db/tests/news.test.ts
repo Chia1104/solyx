@@ -8,7 +8,7 @@ import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
 import { Market } from "@solyx/core/market";
-import { NewsChannel } from "@solyx/core/news";
+import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { NewsItem } from "@solyx/core/news";
 import { Stance, TextKind, TextTopic } from "@solyx/core/sentiment";
 import type { SentimentScore } from "@solyx/core/sentiment";
@@ -43,7 +43,10 @@ function item(id: string, publishedAt: string | null, votes = 0): NewsItem {
     title: `title ${id}`,
     snippet: `snippet ${id}`,
     site: "news.test",
-    publishedAt: publishedAt === null ? null : new Date(publishedAt),
+    published:
+      publishedAt === null
+        ? null
+        : { at: new Date(publishedAt), precision: TimePrecision.Minute },
     votes,
   };
 }
