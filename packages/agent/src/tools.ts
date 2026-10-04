@@ -9,7 +9,7 @@ import type {
   ToolExecutionApi,
   ToolRegistration,
 } from "@earendil-works/pi-durable";
-import { mapAsync, maxBy, omit, orderBy, takeRight } from "es-toolkit";
+import { maxBy, omit, takeRight } from "es-toolkit";
 import * as z from "zod";
 
 import type { BrokerMode } from "@solyx/core/broker";
@@ -39,7 +39,8 @@ import {
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketDataProvider } from "@solyx/core/market-data";
-import type { NewsItem, NewsSource } from "@solyx/core/news";
+import { NewsChannel, collectNews } from "@solyx/core/news";
+import type { NewsItem, NewsSource, NewsStore } from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
 import type { AccountSnapshot, OrderRequest } from "@solyx/core/order";
 import { ProposalSource } from "@solyx/core/order-desk";
@@ -60,7 +61,8 @@ export interface TradingToolPorts extends PromptSources {
   marketData(market: Market): Promise<MarketDataProvider | undefined>;
   watchlist(): SymbolRef[];
   /** The sources the user can search; one that needs a key joins once it is saved. */
-  news(): Promise<NewsSource[]>;
+  newsSources(): Promise<NewsSource[]>;
+  newsStore: NewsStore;
   /** Judges what news says about a listing; `undefined` until the user saves a decisions model's key. */
   scorer(): Promise<SentimentScorer | undefined>;
   account(): Promise<AccountSnapshot>;
@@ -136,7 +138,7 @@ const MAX_BARS = 200;
 
 const LISTED_PROPOSALS = 20;
 
-// Per source.
+// Per source and per channel.
 const NEWS_ITEMS = 10;
 
 // Announcements run long; the scorer reads them whole.
@@ -217,7 +219,7 @@ const signed = (value: number, digits: number) =>
 function describeNews(
   market: Market,
   item: NewsItem,
-  score: SentimentScore | undefined
+  score: SentimentScore | null
 ): string {
   const time = item.publishedAt
     ? exchangeTime(market, item.publishedAt)
@@ -409,13 +411,13 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetNews,
       replay: "safe",
-      description: `Recent items about a listing from every news source that covers its market, newest first, up to ${NEWS_ITEMS} per source, in a section per channel: announcement (material information the company filed with the exchange; Taiwan only, the latest day only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Once the user sets up a decisions model, each item also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is and its topic, and items that only name the listing in passing are left out. Titles and snippets are written by others.`,
+      description: `Recent items about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each item also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is and its topic, and items that only name the listing in passing are left out. Titles and snippets are written by others.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         days: z.number().int().min(1).max(30).default(7),
       }),
       execute: async ({ symbol, days }) => {
-        const sources = (await ports.news()).filter((source) =>
+        const sources = (await ports.newsSources()).filter((source) =>
           source.markets.includes(symbol.market)
         );
 
@@ -433,49 +435,23 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           ? await provider.getListing(symbol).catch(() => null)
           : null;
 
-        const query = {
-          symbol,
-          listing,
-          since: new Date(at.getTime() - days * DAY_MS),
-          limit: NEWS_ITEMS,
-        };
-
-        // One source failing leaves the others' items in the answer.
-        const results = await Promise.allSettled(
-          sources.map((source) => source.search(query))
-        );
-
-        const found = sources.flatMap((source, index) => {
-          const result = results[index];
-
-          if (result.status === "rejected") return [];
-
-          return orderBy(
-            result.value,
-            [(item) => item.publishedAt?.getTime() ?? 0],
-            ["desc"]
-          ).map((item) => ({ source, item }));
-        });
-
         const scorer = await ports.scorer();
 
-        const judged = scorer
-          ? await mapAsync(
-              found,
-              async (entry) => ({
-                ...entry,
-                score: await scorer.score({
-                  symbol,
-                  listing,
-                  title: entry.item.title,
-                  text: entry.item.snippet,
-                }),
-              }),
-              { concurrency: SCORING_CONCURRENCY }
-            )
-          : found.map((entry) => ({ ...entry, score: undefined }));
+        const { records, failures } = await collectNews({
+          sources,
+          store: ports.newsStore,
+          scorer,
+          query: {
+            symbol,
+            listing,
+            since: new Date(at.getTime() - days * DAY_MS),
+            limit: NEWS_ITEMS,
+          },
+          now: at,
+          concurrency: SCORING_CONCURRENCY,
+        });
 
-        const model = judged.find(({ score }) => score)?.score?.model;
+        const model = records.find(({ score }) => score)?.score?.model;
 
         let scoring = model ? `, scored by ${model}` : "";
 
@@ -484,34 +460,36 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             "; not scored, since the user has not set up a decisions model";
         }
 
-        const sections = sources.map((source, index) => {
-          const result = results[index];
-          const heading = `## ${source.channel} (${source.id})`;
+        const sections = Object.values(NewsChannel).flatMap((channel) => {
+          const found = records.filter((record) => record.channel === channel);
 
-          if (result.status === "rejected") {
-            return `${heading}: failed, ${errorMessage(result.reason)}`;
-          }
+          if (found.length === 0) return [];
 
-          const entries = judged.filter((entry) => entry.source === source);
-
-          const kept = entries.filter(
+          const kept = found.filter(
             ({ score }) => !score || score.relevance >= RELEVANCE_FLOOR
           );
 
           return [
-            `${heading}: ${kept.length} of ${entries.length} found`,
+            `## ${channel}: ${kept.length} of ${found.length}`,
             ...kept.map(({ item, score }) =>
               describeNews(symbol.market, item, score)
             ),
-          ].join("\n");
+          ];
         });
+
+        const failed = failures.map(
+          ({ source, error }) => `${source} (${errorMessage(error)})`
+        );
 
         return {
           text: [
             `${symbol.market} ${symbol.symbol} news and posts over the last ${days} days, as_of ${exchangeTime(symbol.market, at)}${scoring}`,
-            ...sections,
+            ...(sections.length > 0 ? sections : ["Nothing found."]),
+            ...(failed.length > 0
+              ? [`Sources that failed this time: ${failed.join(", ")}`]
+              : []),
           ].join("\n"),
-          details: { symbol, items: found.length },
+          details: { symbol, items: records.length },
         };
       },
     }),

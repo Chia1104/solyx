@@ -79,6 +79,7 @@ test("finds a listed company's announcements, newest first on Taipei's clock", a
 
   expect(items).toEqual([
     {
+      id: "2330:1151002:143005:本公司代子公司公告\r\n取得機器設備",
       url: null,
       title: "本公司代子公司公告 取得機器設備",
       snippet: "1.標的物之名稱：機器設備\n2.交易數量：一批",
@@ -88,6 +89,7 @@ test("finds a listed company's announcements, newest first on Taipei's clock", a
       votes: null,
     },
     {
+      id: "2330:1151002:70003:公告本公司董事會決議",
       url: null,
       title: "公告本公司董事會決議",
       snippet: "1.董事會決議日期：115/10/02",

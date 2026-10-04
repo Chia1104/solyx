@@ -11,6 +11,7 @@ import type { RiskLimits } from "@solyx/core/risk";
 import { Session, getSession } from "@solyx/core/session";
 import { openAgentStore } from "@solyx/db/agent";
 import { openCache } from "@solyx/db/cache";
+import { openNews } from "@solyx/db/news";
 import { openUserData } from "@solyx/db/user";
 
 import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
@@ -117,6 +118,11 @@ export function createServices() {
 
   const news = createNews({ secrets });
 
+  const newsData = openNews(
+    join(userDataDir, "news.sqlite"),
+    join(import.meta.dirname, "migrations", "news")
+  );
+
   const agent = createAgentService({
     config,
     secrets,
@@ -132,7 +138,8 @@ export function createServices() {
     conversations: openAgentStore(join(userDataDir, "agent.sqlite")),
     marketData: (market) => marketData.provider(market),
     watchlist: () => userData.watchlist.list(),
-    news: () => news.sources(),
+    newsSources: () => news.sources(),
+    newsStore: newsData.store,
     scorer: () => decisions.scorer(),
     broker,
     desk,

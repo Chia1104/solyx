@@ -100,6 +100,7 @@ test("dates results by their age and drops malformed or repeated ones", async ()
   expect(firecrawl.search.mock.calls[0][0]).toBe("2330");
   expect(items).toEqual([
     {
+      id: "https://www.ctee.com.tw/news/1",
       url: "https://www.ctee.com.tw/news/1",
       title: "台積電法說前外資唱大戲",
       snippet: "摩根大通看好台積電第三季營收",
@@ -108,6 +109,7 @@ test("dates results by their age and drops malformed or repeated ones", async ()
       votes: null,
     },
     {
+      id: "https://stock.ltn.com.tw/article/2",
       url: "https://stock.ltn.com.tw/article/2",
       title: "千金股解密",
       snippet: "",
@@ -116,6 +118,7 @@ test("dates results by their age and drops malformed or repeated ones", async ()
       votes: null,
     },
     {
+      id: "https://udn.com/news/3",
       url: "https://udn.com/news/3",
       title: "Undated",
       snippet: "kept",
@@ -160,6 +163,7 @@ test("samples Threads posts in Taiwan, dated by the start of their description",
   });
   expect(items).toEqual([
     {
+      id: "https://www.threads.com/@someone/post/Dd-Bd",
       url: "https://www.threads.com/@someone/post/Dd-Bd",
       title: "台積電第二個美國基地，可能要來了？",
       snippet: "台積電擬規劃啟動美國第二園區建廠作業",
@@ -168,6 +172,7 @@ test("samples Threads posts in Taiwan, dated by the start of their description",
       votes: null,
     },
     {
+      id: "https://www.threads.com/@other/post/Dd-Cc",
       url: "https://www.threads.com/@other/post/Dd-Cc",
       title: "台積電 · 盤整",
       snippet: "沒有日期 · 但有分隔符號",
