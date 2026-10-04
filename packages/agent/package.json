@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./analysis": "./src/analysis.ts",
     "./chatgpt-oauth": "./src/chatgpt-oauth.ts",
     "./mcp": "./src/mcp.ts",
     "./mcp-config": "./src/mcp-config.ts",
@@ -23,6 +24,7 @@
   "dependencies": {
     "@earendil-works/chord": "catalog:agent",
     "@earendil-works/pi-ai": "catalog:agent",
+    "@earendil-works/pi-codemode": "catalog:agent",
     "@earendil-works/pi-durable": "catalog:agent",
     "@earendil-works/pi-mcp": "catalog:agent",
     "@solyx/core": "workspace:*",

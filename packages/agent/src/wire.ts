@@ -28,6 +28,7 @@ export const AgentToolName = {
   ProposeOrder: "propose_order",
   ReadSkill: "read_skill",
   SearchTools: "search_tools",
+  RunAnalysis: "run_analysis",
 } as const;
 
 export type AgentToolName = (typeof AgentToolName)[keyof typeof AgentToolName];
@@ -35,6 +36,17 @@ export type AgentToolName = (typeof AgentToolName)[keyof typeof AgentToolName];
 export const proposeOrderDetailsSchema = z.object({ proposalId: z.string() });
 
 export type ProposeOrderDetails = z.infer<typeof proposeOrderDetailsSchema>;
+
+export const runAnalysisArgumentsSchema = z.object({
+  code: z.string().min(1).describe("The body of an async function"),
+});
+
+export const runAnalysisDetailsSchema = z.object({
+  /** What the script printed and returned, or how it failed. */
+  output: z.string(),
+});
+
+export type RunAnalysisDetails = z.infer<typeof runAnalysisDetailsSchema>;
 
 export const AgentEventType = {
   RunStart: "run:start",

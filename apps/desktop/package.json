@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "catalog:agent",
+    "@earendil-works/pi-codemode": "catalog:agent",
     "@heroui/react": "catalog:heroui-v3",
     "@heroui/styles": "catalog:heroui-v3",
     "@hookform/resolvers": "catalog:forms",

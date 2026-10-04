@@ -1,5 +1,9 @@
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
 import { BrowserWindow } from "electron";
 
+import { createAnalysis } from "@solyx/agent/analysis";
 import { formatContext } from "@solyx/agent/prompt";
 import { createAgentRuntime } from "@solyx/agent/runtime";
 import type { AgentConversationStore } from "@solyx/agent/runtime";
@@ -33,6 +37,12 @@ interface AgentServiceOptions extends AgentModelsOptions {
   mcp: McpServers;
 }
 
+// `vp pack` ships QuickJS beside the main bundle and builds the scripts' worker next to it.
+const ANALYSIS_FILES = {
+  wasm: join(import.meta.dirname, "quickjs.wasm"),
+  worker: pathToFileURL(join(import.meta.dirname, "../worker/analysis.mjs")),
+};
+
 /** The agent as the app wires it: the user's model and key, the trading tools and the desk. */
 export function createAgentService(options: AgentServiceOptions) {
   const models = createAgentModels(options);
@@ -65,6 +75,13 @@ export function createAgentService(options: AgentServiceOptions) {
     instructions,
   });
 
+  const analysis = createAnalysis({
+    marketData: options.marketData,
+    watchlist: options.watchlist,
+    desk: options.desk,
+    files: ANALYSIS_FILES,
+  });
+
   const runtime = createAgentRuntime({
     store: options.conversations,
     models: models.models,
@@ -73,7 +90,10 @@ export function createAgentService(options: AgentServiceOptions) {
       const mcp = await options.mcp.extensions(guard);
 
       // MCP tools wait until the agent finds them, so only the servers' names ride every request.
-      return { offered: [trading, mcp.search], deferred: [mcp.tools] };
+      return {
+        offered: [trading, analysis.extension, mcp.search],
+        deferred: [mcp.tools],
+      };
     },
     onEvent,
   });
@@ -98,9 +118,10 @@ export function createAgentService(options: AgentServiceOptions) {
     approve: (id: string, toolCallId: string, approved: boolean) =>
       runtime.approve(id, toolCallId, approved),
 
-    /** Closes the conversations, then the MCP servers their runs used, as the app quits. */
+    /** Closes the conversations, then the scripts and MCP servers their runs used, as the app quits. */
     async close() {
       await runtime.close();
+      await analysis.close();
       await options.mcp.close();
     },
 

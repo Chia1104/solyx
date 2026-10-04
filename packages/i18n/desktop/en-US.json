@@ -197,7 +197,8 @@
       "check_order": "Checked an order",
       "propose_order": "Proposed an order",
       "read_skill": "Read a playbook",
-      "search_tools": "Searched MCP tools"
+      "search_tools": "Searched MCP tools",
+      "run_analysis": "Ran an analysis"
     },
     "tool-status": {
       "running": "Running",
@@ -211,6 +212,10 @@
       "description": "It opens in your browser. The agent wrote it, so check the address first.",
       "open": "Open",
       "cancel": "Cancel"
+    },
+    "analysis": {
+      "code": "Script",
+      "output": "Output"
     },
     "approval": {
       "title": "Allow this call?",

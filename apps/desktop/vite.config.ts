@@ -51,6 +51,11 @@ const contentSecurityPolicy: Plugin = {
   ],
 };
 
+// The agent's analysis scripts run in QuickJS, whose wasm ships beside the main bundle.
+const quickjsWasm = createRequire(
+  import.meta.resolve("@earendil-works/pi-codemode")
+).resolve("quickjs-wasi/quickjs.wasm");
+
 const nodeBundle: PackUserConfig = {
   platform: "node",
   // Workspace packages ship TS sources, so they are inlined; Electron is provided at runtime.
@@ -95,6 +100,7 @@ export default defineConfig({
           to: "dist/main/migrations",
           rename: "user",
         },
+        { from: quickjsWasm, to: "dist/main" },
       ],
     },
     {
@@ -108,6 +114,12 @@ export default defineConfig({
       ...nodeBundle,
       entry: { fubon: "src/utility/fubon.ts" },
       outDir: "dist/utility",
+      format: "esm",
+    },
+    {
+      ...nodeBundle,
+      entry: { analysis: "src/worker/analysis.ts" },
+      outDir: "dist/worker",
       format: "esm",
     },
   ],

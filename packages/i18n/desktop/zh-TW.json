@@ -197,7 +197,8 @@
       "check_order": "檢查委託",
       "propose_order": "提出下單建議",
       "read_skill": "讀取操作手冊",
-      "search_tools": "搜尋 MCP 工具"
+      "search_tools": "搜尋 MCP 工具",
+      "run_analysis": "執行分析"
     },
     "tool-status": {
       "running": "執行中",
@@ -211,6 +212,10 @@
       "description": "連結會在瀏覽器開啟。這是 Agent 寫出的網址，請先確認。",
       "open": "開啟",
       "cancel": "取消"
+    },
+    "analysis": {
+      "code": "腳本",
+      "output": "輸出"
     },
     "approval": {
       "title": "要允許這次呼叫嗎？",

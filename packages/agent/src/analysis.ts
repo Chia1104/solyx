@@ -1,0 +1,351 @@
+import type { JsonValue } from "@earendil-works/chord";
+import {
+  CodemodeSandbox,
+  loadQuickJSWasm,
+  renderDeclarations,
+} from "@earendil-works/pi-codemode";
+import type { CodemodeTool } from "@earendil-works/pi-codemode";
+import { defineDoc, defineExtension } from "@earendil-works/pi-durable";
+import type { ToolRegistration } from "@earendil-works/pi-durable";
+import { omit, once } from "es-toolkit";
+import * as z from "zod";
+
+import { candleDate, intervalSchema, isIntraday } from "@solyx/core/candles";
+import { bollinger, ema, kd, macd, rsi, sma } from "@solyx/core/indicators";
+import { exchangeTime, symbolRefSchema } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
+import type { MarketData } from "@solyx/core/market-data";
+import type { ProposingDesk } from "@solyx/core/order-desk";
+
+import { AgentToolName, runAnalysisArgumentsSchema } from "./wire.ts";
+import type { RunAnalysisDetails } from "./wire.ts";
+
+/** What a script may read. Nothing here changes anything, and the desk's `propose` is left out. */
+export interface AnalysisPorts {
+  marketData: Pick<MarketData, "candles">;
+  watchlist(): SymbolRef[];
+  desk: Pick<ProposingDesk, "account" | "mode">;
+}
+
+export interface AnalysisOptions extends AnalysisPorts {
+  /**
+   * Where a bundled host ships QuickJS and the worker's entry, since neither is on disk beside a
+   * bundle; left out, the installed packages' own files are used.
+   */
+  files?: { wasm: string; worker: URL };
+}
+
+const TIMEOUT_MS = 30_000;
+
+const MEMORY_LIMIT_BYTES = 256 * 1024 * 1024;
+
+// What a script printed and returned reaches the model whole up to here.
+const MAX_OUTPUT_CHARS = 20_000;
+
+/** What a conversation's scripts stored for its later scripts to load. */
+const AnalysisStoreDoc = defineDoc<{ values: Record<string, JsonValue> }>({
+  kind: "solyx.analysis-store",
+  version: 1,
+  scope: "conversation",
+  history: "latest",
+  fork: "initial",
+  initial: () => ({ values: {} }),
+});
+
+const storedSchema = z.record(z.string(), z.json());
+
+const barSchema = z.object({
+  time: z.string().describe("Bar open on the exchange's clock"),
+  epoch: z.number().describe("Bar open in UTC seconds"),
+  open: z.number(),
+  high: z.number(),
+  low: z.number(),
+  close: z.number(),
+  volume: z.number().describe("Shares"),
+});
+
+const valuesSchema = z.array(z.number());
+
+const lineSchema = z.array(z.number().nullable());
+
+const LINE = "(number | null)[]";
+
+/** A function scripts call, whose arguments are parsed since a script may pass anything. */
+function scriptFunction<Input extends z.ZodType, Output extends z.ZodType>(
+  spec: Pick<CodemodeTool, "name" | "description" | "spread" | "signature"> & {
+    input: Input;
+    output: Output;
+    run(input: z.infer<Input>): Promise<z.input<Output>> | z.input<Output>;
+  }
+): CodemodeTool {
+  return {
+    ...omit(spec, ["input", "output", "run"]),
+    inputSchema: z.toJSONSchema(spec.input, { io: "input" }),
+    outputSchema: z.toJSONSchema(spec.output),
+    async execute(args) {
+      const parsed = spec.input.safeParse(args ?? {});
+
+      if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
+
+      return spec.run(parsed.data);
+    },
+  };
+}
+
+/** The app's own indicator maths, so a script's numbers match the chart's. */
+const indicators: CodemodeTool[] = [
+  scriptFunction({
+    name: "indicators.sma",
+    description: "Simple moving average; null until `period` values exist.",
+    spread: true,
+    signature: `(values: number[], period: number): Promise<${LINE}>`,
+    input: z.tuple([valuesSchema, z.number().int().positive()]),
+    output: lineSchema,
+    run: ([values, period]) => sma(values, period),
+  }),
+  scriptFunction({
+    name: "indicators.ema",
+    description: "Exponential moving average, seeded with the SMA.",
+    spread: true,
+    signature: `(values: number[], period: number): Promise<${LINE}>`,
+    input: z.tuple([valuesSchema, z.number().int().positive()]),
+    output: lineSchema,
+    run: ([values, period]) => ema(values, period),
+  }),
+  scriptFunction({
+    name: "indicators.rsi",
+    description: "RSI(14).",
+    spread: true,
+    signature: `(values: number[]): Promise<${LINE}>`,
+    input: z.tuple([valuesSchema]),
+    output: lineSchema,
+    run: ([values]) => rsi(values),
+  }),
+  scriptFunction({
+    name: "indicators.macd",
+    description:
+      "MACD(12, 26, 9): DIF as `macd`, MACD as `signal`, OSC as `histogram`.",
+    spread: true,
+    signature: `(values: number[]): Promise<{ macd: ${LINE}; signal: ${LINE}; histogram: ${LINE} }>`,
+    input: z.tuple([valuesSchema]),
+    output: z.object({
+      macd: lineSchema,
+      signal: lineSchema,
+      histogram: lineSchema,
+    }),
+    run: ([values]) => macd(values),
+  }),
+  scriptFunction({
+    name: "indicators.bollinger",
+    description: "Bollinger Bands(20, 2).",
+    spread: true,
+    signature: `(values: number[]): Promise<{ upper: ${LINE}; middle: ${LINE}; lower: ${LINE} }>`,
+    input: z.tuple([valuesSchema]),
+    output: z.object({
+      upper: lineSchema,
+      middle: lineSchema,
+      lower: lineSchema,
+    }),
+    run: ([values]) => bollinger(values),
+  }),
+  scriptFunction({
+    name: "indicators.kd",
+    description: "Taiwan-style KD(9), from the bars `tools.candles` returns.",
+    spread: true,
+    signature: `(bars: Bar[]): Promise<{ k: ${LINE}; d: ${LINE} }>`,
+    input: z.tuple([z.array(barSchema)]),
+    output: z.object({ k: lineSchema, d: lineSchema }),
+    run: ([bars]) =>
+      kd(bars.map((bar) => ({ ...omit(bar, ["epoch"]), time: bar.epoch }))),
+  }),
+];
+
+function dataFunctions(ports: AnalysisPorts): CodemodeTool[] {
+  return [
+    scriptFunction({
+      name: "candles",
+      description:
+        "Every OHLCV bar the app has for a listing, oldest first. The latest bar is still forming while its session is open.",
+      input: z.object({ symbol: symbolRefSchema, interval: intervalSchema }),
+      output: z.array(barSchema),
+      async run({ symbol, interval }) {
+        const candles = await ports.marketData.candles(symbol, interval);
+
+        if (candles.length === 0) {
+          throw new Error(
+            `No ${interval} bars for ${symbol.market} ${symbol.symbol}`
+          );
+        }
+
+        return candles.map((candle) => ({
+          ...candle,
+          time: isIntraday(interval)
+            ? exchangeTime(symbol.market, new Date(candle.time * 1000))
+            : candleDate(symbol.market, candle.time),
+          epoch: candle.time,
+        }));
+      },
+    }),
+    scriptFunction({
+      name: "watchlist",
+      description: "The listings the user watches.",
+      input: z.object({}),
+      output: z.array(symbolRefSchema),
+      run: () => ports.watchlist(),
+    }),
+    scriptFunction({
+      name: "account",
+      description:
+        "Cash per currency and open positions with their average price, in the account the app trades.",
+      input: z.object({}),
+      output: z.object({
+        mode: z.string(),
+        cash: z.record(z.string(), z.number()),
+        positions: z.array(
+          z.object({
+            symbol: symbolRefSchema,
+            quantity: z.number(),
+            avgPrice: z.number(),
+          })
+        ),
+      }),
+      async run() {
+        const account = await ports.desk.account();
+
+        return {
+          mode: ports.desk.mode,
+          cash: account.cash,
+          positions: account.positions.map((position) => ({
+            symbol: {
+              market: position.instrument.market,
+              symbol: position.instrument.symbol,
+            },
+            quantity: position.quantity,
+            avgPrice: position.avgPrice,
+          })),
+        };
+      },
+    }),
+  ];
+}
+
+const clip = (text: string) =>
+  text.length > MAX_OUTPUT_CHARS
+    ? `${text.slice(0, MAX_OUTPUT_CHARS)}\n… cut at ${MAX_OUTPUT_CHARS} characters; aggregate in the script and print less`
+    : text;
+
+/**
+ * `run_analysis`: the agent's own JavaScript, run in a QuickJS VM that can only call the functions
+ * given here. A script reads market data and the account and computes; it has no network, files or
+ * timers, and nothing it can call changes anything, so its calls need no approval.
+ */
+export function createAnalysis(options: AnalysisOptions) {
+  const tools = dataFunctions(options);
+
+  // Started with the first script, so a host that never runs one loads nothing.
+  const sandbox = once(
+    () =>
+      new CodemodeSandbox({
+        tools,
+        globals: indicators,
+        timeoutMs: TIMEOUT_MS,
+        memoryLimitBytes: MEMORY_LIMIT_BYTES,
+        ...(options.files && {
+          wasm: loadQuickJSWasm(options.files.wasm),
+          workerUrl: options.files.worker,
+        }),
+      })
+  );
+
+  let started = false;
+
+  const tool: ToolRegistration = {
+    name: AgentToolName.RunAnalysis,
+    description: [
+      "Runs JavaScript you write, to compute over market data: backtests, statistics, comparisons and screens across listings. `code` is the body of an async function, so `await` and `return` work.",
+      "It can call only the functions declared below; there is no network, file, timer or module. Print with text(value) or console.log, or return a JSON value. store(key, value) and load(key) keep JSON values for this conversation's later scripts.",
+      "What a script fetches stays in the script, so fetch every bar you need there and return only the result. `type Bar` is one item of what tools.candles returns.",
+      renderDeclarations({ tools, globals: indicators }),
+    ].join("\n\n"),
+    parameters: omit(
+      z.toJSONSchema(runAnalysisArgumentsSchema, { io: "input" }),
+      ["$schema"]
+    ),
+    // A script changes nothing but what it stores, and only a script that finished stores.
+    replay: "safe",
+    async execute(params, api, context) {
+      const parsed = runAnalysisArgumentsSchema.safeParse(params);
+
+      if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
+
+      const saved = await api.commit(
+        async (tx) =>
+          storedSchema.parse(
+            // Copied out of the commit's draft, which a worker cannot be sent.
+            JSON.parse(
+              JSON.stringify(
+                (await tx.doc(AnalysisStoreDoc, api.conversationId)).values
+              )
+            )
+          ),
+        context
+      );
+
+      started = true;
+
+      const result = await sandbox().execute(parsed.data.code, {
+        signal: context.abortSignal,
+        store: saved,
+      });
+
+      const lines = result.output.flatMap((item) =>
+        item.type === "text" ? [item.text] : []
+      );
+
+      if (!result.ok) {
+        lines.push(
+          result.error.kind === "timeout"
+            ? `The script ran past ${TIMEOUT_MS / 1000} seconds and was stopped`
+            : (result.error.stack ?? result.error.message)
+        );
+      } else {
+        if (result.value !== undefined) {
+          lines.push(`Result: ${JSON.stringify(result.value)}`);
+        }
+
+        const { set, delete: removed } = result.storeWrites;
+
+        if (Object.keys(set).length > 0 || removed.length > 0) {
+          const written = storedSchema.parse(set);
+
+          await api.commit(async (tx) => {
+            const store = await tx.doc(AnalysisStoreDoc, api.conversationId);
+
+            store.values = { ...omit(store.values, removed), ...written };
+          }, context);
+        }
+      }
+
+      const output = clip(
+        lines.join("\n") || "The script printed nothing and returned nothing."
+      );
+
+      const details: RunAnalysisDetails = { output };
+
+      return {
+        content: [{ type: "text", text: output }],
+        details,
+        isError: !result.ok,
+      };
+    },
+  };
+
+  return {
+    extension: defineExtension({ name: "solyx-analysis", tools: [tool] }),
+
+    /** Stops scripts still running as the app quits. */
+    async close() {
+      if (started) await sandbox().close();
+    },
+  };
+}

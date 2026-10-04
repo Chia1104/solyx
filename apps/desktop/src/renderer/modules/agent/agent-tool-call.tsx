@@ -1,4 +1,4 @@
-import { Button, Spinner, cn } from "@heroui/react";
+import { Button, Disclosure, Spinner, cn } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -7,6 +7,8 @@ import {
   AgentToolName,
   ToolCallStatus,
   proposeOrderDetailsSchema,
+  runAnalysisArgumentsSchema,
+  runAnalysisDetailsSchema,
 } from "@solyx/agent/wire";
 import type { ToolCallView } from "@solyx/agent/wire";
 import { intervalSchema } from "@solyx/core/candles";
@@ -144,6 +146,41 @@ function ApprovalCard({
   );
 }
 
+/** The script a call ran and what it printed, folded away so the numbers can be checked. */
+function AnalysisCard({ tool }: { tool: ToolCallView }) {
+  const { t } = useTranslation();
+  const code = runAnalysisArgumentsSchema.safeParse(tool.args).data?.code;
+  const output = runAnalysisDetailsSchema.safeParse(tool.details).data?.output;
+
+  if (!code) return null;
+
+  return (
+    <Disclosure className="pl-5.5">
+      <Disclosure.Heading>
+        <Disclosure.Trigger className="flex min-h-5 items-center gap-2 text-xs text-muted">
+          {t("agent.analysis.code")}
+          <Disclosure.Indicator className="size-3" />
+        </Disclosure.Trigger>
+      </Disclosure.Heading>
+      <Disclosure.Content>
+        <div className="flex flex-col gap-1.5 pt-1">
+          <pre className="max-h-80 overflow-auto rounded-sm bg-surface-secondary p-2 font-mono text-xs whitespace-pre-wrap">
+            {code}
+          </pre>
+          {output ? (
+            <>
+              <p className="text-xs text-muted">{t("agent.analysis.output")}</p>
+              <pre className="max-h-80 overflow-auto rounded-sm bg-surface-secondary p-2 font-mono text-xs whitespace-pre-wrap">
+                {output}
+              </pre>
+            </>
+          ) : null}
+        </div>
+      </Disclosure.Content>
+    </Disclosure>
+  );
+}
+
 export function AgentToolCall({
   sessionId,
   tool,
@@ -179,6 +216,9 @@ export function AgentToolCall({
       ) : null}
       {tool.status === ToolCallStatus.AwaitingApproval ? (
         <ApprovalCard sessionId={sessionId} tool={tool} />
+      ) : null}
+      {tool.toolName === AgentToolName.RunAnalysis ? (
+        <AnalysisCard tool={tool} />
       ) : null}
       {proposal ? <ProposalCard id={proposal.proposalId} /> : null}
     </div>
