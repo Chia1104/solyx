@@ -1,5 +1,11 @@
-import { lookbackRange } from "@solyx/core/candles";
-import type { Candle, Interval } from "@solyx/core/candles";
+import {
+  Interval,
+  isCalendarInterval,
+  lookbackRange,
+  periodStart,
+  resampleDaily,
+} from "@solyx/core/candles";
+import type { Candle } from "@solyx/core/candles";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { Listing } from "@solyx/core/market-data";
 
@@ -16,7 +22,8 @@ interface MarketDataOptions {
 }
 
 /**
- * Every market's bars, names and live bars, from the sources the user's settings pick. Reopens the
+ * Every market's bars, names and live bars, from the sources the user's settings pick; weekly and
+ * monthly bars are merged here from daily ones, for history and the live bar alike. Reopens the
  * live stream whenever the sources say it changed, and tells windows so.
  */
 export function createMarketData({
@@ -55,12 +62,21 @@ export function createMarketData({
   return {
     async candles(symbol: SymbolRef, interval: Interval): Promise<Candle[]> {
       const provider = await providerOf(symbol.market);
+      const { from, to } = lookbackRange(symbol.market, interval, now());
 
-      return provider.getCandles({
+      if (!isCalendarInterval(interval)) {
+        return provider.getCandles({ symbol, interval, from, to });
+      }
+
+      // Whole periods of daily bars, the ones the live bar of the current period starts from.
+      const daily = await provider.getCandles({
         symbol,
-        interval,
-        ...lookbackRange(symbol.market, interval, now()),
+        interval: Interval.OneDay,
+        from: periodStart(from, interval),
+        to,
       });
+
+      return resampleDaily(daily, interval, symbol.market);
     },
 
     async listing(symbol: SymbolRef): Promise<Listing | null> {

@@ -1,9 +1,10 @@
-import type { Candle, Interval } from "./candles.ts";
+import type { BarInterval, Candle, Interval } from "./candles.ts";
 import type { Market, SymbolRef } from "./market.ts";
 
 export interface CandleRequest {
   symbol: SymbolRef;
-  interval: Interval;
+  /** Weekly and monthly bars are merged from daily ones where they are charted, since a provider may clip its own to the requested range. */
+  interval: BarInterval;
   /** Exchange-local dates (`YYYY-MM-DD`), inclusive. */
   from: string;
   to: string;

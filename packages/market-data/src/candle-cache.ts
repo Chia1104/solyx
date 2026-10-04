@@ -1,11 +1,4 @@
-import {
-  Interval,
-  isCalendarInterval,
-  candleDate,
-  isIntraday,
-  periodStart,
-  resampleDaily,
-} from "@solyx/core/candles";
+import { candleDate, isIntraday } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { exchangeDate, shiftDate } from "@solyx/core/market";
 import type {
@@ -32,7 +25,7 @@ export function withCandleCache(
 ): MarketDataProvider {
   const now = options.now ?? (() => new Date());
 
-  async function barCandles({
+  async function getCandles({
     symbol,
     interval,
     from,
@@ -108,17 +101,6 @@ export function withCandleCache(
 
     getListing: (symbol) => provider.getListing(symbol),
 
-    async getCandles(request) {
-      if (!isCalendarInterval(request.interval)) return barCandles(request);
-
-      // Weekly and monthly bars come from cached daily bars, never from requests of their own.
-      const daily = await barCandles({
-        ...request,
-        interval: Interval.OneDay,
-        from: periodStart(request.from, request.interval),
-      });
-
-      return resampleDaily(daily, request.interval, request.symbol.market);
-    },
+    getCandles,
   };
 }
