@@ -14,7 +14,7 @@ import type {
 } from "@earendil-works/pi-ai";
 import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { MemoryStorage, defineExtension } from "@earendil-works/pi-durable";
-import type { ToolRegistration } from "@earendil-works/pi-durable";
+import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
@@ -38,13 +38,13 @@ beforeEach(async () => {
 
 afterEach(() => rm(directory, { recursive: true, force: true }));
 
-// Hosts without MCP servers offer no search and no deferred tools.
-const NO_MCP = {
-  search: defineExtension({ name: "mcp-search" }),
-  tools: defineExtension({ name: "mcp-tools" }),
-};
-
 const NO_TOOLS = defineExtension({ name: "app" });
+
+/** A host whose only tools are one extension's, offered in every request. */
+const only = (extension: Extension) => async () => ({
+  offered: [extension],
+  deferred: [],
+});
 
 function memoryStore(): AgentConversationStore {
   return {
@@ -74,22 +74,23 @@ function setup({
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    tools: defineExtension({
-      name: "test",
-      tools: [
-        {
-          name: "get_watchlist",
-          description: "The watchlist",
-          parameters: { type: "object", properties: {} },
-          replay: "safe",
-          execute: async () => ({
-            content: [{ type: "text", text: watchlist() }],
-            details: { count: 1 },
-          }),
-        },
-      ],
-    }),
-    mcp: async () => NO_MCP,
+    tools: only(
+      defineExtension({
+        name: "test",
+        tools: [
+          {
+            name: "get_watchlist",
+            description: "The watchlist",
+            parameters: { type: "object", properties: {} },
+            replay: "safe",
+            execute: async () => ({
+              content: [{ type: "text", text: watchlist() }],
+              details: { count: 1 },
+            }),
+          },
+        ],
+      })
+    ),
     onEvent: (_sessionId, event) => events.push(event),
   });
 
@@ -168,25 +169,29 @@ test("an MCP tool is offered once a search loads it, and stays loaded", async ()
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    tools: NO_TOOLS,
-    mcp: async () => ({
-      search: defineExtension({
-        name: "search",
-        tools: [
-          tool("search_tools", async () => ({
-            content: [{ type: "text", text: "Loaded quote" }],
-            control: { addTools: ["quote"] },
-          })),
-        ],
-      }),
-      tools: defineExtension({
-        name: "quotes",
-        tools: [
-          tool("quote", async () => ({
-            content: [{ type: "text", text: quote() }],
-          })),
-        ],
-      }),
+    tools: async () => ({
+      offered: [
+        NO_TOOLS,
+        defineExtension({
+          name: "search",
+          tools: [
+            tool("search_tools", async () => ({
+              content: [{ type: "text", text: "Loaded quote" }],
+              control: { addTools: ["quote"] },
+            })),
+          ],
+        }),
+      ],
+      deferred: [
+        defineExtension({
+          name: "quotes",
+          tools: [
+            tool("quote", async () => ({
+              content: [{ type: "text", text: quote() }],
+            })),
+          ],
+        }),
+      ],
     }),
     onEvent: (_sessionId, event) => events.push(event),
   });
@@ -353,8 +358,7 @@ test("a model that is not set up rejects before anything is stored", async () =>
     model: async () => {
       throw new Error("Save an API key first");
     },
-    tools: NO_TOOLS,
-    mcp: async () => NO_MCP,
+    tools: only(NO_TOOLS),
     onEvent: vi.fn(),
   });
 
@@ -455,8 +459,7 @@ test("a compacted conversation still shows every message once", async () => {
         model: faux.getModel(),
         thinking: AgentThinking.Off,
       }),
-      tools: NO_TOOLS,
-      mcp: async () => NO_MCP,
+      tools: only(NO_TOOLS),
       onEvent: (_sessionId, event) => events.push(event),
       settings: {
         compaction: {
@@ -537,37 +540,41 @@ function approvalSetup(store = memoryStore()) {
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    tools: NO_TOOLS,
-    mcp: async (guard) => ({
-      search: defineExtension({
-        name: "search",
-        tools: [
-          {
-            name: "search_tools",
-            description: "Finds tools",
-            parameters: { type: "object", properties: {} },
-            replay: "safe",
-            execute: async () => ({
-              content: [{ type: "text", text: "Loaded place_order" }],
-              control: { addTools: ["place_order"] },
+    tools: async (guard) => ({
+      offered: [
+        NO_TOOLS,
+        defineExtension({
+          name: "search",
+          tools: [
+            {
+              name: "search_tools",
+              description: "Finds tools",
+              parameters: { type: "object", properties: {} },
+              replay: "safe",
+              execute: async () => ({
+                content: [{ type: "text", text: "Loaded place_order" }],
+                control: { addTools: ["place_order"] },
+              }),
+            },
+          ],
+        }),
+      ],
+      deferred: [
+        defineExtension({
+          name: "broker",
+          tools: [
+            guard({
+              name: "place_order",
+              description: "Places an order",
+              parameters: { type: "object", properties: {} },
+              replay: "unsafe",
+              execute: async () => ({
+                content: [{ type: "text", text: placed() }],
+              }),
             }),
-          },
-        ],
-      }),
-      tools: defineExtension({
-        name: "broker",
-        tools: [
-          guard({
-            name: "place_order",
-            description: "Places an order",
-            parameters: { type: "object", properties: {} },
-            replay: "unsafe",
-            execute: async () => ({
-              content: [{ type: "text", text: placed() }],
-            }),
-          }),
-        ],
-      }),
+          ],
+        }),
+      ],
     }),
     onEvent: (_sessionId, event) => events.push(event),
   });

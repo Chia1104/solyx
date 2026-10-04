@@ -69,8 +69,12 @@ export function createAgentService(options: AgentServiceOptions) {
     store: options.conversations,
     models: models.models,
     model: () => models.choice(),
-    tools: trading,
-    mcp: (guard) => options.mcp.extensions(guard),
+    async tools(guard) {
+      const mcp = await options.mcp.extensions(guard);
+
+      // MCP tools wait until the agent finds them, so only the servers' names ride every request.
+      return { offered: [trading, mcp.search], deferred: [mcp.tools] };
+    },
     onEvent,
   });
 

@@ -7,7 +7,6 @@ import type {
   Models,
 } from "@earendil-works/pi-ai";
 import {
-  AgentDoc,
   AssistantEntry,
   ConversationBusy,
   Harness,
@@ -25,21 +24,21 @@ import type {
   ConversationId,
   Cursor,
   EntryId,
-  Extension,
   HarnessSettings,
   MessageChange,
   Page,
   Storage,
   SubmissionRecord,
 } from "@earendil-works/pi-durable";
-import { isEqual, maxBy, noop } from "es-toolkit";
+import { maxBy, noop } from "es-toolkit";
 import * as z from "zod";
 
 import { ApprovalDoc, createApprovalGate } from "./approval.ts";
 import type { ToolGuard } from "./approval.ts";
-import type { McpExtensions } from "./mcp.ts";
 import type { AgentThinking } from "./providers.ts";
 import { firstLine } from "./text.ts";
+import { createToolsetLoader } from "./toolset.ts";
+import type { Toolset } from "./toolset.ts";
 import { createTranscriber, replyText, userContent } from "./transcript.ts";
 import type { Transcriber } from "./transcript.ts";
 import {
@@ -68,14 +67,12 @@ export interface AgentRuntimeOptions {
   models: Models;
   /** Rejects with a message the user can act on while the model or its key is not set up. */
   model(): Promise<AgentModelChoice>;
-  /** The app's own tools and prompt sections, offered in every request. */
-  tools: Extension;
   /**
-   * The MCP servers' tools, built again before every run and before resuming, so a run sees the
-   * servers and policies of the moment it starts. A tool its policy asks about goes through
-   * `guard`, so each of its calls waits until the user answers through `approve`.
+   * The host's tools, built again before every run and before resuming, so a run sees the tools,
+   * servers and policies of the moment it starts. A tool that must ask goes through `guard`, so
+   * each of its calls waits until the user answers through `approve`.
    */
-  mcp(guard: ToolGuard): Promise<McpExtensions>;
+  tools(guard: ToolGuard): Promise<Toolset>;
   onEvent(sessionId: string, event: AgentWireEvent): void;
   settings?: HarnessSettings;
 }
@@ -258,21 +255,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     }
   });
 
-  /** Installs the extensions and returns the tools every request offers. */
-  async function reload() {
-    const mcp = await options.mcp(gate.guard);
-
-    // MCP tools wait until the agent finds them, so only the servers' names ride every request.
-    const offered = [options.tools, mcp.search];
-
-    for (const extension of [...offered, mcp.tools]) {
-      registry.install(extension);
-    }
-
-    return offered
-      .flatMap((extension) => extension.tools ?? [])
-      .map((tool) => tool.name);
-  }
+  const toolset = createToolsetLoader(registry, () =>
+    options.tools(gate.guard)
+  );
 
   async function conversationOf(sessionId: string): Promise<Conversation> {
     const { harness } = await opened;
@@ -528,7 +513,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     async resume() {
       const { harness } = await opened;
 
-      await reload();
+      await toolset.load();
 
       const { tasks } = await harness.inspect(BACKGROUND_CONTEXT);
 
@@ -640,7 +625,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       }
 
       const { model, thinking } = await options.model();
-      const offered = await reload();
+
+      await toolset.load();
 
       await attach(conversation);
 
@@ -653,16 +639,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
           thinkingLevel: clampThinkingLevel(model, thinking),
         });
 
-        // The app's own tools lead, and the tools this conversation loaded stay after them.
-        const agent = await tx.doc(AgentDoc, conversation.id);
-
-        const loaded = Array.isArray(agent.tools)
-          ? agent.tools.filter((name) => !offered.includes(name))
-          : [];
-
-        const tools = [...offered, ...loaded];
-
-        if (!isEqual(agent.tools, tools)) agent.tools = tools;
+        await toolset.offer(tx, conversation.id);
 
         const session = await tx.doc(SessionDoc, conversation.id);
 
