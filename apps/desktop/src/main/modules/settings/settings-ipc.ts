@@ -20,7 +20,6 @@ import {
 import { SkillSource } from "@solyx/agent/skill-source";
 import { Market } from "@solyx/core/market";
 import { fuglePlanSchema } from "@solyx/market-data/fugle";
-import { isEnumValue } from "@solyx/utils/is";
 
 import {
   AppLocation,
@@ -38,21 +37,15 @@ import {
 } from "#shared/ipc/settings.ts";
 import type { SettingsApi } from "#shared/ipc/settings.ts";
 import {
-  ColorScheme,
-  Palette,
   colorSchemeSchema,
-  hasPalette,
   hexColorSchema,
-  isCustomPalette,
   paletteTokenSchema,
 } from "#shared/palette.ts";
-import type { CustomPalette } from "#shared/palette.ts";
 
 import { ipcModule } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";
 
 import { endpointSchema } from "./config-file.ts";
-import type { ConfigEntry } from "./config-file.ts";
 
 // An MCP server's or tool's name, as mcp.json and the server give it.
 const mcpNameSchema = z.string().min(1).max(128);
@@ -141,7 +134,6 @@ const FUBON_FILE_DIALOG: Record<FubonFile, OpenDialogOptions> = {
 
 export function registerSettingsIpc({
   appearance,
-  applyAppearance,
   secrets,
   config,
   cache,
@@ -157,92 +149,31 @@ export function registerSettingsIpc({
   // Paths are shown with the home folder as `~`.
   const tildify = (path: string) => path.replace(home, "~");
 
-  handle("appearance", async () => appearance());
+  handle("appearance", async () => appearance.read());
 
-  handle("setTheme", async (theme) => {
-    config.set(["appearance", "theme"], theme);
-    applyAppearance();
-  });
+  handle("setTheme", async (theme) => appearance.setTheme(theme));
 
-  /** The custom palette `id`, or an error for one that is built in or gone. */
-  function customPalette(id: string) {
-    const { palettes } = appearance();
+  handle("setPalette", async (scheme, palette) =>
+    appearance.setPalette(scheme, palette)
+  );
 
-    if (!isCustomPalette(id, palettes)) {
-      throw new Error(`No custom palette "${id}"`);
-    }
+  handle("copyPalette", async (source, name) =>
+    appearance.copyPalette(source, name)
+  );
 
-    return palettes[id];
-  }
+  handle("renamePalette", async (palette, name) =>
+    appearance.renamePalette(palette, name)
+  );
 
-  handle("setPalette", async (scheme, palette) => {
-    if (!hasPalette(palette, appearance().palettes)) {
-      throw new Error(`No palette "${palette}"`);
-    }
+  handle("setPaletteColor", async (palette, scheme, token, color) =>
+    appearance.setPaletteColor(palette, scheme, token, color)
+  );
 
-    config.set(["appearance", "palette", scheme], palette);
-    applyAppearance();
-  });
+  handle("deletePalette", async (palette) => appearance.deletePalette(palette));
 
-  // A copy of a built-in palette sets nothing over it; a copy of a custom one keeps its colours.
-  handle("copyPalette", async (source, name) => {
-    const { palettes } = appearance();
-
-    const copy: CustomPalette | undefined = isCustomPalette(source, palettes)
-      ? { ...palettes[source], name }
-      : isEnumValue(Palette, source)
-        ? { name, extends: source, light: {}, dark: {} }
-        : undefined;
-
-    if (!copy) throw new Error(`No palette "${source}"`);
-
-    let number = 1;
-
-    while (Object.hasOwn(palettes, `custom-${number}`)) number += 1;
-
-    const id = `custom-${number}`;
-
-    config.set(["appearance", "palettes", id], copy);
-    applyAppearance();
-
-    return id;
-  });
-
-  handle("renamePalette", async (palette, name) => {
-    customPalette(palette);
-    config.set(["appearance", "palettes", palette, "name"], name);
-    applyAppearance();
-  });
-
-  handle("setPaletteColor", async (palette, scheme, token, color) => {
-    customPalette(palette);
-    config.set(
-      ["appearance", "palettes", palette, scheme, token],
-      color ?? undefined
-    );
-    applyAppearance();
-  });
-
-  handle("deletePalette", async (palette) => {
-    const { extends: base } = customPalette(palette);
-    const shown = appearance().palette;
-
-    config.update([
-      [["appearance", "palettes", palette], undefined],
-      ...Object.values(ColorScheme)
-        .filter((scheme) => shown[scheme] === palette)
-        .map((scheme): ConfigEntry => [
-          ["appearance", "palette", scheme],
-          base,
-        ]),
-    ]);
-    applyAppearance();
-  });
-
-  handle("setPriceColors", async (priceColors) => {
-    config.set(["appearance", "priceColors"], priceColors);
-    applyAppearance();
-  });
+  handle("setPriceColors", async (priceColors) =>
+    appearance.setPriceColors(priceColors)
+  );
 
   handle("secrets", async () => ({
     available: await secrets.available(),

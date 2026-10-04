@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
-import { isEqual, kebabCase } from "es-toolkit";
+import { kebabCase } from "es-toolkit";
 
 import { AgentAuth } from "@solyx/agent/providers";
 import { createPaperBroker } from "@solyx/brokers/paper";
@@ -17,7 +17,7 @@ import { openUserData } from "@solyx/db/user";
 import { marketEvents } from "#shared/ipc/market.ts";
 import { newsEvents } from "#shared/ipc/news.ts";
 import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
-import { ColorScheme, resolvePalette } from "#shared/palette.ts";
+import { ColorScheme } from "#shared/palette.ts";
 
 import { agentAuth } from "./modules/agent/agent-models.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
@@ -28,6 +28,7 @@ import { createMarketDataSources } from "./modules/market/market-data-sources.ts
 import { createMarketData } from "./modules/market/market-data.ts";
 import { createNewsCollector } from "./modules/news/news-collector.ts";
 import { createNews } from "./modules/news/news.ts";
+import { createAppearance } from "./modules/settings/appearance.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
 import { createCredentialStore } from "./modules/settings/credential-store.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
@@ -162,40 +163,28 @@ export function createServices() {
     collectEveryHours: () => config.read().news.collectEveryHours,
   });
 
-  const appearance = () => config.read().appearance;
+  const appearance = createAppearance({
+    config,
+    // Windows and their renderers' prefers-color-scheme follow themeSource; the rest is pushed to
+    // every renderer, so a hand edit applies as the settings page's does.
+    onChange(next) {
+      nativeTheme.themeSource = next.theme;
+
+      for (const window of BrowserWindow.getAllWindows()) {
+        paintWindow(window, windowColors());
+        window.webContents.send(settingsEvents.onAppearance, next);
+      }
+    },
+  });
 
   /** The palette windows show now, in the scheme the theme or the computer picks. */
   function windowColors() {
-    const scheme = nativeTheme.shouldUseDarkColors
-      ? ColorScheme.Dark
-      : ColorScheme.Light;
-
-    const { palette, palettes } = appearance();
-
-    return resolvePalette(palette[scheme], palettes, scheme);
+    return appearance.colors(
+      nativeTheme.shouldUseDarkColors ? ColorScheme.Dark : ColorScheme.Light
+    );
   }
 
-  let appliedAppearance = appearance();
-
-  // Windows and their renderers' prefers-color-scheme follow themeSource; the rest is pushed to
-  // every renderer, so a hand edit applies as the settings page's does.
-  function applyAppearance() {
-    const next = appearance();
-
-    nativeTheme.themeSource = next.theme;
-
-    if (isEqual(next, appliedAppearance)) return;
-
-    appliedAppearance = next;
-
-    for (const window of BrowserWindow.getAllWindows()) {
-      paintWindow(window, windowColors());
-      window.webContents.send(settingsEvents.onAppearance, next);
-    }
-  }
-
-  applyAppearance();
-  config.onChange(applyAppearance);
+  nativeTheme.themeSource = appearance.read().theme;
   config.watch();
 
   return {
@@ -214,7 +203,6 @@ export function createServices() {
       [AppLocation.Mcp]: mcp.file,
     },
     appearance,
-    applyAppearance,
     windowColors,
     marketData,
     userData,
