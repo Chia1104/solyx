@@ -9,9 +9,8 @@ import { createTradingExtension } from "@solyx/agent/tools";
 import type { AgentWireEvent } from "@solyx/agent/wire";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
-import type { NewsSource, NewsStore } from "@solyx/core/news";
+import type { NewsDesk } from "@solyx/core/news";
 import type { ProposingDesk } from "@solyx/core/order-desk";
-import type { SentimentScorer } from "@solyx/core/sentiment";
 
 import { agentEvents } from "#shared/ipc/agent.ts";
 import type { AgentFocus, AgentUpdate } from "#shared/ipc/agent.ts";
@@ -30,9 +29,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   conversations: Promise<AgentConversationStore>;
   marketData: MarketData;
   watchlist: () => SymbolRef[];
-  newsSources: () => Promise<NewsSource[]>;
-  newsStore: NewsStore;
-  scorer: () => Promise<SentimentScorer | undefined>;
+  news: NewsDesk;
   desk: ProposingDesk;
   mcp: McpServers;
 }
@@ -64,9 +61,7 @@ export function createAgentService(options: AgentServiceOptions) {
   const trading = createTradingExtension({
     marketData: options.marketData,
     watchlist: options.watchlist,
-    newsSources: options.newsSources,
-    newsStore: options.newsStore,
-    scorer: options.scorer,
+    news: options.news,
     desk: options.desk,
     skills: async () =>
       (await skills()).skills.filter((skill) => skill.offered),

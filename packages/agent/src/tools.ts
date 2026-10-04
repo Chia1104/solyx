@@ -37,25 +37,17 @@ import {
   NewsChannel,
   NewsVoice,
   TimePrecision,
-  collectNews,
   dailySentiment,
   isAboutListing,
   sentimentGauge,
 } from "@solyx/core/news";
-import type {
-  NewsSource,
-  NewsStore,
-  NewsStory,
-  Published,
-} from "@solyx/core/news";
+import type { NewsDesk, NewsStory, Published } from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 import { ProposalSource } from "@solyx/core/order-desk";
 import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
 import { stanceValue } from "@solyx/core/sentiment";
-import type { SentimentScorer } from "@solyx/core/sentiment";
 import { getSession } from "@solyx/core/session";
-import { errorMessage } from "@solyx/utils/error";
 
 import { promptSections } from "./prompt.ts";
 import type { PromptSources } from "./prompt.ts";
@@ -66,11 +58,7 @@ import type { ProposeOrderDetails } from "./wire.ts";
 export interface TradingToolPorts extends PromptSources {
   marketData: MarketData;
   watchlist(): SymbolRef[];
-  /** The sources the user can search; one that needs a key joins once it is saved. */
-  newsSources(): Promise<NewsSource[]>;
-  newsStore: NewsStore;
-  /** Judges what news says about a listing; `undefined` until the user saves a decisions model's key. */
-  scorer(): Promise<SentimentScorer | undefined>;
+  news: NewsDesk;
   desk: ProposingDesk;
   now?: () => Date;
 }
@@ -147,9 +135,6 @@ const NEWS_ITEMS = 10;
 
 // Announcements run long; the scorer reads them whole.
 const SNIPPET_LENGTH = 280;
-
-// Requests to the decisions model at once.
-const SCORING_CONCURRENCY = 4;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -420,43 +405,21 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         days: z.number().int().min(1).max(30).default(7),
       }),
       execute: async ({ symbol, days }) => {
-        const sources = (await ports.newsSources()).filter((source) =>
-          source.markets.includes(symbol.market)
-        );
-
-        if (sources.length === 0) {
-          throw new Error(
-            `No news source covers ${symbol.market}: the user has not saved a Firecrawl API key in the app's settings`
-          );
-        }
-
         const at = now();
-
-        // The name only sharpens the search, so news goes on without it.
-        const listing = await ports.marketData
-          .listing(symbol)
-          .catch(() => null);
-
-        const scorer = await ports.scorer();
-
         const since = new Date(at.getTime() - days * DAY_MS);
 
-        const { stories, failures } = await collectNews({
-          sources,
-          store: ports.newsStore,
-          scorer,
-          query: { symbol, listing, since, limit: NEWS_ITEMS },
-          now: at,
-          concurrency: SCORING_CONCURRENCY,
-        });
+        const { stories, records, failures, scored } = await ports.news.collect(
+          symbol,
+          since,
+          NEWS_ITEMS
+        );
 
-        const stored = ports.newsStore.list(symbol, since);
-        const gauge = sentimentGauge(stored);
+        const gauge = sentimentGauge(records);
 
         const score = ({ score: value }: { score: number | null }) =>
           value === null ? "unscored" : `${value}/100`;
 
-        const daily = dailySentiment(symbol.market, stored).map(
+        const daily = dailySentiment(symbol.market, records).map(
           ({ date, stance, stories: count }) =>
             `${date} ${stance === null ? "unscored" : signed(stance, 2)} (n=${count})`
         );
@@ -465,7 +428,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         let scoring = model ? `, scored by ${model}` : "";
 
-        if (!scorer) {
+        if (!scored) {
           scoring =
             "; not scored, since the user has not set up a decisions model";
         }
@@ -483,22 +446,15 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           ];
         });
 
-        const health = new Map(
-          ports.newsStore
-            .sourceHealth()
-            .map((source) => [source.source, source])
+        const failed = failures.map(
+          ({ source, lastError, failureStreak, lastSuccessAt }) => {
+            const worked = lastSuccessAt
+              ? `last worked ${exchangeTime(symbol.market, lastSuccessAt)}, so items since then may be missing`
+              : "never worked yet";
+
+            return `${source} (${lastError}; ${failureStreak} failed in a row, ${worked})`;
+          }
         );
-
-        const failed = failures.map(({ source, error }) => {
-          const { failureStreak = 1, lastSuccessAt = null } =
-            health.get(source) ?? {};
-
-          const worked = lastSuccessAt
-            ? `last worked ${exchangeTime(symbol.market, lastSuccessAt)}, so items since then may be missing`
-            : "never worked yet";
-
-          return `${source} (${errorMessage(error)}; ${failureStreak} failed in a row, ${worked})`;
-        });
 
         return {
           text: [

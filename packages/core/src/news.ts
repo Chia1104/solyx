@@ -1,12 +1,10 @@
-import { groupBy, mapAsync, sumBy } from "es-toolkit";
-
-import { errorMessage } from "@solyx/utils/error";
+import { groupBy, sumBy } from "es-toolkit";
 
 import type { Listing } from "./market-data.ts";
 import { exchangeDate } from "./market.ts";
 import type { Market, SymbolRef } from "./market.ts";
 import { TextKind, stanceValue } from "./sentiment.ts";
-import type { SentimentScore, SentimentScorer } from "./sentiment.ts";
+import type { SentimentScore } from "./sentiment.ts";
 
 /** Where items were published, which decides whose voice they carry. */
 export const NewsChannel = {
@@ -122,17 +120,6 @@ export interface NewsStore {
   sourceHealth(): SourceHealth[];
 }
 
-export interface CollectNewsOptions {
-  sources: readonly NewsSource[];
-  store: NewsStore;
-  /** `undefined` leaves records unscored. */
-  scorer: SentimentScorer | undefined;
-  query: NewsQuery;
-  now: Date;
-  /** Requests to the scorer at once. */
-  concurrency: number;
-}
-
 /** Records of one channel that tell the same story, such as an article's reprints or a thread's replies. */
 export interface NewsStory {
   channel: NewsChannel;
@@ -210,86 +197,28 @@ export function newsStories(records: readonly NewsRecord[]): NewsStory[] {
 }
 
 export interface NewsCollection {
-  /** Each channel's newest stories, up to the query's limit, newest first. */
+  /** Each channel's newest stories, up to the limit asked for, newest first. */
   stories: NewsStory[];
-  /** Sources whose search failed; what they stored before is still among `stories`. */
-  failures: { source: string; error: unknown }[];
+  /** Everything stored about the listing since the collection's start, which the gauges read. */
+  records: NewsRecord[];
+  /** Sources whose search failed this time, with how their searches have gone; what they stored before is still among `stories`. */
+  failures: SourceHealth[];
+  /** False while the user has no decisions model, so nothing was scored. */
+  scored: boolean;
 }
 
 /**
- * Searches every source, stores what each finds and how each search went, then scores the lead
- * of each channel's newest stories that hold no score yet, so a story is judged once however
- * often and wherever it is found.
+ * A listing's news on request: every source covering its market searched now, what each finds
+ * stored with how its search went, and each channel's newest stories scored once however often
+ * and wherever they are found.
  */
-export async function collectNews({
-  sources,
-  store,
-  scorer,
-  query,
-  now,
-  concurrency,
-}: CollectNewsOptions): Promise<NewsCollection> {
-  // One source failing leaves the others' items, and what it found before, in the collection.
-  const results = await Promise.allSettled(
-    sources.map((source) => source.search(query))
-  );
-
-  const failures: NewsCollection["failures"] = [];
-
-  for (const [index, result] of results.entries()) {
-    const source = sources[index];
-
-    if (result.status === "fulfilled") {
-      store.save(query.symbol, source, result.value, now);
-      store.markSearched(source.id, now, null);
-    } else {
-      failures.push({ source: source.id, error: result.reason });
-      store.markSearched(source.id, now, errorMessage(result.reason));
-    }
-  }
-
-  // Marked even when a source failed, so a broken source is not searched again and again.
-  store.markCollected(query.symbol, now);
-
-  const newest = Object.values(
-    groupBy(
-      newsStories(store.list(query.symbol, query.since)),
-      (story) => story.channel
-    )
-  ).flatMap((stories) => stories.slice(0, query.limit));
-
-  if (!scorer) return { stories: newest, failures };
-
-  const stories = await mapAsync(
-    newest,
-    async (story) => {
-      const { lead } = story;
-
-      if (lead.score) return story;
-
-      const score = await scorer.score({
-        symbol: query.symbol,
-        listing: query.listing,
-        title: lead.item.title,
-        text: lead.item.snippet,
-      });
-
-      store.saveScore(query.symbol, lead, score);
-
-      const scored = { ...lead, score };
-
-      return {
-        ...story,
-        lead: scored,
-        records: story.records.map((record) =>
-          record === lead ? scored : record
-        ),
-      };
-    },
-    { concurrency }
-  );
-
-  return { stories, failures };
+export interface NewsDesk {
+  /** Searches for up to `limit` items a source; rejects when no source covers the listing's market. */
+  collect(
+    symbol: SymbolRef,
+    since: Date,
+    limit: number
+  ): Promise<NewsCollection>;
 }
 
 /** Below this relevance an item only names the listing in passing. */
