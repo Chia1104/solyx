@@ -50,6 +50,7 @@ import type { CustomPalette } from "#shared/palette.ts";
 import { ipcModule } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";
 
+import { endpointSchema } from "./config-file.ts";
 import type { ConfigEntry } from "./config-file.ts";
 
 // An MCP server's or tool's name, as mcp.json and the server give it.
@@ -93,6 +94,9 @@ const handle = ipcModule<SettingsApi>(settingsChannels, {
   signInSubscription: z.tuple([localeSchema]),
   cancelSignIn: z.tuple([]),
   signOutSubscription: z.tuple([]),
+  decisions: z.tuple([]),
+  setDecisionsModel: z.tuple([z.string().trim().min(1).max(200).nullable()]),
+  setDecisionsBaseURL: z.tuple([endpointSchema.nullable()]),
   agentSkills: z.tuple([]),
   setSharedSkill: z.tuple([z.string().min(1).max(64), z.boolean()]),
   mcp: z.tuple([]),
@@ -147,6 +151,7 @@ export function registerSettingsIpc({
   liveCandles,
   agent,
   mcp,
+  decisions,
 }: Services) {
   // Paths are shown with the home folder as `~`.
   const tildify = (path: string) => path.replace(home, "~");
@@ -315,6 +320,17 @@ export function registerSettingsIpc({
   handle("cancelSignIn", async () => agent.models.cancelSignIn());
 
   handle("signOutSubscription", () => agent.models.signOut());
+
+  handle("decisions", async () => decisions.settings());
+
+  // Removing the entry reads as the default.
+  handle("setDecisionsModel", async (model) => {
+    config.set(["decisions", "model"], model ?? undefined);
+  });
+
+  handle("setDecisionsBaseURL", async (baseURL) => {
+    config.set(["decisions", "baseURL"], baseURL ?? undefined);
+  });
 
   handle("agentSkills", async () => {
     const [catalog, instructions] = await Promise.all([
