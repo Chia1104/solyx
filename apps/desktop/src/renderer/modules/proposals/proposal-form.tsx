@@ -8,7 +8,7 @@ import {
   TextField,
 } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
@@ -21,7 +21,6 @@ import { OptionSelect } from "../../components/option-select.tsx";
 
 import { useOrderFormSchema } from "./order-form-schema.ts";
 import type { OrderFormValues } from "./order-form-schema.ts";
-import { proposalsQueryKeys } from "./proposals-query.ts";
 
 function toOrderRequest(values: OrderFormValues): OrderRequest {
   return {
@@ -39,7 +38,6 @@ function toOrderRequest(values: OrderFormValues): OrderRequest {
 
 export function ProposalForm() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const schema = useOrderFormSchema();
 
   // Empty number fields hold NaN, which react-aria renders blank and the schema rejects.
@@ -63,8 +61,6 @@ export function ProposalForm() {
     mutationFn: (values: OrderFormValues) =>
       window.solyx.proposals.propose(toOrderRequest(values), values.rationale),
     onSuccess: () => form.reset(),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: proposalsQueryKeys.all }),
   });
 
   const submit = form.handleSubmit((values) => propose.mutate(values));

@@ -68,6 +68,8 @@ export interface OrderDeskOptions {
   broker: BrokerAdapter;
   store: ProposalStore;
   limits: RiskLimits;
+  /** Called after every change to a proposal, so whoever shows them can refresh. */
+  onChange?: () => void;
   now?: () => number;
   createId?: () => string;
 }
@@ -92,7 +94,7 @@ export class OrderDesk {
     for (const proposal of options.store.list()) {
       if (proposal.status !== ProposalStatus.Submitting) continue;
 
-      options.store.update({
+      this.#save({
         ...proposal,
         status: ProposalStatus.Failed,
         failure: { code: SubmissionFailureCode.Interrupted },
@@ -149,12 +151,13 @@ export class OrderDesk {
     };
 
     store.add(proposal);
+    this.#options.onChange?.();
 
     return proposal;
   }
 
   async confirm(id: string): Promise<TradeProposal> {
-    const { broker, store } = this.#options;
+    const { broker } = this.#options;
 
     // Claim it before any await so a double click cannot submit twice.
     let proposal: TradeProposal = {
@@ -162,7 +165,7 @@ export class OrderDesk {
       status: ProposalStatus.Submitting,
     };
 
-    store.update(proposal);
+    this.#save(proposal);
 
     try {
       // Prices and sessions move between propose and confirm; check again.
@@ -192,7 +195,7 @@ export class OrderDesk {
       };
     }
 
-    store.update(proposal);
+    this.#save(proposal);
 
     return proposal;
   }
@@ -203,7 +206,7 @@ export class OrderDesk {
       status: ProposalStatus.Dismissed,
     };
 
-    this.#options.store.update(proposal);
+    this.#save(proposal);
 
     return proposal;
   }
@@ -220,6 +223,11 @@ export class OrderDesk {
       markets: broker.markets,
       account: await broker.getAccount(),
     });
+  }
+
+  #save(proposal: TradeProposal) {
+    this.#options.store.update(proposal);
+    this.#options.onChange?.();
   }
 
   #pending(id: string): TradeProposal {

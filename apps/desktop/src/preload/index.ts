@@ -9,8 +9,8 @@ import { marketChannels, marketEvents } from "#shared/ipc/market.ts";
 import type { MarketApi, MarketEvents } from "#shared/ipc/market.ts";
 import { newsChannels, newsEvents } from "#shared/ipc/news.ts";
 import type { NewsApi, NewsEvents } from "#shared/ipc/news.ts";
-import { proposalsChannels } from "#shared/ipc/proposals.ts";
-import type { ProposalsApi } from "#shared/ipc/proposals.ts";
+import { proposalsChannels, proposalsEvents } from "#shared/ipc/proposals.ts";
+import type { ProposalsApi, ProposalsEvents } from "#shared/ipc/proposals.ts";
 import { settingsChannels, settingsEvents } from "#shared/ipc/settings.ts";
 import type { SettingsApi, SettingsEvents } from "#shared/ipc/settings.ts";
 import type { SolyxApi } from "#shared/ipc/solyx-api.ts";
@@ -76,7 +76,10 @@ const api: SolyxApi = {
   agent: bridge<AgentApi, AgentEvents>(agentChannels, agentEvents),
   market: bridge<MarketApi, MarketEvents>(marketChannels, marketEvents),
   news: bridge<NewsApi, NewsEvents>(newsChannels, newsEvents),
-  proposals: bridge<ProposalsApi>(proposalsChannels),
+  proposals: bridge<ProposalsApi, ProposalsEvents>(
+    proposalsChannels,
+    proposalsEvents
+  ),
   settings: bridge<SettingsApi, SettingsEvents>(
     settingsChannels,
     settingsEvents

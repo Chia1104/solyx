@@ -11,7 +11,7 @@ import {
   cn,
 } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -22,7 +22,6 @@ import type { EnteredSecret } from "#shared/ipc/settings.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 import { SettingsRow } from "./settings-list.tsx";
-import { settingsQueryKeys } from "./settings-query.ts";
 
 /** A secret's entered value; rebuilt per language so the field error comes out localized. */
 function useSecretSchema() {
@@ -64,7 +63,8 @@ export function SecretRow({
   onSave: (value: string) => Promise<void>;
   onRemove: () => Promise<void>;
   /** Refreshes what reads the secret once a save or removal settles. */
-  onSettled: () => Promise<void>;
+  /** Refreshes what the change reaches that the settings push does not. */
+  onSettled?: () => Promise<void>;
 }) {
   const { t } = useTranslation();
   const schema = useSecretSchema();
@@ -204,11 +204,7 @@ export function AppSecretRow({
   optional?: boolean;
 }) {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const label = t(`settings.secrets.${secret}.label`);
-
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all });
 
   return (
     <SecretRow
@@ -230,7 +226,6 @@ export function AppSecretRow({
       available={available}
       onSave={(value) => window.solyx.settings.saveSecret(secret, value)}
       onRemove={() => window.solyx.settings.deleteSecret(secret)}
-      onSettled={refresh}
     />
   );
 }

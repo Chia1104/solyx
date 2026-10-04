@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { uniq } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
@@ -13,24 +13,17 @@ import { RailedColumn } from "../../components/sheet.tsx";
 
 import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import {
-  newsSettingsQuery,
-  secretsQuery,
-  settingsQueryKeys,
-} from "./settings-query.ts";
+import { newsSettingsQuery, secretsQuery } from "./settings-query.ts";
 
 /** The news sources' key and how often news is collected without the agent asking. */
 export function NewsSettings() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const settings = useQuery(newsSettingsQuery());
   const secrets = useQuery(secretsQuery());
 
   const save = useMutation({
     mutationFn: (hours: number) =>
       window.solyx.settings.setNewsCollectEveryHours(hours),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: settingsQueryKeys.news }),
   });
 
   const error = settings.error ?? secrets.error;

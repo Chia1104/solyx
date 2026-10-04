@@ -33,8 +33,8 @@ export function SignInRow({
   onSignIn: () => Promise<void>;
   onCancel: () => Promise<void>;
   onSignOut: () => Promise<void>;
-  /** Refreshes what reads the account once a sign-in or sign-out settles. */
-  onSettled: () => Promise<void>;
+  /** Refreshes what a sign-in or sign-out reaches that the settings push does not. */
+  onSettled?: () => Promise<void>;
 }) {
   const { t } = useTranslation();
 
