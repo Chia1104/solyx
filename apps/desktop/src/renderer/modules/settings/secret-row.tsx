@@ -20,7 +20,6 @@ import { SecretState } from "#shared/ipc/settings.ts";
 import type { EnteredSecret } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { candlesQueryKeys } from "../market/candles-query.ts";
 
 import { SettingsRow } from "./settings-list.tsx";
 import { settingsQueryKeys } from "./settings-query.ts";
@@ -208,13 +207,8 @@ export function AppSecretRow({
   const queryClient = useQueryClient();
   const label = t(`settings.secrets.${secret}.label`);
 
-  // Market data reads secrets per request, so charts refetch with the new value.
-  const refresh = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all }),
-      queryClient.invalidateQueries({ queryKey: candlesQueryKeys.all }),
-    ]);
-  };
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all });
 
   return (
     <SecretRow

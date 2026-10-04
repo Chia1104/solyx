@@ -14,6 +14,7 @@ import { openCache } from "@solyx/db/cache";
 import { openNews } from "@solyx/db/news";
 import { openUserData } from "@solyx/db/user";
 
+import { marketEvents } from "#shared/ipc/market.ts";
 import { newsEvents } from "#shared/ipc/news.ts";
 import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
 import { ColorScheme, resolvePalette } from "#shared/palette.ts";
@@ -23,8 +24,8 @@ import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
 import { createDecisions } from "./modules/decisions/decisions.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
-import { createLiveCandles } from "./modules/market/live-candles.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
+import { createMarketData } from "./modules/market/market-data.ts";
 import { createNewsCollector } from "./modules/news/news-collector.ts";
 import { createNews } from "./modules/news/news.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
@@ -81,20 +82,18 @@ export function createServices() {
 
   config.create();
 
-  const marketData = createMarketDataSources({
-    config,
-    secrets,
-    candles: cache.candles,
-    fubonLogDir: join(userDataDir, "fubon"),
-    openFubonProcess,
-  });
-
-  const liveCandles = createLiveCandles({
-    openStream: () => marketData.openStream(),
-    async dailyCandles(request) {
-      const provider = await marketData.provider(request.symbol.market);
-
-      return provider ? provider.getCandles(request) : [];
+  const marketData = createMarketData({
+    sources: createMarketDataSources({
+      config,
+      secrets,
+      candles: cache.candles,
+      fubonLogDir: join(userDataDir, "fubon"),
+      openFubonProcess,
+    }),
+    onSourcesChanged() {
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send(marketEvents.onSourcesChanged);
+      }
     },
   });
 
@@ -145,7 +144,7 @@ export function createServices() {
     instructionsFile,
     mcp,
     conversations: openAgentStore(join(userDataDir, "agent.sqlite")),
-    marketData: (market) => marketData.provider(market),
+    marketData,
     watchlist: () => userData.watchlist.list(),
     newsSources: () => news.sources(),
     newsStore: news.store,
@@ -158,22 +157,10 @@ export function createServices() {
     sources: () => news.sources(),
     store: news.store,
     scorer: () => decisions.scorer(),
-    marketData: (market) => marketData.provider(market),
+    marketData,
     watchlist: () => userData.watchlist.list(),
     collectEveryHours: () => config.read().news.collectEveryHours,
   });
-
-  let appliedStreamSettings = marketData.streamSettings();
-
-  // Sources and plans change from the settings page or a hand edit; the live stream follows either.
-  async function applySettings() {
-    const next = marketData.streamSettings();
-
-    if (isEqual(next, appliedStreamSettings)) return;
-
-    appliedStreamSettings = next;
-    await liveCandles.restart();
-  }
 
   const appearance = () => config.read().appearance;
 
@@ -208,11 +195,8 @@ export function createServices() {
   }
 
   applyAppearance();
-
-  config.watch(() => {
-    applyAppearance();
-    void applySettings();
-  });
+  config.onChange(applyAppearance);
+  config.watch();
 
   return {
     broker,
@@ -229,12 +213,10 @@ export function createServices() {
       [AppLocation.Skills]: skillFolders.solyx,
       [AppLocation.Mcp]: mcp.file,
     },
-    applySettings,
     appearance,
     applyAppearance,
     windowColors,
     marketData,
-    liveCandles,
     userData,
     agent,
     mcp,

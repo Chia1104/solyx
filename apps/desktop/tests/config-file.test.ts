@@ -157,20 +157,43 @@ test("a file with syntax errors reads as defaults and is never overwritten", asy
   expect(await readFile(file, "utf8")).toBe(broken);
 });
 
-test("changes made outside the app are reported", async () => {
+test("the app's own saves are reported as they are written, once even while watched", async () => {
+  const config = createConfigFile(file);
+  const heard: string[] = [];
+
+  config.create();
+  config.onChange(() => heard.push(fuglePlan(config)));
+
+  const stop = config.watch();
+
+  config.set(["providers", "fugle", "plan"], FuglePlan.Developer);
+
+  expect(heard).toEqual([FuglePlan.Developer]);
+
+  // Longer than the watcher waits before it reports.
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  stop();
+
+  expect(heard).toEqual([FuglePlan.Developer]);
+});
+
+test("changes made outside the app are reported while watched", async () => {
   const config = createConfigFile(file);
 
   config.create();
 
+  const stop = config.watch();
+
   const changed = new Promise<void>((resolve) => {
-    const stop = config.watch(() => {
-      stop();
+    const stopListening = config.onChange(() => {
+      stopListening();
       resolve();
     });
   });
 
   await writeFile(file, '{ "providers": { "fugle": { "plan": "advanced" } } }');
   await changed;
+  stop();
 
   expect(fuglePlan(config)).toBe("advanced");
 });

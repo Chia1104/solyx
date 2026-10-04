@@ -1,5 +1,5 @@
-import type { Market, SymbolRef } from "@solyx/core/market";
-import type { MarketDataProvider } from "@solyx/core/market-data";
+import type { SymbolRef } from "@solyx/core/market";
+import type { MarketData } from "@solyx/core/market-data";
 import { collectNews } from "@solyx/core/news";
 import type { NewsSource, NewsStore, SourceHealth } from "@solyx/core/news";
 import type { SentimentScorer } from "@solyx/core/sentiment";
@@ -33,7 +33,7 @@ export interface NewsCollectorOptions {
   sources: () => Promise<NewsSource[]>;
   store: NewsStore;
   scorer: () => Promise<SentimentScorer | undefined>;
-  marketData: (market: Market) => Promise<MarketDataProvider | undefined>;
+  marketData: Pick<MarketData, "listing">;
   watchlist: () => SymbolRef[];
   /** Read before every check, so a changed setting applies without a restart; 0 stops collecting. */
   collectEveryHours: () => number;
@@ -71,12 +71,9 @@ export function createNewsCollector(options: NewsCollectorOptions) {
   ) {
     const at = now();
     const last = options.store.lastCollected(symbol);
-    const provider = await options.marketData(symbol.market);
 
     // The name only sharpens the searches, so collection goes on without it.
-    const listing = provider
-      ? await provider.getListing(symbol).catch(() => null)
-      : null;
+    const listing = await options.marketData.listing(symbol).catch(() => null);
 
     const since = last
       ? new Date(last.getTime() - OVERLAP_MS)

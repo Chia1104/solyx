@@ -8,8 +8,8 @@ import type { SkillFolders } from "@solyx/agent/skills";
 import { createTradingExtension } from "@solyx/agent/tools";
 import type { AgentWireEvent } from "@solyx/agent/wire";
 import type { BrokerAdapter } from "@solyx/core/broker";
-import type { Market, SymbolRef } from "@solyx/core/market";
-import type { MarketDataProvider } from "@solyx/core/market-data";
+import type { SymbolRef } from "@solyx/core/market";
+import type { MarketData } from "@solyx/core/market-data";
 import type { NewsSource, NewsStore } from "@solyx/core/news";
 import type { OrderDesk } from "@solyx/core/order-desk";
 import type { SentimentScorer } from "@solyx/core/sentiment";
@@ -29,7 +29,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   instructionsFile: string;
   /** Where conversations persist, opening as the app starts. */
   conversations: Promise<AgentConversationStore>;
-  marketData: (market: Market) => Promise<MarketDataProvider | undefined>;
+  marketData: MarketData;
   watchlist: () => SymbolRef[];
   newsSources: () => Promise<NewsSource[]>;
   newsStore: NewsStore;

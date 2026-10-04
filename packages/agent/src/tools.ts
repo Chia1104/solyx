@@ -13,12 +13,7 @@ import { maxBy, omit, takeRight, uniq } from "es-toolkit";
 import * as z from "zod";
 
 import type { BrokerMode } from "@solyx/core/broker";
-import {
-  candleDate,
-  intervalSchema,
-  isIntraday,
-  lookbackRange,
-} from "@solyx/core/candles";
+import { candleDate, intervalSchema, isIntraday } from "@solyx/core/candles";
 import type { Candle, Interval } from "@solyx/core/candles";
 import {
   MOVING_AVERAGE_PERIODS,
@@ -38,7 +33,7 @@ import {
   symbolRefSchema,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import type { MarketDataProvider } from "@solyx/core/market-data";
+import type { MarketData } from "@solyx/core/market-data";
 import {
   NewsChannel,
   NewsVoice,
@@ -70,8 +65,7 @@ import type { ProposeOrderDetails } from "./wire.ts";
 
 /** What the tools and the prompt read, and the one thing the tools may do: propose. */
 export interface TradingToolPorts extends PromptSources {
-  /** The market's provider, or `undefined` when no source covers it or its settings are incomplete. */
-  marketData(market: Market): Promise<MarketDataProvider | undefined>;
+  marketData: MarketData;
   watchlist(): SymbolRef[];
   /** The sources the user can search; one that needs a key joins once it is saved. */
   newsSources(): Promise<NewsSource[]>;
@@ -302,19 +296,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     symbol: SymbolRef,
     interval: Interval
   ): Promise<Candle[]> {
-    const provider = await ports.marketData(symbol.market);
-
-    if (!provider) {
-      throw new Error(
-        `No market data for ${symbol.market}: no source covers it or its settings are incomplete`
-      );
-    }
-
-    const candles = await provider.getCandles({
-      symbol,
-      interval,
-      ...lookbackRange(symbol.market, interval, now()),
-    });
+    const candles = await ports.marketData.candles(symbol, interval);
 
     if (candles.length === 0) {
       throw new Error(
@@ -452,12 +434,11 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         }
 
         const at = now();
-        const provider = await ports.marketData(symbol.market);
 
         // The name only sharpens the search, so news goes on without it.
-        const listing = provider
-          ? await provider.getListing(symbol).catch(() => null)
-          : null;
+        const listing = await ports.marketData
+          .listing(symbol)
+          .catch(() => null);
 
         const scorer = await ports.scorer();
 

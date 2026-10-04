@@ -11,7 +11,8 @@ import { candlesQuery } from "./candles-query.ts";
 
 /**
  * Keeps the chart's query in step with today's pushed bars while `enabled`; returns whether a
- * live stream covers the symbol, so the query can stop polling.
+ * live stream covers the symbol, so the query can stop polling. Watches again whenever the
+ * sources change, since the new stream may take the symbol or refuse it.
  */
 export function useLiveCandles(
   symbol: SymbolRef,
@@ -20,7 +21,16 @@ export function useLiveCandles(
 ): boolean {
   const queryClient = useQueryClient();
   const [live, setLive] = useState(false);
+  const [sources, setSources] = useState(0);
   const { market, symbol: code } = symbol;
+
+  useEffect(
+    () =>
+      window.solyx.market.onSourcesChanged(() =>
+        setSources((count) => count + 1)
+      ),
+    []
+  );
 
   useEffect(() => {
     if (!enabled) return;
@@ -55,7 +65,7 @@ export function useLiveCandles(
         window.solyx.market.unwatchCandles(watched, interval)
       );
     };
-  }, [enabled, queryClient, market, code, interval]);
+  }, [enabled, queryClient, market, code, interval, sources]);
 
   return live;
 }

@@ -8,7 +8,6 @@ import { isEnumValue } from "@solyx/utils/is";
 import { MarketDataSource } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { candlesQueryKeys } from "../market/candles-query.ts";
 
 import { settingsQueryKeys } from "./settings-query.ts";
 
@@ -27,12 +26,7 @@ export function MarketDataSourceSelect({
     mutationFn: (next: MarketDataSource) =>
       window.solyx.settings.setMarketDataSource(Market.TW, next),
     onSettled: () =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: settingsQueryKeys.marketData,
-        }),
-        queryClient.invalidateQueries({ queryKey: candlesQueryKeys.all }),
-      ]),
+      queryClient.invalidateQueries({ queryKey: settingsQueryKeys.marketData }),
   });
 
   return (

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -7,6 +7,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import type { FubonSessionOptions } from "@solyx/brokers/fubon";
 import { Market } from "@solyx/core/market";
 import { openCache } from "@solyx/db/cache";
+import { FuglePlan } from "@solyx/market-data/fugle";
 
 import {
   FubonFile,
@@ -19,6 +20,8 @@ import type { FubonProcess } from "../src/main/modules/market/fubon-process.ts";
 import { createMarketDataSources } from "../src/main/modules/market/market-data-sources.ts";
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
 import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
+
+import { fakeCipher } from "./fake-cipher.ts";
 
 const MIGRATIONS = join(
   import.meta.dirname,
@@ -66,18 +69,15 @@ beforeEach(async () => {
 afterEach(() => rm(directory, { recursive: true, force: true }));
 
 function setup() {
-  const config = createConfigFile(join(directory, ".solyx", "config.jsonc"));
+  const configFile = join(directory, ".solyx", "config.jsonc");
+  const config = createConfigFile(configFile);
 
   config.create();
 
-  const secrets = createSecretStore(join(directory, "secrets.json"), {
-    isAvailable: async () => true,
-    encrypt: async (plainText) => Buffer.from(plainText),
-    decrypt: async (encrypted) => ({
-      plainText: encrypted.toString(),
-      shouldReEncrypt: false,
-    }),
-  });
+  const secrets = createSecretStore(
+    join(directory, "secrets.json"),
+    fakeCipher().cipher
+  );
 
   const sources = createMarketDataSources({
     config,
@@ -96,7 +96,7 @@ function setup() {
     await secrets.save(Secret.FubonApiKey, "fubon-key");
   }
 
-  return { config, secrets, sources, useFubon };
+  return { config, configFile, secrets, sources, useFubon };
 }
 
 test("Taiwan charts come from Fugle by default, once its key is saved", async () => {
@@ -273,4 +273,53 @@ test("settings changed while Fubon has yet to answer sign out once it does", asy
   expect(openFubonProcess).toHaveBeenCalledTimes(2);
   expect(session.close).toHaveBeenCalled();
   expect((await openedSession(1)).close).not.toHaveBeenCalled();
+});
+
+test("the stream changes with its own source's settings and keys, never with another's", async () => {
+  const { config, secrets, sources } = setup();
+  const changes = vi.fn();
+
+  sources.onStreamChange(changes);
+
+  await secrets.save(Secret.FugleApiKey, "fugle-key");
+  config.set(["providers", "fugle", "plan"], FuglePlan.Developer);
+  await secrets.save(Secret.FubonApiKey, "fubon-key");
+  await secrets.save(Secret.AnthropicApiKey, "anthropic-key");
+  config.set(["providers", "fubon", FubonFile.Sdk], "/sdk");
+
+  expect(changes).toHaveBeenCalledTimes(2);
+
+  config.set(["marketData", Market.TW], MarketDataSource.Fubon);
+  config.set(["providers", "fugle", "plan"], FuglePlan.Basic);
+  await secrets.save(Secret.FugleApiKey, "another-key");
+  await secrets.save(Secret.FubonPersonalId, "A123456789");
+  config.set(["providers", "fubon", FubonFile.Certificate], "/cert.pfx");
+
+  expect(changes).toHaveBeenCalledTimes(5);
+});
+
+test("a hand edit of Taiwan's source changes the stream once", async () => {
+  const { config, configFile, sources } = setup();
+  const changes = vi.fn();
+
+  sources.onStreamChange(changes);
+
+  const stop = config.watch();
+
+  await writeFile(configFile, '{ "marketData": { "TW": "fubon" } }');
+  await vi.waitFor(() => expect(changes).toHaveBeenCalledTimes(1));
+  stop();
+});
+
+test("signing in to Fubon again changes the stream, since it keeps the session it opened with", async () => {
+  openFubonProcess.mockImplementation(async () => fakeSession());
+
+  const { sources, useFubon } = setup();
+  const changes = vi.fn();
+
+  await useFubon();
+  sources.onStreamChange(changes);
+  await sources.signInFubon();
+
+  expect(changes).toHaveBeenCalledTimes(1);
 });

@@ -26,6 +26,14 @@ export interface MarketDataProvider {
   getListing(symbol: SymbolRef): Promise<Listing | null>;
 }
 
+/** Bars and names in every market, from the source the user picked for it. */
+export interface MarketData {
+  /** Bars over the interval's lookback, oldest first; rejects while no source covers the market. */
+  candles(symbol: SymbolRef, interval: Interval): Promise<Candle[]>;
+  /** `null` when no source covers the market or the source does not list the symbol. */
+  listing(symbol: SymbolRef): Promise<Listing | null>;
+}
+
 export interface MinuteListener {
   /** The session's minute bars so far: sent when watching starts and after every reconnect, since pushes during an outage are lost. */
   onSession(minutes: Candle[]): void;

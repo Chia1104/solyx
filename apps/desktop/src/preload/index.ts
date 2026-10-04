@@ -67,6 +67,8 @@ const api: SolyxApi = {
       invoke(marketChannels.unwatchCandles, symbol, interval),
     onLiveCandles: (listener) =>
       subscribe(marketEvents.onLiveCandles, listener),
+    onSourcesChanged: (listener) =>
+      subscribe(marketEvents.onSourcesChanged, listener),
   },
   news: {
     records: (symbol, days) => invoke(newsChannels.records, symbol, days),

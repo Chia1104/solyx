@@ -280,6 +280,59 @@ describe("createLiveCandles", () => {
     ).toBe(false);
   });
 
+  test("a restart while the stream opens closes the stale stream and watches on the new one", async () => {
+    const stale = fakeStream();
+    const current = fakeStream();
+    let answer: (stream: MarketDataStream) => void = () => undefined;
+    let opened = 0;
+
+    const held = new Promise<MarketDataStream>((resolve) => {
+      answer = resolve;
+    });
+
+    const live = createLiveCandles({
+      openStream: async () => {
+        opened += 1;
+
+        return opened === 1 ? held : current.stream;
+      },
+      dailyCandles: async () => [],
+    });
+
+    const watching = live.watch(fakeSender().sender, TSMC, Interval.OneMinute);
+
+    await live.restart();
+    answer(stale.stream);
+
+    expect(await watching).toBe(true);
+    expect(stale.isClosed()).toBe(true);
+    expect(stale.listeners.size).toBe(0);
+    expect(current.listeners.has("2330")).toBe(true);
+  });
+
+  test("a stream that failed to open is opened again by the next watch", async () => {
+    const { stream } = fakeStream();
+    let opened = 0;
+
+    const live = createLiveCandles({
+      openStream: async () => {
+        opened += 1;
+
+        if (opened === 1) throw new Error("offline");
+
+        return stream;
+      },
+      dailyCandles: async () => [],
+    });
+
+    await expect(
+      live.watch(fakeSender().sender, TSMC, Interval.OneMinute)
+    ).rejects.toThrow("offline");
+    expect(
+      await live.watch(fakeSender().sender, TSMC, Interval.OneMinute)
+    ).toBe(true);
+  });
+
   test("a restart watches every symbol again on a new stream", async () => {
     const { live, streams } = setup();
 
