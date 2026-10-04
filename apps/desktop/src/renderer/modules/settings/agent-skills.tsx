@@ -7,7 +7,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from "@heroui/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { partition } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
@@ -23,7 +23,7 @@ import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import { agentSkillsQuery, settingsQueryKeys } from "./settings-query.ts";
+import { agentSkillsQuery } from "./settings-query.ts";
 
 /** Which skills the list shows: those always offered, or the shared ones switched on one by one. */
 const SkillScope = {
@@ -85,7 +85,6 @@ function SkillRow({
  */
 export function AgentSkills() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const { data, error, refetch } = useQuery(agentSkillsQuery());
   const [scope, setScope] = useState<SkillScope>(SkillScope.Always);
   const [filter, setFilter] = useState("");
@@ -93,10 +92,6 @@ export function AgentSkills() {
   const offer = useMutation({
     mutationFn: ({ name, offered }: { name: string; offered: boolean }) =>
       window.solyx.settings.setSharedSkill(name, offered),
-    onSettled: () =>
-      queryClient.invalidateQueries({
-        queryKey: settingsQueryKeys.agentSkills,
-      }),
   });
 
   const reveal = useMutation({

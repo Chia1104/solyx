@@ -8,9 +8,19 @@ export interface ProposalsApi {
   dismiss(id: string): Promise<TradeProposal>;
 }
 
+/** Pushes from the main process; each subscription returns a function that stops listening. */
+export interface ProposalsEvents {
+  /** A proposal was made or changed, by any window or the agent; the account may have changed with it. */
+  onChanged(listener: () => void): () => void;
+}
+
 export const proposalsChannels = {
   list: "proposals:list",
   propose: "proposals:propose",
   confirm: "proposals:confirm",
   dismiss: "proposals:dismiss",
 } as const satisfies Record<keyof ProposalsApi, string>;
+
+export const proposalsEvents = {
+  onChanged: "proposals:changed",
+} as const satisfies Record<keyof ProposalsEvents, string>;

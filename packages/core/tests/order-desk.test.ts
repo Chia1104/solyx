@@ -46,6 +46,7 @@ const AFTER_CLOSE = Date.parse("2026-09-29T15:00:00+08:00");
 
 function setup(store = memoryStore()) {
   const clock = { now: DURING_SESSION };
+  const onChange = vi.fn();
 
   const account: AccountSnapshot = {
     cash: { TWD: 5_000_000 },
@@ -73,10 +74,11 @@ function setup(store = memoryStore()) {
       maxOrderNotional: { TWD: 5_000_000, USD: 10_000 },
       allowedSessions: [Session.Regular],
     },
+    onChange,
     now: () => clock.now,
   });
 
-  return { desk, placeOrder, getAccount, account, clock, store };
+  return { desk, placeOrder, getAccount, account, clock, store, onChange };
 }
 
 function proposeFromAgent(desk: OrderDesk) {
@@ -252,4 +254,21 @@ test("a market the broker does not trade is rejected", async () => {
     code: RiskViolationCode.UnsupportedMarket,
     market: Market.US,
   });
+});
+
+test("every change to a proposal is told, its submission included", async () => {
+  const { desk, onChange } = setup();
+  const { id } = await proposeFromAgent(desk);
+  const other = await proposeFromAgent(desk);
+
+  expect(onChange).toHaveBeenCalledTimes(2);
+
+  await desk.confirm(id);
+
+  // Once as it starts submitting, once as the broker answers.
+  expect(onChange).toHaveBeenCalledTimes(4);
+
+  desk.dismiss(other.id);
+
+  expect(onChange).toHaveBeenCalledTimes(5);
 });

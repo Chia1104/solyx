@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
+import type { WebContents } from "electron";
 import { kebabCase } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
@@ -15,6 +16,7 @@ import { openUserData } from "@solyx/db/user";
 
 import { marketEvents } from "#shared/ipc/market.ts";
 import { newsEvents } from "#shared/ipc/news.ts";
+import { proposalsEvents } from "#shared/ipc/proposals.ts";
 import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
 import { ColorScheme } from "#shared/palette.ts";
 
@@ -42,6 +44,13 @@ const PAPER_LIMITS: RiskLimits = {
   allowedSessions: Object.values(Session),
 };
 
+/** Pushes to every window, since each may show what changed. */
+function broadcast(...push: Parameters<WebContents["send"]>) {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(...push);
+  }
+}
+
 /** Composition root. A live broker is only ever wired here after the user explicitly turns it on. */
 export function createServices() {
   const userDataDir = app.getPath("userData");
@@ -62,6 +71,7 @@ export function createServices() {
     }),
     store: userData.proposals,
     limits: PAPER_LIMITS,
+    onChange: () => broadcast(proposalsEvents.onChanged),
   });
 
   const secrets = createSecretStore(
@@ -87,11 +97,7 @@ export function createServices() {
       fubonLogDir: join(userDataDir, "fubon"),
       openFubonProcess,
     }),
-    onSourcesChanged() {
-      for (const window of BrowserWindow.getAllWindows()) {
-        window.webContents.send(marketEvents.onSourcesChanged);
-      }
-    },
+    onSourcesChanged: () => broadcast(marketEvents.onSourcesChanged),
   });
 
   // The user's own skills and instructions sit beside the config file they edit.
@@ -122,12 +128,7 @@ export function createServices() {
     ).store,
     scorer: () => decisions.scorer(),
     marketData,
-    // Every window's chart may show the listing.
-    onChange(symbol) {
-      for (const window of BrowserWindow.getAllWindows()) {
-        window.webContents.send(newsEvents.onChanged, symbol);
-      }
-    },
+    onChange: (symbol) => broadcast(newsEvents.onChanged, symbol),
   });
 
   const agent = createAgentService({
@@ -173,6 +174,9 @@ export function createServices() {
   }
 
   nativeTheme.themeSource = appearance.read().theme;
+
+  config.onChange(() => broadcast(settingsEvents.onChanged));
+  secrets.onChange(() => broadcast(settingsEvents.onChanged));
   config.watch();
 
   return {

@@ -415,6 +415,8 @@ export interface SettingsApi {
 export interface SettingsEvents {
   /** Every change to the appearance, whether saved here or by hand in the config file. */
   onAppearance(listener: (appearance: Appearance) => void): () => void;
+  /** Some setting or saved secret changed, here or by hand in the config file. */
+  onChanged(listener: () => void): () => void;
 }
 
 export const settingsChannels = {
@@ -465,4 +467,5 @@ export const settingsChannels = {
 
 export const settingsEvents = {
   onAppearance: "settings:appearance-changed",
+  onChanged: "settings:changed",
 } as const satisfies Record<keyof SettingsEvents, string>;

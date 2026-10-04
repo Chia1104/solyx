@@ -10,6 +10,8 @@ import { useTranslation } from "react-i18next";
 import { PaneSplitter, SplitterEdge } from "../components/pane-splitter.tsx";
 import { BrokerModeRule } from "../modules/account/broker-mode-chip.tsx";
 import { useMarketDataChanges } from "../modules/market/market-sessions-query.ts";
+import { useProposalChanges } from "../modules/proposals/proposals-query.ts";
+import { useSettingsChanges } from "../modules/settings/settings-query.ts";
 
 import { AgentPane } from "./agent-pane.tsx";
 import { useWorkspaceHotkeys } from "./hotkeys.ts";
@@ -155,6 +157,8 @@ export function RootLayout() {
   const matchRoute = useMatchRoute();
 
   useMarketDataChanges();
+  useProposalChanges();
+  useSettingsChanges();
 
   // First-run setup takes the whole window, without the workspace around it.
   const onboarding = matchRoute({ to: "/onboarding" }) !== false;

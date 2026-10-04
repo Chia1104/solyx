@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type { FuglePlan } from "@solyx/market-data/fugle";
@@ -14,18 +14,15 @@ import { OptionSelect } from "../../components/option-select.tsx";
 import { PlanLimits } from "./plan-limits.tsx";
 import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import { secretsQuery, settingsQueryKeys } from "./settings-query.ts";
+import { secretsQuery } from "./settings-query.ts";
 
 /** The Fugle key and the plan it belongs to, which sets how hard Solyx may use it. */
 export function FugleSettings({ status }: { status: MarketDataStatus }) {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const secrets = useQuery(secretsQuery());
 
   const save = useMutation({
     mutationFn: (plan: FuglePlan) => window.solyx.settings.setFuglePlan(plan),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: settingsQueryKeys.marketData }),
   });
 
   if (secrets.error) {

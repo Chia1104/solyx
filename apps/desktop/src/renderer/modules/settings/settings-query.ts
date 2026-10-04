@@ -1,4 +1,6 @@
-import { queryOptions } from "@tanstack/react-query";
+import { useEffect } from "react";
+
+import { queryOptions, useQueryClient } from "@tanstack/react-query";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
 import { Market } from "@solyx/core/market";
@@ -21,14 +23,15 @@ export const settingsQueryKeys = {
   mcp: [...all, "mcp"] as const,
 };
 
-/** Which secrets are saved; their values never leave the main process. */
+/** Which secrets are saved; their values never leave the main process. Never stale, as below. */
 export const secretsQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.secrets,
     queryFn: () => window.solyx.settings.secrets(),
+    staleTime: Infinity,
   });
 
-/** Always stale, since the settings can also change by hand in the config file. */
+/** Always stale, since a Fubon sign-in can change it without any setting changing. */
 export const marketDataQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.marketData,
@@ -64,28 +67,28 @@ export const aboutQuery = () =>
     staleTime: Infinity,
   });
 
-/** Always stale, since the settings can also change by hand in the config file. */
+/** Never stale, as below. */
 export const agentSettingsQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.agent,
     queryFn: () => window.solyx.settings.agent(),
-    staleTime: 0,
+    staleTime: Infinity,
   });
 
-/** Always stale, since the settings can also change by hand in the config file. */
+/** Never stale, as below. */
 export const newsSettingsQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.news,
     queryFn: () => window.solyx.settings.news(),
-    staleTime: 0,
+    staleTime: Infinity,
   });
 
-/** Always stale, since the settings can also change by hand in the config file. */
+/** Never stale, as below. */
 export const decisionsSettingsQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.decisions,
     queryFn: () => window.solyx.settings.decisions(),
-    staleTime: 0,
+    staleTime: Infinity,
   });
 
 /** Always stale, since skills and instructions are files the user edits outside the app. */
@@ -109,3 +112,19 @@ export const mcpQuery = () =>
         ? 1500
         : false,
   });
+
+/**
+ * Refetches the settings whenever one, or a saved secret, changes: on this page, in another window
+ * or by hand in the config file. Queries that read only those never go stale on their own.
+ */
+export function useSettingsChanges() {
+  const queryClient = useQueryClient();
+
+  useEffect(
+    () =>
+      window.solyx.settings.onChanged(() => {
+        void queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all });
+      }),
+    [queryClient]
+  );
+}
