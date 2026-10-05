@@ -6,6 +6,7 @@ import * as z from "zod";
 import {
   AgentToolName,
   ToolCallStatus,
+  bashArgumentsSchema,
   proposeOrderDetailsSchema,
   runAnalysisArgumentsSchema,
   runAnalysisDetailsSchema,
@@ -109,14 +110,22 @@ function ApprovalCard({
       window.solyx.agent.approve(sessionId, tool.toolCallId, approved),
   });
 
+  // A shell command is shown as the user would type it, whole.
+  const command =
+    tool.toolName === AgentToolName.Bash
+      ? bashArgumentsSchema.safeParse(tool.args).data?.command
+      : undefined;
+
   return (
     <div className="flex flex-col gap-2 rounded-sm border border-dashed border-separator p-3">
       <p className="text-sm font-medium">{t("agent.approval.title")}</p>
       <p className="text-xs text-muted">
-        {t("agent.approval.description", { tool: tool.toolName })}
+        {command === undefined
+          ? t("agent.approval.description", { tool: tool.toolName })
+          : t("agent.approval.shell-description")}
       </p>
       <pre className="max-h-40 overflow-auto rounded-sm bg-surface-secondary p-2 font-mono text-xs whitespace-pre-wrap">
-        {JSON.stringify(tool.args, null, 2)}
+        {command ?? JSON.stringify(tool.args, null, 2)}
       </pre>
       <div className="flex gap-2">
         <Button
@@ -146,19 +155,23 @@ function ApprovalCard({
   );
 }
 
-/** The script a call ran and what it printed, folded away so the numbers can be checked. */
-function AnalysisCard({ tool }: { tool: ToolCallView }) {
+/** What a call ran and what it printed, folded away so the numbers can be checked. */
+function CodeCard({
+  label,
+  code,
+  output,
+}: {
+  label: string;
+  code: string;
+  output?: string;
+}) {
   const { t } = useTranslation();
-  const code = runAnalysisArgumentsSchema.safeParse(tool.args).data?.code;
-  const output = runAnalysisDetailsSchema.safeParse(tool.details).data?.output;
-
-  if (!code) return null;
 
   return (
     <Disclosure className="pl-5.5">
       <Disclosure.Heading>
         <Disclosure.Trigger className="flex min-h-5 items-center gap-2 text-xs text-muted">
-          {t("agent.analysis.code")}
+          {label}
           <Disclosure.Indicator className="size-3" />
         </Disclosure.Trigger>
       </Disclosure.Heading>
@@ -179,6 +192,41 @@ function AnalysisCard({ tool }: { tool: ToolCallView }) {
       </Disclosure.Content>
     </Disclosure>
   );
+}
+
+/** The script or command behind a call, for the tools that run one. */
+function RanCode({ tool }: { tool: ToolCallView }) {
+  const { t } = useTranslation();
+
+  if (tool.toolName === AgentToolName.RunAnalysis) {
+    const code = runAnalysisArgumentsSchema.safeParse(tool.args).data?.code;
+
+    return code ? (
+      <CodeCard
+        label={t("agent.analysis.code")}
+        code={code}
+        output={runAnalysisDetailsSchema.safeParse(tool.details).data?.output}
+      />
+    ) : null;
+  }
+
+  // While it waits for the user, the approval card shows the command instead.
+  if (
+    tool.toolName === AgentToolName.Bash &&
+    tool.status !== ToolCallStatus.AwaitingApproval
+  ) {
+    const command = bashArgumentsSchema.safeParse(tool.args).data?.command;
+
+    return command ? (
+      <CodeCard
+        label={t("agent.analysis.command")}
+        code={command}
+        output={tool.output}
+      />
+    ) : null;
+  }
+
+  return null;
 }
 
 export function AgentToolCall({
@@ -217,9 +265,7 @@ export function AgentToolCall({
       {tool.status === ToolCallStatus.AwaitingApproval ? (
         <ApprovalCard sessionId={sessionId} tool={tool} />
       ) : null}
-      {tool.toolName === AgentToolName.RunAnalysis ? (
-        <AnalysisCard tool={tool} />
-      ) : null}
+      <RanCode tool={tool} />
       {proposal ? <ProposalCard id={proposal.proposalId} /> : null}
     </div>
   );

@@ -14,7 +14,12 @@ import type { EntryRecord } from "@earendil-works/pi-durable";
 import { approvalEvents } from "./approval.ts";
 import type { ApprovalAnswers, ApprovalEvent } from "./approval.ts";
 import { firstLine } from "./text.ts";
-import { AgentEventType, RunEndReason, ToolCallStatus } from "./wire.ts";
+import {
+  AgentEventType,
+  AgentToolName,
+  RunEndReason,
+  ToolCallStatus,
+} from "./wire.ts";
 import type {
   AgentWireEvent,
   RunEndEvent,
@@ -144,6 +149,10 @@ function toolEndEvent(entry: EntryRecord): ToolEndEvent | undefined {
         ? firstLine(diagnosed?.message ?? contentText(result.content), 160)
         : undefined,
     details: result.details,
+    output:
+      result.toolName === AgentToolName.Bash
+        ? contentText(result.content)
+        : undefined,
   };
 }
 

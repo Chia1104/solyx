@@ -198,7 +198,8 @@
       "propose_order": "提出下單建議",
       "read_skill": "讀取操作手冊",
       "search_tools": "搜尋 MCP 工具",
-      "run_analysis": "執行分析"
+      "run_analysis": "執行分析",
+      "bash": "執行指令"
     },
     "tool-status": {
       "running": "執行中",
@@ -215,11 +216,13 @@
     },
     "analysis": {
       "code": "腳本",
+      "command": "指令",
       "output": "輸出"
     },
     "approval": {
       "title": "要允許這次呼叫嗎？",
       "description": "{{tool}} 來自 Solyx 以外的 MCP server，請先確認它要送出的內容。",
+      "shell-description": "這個指令會在你的電腦上執行，能存取你的檔案與網路。允許前請先確認內容。",
       "allow": "允許",
       "deny": "不允許",
       "failed": "無法送出你的回覆"
@@ -577,7 +580,10 @@
       "instructions-description": "Agent 在每次對話都會遵守的規則，例如你的風險預算，寫在 {{path}}。每則訊息都會送出整份檔案。",
       "instructions-found": "{{count, number}} 字元",
       "instructions-missing": "尚未建立",
-      "warnings-title": "有些 skill 檔案不符合 Agent Skills 格式"
+      "warnings-title": "有些 skill 檔案不符合 Agent Skills 格式",
+      "shell": "Shell",
+      "shell-description": "讓 agent 在這台電腦上執行指令，skill 需要它才能執行附帶的腳本。每個指令都會先等你允許。指令沒有沙箱隔離：你允許的指令可以讀取、修改你的檔案並連上網路。僅在模擬帳戶下有效。",
+      "shell-label": "允許 agent 使用 shell"
     },
     "mcp": {
       "title": "MCP server",

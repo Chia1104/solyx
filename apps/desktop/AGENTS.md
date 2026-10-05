@@ -40,6 +40,7 @@ The Electron app: the main process is the backend, the preload bridges it to the
 ## Main process
 
 - MCP servers in `mcp.json` run as the main process's child processes or are reached over HTTP, and close when the app quits; `@solyx/agent` owns how they connect.
+- The agent's shell is off until `agent.shell` is switched on, and stays off whatever that says while the desk trades a live account. Each conversation's commands work in its own folder under `userData/agent-workspaces`, erased with the conversation.
 - Sign-in callbacks: Sign in with ChatGPT listens on port 1455, a remote MCP server's sign-in on the port its client registration redirects to, and each takes any free port when that one is taken.
 - Market data providers enforce the limits of the user's plan, so the main process keeps one provider per credential and plan. The config file picks each market's source; the market module follows the settings and keys, reopens the stream when they change and tells windows to load and watch again.
 - The `live-candles` hub keeps each watched symbol's session of minute bars from a `MarketDataStream`, folds them into the intervals windows watch and pushes whole bars, so the renderer only upserts them by time. Only today's session is pushed; closed sessions come from history through the candle cache.

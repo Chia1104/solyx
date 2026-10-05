@@ -94,6 +94,11 @@ export function AgentSkills() {
       window.solyx.settings.setSharedSkill(name, offered),
   });
 
+  const shell = useMutation({
+    mutationFn: (enabled: boolean) =>
+      window.solyx.settings.setAgentShell(enabled),
+  });
+
   const reveal = useMutation({
     mutationFn: () => window.solyx.settings.reveal(AppLocation.Skills),
   });
@@ -165,6 +170,25 @@ export function AgentSkills() {
                     count: data.instructions.characters,
                   })
                 : t("settings.skills.instructions-missing")
+            }
+          />
+          <SettingsRow
+            label={t("settings.skills.shell")}
+            description={t("settings.skills.shell-description")}
+            actions={
+              <Switch
+                isSelected={data.shell}
+                isDisabled={shell.isPending}
+                onChange={(enabled) => shell.mutate(enabled)}>
+                <Switch.Content>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  <span className="sr-only">
+                    {t("settings.skills.shell-label")}
+                  </span>
+                </Switch.Content>
+              </Switch>
             }
           />
         </SettingsList>

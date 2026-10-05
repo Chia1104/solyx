@@ -139,6 +139,7 @@ export function createServices() {
     skillFolders,
     instructionsFile,
     mcp,
+    workspaces: join(userDataDir, "agent-workspaces"),
     conversations: openAgentStore(join(userDataDir, "agent.sqlite")),
     marketData,
     watchlist: () => userData.watchlist.list(),

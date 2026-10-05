@@ -16,6 +16,8 @@ export interface AgentSkill {
   description: string;
   body: string;
   source: SkillSource;
+  /** Where its files are, such as the scripts its playbook names; a built-in has none. */
+  folder?: string;
 }
 
 const lines = (...text: string[]) => text.join("\n");
@@ -250,6 +252,7 @@ async function readSkillFolder(root: string, source: SkillSource) {
       description,
       body: normalized.slice(match?.[0].length ?? 0).trim(),
       source,
+      folder: join(root, folder),
     });
   }
 

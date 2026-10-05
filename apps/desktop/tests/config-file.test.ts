@@ -58,6 +58,7 @@ test("a missing file reads as the defaults, which a new file's commented templat
       thinking: AgentThinking.Medium,
       auth: AgentAuth.ApiKey,
       sharedSkills: [],
+      shell: false,
       mcpTools: {},
     },
     news: { collectEveryHours: NEWS_COLLECTION_DEFAULT_HOURS },

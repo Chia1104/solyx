@@ -29,6 +29,8 @@ export const AgentToolName = {
   ReadSkill: "read_skill",
   SearchTools: "search_tools",
   RunAnalysis: "run_analysis",
+  /** pi-durable's name for the shell tool, whatever shell runs it. */
+  Bash: "bash",
 } as const;
 
 export type AgentToolName = (typeof AgentToolName)[keyof typeof AgentToolName];
@@ -47,6 +49,8 @@ export const runAnalysisDetailsSchema = z.object({
 });
 
 export type RunAnalysisDetails = z.infer<typeof runAnalysisDetailsSchema>;
+
+export const bashArgumentsSchema = z.object({ command: z.string() });
 
 export const AgentEventType = {
   RunStart: "run:start",
@@ -136,6 +140,8 @@ export type AgentWireEvent =
       error?: string;
       /** The tool's own view model, which the renderer narrows by tool name. */
       details?: unknown;
+      /** What a shell command printed, as much of it as the model was given. */
+      output?: string;
     }
   | { type: typeof AgentEventType.ApprovalRequest; toolCallId: string }
   | {
@@ -192,6 +198,7 @@ export interface ToolCallView {
   status: ToolCallStatus;
   error?: string;
   details?: unknown;
+  output?: string;
 }
 
 /** How a run that did not simply finish ended. */
@@ -317,6 +324,7 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
         status: event.status,
         error: event.error,
         details: event.details,
+        output: event.output,
       };
 
       if (index === -1) items.push(tool);

@@ -631,7 +631,12 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         if (!skill) throw new Error(`No skill named ${name}`);
 
-        return { text: skill.body, details: { name } };
+        return {
+          text: skill.folder
+            ? `${skill.body}\n\nThis skill's files are in ${skill.folder}; run its scripts with bash from there.`
+            : skill.body,
+          details: { name },
+        };
       },
     }),
   ];

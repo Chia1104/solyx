@@ -24,6 +24,7 @@ import type {
   ConversationId,
   Cursor,
   EntryId,
+  HarnessOptions,
   HarnessSettings,
   MessageChange,
   Page,
@@ -73,6 +74,8 @@ export interface AgentRuntimeOptions {
    * each of its calls waits until the user answers through `approve`.
    */
   tools(guard: ToolGuard): Promise<Toolset>;
+  /** Where a conversation's shell commands run; without it no tool has an environment. */
+  env?: HarnessOptions["env"];
   onEvent(sessionId: string, event: AgentWireEvent): void;
   settings?: HarnessSettings;
 }
@@ -212,7 +215,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     store,
     harness: await Harness.open(
       store.storage,
-      { models: options.models, registry, settings: options.settings },
+      {
+        models: options.models,
+        registry,
+        settings: options.settings,
+        env: options.env,
+      },
       BACKGROUND_CONTEXT
     ),
   }));

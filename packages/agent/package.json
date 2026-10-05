@@ -12,6 +12,7 @@
     "./prompt": "./src/prompt.ts",
     "./providers": "./src/providers.ts",
     "./runtime": "./src/runtime.ts",
+    "./shell": "./src/shell.ts",
     "./skill-source": "./src/skill-source.ts",
     "./skills": "./src/skills.ts",
     "./tools": "./src/tools.ts",

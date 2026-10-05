@@ -206,6 +206,7 @@ export function createSettingsApi({
           shared: tildify(skillFolders.shared),
           instructions: tildify(instructionsFile),
         },
+        shell: config.read().agent.shell,
       };
     },
 
@@ -218,6 +219,10 @@ export function createSettingsApi({
           ? uniq([...current, name])
           : current.filter((skill) => skill !== name)
       );
+    },
+
+    async setAgentShell(enabled) {
+      config.set(["agent", "shell"], enabled);
     },
 
     async mcp() {

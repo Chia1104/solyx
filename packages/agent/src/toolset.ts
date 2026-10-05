@@ -24,30 +24,47 @@ export function createToolsetLoader(
   read: () => Promise<Toolset>
 ) {
   let offered: string[] = [];
+  let deferred = new Set<string>();
+  let installed: Extension[] = [];
 
   return {
-    /** Installs the toolset of the moment; an extension replaces the one installed under its name. */
+    /**
+     * Installs the toolset of the moment: an extension replaces the one installed under its name,
+     * and one the toolset dropped is removed.
+     */
     async load() {
       const toolset = await read();
 
-      for (const extension of [...toolset.offered, ...toolset.deferred]) {
-        registry.install(extension);
+      const extensions = [...toolset.offered, ...toolset.deferred];
+      const names = new Set(extensions.map((extension) => extension.name));
+
+      // One the host no longer gives, such as the shell once switched off, stops being offered.
+      for (const extension of installed) {
+        if (!names.has(extension.name)) registry.uninstall(extension);
       }
 
-      offered = toolset.offered
-        .flatMap((extension) => extension.tools ?? [])
-        .map((tool) => tool.name);
+      for (const extension of extensions) registry.install(extension);
+
+      installed = extensions;
+
+      const toolNames = (from: readonly Extension[]) =>
+        from
+          .flatMap((extension) => extension.tools ?? [])
+          .map((tool) => tool.name);
+
+      offered = toolNames(toolset.offered);
+      deferred = new Set(toolNames(toolset.deferred));
     },
 
     /**
      * Sets what the conversation's next request offers: the offered tools lead, and the deferred
-     * tools the conversation already loaded stay after them.
+     * tools the conversation already loaded stay after them, while they are still given.
      */
     async offer(tx: Tx, id: ConversationId) {
       const agent = await tx.doc(AgentDoc, id);
 
       const loaded = Array.isArray(agent.tools)
-        ? agent.tools.filter((name) => !offered.includes(name))
+        ? agent.tools.filter((name) => deferred.has(name))
         : [];
 
       const tools = [...offered, ...loaded];

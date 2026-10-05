@@ -198,7 +198,8 @@
       "propose_order": "Proposed an order",
       "read_skill": "Read a playbook",
       "search_tools": "Searched MCP tools",
-      "run_analysis": "Ran an analysis"
+      "run_analysis": "Ran an analysis",
+      "bash": "Ran a command"
     },
     "tool-status": {
       "running": "Running",
@@ -215,11 +216,13 @@
     },
     "analysis": {
       "code": "Script",
+      "command": "Command",
       "output": "Output"
     },
     "approval": {
       "title": "Allow this call?",
       "description": "{{tool}} comes from an MCP server outside Solyx. Check what it's about to send.",
+      "shell-description": "This command runs on your computer with your access to its files and the network. Check it before you allow it.",
       "allow": "Allow",
       "deny": "Don't allow",
       "failed": "Couldn't send your answer"
@@ -577,7 +580,10 @@
       "instructions-description": "Rules the agent keeps in every conversation, such as your risk budget, written in {{path}}. The whole file is sent with every message.",
       "instructions-found": "{{count, number}} characters",
       "instructions-missing": "Not written",
-      "warnings-title": "Some skill files don't follow the Agent Skills format"
+      "warnings-title": "Some skill files don't follow the Agent Skills format",
+      "shell": "Shell",
+      "shell-description": "Lets the agent run commands on this computer, which a skill needs to run its scripts. Every command waits for you to allow it. Commands are not sandboxed: one you allow can read and change your files and reach the network. Only works with a paper account.",
+      "shell-label": "Let the agent use the shell"
     },
     "mcp": {
       "title": "MCP servers",

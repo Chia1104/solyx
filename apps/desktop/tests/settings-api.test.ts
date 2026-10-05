@@ -147,6 +147,17 @@ test("a shared skill is switched on once, and off again", async () => {
   expect(config.read().agent.sharedSkills).toEqual([]);
 });
 
+test("the shell is off until the user switches it on", async () => {
+  const { api, config } = setup();
+
+  expect((await api.agentSkills()).shell).toBe(false);
+
+  await api.setAgentShell(true);
+
+  expect(config.read().agent.shell).toBe(true);
+  expect((await api.agentSkills()).shell).toBe(true);
+});
+
 test("MCP servers show each tool under the policy in force, which secrets are saved, and paths from home", async () => {
   const { api, secrets, mcp } = setup();
 

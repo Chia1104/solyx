@@ -266,6 +266,8 @@ export interface AgentSkills {
   instructions: { characters: number } | null;
   /** Shown with the home folder as `~`. */
   paths: { skills: string; shared: string; instructions: string };
+  /** The agent may run shell commands on this computer, each once the user allows it. */
+  shell: boolean;
 }
 
 export interface McpToolSetting {
@@ -385,6 +387,8 @@ export interface SettingsApi {
   agentSkills(): Promise<AgentSkills>;
   /** Offers a skill from ~/.agents/skills to the agent, or stops offering it. */
   setSharedSkill(name: string, enabled: boolean): Promise<void>;
+  /** Gives the agent the shell from its next run on, or takes it away. */
+  setAgentShell(enabled: boolean): Promise<void>;
   /** Connects the servers in mcp.json on first use. */
   mcp(): Promise<McpSettings>;
   /** Lets the agent do the same with each of a server's `tools`, saved in one write. */
@@ -451,6 +455,7 @@ export const settingsChannels = {
   setDecisionsBaseURL: "settings:set-decisions-base-url",
   agentSkills: "settings:agent-skills",
   setSharedSkill: "settings:set-shared-skill",
+  setAgentShell: "settings:set-agent-shell",
   mcp: "settings:mcp",
   setMcpToolPolicy: "settings:set-mcp-tool-policy",
   saveMcpSecret: "settings:save-mcp-secret",

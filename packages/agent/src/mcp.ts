@@ -39,6 +39,7 @@ import {
   secretReference,
 } from "./mcp-config.ts";
 import type { McpServerConfig, McpServerEntry } from "./mcp-config.ts";
+import { inheritedEnv } from "./process-env.ts";
 import { createSignInSlot } from "./sign-in.ts";
 import { firstLine } from "./text.ts";
 import { AgentToolName } from "./wire.ts";
@@ -247,36 +248,6 @@ function searchTool(loadable: readonly LoadableTool[]): ToolRegistration {
 }
 
 const STDERR_TAIL = 2000;
-
-// What a stdio server takes from the app's environment, as other MCP clients pass it: enough to
-// find its home, user and shell. Anything else, such as keys a terminal exported, stays out.
-const INHERITED_ENV =
-  process.platform === "win32"
-    ? [
-        "APPDATA",
-        "HOMEDRIVE",
-        "HOMEPATH",
-        "LOCALAPPDATA",
-        "PATH",
-        "PROCESSOR_ARCHITECTURE",
-        "PROGRAMFILES",
-        "SYSTEMDRIVE",
-        "SYSTEMROOT",
-        "TEMP",
-        "USERNAME",
-        "USERPROFILE",
-      ]
-    : ["HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER"];
-
-function inheritedEnv(): Record<string, string> {
-  return Object.fromEntries(
-    INHERITED_ENV.flatMap((name) => {
-      const value = process.env[name];
-
-      return value === undefined ? [] : [[name, value]];
-    })
-  );
-}
 
 // What a sign-in keeps between runs. Discovery is looked up again, and an authorization in
 // progress never outlives the sign-in that started it.

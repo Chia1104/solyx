@@ -117,6 +117,7 @@ const configSchema = section(
         thinking: agentThinkingSchema.catch(AgentThinking.Medium),
         auth: agentAuthSchema.catch(AgentAuth.ApiKey),
         sharedSkills: z.array(z.string()).catch([]),
+        shell: z.boolean().catch(false),
         // Values are checked one by one where they are read, so one bad entry keeps the rest.
         mcpTools: z.record(z.string(), z.string()).catch({}),
       })
@@ -152,13 +153,22 @@ type ConfigPath =
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle", "plan"]
   | ["providers", "fubon", FubonFile]
-  | ["agent", "provider" | "model" | "thinking" | "auth" | "sharedSkills"]
+  | [
+      "agent",
+      "provider" | "model" | "thinking" | "auth" | "sharedSkills" | "shell",
+    ]
   | ["agent", "mcpTools", string]
   | ["news", "collectEveryHours"]
   | ["decisions", "model" | "baseURL"];
 
 /** `undefined` removes the entry. */
-type ConfigValue = string | number | string[] | CustomPalette | undefined;
+type ConfigValue =
+  | string
+  | number
+  | boolean
+  | string[]
+  | CustomPalette
+  | undefined;
 
 export type ConfigEntry = readonly [path: ConfigPath, value: ConfigValue];
 
@@ -203,7 +213,9 @@ const TEMPLATE = [
   `    // How the provider is paid for: ${quoted(AgentAuth)}; a subscription applies to OpenAI, signed in with ChatGPT.`,
   `    "auth": "${DEFAULTS.agent.auth}",`,
   "    // Skills from ~/.agents/skills the agent may read, by name. The skills folder beside this file is always read.",
-  '    "sharedSkills": []',
+  '    "sharedSkills": [],',
+  "    // Lets the agent run shell commands on this computer, each only after you allow it. They are not sandboxed.",
+  `    "shell": ${DEFAULTS.agent.shell}`,
   "  },",
   '  "news": {',
   "    // How often news is collected for each watched listing, in hours; 0 turns automatic collection off.",
