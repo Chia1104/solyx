@@ -1,4 +1,3 @@
-import { cn } from "@heroui/react";
 // Emitted as files, since the CSP lets images come only from the app's own bundle.
 import antgroup from "@lobehub/icons-static-svg/icons/antgroup-color.svg?no-inline";
 import baseten from "@lobehub/icons-static-svg/icons/baseten.svg?no-inline";
@@ -27,49 +26,47 @@ import zai from "@lobehub/icons-static-svg/icons/zai.svg?no-inline";
 
 import type { AgentProvider } from "@solyx/agent/providers";
 
-/** Providers' own logos by id, from lobe-icons: in the brand's colours, or one shape to tint. */
-const MARKS: Partial<Record<AgentProvider, { src: string; colored: boolean }>> =
-  {
-    "ant-ling": { src: antgroup, colored: true },
-    anthropic: { src: claude, colored: true },
-    baseten: { src: baseten, colored: false },
-    cerebras: { src: cerebras, colored: true },
-    deepseek: { src: deepseek, colored: true },
-    fireworks: { src: fireworks, colored: true },
-    google: { src: gemini, colored: true },
-    groq: { src: groq, colored: false },
-    huggingface: { src: huggingface, colored: true },
-    "kimi-coding": { src: kimi, colored: true },
-    meta: { src: meta, colored: true },
-    minimax: { src: minimax, colored: true },
-    "minimax-cn": { src: minimax, colored: true },
-    mistral: { src: mistral, colored: true },
-    moonshotai: { src: moonshot, colored: false },
-    "moonshotai-cn": { src: moonshot, colored: false },
-    nvidia: { src: nvidia, colored: true },
-    openai: { src: openai, colored: false },
-    opencode: { src: opencode, colored: false },
-    "opencode-go": { src: opencode, colored: false },
-    openrouter: { src: openrouter, colored: false },
-    "qwen-token-plan": { src: qwen, colored: true },
-    "qwen-token-plan-cn": { src: qwen, colored: true },
-    "qwen-token-plan-individual": { src: qwen, colored: true },
-    together: { src: together, colored: true },
-    "vercel-ai-gateway": { src: vercel, colored: false },
-    xai: { src: xai, colored: false },
-    xiaomi: { src: xiaomi, colored: false },
-    "xiaomi-token-plan-ams": { src: xiaomi, colored: false },
-    "xiaomi-token-plan-cn": { src: xiaomi, colored: false },
-    "xiaomi-token-plan-sgp": { src: xiaomi, colored: false },
-    zai: { src: zai, colored: false },
-    "zai-coding-cn": { src: zai, colored: false },
-  };
+import { LogoMark } from "../../components/logo-mark.tsx";
+import type { Logo } from "../../components/logo-mark.tsx";
 
-/**
- * The provider's logo, beside its models and wherever it is switched on. A coloured logo is drawn
- * as it is; a one-colour logo is a mask filled with the text colour, so it follows the theme. A
- * provider without one shows its initial.
- */
+/** Providers' own logos by id, from lobe-icons: in the brand's colours, or one shape to tint. */
+const MARKS: Partial<Record<AgentProvider, Logo>> = {
+  "ant-ling": { src: antgroup, colored: true },
+  anthropic: { src: claude, colored: true },
+  baseten: { src: baseten, colored: false },
+  cerebras: { src: cerebras, colored: true },
+  deepseek: { src: deepseek, colored: true },
+  fireworks: { src: fireworks, colored: true },
+  google: { src: gemini, colored: true },
+  groq: { src: groq, colored: false },
+  huggingface: { src: huggingface, colored: true },
+  "kimi-coding": { src: kimi, colored: true },
+  meta: { src: meta, colored: true },
+  minimax: { src: minimax, colored: true },
+  "minimax-cn": { src: minimax, colored: true },
+  mistral: { src: mistral, colored: true },
+  moonshotai: { src: moonshot, colored: false },
+  "moonshotai-cn": { src: moonshot, colored: false },
+  nvidia: { src: nvidia, colored: true },
+  openai: { src: openai, colored: false },
+  opencode: { src: opencode, colored: false },
+  "opencode-go": { src: opencode, colored: false },
+  openrouter: { src: openrouter, colored: false },
+  "qwen-token-plan": { src: qwen, colored: true },
+  "qwen-token-plan-cn": { src: qwen, colored: true },
+  "qwen-token-plan-individual": { src: qwen, colored: true },
+  together: { src: together, colored: true },
+  "vercel-ai-gateway": { src: vercel, colored: false },
+  xai: { src: xai, colored: false },
+  xiaomi: { src: xiaomi, colored: false },
+  "xiaomi-token-plan-ams": { src: xiaomi, colored: false },
+  "xiaomi-token-plan-cn": { src: xiaomi, colored: false },
+  "xiaomi-token-plan-sgp": { src: xiaomi, colored: false },
+  zai: { src: zai, colored: false },
+  "zai-coding-cn": { src: zai, colored: false },
+};
+
+/** The provider's logo, beside its models and wherever it is switched on. */
 export function ProviderMark({
   provider,
   className,
@@ -77,36 +74,11 @@ export function ProviderMark({
   provider: AgentProvider;
   className?: string;
 }) {
-  const mark = Object.hasOwn(MARKS, provider) ? MARKS[provider] : undefined;
-
-  if (!mark) {
-    return (
-      <span
-        aria-hidden
-        className={cn(
-          "inline-flex size-4 shrink-0 items-center justify-center rounded-sm bg-current/15 text-[0.625rem] leading-none font-semibold uppercase",
-          className
-        )}>
-        {provider.charAt(0)}
-      </span>
-    );
-  }
-
-  const { src, colored } = mark;
-
-  return colored ? (
-    <img
-      aria-hidden
-      alt=""
-      src={src}
-      draggable={false}
-      className={cn("size-4 shrink-0 object-contain", className)}
-    />
-  ) : (
-    <span
-      aria-hidden
-      className={cn("inline-block size-4 shrink-0 bg-current", className)}
-      style={{ mask: `url("${src}") center / contain no-repeat` }}
+  return (
+    <LogoMark
+      logo={Object.hasOwn(MARKS, provider) ? MARKS[provider] : undefined}
+      name={provider}
+      className={className}
     />
   );
 }

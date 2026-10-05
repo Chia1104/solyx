@@ -2,7 +2,7 @@ import { useId, useMemo, useState } from "react";
 
 import { Switch, cn } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
+import { TabList, TabPanel, Tabs } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
@@ -21,6 +21,12 @@ import { ProviderMark } from "../agent/agent-provider-mark.tsx";
 
 import { AddAgentProvider } from "./add-agent-provider.tsx";
 import { ChatGPTSignIn } from "./chatgpt-sign-in.tsx";
+import {
+  PROVIDER_GRID,
+  PROVIDER_PANEL,
+  ProviderTile,
+  TileTone,
+} from "./provider-tile.tsx";
 import { SecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { agentSettingsQuery, secretsQuery } from "./settings-query.ts";
@@ -49,32 +55,19 @@ function ProviderTab({
         : t("settings.agent.provider-states.needs-key");
 
   return (
-    <Tab
+    <ProviderTile
       id={provider}
-      className={cn(
-        "grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-3 rounded p-3 ring-offset-2 ring-offset-background outline-none",
-        !enabled
-          ? "border border-separator text-muted"
-          : usable
-            ? "border border-border bg-surface"
-            : "pencil",
-        "data-focus-visible:ring-2 data-focus-visible:ring-focus not-data-selected:data-hovered:border-muted data-selected:ring-2 data-selected:not-data-focus-visible:ring-foreground"
-      )}>
-      <ProviderMark
-        provider={provider}
-        className={cn("size-5", !enabled && "opacity-60 grayscale")}
-      />
-      <span className="col-span-2 flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-sm font-medium">{name}</span>
-        <span className="truncate text-xs text-muted">{state}</span>
-      </span>
-      {/* Placed beside the mark but last in order, so the tab is named for its provider first. */}
-      {isDefault ? (
-        <span className="col-start-2 row-start-1 text-xs text-accent">
-          {t("settings.agent.provider-default")}
-        </span>
-      ) : null}
-    </Tab>
+      mark={
+        <ProviderMark
+          provider={provider}
+          className={cn("size-5", !enabled && "opacity-60 grayscale")}
+        />
+      }
+      name={name}
+      state={state}
+      tone={!enabled ? TileTone.Quiet : usable ? TileTone.Ink : TileTone.Pencil}
+      badge={isDefault ? t("settings.agent.provider-default") : undefined}
+    />
   );
 }
 
@@ -267,7 +260,6 @@ export function AgentSettings() {
               }}
             />
           </div>
-          {/* HeroUI's Tabs draw a segmented control, so the grid of tiles composes react-aria's. */}
           <Tabs
             selectedKey={selected}
             onSelectionChange={(key) => {
@@ -278,7 +270,7 @@ export function AgentSettings() {
             className="flex flex-col gap-3">
             <TabList
               aria-labelledby={providersLabelId}
-              className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
+              className={PROVIDER_GRID}>
               {shown.map((each) => (
                 <ProviderTab
                   key={each.provider}
@@ -291,7 +283,7 @@ export function AgentSettings() {
               <TabPanel
                 key={each.provider}
                 id={each.provider}
-                className="outline-none data-focus-visible:ring-2 data-focus-visible:ring-focus">
+                className={PROVIDER_PANEL}>
                 {providerRows(each)}
               </TabPanel>
             ))}
