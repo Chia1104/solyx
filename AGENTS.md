@@ -60,6 +60,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - A type assertion needs a `SAFETY:` comment; prefer narrowing, `satisfies` or a parser at the boundary so the assertion is not needed.
 - Use the Oxlint, Oxfmt and Vitest that ship with Vite+. Lint, format and staged rules live in the root `vite.config.ts` because Vite+ ignores nested configs; the pre-commit hook in `.vite-hooks/pre-commit` runs `vp staged`.
 - `vp run` executes tasks in a clean environment, so most variables set outside it do not reach the task.
+- Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org): `type(scope): summary`, with a type such as `feat`, `fix`, `refactor`, `docs`, `test` or `chore`. The scope is the package or app that owns the change, as in `feat(desktop): …` or `fix(decisions): …`, and is left out when the change spans several.
 
 <!--VITE PLUS START-->
 
