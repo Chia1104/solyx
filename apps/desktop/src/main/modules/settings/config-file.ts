@@ -111,6 +111,8 @@ const configSchema = section(
     ),
     agent: section(
       z.looseObject({
+        // The default model's provider is always among them, listed or not.
+        providers: z.array(agentProviderSchema).catch([]),
         provider: agentProviderSchema.catch(AgentProvider.Anthropic),
         // Model ids differ by provider, so the reader falls back to the provider's default.
         model: textSchema,
@@ -155,7 +157,15 @@ type ConfigPath =
   | ["providers", "fubon", FubonFile]
   | [
       "agent",
-      "provider" | "model" | "thinking" | "auth" | "sharedSkills" | "shell",
+      (
+        | "providers"
+        | "provider"
+        | "model"
+        | "thinking"
+        | "auth"
+        | "sharedSkills"
+        | "shell"
+      ),
     ]
   | ["agent", "mcpTools", string]
   | ["news", "collectEveryHours"]
@@ -204,7 +214,9 @@ const TEMPLATE = [
   '    "fubon": { "sdk": "", "certificate": "" }',
   "  },",
   '  "agent": {',
-  `    // Whose models run the agent, on the key saved in the app: ${quoted(AgentProvider)}.`,
+  `    // The providers whose models a conversation may pick, each on the key saved in the app: ${quoted(AgentProvider)}.`,
+  '    "providers": [],',
+  "    // The model new conversations start on: its provider, always switched on, and its model id below.",
   `    "provider": "${DEFAULTS.agent.provider}",`,
   "    // The provider's model id; the settings page lists them.",
   `    "model": "${DEFAULT_MODEL[DEFAULTS.agent.provider]}",`,

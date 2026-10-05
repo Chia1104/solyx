@@ -21,6 +21,7 @@
     "@hookform/resolvers": "catalog:forms",
     "@hugeicons/core-free-icons": "catalog:ui",
     "@hugeicons/react": "catalog:ui",
+    "@lobehub/icons-static-svg": "catalog:ui",
     "@solyx/agent": "workspace:*",
     "@solyx/brokers": "workspace:*",
     "@solyx/core": "workspace:*",

@@ -1,10 +1,11 @@
 import { createModelCatalog } from "@solyx/agent/models";
 import {
   AgentAuth,
+  AgentProvider,
   DEFAULT_MODEL,
   hasSubscription,
 } from "@solyx/agent/providers";
-import type { AgentProvider } from "@solyx/agent/providers";
+import type { AgentModelPick } from "@solyx/agent/providers";
 import type { AgentModelChoice } from "@solyx/agent/runtime";
 
 import { AGENT_PROVIDER_SECRET, SecretState } from "#shared/ipc/settings.ts";
@@ -36,9 +37,9 @@ export interface AgentModelsOptions {
 }
 
 /**
- * The model the agent runs on and how it is paid for, as the config file, the saved keys and
- * subscription sign-ins pick them. A model the provider does not list reads as the provider's
- * default.
+ * The providers the user switched on, the model new conversations start on and how each provider
+ * is paid for, as the config file, the saved keys and subscription sign-ins pick them. A model a
+ * provider does not list reads as that provider's default.
  */
 export function createAgentModels({
   config,
@@ -60,72 +61,92 @@ export function createAgentModels({
     openExternal,
   });
 
-  const keySaved = async (provider: AgentProvider) =>
-    (await secrets.state(AGENT_PROVIDER_SECRET[provider])) ===
-    SecretState.Saved;
+  /** Switched on by the user, or the default model's, which cannot be switched off. */
+  function enabled(provider: AgentProvider) {
+    const { agent } = config.read();
 
-  function selection() {
-    const { provider, model, thinking } = config.read().agent;
+    return provider === agent.provider || agent.providers.includes(provider);
+  }
 
-    return {
-      provider,
-      auth: agentAuth(config, provider),
-      model: catalog.model(provider, model),
-      thinking,
-    };
+  /** The provider's key is saved, or its subscription signed in, whichever it is paid by. */
+  async function usable(provider: AgentProvider) {
+    return agentAuth(config, provider) === AgentAuth.Subscription
+      ? credentials.signedIn(provider)
+      : (await secrets.state(AGENT_PROVIDER_SECRET[provider])) ===
+          SecretState.Saved;
   }
 
   return {
     models: catalog.models,
 
     async settings(): Promise<AgentSettings> {
-      const { provider, auth, model, thinking } = selection();
-
-      const subscription = hasSubscription(provider)
-        ? { signedIn: await credentials.signedIn(provider) }
-        : null;
+      const { provider, model, thinking } = config.read().agent;
+      const found = catalog.model(provider, model);
 
       return {
+        providers: await Promise.all(
+          Object.values(AgentProvider).map(async (each) => ({
+            provider: each,
+            enabled: enabled(each),
+            auth: agentAuth(config, each),
+            subscription: hasSubscription(each)
+              ? { signedIn: await credentials.signedIn(each) }
+              : null,
+            usable: await usable(each),
+          }))
+        ),
         provider,
-        model: model?.id ?? DEFAULT_MODEL[provider],
+        model: found?.id ?? DEFAULT_MODEL[provider],
         thinking,
-        auth,
-        subscription,
-        models: catalog.options(provider),
-        ready:
-          model !== undefined &&
-          (auth === AgentAuth.Subscription
-            ? subscription?.signedIn === true
-            : await keySaved(provider)),
+        models: Object.values(AgentProvider)
+          .filter(enabled)
+          .flatMap((each) => catalog.options(each)),
+        ready: found !== undefined && (await usable(provider)),
       };
     },
 
-    async choice(): Promise<AgentModelChoice> {
-      const { provider, auth, model, thinking } = selection();
+    /** The conversation's own model, or the default one where `pick` names none. */
+    async choice(
+      pick: AgentModelPick = { model: null, thinking: null }
+    ): Promise<AgentModelChoice> {
+      const defaults = config.read().agent;
+
+      const { provider, id } = pick.model ?? {
+        provider: defaults.provider,
+        id: defaults.model,
+      };
+
+      if (!enabled(provider)) {
+        throw new Error(
+          `${provider} is switched off in Settings; switch it on or pick another model`
+        );
+      }
+
+      const model = catalog.model(provider, id);
 
       if (!model) {
         throw new Error(`Pick a model for ${provider} in Settings first`);
       }
 
-      if (auth === AgentAuth.Subscription) {
-        if (!(await credentials.signedIn(provider))) {
-          throw new Error(`Sign in to ${provider} in Settings first`);
-        }
-      } else if (!(await keySaved(provider))) {
-        throw new Error(`Save an API key for ${provider} in Settings first`);
+      if (!(await usable(provider))) {
+        throw new Error(
+          agentAuth(config, provider) === AgentAuth.Subscription
+            ? `Sign in to ${provider} in Settings first`
+            : `Save an API key for ${provider} in Settings first`
+        );
       }
 
-      return { model, thinking };
+      return { model, thinking: pick.thinking ?? defaults.thinking };
     },
 
     /** Resolves once the sign-in is saved, or quietly once it is cancelled; the page is written in `locale`. */
-    signIn: (locale: Locale) =>
-      catalog.signIn(selection().provider, (outcome, detail) =>
+    signIn: (provider: AgentProvider, locale: Locale) =>
+      catalog.signIn(provider, (outcome, detail) =>
         signInPage(locale, SignInFlow.ChatGPT, outcome, detail)
       ),
 
     cancelSignIn: () => catalog.cancelSignIn(),
 
-    signOut: () => catalog.signOut(selection().provider),
+    signOut: (provider: AgentProvider) => catalog.signOut(provider),
   };
 }

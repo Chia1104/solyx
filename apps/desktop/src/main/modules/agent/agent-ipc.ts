@@ -1,5 +1,6 @@
 import * as z from "zod";
 
+import { agentModelPickSchema } from "@solyx/agent/providers";
 import { approvalModeSchema } from "@solyx/agent/wire";
 import { symbolRefSchema } from "@solyx/core/market";
 
@@ -28,6 +29,7 @@ const schemas = {
   abort: z.tuple([idSchema]),
   approve: z.tuple([idSchema, idSchema, z.boolean()]),
   setApprovalMode: z.tuple([idSchema, approvalModeSchema]),
+  setModel: z.tuple([idSchema, agentModelPickSchema]),
 };
 
 export function registerAgentIpc({ agent }: Services) {
@@ -41,5 +43,6 @@ export function registerAgentIpc({ agent }: Services) {
     approve: async (id, toolCallId, approved) =>
       agent.approve(id, toolCallId, approved),
     setApprovalMode: (id, mode) => agent.setApprovalMode(id, mode),
+    setModel: (id, pick) => agent.setModel(id, pick),
   });
 }

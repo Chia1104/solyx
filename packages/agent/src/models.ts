@@ -35,6 +35,7 @@ export interface ModelCatalogOptions {
 
 /** A model the user can pick. */
 export interface AgentModelOption {
+  provider: AgentProvider;
   id: string;
   name: string;
   reasoning: boolean;
@@ -90,7 +91,7 @@ export function createModelCatalog({
     options(provider: AgentProvider): AgentModelOption[] {
       return models
         .getModels(provider)
-        .map(({ id, name, reasoning }) => ({ id, name, reasoning }));
+        .map(({ id, name, reasoning }) => ({ provider, id, name, reasoning }));
     },
 
     /**

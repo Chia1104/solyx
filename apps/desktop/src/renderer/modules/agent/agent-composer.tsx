@@ -20,6 +20,7 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
+import type { AgentModelPick } from "@solyx/agent/providers";
 import { ApprovalMode, emptyAgentView } from "@solyx/agent/wire";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -29,8 +30,10 @@ import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 import { listingName, useListingName } from "../market/listing-name.tsx";
 import { listingQuery } from "../market/listing-query.ts";
+import { agentSettingsQuery } from "../settings/settings-query.ts";
 
 import { ApprovalModeMenu } from "./agent-approval-mode.tsx";
+import { AgentModelPicker } from "./agent-model-picker.tsx";
 import { agentQueryKeys, agentSessionsQuery } from "./agent-query.ts";
 import { useAgentStore } from "./agent-store.ts";
 
@@ -144,6 +147,16 @@ export function AgentComposer({
     return id;
   }
 
+  const { data: settings } = useQuery(agentSettingsQuery());
+  const current = sessions?.find((each) => each.id === sessionId);
+
+  const setModel = useMutation({
+    mutationFn: async (pick: AgentModelPick) =>
+      window.solyx.agent.setModel(await session(), pick),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: agentQueryKeys.sessions }),
+  });
+
   const setApprovalMode = useMutation({
     mutationFn: async (mode: ApprovalMode) =>
       window.solyx.agent.setApprovalMode(await session(), mode),
@@ -225,11 +238,26 @@ export function AgentComposer({
             )}
           />
           <div className="flex items-center justify-between gap-2 px-1.5 pb-1.5">
-            <ApprovalModeMenu
-              mode={approvalMode}
-              isDisabled={setApprovalMode.isPending}
-              onChange={(mode) => setApprovalMode.mutate(mode)}
-            />
+            <div className="flex min-w-0 items-center gap-1">
+              <ApprovalModeMenu
+                mode={approvalMode}
+                isDisabled={setApprovalMode.isPending}
+                onChange={(mode) => setApprovalMode.mutate(mode)}
+              />
+              {settings ? (
+                <AgentModelPicker
+                  settings={settings}
+                  pick={{
+                    model: current?.model ?? null,
+                    thinking: current?.thinking ?? null,
+                  }}
+                  // A run keeps the model it started on, so the next one takes the change.
+                  isDisabled={running}
+                  isPending={setModel.isPending}
+                  onChange={(pick) => setModel.mutate(pick)}
+                />
+              ) : null}
+            </div>
             {running && sessionId !== null ? (
               <Button
                 isIconOnly
@@ -255,6 +283,12 @@ export function AgentComposer({
           </div>
         </div>
       </div>
+      {setModel.error ? (
+        <ErrorAlert
+          title={t("agent.model-picker.failed")}
+          description={setModel.error.message}
+        />
+      ) : null}
       {setApprovalMode.error ? (
         <ErrorAlert
           title={t("agent.approval-mode.failed")}

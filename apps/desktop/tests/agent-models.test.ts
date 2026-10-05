@@ -11,7 +11,11 @@ import {
   vi,
 } from "vite-plus/test";
 
-import { AgentAuth, AgentProvider } from "@solyx/agent/providers";
+import {
+  AgentAuth,
+  AgentProvider,
+  AgentThinking,
+} from "@solyx/agent/providers";
 
 import { Locale, Secret } from "#shared/ipc/settings.ts";
 
@@ -49,6 +53,77 @@ function setup() {
   return { config, secrets, models };
 }
 
+const providerOf = async (
+  models: ReturnType<typeof setup>["models"],
+  provider: AgentProvider
+) =>
+  (await models.settings()).providers.find(
+    (each) => each.provider === provider
+  );
+
+describe("picking a model", () => {
+  test("only providers switched on offer their models, the default model's always", async () => {
+    const { config, models } = setup();
+
+    config.set(["agent", "provider"], AgentProvider.Anthropic);
+
+    const offered = async () =>
+      new Set((await models.settings()).models.map((model) => model.provider));
+
+    expect(await offered()).toEqual(new Set([AgentProvider.Anthropic]));
+    expect(await providerOf(models, AgentProvider.Google)).toMatchObject({
+      enabled: false,
+    });
+
+    config.set(["agent", "providers"], [AgentProvider.Google]);
+
+    expect(await offered()).toEqual(
+      new Set([AgentProvider.Anthropic, AgentProvider.Google])
+    );
+  });
+
+  test("a conversation runs on its own model, or on the default where it picked none", async () => {
+    const { config, secrets, models } = setup();
+
+    config.set(["agent", "provider"], AgentProvider.Anthropic);
+    config.set(["agent", "providers"], [AgentProvider.OpenAI]);
+    await secrets.save(Secret.AnthropicApiKey, "sk-ant-test");
+    await secrets.save(Secret.OpenAIApiKey, "sk-test");
+
+    expect((await models.choice()).model.provider).toBe(
+      AgentProvider.Anthropic
+    );
+
+    const picked = await models.choice({
+      model: { provider: AgentProvider.OpenAI, id: "gpt-6.1-sol" },
+      thinking: AgentThinking.High,
+    });
+
+    expect(picked).toMatchObject({
+      model: { provider: AgentProvider.OpenAI, id: "gpt-6.1-sol" },
+      thinking: AgentThinking.High,
+    });
+  });
+
+  test("a model of a provider switched off, or without its key, does not run", async () => {
+    const { config, secrets, models } = setup();
+
+    const pick = {
+      model: { provider: AgentProvider.Google, id: "gemini-3.1-pro-preview" },
+      thinking: null,
+    };
+
+    config.set(["agent", "provider"], AgentProvider.Anthropic);
+    await secrets.save(Secret.AnthropicApiKey, "sk-ant-test");
+
+    await expect(models.choice(pick)).rejects.toThrow("switched off");
+
+    config.set(["agent", "providers"], [AgentProvider.Google]);
+
+    await expect(models.choice(pick)).rejects.toThrow("Save an API key");
+  });
+});
+
 describe("paying by subscription", () => {
   test("runs on the stored sign-in, with no key of its own", async () => {
     const { config, secrets, models } = setup();
@@ -57,10 +132,11 @@ describe("paying by subscription", () => {
     config.set(["agent", "model"], "gpt-6.1-sol");
     config.set(["agent", "auth"], AgentAuth.Subscription);
 
-    expect(await models.settings()).toMatchObject({
+    expect(await models.settings()).toMatchObject({ ready: false });
+    expect(await providerOf(models, AgentProvider.OpenAI)).toMatchObject({
       auth: AgentAuth.Subscription,
       subscription: { signedIn: false },
-      ready: false,
+      usable: false,
     });
     await expect(models.choice()).rejects.toThrow("Sign in to openai");
 
@@ -74,9 +150,10 @@ describe("paying by subscription", () => {
       })
     );
 
-    expect(await models.settings()).toMatchObject({
+    expect(await models.settings()).toMatchObject({ ready: true });
+    expect(await providerOf(models, AgentProvider.OpenAI)).toMatchObject({
       subscription: { signedIn: true },
-      ready: true,
+      usable: true,
     });
 
     expect((await models.choice()).model.id).toBe("gpt-6.1-sol");
@@ -99,14 +176,15 @@ describe("paying by subscription", () => {
     config.set(["agent", "auth"], AgentAuth.Subscription);
     await secrets.save(Secret.AnthropicApiKey, "sk-ant-test");
 
-    expect(await models.settings()).toMatchObject({
+    expect(await models.settings()).toMatchObject({ ready: true });
+    expect(await providerOf(models, AgentProvider.Anthropic)).toMatchObject({
       auth: AgentAuth.ApiKey,
       subscription: null,
-      ready: true,
+      usable: true,
     });
     await expect(models.choice()).resolves.toBeDefined();
-    await expect(models.signIn(Locale.EnUS)).rejects.toThrow(
-      "no subscription sign-in"
-    );
+    await expect(
+      models.signIn(AgentProvider.Anthropic, Locale.EnUS)
+    ).rejects.toThrow("no subscription sign-in");
   });
 });

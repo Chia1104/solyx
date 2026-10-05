@@ -309,6 +309,9 @@ catalogs:
     '@hugeicons/react':
       specifier: 1.1.10
       version: 1.1.10
+    '@lobehub/icons-static-svg':
+      specifier: 1.95.1
+      version: 1.95.1
     zustand:
       specifier: 5.0.15
       version: 5.0.15
@@ -353,6 +356,9 @@ importers:
       '@hugeicons/react':
         specifier: catalog:ui
         version: 1.1.10(react@19.3.0)
+      '@lobehub/icons-static-svg':
+        specifier: catalog:ui
+        version: 1.95.1
       '@solyx/agent':
         specifier: workspace:*
         version: link:../../packages/agent
@@ -1334,6 +1340,9 @@ packages:
   '@js-temporal/polyfill@0.5.1':
     resolution: {integrity: sha512-hloP58zRVCRSpgDxmqCWJNlizAlUgJFqG2ypq79DCvyv9tHjRYMDOcPFjzfl/A1/YxDvRCZz8wvZvmapQnKwFQ==}
     engines: {node: '>=12'}
+
+  '@lobehub/icons-static-svg@1.95.1':
+    resolution: {integrity: sha512-Hw7EPPgVnC4NZLXBfTNJG6hyQgqECfUPC11VVXodPSr1aebKcFxDZlSpxhWwYNdCc6bhxps/x5TtXoPmfKH2ag==}
 
   '@oxc-project/runtime@0.151.0':
     resolution: {integrity: sha512-fNuliiqGTseerW2FTbxq6UOQavKL/NvNh9K3peJZZVNi1NbM4Ehscwp3MX9nu+9bfbSfmPUEivF779XQU5exiw==}
@@ -4571,6 +4580,8 @@ snapshots:
   '@js-temporal/polyfill@0.5.1':
     dependencies:
       jsbi: 4.3.2
+
+  '@lobehub/icons-static-svg@1.95.1': {}
 
   '@oxc-project/runtime@0.151.0': {}
 

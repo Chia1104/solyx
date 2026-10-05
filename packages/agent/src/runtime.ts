@@ -36,7 +36,11 @@ import * as z from "zod";
 
 import { ApprovalDoc, createApprovalGate } from "./approval.ts";
 import type { ToolGuard } from "./approval.ts";
-import type { AgentThinking } from "./providers.ts";
+import type {
+  AgentModelPick,
+  AgentModelRef,
+  AgentThinking,
+} from "./providers.ts";
 import { firstLine } from "./text.ts";
 import { createToolsetLoader } from "./toolset.ts";
 import type { Toolset } from "./toolset.ts";
@@ -67,8 +71,11 @@ export interface AgentConversationStore {
 export interface AgentRuntimeOptions {
   store: Promise<AgentConversationStore>;
   models: Models;
-  /** Rejects with a message the user can act on while the model or its key is not set up. */
-  model(): Promise<AgentModelChoice>;
+  /**
+   * The model a run uses: the conversation's `pick`, or the user's default where it has none.
+   * Rejects with a message the user can act on while that model or its key is not set up.
+   */
+  model(pick: AgentModelPick): Promise<AgentModelChoice>;
   /**
    * The host's tools, built again before every run and before resuming, so a run sees the tools,
    * servers and policies of the moment it starts. A tool that must ask goes through `guard`, so
@@ -87,17 +94,37 @@ export interface AgentTurn {
   context: string;
 }
 
+const untunedSessionSchema = z.object({
+  title: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+
 const SessionDoc = defineDoc<{
   title: string;
   createdAt: number;
   updatedAt: number;
+  model: AgentModelRef | null;
+  thinking: AgentThinking | null;
 }>({
   kind: "solyx.session",
-  version: 1,
+  version: 2,
   scope: "conversation",
   history: "latest",
   fork: "initial",
-  initial: () => ({ title: "", createdAt: 0, updatedAt: 0 }),
+  initial: () => ({
+    title: "",
+    createdAt: 0,
+    updatedAt: 0,
+    model: null,
+    thinking: null,
+  }),
+  // Version 1 had no model of its own, so every conversation ran on the default.
+  migrate: (value) => ({
+    ...untunedSessionSchema.parse(value),
+    model: null,
+    thinking: null,
+  }),
 });
 
 type Block = AssistantMessage["content"][number];
@@ -590,7 +617,21 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         createdAt: at,
         updatedAt: at,
         approvalMode: ApprovalMode.Ask,
+        model: null,
+        thinking: null,
       };
+    },
+
+    /** Sets what the conversation runs on from its next run: a model of its own, or the default. */
+    async setModel(sessionId: string, pick: AgentModelPick) {
+      const conversation = await conversationOf(sessionId);
+
+      await conversation.commit(async (tx) => {
+        const session = await tx.doc(SessionDoc, conversation.id);
+
+        session.model = pick.model;
+        session.thinking = pick.thinking;
+      }, BACKGROUND_CONTEXT);
     },
 
     /** Sets how the conversation's calls that must ask get past the gate, from its next call on. */
@@ -645,7 +686,17 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         throw busy;
       }
 
-      const { model, thinking } = await options.model();
+      const session =
+        (await harness.snapshot(
+          SessionDoc,
+          conversation.id,
+          BACKGROUND_CONTEXT
+        )) ?? SessionDoc.definition.initial();
+
+      const { model, thinking } = await options.model({
+        model: session.model,
+        thinking: session.thinking,
+      });
 
       await toolset.load();
 

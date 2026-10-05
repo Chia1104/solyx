@@ -228,6 +228,14 @@
       },
       "failed": "Couldn't change how tools are allowed"
     },
+    "model-picker": {
+      "label": "Model",
+      "default": "Default ({{model}})",
+      "search": "Search models",
+      "empty": "No models match.",
+      "needs-setup": "needs a key or sign-in",
+      "failed": "Couldn't change the model"
+    },
     "analysis": {
       "code": "Script",
       "command": "Command",
@@ -521,8 +529,12 @@
     },
     "agent": {
       "title": "AI agent",
-      "description": "The agent runs on your own API key, or on your ChatGPT subscription for OpenAI. Requests go straight from this computer to the provider you pick.",
-      "provider": "Provider",
+      "description": "Switch on the providers whose models you want to use, each on your own API key, or on your ChatGPT subscription for OpenAI. Requests go straight from this computer to the provider. Every conversation can pick its own model.",
+      "providers-description": "Providers",
+      "default-description": "Default model: what a conversation runs on until you pick another for it",
+      "default-provider": "Provider",
+      "provider-is-default": "The default model's provider, so it stays on",
+      "enable-provider": "Use {{provider}}'s models",
       "auth": "Pay with",
       "auth-description": "A subscription runs the agent on your plan's allowance instead of billing each request.",
       "auths": {

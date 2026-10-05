@@ -200,23 +200,35 @@ export interface CacheUsage {
 
 /** A model the agent can run on, from its provider's catalog. */
 export interface AgentModelOption {
+  provider: AgentProvider;
   id: string;
   name: string;
   /** Whether the thinking setting applies to it. */
   reasoning: boolean;
 }
 
-export interface AgentSettings {
+/** One provider as the settings page lists it. */
+export interface AgentProviderSettings {
   provider: AgentProvider;
-  model: string;
-  thinking: AgentThinking;
+  /** Its models are offered to conversations; the default model's provider always is. */
+  enabled: boolean;
   /** Always `api-key` for a provider without a subscription sign-in. */
   auth: AgentAuth;
   /** `null` for a provider without a subscription sign-in. */
   subscription: { signedIn: boolean } | null;
-  /** The provider's chat models, in its catalog's order. */
+  /** Its key is saved or its subscription signed in, so its models can run. */
+  usable: boolean;
+}
+
+export interface AgentSettings {
+  providers: AgentProviderSettings[];
+  /** The model new conversations start on, and one keeps until the user picks its own. */
+  provider: AgentProvider;
+  model: string;
+  thinking: AgentThinking;
+  /** The chat models of every provider switched on, each provider's in its catalog's order. */
   models: AgentModelOption[];
-  /** The key is saved or the subscription signed in, and the catalog has the model, so the agent can run. */
+  /** The default model's provider can run and its catalog has the model, so the agent can run. */
   ready: boolean;
 }
 
@@ -365,18 +377,23 @@ export interface SettingsApi {
   /** Signs in to Fubon again with the saved settings; the market data status reports the outcome. */
   signInFubon(): Promise<void>;
   agent(): Promise<AgentSettings>;
-  /** Switches the agent to the provider's default model as well. */
+  /** Lets conversations pick the provider's models, or stops offering them. */
+  setAgentProviderEnabled(
+    provider: AgentProvider,
+    enabled: boolean
+  ): Promise<void>;
+  /** Makes the provider's default model the one new conversations start on. */
   setAgentProvider(provider: AgentProvider): Promise<void>;
   setAgentModel(model: string): Promise<void>;
   setAgentThinking(thinking: AgentThinking): Promise<void>;
   setAgentAuth(auth: AgentAuth): Promise<void>;
   /**
-   * Signs in to the agent provider's subscription in the browser, resolving once the sign-in is
-   * saved or cancelled. The page the browser lands on is written in `locale`.
+   * Signs in to the provider's subscription in the browser, resolving once the sign-in is saved
+   * or cancelled. The page the browser lands on is written in `locale`.
    */
-  signInSubscription(locale: Locale): Promise<void>;
+  signInSubscription(provider: AgentProvider, locale: Locale): Promise<void>;
   cancelSignIn(): Promise<void>;
-  signOutSubscription(): Promise<void>;
+  signOutSubscription(provider: AgentProvider): Promise<void>;
   news(): Promise<NewsSettings>;
   setNewsCollectEveryHours(hours: number): Promise<void>;
   decisions(): Promise<DecisionsSettings>;
@@ -441,6 +458,7 @@ export const settingsChannels = {
   chooseFubonFile: "settings:choose-fubon-file",
   signInFubon: "settings:sign-in-fubon",
   agent: "settings:agent",
+  setAgentProviderEnabled: "settings:set-agent-provider-enabled",
   setAgentProvider: "settings:set-agent-provider",
   setAgentModel: "settings:set-agent-model",
   setAgentThinking: "settings:set-agent-thinking",

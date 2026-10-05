@@ -6,6 +6,8 @@
 
 import * as z from "zod";
 
+import type { AgentModelRef, AgentThinking } from "./providers.ts";
+
 /** How a conversation's calls that must ask get past the approval gate. */
 export const ApprovalMode = {
   /** Each call waits for the user to allow it. */
@@ -28,6 +30,10 @@ export interface AgentSession {
   createdAt: number;
   updatedAt: number;
   approvalMode: ApprovalMode;
+  /** The model the user picked for it; `null` follows the default model. */
+  model: AgentModelRef | null;
+  /** How long its model thinks; `null` follows the default. */
+  thinking: AgentThinking | null;
 }
 
 /** The agent's tools, which the renderer labels and whose `details` it narrows by name. */

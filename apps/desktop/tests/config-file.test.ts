@@ -54,6 +54,7 @@ test("a missing file reads as the defaults, which a new file's commented templat
     marketData: { TW: MarketDataSource.Fugle },
     providers: { fugle: { plan: FuglePlan.Basic }, fubon: {} },
     agent: {
+      providers: [],
       provider: AgentProvider.Anthropic,
       thinking: AgentThinking.Medium,
       auth: AgentAuth.ApiKey,

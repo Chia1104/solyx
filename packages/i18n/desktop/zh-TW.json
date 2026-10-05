@@ -228,6 +228,14 @@
       },
       "failed": "無法變更工具的允許方式"
     },
+    "model-picker": {
+      "label": "模型",
+      "default": "預設（{{model}}）",
+      "search": "搜尋模型",
+      "empty": "沒有符合的模型。",
+      "needs-setup": "需要金鑰或登入",
+      "failed": "無法變更模型"
+    },
     "analysis": {
       "code": "腳本",
       "command": "指令",
@@ -521,8 +529,12 @@
     },
     "agent": {
       "title": "AI Agent",
-      "description": "Agent 使用你自己的 API 金鑰；OpenAI 也可以改用你的 ChatGPT 訂閱。請求直接從這台電腦送到你選的服務商。",
-      "provider": "服務商",
+      "description": "啟用你要使用的供應商，各自用你自己的 API 金鑰，OpenAI 也可以用 ChatGPT 訂閱。請求會從這台電腦直接送到供應商。每個對話都可以選自己的模型。",
+      "providers-description": "供應商",
+      "default-description": "預設模型：對話在你另外選擇之前使用的模型",
+      "default-provider": "供應商",
+      "provider-is-default": "預設模型的供應商，所以維持啟用",
+      "enable-provider": "使用 {{provider}} 的模型",
       "auth": "付費方式",
       "auth-description": "訂閱會用你方案內的額度執行 Agent，不按每次請求計費。",
       "auths": {

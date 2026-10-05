@@ -7,6 +7,7 @@ import { omit } from "es-toolkit";
 
 import { createAnalysis } from "@solyx/agent/analysis";
 import { formatContext } from "@solyx/agent/prompt";
+import type { AgentModelPick } from "@solyx/agent/providers";
 import { createAgentRuntime } from "@solyx/agent/runtime";
 import type { AgentConversationStore } from "@solyx/agent/runtime";
 import { createShell } from "@solyx/agent/shell";
@@ -110,7 +111,7 @@ export function createAgentService(options: AgentServiceOptions) {
   const runtime = createAgentRuntime({
     store: options.conversations,
     models: models.models,
-    model: () => models.choice(),
+    model: (pick) => models.choice(pick),
     async tools(guard) {
       const mcp = await options.mcp.extensions(guard);
 
@@ -155,6 +156,8 @@ export function createAgentService(options: AgentServiceOptions) {
 
     setApprovalMode: (id: string, mode: ApprovalMode) =>
       runtime.setApprovalMode(id, mode),
+
+    setModel: (id: string, pick: AgentModelPick) => runtime.setModel(id, pick),
 
     /** Closes the conversations, then the scripts and MCP servers their runs used, as the app quits. */
     async close() {

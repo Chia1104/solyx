@@ -138,6 +138,17 @@ export function createSettingsApi({
 
     agent: () => agent.models.settings(),
 
+    async setAgentProviderEnabled(provider, enabled) {
+      const current = config.read().agent.providers;
+
+      config.set(
+        ["agent", "providers"],
+        enabled
+          ? uniq([...current, provider])
+          : current.filter((each) => each !== provider)
+      );
+    },
+
     // A model id means nothing to another provider, so switching starts from its default.
     async setAgentProvider(provider) {
       config.update([
@@ -158,11 +169,12 @@ export function createSettingsApi({
       config.set(["agent", "auth"], auth);
     },
 
-    signInSubscription: (locale) => agent.models.signIn(locale),
+    signInSubscription: (provider, locale) =>
+      agent.models.signIn(provider, locale),
 
     cancelSignIn: async () => agent.models.cancelSignIn(),
 
-    signOutSubscription: () => agent.models.signOut(),
+    signOutSubscription: (provider) => agent.models.signOut(provider),
 
     news: async () => ({
       collectEveryHours: config.read().news.collectEveryHours,

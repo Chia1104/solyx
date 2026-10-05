@@ -1,3 +1,4 @@
+import type { AgentModelPick } from "@solyx/agent/providers";
 import type {
   AgentSession,
   AgentWireEvent,
@@ -37,6 +38,8 @@ export interface AgentApi {
   approve(id: string, toolCallId: string, approved: boolean): Promise<void>;
   /** Sets whether the conversation's tool calls ask first, from its next call on. */
   setApprovalMode(id: string, mode: ApprovalMode): Promise<void>;
+  /** Sets the model the conversation runs on from its next run; `null` parts follow the default. */
+  setModel(id: string, pick: AgentModelPick): Promise<void>;
 }
 
 export interface AgentUpdate {
@@ -58,6 +61,7 @@ export const agentChannels = {
   abort: "agent:abort",
   approve: "agent:approve",
   setApprovalMode: "agent:set-approval-mode",
+  setModel: "agent:set-model",
 } as const satisfies Record<keyof AgentApi, string>;
 
 export const agentEvents = {

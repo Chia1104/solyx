@@ -18,7 +18,7 @@ import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { AgentThinking } from "../src/providers.ts";
+import { AgentProvider, AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
 import type { AgentConversationStore } from "../src/runtime.ts";
 import {
@@ -744,6 +744,60 @@ test("in a conversation set to auto, a tool nothing can judge still asks", async
   await ended();
 
   expect(placed).toHaveBeenCalledOnce();
+
+  await runtime.close();
+});
+
+test("a conversation's own model and thinking reach the run, and one without them follows the default", async () => {
+  const faux = fauxProvider();
+  const models = createModels();
+  const events: AgentWireEvent[] = [];
+
+  const model = vi.fn(async () => ({
+    model: faux.getModel(),
+    thinking: AgentThinking.Off,
+  }));
+
+  models.setProvider(faux.provider);
+
+  const runtime = createAgentRuntime({
+    store: Promise.resolve(memoryStore()),
+    models,
+    model,
+    tools: only(NO_TOOLS),
+    onEvent: (_sessionId, event) => events.push(event),
+  });
+
+  const ended = (count: number) =>
+    vi.waitFor(() =>
+      expect(
+        events.filter((event) => event.type === AgentEventType.RunEnd)
+      ).toHaveLength(count)
+    );
+
+  const { id } = await runtime.create();
+
+  faux.setResponses([
+    fauxAssistantMessage("One."),
+    fauxAssistantMessage("Two."),
+  ]);
+
+  await runtime.send(id, { text: "First", context: "" });
+  await ended(1);
+
+  expect(model).toHaveBeenLastCalledWith({ model: null, thinking: null });
+
+  const pick = {
+    model: { provider: AgentProvider.OpenAI, id: "gpt-6.1-sol" },
+    thinking: AgentThinking.High,
+  };
+
+  await runtime.setModel(id, pick);
+  await runtime.send(id, { text: "Second", context: "" });
+  await ended(2);
+
+  expect(model).toHaveBeenLastCalledWith(pick);
+  expect(await runtime.sessions()).toMatchObject([{ id, ...pick }]);
 
   await runtime.close();
 });

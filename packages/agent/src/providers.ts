@@ -38,6 +38,22 @@ export type AgentThinking = (typeof AgentThinking)[keyof typeof AgentThinking];
 
 export const agentThinkingSchema = z.enum(AgentThinking);
 
+/** A model, named by its provider and that provider's id for it; neither half alone is a key. */
+export const agentModelRefSchema = z.object({
+  provider: agentProviderSchema,
+  id: z.string().min(1).max(200),
+});
+
+export type AgentModelRef = z.infer<typeof agentModelRefSchema>;
+
+/** What a conversation runs on in place of the user's defaults; `null` follows the default. */
+export const agentModelPickSchema = z.object({
+  model: agentModelRefSchema.nullable(),
+  thinking: agentThinkingSchema.nullable(),
+});
+
+export type AgentModelPick = z.infer<typeof agentModelPickSchema>;
+
 /** Each provider's most capable model, used until the user picks one. */
 export const DEFAULT_MODEL: Record<AgentProvider, string> = {
   [AgentProvider.Anthropic]: "claude-fable-5-1",

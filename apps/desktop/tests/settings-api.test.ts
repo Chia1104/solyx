@@ -134,6 +134,19 @@ test("switching the agent's provider starts from its default model, in one save"
   });
 });
 
+test("a provider is switched on once, and off again", async () => {
+  const { api, config } = setup();
+
+  await api.setAgentProviderEnabled(AgentProvider.Google, true);
+  await api.setAgentProviderEnabled(AgentProvider.Google, true);
+
+  expect(config.read().agent.providers).toEqual([AgentProvider.Google]);
+
+  await api.setAgentProviderEnabled(AgentProvider.Google, false);
+
+  expect(config.read().agent.providers).toEqual([]);
+});
+
 test("a shared skill is switched on once, and off again", async () => {
   const { api, config } = setup();
 
