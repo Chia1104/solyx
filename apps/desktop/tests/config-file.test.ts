@@ -27,7 +27,7 @@ let file: string;
 
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "solyx-config-"));
-  file = join(directory, ".solyx", "config.jsonc");
+  file = join(directory, ".solyx", "config.json");
 });
 
 afterEach(() => rm(directory, { recursive: true, force: true }));
@@ -35,7 +35,7 @@ afterEach(() => rm(directory, { recursive: true, force: true }));
 const fuglePlan = (config: ReturnType<typeof createConfigFile>) =>
   config.read().providers.fugle.plan;
 
-test("a missing file reads as the defaults, which a new file's commented template holds", async () => {
+test("a missing file reads as the defaults, which a new file's template holds beside its schema", async () => {
   const config = createConfigFile(file);
   const defaults = config.read();
 
@@ -64,33 +64,48 @@ test("a missing file reads as the defaults, which a new file's commented templat
 
   config.create();
 
-  // The template names the decisions model and endpoint, and its empty model and paths read as not chosen.
+  // The template names its schema, and the decisions model and endpoint.
   expect(config.read()).toEqual({
+    $schema: "./config.schema.json",
     ...defaults,
     decisions: { model: TYPESAFE_DEFAULT_MODEL, baseURL: TYPESAFE_BASE_URL },
   });
-  expect(await readFile(file, "utf8")).toMatch(/^\/\/ /);
+  expect(JSON.parse(await readFile(file, "utf8"))).toMatchObject({
+    $schema: "./config.schema.json",
+  });
+  expect(
+    JSON.parse(
+      await readFile(join(directory, ".solyx", "config.schema.json"), "utf8")
+    )
+  ).toMatchObject({
+    properties: {
+      agent: {
+        properties: {
+          thinking: {
+            default: AgentThinking.Medium,
+            enum: Object.values(AgentThinking),
+          },
+        },
+      },
+    },
+  });
 
   if (process.platform !== "win32") {
     expect((await stat(file)).mode & 0o777).toBe(0o600);
   }
 });
 
-test("saving a plan edits it in place, keeping comments and other keys", async () => {
+test("saving a plan keeps the entries around it, the app's and others alike", async () => {
   const config = createConfigFile(file);
 
   config.create();
   await writeFile(
     file,
-    [
-      "// my notes",
-      "{",
-      '  "appearance": { "theme": "dark" }, // kept',
-      '  "providers": {',
-      '    "fugle": { "plan": "developer", "region": "tw" },',
-      "  },",
-      "}",
-    ].join("\n")
+    JSON.stringify({
+      $schema: "./config.schema.json",
+      appearance: { theme: "dark" },
+      providers: { fugle: { plan: "developer", region: "tw" } },
+    })
   );
 
   expect(fuglePlan(config)).toBe("developer");
@@ -98,16 +113,19 @@ test("saving a plan edits it in place, keeping comments and other keys", async (
   config.set(["providers", "fugle", "plan"], "advanced");
   config.set(["providers", "fubon", "sdk"], "/sdk/package");
 
-  const text = await readFile(file, "utf8");
-
   expect(fuglePlan(config)).toBe("advanced");
   expect(config.read().providers.fubon.sdk).toBe("/sdk/package");
-  expect(text).toContain("// my notes");
-  expect(text).toContain('"appearance": { "theme": "dark" }, // kept');
-  expect(text).toContain('"region": "tw"');
+  expect(JSON.parse(await readFile(file, "utf8"))).toEqual({
+    $schema: "./config.schema.json",
+    appearance: { theme: "dark" },
+    providers: {
+      fugle: { plan: "advanced", region: "tw" },
+      fubon: { sdk: "/sdk/package" },
+    },
+  });
 });
 
-test("an update saves every entry and keeps the file's comments", async () => {
+test("an update saves every entry", async () => {
   const config = createConfigFile(file);
 
   config.create();
@@ -122,24 +140,30 @@ test("an update saves every entry and keeps the file's comments", async () => {
     "github/get_issue": "auto",
   });
   expect(config.read().appearance.theme).toBe("dark");
-  expect(await readFile(file, "utf8")).toMatch(/^\/\/ /);
 });
 
 test("saving beneath an entry of the wrong shape replaces it, since it reads as its default", async () => {
   const config = createConfigFile(file);
 
   config.create();
-  await writeFile(file, '{ "providers": { "fugle": "developer" } } // kept');
+  await writeFile(file, '{ "providers": { "fugle": "developer" } }');
 
   config.set(["providers", "fugle", "plan"], "advanced");
+  // Nothing stands beneath a palette that is not an object, so removing a colour leaves it.
+  config.set(["appearance", "palettes", "dusk", "light", "accent"], undefined);
 
   expect(fuglePlan(config)).toBe("advanced");
-  expect(await readFile(file, "utf8")).toContain("// kept");
+  expect(JSON.parse(await readFile(file, "utf8"))).toEqual({
+    providers: { fugle: { plan: "advanced" } },
+  });
 });
 
 test("a file with syntax errors reads as defaults and is never overwritten", async () => {
   const config = createConfigFile(file);
-  const broken = '{ "providers": { "fugle": { "plan": "developer" }';
+
+  // Comments are not JSON.
+  const broken =
+    '{ "providers": { "fugle": { "plan": "developer" } } } // mine';
 
   config.create();
   await writeFile(file, broken);

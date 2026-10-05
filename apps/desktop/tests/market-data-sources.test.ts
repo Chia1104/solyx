@@ -70,7 +70,7 @@ beforeEach(async () => {
 afterEach(() => rm(directory, { recursive: true, force: true }));
 
 function setup() {
-  const configFile = join(directory, ".solyx", "config.jsonc");
+  const configFile = join(directory, ".solyx", "config.json");
   const config = createConfigFile(configFile);
 
   config.create();

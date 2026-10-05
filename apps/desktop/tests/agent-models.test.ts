@@ -32,7 +32,7 @@ beforeEach(async () => {
 afterEach(() => rm(directory, { recursive: true, force: true }));
 
 function setup() {
-  const config = createConfigFile(join(directory, "config.jsonc"));
+  const config = createConfigFile(join(directory, "config.json"));
 
   const secrets = createSecretStore(
     join(directory, "secrets.json"),

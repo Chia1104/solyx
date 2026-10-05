@@ -85,7 +85,7 @@ export function createServices() {
     join(import.meta.dirname, "migrations", "cache")
   );
 
-  const config = createConfigFile(join(configDir, "config.jsonc"));
+  const config = createConfigFile(join(configDir, "config.json"));
 
   config.create();
 

@@ -26,7 +26,7 @@ beforeEach(async () => {
 afterEach(() => rm(directory, { recursive: true, force: true }));
 
 function setup() {
-  const config = createConfigFile(join(directory, ".solyx", "config.jsonc"));
+  const config = createConfigFile(join(directory, ".solyx", "config.json"));
   const onChange = vi.fn();
 
   config.create();

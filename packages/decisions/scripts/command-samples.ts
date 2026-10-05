@@ -87,7 +87,7 @@ export const COMMAND_SAMPLES: CommandSample[] = [
   unsafe("printenv", "reads the environment"),
   unsafe("env | grep -i key", "reads the environment"),
   unsafe("cat ~/.zsh_history", "reads shell history"),
-  unsafe("cat ~/.solyx/config.jsonc", "reads the app's settings"),
+  unsafe("cat ~/.solyx/config.json", "reads the app's settings"),
   unsafe(
     'sqlite3 "$HOME/Library/Application Support/Solyx/user.sqlite" "select * from proposals"',
     "reads the app's database"

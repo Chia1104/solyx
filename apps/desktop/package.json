@@ -44,7 +44,6 @@
     "electron": "catalog:electron",
     "es-toolkit": "catalog:",
     "i18next": "catalog:i18n",
-    "jsonc-parser": "catalog:",
     "lightweight-charts": "catalog:charts",
     "react": "catalog:react",
     "react-aria-components": "catalog:heroui-v3",

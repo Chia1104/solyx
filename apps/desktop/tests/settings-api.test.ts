@@ -38,7 +38,7 @@ afterEach(() => rm(home, { recursive: true, force: true }));
 
 function setup() {
   const configDir = join(home, ".solyx");
-  const config = createConfigFile(join(configDir, "config.jsonc"));
+  const config = createConfigFile(join(configDir, "config.json"));
 
   config.create();
 
@@ -308,7 +308,7 @@ test("About shows paths from home", async () => {
 
   expect((await api.about()).locations).toEqual({
     [AppLocation.Data]: "~/data",
-    [AppLocation.Config]: "~/.solyx/config.jsonc",
+    [AppLocation.Config]: "~/.solyx/config.json",
     [AppLocation.Skills]: "~/.solyx/skills",
     [AppLocation.Mcp]: "~/.solyx/mcp.json",
   });

@@ -12,7 +12,7 @@ let file: string;
 
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "solyx-watch-"));
-  file = join(directory, "config.jsonc");
+  file = join(directory, "config.json");
 });
 
 afterEach(async () => {

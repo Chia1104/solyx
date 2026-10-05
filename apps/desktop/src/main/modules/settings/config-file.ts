@@ -1,14 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 
-import {
-  applyEdits,
-  findNodeAtLocation,
-  modify,
-  parse,
-  parseTree,
-} from "jsonc-parser";
-import type { ParseError } from "jsonc-parser";
+import { isPlainObject } from "es-toolkit";
 import * as z from "zod";
 
 import {
@@ -48,8 +41,6 @@ import {
 } from "#shared/palette.ts";
 import type { CustomPalette, PaletteToken } from "#shared/palette.ts";
 
-const PARSE_OPTIONS = { allowTrailingComma: true };
-
 // Text that is empty or of the wrong shape reads as missing.
 const textSchema = z.string().trim().min(1).optional().catch(undefined);
 
@@ -65,22 +56,34 @@ function section<T extends z.ZodType>(schema: T) {
 
 // An entry that no longer parses reads as its default, so one bad edit leaves the rest of the file
 // in force. Loose objects keep keys this build does not know, so saving never drops someone's edits.
+// Descriptions document each entry in the JSON Schema an editor checks the file against.
 const configSchema = section(
   z.looseObject({
     appearance: section(
       z
         .looseObject({
-          theme: themeSchema.catch(Theme.System),
+          theme: themeSchema
+            .catch(Theme.System)
+            .meta({ description: "Light or dark, or follow the computer." }),
           palette: section(
             z.looseObject({
               [ColorScheme.Light]: paletteIdSchema,
               [ColorScheme.Dark]: paletteIdSchema,
             })
-          ),
-          palettes: customPalettesSchema,
-          priceColors: priceColorsSchema.catch(PriceColors.Market),
+          ).meta({
+            description:
+              'The palette each appearance shows, built in or an id from "palettes".',
+          }),
+          palettes: customPalettesSchema.meta({
+            description:
+              'Your own palettes by id. Each starts from a built-in one in "extends" and sets the colours it changes as "#rrggbb", under "light" and "dark"; the settings page copies one.',
+          }),
+          priceColors: priceColorsSchema.catch(PriceColors.Market).meta({
+            description:
+              'Which colour marks a rise; "market" is red in Taiwan and green in the US.',
+          }),
         })
-        .transform(({ palette, ...appearance }) => {
+        .transform((appearance) => {
           // A palette that is neither built in nor one of the user's reads as the default.
           const known = (id: string) =>
             hasPalette(id, appearance.palettes) ? id : Palette.Blueprint;
@@ -88,24 +91,37 @@ const configSchema = section(
           return {
             ...appearance,
             palette: {
-              [ColorScheme.Light]: known(palette.light),
-              [ColorScheme.Dark]: known(palette.dark),
+              [ColorScheme.Light]: known(appearance.palette.light),
+              [ColorScheme.Dark]: known(appearance.palette.dark),
             },
           };
         })
     ),
     marketData: section(
       z.looseObject({
-        TW: marketDataSourceSchema.catch(MarketDataSource.Fugle),
+        TW: marketDataSourceSchema
+          .catch(MarketDataSource.Fugle)
+          .meta({ description: "Where Taiwan charts come from." }),
       })
     ),
     providers: section(
       z.looseObject({
         fugle: section(
-          z.looseObject({ plan: fuglePlanSchema.catch(FuglePlan.Basic) })
+          z.looseObject({
+            plan: fuglePlanSchema
+              .catch(FuglePlan.Basic)
+              .meta({ description: "Your Fugle key's plan." }),
+          })
         ),
         fubon: section(
-          z.looseObject({ sdk: textSchema, certificate: textSchema })
+          z.looseObject({
+            sdk: textSchema.meta({
+              description: "The folder extracted from Fubon's SDK download.",
+            }),
+            certificate: textSchema.meta({
+              description: "The certificate exported from Fubon's website.",
+            }),
+          })
         ),
       })
     ),
@@ -113,38 +129,80 @@ const configSchema = section(
       z.looseObject({
         // The default model's provider is always among them, listed or not; an id the app does
         // not offer is ignored where it is read, so one stale entry keeps the rest.
-        providers: z.array(z.string()).catch([]),
-        provider: agentProviderSchema.catch(DEFAULT_PROVIDER),
+        providers: z.array(z.string()).catch([]).meta({
+          description:
+            "The providers whose models a conversation may pick, by id, each on the key saved in the app; the settings page lists them.",
+        }),
+        provider: agentProviderSchema.catch(DEFAULT_PROVIDER).meta({
+          description:
+            "The provider new conversations start on, which is always switched on.",
+        }),
         // Model ids differ by provider, so the reader falls back to the provider's default.
-        model: textSchema,
-        thinking: agentThinkingSchema.catch(AgentThinking.Medium),
-        auth: agentAuthSchema.catch(AgentAuth.ApiKey),
+        model: textSchema.meta({
+          description:
+            "The provider's model new conversations start on, by id, or its default when missing; the settings page lists them.",
+        }),
+        thinking: agentThinkingSchema.catch(AgentThinking.Medium).meta({
+          description: "How long the model thinks before it answers.",
+        }),
+        auth: agentAuthSchema.catch(AgentAuth.ApiKey).meta({
+          description:
+            "How the provider is paid for; a subscription applies to OpenAI, signed in with ChatGPT.",
+        }),
         // By provider id; an entry that is not an endpoint reads as the provider's own.
         endpoints: z
           .record(z.string(), endpointSchema.optional().catch(undefined))
-          .catch({}),
-        sharedSkills: z.array(z.string()).catch([]),
-        shell: z.boolean().catch(false),
+          .catch({})
+          .meta({
+            description:
+              "Where a provider's requests go in place of its own endpoint, by provider, such as a gateway that speaks its API; your key is sent there. OpenAI's applies only on an API key, and OpenRouter, whose models use several, takes none.",
+          }),
+        sharedSkills: z.array(z.string()).catch([]).meta({
+          description:
+            "Skills from ~/.agents/skills the agent may read, by name. The skills folder beside this file is always read.",
+        }),
+        shell: z.boolean().catch(false).meta({
+          description:
+            "Lets the agent run shell commands on this computer, each only after you allow it. They are not sandboxed.",
+        }),
         // Values are checked one by one where they are read, so one bad entry keeps the rest.
-        mcpTools: z.record(z.string(), z.string()).catch({}),
+        mcpTools: z.record(z.string(), z.string()).catch({}).meta({
+          description:
+            'Whether each MCP tool is off, asks first or runs on its own, by "server/tool"; the settings page sets them.',
+        }),
       })
     ),
     news: section(
       z.looseObject({
-        collectEveryHours: newsIntervalSchema.catch(
-          NEWS_COLLECTION_DEFAULT_HOURS
-        ),
+        collectEveryHours: newsIntervalSchema
+          .catch(NEWS_COLLECTION_DEFAULT_HOURS)
+          .meta({
+            description:
+              "How often news is collected for each watched listing, in hours; 0 turns automatic collection off. Each collection uses Firecrawl credits once its key is saved, and exchange announcements only reach back a day.",
+          }),
       })
     ),
     // Missing entries read as the decisions model's defaults where they are read.
     decisions: section(
       z.looseObject({
-        model: textSchema,
-        baseURL: endpointSchema.optional().catch(undefined),
+        model: textSchema.meta({
+          description:
+            "The decisions model that scores news and posts, on the key saved in the app; TypeSafe's models, such as Jev.",
+          default: TYPESAFE_DEFAULT_MODEL,
+        }),
+        baseURL: endpointSchema.optional().catch(undefined).meta({
+          description:
+            "Where the decisions model's requests go; change it only for a proxy or a compatible endpoint.",
+          default: TYPESAFE_BASE_URL,
+        }),
       })
     ),
   })
-);
+).meta({
+  title: "Solyx settings",
+  description:
+    "Settings Solyx reads. Edit them here or on the settings page; saving this file applies them.",
+});
 
 type Config = z.infer<typeof configSchema>;
 
@@ -188,70 +246,40 @@ type ConfigValue =
 
 export type ConfigEntry = readonly [path: ConfigPath, value: ConfigValue];
 
-const FORMATTING = { formattingOptions: { insertSpaces: true, tabSize: 2 } };
+/** The file's entries as written, so saving keeps the ones the app does not read. */
+const savedSchema = z.record(z.string(), z.json());
 
-const quoted = (values: Record<string, string>) =>
-  Object.values(values)
-    .map((value) => `"${value}"`)
-    .join(", ");
+interface Saved {
+  [key: string]: SavedValue;
+}
 
-const TEMPLATE = [
-  "// Settings Solyx reads. Edit them here or on the settings page; saving this file applies them.",
-  "{",
-  '  "appearance": {',
-  `    // Light or dark, or follow the computer: ${quoted(Theme)}.`,
-  `    "theme": "${DEFAULTS.appearance.theme}",`,
-  `    // The palette each appearance shows: ${quoted(Palette)}.`,
-  `    "palette": { "light": "${DEFAULTS.appearance.palette.light}", "dark": "${DEFAULTS.appearance.palette.dark}" },`,
-  '    // Your own palettes by id, which "palette" can name too. Each starts from a built-in one in "extends"',
-  '    // and sets the colours it changes as "#rrggbb", under "light" and "dark"; the settings page copies one.',
-  '    "palettes": {},',
-  `    // Which colour marks a rise: ${quoted(PriceColors)}; "market" is red in Taiwan and green in the US.`,
-  `    "priceColors": "${DEFAULTS.appearance.priceColors}"`,
-  "  },",
-  '  "marketData": {',
-  `    // Where Taiwan charts come from: ${quoted(MarketDataSource)}.`,
-  `    "TW": "${DEFAULTS.marketData.TW}"`,
-  "  },",
-  '  "providers": {',
-  `    // Your key's plan: ${quoted(FuglePlan)}.`,
-  `    "fugle": { "plan": "${DEFAULTS.providers.fugle.plan}" },`,
-  "    // The folder extracted from Fubon's SDK download, and the certificate exported from its website.",
-  '    "fubon": { "sdk": "", "certificate": "" }',
-  "  },",
-  '  "agent": {',
-  "    // The providers whose models a conversation may pick, by id, each on the key saved in the app; the settings page lists them.",
-  '    "providers": [],',
-  "    // The model new conversations start on: its provider, always switched on, and its model id below.",
-  `    "provider": "${DEFAULTS.agent.provider}",`,
-  "    // The provider's model id, or empty for its default; the settings page lists them.",
-  '    "model": "",',
-  `    // How long the model thinks before it answers: ${quoted(AgentThinking)}.`,
-  `    "thinking": "${DEFAULTS.agent.thinking}",`,
-  `    // How the provider is paid for: ${quoted(AgentAuth)}; a subscription applies to OpenAI, signed in with ChatGPT.`,
-  `    "auth": "${DEFAULTS.agent.auth}",`,
-  "    // Where a provider's requests go in place of its own endpoint, by provider, such as a gateway that speaks its API;",
-  "    // your key is sent there. OpenAI's applies only on an API key, and OpenRouter, whose models use several, takes none.",
-  '    "endpoints": {},',
-  "    // Skills from ~/.agents/skills the agent may read, by name. The skills folder beside this file is always read.",
-  '    "sharedSkills": [],',
-  "    // Lets the agent run shell commands on this computer, each only after you allow it. They are not sandboxed.",
-  `    "shell": ${DEFAULTS.agent.shell}`,
-  "  },",
-  '  "news": {',
-  "    // How often news is collected for each watched listing, in hours; 0 turns automatic collection off.",
-  "    // Each collection uses Firecrawl credits once its key is saved, and exchange announcements only reach back a day.",
-  `    "collectEveryHours": ${DEFAULTS.news.collectEveryHours}`,
-  "  },",
-  '  "decisions": {',
-  "    // The decisions model that scores news and posts, on the key saved in the app; TypeSafe's models, such as Jev.",
-  `    "model": "${TYPESAFE_DEFAULT_MODEL}",`,
-  "    // Where its requests go; change it only for a proxy or a compatible endpoint.",
-  `    "baseURL": "${TYPESAFE_BASE_URL}"`,
-  "  }",
-  "}",
-  "",
-].join("\n");
+type SavedValue = z.infer<typeof savedSchema>[string] | ConfigValue | Saved;
+
+const isSaved = (value: SavedValue): value is Saved => isPlainObject(value);
+
+/** Named by the template's `$schema` and written beside the file. */
+const SCHEMA_FILE = "config.schema.json";
+
+const serialize = (value: Saved | Config | z.core.JSONSchema.JSONSchema) =>
+  `${JSON.stringify(value, null, 2)}\n`;
+
+// Generated from the schema the app reads with, so editors check the file against the same rules.
+const JSON_SCHEMA = serialize(
+  z.toJSONSchema(configSchema, {
+    io: "input",
+    target: "draft-07",
+    // Every entry reads as its default when missing, so none is required.
+    override: ({ jsonSchema }) => {
+      delete jsonSchema.required;
+    },
+  })
+);
+
+const TEMPLATE = serialize({
+  $schema: `./${SCHEMA_FILE}`,
+  ...DEFAULTS,
+  decisions: { model: TYPESAFE_DEFAULT_MODEL, baseURL: TYPESAFE_BASE_URL },
+});
 
 function readText(file: string): string | undefined {
   try {
@@ -263,48 +291,51 @@ function readText(file: string): string | undefined {
   }
 }
 
+/** The file's entries, or `undefined` while it has syntax errors; a file that is not an object holds none. */
+function parseSaved(text: string): Saved | undefined {
+  try {
+    return savedSchema.catch({}).parse(JSON.parse(text));
+  } catch {
+    return undefined;
+  }
+}
+
 /**
- * Writes `value` at `path`, or removes the entry for `undefined`. An entry where an object should
- * stand already reads as its default, so it is replaced by the object the value needs.
+ * Writes `value` at `path` in `saved`, or removes the entry for `undefined`. An entry where an
+ * object should stand already reads as its default, so it is replaced by the object the value needs.
  */
-function edit(text: string, path: ConfigPath, value: ConfigValue): string {
-  const root = parseTree(text, [], PARSE_OPTIONS);
+function edit(
+  saved: Saved,
+  [key, ...rest]: readonly string[],
+  value: ConfigValue
+) {
+  if (rest.length === 0) {
+    if (value === undefined) delete saved[key];
+    else saved[key] = value;
 
-  for (let depth = 1; root && depth < path.length; depth += 1) {
-    const parent = path.slice(0, depth);
-    const node = findNodeAtLocation(root, parent);
-
-    // Missing objects are created along the way.
-    if (!node) break;
-
-    if (node.type !== "object") {
-      if (value === undefined) return text;
-
-      const nested = path
-        .slice(depth)
-        .reduceRight<unknown>((inner, key) => ({ [key]: inner }), value);
-
-      return applyEdits(text, modify(text, parent, nested, FORMATTING));
-    }
+    return;
   }
 
-  return applyEdits(text, modify(text, path, value, FORMATTING));
-}
+  let entry = saved[key];
 
-/** The file's settings, or `undefined` while it has syntax errors. */
-function parseConfig(text: string): Config | undefined {
-  const errors: ParseError[] = [];
-  const value: unknown = parse(text, errors, PARSE_OPTIONS);
+  if (entry === undefined || !isSaved(entry)) {
+    // Nothing beneath an entry that is not an object can be removed.
+    if (value === undefined) return;
 
-  return errors.length > 0 ? undefined : configSchema.parse(value);
+    entry = {};
+    saved[key] = entry;
+  }
+
+  edit(entry, rest, value);
 }
 
 /**
- * Settings the main process reads, kept as JSONC for a person to edit. Every read parses the
- * file, so saved edits apply to the next request; a file with syntax errors reads as defaults
- * and is never overwritten, and the app edits values in place so comments survive.
+ * Settings the main process reads, kept as JSON for a person to edit beside the JSON Schema that
+ * documents them. Every read parses the file, so saved edits apply to the next request; a file
+ * with syntax errors reads as defaults and is never overwritten.
  */
 export function createConfigFile(file: string) {
+  const schemaFile = join(dirname(file), SCHEMA_FILE);
   const listeners = new Set<() => void>();
 
   // The text listeners last heard about, so the watcher skips the app's own saves.
@@ -316,49 +347,54 @@ export function createConfigFile(file: string) {
     for (const listener of listeners) listener();
   }
 
-  function write(text: string) {
-    const temporary = `${file}.tmp`;
+  function write(path: string, text: string) {
+    const temporary = `${path}.tmp`;
 
-    mkdirSync(dirname(file), { recursive: true });
+    mkdirSync(dirname(path), { recursive: true });
     // Written aside and renamed into place, so a crash mid-write keeps the previous file.
     writeFileSync(temporary, text, { mode: 0o600 });
-    renameSync(temporary, file);
+    renameSync(temporary, path);
   }
 
   /** Saves every entry in one write, so the file never holds only some of them. */
   function update(entries: readonly ConfigEntry[]) {
-    const text = readText(file) ?? TEMPLATE;
+    const saved = parseSaved(readText(file) ?? TEMPLATE);
 
-    if (parseConfig(text) === undefined) {
+    if (saved === undefined) {
       throw new Error(`Fix the syntax errors in ${file} before saving`);
     }
 
-    const edited = entries.reduce(
-      (current, [path, value]) => edit(current, path, value),
-      text
-    );
+    for (const [path, value] of entries) edit(saved, path, value);
 
-    write(edited);
-    announce(edited);
+    const text = serialize(saved);
+
+    write(file, text);
+    announce(text);
   }
 
   return {
     file,
 
-    /** Writes a commented template when the file does not exist yet, so there is something to edit. */
+    /**
+     * Writes this build's schema, and a template when the file does not exist yet, so there is
+     * something to edit.
+     */
     create() {
+      if (readText(schemaFile) !== JSON_SCHEMA) write(schemaFile, JSON_SCHEMA);
+
       if (readText(file) !== undefined) return;
 
-      write(TEMPLATE);
+      write(file, TEMPLATE);
       announced = TEMPLATE;
     },
 
     /** The saved settings, with the default for every entry that is missing or no longer parses. */
     read(): Config {
       const text = readText(file);
-      const saved = text === undefined ? undefined : parseConfig(text);
 
-      return saved ?? configSchema.parse({});
+      return configSchema.parse(
+        text === undefined ? undefined : parseSaved(text)
+      );
     },
 
     set(path: ConfigPath, value: ConfigValue) {
