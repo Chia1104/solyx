@@ -16,10 +16,12 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
 import { createShell } from "../src/shell.ts";
+import type { ShellOptions } from "../src/shell.ts";
 import {
   AgentEventType,
   AgentItemKind,
   AgentToolName,
+  ApprovalMode,
   ToolCallStatus,
   foldEvents,
 } from "../src/wire.ts";
@@ -40,8 +42,14 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-/** The agent on the shell alone, while `on` says the user has it switched on. */
-function setup(on: () => boolean = () => true) {
+/**
+ * The agent on the shell alone, while `on` says the user has it switched on. `judge` stands in
+ * for the decisions model, which no one has set up unless a test says so.
+ */
+function setup(
+  on: () => boolean = () => true,
+  judge: ShellOptions["judge"] = async () => undefined
+) {
   const faux = fauxProvider();
   const models = createModels();
   const events: AgentWireEvent[] = [];
@@ -52,6 +60,7 @@ function setup(on: () => boolean = () => true) {
   const shell = createShell({
     workspace: (id) => join(directory, id),
     path: async () => process.env.PATH,
+    judge,
   });
 
   const runtime = createAgentRuntime({
@@ -89,10 +98,11 @@ function setup(on: () => boolean = () => true) {
       ).toHaveLength(count)
     );
 
-  /** Starts a run whose reply runs `command`, resolving once it waits for the user. */
-  async function ask(command: string) {
+  /** Starts a run whose reply runs `command`, in a conversation set to `mode`. */
+  async function start(command: string, mode: ApprovalMode = ApprovalMode.Ask) {
     const { id } = await runtime.create();
 
+    await runtime.setApprovalMode(id, mode);
     faux.setResponses([
       fauxAssistantMessage(fauxToolCall(AgentToolName.Bash, { command }), {
         stopReason: "toolUse",
@@ -101,6 +111,14 @@ function setup(on: () => boolean = () => true) {
     ]);
 
     await runtime.send(id, { text: "Run it", context: "" });
+
+    return id;
+  }
+
+  /** Starts such a run, resolving once its command waits for the user. */
+  async function ask(command: string, mode?: ApprovalMode) {
+    const id = await start(command, mode);
+
     await vi.waitFor(() =>
       expect(call()).toMatchObject({ status: ToolCallStatus.AwaitingApproval })
     );
@@ -112,7 +130,7 @@ function setup(on: () => boolean = () => true) {
     return { id, toolCallId: waiting.toolCallId };
   }
 
-  return { faux, runtime, offered, done, call, ended, ask };
+  return { faux, runtime, events, offered, done, call, ended, start, ask };
 }
 
 const exists = (path: string) =>
@@ -160,6 +178,64 @@ posix("a command the user refuses never runs", async () => {
 
   await runtime.close();
 });
+
+posix(
+  "in a conversation set to auto, a command the model judges harmless runs unasked, and the transcript says who allowed it",
+  async () => {
+    const judge = vi.fn(async () => ({ changes: 0.04, network: 0.02 }));
+    const { runtime, events, call, ended, start } = setup(() => true, judge);
+    const id = await start("printf ok", ApprovalMode.Auto);
+
+    await ended();
+
+    expect(judge).toHaveBeenCalledWith(
+      { command: "printf ok", shell: "bash" },
+      expect.anything()
+    );
+    expect(call()).toMatchObject({
+      status: ToolCallStatus.Ok,
+      output: "ok",
+      autoApproved: true,
+    });
+    expect(
+      events.some((event) => event.type === AgentEventType.ApprovalRequest)
+    ).toBe(false);
+
+    // Read back, as a window opened later would, the call still shows as the model's.
+    expect(
+      foldEvents(await runtime.transcript(id)).items.find(
+        (item) => item.kind === AgentItemKind.Tool
+      )
+    ).toMatchObject({ autoApproved: true });
+
+    await runtime.close();
+  }
+);
+
+posix.each([
+  ["one risk is likely", async () => ({ changes: 0.04, network: 0.9 })],
+  ["no decisions model is set up", async () => undefined],
+  [
+    "the judgement fails",
+    async () => {
+      throw new Error("The decisions API is down");
+    },
+  ],
+] satisfies [string, ShellOptions["judge"]][])(
+  "in a conversation set to auto, a command still asks when %s",
+  async (_case, judge) => {
+    const { runtime, call, ended, ask } = setup(() => true, judge);
+    const { id, toolCallId } = await ask("printf ok", ApprovalMode.Auto);
+
+    runtime.approve(id, toolCallId, true);
+    await ended();
+
+    expect(call()).toMatchObject({ status: ToolCallStatus.Ok });
+    expect(call()).not.toMatchObject({ autoApproved: true });
+
+    await runtime.close();
+  }
+);
 
 test("the shell is offered only while it is switched on", async () => {
   let on = true;

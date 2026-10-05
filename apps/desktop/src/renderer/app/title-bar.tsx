@@ -1,11 +1,19 @@
 import type { Ref } from "react";
 
 import { Button, Kbd, Tooltip, cn } from "@heroui/react";
+import {
+  Settings01Icon,
+  SidebarLeft01Icon,
+  SidebarLeftIcon,
+  SidebarRight01Icon,
+  SidebarRightIcon,
+} from "@hugeicons/core-free-icons";
 import { formatForDisplay } from "@tanstack/react-hotkeys";
 import { Link, useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { GearIcon, PaneIcon } from "../components/icons.tsx";
+import { Icon } from "../components/icon.tsx";
+import { SplitterEdge } from "../components/pane-splitter.tsx";
 import { WindowTitleBar } from "../components/window-title-bar.tsx";
 import { BrokerModeChip } from "../modules/account/broker-mode-chip.tsx";
 import { MarketSessions } from "../modules/market/market-sessions.tsx";
@@ -15,6 +23,12 @@ import { PANE_HOTKEY } from "./hotkeys.ts";
 import { PANE_EDGE, Pane, paneId, useLayoutStore } from "./layout-store.ts";
 
 const TOOLTIP_DELAY = 600;
+
+// The window with the pane at each edge, drawn differently while the pane is open.
+const PANE_ICON = {
+  [SplitterEdge.Start]: { closed: SidebarLeftIcon, open: SidebarLeft01Icon },
+  [SplitterEdge.End]: { closed: SidebarRightIcon, open: SidebarRight01Icon },
+};
 
 function PaneToggle({ pane }: { pane: Pane }) {
   const { t } = useTranslation();
@@ -33,7 +47,7 @@ function PaneToggle({ pane }: { pane: Pane }) {
         aria-expanded={open}
         aria-controls={paneId(pane)}
         onPress={() => toggle(pane)}>
-        <PaneIcon edge={PANE_EDGE[pane]} open={open} />
+        <Icon icon={PANE_ICON[PANE_EDGE[pane]][open ? "open" : "closed"]} />
       </Button>
       <Tooltip.Content className="flex items-center gap-2">
         {label}
@@ -61,7 +75,7 @@ function SettingsButton() {
         aria-label={t("nav.settings")}
         className={cn(open && "bg-default")}
         onPress={() => void navigate({ to: "/settings" })}>
-        <GearIcon />
+        <Icon icon={Settings01Icon} />
       </Button>
       <Tooltip.Content>{t("nav.settings")}</Tooltip.Content>
     </Tooltip>

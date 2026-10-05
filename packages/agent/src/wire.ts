@@ -6,6 +6,20 @@
 
 import * as z from "zod";
 
+/** How a conversation's calls that must ask get past the approval gate. */
+export const ApprovalMode = {
+  /** Each call waits for the user to allow it. */
+  Ask: "ask",
+  /** A shell command the decisions model judges harmless runs; every other call still asks. */
+  Auto: "auto",
+  /** Calls run without asking, shell commands included. */
+  Bypass: "bypass",
+} as const;
+
+export type ApprovalMode = (typeof ApprovalMode)[keyof typeof ApprovalMode];
+
+export const approvalModeSchema = z.enum(ApprovalMode);
+
 /** One conversation with the agent. */
 export interface AgentSession {
   id: string;
@@ -13,6 +27,7 @@ export interface AgentSession {
   title: string;
   createdAt: number;
   updatedAt: number;
+  approvalMode: ApprovalMode;
 }
 
 /** The agent's tools, which the renderer labels and whose `details` it narrows by name. */
@@ -148,6 +163,8 @@ export type AgentWireEvent =
       type: typeof AgentEventType.ApprovalResolved;
       toolCallId: string;
       approved: boolean;
+      /** The decisions model allowed the call, in a conversation set to auto, not the user. */
+      auto?: boolean;
     }
   | {
       type: typeof AgentEventType.RunEnd;
@@ -199,6 +216,8 @@ export interface ToolCallView {
   error?: string;
   details?: unknown;
   output?: string;
+  /** The decisions model let the call run without asking the user. */
+  autoApproved?: boolean;
 }
 
 /** How a run that did not simply finish ended. */
@@ -341,13 +360,14 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
       if (tool?.kind !== AgentItemKind.Tool) return view;
 
       // Refused, the call still ends through its own `tool:end`, as an error.
-      items[index] = {
-        ...tool,
-        status:
-          event.type === AgentEventType.ApprovalRequest
-            ? ToolCallStatus.AwaitingApproval
-            : ToolCallStatus.Running,
-      };
+      items[index] =
+        event.type === AgentEventType.ApprovalRequest
+          ? { ...tool, status: ToolCallStatus.AwaitingApproval }
+          : {
+              ...tool,
+              status: ToolCallStatus.Running,
+              autoApproved: event.auto,
+            };
 
       return { ...view, items };
     }

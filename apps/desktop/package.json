@@ -19,6 +19,8 @@
     "@heroui/react": "catalog:heroui-v3",
     "@heroui/styles": "catalog:heroui-v3",
     "@hookform/resolvers": "catalog:forms",
+    "@hugeicons/core-free-icons": "catalog:ui",
+    "@hugeicons/react": "catalog:ui",
     "@solyx/agent": "workspace:*",
     "@solyx/brokers": "workspace:*",
     "@solyx/core": "workspace:*",

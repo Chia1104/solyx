@@ -10,22 +10,28 @@ import {
   cn,
 } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowUp02Icon,
+  ChartCandlestickIcon,
+  StopIcon,
+} from "@hugeicons/core-free-icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { emptyAgentView } from "@solyx/agent/wire";
+import { ApprovalMode, emptyAgentView } from "@solyx/agent/wire";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
 import { currentLocale } from "../../app/i18n.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { CandlesIcon, SendIcon, StopIcon } from "../../components/icons.tsx";
+import { Icon } from "../../components/icon.tsx";
 import { listingName, useListingName } from "../market/listing-name.tsx";
 import { listingQuery } from "../market/listing-query.ts";
 
-import { agentQueryKeys } from "./agent-query.ts";
+import { ApprovalModeMenu } from "./agent-approval-mode.tsx";
+import { agentQueryKeys, agentSessionsQuery } from "./agent-query.ts";
 import { useAgentStore } from "./agent-store.ts";
 
 // An empty message only disables sending, so it needs no message of its own.
@@ -48,7 +54,10 @@ function FocusAttachment({ focus }: { focus: SymbolRef }) {
         "flex h-7 items-center gap-2 px-2 text-xs",
         !attached && "text-muted"
       )}>
-      <CandlesIcon className="size-3.5 shrink-0 text-muted" />
+      <Icon
+        icon={ChartCandlestickIcon}
+        className="size-3.5 shrink-0 text-muted"
+      />
       <span className="min-w-0 flex-1 truncate">
         {attached ? label : t("agent.context.detached", { label })}
       </span>
@@ -116,20 +125,35 @@ export function AgentComposer({
     setDraft(null);
   }, [draft, form, setDraft]);
 
+  const { data: sessions } = useQuery(agentSessionsQuery());
+
+  const approvalMode =
+    sessions?.find((session) => session.id === sessionId)?.approvalMode ??
+    ApprovalMode.Ask;
+
+  /** The conversation on screen, started first when there is none. */
+  async function session() {
+    if (sessionId !== null) return sessionId;
+
+    const { id } = await window.solyx.agent.createSession();
+
+    // Seeded before it is shown, so the run's first events fold in without a fetch.
+    queryClient.setQueryData(agentQueryKeys.transcript(id), emptyAgentView());
+    select(id);
+
+    return id;
+  }
+
+  const setApprovalMode = useMutation({
+    mutationFn: async (mode: ApprovalMode) =>
+      window.solyx.agent.setApprovalMode(await session(), mode),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: agentQueryKeys.sessions }),
+  });
+
   const send = useMutation({
     mutationFn: async (message: string) => {
-      let id = sessionId;
-
-      if (id === null) {
-        ({ id } = await window.solyx.agent.createSession());
-        // Seeded before it is shown, so the run's first events fold in without a fetch.
-        queryClient.setQueryData(
-          agentQueryKeys.transcript(id),
-          emptyAgentView()
-        );
-        select(id);
-      }
-
+      const id = await session();
       const locale = currentLocale();
 
       await window.solyx.agent.send(
@@ -174,7 +198,7 @@ export function AgentComposer({
             <FocusAttachment focus={focus} />
           </div>
         ) : null}
-        <div className="relative rounded-sm border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus">
+        <div className="rounded-sm border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus">
           <Controller
             control={form.control}
             name="text"
@@ -183,7 +207,7 @@ export function AgentComposer({
                 <TextArea
                   {...field}
                   rows={1}
-                  className="block field-sizing-content max-h-50 min-h-16 w-full resize-none rounded-none border-0 bg-transparent py-2 pr-10 pl-3 text-sm leading-6 shadow-none ring-0"
+                  className="block field-sizing-content max-h-50 min-h-10 w-full resize-none rounded-none border-0 bg-transparent px-3 pt-2 pb-1 text-sm leading-6 shadow-none ring-0"
                   placeholder={t("agent.placeholder")}
                   onKeyDown={(event) => {
                     if (
@@ -200,7 +224,12 @@ export function AgentComposer({
               </TextField>
             )}
           />
-          <div className="absolute right-1.5 bottom-1.5">
+          <div className="flex items-center justify-between gap-2 px-1.5 pb-1.5">
+            <ApprovalModeMenu
+              mode={approvalMode}
+              isDisabled={setApprovalMode.isPending}
+              onChange={(mode) => setApprovalMode.mutate(mode)}
+            />
             {running && sessionId !== null ? (
               <Button
                 isIconOnly
@@ -209,7 +238,7 @@ export function AgentComposer({
                 aria-label={t("agent.stop")}
                 isPending={abort.isPending}
                 onPress={() => abort.mutate(sessionId)}>
-                <StopIcon />
+                <Icon icon={StopIcon} />
               </Button>
             ) : (
               <Button
@@ -220,12 +249,18 @@ export function AgentComposer({
                 aria-label={t("agent.send")}
                 isPending={send.isPending}
                 isDisabled={!text.trim()}>
-                <SendIcon />
+                <Icon icon={ArrowUp02Icon} />
               </Button>
             )}
           </div>
         </div>
       </div>
+      {setApprovalMode.error ? (
+        <ErrorAlert
+          title={t("agent.approval-mode.failed")}
+          description={setApprovalMode.error.message}
+        />
+      ) : null}
     </Form>
   );
 }

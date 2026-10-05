@@ -2,6 +2,7 @@ import type { SentimentScorer } from "@solyx/core/sentiment";
 import {
   TYPESAFE_BASE_URL,
   TYPESAFE_DEFAULT_MODEL,
+  createTypeSafeCommandJudge,
   createTypeSafeScorer,
 } from "@solyx/decisions/typesafe";
 
@@ -43,6 +44,17 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
       const { model, baseURL } = settings();
 
       return createTypeSafeScorer({ apiKey, model, baseURL });
+    },
+
+    /** Judges the agent's shell commands; `undefined` until the user saves a key. */
+    async commandJudge() {
+      const apiKey = await secrets.get(Secret.DecisionsApiKey);
+
+      if (apiKey === undefined) return undefined;
+
+      const { model, baseURL } = settings();
+
+      return createTypeSafeCommandJudge({ apiKey, model, baseURL });
     },
   };
 }

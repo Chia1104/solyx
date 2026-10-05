@@ -214,6 +214,20 @@
       "open": "Open",
       "cancel": "Cancel"
     },
+    "approval-mode": {
+      "label": "How should the agent's actions be allowed?",
+      "modes": {
+        "ask": "Ask first",
+        "auto": "Allow for me",
+        "bypass": "Don't ask"
+      },
+      "descriptions": {
+        "ask": "Tool calls and shell commands wait for you to allow them",
+        "auto": "Shell commands judged harmless run on their own; everything else still asks",
+        "bypass": "Tool calls and shell commands run without waiting for you"
+      },
+      "failed": "Couldn't change how tools are allowed"
+    },
     "analysis": {
       "code": "Script",
       "command": "Command",
@@ -225,6 +239,7 @@
       "shell-description": "This command runs on your computer with your access to its files and the network. Check it before you allow it.",
       "allow": "Allow",
       "deny": "Don't allow",
+      "auto-allowed": "allowed by the decisions model",
       "failed": "Couldn't send your answer"
     }
   },
@@ -582,7 +597,7 @@
       "instructions-missing": "Not written",
       "warnings-title": "Some skill files don't follow the Agent Skills format",
       "shell": "Shell",
-      "shell-description": "Lets the agent run commands on this computer, which a skill needs to run its scripts. Every command waits for you to allow it. Commands are not sandboxed: one you allow can read and change your files and reach the network. Only works with a paper account.",
+      "shell-description": "Lets the agent run commands on this computer, which a skill needs to run its scripts. Every command waits for you to allow it unless you set a conversation to not ask. Commands are not sandboxed: one you allow can read and change your files and reach the network. Only works with a paper account.",
       "shell-label": "Let the agent use the shell"
     },
     "mcp": {

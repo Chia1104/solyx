@@ -10,10 +10,11 @@ import { formatContext } from "@solyx/agent/prompt";
 import { createAgentRuntime } from "@solyx/agent/runtime";
 import type { AgentConversationStore } from "@solyx/agent/runtime";
 import { createShell } from "@solyx/agent/shell";
+import type { ShellOptions } from "@solyx/agent/shell";
 import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
 import type { SkillFolders } from "@solyx/agent/skills";
 import { createTradingExtension } from "@solyx/agent/tools";
-import type { AgentWireEvent } from "@solyx/agent/wire";
+import type { AgentWireEvent, ApprovalMode } from "@solyx/agent/wire";
 import { BrokerMode } from "@solyx/core/broker";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -35,6 +36,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   instructionsFile: string;
   /** The folder holding one folder per conversation, where its shell commands run. */
   workspaces: string;
+  /** What the decisions model makes of a shell command, for conversations set to auto. */
+  judgeCommand: ShellOptions["judge"];
   /** Where conversations persist, opening as the app starts. */
   conversations: Promise<AgentConversationStore>;
   marketData: MarketData;
@@ -78,7 +81,11 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const workspace = (id: string) => join(options.workspaces, id);
 
-  const shell = createShell({ workspace, path: loginShellPath() });
+  const shell = createShell({
+    workspace,
+    path: loginShellPath(),
+    judge: options.judgeCommand,
+  });
 
   const trading = createTradingExtension({
     marketData: options.marketData,
@@ -145,6 +152,9 @@ export function createAgentService(options: AgentServiceOptions) {
 
     approve: (id: string, toolCallId: string, approved: boolean) =>
       runtime.approve(id, toolCallId, approved),
+
+    setApprovalMode: (id: string, mode: ApprovalMode) =>
+      runtime.setApprovalMode(id, mode),
 
     /** Closes the conversations, then the scripts and MCP servers their runs used, as the app quits. */
     async close() {

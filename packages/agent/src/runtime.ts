@@ -44,6 +44,7 @@ import { createTranscriber, replyText, userContent } from "./transcript.ts";
 import type { Transcriber } from "./transcript.ts";
 import {
   AgentEventType,
+  ApprovalMode,
   DeltaChannel,
   RunEndReason,
   ToolCallStatus,
@@ -300,12 +301,13 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     return entries.reverse();
   }
 
+  /** The conversation's approval mode and what its calls that asked were answered. */
   async function approvalsOf(id: ConversationId) {
     const { harness } = await opened;
 
     return (
-      (await harness.snapshot(ApprovalDoc, id, BACKGROUND_CONTEXT))?.answers ??
-      {}
+      (await harness.snapshot(ApprovalDoc, id, BACKGROUND_CONTEXT)) ??
+      ApprovalDoc.definition.initial()
     );
   }
 
@@ -556,6 +558,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
               record.id,
               BACKGROUND_CONTEXT
             )) ?? SessionDoc.definition.initial()),
+            approvalMode: (await approvalsOf(record.id)).mode,
           }))
       );
 
@@ -586,7 +589,17 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         title: "",
         createdAt: at,
         updatedAt: at,
+        approvalMode: ApprovalMode.Ask,
       };
+    },
+
+    /** Sets how the conversation's calls that must ask get past the gate, from its next call on. */
+    async setApprovalMode(sessionId: string, mode: ApprovalMode) {
+      const conversation = await conversationOf(sessionId);
+
+      await conversation.commit(async (tx) => {
+        (await tx.doc(ApprovalDoc, conversation.id)).mode = mode;
+      }, BACKGROUND_CONTEXT);
     },
 
     /**

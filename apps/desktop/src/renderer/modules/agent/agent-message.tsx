@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 
 import { Disclosure, Spinner, cn } from "@heroui/react";
+import { Tick02Icon } from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
 import type { MessageView } from "@solyx/agent/wire";
 
-import { CheckIcon } from "../../components/icons.tsx";
+import { Icon } from "../../components/icon.tsx";
 
 import { ActivityMark } from "./agent-activity.tsx";
 import { AgentMarkdown } from "./agent-markdown.tsx";
@@ -78,7 +79,7 @@ function AgentThinking({ message }: { message: MessageView }) {
             {live ? (
               <Spinner size="sm" color="current" className="size-3" />
             ) : (
-              <CheckIcon className="size-3" />
+              <Icon icon={Tick02Icon} className="size-3" />
             )}
           </ActivityMark>
           {live ? t("agent.thinking") : t("agent.thought")}

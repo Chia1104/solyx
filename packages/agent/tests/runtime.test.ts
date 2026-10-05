@@ -24,6 +24,7 @@ import type { AgentConversationStore } from "../src/runtime.ts";
 import {
   AgentEventType,
   AgentItemKind,
+  ApprovalMode,
   RunEndReason,
   ToolCallStatus,
   foldEvents,
@@ -596,8 +597,10 @@ function approvalSetup(store = memoryStore()) {
     );
 
   /** Starts the run and resolves the call's id once it waits for the user. */
-  async function ask() {
+  async function ask(mode: ApprovalMode = ApprovalMode.Ask) {
     const { id } = await runtime.create();
+
+    await runtime.setApprovalMode(id, mode);
 
     await runtime.send(id, { text: "Buy 2330", context: "" });
     await vi.waitFor(() =>
@@ -706,4 +709,41 @@ test("a transcript read from storage still shows what the user answered", async 
   ]);
 
   await second.runtime.close();
+});
+
+test("a conversation the user set to bypass runs its guarded calls without asking", async () => {
+  const { runtime, events, placed, ended } = approvalSetup();
+  const { id } = await runtime.create();
+
+  expect(await runtime.sessions()).toMatchObject([
+    { id, approvalMode: ApprovalMode.Ask },
+  ]);
+
+  await runtime.setApprovalMode(id, ApprovalMode.Bypass);
+  await runtime.send(id, { text: "Buy 2330", context: "" });
+  await ended();
+
+  expect(placed).toHaveBeenCalledOnce();
+  expect(
+    events.some((event) => event.type === AgentEventType.ApprovalRequest)
+  ).toBe(false);
+  expect(await runtime.sessions()).toMatchObject([
+    { id, approvalMode: ApprovalMode.Bypass },
+  ]);
+
+  await runtime.close();
+});
+
+test("in a conversation set to auto, a tool nothing can judge still asks", async () => {
+  const { runtime, placed, ask, ended } = approvalSetup();
+  const { id, toolCallId } = await ask(ApprovalMode.Auto);
+
+  expect(placed).not.toHaveBeenCalled();
+
+  runtime.approve(id, toolCallId, true);
+  await ended();
+
+  expect(placed).toHaveBeenCalledOnce();
+
+  await runtime.close();
 });

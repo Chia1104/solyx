@@ -1,6 +1,6 @@
 # `@solyx/decisions`
 
-Decisions models, which answer typed questions with probabilities instead of writing text: one module per vendor, each implementing the contracts in `@solyx/core/sentiment`. `./typesafe` runs TypeSafe's models, such as Jev, through `@typesafe-ai/sdk`.
+Decisions models, which answer typed questions with probabilities instead of writing text: one module per vendor, each implementing the contracts in `@solyx/core/sentiment` and judging the agent's shell commands for conversations set to auto. `./typesafe` runs TypeSafe's models, such as Jev, through `@typesafe-ai/sdk`.
 
 ## Boundaries
 
@@ -9,3 +9,4 @@ Decisions models, which answer typed questions with probabilities instead of wri
 - Questions and their wording belong to the vendor's module, because they are written against that vendor's model; a new vendor brings its own rather than sharing a generic question set. Its default model is pinned to a version for the same reason.
 - Questions say what a text does rather than what it does not: Jev is weak on negation.
 - Tests use synthetic responses shaped like the vendor's; never commit real posts or articles.
+- `scripts/eval-commands.ts` measures the command questions against labelled synthetic commands on a real key. Run it again after changing a question or the pinned model, since the agent's threshold for running a command unasked rests on its result.

@@ -1,5 +1,6 @@
 import * as z from "zod";
 
+import { approvalModeSchema } from "@solyx/agent/wire";
 import { symbolRefSchema } from "@solyx/core/market";
 
 import { agentChannels } from "#shared/ipc/agent.ts";
@@ -26,6 +27,7 @@ const schemas = {
   ]),
   abort: z.tuple([idSchema]),
   approve: z.tuple([idSchema, idSchema, z.boolean()]),
+  setApprovalMode: z.tuple([idSchema, approvalModeSchema]),
 };
 
 export function registerAgentIpc({ agent }: Services) {
@@ -38,5 +40,6 @@ export function registerAgentIpc({ agent }: Services) {
     abort: (id) => agent.abort(id),
     approve: async (id, toolCallId, approved) =>
       agent.approve(id, toolCallId, approved),
+    setApprovalMode: (id, mode) => agent.setApprovalMode(id, mode),
   });
 }

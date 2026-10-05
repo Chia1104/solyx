@@ -1,4 +1,8 @@
-import type { AgentSession, AgentWireEvent } from "@solyx/agent/wire";
+import type {
+  AgentSession,
+  AgentWireEvent,
+  ApprovalMode,
+} from "@solyx/agent/wire";
 import type { SymbolRef } from "@solyx/core/market";
 
 import type { Locale } from "./settings.ts";
@@ -31,6 +35,8 @@ export interface AgentApi {
   abort(id: string): Promise<void>;
   /** Answers a call waiting for the user to allow it. */
   approve(id: string, toolCallId: string, approved: boolean): Promise<void>;
+  /** Sets whether the conversation's tool calls ask first, from its next call on. */
+  setApprovalMode(id: string, mode: ApprovalMode): Promise<void>;
 }
 
 export interface AgentUpdate {
@@ -51,6 +57,7 @@ export const agentChannels = {
   send: "agent:send",
   abort: "agent:abort",
   approve: "agent:approve",
+  setApprovalMode: "agent:set-approval-mode",
 } as const satisfies Record<keyof AgentApi, string>;
 
 export const agentEvents = {

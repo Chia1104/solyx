@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import type { WebContents } from "electron";
-import { kebabCase } from "es-toolkit";
+import { kebabCase, omit } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
 import { Currency } from "@solyx/core/market";
@@ -140,6 +140,13 @@ export function createServices() {
     instructionsFile,
     mcp,
     workspaces: join(userDataDir, "agent-workspaces"),
+    async judgeCommand(input, signal) {
+      const judgement = await (
+        await decisions.commandJudge()
+      )?.judge(input, { signal });
+
+      return judgement && omit(judgement, ["model"]);
+    },
     conversations: openAgentStore(join(userDataDir, "agent.sqlite")),
     marketData,
     watchlist: () => userData.watchlist.list(),

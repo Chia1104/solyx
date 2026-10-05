@@ -2,6 +2,12 @@ import { useId, useState } from "react";
 import type { CSSProperties } from "react";
 
 import { Button, Description } from "@heroui/react";
+import {
+  Copy01Icon,
+  Moon02Icon,
+  PencilEdit02Icon,
+  Sun03Icon,
+} from "@hugeicons/core-free-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ToggleButton } from "react-aria-components";
 import { useTranslation } from "react-i18next";
@@ -15,20 +21,15 @@ import {
 } from "#shared/palette.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import {
-  CopyIcon,
-  MoonIcon,
-  PencilIcon,
-  SunIcon,
-} from "../../components/icons.tsx";
+import { Icon } from "../../components/icon.tsx";
 
 import { PaletteEditor } from "./palette-editor.tsx";
 import { usePaletteName } from "./palette-name.ts";
 import { appearanceQuery } from "./settings-query.ts";
 
 const SCHEME_ICON = {
-  [ColorScheme.Light]: SunIcon,
-  [ColorScheme.Dark]: MoonIcon,
+  [ColorScheme.Light]: Sun03Icon,
+  [ColorScheme.Dark]: Moon02Icon,
 };
 
 /** The palette's ink washed over its paper, as one swatch. */
@@ -106,7 +107,7 @@ export function PalettePicker() {
                   className="flex flex-col gap-2 rounded border border-border bg-surface p-4 pb-2">
                   <div className="flex justify-center gap-4">
                     {Object.values(ColorScheme).map((scheme) => {
-                      const Icon = SCHEME_ICON[scheme];
+                      const icon = SCHEME_ICON[scheme];
                       const selected = data.palette[scheme] === palette;
 
                       return (
@@ -125,7 +126,7 @@ export function PalettePicker() {
                           className="relative size-11 rounded-full ring-1 ring-border outline-none data-focus-visible:ring-2 data-focus-visible:ring-focus data-focus-visible:ring-offset-2 data-focus-visible:ring-offset-surface data-selected:ring-2 data-selected:ring-accent data-selected:ring-offset-2 data-selected:ring-offset-surface">
                           {selected ? (
                             <span className="absolute -right-1 -bottom-1 flex size-5 items-center justify-center rounded-full border border-border bg-surface text-foreground">
-                              <Icon className="size-3" />
+                              <Icon icon={icon} className="size-3" />
                             </span>
                           ) : null}
                         </ToggleButton>
@@ -147,7 +148,7 @@ export function PalettePicker() {
                         onPress={() =>
                           setEditing(editing === palette ? null : palette)
                         }>
-                        <PencilIcon />
+                        <Icon icon={PencilEdit02Icon} />
                       </Button>
                     ) : null}
                     <Button
@@ -158,7 +159,7 @@ export function PalettePicker() {
                       className="text-muted"
                       isDisabled={copy.isPending}
                       onPress={() => copy.mutate(palette)}>
-                      <CopyIcon />
+                      <Icon icon={Copy01Icon} />
                     </Button>
                   </div>
                 </div>

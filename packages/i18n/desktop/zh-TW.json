@@ -214,6 +214,20 @@
       "open": "開啟",
       "cancel": "取消"
     },
+    "approval-mode": {
+      "label": "Agent 的動作要怎麼放行？",
+      "modes": {
+        "ask": "先詢問",
+        "auto": "自動判斷",
+        "bypass": "不詢問"
+      },
+      "descriptions": {
+        "ask": "工具呼叫與 shell 指令都先等你允許",
+        "auto": "判斷為無害的 shell 指令直接執行，其餘仍先詢問",
+        "bypass": "工具呼叫與 shell 指令直接執行，不等你允許"
+      },
+      "failed": "無法變更工具的允許方式"
+    },
     "analysis": {
       "code": "腳本",
       "command": "指令",
@@ -225,6 +239,7 @@
       "shell-description": "這個指令會在你的電腦上執行，能存取你的檔案與網路。允許前請先確認內容。",
       "allow": "允許",
       "deny": "不允許",
+      "auto-allowed": "由決策模型放行",
       "failed": "無法送出你的回覆"
     }
   },
@@ -582,7 +597,7 @@
       "instructions-missing": "尚未建立",
       "warnings-title": "有些 skill 檔案不符合 Agent Skills 格式",
       "shell": "Shell",
-      "shell-description": "讓 agent 在這台電腦上執行指令，skill 需要它才能執行附帶的腳本。每個指令都會先等你允許。指令沒有沙箱隔離：你允許的指令可以讀取、修改你的檔案並連上網路。僅在模擬帳戶下有效。",
+      "shell-description": "讓 agent 在這台電腦上執行指令，skill 需要它才能執行附帶的腳本。每個指令都會先等你允許，除非你把對話設為不詢問。指令沒有沙箱隔離：你允許的指令可以讀取、修改你的檔案並連上網路。僅在模擬帳戶下有效。",
       "shell-label": "允許 agent 使用 shell"
     },
     "mcp": {

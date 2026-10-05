@@ -23,7 +23,7 @@ import {
 
 /** A transcript read from storage in which no call asked the user. */
 const transcriptEvents = (entries: readonly EntryRecord[], running: boolean) =>
-  createTranscriber({}).replay(entries, running);
+  createTranscriber({ answers: {}, auto: [] }).replay(entries, running);
 
 function entry(
   id: number,
@@ -212,7 +212,7 @@ test("an interrupted run is closed before the next one starts", () => {
 });
 
 test("a question asked before its call's start goes out follows the start", () => {
-  const transcriber = createTranscriber({});
+  const transcriber = createTranscriber({ answers: {}, auto: [] });
 
   expect(
     transcriber.approval({
@@ -238,4 +238,20 @@ test("a question asked before its call's start goes out follows the start", () =
       approved: true,
     })
   ).toHaveLength(1);
+});
+
+test("a call the model let run reads back from storage as the model's", () => {
+  const transcriber = createTranscriber({ answers: {}, auto: ["c1"] });
+
+  expect(
+    transcriber.toolStart({
+      type: AgentEventType.ToolStart,
+      toolCallId: "c1",
+      toolName: "bash",
+      args: { command: "ls" },
+    })
+  ).toMatchObject([
+    { type: AgentEventType.ToolStart },
+    { type: AgentEventType.ApprovalResolved, approved: true, auto: true },
+  ]);
 });

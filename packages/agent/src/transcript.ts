@@ -12,7 +12,7 @@ import {
 import type { EntryRecord } from "@earendil-works/pi-durable";
 
 import { approvalEvents } from "./approval.ts";
-import type { ApprovalAnswers, ApprovalEvent } from "./approval.ts";
+import type { ApprovalEvent, ApprovalRecord } from "./approval.ts";
 import { firstLine } from "./text.ts";
 import {
   AgentEventType,
@@ -163,7 +163,7 @@ function toolEndEvent(entry: EntryRecord): ToolEndEvent | undefined {
  * completed reply arrives whole, without deltas, and a call that asked the user is followed by its
  * question and the answer.
  */
-export function createTranscriber(approvals: ApprovalAnswers) {
+export function createTranscriber(approvals: ApprovalRecord) {
   /** Calls whose start went out and whose result has not, with their tool's name. */
   let open = new Map<string, string>();
   /** Approval events waiting for their call's start to go out, which arrives with its commit. */

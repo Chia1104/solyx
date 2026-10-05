@@ -1,13 +1,18 @@
 import { useState } from "react";
 
 import { AlertDialog, Button, Popover, ScrollShadow, cn } from "@heroui/react";
+import {
+  Add01Icon,
+  Delete02Icon,
+  Layers01Icon,
+} from "@hugeicons/core-free-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type { AgentSession } from "@solyx/agent/wire";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { HistoryIcon, PlusIcon, TrashIcon } from "../../components/icons.tsx";
+import { Icon } from "../../components/icon.tsx";
 
 import { agentQueryKeys, agentSessionsQuery } from "./agent-query.ts";
 import { useAgentStore } from "./agent-store.ts";
@@ -122,7 +127,7 @@ export function AgentSessionControls({
           variant="ghost"
           aria-label={t("agent.conversations")}
           isDisabled={sessions.length === 0}>
-          <HistoryIcon />
+          <Icon icon={Layers01Icon} />
         </Button>
         <Popover.Content placement="bottom end" className="w-72">
           <Popover.Dialog className="flex flex-col p-1">
@@ -171,7 +176,7 @@ export function AgentSessionControls({
                           setTarget(session);
                           setConfirming(true);
                         }}>
-                        <TrashIcon className="size-3.5" />
+                        <Icon icon={Delete02Icon} className="size-3.5" />
                       </Button>
                     </li>
                   );
@@ -187,7 +192,7 @@ export function AgentSessionControls({
         variant="ghost"
         aria-label={t("agent.new-chat")}
         onPress={() => select(null)}>
-        <PlusIcon />
+        <Icon icon={Add01Icon} />
       </Button>
       <DeleteSessionDialog
         session={target}

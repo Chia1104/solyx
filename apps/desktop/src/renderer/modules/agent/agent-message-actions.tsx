@@ -2,9 +2,14 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 import { Button, Tooltip } from "@heroui/react";
+import {
+  Copy01Icon,
+  PencilEdit02Icon,
+  Tick02Icon,
+} from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
-import { CheckIcon, CopyIcon, PencilIcon } from "../../components/icons.tsx";
+import { Icon } from "../../components/icon.tsx";
 
 import { useAgentStore } from "./agent-store.ts";
 
@@ -57,9 +62,9 @@ export function CopyAction({ text }: { text: string }) {
         void navigator.clipboard.writeText(text).then(() => setCopied(true))
       }>
       {copied ? (
-        <CheckIcon className="size-3.5" />
+        <Icon icon={Tick02Icon} className="size-3.5" />
       ) : (
-        <CopyIcon className="size-3.5" />
+        <Icon icon={Copy01Icon} className="size-3.5" />
       )}
     </MessageAction>
   );
@@ -74,7 +79,7 @@ export function EditAction({ text }: { text: string }) {
     <MessageAction
       label={t("agent.edit-message")}
       onPress={() => setDraft(text)}>
-      <PencilIcon className="size-3.5" />
+      <Icon icon={PencilEdit02Icon} className="size-3.5" />
     </MessageAction>
   );
 }

@@ -1,4 +1,10 @@
 import { Button, Disclosure, Spinner, cn } from "@heroui/react";
+import {
+  Cancel01Icon,
+  Clock01Icon,
+  MinusSignIcon,
+  Tick02Icon,
+} from "@hugeicons/core-free-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -17,12 +23,7 @@ import { marketSchema, symbolRefSchema } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import {
-  CheckIcon,
-  ClockIcon,
-  CrossIcon,
-  DashIcon,
-} from "../../components/icons.tsx";
+import { Icon } from "../../components/icon.tsx";
 import { ListingName } from "../market/listing-name.tsx";
 import { ProposalItem } from "../proposals/proposal-item.tsx";
 import { proposalsQuery } from "../proposals/proposals-query.ts";
@@ -70,13 +71,13 @@ function StatusIcon({ status }: { status: ToolCallStatus }) {
     case ToolCallStatus.Running:
       return <Spinner size="sm" color="current" className="size-3" />;
     case ToolCallStatus.AwaitingApproval:
-      return <ClockIcon className="size-3" />;
+      return <Icon icon={Clock01Icon} className="size-3" />;
     case ToolCallStatus.Ok:
-      return <CheckIcon className="size-3" />;
+      return <Icon icon={Tick02Icon} className="size-3" />;
     case ToolCallStatus.Error:
-      return <CrossIcon className="size-3" />;
+      return <Icon icon={Cancel01Icon} className="size-3" />;
     default:
-      return <DashIcon className="size-3" />;
+      return <Icon icon={MinusSignIcon} className="size-3" />;
   }
 }
 
@@ -257,6 +258,9 @@ export function AgentToolCall({
             : tool.toolName}
         </span>
         <Subject tool={tool} />
+        {tool.autoApproved ? (
+          <span className="shrink-0">· {t("agent.approval.auto-allowed")}</span>
+        ) : null}
         <span className="sr-only">{t(`agent.tool-status.${tool.status}`)}</span>
       </div>
       {tool.error ? (
