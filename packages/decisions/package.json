@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./cloudflare": "./src/cloudflare.ts",
+    "./command": "./src/command.ts",
+    "./provider": "./src/provider.ts",
     "./typesafe": "./src/typesafe.ts"
   },
   "scripts": {
@@ -11,13 +14,13 @@
   },
   "dependencies": {
     "@solyx/core": "workspace:*",
-    "@typesafe-ai/sdk": "catalog:decisions"
+    "@typesafe-ai/sdk": "catalog:decisions",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "es-toolkit": "catalog:",
     "typescript": "catalog:",
-    "vite-plus": "catalog:",
-    "zod": "catalog:"
+    "vite-plus": "catalog:"
   }
 }

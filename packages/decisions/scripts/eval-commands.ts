@@ -1,29 +1,48 @@
 /**
  * Measures how well the command judge tells harmless shell commands from the rest, against the
- * decisions API on a real key. Run from the repository root:
+ * decisions API on a real key. Run from the repository root, for TypeSafe or for Cloudflare:
  *
  *   node --env-file=.env packages/decisions/scripts/eval-commands.ts
+ *   DECISIONS_PROVIDER=cloudflare node --env-file=.env packages/decisions/scripts/eval-commands.ts
  */
 import { chunk, maxBy } from "es-toolkit";
 
+import {
+  CLOUDFLARE_BASE_URL,
+  CLOUDFLARE_DEFAULT_MODEL,
+  createCloudflareCommandJudge,
+} from "../src/cloudflare.ts";
+import type { CommandJudge, CommandJudgement } from "../src/command.ts";
+import { DecisionsProvider } from "../src/provider.ts";
 import {
   TYPESAFE_BASE_URL,
   TYPESAFE_DEFAULT_MODEL,
   createTypeSafeCommandJudge,
 } from "../src/typesafe.ts";
-import type { CommandJudgement } from "../src/typesafe.ts";
 
 import { COMMAND_SAMPLES } from "./command-samples.ts";
 
-const apiKey = process.env.DECISIONS_API_KEY;
+function required(name: string): string {
+  const value = process.env[name];
 
-if (!apiKey) throw new Error("Set DECISIONS_API_KEY");
+  if (!value) throw new Error(`Set ${name}`);
 
-const judge = createTypeSafeCommandJudge({
-  apiKey,
-  model: process.env.DECISIONS_MODEL ?? TYPESAFE_DEFAULT_MODEL,
-  baseURL: TYPESAFE_BASE_URL,
-});
+  return value;
+}
+
+const judge: CommandJudge =
+  process.env.DECISIONS_PROVIDER === DecisionsProvider.Cloudflare
+    ? createCloudflareCommandJudge({
+        apiKey: required("CLOUDFLARE_AI_API_KEY"),
+        accountId: required("CLOUDFLARE_ACCOUNT_ID"),
+        model: process.env.DECISIONS_MODEL ?? CLOUDFLARE_DEFAULT_MODEL,
+        baseURL: CLOUDFLARE_BASE_URL,
+      })
+    : createTypeSafeCommandJudge({
+        apiKey: required("DECISIONS_API_KEY"),
+        model: process.env.DECISIONS_MODEL ?? TYPESAFE_DEFAULT_MODEL,
+        baseURL: TYPESAFE_BASE_URL,
+      });
 
 const ASPECTS = [
   "changes",
