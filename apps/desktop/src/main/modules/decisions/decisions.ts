@@ -1,12 +1,20 @@
 import type { SentimentScorer } from "@solyx/core/sentiment";
 import {
+  CLOUDFLARE_BASE_URL,
+  CLOUDFLARE_DEFAULT_MODEL,
+  createCloudflareCommandJudge,
+  createCloudflareScorer,
+} from "@solyx/decisions/cloudflare";
+import type { CommandJudge } from "@solyx/decisions/command";
+import { DecisionsProvider } from "@solyx/decisions/provider";
+import {
   TYPESAFE_BASE_URL,
   TYPESAFE_DEFAULT_MODEL,
   createTypeSafeCommandJudge,
   createTypeSafeScorer,
 } from "@solyx/decisions/typesafe";
 
-import { Secret } from "#shared/ipc/settings.ts";
+import { DECISIONS_SECRETS } from "#shared/ipc/settings.ts";
 import type { DecisionsSettings } from "#shared/ipc/settings.ts";
 
 import type { ConfigFile } from "../settings/config-file.ts";
@@ -17,45 +25,93 @@ export interface DecisionsOptions {
   secrets: SecretStore;
 }
 
+const TYPESAFE_DEFAULTS = {
+  model: TYPESAFE_DEFAULT_MODEL,
+  baseURL: TYPESAFE_BASE_URL,
+};
+
+const CLOUDFLARE_DEFAULTS = {
+  model: CLOUDFLARE_DEFAULT_MODEL,
+  baseURL: CLOUDFLARE_BASE_URL,
+};
+
 /**
  * The decisions model the config file and the saved key pick. Each scorer reads them afresh, so
- * a changed key, model or endpoint applies to the next text without a restart.
+ * a changed provider, key, model or endpoint applies to the next text without a restart.
  */
 export function createDecisions({ config, secrets }: DecisionsOptions) {
-  function settings(): DecisionsSettings {
-    const { model, baseURL } = config.read().decisions;
+  /** Each provider's settings, with its default for every entry the config file does not set. */
+  function read() {
+    const { provider, typesafe, cloudflare } = config.read().decisions;
 
     return {
-      model: model ?? TYPESAFE_DEFAULT_MODEL,
-      baseURL: baseURL ?? TYPESAFE_BASE_URL,
-      defaults: { model: TYPESAFE_DEFAULT_MODEL, baseURL: TYPESAFE_BASE_URL },
+      provider,
+      typesafe: {
+        model: typesafe.model ?? TYPESAFE_DEFAULTS.model,
+        baseURL: typesafe.baseURL ?? TYPESAFE_DEFAULTS.baseURL,
+      },
+      cloudflare: {
+        model: cloudflare.model ?? CLOUDFLARE_DEFAULTS.model,
+        baseURL: cloudflare.baseURL ?? CLOUDFLARE_DEFAULTS.baseURL,
+        accountId: cloudflare.accountId ?? null,
+      },
+    };
+  }
+
+  function settings(): DecisionsSettings {
+    const { provider, typesafe, cloudflare } = read();
+
+    return {
+      provider,
+      providers: [
+        {
+          provider: DecisionsProvider.TypeSafe,
+          ...typesafe,
+          defaults: TYPESAFE_DEFAULTS,
+        },
+        {
+          provider: DecisionsProvider.Cloudflare,
+          ...cloudflare,
+          defaults: CLOUDFLARE_DEFAULTS,
+        },
+      ],
+    };
+  }
+
+  /** The provider's scorer and judge; `undefined` until the user saves what the provider needs. */
+  async function model(): Promise<
+    { scorer: SentimentScorer; judge: CommandJudge } | undefined
+  > {
+    const { provider, typesafe, cloudflare } = read();
+    const apiKey = await secrets.get(DECISIONS_SECRETS[provider]);
+
+    if (apiKey === undefined) return undefined;
+
+    if (provider === DecisionsProvider.TypeSafe) {
+      return {
+        scorer: createTypeSafeScorer({ apiKey, ...typesafe }),
+        judge: createTypeSafeCommandJudge({ apiKey, ...typesafe }),
+      };
+    }
+
+    const { accountId, ...endpoint } = cloudflare;
+
+    if (accountId === null) return undefined;
+
+    return {
+      scorer: createCloudflareScorer({ apiKey, accountId, ...endpoint }),
+      judge: createCloudflareCommandJudge({ apiKey, accountId, ...endpoint }),
     };
   }
 
   return {
     settings,
 
-    /** `undefined` until the user saves a key. */
-    async scorer(): Promise<SentimentScorer | undefined> {
-      const apiKey = await secrets.get(Secret.DecisionsApiKey);
+    /** `undefined` until the user saves a key, and for Cloudflare an account. */
+    scorer: async () => (await model())?.scorer,
 
-      if (apiKey === undefined) return undefined;
-
-      const { model, baseURL } = settings();
-
-      return createTypeSafeScorer({ apiKey, model, baseURL });
-    },
-
-    /** Judges the agent's shell commands; `undefined` until the user saves a key. */
-    async commandJudge() {
-      const apiKey = await secrets.get(Secret.DecisionsApiKey);
-
-      if (apiKey === undefined) return undefined;
-
-      const { model, baseURL } = settings();
-
-      return createTypeSafeCommandJudge({ apiKey, model, baseURL });
-    },
+    /** Judges the agent's shell commands; `undefined` until the user saves a key, and for Cloudflare an account. */
+    commandJudge: async () => (await model())?.judge,
   };
 }
 

@@ -7,6 +7,7 @@ import { effectivePolicy, mcpToolKey } from "@solyx/agent/mcp-config";
 import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillFolders } from "@solyx/agent/skills";
 import type { Cache } from "@solyx/db/cache";
+import { DecisionsProvider } from "@solyx/decisions/provider";
 
 import { AppLocation, mcpSecretKey } from "#shared/ipc/settings.ts";
 import type { AppInfo, FubonFile, SettingsApi } from "#shared/ipc/settings.ts";
@@ -178,13 +179,24 @@ export function createSettingsApi({
 
     decisions: async () => decisions.settings(),
 
-    // Removing the entry reads as the default.
-    async setDecisionsModel(model) {
-      config.set(["decisions", "model"], model ?? undefined);
+    async setDecisionsProvider(provider) {
+      config.set(["decisions", "provider"], provider);
     },
 
-    async setDecisionsBaseURL(baseURL) {
-      config.set(["decisions", "baseURL"], baseURL ?? undefined);
+    // Removing the entry reads as the default.
+    async setDecisionsModel(provider, model) {
+      config.set(["decisions", provider, "model"], model ?? undefined);
+    },
+
+    async setDecisionsBaseURL(provider, baseURL) {
+      config.set(["decisions", provider, "baseURL"], baseURL ?? undefined);
+    },
+
+    async setDecisionsAccountId(accountId) {
+      config.set(
+        ["decisions", DecisionsProvider.Cloudflare, "accountId"],
+        accountId ?? undefined
+      );
     },
 
     async agentSkills() {

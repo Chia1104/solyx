@@ -14,6 +14,7 @@ import type {
 import type { SkillSource } from "@solyx/agent/skill-source";
 import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
+import type { DecisionsProvider } from "@solyx/decisions/provider";
 import type { FuglePlan } from "@solyx/market-data/fugle";
 
 import type { ColorScheme, CustomPalette, PaletteToken } from "../palette.ts";
@@ -25,7 +26,10 @@ export const Secret = {
   FubonApiKey: "fubon-api-key",
   /** Optional: Fubon falls back to the ID number, the password of certificates exported from its website. */
   FubonCertPassword: "fubon-cert-password",
+  /** TypeSafe's key. */
   DecisionsApiKey: "decisions-api-key",
+  /** A Cloudflare API token that may run Workers AI. */
+  CloudflareApiKey: "cloudflare-api-key",
   FirecrawlApiKey: "firecrawl-api-key",
   /** The ChatGPT sign-in's OAuth tokens; the main process saves and refreshes them, nobody types them. */
   OpenAIChatGPT: "openai-chatgpt",
@@ -262,12 +266,27 @@ export interface NewsSettings {
   collectEveryHours: number;
 }
 
-/** The decisions model that scores texts; its key is the `decisions-api-key` secret. */
-export interface DecisionsSettings {
+/** The secret each decisions provider's key is kept under. */
+export const DECISIONS_SECRETS = {
+  typesafe: Secret.DecisionsApiKey,
+  cloudflare: Secret.CloudflareApiKey,
+} as const satisfies Record<DecisionsProvider, Secret>;
+
+/** One decisions provider's own settings; its key is the secret `DECISIONS_SECRETS` names. */
+export interface DecisionsProviderSettings {
+  provider: DecisionsProvider;
   model: string;
   baseURL: string;
   /** What each reads as while the config file does not set it. */
   defaults: { model: string; baseURL: string };
+  /** Cloudflare's alone: the account whose Workers AI runs the model, `null` until it is set. */
+  accountId?: string | null;
+}
+
+/** The decisions providers as set up, and the one whose model scores texts. */
+export interface DecisionsSettings {
+  provider: DecisionsProvider;
+  providers: DecisionsProviderSettings[];
 }
 
 /** A playbook the agent can read, as the settings page lists it. */
@@ -415,10 +434,20 @@ export interface SettingsApi {
   news(): Promise<NewsSettings>;
   setNewsCollectEveryHours(hours: number): Promise<void>;
   decisions(): Promise<DecisionsSettings>;
+  /** Picks the provider whose model scores texts. */
+  setDecisionsProvider(provider: DecisionsProvider): Promise<void>;
   /** `null` goes back to the default. */
-  setDecisionsModel(model: string | null): Promise<void>;
+  setDecisionsModel(
+    provider: DecisionsProvider,
+    model: string | null
+  ): Promise<void>;
   /** `null` goes back to the default. */
-  setDecisionsBaseURL(baseURL: string | null): Promise<void>;
+  setDecisionsBaseURL(
+    provider: DecisionsProvider,
+    baseURL: string | null
+  ): Promise<void>;
+  /** Cloudflare's account; `null` removes it. */
+  setDecisionsAccountId(accountId: string | null): Promise<void>;
   agentSkills(): Promise<AgentSkills>;
   /** Offers a skill from ~/.agents/skills to the agent, or stops offering it. */
   setSharedSkill(name: string, enabled: boolean): Promise<void>;
@@ -490,8 +519,10 @@ export const settingsChannels = {
   news: "settings:news",
   setNewsCollectEveryHours: "settings:set-news-collect-every-hours",
   decisions: "settings:decisions",
+  setDecisionsProvider: "settings:set-decisions-provider",
   setDecisionsModel: "settings:set-decisions-model",
   setDecisionsBaseURL: "settings:set-decisions-base-url",
+  setDecisionsAccountId: "settings:set-decisions-account-id",
   agentSkills: "settings:agent-skills",
   setSharedSkill: "settings:set-shared-skill",
   setAgentShell: "settings:set-agent-shell",

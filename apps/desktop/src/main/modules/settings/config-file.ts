@@ -15,6 +15,14 @@ import {
 import type { AgentProvider } from "@solyx/agent/providers";
 import type { Market } from "@solyx/core/market";
 import {
+  CLOUDFLARE_BASE_URL,
+  CLOUDFLARE_DEFAULT_MODEL,
+} from "@solyx/decisions/cloudflare";
+import {
+  DecisionsProvider,
+  decisionsProviderSchema,
+} from "@solyx/decisions/provider";
+import {
   TYPESAFE_BASE_URL,
   TYPESAFE_DEFAULT_MODEL,
 } from "@solyx/decisions/typesafe";
@@ -182,19 +190,45 @@ const configSchema = section(
           }),
       })
     ),
-    // Missing entries read as the decisions model's defaults where they are read.
+    // A missing model or endpoint reads as the provider's default where it is read.
     decisions: section(
       z.looseObject({
-        model: textSchema.meta({
-          description:
-            "The decisions model that scores news and posts, on the key saved in the app; TypeSafe's models, such as Jev.",
-          default: TYPESAFE_DEFAULT_MODEL,
-        }),
-        baseURL: endpointSchema.optional().catch(undefined).meta({
-          description:
-            "Where the decisions model's requests go; change it only for a proxy or a compatible endpoint.",
-          default: TYPESAFE_BASE_URL,
-        }),
+        provider: decisionsProviderSchema
+          .catch(DecisionsProvider.TypeSafe)
+          .meta({
+            description:
+              "Whose decisions model scores news and posts, on the key saved in the app for it: TypeSafe's models, such as Jev, or Cloudflare's Clef on Workers AI.",
+          }),
+        typesafe: section(
+          z.looseObject({
+            model: textSchema.meta({
+              description: "The id of TypeSafe's model.",
+              default: TYPESAFE_DEFAULT_MODEL,
+            }),
+            baseURL: endpointSchema.optional().catch(undefined).meta({
+              description:
+                "Where requests to TypeSafe go; change it only for a proxy or a compatible endpoint.",
+              default: TYPESAFE_BASE_URL,
+            }),
+          })
+        ),
+        cloudflare: section(
+          z.looseObject({
+            accountId: textSchema.meta({
+              description:
+                "The Cloudflare account whose Workers AI runs the model.",
+            }),
+            model: textSchema.meta({
+              description: "The id of Cloudflare's model: clef or clef-flash.",
+              default: CLOUDFLARE_DEFAULT_MODEL,
+            }),
+            baseURL: endpointSchema.optional().catch(undefined).meta({
+              description:
+                "Where requests to Cloudflare go; change it only for a proxy or a gateway.",
+              default: CLOUDFLARE_BASE_URL,
+            }),
+          })
+        ),
       })
     ),
   })
@@ -233,7 +267,9 @@ type ConfigPath =
   | ["agent", "endpoints", AgentProvider]
   | ["agent", "mcpTools", string]
   | ["news", "collectEveryHours"]
-  | ["decisions", "model" | "baseURL"];
+  | ["decisions", "provider"]
+  | ["decisions", DecisionsProvider, "model" | "baseURL"]
+  | ["decisions", typeof DecisionsProvider.Cloudflare, "accountId"];
 
 /** `undefined` removes the entry. */
 type ConfigValue =
@@ -278,7 +314,14 @@ const JSON_SCHEMA = serialize(
 const TEMPLATE = serialize({
   $schema: `./${SCHEMA_FILE}`,
   ...DEFAULTS,
-  decisions: { model: TYPESAFE_DEFAULT_MODEL, baseURL: TYPESAFE_BASE_URL },
+  decisions: {
+    ...DEFAULTS.decisions,
+    typesafe: { model: TYPESAFE_DEFAULT_MODEL, baseURL: TYPESAFE_BASE_URL },
+    cloudflare: {
+      model: CLOUDFLARE_DEFAULT_MODEL,
+      baseURL: CLOUDFLARE_BASE_URL,
+    },
+  },
 });
 
 function readText(file: string): string | undefined {

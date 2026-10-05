@@ -463,7 +463,11 @@
       },
       "decisions-api-key": {
         "label": "API 金鑰",
-        "hint": "在 TypeSafe console 建立的金鑰。目前只支援 TypeSafe 的模型。"
+        "hint": "在 TypeSafe console 建立的金鑰。"
+      },
+      "cloudflare-api-key": {
+        "label": "API 權杖",
+        "hint": "Cloudflare API 權杖，需具備下方帳號的 Workers AI 權限。"
       },
       "firecrawl-api-key": {
         "label": "Firecrawl API 金鑰",
@@ -571,9 +575,28 @@
     },
     "decisions": {
       "title": "決策模型",
-      "description": "用你自己的金鑰為新聞與貼文評分；模型回傳的是帶機率的結構化答案，不是文字。請求直接從這台電腦送到服務商。目前只支援 TypeSafe 的模型，例如 Jev。",
+      "description": "用你自己的金鑰為新聞與貼文評分；模型回傳的是帶機率的結構化答案，不是文字。請求直接從這台電腦送到服務商。",
+      "providers-description": "供應商",
+      "provider-states": {
+        "ready": "可以使用",
+        "needs-key": "需要 API 金鑰",
+        "needs-account": "需要帳號 ID"
+      },
+      "provider-in-use": "使用中",
+      "in-use-description": "使用中：由這個供應商的模型為新聞與貼文評分",
+      "provider": "供應商",
+      "providers": {
+        "typesafe": "TypeSafe",
+        "cloudflare": "Cloudflare Workers AI"
+      },
+      "account-id": "帳號 ID",
+      "account-id-description": "執行模型的 Workers AI 所屬的 Cloudflare 帳號，可在帳號總覽頁找到。",
+      "account-id-required": "請輸入帳號 ID",
       "model": "模型",
-      "model-description": "模型 ID。題目是依預設版本撰寫的，換成其他版本可能會有不同的判斷。",
+      "model-descriptions": {
+        "typesafe": "模型 ID。題目是依預設版本評測的，換成其他版本可能會有不同的判斷。",
+        "cloudflare": "模型 ID：clef，或較快的 clef-flash。題目是依預設模型評測的，換成另一個可能會有不同的判斷。"
+      },
       "model-required": "請輸入模型 ID",
       "base-url": "端點",
       "base-url-description": "請求送往的位址。只有使用代理或相容服務時才需要更改。",

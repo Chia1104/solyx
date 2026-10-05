@@ -6,6 +6,11 @@ import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
 import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import {
+  CLOUDFLARE_BASE_URL,
+  CLOUDFLARE_DEFAULT_MODEL,
+} from "@solyx/decisions/cloudflare";
+import { DecisionsProvider } from "@solyx/decisions/provider";
+import {
   TYPESAFE_BASE_URL,
   TYPESAFE_DEFAULT_MODEL,
 } from "@solyx/decisions/typesafe";
@@ -59,7 +64,11 @@ test("a missing file reads as the defaults, which a new file's template holds be
       mcpTools: {},
     },
     news: { collectEveryHours: NEWS_COLLECTION_DEFAULT_HOURS },
-    decisions: {},
+    decisions: {
+      provider: DecisionsProvider.TypeSafe,
+      typesafe: {},
+      cloudflare: {},
+    },
   });
 
   config.create();
@@ -68,7 +77,14 @@ test("a missing file reads as the defaults, which a new file's template holds be
   expect(config.read()).toEqual({
     $schema: "./config.schema.json",
     ...defaults,
-    decisions: { model: TYPESAFE_DEFAULT_MODEL, baseURL: TYPESAFE_BASE_URL },
+    decisions: {
+      provider: DecisionsProvider.TypeSafe,
+      typesafe: { model: TYPESAFE_DEFAULT_MODEL, baseURL: TYPESAFE_BASE_URL },
+      cloudflare: {
+        model: CLOUDFLARE_DEFAULT_MODEL,
+        baseURL: CLOUDFLARE_BASE_URL,
+      },
+    },
   });
   expect(JSON.parse(await readFile(file, "utf8"))).toMatchObject({
     $schema: "./config.schema.json",
@@ -237,7 +253,11 @@ test("an entry of the wrong shape reads as its default and leaves the rest in fo
           google: "https://gateway.example/v1beta",
         },
       },
-      decisions: { model: " ", baseURL: "file:///etc/hosts" },
+      decisions: {
+        provider: "nobody",
+        typesafe: { model: " ", baseURL: "file:///etc/hosts" },
+        cloudflare: "none",
+      },
     })
   );
 
@@ -256,7 +276,11 @@ test("an entry of the wrong shape reads as its default and leaves the rest in fo
         google: "https://gateway.example/v1beta",
       },
     },
-    decisions: { model: undefined, baseURL: undefined },
+    decisions: {
+      provider: DecisionsProvider.TypeSafe,
+      typesafe: { model: undefined, baseURL: undefined },
+      cloudflare: {},
+    },
   });
 });
 

@@ -463,7 +463,11 @@
       },
       "decisions-api-key": {
         "label": "API key",
-        "hint": "A key from the TypeSafe console. Only TypeSafe's models are supported for now."
+        "hint": "A key from the TypeSafe console."
+      },
+      "cloudflare-api-key": {
+        "label": "API token",
+        "hint": "A Cloudflare API token with the Workers AI permission on the account below."
       },
       "firecrawl-api-key": {
         "label": "Firecrawl API key",
@@ -571,9 +575,28 @@
     },
     "decisions": {
       "title": "Decisions model",
-      "description": "Scores news and posts with typed answers and their probabilities instead of written text, on your own key. Requests go straight from this computer to the provider. Only TypeSafe's models, such as Jev, are supported for now.",
+      "description": "Scores news and posts with typed answers and their probabilities instead of written text, on your own key. Requests go straight from this computer to the provider.",
+      "providers-description": "Providers",
+      "provider-states": {
+        "ready": "Ready",
+        "needs-key": "Needs an API key",
+        "needs-account": "Needs an account ID"
+      },
+      "provider-in-use": "In use",
+      "in-use-description": "In use: the provider whose model scores news and posts",
+      "provider": "Provider",
+      "providers": {
+        "typesafe": "TypeSafe",
+        "cloudflare": "Cloudflare Workers AI"
+      },
+      "account-id": "Account ID",
+      "account-id-description": "The Cloudflare account whose Workers AI runs the model, shown on the account's overview page.",
+      "account-id-required": "Enter an account ID",
       "model": "Model",
-      "model-description": "The model's id. The questions are written against the default, so another version may judge texts differently.",
+      "model-descriptions": {
+        "typesafe": "The model's id. The questions are measured against the default, so another version may judge texts differently.",
+        "cloudflare": "The model's id: clef, or the faster clef-flash. The questions are measured against the default, so the other may judge texts differently."
+      },
       "model-required": "Enter a model id",
       "base-url": "Endpoint",
       "base-url-description": "Where requests go. Change it only for a proxy or a compatible service.",

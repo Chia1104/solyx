@@ -12,6 +12,7 @@ import {
   agentThinkingSchema,
 } from "@solyx/agent/providers";
 import { Market } from "@solyx/core/market";
+import { decisionsProviderSchema } from "@solyx/decisions/provider";
 import { fuglePlanSchema } from "@solyx/market-data/fugle";
 
 import {
@@ -91,8 +92,18 @@ const schemas = {
   news: z.tuple([]),
   setNewsCollectEveryHours: z.tuple([newsIntervalSchema]),
   decisions: z.tuple([]),
-  setDecisionsModel: z.tuple([z.string().trim().min(1).max(200).nullable()]),
-  setDecisionsBaseURL: z.tuple([endpointSchema.nullable()]),
+  setDecisionsProvider: z.tuple([decisionsProviderSchema]),
+  setDecisionsModel: z.tuple([
+    decisionsProviderSchema,
+    z.string().trim().min(1).max(200).nullable(),
+  ]),
+  setDecisionsBaseURL: z.tuple([
+    decisionsProviderSchema,
+    endpointSchema.nullable(),
+  ]),
+  setDecisionsAccountId: z.tuple([
+    z.string().trim().min(1).max(200).nullable(),
+  ]),
   agentSkills: z.tuple([]),
   setSharedSkill: z.tuple([z.string().min(1).max(64), z.boolean()]),
   setAgentShell: z.tuple([z.boolean()]),
