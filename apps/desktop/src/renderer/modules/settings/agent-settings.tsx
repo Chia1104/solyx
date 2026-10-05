@@ -1,4 +1,4 @@
-import { useId, useMemo } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { Switch, cn } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -7,8 +7,8 @@ import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
 import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
+import type { AgentProvider } from "@solyx/agent/providers";
 
-import { AGENT_PROVIDER_SECRET } from "#shared/ipc/settings.ts";
 import type { AgentProviderSettings } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
@@ -19,8 +19,9 @@ import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 import { ProviderMark } from "../agent/agent-provider-mark.tsx";
 
+import { AddAgentProvider } from "./add-agent-provider.tsx";
 import { ChatGPTSignIn } from "./chatgpt-sign-in.tsx";
-import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
+import { SecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { agentSettingsQuery, secretsQuery } from "./settings-query.ts";
 import { TextSettingRow } from "./text-setting-row.tsx";
@@ -37,7 +38,7 @@ function ProviderTab({
   isDefault: boolean;
 }) {
   const { t } = useTranslation();
-  const { provider, enabled, usable, auth } = settings;
+  const { provider, name, enabled, usable, auth } = settings;
 
   const state = !enabled
     ? t("settings.agent.provider-states.off")
@@ -64,9 +65,7 @@ function ProviderTab({
         className={cn("size-5", !enabled && "opacity-60 grayscale")}
       />
       <span className="col-span-2 flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-sm font-medium">
-          {t(`settings.agent.providers.${provider}`)}
-        </span>
+        <span className="truncate text-sm font-medium">{name}</span>
         <span className="truncate text-xs text-muted">{state}</span>
       </span>
       {/* Placed beside the mark but last in order, so the tab is named for its provider first. */}
@@ -87,6 +86,8 @@ function ProviderTab({
 export function AgentSettings() {
   const { t } = useTranslation();
   const providersLabelId = useId();
+  // The tile the user opened; until then, or once it leaves the page, the default provider's.
+  const [opened, setOpened] = useState<AgentProvider | null>(null);
   const settings = useQuery(agentSettingsQuery());
   const secrets = useQuery(secretsQuery());
 
@@ -128,7 +129,13 @@ export function AgentSettings() {
   if (!settings.data || !secrets.data) return <LoadingState />;
 
   const { providers, provider, model, thinking, models } = settings.data;
-  const { available, states } = secrets.data;
+  const { available } = secrets.data;
+
+  const shown = providers.filter((each) => each.listed);
+  const hidden = providers.filter((each) => !each.listed);
+
+  const selected =
+    shown.find((each) => each.provider === opened)?.provider ?? provider;
 
   const offered = models.filter((option) => option.provider === provider);
   const reasoning = offered.find((option) => option.id === model)?.reasoning;
@@ -140,8 +147,8 @@ export function AgentSettings() {
   const endpointLabel = t("settings.agent.endpoint");
 
   const providerRows = (each: AgentProviderSettings) => {
-    const name = t(`settings.agent.providers.${each.provider}`);
-    const secret = AGENT_PROVIDER_SECRET[each.provider];
+    const { name } = each;
+    const keyLabel = t("settings.agent.key-label", { provider: name });
     const isDefault = each.provider === provider;
 
     return (
@@ -206,10 +213,18 @@ export function AgentSettings() {
             <ChatGPTSignIn signedIn={each.subscription.signedIn} />
           ) : (
             <>
-              <AppSecretRow
-                secret={secret}
-                state={states[secret]}
+              <SecretRow
+                label={keyLabel}
+                fieldLabel={keyLabel}
+                description={t("settings.agent.key-hint", { provider: name })}
+                state={each.key}
                 available={available}
+                onSave={(value) =>
+                  window.solyx.settings.saveAgentKey(each.provider, value)
+                }
+                onRemove={() =>
+                  window.solyx.settings.deleteAgentKey(each.provider)
+                }
               />
               {each.endpoint ? (
                 <TextSettingRow
@@ -237,15 +252,34 @@ export function AgentSettings() {
       <div className="flex flex-col gap-3">
         {available ? null : <SecretsUnavailable />}
         <div className="flex flex-col gap-2">
-          <p id={providersLabelId} className="text-xs text-muted">
-            {t("settings.agent.providers-description")}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p id={providersLabelId} className="text-xs text-muted">
+              {t("settings.agent.providers-description")}
+            </p>
+            <AddAgentProvider
+              providers={hidden}
+              isDisabled={save.isPending}
+              onAdd={(added) => {
+                setOpened(added);
+                save.mutate(() =>
+                  window.solyx.settings.setAgentProviderEnabled(added, true)
+                );
+              }}
+            />
+          </div>
           {/* HeroUI's Tabs draw a segmented control, so the grid of tiles composes react-aria's. */}
-          <Tabs defaultSelectedKey={provider} className="flex flex-col gap-3">
+          <Tabs
+            selectedKey={selected}
+            onSelectionChange={(key) => {
+              const tile = shown.find((each) => each.provider === key);
+
+              if (tile) setOpened(tile.provider);
+            }}
+            className="flex flex-col gap-3">
             <TabList
               aria-labelledby={providersLabelId}
               className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
-              {providers.map((each) => (
+              {shown.map((each) => (
                 <ProviderTab
                   key={each.provider}
                   settings={each}
@@ -253,7 +287,7 @@ export function AgentSettings() {
                 />
               ))}
             </TabList>
-            {providers.map((each) => (
+            {shown.map((each) => (
               <TabPanel
                 key={each.provider}
                 id={each.provider}
@@ -280,7 +314,7 @@ export function AgentSettings() {
                     .filter((each) => each.enabled)
                     .map((each) => ({
                       id: each.provider,
-                      label: t(`settings.agent.providers.${each.provider}`),
+                      label: each.name,
                     }))}
                   onChange={(next) =>
                     save.mutate(() =>

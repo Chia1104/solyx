@@ -4,7 +4,6 @@ import type { IpcMainInvokeEvent } from "electron";
 import { mapValues, uniq } from "es-toolkit";
 
 import { effectivePolicy, mcpToolKey } from "@solyx/agent/mcp-config";
-import { DEFAULT_MODEL } from "@solyx/agent/providers";
 import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillFolders } from "@solyx/agent/skills";
 import type { Cache } from "@solyx/db/cache";
@@ -138,24 +137,10 @@ export function createSettingsApi({
 
     agent: () => agent.models.settings(),
 
-    async setAgentProviderEnabled(provider, enabled) {
-      const current = config.read().agent.providers;
+    setAgentProviderEnabled: (provider, enabled) =>
+      agent.models.setProviderEnabled(provider, enabled),
 
-      config.set(
-        ["agent", "providers"],
-        enabled
-          ? uniq([...current, provider])
-          : current.filter((each) => each !== provider)
-      );
-    },
-
-    // A model id means nothing to another provider, so switching starts from its default.
-    async setAgentProvider(provider) {
-      config.update([
-        [["agent", "provider"], provider],
-        [["agent", "model"], DEFAULT_MODEL[provider]],
-      ]);
-    },
+    setAgentProvider: (provider) => agent.models.setDefaultProvider(provider),
 
     async setAgentModel(model) {
       config.set(["agent", "model"], model);
@@ -169,16 +154,12 @@ export function createSettingsApi({
       config.set(["agent", "auth"], auth);
     },
 
-    // Removing the entry reads as the provider's own endpoint.
-    async setAgentEndpoint(provider, endpoint) {
-      if (agent.models.defaultEndpoint(provider) === undefined) {
-        throw new Error(
-          `${provider}'s models use several endpoints, so none can stand in for them`
-        );
-      }
+    saveAgentKey: (provider, value) => agent.models.saveKey(provider, value),
 
-      config.set(["agent", "endpoints", provider], endpoint ?? undefined);
-    },
+    deleteAgentKey: (provider) => agent.models.deleteKey(provider),
+
+    setAgentEndpoint: (provider, endpoint) =>
+      agent.models.setEndpoint(provider, endpoint),
 
     signInSubscription: (provider, locale) =>
       agent.models.signIn(provider, locale),

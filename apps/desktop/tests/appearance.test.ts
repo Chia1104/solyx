@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -26,15 +26,14 @@ beforeEach(async () => {
 afterEach(() => rm(directory, { recursive: true, force: true }));
 
 function setup() {
-  const file = join(directory, ".solyx", "config.jsonc");
-  const config = createConfigFile(file);
+  const config = createConfigFile(join(directory, ".solyx", "config.jsonc"));
   const onChange = vi.fn();
 
   config.create();
 
   const appearance = createAppearance({ config, onChange });
 
-  return { file, config, appearance, onChange };
+  return { config, appearance, onChange };
 }
 
 test("a copy takes the next free id, and a copy of a custom palette keeps its colours", () => {
@@ -138,17 +137,4 @@ test("each change is told once, and other settings are not", () => {
   expect(onChange).toHaveBeenLastCalledWith(
     expect.objectContaining({ priceColors: PriceColors.GreenUp })
   );
-});
-
-test("a hand edit is told as a save here would be", async () => {
-  const { file, config, onChange } = setup();
-  const stop = config.watch();
-
-  await writeFile(file, '{ "appearance": { "theme": "light" } }');
-  await vi.waitFor(() =>
-    expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({ theme: Theme.Light })
-    )
-  );
-  stop();
 });

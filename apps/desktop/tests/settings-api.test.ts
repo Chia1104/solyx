@@ -10,9 +10,14 @@ import {
   McpTransportKind,
   mcpToolKey,
 } from "@solyx/agent/mcp-config";
-import { AgentProvider, DEFAULT_MODEL } from "@solyx/agent/providers";
+import { DEFAULT_MODEL } from "@solyx/agent/models";
+import type { AgentProvider } from "@solyx/agent/providers";
 
-import { AppLocation, mcpSecretKey } from "#shared/ipc/settings.ts";
+import {
+  AppLocation,
+  agentKeySecret,
+  mcpSecretKey,
+} from "#shared/ipc/settings.ts";
 
 import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
 import type { McpServers } from "../src/main/modules/agent/mcp-servers.ts";
@@ -121,28 +126,28 @@ test("switching the agent's provider starts from its default model, in one save"
   config.onChange(saves);
   await api.setAgentModel("claude-something-else");
   saves.mockClear();
-  await api.setAgentProvider(AgentProvider.OpenAI);
+  await api.setAgentProvider("openai");
 
   expect(saves).toHaveBeenCalledOnce();
   expect(config.read().agent).toMatchObject({
-    provider: AgentProvider.OpenAI,
-    model: DEFAULT_MODEL[AgentProvider.OpenAI],
+    provider: "openai",
+    model: DEFAULT_MODEL.openai,
   });
   expect(await api.agent()).toMatchObject({
-    provider: AgentProvider.OpenAI,
-    model: DEFAULT_MODEL[AgentProvider.OpenAI],
+    provider: "openai",
+    model: DEFAULT_MODEL.openai,
   });
 });
 
 test("a provider is switched on once, and off again", async () => {
   const { api, config } = setup();
 
-  await api.setAgentProviderEnabled(AgentProvider.Google, true);
-  await api.setAgentProviderEnabled(AgentProvider.Google, true);
+  await api.setAgentProviderEnabled("google", true);
+  await api.setAgentProviderEnabled("google", true);
 
-  expect(config.read().agent.providers).toEqual([AgentProvider.Google]);
+  expect(config.read().agent.providers).toEqual(["google"]);
 
-  await api.setAgentProviderEnabled(AgentProvider.Google, false);
+  await api.setAgentProviderEnabled("google", false);
 
   expect(config.read().agent.providers).toEqual([]);
 });
@@ -155,27 +160,49 @@ test("a provider's endpoint is set and goes back to its own, except for one whos
     (await api.agent()).providers.find((each) => each.provider === provider)
       ?.endpoint;
 
-  const own = (await endpointOf(AgentProvider.OpenAI))?.default;
+  const own = (await endpointOf("openai"))?.default;
 
-  await api.setAgentEndpoint(AgentProvider.OpenAI, gateway);
+  await api.setAgentEndpoint("openai", gateway);
 
-  expect(await endpointOf(AgentProvider.OpenAI)).toEqual({
+  expect(await endpointOf("openai")).toEqual({
     url: gateway,
     default: own,
   });
 
-  await api.setAgentEndpoint(AgentProvider.OpenAI, null);
+  await api.setAgentEndpoint("openai", null);
 
   expect(config.read().agent.endpoints).toEqual({});
-  expect(await endpointOf(AgentProvider.OpenAI)).toEqual({
+  expect(await endpointOf("openai")).toEqual({
     url: own,
     default: own,
   });
 
-  expect(await endpointOf(AgentProvider.OpenRouter)).toBeNull();
+  expect(await endpointOf("openrouter")).toBeNull();
+  await expect(api.setAgentEndpoint("openrouter", gateway)).rejects.toThrow(
+    "several endpoints"
+  );
+});
+
+test("a provider's key is saved under its id, and a provider the app does not offer is refused", async () => {
+  const { api, secrets } = setup();
+
+  await api.saveAgentKey("deepseek", "sk-deepseek");
+
+  expect(await secrets.get(agentKeySecret("deepseek"))).toBe("sk-deepseek");
+
+  await api.deleteAgentKey("deepseek");
+
+  expect(await secrets.get(agentKeySecret("deepseek"))).toBeUndefined();
+
+  await expect(api.saveAgentKey("amazon-bedrock", "key")).rejects.toThrow(
+    "not a provider the app offers"
+  );
   await expect(
-    api.setAgentEndpoint(AgentProvider.OpenRouter, gateway)
-  ).rejects.toThrow("several endpoints");
+    api.setAgentProviderEnabled("amazon-bedrock", true)
+  ).rejects.toThrow("not a provider the app offers");
+  await expect(api.setAgentProvider("nowhere")).rejects.toThrow(
+    "not a provider the app offers"
+  );
 });
 
 test("a shared skill is switched on once, and off again", async () => {

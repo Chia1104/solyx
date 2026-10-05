@@ -18,7 +18,7 @@ import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { AgentProvider, AgentThinking } from "../src/providers.ts";
+import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
 import type { AgentConversationStore } from "../src/runtime.ts";
 import {
@@ -788,7 +788,7 @@ test("a conversation's own model and thinking reach the run, and one without the
   expect(model).toHaveBeenLastCalledWith({ model: null, thinking: null });
 
   const pick = {
-    model: { provider: AgentProvider.OpenAI, id: "gpt-6.1-sol" },
+    model: { provider: "openai", id: "gpt-6.1-sol" },
     thinking: AgentThinking.High,
   };
 

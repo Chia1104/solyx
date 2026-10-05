@@ -1,14 +1,14 @@
-import type { CredentialStore } from "@earendil-works/pi-ai";
 import { escapeRegExp } from "es-toolkit";
 import { expect, onTestFinished, test, vi } from "vite-plus/test";
 
-import { createModelCatalog } from "../src/models.ts";
-import { AgentProvider, DEFAULT_MODEL } from "../src/providers.ts";
+import { DEFAULT_MODEL, createModelCatalog } from "../src/models.ts";
+import type { ProviderCredentials } from "../src/models.ts";
+import type { AgentProvider } from "../src/providers.ts";
 
 // No credential is ever saved here; sign-ins are cancelled before they return.
-const NO_CREDENTIALS: CredentialStore = {
+const NO_CREDENTIALS: ProviderCredentials = {
   read: async () => undefined,
-  list: async () => [],
+  stored: async () => undefined,
   modify: async () => undefined,
   delete: async () => undefined,
 };
@@ -32,27 +32,79 @@ function setup(
 test("a model the provider does not list reads as its default", () => {
   const { catalog } = setup();
 
-  expect(catalog.model(AgentProvider.Anthropic, "gone")?.id).toBe(
-    DEFAULT_MODEL[AgentProvider.Anthropic]
+  expect(catalog.model("anthropic", "gone")?.id).toBe(DEFAULT_MODEL.anthropic);
+  expect(catalog.model("anthropic", undefined)?.id).toBe(
+    DEFAULT_MODEL.anthropic
   );
-  expect(catalog.model(AgentProvider.Anthropic, undefined)?.id).toBe(
-    DEFAULT_MODEL[AgentProvider.Anthropic]
+  expect(catalog.options("anthropic").map((option) => option.id)).toContain(
+    DEFAULT_MODEL.anthropic
   );
-  expect(
-    catalog.options(AgentProvider.Anthropic).map((option) => option.id)
-  ).toContain(DEFAULT_MODEL[AgentProvider.Anthropic]);
+});
+
+test("every provider offered is set up with one key, and only OpenAI also signs in", async () => {
+  const { catalog } = setup();
+  const offered = catalog.providers();
+
+  expect(offered.length).toBeGreaterThan(4);
+
+  for (const { id } of offered) {
+    const auth = catalog.models.getProvider(id)?.auth;
+    const asked: string[] = [];
+
+    await auth?.apiKey?.login?.({
+      signal: AbortSignal.timeout(1000),
+      notify: () => undefined,
+      prompt: async (prompt) => {
+        asked.push(prompt.type);
+
+        return "key";
+      },
+    });
+
+    expect({ id, asked }).toEqual({ id, asked: ["secret"] });
+    expect({ id, oauth: auth?.oauth !== undefined }).toEqual({
+      id,
+      oauth: id === "openai",
+    });
+  }
+});
+
+test("providers that run on more than a key are not offered", () => {
+  const { catalog } = setup();
+
+  expect(catalog.offers("xai")).toBe(true);
+  expect(catalog.offers("amazon-bedrock")).toBe(false);
+  expect(catalog.offers("cloudflare-workers-ai")).toBe(false);
+  expect(catalog.offers("nowhere")).toBe(false);
+  expect(catalog.model("nowhere", undefined)).toBeUndefined();
+});
+
+test("each default model is one its provider's catalog lists", () => {
+  const { catalog } = setup();
+
+  for (const [provider, id] of Object.entries(DEFAULT_MODEL)) {
+    expect({ provider, offered: catalog.offers(provider) }).toEqual({
+      provider,
+      offered: true,
+    });
+    expect(catalog.defaultModel(provider)).toBe(id);
+  }
+
+  for (const { id } of catalog.providers()) {
+    expect(catalog.defaultModel(id)).toBeDefined();
+  }
 });
 
 test("signing in again replaces a sign-in still open, and cancelling ends it quietly", async () => {
   const { catalog, openExternal } = setup();
   const page = () => "";
 
-  const first = catalog.signIn(AgentProvider.OpenAI, page);
+  const first = catalog.signIn("openai", page);
 
   await vi.waitFor(() => expect(openExternal).toHaveBeenCalledOnce());
 
   // Its browser page was closed, so the user starts over.
-  const second = catalog.signIn(AgentProvider.OpenAI, page);
+  const second = catalog.signIn("openai", page);
 
   await expect(first).resolves.toBeUndefined();
   await vi.waitFor(() => expect(openExternal).toHaveBeenCalledTimes(2));
@@ -65,9 +117,9 @@ test("signing in again replaces a sign-in still open, and cancelling ends it qui
 test("only a provider with a subscription signs in", async () => {
   const { catalog } = setup();
 
-  await expect(
-    catalog.signIn(AgentProvider.Anthropic, () => "")
-  ).rejects.toThrow("no subscription sign-in");
+  await expect(catalog.signIn("anthropic", () => "")).rejects.toThrow(
+    "no subscription sign-in"
+  );
 });
 
 test("a request goes to the endpoint set for its provider, read for every request", async () => {
@@ -87,12 +139,12 @@ test("a request goes to the endpoint set for its provider, read for every reques
   });
 
   const { catalog } = setup((provider) =>
-    provider === AgentProvider.Anthropic ? endpoint : undefined
+    provider === "anthropic" ? endpoint : undefined
   );
 
   const send = () =>
     catalog.models.complete(
-      catalog.model(AgentProvider.Anthropic, undefined)!,
+      catalog.model("anthropic", undefined)!,
       { messages: [{ role: "user", content: "hi", timestamp: Date.now() }] },
       { apiKey: "sk-ant-test" }
     );
@@ -101,7 +153,7 @@ test("a request goes to the endpoint set for its provider, read for every reques
   endpoint = gateway;
   await send();
 
-  const own = catalog.defaultEndpoint(AgentProvider.Anthropic);
+  const own = catalog.defaultEndpoint("anthropic");
 
   expect(own).toBeDefined();
   expect(requested).toHaveLength(2);
@@ -112,10 +164,8 @@ test("a request goes to the endpoint set for its provider, read for every reques
 test("a provider whose models use several endpoints keeps its own", () => {
   const { catalog } = setup(() => "https://gateway.example");
 
-  expect(catalog.defaultEndpoint(AgentProvider.OpenRouter)).toBeUndefined();
+  expect(catalog.defaultEndpoint("openrouter")).toBeUndefined();
   expect(
-    catalog.models
-      .getModels(AgentProvider.OpenRouter)
-      .map((model) => model.baseUrl)
+    catalog.models.getModels("openrouter").map((model) => model.baseUrl)
   ).not.toContain("https://gateway.example");
 });

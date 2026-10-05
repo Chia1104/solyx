@@ -461,22 +461,6 @@
         "label": "Certificate password",
         "hint": "Leave it unset if it's your ID number."
       },
-      "anthropic-api-key": {
-        "label": "Anthropic API key",
-        "hint": "A key from the Anthropic Console."
-      },
-      "openai-api-key": {
-        "label": "OpenAI API key",
-        "hint": "A key from the OpenAI Platform."
-      },
-      "google-api-key": {
-        "label": "Gemini API key",
-        "hint": "A key from Google AI Studio."
-      },
-      "openrouter-api-key": {
-        "label": "OpenRouter API key",
-        "hint": "A key from your OpenRouter account."
-      },
       "decisions-api-key": {
         "label": "API key",
         "hint": "A key from the TypeSafe console. Only TypeSafe's models are supported for now."
@@ -531,6 +515,9 @@
       "title": "AI agent",
       "description": "Switch on the providers whose models you want to use, each on your own API key, or on your ChatGPT subscription for OpenAI. Requests go straight from this computer to the provider, or to the endpoint you set for it. Every conversation can pick its own model.",
       "providers-description": "Providers",
+      "add-provider": "Add provider",
+      "search-providers": "Search providers",
+      "no-provider-found": "No provider matches",
       "default-description": "Default model: what a conversation runs on until you pick another for it",
       "default-provider": "Provider",
       "provider-is-default": "The default model's provider, so it stays on",
@@ -542,6 +529,8 @@
         "needs-sign-in": "Needs a sign-in"
       },
       "enable-provider": "Use {{provider}}'s models",
+      "key-label": "{{provider}} API key",
+      "key-hint": "A key from your {{provider}} account.",
       "auth": "Pay with",
       "auth-description": "A subscription runs the agent on your plan's allowance instead of billing each request.",
       "endpoint": "API endpoint",
@@ -556,12 +545,6 @@
         "hint": "Signs in through your browser, where OpenAI asks you to allow Solyx, then comes back here on its own.",
         "sign-in": "Sign in with ChatGPT",
         "sign-in-failed": "Couldn't sign in with ChatGPT"
-      },
-      "providers": {
-        "anthropic": "Anthropic",
-        "openai": "OpenAI",
-        "google": "Google Gemini",
-        "openrouter": "OpenRouter"
       },
       "model": "Model",
       "model-description": "Larger models reason better and cost more per message.",

@@ -12,10 +12,10 @@ import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { groupBy } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
-import { AgentProvider } from "@solyx/agent/providers";
 import type {
   AgentModelPick,
   AgentModelRef,
+  AgentProvider,
   AgentThinking,
 } from "@solyx/agent/providers";
 
@@ -81,10 +81,16 @@ export function AgentModelPicker({
       .map((provider) => provider.provider)
   );
 
-  // In the order Settings lists them.
-  const providers = Object.values(AgentProvider).filter(
-    (provider) => byProvider[provider] !== undefined
+  const names = new Map(
+    settings.providers.map((provider) => [provider.provider, provider.name])
   );
+
+  const nameOf = (provider: AgentProvider) => names.get(provider) ?? provider;
+
+  // In the order Settings lists them.
+  const providers = settings.providers
+    .map((provider) => provider.provider)
+    .filter((provider) => byProvider[provider] !== undefined);
 
   const active =
     providers.find((provider) => provider === (rail ?? chosen.provider)) ??
@@ -139,14 +145,14 @@ export function AgentModelPicker({
         className="w-80 max-w-[calc(100vw-1.5rem)] p-0">
         <Popover.Dialog aria-label={label} className="flex flex-col p-0">
           <div className="flex min-h-0">
-            <div className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border py-2">
+            <div className="flex max-h-68 w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border py-2">
               {providers.map((provider) => (
                 <Tooltip key={provider} delay={300}>
                   <Button
                     isIconOnly
                     size="sm"
                     variant="ghost"
-                    aria-label={t(`settings.agent.providers.${provider}`)}
+                    aria-label={nameOf(provider)}
                     aria-pressed={provider === active}
                     className={cn(
                       "size-9",
@@ -158,7 +164,7 @@ export function AgentModelPicker({
                     <ProviderMark provider={provider} className="size-4.5" />
                   </Button>
                   <Tooltip.Content placement="right">
-                    {t(`settings.agent.providers.${provider}`)}
+                    {nameOf(provider)}
                   </Tooltip.Content>
                 </Tooltip>
               ))}
@@ -238,7 +244,7 @@ export function AgentModelPicker({
                           provider={model.provider}
                           className="size-3"
                         />
-                        {t(`settings.agent.providers.${model.provider}`)}
+                        {nameOf(model.provider)}
                         {usable.has(model.provider)
                           ? null
                           : ` · ${t("agent.model-picker.needs-setup")}`}

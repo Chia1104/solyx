@@ -14,6 +14,7 @@ import {
   FubonSessionState,
   MarketDataSource,
   Secret,
+  agentKeySecret,
 } from "#shared/ipc/settings.ts";
 
 import type { FubonProcess } from "../src/main/modules/market/fubon-client.ts";
@@ -284,7 +285,7 @@ test("the stream changes with its own source's settings and keys, never with ano
   await secrets.save(Secret.FugleApiKey, "fugle-key");
   config.set(["providers", "fugle", "plan"], FuglePlan.Developer);
   await secrets.save(Secret.FubonApiKey, "fubon-key");
-  await secrets.save(Secret.AnthropicApiKey, "anthropic-key");
+  await secrets.save(agentKeySecret("anthropic"), "anthropic-key");
   config.set(["providers", "fubon", FubonFile.Sdk], "/sdk");
 
   expect(changes).toHaveBeenCalledTimes(2);

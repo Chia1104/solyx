@@ -5,8 +5,12 @@ import type {
   McpToolPolicy,
   McpTransportKind,
 } from "@solyx/agent/mcp-config";
-import { AgentProvider } from "@solyx/agent/providers";
-import type { AgentAuth, AgentThinking } from "@solyx/agent/providers";
+import { hasSubscription } from "@solyx/agent/providers";
+import type {
+  AgentAuth,
+  AgentProvider,
+  AgentThinking,
+} from "@solyx/agent/providers";
 import type { SkillSource } from "@solyx/agent/skill-source";
 import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
@@ -21,10 +25,6 @@ export const Secret = {
   FubonApiKey: "fubon-api-key",
   /** Optional: Fubon falls back to the ID number, the password of certificates exported from its website. */
   FubonCertPassword: "fubon-cert-password",
-  AnthropicApiKey: "anthropic-api-key",
-  OpenAIApiKey: "openai-api-key",
-  GoogleApiKey: "google-api-key",
-  OpenRouterApiKey: "openrouter-api-key",
   DecisionsApiKey: "decisions-api-key",
   FirecrawlApiKey: "firecrawl-api-key",
   /** The ChatGPT sign-in's OAuth tokens; the main process saves and refreshes them, nobody types them. */
@@ -52,21 +52,20 @@ export function mcpSignInKey(server: string): McpSignInKey {
   return `mcp-oauth:${server}`;
 }
 
+/** The API key an agent provider runs on, saved under the provider's id. */
+export type AgentKeySecret = `${AgentProvider}-api-key`;
+
+export function agentKeySecret(provider: AgentProvider): AgentKeySecret {
+  return `${provider}-api-key`;
+}
+
 /** Every key the secret store saves under. */
-export type SecretKey = Secret | McpSecretKey | McpSignInKey;
+export type SecretKey = Secret | AgentKeySecret | McpSecretKey | McpSignInKey;
 
-/** The key each agent provider runs on. */
-export const AGENT_PROVIDER_SECRET: Record<AgentProvider, EnteredSecret> = {
-  [AgentProvider.Anthropic]: Secret.AnthropicApiKey,
-  [AgentProvider.OpenAI]: Secret.OpenAIApiKey,
-  [AgentProvider.Google]: Secret.GoogleApiKey,
-  [AgentProvider.OpenRouter]: Secret.OpenRouterApiKey,
-};
-
-/** The providers that can run on a subscription instead of a key, and the secret each sign-in is kept under. */
-export const AGENT_SIGN_IN_SECRET: Partial<Record<AgentProvider, Secret>> = {
-  [AgentProvider.OpenAI]: Secret.OpenAIChatGPT,
-};
+/** The secret a provider's subscription sign-in is kept under; `undefined` for a provider without one. */
+export function agentSignInSecret(provider: AgentProvider): Secret | undefined {
+  return hasSubscription(provider) ? Secret.OpenAIChatGPT : undefined;
+}
 
 export const SecretState = {
   Saved: "saved",
@@ -210,12 +209,18 @@ export interface AgentModelOption {
 /** One provider as the settings page lists it. */
 export interface AgentProviderSettings {
   provider: AgentProvider;
+  /** pi-ai's name for it, a brand name the page shows as it is. */
+  name: string;
   /** Its models are offered to conversations; the default model's provider always is. */
   enabled: boolean;
+  /** On the settings page: switched on, or something is saved for it, so a saved key can be found. */
+  listed: boolean;
   /** Always `api-key` for a provider without a subscription sign-in. */
   auth: AgentAuth;
   /** `null` for a provider without a subscription sign-in. */
   subscription: { signedIn: boolean } | null;
+  /** The API key saved for it, whatever it runs on now. */
+  key: SecretState;
   /** Its key is saved or its subscription signed in, so its models can run. */
   usable: boolean;
   /**
@@ -226,6 +231,7 @@ export interface AgentProviderSettings {
 }
 
 export interface AgentSettings {
+  /** Every provider the user can switch on, by name. */
   providers: AgentProviderSettings[];
   /** The model new conversations start on, and one keeps until the user picks its own. */
   provider: AgentProvider;
@@ -392,6 +398,8 @@ export interface SettingsApi {
   setAgentModel(model: string): Promise<void>;
   setAgentThinking(thinking: AgentThinking): Promise<void>;
   setAgentAuth(auth: AgentAuth): Promise<void>;
+  saveAgentKey(provider: AgentProvider, value: string): Promise<void>;
+  deleteAgentKey(provider: AgentProvider): Promise<void>;
   /** Sends the provider's requests on an API key to `endpoint`; `null` goes back to its own. */
   setAgentEndpoint(
     provider: AgentProvider,
@@ -473,6 +481,8 @@ export const settingsChannels = {
   setAgentModel: "settings:set-agent-model",
   setAgentThinking: "settings:set-agent-thinking",
   setAgentAuth: "settings:set-agent-auth",
+  saveAgentKey: "settings:save-agent-key",
+  deleteAgentKey: "settings:delete-agent-key",
   setAgentEndpoint: "settings:set-agent-endpoint",
   signInSubscription: "settings:sign-in-subscription",
   cancelSignIn: "settings:cancel-sign-in",

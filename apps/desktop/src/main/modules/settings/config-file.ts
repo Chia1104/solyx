@@ -13,13 +13,13 @@ import * as z from "zod";
 
 import {
   AgentAuth,
-  AgentProvider,
+  DEFAULT_PROVIDER,
   AgentThinking,
-  DEFAULT_MODEL,
   agentAuthSchema,
   agentProviderSchema,
   agentThinkingSchema,
 } from "@solyx/agent/providers";
+import type { AgentProvider } from "@solyx/agent/providers";
 import type { Market } from "@solyx/core/market";
 import {
   TYPESAFE_BASE_URL,
@@ -111,9 +111,10 @@ const configSchema = section(
     ),
     agent: section(
       z.looseObject({
-        // The default model's provider is always among them, listed or not.
-        providers: z.array(agentProviderSchema).catch([]),
-        provider: agentProviderSchema.catch(AgentProvider.Anthropic),
+        // The default model's provider is always among them, listed or not; an id the app does
+        // not offer is ignored where it is read, so one stale entry keeps the rest.
+        providers: z.array(z.string()).catch([]),
+        provider: agentProviderSchema.catch(DEFAULT_PROVIDER),
         // Model ids differ by provider, so the reader falls back to the provider's default.
         model: textSchema,
         thinking: agentThinkingSchema.catch(AgentThinking.Medium),
@@ -219,12 +220,12 @@ const TEMPLATE = [
   '    "fubon": { "sdk": "", "certificate": "" }',
   "  },",
   '  "agent": {',
-  `    // The providers whose models a conversation may pick, each on the key saved in the app: ${quoted(AgentProvider)}.`,
+  "    // The providers whose models a conversation may pick, by id, each on the key saved in the app; the settings page lists them.",
   '    "providers": [],',
   "    // The model new conversations start on: its provider, always switched on, and its model id below.",
   `    "provider": "${DEFAULTS.agent.provider}",`,
-  "    // The provider's model id; the settings page lists them.",
-  `    "model": "${DEFAULT_MODEL[DEFAULTS.agent.provider]}",`,
+  "    // The provider's model id, or empty for its default; the settings page lists them.",
+  '    "model": "",',
   `    // How long the model thinks before it answers: ${quoted(AgentThinking)}.`,
   `    "thinking": "${DEFAULTS.agent.thinking}",`,
   `    // How the provider is paid for: ${quoted(AgentAuth)}; a subscription applies to OpenAI, signed in with ChatGPT.`,

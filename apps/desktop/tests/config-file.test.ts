@@ -4,12 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
-import {
-  AgentAuth,
-  AgentProvider,
-  AgentThinking,
-  DEFAULT_MODEL,
-} from "@solyx/agent/providers";
+import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import {
   TYPESAFE_BASE_URL,
   TYPESAFE_DEFAULT_MODEL,
@@ -55,7 +50,7 @@ test("a missing file reads as the defaults, which a new file's commented templat
     providers: { fugle: { plan: FuglePlan.Basic }, fubon: {} },
     agent: {
       providers: [],
-      provider: AgentProvider.Anthropic,
+      provider: "anthropic",
       thinking: AgentThinking.Medium,
       auth: AgentAuth.ApiKey,
       endpoints: {},
@@ -69,13 +64,9 @@ test("a missing file reads as the defaults, which a new file's commented templat
 
   config.create();
 
-  // The template names the default models and endpoint, and its empty paths read as not chosen.
+  // The template names the decisions model and endpoint, and its empty model and paths read as not chosen.
   expect(config.read()).toEqual({
     ...defaults,
-    agent: {
-      ...defaults.agent,
-      model: DEFAULT_MODEL[defaults.agent.provider],
-    },
     decisions: { model: TYPESAFE_DEFAULT_MODEL, baseURL: TYPESAFE_BASE_URL },
   });
   expect(await readFile(file, "utf8")).toMatch(/^\/\/ /);
@@ -233,7 +224,7 @@ test("an entry of the wrong shape reads as its default and leaves the rest in fo
       fubon: { sdk: "/sdk", certificate: undefined },
     },
     agent: {
-      provider: AgentProvider.OpenAI,
+      provider: "openai",
       thinking: AgentThinking.Medium,
       sharedSkills: [],
       endpoints: {

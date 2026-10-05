@@ -1,28 +1,17 @@
-import type {
-  ApiKeyCredential,
-  CredentialInfo,
-  CredentialStore,
-  OAuthCredential,
-} from "@earendil-works/pi-ai";
+import type { ApiKeyCredential, OAuthCredential } from "@earendil-works/pi-ai";
 import { Mutex } from "es-toolkit";
 import * as z from "zod";
 
-import { AgentProvider } from "@solyx/agent/providers";
-import { isEnumValue } from "@solyx/utils/is";
+import type { ProviderCredentials } from "@solyx/agent/models";
+import type { AgentProvider } from "@solyx/agent/providers";
 
 import {
-  AGENT_PROVIDER_SECRET,
-  AGENT_SIGN_IN_SECRET,
   SecretState,
+  agentKeySecret,
+  agentSignInSecret,
 } from "#shared/ipc/settings.ts";
 
 import type { SecretStore } from "./secret-store.ts";
-
-/** The secret a subscription sign-in's tokens are kept under, by pi-ai provider id. */
-const signInSecret = (providerId: string) =>
-  isEnumValue(AgentProvider, providerId)
-    ? AGENT_SIGN_IN_SECRET[providerId]
-    : undefined;
 
 // Loose, since flows keep their own fields beside the tokens, such as ChatGPT's issued client id.
 const oauthCredentialSchema = z.looseObject({
@@ -40,7 +29,7 @@ function parseSignIn(text: string): OAuthCredential | undefined {
   }
 }
 
-export interface AgentCredentials extends CredentialStore {
+export interface AgentCredentials extends ProviderCredentials {
   /** Whether the provider's subscription sign-in is saved, whatever it runs on now. */
   signedIn(provider: AgentProvider): Promise<boolean>;
 }
@@ -59,7 +48,7 @@ export function createCredentialStore(
   const mutex = new Mutex();
 
   const signInSecretOf = (providerId: string) => {
-    const secret = signInSecret(providerId);
+    const secret = agentSignInSecret(providerId);
 
     if (!secret) throw new Error(`${providerId} has no subscription sign-in`);
 
@@ -67,7 +56,7 @@ export function createCredentialStore(
   };
 
   async function readSignIn(providerId: string) {
-    const secret = signInSecret(providerId);
+    const secret = agentSignInSecret(providerId);
     const text = secret ? await secrets.get(secret) : undefined;
 
     return text === undefined ? undefined : parseSignIn(text);
@@ -76,44 +65,30 @@ export function createCredentialStore(
   async function readKey(
     provider: AgentProvider
   ): Promise<ApiKeyCredential | undefined> {
-    const key = await secrets.get(AGENT_PROVIDER_SECRET[provider]);
+    const key = await secrets.get(agentKeySecret(provider));
 
     return key ? { type: "api_key", key } : undefined;
   }
 
   return {
-    async read(providerId) {
-      if (!isEnumValue(AgentProvider, providerId)) return undefined;
+    read: (provider) =>
+      runsOnSubscription(provider) ? readSignIn(provider) : readKey(provider),
 
-      return runsOnSubscription(providerId)
-        ? readSignIn(providerId)
-        : readKey(providerId);
-    },
+    async stored(provider) {
+      const subscription = runsOnSubscription(provider);
 
-    async list() {
-      const listed = await Promise.all(
-        Object.values(AgentProvider).map(
-          async (provider): Promise<CredentialInfo[]> => {
-            const subscription = runsOnSubscription(provider);
+      const secret = subscription
+        ? agentSignInSecret(provider)
+        : agentKeySecret(provider);
 
-            const secret = subscription
-              ? AGENT_SIGN_IN_SECRET[provider]
-              : AGENT_PROVIDER_SECRET[provider];
+      if (
+        secret === undefined ||
+        (await secrets.state(secret)) !== SecretState.Saved
+      ) {
+        return undefined;
+      }
 
-            return secret !== undefined &&
-              (await secrets.state(secret)) === SecretState.Saved
-              ? [
-                  {
-                    providerId: provider,
-                    type: subscription ? "oauth" : "api_key",
-                  },
-                ]
-              : [];
-          }
-        )
-      );
-
-      return listed.flat();
+      return subscription ? "oauth" : "api_key";
     },
 
     async modify(providerId, change) {
@@ -147,7 +122,7 @@ export function createCredentialStore(
     },
 
     async signedIn(provider) {
-      const secret = AGENT_SIGN_IN_SECRET[provider];
+      const secret = agentSignInSecret(provider);
 
       return (
         secret !== undefined &&

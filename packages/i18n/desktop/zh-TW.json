@@ -461,22 +461,6 @@
         "label": "憑證密碼",
         "hint": "與身分證字號相同時免填。"
       },
-      "anthropic-api-key": {
-        "label": "Anthropic API 金鑰",
-        "hint": "在 Anthropic Console 建立的金鑰。"
-      },
-      "openai-api-key": {
-        "label": "OpenAI API 金鑰",
-        "hint": "在 OpenAI Platform 建立的金鑰。"
-      },
-      "google-api-key": {
-        "label": "Gemini API 金鑰",
-        "hint": "在 Google AI Studio 建立的金鑰。"
-      },
-      "openrouter-api-key": {
-        "label": "OpenRouter API 金鑰",
-        "hint": "在 OpenRouter 帳號建立的金鑰。"
-      },
       "decisions-api-key": {
         "label": "API 金鑰",
         "hint": "在 TypeSafe console 建立的金鑰。目前只支援 TypeSafe 的模型。"
@@ -531,6 +515,9 @@
       "title": "AI Agent",
       "description": "啟用你要使用的供應商，各自用你自己的 API 金鑰，OpenAI 也可以用 ChatGPT 訂閱。請求會從這台電腦直接送到供應商，或送到你為它設定的端點。每個對話都可以選自己的模型。",
       "providers-description": "供應商",
+      "add-provider": "新增供應商",
+      "search-providers": "搜尋供應商",
+      "no-provider-found": "沒有符合的供應商",
       "default-description": "預設模型：對話在你另外選擇之前使用的模型",
       "default-provider": "供應商",
       "provider-is-default": "預設模型的供應商，所以維持啟用",
@@ -542,6 +529,8 @@
         "needs-sign-in": "需要登入"
       },
       "enable-provider": "使用 {{provider}} 的模型",
+      "key-label": "{{provider}} API 金鑰",
+      "key-hint": "在你的 {{provider}} 帳號建立的金鑰。",
       "auth": "付費方式",
       "auth-description": "訂閱會用你方案內的額度執行 Agent，不按每次請求計費。",
       "endpoint": "API 端點",
@@ -556,12 +545,6 @@
         "hint": "透過瀏覽器登入，在 OpenAI 頁面允許 Solyx 後會自動回到這裡。",
         "sign-in": "使用 ChatGPT 登入",
         "sign-in-failed": "無法使用 ChatGPT 登入"
-      },
-      "providers": {
-        "anthropic": "Anthropic",
-        "openai": "OpenAI",
-        "google": "Google Gemini",
-        "openrouter": "OpenRouter"
       },
       "model": "模型",
       "model-description": "較大的模型推理較好，每則訊息的費用也較高。",

@@ -1,20 +1,25 @@
 import * as z from "zod";
 
-/** The LLM providers a user can bring a key for. Values are pi-ai's provider ids. */
-export const AgentProvider = {
-  Anthropic: "anthropic",
-  OpenAI: "openai",
-  Google: "google",
-  OpenRouter: "openrouter",
-} as const;
+/**
+ * An LLM provider by pi-ai's id for it, such as `anthropic`. The host's model catalog decides
+ * which ids it offers, so the shape is all a schema can check.
+ */
+export const agentProviderSchema = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9-]*$/)
+  .max(64);
 
-export type AgentProvider = (typeof AgentProvider)[keyof typeof AgentProvider];
+export type AgentProvider = z.infer<typeof agentProviderSchema>;
 
-export const agentProviderSchema = z.enum(AgentProvider);
+/** What new conversations run on until the user picks another provider. */
+export const DEFAULT_PROVIDER: AgentProvider = "anthropic";
+
+/** The one provider that can run on a subscription, OpenAI on ChatGPT, through the app's own sign-in. */
+export const SUBSCRIPTION_PROVIDER: AgentProvider = "openai";
 
 /** Whether the provider can run on the user's subscription, signed in through the app's own flow, instead of a key. */
 export const hasSubscription = (provider: AgentProvider) =>
-  provider === AgentProvider.OpenAI;
+  provider === SUBSCRIPTION_PROVIDER;
 
 /** How the provider is paid for: per request on an API key, or on the user's subscription plan. */
 export const AgentAuth = {
@@ -53,11 +58,3 @@ export const agentModelPickSchema = z.object({
 });
 
 export type AgentModelPick = z.infer<typeof agentModelPickSchema>;
-
-/** Each provider's most capable model, used until the user picks one. */
-export const DEFAULT_MODEL: Record<AgentProvider, string> = {
-  [AgentProvider.Anthropic]: "claude-fable-5-1",
-  [AgentProvider.OpenAI]: "gpt-6.1-sol",
-  [AgentProvider.Google]: "gemini-3.1-pro-preview",
-  [AgentProvider.OpenRouter]: "anthropic/claude-fable-5.1",
-};

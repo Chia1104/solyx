@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 
-import { AgentProvider } from "@solyx/agent/providers";
+import { SUBSCRIPTION_PROVIDER } from "@solyx/agent/providers";
 
 import { currentLocale } from "../../app/i18n.ts";
 
@@ -20,13 +20,13 @@ export function ChatGPTSignIn({ signedIn }: { signedIn: boolean }) {
       needsSignIn={!signedIn}
       onSignIn={() =>
         window.solyx.settings.signInSubscription(
-          AgentProvider.OpenAI,
+          SUBSCRIPTION_PROVIDER,
           currentLocale()
         )
       }
       onCancel={() => window.solyx.settings.cancelSignIn()}
       onSignOut={() =>
-        window.solyx.settings.signOutSubscription(AgentProvider.OpenAI)
+        window.solyx.settings.signOutSubscription(SUBSCRIPTION_PROVIDER)
       }
     />
   );
