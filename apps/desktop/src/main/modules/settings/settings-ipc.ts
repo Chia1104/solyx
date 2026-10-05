@@ -79,6 +79,7 @@ const schemas = {
   setAgentModel: z.tuple([z.string().trim().min(1).max(200)]),
   setAgentThinking: z.tuple([agentThinkingSchema]),
   setAgentAuth: z.tuple([agentAuthSchema]),
+  setAgentEndpoint: z.tuple([agentProviderSchema, endpointSchema.nullable()]),
   signInSubscription: z.tuple([agentProviderSchema, localeSchema]),
   cancelSignIn: z.tuple([]),
   signOutSubscription: z.tuple([agentProviderSchema]),

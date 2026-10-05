@@ -529,7 +529,7 @@
     },
     "agent": {
       "title": "AI Agent",
-      "description": "啟用你要使用的供應商，各自用你自己的 API 金鑰，OpenAI 也可以用 ChatGPT 訂閱。請求會從這台電腦直接送到供應商。每個對話都可以選自己的模型。",
+      "description": "啟用你要使用的供應商，各自用你自己的 API 金鑰，OpenAI 也可以用 ChatGPT 訂閱。請求會從這台電腦直接送到供應商，或送到你為它設定的端點。每個對話都可以選自己的模型。",
       "providers-description": "供應商",
       "default-description": "預設模型：對話在你另外選擇之前使用的模型",
       "default-provider": "供應商",
@@ -544,6 +544,9 @@
       "enable-provider": "使用 {{provider}} 的模型",
       "auth": "付費方式",
       "auth-description": "訂閱會用你方案內的額度執行 Agent，不按每次請求計費。",
+      "endpoint": "API 端點",
+      "endpoint-description": "只在使用支援這個供應商原生 API 的閘道時更改，你的金鑰也會送到那裡。",
+      "endpoint-invalid": "請輸入 http 或 https 網址",
       "auths": {
         "api-key": "API 金鑰",
         "subscription": "ChatGPT 訂閱"

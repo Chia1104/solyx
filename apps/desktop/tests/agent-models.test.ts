@@ -159,6 +159,32 @@ describe("paying by subscription", () => {
     expect((await models.choice()).model.id).toBe("gpt-6.1-sol");
   });
 
+  test("keeps OpenAI's own endpoint, which an API key would leave for the one set", async () => {
+    const { config, secrets, models } = setup();
+    const gateway = "https://gateway.example/v1";
+
+    config.set(["agent", "provider"], AgentProvider.OpenAI);
+    config.set(["agent", "endpoints", AgentProvider.OpenAI], gateway);
+    await secrets.save(Secret.OpenAIApiKey, "sk-test");
+
+    expect((await models.choice()).model.baseUrl).toBe(gateway);
+
+    config.set(["agent", "auth"], AgentAuth.Subscription);
+    await secrets.save(
+      Secret.OpenAIChatGPT,
+      JSON.stringify({
+        type: "oauth",
+        access: "access",
+        refresh: "refresh",
+        expires: Date.now() + 60_000,
+      })
+    );
+
+    expect((await models.choice()).model.baseUrl).toBe(
+      models.defaultEndpoint(AgentProvider.OpenAI)
+    );
+  });
+
   test("a saved key does not stand in for a missing sign-in", async () => {
     const { config, secrets, models } = setup();
 

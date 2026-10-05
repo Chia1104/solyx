@@ -169,6 +169,17 @@ export function createSettingsApi({
       config.set(["agent", "auth"], auth);
     },
 
+    // Removing the entry reads as the provider's own endpoint.
+    async setAgentEndpoint(provider, endpoint) {
+      if (agent.models.defaultEndpoint(provider) === undefined) {
+        throw new Error(
+          `${provider}'s models use several endpoints, so none can stand in for them`
+        );
+      }
+
+      config.set(["agent", "endpoints", provider], endpoint ?? undefined);
+    },
+
     signInSubscription: (provider, locale) =>
       agent.models.signIn(provider, locale),
 

@@ -529,7 +529,7 @@
     },
     "agent": {
       "title": "AI agent",
-      "description": "Switch on the providers whose models you want to use, each on your own API key, or on your ChatGPT subscription for OpenAI. Requests go straight from this computer to the provider. Every conversation can pick its own model.",
+      "description": "Switch on the providers whose models you want to use, each on your own API key, or on your ChatGPT subscription for OpenAI. Requests go straight from this computer to the provider, or to the endpoint you set for it. Every conversation can pick its own model.",
       "providers-description": "Providers",
       "default-description": "Default model: what a conversation runs on until you pick another for it",
       "default-provider": "Provider",
@@ -544,6 +544,9 @@
       "enable-provider": "Use {{provider}}'s models",
       "auth": "Pay with",
       "auth-description": "A subscription runs the agent on your plan's allowance instead of billing each request.",
+      "endpoint": "API endpoint",
+      "endpoint-description": "Change it only for a gateway that speaks this provider's own API. Your key is sent there too.",
+      "endpoint-invalid": "Enter an http or https URL",
       "auths": {
         "api-key": "API key",
         "subscription": "ChatGPT subscription"

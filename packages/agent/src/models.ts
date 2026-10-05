@@ -4,16 +4,17 @@ import type {
   AuthContext,
   CredentialStore,
   Model,
+  Provider,
 } from "@earendil-works/pi-ai";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 import { googleProvider } from "@earendil-works/pi-ai/providers/google";
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter";
+import { mapValues } from "es-toolkit";
 
 import { chatgptOAuth } from "./chatgpt-oauth.ts";
 import type { SignInOutcome } from "./chatgpt-oauth.ts";
-import { DEFAULT_MODEL, hasSubscription } from "./providers.ts";
-import type { AgentProvider } from "./providers.ts";
+import { AgentProvider, DEFAULT_MODEL, hasSubscription } from "./providers.ts";
 import { createSignInSlot } from "./sign-in.ts";
 
 // Keys come only from what the user saved in the app, never from the environment or files.
@@ -31,6 +32,42 @@ export interface ModelCatalogOptions {
   getDeviceId: () => string;
   /** Opens a sign-in page in the system browser. */
   openExternal: (url: string) => void;
+  /**
+   * Where the provider's requests go in place of its own endpoint, read for every request;
+   * `undefined` keeps its own. Applies only to a provider whose models share one endpoint.
+   */
+  endpoint: (provider: AgentProvider) => string | undefined;
+}
+
+/** The one endpoint every model of the provider is served from, or `undefined` when they use several. */
+function sharedEndpoint(provider: Provider): string | undefined {
+  const endpoints = new Set(
+    (provider.getAllModels?.() ?? provider.getModels()).map(
+      (model) => model.baseUrl
+    )
+  );
+
+  return endpoints.size === 1 ? [...endpoints][0] : undefined;
+}
+
+/** The provider with its models served from `endpoint()` while that names one. */
+function withEndpoint(
+  provider: Provider,
+  endpoint: () => string | undefined
+): Provider {
+  const { getAllModels } = provider;
+
+  const served = <T extends { baseUrl: string }>(model: T): T => {
+    const baseUrl = endpoint();
+
+    return baseUrl === undefined ? model : { ...model, baseUrl };
+  };
+
+  return {
+    ...provider,
+    getModels: () => provider.getModels().map(served),
+    getAllModels: getAllModels && (() => getAllModels().map(served)),
+  };
 }
 
 /** A model the user can pick. */
@@ -54,6 +91,7 @@ export function createModelCatalog({
   appName,
   getDeviceId,
   openExternal,
+  endpoint,
 }: ModelCatalogOptions) {
   const slot = createSignInSlot();
 
@@ -68,13 +106,31 @@ export function createModelCatalog({
     callbackPage: (outcome, detail) => landing(outcome, detail),
   });
 
-  models.setProvider(anthropicProvider());
-  models.setProvider({ ...openai, auth: { ...openai.auth, oauth: chatgpt } });
-  models.setProvider(googleProvider());
-  models.setProvider(openrouterProvider());
+  const providers: Record<AgentProvider, Provider> = {
+    [AgentProvider.Anthropic]: anthropicProvider(),
+    [AgentProvider.OpenAI]: {
+      ...openai,
+      auth: { ...openai.auth, oauth: chatgpt },
+    },
+    [AgentProvider.Google]: googleProvider(),
+    [AgentProvider.OpenRouter]: openrouterProvider(),
+  };
+
+  const endpoints = mapValues(providers, sharedEndpoint);
+
+  for (const each of Object.values(AgentProvider)) {
+    models.setProvider(
+      endpoints[each] === undefined
+        ? providers[each]
+        : withEndpoint(providers[each], () => endpoint(each))
+    );
+  }
 
   return {
     models,
+
+    /** The provider's own endpoint, which `endpoint` may replace; `undefined` when its models use several. */
+    defaultEndpoint: (provider: AgentProvider) => endpoints[provider],
 
     /** The provider's model `id`, or its default one when the catalog lists no such model. */
     model(

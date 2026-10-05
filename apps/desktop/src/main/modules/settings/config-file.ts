@@ -118,6 +118,10 @@ const configSchema = section(
         model: textSchema,
         thinking: agentThinkingSchema.catch(AgentThinking.Medium),
         auth: agentAuthSchema.catch(AgentAuth.ApiKey),
+        // By provider id; an entry that is not an endpoint reads as the provider's own.
+        endpoints: z
+          .record(z.string(), endpointSchema.optional().catch(undefined))
+          .catch({}),
         sharedSkills: z.array(z.string()).catch([]),
         shell: z.boolean().catch(false),
         // Values are checked one by one where they are read, so one bad entry keeps the rest.
@@ -167,6 +171,7 @@ type ConfigPath =
         | "shell"
       ),
     ]
+  | ["agent", "endpoints", AgentProvider]
   | ["agent", "mcpTools", string]
   | ["news", "collectEveryHours"]
   | ["decisions", "model" | "baseURL"];
@@ -224,6 +229,9 @@ const TEMPLATE = [
   `    "thinking": "${DEFAULTS.agent.thinking}",`,
   `    // How the provider is paid for: ${quoted(AgentAuth)}; a subscription applies to OpenAI, signed in with ChatGPT.`,
   `    "auth": "${DEFAULTS.agent.auth}",`,
+  "    // Where a provider's requests go in place of its own endpoint, by provider, such as a gateway that speaks its API;",
+  "    // your key is sent there. OpenAI's applies only on an API key, and OpenRouter, whose models use several, takes none.",
+  '    "endpoints": {},',
   "    // Skills from ~/.agents/skills the agent may read, by name. The skills folder beside this file is always read.",
   '    "sharedSkills": [],',
   "    // Lets the agent run shell commands on this computer, each only after you allow it. They are not sandboxed.",

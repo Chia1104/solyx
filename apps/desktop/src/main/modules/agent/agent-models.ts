@@ -59,7 +59,21 @@ export function createAgentModels({
     appName: PRODUCT_NAME,
     getDeviceId,
     openExternal,
+    // pi-ai tells a ChatGPT sign-in by OpenAI's own endpoint, so a subscription keeps it.
+    endpoint: (provider) =>
+      agentAuth(config, provider) === AgentAuth.ApiKey
+        ? config.read().agent.endpoints[provider]
+        : undefined,
   });
+
+  /** The provider's endpoint as set, beside its own; `null` for a provider whose models use several. */
+  function endpoint(provider: AgentProvider) {
+    const own = catalog.defaultEndpoint(provider);
+
+    return own === undefined
+      ? null
+      : { url: config.read().agent.endpoints[provider] ?? own, default: own };
+  }
 
   /** Switched on by the user, or the default model's, which cannot be switched off. */
   function enabled(provider: AgentProvider) {
@@ -79,6 +93,9 @@ export function createAgentModels({
   return {
     models: catalog.models,
 
+    defaultEndpoint: (provider: AgentProvider) =>
+      catalog.defaultEndpoint(provider),
+
     async settings(): Promise<AgentSettings> {
       const { provider, model, thinking } = config.read().agent;
       const found = catalog.model(provider, model);
@@ -93,6 +110,7 @@ export function createAgentModels({
               ? { signedIn: await credentials.signedIn(each) }
               : null,
             usable: await usable(each),
+            endpoint: endpoint(each),
           }))
         ),
         provider,

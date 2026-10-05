@@ -1,9 +1,10 @@
-import { useId } from "react";
+import { useId, useMemo } from "react";
 
 import { Switch, cn } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
 import { useTranslation } from "react-i18next";
+import * as z from "zod";
 
 import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 
@@ -22,6 +23,7 @@ import { ChatGPTSignIn } from "./chatgpt-sign-in.tsx";
 import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { agentSettingsQuery, secretsQuery } from "./settings-query.ts";
+import { TextSettingRow } from "./text-setting-row.tsx";
 
 /**
  * A provider's tile: drawn quiet while switched off, in pencil while switched on but unable to run
@@ -92,6 +94,21 @@ export function AgentSettings() {
     mutationFn: (change: () => Promise<void>) => change(),
   });
 
+  // Rebuilt per language so field errors come out localized.
+  const endpointSchema = useMemo(
+    () =>
+      z
+        .string()
+        .trim()
+        .pipe(
+          z.url({
+            protocol: /^https?$/,
+            error: t("settings.agent.endpoint-invalid"),
+          })
+        ),
+    [t]
+  );
+
   const error = settings.error ?? secrets.error;
 
   if (error) {
@@ -120,6 +137,7 @@ export function AgentSettings() {
   const modelLabel = t("settings.agent.model");
   const thinkingLabel = t("settings.agent.thinking");
   const authLabel = t("settings.agent.auth");
+  const endpointLabel = t("settings.agent.endpoint");
 
   const providerRows = (each: AgentProviderSettings) => {
     const name = t(`settings.agent.providers.${each.provider}`);
@@ -187,11 +205,25 @@ export function AgentSettings() {
           each.subscription && each.auth === AgentAuth.Subscription ? (
             <ChatGPTSignIn signedIn={each.subscription.signedIn} />
           ) : (
-            <AppSecretRow
-              secret={secret}
-              state={states[secret]}
-              available={available}
-            />
+            <>
+              <AppSecretRow
+                secret={secret}
+                state={states[secret]}
+                available={available}
+              />
+              {each.endpoint ? (
+                <TextSettingRow
+                  label={endpointLabel}
+                  description={t("settings.agent.endpoint-description")}
+                  value={each.endpoint.url}
+                  isDefault={each.endpoint.url === each.endpoint.default}
+                  schema={endpointSchema}
+                  onSave={(next) =>
+                    window.solyx.settings.setAgentEndpoint(each.provider, next)
+                  }
+                />
+              ) : null}
+            </>
           )
         ) : null}
       </SettingsList>

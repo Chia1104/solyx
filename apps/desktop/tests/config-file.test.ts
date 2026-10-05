@@ -58,6 +58,7 @@ test("a missing file reads as the defaults, which a new file's commented templat
       provider: AgentProvider.Anthropic,
       thinking: AgentThinking.Medium,
       auth: AgentAuth.ApiKey,
+      endpoints: {},
       sharedSkills: [],
       shell: false,
       mcpTools: {},
@@ -212,7 +213,15 @@ test("an entry of the wrong shape reads as its default and leaves the rest in fo
         fugle: "developer",
         fubon: { sdk: "/sdk", certificate: [] },
       },
-      agent: { provider: "openai", thinking: "forever", sharedSkills: "all" },
+      agent: {
+        provider: "openai",
+        thinking: "forever",
+        sharedSkills: "all",
+        endpoints: {
+          anthropic: "file:///etc/hosts",
+          google: "https://gateway.example/v1beta",
+        },
+      },
       decisions: { model: " ", baseURL: "file:///etc/hosts" },
     })
   );
@@ -227,6 +236,10 @@ test("an entry of the wrong shape reads as its default and leaves the rest in fo
       provider: AgentProvider.OpenAI,
       thinking: AgentThinking.Medium,
       sharedSkills: [],
+      endpoints: {
+        anthropic: undefined,
+        google: "https://gateway.example/v1beta",
+      },
     },
     decisions: { model: undefined, baseURL: undefined },
   });

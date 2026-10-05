@@ -218,6 +218,11 @@ export interface AgentProviderSettings {
   subscription: { signedIn: boolean } | null;
   /** Its key is saved or its subscription signed in, so its models can run. */
   usable: boolean;
+  /**
+   * Where its requests go on an API key, and its own endpoint, which `url` reads as until one is
+   * set. `null` for a provider whose models use several endpoints, so none can stand in for them.
+   */
+  endpoint: { url: string; default: string } | null;
 }
 
 export interface AgentSettings {
@@ -387,6 +392,11 @@ export interface SettingsApi {
   setAgentModel(model: string): Promise<void>;
   setAgentThinking(thinking: AgentThinking): Promise<void>;
   setAgentAuth(auth: AgentAuth): Promise<void>;
+  /** Sends the provider's requests on an API key to `endpoint`; `null` goes back to its own. */
+  setAgentEndpoint(
+    provider: AgentProvider,
+    endpoint: string | null
+  ): Promise<void>;
   /**
    * Signs in to the provider's subscription in the browser, resolving once the sign-in is saved
    * or cancelled. The page the browser lands on is written in `locale`.
@@ -463,6 +473,7 @@ export const settingsChannels = {
   setAgentModel: "settings:set-agent-model",
   setAgentThinking: "settings:set-agent-thinking",
   setAgentAuth: "settings:set-agent-auth",
+  setAgentEndpoint: "settings:set-agent-endpoint",
   signInSubscription: "settings:sign-in-subscription",
   cancelSignIn: "settings:cancel-sign-in",
   signOutSubscription: "settings:sign-out-subscription",

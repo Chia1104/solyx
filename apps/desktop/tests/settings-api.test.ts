@@ -147,6 +147,37 @@ test("a provider is switched on once, and off again", async () => {
   expect(config.read().agent.providers).toEqual([]);
 });
 
+test("a provider's endpoint is set and goes back to its own, except for one whose models use several", async () => {
+  const { api, config } = setup();
+  const gateway = "https://gateway.example/v1";
+
+  const endpointOf = async (provider: AgentProvider) =>
+    (await api.agent()).providers.find((each) => each.provider === provider)
+      ?.endpoint;
+
+  const own = (await endpointOf(AgentProvider.OpenAI))?.default;
+
+  await api.setAgentEndpoint(AgentProvider.OpenAI, gateway);
+
+  expect(await endpointOf(AgentProvider.OpenAI)).toEqual({
+    url: gateway,
+    default: own,
+  });
+
+  await api.setAgentEndpoint(AgentProvider.OpenAI, null);
+
+  expect(config.read().agent.endpoints).toEqual({});
+  expect(await endpointOf(AgentProvider.OpenAI)).toEqual({
+    url: own,
+    default: own,
+  });
+
+  expect(await endpointOf(AgentProvider.OpenRouter)).toBeNull();
+  await expect(
+    api.setAgentEndpoint(AgentProvider.OpenRouter, gateway)
+  ).rejects.toThrow("several endpoints");
+});
+
 test("a shared skill is switched on once, and off again", async () => {
   const { api, config } = setup();
 
