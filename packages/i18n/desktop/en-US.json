@@ -534,6 +534,13 @@
       "default-description": "Default model: what a conversation runs on until you pick another for it",
       "default-provider": "Provider",
       "provider-is-default": "The default model's provider, so it stays on",
+      "provider-default": "Default",
+      "provider-states": {
+        "off": "Off",
+        "ready": "Ready",
+        "needs-key": "Needs an API key",
+        "needs-sign-in": "Needs a sign-in"
+      },
       "enable-provider": "Use {{provider}}'s models",
       "auth": "Pay with",
       "auth-description": "A subscription runs the agent on your plan's allowance instead of billing each request.",

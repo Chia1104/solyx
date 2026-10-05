@@ -534,6 +534,13 @@
       "default-description": "預設模型：對話在你另外選擇之前使用的模型",
       "default-provider": "供應商",
       "provider-is-default": "預設模型的供應商，所以維持啟用",
+      "provider-default": "預設",
+      "provider-states": {
+        "off": "未啟用",
+        "ready": "可以使用",
+        "needs-key": "需要 API 金鑰",
+        "needs-sign-in": "需要登入"
+      },
       "enable-provider": "使用 {{provider}} 的模型",
       "auth": "付費方式",
       "auth-description": "訂閱會用你方案內的額度執行 Agent，不按每次請求計費。",
