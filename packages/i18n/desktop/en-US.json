@@ -253,6 +253,9 @@
       "run_tool_script": "Ran a tool script",
       "web_search": "Searched the web",
       "read_page": "Read a page",
+      "recall": "Recalled memories",
+      "remember": "Saved a memory",
+      "forget": "Forgot a memory",
       "bash": "Ran a command"
     },
     "tool-status": {

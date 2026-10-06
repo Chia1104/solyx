@@ -6,6 +6,13 @@
 
 import * as z from "zod";
 
+import { symbolRefSchema } from "@solyx/core/market";
+import {
+  memoryBodySchema,
+  memoryDescriptionSchema,
+  memoryKindSchema,
+} from "@solyx/core/memory";
+
 import type { AgentModelRef, AgentThinking } from "./providers.ts";
 
 /** How a conversation's calls that must ask get past the approval gate. */
@@ -56,6 +63,9 @@ export const AgentToolName = {
   RunToolScript: "run_tool_script",
   WebSearch: "web_search",
   ReadPage: "read_page",
+  Recall: "recall",
+  Remember: "remember",
+  Forget: "forget",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
   Bash: "bash",
 } as const;
@@ -82,6 +92,32 @@ export const bashArgumentsSchema = z.object({ command: z.string() });
 
 export const readPageArgumentsSchema = z.object({
   url: z.url({ protocol: /^https?$/ }).describe("The page's full address"),
+});
+
+/** A memory the agent saves, or rewrites whole under its id, once the user allows it. */
+export const rememberArgumentsSchema = z.object({
+  id: z
+    .string()
+    .optional()
+    .describe(
+      "A memory's id from the list, to rewrite it whole; left out, a new memory is saved"
+    ),
+  kind: memoryKindSchema.describe(
+    "profile: who the user is, their goals and limits; feedback: how they want you to work; note: a thesis or fact worth keeping"
+  ),
+  listing: symbolRefSchema
+    .optional()
+    .describe("The listing it is about, if one"),
+  description: memoryDescriptionSchema.describe(
+    "The one line the memory list shows: what it holds and when it matters. For profile and feedback, the rule itself"
+  ),
+  body: memoryBodySchema
+    .default("")
+    .describe("The details recall reads; may be empty"),
+});
+
+export const forgetArgumentsSchema = z.object({
+  id: z.string().describe("A memory's id from the list"),
 });
 
 export const AgentEventType = {

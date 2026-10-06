@@ -253,6 +253,9 @@
       "run_tool_script": "執行工具腳本",
       "web_search": "搜尋網路",
       "read_page": "讀取網頁",
+      "recall": "回想記憶",
+      "remember": "存下記憶",
+      "forget": "遺忘記憶",
       "bash": "執行指令"
     },
     "tool-status": {
