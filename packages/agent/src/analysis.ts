@@ -1,13 +1,9 @@
 import type { JsonValue } from "@earendil-works/chord";
-import {
-  CodemodeSandbox,
-  loadQuickJSWasm,
-  renderDeclarations,
-} from "@earendil-works/pi-codemode";
+import { renderDeclarations } from "@earendil-works/pi-codemode";
 import type { CodemodeTool } from "@earendil-works/pi-codemode";
 import { defineDoc, defineExtension } from "@earendil-works/pi-durable";
-import type { ToolRegistration } from "@earendil-works/pi-durable";
-import { omit, once } from "es-toolkit";
+import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
+import { omit } from "es-toolkit";
 import * as z from "zod";
 
 import { candleDate, intervalSchema, isIntraday } from "@solyx/core/candles";
@@ -17,7 +13,9 @@ import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import type { ProposingDesk } from "@solyx/core/order-desk";
 
-import { AgentToolName, runAnalysisArgumentsSchema } from "./wire.ts";
+import { scriptFunction } from "./script-runner.ts";
+import type { ScriptRunner } from "./script-runner.ts";
+import { AgentToolName, scriptArgumentsSchema } from "./wire.ts";
 import type { RunAnalysisDetails } from "./wire.ts";
 
 /** What a script may read. Nothing here changes anything, and the desk's `propose` is left out. */
@@ -28,19 +26,10 @@ export interface AnalysisPorts {
 }
 
 export interface AnalysisOptions extends AnalysisPorts {
-  /**
-   * Where a bundled host ships QuickJS and the worker's entry, since neither is on disk beside a
-   * bundle; left out, the installed packages' own files are used.
-   */
-  files?: { wasm: string; worker: URL };
+  scripts: ScriptRunner;
 }
 
 const TIMEOUT_MS = 30_000;
-
-const MEMORY_LIMIT_BYTES = 256 * 1024 * 1024;
-
-// What a script printed and returned reaches the model whole up to here.
-const MAX_OUTPUT_CHARS = 20_000;
 
 /** What a conversation's scripts stored for its later scripts to load. */
 const AnalysisStoreDoc = defineDoc<{ values: Record<string, JsonValue> }>({
@@ -69,28 +58,6 @@ const valuesSchema = z.array(z.number());
 const lineSchema = z.array(z.number().nullable());
 
 const LINE = "(number | null)[]";
-
-/** A function scripts call, whose arguments are parsed since a script may pass anything. */
-function scriptFunction<Input extends z.ZodType, Output extends z.ZodType>(
-  spec: Pick<CodemodeTool, "name" | "description" | "spread" | "signature"> & {
-    input: Input;
-    output: Output;
-    run(input: z.infer<Input>): Promise<z.input<Output>> | z.input<Output>;
-  }
-): CodemodeTool {
-  return {
-    ...omit(spec, ["input", "output", "run"]),
-    inputSchema: z.toJSONSchema(spec.input, { io: "input" }),
-    outputSchema: z.toJSONSchema(spec.output),
-    async execute(args) {
-      const parsed = spec.input.safeParse(args ?? {});
-
-      if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
-
-      return spec.run(parsed.data);
-    },
-  };
-}
 
 /** The app's own indicator maths, so a script's numbers match the chart's. */
 const indicators: CodemodeTool[] = [
@@ -229,35 +196,13 @@ function dataFunctions(ports: AnalysisPorts): CodemodeTool[] {
   ];
 }
 
-const clip = (text: string) =>
-  text.length > MAX_OUTPUT_CHARS
-    ? `${text.slice(0, MAX_OUTPUT_CHARS)}\n… cut at ${MAX_OUTPUT_CHARS} characters; aggregate in the script and print less`
-    : text;
-
 /**
  * `run_analysis`: the agent's own JavaScript, run in a QuickJS VM that can only call the functions
  * given here. A script reads market data and the account and computes; it has no network, files or
  * timers, and nothing it can call changes anything, so its calls need no approval.
  */
-export function createAnalysis(options: AnalysisOptions) {
+export function createAnalysis(options: AnalysisOptions): Extension {
   const tools = dataFunctions(options);
-
-  // Started with the first script, so a host that never runs one loads nothing.
-  const sandbox = once(
-    () =>
-      new CodemodeSandbox({
-        tools,
-        globals: indicators,
-        timeoutMs: TIMEOUT_MS,
-        memoryLimitBytes: MEMORY_LIMIT_BYTES,
-        ...(options.files && {
-          wasm: loadQuickJSWasm(options.files.wasm),
-          workerUrl: options.files.worker,
-        }),
-      })
-  );
-
-  let started = false;
 
   const tool: ToolRegistration = {
     name: AgentToolName.RunAnalysis,
@@ -267,14 +212,13 @@ export function createAnalysis(options: AnalysisOptions) {
       "What a script fetches stays in the script, so fetch every bar you need there and return only the result. `type Bar` is one item of what tools.candles returns.",
       renderDeclarations({ tools, globals: indicators }),
     ].join("\n\n"),
-    parameters: omit(
-      z.toJSONSchema(runAnalysisArgumentsSchema, { io: "input" }),
-      ["$schema"]
-    ),
+    parameters: omit(z.toJSONSchema(scriptArgumentsSchema, { io: "input" }), [
+      "$schema",
+    ]),
     // A script changes nothing but what it stores, and only a script that finished stores.
     replay: "safe",
     async execute(params, api, context) {
-      const parsed = runAnalysisArgumentsSchema.safeParse(params);
+      const parsed = scriptArgumentsSchema.safeParse(params);
 
       if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
 
@@ -291,28 +235,15 @@ export function createAnalysis(options: AnalysisOptions) {
         context
       );
 
-      started = true;
-
-      const result = await sandbox().execute(parsed.data.code, {
+      const result = await options.scripts.run(parsed.data.code, {
+        tools,
+        globals: indicators,
+        timeoutMs: TIMEOUT_MS,
         signal: context.abortSignal,
         store: saved,
       });
 
-      const lines = result.output.flatMap((item) =>
-        item.type === "text" ? [item.text] : []
-      );
-
-      if (!result.ok) {
-        lines.push(
-          result.error.kind === "timeout"
-            ? `The script ran past ${TIMEOUT_MS / 1000} seconds and was stopped`
-            : (result.error.stack ?? result.error.message)
-        );
-      } else {
-        if (result.value !== undefined) {
-          lines.push(`Result: ${JSON.stringify(result.value)}`);
-        }
-
+      if (result.ok) {
         const { set, delete: removed } = result.storeWrites;
 
         if (Object.keys(set).length > 0 || removed.length > 0) {
@@ -326,26 +257,15 @@ export function createAnalysis(options: AnalysisOptions) {
         }
       }
 
-      const output = clip(
-        lines.join("\n") || "The script printed nothing and returned nothing."
-      );
-
-      const details: RunAnalysisDetails = { output };
+      const details: RunAnalysisDetails = { output: result.output };
 
       return {
-        content: [{ type: "text", text: output }],
+        content: [{ type: "text", text: result.output }],
         details,
         isError: !result.ok,
       };
     },
   };
 
-  return {
-    extension: defineExtension({ name: "solyx-analysis", tools: [tool] }),
-
-    /** Stops scripts still running as the app quits. */
-    async close() {
-      if (started) await sandbox().close();
-    },
-  };
+  return defineExtension({ name: "solyx-analysis", tools: [tool] });
 }

@@ -6,10 +6,12 @@ import { BrowserWindow } from "electron";
 import { omit } from "es-toolkit";
 
 import { createAnalysis } from "@solyx/agent/analysis";
+import { mcpScriptExtension } from "@solyx/agent/mcp-script";
 import { formatContext } from "@solyx/agent/prompt";
 import type { AgentModelPick } from "@solyx/agent/providers";
 import { createAgentRuntime } from "@solyx/agent/runtime";
 import type { AgentConversationStore } from "@solyx/agent/runtime";
+import { createScriptRunner } from "@solyx/agent/script-runner";
 import { createShell } from "@solyx/agent/shell";
 import type { ShellOptions } from "@solyx/agent/shell";
 import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
@@ -53,9 +55,9 @@ interface AgentServiceOptions extends AgentModelsOptions {
 }
 
 // `vp pack` ships QuickJS beside the main bundle and builds the scripts' worker next to it.
-const ANALYSIS_FILES = {
+const SCRIPT_FILES = {
   wasm: join(import.meta.dirname, "quickjs.wasm"),
-  worker: pathToFileURL(join(import.meta.dirname, "../worker/analysis.mjs")),
+  worker: pathToFileURL(join(import.meta.dirname, "../worker/script.mjs")),
 };
 
 /** The agent as the app wires it: the user's model and key, the trading tools and the desk. */
@@ -105,11 +107,13 @@ export function createAgentService(options: AgentServiceOptions) {
     instructions,
   });
 
+  const scripts = createScriptRunner(SCRIPT_FILES);
+
   const analysis = createAnalysis({
     marketData: options.marketData,
     watchlist: options.watchlist,
     desk: options.desk,
-    files: ANALYSIS_FILES,
+    scripts,
   });
 
   const web = createWebTools({ vendor: options.web });
@@ -126,10 +130,11 @@ export function createAgentService(options: AgentServiceOptions) {
       return {
         offered: [
           trading,
-          analysis.extension,
+          analysis,
           ...(shellOn() ? [shell.extension(guard)] : []),
           ...(webOn ? [web.extension(guard)] : []),
           mcp.search,
+          mcpScriptExtension(mcp.catalog, scripts),
         ],
         deferred: [mcp.tools],
       };
@@ -170,7 +175,7 @@ export function createAgentService(options: AgentServiceOptions) {
     /** Closes the conversations, then the scripts and MCP servers their runs used, as the app quits. */
     async close() {
       await runtime.close();
-      await analysis.close();
+      await scripts.close();
       await options.mcp.close();
     },
 

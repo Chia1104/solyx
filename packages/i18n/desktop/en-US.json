@@ -250,6 +250,7 @@
       "read_skill": "Read a playbook",
       "search_tools": "Searched MCP tools",
       "run_analysis": "Ran an analysis",
+      "run_tool_script": "Ran a tool script",
       "web_search": "Searched the web",
       "read_page": "Read a page",
       "bash": "Ran a command"

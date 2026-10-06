@@ -45,3 +45,28 @@ test("a run that ends while a call waits leaves the call stopped", () => {
   expect(view.items[0]).toMatchObject({ status: ToolCallStatus.Aborted });
   expect(view.running).toBe(false);
 });
+
+test("a script's calls sit under it, after those it made before, while its round runs on", () => {
+  const start = (toolCallId: string, parentToolCallId?: string) => ({
+    type: AgentEventType.ToolStart,
+    toolCallId,
+    toolName: "tool",
+    args: {},
+    parentToolCallId,
+  });
+
+  const view = foldEvents([
+    { type: AgentEventType.RunStart },
+    start("script"),
+    start("other"),
+    start("script/1", "script"),
+    start("script/2", "script"),
+  ]);
+
+  expect(view.items).toMatchObject([
+    { toolCallId: "script" },
+    { toolCallId: "script/1", parentToolCallId: "script" },
+    { toolCallId: "script/2", parentToolCallId: "script" },
+    { toolCallId: "other" },
+  ]);
+});

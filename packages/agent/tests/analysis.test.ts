@@ -15,6 +15,7 @@ import { Market } from "@solyx/core/market";
 import { createAnalysis } from "../src/analysis.ts";
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
+import { createScriptRunner } from "../src/script-runner.ts";
 import {
   AgentEventType,
   AgentToolName,
@@ -50,6 +51,8 @@ async function analyze(...scripts: string[]) {
 
   models.setProvider(faux.provider);
 
+  const runner = createScriptRunner();
+
   const analysis = createAnalysis({
     marketData: { candles },
     watchlist: () => [{ market: Market.TW, symbol: "2330" }],
@@ -57,6 +60,7 @@ async function analyze(...scripts: string[]) {
       mode: BrokerMode.Paper,
       account: async () => ({ cash: { TWD: 1_000_000 }, positions: [] }),
     },
+    scripts: runner,
   });
 
   const runtime = createAgentRuntime({
@@ -69,13 +73,13 @@ async function analyze(...scripts: string[]) {
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    tools: async () => ({ offered: [analysis.extension], deferred: [] }),
+    tools: async () => ({ offered: [analysis], deferred: [] }),
     onEvent: (_sessionId, event) => events.push(event),
   });
 
   closers.push(async () => {
     await runtime.close();
-    await analysis.close();
+    await runner.close();
   });
 
   faux.setResponses([

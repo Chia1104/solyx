@@ -1,3 +1,4 @@
+import type { JsonValue } from "@earendil-works/chord";
 import { contentText } from "@earendil-works/pi-ai";
 import type {
   AssistantMessage,
@@ -19,10 +20,12 @@ import {
   AgentToolName,
   RunEndReason,
   ToolCallStatus,
+  nestedCallsSchema,
 } from "./wire.ts";
 import type {
   AgentWireEvent,
   RunEndEvent,
+  NestedCall,
   ToolEndEvent,
   ToolStartEvent,
 } from "./wire.ts";
@@ -166,6 +169,8 @@ function toolEndEvent(entry: EntryRecord): ToolEndEvent | undefined {
 export function createTranscriber(approvals: ApprovalRecord) {
   /** Calls whose start went out and whose result has not, with their tool's name. */
   let open = new Map<string, string>();
+  /** Calls a script made whose start went out, so a later list of them starts none again. */
+  const started = new Set<string>();
   /** Approval events waiting for their call's start to go out, which arrives with its commit. */
   const held = new Map<string, ApprovalEvent[]>();
   let inRun = false;
@@ -257,6 +262,52 @@ export function createTranscriber(approvals: ApprovalRecord) {
     return [event];
   }
 
+  /**
+   * Starts and ends the calls a call's script made; once the call has `ended`, those it left
+   * running end as aborted.
+   */
+  function nested(
+    parentToolCallId: string,
+    calls: readonly NestedCall[],
+    ended = false
+  ): AgentWireEvent[] {
+    return calls.flatMap((call) => {
+      const events: AgentWireEvent[] = [];
+
+      if (!started.has(call.id)) {
+        started.add(call.id);
+        events.push(
+          ...toolStart({
+            type: AgentEventType.ToolStart,
+            toolCallId: call.id,
+            toolName: call.toolName,
+            args: call.args,
+            parentToolCallId,
+          })
+        );
+      }
+
+      const status =
+        ended && call.status === ToolCallStatus.Running
+          ? ToolCallStatus.Aborted
+          : call.status;
+
+      if (status !== ToolCallStatus.Running && open.has(call.id)) {
+        events.push(
+          ...toolEnd({
+            type: AgentEventType.ToolEnd,
+            toolCallId: call.id,
+            toolName: call.toolName,
+            status,
+            error: call.error,
+          })
+        );
+      }
+
+      return events;
+    });
+  }
+
   /** The end of the call a stored tool result answers; nothing for any other entry. */
   function toolResult(entry: EntryRecord): AgentWireEvent[] {
     const event = toolEndEvent(entry);
@@ -267,7 +318,14 @@ export function createTranscriber(approvals: ApprovalRecord) {
       pending = { type: AgentEventType.RunEnd, reason: RunEndReason.Aborted };
     }
 
-    return toolEnd(event);
+    return [
+      ...nested(
+        event.toolCallId,
+        nestedCallsSchema.safeParse(event.details).data?.calls ?? [],
+        true
+      ),
+      ...toolEnd(event),
+    ];
   }
 
   return {
@@ -277,6 +335,13 @@ export function createTranscriber(approvals: ApprovalRecord) {
     toolStart,
     toolEnd,
     toolResult,
+
+    /** What a running call reported in its details, such as the calls its script made. */
+    toolUpdate: (toolCallId: string, details: JsonValue | undefined) =>
+      nested(
+        toolCallId,
+        nestedCallsSchema.safeParse(details).data?.calls ?? []
+      ),
 
     /** A question or its answer as it happens, which follows its call's start. */
     approval(event: ApprovalEvent): AgentWireEvent[] {

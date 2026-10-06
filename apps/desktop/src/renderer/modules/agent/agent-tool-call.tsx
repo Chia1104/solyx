@@ -15,8 +15,9 @@ import {
   bashArgumentsSchema,
   proposeOrderDetailsSchema,
   readPageArgumentsSchema,
-  runAnalysisArgumentsSchema,
   runAnalysisDetailsSchema,
+  runToolScriptDetailsSchema,
+  scriptArgumentsSchema,
 } from "@solyx/agent/wire";
 import type { ToolCallView } from "@solyx/agent/wire";
 import { intervalSchema } from "@solyx/core/candles";
@@ -210,15 +211,20 @@ function CodeCard({
 function RanCode({ tool }: { tool: ToolCallView }) {
   const { t } = useTranslation();
 
-  if (tool.toolName === AgentToolName.RunAnalysis) {
-    const code = runAnalysisArgumentsSchema.safeParse(tool.args).data?.code;
+  if (
+    tool.toolName === AgentToolName.RunAnalysis ||
+    tool.toolName === AgentToolName.RunToolScript
+  ) {
+    const code = scriptArgumentsSchema.safeParse(tool.args).data?.code;
+
+    const output = (
+      tool.toolName === AgentToolName.RunAnalysis
+        ? runAnalysisDetailsSchema
+        : runToolScriptDetailsSchema
+    ).safeParse(tool.details).data?.output;
 
     return code ? (
-      <CodeCard
-        label={t("agent.analysis.code")}
-        code={code}
-        output={runAnalysisDetailsSchema.safeParse(tool.details).data?.output}
-      />
+      <CodeCard label={t("agent.analysis.code")} code={code} output={output} />
     ) : null;
   }
 
@@ -256,8 +262,14 @@ export function AgentToolCall({
       ? proposeOrderDetailsSchema.safeParse(tool.details).data
       : undefined;
 
+  // A script's calls sit under it, in line with its name.
   return (
-    <div data-activity className="flex flex-col gap-1.5">
+    <div
+      data-activity
+      className={cn(
+        "flex flex-col gap-1.5",
+        tool.parentToolCallId !== undefined && "pl-5.5"
+      )}>
       <div className="flex min-h-5 items-center gap-2 text-xs text-muted">
         <ActivityMark
           className={cn(tool.status === ToolCallStatus.Error && "text-danger")}>

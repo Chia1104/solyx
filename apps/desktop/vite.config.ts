@@ -51,7 +51,7 @@ const contentSecurityPolicy: Plugin = {
   ],
 };
 
-// The agent's analysis scripts run in QuickJS, whose wasm ships beside the main bundle.
+// The agent's scripts run in QuickJS, whose wasm ships beside the main bundle.
 const quickjsWasm = createRequire(
   import.meta.resolve("@earendil-works/pi-codemode")
 ).resolve("quickjs-wasi/quickjs.wasm");
@@ -115,7 +115,7 @@ export default defineConfig({
     },
     {
       ...nodeBundle,
-      entry: { analysis: "src/worker/analysis.ts" },
+      entry: { script: "src/worker/script.ts" },
       outDir: "dist/worker",
       format: "esm",
     },

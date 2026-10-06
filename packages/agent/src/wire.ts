@@ -53,6 +53,7 @@ export const AgentToolName = {
   ReadSkill: "read_skill",
   SearchTools: "search_tools",
   RunAnalysis: "run_analysis",
+  RunToolScript: "run_tool_script",
   WebSearch: "web_search",
   ReadPage: "read_page",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
@@ -65,7 +66,8 @@ export const proposeOrderDetailsSchema = z.object({ proposalId: z.string() });
 
 export type ProposeOrderDetails = z.infer<typeof proposeOrderDetailsSchema>;
 
-export const runAnalysisArgumentsSchema = z.object({
+/** The arguments of the tools that run a script the agent wrote. */
+export const scriptArgumentsSchema = z.object({
   code: z.string().min(1).describe("The body of an async function"),
 });
 
@@ -118,6 +120,29 @@ export const ToolCallStatus = {
 export type ToolCallStatus =
   (typeof ToolCallStatus)[keyof typeof ToolCallStatus];
 
+/** A tool call a script made inside one of the agent's calls. */
+export const nestedCallSchema = z.object({
+  /** `<the call's id>/<n>`, which its approval goes by. */
+  id: z.string(),
+  toolName: z.string(),
+  args: z.json(),
+  status: z.enum(ToolCallStatus).exclude(["AwaitingApproval"]),
+  /** The first line of why it failed. */
+  error: z.string().optional(),
+});
+
+export type NestedCall = z.infer<typeof nestedCallSchema>;
+
+/** Details that list the tool calls a call made, which a transcript shows under it. */
+export const nestedCallsSchema = z.object({ calls: z.array(nestedCallSchema) });
+
+export const runToolScriptDetailsSchema = nestedCallsSchema.extend({
+  /** What the script printed and returned, or how it failed, once it ended. */
+  output: z.string().optional(),
+});
+
+export type RunToolScriptDetails = z.infer<typeof runToolScriptDetailsSchema>;
+
 export const RunEndReason = {
   Done: "done",
   Aborted: "aborted",
@@ -157,6 +182,8 @@ export type AgentWireEvent =
       toolCallId: string;
       toolName: string;
       args: unknown;
+      /** The call whose script made this one. */
+      parentToolCallId?: string;
     }
   | {
       type: typeof AgentEventType.ToolEnd;
@@ -233,6 +260,8 @@ export interface ToolCallView {
   output?: string;
   /** The check its tool was guarded with let the call run without asking the user. */
   autoApproved?: boolean;
+  /** The call whose script made this one, which the thread shows it under. */
+  parentToolCallId?: string;
 }
 
 /** How a run that did not simply finish ended. */
@@ -325,19 +354,38 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
     }
 
     case AgentEventType.ToolStart: {
+      const { parentToolCallId } = event;
+
       const tool: ToolCallView = {
         kind: AgentItemKind.Tool,
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         args: event.args,
         status: ToolCallStatus.Running,
+        parentToolCallId,
       };
 
       // A resumed round may start a call the replayed transcript already shows.
       const index = findTool(event.toolCallId);
 
-      if (index === -1) items.push(tool);
-      else items[index] = tool;
+      if (index !== -1) {
+        items[index] = tool;
+      } else if (parentToolCallId === undefined) {
+        items.push(tool);
+      } else {
+        // A script's call follows the script and the calls it made before, though other calls of
+        // its round may have started since.
+        const madeBefore = (item: AgentViewItem | undefined) =>
+          item?.kind === AgentItemKind.Tool &&
+          item.parentToolCallId === parentToolCallId;
+
+        const parent = findTool(parentToolCallId);
+        let at = parent === -1 ? items.length : parent + 1;
+
+        while (madeBefore(items[at])) at += 1;
+
+        items.splice(at, 0, tool);
+      }
 
       return { ...view, items };
     }

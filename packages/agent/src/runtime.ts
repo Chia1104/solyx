@@ -438,6 +438,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
             .forEach(emit);
           break;
 
+        case "tool_execution_update":
+          transcriber.toolUpdate(event.toolCallId, event.details).forEach(emit);
+          break;
+
         case "tool_execution_end":
           (event.entry
             ? transcriber.toolResult(event.entry)
