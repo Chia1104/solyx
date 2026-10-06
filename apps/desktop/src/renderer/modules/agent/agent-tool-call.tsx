@@ -14,6 +14,7 @@ import {
   ToolCallStatus,
   bashArgumentsSchema,
   proposeOrderDetailsSchema,
+  readPageArgumentsSchema,
   runAnalysisArgumentsSchema,
   runAnalysisDetailsSchema,
 } from "@solyx/agent/wire";
@@ -37,9 +38,10 @@ const argumentsSchema = z.object({
   order: z.object({ market: marketSchema, symbol: z.string() }).optional(),
   name: z.string().optional(),
   query: z.string().optional(),
+  url: z.string().optional(),
 });
 
-/** What a call was about: a listing and its interval, an order's listing, a playbook or a search. */
+/** What a call was about: a listing and its interval, an order's listing, a playbook, a search or a page. */
 function Subject({ tool }: { tool: ToolCallView }) {
   const { t } = useTranslation();
   const args = argumentsSchema.safeParse(tool.args).data;
@@ -61,9 +63,9 @@ function Subject({ tool }: { tool: ToolCallView }) {
     );
   }
 
-  const text = args?.name ?? args?.query;
+  const text = args?.name ?? args?.query ?? args?.url;
 
-  return text ? <span className="truncate">{text}</span> : null;
+  return text ? <span className="min-w-0 truncate">{text}</span> : null;
 }
 
 function StatusIcon({ status }: { status: ToolCallStatus }) {
@@ -111,22 +113,31 @@ function ApprovalCard({
       window.solyx.agent.approve(sessionId, tool.toolCallId, approved),
   });
 
-  // A shell command is shown as the user would type it, whole.
+  // A shell command is shown as the user would type it, whole, and a page by its address.
   const command =
     tool.toolName === AgentToolName.Bash
       ? bashArgumentsSchema.safeParse(tool.args).data?.command
       : undefined;
 
+  const address =
+    tool.toolName === AgentToolName.ReadPage
+      ? readPageArgumentsSchema.safeParse(tool.args).data?.url
+      : undefined;
+
+  let description = t("agent.approval.description", { tool: tool.toolName });
+
+  if (command !== undefined) {
+    description = t("agent.approval.shell-description");
+  } else if (address !== undefined) {
+    description = t("agent.approval.read-page-description");
+  }
+
   return (
     <div className="flex flex-col gap-2 rounded-sm border border-dashed border-separator p-3">
       <p className="text-sm font-medium">{t("agent.approval.title")}</p>
-      <p className="text-xs text-muted">
-        {command === undefined
-          ? t("agent.approval.description", { tool: tool.toolName })
-          : t("agent.approval.shell-description")}
-      </p>
+      <p className="text-xs text-muted">{description}</p>
       <pre className="max-h-40 overflow-auto rounded-sm bg-surface-secondary p-2 font-mono text-xs whitespace-pre-wrap">
-        {command ?? JSON.stringify(tool.args, null, 2)}
+        {command ?? address ?? JSON.stringify(tool.args, null, 2)}
       </pre>
       <div className="flex gap-2">
         <Button
@@ -252,14 +263,21 @@ export function AgentToolCall({
           className={cn(tool.status === ToolCallStatus.Error && "text-danger")}>
           <StatusIcon status={tool.status} />
         </ActivityMark>
-        <span className="text-foreground">
+        <span className="shrink-0 text-foreground">
           {isEnumValue(AgentToolName, tool.toolName)
             ? t(`agent.tools.${tool.toolName}`)
             : tool.toolName}
         </span>
         <Subject tool={tool} />
         {tool.autoApproved ? (
-          <span className="shrink-0">· {t("agent.approval.auto-allowed")}</span>
+          <span className="shrink-0">
+            ·{" "}
+            {t(
+              tool.toolName === AgentToolName.ReadPage
+                ? "agent.approval.auto-allowed-found"
+                : "agent.approval.auto-allowed"
+            )}
+          </span>
         ) : null}
         <span className="sr-only">{t(`agent.tool-status.${tool.status}`)}</span>
       </div>

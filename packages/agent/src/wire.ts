@@ -12,7 +12,10 @@ import type { AgentModelRef, AgentThinking } from "./providers.ts";
 export const ApprovalMode = {
   /** Each call waits for the user to allow it. */
   Ask: "ask",
-  /** A shell command the decisions model judges harmless runs; every other call still asks. */
+  /**
+   * A shell command the decisions model judges harmless runs, and a page the conversation's own
+   * searches or news found is read; every other call still asks.
+   */
   Auto: "auto",
   /** Calls run without asking, shell commands included. */
   Bypass: "bypass",
@@ -50,6 +53,8 @@ export const AgentToolName = {
   ReadSkill: "read_skill",
   SearchTools: "search_tools",
   RunAnalysis: "run_analysis",
+  WebSearch: "web_search",
+  ReadPage: "read_page",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
   Bash: "bash",
 } as const;
@@ -72,6 +77,10 @@ export const runAnalysisDetailsSchema = z.object({
 export type RunAnalysisDetails = z.infer<typeof runAnalysisDetailsSchema>;
 
 export const bashArgumentsSchema = z.object({ command: z.string() });
+
+export const readPageArgumentsSchema = z.object({
+  url: z.url({ protocol: /^https?$/ }).describe("The page's full address"),
+});
 
 export const AgentEventType = {
   RunStart: "run:start",
@@ -222,7 +231,7 @@ export interface ToolCallView {
   error?: string;
   details?: unknown;
   output?: string;
-  /** The decisions model let the call run without asking the user. */
+  /** The check its tool was guarded with let the call run without asking the user. */
   autoApproved?: boolean;
 }
 

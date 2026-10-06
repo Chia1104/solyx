@@ -250,6 +250,8 @@
       "read_skill": "Read a playbook",
       "search_tools": "Searched MCP tools",
       "run_analysis": "Ran an analysis",
+      "web_search": "Searched the web",
+      "read_page": "Read a page",
       "bash": "Ran a command"
     },
     "tool-status": {
@@ -274,7 +276,7 @@
       },
       "descriptions": {
         "ask": "Tool calls and shell commands wait for you to allow them",
-        "auto": "Shell commands judged harmless run on their own; everything else still asks",
+        "auto": "Shell commands judged harmless run on their own, and pages this conversation found are read; everything else still asks",
         "bypass": "Tool calls and shell commands run without waiting for you"
       },
       "failed": "Couldn't change how tools are allowed"
@@ -296,9 +298,11 @@
       "title": "Allow this call?",
       "description": "{{tool}} comes from an MCP server outside Solyx. Check what it's about to send.",
       "shell-description": "This command runs on your computer with your access to its files and the network. Check it before you allow it.",
+      "read-page-description": "Your web search vendor will fetch this address. One you didn't expect could be a page the agent read trying to send your data out, so check it before you allow it.",
       "allow": "Allow",
       "deny": "Don't allow",
       "auto-allowed": "allowed by the decisions model",
+      "auto-allowed-found": "allowed: an address this conversation found",
       "failed": "Couldn't send your answer"
     }
   },

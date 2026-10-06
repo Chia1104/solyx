@@ -49,6 +49,7 @@ import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
 import { stanceValue } from "@solyx/core/sentiment";
 import { getSession } from "@solyx/core/session";
 
+import { rememberAddresses } from "./found-addresses.ts";
 import { promptSections } from "./prompt.ts";
 import type { PromptSources } from "./prompt.ts";
 import { AgentToolName } from "./wire.ts";
@@ -63,14 +64,14 @@ export interface TradingToolPorts extends PromptSources {
   now?: () => Date;
 }
 
-interface ToolOutput {
+export interface ToolOutput {
   /** What the model reads. */
   text: string;
   /** What the renderer shows. */
   details?: JsonValue;
 }
 
-interface ToolSpec<Parameters extends z.ZodObject> {
+export interface ToolSpec<Parameters extends z.ZodObject> {
   name: AgentToolName;
   description: string;
   parameters: Parameters;
@@ -91,7 +92,7 @@ interface ToolSpec<Parameters extends z.ZodObject> {
  * pi validates the model's arguments against the JSON Schema before `execute`; parsing them
  * again with zod types them and applies what JSON Schema cannot express.
  */
-function defineTool<Parameters extends z.ZodObject>(
+export function defineTool<Parameters extends z.ZodObject>(
   spec: ToolSpec<Parameters>
 ): ToolRegistration {
   return {
@@ -209,10 +210,19 @@ const PRECISE_TO: Record<TimePrecision, (time: string) => string> = {
   [TimePrecision.Day]: (time) => time.slice(0, "YYYY-MM-DD".length),
 };
 
-const publishedTime = (market: Market, published: Published | null) =>
-  published
-    ? PRECISE_TO[published.precision](exchangeTime(market, published.at))
-    : "undated";
+/** On the market's clock, or in UTC without one. */
+export const publishedTime = (
+  market: Market | null,
+  published: Published | null
+) => {
+  if (!published) return "undated";
+
+  const time = market
+    ? exchangeTime(market, published.at)
+    : `${published.at.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+
+  return PRECISE_TO[published.precision](time);
+};
 
 function describeStory(market: Market, { lead, records }: NewsStory): string {
   const { item, score } = lead;
@@ -404,7 +414,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         symbol: symbolRefSchema,
         days: z.number().int().min(1).max(30).default(7),
       }),
-      execute: async ({ symbol, days }) => {
+      execute: async ({ symbol, days }, api, context) => {
         const at = now();
         const since = new Date(at.getTime() - days * DAY_MS);
 
@@ -445,6 +455,14 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             ...kept.map((story) => describeStory(symbol.market, story)),
           ];
         });
+
+        await rememberAddresses(
+          api,
+          stories
+            .filter(isAboutListing)
+            .flatMap(({ lead }) => (lead.item.url ? [lead.item.url] : [])),
+          context
+        );
 
         const failed = failures.map(
           ({ source, lastError, failureStreak, lastSuccessAt }) => {

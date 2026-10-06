@@ -250,6 +250,8 @@
       "read_skill": "讀取操作手冊",
       "search_tools": "搜尋 MCP 工具",
       "run_analysis": "執行分析",
+      "web_search": "搜尋網路",
+      "read_page": "讀取網頁",
       "bash": "執行指令"
     },
     "tool-status": {
@@ -274,7 +276,7 @@
       },
       "descriptions": {
         "ask": "工具呼叫與 shell 指令都先等你允許",
-        "auto": "判斷為無害的 shell 指令直接執行，其餘仍先詢問",
+        "auto": "判斷為無害的 shell 指令直接執行，本對話找到的網頁直接讀取，其餘仍先詢問",
         "bypass": "工具呼叫與 shell 指令直接執行，不等你允許"
       },
       "failed": "無法變更工具的允許方式"
@@ -296,9 +298,11 @@
       "title": "要允許這次呼叫嗎？",
       "description": "{{tool}} 來自 Solyx 以外的 MCP server，請先確認它要送出的內容。",
       "shell-description": "這個指令會在你的電腦上執行，能存取你的檔案與網路。允許前請先確認內容。",
+      "read-page-description": "你的網路搜尋供應商會讀取這個網址。如果不是你預期的網址，可能是 agent 讀過的網頁想藉此把你的資料送出去，允許前請先確認。",
       "allow": "允許",
       "deny": "不允許",
       "auto-allowed": "由決策模型放行",
+      "auto-allowed-found": "已放行：本對話找到的網址",
       "failed": "無法送出你的回覆"
     }
   },

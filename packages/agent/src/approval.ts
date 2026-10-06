@@ -58,6 +58,7 @@ type ToolArguments = Parameters<ToolRegistration["execute"]>[0];
  */
 export type AutoCheck = (
   args: ToolArguments,
+  api: ToolExecutionApi,
   context: Context
 ) => Promise<boolean>;
 
@@ -137,7 +138,7 @@ export function createApprovalGate(
       let harmless = false;
 
       try {
-        harmless = await auto(args, context);
+        harmless = await auto(args, api, context);
       } catch {
         // A judgement that fails is no judgement, so the user is asked.
       }

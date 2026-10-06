@@ -6,6 +6,7 @@ import {
   fauxProvider,
   fauxToolCall,
 } from "@earendil-works/pi-ai";
+import type { FauxResponseFactory, ToolCall } from "@earendil-works/pi-ai";
 import { MemoryStorage } from "@earendil-works/pi-durable";
 import type {
   ToolExecutionApi,
@@ -150,7 +151,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
 
     if (!tool) throw new Error(`No tool ${name}`);
 
-    // SAFETY: only propose_order uses its call's api, and it runs through a Harness below.
+    // SAFETY: only propose_order and get_news use their call's api, and both run through a Harness below.
     const api = {} as ToolExecutionApi;
     const result = await tool.execute(params, api, BACKGROUND_CONTEXT);
 
@@ -241,6 +242,45 @@ function agentOn(ports: ReturnType<typeof setup>["ports"]) {
     );
 
   return { faux, events, runtime, ended };
+}
+
+/** Runs get_news through the agent, since it notes the addresses it shows in the conversation. */
+async function readNews(
+  ports: ReturnType<typeof setup>["ports"],
+  args: ToolCall["arguments"]
+) {
+  const { faux, events, runtime, ended } = agentOn(ports);
+  let text = "";
+
+  const done: FauxResponseFactory = (context) => {
+    for (const message of context.messages) {
+      if (message.role === "toolResult") text = contentText(message.content);
+    }
+
+    return fauxAssistantMessage("Done.");
+  };
+
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall(AgentToolName.GetNews, args), {
+      stopReason: "toolUse",
+    }),
+    done,
+  ]);
+
+  const { id } = await runtime.create();
+
+  await runtime.send(id, { text: "Any news?", context: "" });
+  await ended(1);
+  await runtime.close();
+
+  const call = foldEvents(events).items.find(
+    (item) => item.kind === AgentItemKind.Tool
+  );
+
+  return {
+    text,
+    details: call?.kind === AgentItemKind.Tool ? call.details : undefined,
+  };
 }
 
 const order = {
@@ -411,7 +451,7 @@ test("skills are read by name", async () => {
 });
 
 test("news reads newest first, leaving out stories that only name the listing", async () => {
-  const { run, news } = setup();
+  const { ports, news } = setup();
 
   news.collect.mockResolvedValue(
     collection([
@@ -421,10 +461,7 @@ test("news reads newest first, leaving out stories that only name the listing", 
     ])
   );
 
-  const { text, details } = await run(AgentToolName.GetNews, {
-    symbol: TSMC,
-    days: 3,
-  });
+  const { text, details } = await readNews(ports, { symbol: TSMC, days: 3 });
 
   expect(news.collect).toHaveBeenCalledWith(
     TSMC,
@@ -449,7 +486,7 @@ test("news reads newest first, leaving out stories that only name the listing", 
 });
 
 test("without a decisions model, news is listed unscored", async () => {
-  const { run, news } = setup();
+  const { ports, news } = setup();
 
   news.collect.mockResolvedValue(
     collection(
@@ -467,7 +504,7 @@ test("without a decisions model, news is listed unscored", async () => {
     )
   );
 
-  const { text } = await run(AgentToolName.GetNews, { symbol: TSMC });
+  const { text } = await readNews(ports, { symbol: TSMC });
 
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",
@@ -484,7 +521,7 @@ test("without a decisions model, news is listed unscored", async () => {
 });
 
 test("channels get sections, a thread is one story, and a failed source says how it has gone", async () => {
-  const { run, news } = setup();
+  const { ports, news } = setup();
 
   const post = (id: string, title: string, hour: string, votes: number) => ({
     id,
@@ -528,7 +565,7 @@ test("channels get sections, a thread is one story, and a failed source says how
     )
   );
 
-  const { text } = await run(AgentToolName.GetNews, { symbol: TSMC });
+  const { text } = await readNews(ports, { symbol: TSMC });
 
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",

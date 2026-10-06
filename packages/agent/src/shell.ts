@@ -74,7 +74,7 @@ export function createShell(options: ShellOptions) {
   };
 
   /** In a conversation set to auto, a command runs unasked only when every risk is unlikely. */
-  const harmless: AutoCheck = async (args, context) => {
+  const harmless: AutoCheck = async (args, _api, context) => {
     const command = bashArgumentsSchema.safeParse(args).data?.command;
 
     if (command === undefined) return false;

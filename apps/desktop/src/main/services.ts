@@ -154,6 +154,7 @@ export function createServices() {
     marketData,
     watchlist: () => userData.watchlist.list(),
     news,
+    web: () => webSearch.vendor(),
     desk,
   });
 

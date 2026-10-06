@@ -17,6 +17,7 @@
     "./skills": "./src/skills.ts",
     "./tools": "./src/tools.ts",
     "./transcript": "./src/transcript.ts",
+    "./web": "./src/web.ts",
     "./wire": "./src/wire.ts"
   },
   "scripts": {

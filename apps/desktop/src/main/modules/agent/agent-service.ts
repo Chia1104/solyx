@@ -15,12 +15,14 @@ import type { ShellOptions } from "@solyx/agent/shell";
 import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
 import type { SkillFolders } from "@solyx/agent/skills";
 import { createTradingExtension } from "@solyx/agent/tools";
+import { createWebTools } from "@solyx/agent/web";
 import type { AgentWireEvent, ApprovalMode } from "@solyx/agent/wire";
 import { BrokerMode } from "@solyx/core/broker";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import type { NewsDesk } from "@solyx/core/news";
 import type { ProposingDesk } from "@solyx/core/order-desk";
+import type { WebReader, WebSearch } from "@solyx/core/web-search";
 
 import { agentEvents } from "#shared/ipc/agent.ts";
 import type { AgentFocus, AgentUpdate } from "#shared/ipc/agent.ts";
@@ -44,6 +46,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   marketData: MarketData;
   watchlist: () => SymbolRef[];
   news: NewsDesk;
+  /** The web search vendor the user set up; `undefined` until its key is saved. */
+  web: () => Promise<(WebSearch & WebReader) | undefined>;
   desk: ProposingDesk;
   mcp: McpServers;
 }
@@ -108,12 +112,15 @@ export function createAgentService(options: AgentServiceOptions) {
     files: ANALYSIS_FILES,
   });
 
+  const web = createWebTools({ vendor: options.web });
+
   const runtime = createAgentRuntime({
     store: options.conversations,
     models: models.models,
     model: (pick) => models.choice(pick),
     async tools(guard) {
       const mcp = await options.mcp.extensions(guard);
+      const webOn = (await options.web()) !== undefined;
 
       // MCP tools wait until the agent finds them, so only the servers' names ride every request.
       return {
@@ -121,6 +128,7 @@ export function createAgentService(options: AgentServiceOptions) {
           trading,
           analysis.extension,
           ...(shellOn() ? [shell.extension(guard)] : []),
+          ...(webOn ? [web.extension(guard)] : []),
           mcp.search,
         ],
         deferred: [mcp.tools],
