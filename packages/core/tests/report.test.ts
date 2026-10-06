@@ -104,12 +104,14 @@ test("a draft refuses text that looks like a key", () => {
 
 test("a revision's own claims take their readings, and the claims it leaves keep theirs", () => {
   const driver = {
+    point: "Demand is still strong.",
     text: "August revenue rose 53% on the year.",
     source: "Monthly revenue, 2026-08",
     quote: "YoY 53.3%",
   };
 
   const risk = {
+    point: "Margins may narrow.",
     text: "Overseas fabs cost more to run.",
     source: "Annual report",
     quote: "higher costs at overseas fabs",
@@ -141,6 +143,7 @@ test("a revision's own claims take their readings, and the claims it leaves keep
 
 test("a claim whose quote says less than it asserts is refused", () => {
   const driver = {
+    point: "Growth has further to run.",
     text: "Orders will double next year.",
     source: "Earnings call",
     quote: "We expect demand to stay robust.",

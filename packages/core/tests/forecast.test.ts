@@ -155,7 +155,7 @@ describe("checkForecast", () => {
     expect(
       checkForecast(
         draft({ claims: [claim] }),
-        context({ support: () => ({ model: "jev", supported: 0.5 }) })
+        context({ support: () => ({ model: "jev", supported: 0.6 }) })
       )
     ).toEqual([]);
   });

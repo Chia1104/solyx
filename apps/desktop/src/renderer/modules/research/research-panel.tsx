@@ -8,7 +8,7 @@ import type { ForecastRecord } from "@solyx/core/forecast";
 import { exchangeDate } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { ReportSection } from "@solyx/core/report";
-import type { AuditedClaim, Report } from "@solyx/core/report";
+import type { Argument, Audited, Report } from "@solyx/core/report";
 import type { Coverage } from "@solyx/core/research";
 
 import { Pane, useLayoutStore } from "../../app/layout-store.ts";
@@ -43,7 +43,14 @@ function DeepAnalysisButton({ symbol }: { symbol: SymbolRef }) {
   );
 }
 
-function Claims({ title, claims }: { title: string; claims: AuditedClaim[] }) {
+/** Each point over the fact it rests on, the source's own words, and how the fact was read against them. */
+function Claims({
+  title,
+  claims,
+}: {
+  title: string;
+  claims: Audited<Argument>[];
+}) {
   const { t, i18n } = useTranslation();
   const { percent } = numberFormats(i18n.language);
 
@@ -53,7 +60,8 @@ function Claims({ title, claims }: { title: string; claims: AuditedClaim[] }) {
       <ul className="flex flex-col gap-2">
         {claims.map((claim) => (
           <li key={claim.text} className="flex flex-col gap-0.5">
-            <span>{claim.text}</span>
+            <span>{claim.point}</span>
+            <span className="text-muted">{claim.text}</span>
             <span className="text-xs break-words text-muted">
               {claim.source} — “{claim.quote}”
             </span>

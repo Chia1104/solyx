@@ -77,6 +77,7 @@ const REPORT = {
   thesis: "Advanced nodes stay sold out.",
   drivers: [
     {
+      point: "Demand is still strong.",
       text: "August revenue rose 53% on the year.",
       source: "TWSE monthly revenue, 2026-08",
       quote: "去年同月增減 53.32%",
@@ -219,7 +220,7 @@ test("a revision is kept and read back with its sources and each part's age", as
 
   expect(text).toContain("Report revision 1, revised 2026-09-29: bullish");
   expect(text).toContain(
-    '- August revenue rose 53% on the year. [TWSE monthly revenue, 2026-08: "去年同月增減 53.32%"]'
+    '- Demand is still strong.\n  rests on: August revenue rose 53% on the year. [TWSE monthly revenue, 2026-08: "去年同月增減 53.32%"]'
   );
   expect(text).toContain("## business, written 2026-09-29");
 });

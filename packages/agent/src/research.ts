@@ -31,7 +31,7 @@ import {
   proseSchema,
   reportDraftSchema,
 } from "@solyx/core/report";
-import type { Claim, Report, ReportViolation } from "@solyx/core/report";
+import type { Argument, Report, ReportViolation } from "@solyx/core/report";
 import type { ResearchDesk } from "@solyx/core/research";
 
 import { defineTool } from "./tools.ts";
@@ -61,10 +61,10 @@ const reviseParameters = reportDraftSchema.extend({
     "The argument for the stance, in a few sentences; required in a listing's first report"
   ),
   drivers: reportDraftSchema.shape.drivers.describe(
-    "What carries the thesis, each with its source and the source's own words or figures"
+    "What carries the thesis. Each has a point, your own reading of why it matters, and the fact it rests on: text says only what quote says, with no cause, forecast or comparison the quote does not give, and quote is the source's own words or figures"
   ),
   risks: reportDraftSchema.shape.risks.describe(
-    "What could break it, sourced the same way"
+    "What could break it, each a point resting on a fact in the same way"
   ),
   falsifiers: reportDraftSchema.shape.falsifiers.describe(
     "What would show the thesis wrong, each stated as something that happens"
@@ -99,7 +99,9 @@ const forecastParameters = forecastDraftSchema.extend({
     .array(claimSchema)
     .max(8)
     .default([])
-    .describe("What the rationale rests on, each with its source and quote"),
+    .describe(
+      "Facts the rationale rests on, each saying no more than its quote; what you make of them belongs in the rationale"
+    ),
   contrary: proseSchema(500)
     .nullable()
     .default(null)
@@ -123,7 +125,7 @@ function bandText({ low, high }: Pick<ForecastScenario, "low" | "high">) {
 
 /** A decisions model read the claim's quote as saying less than the claim does. */
 const unsupportedText = ({ claim }: { claim: string }) =>
-  `The quote given for "${claim}" does not state it. Quote the source's words or figures that do, narrow the claim to what its quote says, or leave the claim out.`;
+  `The quote given for "${claim}" does not state it. Keep text to what the quote says and put what you make of it in point, or in the rationale of a forecast; or quote the words or figures that do state it; or leave it out.`;
 
 function reportViolationText(violation: ReportViolation): string {
   switch (violation.code) {
@@ -178,8 +180,8 @@ function forecastViolationText(
   }
 }
 
-const claimText = (claim: Claim) =>
-  `- ${claim.text} [${claim.source}: "${claim.quote}"]`;
+const argumentText = (argument: Argument) =>
+  `- ${argument.point}\n  rests on: ${argument.text} [${argument.source}: "${argument.quote}"]`;
 
 function reportText(report: Report): string {
   const { market } = report.symbol;
@@ -190,8 +192,8 @@ function reportText(report: Report): string {
   return [
     `Report revision ${report.revision}, revised ${day(market, report.revisedAt)}: ${report.stance}`,
     `Thesis: ${report.thesis}`,
-    ...listed("Drivers", report.drivers.map(claimText)),
-    ...listed("Risks", report.risks.map(claimText)),
+    ...listed("Drivers", report.drivers.map(argumentText)),
+    ...listed("Risks", report.risks.map(argumentText)),
     ...listed(
       "Falsifiers",
       report.falsifiers.map((falsifier) => `- ${falsifier}`)

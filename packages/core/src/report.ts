@@ -37,8 +37,9 @@ export function proseSchema(max: number) {
     );
 }
 
-/** Something a report or forecast asserts, with what it rests on. */
+/** A fact a report or forecast rests on, with the source's own words for it. */
 export const claimSchema = z.object({
+  /** The fact, saying no more than its quote does. */
   text: proseSchema(300),
   /** Where it comes from: a page's address, or a name such as a filing's. */
   source: proseSchema(300),
@@ -47,6 +48,14 @@ export const claimSchema = z.object({
 });
 
 export type Claim = z.infer<typeof claimSchema>;
+
+/** A driver or a risk: what the agent makes of a fact, and the fact it rests on. */
+export const argumentSchema = claimSchema.extend({
+  /** What the fact means for the thesis: the agent's own reading, which no quote has to state. */
+  point: proseSchema(300),
+});
+
+export type Argument = z.infer<typeof argumentSchema>;
 
 /** How far a claim's quote bears it out, as a decisions model reads the two. */
 export interface ClaimSupport {
@@ -59,7 +68,7 @@ export interface ClaimSupport {
  * Below this a quote is read as saying less than its claim, and the claim is refused. It rests on
  * `eval-claims` in `@solyx/decisions`: measure again after changing the question or a default model.
  */
-export const CLAIM_SUPPORT_LINE = 0.5;
+export const CLAIM_SUPPORT_LINE = 0.6;
 
 /** The claims whose quotes were read as saying less than they assert. */
 export function unsupportedClaims(
@@ -75,14 +84,15 @@ export function unsupportedClaims(
   });
 }
 
-/** A claim as kept, with the reading it was given. */
-export interface AuditedClaim extends Claim {
-  /** `null` when no decisions model read it. */
+/** A claim as kept, with the reading its fact was given; `null` when no decisions model read it. */
+export type Audited<Kept extends Claim> = Kept & {
   support: ClaimSupport | null;
-}
+};
+
+export type AuditedClaim = Audited<Claim>;
 
 /**
- * Reads whether a claim's quote states it. It sees the quote the agent gave and never the source,
+ * Reads whether a claim's quote states its fact, never an argument's point. It sees the quote the agent gave and never the source,
  * so it catches a claim that says more than its quote, not a quote that was made up. One
  * implementation per decisions model (`@solyx/decisions/*`); it runs only in the main process.
  */
@@ -117,8 +127,8 @@ export const reportDraftSchema = z.object({
   /** The argument for the stance, in a few sentences. */
   thesis: proseSchema(600).optional(),
   /** What carries the thesis. */
-  drivers: z.array(claimSchema).max(8).optional(),
-  risks: z.array(claimSchema).max(8).optional(),
+  drivers: z.array(argumentSchema).max(8).optional(),
+  risks: z.array(argumentSchema).max(8).optional(),
   /** What would show the thesis wrong, each stated as something that happens. */
   falsifiers: z.array(proseSchema(300)).max(6).optional(),
   /** `null` drops the range. */
@@ -143,8 +153,8 @@ export interface Report {
   financialsThrough: string | null;
   stance: ReportStance;
   thesis: string;
-  drivers: AuditedClaim[];
-  risks: AuditedClaim[];
+  drivers: Audited<Argument>[];
+  risks: Audited<Argument>[];
   falsifiers: string[];
   valuation: z.infer<typeof valuationSchema> | null;
   events: z.infer<typeof reportEventSchema>[];
@@ -201,7 +211,7 @@ export function reviseReport(
   draft: ReportDraft,
   { at, financialsThrough, support }: RevisionContext
 ): Revision {
-  const audited = (claims: Claim[] | undefined) =>
+  const audited = (claims: Argument[] | undefined) =>
     claims?.map((claim) => ({ ...claim, support: support(claim) }));
 
   const stance = draft.stance ?? previous?.stance;

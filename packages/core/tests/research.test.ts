@@ -347,8 +347,8 @@ test("claims are read against their quotes as they are kept, and stay when the m
     symbol: TSMC,
     stance: ReportStance.Bullish,
     thesis: "Advanced nodes stay sold out.",
-    drivers: [claim("Revenue rose.")],
-    risks: [claim("Costs rose.")],
+    drivers: [{ ...claim("Revenue rose."), point: "Demand is strong." }],
+    risks: [{ ...claim("Costs rose."), point: "Margins may narrow." }],
   });
 
   expect(store.report(TSMC)).toMatchObject({

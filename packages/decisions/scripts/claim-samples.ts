@@ -79,6 +79,20 @@ export const CLAIM_SAMPLES: ClaimSample[] = [
     "price to earnings 29.96; three-year median 22.4",
     "follows from the figures"
   ),
+  held(
+    "七、八月營收分別年增 11.8%、12.1%。",
+    "2026-07,310,+11.8%,+3.9%；2026-08,296,+12.1%,-4.5%",
+    "a table row restated"
+  ),
+  held(
+    "第一季營業活動淨現金流入低於去年同期。",
+    "營業活動之淨現金流入：本季 52,300 千元；去年同期 91,700 千元",
+    "follows from the figures"
+  ),
+  held(
+    "本季有效稅率約 8%，去年同期約 20%。",
+    "本季有效稅率約為 8%，顯著低於去年同期的 20%"
+  ),
 
   outrun(
     "AI 訂單明年將翻倍。",
@@ -145,5 +159,25 @@ export const CLAIM_SAMPLES: ClaimSample[] = [
     "公司下修了資本支出。",
     "全年資本支出維持先前預估區間",
     "unchanged told as cut"
+  ),
+  outrun(
+    "資安事件可能增加防護與法遵成本，財務影響尚未量化。",
+    "約九萬筆資料遭未經授權讀取，相關影響仍在調查與評估中",
+    "a reading of what the fact may lead to"
+  ),
+  outrun(
+    "平台具有覆蓋優勢，惟公司自述不等同獨立的市占調查。",
+    "上市櫃公司使用率 91.2%",
+    "a judgement and a caveat the quote does not make"
+  ),
+  outrun(
+    "第一季淨利受所得稅利益支持，不能全數視為本業成長。",
+    "所得稅費用減少，係因認列研發投資抵減之所得稅利益",
+    "a reading of what the fact means"
+  ),
+  outrun(
+    "七月中旬的大跌是除息造成的。",
+    "'26/07/15 198.5 '26/08/10 12.4",
+    "a cause the quote does not give"
   ),
 ];
