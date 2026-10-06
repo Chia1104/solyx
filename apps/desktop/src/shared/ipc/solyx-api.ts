@@ -4,6 +4,7 @@ import type { MarketApi, MarketEvents } from "./market.ts";
 import type { MemoryApi, MemoryEvents } from "./memory.ts";
 import type { NewsApi, NewsEvents } from "./news.ts";
 import type { ProposalsApi, ProposalsEvents } from "./proposals.ts";
+import type { ResearchApi, ResearchEvents } from "./research.ts";
 import type { SettingsApi, SettingsEvents } from "./settings.ts";
 import type { StorageApi } from "./storage.ts";
 import type { WatchlistApi } from "./watchlist.ts";
@@ -16,6 +17,7 @@ export interface SolyxApi {
   memory: MemoryApi & MemoryEvents;
   news: NewsApi & NewsEvents;
   proposals: ProposalsApi & ProposalsEvents;
+  research: ResearchApi & ResearchEvents;
   settings: SettingsApi & SettingsEvents;
   storage: StorageApi;
   watchlist: WatchlistApi;

@@ -13,12 +13,14 @@ import { openAgentStore } from "@solyx/db/agent";
 import { openCache } from "@solyx/db/cache";
 import { openMemory } from "@solyx/db/memory";
 import { openNews } from "@solyx/db/news";
+import { openResearch } from "@solyx/db/research";
 import { openUserData } from "@solyx/db/user";
 
 import { marketEvents } from "#shared/ipc/market.ts";
 import { memoryEvents } from "#shared/ipc/memory.ts";
 import { newsEvents } from "#shared/ipc/news.ts";
 import { proposalsEvents } from "#shared/ipc/proposals.ts";
+import { researchEvents } from "#shared/ipc/research.ts";
 import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
 import { ColorScheme } from "#shared/palette.ts";
 
@@ -32,6 +34,7 @@ import { createMemories } from "./modules/memory/memories.ts";
 import { createNewsCollector } from "./modules/news/news-collector.ts";
 import { createNewsSources } from "./modules/news/news-sources.ts";
 import { createNews } from "./modules/news/news.ts";
+import { createResearch } from "./modules/research/research.ts";
 import { createAppearance } from "./modules/settings/appearance.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
@@ -148,6 +151,16 @@ export function createServices() {
     onChange: (symbol) => broadcast(newsEvents.onChanged, symbol),
   });
 
+  // Every window hears every change to the agent's research, whoever made it.
+  const research = createResearch(
+    openResearch(
+      join(userDataDir, "research.sqlite"),
+      join(import.meta.dirname, "migrations", "research")
+    ),
+    marketData,
+    () => broadcast(researchEvents.onChanged)
+  );
+
   const agent = createAgentService({
     config,
     secrets,
@@ -171,6 +184,7 @@ export function createServices() {
     web: () => webSearch.vendor(),
     desk,
     memory: memories.store,
+    research: research.desk,
   });
 
   const newsCollector = createNewsCollector({
@@ -225,6 +239,7 @@ export function createServices() {
     marketData,
     userData,
     memories,
+    research,
     agent,
     mcp,
     decisions,

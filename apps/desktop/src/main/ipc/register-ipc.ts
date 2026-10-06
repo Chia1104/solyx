@@ -4,6 +4,7 @@ import { registerMarketIpc } from "../modules/market/market-ipc.ts";
 import { registerMemoryIpc } from "../modules/memory/memory-ipc.ts";
 import { registerNewsIpc } from "../modules/news/news-ipc.ts";
 import { registerProposalsIpc } from "../modules/proposals/proposals-ipc.ts";
+import { registerResearchIpc } from "../modules/research/research-ipc.ts";
 import { registerSettingsIpc } from "../modules/settings/settings-ipc.ts";
 import { registerStorageIpc } from "../modules/storage/storage-ipc.ts";
 import { registerWatchlistIpc } from "../modules/watchlist/watchlist-ipc.ts";
@@ -16,6 +17,7 @@ export function registerIpc(services: Services) {
   registerMemoryIpc(services);
   registerNewsIpc(services);
   registerProposalsIpc(services);
+  registerResearchIpc(services);
   registerSettingsIpc(services);
   registerStorageIpc(services);
   registerWatchlistIpc(services);

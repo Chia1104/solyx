@@ -256,6 +256,9 @@
       "recall": "回想記憶",
       "remember": "存下記憶",
       "forget": "遺忘記憶",
+      "get_research": "讀取研究",
+      "revise_report": "修訂研究報告",
+      "submit_forecast": "提出預測",
       "bash": "執行指令"
     },
     "tool-status": {
@@ -362,6 +365,33 @@
     "submit-failed": "送單失敗；再次下單前請先到券商確認",
     "submit-interrupted": "券商回覆前 Solyx 就關閉了，這筆委託可能已經送達券商。",
     "history": "紀錄"
+  },
+  "research": {
+    "direction": {
+      "long": "做多",
+      "short": "做空",
+      "neutral": "中立"
+    },
+    "forecast": {
+      "horizon": "{{count, number}} 個交易日，自 {{date}} 的 {{price}} 起算",
+      "open": "進行中",
+      "settled": "已結算",
+      "entry": "進場",
+      "stop": "停損",
+      "target": "目標",
+      "band-below": "低於 {{high}}",
+      "band-above": "{{low}} 以上",
+      "band-between": "{{low}} 至 {{high}}",
+      "held": "成真",
+      "closed": "{{date}} 收在 {{close}}",
+      "plan-result": {
+        "not-entered": "未進場",
+        "hit-target": "達到目標",
+        "hit-stop": "停損出場",
+        "expired": "到期仍持有"
+      },
+      "r": "{{r}} R"
+    }
   },
   "order-form": {
     "market": "市場",
@@ -825,6 +855,17 @@
         "confirm-body": "新聞與評分都會從這台電腦刪除，較舊的新聞無法再收集。自選股會在下次更新時重新收集近期新聞。",
         "confirm": "清除",
         "clear-failed": "無法清除新聞"
+      },
+      "research": {
+        "title": "研究",
+        "description": "Agent 為你的標的寫的研究報告與預測，以及每筆預測的結果。這些內容無法重新產生。",
+        "reports": "有報告的標的",
+        "forecasts": "預測數",
+        "clear": "刪除所有研究",
+        "confirm-title": "要刪除所有研究嗎？",
+        "confirm-body": "所有報告、預測與預測的結果紀錄都會從這台電腦刪除，無法復原。你的對話紀錄會保留。",
+        "confirm": "全部刪除",
+        "clear-failed": "無法刪除研究"
       },
       "watchlist": {
         "title": "自選",

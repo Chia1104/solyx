@@ -10,6 +10,7 @@ import { mcpScriptExtension } from "@solyx/agent/mcp-script";
 import { createMemory } from "@solyx/agent/memory";
 import { formatContext } from "@solyx/agent/prompt";
 import type { AgentModelPick } from "@solyx/agent/providers";
+import { createResearch } from "@solyx/agent/research";
 import { createAgentRuntime } from "@solyx/agent/runtime";
 import { createScriptRunner } from "@solyx/agent/script-runner";
 import { createShell } from "@solyx/agent/shell";
@@ -25,6 +26,7 @@ import type { MarketData } from "@solyx/core/market-data";
 import type { MemoryStore } from "@solyx/core/memory";
 import type { NewsDesk } from "@solyx/core/news";
 import type { ProposingDesk } from "@solyx/core/order-desk";
+import type { ResearchDesk } from "@solyx/core/research";
 import type { WebReader, WebSearch } from "@solyx/core/web-search";
 import type { AgentStore } from "@solyx/db/agent";
 import { isErrnoError } from "@solyx/utils/error";
@@ -57,6 +59,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   desk: ProposingDesk;
   mcp: McpServers;
   memory: MemoryStore;
+  research: ResearchDesk;
 }
 
 // `vp pack` ships QuickJS beside the main bundle and builds the scripts' worker next to it.
@@ -144,6 +147,8 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const memory = createMemory({ store: options.memory });
 
+  const research = createResearch({ desk: options.research });
+
   const runtime = createAgentRuntime({
     store: options.conversations,
     models: models.models,
@@ -157,6 +162,7 @@ export function createAgentService(options: AgentServiceOptions) {
         offered: [
           trading,
           analysis,
+          research,
           ...(shellOn() ? [shell.extension(guard)] : []),
           ...(webOn ? [web.extension(guard)] : []),
           ...(options.config.read().agent.memory

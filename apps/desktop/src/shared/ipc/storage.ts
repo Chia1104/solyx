@@ -6,6 +6,7 @@ export const StoredData = {
   Conversations: "conversations",
   Memory: "memory",
   News: "news",
+  Research: "research",
   Watchlist: "watchlist",
 } as const;
 
@@ -45,6 +46,14 @@ export interface NewsUsage {
   items: number;
 }
 
+export interface ResearchUsage {
+  /** On disk, with the write-ahead log. */
+  bytes: number;
+  /** Listings with a report. */
+  reports: number;
+  forecasts: number;
+}
+
 export interface WatchlistUsage {
   listings: number;
 }
@@ -54,6 +63,7 @@ export interface StorageUsage {
   conversations: ConversationsUsage;
   memory: MemoryUsage;
   news: NewsUsage;
+  research: ResearchUsage;
   watchlist: WatchlistUsage;
 }
 

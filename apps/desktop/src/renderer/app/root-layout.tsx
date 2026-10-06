@@ -13,6 +13,7 @@ import { useMarketDataChanges } from "../modules/market/market-sessions-query.ts
 import { useQuoteRefresh } from "../modules/market/quote-query.ts";
 import { useMemoryChanges } from "../modules/memory/memory-query.ts";
 import { useProposalChanges } from "../modules/proposals/proposals-query.ts";
+import { useResearchChanges } from "../modules/research/research-query.ts";
 import { useSettingsChanges } from "../modules/settings/settings-query.ts";
 
 import { AgentPane } from "./agent-pane.tsx";
@@ -163,6 +164,7 @@ export function RootLayout() {
   useProposalChanges();
   useSettingsChanges();
   useMemoryChanges();
+  useResearchChanges();
 
   // First-run setup takes the whole window, without the workspace around it.
   const onboarding = matchRoute({ to: "/onboarding" }) !== false;
