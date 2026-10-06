@@ -20,6 +20,34 @@ export function twTickSize(price: number, kind: InstrumentKind): number {
   return 5;
 }
 
+// The day by which a listed company files each quarter's statements, first quarter first; the
+// fourth's is the annual report's, in the next year.
+const FILING_DEADLINES = [
+  { month: 5, day: 15 },
+  { month: 8, day: 14 },
+  { month: 11, day: 14 },
+  { month: 3, day: 31 },
+];
+
+/**
+ * The date, `YYYY-MM-DD`, by which a quarter ending on `periodEnd` is filed. Companies often file
+ * earlier, and financial holdings may file the second quarter later, so it marks when the figures
+ * were surely public rather than when they came out.
+ */
+export function twFilingDeadline(periodEnd: string): string {
+  const end = Temporal.PlainDate.from(periodEnd);
+  const quarter = Math.ceil(end.month / 3);
+  const deadline = FILING_DEADLINES[quarter - 1];
+
+  return end
+    .with({
+      year: quarter === 4 ? end.year + 1 : end.year,
+      month: deadline.month,
+      day: deadline.day,
+    })
+    .toString();
+}
+
 /** Board lots and odd lots trade in separate books, so one order is either whole board lots or 1–999 shares. */
 export function isValidTwQuantity(quantity: number): boolean {
   if (!Number.isInteger(quantity) || quantity <= 0) return false;

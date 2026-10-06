@@ -7,6 +7,7 @@
     "./broker": "./src/broker.ts",
     "./candles": "./src/candles.ts",
     "./forecast": "./src/forecast.ts",
+    "./fundamentals": "./src/fundamentals.ts",
     "./indicators": "./src/indicators.ts",
     "./market": "./src/market.ts",
     "./market-data": "./src/market-data.ts",
