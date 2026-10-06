@@ -72,6 +72,7 @@ function context(patch: Partial<ForecastContext> = {}): ForecastContext {
     stance: ReportStance.Bullish,
     newerFinancials: null,
     taken: false,
+    support: () => null,
     ...patch,
   };
 }
@@ -79,6 +80,7 @@ function context(patch: Partial<ForecastContext> = {}): ForecastContext {
 function forecast(patch: Partial<Forecast> = {}): Forecast {
   return {
     ...draft(),
+    claims: [],
     id: "f-1",
     createdAt: 0,
     anchor: ANCHOR,
@@ -129,6 +131,33 @@ describe("checkForecast", () => {
     ).toEqual([
       { code: ForecastViolationCode.ReportStale, periodEnd: "2026-09-30" },
     ]);
+  });
+
+  test("a claim whose quote says less than it asserts is refused", () => {
+    const claim = {
+      text: "Orders will double.",
+      source: "Call",
+      quote: "Demand is robust.",
+    };
+
+    expect(
+      checkForecast(
+        draft({ claims: [claim] }),
+        context({ support: () => ({ model: "jev", supported: 0.05 }) })
+      )
+    ).toEqual([
+      {
+        code: ForecastViolationCode.ClaimUnsupported,
+        claim: "Orders will double.",
+        supported: 0.05,
+      },
+    ]);
+    expect(
+      checkForecast(
+        draft({ claims: [claim] }),
+        context({ support: () => ({ model: "jev", supported: 0.5 }) })
+      )
+    ).toEqual([]);
   });
 
   test("a session takes one forecast", () => {

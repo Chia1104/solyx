@@ -48,6 +48,51 @@ export const claimSchema = z.object({
 
 export type Claim = z.infer<typeof claimSchema>;
 
+/** How far a claim's quote bears it out, as a decisions model reads the two. */
+export interface ClaimSupport {
+  model: string;
+  /** From 0 to 1: how likely the quote states what the claim asserts. */
+  supported: number;
+}
+
+/**
+ * Below this a quote is read as saying less than its claim, and the claim is refused. It rests on
+ * `eval-claims` in `@solyx/decisions`: measure again after changing the question or a default model.
+ */
+export const CLAIM_SUPPORT_LINE = 0.5;
+
+/** The claims whose quotes were read as saying less than they assert. */
+export function unsupportedClaims(
+  claims: readonly Claim[],
+  support: (claim: Claim) => ClaimSupport | null
+): { claim: string; supported: number }[] {
+  return claims.flatMap((claim) => {
+    const reading = support(claim);
+
+    return reading && reading.supported < CLAIM_SUPPORT_LINE
+      ? [{ claim: claim.text, supported: reading.supported }]
+      : [];
+  });
+}
+
+/** A claim as kept, with the reading it was given. */
+export interface AuditedClaim extends Claim {
+  /** `null` when no decisions model read it. */
+  support: ClaimSupport | null;
+}
+
+/**
+ * Reads whether a claim's quote states it. It sees the quote the agent gave and never the source,
+ * so it catches a claim that says more than its quote, not a quote that was made up. One
+ * implementation per decisions model (`@solyx/decisions/*`); it runs only in the main process.
+ */
+export interface ClaimAuditor {
+  audit(
+    claim: Claim,
+    options?: { signal?: AbortSignal }
+  ): Promise<ClaimSupport>;
+}
+
 const valuationSchema = z.object({
   /** The range of prices the report finds fair. */
   low: z.number().positive(),
@@ -98,8 +143,8 @@ export interface Report {
   financialsThrough: string | null;
   stance: ReportStance;
   thesis: string;
-  drivers: Claim[];
-  risks: Claim[];
+  drivers: AuditedClaim[];
+  risks: AuditedClaim[];
   falsifiers: string[];
   valuation: z.infer<typeof valuationSchema> | null;
   events: z.infer<typeof reportEventSchema>[];
@@ -111,6 +156,7 @@ export const ReportViolationCode = {
   MissingStance: "missing-stance",
   MissingThesis: "missing-thesis",
   ValuationInverted: "valuation-inverted",
+  ClaimUnsupported: "claim-unsupported",
 } as const;
 
 export type ReportViolationCode =
@@ -124,6 +170,12 @@ export type ReportViolation =
       code: typeof ReportViolationCode.ValuationInverted;
       low: number;
       high: number;
+    }
+  | {
+      code: typeof ReportViolationCode.ClaimUnsupported;
+      claim: string;
+      /** How likely its quote states it, from 0 to 1. */
+      supported: number;
     };
 
 export type Revision =
@@ -136,6 +188,8 @@ export interface RevisionContext {
   at: number;
   /** The last day of the newest quarter public now; `null` when none is known. */
   financialsThrough: string | null;
+  /** The reading each of the draft's claims was given; `null` for one that was not read. */
+  support: (claim: Claim) => ClaimSupport | null;
 }
 
 /**
@@ -145,8 +199,11 @@ export interface RevisionContext {
 export function reviseReport(
   previous: Report | null,
   draft: ReportDraft,
-  { at, financialsThrough }: RevisionContext
+  { at, financialsThrough, support }: RevisionContext
 ): Revision {
+  const audited = (claims: Claim[] | undefined) =>
+    claims?.map((claim) => ({ ...claim, support: support(claim) }));
+
   const stance = draft.stance ?? previous?.stance;
   const thesis = draft.thesis ?? previous?.thesis;
 
@@ -173,6 +230,13 @@ export function reviseReport(
     });
   }
 
+  for (const weak of unsupportedClaims(
+    [...(draft.drivers ?? []), ...(draft.risks ?? [])],
+    support
+  )) {
+    violations.push({ code: ReportViolationCode.ClaimUnsupported, ...weak });
+  }
+
   if (stance === undefined || thesis === undefined || violations.length > 0) {
     return { ok: false, violations };
   }
@@ -194,8 +258,8 @@ export function reviseReport(
       financialsThrough,
       stance,
       thesis,
-      drivers: draft.drivers ?? previous?.drivers ?? [],
-      risks: draft.risks ?? previous?.risks ?? [],
+      drivers: audited(draft.drivers) ?? previous?.drivers ?? [],
+      risks: audited(draft.risks) ?? previous?.risks ?? [],
       falsifiers: draft.falsifiers ?? previous?.falsifiers ?? [],
       valuation,
       events: draft.events ?? previous?.events ?? [],

@@ -321,3 +321,55 @@ test("research goes on while fundamentals are out of reach", async () => {
   expect(store.report(TSMC)?.financialsThrough).toBe(null);
   expect((await desk.forecast(draft)).ok).toBe(true);
 });
+
+test("claims are read against their quotes as they are kept, and stay when the model fails", async () => {
+  const { store } = setup();
+  const bars = [ANCHOR_BAR];
+
+  const claim = (text: string) => ({ text, source: "Filing", quote: text });
+
+  const audit = vi
+    .fn()
+    .mockResolvedValueOnce({ model: "jev", supported: 0.9 })
+    .mockRejectedValueOnce(new Error("The model is out of reach"))
+    .mockResolvedValueOnce({ model: "jev", supported: 0.2 })
+    .mockResolvedValueOnce({ model: "jev", supported: 0.8 });
+
+  const desk = new ResearchDesk({
+    store,
+    marketData: { candles: async () => bars },
+    fundamentals: { statements: async () => [] },
+    auditor: async () => ({ audit }),
+    now: () => AT_ANCHOR,
+  });
+
+  await desk.revise({
+    symbol: TSMC,
+    stance: ReportStance.Bullish,
+    thesis: "Advanced nodes stay sold out.",
+    drivers: [claim("Revenue rose.")],
+    risks: [claim("Costs rose.")],
+  });
+
+  expect(store.report(TSMC)).toMatchObject({
+    drivers: [{ support: { model: "jev", supported: 0.9 } }],
+    risks: [{ support: null }],
+  });
+
+  const claims = [claim("The average held.")];
+
+  expect(await desk.forecast({ ...draft, claims })).toEqual({
+    ok: false,
+    violations: [
+      {
+        code: ForecastViolationCode.ClaimUnsupported,
+        claim: "The average held.",
+        supported: 0.2,
+      },
+    ],
+  });
+  expect(await desk.forecast({ ...draft, claims })).toMatchObject({
+    ok: true,
+    forecast: { claims: [{ support: { model: "jev", supported: 0.8 } }] },
+  });
+});

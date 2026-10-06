@@ -4,7 +4,13 @@ import * as z from "zod";
 import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import { exchangeMidnight, instrumentSchema, shiftDate } from "./market.ts";
-import { ReportStance, claimSchema, proseSchema } from "./report.ts";
+import {
+  ReportStance,
+  claimSchema,
+  proseSchema,
+  unsupportedClaims,
+} from "./report.ts";
+import type { AuditedClaim, Claim, ClaimSupport } from "./report.ts";
 import { isOnTick, tickSize } from "./risk.ts";
 import { regularHours } from "./session.ts";
 
@@ -105,6 +111,7 @@ export interface ForecastOutcome {
 
 /** A forecast as kept: nothing but its outcome changes once it is made. */
 export interface Forecast extends ForecastDraft {
+  claims: AuditedClaim[];
   id: string;
   /** Epoch ms. */
   createdAt: number;
@@ -124,6 +131,8 @@ export interface ForecastContext {
   newerFinancials: string | null;
   /** Whether the listing already has a forecast anchored on this session. */
   taken: boolean;
+  /** The reading each of the draft's claims was given; `null` for one that was not read. */
+  support: (claim: Claim) => ClaimSupport | null;
 }
 
 export const ForecastViolationCode = {
@@ -141,6 +150,7 @@ export const ForecastViolationCode = {
   StopWrongSide: "stop-wrong-side",
   TargetWrongSide: "target-wrong-side",
   RewardBelowRisk: "reward-below-risk",
+  ClaimUnsupported: "claim-unsupported",
 } as const;
 
 export type ForecastViolationCode =
@@ -176,6 +186,12 @@ export type ForecastViolation =
       code: typeof ForecastViolationCode.RewardBelowRisk;
       reward: number;
       risk: number;
+    }
+  | {
+      code: typeof ForecastViolationCode.ClaimUnsupported;
+      claim: string;
+      /** How likely its quote states it, from 0 to 1. */
+      supported: number;
     };
 
 // Prices on a tick grid differ by sums that floating point carries only nearly.
@@ -275,6 +291,10 @@ export function checkForecast(
       });
     }
   });
+
+  for (const weak of unsupportedClaims(draft.claims, context.support)) {
+    violations.push({ code: ForecastViolationCode.ClaimUnsupported, ...weak });
+  }
 
   if (direction === ForecastDirection.Neutral) {
     if (plan) violations.push({ code: ForecastViolationCode.PlanUnexpected });

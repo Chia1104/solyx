@@ -15,7 +15,14 @@ import type { MarketData } from "./market-data.ts";
 import { symbolKey } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { reviseReport } from "./report.ts";
-import type { Report, ReportDraft, Revision } from "./report.ts";
+import type {
+  Claim,
+  ClaimAuditor,
+  ClaimSupport,
+  Report,
+  ReportDraft,
+  Revision,
+} from "./report.ts";
 
 /** Where research persists. Synchronous so the desk checks a forecast and keeps it without an await between. */
 export interface ResearchStore {
@@ -34,6 +41,8 @@ export interface ResearchDeskOptions {
   store: ResearchStore;
   marketData: Pick<MarketData, "candles">;
   fundamentals: Pick<Fundamentals, "statements">;
+  /** Reads each claim against its quote as it is kept; none until the user sets up a decisions model. */
+  auditor?: () => Promise<ClaimAuditor | undefined>;
   /** Called after a listing's research changes, so whoever shows it can refresh. */
   onChange?: (symbol: SymbolRef) => void;
   now?: () => number;
@@ -77,9 +86,15 @@ export class ResearchDesk {
     const { store, now = Date.now } = this.#options;
     const financialsThrough = await this.#newestQuarter(draft.symbol);
 
+    const support = await this.#audit([
+      ...(draft.drivers ?? []),
+      ...(draft.risks ?? []),
+    ]);
+
     const revision = reviseReport(store.report(draft.symbol) ?? null, draft, {
       at: now(),
       financialsThrough,
+      support,
     });
 
     if (revision.ok) {
@@ -124,6 +139,7 @@ export class ResearchDesk {
     };
 
     const newestQuarter = await this.#newestQuarter(instrument);
+    const support = await this.#audit(draft.claims);
     const report = store.report(instrument);
 
     const violations = checkForecast(draft, {
@@ -133,12 +149,17 @@ export class ResearchDesk {
       taken: store
         .forecasts(instrument)
         .some((forecast) => forecast.anchor.date === anchor.date),
+      support,
     });
 
     if (!report || violations.length > 0) return { ok: false, violations };
 
     const forecast: Forecast = {
       ...draft,
+      claims: draft.claims.map((claim) => ({
+        ...claim,
+        support: support(claim),
+      })),
       id: id ?? createId(),
       createdAt: now(),
       anchor,
@@ -182,6 +203,22 @@ export class ResearchDesk {
     );
 
     return forecastRecord(settled.flat());
+  }
+
+  /** Has each claim read against its quote, and answers with the reading a claim was given. */
+  async #audit(
+    claims: readonly Claim[]
+  ): Promise<(claim: Claim) => ClaimSupport | null> {
+    const auditor = await this.#options.auditor?.();
+
+    const readings = await Promise.all(
+      claims.map(async (claim) =>
+        // A claim is kept unread rather than lost when the model cannot be reached.
+        auditor ? auditor.audit(claim).catch(() => null) : null
+      )
+    );
+
+    return (claim) => readings[claims.indexOf(claim)] ?? null;
   }
 
   /** The last day of the newest quarter public for a listing; `null` when none is. */
