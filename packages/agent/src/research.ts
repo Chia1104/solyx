@@ -121,6 +121,10 @@ function bandText({ low, high }: Pick<ForecastScenario, "low" | "high">) {
   return high === null ? `${low} and above` : `${low} to ${high}`;
 }
 
+/** A decisions model read the claim's quote as saying less than the claim does. */
+const unsupportedText = ({ claim }: { claim: string }) =>
+  `The quote given for "${claim}" does not state it. Quote the source's words or figures that do, narrow the claim to what its quote says, or leave the claim out.`;
+
 function reportViolationText(violation: ReportViolation): string {
   switch (violation.code) {
     case ReportViolationCode.MissingStance:
@@ -129,6 +133,8 @@ function reportViolationText(violation: ReportViolation): string {
       return "The listing has no report yet, so this one needs a thesis.";
     case ReportViolationCode.ValuationInverted:
       return `The valuation's low ${violation.low} is above its high ${violation.high}.`;
+    case ReportViolationCode.ClaimUnsupported:
+      return unsupportedText(violation);
   }
 }
 
@@ -167,6 +173,8 @@ function forecastViolationText(
       return "The target must lie above the entry for a long and below it for a short.";
     case ForecastViolationCode.RewardBelowRisk:
       return `The target pays ${violation.reward} against ${violation.risk} risked to the stop; it must pay at least as much.`;
+    case ForecastViolationCode.ClaimUnsupported:
+      return unsupportedText(violation);
   }
 }
 
