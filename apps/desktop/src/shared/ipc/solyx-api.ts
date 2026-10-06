@@ -1,6 +1,7 @@
 import type { AccountApi } from "./account.ts";
 import type { AgentApi, AgentEvents } from "./agent.ts";
 import type { MarketApi, MarketEvents } from "./market.ts";
+import type { MemoryApi, MemoryEvents } from "./memory.ts";
 import type { NewsApi, NewsEvents } from "./news.ts";
 import type { ProposalsApi, ProposalsEvents } from "./proposals.ts";
 import type { SettingsApi, SettingsEvents } from "./settings.ts";
@@ -12,6 +13,7 @@ export interface SolyxApi {
   account: AccountApi;
   agent: AgentApi & AgentEvents;
   market: MarketApi & MarketEvents;
+  memory: MemoryApi & MemoryEvents;
   news: NewsApi & NewsEvents;
   proposals: ProposalsApi & ProposalsEvents;
   settings: SettingsApi & SettingsEvents;

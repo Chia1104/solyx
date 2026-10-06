@@ -13,8 +13,10 @@ import {
   AgentToolName,
   ToolCallStatus,
   bashArgumentsSchema,
+  forgetArgumentsSchema,
   proposeOrderDetailsSchema,
   readPageArgumentsSchema,
+  rememberArgumentsSchema,
   runAnalysisDetailsSchema,
   runToolScriptDetailsSchema,
   scriptArgumentsSchema,
@@ -22,11 +24,13 @@ import {
 import type { ToolCallView } from "@solyx/agent/wire";
 import { intervalSchema } from "@solyx/core/candles";
 import { marketSchema, symbolRefSchema } from "@solyx/core/market";
+import type { Memory } from "@solyx/core/memory";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 import { ListingName } from "../market/listing-name.tsx";
+import { memoryQuery } from "../memory/memory-query.ts";
 import { ProposalItem } from "../proposals/proposal-item.tsx";
 import { proposalsQuery } from "../proposals/proposals-query.ts";
 
@@ -40,9 +44,13 @@ const argumentsSchema = z.object({
   name: z.string().optional(),
   query: z.string().optional(),
   url: z.string().optional(),
+  description: z.string().optional(),
 });
 
-/** What a call was about: a listing and its interval, an order's listing, a playbook, a search or a page. */
+/**
+ * What a call was about: a listing and its interval, an order's listing, a playbook, a search, a
+ * page or a memory.
+ */
 function Subject({ tool }: { tool: ToolCallView }) {
   const { t } = useTranslation();
   const args = argumentsSchema.safeParse(tool.args).data;
@@ -64,7 +72,7 @@ function Subject({ tool }: { tool: ToolCallView }) {
     );
   }
 
-  const text = args?.name ?? args?.query ?? args?.url;
+  const text = args?.name ?? args?.query ?? args?.url ?? args?.description;
 
   return text ? <span className="min-w-0 truncate">{text}</span> : null;
 }
@@ -96,6 +104,25 @@ function ProposalCard({ id }: { id: string }) {
   ) : null;
 }
 
+/** A memory the agent asks to save or forget, as the user would read it. */
+function memoryChange(tool: ToolCallView, memories: readonly Memory[]) {
+  if (tool.toolName === AgentToolName.Remember) {
+    const memory = rememberArgumentsSchema.safeParse(tool.args).data;
+
+    return (
+      memory && [memory.description, memory.body].filter(Boolean).join("\n\n")
+    );
+  }
+
+  if (tool.toolName === AgentToolName.Forget) {
+    const id = forgetArgumentsSchema.safeParse(tool.args).data?.id;
+
+    return memories.find((memory) => memory.id === id)?.description ?? id;
+  }
+
+  return undefined;
+}
+
 /**
  * A call that waits for the user, with what it is about to send. Neither answer is ink: only
  * confirming a proposal makes anything real.
@@ -114,7 +141,14 @@ function ApprovalCard({
       window.solyx.agent.approve(sessionId, tool.toolCallId, approved),
   });
 
-  // A shell command is shown as the user would type it, whole, and a page by its address.
+  // Forgetting names a memory by its id, which the card shows by its description.
+  const memories = useQuery({
+    ...memoryQuery(),
+    enabled: tool.toolName === AgentToolName.Forget,
+  });
+
+  // A shell command is shown as the user would type it, whole, a page by its address and a
+  // memory as the agent wrote it.
   const command =
     tool.toolName === AgentToolName.Bash
       ? bashArgumentsSchema.safeParse(tool.args).data?.command
@@ -125,12 +159,20 @@ function ApprovalCard({
       ? readPageArgumentsSchema.safeParse(tool.args).data?.url
       : undefined;
 
+  const memory = memoryChange(tool, memories.data ?? []);
+
   let description = t("agent.approval.description", { tool: tool.toolName });
 
   if (command !== undefined) {
     description = t("agent.approval.shell-description");
   } else if (address !== undefined) {
     description = t("agent.approval.read-page-description");
+  } else if (memory !== undefined) {
+    description = t(
+      tool.toolName === AgentToolName.Forget
+        ? "agent.approval.forget-description"
+        : "agent.approval.remember-description"
+    );
   }
 
   return (
@@ -138,7 +180,7 @@ function ApprovalCard({
       <p className="text-sm font-medium">{t("agent.approval.title")}</p>
       <p className="text-xs text-muted">{description}</p>
       <pre className="max-h-40 overflow-auto rounded-sm bg-surface-secondary p-2 font-mono text-xs whitespace-pre-wrap">
-        {command ?? address ?? JSON.stringify(tool.args, null, 2)}
+        {command ?? address ?? memory ?? JSON.stringify(tool.args, null, 2)}
       </pre>
       <div className="flex gap-2">
         <Button

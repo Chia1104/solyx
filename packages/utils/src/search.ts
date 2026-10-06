@@ -58,9 +58,9 @@ function singular(term: string): string {
 /**
  * The terms a search compares: words split at camelCase and anything but letters and digits,
  * lowercased, without stop words or plurals, and runs of Chinese, Japanese or Korean as
- * overlapping pairs of characters.
+ * overlapping pairs of characters. A full-text index fed these terms matches as this module does.
  */
-function searchTerms(text: string): string[] {
+export function searchTerms(text: string): string[] {
   return text
     .replace(/([\p{Ll}\p{N}])(\p{Lu})/gu, "$1 $2")
     .replace(/(\p{Lu}+)(\p{Lu}\p{Ll})/gu, "$1 $2")

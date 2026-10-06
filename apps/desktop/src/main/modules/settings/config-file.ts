@@ -177,6 +177,10 @@ const configSchema = section(
           description:
             "Lets the agent run shell commands on this computer, each only after you allow it. They are not sandboxed.",
         }),
+        memory: z.boolean().catch(true).meta({
+          description:
+            "Lets the agent read what it kept from earlier conversations and ask to save, rewrite or forget a memory; each change waits for you to allow it.",
+        }),
         // Values are checked one by one where they are read, so one bad entry keeps the rest.
         mcpTools: z.record(z.string(), z.string()).catch({}).meta({
           description:
@@ -276,6 +280,7 @@ type ConfigPath =
         | "auth"
         | "sharedSkills"
         | "shell"
+        | "memory"
       ),
     ]
   | ["agent", "endpoints", AgentProvider]

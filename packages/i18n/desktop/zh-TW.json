@@ -253,6 +253,9 @@
       "run_tool_script": "執行工具腳本",
       "web_search": "搜尋網路",
       "read_page": "讀取網頁",
+      "recall": "回想記憶",
+      "remember": "存下記憶",
+      "forget": "遺忘記憶",
       "bash": "執行指令"
     },
     "tool-status": {
@@ -300,6 +303,8 @@
       "description": "{{tool}} 來自 Solyx 以外的 MCP server，請先確認它要送出的內容。",
       "shell-description": "這個指令會在你的電腦上執行，能存取你的檔案與網路。允許前請先確認內容。",
       "read-page-description": "你的網路搜尋供應商會讀取這個網址。如果不是你預期的網址，可能是 agent 讀過的網頁想藉此把你的資料送出去，允許前請先確認。",
+      "remember-description": "Agent 想把這段內容留到之後的對話，而且每次對話都會讀取。允許前請確認它寫的是你的意思。",
+      "forget-description": "Agent 想遺忘這筆記憶，之後的對話將不再知道它。",
       "allow": "允許",
       "deny": "不允許",
       "auto-allowed": "由決策模型放行",
@@ -397,6 +402,7 @@
       "about": "關於",
       "agent": "AI Agent",
       "skills": "Skills",
+      "memory": "記憶",
       "mcp": "MCP"
     },
     "general": "一般",
@@ -707,6 +713,27 @@
       "shell-description": "讓 agent 在這台電腦上執行指令，skill 需要它才能執行附帶的腳本。每個指令都會先等你允許，除非你把對話設為不詢問。指令沒有沙箱隔離：你允許的指令可以讀取、修改你的檔案並連上網路。僅在模擬帳戶下有效。",
       "shell-label": "允許 agent 使用 shell"
     },
+    "memory": {
+      "title": "記憶",
+      "description-text": "Agent 跨對話保留、每次對話都會讀取的內容。它要新增、改寫或遺忘一筆記憶，都要先經過你允許；刪除對話不會刪掉它存下的記憶。",
+      "enabled": "使用記憶",
+      "enabled-description": "Agent 每次對話都會讀取記憶，新增、改寫或遺忘前都會先問你。關閉後記憶仍會保留，只是不再使用。",
+      "empty": "還沒有記憶。Agent 存下任何記憶前都會先問你。",
+      "filter": "篩選記憶",
+      "no-matches": "沒有符合「{{query}}」的記憶。",
+      "kinds": {
+        "profile": "關於你",
+        "feedback": "工作方式",
+        "note": "筆記"
+      },
+      "forget": "遺忘",
+      "description": "描述",
+      "body": "細節",
+      "description-required": "請描述這筆記憶的內容",
+      "too-long": "請少於 {{count, number}} 個字",
+      "secret": "記憶不能包含金鑰、權杖、密碼或身分證字號",
+      "change-failed": "無法變更這筆記憶"
+    },
     "mcp": {
       "title": "MCP server",
       "description": "列在 {{path}} 的 server，格式和 Claude、Cursor、pi 使用的 mcpServers 相同。金鑰請寫成 secret:NAME，再在這裡儲存，由系統加密保管。每次呼叫都會先等你允許，除非你讓唯讀的 tool 自動執行。",
@@ -778,6 +805,16 @@
         "confirm-body": "對話中的訊息與 shell 指令留下的檔案都會從這台電腦刪除，仍在執行的對話也會停止，無法復原。它們提出的下單建議仍會留在提案中。",
         "confirm": "全部刪除",
         "clear-failed": "無法刪除對話"
+      },
+      "memory": {
+        "title": "記憶",
+        "description": "Agent 跨對話保留的內容，每一筆都經過你允許才存下。",
+        "count": "記憶數",
+        "clear": "遺忘所有記憶",
+        "confirm-title": "要遺忘所有記憶嗎？",
+        "confirm-body": "Agent 下一次對話將不再記得先前的任何內容，無法復原。你的對話紀錄會保留。",
+        "confirm": "全部遺忘",
+        "clear-failed": "無法遺忘這些記憶"
       },
       "news": {
         "title": "新聞",

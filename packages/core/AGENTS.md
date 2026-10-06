@@ -1,6 +1,6 @@
 # `@solyx/core`
 
-The trading domain every other package builds on: market rules (tick sizes, board and odd lots, trading sessions), candles and technical indicators, the `BrokerAdapter`, `MarketDataProvider`, `MarketDataStream`, `NewsSource`, `SentimentScorer`, `WebSearch` and `WebReader` contracts, the `checkOrder` risk checks and the `OrderDesk` order flow.
+The trading domain every other package builds on: market rules (tick sizes, board and odd lots, trading sessions), candles and technical indicators, the `BrokerAdapter`, `MarketDataProvider`, `MarketDataStream`, `NewsSource`, `SentimentScorer`, `WebSearch`, `WebReader` and `MemoryStore` contracts, the `checkOrder` risk checks and the `OrderDesk` order flow.
 
 ## Boundaries
 
@@ -10,3 +10,4 @@ The trading domain every other package builds on: market rules (tick sizes, boar
 - `./sectors` lists the Taiwan Stock Exchange's own sector indices in its current classification and leaves out the indices that add sectors up, so no listing counts twice.
 - `./news` derives stories and sentiment from stored records as pure functions, so the symbol page's gauge and the agent read the same numbers. Items of one channel whose titles match exactly, such as reprints and a thread's replies, form one story; sentiment is given overall and for the press and the crowd.
 - `./web-search` is the web as every vendor must serve it: a search takes structured filters (kind, first day, hosts, market) that each vendor's module translates, and its results carry `Published` times already read on the market's calendar. Searching and reading are separate contracts, so a vendor that only searches can still serve one.
+- `./memory` is what the agent keeps across conversations. Its description and body schemas refuse text that looks like a key, token or ID number, and the agent's writes and the user's edits both pass through them, so no memory stores a secret in plain text.

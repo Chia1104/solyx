@@ -19,6 +19,7 @@ import { RailedColumn } from "../../components/sheet.tsx";
 import { agentQueryKeys } from "../agent/agent-query.ts";
 import { useAgentStore } from "../agent/agent-store.ts";
 import { candlesQueryKeys } from "../market/candles-query.ts";
+import { memoryQueryKeys } from "../memory/memory-query.ts";
 import { newsQueryKeys } from "../news/news-query.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 import { watchlistQueryKeys } from "../watchlist/watchlist-query.ts";
@@ -49,6 +50,7 @@ function formatBytes(bytes: number, locale: string) {
 const SHOWN_ELSEWHERE: Record<StoredData, QueryKey> = {
   [StoredData.Candles]: candlesQueryKeys.all,
   [StoredData.Conversations]: agentQueryKeys.sessions,
+  [StoredData.Memory]: memoryQueryKeys.all,
   [StoredData.News]: newsQueryKeys.all,
   [StoredData.Watchlist]: watchlistQueryKeys.all,
 };
@@ -165,7 +167,7 @@ export function StorageSettings() {
 
   if (!data) return <LoadingState />;
 
-  const { candles, conversations, news, watchlist } = data;
+  const { candles, conversations, memory, news, watchlist } = data;
   const bytes = (value: number) => formatBytes(value, i18n.language);
   const count = (value: number) => value.toLocaleString(i18n.language);
 
@@ -207,6 +209,16 @@ export function StorageSettings() {
         <SettingsRow
           label={t("settings.storage.conversations.count")}
           value={count(conversations.conversations)}
+        />
+      </StorageSection>
+      <StorageSection data={StoredData.Memory} isEmpty={memory.memories === 0}>
+        <SettingsRow
+          label={t("settings.storage.size")}
+          value={bytes(memory.bytes)}
+        />
+        <SettingsRow
+          label={t("settings.storage.memory.count")}
+          value={count(memory.memories)}
         />
       </StorageSection>
       <StorageSection data={StoredData.News} isEmpty={news.items === 0}>

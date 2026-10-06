@@ -6,16 +6,18 @@
   "exports": {
     "./agent": "./src/agent.ts",
     "./cache": "./src/cache.ts",
+    "./memory": "./src/memory.ts",
     "./news": "./src/news.ts",
     "./user": "./src/user.ts"
   },
   "scripts": {
-    "db:generate": "drizzle-kit generate --config drizzle.cache.config.ts && drizzle-kit generate --config drizzle.news.config.ts && drizzle-kit generate --config drizzle.user.config.ts",
+    "db:generate": "drizzle-kit generate --config drizzle.cache.config.ts && drizzle-kit generate --config drizzle.memory.config.ts && drizzle-kit generate --config drizzle.news.config.ts && drizzle-kit generate --config drizzle.user.config.ts",
     "test": "vp test"
   },
   "dependencies": {
     "@earendil-works/pi-durable": "catalog:agent",
     "@solyx/core": "workspace:*",
+    "@solyx/utils": "workspace:*",
     "drizzle-orm": "catalog:drizzle",
     "es-toolkit": "catalog:"
   },

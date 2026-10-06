@@ -115,6 +115,8 @@ const schemas = {
   agentSkills: z.tuple([]),
   setSharedSkill: z.tuple([z.string().min(1).max(64), z.boolean()]),
   setAgentShell: z.tuple([z.boolean()]),
+  memory: z.tuple([]),
+  setMemoryEnabled: z.tuple([z.boolean()]),
   mcp: z.tuple([]),
   setMcpToolPolicy: z.tuple([
     mcpNameSchema,

@@ -11,6 +11,7 @@ import { PaneSplitter, SplitterEdge } from "../components/pane-splitter.tsx";
 import { BrokerModeRule } from "../modules/account/broker-mode-chip.tsx";
 import { useMarketDataChanges } from "../modules/market/market-sessions-query.ts";
 import { useQuoteRefresh } from "../modules/market/quote-query.ts";
+import { useMemoryChanges } from "../modules/memory/memory-query.ts";
 import { useProposalChanges } from "../modules/proposals/proposals-query.ts";
 import { useSettingsChanges } from "../modules/settings/settings-query.ts";
 
@@ -161,6 +162,7 @@ export function RootLayout() {
   useQuoteRefresh();
   useProposalChanges();
   useSettingsChanges();
+  useMemoryChanges();
 
   // First-run setup takes the whole window, without the workspace around it.
   const onboarding = matchRoute({ to: "/onboarding" }) !== false;

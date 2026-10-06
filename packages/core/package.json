@@ -9,6 +9,7 @@
     "./indicators": "./src/indicators.ts",
     "./market": "./src/market.ts",
     "./market-data": "./src/market-data.ts",
+    "./memory": "./src/memory.ts",
     "./news": "./src/news.ts",
     "./order": "./src/order.ts",
     "./order-desk": "./src/order-desk.ts",

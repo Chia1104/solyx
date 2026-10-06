@@ -88,6 +88,11 @@ export default defineConfig({
           rename: "cache",
         },
         {
+          from: "../../packages/db/migrations/memory",
+          to: "dist/main/migrations",
+          rename: "memory",
+        },
+        {
           from: "../../packages/db/migrations/news",
           to: "dist/main/migrations",
           rename: "news",

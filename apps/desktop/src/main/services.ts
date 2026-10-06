@@ -11,10 +11,12 @@ import type { RiskLimits } from "@solyx/core/risk";
 import { Session } from "@solyx/core/session";
 import { openAgentStore } from "@solyx/db/agent";
 import { openCache } from "@solyx/db/cache";
+import { openMemory } from "@solyx/db/memory";
 import { openNews } from "@solyx/db/news";
 import { openUserData } from "@solyx/db/user";
 
 import { marketEvents } from "#shared/ipc/market.ts";
+import { memoryEvents } from "#shared/ipc/memory.ts";
 import { newsEvents } from "#shared/ipc/news.ts";
 import { proposalsEvents } from "#shared/ipc/proposals.ts";
 import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
@@ -26,6 +28,7 @@ import { createDecisions } from "./modules/decisions/decisions.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
+import { createMemories } from "./modules/memory/memories.ts";
 import { createNewsCollector } from "./modules/news/news-collector.ts";
 import { createNewsSources } from "./modules/news/news-sources.ts";
 import { createNews } from "./modules/news/news.ts";
@@ -128,6 +131,15 @@ export function createServices() {
     join(import.meta.dirname, "migrations", "news")
   );
 
+  // Every window hears every write to the agent's memories, whoever made it.
+  const memories = createMemories(
+    openMemory(
+      join(userDataDir, "memory.sqlite"),
+      join(import.meta.dirname, "migrations", "memory")
+    ),
+    () => broadcast(memoryEvents.onChanged)
+  );
+
   const news = createNews({
     sources: createNewsSources(() => webSearch.vendor()),
     store: newsData.store,
@@ -158,6 +170,7 @@ export function createServices() {
     news,
     web: () => webSearch.vendor(),
     desk,
+    memory: memories.store,
   });
 
   const newsCollector = createNewsCollector({
@@ -211,6 +224,7 @@ export function createServices() {
     windowColors,
     marketData,
     userData,
+    memories,
     agent,
     mcp,
     decisions,

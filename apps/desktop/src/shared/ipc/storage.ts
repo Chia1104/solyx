@@ -4,6 +4,7 @@ import * as z from "zod";
 export const StoredData = {
   Candles: "candles",
   Conversations: "conversations",
+  Memory: "memory",
   News: "news",
   Watchlist: "watchlist",
 } as const;
@@ -31,6 +32,12 @@ export interface ConversationsUsage {
   conversations: number;
 }
 
+export interface MemoryUsage {
+  /** On disk, with the write-ahead log. */
+  bytes: number;
+  memories: number;
+}
+
 export interface NewsUsage {
   /** On disk, with the write-ahead log. */
   bytes: number;
@@ -45,6 +52,7 @@ export interface WatchlistUsage {
 export interface StorageUsage {
   candles: CacheUsage;
   conversations: ConversationsUsage;
+  memory: MemoryUsage;
   news: NewsUsage;
   watchlist: WatchlistUsage;
 }
