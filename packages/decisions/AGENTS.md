@@ -1,6 +1,6 @@
 # `@solyx/decisions`
 
-Decisions models, which answer typed questions with probabilities instead of writing text: one module per vendor, each implementing the contracts in `@solyx/core/sentiment` and judging the agent's shell commands for conversations set to auto. `./typesafe` runs TypeSafe's models, such as Jev, through `@typesafe-ai/sdk`, and also serves endpoints that speak its `/v1/systemone` API. `./cloudflare` runs Cloudflare's Clef on Workers AI over `fetch`. `./provider` names the vendors and `./command` holds the command judge's contract.
+Decisions models, which answer typed questions with probabilities instead of writing text: one module per vendor, each implementing the contracts in `@solyx/core/sentiment`, judging the agent's shell commands for conversations set to auto, and reading the claims in its research against their quotes (`ClaimAuditor` from `@solyx/core/report`). `./typesafe` runs TypeSafe's models, such as Jev, through `@typesafe-ai/sdk`, and also serves endpoints that speak its `/v1/systemone` API. `./cloudflare` runs Cloudflare's Clef on Workers AI over `fetch`. `./provider` names the vendors and `./command` holds the command judge's contract.
 
 ## Boundaries
 
@@ -9,4 +9,5 @@ Decisions models, which answer typed questions with probabilities instead of wri
 - `src/system-one.ts` holds the one set of questions, in TypeSafe's System One format, and reads every vendor's answers; a vendor's module only carries a request to its model. A vendor whose model reads a shared question badly rewords that question in its own module, as `./cloudflare` does for one command question, rather than bending the shared wording. A default model is pinned to a version where the vendor versions its models, so the questions keep the behaviour they were measured against.
 - Questions say what a text does rather than what it does not: Jev is weak on negation.
 - Tests use synthetic responses shaped like the vendor's; never commit real posts or articles.
+- `scripts/eval-claims.ts` measures the claim question against labelled synthetic claims the same way. `CLAIM_SUPPORT_LINE` in `@solyx/core/report`, below which research refuses a claim, rests on its result, so run it again for every provider after changing the question, and for a provider after changing its default model. The auditor sees a claim and its quote alone, never the source.
 - `scripts/eval-commands.ts` measures the command questions against labelled synthetic commands on a real key, for the provider `DECISIONS_PROVIDER` names. Run it again for every provider after changing a question, and for a provider after changing its default model, since the agent's threshold for running a command unasked rests on its result.

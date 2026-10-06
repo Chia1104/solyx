@@ -2,6 +2,7 @@ import { choice, noul, score } from "@typesafe-ai/sdk";
 import type { NoulQuestion, SystemOneRequest } from "@typesafe-ai/sdk";
 import * as z from "zod";
 
+import type { ClaimAuditor } from "@solyx/core/report";
 import { Stance, TextKind, TextTopic } from "@solyx/core/sentiment";
 import type {
   SentimentInput,
@@ -114,7 +115,21 @@ export const COMMAND_QUESTIONS = {
   ),
 };
 
+// Asked of a claim and the quote it rests on; measured with `scripts/eval-claims.ts`.
+const CLAIM_QUESTIONS = {
+  supported: noul(
+    "Does `quote`, words or figures taken from a source, state what `claim` asserts? Either may be in Chinese or English, and a figure may be rounded or written in another unit.",
+    {
+      true: "The quote states the claim's facts, or gives the figures the claim follows from directly.",
+      false:
+        "The quote is about something else, gives figures that differ from the claim's, or says less than the claim asserts.",
+    }
+  ),
+};
+
 const noulSchema = z.object({ noul: z.number() });
+
+const claimAnswersSchema = z.object({ supported: noulSchema });
 
 const answersSchema = z.object({
   relevance: noulSchema,
@@ -173,6 +188,26 @@ export function createCommandJudge(
         secrets: answers.secrets.noul,
         runs: answers.runs.noul,
         privileged: answers.privileged.noul,
+      };
+    },
+  };
+}
+
+/** Reads claims against their quotes with the model `ask` reaches. */
+export function createClaimAuditor(ask: Ask): ClaimAuditor {
+  return {
+    async audit(claim, { signal } = {}) {
+      const { model, answers: unread } = await ask(
+        {
+          state: { claim: claim.text, quote: claim.quote },
+          questions: CLAIM_QUESTIONS,
+        },
+        signal
+      );
+
+      return {
+        model,
+        supported: claimAnswersSchema.parse(unread).supported.noul,
       };
     },
   };
