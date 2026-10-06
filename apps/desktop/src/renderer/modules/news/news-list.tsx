@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 import { uniq } from "es-toolkit";
@@ -105,7 +106,14 @@ function StoryRow({ market, story }: { market: Market; story: NewsStory }) {
  * The stories collected about a listing over the symbol page's window, newest first, under a
  * header that carries their sentiment, filling the height it is given.
  */
-export function NewsList({ symbol }: { symbol: SymbolRef }) {
+export function NewsList({
+  symbol,
+  heading,
+}: {
+  symbol: SymbolRef;
+  /** What leads the header row in place of the title, such as a switch to another view. */
+  heading?: ReactNode;
+}) {
   const { t } = useTranslation();
   const { data, error, refetch } = useQuery(newsRecordsQuery(symbol));
 
@@ -149,7 +157,9 @@ export function NewsList({ symbol }: { symbol: SymbolRef }) {
       className="flex h-full flex-col overflow-hidden">
       {/* 40px over its rule, so the news collapses to this row and its readout. */}
       <div className="flex h-10 shrink-0 items-center gap-3 border-b border-separator px-6">
-        <h2 className="shrink-0 text-sm font-medium">{t("news.title")}</h2>
+        {heading ?? (
+          <h2 className="shrink-0 text-sm font-medium">{t("news.title")}</h2>
+        )}
         <ToggleMenu
           label={t("news.channels-label")}
           options={Object.values(NewsChannel).map((channel) => ({

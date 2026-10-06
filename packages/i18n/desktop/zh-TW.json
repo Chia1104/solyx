@@ -367,10 +367,44 @@
     "history": "紀錄"
   },
   "research": {
+    "title": "研究",
+    "views-label": "圖表下方",
+    "deep-analysis": "深度分析",
+    "deep-analysis-prompt": "幫我深度分析 {{symbol}}",
+    "empty": "尚無研究。請 Agent 做一次深度分析，就會有報告和預測。",
+    "stance": {
+      "bullish": "看多",
+      "neutral": "中立",
+      "bearish": "看空"
+    },
     "direction": {
       "long": "做多",
       "short": "做空",
       "neutral": "中立"
+    },
+    "report": {
+      "revision": "第 {{revision, number}} 版 · {{date}} 修訂",
+      "drivers": "論點支撐",
+      "risks": "風險",
+      "falsifiers": "什麼會改變看法",
+      "valuation": "合理區間 {{low}} 至 {{high}}",
+      "events": "未來事件",
+      "written": "{{date}} 撰寫",
+      "none": "尚無報告。"
+    },
+    "sections": {
+      "business": "業務",
+      "financials": "財務",
+      "valuation": "估值",
+      "catalysts": "催化劑",
+      "risks": "風險"
+    },
+    "forecasts": {
+      "title": "預測",
+      "none": "尚無預測。",
+      "record": "{{count, number}} 筆中 {{settled, number}} 筆已結算 · 平均 Brier {{brier}}",
+      "record-open": "{{count, number}} 筆，尚未結算",
+      "mean-r": "平均 {{r}} R"
     },
     "forecast": {
       "horizon": "{{count, number}} 個交易日，自 {{date}} 的 {{price}} 起算",

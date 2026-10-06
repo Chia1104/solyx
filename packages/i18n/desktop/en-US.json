@@ -367,13 +367,47 @@
     "history": "History"
   },
   "research": {
+    "title": "Research",
+    "views-label": "Under the chart",
+    "deep-analysis": "Deep analysis",
+    "deep-analysis-prompt": "Run a deep analysis of {{symbol}}",
+    "empty": "No research yet. Ask the agent for a deep analysis to get a report and a forecast.",
+    "stance": {
+      "bullish": "Bullish",
+      "neutral": "Neutral",
+      "bearish": "Bearish"
+    },
     "direction": {
       "long": "Long",
       "short": "Short",
       "neutral": "Neutral"
     },
+    "report": {
+      "revision": "Revision {{revision, number}} · revised {{date}}",
+      "drivers": "What carries the view",
+      "risks": "Risks",
+      "falsifiers": "What would change the view",
+      "valuation": "Fair range {{low}} to {{high}}",
+      "events": "Dates ahead",
+      "written": "written {{date}}",
+      "none": "No report yet."
+    },
+    "sections": {
+      "business": "Business",
+      "financials": "Financials",
+      "valuation": "Valuation",
+      "catalysts": "Catalysts",
+      "risks": "Risks"
+    },
+    "forecasts": {
+      "title": "Forecasts",
+      "none": "No forecasts yet.",
+      "record": "{{settled, number}} of {{count, number}} settled · mean Brier {{brier}}",
+      "record-open": "{{count, number}} made, none settled yet",
+      "mean-r": "mean {{r}} R"
+    },
     "forecast": {
-      "horizon": "{{count, number}} sessions from {{date}} at {{price}}",
+      "horizon": "{{count, number}}-session horizon from {{date}} at {{price}}",
       "open": "Open",
       "settled": "Settled",
       "entry": "Entry",

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { ReactNode } from "react";
 
 import {
   CandlestickSeries,
@@ -70,10 +71,13 @@ export function PriceChart({
   candles,
   market,
   interval,
+  children,
 }: {
   candles: Candle[];
   market: Market;
   interval: Interval;
+  /** What else is drawn on the price pane, over the candles. */
+  children?: ReactNode;
 }) {
   const { i18n } = useTranslation();
   const colors = usePaletteColors();
@@ -195,6 +199,7 @@ export function PriceChart({
       {enabled.includes(ChartIndicator.Bollinger) ? (
         <BollingerBands times={times} closes={closes} />
       ) : null}
+      {children}
       <Series
         definition={HistogramSeries}
         data={bars.volume}

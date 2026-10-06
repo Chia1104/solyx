@@ -69,7 +69,8 @@ function PlanLevel({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ForecastBody({ forecast }: { forecast: Forecast }) {
+/** A forecast as it was put on record, and how it came out once its horizon closed. */
+export function ForecastBody({ forecast }: { forecast: Forecast }) {
   const { t, i18n } = useTranslation();
   const { price, signedAmount } = numberFormats(i18n.language);
   const { anchor, plan, outcome } = forecast;
@@ -140,7 +141,7 @@ function ForecastBody({ forecast }: { forecast: Forecast }) {
   );
 }
 
-/** A forecast as the agent put it on record, and how it came out once its horizon closed. */
+/** The forecast a call made, read by its id, so it shows where the agent made it. */
 export function ForecastCard({
   symbol,
   id,
