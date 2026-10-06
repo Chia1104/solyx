@@ -15,6 +15,7 @@ import { openMemory } from "@solyx/db/memory";
 import { openNews } from "@solyx/db/news";
 import { openResearch } from "@solyx/db/research";
 import { openUserData } from "@solyx/db/user";
+import { createFinMind } from "@solyx/fundamentals/finmind";
 
 import { marketEvents } from "#shared/ipc/market.ts";
 import { memoryEvents } from "#shared/ipc/memory.ts";
@@ -27,6 +28,7 @@ import { ColorScheme } from "#shared/palette.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
 import { createDecisions } from "./modules/decisions/decisions.ts";
+import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
@@ -151,13 +153,15 @@ export function createServices() {
     onChange: (symbol) => broadcast(newsEvents.onChanged, symbol),
   });
 
+  const fundamentals = createFundamentals({ providers: [createFinMind()] });
+
   // Every window hears every change to the agent's research, whoever made it.
   const research = createResearch(
     openResearch(
       join(userDataDir, "research.sqlite"),
       join(import.meta.dirname, "migrations", "research")
     ),
-    marketData,
+    { marketData, fundamentals },
     () => broadcast(researchEvents.onChanged)
   );
 
@@ -185,6 +189,7 @@ export function createServices() {
     desk,
     memory: memories.store,
     research: research.desk,
+    fundamentals,
   });
 
   const newsCollector = createNewsCollector({

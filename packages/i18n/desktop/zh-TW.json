@@ -257,6 +257,7 @@
       "remember": "存下記憶",
       "forget": "遺忘記憶",
       "get_research": "讀取研究",
+      "get_fundamentals": "讀取財報",
       "revise_report": "修訂研究報告",
       "submit_forecast": "提出預測",
       "bash": "執行指令"
@@ -390,7 +391,8 @@
       "valuation": "合理區間 {{low}} 至 {{high}}",
       "events": "未來事件",
       "written": "{{date}} 撰寫",
-      "none": "尚無報告。"
+      "none": "尚無報告。",
+      "stale": "這份報告修訂後，截至 {{date}} 的新一季財報已公布。Agent 會先修訂報告才能再提出預測。"
     },
     "sections": {
       "business": "業務",

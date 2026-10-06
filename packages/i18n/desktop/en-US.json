@@ -257,6 +257,7 @@
       "remember": "Saved a memory",
       "forget": "Forgot a memory",
       "get_research": "Read research",
+      "get_fundamentals": "Read fundamentals",
       "revise_report": "Revised the report",
       "submit_forecast": "Made a forecast",
       "bash": "Ran a command"
@@ -390,7 +391,8 @@
       "valuation": "Fair range {{low}} to {{high}}",
       "events": "Dates ahead",
       "written": "written {{date}}",
-      "none": "No report yet."
+      "none": "No report yet.",
+      "stale": "A newer quarter, ending {{date}}, came out after this report was revised. The agent revises it before its next forecast."
     },
     "sections": {
       "business": "Business",

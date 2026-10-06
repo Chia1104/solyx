@@ -27,6 +27,7 @@
     "@solyx/core": "workspace:*",
     "@solyx/db": "workspace:*",
     "@solyx/decisions": "workspace:*",
+    "@solyx/fundamentals": "workspace:*",
     "@solyx/i18n": "workspace:*",
     "@solyx/market-data": "workspace:*",
     "@solyx/news": "workspace:*",

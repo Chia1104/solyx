@@ -21,6 +21,7 @@ import { createTradingExtension } from "@solyx/agent/tools";
 import { createWebTools } from "@solyx/agent/web";
 import type { AgentWireEvent, ApprovalMode } from "@solyx/agent/wire";
 import { BrokerMode } from "@solyx/core/broker";
+import type { Fundamentals } from "@solyx/core/fundamentals";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import type { MemoryStore } from "@solyx/core/memory";
@@ -60,6 +61,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   mcp: McpServers;
   memory: MemoryStore;
   research: ResearchDesk;
+  fundamentals: Fundamentals;
 }
 
 // `vp pack` ships QuickJS beside the main bundle and builds the scripts' worker next to it.
@@ -147,7 +149,11 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const memory = createMemory({ store: options.memory });
 
-  const research = createResearch({ desk: options.research });
+  const research = createResearch({
+    desk: options.research,
+    fundamentals: options.fundamentals,
+    marketData: options.marketData,
+  });
 
   const runtime = createAgentRuntime({
     store: options.conversations,

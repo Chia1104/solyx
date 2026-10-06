@@ -1,3 +1,4 @@
+import type { Fundamentals } from "@solyx/core/fundamentals";
 import type { MarketData } from "@solyx/core/market-data";
 import { ResearchDesk } from "@solyx/core/research";
 import type { ResearchData } from "@solyx/db/research";
@@ -9,11 +10,14 @@ import type { ResearchData } from "@solyx/db/research";
  */
 export function createResearch(
   data: ResearchData,
-  marketData: Pick<MarketData, "candles">,
+  sources: {
+    marketData: Pick<MarketData, "candles">;
+    fundamentals: Pick<Fundamentals, "statements">;
+  },
   onChange: () => void
 ) {
   return {
-    desk: new ResearchDesk({ store: data.store, marketData, onChange }),
+    desk: new ResearchDesk({ store: data.store, ...sources, onChange }),
 
     usage: () => data.usage(),
 

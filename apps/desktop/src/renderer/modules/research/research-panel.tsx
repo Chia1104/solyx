@@ -61,7 +61,14 @@ function Claims({ title, claims }: { title: string; claims: Claim[] }) {
   );
 }
 
-function ReportView({ report }: { report: Report }) {
+function ReportView({
+  report,
+  newerFinancials,
+}: {
+  report: Report;
+  /** The last day of a quarter published since the report was revised, if one was. */
+  newerFinancials: string | null;
+}) {
   const { t, i18n } = useTranslation();
   const { price } = numberFormats(i18n.language);
   const { market } = report.symbol;
@@ -78,6 +85,11 @@ function ReportView({ report }: { report: Report }) {
           })}
         </span>
       </header>
+      {newerFinancials ? (
+        <p className="rounded-sm border border-dashed border-separator px-3 py-2 text-xs text-muted">
+          {t("research.report.stale", { date: newerFinancials })}
+        </p>
+      ) : null}
       <p>{report.thesis}</p>
       <Claims title={t("research.report.drivers")} claims={report.drivers} />
       <Claims title={t("research.report.risks")} claims={report.risks} />
@@ -164,7 +176,7 @@ function RecordLine({ record }: { record: ForecastRecord }) {
 
 function CoverageView({ coverage }: { coverage: Coverage }) {
   const { t } = useTranslation();
-  const { report, forecasts, record } = coverage;
+  const { report, newerFinancials, forecasts, record } = coverage;
 
   if (!report && forecasts.length === 0) {
     return (
@@ -176,7 +188,7 @@ function CoverageView({ coverage }: { coverage: Coverage }) {
     // Side by side where the main view is wide; narrower, the forecasts follow the report.
     <div className="grid gap-6 px-6 py-4 @min-[56rem]/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       {report ? (
-        <ReportView report={report} />
+        <ReportView report={report} newerFinancials={newerFinancials} />
       ) : (
         <p className="text-sm text-muted">{t("research.report.none")}</p>
       )}
