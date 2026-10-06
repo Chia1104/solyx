@@ -11,6 +11,7 @@ import {
   agentProviderSchema,
   agentThinkingSchema,
 } from "@solyx/agent/providers";
+import { decisionModeSchema } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
 import { decisionsProviderSchema } from "@solyx/decisions/provider";
 import { fuglePlanSchema } from "@solyx/market-data/fugle";
@@ -80,6 +81,7 @@ const schemas = {
   setAgentProvider: z.tuple([agentProviderSchema]),
   setAgentModel: z.tuple([z.string().trim().min(1).max(200)]),
   setAgentThinking: z.tuple([agentThinkingSchema]),
+  setAgentDecisionMode: z.tuple([decisionModeSchema]),
   setAgentAuth: z.tuple([agentAuthSchema]),
   setAgentEndpoint: z.tuple([agentProviderSchema, endpointSchema.nullable()]),
   saveAgentKey: z.tuple([

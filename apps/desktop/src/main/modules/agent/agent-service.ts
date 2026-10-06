@@ -6,6 +6,8 @@ import { BrowserWindow } from "electron";
 import { omit, sum } from "es-toolkit";
 
 import { createAnalysis } from "@solyx/agent/analysis";
+import { createMagi } from "@solyx/agent/magi";
+import type { MagiPort } from "@solyx/agent/magi";
 import { mcpScriptExtension } from "@solyx/agent/mcp-script";
 import { createMemory } from "@solyx/agent/memory";
 import { formatContext } from "@solyx/agent/prompt";
@@ -21,6 +23,7 @@ import { createTradingExtension } from "@solyx/agent/tools";
 import { createWebTools } from "@solyx/agent/web";
 import type { AgentWireEvent, ApprovalMode } from "@solyx/agent/wire";
 import { BrokerMode } from "@solyx/core/broker";
+import { DecisionMode } from "@solyx/core/council";
 import type { Fundamentals } from "@solyx/core/fundamentals";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -123,11 +126,35 @@ export function createAgentService(options: AgentServiceOptions) {
     judge: options.judgeCommand,
   });
 
+  const decisionMode = () => options.config.read().agent.decisionMode;
+
+  // Every unit answers on the conversation's own model, so a vote runs wherever the conversation does.
+  const magi: MagiPort = async (conversationId) => {
+    if (decisionMode() !== DecisionMode.Magi) return undefined;
+
+    return createMagi({
+      models: models.models,
+      async model() {
+        const session = (await runtime.sessions()).find(
+          (each) => each.id === String(conversationId)
+        );
+
+        const { model } = await models.choice({
+          model: session?.model ?? null,
+          thinking: session?.thinking ?? null,
+        });
+
+        return model;
+      },
+    });
+  };
+
   const trading = createTradingExtension({
     marketData: options.marketData,
     watchlist: options.watchlist,
     news: options.news,
     desk: options.desk,
+    magi,
     // A skill's folder is told only while the shell that could run its scripts is on.
     skills: async () =>
       (await skills()).skills
@@ -153,6 +180,7 @@ export function createAgentService(options: AgentServiceOptions) {
     desk: options.research,
     fundamentals: options.fundamentals,
     marketData: options.marketData,
+    magi,
   });
 
   const runtime = createAgentRuntime({
@@ -250,6 +278,7 @@ export function createAgentService(options: AgentServiceOptions) {
           brokerMode: options.desk.mode,
           focus: focus ?? undefined,
           locale,
+          decisionMode: decisionMode(),
         }),
       });
     },

@@ -13,6 +13,7 @@ import {
   agentThinkingSchema,
 } from "@solyx/agent/providers";
 import type { AgentProvider } from "@solyx/agent/providers";
+import { DecisionMode, decisionModeSchema } from "@solyx/core/council";
 import type { Market } from "@solyx/core/market";
 import {
   CLOUDFLARE_BASE_URL,
@@ -177,6 +178,10 @@ const configSchema = section(
           description:
             "Lets the agent run shell commands on this computer, each only after you allow it. They are not sandboxed.",
         }),
+        decisionMode: decisionModeSchema.catch(DecisionMode.Single).meta({
+          description:
+            "Who decides the agent's forecasts and order proposals: the agent alone, or the MAGI, three units that each vote on them as one side of a mind, at the cost of three more requests to the model each time.",
+        }),
         memory: z.boolean().catch(true).meta({
           description:
             "Lets the agent read what it kept from earlier conversations and ask to save, rewrite or forget a memory; each change waits for you to allow it.",
@@ -280,6 +285,7 @@ type ConfigPath =
         | "auth"
         | "sharedSkills"
         | "shell"
+        | "decisionMode"
         | "memory"
       ),
     ]

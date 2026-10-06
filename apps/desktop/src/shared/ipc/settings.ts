@@ -12,6 +12,7 @@ import type {
   AgentThinking,
 } from "@solyx/agent/providers";
 import type { SkillSource } from "@solyx/agent/skill-source";
+import type { DecisionMode } from "@solyx/core/council";
 import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { DecisionsProvider } from "@solyx/decisions/provider";
@@ -245,6 +246,8 @@ export interface AgentSettings {
   provider: AgentProvider;
   model: string;
   thinking: AgentThinking;
+  /** Who decides the agent's forecasts and order proposals. */
+  decisionMode: DecisionMode;
   /** The chat models of every provider switched on, each provider's in its catalog's order. */
   models: AgentModelOption[];
   /** The default model's provider can run and its catalog has the model, so the agent can run. */
@@ -431,6 +434,7 @@ export interface SettingsApi {
   setAgentProvider(provider: AgentProvider): Promise<void>;
   setAgentModel(model: string): Promise<void>;
   setAgentThinking(thinking: AgentThinking): Promise<void>;
+  setAgentDecisionMode(mode: DecisionMode): Promise<void>;
   setAgentAuth(auth: AgentAuth): Promise<void>;
   saveAgentKey(provider: AgentProvider, value: string): Promise<void>;
   deleteAgentKey(provider: AgentProvider): Promise<void>;
@@ -529,6 +533,7 @@ export const settingsChannels = {
   setAgentProvider: "settings:set-agent-provider",
   setAgentModel: "settings:set-agent-model",
   setAgentThinking: "settings:set-agent-thinking",
+  setAgentDecisionMode: "settings:set-agent-decision-mode",
   setAgentAuth: "settings:set-agent-auth",
   saveAgentKey: "settings:save-agent-key",
   deleteAgentKey: "settings:delete-agent-key",
