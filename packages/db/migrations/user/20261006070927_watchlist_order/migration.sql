@@ -1,1 +1,0 @@
-ALTER TABLE `watchlist` ADD `position` integer DEFAULT 0 NOT NULL;

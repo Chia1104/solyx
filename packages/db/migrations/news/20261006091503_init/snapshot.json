@@ -1,8 +1,8 @@
 {
-  "id": "6c4e9c81-bd3f-49b9-b6a5-e839a3e01b9c",
-  "prevIds": ["0cf55ee3-5212-4156-9c58-80b346746549"],
   "version": "7",
   "dialect": "sqlite",
+  "id": "1534e43f-ce97-4fe9-95d0-1695ac29761a",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
       "name": "listing_news",
@@ -231,22 +231,22 @@
       "table": "news_items"
     },
     {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "published_precision",
-      "entityType": "columns",
-      "table": "news_items"
-    },
-    {
       "type": "integer",
       "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
       "name": "votes",
+      "entityType": "columns",
+      "table": "news_items"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "published_precision",
       "entityType": "columns",
       "table": "news_items"
     },

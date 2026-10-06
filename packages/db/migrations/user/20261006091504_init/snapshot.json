@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "72bf4b07-adf1-4901-b723-f055f8b494ec",
-  "prevIds": ["a1bc6842-87c8-485a-aaea-2ba70355c2d5"],
+  "id": "9d007603-49f4-4a86-bdf2-76d29b83b130",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
       "name": "paper_account",
