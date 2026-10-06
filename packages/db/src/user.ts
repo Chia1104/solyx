@@ -1,7 +1,8 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, max } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
-import { omit } from "es-toolkit";
+import { clamp, omit } from "es-toolkit";
 
+import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { AccountSnapshot } from "@solyx/core/order";
 import type { ProposalStore, TradeProposal } from "@solyx/core/order-desk";
@@ -20,18 +21,47 @@ function watchlistStore(db: NodeSQLiteDatabase) {
   const listing = (ref: SymbolRef) =>
     and(eq(watchlist.market, ref.market), eq(watchlist.symbol, ref.symbol));
 
+  const list = (from: Pick<NodeSQLiteDatabase, "select"> = db): SymbolRef[] =>
+    from
+      .select({ market: watchlist.market, symbol: watchlist.symbol })
+      .from(watchlist)
+      .orderBy(asc(watchlist.position), asc(watchlist.id))
+      .all();
+
   return {
-    /** Watched listings in the order they were added. */
-    list: (): SymbolRef[] =>
-      db
-        .select({ market: watchlist.market, symbol: watchlist.symbol })
-        .from(watchlist)
-        .orderBy(asc(watchlist.id))
-        .all(),
+    /** Watched listings in the user's order. */
+    list: () => list(),
 
     /** Appends a listing; one already watched keeps its place. */
     add(ref: SymbolRef) {
-      db.insert(watchlist).values(ref).onConflictDoNothing().run();
+      const last = db
+        .select({ position: max(watchlist.position) })
+        .from(watchlist)
+        .get()?.position;
+
+      db.insert(watchlist)
+        .values({ ...ref, position: (last ?? -1) + 1 })
+        .onConflictDoNothing()
+        .run();
+    },
+
+    /** Moves a watched listing to `index` among the others; one not watched changes nothing. */
+    move(ref: SymbolRef, index: number) {
+      db.transaction((tx) => {
+        const listings = list(tx);
+
+        const others = listings.filter(
+          (each) => symbolKey(each) !== symbolKey(ref)
+        );
+
+        if (others.length === listings.length) return;
+
+        others
+          .toSpliced(clamp(index, 0, others.length), 0, ref)
+          .forEach((each, position) => {
+            tx.update(watchlist).set({ position }).where(listing(each)).run();
+          });
+      });
     },
 
     remove(ref: SymbolRef) {

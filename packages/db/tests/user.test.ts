@@ -170,6 +170,57 @@ describe("watchlist store", () => {
 
     expect(store.list()).toEqual([TSMC]);
   });
+
+  test("a moved listing takes its index among the others, across connections", () => {
+    const first = open();
+
+    first.watchlist.add(TSMC);
+    first.watchlist.add(APPLE);
+    first.watchlist.add(FOXCONN);
+    first.watchlist.move(FOXCONN, 0);
+    first.watchlist.move(TSMC, 99);
+    first.close();
+    opened = [];
+
+    expect(open().watchlist.list()).toEqual([FOXCONN, APPLE, TSMC]);
+  });
+
+  test("a listing added after a move goes last", () => {
+    const { watchlist: store } = open();
+
+    store.add(TSMC);
+    store.add(APPLE);
+    store.move(APPLE, 0);
+    store.add(FOXCONN);
+
+    expect(store.list()).toEqual([APPLE, TSMC, FOXCONN]);
+  });
+
+  test("moving a listing that is not watched changes nothing", () => {
+    const { watchlist: store } = open();
+
+    store.add(TSMC);
+    store.add(APPLE);
+    store.move(FOXCONN, 0);
+
+    expect(store.list()).toEqual([TSMC, APPLE]);
+  });
+
+  test("listings saved before they had positions keep the order they were added in", () => {
+    const { watchlist: store } = open();
+
+    store.add(TSMC);
+    store.add(APPLE);
+
+    const db = new DatabaseSync(join(directory, "user.sqlite"));
+
+    db.exec("UPDATE watchlist SET position = 0");
+    db.close();
+
+    store.add(FOXCONN);
+
+    expect(store.list()).toEqual([TSMC, APPLE, FOXCONN]);
+  });
 });
 
 describe("proposal store", () => {

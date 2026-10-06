@@ -1,0 +1,236 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "72bf4b07-adf1-4901-b723-f055f8b494ec",
+  "prevIds": ["a1bc6842-87c8-485a-aaea-2ba70355c2d5"],
+  "ddl": [
+    {
+      "name": "paper_account",
+      "entityType": "tables"
+    },
+    {
+      "name": "proposals",
+      "entityType": "tables"
+    },
+    {
+      "name": "watchlist",
+      "entityType": "tables"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "paper_account"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "cash",
+      "entityType": "columns",
+      "table": "paper_account"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "positions",
+      "entityType": "columns",
+      "table": "paper_account"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "orders",
+      "entityType": "columns",
+      "table": "paper_account"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "seq",
+      "entityType": "columns",
+      "table": "proposals"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "proposals"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "order_request",
+      "entityType": "columns",
+      "table": "proposals"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "source",
+      "entityType": "columns",
+      "table": "proposals"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "rationale",
+      "entityType": "columns",
+      "table": "proposals"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "proposals"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "proposals"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "violations",
+      "entityType": "columns",
+      "table": "proposals"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "broker_order_id",
+      "entityType": "columns",
+      "table": "proposals"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "failure",
+      "entityType": "columns",
+      "table": "proposals"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "watchlist"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "market",
+      "entityType": "columns",
+      "table": "watchlist"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "symbol",
+      "entityType": "columns",
+      "table": "watchlist"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "position",
+      "entityType": "columns",
+      "table": "watchlist"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "paper_account_pk",
+      "table": "paper_account",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["seq"],
+      "nameExplicit": false,
+      "name": "proposals_pk",
+      "table": "proposals",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "watchlist_pk",
+      "table": "watchlist",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["market", "symbol"],
+      "nameExplicit": false,
+      "name": "watchlist_market_symbol_unique",
+      "entityType": "uniques",
+      "table": "watchlist"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "proposals_id_unique",
+      "entityType": "uniques",
+      "table": "proposals"
+    }
+  ],
+  "renames": []
+}

@@ -35,6 +35,8 @@ export function SymbolRow({
       // Keeps the interval when moving between charts.
       search={true}
       activeOptions={{ includeSearch: false }}
+      // A row in a list the user reorders drags as a whole rather than as a link.
+      draggable={false}
       className="flex flex-col gap-1 px-4 py-2 outline-none hover:bg-default/60 focus-visible:bg-default data-[status=active]:bg-default data-[status=active]:shadow-[inset_2px_0_0_var(--accent)]">
       <span className="flex min-w-0 items-baseline gap-2 text-sm">
         <span className="shrink-0 font-medium">{symbol.symbol}</span>

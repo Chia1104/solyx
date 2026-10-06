@@ -15,13 +15,14 @@ import type { RiskViolation } from "@solyx/core/risk";
 
 // drizzle-kit generates ../migrations/user from these tables.
 
-/** Watched listings; ids grow with each addition, so they also keep the user's order. */
+/** Watched listings in the user's order: by `position`, then by `id`, which grows with each addition. */
 export const watchlist = sqliteTable(
   "watchlist",
   {
     id: integer().primaryKey(),
     market: text().$type<Market>().notNull(),
     symbol: text().notNull(),
+    position: integer().notNull().default(0),
   },
   (table) => [unique().on(table.market, table.symbol)]
 );
