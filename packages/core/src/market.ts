@@ -1,4 +1,3 @@
-import { memoize } from "es-toolkit";
 import * as z from "zod";
 
 export const Market = {
@@ -57,77 +56,38 @@ export function currencyOf(market: Market): Currency {
   return market === Market.TW ? Currency.TWD : Currency.USD;
 }
 
-const exchangeClockFormatter = memoize(
-  (market: Market) =>
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: MARKET_TIME_ZONE[market],
-      hourCycle: "h23",
-      weekday: "short",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    })
-);
-
-/** The exchange's wall clock at `at`, as zero-padded fields and the weekday as `Mon`…`Sun`. */
-export function exchangeClock(market: Market, at: Date = new Date()) {
-  const parts = Object.fromEntries(
-    exchangeClockFormatter(market)
-      .formatToParts(at)
-      .map((part) => [part.type, part.value])
-  );
-
-  return {
-    weekday: parts.weekday,
-    year: parts.year,
-    month: parts.month,
-    day: parts.day,
-    hour: parts.hour,
-    minute: parts.minute,
-    second: parts.second,
-  };
+/** The exchange's wall clock at `at`. */
+export function exchangeClock(
+  market: Market,
+  at: Date = new Date()
+): Temporal.ZonedDateTime {
+  return Temporal.Instant.fromEpochMilliseconds(
+    at.getTime()
+  ).toZonedDateTimeISO(MARKET_TIME_ZONE[market]);
 }
 
 /** The exchange-local calendar date as `YYYY-MM-DD`. */
 export function exchangeDate(market: Market, at: Date = new Date()): string {
-  const { year, month, day } = exchangeClock(market, at);
-
-  return `${year}-${month}-${day}`;
+  return exchangeClock(market, at).toPlainDate().toString();
 }
 
 /** `YYYY-MM-DD HH:mm` on the exchange's clock. */
 export function exchangeTime(market: Market, at: Date = new Date()): string {
-  const { year, month, day, hour, minute } = exchangeClock(market, at);
-
-  return `${year}-${month}-${day} ${hour}:${minute}`;
+  return exchangeClock(market, at)
+    .toPlainDateTime()
+    .toString({ smallestUnit: "minute" })
+    .replace("T", " ");
 }
 
 /** UTC seconds at which an exchange-local calendar date (`YYYY-MM-DD`) begins. */
 export function exchangeMidnight(market: Market, date: string): number {
-  const utcMidnight = Date.parse(`${date}T00:00:00Z`);
-  const clock = exchangeClock(market, new Date(utcMidnight));
-
-  const local = Date.UTC(
-    Number(clock.year),
-    Number(clock.month) - 1,
-    Number(clock.day),
-    Number(clock.hour),
-    Number(clock.minute),
-    Number(clock.second)
+  return (
+    Temporal.PlainDate.from(date).toZonedDateTime(MARKET_TIME_ZONE[market])
+      .epochMilliseconds / 1000
   );
-
-  // The zone's offset at UTC midnight; exchanges do not change clocks around their midnight.
-  return (utcMidnight - (local - utcMidnight)) / 1000;
 }
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Moves a `YYYY-MM-DD` calendar date by whole days. */
 export function shiftDate(date: string, days: number): string {
-  return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS)
-    .toISOString()
-    .slice(0, 10);
+  return Temporal.PlainDate.from(date).add({ days }).toString();
 }

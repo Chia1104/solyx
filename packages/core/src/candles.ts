@@ -84,11 +84,14 @@ export type BarInterval = Exclude<Interval, CalendarInterval>;
 
 /** The `YYYY-MM-DD` date that opens the week (Monday) or month containing `date`. */
 export function periodStart(date: string, interval: CalendarInterval): string {
-  if (interval === Interval.OneMonth) return `${date.slice(0, 8)}01`;
+  const day = Temporal.PlainDate.from(date);
 
-  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const start =
+    interval === Interval.OneMonth
+      ? day.with({ day: 1 })
+      : day.subtract({ days: day.dayOfWeek - 1 });
 
-  return shiftDate(date, -((weekday + 6) % 7));
+  return start.toString();
 }
 
 /** Combines consecutive bars, oldest first, into one bar that opens with the first. */

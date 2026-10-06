@@ -34,6 +34,9 @@ const REGULAR_WINDOWS: Record<Market, SessionWindow> = {
   [Market.US]: sessionWindow(Session.Regular, "09:30", "16:00"),
 };
 
+/** ISO weekday numbering, Monday 1 to Sunday 7, so Saturday opens the weekend. */
+const SATURDAY = 6;
+
 // Exchange holidays, typhoon closures and US early closes are not modelled yet.
 const SESSION_WINDOWS: Record<Market, SessionWindow[]> = {
   // Pre-open matching → regular session → after-hours fixed-price trading
@@ -50,10 +53,10 @@ const SESSION_WINDOWS: Record<Market, SessionWindow[]> = {
 };
 
 export function getSession(market: Market, at: Date = new Date()): Session {
-  const { weekday, hour, minute } = exchangeClock(market, at);
-  const minutes = Number(hour) * 60 + Number(minute);
+  const { dayOfWeek, hour, minute } = exchangeClock(market, at);
+  const minutes = hour * 60 + minute;
 
-  if (weekday === "Sat" || weekday === "Sun") return Session.Closed;
+  if (dayOfWeek >= SATURDAY) return Session.Closed;
 
   return (
     SESSION_WINDOWS[market].find((w) => minutes >= w.start && minutes < w.end)
