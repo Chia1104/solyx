@@ -87,8 +87,15 @@ html:not([data-palette]) body {
 }
 
 html[data-pane-resizing] {
-  cursor: col-resize;
   user-select: none;
+}
+
+html[data-pane-resizing="vertical"] {
+  cursor: col-resize;
+}
+
+html[data-pane-resizing="horizontal"] {
+  cursor: row-resize;
 }
 
 /*

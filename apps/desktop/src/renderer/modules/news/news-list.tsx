@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-import { ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { uniq } from "es-toolkit";
 import { useTranslation } from "react-i18next";
@@ -18,9 +17,10 @@ import type { NewsStory, Published } from "@solyx/core/news";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
+import { ToggleMenu } from "../../components/toggle-menu.tsx";
 
 import { newsRecordsQuery, useNewsChanges } from "./news-query.ts";
-import { GaugeBar } from "./sentiment-gauge.tsx";
+import { GaugeBar, SentimentGauge } from "./sentiment-gauge.tsx";
 
 /** A publication time no more exact than its source tells it, without the year. */
 function PublishedTime({
@@ -53,14 +53,9 @@ function StoryRow({ market, story }: { market: Market; story: NewsStory }) {
   const others = story.records.filter((record) => record !== lead);
 
   return (
-    <li className="flex items-start gap-3 px-6 py-2">
-      <span className="w-24 shrink-0 pt-0.5 text-xs text-muted tabular-nums">
-        <PublishedTime market={market} published={item.published} />
-      </span>
-      <span className="w-8 shrink-0 pt-0.5 text-xs text-muted">
-        {t(`news.channels.${story.channel}`)}
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+    // One line where the main view is wide; narrower, the byline drops under the title.
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-0.5 px-6 py-2 @min-[48rem]/main:grid-cols-[6rem_2.5rem_minmax(0,1fr)_auto_5rem]">
+      <div className="flex min-w-0 flex-col gap-0.5 @min-[48rem]/main:col-start-3 @min-[48rem]/main:row-start-1">
         {item.url ? (
           <a
             href={item.url}
@@ -78,27 +73,38 @@ function StoryRow({ market, story }: { market: Market; story: NewsStory }) {
           </span>
         ) : null}
       </div>
-      <span className="flex shrink-0 items-center gap-3 pt-0.5 text-xs text-muted tabular-nums">
-        {item.votes === null ? null : (
-          <span>{t("news.votes", { votes: item.votes })}</span>
-        )}
-        {others.length === 0 ? null : (
-          <span
-            title={uniq(others.map((record) => record.item.site)).join(", ")}>
-            {t("news.alike", { count: others.length })}
-          </span>
-        )}
-        <span>{item.site}</span>
-        <span className="flex w-20 items-center justify-end gap-1.5">
-          {score ?? "—"}
-          <GaugeBar score={score} className="w-8" />
-        </span>
+      <span className="flex items-center justify-end gap-1.5 pt-0.5 text-xs text-muted tabular-nums @min-[48rem]/main:col-start-5 @min-[48rem]/main:row-start-1">
+        {score ?? "—"}
+        <GaugeBar score={score} className="w-8" />
       </span>
+      <div className="col-span-2 flex flex-wrap gap-x-3 text-xs text-muted tabular-nums @min-[48rem]/main:contents">
+        <span className="@min-[48rem]/main:col-start-1 @min-[48rem]/main:row-start-1 @min-[48rem]/main:pt-0.5">
+          <PublishedTime market={market} published={item.published} />
+        </span>
+        <span className="@min-[48rem]/main:col-start-2 @min-[48rem]/main:row-start-1 @min-[48rem]/main:pt-0.5">
+          {t(`news.channels.${story.channel}`)}
+        </span>
+        <span className="flex gap-3 @min-[48rem]/main:col-start-4 @min-[48rem]/main:row-start-1 @min-[48rem]/main:pt-0.5">
+          {item.votes === null ? null : (
+            <span>{t("news.votes", { votes: item.votes })}</span>
+          )}
+          {others.length === 0 ? null : (
+            <span
+              title={uniq(others.map((record) => record.item.site)).join(", ")}>
+              {t("news.alike", { count: others.length })}
+            </span>
+          )}
+          <span>{item.site}</span>
+        </span>
+      </div>
     </li>
   );
 }
 
-/** The stories collected about a listing over the symbol page's window, newest first. */
+/**
+ * The stories collected about a listing over the symbol page's window, newest first, under a
+ * header that carries their sentiment, filling the height it is given.
+ */
 export function NewsList({ symbol }: { symbol: SymbolRef }) {
   const { t } = useTranslation();
   const { data, error, refetch } = useQuery(newsRecordsQuery(symbol));
@@ -140,26 +146,23 @@ export function NewsList({ symbol }: { symbol: SymbolRef }) {
   return (
     <section
       aria-label={t("news.title")}
-      className="flex h-64 shrink-0 flex-col border-t border-separator">
-      <div className="flex min-h-10 shrink-0 items-center gap-3 border-b border-separator px-6 py-1.5">
-        <h2 className="text-sm font-medium">{t("news.title")}</h2>
-        <ToggleButtonGroup
-          aria-label={t("news.channels-label")}
-          selectionMode="multiple"
-          size="sm"
-          isDetached
-          selectedKeys={channels}
-          onSelectionChange={(keys) =>
-            setChannels(
-              Object.values(NewsChannel).filter((channel) => keys.has(channel))
-            )
-          }>
-          {Object.values(NewsChannel).map((channel) => (
-            <ToggleButton key={channel} id={channel}>
-              {t(`news.channels.${channel}`)}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
+      className="flex h-full flex-col overflow-hidden">
+      {/* 40px over its rule, so the news collapses to this row and its readout. */}
+      <div className="flex h-10 shrink-0 items-center gap-3 border-b border-separator px-6">
+        <h2 className="shrink-0 text-sm font-medium">{t("news.title")}</h2>
+        <ToggleMenu
+          label={t("news.channels-label")}
+          options={Object.values(NewsChannel).map((channel) => ({
+            id: channel,
+            label: t(`news.channels.${channel}`),
+          }))}
+          selected={channels}
+          onChange={setChannels}
+          disallowEmptySelection
+        />
+        <div className="ml-auto flex">
+          <SentimentGauge symbol={symbol} />
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
     </section>

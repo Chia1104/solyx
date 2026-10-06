@@ -64,7 +64,7 @@ function Coverage({
 
   return (
     <>
-      <span>
+      <span className="hidden @min-[40rem]/main:inline">
         {coverage.collectedAt
           ? t("news.coverage.collected", { time: time(coverage.collectedAt) })
           : t("news.coverage.never")}
@@ -105,7 +105,10 @@ function Coverage({
   );
 }
 
-/** The listing's news sentiment over the symbol page's window, overall and for the press and the crowd. */
+/**
+ * The listing's news sentiment over the symbol page's window, overall and for the press and the
+ * crowd. Where the main view is narrow only the overall reading and failing sources show.
+ */
 export function SentimentGauge({ symbol }: { symbol: SymbolRef }) {
   const { t } = useTranslation();
   const { data } = useQuery(newsRecordsQuery(symbol));
@@ -116,19 +119,21 @@ export function SentimentGauge({ symbol }: { symbol: SymbolRef }) {
   const { overall, voices } = sentimentGauge(data);
 
   return (
-    <div className="flex shrink-0 items-center gap-2 text-xs text-muted tabular-nums">
+    <div className="flex shrink-0 items-center gap-3 text-xs text-muted tabular-nums">
       <span
         className="flex items-center gap-2"
         title={t("news.gauge.hint", { days: NEWS_DAYS })}>
         <span>{t("news.gauge.overall", { score: shown(overall) })}</span>
         <GaugeBar score={overall.score} />
-        <span>
+        <span className="hidden @min-[52rem]/main:inline">
           {t("news.gauge.voices", {
             press: shown(voices[NewsVoice.Press]),
             crowd: shown(voices[NewsVoice.Crowd]),
           })}
         </span>
-        <span>{t("news.gauge.stories", { count: overall.stories })}</span>
+        <span className="hidden @min-[44rem]/main:inline">
+          {t("news.gauge.stories", { count: overall.stories })}
+        </span>
       </span>
       {coverage ? (
         <Coverage market={symbol.market} coverage={coverage} />

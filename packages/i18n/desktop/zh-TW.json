@@ -116,6 +116,7 @@
   "news": {
     "title": "新聞與討論",
     "channels-label": "管道",
+    "resize": "調整新聞與討論高度",
     "channels": {
       "announcement": "公告",
       "article": "新聞",

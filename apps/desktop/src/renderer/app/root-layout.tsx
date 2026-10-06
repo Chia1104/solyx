@@ -93,9 +93,9 @@ function SidePane({
           edge={edge}
           label={t("workspace.resize", { pane: t(`workspace.${pane}`) })}
           controls={paneId(pane)}
-          width={width}
+          size={width}
           min={PANE_LIMITS[pane].min}
-          maxWidth={maxWidth}
+          maxSize={maxWidth}
           onPreview={(next) =>
             workspace.current?.style.setProperty(
               WIDTH_VARIABLE[pane],

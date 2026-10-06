@@ -116,6 +116,7 @@
   "news": {
     "title": "News and posts",
     "channels-label": "Channels",
+    "resize": "Resize news and posts",
     "channels": {
       "announcement": "Filing",
       "article": "News",

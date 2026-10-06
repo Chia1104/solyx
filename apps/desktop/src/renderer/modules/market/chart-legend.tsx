@@ -58,8 +58,9 @@ export function ChartLegend({
         );
 
   return (
-    <div className="pointer-events-none absolute top-1 left-2 z-10 flex flex-col gap-0.5 text-xs tabular-nums">
-      <div className="flex gap-3">
+    // Clear of the price scale, wrapping when the chart is narrow.
+    <div className="pointer-events-none absolute top-1 right-16 left-2 z-10 flex flex-col gap-0.5 text-xs tabular-nums">
+      <div className="flex flex-wrap gap-x-3">
         <span>
           {t("chart.legend.open")} {format.price.format(candle.open)}
         </span>
@@ -78,7 +79,7 @@ export function ChartLegend({
         </span>
       </div>
       {lines.length > 0 && (
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-x-3">
           {lines.map((line) => {
             const value = line.values[index];
 

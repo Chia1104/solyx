@@ -9,7 +9,11 @@ import { numberFormats } from "./number-formats.ts";
 import { useDirectionColors } from "./price-colors.ts";
 import { useCandles } from "./use-candles.ts";
 
-/** The listing's code and name, and its last daily close against the close before it, on one line. */
+/**
+ * The listing's code and name, and its last daily close against the close before it, on one line.
+ * As the main view narrows the name truncates and the market and the change in points drop out;
+ * the code, the price and the change in percent always show.
+ */
 export function SymbolQuote({ symbol }: { symbol: SymbolRef }) {
   const { t, i18n } = useTranslation();
   const { candles } = useCandles(symbol, Interval.OneDay);
@@ -24,11 +28,11 @@ export function SymbolQuote({ symbol }: { symbol: SymbolRef }) {
   const change = last && previous ? last.close - previous.close : null;
 
   return (
-    <div className="flex min-w-0 items-baseline gap-4">
+    <div className="flex min-w-0 items-baseline gap-3 @min-[34rem]/main:gap-4">
       <h1 className="flex min-w-0 items-baseline gap-2">
         <span className="text-base font-semibold">{symbol.symbol}</span>
         {name ? <span className="truncate text-sm">{name}</span> : null}
-        <span className="shrink-0 text-xs text-muted">
+        <span className="hidden shrink-0 text-xs text-muted @min-[44rem]/main:inline">
           {t(`market.${symbol.market}`)}
         </span>
       </h1>
@@ -47,7 +51,9 @@ export function SymbolQuote({ symbol }: { symbol: SymbolRef }) {
                   change > 0 && direction.rise.text,
                   change < 0 && direction.fall.text
                 )}>
-                <span>{format.quoteChange.format(change)}</span>
+                <span className="hidden @min-[34rem]/main:inline">
+                  {format.quoteChange.format(change)}
+                </span>
                 <span>
                   {format.quotePercentChange.format(change / previous.close)}
                 </span>
