@@ -17,6 +17,7 @@ import { expect, test, vi } from "vite-plus/test";
 import { BrokerMode } from "@solyx/core/broker";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
+import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
 import { InstrumentKind, Market } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import { NewsChannel, TimePrecision, newsStories } from "@solyx/core/news";
@@ -37,6 +38,7 @@ import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
 import { SkillSource } from "../src/skill-source.ts";
 import { createTradingExtension } from "../src/tools.ts";
+import type { TradingToolPorts } from "../src/tools.ts";
 import {
   AgentEventType,
   AgentItemKind,
@@ -210,7 +212,7 @@ function sentiment(relevance: number, positive: number): SentimentScore {
 }
 
 /** The agent on the trading tools, answering as `faux` scripts it. */
-function agentOn(ports: ReturnType<typeof setup>["ports"]) {
+function agentOn(ports: TradingToolPorts) {
   const faux = fauxProvider();
   const models = createModels();
   const events: AgentWireEvent[] = [];
@@ -409,6 +411,118 @@ test("proposing goes through the desk as the agent, once per run", async () => {
   await ended(2);
 
   expect(desk.propose).toHaveBeenCalledTimes(2);
+
+  await runtime.close();
+});
+
+test("under the MAGI a rejected proposal is never made, and a carried one keeps its votes", async () => {
+  const { desk, ports } = setup();
+  const motions: string[] = [];
+
+  const verdicts = [
+    [MagiVote.Approve, MagiVote.Reject, MagiVote.Reject],
+    [MagiVote.Approve, MagiVote.Approve, MagiVote.Reject],
+  ].map((cast) =>
+    resolveCouncil(
+      Object.values(MagiUnit).map((unit, index) => ({
+        unit,
+        vote: cast[index],
+        reason: `${unit} has its reason.`,
+        model: "faux",
+      }))
+    )
+  );
+
+  const [rejected, carried] = verdicts;
+
+  const { faux, events, runtime, ended } = agentOn({
+    ...ports,
+    magi: async () => async (motion: string) => {
+      motions.push(motion);
+
+      return verdicts[motions.length - 1];
+    },
+  });
+
+  const { id } = await runtime.create();
+
+  const propose = () =>
+    fauxAssistantMessage(
+      fauxToolCall(AgentToolName.ProposeOrder, {
+        order,
+        rationale: "breakout above 1000",
+      }),
+      { stopReason: "toolUse" }
+    );
+
+  faux.setResponses([
+    propose(),
+    fauxAssistantMessage("The MAGI rejected it."),
+    propose(),
+    fauxAssistantMessage("It waits for you."),
+  ]);
+
+  await runtime.send(id, { text: "Buy 2330", context: "" });
+  await ended(1);
+
+  expect(desk.propose).not.toHaveBeenCalled();
+  expect(motions[0]).toContain(
+    "put before the user an order to buy 1000 shares of TW:2330 at 1000"
+  );
+
+  await runtime.send(id, { text: "Try again", context: "" });
+  await ended(2);
+
+  expect(desk.propose).toHaveBeenCalledOnce();
+
+  const calls = foldEvents(events).items.filter(
+    (item) => item.kind === AgentItemKind.Tool
+  );
+
+  // A rejection is the vote's answer, not a failed call.
+  expect(calls.map((call) => call.status)).toEqual([
+    ToolCallStatus.Ok,
+    ToolCallStatus.Ok,
+  ]);
+  expect(calls.map((call) => call.details)).toEqual([
+    { council: rejected },
+    { proposalId: "p1", council: carried },
+  ]);
+
+  await runtime.close();
+});
+
+test("under the MAGI an order the checks refuse goes to the desk without a vote", async () => {
+  const { desk, ports } = setup();
+  const convene = vi.fn();
+
+  desk.check.mockResolvedValue([
+    { code: RiskViolationCode.MissingReferencePrice },
+  ]);
+
+  const { faux, runtime, ended } = agentOn({
+    ...ports,
+    magi: async () => convene,
+  });
+
+  const { id } = await runtime.create();
+
+  faux.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall(AgentToolName.ProposeOrder, {
+        order,
+        rationale: "breakout above 1000",
+      }),
+      { stopReason: "toolUse" }
+    ),
+    fauxAssistantMessage("The checks refused it."),
+  ]);
+
+  await runtime.send(id, { text: "Buy 2330", context: "" });
+  await ended(1);
+
+  expect(convene).not.toHaveBeenCalled();
+  expect(desk.propose).toHaveBeenCalledOnce();
 
   await runtime.close();
 });
