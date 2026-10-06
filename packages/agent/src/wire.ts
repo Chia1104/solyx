@@ -66,6 +66,9 @@ export const AgentToolName = {
   Recall: "recall",
   Remember: "remember",
   Forget: "forget",
+  GetResearch: "get_research",
+  ReviseReport: "revise_report",
+  SubmitForecast: "submit_forecast",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
   Bash: "bash",
 } as const;
@@ -75,6 +78,20 @@ export type AgentToolName = (typeof AgentToolName)[keyof typeof AgentToolName];
 export const proposeOrderDetailsSchema = z.object({ proposalId: z.string() });
 
 export type ProposeOrderDetails = z.infer<typeof proposeOrderDetailsSchema>;
+
+export const reviseReportDetailsSchema = z.object({
+  symbol: symbolRefSchema,
+  revision: z.number(),
+});
+
+export type ReviseReportDetails = z.infer<typeof reviseReportDetailsSchema>;
+
+export const submitForecastDetailsSchema = z.object({
+  symbol: symbolRefSchema,
+  forecastId: z.string(),
+});
+
+export type SubmitForecastDetails = z.infer<typeof submitForecastDetailsSchema>;
 
 /** The arguments of the tools that run a script the agent wrote. */
 export const scriptArgumentsSchema = z.object({

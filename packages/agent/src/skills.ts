@@ -112,6 +112,36 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "6. Suggest at most one change, and only as a proposal the user confirms, following order-proposal."
     ),
   },
+  {
+    name: "deep-analysis",
+    source: SkillSource.BuiltIn,
+    description:
+      "A deep analysis of one listing: bringing its research report up to date, then one forecast for the coming sessions that the app scores. Read when the user asks for a deep analysis, a research report, a forecast or a prediction of a listing.",
+    body: lines(
+      "# Deep analysis",
+      "",
+      "A deep analysis leaves two things in the app: the listing's report, your view over quarters, and one forecast for the coming sessions, which is frozen once made and scored against what the price then does. Work in this order.",
+      "",
+      "1. Call get_research. Read the report and how old each part is, the latest forecasts with how they came out, and your record. Where a forecast missed, say what you misread before going on.",
+      "2. Gather evidence, keeping the as_of time of every number: get_candles and get_indicators on 1d and 1w, following technical-read; get_news over 30 days; web_search and read_page, when you have them, for results, guidance and what the company filed. Compute with run_analysis.",
+      "3. Call revise_report when the listing has no report, or when what you found changes it. Send only the parts that changed; the rest stays.",
+      "   - A driver or a risk is a claim: what you assert, where it comes from, and the source's own words or figures. Leave out what you cannot source.",
+      '   - A falsifier says what would show the thesis wrong, as something that happens: "monthly revenue falls year on year two months running".',
+      "   - Events are the dates ahead that could move the shares, such as results or an ex-dividend day.",
+      "   - The sections hold what stays true for quarters: the business, the financials, the valuation, the catalysts and the risks. A chart read goes stale within days, so it belongs in the forecast's rationale, never in the report.",
+      "4. Call submit_forecast, once per session of the listing.",
+      "   - The horizon is how many sessions ahead the forecast looks, at most 20. Look 5 to 10 ahead unless the user asks for another span; a forecast of one or two sessions says little. An event inside the horizon is no reason to shorten it: name it in the rationale and give the outer bands more of the probability for it.",
+      "   - Two to four scenarios, each a band the horizon's close lands in. Together the bands hold every price once: the lowest has no low, the highest no high, and each band's high is the next band's low. Set the edges at levels the bars show.",
+      "   - Probabilities are whole percents adding to 100. Your record shows how often the numbers you gave held; lean towards what it shows, and keep a scenario you find unlikely above zero.",
+      "   - Each scenario's path gives the closes you expect on the way, by session counted from the newest daily bar, and ends at the horizon inside its band.",
+      "   - Long or short carries a plan: entry, stop and target on the tick grid, the stop beyond a level the bars show, the target paying at least what the stop risks and 1.5 times it before you would ever propose it. Neutral has no plan.",
+      "   - When the direction goes against the report's stance, give the reason in contrary.",
+      "5. When a call is refused, fix what it names and call again.",
+      "6. Tell the user the stance and thesis in two sentences, the scenarios with their probabilities, the plan, and what would change your mind. Say the forecast is scored once its horizon closes.",
+      "",
+      "A deep analysis ends at the forecast. Propose an order only when the user asks for one, following order-proposal."
+    ),
+  },
 ];
 
 export interface SkillFolders {

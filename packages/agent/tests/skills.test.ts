@@ -50,6 +50,7 @@ test("with no folders the built-in playbooks are offered", async () => {
     "taiwan-market",
     "us-market",
     "portfolio-review",
+    "deep-analysis",
   ]);
   expect(catalog.warnings).toEqual([]);
 });
