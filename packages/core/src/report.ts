@@ -94,6 +94,8 @@ export interface Report {
   revision: number;
   /** Epoch ms. */
   revisedAt: number;
+  /** The last day, `YYYY-MM-DD`, of the newest quarter that was public when it was revised; `null` when none was known. */
+  financialsThrough: string | null;
   stance: ReportStance;
   thesis: string;
   drivers: Claim[];
@@ -128,14 +130,22 @@ export type Revision =
   | { ok: true; report: Report }
   | { ok: false; violations: ReportViolation[] };
 
+/** What the desk knows as a report is revised. */
+export interface RevisionContext {
+  /** Epoch ms. */
+  at: number;
+  /** The last day of the newest quarter public now; `null` when none is known. */
+  financialsThrough: string | null;
+}
+
 /**
- * The revision `draft` makes of `previous`, written at `at`; a listing's first must give a stance
- * and a thesis, since nothing earlier holds them.
+ * The revision `draft` makes of `previous`; a listing's first must give a stance and a thesis,
+ * since nothing earlier holds them.
  */
 export function reviseReport(
   previous: Report | null,
   draft: ReportDraft,
-  at: number
+  { at, financialsThrough }: RevisionContext
 ): Revision {
   const stance = draft.stance ?? previous?.stance;
   const thesis = draft.thesis ?? previous?.thesis;
@@ -181,6 +191,7 @@ export function reviseReport(
       symbol: draft.symbol,
       revision: (previous?.revision ?? 0) + 1,
       revisedAt: at,
+      financialsThrough,
       stance,
       thesis,
       drivers: draft.drivers ?? previous?.drivers ?? [],

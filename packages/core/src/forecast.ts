@@ -120,12 +120,15 @@ export interface ForecastContext {
   anchor: ForecastAnchor;
   /** The stance of the listing's report; `null` while it has none. */
   stance: ReportStance | null;
+  /** The last day of a quarter published since the report was revised; `null` when the report is current. */
+  newerFinancials: string | null;
   /** Whether the listing already has a forecast anchored on this session. */
   taken: boolean;
 }
 
 export const ForecastViolationCode = {
   NoReport: "no-report",
+  ReportStale: "report-stale",
   AlreadyForecast: "already-forecast",
   ContraryUnexplained: "contrary-unexplained",
   ProbabilitySum: "probability-sum",
@@ -146,6 +149,7 @@ export type ForecastViolationCode =
 /** Carries the data behind a rejection, not text; presenters word it. */
 export type ForecastViolation =
   | { code: typeof ForecastViolationCode.NoReport }
+  | { code: typeof ForecastViolationCode.ReportStale; periodEnd: string }
   | { code: typeof ForecastViolationCode.AlreadyForecast; date: string }
   | {
       code: typeof ForecastViolationCode.ContraryUnexplained;
@@ -219,11 +223,20 @@ export function checkForecast(
 
   if (context.stance === null) {
     violations.push({ code: ForecastViolationCode.NoReport });
-  } else if (opposes(direction, context.stance) && draft.contrary === null) {
-    violations.push({
-      code: ForecastViolationCode.ContraryUnexplained,
-      stance: context.stance,
-    });
+  } else {
+    if (context.newerFinancials !== null) {
+      violations.push({
+        code: ForecastViolationCode.ReportStale,
+        periodEnd: context.newerFinancials,
+      });
+    }
+
+    if (opposes(direction, context.stance) && draft.contrary === null) {
+      violations.push({
+        code: ForecastViolationCode.ContraryUnexplained,
+        stance: context.stance,
+      });
+    }
   }
 
   if (context.taken) {

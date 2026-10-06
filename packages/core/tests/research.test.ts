@@ -93,11 +93,26 @@ function setup() {
   const bars = { daily: [ANCHOR_BAR] };
   const onChange = vi.fn();
   const candles = vi.fn(async () => structuredClone(bars.daily));
+  const quarters = { newest: "2026-06-30" };
+
+  const statements = vi.fn(async () => [
+    {
+      periodEnd: quarters.newest,
+      knownFrom: quarters.newest,
+      revenue: 1,
+      grossProfit: null,
+      operatingIncome: null,
+      netIncome: null,
+      eps: null,
+    },
+  ]);
+
   const store = memoryStore();
 
   const desk = new ResearchDesk({
     store,
     marketData: { candles },
+    fundamentals: { statements },
     onChange,
     now: () => clock.now,
     createId: () => "f-1",
@@ -110,16 +125,27 @@ function setup() {
       thesis: "Advanced nodes stay sold out.",
     });
 
-  return { desk, store, clock, bars, candles, onChange, cover };
+  return {
+    desk,
+    store,
+    clock,
+    bars,
+    candles,
+    quarters,
+    statements,
+    onChange,
+    cover,
+  };
 }
 
-test("a revision is kept and numbered after the last", () => {
+test("a revision is kept, numbered after the last and stamped with the newest quarter", async () => {
   const { desk, store, cover, onChange } = setup();
 
-  cover();
+  await cover();
 
+  expect(store.report(TSMC)?.financialsThrough).toBe("2026-06-30");
   expect(
-    desk.revise({ symbol: TSMC, stance: ReportStance.Neutral })
+    await desk.revise({ symbol: TSMC, stance: ReportStance.Neutral })
   ).toMatchObject({
     ok: true,
     report: { revision: 2, stance: ReportStance.Neutral },
@@ -128,10 +154,10 @@ test("a revision is kept and numbered after the last", () => {
   expect(onChange).toHaveBeenCalledTimes(2);
 });
 
-test("a refused revision keeps nothing", () => {
+test("a refused revision keeps nothing", async () => {
   const { desk, store, onChange } = setup();
 
-  expect(desk.revise({ symbol: TSMC }).ok).toBe(false);
+  expect((await desk.revise({ symbol: TSMC })).ok).toBe(false);
   expect(store.report(TSMC)).toBeUndefined();
   expect(onChange).not.toHaveBeenCalled();
 });
@@ -139,7 +165,7 @@ test("a refused revision keeps nothing", () => {
 test("a forecast is stamped with the newest daily bar and the report it was made under", async () => {
   const { desk, cover, candles } = setup();
 
-  cover();
+  await cover();
 
   expect(await desk.forecast(draft)).toEqual({
     ok: true,
@@ -168,7 +194,7 @@ test("a refused forecast keeps nothing", async () => {
 test("a session takes one forecast, and the next takes another", async () => {
   const { desk, cover, bars } = setup();
 
-  cover();
+  await cover();
   await desk.forecast(draft);
 
   expect(await desk.forecast(draft)).toEqual({
@@ -186,7 +212,7 @@ test("a session takes one forecast, and the next takes another", async () => {
 test("forecasting under an id again returns the forecast already made", async () => {
   const { desk, store, cover, candles } = setup();
 
-  cover();
+  await cover();
 
   const first = await desk.forecast({ ...draft, id: "run-1" });
 
@@ -200,7 +226,7 @@ test("forecasting under an id again returns the forecast already made", async ()
 test("a listing without bars cannot anchor a forecast", async () => {
   const { desk, cover, bars } = setup();
 
-  cover();
+  await cover();
   bars.daily = [];
 
   await expect(desk.forecast(draft)).rejects.toThrow(
@@ -211,7 +237,7 @@ test("a listing without bars cannot anchor a forecast", async () => {
 test("coverage settles a forecast once its horizon has closed, and keeps the outcome", async () => {
   const { desk, store, cover, clock, bars, candles, onChange } = setup();
 
-  cover();
+  await cover();
   await desk.forecast(draft);
 
   expect((await desk.coverage(TSMC)).forecasts[0].outcome).toBe(null);
@@ -242,7 +268,7 @@ test("coverage settles a forecast once its horizon has closed, and keeps the out
 test("coverage still reads what is kept while bars are out of reach", async () => {
   const { desk, cover, candles } = setup();
 
-  cover();
+  await cover();
   await desk.forecast(draft);
   candles.mockRejectedValue(new Error("No source covers TW"));
 
@@ -255,11 +281,43 @@ test("coverage still reads what is kept while bars are out of reach", async () =
 test("the track record settles every listing's forecasts", async () => {
   const { desk, cover, clock, bars } = setup();
 
-  cover();
+  await cover();
   await desk.forecast(draft);
 
   clock.now = AFTER_HORIZON;
   bars.daily = [ANCHOR_BAR, ...LATER_BARS];
 
   expect(await desk.trackRecord()).toMatchObject({ forecasts: 1, settled: 1 });
+});
+
+test("a newer quarter makes the report stale until it is revised", async () => {
+  const { desk, cover, quarters } = setup();
+
+  await cover();
+  quarters.newest = "2026-09-30";
+
+  expect(await desk.coverage(TSMC)).toMatchObject({
+    newerFinancials: "2026-09-30",
+  });
+  expect(await desk.forecast(draft)).toEqual({
+    ok: false,
+    violations: [
+      { code: ForecastViolationCode.ReportStale, periodEnd: "2026-09-30" },
+    ],
+  });
+
+  await desk.revise({ symbol: TSMC, thesis: "Third-quarter margins held." });
+
+  expect((await desk.coverage(TSMC)).newerFinancials).toBe(null);
+  expect((await desk.forecast(draft)).ok).toBe(true);
+});
+
+test("research goes on while fundamentals are out of reach", async () => {
+  const { desk, store, cover, statements } = setup();
+
+  statements.mockRejectedValue(new Error("FinMind answered 402"));
+  await cover();
+
+  expect(store.report(TSMC)?.financialsThrough).toBe(null);
+  expect((await desk.forecast(draft)).ok).toBe(true);
 });

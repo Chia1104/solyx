@@ -30,6 +30,7 @@ function report(revision: number, patch: Partial<Report> = {}): Report {
     symbol: TSMC,
     revision,
     revisedAt: 1_790_000_000_000 + revision,
+    financialsThrough: "2026-06-30",
     stance: ReportStance.Bullish,
     thesis: "Advanced nodes stay sold out.",
     drivers: [],

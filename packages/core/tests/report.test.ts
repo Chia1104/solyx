@@ -14,6 +14,8 @@ const TSMC = { market: Market.TW, symbol: "2330" };
 
 const AT = 1_790_000_000_000;
 
+const NOW = { at: AT, financialsThrough: "2026-06-30" };
+
 function first(): Report {
   const revision = reviseReport(
     null,
@@ -25,7 +27,7 @@ function first(): Report {
       valuation: { low: 900, high: 1100, basis: "20 to 24 times earnings" },
       sections: { [ReportSection.Business]: "Foundry." },
     },
-    AT
+    NOW
   );
 
   if (!revision.ok) throw new Error("The first revision was refused");
@@ -34,7 +36,7 @@ function first(): Report {
 }
 
 test("a listing's first revision needs a stance and a thesis", () => {
-  expect(reviseReport(null, { symbol: TSMC }, AT)).toEqual({
+  expect(reviseReport(null, { symbol: TSMC }, NOW)).toEqual({
     ok: false,
     violations: [
       { code: ReportViolationCode.MissingStance },
@@ -51,7 +53,7 @@ test("a revision changes what it names and keeps the rest, each section with its
       stance: ReportStance.Neutral,
       sections: { [ReportSection.Risks]: "Export controls." },
     },
-    AT + 5
+    { at: AT + 5, financialsThrough: "2026-09-30" }
   );
 
   expect(revision).toMatchObject({
@@ -59,6 +61,7 @@ test("a revision changes what it names and keeps the rest, each section with its
     report: {
       revision: 2,
       revisedAt: AT + 5,
+      financialsThrough: "2026-09-30",
       stance: ReportStance.Neutral,
       thesis: "Advanced nodes stay sold out.",
       falsifiers: ["A large customer moves orders to another foundry."],
@@ -73,14 +76,14 @@ test("a revision changes what it names and keeps the rest, each section with its
 
 test("a null valuation drops the range, and an inverted one is refused", () => {
   expect(
-    reviseReport(first(), { symbol: TSMC, valuation: null }, AT)
+    reviseReport(first(), { symbol: TSMC, valuation: null }, NOW)
   ).toMatchObject({ report: { valuation: null } });
 
   expect(
     reviseReport(
       first(),
       { symbol: TSMC, valuation: { low: 1200, high: 1000, basis: "DCF" } },
-      AT
+      NOW
     )
   ).toEqual({
     ok: false,

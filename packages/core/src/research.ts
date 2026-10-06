@@ -10,6 +10,7 @@ import type {
   ForecastRecord,
   ForecastViolation,
 } from "./forecast.ts";
+import type { Fundamentals } from "./fundamentals.ts";
 import type { MarketData } from "./market-data.ts";
 import { symbolKey } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
@@ -32,6 +33,7 @@ export interface ResearchStore {
 export interface ResearchDeskOptions {
   store: ResearchStore;
   marketData: Pick<MarketData, "candles">;
+  fundamentals: Pick<Fundamentals, "statements">;
   /** Called after a listing's research changes, so whoever shows it can refresh. */
   onChange?: (symbol: SymbolRef) => void;
   now?: () => number;
@@ -45,16 +47,24 @@ export type ForecastResult =
 /** Everything research holds of a listing. */
 export interface Coverage {
   report: Report | null;
+  /** The last day of a quarter published since the report was revised, which it must take in before the next forecast; `null` when it is current. */
+  newerFinancials: string | null;
   /** Oldest first. */
   forecasts: Forecast[];
   record: ForecastRecord;
+}
+
+/** The quarter that makes a report stale: one newer than the newest it was revised with. */
+function newerFinancials(report: Report, newest: string | null) {
+  return newest !== null && report.financialsThrough !== newest ? newest : null;
 }
 
 /**
  * A listing's research: the report, which holds a view over quarters and is revised, and the
  * forecasts made under it, each frozen once made and scored against what the price then did. The
  * desk stamps what a forecast is measured from itself, its anchor and its report revision, so a
- * forecast cannot choose them. Nothing here reaches an order.
+ * forecast cannot choose them, and a report with the newest quarter public when it was revised, so
+ * a forecast is refused once a newer one is out. Nothing here reaches an order.
  */
 export class ResearchDesk {
   readonly #options: ResearchDeskOptions;
@@ -63,14 +73,14 @@ export class ResearchDesk {
     this.#options = options;
   }
 
-  revise(draft: ReportDraft): Revision {
+  async revise(draft: ReportDraft): Promise<Revision> {
     const { store, now = Date.now } = this.#options;
+    const financialsThrough = await this.#newestQuarter(draft.symbol);
 
-    const revision = reviseReport(
-      store.report(draft.symbol) ?? null,
-      draft,
-      now()
-    );
+    const revision = reviseReport(store.report(draft.symbol) ?? null, draft, {
+      at: now(),
+      financialsThrough,
+    });
 
     if (revision.ok) {
       store.addReport(revision.report);
@@ -113,11 +123,13 @@ export class ResearchDesk {
       price: newest.close,
     };
 
+    const newestQuarter = await this.#newestQuarter(instrument);
     const report = store.report(instrument);
 
     const violations = checkForecast(draft, {
       anchor,
       stance: report?.stance ?? null,
+      newerFinancials: report ? newerFinancials(report, newestQuarter) : null,
       taken: store
         .forecasts(instrument)
         .some((forecast) => forecast.anchor.date === anchor.date),
@@ -143,9 +155,13 @@ export class ResearchDesk {
   async coverage(symbol: SymbolRef): Promise<Coverage> {
     const { store } = this.#options;
     const forecasts = await this.#settle(symbol, store.forecasts(symbol));
+    const report = store.report(symbol) ?? null;
 
     return {
-      report: store.report(symbol) ?? null,
+      report,
+      newerFinancials: report
+        ? newerFinancials(report, await this.#newestQuarter(symbol))
+        : null,
       forecasts,
       record: forecastRecord(forecasts),
     };
@@ -166,6 +182,18 @@ export class ResearchDesk {
     );
 
     return forecastRecord(settled.flat());
+  }
+
+  /** The last day of the newest quarter public for a listing; `null` when none is. */
+  async #newestQuarter(symbol: SymbolRef): Promise<string | null> {
+    try {
+      const statements = await this.#options.fundamentals.statements(symbol);
+
+      return statements.at(-1)?.periodEnd ?? null;
+    } catch {
+      // Fundamentals can be out of reach; research goes on without knowing of a newer quarter.
+      return null;
+    }
   }
 
   /** Judges a listing's forecasts whose horizon has passed and keeps each outcome. */

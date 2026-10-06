@@ -70,6 +70,7 @@ function context(patch: Partial<ForecastContext> = {}): ForecastContext {
   return {
     anchor: ANCHOR,
     stance: ReportStance.Bullish,
+    newerFinancials: null,
     taken: false,
     ...patch,
   };
@@ -119,6 +120,14 @@ describe("checkForecast", () => {
   test("a listing without a report takes no forecast", () => {
     expect(checkForecast(draft(), context({ stance: null }))).toEqual([
       { code: ForecastViolationCode.NoReport },
+    ]);
+  });
+
+  test("a report older than the newest quarter takes no forecast", () => {
+    expect(
+      checkForecast(draft(), context({ newerFinancials: "2026-09-30" }))
+    ).toEqual([
+      { code: ForecastViolationCode.ReportStale, periodEnd: "2026-09-30" },
     ]);
   });
 
