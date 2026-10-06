@@ -2,6 +2,7 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { Interval } from "../src/candles.ts";
 import type { Candle } from "../src/candles.ts";
+import { MagiUnit, MagiVote, resolveCouncil } from "../src/council.ts";
 import { ForecastDirection, ForecastViolationCode } from "../src/forecast.ts";
 import type { Forecast, ForecastDraft } from "../src/forecast.ts";
 import { InstrumentKind, Market, symbolKey } from "../src/market.ts";
@@ -175,6 +176,7 @@ test("a forecast is stamped with the newest daily bar and the report it was made
       createdAt: AT_ANCHOR,
       anchor: { date: "2026-09-29", price: 1000 },
       reportRevision: 1,
+      council: null,
       outcome: null,
     },
   });
@@ -287,7 +289,10 @@ test("the track record settles every listing's forecasts", async () => {
   clock.now = AFTER_HORIZON;
   bars.daily = [ANCHOR_BAR, ...LATER_BARS];
 
-  expect(await desk.trackRecord()).toMatchObject({ forecasts: 1, settled: 1 });
+  expect(await desk.trackRecord()).toMatchObject({
+    all: { forecasts: 1, settled: 1 },
+    ratified: { forecasts: 0 },
+  });
 });
 
 test("a newer quarter makes the report stale until it is revised", async () => {
@@ -372,4 +377,66 @@ test("claims are read against their quotes as they are kept, and stay when the m
     ok: true,
     forecast: { claims: [{ support: { model: "jev", supported: 0.8 } }] },
   });
+});
+
+const votes = (...cast: (MagiVote | null)[]) =>
+  resolveCouncil(
+    Object.values(MagiUnit).map((unit, index) => ({
+      unit,
+      vote: cast[index],
+      reason: "",
+      model: "faux",
+    }))
+  );
+
+test("two votes carry a motion, and a unit that gave none counts for neither side", () => {
+  const { Approve, Reject } = MagiVote;
+
+  expect(votes(Approve, Approve, Reject).carried).toBe(true);
+  expect(votes(Approve, Reject, Reject).carried).toBe(false);
+  expect(votes(Approve, null, Approve).carried).toBe(true);
+  expect(votes(Approve, null, null).carried).toBe(false);
+});
+
+test("a forecast put to a vote is kept with the vote that carried it", async () => {
+  const { desk, cover } = setup();
+  const council = votes(MagiVote.Approve, MagiVote.Approve, MagiVote.Reject);
+  const ratify = vi.fn(async () => council);
+
+  await cover();
+
+  expect(await desk.forecast(draft, ratify)).toMatchObject({
+    ok: true,
+    forecast: { council },
+  });
+  expect(ratify).toHaveBeenCalledExactlyOnceWith({
+    draft,
+    anchor: { date: "2026-09-29", price: 1000 },
+    report: expect.objectContaining({ revision: 1 }),
+  });
+  expect(await desk.trackRecord()).toMatchObject({
+    all: { forecasts: 1 },
+    ratified: { forecasts: 1 },
+  });
+});
+
+test("a rejected motion keeps nothing and hands back the votes", async () => {
+  const { desk, store, cover } = setup();
+  const council = votes(MagiVote.Reject, MagiVote.Approve, MagiVote.Reject);
+
+  await cover();
+
+  expect(await desk.forecast(draft, async () => council)).toEqual({
+    ok: false,
+    violations: [{ code: ForecastViolationCode.MotionRejected, council }],
+  });
+  expect(store.forecasts()).toEqual([]);
+});
+
+test("no vote is spent on a forecast the checks refuse", async () => {
+  const { desk } = setup();
+  const ratify = vi.fn();
+
+  expect((await desk.forecast(draft, ratify)).ok).toBe(false);
+  expect(ratify).not.toHaveBeenCalled();
 });

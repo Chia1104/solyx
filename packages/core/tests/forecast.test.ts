@@ -85,6 +85,7 @@ function forecast(patch: Partial<Forecast> = {}): Forecast {
     createdAt: 0,
     anchor: ANCHOR,
     reportRevision: 1,
+    council: null,
     outcome: null,
     ...patch,
   };
