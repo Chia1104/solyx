@@ -21,6 +21,10 @@ function setup() {
       sessionsUsage: vi.fn(async () => ({ bytes: 2000, conversations: 2 })),
       deleteAllSessions: vi.fn(async () => undefined),
     },
+    memories: {
+      usage: vi.fn(() => ({ bytes: 500, memories: 3 })),
+      clear: vi.fn(),
+    },
     news: {
       usage: vi.fn(() => ({ bytes: 1000, items: 5 })),
       clear: vi.fn(),
@@ -31,6 +35,7 @@ function setup() {
   const clears = {
     [StoredData.Candles]: options.cache.clear,
     [StoredData.Conversations]: options.agent.deleteAllSessions,
+    [StoredData.Memory]: options.memories.clear,
     [StoredData.News]: options.news.clear,
     [StoredData.Watchlist]: options.watchlist.clear,
   };
@@ -47,6 +52,7 @@ test("usage measures every kind of data", async () => {
       sources: [{ source: "fugle", series: 1, bars: 20 }],
     },
     conversations: { bytes: 2000, conversations: 2 },
+    memory: { bytes: 500, memories: 3 },
     news: { bytes: 1000, items: 5 },
     watchlist: { listings: 1 },
   });

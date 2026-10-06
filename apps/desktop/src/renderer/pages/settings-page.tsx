@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { Section } from "../components/section.tsx";
 import { Sheet } from "../components/sheet.tsx";
+import { MemorySettings } from "../modules/memory/memory-settings.tsx";
 import { SetupGuideLink } from "../modules/onboarding/setup-guide-link.tsx";
 import { AboutSettings } from "../modules/settings/about-settings.tsx";
 import { AgentSettings } from "../modules/settings/agent-settings.tsx";
@@ -51,6 +52,7 @@ export function SettingsPage() {
       </>
     ),
     [SettingsSection.Skills]: <AgentSkills />,
+    [SettingsSection.Memory]: <MemorySettings />,
     [SettingsSection.Mcp]: <McpSettings server={server} />,
     [SettingsSection.Storage]: <StorageSettings />,
     [SettingsSection.About]: <AboutSettings />,

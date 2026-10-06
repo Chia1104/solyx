@@ -16,6 +16,7 @@ const schemas = {
 export function registerStorageIpc({
   cache,
   agent,
+  memories,
   newsData,
   userData,
 }: Services) {
@@ -25,6 +26,7 @@ export function registerStorageIpc({
     createStorageApi({
       cache,
       agent,
+      memories,
       news: newsData,
       watchlist: userData.watchlist,
     })

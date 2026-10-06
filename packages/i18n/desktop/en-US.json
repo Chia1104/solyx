@@ -400,6 +400,7 @@
       "about": "About",
       "agent": "AI agent",
       "skills": "Skills",
+      "memory": "Memory",
       "mcp": "MCP"
     },
     "general": "General",
@@ -710,6 +711,25 @@
       "shell-description": "Lets the agent run commands on this computer, which a skill needs to run its scripts. Every command waits for you to allow it unless you set a conversation to not ask. Commands are not sandboxed: one you allow can read and change your files and reach the network. Only works with a paper account.",
       "shell-label": "Let the agent use the shell"
     },
+    "memory": {
+      "title": "Memory",
+      "description-text": "What the agent keeps across conversations and reads in each one. It saves, rewrites or forgets a memory only once you allow it, and deleting a conversation keeps what it saved.",
+      "empty": "No memories yet. The agent asks before it saves one.",
+      "filter": "Filter memories",
+      "no-matches": "No memory matches “{{query}}”.",
+      "kinds": {
+        "profile": "About you",
+        "feedback": "How to work",
+        "note": "Note"
+      },
+      "forget": "Forget",
+      "description": "Description",
+      "body": "Details",
+      "description-required": "Describe what the memory holds",
+      "too-long": "Keep it under {{count, number}} characters",
+      "secret": "A memory can't hold a key, token, password or ID number",
+      "change-failed": "Couldn't change the memory"
+    },
     "mcp": {
       "title": "MCP servers",
       "description": "Servers listed in {{path}}, in the mcpServers format Claude, Cursor and pi use. Write keys as secret:NAME and save them here, where your system encrypts them. Each call waits for you to allow it, unless you let a read-only tool run on its own.",
@@ -781,6 +801,16 @@
         "confirm-body": "Their messages and the files their shell commands left are deleted from this computer, and any still running stops. This can't be undone. The orders they suggested stay in proposals.",
         "confirm": "Delete all",
         "clear-failed": "Couldn't delete the conversations"
+      },
+      "memory": {
+        "title": "Memory",
+        "description": "What the agent keeps across conversations, each memory saved once you allowed it.",
+        "count": "Memories",
+        "clear": "Forget all memories",
+        "confirm-title": "Forget every memory?",
+        "confirm-body": "The agent starts its next conversation knowing nothing from earlier ones. This can't be undone. Your conversations stay.",
+        "confirm": "Forget all",
+        "clear-failed": "Couldn't forget the memories"
       },
       "news": {
         "title": "News",
