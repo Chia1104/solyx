@@ -12,6 +12,7 @@
   "devDependencies": {
     "@chiastack/oxlint": "catalog:chiastack",
     "@oxlint/plugins": "catalog:oxc",
+    "@types/node": "catalog:",
     "vite-plus": "catalog:"
   },
   "devEngines": {
