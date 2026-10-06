@@ -160,6 +160,16 @@ describe("watchlist store", () => {
     expect(store.list()).toEqual([APPLE]);
   });
 
+  test("clearing stops watching every listing", () => {
+    const { watchlist: store } = open();
+
+    store.add(TSMC);
+    store.add(APPLE);
+    store.clear();
+
+    expect(store.list()).toEqual([]);
+  });
+
   test("markets keep the same code apart", () => {
     const { watchlist: store } = open();
     const listedTwice = { market: Market.US, symbol: "2330" };

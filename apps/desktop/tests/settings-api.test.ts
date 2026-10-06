@@ -108,7 +108,6 @@ function setup() {
     mcp,
     decisions: { settings: vi.fn() },
     webSearch: createWebSearch({ config, secrets }),
-    cache: { usage: vi.fn(), clear: vi.fn() },
     home,
     locations: {
       [AppLocation.Data]: join(home, "data"),

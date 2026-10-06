@@ -756,17 +756,49 @@
       }
     },
     "storage": {
-      "title": "K 線快取",
-      "description": "已收盤的 K 線會存在這台電腦上，圖表就不必每次重新下載。清除後，圖表需要時會再向行情來源下載，並用掉你方案的請求額度。",
       "size": "磁碟用量",
-      "bars": "{{count, number}} 根 K 線",
-      "series": "{{count, number}} 組代號與週期",
-      "empty": "目前沒有快取",
-      "clear": "清除快取",
-      "confirm-title": "清除 K 線快取？",
-      "confirm-body": "圖表之後需要時會重新下載已收盤的 K 線。自選、提案與設定都會保留。",
-      "confirm": "清除",
-      "clear-failed": "無法清除快取"
+      "candles": {
+        "title": "K 線快取",
+        "description": "已收盤的 K 線會存在這台電腦上，圖表就不必每次重新下載。清除後，圖表需要時會再向行情來源下載，並用掉你方案的請求額度。",
+        "bars": "{{count, number}} 根 K 線",
+        "series": "{{count, number}} 組代號與週期",
+        "empty": "目前沒有快取",
+        "clear": "清除快取",
+        "confirm-title": "清除 K 線快取？",
+        "confirm-body": "圖表之後需要時會重新下載已收盤的 K 線。自選、提案與設定都會保留。",
+        "confirm": "清除",
+        "clear-failed": "無法清除快取"
+      },
+      "conversations": {
+        "title": "對話紀錄",
+        "description": "你和 AI Agent 的對話，以及各對話執行 shell 指令的資料夾。",
+        "count": "對話數",
+        "clear": "刪除所有對話",
+        "confirm-title": "要刪除所有對話嗎？",
+        "confirm-body": "對話中的訊息與 shell 指令留下的檔案都會從這台電腦刪除，仍在執行的對話也會停止，無法復原。它們提出的下單建議仍會留在提案中。",
+        "confirm": "全部刪除",
+        "clear-failed": "無法刪除對話"
+      },
+      "news": {
+        "title": "新聞",
+        "description": "新聞來源為你的標的找到的新聞，以及決策模型的評分。來源只能回溯幾天，較舊的新聞無法再收集。",
+        "count": "新聞則數",
+        "clear": "清除新聞",
+        "confirm-title": "要清除所有新聞嗎？",
+        "confirm-body": "新聞與評分都會從這台電腦刪除，較舊的新聞無法再收集。自選股會在下次更新時重新收集近期新聞。",
+        "confirm": "清除",
+        "clear-failed": "無法清除新聞"
+      },
+      "watchlist": {
+        "title": "自選",
+        "description": "你關注的標的，會定時收集它們的新聞。",
+        "count": "自選股",
+        "clear": "清空自選",
+        "confirm-title": "要清空自選嗎？",
+        "confirm-body": "所有標的都會移出自選，也不再定時收集它們的新聞，無法復原。已收集的新聞與 K 線快取會保留。",
+        "confirm": "清空",
+        "clear-failed": "無法清空自選"
+      }
     },
     "about": {
       "version": "版本 {{version}}",

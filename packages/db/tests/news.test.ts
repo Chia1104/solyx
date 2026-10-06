@@ -261,3 +261,31 @@ test("a source's failures count up until a search of it works", () => {
     store.sourceHealth().find((health) => health.source === NEWS.id)
   ).toMatchObject({ lastSuccessAt: at(4), failureStreak: 0 });
 });
+
+test("clearing deletes every item and each listing's last collection, and keeps source health", () => {
+  const news = open();
+
+  news.store.save(
+    TSMC,
+    PTT,
+    Array.from({ length: 500 }, (_, index) => item(`p${index}`, null)),
+    FOUND
+  );
+  news.store.save(FOXCONN, PTT, [item("p0", null)], FOUND);
+  news.store.markCollected(TSMC, FOUND);
+  news.store.markSearched(NEWS.id, FOUND, "rate limited");
+
+  const before = news.usage();
+
+  expect(before).toEqual({ bytes: expect.any(Number), items: 500 });
+
+  news.clear();
+
+  expect(news.usage()).toEqual({ bytes: expect.any(Number), items: 0 });
+  expect(news.usage().bytes).toBeLessThan(before.bytes);
+  expect(news.store.list(TSMC, new Date(0))).toEqual([]);
+  expect(news.store.lastCollected(TSMC)).toBeNull();
+  expect(news.store.sourceHealth()).toEqual([
+    expect.objectContaining({ source: NEWS.id, failureStreak: 1 }),
+  ]);
+});

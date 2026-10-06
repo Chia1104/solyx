@@ -123,12 +123,14 @@ export function createServices() {
 
   const webSearch = createWebSearch({ config, secrets });
 
+  const newsData = openNews(
+    join(userDataDir, "news.sqlite"),
+    join(import.meta.dirname, "migrations", "news")
+  );
+
   const news = createNews({
     sources: createNewsSources(() => webSearch.vendor()),
-    store: openNews(
-      join(userDataDir, "news.sqlite"),
-      join(import.meta.dirname, "migrations", "news")
-    ).store,
+    store: newsData.store,
     scorer: () => decisions.scorer(),
     marketData,
     onChange: (symbol) => broadcast(newsEvents.onChanged, symbol),
@@ -214,6 +216,7 @@ export function createServices() {
     decisions,
     webSearch,
     news,
+    newsData,
     newsCollector,
   };
 }

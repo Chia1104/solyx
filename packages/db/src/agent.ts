@@ -3,6 +3,8 @@ import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite";
 import type { SqliteExecutor } from "@earendil-works/pi-durable/storage/sqlite";
 import { openNodeSqliteDatabase } from "@earendil-works/pi-durable/storage/sqlite/node";
 
+import { databaseBytes } from "./database-file.ts";
+
 /** The pi-durable schema version the deletion below is written against. */
 const DURABLE_SCHEMA_VERSION = 1;
 
@@ -15,6 +17,10 @@ export interface AgentStore {
    * conversation forks from it, or once pi-durable's schema has moved past the one this knows.
    */
   deleteConversation(id: ConversationId): Promise<void>;
+  /** The file on disk, with its write-ahead log. */
+  bytes(): number;
+  /** Gives the space erased conversations held back to the disk. */
+  compact(): Promise<void>;
 }
 
 const ids = (rows: { id: number }[]) =>
@@ -131,5 +137,10 @@ export async function openAgentStore(path: string): Promise<AgentStore> {
       // The write-ahead log still holds the pages as they were before.
       await database.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     },
+
+    bytes: () => databaseBytes(path),
+
+    // Queued behind pi-durable's own work on the connection, so no transaction is open.
+    compact: () => database.exec("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);"),
   };
 }

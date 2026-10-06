@@ -756,17 +756,49 @@
       }
     },
     "storage": {
-      "title": "Candle cache",
-      "description": "Closed sessions are kept on this computer so charts don't download them again. After clearing, charts fetch them from your market data source when needed, which uses your plan's request budget.",
       "size": "On disk",
-      "bars": "{{count, number}} bars",
-      "series": "{{count, number}} symbol and interval pairs",
-      "empty": "Nothing cached yet",
-      "clear": "Clear cache",
-      "confirm-title": "Clear the candle cache?",
-      "confirm-body": "Charts will download closed sessions again as they need them. Your watchlist, proposals and settings stay.",
-      "confirm": "Clear",
-      "clear-failed": "Couldn't clear the cache"
+      "candles": {
+        "title": "Candle cache",
+        "description": "Closed sessions are kept on this computer so charts don't download them again. After clearing, charts fetch them from your market data source when needed, which uses your plan's request budget.",
+        "bars": "{{count, number}} bars",
+        "series": "{{count, number}} symbol and interval pairs",
+        "empty": "Nothing cached yet",
+        "clear": "Clear cache",
+        "confirm-title": "Clear the candle cache?",
+        "confirm-body": "Charts will download closed sessions again as they need them. Your watchlist, proposals and settings stay.",
+        "confirm": "Clear",
+        "clear-failed": "Couldn't clear the cache"
+      },
+      "conversations": {
+        "title": "Conversations",
+        "description": "Your conversations with the agent, and the folders their shell commands work in.",
+        "count": "Conversations",
+        "clear": "Delete all conversations",
+        "confirm-title": "Delete every conversation?",
+        "confirm-body": "Their messages and the files their shell commands left are deleted from this computer, and any still running stops. This can't be undone. The orders they suggested stay in proposals.",
+        "confirm": "Delete all",
+        "clear-failed": "Couldn't delete the conversations"
+      },
+      "news": {
+        "title": "News",
+        "description": "Stories news sources found for your listings, and the decisions model's scores. Sources reach back only a few days, so older stories can't be collected again.",
+        "count": "Stories",
+        "clear": "Clear news",
+        "confirm-title": "Clear all news?",
+        "confirm-body": "Stories and their scores are deleted from this computer, and older ones can't be collected again. Watched listings collect recent news at their next refresh.",
+        "confirm": "Clear",
+        "clear-failed": "Couldn't clear the news"
+      },
+      "watchlist": {
+        "title": "Watchlist",
+        "description": "The listings you watch, whose news is collected on a schedule.",
+        "count": "Watched listings",
+        "clear": "Clear watchlist",
+        "confirm-title": "Clear the watchlist?",
+        "confirm-body": "Every listing leaves the watchlist, and their news stops being collected on a schedule. This can't be undone. Their news and cached candles stay.",
+        "confirm": "Clear",
+        "clear-failed": "Couldn't clear the watchlist"
+      }
     },
     "about": {
       "version": "Version {{version}}",

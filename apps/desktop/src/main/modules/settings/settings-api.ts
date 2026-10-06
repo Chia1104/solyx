@@ -6,7 +6,6 @@ import { mapValues, uniq } from "es-toolkit";
 import { effectivePolicy, mcpToolKey } from "@solyx/agent/mcp-config";
 import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillFolders } from "@solyx/agent/skills";
-import type { Cache } from "@solyx/db/cache";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 
 import {
@@ -57,7 +56,6 @@ export interface SettingsApiOptions {
   >;
   decisions: Pick<Decisions, "settings">;
   webSearch: Pick<WebSearchModule, "settings">;
-  cache: Pick<Cache, "usage" | "clear">;
   /** Paths are shown with it as `~`. */
   home: string;
   locations: Record<AppLocation, string>;
@@ -84,7 +82,6 @@ export function createSettingsApi({
   mcp,
   decisions,
   webSearch,
-  cache,
   home,
   locations,
   skillFolders,
@@ -320,10 +317,6 @@ export function createSettingsApi({
     cancelMcpSignIn: async () => mcp.cancelSignIn(),
 
     signOutMcp: (server) => mcp.signOut(server),
-
-    cacheUsage: async () => cache.usage(),
-
-    clearCache: async () => cache.clear(),
 
     about: async () => ({
       ...shell.about(),

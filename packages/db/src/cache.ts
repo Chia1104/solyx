@@ -1,5 +1,3 @@
-import { rmSync, statSync } from "node:fs";
-
 import {
   and,
   asc,
@@ -12,13 +10,14 @@ import {
   sql,
 } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
-import { chunk, sumBy } from "es-toolkit";
+import { chunk } from "es-toolkit";
 
 import type { Candle, Interval } from "@solyx/core/candles";
 import type { Market } from "@solyx/core/market";
 
 import { candleSeries, candles } from "./cache-schema.ts";
 import { connect } from "./connection.ts";
+import { databaseBytes, removeDatabase } from "./database-file.ts";
 
 // SQLite caps bound parameters per statement; eight columns per bar stays well under it.
 const INSERT_BATCH = 1000;
@@ -173,8 +172,6 @@ export interface CacheUsage {
   sources: SourceUsage[];
 }
 
-const FILE_SUFFIXES = ["", "-wal", "-shm"];
-
 /**
  * The cache database, holding only what can be fetched again. A file that is corrupt, or
  * holds a schema these migrations do not know, is deleted and rebuilt; a second failure is
@@ -186,10 +183,7 @@ export function openCache(path: string, migrationsFolder: string) {
   try {
     connection = connect(path, migrationsFolder);
   } catch {
-    for (const suffix of FILE_SUFFIXES) {
-      rmSync(`${path}${suffix}`, { force: true });
-    }
-
+    removeDatabase(path);
     connection = connect(path, migrationsFolder);
   }
 
@@ -199,12 +193,6 @@ export function openCache(path: string, migrationsFolder: string) {
     candles: candleStore(db),
 
     usage(): CacheUsage {
-      const bytes = sumBy(
-        FILE_SUFFIXES,
-        (suffix) =>
-          statSync(`${path}${suffix}`, { throwIfNoEntry: false })?.size ?? 0
-      );
-
       const sources = db
         .select({
           source: candleSeries.source,
@@ -217,7 +205,7 @@ export function openCache(path: string, migrationsFolder: string) {
         .orderBy(asc(candleSeries.source))
         .all();
 
-      return { bytes, sources };
+      return { bytes: databaseBytes(path), sources };
     },
 
     /** Deletes every series and its bars, and gives the space back to the disk. */

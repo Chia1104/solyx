@@ -4,10 +4,13 @@ import { foldEvents } from "@solyx/agent/wire";
 
 const all = ["agent"] as const;
 
+const transcripts = [...all, "transcript"] as const;
+
 export const agentQueryKeys = {
   all,
   sessions: [...all, "sessions"] as const,
-  transcript: (id: string) => [...all, "transcript", id] as const,
+  transcripts,
+  transcript: (id: string) => [...transcripts, id] as const,
 };
 
 /** Most recently active first. */

@@ -9,7 +9,6 @@ import { SetupGuideLink } from "../modules/onboarding/setup-guide-link.tsx";
 import { AboutSettings } from "../modules/settings/about-settings.tsx";
 import { AgentSettings } from "../modules/settings/agent-settings.tsx";
 import { AgentSkills } from "../modules/settings/agent-skills.tsx";
-import { CacheSettings } from "../modules/settings/cache-settings.tsx";
 import { DecisionsSettings } from "../modules/settings/decisions-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
 import { MarketDataSettings } from "../modules/settings/market-data-settings.tsx";
@@ -21,6 +20,7 @@ import { SettingsSection } from "../modules/settings/settings-section.ts";
 import { SettingsTabs } from "../modules/settings/settings-tabs.tsx";
 import { ThemeSelect } from "../modules/settings/theme-select.tsx";
 import { WebSearchSettings } from "../modules/settings/web-search-settings.tsx";
+import { StorageSettings } from "../modules/storage/storage-settings.tsx";
 
 const route = getRouteApi("/settings");
 
@@ -52,13 +52,7 @@ export function SettingsPage() {
     ),
     [SettingsSection.Skills]: <AgentSkills />,
     [SettingsSection.Mcp]: <McpSettings server={server} />,
-    [SettingsSection.Storage]: (
-      <Section
-        title={t("settings.storage.title")}
-        description={t("settings.storage.description")}>
-        <CacheSettings />
-      </Section>
-    ),
+    [SettingsSection.Storage]: <StorageSettings />,
     [SettingsSection.About]: <AboutSettings />,
   };
 

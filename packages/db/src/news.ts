@@ -1,10 +1,11 @@
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 
 import type { SymbolRef } from "@solyx/core/market";
 import type { NewsRecord, NewsStore } from "@solyx/core/news";
 
 import { connect } from "./connection.ts";
+import { databaseBytes } from "./database-file.ts";
 import {
   listingNews,
   newsCollections,
@@ -218,17 +219,45 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
   };
 }
 
+export interface NewsUsage {
+  /** The file on disk, with its write-ahead log. */
+  bytes: number;
+  /** Each counted once, however many listings it was found for. */
+  items: number;
+}
+
 /**
  * What news sources found for each listing and how it was scored. Sources reach back only days,
  * so like the user's database it is never deleted, and a file its migrations cannot open is an
  * error. `migrationsFolder` is `migrations/news` wherever the host ships it.
  */
 export function openNews(path: string, migrationsFolder: string) {
-  const connection = connect(path, migrationsFolder);
+  const { client, db } = connect(path, migrationsFolder);
 
   return {
-    store: newsStore(connection.db),
-    close: () => connection.client.close(),
+    store: newsStore(db),
+
+    usage(): NewsUsage {
+      return {
+        bytes: databaseBytes(path),
+        items: db.select({ items: count() }).from(newsItems).get()?.items ?? 0,
+      };
+    },
+
+    /**
+     * Deletes every item and its scores, and when each listing was collected, so watched listings
+     * collect again; how each source's searches went is kept, so a failing one still rests.
+     */
+    clear() {
+      db.transaction((tx) => {
+        tx.delete(newsItems).run();
+        tx.delete(newsCollections).run();
+      });
+      // VACUUM rewrites the file through the log, so the log is truncated after it.
+      client.exec("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);");
+    },
+
+    close: () => client.close(),
   };
 }
 

@@ -18,7 +18,6 @@ const all = ["settings"] as const;
 export const settingsQueryKeys = {
   all,
   appearance: [...all, "appearance"] as const,
-  cacheUsage: [...all, "cache-usage"] as const,
   about: [...all, "about"] as const,
   secrets: [...all, "secrets"] as const,
   marketData: [...all, "market-data"] as const,
@@ -81,13 +80,6 @@ export const appearanceQuery = () =>
     queryKey: settingsQueryKeys.appearance,
     queryFn: () => window.solyx.settings.appearance(),
     staleTime: Infinity,
-  });
-
-export const cacheUsageQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.cacheUsage,
-    queryFn: () => window.solyx.settings.cacheUsage(),
-    staleTime: 0,
   });
 
 /** Versions and paths do not change while the app runs. */

@@ -205,19 +205,6 @@ export interface MarketDataStatus {
   };
 }
 
-/** What the candle cache holds for one provider, by its `id`. */
-export interface CacheSourceUsage {
-  source: string;
-  series: number;
-  bars: number;
-}
-
-export interface CacheUsage {
-  /** On disk, with the write-ahead log. */
-  bytes: number;
-  sources: CacheSourceUsage[];
-}
-
 /** A model the agent can run on, from its provider's catalog. */
 export interface AgentModelOption {
   provider: AgentProvider;
@@ -500,9 +487,6 @@ export interface SettingsApi {
   signInMcp(server: string, locale: Locale): Promise<void>;
   cancelMcpSignIn(): Promise<void>;
   signOutMcp(server: string): Promise<void>;
-  cacheUsage(): Promise<CacheUsage>;
-  /** Closed sessions are fetched again from the provider when charts need them. */
-  clearCache(): Promise<void>;
   about(): Promise<AppInfo>;
   reveal(location: AppLocation): Promise<void>;
 }
@@ -566,8 +550,6 @@ export const settingsChannels = {
   signInMcp: "settings:sign-in-mcp",
   cancelMcpSignIn: "settings:cancel-mcp-sign-in",
   signOutMcp: "settings:sign-out-mcp",
-  cacheUsage: "settings:cache-usage",
-  clearCache: "settings:clear-cache",
   about: "settings:about",
   reveal: "settings:reveal",
 } as const satisfies Record<keyof SettingsApi, string>;

@@ -131,3 +131,19 @@ test("a conversation another forks from is kept", async () => {
 
   await expect(store.deleteConversation(parent)).rejects.toThrow("forks");
 });
+
+test("compacting gives back the space erased conversations held", async () => {
+  const ids: ConversationId[] = [];
+
+  for (let index = 0; index < 20; index++) {
+    ids.push(await conversation("x".repeat(10_000)));
+  }
+
+  for (const id of ids) await store.deleteConversation(id);
+
+  const before = store.bytes();
+
+  await store.compact();
+
+  expect(store.bytes()).toBeLessThan(before);
+});

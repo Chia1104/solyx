@@ -131,8 +131,6 @@ const schemas = {
   signInMcp: z.tuple([mcpNameSchema, localeSchema]),
   cancelMcpSignIn: z.tuple([]),
   signOutMcp: z.tuple([mcpNameSchema]),
-  cacheUsage: z.tuple([]),
-  clearCache: z.tuple([]),
   about: z.tuple([]),
   reveal: z.tuple([appLocationSchema]),
 };

@@ -67,6 +67,10 @@ function watchlistStore(db: NodeSQLiteDatabase) {
     remove(ref: SymbolRef) {
       db.delete(watchlist).where(listing(ref)).run();
     },
+
+    clear() {
+      db.delete(watchlist).run();
+    },
   };
 }
 

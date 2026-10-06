@@ -1,16 +1,15 @@
-import { rm } from "node:fs/promises";
+import { lstat, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { BrowserWindow } from "electron";
-import { omit } from "es-toolkit";
+import { omit, sum } from "es-toolkit";
 
 import { createAnalysis } from "@solyx/agent/analysis";
 import { mcpScriptExtension } from "@solyx/agent/mcp-script";
 import { formatContext } from "@solyx/agent/prompt";
 import type { AgentModelPick } from "@solyx/agent/providers";
 import { createAgentRuntime } from "@solyx/agent/runtime";
-import type { AgentConversationStore } from "@solyx/agent/runtime";
 import { createScriptRunner } from "@solyx/agent/script-runner";
 import { createShell } from "@solyx/agent/shell";
 import type { ShellOptions } from "@solyx/agent/shell";
@@ -25,10 +24,13 @@ import type { MarketData } from "@solyx/core/market-data";
 import type { NewsDesk } from "@solyx/core/news";
 import type { ProposingDesk } from "@solyx/core/order-desk";
 import type { WebReader, WebSearch } from "@solyx/core/web-search";
+import type { AgentStore } from "@solyx/db/agent";
+import { isErrnoError } from "@solyx/utils/error";
 
 import { agentEvents } from "#shared/ipc/agent.ts";
 import type { AgentFocus, AgentUpdate } from "#shared/ipc/agent.ts";
 import type { Locale } from "#shared/ipc/settings.ts";
+import type { ConversationsUsage } from "#shared/ipc/storage.ts";
 
 import { createAgentModels } from "./agent-models.ts";
 import type { AgentModelsOptions } from "./agent-models.ts";
@@ -44,7 +46,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   /** What the decisions model makes of a shell command, for conversations set to auto. */
   judgeCommand: ShellOptions["judge"];
   /** Where conversations persist, opening as the app starts. */
-  conversations: Promise<AgentConversationStore>;
+  conversations: Promise<AgentStore>;
   marketData: MarketData;
   watchlist: () => SymbolRef[];
   news: NewsDesk;
@@ -59,6 +61,25 @@ const SCRIPT_FILES = {
   wasm: join(import.meta.dirname, "quickjs.wasm"),
   worker: pathToFileURL(join(import.meta.dirname, "../worker/script.mjs")),
 };
+
+/** What a file takes up on disk, or a folder with everything under it; nothing once it is gone. */
+async function diskBytes(path: string): Promise<number> {
+  try {
+    const stats = await lstat(path);
+
+    if (!stats.isDirectory()) return stats.size;
+
+    const entries = await readdir(path);
+
+    return sum(
+      await Promise.all(entries.map((entry) => diskBytes(join(path, entry))))
+    );
+  } catch (error) {
+    if (isErrnoError(error, "ENOENT")) return 0;
+
+    throw error;
+  }
+}
 
 /** The agent as the app wires it: the user's model and key, the trading tools and the desk. */
 export function createAgentService(options: AgentServiceOptions) {
@@ -143,6 +164,12 @@ export function createAgentService(options: AgentServiceOptions) {
     onEvent,
   });
 
+  /** Erases the conversation, then the folder its shell commands worked in. */
+  async function deleteSession(id: string) {
+    await runtime.delete(id);
+    await rm(workspace(id), { recursive: true, force: true });
+  }
+
   return {
     models,
     skills,
@@ -154,10 +181,26 @@ export function createAgentService(options: AgentServiceOptions) {
 
     createSession: () => runtime.create(),
 
-    /** Erases the conversation, then the folder its shell commands worked in. */
-    async deleteSession(id: string) {
-      await runtime.delete(id);
-      await rm(workspace(id), { recursive: true, force: true });
+    deleteSession,
+
+    /** How many conversations there are, and what they and their folders take up on disk. */
+    async sessionsUsage(): Promise<ConversationsUsage> {
+      const [store, sessions, folders] = await Promise.all([
+        options.conversations,
+        runtime.sessions(),
+        diskBytes(options.workspaces),
+      ]);
+
+      return { conversations: sessions.length, bytes: store.bytes() + folders };
+    },
+
+    /** Erases every conversation and its folder, then gives the space back to the disk. */
+    async deleteAllSessions() {
+      for (const session of await runtime.sessions()) {
+        await deleteSession(session.id);
+      }
+
+      await (await options.conversations).compact();
     },
 
     transcript: (id: string) => runtime.transcript(id),
