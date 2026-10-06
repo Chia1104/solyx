@@ -43,8 +43,8 @@ export const claimSchema = z.object({
   text: proseSchema(300),
   /** Where it comes from: a page's address, or a name such as a filing's. */
   source: proseSchema(300),
-  /** The source's own words or figures the claim rests on. */
-  quote: proseSchema(500),
+  /** The source's own words or figures the claim rests on, in full: long enough for every row a fact sums up. */
+  quote: proseSchema(1_200),
 });
 
 export type Claim = z.infer<typeof claimSchema>;

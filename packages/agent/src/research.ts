@@ -61,7 +61,7 @@ const reviseParameters = reportDraftSchema.extend({
     "The argument for the stance, in a few sentences; required in a listing's first report"
   ),
   drivers: reportDraftSchema.shape.drivers.describe(
-    "What carries the thesis. Each has a point, your own reading of why it matters, and the fact it rests on: text says only what quote says, with no cause, forecast or comparison the quote does not give, and quote is the source's own words or figures"
+    "What carries the thesis. Each has a point, your own reading of why it matters, and the fact it rests on: text says only what quote says, with no cause, forecast or comparison the quote does not give, and quote is the source's own words or figures in full, never shortened with an ellipsis, covering every row a fact sums up"
   ),
   risks: reportDraftSchema.shape.risks.describe(
     "What could break it, each a point resting on a fact in the same way"
@@ -100,7 +100,7 @@ const forecastParameters = forecastDraftSchema.extend({
     .max(8)
     .default([])
     .describe(
-      "Facts the rationale rests on, each saying no more than its quote; what you make of them belongs in the rationale"
+      "Facts the rationale rests on, each saying no more than its quote, which is given in full and never shortened with an ellipsis; what you make of them belongs in the rationale"
     ),
   contrary: proseSchema(500)
     .nullable()
