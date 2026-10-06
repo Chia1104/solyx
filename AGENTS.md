@@ -17,20 +17,21 @@ Personal desktop app for trading Taiwan and US stocks: an agent analyzes and pro
 
 Every package and app has its own `AGENTS.md`; read it before changing code there.
 
-| Path                     | Role                                                                                                                                             |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `packages/core`          | The trading domain: market rules, candles and indicators, the broker, market data, news and sentiment contracts, risk checks and the `OrderDesk` |
-| `packages/brokers`       | One module per broker: the paper broker and Fubon                                                                                                |
-| `packages/market-data`   | One module per market data provider, and the candle cache                                                                                        |
-| `packages/news`          | One module per news source                                                                                                                       |
-| `packages/decisions`     | Decisions models, which answer typed questions with probabilities, one module per vendor                                                         |
-| `packages/agent`         | The trading agent on pi: runtime, tools, prompt, skills and the wire events the renderer folds into a conversation                               |
-| `packages/db`            | SQLite schemas, migrations and repositories                                                                                                      |
-| `packages/trading-chart` | Domain-free React bindings for Lightweight Charts v5                                                                                             |
-| `packages/utils`         | Cross-runtime, domain-neutral utilities                                                                                                          |
-| `packages/i18n`          | Translation catalogs, `en-US` as the source locale                                                                                               |
-| `apps/desktop`           | The Electron app                                                                                                                                 |
-| `tools/oxlint/anti-slop` | Vendored anti-slop Oxlint plugin; its source and local deviations are recorded in `UPSTREAM.md`                                                  |
+| Path                     | Role                                                                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/core`          | The trading domain: market rules, candles and indicators, the broker, market data, news, sentiment and web search contracts, risk checks and the `OrderDesk` |
+| `packages/brokers`       | One module per broker: the paper broker and Fubon                                                                                                            |
+| `packages/market-data`   | One module per market data provider, and the candle cache                                                                                                    |
+| `packages/news`          | One module per news source                                                                                                                                   |
+| `packages/web-search`    | One module per web search vendor, which news and the agent search and read the web through                                                                   |
+| `packages/decisions`     | Decisions models, which answer typed questions with probabilities, one module per vendor                                                                     |
+| `packages/agent`         | The trading agent on pi: runtime, tools, prompt, skills and the wire events the renderer folds into a conversation                                           |
+| `packages/db`            | SQLite schemas, migrations and repositories                                                                                                                  |
+| `packages/trading-chart` | Domain-free React bindings for Lightweight Charts v5                                                                                                         |
+| `packages/utils`         | Cross-runtime, domain-neutral utilities                                                                                                                      |
+| `packages/i18n`          | Translation catalogs, `en-US` as the source locale                                                                                                           |
+| `apps/desktop`           | The Electron app                                                                                                                                             |
+| `tools/oxlint/anti-slop` | Vendored anti-slop Oxlint plugin; its source and local deviations are recorded in `UPSTREAM.md`                                                              |
 
 ## Runtime boundaries
 

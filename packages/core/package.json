@@ -18,7 +18,8 @@
     "./rules/us": "./src/rules/us.ts",
     "./sectors": "./src/sectors.ts",
     "./sentiment": "./src/sentiment.ts",
-    "./session": "./src/session.ts"
+    "./session": "./src/session.ts",
+    "./web-search": "./src/web-search.ts"
   },
   "scripts": {
     "test": "vp test"
