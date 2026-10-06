@@ -519,10 +519,6 @@
       "cloudflare-api-key": {
         "label": "API token",
         "hint": "A Cloudflare API token with the Workers AI permission on the account below."
-      },
-      "firecrawl-api-key": {
-        "label": "Firecrawl API key",
-        "hint": "A key from your Firecrawl dashboard."
       }
     },
     "sign-in": {
@@ -612,11 +608,32 @@
         "high": "High"
       }
     },
+    "web-search": {
+      "title": "Web search",
+      "description": "Finds news articles and social posts for the news sources, and lets the agent search the web and read pages, on your own key. Requests go straight from this computer to the vendor.",
+      "providers-description": "Vendors",
+      "provider-states": {
+        "ready": "Ready",
+        "needs-key": "Needs an API key"
+      },
+      "provider-in-use": "In use",
+      "in-use-description": "In use: the vendor news and the agent search through",
+      "provider": "Vendor",
+      "providers": {
+        "firecrawl": "Firecrawl",
+        "exa": "Exa"
+      },
+      "key": "API key",
+      "key-hints": {
+        "firecrawl": "A key from your Firecrawl dashboard. Firecrawl searches Google.",
+        "exa": "A key from your Exa dashboard. Exa searches its own index."
+      }
+    },
     "news": {
       "title": "News",
-      "description": "The agent reads Taiwan companies' material announcements and PTT's Stock board on its own. With your Firecrawl key it also searches news articles and samples posts on Threads in Taiwan and X in the US; each search uses Firecrawl credits. Requests go straight from this computer to each source.",
+      "description": "The agent reads Taiwan companies' material announcements and PTT's Stock board on its own. Once web search is set up, it also searches news articles and samples posts on Threads in Taiwan and X in the US; each search uses the vendor's credits. Requests go straight from this computer to each source.",
       "collect-every": "Collect automatically",
-      "collect-every-description": "How often each watched listing's news is collected while Solyx runs. With a Firecrawl key, every collection uses credits; exchange announcements only reach back a day, so longer intervals miss some.",
+      "collect-every-description": "How often each watched listing's news is collected while Solyx runs. With web search set up, every collection uses the vendor's credits; exchange announcements only reach back a day, so longer intervals miss some.",
       "intervals": {
         "off": "Off",
         "daily": "Every day",

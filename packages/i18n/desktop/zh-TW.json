@@ -519,10 +519,6 @@
       "cloudflare-api-key": {
         "label": "API 權杖",
         "hint": "Cloudflare API 權杖，需具備下方帳號的 Workers AI 權限。"
-      },
-      "firecrawl-api-key": {
-        "label": "Firecrawl API 金鑰",
-        "hint": "在 Firecrawl 後台建立的金鑰。"
       }
     },
     "sign-in": {
@@ -612,11 +608,32 @@
         "high": "高"
       }
     },
+    "web-search": {
+      "title": "網路搜尋",
+      "description": "用你自己的金鑰為新聞來源搜尋新聞與社群貼文，也讓 Agent 能上網搜尋、讀取網頁。請求直接從這台電腦送到供應商。",
+      "providers-description": "供應商",
+      "provider-states": {
+        "ready": "可以使用",
+        "needs-key": "需要 API 金鑰"
+      },
+      "provider-in-use": "使用中",
+      "in-use-description": "使用中：新聞與 Agent 透過這個供應商搜尋",
+      "provider": "供應商",
+      "providers": {
+        "firecrawl": "Firecrawl",
+        "exa": "Exa"
+      },
+      "key": "API 金鑰",
+      "key-hints": {
+        "firecrawl": "在 Firecrawl 後台建立的金鑰。Firecrawl 搜尋的是 Google。",
+        "exa": "在 Exa 後台建立的金鑰。Exa 搜尋的是它自己的索引。"
+      }
+    },
     "news": {
       "title": "新聞",
-      "description": "Agent 會自行讀取台股公司的重大訊息和 PTT 股票板。填入 Firecrawl 金鑰後，還會搜尋新聞，並取樣台股的 Threads 與美股的 X 貼文；每次搜尋都會用掉 Firecrawl 額度。請求直接從這台電腦送到各個來源。",
+      "description": "Agent 會自行讀取台股公司的重大訊息和 PTT 股票板。設定好網路搜尋後，還會搜尋新聞，並取樣台股的 Threads 與美股的 X 貼文；每次搜尋都會用掉供應商的額度。請求直接從這台電腦送到各個來源。",
       "collect-every": "自動收集",
-      "collect-every-description": "Solyx 開著時，每檔自選股多久收集一次新聞。有 Firecrawl 金鑰時每次收集都會用掉額度；重大訊息只提供前一天的資料，間隔越長漏掉越多。",
+      "collect-every-description": "Solyx 開著時，每檔自選股多久收集一次新聞。設定好網路搜尋後，每次收集都會用掉供應商的額度；重大訊息只提供前一天的資料，間隔越長漏掉越多。",
       "intervals": {
         "off": "關閉",
         "daily": "每天",

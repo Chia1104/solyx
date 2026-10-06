@@ -9,13 +9,18 @@ import type { SkillFolders } from "@solyx/agent/skills";
 import type { Cache } from "@solyx/db/cache";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 
-import { AppLocation, mcpSecretKey } from "#shared/ipc/settings.ts";
+import {
+  AppLocation,
+  mcpSecretKey,
+  webSearchKeySecret,
+} from "#shared/ipc/settings.ts";
 import type { AppInfo, FubonFile, SettingsApi } from "#shared/ipc/settings.ts";
 
 import type { AgentService } from "../agent/agent-service.ts";
 import type { McpServers } from "../agent/mcp-servers.ts";
 import type { Decisions } from "../decisions/decisions.ts";
 import type { MarketDataModule } from "../market/market-data.ts";
+import type { WebSearchModule } from "../web-search/web-search.ts";
 
 import type { AppearanceSettings } from "./appearance.ts";
 import type { ConfigFile } from "./config-file.ts";
@@ -51,6 +56,7 @@ export interface SettingsApiOptions {
     | "create"
   >;
   decisions: Pick<Decisions, "settings">;
+  webSearch: Pick<WebSearchModule, "settings">;
   cache: Pick<Cache, "usage" | "clear">;
   /** Paths are shown with it as `~`. */
   home: string;
@@ -77,6 +83,7 @@ export function createSettingsApi({
   agent,
   mcp,
   decisions,
+  webSearch,
   cache,
   home,
   locations,
@@ -176,6 +183,18 @@ export function createSettingsApi({
     async setNewsCollectEveryHours(hours) {
       config.set(["news", "collectEveryHours"], hours);
     },
+
+    webSearch: () => webSearch.settings(),
+
+    async setWebSearchProvider(provider) {
+      config.set(["webSearch", "provider"], provider);
+    },
+
+    saveWebSearchKey: (provider, value) =>
+      secrets.save(webSearchKeySecret(provider), value),
+
+    deleteWebSearchKey: (provider) =>
+      secrets.delete(webSearchKeySecret(provider)),
 
     decisions: async () => decisions.settings(),
 

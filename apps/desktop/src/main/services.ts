@@ -34,6 +34,7 @@ import { createConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
+import { createWebSearch } from "./modules/web-search/web-search.ts";
 import { paintWindow } from "./shell/main-window.ts";
 
 const PAPER_CASH = { [Currency.TWD]: 1_000_000, [Currency.USD]: 30_000 };
@@ -120,8 +121,10 @@ export function createServices() {
 
   const decisions = createDecisions({ config, secrets });
 
+  const webSearch = createWebSearch({ config, secrets });
+
   const news = createNews({
-    sources: createNewsSources(secrets),
+    sources: createNewsSources(() => webSearch.vendor()),
     store: openNews(
       join(userDataDir, "news.sqlite"),
       join(import.meta.dirname, "migrations", "news")
@@ -208,6 +211,7 @@ export function createServices() {
     agent,
     mcp,
     decisions,
+    webSearch,
     news,
     newsCollector,
   };

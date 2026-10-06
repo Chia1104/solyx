@@ -15,6 +15,7 @@ import {
   TYPESAFE_DEFAULT_MODEL,
 } from "@solyx/decisions/typesafe";
 import { FuglePlan } from "@solyx/market-data/fugle";
+import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import {
   MarketDataSource,
@@ -64,6 +65,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       mcpTools: {},
     },
     news: { collectEveryHours: NEWS_COLLECTION_DEFAULT_HOURS },
+    webSearch: { provider: WebSearchProvider.Firecrawl },
     decisions: {
       provider: DecisionsProvider.TypeSafe,
       typesafe: {},

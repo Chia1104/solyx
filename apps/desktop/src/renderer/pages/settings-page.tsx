@@ -20,6 +20,7 @@ import { PriceColorsSelect } from "../modules/settings/price-colors-select.tsx";
 import { SettingsSection } from "../modules/settings/settings-section.ts";
 import { SettingsTabs } from "../modules/settings/settings-tabs.tsx";
 import { ThemeSelect } from "../modules/settings/theme-select.tsx";
+import { WebSearchSettings } from "../modules/settings/web-search-settings.tsx";
 
 const route = getRouteApi("/settings");
 
@@ -44,6 +45,7 @@ export function SettingsPage() {
     [SettingsSection.Agent]: (
       <>
         <AgentSettings />
+        <WebSearchSettings />
         <NewsSettings />
         <DecisionsSettings />
       </>

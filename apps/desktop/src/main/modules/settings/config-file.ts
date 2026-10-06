@@ -29,6 +29,10 @@ import {
 import { FuglePlan, fuglePlanSchema } from "@solyx/market-data/fugle";
 import { isErrnoError } from "@solyx/utils/error";
 import { watchFile } from "@solyx/utils/server";
+import {
+  WebSearchProvider,
+  webSearchProviderSchema,
+} from "@solyx/web-search/provider";
 
 import {
   MarketDataSource,
@@ -186,7 +190,17 @@ const configSchema = section(
           .catch(NEWS_COLLECTION_DEFAULT_HOURS)
           .meta({
             description:
-              "How often news is collected for each watched listing, in hours; 0 turns automatic collection off. Each collection uses Firecrawl credits once its key is saved, and exchange announcements only reach back a day.",
+              "How often news is collected for each watched listing, in hours; 0 turns automatic collection off. Each collection spends the web search vendor's credits once its key is saved, and exchange announcements only reach back a day.",
+          }),
+      })
+    ),
+    webSearch: section(
+      z.looseObject({
+        provider: webSearchProviderSchema
+          .catch(WebSearchProvider.Firecrawl)
+          .meta({
+            description:
+              "Whose web search finds news articles and social posts and serves the agent's web searches and page reads, on the key saved in the app for it: Firecrawl, which searches Google, or Exa's own index.",
           }),
       })
     ),
@@ -267,6 +281,7 @@ type ConfigPath =
   | ["agent", "endpoints", AgentProvider]
   | ["agent", "mcpTools", string]
   | ["news", "collectEveryHours"]
+  | ["webSearch", "provider"]
   | ["decisions", "provider"]
   | ["decisions", DecisionsProvider, "model" | "baseURL"]
   | ["decisions", typeof DecisionsProvider.Cloudflare, "accountId"];

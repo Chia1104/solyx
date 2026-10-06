@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { uniq } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
-import { NEWS_COLLECTION_PRESETS, Secret } from "#shared/ipc/settings.ts";
+import { NEWS_COLLECTION_PRESETS } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
@@ -11,41 +11,33 @@ import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 
-import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import { newsSettingsQuery, secretsQuery } from "./settings-query.ts";
+import { newsSettingsQuery } from "./settings-query.ts";
 
-/** The news sources' key and how often news is collected without the agent asking. */
+/** How often news is collected without the agent asking. */
 export function NewsSettings() {
   const { t } = useTranslation();
   const settings = useQuery(newsSettingsQuery());
-  const secrets = useQuery(secretsQuery());
 
   const save = useMutation({
     mutationFn: (hours: number) =>
       window.solyx.settings.setNewsCollectEveryHours(hours),
   });
 
-  const error = settings.error ?? secrets.error;
-
-  if (error) {
+  if (settings.error) {
     return (
       <RailedColumn className="px-6 py-5">
         <LoadError
-          error={error}
-          onRetry={() => {
-            void settings.refetch();
-            void secrets.refetch();
-          }}
+          error={settings.error}
+          onRetry={() => void settings.refetch()}
         />
       </RailedColumn>
     );
   }
 
-  if (!settings.data || !secrets.data) return <LoadingState />;
+  if (!settings.data) return <LoadingState />;
 
   const { collectEveryHours } = settings.data;
-  const { available, states } = secrets.data;
   const intervalLabel = t("settings.news.collect-every");
 
   const intervalName = (hours: number) => {
@@ -69,13 +61,7 @@ export function NewsSettings() {
       title={t("settings.news.title")}
       description={t("settings.news.description")}>
       <div className="flex flex-col gap-3">
-        {available ? null : <SecretsUnavailable />}
         <SettingsList>
-          <AppSecretRow
-            secret={Secret.FirecrawlApiKey}
-            state={states[Secret.FirecrawlApiKey]}
-            available={available}
-          />
           <SettingsRow
             label={intervalLabel}
             description={t("settings.news.collect-every-description")}

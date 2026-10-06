@@ -16,6 +16,7 @@ import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { DecisionsProvider } from "@solyx/decisions/provider";
 import type { FuglePlan } from "@solyx/market-data/fugle";
+import type { WebSearchProvider } from "@solyx/web-search/provider";
 
 import type { ColorScheme, CustomPalette, PaletteToken } from "../palette.ts";
 
@@ -30,7 +31,6 @@ export const Secret = {
   DecisionsApiKey: "decisions-api-key",
   /** A Cloudflare API token that may run Workers AI. */
   CloudflareApiKey: "cloudflare-api-key",
-  FirecrawlApiKey: "firecrawl-api-key",
   /** The ChatGPT sign-in's OAuth tokens; the main process saves and refreshes them, nobody types them. */
   OpenAIChatGPT: "openai-chatgpt",
 } as const;
@@ -63,8 +63,25 @@ export function agentKeySecret(provider: AgentProvider): AgentKeySecret {
   return `${provider}-api-key`;
 }
 
+/**
+ * The API key a web search vendor runs on, saved under the vendor's id, so a vendor that also
+ * serves models keeps one key for both.
+ */
+export type WebSearchKeySecret = `${WebSearchProvider}-api-key`;
+
+export function webSearchKeySecret(
+  provider: WebSearchProvider
+): WebSearchKeySecret {
+  return `${provider}-api-key`;
+}
+
 /** Every key the secret store saves under. */
-export type SecretKey = Secret | AgentKeySecret | McpSecretKey | McpSignInKey;
+export type SecretKey =
+  | Secret
+  | AgentKeySecret
+  | WebSearchKeySecret
+  | McpSecretKey
+  | McpSignInKey;
 
 /** The secret a provider's subscription sign-in is kept under; `undefined` for a provider without one. */
 export function agentSignInSecret(provider: AgentProvider): Secret | undefined {
@@ -254,7 +271,7 @@ export const newsIntervalSchema = z
   .min(0)
   .max(24 * 30);
 
-/** Every three days, so Firecrawl's free credits cover a watchlist of about ten listings. */
+/** Every three days, so a web search vendor's free tier covers a watchlist of about ten listings. */
 export const NEWS_COLLECTION_DEFAULT_HOURS = 72;
 
 /** The intervals the settings page offers, in hours; the config file takes any. */
@@ -264,6 +281,12 @@ export const NEWS_COLLECTION_PRESETS: readonly number[] = [
 
 export interface NewsSettings {
   collectEveryHours: number;
+}
+
+/** The web search vendor news and the agent search and read through, and each vendor's key. */
+export interface WebSearchSettings {
+  provider: WebSearchProvider;
+  keys: Record<WebSearchProvider, SecretState>;
 }
 
 /** The secret each decisions provider's key is kept under. */
@@ -433,6 +456,11 @@ export interface SettingsApi {
   signOutSubscription(provider: AgentProvider): Promise<void>;
   news(): Promise<NewsSettings>;
   setNewsCollectEveryHours(hours: number): Promise<void>;
+  webSearch(): Promise<WebSearchSettings>;
+  /** Picks the vendor news and the agent search through. */
+  setWebSearchProvider(provider: WebSearchProvider): Promise<void>;
+  saveWebSearchKey(provider: WebSearchProvider, value: string): Promise<void>;
+  deleteWebSearchKey(provider: WebSearchProvider): Promise<void>;
   decisions(): Promise<DecisionsSettings>;
   /** Picks the provider whose model scores texts. */
   setDecisionsProvider(provider: DecisionsProvider): Promise<void>;
@@ -518,6 +546,10 @@ export const settingsChannels = {
   signOutSubscription: "settings:sign-out-subscription",
   news: "settings:news",
   setNewsCollectEveryHours: "settings:set-news-collect-every-hours",
+  webSearch: "settings:web-search",
+  setWebSearchProvider: "settings:set-web-search-provider",
+  saveWebSearchKey: "settings:save-web-search-key",
+  deleteWebSearchKey: "settings:delete-web-search-key",
   decisions: "settings:decisions",
   setDecisionsProvider: "settings:set-decisions-provider",
   setDecisionsModel: "settings:set-decisions-model",

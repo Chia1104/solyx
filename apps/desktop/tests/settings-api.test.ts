@@ -12,11 +12,14 @@ import {
 } from "@solyx/agent/mcp-config";
 import { DEFAULT_MODEL } from "@solyx/agent/models";
 import type { AgentProvider } from "@solyx/agent/providers";
+import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import {
   AppLocation,
+  SecretState,
   agentKeySecret,
   mcpSecretKey,
+  webSearchKeySecret,
 } from "#shared/ipc/settings.ts";
 
 import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
@@ -25,6 +28,7 @@ import { createAppearance } from "../src/main/modules/settings/appearance.ts";
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
 import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
 import { createSettingsApi } from "../src/main/modules/settings/settings-api.ts";
+import { createWebSearch } from "../src/main/modules/web-search/web-search.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 
@@ -103,6 +107,7 @@ function setup() {
     },
     mcp,
     decisions: { settings: vi.fn() },
+    webSearch: createWebSearch({ config, secrets }),
     cache: { usage: vi.fn(), clear: vi.fn() },
     home,
     locations: {
@@ -118,6 +123,36 @@ function setup() {
 
   return { api, config, secrets, mcp, shell };
 }
+
+test("a web search vendor's key is saved under its id, and the vendor in use is a setting", async () => {
+  const { api, config, secrets } = setup();
+
+  expect(await api.webSearch()).toEqual({
+    provider: WebSearchProvider.Firecrawl,
+    keys: {
+      [WebSearchProvider.Firecrawl]: SecretState.Missing,
+      [WebSearchProvider.Exa]: SecretState.Missing,
+    },
+  });
+
+  await api.saveWebSearchKey(WebSearchProvider.Exa, "exa-key");
+  await api.setWebSearchProvider(WebSearchProvider.Exa);
+
+  expect(await secrets.get(webSearchKeySecret(WebSearchProvider.Exa))).toBe(
+    "exa-key"
+  );
+  expect(config.read().webSearch.provider).toBe(WebSearchProvider.Exa);
+  expect(await api.webSearch()).toMatchObject({
+    provider: WebSearchProvider.Exa,
+    keys: { [WebSearchProvider.Exa]: SecretState.Saved },
+  });
+
+  await api.deleteWebSearchKey(WebSearchProvider.Exa);
+
+  expect(
+    await secrets.get(webSearchKeySecret(WebSearchProvider.Exa))
+  ).toBeUndefined();
+});
 
 test("switching the agent's provider starts from its default model, in one save", async () => {
   const { api, config } = setup();

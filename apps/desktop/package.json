@@ -32,6 +32,7 @@
     "@solyx/news": "workspace:*",
     "@solyx/trading-chart": "workspace:*",
     "@solyx/utils": "workspace:*",
+    "@solyx/web-search": "workspace:*",
     "@streamdown/cjk": "catalog:markdown",
     "@tailwindcss/vite": "catalog:tailwindcss",
     "@tanstack/react-hotkeys": "catalog:tanstack",

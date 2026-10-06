@@ -14,6 +14,7 @@ import {
 import { Market } from "@solyx/core/market";
 import { decisionsProviderSchema } from "@solyx/decisions/provider";
 import { fuglePlanSchema } from "@solyx/market-data/fugle";
+import { webSearchProviderSchema } from "@solyx/web-search/provider";
 
 import {
   FubonFile,
@@ -91,6 +92,13 @@ const schemas = {
   signOutSubscription: z.tuple([agentProviderSchema]),
   news: z.tuple([]),
   setNewsCollectEveryHours: z.tuple([newsIntervalSchema]),
+  webSearch: z.tuple([]),
+  setWebSearchProvider: z.tuple([webSearchProviderSchema]),
+  saveWebSearchKey: z.tuple([
+    webSearchProviderSchema,
+    z.string().trim().min(1).max(1024),
+  ]),
+  deleteWebSearchKey: z.tuple([webSearchProviderSchema]),
   decisions: z.tuple([]),
   setDecisionsProvider: z.tuple([decisionsProviderSchema]),
   setDecisionsModel: z.tuple([

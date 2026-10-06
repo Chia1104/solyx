@@ -5,8 +5,8 @@
   "type": "module",
   "exports": {
     "./announcements": "./src/announcements.ts",
-    "./firecrawl": "./src/firecrawl.ts",
-    "./ptt": "./src/ptt.ts"
+    "./ptt": "./src/ptt.ts",
+    "./web": "./src/web.ts"
   },
   "scripts": {
     "test": "vp test"
@@ -14,7 +14,6 @@
   "dependencies": {
     "@solyx/core": "workspace:*",
     "es-toolkit": "catalog:",
-    "firecrawl": "catalog:news",
     "ky": "catalog:",
     "zod": "catalog:"
   },
