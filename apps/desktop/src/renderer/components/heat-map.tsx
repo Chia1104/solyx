@@ -4,10 +4,21 @@ import type { CSSProperties, RefObject } from "react";
 import { cn } from "@heroui/react";
 import { Link } from "@tanstack/react-router";
 import { hierarchy, treemap, treemapSquarify } from "d3-hierarchy";
+import { debounce } from "es-toolkit";
 
 import type { SymbolRef } from "@solyx/core/market";
 
 const GROUP_LABEL_HEIGHT = 20;
+
+/** A resize counts as over once the width has held this long. */
+const RESIZE_SETTLE_MS = 150;
+
+/**
+ * Tiles move and recolour as a refresh changes them, but follow a resize at once. Reduced motion
+ * keeps the recolouring and drops the movement.
+ */
+const SETTLING =
+  "transition-[left,top,width,height,background-color,color] duration-500 ease-in-out-quart motion-reduce:transition-[background-color,color]";
 
 export interface HeatMapTile {
   id: string;
@@ -37,24 +48,34 @@ interface Datum {
   children?: Datum[];
 }
 
+/** The element's width, and whether it is still changing; the first measure counts as a change. */
 function useWidth(ref: RefObject<HTMLElement | null>) {
-  const [width, setWidth] = useState(0);
+  const [size, setSize] = useState({ width: 0, resizing: true });
 
   useLayoutEffect(() => {
     const element = ref.current;
 
     if (!element) return;
 
-    const observer = new ResizeObserver(([entry]) =>
-      setWidth(entry.contentRect.width)
+    const settle = debounce(
+      () => setSize((current) => ({ ...current, resizing: false })),
+      RESIZE_SETTLE_MS
     );
+
+    const observer = new ResizeObserver(([entry]) => {
+      setSize({ width: entry.contentRect.width, resizing: true });
+      settle();
+    });
 
     observer.observe(element);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      settle.cancel();
+    };
   }, [ref]);
 
-  return width;
+  return size;
 }
 
 function Tile({
@@ -62,11 +83,13 @@ function Tile({
   width,
   height,
   style,
+  settling,
 }: {
   tile: HeatMapTile;
   width: number;
   height: number;
   style: CSSProperties;
+  settling: boolean;
 }) {
   // The direction's colour over the surface, from a quarter at no strength to all of it.
   const depth = Math.round(25 + 75 * tile.strength);
@@ -77,12 +100,13 @@ function Tile({
 
   const className = cn(
     "absolute flex overflow-hidden px-1.5 py-1 text-xs leading-tight tabular-nums",
-    tile.color && depth >= 65 ? "text-white" : "text-foreground"
+    tile.color && depth >= 65 ? "text-white" : "text-foreground",
+    settling && SETTLING
   );
 
   const tileStyle: CSSProperties = {
     ...style,
-    background: tile.color
+    backgroundColor: tile.color
       ? `color-mix(in oklab, ${tile.color} ${depth}%, var(--surface))`
       : "var(--default)",
   };
@@ -134,7 +158,7 @@ export function HeatMap({
   height?: number;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const width = useWidth(container);
+  const { width, resizing } = useWidth(container);
 
   const root = treemap<Datum>()
     .tile(treemapSquarify)
@@ -165,7 +189,7 @@ export function HeatMap({
               <section
                 key={group.id}
                 aria-label={group.label}
-                className="absolute"
+                className={cn("absolute", !resizing && SETTLING)}
                 style={{
                   left: groupNode.x0,
                   top: groupNode.y0,
@@ -186,6 +210,7 @@ export function HeatMap({
                     <Tile
                       key={tile.id}
                       tile={tile}
+                      settling={!resizing}
                       width={leaf.x1 - leaf.x0}
                       height={leaf.y1 - leaf.y0}
                       style={{

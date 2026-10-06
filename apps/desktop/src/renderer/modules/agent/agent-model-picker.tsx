@@ -137,7 +137,10 @@ export function AgentModelPicker({
         ) : null}
         <Icon
           icon={ArrowDown01Icon}
-          className={cn("size-3.5 transition-transform", open && "rotate-180")}
+          className={cn(
+            "size-3.5 transition-transform ease-out-quint motion-reduce:transition-none",
+            open && "rotate-180"
+          )}
         />
       </Button>
       <Popover.Content

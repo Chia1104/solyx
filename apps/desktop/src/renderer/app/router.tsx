@@ -109,6 +109,9 @@ const settingsRoute = createRoute({
 });
 
 /** Builds load from file://, so routes live in the hash to survive reloads and open in new windows. */
+/** A path's first segment names its kind of page: the overview, a listing, settings or onboarding. */
+const pageOf = (pathname: string) => pathname.split("/")[1];
+
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     overviewRoute,
@@ -119,6 +122,15 @@ export const router = createRouter({
   history: createHashHistory(),
   defaultErrorComponent: ErrorFallback,
   defaultNotFoundComponent: NotFound,
+  // Moving to another kind of page crossfades the main view. Flipping between listings, the most
+  // frequent move and often by keyboard, and a new interval or settings section update in place.
+  defaultViewTransition: {
+    types: ({ fromLocation, toLocation }) =>
+      fromLocation &&
+      pageOf(fromLocation.pathname) === pageOf(toLocation.pathname)
+        ? false
+        : ["page"],
+  },
 });
 
 declare module "@tanstack/react-router" {

@@ -21,7 +21,7 @@ export function MenuButton({
       {children}
       <Icon
         icon={ArrowDown01Icon}
-        className="size-3.5 text-muted transition-transform group-aria-expanded:rotate-180 motion-reduce:transition-none"
+        className="size-3.5 text-muted transition-transform ease-out-quint group-aria-expanded:rotate-180 motion-reduce:transition-none"
       />
     </Button>
   );

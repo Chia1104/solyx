@@ -86,6 +86,46 @@ html:not([data-palette]) body {
   }
 }
 
+/*
+ * Moving to another kind of page crossfades the main view and settles the new page into place;
+ * the title bar and side panes around it stay still. Reduced motion keeps the fade, not the move.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+::view-transition-old(main) {
+  animation: fade-out 120ms var(--ease-out-quint) both;
+}
+
+::view-transition-new(main) {
+  animation: page-in 180ms var(--ease-out-quint) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-name: fade-in;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
 html[data-pane-resizing] {
   user-select: none;
 }
@@ -152,6 +192,30 @@ html[data-pane-resizing="horizontal"] {
   .radio__control,
   .radio__indicator:empty::before {
     @apply rounded-full;
+  }
+
+  /* Overlays arrive and leave on a strong ease-out instead of HeroUI's plain ease. */
+  :is(
+    .popover,
+    .dropdown__popover,
+    .select__popover,
+    .combo-box__popover,
+    .tooltip
+  ):is([data-entering="true"], [data-exiting="true"]) {
+    --tw-ease: var(--ease-out-quint);
+  }
+
+  /* A press springs back as fast as it went in; HeroUI's quarter second drags on controls pressed all day. */
+  .button,
+  .toggle-button {
+    transition:
+      transform 160ms var(--ease-out-quint),
+      background-color 100ms var(--ease-out),
+      box-shadow 100ms var(--ease-out);
+
+    @variant motion-reduce {
+      transition: none;
+    }
   }
 }
 

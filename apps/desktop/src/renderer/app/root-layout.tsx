@@ -134,7 +134,7 @@ function Workspace() {
       <BrokerModeRule />
       <div
         ref={workspace}
-        className="grid min-h-0 flex-1 transition-[grid-template-columns] duration-200 ease-out motion-reduce:transition-none [html[data-pane-resizing]_&]:transition-none"
+        className="grid min-h-0 flex-1 transition-[grid-template-columns] duration-200 ease-out-quint motion-reduce:transition-none [html[data-pane-at-once]_&]:transition-none [html[data-pane-resizing]_&]:transition-none"
         style={{
           ...widths,
           gridTemplateColumns: `${column(Pane.Symbols)} minmax(0, 1fr) ${column(Pane.Agent)}`,
@@ -142,7 +142,7 @@ function Workspace() {
         <SidePane pane={Pane.Symbols} workspace={workspace}>
           <SymbolsPane />
         </SidePane>
-        <main className="@container/main min-w-0 overflow-y-auto">
+        <main className="@container/main min-w-0 overflow-y-auto [view-transition-name:main]">
           <Outlet />
         </main>
         <SidePane pane={Pane.Agent} workspace={workspace}>

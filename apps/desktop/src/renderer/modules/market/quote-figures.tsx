@@ -1,8 +1,11 @@
+import { useEffect, useRef } from "react";
+
 import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
 import type { SessionQuote } from "@solyx/core/quote";
 
+import { highlight } from "../../components/highlight.ts";
 import { Sparkline } from "../../components/sparkline.tsx";
 
 import { numberFormats } from "./number-formats.ts";
@@ -59,11 +62,36 @@ export function QuoteLine({
 }
 
 /** The newest session's last price. */
+/** The newest session's last price, which flashes in its direction's colour when a refresh moves it. */
 export function QuotePrice({ symbol }: { symbol: SymbolRef }) {
   const { i18n } = useTranslation();
   const { data } = useQuote(symbol);
+  const direction = useDirectionColors(symbol.market);
+  const element = useRef<HTMLSpanElement>(null);
+  const seen = useRef<number | undefined>(undefined);
 
-  return data ? numberFormats(i18n.language).price.format(data.last) : null;
+  const last = data?.last;
+
+  useEffect(() => {
+    const before = seen.current;
+
+    seen.current = last;
+
+    if (last === undefined || before === undefined || last === before) return;
+
+    highlight(
+      element.current,
+      (last > before ? direction.rise : direction.fall).solid
+    );
+  }, [last, direction]);
+
+  if (last === undefined) return null;
+
+  return (
+    <span ref={element} className="-mx-1 rounded-sm px-1">
+      {numberFormats(i18n.language).price.format(last)}
+    </span>
+  );
 }
 
 /** The change since the close before, in percent and in the colour of its direction. */
