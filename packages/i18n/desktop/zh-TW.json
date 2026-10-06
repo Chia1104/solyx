@@ -318,16 +318,22 @@
     "steps": {
       "welcome": "歡迎",
       "market-data": "行情",
+      "agent": "AI Agent",
+      "web-search": "網路搜尋",
+      "decisions": "決策模型",
       "done": "完成"
     },
     "welcome": {
       "title": "歡迎使用 Solyx",
-      "description": "Agent 分析行情並提出交易提案，每一筆下單都要等你確認。行情與模型都用你自己的金鑰，資料直接從供應商送到這台電腦。"
+      "description": "Agent 分析行情並提出交易提案，每一筆下單都要等你確認。行情、模型與網路搜尋都用你自己的金鑰，資料直接從各供應商送到這台電腦。"
     },
     "done": {
       "title": "準備好了",
       "description": "這些都可以隨時在設定頁調整。",
       "market-data": "台股行情",
+      "agent": "AI Agent",
+      "web-search": "網路搜尋",
+      "decisions": "決策模型",
       "ready": "已就緒",
       "incomplete": "尚未完成",
       "trading": "交易模式",

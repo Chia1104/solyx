@@ -5,7 +5,13 @@ import { queryOptions, useQueryClient } from "@tanstack/react-query";
 import { McpServerState } from "@solyx/agent/mcp-config";
 import { Market } from "@solyx/core/market";
 
-import type { MarketDataStatus } from "#shared/ipc/settings.ts";
+import { DECISIONS_SECRETS, SecretState } from "#shared/ipc/settings.ts";
+import type {
+  DecisionsSettings,
+  MarketDataStatus,
+  SecretsStatus,
+  WebSearchSettings,
+} from "#shared/ipc/settings.ts";
 
 const all = ["settings"] as const;
 
@@ -43,6 +49,30 @@ export const marketDataQuery = () =>
 /** Whether Taiwan market data has everything its source connects with saved. */
 export function isMarketDataReady(status: MarketDataStatus | undefined) {
   return status?.markets[Market.TW]?.ready === true;
+}
+
+/** Whether the vendor in use has its key saved, so news and the agent can search the web. */
+export function isWebSearchReady(settings: WebSearchSettings | undefined) {
+  return (
+    settings !== undefined &&
+    settings.keys[settings.provider] === SecretState.Saved
+  );
+}
+
+/** Whether the provider in use has its key saved, and Cloudflare its account, so its model can score. */
+export function isDecisionsReady(
+  settings: DecisionsSettings | undefined,
+  secrets: SecretsStatus | undefined
+) {
+  const current = settings?.providers.find(
+    (each) => each.provider === settings.provider
+  );
+
+  return (
+    current !== undefined &&
+    current.accountId !== null &&
+    secrets?.states[DECISIONS_SECRETS[current.provider]] === SecretState.Saved
+  );
 }
 
 /** Never stale, since the main process pushes every change, hand edits to the config file included. */

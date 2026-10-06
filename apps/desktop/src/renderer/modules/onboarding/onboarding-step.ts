@@ -4,6 +4,9 @@ import * as z from "zod";
 export const OnboardingStep = {
   Welcome: "welcome",
   MarketData: "market-data",
+  Agent: "agent",
+  WebSearch: "web-search",
+  Decisions: "decisions",
   Done: "done",
 } as const;
 

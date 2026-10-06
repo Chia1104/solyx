@@ -318,16 +318,22 @@
     "steps": {
       "welcome": "Welcome",
       "market-data": "Market data",
+      "agent": "AI agent",
+      "web-search": "Web search",
+      "decisions": "Decisions model",
       "done": "Done"
     },
     "welcome": {
       "title": "Welcome to Solyx",
-      "description": "An agent analyzes the market and proposes trades, and every order waits for you to confirm it. Market data and models use your own keys, and data comes straight from the provider to this computer."
+      "description": "An agent analyzes the market and proposes trades, and every order waits for you to confirm it. Market data, models and web search use your own keys, and data comes straight from each provider to this computer."
     },
     "done": {
       "title": "You're set",
       "description": "You can change any of this in Settings.",
       "market-data": "Taiwan market data",
+      "agent": "AI agent",
+      "web-search": "Web search",
+      "decisions": "Decisions model",
       "ready": "Ready",
       "incomplete": "Not set up yet",
       "trading": "Trading",
