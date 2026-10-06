@@ -6,6 +6,7 @@ import type {
   MarketDataProvider,
   MarketDataStream,
 } from "@solyx/core/market-data";
+import { SectorGroup, TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 
 import type { LiveSender } from "../src/main/modules/market/live-candles.ts";
 import type { MarketDataSources } from "../src/main/modules/market/market-data-sources.ts";
@@ -52,6 +53,7 @@ function setup() {
     markets: [Market.TW],
     getCandles: vi.fn(async () => []),
     getListing: vi.fn(async () => ({ name: "台積電", englishName: "TSMC" })),
+    getQuote: vi.fn(async () => null),
   };
 
   const streams = [fakeStream()];
@@ -103,6 +105,70 @@ test("bars reach back the interval's lookback, from the market's source", async 
   expect(await marketData.listing(TSMC)).toEqual({
     name: "台積電",
     englishName: "TSMC",
+  });
+});
+
+test("a quote reads the five-minute bars a chart of that interval reads", async () => {
+  const { marketData, provider } = setup();
+
+  vi.mocked(provider.getCandles).mockResolvedValue([
+    {
+      time: taipei("2026-09-26") + 13 * 3600,
+      open: 1,
+      high: 1,
+      low: 1,
+      close: 1070,
+      volume: 1,
+    },
+    {
+      time: taipei("2026-09-29") + 9 * 3600,
+      open: 1,
+      high: 1,
+      low: 1,
+      close: 1085,
+      volume: 1,
+    },
+  ]);
+
+  const quote = await marketData.quote(TSMC);
+
+  expect(provider.getCandles).toHaveBeenCalledWith({
+    symbol: TSMC,
+    interval: Interval.FiveMinutes,
+    ...lookbackRange(Market.TW, Interval.FiveMinutes, NOW),
+  });
+  expect(quote).toMatchObject({
+    date: "2026-09-29",
+    last: 1085,
+    previousClose: 1070,
+  });
+  expect(await marketData.quote({ market: Market.US, symbol: "AAPL" })).toBe(
+    null
+  );
+});
+
+test("sectors quote each sector index once", async () => {
+  const { marketData, provider } = setup();
+
+  vi.mocked(provider.getQuote).mockImplementation(async ({ symbol }) =>
+    symbol === "IX0028"
+      ? { date: "2026-09-29", last: 1212, reference: 1200, tradeValue: 9e10 }
+      : null
+  );
+
+  const sectors = await marketData.sectors();
+
+  expect(provider.getQuote).toHaveBeenCalledTimes(TW_SECTOR_INDICES.length);
+  expect(sectors?.find((each) => each.symbol === "IX0028")).toEqual({
+    sector: TwSector.Semiconductors,
+    group: SectorGroup.Electronics,
+    symbol: "IX0028",
+    quote: {
+      date: "2026-09-29",
+      last: 1212,
+      reference: 1200,
+      tradeValue: 9e10,
+    },
   });
 });
 

@@ -1,5 +1,5 @@
 import { cn } from "@heroui/react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
@@ -22,16 +22,27 @@ export function listingName(
 }
 
 /**
- * A listing's name in the app's language. It is asked for only once its market's source has its
- * settings, since a miss is kept for the rest of the session.
+ * Listings' names in the app's language, in their order. Each is asked for only once its
+ * market's source has its settings, since a miss is kept for the rest of the session.
  */
-export function useListingName(symbol: SymbolRef): string | undefined {
+export function useListingNames(
+  symbols: readonly SymbolRef[]
+): (string | undefined)[] {
   const { i18n } = useTranslation();
   const settings = useQuery(marketDataQuery());
-  const ready = settings.data?.markets[symbol.market]?.ready === true;
-  const listing = useQuery({ ...listingQuery(symbol), enabled: ready });
 
-  return listingName(listing.data, i18n.language);
+  const listings = useQueries({
+    queries: symbols.map((symbol) => ({
+      ...listingQuery(symbol),
+      enabled: settings.data?.markets[symbol.market]?.ready === true,
+    })),
+  });
+
+  return listings.map((listing) => listingName(listing.data, i18n.language));
+}
+
+export function useListingName(symbol: SymbolRef): string | undefined {
+  return useListingNames([symbol])[0];
 }
 
 /** A listing's name beside its code, truncated before the code is; nothing until it is known. */

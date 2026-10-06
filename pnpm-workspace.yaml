@@ -24,6 +24,8 @@ catalogs:
     "@earendil-works/pi-mcp": 1.0.0
     yaml: 2.9.0
   charts:
+    "@types/d3-hierarchy": 3.1.7
+    d3-hierarchy: 3.1.2
     lightweight-charts: 5.2.1
   chiastack:
     "@chiastack/oxlint": ^1.1.0

@@ -101,6 +101,8 @@ export function withCandleCache(
 
     getListing: (symbol) => provider.getListing(symbol),
 
+    getQuote: (symbol) => provider.getQuote(symbol),
+
     getCandles,
   };
 }

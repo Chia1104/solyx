@@ -17,6 +17,11 @@ export const numberFormats = memoize((locale: string) => ({
     notation: "compact",
     maximumFractionDigits: 2,
   }),
+  /** A signed sum of money, such as a holding's gain. */
+  signedAmount: new Intl.NumberFormat(locale, {
+    signDisplay: "exceptZero",
+    maximumFractionDigits: 2,
+  }),
   /** A quote's figures keep at least two decimals. */
   quotePrice: new Intl.NumberFormat(locale, {
     minimumFractionDigits: 2,

@@ -13,6 +13,7 @@ import type { SymbolRef } from "@solyx/core/market";
 import type {
   CandleRequest,
   Listing,
+  Quote,
   MarketDataPlan,
   MarketDataProvider,
   MarketDataStream,
@@ -87,6 +88,15 @@ const historicalCandlesSchema = z.object({ data: z.array(barSchema) });
 const tickerSchema = z.object({
   name: z.string(),
   nameEn: z.string().optional(),
+});
+
+// Indices report no reference price, and nothing traded has no close yet.
+const quoteSchema = z.object({
+  date: z.string(),
+  closePrice: z.number().optional(),
+  referencePrice: z.number().optional(),
+  previousClose: z.number().optional(),
+  total: z.object({ tradeValue: z.number() }).optional(),
 });
 
 const intradayCandlesSchema = z.object({
@@ -260,6 +270,33 @@ export function createFugleApiProvider(
       const ticker = tickerSchema.parse(await response.json());
 
       return { name: ticker.name, englishName: ticker.nameEn ?? null };
+    },
+
+    async getQuote(symbol: SymbolRef): Promise<Quote | null> {
+      assertTaiwan(symbol);
+
+      const response = await intradayBudget(() =>
+        api.get(
+          `intraday/quote/${encodeURIComponent(symbol.symbol)}`,
+          NOT_FOUND_IS_EMPTY
+        )
+      );
+
+      if (response.status === 404) return null;
+
+      const quote = quoteSchema.parse(await response.json());
+      const reference = quote.referencePrice ?? quote.previousClose;
+
+      if (quote.closePrice === undefined || reference === undefined) {
+        return null;
+      }
+
+      return {
+        date: quote.date,
+        last: quote.closePrice,
+        reference,
+        tradeValue: quote.total?.tradeValue ?? 0,
+      };
     },
   };
 }

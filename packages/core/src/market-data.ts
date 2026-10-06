@@ -17,6 +17,17 @@ export interface Listing {
   englishName: string | null;
 }
 
+/** A listing's or an index's trading in its newest session so far, as the exchange reports it. */
+export interface Quote {
+  /** The session's exchange-local date, `YYYY-MM-DD`. */
+  date: string;
+  last: number;
+  /** What the session's change is measured from: the reference price, which ex-dividend days lower, or else the last close. */
+  reference: number;
+  /** Value traded so far, in the market's currency. */
+  tradeValue: number;
+}
+
 /** One implementation per data provider (`@solyx/market-data/*`); it runs only in the main process. */
 export interface MarketDataProvider {
   readonly id: string;
@@ -25,6 +36,8 @@ export interface MarketDataProvider {
   getCandles(request: CandleRequest): Promise<Candle[]>;
   /** `null` for a symbol the provider does not list. */
   getListing(symbol: SymbolRef): Promise<Listing | null>;
+  /** `null` for a symbol the provider does not list or that has not traded yet. */
+  getQuote(symbol: SymbolRef): Promise<Quote | null>;
 }
 
 /** Bars and names in every market, from the source the user picked for it. */

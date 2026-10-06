@@ -6,8 +6,14 @@ import {
   resampleDaily,
 } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
-import type { Market, SymbolRef } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import type { Listing } from "@solyx/core/market-data";
+import { sessionQuote } from "@solyx/core/quote";
+import type { SessionQuote } from "@solyx/core/quote";
+import { TW_SECTOR_INDICES } from "@solyx/core/sectors";
+
+import type { SectorQuote } from "#shared/ipc/market.ts";
 
 import { createLiveCandles } from "./live-candles.ts";
 import type { LiveSender } from "./live-candles.ts";
@@ -77,6 +83,40 @@ export function createMarketData({
       });
 
       return resampleDaily(daily, interval, symbol.market);
+    },
+
+    /**
+     * Reads the five-minute bars a chart of that interval reads, so both share one cached series
+     * and neither trims the other's window; only today's session costs a request.
+     */
+    async quote(symbol: SymbolRef): Promise<SessionQuote | null> {
+      const provider = await sources.provider(symbol.market);
+
+      if (!provider) return null;
+
+      const interval = Interval.FiveMinutes;
+      const { from, to } = lookbackRange(symbol.market, interval, now());
+
+      return sessionQuote(
+        symbol.market,
+        await provider.getCandles({ symbol, interval, from, to })
+      );
+    },
+
+    async sectors(): Promise<SectorQuote[] | null> {
+      const provider = await sources.provider(Market.TW);
+
+      if (!provider) return null;
+
+      return Promise.all(
+        TW_SECTOR_INDICES.map(async (index) => ({
+          ...index,
+          quote: await provider.getQuote({
+            market: Market.TW,
+            symbol: index.symbol,
+          }),
+        }))
+      );
     },
 
     async listing(symbol: SymbolRef): Promise<Listing | null> {

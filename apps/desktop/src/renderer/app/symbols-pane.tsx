@@ -13,7 +13,7 @@ export function SymbolsPane() {
   const positionsId = useId();
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="@container/symbols flex h-full flex-col">
       <ColumnHeader>
         <h2 id={watchlistId} className="text-sm font-semibold">
           {t("watchlist.title")}

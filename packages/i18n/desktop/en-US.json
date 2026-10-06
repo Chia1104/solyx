@@ -66,7 +66,7 @@
     "avg-price": "Avg. price",
     "no-positions": "No positions",
     "cash": "Cash",
-    "shares-count": "{{count, number}} sh"
+    "unrealized-gain": "Unrealized gain"
   },
   "watchlist": {
     "title": "Watchlist",
@@ -75,6 +75,56 @@
     "remove": "Remove from watchlist",
     "remove-symbol": "Remove {{symbol}} from watchlist",
     "update-failed": "Couldn't update the watchlist"
+  },
+  "heat-map": {
+    "title": "Today's moves",
+    "description": "Holdings are sized by market value and watched listings share their part equally. The deeper the colour, the bigger the move; it is full at ±5%.",
+    "empty": "Add listings to your watchlist or hold some, and their moves today show here.",
+    "sectors": {
+      "title": "Listed sectors",
+      "description": "Each tile is a TWSE sector index, sized by the value traded today. The colour is how far the index moved; it is full at ±3%.",
+      "unavailable": "Set up a market data source in Settings to see the sectors."
+    }
+  },
+  "sectors": {
+    "groups": {
+      "electronics": "Electronics",
+      "finance": "Finance",
+      "other": "Other industries"
+    },
+    "names": {
+      "cement": "Cement",
+      "food": "Food",
+      "plastics": "Plastics",
+      "textiles": "Textiles",
+      "electric-machinery": "Electric machinery",
+      "electrical-cable": "Electrical cable",
+      "chemicals": "Chemicals",
+      "biotech": "Biotech and medical",
+      "glass": "Glass and ceramics",
+      "paper": "Paper",
+      "steel": "Steel",
+      "rubber": "Rubber",
+      "automobiles": "Automobiles",
+      "semiconductors": "Semiconductors",
+      "computers": "Computers and peripherals",
+      "optoelectronics": "Optoelectronics",
+      "communications": "Communications",
+      "components": "Electronic components",
+      "distribution": "Electronics distribution",
+      "information-services": "Information services",
+      "other-electronics": "Other electronics",
+      "construction": "Construction",
+      "shipping": "Shipping",
+      "tourism": "Tourism and hospitality",
+      "finance": "Finance and insurance",
+      "oil-gas": "Oil, gas and power",
+      "other": "Other",
+      "green-energy": "Green energy",
+      "digital-cloud": "Digital and cloud",
+      "sports": "Sports and leisure",
+      "home-living": "Home and living"
+    }
   },
   "chart": {
     "search-label": "Symbol",

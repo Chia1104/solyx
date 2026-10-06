@@ -12,9 +12,11 @@
     "./news": "./src/news.ts",
     "./order": "./src/order.ts",
     "./order-desk": "./src/order-desk.ts",
+    "./quote": "./src/quote.ts",
     "./risk": "./src/risk.ts",
     "./rules/tw": "./src/rules/tw.ts",
     "./rules/us": "./src/rules/us.ts",
+    "./sectors": "./src/sectors.ts",
     "./sentiment": "./src/sentiment.ts",
     "./session": "./src/session.ts"
   },

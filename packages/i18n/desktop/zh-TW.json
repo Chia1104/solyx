@@ -66,7 +66,7 @@
     "avg-price": "均價",
     "no-positions": "尚無庫存",
     "cash": "現金",
-    "shares-count": "{{count, number}} 股"
+    "unrealized-gain": "未實現損益"
   },
   "watchlist": {
     "title": "自選",
@@ -75,6 +75,56 @@
     "remove": "移出自選",
     "remove-symbol": "將 {{symbol}} 移出自選",
     "update-failed": "無法更新自選"
+  },
+  "heat-map": {
+    "title": "今日漲跌",
+    "description": "庫存依市值分配面積，自選平分其餘面積。顏色越深，漲跌幅越大，±5% 為最深。",
+    "empty": "加入自選或持有股票後，這裡會顯示它們今天的漲跌。",
+    "sectors": {
+      "title": "上市類股",
+      "description": "每格是一個上市類股指數，面積是今日成交值。顏色是指數漲跌幅，±3% 為最深。",
+      "unavailable": "到設定完成行情來源後，這裡會顯示上市類股。"
+    }
+  },
+  "sectors": {
+    "groups": {
+      "electronics": "電子",
+      "finance": "金融",
+      "other": "傳產與其他"
+    },
+    "names": {
+      "cement": "水泥",
+      "food": "食品",
+      "plastics": "塑膠",
+      "textiles": "紡織纖維",
+      "electric-machinery": "電機機械",
+      "electrical-cable": "電器電纜",
+      "chemicals": "化學",
+      "biotech": "生技醫療",
+      "glass": "玻璃陶瓷",
+      "paper": "造紙",
+      "steel": "鋼鐵",
+      "rubber": "橡膠",
+      "automobiles": "汽車",
+      "semiconductors": "半導體",
+      "computers": "電腦及週邊",
+      "optoelectronics": "光電",
+      "communications": "通信網路",
+      "components": "電子零組件",
+      "distribution": "電子通路",
+      "information-services": "資訊服務",
+      "other-electronics": "其他電子",
+      "construction": "建材營造",
+      "shipping": "航運",
+      "tourism": "觀光餐旅",
+      "finance": "金融保險",
+      "oil-gas": "油電燃氣",
+      "other": "其他",
+      "green-energy": "綠能環保",
+      "digital-cloud": "數位雲端",
+      "sports": "運動休閒",
+      "home-living": "居家生活"
+    }
   },
   "chart": {
     "search-label": "代號",

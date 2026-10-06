@@ -450,3 +450,86 @@ test("a symbol Fugle does not list has no listing", async () => {
     await provider.getListing({ market: Market.TW, symbol: "9999" })
   ).toBeNull();
 });
+
+test("an index is quoted against its last close, with the value traded so far", async () => {
+  const { fetch, requests } = fakeFugle([
+    {
+      path: "/intraday/quote/IX0028",
+      body: JSON.stringify({
+        date: "2026-09-29",
+        type: "INDEX",
+        symbol: "IX0028",
+        name: "半導體類指數",
+        previousClose: 1200.5,
+        closePrice: 1212.25,
+        change: 11.75,
+        changePercent: 0.98,
+        total: { tradeValue: 182030000000, tradeVolume: 410000 },
+      }),
+    },
+  ]);
+
+  const provider = createFugleMarketData({
+    apiKey: "test-key",
+    fetch,
+    now: () => DURING_SESSION,
+  });
+
+  expect(
+    await provider.getQuote({ market: Market.TW, symbol: "IX0028" })
+  ).toEqual({
+    date: "2026-09-29",
+    last: 1212.25,
+    reference: 1200.5,
+    tradeValue: 182030000000,
+  });
+  expect(requests).toHaveLength(1);
+});
+
+test("a stock is quoted against its reference price, which ex-dividend days lower", async () => {
+  const { fetch } = fakeFugle([
+    {
+      path: "/intraday/quote/2330",
+      body: JSON.stringify({
+        date: "2026-09-29",
+        referencePrice: 2460,
+        previousClose: 2475,
+        closePrice: 2480,
+        total: { tradeValue: 31019803000 },
+      }),
+    },
+  ]);
+
+  const provider = createFugleMarketData({
+    apiKey: "test-key",
+    fetch,
+    now: () => DURING_SESSION,
+  });
+
+  expect((await provider.getQuote(TSMC))?.reference).toBe(2460);
+});
+
+test("a symbol without trades or a listing has no quote", async () => {
+  const { fetch } = fakeFugle([
+    {
+      path: "/intraday/quote/2330",
+      body: JSON.stringify({ date: "2026-09-29", referencePrice: 2475 }),
+    },
+    {
+      path: "/intraday/quote/9999",
+      status: 404,
+      body: JSON.stringify({ statusCode: 404, message: "Resource Not Found" }),
+    },
+  ]);
+
+  const provider = createFugleMarketData({
+    apiKey: "test-key",
+    fetch,
+    now: () => DURING_SESSION,
+  });
+
+  expect(await provider.getQuote(TSMC)).toBeNull();
+  expect(
+    await provider.getQuote({ market: Market.TW, symbol: "9999" })
+  ).toBeNull();
+});

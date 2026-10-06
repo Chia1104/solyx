@@ -10,6 +10,11 @@ import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { SymbolRow } from "../../components/symbol-row.tsx";
 import { ListingName } from "../market/listing-name.tsx";
+import {
+  QuoteChange,
+  QuoteLine,
+  QuotePrice,
+} from "../market/quote-figures.tsx";
 
 import { watchlistQuery, watchlistQueryKeys } from "./watchlist-query.ts";
 
@@ -47,13 +52,24 @@ export function Watchlist() {
       <ul>
         {data.map((symbol) => (
           <li key={symbolKey(symbol)} className="group relative">
-            <SymbolRow symbol={symbol} name={<ListingName symbol={symbol} />} />
+            <SymbolRow
+              symbol={symbol}
+              name={<ListingName symbol={symbol} />}
+              price={
+                // The remove button takes the price's place while the row is hovered.
+                <span className="transition-opacity group-hover:opacity-0 group-has-[button:focus-visible]:opacity-0 motion-reduce:transition-none">
+                  <QuotePrice symbol={symbol} />
+                </span>
+              }
+              chart={<QuoteLine symbol={symbol} className="size-full" />}
+              detail={<QuoteChange symbol={symbol} />}
+            />
             <CloseButton
               aria-label={t("watchlist.remove-symbol", {
                 symbol: symbol.symbol,
               })}
               isDisabled={remove.isPending}
-              className="absolute top-1/2 right-2 -translate-y-1/2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+              className="absolute top-1 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
               onPress={() => remove.mutate(symbol)}
             />
           </li>

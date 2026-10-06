@@ -50,6 +50,7 @@ function fakeProvider(
     id,
     markets: [Market.TW],
     getListing: async () => null,
+    getQuote: async () => null,
     async getCandles({ interval, from, to }) {
       calls.push({ interval, from, to });
 
