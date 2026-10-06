@@ -6,6 +6,7 @@ import {
   Form,
   Input,
   Label,
+  Switch,
   TextArea,
   TextField,
 } from "@heroui/react";
@@ -31,6 +32,7 @@ import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 import { ListingName } from "../market/listing-name.tsx";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
+import { memorySettingsQuery } from "../settings/settings-query.ts";
 
 import { memoryQuery } from "./memory-query.ts";
 
@@ -188,21 +190,39 @@ function MemoryRow({ memory }: { memory: Memory }) {
   );
 }
 
-/** What the agent keeps across conversations, each memory rewritten or forgotten here. */
+/**
+ * Whether the agent uses its memories, then what it kept across conversations, each memory
+ * rewritten or forgotten here.
+ */
 export function MemorySettings() {
   const { t } = useTranslation();
-  const { data, error, refetch } = useQuery(memoryQuery());
+  const memories = useQuery(memoryQuery());
+  const settings = useQuery(memorySettingsQuery());
   const [filter, setFilter] = useState("");
+
+  const enable = useMutation({
+    mutationFn: (enabled: boolean) =>
+      window.solyx.settings.setMemoryEnabled(enabled),
+  });
+
+  const error = memories.error ?? settings.error;
 
   if (error) {
     return (
       <RailedColumn className="px-6 py-5">
-        <LoadError error={error} onRetry={() => void refetch()} />
+        <LoadError
+          error={error}
+          onRetry={() =>
+            void Promise.all([memories.refetch(), settings.refetch()])
+          }
+        />
       </RailedColumn>
     );
   }
 
-  if (!data) return <LoadingState />;
+  const { data } = memories;
+
+  if (!data || !settings.data) return <LoadingState />;
 
   const shown = data.filter((memory) =>
     matchesFilter(
@@ -218,6 +238,33 @@ export function MemorySettings() {
       title={t("settings.memory.title")}
       description={t("settings.memory.description-text")}>
       <div className="flex flex-col gap-3">
+        <SettingsList>
+          <SettingsRow
+            label={t("settings.memory.enabled")}
+            description={t("settings.memory.enabled-description")}
+            actions={
+              <Switch
+                isSelected={settings.data.enabled}
+                isDisabled={enable.isPending}
+                onChange={(enabled) => enable.mutate(enabled)}>
+                <Switch.Content>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  <span className="sr-only">
+                    {t("settings.memory.enabled")}
+                  </span>
+                </Switch.Content>
+              </Switch>
+            }
+          />
+        </SettingsList>
+        {enable.error ? (
+          <ErrorAlert
+            title={t("settings.save-failed")}
+            description={enable.error.message}
+          />
+        ) : null}
         {data.length === 0 ? (
           <p className="text-xs text-muted">{t("settings.memory.empty")}</p>
         ) : (

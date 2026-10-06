@@ -303,6 +303,8 @@
       "description": "{{tool}} comes from an MCP server outside Solyx. Check what it's about to send.",
       "shell-description": "This command runs on your computer with your access to its files and the network. Check it before you allow it.",
       "read-page-description": "Your web search vendor will fetch this address. One you didn't expect could be a page the agent read trying to send your data out, so check it before you allow it.",
+      "remember-description": "The agent wants to keep this for later conversations, and reads it in every one. Check it says what you mean.",
+      "forget-description": "The agent wants to forget this memory, so later conversations won't know it.",
       "allow": "Allow",
       "deny": "Don't allow",
       "auto-allowed": "allowed by the decisions model",
@@ -714,6 +716,8 @@
     "memory": {
       "title": "Memory",
       "description-text": "What the agent keeps across conversations and reads in each one. It saves, rewrites or forgets a memory only once you allow it, and deleting a conversation keeps what it saved.",
+      "enabled": "Use memory",
+      "enabled-description": "The agent reads its memories in every conversation and asks before it saves, rewrites or forgets one. Switched off, they stay saved but go unused.",
       "empty": "No memories yet. The agent asks before it saves one.",
       "filter": "Filter memories",
       "no-matches": "No memory matches “{{query}}”.",

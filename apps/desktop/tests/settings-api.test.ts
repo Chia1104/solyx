@@ -263,6 +263,17 @@ test("the shell is off until the user switches it on", async () => {
   expect((await api.agentSkills()).shell).toBe(true);
 });
 
+test("memory is on until the user switches it off", async () => {
+  const { api, config } = setup();
+
+  expect(await api.memory()).toEqual({ enabled: true });
+
+  await api.setMemoryEnabled(false);
+
+  expect(config.read().agent.memory).toBe(false);
+  expect(await api.memory()).toEqual({ enabled: false });
+});
+
 test("MCP servers show each tool under the policy in force, which secrets are saved, and paths from home", async () => {
   const { api, secrets, mcp } = setup();
 

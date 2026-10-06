@@ -62,6 +62,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       endpoints: {},
       sharedSkills: [],
       shell: false,
+      memory: true,
       mcpTools: {},
     },
     news: { collectEveryHours: NEWS_COLLECTION_DEFAULT_HOURS },

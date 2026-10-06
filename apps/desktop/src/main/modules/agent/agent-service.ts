@@ -7,6 +7,7 @@ import { omit, sum } from "es-toolkit";
 
 import { createAnalysis } from "@solyx/agent/analysis";
 import { mcpScriptExtension } from "@solyx/agent/mcp-script";
+import { createMemory } from "@solyx/agent/memory";
 import { formatContext } from "@solyx/agent/prompt";
 import type { AgentModelPick } from "@solyx/agent/providers";
 import { createAgentRuntime } from "@solyx/agent/runtime";
@@ -21,6 +22,7 @@ import type { AgentWireEvent, ApprovalMode } from "@solyx/agent/wire";
 import { BrokerMode } from "@solyx/core/broker";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
+import type { MemoryStore } from "@solyx/core/memory";
 import type { NewsDesk } from "@solyx/core/news";
 import type { ProposingDesk } from "@solyx/core/order-desk";
 import type { WebReader, WebSearch } from "@solyx/core/web-search";
@@ -54,6 +56,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   web: () => Promise<(WebSearch & WebReader) | undefined>;
   desk: ProposingDesk;
   mcp: McpServers;
+  memory: MemoryStore;
 }
 
 // `vp pack` ships QuickJS beside the main bundle and builds the scripts' worker next to it.
@@ -139,6 +142,8 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const web = createWebTools({ vendor: options.web });
 
+  const memory = createMemory({ store: options.memory });
+
   const runtime = createAgentRuntime({
     store: options.conversations,
     models: models.models,
@@ -154,6 +159,9 @@ export function createAgentService(options: AgentServiceOptions) {
           analysis,
           ...(shellOn() ? [shell.extension(guard)] : []),
           ...(webOn ? [web.extension(guard)] : []),
+          ...(options.config.read().agent.memory
+            ? [memory.extension(guard)]
+            : []),
           mcp.search,
           mcpScriptExtension(mcp.catalog, scripts),
         ],

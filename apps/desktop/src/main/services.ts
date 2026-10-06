@@ -170,6 +170,7 @@ export function createServices() {
     news,
     web: () => webSearch.vendor(),
     desk,
+    memory: memories.store,
   });
 
   const newsCollector = createNewsCollector({

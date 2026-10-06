@@ -303,6 +303,8 @@
       "description": "{{tool}} 來自 Solyx 以外的 MCP server，請先確認它要送出的內容。",
       "shell-description": "這個指令會在你的電腦上執行，能存取你的檔案與網路。允許前請先確認內容。",
       "read-page-description": "你的網路搜尋供應商會讀取這個網址。如果不是你預期的網址，可能是 agent 讀過的網頁想藉此把你的資料送出去，允許前請先確認。",
+      "remember-description": "Agent 想把這段內容留到之後的對話，而且每次對話都會讀取。允許前請確認它寫的是你的意思。",
+      "forget-description": "Agent 想遺忘這筆記憶，之後的對話將不再知道它。",
       "allow": "允許",
       "deny": "不允許",
       "auto-allowed": "由決策模型放行",
@@ -714,6 +716,8 @@
     "memory": {
       "title": "記憶",
       "description-text": "Agent 跨對話保留、每次對話都會讀取的內容。它要新增、改寫或遺忘一筆記憶，都要先經過你允許；刪除對話不會刪掉它存下的記憶。",
+      "enabled": "使用記憶",
+      "enabled-description": "Agent 每次對話都會讀取記憶，新增、改寫或遺忘前都會先問你。關閉後記憶仍會保留，只是不再使用。",
       "empty": "還沒有記憶。Agent 存下任何記憶前都會先問你。",
       "filter": "篩選記憶",
       "no-matches": "沒有符合「{{query}}」的記憶。",

@@ -270,6 +270,11 @@ export interface NewsSettings {
   collectEveryHours: number;
 }
 
+export interface MemorySettings {
+  /** The agent reads its memories and may ask to save, rewrite or forget one. */
+  enabled: boolean;
+}
+
 /** The web search vendor news and the agent search and read through, and each vendor's key. */
 export interface WebSearchSettings {
   provider: WebSearchProvider;
@@ -468,6 +473,9 @@ export interface SettingsApi {
   setSharedSkill(name: string, enabled: boolean): Promise<void>;
   /** Gives the agent the shell from its next run on, or takes it away. */
   setAgentShell(enabled: boolean): Promise<void>;
+  memory(): Promise<MemorySettings>;
+  /** Gives the agent its memories from its next run on, or takes them away; they stay saved. */
+  setMemoryEnabled(enabled: boolean): Promise<void>;
   /** Connects the servers in mcp.json on first use. */
   mcp(): Promise<McpSettings>;
   /** Lets the agent do the same with each of a server's `tools`, saved in one write. */
@@ -542,6 +550,8 @@ export const settingsChannels = {
   agentSkills: "settings:agent-skills",
   setSharedSkill: "settings:set-shared-skill",
   setAgentShell: "settings:set-agent-shell",
+  memory: "settings:memory",
+  setMemoryEnabled: "settings:set-memory-enabled",
   mcp: "settings:mcp",
   setMcpToolPolicy: "settings:set-mcp-tool-policy",
   saveMcpSecret: "settings:save-mcp-secret",
