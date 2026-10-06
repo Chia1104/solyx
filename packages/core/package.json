@@ -6,6 +6,7 @@
   "exports": {
     "./broker": "./src/broker.ts",
     "./candles": "./src/candles.ts",
+    "./forecast": "./src/forecast.ts",
     "./indicators": "./src/indicators.ts",
     "./market": "./src/market.ts",
     "./market-data": "./src/market-data.ts",
@@ -14,6 +15,8 @@
     "./order": "./src/order.ts",
     "./order-desk": "./src/order-desk.ts",
     "./quote": "./src/quote.ts",
+    "./report": "./src/report.ts",
+    "./research": "./src/research.ts",
     "./risk": "./src/risk.ts",
     "./rules/tw": "./src/rules/tw.ts",
     "./rules/us": "./src/rules/us.ts",
