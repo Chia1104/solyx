@@ -1,8 +1,9 @@
 import { defineExtension } from "@earendil-works/pi-durable";
 import type { Extension } from "@earendil-works/pi-durable";
-import { takeRight } from "es-toolkit";
+import { median, takeRight } from "es-toolkit";
 import * as z from "zod";
 
+import { Interval, candleDate } from "@solyx/core/candles";
 import {
   ForecastViolationCode,
   MAX_HORIZON,
@@ -15,8 +16,15 @@ import type {
   ForecastScenario,
   ForecastViolation,
 } from "@solyx/core/forecast";
-import { exchangeDate, symbolRefSchema } from "@solyx/core/market";
-import type { Market } from "@solyx/core/market";
+import {
+  priceToEarnings,
+  revenueTrend,
+  statementMetrics,
+} from "@solyx/core/fundamentals";
+import type { Fundamentals } from "@solyx/core/fundamentals";
+import { currencyOf, exchangeDate, symbolRefSchema } from "@solyx/core/market";
+import type { Market, SymbolRef } from "@solyx/core/market";
+import type { MarketData } from "@solyx/core/market-data";
 import {
   ReportViolationCode,
   claimSchema,
@@ -32,9 +40,18 @@ import type { ReviseReportDetails, SubmitForecastDetails } from "./wire.ts";
 
 export interface ResearchOptions {
   desk: ResearchDesk;
+  fundamentals: Fundamentals;
+  marketData: Pick<MarketData, "candles">;
+  /** @default () => new Date() */
+  now?: () => Date;
 }
 
 const LISTED_FORECASTS = 5;
+
+const LISTED_QUARTERS = 8;
+
+// A year and the month before it, so the newest month shows against the same month last year.
+const LISTED_MONTHS = 13;
 
 const reviseParameters = reportDraftSchema.extend({
   stance: reportDraftSchema.shape.stance.describe(
@@ -124,6 +141,8 @@ function forecastViolationText(
   switch (violation.code) {
     case ForecastViolationCode.NoReport:
       return "The listing has no report. Write one with revise_report first.";
+    case ForecastViolationCode.ReportStale:
+      return `The report was revised before the quarter ending ${violation.periodEnd} was out. Read it with get_fundamentals, revise the report with revise_report, then submit again.`;
     case ForecastViolationCode.AlreadyForecast:
       return `The listing already has a forecast anchored on ${violation.date}, and a session takes one. It stays as made; forecast again once the next session has a bar.`;
     case ForecastViolationCode.ContraryUnexplained:
@@ -245,12 +264,65 @@ function recordText(scope: string, record: ForecastRecord): string {
   ].join("\n");
 }
 
+const percent = (value: number | null) =>
+  value === null
+    ? "n/a"
+    : `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)}%`;
+
+const margin = (value: number | null) =>
+  value === null ? "n/a" : `${(value * 100).toFixed(1)}%`;
+
+const millions = (value: number | null) =>
+  value === null ? "n/a" : String(Math.round(value / 1e6));
+
+const figure = (value: number | null) =>
+  value === null ? "n/a" : String(Number(value.toFixed(2)));
+
+/** Where the shares trade against their trailing earnings now, and where they have over the bars the chart keeps. */
+async function valuationText(
+  symbol: SymbolRef,
+  { fundamentals, marketData }: ResearchOptions
+): Promise<string> {
+  const statements = await fundamentals.statements(symbol);
+  const newest = statementMetrics(statements).at(-1);
+
+  if (!newest || newest.trailingEps === null || newest.trailingEps <= 0) {
+    return "Price to earnings: none, since the last four quarters have no EPS that adds up to a profit.";
+  }
+
+  const unpriced = `Price to earnings: no bars to price trailing EPS ${figure(newest.trailingEps)} against.`;
+  let weekly;
+
+  try {
+    weekly = await marketData.candles(symbol, Interval.OneWeek);
+  } catch {
+    // The statements still read while bars are out of reach.
+    return unpriced;
+  }
+
+  const history = priceToEarnings(symbol.market, weekly, statements);
+  const latest = weekly.at(-1);
+
+  if (!latest || history.length === 0) return unpriced;
+
+  const multiples = history.map(({ pe }) => pe);
+
+  return [
+    `Price to earnings: ${figure(latest.close / newest.trailingEps)}, the close of ${latest.close} in the week of ${candleDate(symbol.market, latest.time)} over trailing EPS ${figure(newest.trailingEps)} (four quarters through ${newest.statement.periodEnd}).`,
+    `  Over weekly closes since ${history[0].date}, each against the trailing EPS public that week: low ${figure(Math.min(...multiples))}, median ${figure(median(multiples))}, high ${figure(Math.max(...multiples))}.`,
+  ].join("\n");
+}
+
 /**
  * The agent's research on a listing: `get_research` to read it, `revise_report` to keep its view
  * over quarters, and `submit_forecast` to put a forecast on record, where it is frozen and later
- * scored. None of them reaches an order or anything outside the app, so none asks.
+ * scored. `get_fundamentals` reads the filed figures a report rests on. None of them reaches an
+ * order, and none changes anything outside the app, so none asks.
  */
-export function createResearch({ desk }: ResearchOptions): Extension {
+export function createResearch(options: ResearchOptions): Extension {
+  const { desk, fundamentals } = options;
+  const now = options.now ?? (() => new Date());
+
   return defineExtension({
     name: "solyx-research",
     tools: [
@@ -275,6 +347,11 @@ export function createResearch({ desk }: ResearchOptions): Extension {
               coverage.report
                 ? reportText(coverage.report)
                 : `${symbol.market} ${symbol.symbol} has no report yet.`,
+              ...(coverage.newerFinancials
+                ? [
+                    `The report was revised before the quarter ending ${coverage.newerFinancials} was out. Revise it with that quarter before forecasting.`,
+                  ]
+                : []),
               "",
               forecasts.length > 0
                 ? ["Forecasts, newest first:", ...forecasts.map(forecastText)]
@@ -291,6 +368,78 @@ export function createResearch({ desk }: ResearchOptions): Extension {
       }),
 
       defineTool({
+        name: AgentToolName.GetFundamentals,
+        replay: "safe",
+        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; and its price-to-earnings multiple now against the range it has traded in. Taiwan listings only for now, and none for an ETF. Cite these rather than work them out again.`,
+        parameters: z.object({ symbol: symbolRefSchema }),
+        async execute({ symbol }) {
+          const [statements, monthly] = await Promise.all([
+            fundamentals.statements(symbol),
+            fundamentals.monthlyRevenue(symbol),
+          ]);
+
+          if (statements.length === 0 && monthly.length === 0) {
+            return {
+              text: `No fundamentals for ${symbol.market} ${symbol.symbol}: it files no statements, as an ETF does not, or no source covers its market yet.`,
+              details: { symbol },
+            };
+          }
+
+          const quarters = takeRight(
+            statementMetrics(statements),
+            LISTED_QUARTERS
+          ).map((each) =>
+            [
+              each.statement.periodEnd,
+              millions(each.statement.revenue),
+              percent(each.revenueYoY),
+              percent(each.revenueQoQ),
+              margin(each.grossMargin),
+              margin(each.operatingMargin),
+              margin(each.netMargin),
+              figure(each.statement.eps),
+              percent(each.epsYoY),
+              figure(each.trailingEps),
+            ].join(",")
+          );
+
+          const months = takeRight(revenueTrend(monthly), LISTED_MONTHS).map(
+            (each) =>
+              [
+                each.month,
+                millions(each.revenue),
+                percent(each.yoy),
+                percent(each.mom),
+              ].join(",")
+          );
+
+          const currency = currencyOf(symbol.market);
+
+          return {
+            text: [
+              `${symbol.market} ${symbol.symbol} fundamentals as filed, as_of ${exchangeDate(symbol.market, now())}; amounts in ${currency} millions`,
+              ...(quarters.length > 0
+                ? [
+                    "Quarters, each for the quarter alone, by its last day:",
+                    "quarter,revenue,revenue yoy,revenue qoq,gross margin,operating margin,net margin,eps,eps yoy,trailing eps",
+                    ...quarters,
+                    await valuationText(symbol, options),
+                  ]
+                : ["No quarterly statements."]),
+              ...(months.length > 0
+                ? [
+                    "Monthly revenue, unaudited:",
+                    "month,revenue,yoy,mom",
+                    ...months,
+                  ]
+                : []),
+            ].join("\n"),
+            details: { symbol },
+          };
+        },
+      }),
+
+      defineTool({
         name: AgentToolName.ReviseReport,
         // A second run would keep the same revision twice.
         replay: "unsafe",
@@ -298,7 +447,7 @@ export function createResearch({ desk }: ResearchOptions): Extension {
           "Keeps a new revision of a listing's report: your view over quarters, which forecasts are then made under. Send only what changed; a part you leave out stays as the last revision had it, and every revision is kept.",
         parameters: reviseParameters,
         async execute(draft) {
-          const revision = desk.revise(draft);
+          const revision = await desk.revise(draft);
 
           if (!revision.ok) {
             throw new Error(

@@ -10,11 +10,13 @@ import { expect, test } from "vite-plus/test";
 import type { Candle } from "@solyx/core/candles";
 import { ForecastDirection } from "@solyx/core/forecast";
 import type { Forecast } from "@solyx/core/forecast";
+import type { QuarterStatement } from "@solyx/core/fundamentals";
 import { InstrumentKind, Market, symbolKey } from "@solyx/core/market";
 import { ReportSection, ReportStance } from "@solyx/core/report";
 import type { Report } from "@solyx/core/report";
 import { ResearchDesk } from "@solyx/core/research";
 import type { ResearchStore } from "@solyx/core/research";
+import { twFilingDeadline } from "@solyx/core/rules/tw";
 
 import { createResearch } from "../src/research.ts";
 import { AgentToolName } from "../src/wire.ts";
@@ -41,6 +43,33 @@ function bar(date: string, close: number): Candle {
 const ANCHOR_BAR = bar("2026-09-29", 1000);
 
 const LATER_BARS = [bar("2026-09-30", 1010), bar("2026-10-01", 1045)];
+
+function quarter(periodEnd: string, revenue: number, eps: number) {
+  return {
+    periodEnd,
+    knownFrom: twFilingDeadline(periodEnd),
+    revenue: revenue * 1e6,
+    grossProfit: revenue * 0.6e6,
+    operatingIncome: revenue * 0.5e6,
+    netIncome: revenue * 0.4e6,
+    eps,
+  } satisfies QuarterStatement;
+}
+
+const QUARTERS = [
+  quarter("2025-03-31", 800, 10),
+  quarter("2025-06-30", 900, 12),
+  quarter("2025-09-30", 1000, 14),
+  quarter("2025-12-31", 1100, 14),
+  quarter("2026-03-31", 1200, 20),
+  quarter("2026-06-30", 1350, 24),
+];
+
+const MONTHS = [
+  { month: "2025-08", revenue: 300e6 },
+  { month: "2026-07", revenue: 400e6 },
+  { month: "2026-08", revenue: 450e6 },
+];
 
 const REPORT = {
   symbol: TSMC,
@@ -126,15 +155,28 @@ function callApi(callId: string): ToolExecutionApi {
 function setup() {
   const clock = { now: AT_ANCHOR };
   const bars = { daily: [ANCHOR_BAR] };
+  const filed = { quarters: QUARTERS, months: MONTHS };
   const store = fakeStore();
+  const marketData = { candles: async () => bars.daily };
+
+  const fundamentals = {
+    statements: async () => filed.quarters,
+    monthlyRevenue: async () => filed.months,
+  };
 
   const desk = new ResearchDesk({
     store,
-    marketData: { candles: async () => bars.daily },
+    marketData,
+    fundamentals,
     now: () => clock.now,
   });
 
-  const { tools = [] } = createResearch({ desk });
+  const { tools = [] } = createResearch({
+    desk,
+    fundamentals,
+    marketData,
+    now: () => new Date(clock.now),
+  });
 
   async function run(
     name: AgentToolName,
@@ -150,7 +192,7 @@ function setup() {
     return { text: contentText(result.content ?? []), details: result.details };
   }
 
-  return { run, store, clock, bars };
+  return { run, store, clock, bars, filed };
 }
 
 test("a listing without research says so", async () => {
@@ -278,5 +320,52 @@ test("research shows how a forecast came out and the record it leaves", async ()
   expect(text).toContain("; mean +2.00R of those entered");
   expect(text).toContain(
     "scenarios by the probability you gave: 40-60% held 0 of 1; 60-80% held 1 of 1"
+  );
+});
+
+test("fundamentals show each quarter alone with its growth, and what the shares trade at", async () => {
+  const { run } = setup();
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    "TW 2330 fundamentals as filed, as_of 2026-09-29; amounts in TWD millions"
+  );
+  expect(text).toContain(
+    "2026-06-30,1350,+50.0%,+12.5%,60.0%,50.0%,40.0%,24,+100.0%,72"
+  );
+  expect(text).toContain("2025-03-31,800,n/a,n/a,60.0%,50.0%,40.0%,10,n/a,n/a");
+  // The anchor's close of 1000 over the 72 earned in the four quarters through June.
+  expect(text).toContain(
+    "Price to earnings: 13.89, the close of 1000 in the week of 2026-09-29 over trailing EPS 72 (four quarters through 2026-06-30)."
+  );
+  expect(text).toContain("low 13.89, median 13.89, high 13.89");
+  expect(text).toContain("2026-08,450,+50.0%,+12.5%");
+});
+
+test("a listing without filings says so", async () => {
+  const { run, filed } = setup();
+
+  filed.quarters = [];
+  filed.months = [];
+
+  expect(
+    (await run(AgentToolName.GetFundamentals, { symbol: TSMC })).text
+  ).toContain("No fundamentals for TW 2330");
+});
+
+test("a report older than the newest quarter is flagged and refuses a forecast", async () => {
+  const { run, filed } = setup();
+
+  await run(AgentToolName.ReviseReport, REPORT);
+  filed.quarters = [...QUARTERS, quarter("2026-09-30", 1500, 28)];
+
+  expect(
+    (await run(AgentToolName.GetResearch, { symbol: TSMC })).text
+  ).toContain(
+    "The report was revised before the quarter ending 2026-09-30 was out."
+  );
+  await expect(run(AgentToolName.SubmitForecast, FORECAST)).rejects.toThrow(
+    "Read it with get_fundamentals, revise the report with revise_report, then submit again."
   );
 });

@@ -67,6 +67,7 @@ export const AgentToolName = {
   Remember: "remember",
   Forget: "forget",
   GetResearch: "get_research",
+  GetFundamentals: "get_fundamentals",
   ReviseReport: "revise_report",
   SubmitForecast: "submit_forecast",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
