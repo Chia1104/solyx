@@ -392,7 +392,9 @@
       "events": "Dates ahead",
       "written": "written {{date}}",
       "none": "No report yet.",
-      "stale": "A newer quarter, ending {{date}}, came out after this report was revised. The agent revises it before its next forecast."
+      "stale": "A newer quarter, ending {{date}}, came out after this report was revised. The agent revises it before its next forecast.",
+      "quote-read": "Quote read as stating it: {{share}} likely ({{model}})",
+      "quote-unread": "Quote not checked"
     },
     "sections": {
       "business": "Business",

@@ -1,5 +1,6 @@
 import type { Fundamentals } from "@solyx/core/fundamentals";
 import type { MarketData } from "@solyx/core/market-data";
+import type { ClaimAuditor } from "@solyx/core/report";
 import { ResearchDesk } from "@solyx/core/research";
 import type { ResearchData } from "@solyx/db/research";
 
@@ -13,6 +14,7 @@ export function createResearch(
   sources: {
     marketData: Pick<MarketData, "candles">;
     fundamentals: Pick<Fundamentals, "statements">;
+    auditor: () => Promise<ClaimAuditor | undefined>;
   },
   onChange: () => void
 ) {

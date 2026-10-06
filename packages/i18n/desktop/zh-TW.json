@@ -392,7 +392,9 @@
       "events": "未來事件",
       "written": "{{date}} 撰寫",
       "none": "尚無報告。",
-      "stale": "這份報告修訂後，截至 {{date}} 的新一季財報已公布。Agent 會先修訂報告才能再提出預測。"
+      "stale": "這份報告修訂後，截至 {{date}} 的新一季財報已公布。Agent 會先修訂報告才能再提出預測。",
+      "quote-read": "引文支撐這項主張的可能性：{{share}}（{{model}}）",
+      "quote-unread": "引文未經查核"
     },
     "sections": {
       "business": "業務",

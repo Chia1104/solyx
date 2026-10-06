@@ -13,6 +13,11 @@ export const numberFormats = memoize((locale: string) => ({
     maximumFractionDigits: 2,
   }),
   indicator: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }),
+  /** A share of a whole, such as a likelihood. */
+  percent: new Intl.NumberFormat(locale, {
+    style: "percent",
+    maximumFractionDigits: 0,
+  }),
   volume: new Intl.NumberFormat(locale, {
     notation: "compact",
     maximumFractionDigits: 2,

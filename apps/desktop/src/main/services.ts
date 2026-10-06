@@ -161,7 +161,7 @@ export function createServices() {
       join(userDataDir, "research.sqlite"),
       join(import.meta.dirname, "migrations", "research")
     ),
-    { marketData, fundamentals },
+    { marketData, fundamentals, auditor: () => decisions.claimAuditor() },
     () => broadcast(researchEvents.onChanged)
   );
 

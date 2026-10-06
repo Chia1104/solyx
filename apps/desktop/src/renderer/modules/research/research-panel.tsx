@@ -8,7 +8,7 @@ import type { ForecastRecord } from "@solyx/core/forecast";
 import { exchangeDate } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { ReportSection } from "@solyx/core/report";
-import type { Claim, Report } from "@solyx/core/report";
+import type { AuditedClaim, Report } from "@solyx/core/report";
 import type { Coverage } from "@solyx/core/research";
 
 import { Pane, useLayoutStore } from "../../app/layout-store.ts";
@@ -43,7 +43,10 @@ function DeepAnalysisButton({ symbol }: { symbol: SymbolRef }) {
   );
 }
 
-function Claims({ title, claims }: { title: string; claims: Claim[] }) {
+function Claims({ title, claims }: { title: string; claims: AuditedClaim[] }) {
+  const { t, i18n } = useTranslation();
+  const { percent } = numberFormats(i18n.language);
+
   return claims.length === 0 ? null : (
     <section className="flex flex-col gap-1.5">
       <h4 className="text-xs font-medium text-muted">{title}</h4>
@@ -53,6 +56,14 @@ function Claims({ title, claims }: { title: string; claims: Claim[] }) {
             <span>{claim.text}</span>
             <span className="text-xs break-words text-muted">
               {claim.source} — “{claim.quote}”
+            </span>
+            <span className="text-xs text-muted tabular-nums">
+              {claim.support
+                ? t("research.report.quote-read", {
+                    share: percent.format(claim.support.supported),
+                    model: claim.support.model,
+                  })
+                : t("research.report.quote-unread")}
             </span>
           </li>
         ))}
