@@ -7,6 +7,7 @@ import {
   PlanResult,
   checkForecast,
   forecastRecord,
+  forecastTimeline,
   judgeForecast,
 } from "../src/forecast.ts";
 import type {
@@ -435,6 +436,51 @@ describe("judgeForecast", () => {
         AFTER_HORIZON
       )
     ).toMatchObject({ scenario: 1, plan: null });
+  });
+});
+
+describe("forecastTimeline", () => {
+  const midnight = (date: string) =>
+    Date.parse(`${date}T00:00:00+08:00`) / 1000;
+
+  test("puts sessions that traded on their bars and the rest on the weekdays after", () => {
+    // The anchor's bar and one session: the next two skip the weekend of 10-03.
+    expect(
+      forecastTimeline(forecast(), daily({ low: 995, high: 1010, close: 1005 }))
+    ).toEqual(
+      ["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"].map(midnight)
+    );
+
+    expect(forecastTimeline(forecast({ horizon: 5 }), daily())).toEqual(
+      [
+        "2026-09-29",
+        "2026-09-30",
+        "2026-10-01",
+        "2026-10-02",
+        "2026-10-05",
+        "2026-10-06",
+      ].map(midnight)
+    );
+  });
+
+  test("follows the bars when a holiday moved a session", () => {
+    const bars = [
+      ...daily(),
+      bar("2026-10-01", { low: 995, high: 1010, close: 1005 }),
+    ];
+
+    expect(forecastTimeline(forecast(), bars)).toEqual(
+      ["2026-09-29", "2026-10-01", "2026-10-02", "2026-10-05"].map(midnight)
+    );
+  });
+
+  test("is empty once the bars start after the anchor", () => {
+    expect(
+      forecastTimeline(
+        forecast(),
+        daily({ low: 995, high: 1010, close: 1005 }).slice(1)
+      )
+    ).toEqual([]);
   });
 });
 

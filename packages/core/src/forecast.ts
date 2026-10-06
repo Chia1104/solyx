@@ -3,7 +3,7 @@ import * as z from "zod";
 
 import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
-import { instrumentSchema } from "./market.ts";
+import { exchangeMidnight, instrumentSchema, shiftDate } from "./market.ts";
 import { ReportStance, claimSchema, proseSchema } from "./report.ts";
 import { isOnTick, tickSize } from "./risk.ts";
 import { regularHours } from "./session.ts";
@@ -416,6 +416,49 @@ export function judgeForecast(
         ? null
         : replayPlan(direction, plan, anchor.price, sessions),
   };
+}
+
+/** ISO weekday numbering, Monday 1 to Sunday 7, so Saturday opens the weekend. */
+const SATURDAY = 6;
+
+function nextWeekday(date: string): string {
+  let next = shiftDate(date, 1);
+
+  while (Temporal.PlainDate.from(next).dayOfWeek >= SATURDAY) {
+    next = shiftDate(next, 1);
+  }
+
+  return next;
+}
+
+/**
+ * When each of a forecast's sessions opens, in UTC seconds, the anchor's first, so a path can be
+ * drawn over the listing's daily bars, oldest first. A session that has traded takes its bar's
+ * day; the rest fall on the weekdays after the last one known, since holidays are not modelled,
+ * and move as bars arrive. Empty when the bars start after the anchor, as the sessions cannot
+ * then be counted.
+ */
+export function forecastTimeline(
+  { instrument, anchor, horizon }: Forecast,
+  daily: readonly Candle[]
+): number[] {
+  const dateOf = (bar: Candle) => candleDate(instrument.market, bar.time);
+
+  if (daily.length === 0 || dateOf(daily[0]) > anchor.date) return [];
+
+  const dates = [
+    anchor.date,
+    ...daily
+      .map(dateOf)
+      .filter((date) => date > anchor.date)
+      .slice(0, horizon),
+  ];
+
+  while (dates.length <= horizon) {
+    dates.push(nextWeekday(dates[dates.length - 1]));
+  }
+
+  return dates.map((date) => exchangeMidnight(instrument.market, date));
 }
 
 /** Scenarios given a probability within one range, and how many of them came true. */
