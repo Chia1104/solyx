@@ -1,6 +1,6 @@
 # The nightly channel. Its own product name gives it its own data, config folder and secret store
 # entry, so it installs beside the stable app.
-extends: electron-builder.yml
+extends: build/electron-builder.yml
 appId: dev.chia1104.solyx.nightly
 productName: Solyx Nightly
 extraMetadata:
