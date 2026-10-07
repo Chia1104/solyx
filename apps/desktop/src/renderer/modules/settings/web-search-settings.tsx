@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 
 import exa from "@lobehub/icons-static-svg/icons/exa.svg?no-inline";
 import firecrawl from "@lobehub/icons-static-svg/icons/firecrawl-color.svg?no-inline";
+import tavily from "@lobehub/icons-static-svg/icons/tavily-color.svg?no-inline";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { TabList, TabPanel, Tabs } from "react-aria-components";
 import { useTranslation } from "react-i18next";
@@ -33,6 +34,7 @@ import { secretsQuery, webSearchSettingsQuery } from "./settings-query.ts";
 const LOGOS: Record<WebSearchProvider, Logo> = {
   [WebSearchProvider.Firecrawl]: { src: firecrawl, colored: true },
   [WebSearchProvider.Exa]: { src: exa, colored: false },
+  [WebSearchProvider.Tavily]: { src: tavily, colored: true },
 };
 
 /**

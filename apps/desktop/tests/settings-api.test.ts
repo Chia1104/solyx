@@ -131,6 +131,7 @@ test("a web search vendor's key is saved under its id, and the vendor in use is 
     keys: {
       [WebSearchProvider.Firecrawl]: SecretState.Missing,
       [WebSearchProvider.Exa]: SecretState.Missing,
+      [WebSearchProvider.Tavily]: SecretState.Missing,
     },
   });
 

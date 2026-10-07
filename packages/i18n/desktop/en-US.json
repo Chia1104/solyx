@@ -753,12 +753,14 @@
       "provider": "Vendor",
       "providers": {
         "firecrawl": "Firecrawl",
-        "exa": "Exa"
+        "exa": "Exa",
+        "tavily": "Tavily"
       },
       "key": "API key",
       "key-hints": {
         "firecrawl": "A key from your Firecrawl dashboard. Firecrawl searches Google.",
-        "exa": "A key from your Exa dashboard. Exa searches its own index."
+        "exa": "A key from your Exa dashboard. Exa searches its own index.",
+        "tavily": "A key from your Tavily dashboard. Tavily searches its own index; its news searches cannot favor a market's country."
       }
     },
     "news": {

@@ -4,6 +4,7 @@ import * as z from "zod";
 export const WebSearchProvider = {
   Firecrawl: "firecrawl",
   Exa: "exa",
+  Tavily: "tavily",
 } as const;
 
 export type WebSearchProvider =

@@ -4,6 +4,7 @@ import type { WebReader, WebSearch } from "@solyx/core/web-search";
 import { createExa } from "@solyx/web-search/exa";
 import { createFirecrawl } from "@solyx/web-search/firecrawl";
 import { WebSearchProvider } from "@solyx/web-search/provider";
+import { createTavily } from "@solyx/web-search/tavily";
 
 import { webSearchKeySecret } from "#shared/ipc/settings.ts";
 import type { WebSearchSettings } from "#shared/ipc/settings.ts";
@@ -22,6 +23,7 @@ export type WebVendor = WebSearch & WebReader;
 const VENDORS: Record<WebSearchProvider, (apiKey: string) => WebVendor> = {
   [WebSearchProvider.Firecrawl]: (apiKey) => createFirecrawl({ apiKey }),
   [WebSearchProvider.Exa]: (apiKey) => createExa({ apiKey }),
+  [WebSearchProvider.Tavily]: (apiKey) => createTavily({ apiKey }),
 };
 
 /**

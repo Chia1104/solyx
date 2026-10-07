@@ -86,8 +86,16 @@ test("searches through the vendor in use once its own key is saved", async () =>
   config.set(["webSearch", "provider"], WebSearchProvider.Firecrawl);
   await (await webSearch.vendor())?.search(QUERY);
 
+  await secrets.save(
+    webSearchKeySecret(WebSearchProvider.Tavily),
+    "tavily-key"
+  );
+  config.set(["webSearch", "provider"], WebSearchProvider.Tavily);
+  await (await webSearch.vendor())?.search(QUERY);
+
   expect(urls).toEqual([
     "https://api.exa.ai/search",
     "https://api.firecrawl.dev/v2/search",
+    "https://api.tavily.com/search",
   ]);
 });

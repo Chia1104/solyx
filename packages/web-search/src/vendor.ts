@@ -12,10 +12,13 @@ import type { WebResult, WebSearchQuery } from "@solyx/core/web-search";
 // Vendors search and render pages on their side, which takes longer than ky's default allows.
 const VENDOR_TIMEOUT_MS = 60_000;
 
-// Vendors say what went wrong in `error`, some in `message`.
+// Vendors say what went wrong in `error`, some in `message`, Tavily in `detail.error`.
 const failureSchema = z.union([
-  z.object({ error: z.string() }),
-  z.object({ message: z.string() }),
+  z.object({ error: z.string() }).transform(({ error }) => error),
+  z.object({ message: z.string() }).transform(({ message }) => message),
+  z
+    .object({ detail: z.object({ error: z.string() }) })
+    .transform(({ detail }) => detail.error),
 ]);
 
 export interface VendorOptions {
@@ -39,10 +42,7 @@ export function vendorHttp(vendor: string, options: VendorOptions): KyInstance {
             return error;
           }
 
-          const failure = failureSchema.safeParse(error.data).data;
-
-          const reason =
-            failure && ("error" in failure ? failure.error : failure.message);
+          const reason = failureSchema.safeParse(error.data).data;
 
           error.message = `${vendor} answered ${error.response.status}${reason ? `: ${reason}` : ""}`;
 

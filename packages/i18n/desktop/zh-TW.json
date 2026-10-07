@@ -753,12 +753,14 @@
       "provider": "供應商",
       "providers": {
         "firecrawl": "Firecrawl",
-        "exa": "Exa"
+        "exa": "Exa",
+        "tavily": "Tavily"
       },
       "key": "API 金鑰",
       "key-hints": {
         "firecrawl": "在 Firecrawl 後台建立的金鑰。Firecrawl 搜尋的是 Google。",
-        "exa": "在 Exa 後台建立的金鑰。Exa 搜尋的是它自己的索引。"
+        "exa": "在 Exa 後台建立的金鑰。Exa 搜尋的是它自己的索引。",
+        "tavily": "在 Tavily 後台建立的金鑰。Tavily 搜尋的是它自己的索引，搜尋新聞時無法偏重市場所在的國家。"
       }
     },
     "news": {

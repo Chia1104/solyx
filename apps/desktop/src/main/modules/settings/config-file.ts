@@ -233,7 +233,7 @@ const configSchema = section(
           .catch(WebSearchProvider.Firecrawl)
           .meta({
             description:
-              "Whose web search finds news articles and social posts and serves the agent's web searches and page reads, on the key saved in the app for it: Firecrawl, which searches Google, or Exa's own index.",
+              "Whose web search finds news articles and social posts and serves the agent's web searches and page reads, on the key saved in the app for it: Firecrawl, which searches Google, Exa's own index, or Tavily's.",
           }),
       })
     ),
