@@ -13,6 +13,8 @@ import { newsChannels, newsEvents } from "#shared/ipc/news.ts";
 import type { NewsApi, NewsEvents } from "#shared/ipc/news.ts";
 import { proposalsChannels, proposalsEvents } from "#shared/ipc/proposals.ts";
 import type { ProposalsApi, ProposalsEvents } from "#shared/ipc/proposals.ts";
+import { researchChannels, researchEvents } from "#shared/ipc/research.ts";
+import type { ResearchApi, ResearchEvents } from "#shared/ipc/research.ts";
 import { settingsChannels, settingsEvents } from "#shared/ipc/settings.ts";
 import type { SettingsApi, SettingsEvents } from "#shared/ipc/settings.ts";
 import type { SolyxApi } from "#shared/ipc/solyx-api.ts";
@@ -84,6 +86,10 @@ const api: SolyxApi = {
   proposals: bridge<ProposalsApi, ProposalsEvents>(
     proposalsChannels,
     proposalsEvents
+  ),
+  research: bridge<ResearchApi, ResearchEvents>(
+    researchChannels,
+    researchEvents
   ),
   settings: bridge<SettingsApi, SettingsEvents>(
     settingsChannels,

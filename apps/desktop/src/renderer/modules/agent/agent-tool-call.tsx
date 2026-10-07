@@ -20,6 +20,7 @@ import {
   runAnalysisDetailsSchema,
   runToolScriptDetailsSchema,
   scriptArgumentsSchema,
+  submitForecastDetailsSchema,
 } from "@solyx/agent/wire";
 import type { ToolCallView } from "@solyx/agent/wire";
 import { intervalSchema } from "@solyx/core/candles";
@@ -33,6 +34,7 @@ import { ListingName } from "../market/listing-name.tsx";
 import { memoryQuery } from "../memory/memory-query.ts";
 import { ProposalItem } from "../proposals/proposal-item.tsx";
 import { proposalsQuery } from "../proposals/proposals-query.ts";
+import { ForecastCard } from "../research/forecast-card.tsx";
 
 import { ActivityMark } from "./agent-activity.tsx";
 
@@ -41,6 +43,7 @@ const argumentsSchema = z.object({
   symbol: symbolRefSchema.optional(),
   interval: intervalSchema.optional(),
   order: z.object({ market: marketSchema, symbol: z.string() }).optional(),
+  instrument: z.object({ market: marketSchema, symbol: z.string() }).optional(),
   name: z.string().optional(),
   query: z.string().optional(),
   url: z.string().optional(),
@@ -48,13 +51,13 @@ const argumentsSchema = z.object({
 });
 
 /**
- * What a call was about: a listing and its interval, an order's listing, a playbook, a search, a
- * page or a memory.
+ * What a call was about: a listing and its interval, an order's or a forecast's listing, a
+ * playbook, a search, a page or a memory.
  */
 function Subject({ tool }: { tool: ToolCallView }) {
   const { t } = useTranslation();
   const args = argumentsSchema.safeParse(tool.args).data;
-  const listing = args?.symbol ?? args?.order;
+  const listing = args?.symbol ?? args?.order ?? args?.instrument;
 
   if (listing) {
     const symbol = { market: listing.market, symbol: listing.symbol };
@@ -304,6 +307,12 @@ export function AgentToolCall({
       ? proposeOrderDetailsSchema.safeParse(tool.details).data
       : undefined;
 
+  const forecast =
+    tool.toolName === AgentToolName.SubmitForecast &&
+    tool.status === ToolCallStatus.Ok
+      ? submitForecastDetailsSchema.safeParse(tool.details).data
+      : undefined;
+
   // A script's calls sit under it, in line with its name.
   return (
     <div
@@ -343,6 +352,9 @@ export function AgentToolCall({
       ) : null}
       <RanCode tool={tool} />
       {proposal ? <ProposalCard id={proposal.proposalId} /> : null}
+      {forecast ? (
+        <ForecastCard symbol={forecast.symbol} id={forecast.forecastId} />
+      ) : null}
     </div>
   );
 }

@@ -256,6 +256,10 @@
       "recall": "Recalled memories",
       "remember": "Saved a memory",
       "forget": "Forgot a memory",
+      "get_research": "Read research",
+      "get_fundamentals": "Read fundamentals",
+      "revise_report": "Revised the report",
+      "submit_forecast": "Made a forecast",
       "bash": "Ran a command"
     },
     "tool-status": {
@@ -362,6 +366,70 @@
     "submit-failed": "Submission failed; check your broker before placing it again",
     "submit-interrupted": "Solyx closed before the broker replied, so the order may have reached it.",
     "history": "History"
+  },
+  "research": {
+    "title": "Research",
+    "views-label": "Under the chart",
+    "deep-analysis": "Deep analysis",
+    "deep-analysis-prompt": "Run a deep analysis of {{symbol}}",
+    "empty": "No research yet. Ask the agent for a deep analysis to get a report and a forecast.",
+    "stance": {
+      "bullish": "Bullish",
+      "neutral": "Neutral",
+      "bearish": "Bearish"
+    },
+    "direction": {
+      "long": "Long",
+      "short": "Short",
+      "neutral": "Neutral"
+    },
+    "report": {
+      "revision": "Revision {{revision, number}} · revised {{date}}",
+      "drivers": "What carries the view",
+      "risks": "Risks",
+      "falsifiers": "What would change the view",
+      "valuation": "Fair range {{low}} to {{high}}",
+      "events": "Dates ahead",
+      "written": "written {{date}}",
+      "none": "No report yet.",
+      "stale": "A newer quarter, ending {{date}}, came out after this report was revised. The agent revises it before its next forecast.",
+      "quote-read": "Quote read as stating it: {{share}} likely ({{model}})",
+      "quote-unread": "Quote not checked"
+    },
+    "sections": {
+      "business": "Business",
+      "financials": "Financials",
+      "valuation": "Valuation",
+      "catalysts": "Catalysts",
+      "risks": "Risks"
+    },
+    "forecasts": {
+      "title": "Forecasts",
+      "none": "No forecasts yet.",
+      "record": "{{settled, number}} of {{count, number}} settled · mean Brier {{brier}}",
+      "record-open": "{{count, number}} made, none settled yet",
+      "mean-r": "mean {{r}} R"
+    },
+    "forecast": {
+      "horizon": "{{count, number}}-session horizon from {{date}} at {{price}}",
+      "open": "Open",
+      "settled": "Settled",
+      "entry": "Entry",
+      "stop": "Stop",
+      "target": "Target",
+      "band-below": "Below {{high}}",
+      "band-above": "{{low}} and above",
+      "band-between": "{{low}} to {{high}}",
+      "held": "Held",
+      "closed": "Closed at {{close}} on {{date}}",
+      "plan-result": {
+        "not-entered": "Never entered",
+        "hit-target": "Reached the target",
+        "hit-stop": "Stopped out",
+        "expired": "Still open at the horizon"
+      },
+      "r": "{{r}} R"
+    }
   },
   "order-form": {
     "market": "Market",
@@ -825,6 +893,17 @@
         "confirm-body": "Stories and their scores are deleted from this computer, and older ones can't be collected again. Watched listings collect recent news at their next refresh.",
         "confirm": "Clear",
         "clear-failed": "Couldn't clear the news"
+      },
+      "research": {
+        "title": "Research",
+        "description": "The agent's reports on your listings and its forecasts, with how each came out. None of it can be made again.",
+        "reports": "Listings with a report",
+        "forecasts": "Forecasts",
+        "clear": "Delete all research",
+        "confirm-title": "Delete all research?",
+        "confirm-body": "Every report and forecast is deleted from this computer, along with the record of how the forecasts came out. This can't be undone. Your conversations stay.",
+        "confirm": "Delete all",
+        "clear-failed": "Couldn't delete the research"
       },
       "watchlist": {
         "title": "Watchlist",

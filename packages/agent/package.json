@@ -13,6 +13,7 @@
     "./models": "./src/models.ts",
     "./prompt": "./src/prompt.ts",
     "./providers": "./src/providers.ts",
+    "./research": "./src/research.ts",
     "./runtime": "./src/runtime.ts",
     "./script-runner": "./src/script-runner.ts",
     "./shell": "./src/shell.ts",

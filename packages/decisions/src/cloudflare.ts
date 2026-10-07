@@ -1,11 +1,13 @@
 import { noul } from "@typesafe-ai/sdk";
 import * as z from "zod";
 
+import type { ClaimAuditor } from "@solyx/core/report";
 import type { SentimentScorer } from "@solyx/core/sentiment";
 
 import type { CommandJudge } from "./command.ts";
 import {
   COMMAND_QUESTIONS,
+  createClaimAuditor,
   createCommandJudge,
   createScorer,
 } from "./system-one.ts";
@@ -86,3 +88,8 @@ export const createCloudflareCommandJudge = (
 export const createCloudflareScorer = (
   options: CloudflareOptions
 ): SentimentScorer => createScorer(cloudflare(options));
+
+/** Reads claims against their quotes with a Clef model on Workers AI, on the user's own token. */
+export const createCloudflareClaimAuditor = (
+  options: CloudflareOptions
+): ClaimAuditor => createClaimAuditor(cloudflare(options));

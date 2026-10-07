@@ -98,6 +98,11 @@ export default defineConfig({
           rename: "news",
         },
         {
+          from: "../../packages/db/migrations/research",
+          to: "dist/main/migrations",
+          rename: "research",
+        },
+        {
           from: "../../packages/db/migrations/user",
           to: "dist/main/migrations",
           rename: "user",

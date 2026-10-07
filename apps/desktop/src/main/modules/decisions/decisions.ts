@@ -1,7 +1,9 @@
+import type { ClaimAuditor } from "@solyx/core/report";
 import type { SentimentScorer } from "@solyx/core/sentiment";
 import {
   CLOUDFLARE_BASE_URL,
   CLOUDFLARE_DEFAULT_MODEL,
+  createCloudflareClaimAuditor,
   createCloudflareCommandJudge,
   createCloudflareScorer,
 } from "@solyx/decisions/cloudflare";
@@ -10,6 +12,7 @@ import { DecisionsProvider } from "@solyx/decisions/provider";
 import {
   TYPESAFE_BASE_URL,
   TYPESAFE_DEFAULT_MODEL,
+  createTypeSafeClaimAuditor,
   createTypeSafeCommandJudge,
   createTypeSafeScorer,
 } from "@solyx/decisions/typesafe";
@@ -78,9 +81,10 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
     };
   }
 
-  /** The provider's scorer and judge; `undefined` until the user saves what the provider needs. */
+  /** What the provider's model answers; `undefined` until the user saves what the provider needs. */
   async function model(): Promise<
-    { scorer: SentimentScorer; judge: CommandJudge } | undefined
+    | { scorer: SentimentScorer; judge: CommandJudge; auditor: ClaimAuditor }
+    | undefined
   > {
     const { provider, typesafe, cloudflare } = read();
     const apiKey = await secrets.get(DECISIONS_SECRETS[provider]);
@@ -91,6 +95,7 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
       return {
         scorer: createTypeSafeScorer({ apiKey, ...typesafe }),
         judge: createTypeSafeCommandJudge({ apiKey, ...typesafe }),
+        auditor: createTypeSafeClaimAuditor({ apiKey, ...typesafe }),
       };
     }
 
@@ -101,6 +106,7 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
     return {
       scorer: createCloudflareScorer({ apiKey, accountId, ...endpoint }),
       judge: createCloudflareCommandJudge({ apiKey, accountId, ...endpoint }),
+      auditor: createCloudflareClaimAuditor({ apiKey, accountId, ...endpoint }),
     };
   }
 
@@ -112,6 +118,9 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
 
     /** Judges the agent's shell commands; `undefined` until the user saves a key, and for Cloudflare an account. */
     commandJudge: async () => (await model())?.judge,
+
+    /** Reads the agent's claims against their quotes; `undefined` until the user saves a key, and for Cloudflare an account. */
+    claimAuditor: async () => (await model())?.auditor,
   };
 }
 

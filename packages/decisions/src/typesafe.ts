@@ -1,10 +1,15 @@
 import { TypeSafeClient } from "@typesafe-ai/sdk";
 import type { Fetch } from "@typesafe-ai/sdk";
 
+import type { ClaimAuditor } from "@solyx/core/report";
 import type { SentimentScorer } from "@solyx/core/sentiment";
 
 import type { CommandJudge } from "./command.ts";
-import { createCommandJudge, createScorer } from "./system-one.ts";
+import {
+  createClaimAuditor,
+  createCommandJudge,
+  createScorer,
+} from "./system-one.ts";
 import type { Ask } from "./system-one.ts";
 
 /** Pinned rather than `jev-latest`, so the questions keep the behaviour they were measured against. */
@@ -45,3 +50,8 @@ export const createTypeSafeCommandJudge = (
 export const createTypeSafeScorer = (
   options: TypeSafeOptions
 ): SentimentScorer => createScorer(typeSafe(options));
+
+/** Reads claims against their quotes with a TypeSafe System One model, on the user's own key. */
+export const createTypeSafeClaimAuditor = (
+  options: TypeSafeOptions
+): ClaimAuditor => createClaimAuditor(typeSafe(options));

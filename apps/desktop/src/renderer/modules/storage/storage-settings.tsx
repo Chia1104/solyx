@@ -21,6 +21,7 @@ import { useAgentStore } from "../agent/agent-store.ts";
 import { candlesQueryKeys } from "../market/candles-query.ts";
 import { memoryQueryKeys } from "../memory/memory-query.ts";
 import { newsQueryKeys } from "../news/news-query.ts";
+import { researchQueryKeys } from "../research/research-query.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 import { watchlistQueryKeys } from "../watchlist/watchlist-query.ts";
 
@@ -52,6 +53,7 @@ const SHOWN_ELSEWHERE: Record<StoredData, QueryKey> = {
   [StoredData.Conversations]: agentQueryKeys.sessions,
   [StoredData.Memory]: memoryQueryKeys.all,
   [StoredData.News]: newsQueryKeys.all,
+  [StoredData.Research]: researchQueryKeys.all,
   [StoredData.Watchlist]: watchlistQueryKeys.all,
 };
 
@@ -167,7 +169,7 @@ export function StorageSettings() {
 
   if (!data) return <LoadingState />;
 
-  const { candles, conversations, memory, news, watchlist } = data;
+  const { candles, conversations, memory, news, research, watchlist } = data;
   const bytes = (value: number) => formatBytes(value, i18n.language);
   const count = (value: number) => value.toLocaleString(i18n.language);
 
@@ -229,6 +231,22 @@ export function StorageSettings() {
         <SettingsRow
           label={t("settings.storage.news.count")}
           value={count(news.items)}
+        />
+      </StorageSection>
+      <StorageSection
+        data={StoredData.Research}
+        isEmpty={research.reports === 0 && research.forecasts === 0}>
+        <SettingsRow
+          label={t("settings.storage.size")}
+          value={bytes(research.bytes)}
+        />
+        <SettingsRow
+          label={t("settings.storage.research.reports")}
+          value={count(research.reports)}
+        />
+        <SettingsRow
+          label={t("settings.storage.research.forecasts")}
+          value={count(research.forecasts)}
         />
       </StorageSection>
       <StorageSection

@@ -72,13 +72,13 @@ export type RiskViolation =
       held: number;
     };
 
-function tickSize(instrument: Instrument, price: number): number {
+export function tickSize(instrument: Instrument, price: number): number {
   return instrument.market === Market.TW
     ? twTickSize(price, instrument.kind)
     : usTickSize(price);
 }
 
-function isOnTick(price: number, tick: number): boolean {
+export function isOnTick(price: number, tick: number): boolean {
   const steps = price / tick;
 
   return Math.abs(steps - Math.round(steps)) < 1e-6;

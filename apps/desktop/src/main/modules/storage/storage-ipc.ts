@@ -18,6 +18,7 @@ export function registerStorageIpc({
   agent,
   memories,
   newsData,
+  research,
   userData,
 }: Services) {
   bindIpc<StorageApi>(
@@ -28,6 +29,7 @@ export function registerStorageIpc({
       agent,
       memories,
       news: newsData,
+      research,
       watchlist: userData.watchlist,
     })
   );

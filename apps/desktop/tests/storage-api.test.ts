@@ -29,6 +29,10 @@ function setup() {
       usage: vi.fn(() => ({ bytes: 1000, items: 5 })),
       clear: vi.fn(),
     },
+    research: {
+      usage: vi.fn(() => ({ bytes: 800, reports: 2, forecasts: 4 })),
+      clear: vi.fn(),
+    },
     watchlist: { list: vi.fn(() => [TSMC]), clear: vi.fn() },
   };
 
@@ -37,6 +41,7 @@ function setup() {
     [StoredData.Conversations]: options.agent.deleteAllSessions,
     [StoredData.Memory]: options.memories.clear,
     [StoredData.News]: options.news.clear,
+    [StoredData.Research]: options.research.clear,
     [StoredData.Watchlist]: options.watchlist.clear,
   };
 
@@ -54,6 +59,7 @@ test("usage measures every kind of data", async () => {
     conversations: { bytes: 2000, conversations: 2 },
     memory: { bytes: 500, memories: 3 },
     news: { bytes: 1000, items: 5 },
+    research: { bytes: 800, reports: 2, forecasts: 4 },
     watchlist: { listings: 1 },
   });
 });

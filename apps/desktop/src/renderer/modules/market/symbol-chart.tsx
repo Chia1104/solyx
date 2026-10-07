@@ -1,9 +1,11 @@
+import type { ReactNode } from "react";
+
 import { Alert, EmptyState, Skeleton, Spinner } from "@heroui/react";
 import { buttonVariants } from "@heroui/styles";
 import { CatchBoundary, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import type { Interval } from "@solyx/core/candles";
+import type { Candle, Interval } from "@solyx/core/candles";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
@@ -47,9 +49,12 @@ function SetupRequired({ source }: { source: MarketDataSource }) {
 export function SymbolChart({
   symbol,
   interval,
+  overlay,
 }: {
   symbol: SymbolRef;
   interval: Interval;
+  /** What else to draw on the price pane, given the bars the chart shows. */
+  overlay?: (candles: Candle[]) => ReactNode;
 }) {
   const { t } = useTranslation();
   const { settings, source, candles } = useCandles(symbol, interval);
@@ -108,8 +113,9 @@ export function SymbolChart({
           key={dataset}
           candles={data.candles}
           market={data.symbol.market}
-          interval={data.interval}
-        />
+          interval={data.interval}>
+          {overlay?.(data.candles)}
+        </PriceChart>
       </CatchBoundary>
       {isPlaceholderData ? (
         // Shows only once loading takes a moment, so bars that arrive at once never flash it.
