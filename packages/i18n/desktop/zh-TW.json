@@ -580,6 +580,10 @@
       },
       "limits": "即時 {{symbols, number}} 檔；每分鐘盤中 {{intraday, number}} 次、歷史 {{historical, number}} 次"
     },
+    "fundamentals": {
+      "title": "財報",
+      "description": "台股的季報與月營收來自 FinMind，不需要金鑰。請求直接從這台電腦送到 FinMind。"
+    },
     "secrets": {
       "unavailable": "這台電腦沒有可用的安全儲存，無法儲存金鑰與登入資料。Linux 請安裝並解鎖 GNOME Keyring 或 KWallet，再重新啟動 Solyx。",
       "unreadable": "已儲存的內容無法在這台電腦上解密，例如換了電腦或使用者帳號。請重新輸入。",
@@ -620,6 +624,10 @@
       "cloudflare-api-key": {
         "label": "API 權杖",
         "hint": "Cloudflare API 權杖，需具備下方帳號的 Workers AI 權限。"
+      },
+      "finmind-token": {
+        "label": "FinMind token",
+        "hint": "不填也能用，每小時 300 次請求；免費註冊的 token 可提高到 600 次。"
       }
     },
     "sign-in": {
@@ -713,6 +721,19 @@
       "decision-modes": {
         "single": "Agent 自行決定",
         "magi": "MAGI"
+      },
+      "magi": {
+        "conversation-model": "與對話相同",
+        "units": {
+          "melchior": "MELCHIOR·1",
+          "balthasar": "BALTHASAR·2",
+          "casper": "CASPER·3"
+        },
+        "personas": {
+          "melchior": "科學家：數據和證據怎麼說。",
+          "balthasar": "母親：可能失去什麼，以及按兵不動是不是證據要求的。",
+          "casper": "女人：市場現在想要什麼，站在場外要付出什麼。"
+        }
       }
     },
     "web-search": {

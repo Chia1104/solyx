@@ -154,6 +154,7 @@ export function createAgentModels({
         model: found?.id ?? "",
         thinking,
         decisionMode: agent.decisionMode,
+        magi: agent.magi,
         models: providers
           .filter((each) => each.enabled)
           .flatMap((each) => catalog.options(each.provider)),

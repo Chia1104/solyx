@@ -8,17 +8,32 @@ const TSMC = { market: Market.TW, symbol: "2330" };
 
 /** Answers each request with the next body, as JSON with the status given beside it. */
 function fakeFinMind(...answers: { status?: number; body: unknown }[]) {
+  return fakeFinMindOn(undefined, ...answers);
+}
+
+function fakeFinMindOn(
+  token: string | undefined,
+  ...answers: { status?: number; body: unknown }[]
+) {
   const sent: string[] = [];
+  const authorizations: (string | null)[] = [];
 
   const fetch = async (input: string | URL | Request, init?: RequestInit) => {
-    sent.push(new Request(input, init).url);
+    const request = new Request(input, init);
+
+    sent.push(request.url);
+    authorizations.push(request.headers.get("authorization"));
 
     const answer = answers.shift() ?? { body: { data: [] } };
 
     return Response.json(answer.body, { status: answer.status ?? 200 });
   };
 
-  return { sent, finmind: createFinMind({ fetch }) };
+  return {
+    sent,
+    authorizations,
+    finmind: createFinMind({ fetch, token: async () => token }),
+  };
 }
 
 const line = (date: string, type: string, value: number) => ({
@@ -143,4 +158,15 @@ test("a failure names FinMind and the reason it gives", async () => {
   await expect(finmind.getStatements(TSMC, "2025-01-01")).rejects.toThrow(
     "FinMind answered 402: Requests reach the upper limit."
   );
+});
+
+test("a saved token goes with every request, and none without one", async () => {
+  const anonymous = fakeFinMind({ body: { data: [] } });
+  const registered = fakeFinMindOn("fm-token", { body: { data: [] } });
+
+  await anonymous.finmind.getStatements(TSMC, "2025-01-01");
+  await registered.finmind.getStatements(TSMC, "2025-01-01");
+
+  expect(anonymous.authorizations).toEqual([null]);
+  expect(registered.authorizations).toEqual(["Bearer fm-token"]);
 });

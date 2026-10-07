@@ -14,8 +14,10 @@ import { createRateLimiter } from "@solyx/utils/rate-limit";
 
 const FINMIND_API_URL = "https://api.finmindtrade.com/api/v4/";
 
-// What FinMind allows a caller without a token.
-const REQUESTS_PER_HOUR = 300;
+// What FinMind allows an hour: without a token, and with a registered one.
+const ANONYMOUS_REQUESTS = 300;
+
+const TOKEN_REQUESTS = 600;
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -45,11 +47,13 @@ const NET_INCOME_LINES = [
 ];
 
 export interface FinMindOptions {
+  /** The user's FinMind token, read for every request; `undefined` asks without one, under the lower limit. */
+  token?: () => Promise<string | undefined>;
   /** @default globalThis.fetch */
   fetch?: typeof globalThis.fetch;
 }
 
-/** Taiwan listings' quarterly income statements and monthly revenue from FinMind, without a token. */
+/** Taiwan listings' quarterly income statements and monthly revenue from FinMind, on the user's token or none. */
 export function createFinMind(
   options: FinMindOptions = {}
 ): FundamentalsProvider {
@@ -75,10 +79,14 @@ export function createFinMind(
     },
   });
 
-  const budget = createRateLimiter({
-    limit: REQUESTS_PER_HOUR,
-    windowMs: HOUR_MS,
-  });
+  // Each limit is FinMind's own, counted per hour, so the two are kept apart.
+  const budgets = {
+    anonymous: createRateLimiter({
+      limit: ANONYMOUS_REQUESTS,
+      windowMs: HOUR_MS,
+    }),
+    token: createRateLimiter({ limit: TOKEN_REQUESTS, windowMs: HOUR_MS }),
+  };
 
   /** A dataset's rows for one listing from `since` on, each dropped unless it parses. */
   async function rows<Row>(
@@ -89,9 +97,14 @@ export function createFinMind(
   ): Promise<Row[]> {
     if (symbol.market !== Market.TW) return [];
 
+    const token = await options.token?.();
+    const budget = token === undefined ? budgets.anonymous : budgets.token;
+
     const response = await budget(() =>
       api
         .get("data", {
+          headers:
+            token === undefined ? {} : { Authorization: `Bearer ${token}` },
           searchParams: {
             dataset,
             data_id: symbol.symbol,

@@ -580,6 +580,10 @@
       },
       "limits": "{{symbols, number}} live symbols; {{intraday, number}} intraday and {{historical, number}} history requests a minute"
     },
+    "fundamentals": {
+      "title": "Fundamentals",
+      "description": "Quarterly statements and monthly revenue for Taiwan listings come from FinMind, which needs no key. Requests go straight from this computer to FinMind."
+    },
     "secrets": {
       "unavailable": "This computer has no secure storage, so keys and sign-in details can't be saved. On Linux, install and unlock GNOME Keyring or KWallet, then restart Solyx.",
       "unreadable": "The saved value can't be decrypted on this computer anymore, for example after moving to another computer or user account. Enter it again.",
@@ -620,6 +624,10 @@
       "cloudflare-api-key": {
         "label": "API token",
         "hint": "A Cloudflare API token with the Workers AI permission on the account below."
+      },
+      "finmind-token": {
+        "label": "FinMind token",
+        "hint": "FinMind answers without one, up to 300 requests an hour; a free account's token raises that to 600."
       }
     },
     "sign-in": {
@@ -713,6 +721,19 @@
       "decision-modes": {
         "single": "The agent alone",
         "magi": "MAGI"
+      },
+      "magi": {
+        "conversation-model": "Same as the conversation",
+        "units": {
+          "melchior": "MELCHIOR·1",
+          "balthasar": "BALTHASAR·2",
+          "casper": "CASPER·3"
+        },
+        "personas": {
+          "melchior": "The scientist: what the data and the evidence show.",
+          "balthasar": "The mother: what could be lost, and whether standing aside is what the evidence called for.",
+          "casper": "The woman: what the crowd wants now, and what standing aside gives up."
+        }
       }
     },
     "web-search": {

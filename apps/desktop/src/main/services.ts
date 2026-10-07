@@ -22,7 +22,7 @@ import { memoryEvents } from "#shared/ipc/memory.ts";
 import { newsEvents } from "#shared/ipc/news.ts";
 import { proposalsEvents } from "#shared/ipc/proposals.ts";
 import { researchEvents } from "#shared/ipc/research.ts";
-import { AppLocation, settingsEvents } from "#shared/ipc/settings.ts";
+import { AppLocation, Secret, settingsEvents } from "#shared/ipc/settings.ts";
 import { ColorScheme } from "#shared/palette.ts";
 
 import { createAgentService } from "./modules/agent/agent-service.ts";
@@ -153,7 +153,11 @@ export function createServices() {
     onChange: (symbol) => broadcast(newsEvents.onChanged, symbol),
   });
 
-  const fundamentals = createFundamentals({ providers: [createFinMind()] });
+  const fundamentals = createFundamentals({
+    providers: [
+      createFinMind({ token: () => secrets.get(Secret.FinMindToken) }),
+    ],
+  });
 
   // Every window hears every change to the agent's research, whoever made it.
   const research = createResearch(

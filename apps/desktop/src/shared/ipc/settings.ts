@@ -11,8 +11,9 @@ import type {
   AgentProvider,
   AgentThinking,
 } from "@solyx/agent/providers";
+import type { AgentModelRef } from "@solyx/agent/providers";
 import type { SkillSource } from "@solyx/agent/skill-source";
-import type { DecisionMode } from "@solyx/core/council";
+import type { DecisionMode, MagiUnit } from "@solyx/core/council";
 import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { DecisionsProvider } from "@solyx/decisions/provider";
@@ -32,6 +33,8 @@ export const Secret = {
   DecisionsApiKey: "decisions-api-key",
   /** A Cloudflare API token that may run Workers AI. */
   CloudflareApiKey: "cloudflare-api-key",
+  /** Optional: FinMind answers without one under a lower limit. */
+  FinMindToken: "finmind-token",
   /** The ChatGPT sign-in's OAuth tokens; the main process saves and refreshes them, nobody types them. */
   OpenAIChatGPT: "openai-chatgpt",
 } as const;
@@ -248,6 +251,8 @@ export interface AgentSettings {
   thinking: AgentThinking;
   /** Who decides the agent's forecasts and order proposals. */
   decisionMode: DecisionMode;
+  /** The model each MAGI unit answers on; `null` follows the conversation's. */
+  magi: Record<MagiUnit, AgentModelRef | null>;
   /** The chat models of every provider switched on, each provider's in its catalog's order. */
   models: AgentModelOption[];
   /** The default model's provider can run and its catalog has the model, so the agent can run. */
@@ -435,6 +440,8 @@ export interface SettingsApi {
   setAgentModel(model: string): Promise<void>;
   setAgentThinking(thinking: AgentThinking): Promise<void>;
   setAgentDecisionMode(mode: DecisionMode): Promise<void>;
+  /** `null` has the unit answer on the conversation's model. */
+  setMagiModel(unit: MagiUnit, model: AgentModelRef | null): Promise<void>;
   setAgentAuth(auth: AgentAuth): Promise<void>;
   saveAgentKey(provider: AgentProvider, value: string): Promise<void>;
   deleteAgentKey(provider: AgentProvider): Promise<void>;
@@ -534,6 +541,7 @@ export const settingsChannels = {
   setAgentModel: "settings:set-agent-model",
   setAgentThinking: "settings:set-agent-thinking",
   setAgentDecisionMode: "settings:set-agent-decision-mode",
+  setMagiModel: "settings:set-magi-model",
   setAgentAuth: "settings:set-agent-auth",
   saveAgentKey: "settings:save-agent-key",
   deleteAgentKey: "settings:delete-agent-key",

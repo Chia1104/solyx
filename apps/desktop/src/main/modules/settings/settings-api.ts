@@ -159,6 +159,10 @@ export function createSettingsApi({
       config.set(["agent", "decisionMode"], mode);
     },
 
+    async setMagiModel(unit, model) {
+      config.set(["agent", "magi", unit], model);
+    },
+
     async setAgentAuth(auth) {
       config.set(["agent", "auth"], auth);
     },
