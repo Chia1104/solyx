@@ -227,6 +227,14 @@ const configSchema = section(
           }),
       })
     ),
+    updates: section(
+      z.looseObject({
+        check: z.boolean().catch(true).meta({
+          description:
+            "Asks download.usesolyx.trade for a newer Solyx a minute after it starts and every six hours. On Windows the update downloads and installs when you restart; on macOS it is linked for you to download.",
+        }),
+      })
+    ),
     webSearch: section(
       z.looseObject({
         provider: webSearchProviderSchema
@@ -330,6 +338,7 @@ type ConfigPath =
   | ["agent", "magi", MagiUnit]
   | ["agent", "mcpTools", string]
   | ["news", "collectEveryHours"]
+  | ["updates", "check"]
   | ["webSearch", "provider"]
   | ["decisions", "provider"]
   | ["decisions", DecisionsProvider, "model" | "baseURL"]

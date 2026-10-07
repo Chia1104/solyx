@@ -990,6 +990,24 @@
       "license": "授權"
     }
   },
+  "updates": {
+    "title": "更新",
+    "automatic": "自動檢查更新",
+    "automatic-description": "Solyx 啟動一分鐘後及每六小時向 download.usesolyx.trade 查詢是否有新版本。",
+    "check-now": "立即檢查",
+    "restart": "重新啟動以更新",
+    "download": "下載更新",
+    "status": {
+      "unsupported": "此版本不支援更新",
+      "idle": "尚未檢查",
+      "checking": "檢查中…",
+      "current": "已是最新版本",
+      "downloading": "正在下載 {{version}}…",
+      "ready": "{{version}} 將在 Solyx 重新啟動時安裝",
+      "available": "{{version}} 已推出",
+      "failed": "無法檢查更新"
+    }
+  },
   "locale": {
     "system": "跟隨系統",
     "en-US": "English",

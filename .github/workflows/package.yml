@@ -1,4 +1,5 @@
-# Packages the desktop app on macOS and Windows and uploads the installers as artifacts.
+# Packages the desktop app on macOS and Windows and uploads the installers, with the update feed and
+# block maps electron-updater reads, as artifacts.
 name: Package
 
 on:
@@ -66,4 +67,7 @@ jobs:
           path: |
             apps/desktop/release/*.dmg
             apps/desktop/release/*.exe
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/latest*.yml
+            apps/desktop/release/nightly*.yml
           if-no-files-found: error

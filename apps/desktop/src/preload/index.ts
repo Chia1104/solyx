@@ -20,6 +20,8 @@ import type { SettingsApi, SettingsEvents } from "#shared/ipc/settings.ts";
 import type { SolyxApi } from "#shared/ipc/solyx-api.ts";
 import { storageChannels } from "#shared/ipc/storage.ts";
 import type { StorageApi } from "#shared/ipc/storage.ts";
+import { updatesChannels, updatesEvents } from "#shared/ipc/updates.ts";
+import type { UpdatesApi, UpdatesEvents } from "#shared/ipc/updates.ts";
 import { watchlistChannels } from "#shared/ipc/watchlist.ts";
 import type { WatchlistApi } from "#shared/ipc/watchlist.ts";
 
@@ -96,6 +98,7 @@ const api: SolyxApi = {
     settingsEvents
   ),
   storage: bridge<StorageApi>(storageChannels),
+  updates: bridge<UpdatesApi, UpdatesEvents>(updatesChannels, updatesEvents),
   watchlist: bridge<WatchlistApi>(watchlistChannels),
 };
 

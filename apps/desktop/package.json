@@ -47,6 +47,7 @@
     "d3-hierarchy": "catalog:charts",
     "electron": "catalog:electron",
     "electron-builder": "catalog:electron",
+    "electron-updater": "catalog:electron",
     "es-toolkit": "catalog:",
     "i18next": "catalog:i18n",
     "lightweight-charts": "catalog:charts",

@@ -121,6 +121,8 @@ const schemas = {
   setAgentShell: z.tuple([z.boolean()]),
   memory: z.tuple([]),
   setMemoryEnabled: z.tuple([z.boolean()]),
+  updates: z.tuple([]),
+  setUpdateChecks: z.tuple([z.boolean()]),
   mcp: z.tuple([]),
   setMcpToolPolicy: z.tuple([
     mcpNameSchema,

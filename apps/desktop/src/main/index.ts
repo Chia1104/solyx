@@ -33,6 +33,7 @@ void app.whenReady().then(() => {
   services.agent.resume().catch(console.error);
 
   services.newsCollector.start();
+  services.updates.start();
 
   // Runs still going are stored where they stopped and continue at the next start, and stdio MCP
   // servers are shut down rather than left running without the app.
@@ -42,6 +43,7 @@ void app.whenReady().then(() => {
     quitting = true;
     event.preventDefault();
     services.newsCollector.stop();
+    services.updates.stop();
 
     void withTimeout(() => services.agent.close(), CLOSE_TIMEOUT_MS)
       .catch(console.error)

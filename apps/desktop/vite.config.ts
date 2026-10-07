@@ -78,12 +78,14 @@ export default defineConfig({
   run: {
     tasks: {
       package: {
-        command: "electron-builder --config build/electron-builder.yml",
+        command:
+          "electron-builder --config build/electron-builder.yml --publish never",
         dependsOn: ["build"],
         cache: false,
       },
       "package:nightly": {
-        command: "electron-builder --config build/electron-builder.nightly.yml",
+        command:
+          "electron-builder --config build/electron-builder.nightly.yml --publish never",
         dependsOn: ["build"],
         cache: false,
       },

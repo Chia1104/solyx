@@ -990,6 +990,24 @@
       "license": "License"
     }
   },
+  "updates": {
+    "title": "Updates",
+    "automatic": "Check for updates",
+    "automatic-description": "Asks download.usesolyx.trade for a newer version a minute after Solyx starts and every six hours.",
+    "check-now": "Check now",
+    "restart": "Restart to update",
+    "download": "Download update",
+    "status": {
+      "unsupported": "This build doesn't update",
+      "idle": "Not checked yet",
+      "checking": "Checking…",
+      "current": "Up to date",
+      "downloading": "Downloading {{version}}…",
+      "ready": "{{version}} installs when Solyx restarts",
+      "available": "{{version}} is out",
+      "failed": "Couldn't check for updates"
+    }
+  },
   "locale": {
     "system": "System",
     "en-US": "English",

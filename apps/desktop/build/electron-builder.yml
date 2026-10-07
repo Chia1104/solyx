@@ -5,8 +5,13 @@ directories:
   output: release
 files:
   - dist/**
-# The release workflow uploads the installers itself.
-publish: null
+# The release workflows upload each channel's installers and update feed to its folder, where
+# electron-updater reads the feed of the channel it was built for.
+publish:
+  provider: generic
+  url: https://download.usesolyx.trade/stable
+# A nightly's version names its channel, so the two channels' installers never share a name.
+artifactName: Solyx-${version}.${ext}
 mac:
   # Icon Composer's icon follows the system appearance; the build machine needs Xcode 26 or later.
   icon: icon.icon

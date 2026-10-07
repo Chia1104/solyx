@@ -10,6 +10,7 @@ import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
+import { UpdateRows } from "../updates/update-rows.tsx";
 
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { aboutQuery } from "./settings-query.ts";
@@ -62,6 +63,7 @@ export function AboutSettings() {
         </span>
       }>
       <SettingsList>
+        <UpdateRows />
         <SettingsRow
           label={t("settings.about.data")}
           description={t("settings.about.data-hint")}

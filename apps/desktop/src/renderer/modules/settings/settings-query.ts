@@ -29,6 +29,7 @@ export const settingsQueryKeys = {
   decisions: [...all, "decisions"] as const,
   agentSkills: [...all, "agent-skills"] as const,
   memory: [...all, "memory"] as const,
+  updates: [...all, "updates"] as const,
   mcp: [...all, "mcp"] as const,
 };
 
@@ -118,6 +119,14 @@ export const memorySettingsQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.memory,
     queryFn: () => window.solyx.settings.memory(),
+    staleTime: Infinity,
+  });
+
+/** Never stale, as below. */
+export const updateSettingsQuery = () =>
+  queryOptions({
+    queryKey: settingsQueryKeys.updates,
+    queryFn: () => window.solyx.settings.updates(),
     staleTime: Infinity,
   });
 

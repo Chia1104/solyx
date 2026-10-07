@@ -23,6 +23,7 @@ import { newsEvents } from "#shared/ipc/news.ts";
 import { proposalsEvents } from "#shared/ipc/proposals.ts";
 import { researchEvents } from "#shared/ipc/research.ts";
 import { AppLocation, Secret, settingsEvents } from "#shared/ipc/settings.ts";
+import { updatesEvents } from "#shared/ipc/updates.ts";
 import { ColorScheme } from "#shared/palette.ts";
 
 import { createAgentService } from "./modules/agent/agent-service.ts";
@@ -42,6 +43,8 @@ import { createConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
+import { createAppUpdater } from "./modules/updates/app-updater.ts";
+import { createUpdates } from "./modules/updates/updates.ts";
 import { createWebSearch } from "./modules/web-search/web-search.ts";
 import { paintWindow } from "./shell/main-window.ts";
 
@@ -202,6 +205,12 @@ export function createServices() {
     collectEveryHours: () => config.read().news.collectEveryHours,
   });
 
+  const updates = createUpdates({
+    updater: createAppUpdater(),
+    checkEnabled: () => config.read().updates.check,
+    onChange: () => broadcast(updatesEvents.onChanged),
+  });
+
   const appearance = createAppearance({
     config,
     // Windows and their renderers' prefers-color-scheme follow themeSource; the rest is pushed to
@@ -256,6 +265,7 @@ export function createServices() {
     news,
     newsData,
     newsCollector,
+    updates,
   };
 }
 

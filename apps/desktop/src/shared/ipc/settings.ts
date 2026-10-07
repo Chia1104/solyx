@@ -296,6 +296,11 @@ export interface MemorySettings {
   enabled: boolean;
 }
 
+export interface UpdateSettings {
+  /** The app checks for a newer version on its own while it runs. */
+  check: boolean;
+}
+
 /** The web search vendor news and the agent search and read through, and each vendor's key. */
 export interface WebSearchSettings {
   provider: WebSearchProvider;
@@ -501,6 +506,8 @@ export interface SettingsApi {
   memory(): Promise<MemorySettings>;
   /** Gives the agent its memories from its next run on, or takes them away; they stay saved. */
   setMemoryEnabled(enabled: boolean): Promise<void>;
+  updates(): Promise<UpdateSettings>;
+  setUpdateChecks(enabled: boolean): Promise<void>;
   /** Connects the servers in mcp.json on first use. */
   mcp(): Promise<McpSettings>;
   /** Lets the agent do the same with each of a server's `tools`, saved in one write. */
@@ -579,6 +586,8 @@ export const settingsChannels = {
   setAgentShell: "settings:set-agent-shell",
   memory: "settings:memory",
   setMemoryEnabled: "settings:set-memory-enabled",
+  updates: "settings:updates",
+  setUpdateChecks: "settings:set-update-checks",
   mcp: "settings:mcp",
   setMcpToolPolicy: "settings:set-mcp-tool-policy",
   saveMcpSecret: "settings:save-mcp-secret",

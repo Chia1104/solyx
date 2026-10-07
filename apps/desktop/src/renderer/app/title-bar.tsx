@@ -18,6 +18,7 @@ import { WindowTitleBar } from "../components/window-title-bar.tsx";
 import { BrokerModeChip } from "../modules/account/broker-mode-chip.tsx";
 import { MarketSessions } from "../modules/market/market-sessions.tsx";
 import { SymbolSearch } from "../modules/market/symbol-search.tsx";
+import { UpdateAction } from "../modules/updates/update-action.tsx";
 
 import { PANE_HOTKEY } from "./hotkeys.ts";
 import { PANE_EDGE, Pane, paneId, useLayoutStore } from "./layout-store.ts";
@@ -82,7 +83,7 @@ function SettingsButton() {
   );
 }
 
-/** The workspace's title bar: the pane toggles, search, market sessions and settings. */
+/** The workspace's title bar: the pane toggles, search, a waiting update, market sessions and settings. */
 export function TitleBar({ searchRef }: { searchRef: Ref<HTMLInputElement> }) {
   const { t } = useTranslation();
 
@@ -94,6 +95,7 @@ export function TitleBar({ searchRef }: { searchRef: Ref<HTMLInputElement> }) {
       </Link>
       <SymbolSearch inputRef={searchRef} />
       <div className="ml-auto flex items-center gap-4">
+        <UpdateAction />
         <MarketSessions />
         <BrokerModeChip />
         <div className="flex items-center gap-1">
