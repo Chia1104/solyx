@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from "react";
 
 import cloudflare from "@lobehub/icons-static-svg/icons/cloudflare-color.svg?no-inline";
+import openai from "@lobehub/icons-static-svg/icons/openai.svg?no-inline";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { TabList, TabPanel, Tabs } from "react-aria-components";
 import { useTranslation } from "react-i18next";
@@ -34,6 +35,7 @@ import { TextSettingRow } from "./text-setting-row.tsx";
 
 const LOGOS: Partial<Record<DecisionsProvider, Logo>> = {
   [DecisionsProvider.Cloudflare]: { src: cloudflare, colored: true },
+  [DecisionsProvider.OpenAI]: { src: openai, colored: false },
 };
 
 /**

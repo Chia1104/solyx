@@ -625,6 +625,10 @@
         "label": "API 權杖",
         "hint": "Cloudflare API 權杖，需具備下方帳號的 Workers AI 權限。"
       },
+      "openai-decisions-api-key": {
+        "label": "API 金鑰",
+        "hint": "在 OpenAI 平台建立的 API 金鑰；用 ChatGPT 登入無法使用 Decisions API。"
+      },
       "finmind-token": {
         "label": "FinMind token",
         "hint": "不填也能用，每小時 300 次請求；免費註冊的 token 可提高到 600 次。"
@@ -783,7 +787,8 @@
       "provider": "供應商",
       "providers": {
         "typesafe": "TypeSafe",
-        "cloudflare": "Cloudflare Workers AI"
+        "cloudflare": "Cloudflare Workers AI",
+        "openai": "OpenAI"
       },
       "account-id": "帳號 ID",
       "account-id-description": "執行模型的 Workers AI 所屬的 Cloudflare 帳號，可在帳號總覽頁找到。",
@@ -791,7 +796,8 @@
       "model": "模型",
       "model-descriptions": {
         "typesafe": "模型 ID。題目是依預設版本評測的，換成其他版本可能會有不同的判斷。",
-        "cloudflare": "模型 ID：clef，或較快的 clef-flash。題目是依預設模型評測的，換成另一個可能會有不同的判斷。"
+        "cloudflare": "模型 ID：clef，或較快的 clef-flash。題目是依預設模型評測的，換成另一個可能會有不同的判斷。",
+        "openai": "模型 ID；目前 OpenAI 的決策模型只有 gpt-6-luna。"
       },
       "model-required": "請輸入模型 ID",
       "base-url": "端點",

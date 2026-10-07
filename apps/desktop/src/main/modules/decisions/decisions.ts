@@ -8,6 +8,13 @@ import {
   createCloudflareScorer,
 } from "@solyx/decisions/cloudflare";
 import type { CommandJudge } from "@solyx/decisions/command";
+import {
+  OPENAI_BASE_URL,
+  OPENAI_DEFAULT_MODEL,
+  createOpenAIClaimAuditor,
+  createOpenAICommandJudge,
+  createOpenAIScorer,
+} from "@solyx/decisions/openai";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 import {
   TYPESAFE_BASE_URL,
@@ -38,6 +45,11 @@ const CLOUDFLARE_DEFAULTS = {
   baseURL: CLOUDFLARE_BASE_URL,
 };
 
+const OPENAI_DEFAULTS = {
+  model: OPENAI_DEFAULT_MODEL,
+  baseURL: OPENAI_BASE_URL,
+};
+
 /**
  * The decisions model the config file and the saved key pick. Each scorer reads them afresh, so
  * a changed provider, key, model or endpoint applies to the next text without a restart.
@@ -45,7 +57,7 @@ const CLOUDFLARE_DEFAULTS = {
 export function createDecisions({ config, secrets }: DecisionsOptions) {
   /** Each provider's settings, with its default for every entry the config file does not set. */
   function read() {
-    const { provider, typesafe, cloudflare } = config.read().decisions;
+    const { provider, typesafe, cloudflare, openai } = config.read().decisions;
 
     return {
       provider,
@@ -58,11 +70,15 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
         baseURL: cloudflare.baseURL ?? CLOUDFLARE_DEFAULTS.baseURL,
         accountId: cloudflare.accountId ?? null,
       },
+      openai: {
+        model: openai.model ?? OPENAI_DEFAULTS.model,
+        baseURL: openai.baseURL ?? OPENAI_DEFAULTS.baseURL,
+      },
     };
   }
 
   function settings(): DecisionsSettings {
-    const { provider, typesafe, cloudflare } = read();
+    const { provider, typesafe, cloudflare, openai } = read();
 
     return {
       provider,
@@ -77,6 +93,11 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
           ...cloudflare,
           defaults: CLOUDFLARE_DEFAULTS,
         },
+        {
+          provider: DecisionsProvider.OpenAI,
+          ...openai,
+          defaults: OPENAI_DEFAULTS,
+        },
       ],
     };
   }
@@ -86,28 +107,45 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
     | { scorer: SentimentScorer; judge: CommandJudge; auditor: ClaimAuditor }
     | undefined
   > {
-    const { provider, typesafe, cloudflare } = read();
+    const { provider, typesafe, cloudflare, openai } = read();
     const apiKey = await secrets.get(DECISIONS_SECRETS[provider]);
 
     if (apiKey === undefined) return undefined;
 
-    if (provider === DecisionsProvider.TypeSafe) {
-      return {
-        scorer: createTypeSafeScorer({ apiKey, ...typesafe }),
-        judge: createTypeSafeCommandJudge({ apiKey, ...typesafe }),
-        auditor: createTypeSafeClaimAuditor({ apiKey, ...typesafe }),
-      };
+    switch (provider) {
+      case DecisionsProvider.TypeSafe:
+        return {
+          scorer: createTypeSafeScorer({ apiKey, ...typesafe }),
+          judge: createTypeSafeCommandJudge({ apiKey, ...typesafe }),
+          auditor: createTypeSafeClaimAuditor({ apiKey, ...typesafe }),
+        };
+      case DecisionsProvider.Cloudflare: {
+        const { accountId, ...endpoint } = cloudflare;
+
+        if (accountId === null) return undefined;
+
+        return {
+          scorer: createCloudflareScorer({ apiKey, accountId, ...endpoint }),
+          judge: createCloudflareCommandJudge({
+            apiKey,
+            accountId,
+            ...endpoint,
+          }),
+          auditor: createCloudflareClaimAuditor({
+            apiKey,
+            accountId,
+            ...endpoint,
+          }),
+        };
+      }
+
+      case DecisionsProvider.OpenAI:
+        return {
+          scorer: createOpenAIScorer({ apiKey, ...openai }),
+          judge: createOpenAICommandJudge({ apiKey, ...openai }),
+          auditor: createOpenAIClaimAuditor({ apiKey, ...openai }),
+        };
     }
-
-    const { accountId, ...endpoint } = cloudflare;
-
-    if (accountId === null) return undefined;
-
-    return {
-      scorer: createCloudflareScorer({ apiKey, accountId, ...endpoint }),
-      judge: createCloudflareCommandJudge({ apiKey, accountId, ...endpoint }),
-      auditor: createCloudflareClaimAuditor({ apiKey, accountId, ...endpoint }),
-    };
   }
 
   return {

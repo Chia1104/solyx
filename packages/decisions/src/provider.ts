@@ -4,6 +4,7 @@ import * as z from "zod";
 export const DecisionsProvider = {
   TypeSafe: "typesafe",
   Cloudflare: "cloudflare",
+  OpenAI: "openai",
 } as const;
 
 export type DecisionsProvider =

@@ -1,6 +1,6 @@
 # `@solyx/decisions`
 
-Decisions models, which answer typed questions with probabilities instead of writing text: one module per vendor, each implementing the contracts in `@solyx/core/sentiment`, judging the agent's shell commands for conversations set to auto, and reading the claims in its research against their quotes (`ClaimAuditor` from `@solyx/core/report`). `./typesafe` runs TypeSafe's models, such as Jev, through `@typesafe-ai/sdk`, and also serves endpoints that speak its `/v1/systemone` API. `./cloudflare` runs Cloudflare's Clef on Workers AI over `fetch`. `./provider` names the vendors and `./command` holds the command judge's contract.
+Decisions models, which answer typed questions with probabilities instead of writing text: one module per vendor, each implementing the contracts in `@solyx/core/sentiment`, judging the agent's shell commands for conversations set to auto, and reading the claims in its research against their quotes (`ClaimAuditor` from `@solyx/core/report`). `./typesafe` runs TypeSafe's models, such as Jev, through `@typesafe-ai/sdk`, and also serves endpoints that speak its `/v1/systemone` API. `./cloudflare` runs Cloudflare's Clef on Workers AI over `fetch`. `./openai` runs OpenAI's Decisions API through `openai`, on an API key of its own: ChatGPT sign-in does not reach that API. `./provider` names the vendors and `./command` holds the command judge's contract.
 
 ## Boundaries
 

@@ -2,11 +2,12 @@ import { chunk } from "es-toolkit";
 
 /**
  * Measures how well the claim auditor tells a claim its quote states from one that outruns it,
- * against the decisions API on a real key. Run from the repository root, for TypeSafe or for
- * Cloudflare:
+ * against the decisions API on a real key. Run from the repository root, for TypeSafe, Cloudflare
+ * or OpenAI:
  *
  *   node --env-file=.env packages/decisions/scripts/eval-claims.ts
  *   DECISIONS_PROVIDER=cloudflare node --env-file=.env packages/decisions/scripts/eval-claims.ts
+ *   DECISIONS_PROVIDER=openai node --env-file=.env packages/decisions/scripts/eval-claims.ts
  */
 import type { ClaimAuditor } from "@solyx/core/report";
 
@@ -15,6 +16,11 @@ import {
   CLOUDFLARE_DEFAULT_MODEL,
   createCloudflareClaimAuditor,
 } from "../src/cloudflare.ts";
+import {
+  OPENAI_BASE_URL,
+  OPENAI_DEFAULT_MODEL,
+  createOpenAIClaimAuditor,
+} from "../src/openai.ts";
 import { DecisionsProvider } from "../src/provider.ts";
 import {
   TYPESAFE_BASE_URL,
@@ -32,19 +38,31 @@ function required(name: string): string {
   return value;
 }
 
-const auditor: ClaimAuditor =
-  process.env.DECISIONS_PROVIDER === DecisionsProvider.Cloudflare
-    ? createCloudflareClaimAuditor({
+function auditorFor(provider: string | undefined): ClaimAuditor {
+  switch (provider) {
+    case DecisionsProvider.Cloudflare:
+      return createCloudflareClaimAuditor({
         apiKey: required("CLOUDFLARE_AI_API_KEY"),
         accountId: required("CLOUDFLARE_ACCOUNT_ID"),
         model: process.env.DECISIONS_MODEL ?? CLOUDFLARE_DEFAULT_MODEL,
         baseURL: CLOUDFLARE_BASE_URL,
-      })
-    : createTypeSafeClaimAuditor({
+      });
+    case DecisionsProvider.OpenAI:
+      return createOpenAIClaimAuditor({
+        apiKey: required("OPENAI_API_KEY"),
+        model: process.env.DECISIONS_MODEL ?? OPENAI_DEFAULT_MODEL,
+        baseURL: OPENAI_BASE_URL,
+      });
+    default:
+      return createTypeSafeClaimAuditor({
         apiKey: required("DECISIONS_API_KEY"),
         model: process.env.DECISIONS_MODEL ?? TYPESAFE_DEFAULT_MODEL,
         baseURL: TYPESAFE_BASE_URL,
       });
+  }
+}
+
+const auditor = auditorFor(process.env.DECISIONS_PROVIDER);
 
 const THRESHOLDS = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
 

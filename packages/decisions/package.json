@@ -6,6 +6,7 @@
   "exports": {
     "./cloudflare": "./src/cloudflare.ts",
     "./command": "./src/command.ts",
+    "./openai": "./src/openai.ts",
     "./provider": "./src/provider.ts",
     "./typesafe": "./src/typesafe.ts"
   },
@@ -15,6 +16,7 @@
   "dependencies": {
     "@solyx/core": "workspace:*",
     "@typesafe-ai/sdk": "catalog:decisions",
+    "openai": "catalog:decisions",
     "zod": "catalog:"
   },
   "devDependencies": {

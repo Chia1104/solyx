@@ -9,6 +9,7 @@ import {
   CLOUDFLARE_BASE_URL,
   CLOUDFLARE_DEFAULT_MODEL,
 } from "@solyx/decisions/cloudflare";
+import { OPENAI_BASE_URL, OPENAI_DEFAULT_MODEL } from "@solyx/decisions/openai";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 import {
   TYPESAFE_BASE_URL,
@@ -73,6 +74,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       provider: DecisionsProvider.TypeSafe,
       typesafe: {},
       cloudflare: {},
+      openai: {},
     },
   });
 
@@ -89,6 +91,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
         model: CLOUDFLARE_DEFAULT_MODEL,
         baseURL: CLOUDFLARE_BASE_URL,
       },
+      openai: { model: OPENAI_DEFAULT_MODEL, baseURL: OPENAI_BASE_URL },
     },
   });
   expect(JSON.parse(await readFile(file, "utf8"))).toMatchObject({

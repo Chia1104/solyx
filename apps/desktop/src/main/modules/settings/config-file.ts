@@ -24,6 +24,7 @@ import {
   CLOUDFLARE_BASE_URL,
   CLOUDFLARE_DEFAULT_MODEL,
 } from "@solyx/decisions/cloudflare";
+import { OPENAI_BASE_URL, OPENAI_DEFAULT_MODEL } from "@solyx/decisions/openai";
 import {
   DecisionsProvider,
   decisionsProviderSchema,
@@ -243,7 +244,7 @@ const configSchema = section(
           .catch(DecisionsProvider.TypeSafe)
           .meta({
             description:
-              "Whose decisions model scores news and posts, on the key saved in the app for it: TypeSafe's models, such as Jev, or Cloudflare's Clef on Workers AI.",
+              "Whose decisions model scores news and posts, on the key saved in the app for it: TypeSafe's models, such as Jev, Cloudflare's Clef on Workers AI, or OpenAI's Luna.",
           }),
         typesafe: section(
           z.looseObject({
@@ -272,6 +273,19 @@ const configSchema = section(
               description:
                 "Where requests to Cloudflare go; change it only for a proxy or a gateway.",
               default: CLOUDFLARE_BASE_URL,
+            }),
+          })
+        ),
+        openai: section(
+          z.looseObject({
+            model: textSchema.meta({
+              description: "The id of OpenAI's decisions model.",
+              default: OPENAI_DEFAULT_MODEL,
+            }),
+            baseURL: endpointSchema.optional().catch(undefined).meta({
+              description:
+                "Where requests to OpenAI go; change it only for a proxy or a gateway.",
+              default: OPENAI_BASE_URL,
             }),
           })
         ),
@@ -373,6 +387,7 @@ const TEMPLATE = serialize({
       model: CLOUDFLARE_DEFAULT_MODEL,
       baseURL: CLOUDFLARE_BASE_URL,
     },
+    openai: { model: OPENAI_DEFAULT_MODEL, baseURL: OPENAI_BASE_URL },
   },
 });
 

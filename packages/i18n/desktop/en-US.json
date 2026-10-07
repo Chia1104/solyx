@@ -625,6 +625,10 @@
         "label": "API token",
         "hint": "A Cloudflare API token with the Workers AI permission on the account below."
       },
+      "openai-decisions-api-key": {
+        "label": "API key",
+        "hint": "An API key from the OpenAI platform; signing in with ChatGPT doesn't cover the Decisions API."
+      },
       "finmind-token": {
         "label": "FinMind token",
         "hint": "FinMind answers without one, up to 300 requests an hour; a free account's token raises that to 600."
@@ -783,7 +787,8 @@
       "provider": "Provider",
       "providers": {
         "typesafe": "TypeSafe",
-        "cloudflare": "Cloudflare Workers AI"
+        "cloudflare": "Cloudflare Workers AI",
+        "openai": "OpenAI"
       },
       "account-id": "Account ID",
       "account-id-description": "The Cloudflare account whose Workers AI runs the model, shown on the account's overview page.",
@@ -791,7 +796,8 @@
       "model": "Model",
       "model-descriptions": {
         "typesafe": "The model's id. The questions are measured against the default, so another version may judge texts differently.",
-        "cloudflare": "The model's id: clef, or the faster clef-flash. The questions are measured against the default, so the other may judge texts differently."
+        "cloudflare": "The model's id: clef, or the faster clef-flash. The questions are measured against the default, so the other may judge texts differently.",
+        "openai": "The model's id; gpt-6-luna is the only decisions model OpenAI offers so far."
       },
       "model-required": "Enter a model id",
       "base-url": "Endpoint",

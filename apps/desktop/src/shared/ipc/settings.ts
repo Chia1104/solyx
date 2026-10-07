@@ -33,6 +33,8 @@ export const Secret = {
   DecisionsApiKey: "decisions-api-key",
   /** A Cloudflare API token that may run Workers AI. */
   CloudflareApiKey: "cloudflare-api-key",
+  /** An OpenAI API key for its Decisions API, kept apart from the agent's OpenAI sign-in or key. */
+  OpenAIDecisionsApiKey: "openai-decisions-api-key",
   /** Optional: FinMind answers without one under a lower limit. */
   FinMindToken: "finmind-token",
   /** The ChatGPT sign-in's OAuth tokens; the main process saves and refreshes them, nobody types them. */
@@ -293,6 +295,7 @@ export interface WebSearchSettings {
 export const DECISIONS_SECRETS = {
   typesafe: Secret.DecisionsApiKey,
   cloudflare: Secret.CloudflareApiKey,
+  openai: Secret.OpenAIDecisionsApiKey,
 } as const satisfies Record<DecisionsProvider, Secret>;
 
 /** One decisions provider's own settings; its key is the secret `DECISIONS_SECRETS` names. */
