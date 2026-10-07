@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, skipToken } from "@tanstack/react-query";
 
 import { foldEvents } from "@solyx/agent/wire";
 
@@ -10,7 +10,7 @@ export const agentQueryKeys = {
   all,
   sessions: [...all, "sessions"] as const,
   transcripts,
-  transcript: (id: string) => [...transcripts, id] as const,
+  transcript: (id: string | null) => [...transcripts, id] as const,
 };
 
 /** Most recently active first. */
@@ -22,11 +22,15 @@ export const agentSessionsQuery = () =>
 
 /**
  * A conversation folded into what the thread shows. Fetched once; after that, live events fold
- * into the cached view (see `useAgentEvents`), so it never goes stale on its own.
+ * into the cached view (see `useAgentEvents`), so it never goes stale on its own. A new
+ * conversation (`null`) has none to fetch.
  */
-export const transcriptQuery = (id: string) =>
+export const transcriptQuery = (id: string | null) =>
   queryOptions({
     queryKey: agentQueryKeys.transcript(id),
-    queryFn: async () => foldEvents(await window.solyx.agent.transcript(id)),
+    queryFn:
+      id === null
+        ? skipToken
+        : async () => foldEvents(await window.solyx.agent.transcript(id)),
     staleTime: Infinity,
   });

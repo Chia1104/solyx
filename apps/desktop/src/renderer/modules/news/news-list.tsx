@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 
+import { NewsIcon } from "@hugeicons/core-free-icons";
 import { useQuery } from "@tanstack/react-query";
 import { uniq } from "es-toolkit";
 import { useTranslation } from "react-i18next";
@@ -162,6 +163,7 @@ export function NewsList({
         )}
         <ToggleMenu
           label={t("news.channels-label")}
+          icon={NewsIcon}
           options={Object.values(NewsChannel).map((channel) => ({
             id: channel,
             label: t(`news.channels.${channel}`),

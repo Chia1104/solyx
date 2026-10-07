@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from "react";
 
 import { Switch, cn } from "@heroui/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TabList, TabPanel, Tabs } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -18,6 +18,7 @@ import { LoadingState } from "../../components/loading-state.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
+import { AgentModelPicker } from "../agent/agent-model-picker.tsx";
 import { ProviderMark } from "../agent/agent-provider-mark.tsx";
 
 import { AddAgentProvider } from "./add-agent-provider.tsx";
@@ -30,7 +31,11 @@ import {
 } from "./provider-tile.tsx";
 import { SecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import { agentSettingsQuery, secretsQuery } from "./settings-query.ts";
+import {
+  agentSettingsQuery,
+  secretsQuery,
+  settingsQueryKeys,
+} from "./settings-query.ts";
 import { TextSettingRow } from "./text-setting-row.tsx";
 
 /**
@@ -82,6 +87,7 @@ export function AgentSettings() {
   const providersLabelId = useId();
   // The tile the user opened; until then, or once it leaves the page, the default provider's.
   const [opened, setOpened] = useState<AgentProvider | null>(null);
+  const queryClient = useQueryClient();
   const settings = useQuery(agentSettingsQuery());
   const secrets = useQuery(secretsQuery());
 
@@ -140,18 +146,6 @@ export function AgentSettings() {
   const modelLabel = t("settings.agent.model");
   const thinkingLabel = t("settings.agent.thinking");
   const decisionModeLabel = t("settings.agent.decision-mode");
-
-  // A provider's id for a model means nothing under another, so the pair names a unit's model.
-  const modelKey = ({ provider: of, id }: { provider: string; id: string }) =>
-    `${of} ${id}`;
-
-  const unitModels = [
-    { id: "", label: t("settings.agent.magi.conversation-model") },
-    ...models.map((option) => ({
-      id: modelKey(option),
-      label: `${providers.find((each) => each.provider === option.provider)?.name ?? option.provider} · ${option.name}`,
-    })),
-  ];
 
   const authLabel = t("settings.agent.auth");
   const endpointLabel = t("settings.agent.endpoint");
@@ -404,21 +398,24 @@ export function AgentSettings() {
                       label={label}
                       description={t(`settings.agent.magi.personas.${unit}`)}
                       actions={
-                        <OptionSelect
+                        <AgentModelPicker
                           aria-label={label}
-                          className="w-56"
-                          value={magi[unit] ? modelKey(magi[unit]) : ""}
-                          isDisabled={save.isPending}
-                          options={unitModels}
+                          settings={settings.data}
+                          pick={{ model: magi[unit], thinking: null }}
+                          fallback={t("settings.agent.magi.conversation-model")}
+                          thinks={false}
+                          placement="bottom end"
                           onChange={(next) =>
-                            save.mutate(() =>
-                              window.solyx.settings.setMagiModel(
+                            // Settles on the refetched settings, so the picker never shows the old model.
+                            save.mutateAsync(async () => {
+                              await window.solyx.settings.setMagiModel(
                                 unit,
-                                models.find(
-                                  (option) => modelKey(option) === next
-                                ) ?? null
-                              )
-                            )
+                                next.model
+                              );
+                              await queryClient.invalidateQueries({
+                                queryKey: settingsQueryKeys.agent,
+                              });
+                            })
                           }
                         />
                       }

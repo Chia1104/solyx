@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { ComponentProps } from "react";
 
 import {
   Button,
@@ -33,33 +34,54 @@ const keyOf = (model: AgentModelRef) => `${model.provider} ${model.id}`;
 const DEFAULT_KEY = "";
 
 /**
- * The model a conversation runs on: a rail of the providers switched on, their models to search
- * through, and how long the chosen one thinks. The first row follows the default model in
- * Settings, which is what a conversation runs on until the user picks its own.
+ * A model to run on: a rail of the providers switched on, their models to search through, and how
+ * long the chosen one thinks. The first row follows the default model in Settings, which is what
+ * a conversation runs on until the user picks its own.
  */
 export function AgentModelPicker({
   settings,
-  pick,
+  pick: saved,
+  fallback,
+  thinks = true,
+  placement = "top start",
+  "aria-label": ariaLabel,
   isDisabled,
-  isPending,
   onChange,
 }: {
   settings: AgentSettings;
-  /** What the conversation picked for itself; `null` parts follow the default. */
+  /** What was picked; `null` parts follow the default. */
   pick: AgentModelPick;
-  isDisabled: boolean;
-  /** A pick is being saved; the trigger refuses another until it lands. */
-  isPending: boolean;
-  onChange: (pick: AgentModelPick) => void;
+  /** Names what a `null` model follows when that is not the default model, such as a MAGI unit's. */
+  fallback?: string;
+  /** Offers how long the model thinks; a model that only answers questions has no say in it. */
+  thinks?: boolean;
+  placement?: ComponentProps<typeof Popover.Content>["placement"];
+  "aria-label"?: string;
+  isDisabled?: boolean;
+  /** Settles once the pick is saved and `pick` shows it; until then the picker shows it itself. */
+  onChange: (pick: AgentModelPick) => void | Promise<void>;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [rail, setRail] = useState<AgentProvider | null>(null);
-  // The level under the thumb, shown until the save it leads to lands.
+  // The level under the thumb, shown until it is let go.
   const [dragged, setDragged] = useState<AgentThinking | null>(null);
+  // The latest pick, shown until its save settles.
+  const [saving, setSaving] = useState<AgentModelPick | null>(null);
 
-  const label = t("agent.model-picker.label");
+  const pick = saving ?? saved;
+  const label = ariaLabel ?? t("agent.model-picker.label");
+
+  function change(next: AgentModelPick) {
+    setSaving(next);
+
+    const settle = () =>
+      setSaving((latest) => (latest === next ? null : latest));
+
+    // A failed save reports itself through its caller and falls back to `pick`.
+    void Promise.resolve(onChange(next)).then(settle, settle);
+  }
 
   const defaults: AgentModelRef = {
     provider: settings.provider,
@@ -67,6 +89,7 @@ export function AgentModelPicker({
   };
 
   const chosen = pick.model ?? defaults;
+  const follows = pick.model === null && fallback !== undefined;
 
   const find = (ref: AgentModelRef) =>
     settings.models.find((model) => keyOf(model) === keyOf(ref));
@@ -105,9 +128,13 @@ export function AgentModelPicker({
       model.id.toLowerCase().includes(needle)
   );
 
-  const defaultLabel = t("agent.model-picker.default", {
-    model: find(defaults)?.name ?? defaults.id,
-  });
+  const defaultLabel =
+    fallback ??
+    t("agent.model-picker.default", {
+      model: find(defaults)?.name ?? defaults.id,
+    });
+
+  const reasoning = thinks && !follows && current?.reasoning === true;
 
   return (
     <Popover
@@ -124,12 +151,19 @@ export function AgentModelPicker({
         size="sm"
         variant="ghost"
         aria-label={label}
-        isDisabled={isDisabled || isPending}
-        isPending={isPending}
+        isDisabled={isDisabled}
         className="h-7 min-w-0 gap-1.5 px-2 text-xs text-muted">
-        <ProviderMark provider={chosen.provider} className="size-3.5" />
-        <span className="max-w-40 truncate">{current?.name ?? chosen.id}</span>
-        {current?.reasoning ? (
+        {follows ? (
+          <span className="max-w-40 truncate">{fallback}</span>
+        ) : (
+          <>
+            <ProviderMark provider={chosen.provider} className="size-3.5" />
+            <span className="max-w-40 truncate">
+              {current?.name ?? chosen.id}
+            </span>
+          </>
+        )}
+        {reasoning ? (
           <>
             <span aria-hidden className="mx-0.5 h-3 w-px bg-separator" />
             <span>{t(`settings.agent.thinkings.${thinking}`)}</span>
@@ -144,7 +178,7 @@ export function AgentModelPicker({
         />
       </Button>
       <Popover.Content
-        placement="top start"
+        placement={placement}
         className="w-80 max-w-[calc(100vw-1.5rem)] p-0">
         <Popover.Dialog aria-label={label} className="flex flex-col p-0">
           <div className="flex min-h-0">
@@ -208,7 +242,7 @@ export function AgentModelPicker({
                   const [key] = keys;
 
                   if (key === DEFAULT_KEY) {
-                    if (pick.model) onChange({ ...pick, model: null });
+                    if (pick.model) change({ ...pick, model: null });
 
                     return;
                   }
@@ -218,7 +252,7 @@ export function AgentModelPicker({
                   );
 
                   if (next && (!pick.model || keyOf(pick.model) !== key)) {
-                    onChange({
+                    change({
                       ...pick,
                       model: { provider: next.provider, id: next.id },
                     });
@@ -259,17 +293,16 @@ export function AgentModelPicker({
               </ListBox>
             </div>
           </div>
-          {current?.reasoning ? (
+          {reasoning ? (
             <div className="border-t border-border px-3 py-2">
               <ThinkingSlider
                 value={thinking}
-                isDisabled={isPending}
                 onChange={setDragged}
                 onCommit={(level) => {
                   setDragged(null);
 
                   if (level !== (pick.thinking ?? settings.thinking)) {
-                    onChange({ ...pick, thinking: level });
+                    change({ ...pick, thinking: level });
                   }
                 }}
               />

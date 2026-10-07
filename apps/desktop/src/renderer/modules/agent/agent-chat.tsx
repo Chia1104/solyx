@@ -40,38 +40,14 @@ function AgentSetup() {
   );
 }
 
-function SessionChat({
-  sessionId,
-  ready,
-  focus,
-}: {
-  sessionId: string;
-  ready: boolean;
-  focus: SymbolRef | null;
-}) {
-  const { data } = useQuery(transcriptQuery(sessionId));
-
-  return (
-    <>
-      <div className="min-h-0 flex-1">
-        <AgentThread key={sessionId} sessionId={sessionId} />
-      </div>
-      {ready ? (
-        <AgentComposer
-          sessionId={sessionId}
-          running={data?.running ?? false}
-          focus={focus}
-        />
-      ) : (
-        <AgentSetup />
-      )}
-    </>
-  );
-}
-
-/** The conversation on screen and the box to write in, or setup until the agent can run. */
+/**
+ * The conversation on screen and the box to write in, or setup until the agent can run. The
+ * composer stays mounted while its first message creates a conversation, so nothing being
+ * written is lost.
+ */
 export function AgentChat({ sessionId }: { sessionId: string | null }) {
   const settings = useQuery(agentSettingsQuery());
+  const transcript = useQuery(transcriptQuery(sessionId));
   const focus = useFocus();
 
   // Until the settings load, assume they are ready rather than flash the setup notice.
@@ -79,19 +55,21 @@ export function AgentChat({ sessionId }: { sessionId: string | null }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {sessionId === null ? (
-        <>
-          <div className="min-h-0 flex-1">
-            <EmptyThread />
-          </div>
-          {ready ? (
-            <AgentComposer sessionId={null} running={false} focus={focus} />
-          ) : (
-            <AgentSetup />
-          )}
-        </>
+      <div className="min-h-0 flex-1">
+        {sessionId === null ? (
+          <EmptyThread />
+        ) : (
+          <AgentThread key={sessionId} sessionId={sessionId} />
+        )}
+      </div>
+      {ready ? (
+        <AgentComposer
+          sessionId={sessionId}
+          running={transcript.data?.running ?? false}
+          focus={focus}
+        />
       ) : (
-        <SessionChat sessionId={sessionId} ready={ready} focus={focus} />
+        <AgentSetup />
       )}
     </div>
   );

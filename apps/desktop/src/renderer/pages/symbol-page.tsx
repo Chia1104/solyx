@@ -76,7 +76,7 @@ export function SymbolPage() {
         </div>
       </ColumnHeader>
       {/* A 40px row over its rule, like the agent pane's tabs, so the rules line up across columns. */}
-      <div className="flex h-10 shrink-0 items-center gap-3 border-b border-separator px-6">
+      <div className="box-content flex h-10 shrink-0 items-center gap-3 border-b border-separator px-6">
         <IntervalSelect
           value={interval}
           onChange={(next) => void navigate({ search: { interval: next } })}

@@ -1,5 +1,16 @@
 import { create } from "zustand";
 
+import type { AgentModelPick } from "@solyx/agent/providers";
+import { ApprovalMode } from "@solyx/agent/wire";
+
+/** What a new conversation starts on, held until its first message creates it. */
+export interface UnstartedSetup {
+  /** The model last picked in any conversation, so a new one keeps it. */
+  pick: AgentModelPick;
+  /** Picked for this conversation alone, since letting calls run unasked never carries over. */
+  approvalMode: ApprovalMode;
+}
+
 interface AgentState {
   /**
    * The conversation on screen. `undefined` follows the most recent one; `null` is a new
@@ -13,6 +24,8 @@ interface AgentState {
   /** Text a message handed back to the composer, which takes it once. */
   draft: string | null;
   setDraft: (text: string | null) => void;
+  unstarted: UnstartedSetup;
+  setUnstarted: (change: Partial<UnstartedSetup>) => void;
 }
 
 export const useAgentStore = create<AgentState>()((set) => ({
@@ -22,4 +35,10 @@ export const useAgentStore = create<AgentState>()((set) => ({
   setDetachedFocus: (key) => set({ detachedFocus: key }),
   draft: null,
   setDraft: (text) => set({ draft: text }),
+  unstarted: {
+    pick: { model: null, thinking: null },
+    approvalMode: ApprovalMode.Ask,
+  },
+  setUnstarted: (change) =>
+    set((state) => ({ unstarted: { ...state.unstarted, ...change } })),
 }));

@@ -1,3 +1,4 @@
+import { ChartAverageIcon } from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
 import { ToggleMenu } from "../../components/toggle-menu.tsx";
@@ -12,6 +13,7 @@ export function IndicatorMenu() {
   return (
     <ToggleMenu
       label={t("chart.indicators-label")}
+      icon={ChartAverageIcon}
       options={Object.values(ChartIndicator).map((indicator) => ({
         id: indicator,
         label: t(`chart.indicators.${indicator}`),

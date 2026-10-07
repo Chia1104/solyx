@@ -108,6 +108,8 @@ export function AgentComposer({
   const detachedFocus = useAgentStore((state) => state.detachedFocus);
   const draft = useAgentStore((state) => state.draft);
   const setDraft = useAgentStore((state) => state.setDraft);
+  const unstarted = useAgentStore((state) => state.unstarted);
+  const setUnstarted = useAgentStore((state) => state.setUnstarted);
 
   const form = useForm({
     resolver: zodResolver(composerSchema),
@@ -129,40 +131,79 @@ export function AgentComposer({
   }, [draft, form, setDraft]);
 
   const { data: sessions } = useQuery(agentSessionsQuery());
-
-  const approvalMode =
-    sessions?.find((session) => session.id === sessionId)?.approvalMode ??
-    ApprovalMode.Ask;
-
-  /** The conversation on screen, started first when there is none. */
-  async function session() {
-    if (sessionId !== null) return sessionId;
-
-    const { id } = await window.solyx.agent.createSession();
-
-    // Seeded before it is shown, so the run's first events fold in without a fetch.
-    queryClient.setQueryData(agentQueryKeys.transcript(id), emptyAgentView());
-    select(id);
-
-    return id;
-  }
-
   const { data: settings } = useQuery(agentSettingsQuery());
   const current = sessions?.find((each) => each.id === sessionId);
 
+  const pick: AgentModelPick =
+    sessionId === null
+      ? unstarted.pick
+      : { model: current?.model ?? null, thinking: current?.thinking ?? null };
+
+  const approvalMode =
+    sessionId === null
+      ? unstarted.approvalMode
+      : (current?.approvalMode ?? ApprovalMode.Ask);
+
+  /**
+   * The conversation on screen. A new one is created by its first message, on what was picked
+   * for it, so picking alone leaves no empty conversation behind.
+   */
+  async function session() {
+    if (sessionId !== null) return sessionId;
+
+    const created = await window.solyx.agent.createSession();
+    const setup = useAgentStore.getState().unstarted;
+
+    if (setup.pick.model !== null || setup.pick.thinking !== null) {
+      await window.solyx.agent.setModel(created.id, setup.pick);
+    }
+
+    if (setup.approvalMode !== created.approvalMode) {
+      await window.solyx.agent.setApprovalMode(created.id, setup.approvalMode);
+    }
+
+    // Seeded before it is shown, so the run's first events fold in without a fetch and the
+    // picker keeps showing what was picked.
+    queryClient.setQueryData(
+      agentQueryKeys.transcript(created.id),
+      emptyAgentView()
+    );
+    queryClient.setQueryData(agentSessionsQuery().queryKey, (old) => [
+      { ...created, ...setup.pick, approvalMode: setup.approvalMode },
+      ...(old ?? []),
+    ]);
+    select(created.id);
+    setUnstarted({ approvalMode: ApprovalMode.Ask });
+
+    return created.id;
+  }
+
   const setModel = useMutation({
-    mutationFn: async (pick: AgentModelPick) =>
-      window.solyx.agent.setModel(await session(), pick),
+    mutationFn: ({ id, pick }: { id: string; pick: AgentModelPick }) =>
+      window.solyx.agent.setModel(id, pick),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: agentQueryKeys.sessions }),
   });
 
   const setApprovalMode = useMutation({
-    mutationFn: async (mode: ApprovalMode) =>
-      window.solyx.agent.setApprovalMode(await session(), mode),
+    mutationFn: ({ id, mode }: { id: string; mode: ApprovalMode }) =>
+      window.solyx.agent.setApprovalMode(id, mode),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: agentQueryKeys.sessions }),
   });
+
+  async function pickModel(next: AgentModelPick) {
+    setUnstarted({ pick: next });
+
+    if (sessionId !== null) {
+      await setModel.mutateAsync({ id: sessionId, pick: next });
+    }
+  }
+
+  function pickApprovalMode(mode: ApprovalMode) {
+    if (sessionId === null) setUnstarted({ approvalMode: mode });
+    else setApprovalMode.mutate({ id: sessionId, mode });
+  }
 
   const send = useMutation({
     mutationFn: async (message: string) => {
@@ -242,19 +283,17 @@ export function AgentComposer({
               <ApprovalModeMenu
                 mode={approvalMode}
                 isDisabled={setApprovalMode.isPending}
-                onChange={(mode) => setApprovalMode.mutate(mode)}
+                onChange={pickApprovalMode}
               />
               {settings ? (
                 <AgentModelPicker
+                  // What it shows while saving belongs to the conversation it was picked in.
+                  key={sessionId}
                   settings={settings}
-                  pick={{
-                    model: current?.model ?? null,
-                    thinking: current?.thinking ?? null,
-                  }}
+                  pick={pick}
                   // A run keeps the model it started on, so the next one takes the change.
                   isDisabled={running}
-                  isPending={setModel.isPending}
-                  onChange={(pick) => setModel.mutate(pick)}
+                  onChange={pickModel}
                 />
               ) : null}
             </div>

@@ -1,6 +1,10 @@
-import { Dropdown, Label } from "@heroui/react";
+import { Dropdown, Label, Tooltip } from "@heroui/react";
+import type { IconSvgElement } from "@hugeicons/react";
 
+import { Icon } from "./icon.tsx";
 import { MenuButton } from "./menu-button.tsx";
+
+const TOOLTIP_DELAY = 600;
 
 interface Option<Id extends string> {
   id: Id;
@@ -8,17 +12,20 @@ interface Option<Id extends string> {
 }
 
 /**
- * A set of switches folded into a button that says how many are on. Its menu stays open while
- * the user switches them, and `onChange` gets the switched-on ids in `options` order.
+ * A set of switches folded into a button that shows an icon for them and how many are on. Its
+ * menu stays open while the user switches them, and `onChange` gets the switched-on ids in
+ * `options` order.
  */
 export function ToggleMenu<Id extends string>({
   label,
+  icon,
   options,
   selected,
   onChange,
   disallowEmptySelection,
 }: {
   label: string;
+  icon: IconSvgElement;
   options: Option<Id>[];
   selected: NoInfer<Id>[];
   onChange: (selected: Id[]) => void;
@@ -26,10 +33,13 @@ export function ToggleMenu<Id extends string>({
 }) {
   return (
     <Dropdown>
-      <MenuButton>
-        {label}
-        <span className="text-muted tabular-nums">{selected.length}</span>
-      </MenuButton>
+      <Tooltip delay={TOOLTIP_DELAY}>
+        <MenuButton aria-label={label}>
+          <Icon icon={icon} />
+          <span className="text-muted tabular-nums">{selected.length}</span>
+        </MenuButton>
+        <Tooltip.Content>{label}</Tooltip.Content>
+      </Tooltip>
       <Dropdown.Popover placement="bottom start" className="min-w-40">
         <Dropdown.Menu
           aria-label={label}
