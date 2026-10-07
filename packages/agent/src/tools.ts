@@ -14,6 +14,8 @@ import * as z from "zod";
 
 import { candleDate, intervalSchema, isIntraday } from "@solyx/core/candles";
 import type { Candle, Interval } from "@solyx/core/candles";
+import { CouncilOutcome, councilOutcome } from "@solyx/core/council";
+import type { Council } from "@solyx/core/council";
 import {
   MOVING_AVERAGE_PERIODS,
   bollinger,
@@ -50,7 +52,7 @@ import { stanceValue } from "@solyx/core/sentiment";
 import { getSession } from "@solyx/core/session";
 
 import { rememberAddresses } from "./found-addresses.ts";
-import { councilText, orderMotion } from "./magi.ts";
+import { councilText, durableBallotBox, orderMotion } from "./magi.ts";
 import type { MagiPort } from "./magi.ts";
 import { promptSections } from "./prompt.ts";
 import type { PromptSources } from "./prompt.ts";
@@ -625,26 +627,34 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         // Kept with the call, so a call that runs again after a restart finds its proposal.
         const id = await api.memo("proposal-id", crypto.randomUUID(), context);
         const convene = await ports.magi?.(api.conversationId);
+        const box = durableBallotBox(api, context);
+        const made = ports.desk.list().some((each) => each.id === id);
 
         // An order the checks refuse is kept as rejected without a vote, and one already made
-        // under this call is not voted on again.
-        const council =
-          convene &&
-          !ports.desk.list().some((made) => made.id === id) &&
-          (await ports.desk.check(request)).length === 0
-            ? await convene(
-                orderMotion(
-                  request,
-                  rationale,
-                  await ports.desk.account(),
-                  ports.desk.mode
-                )
-              )
-            : undefined;
+        // under this call shows the vote it kept rather than holding another.
+        let council: Council | undefined;
+
+        if (convene && made) {
+          council = await box.council();
+        } else if (convene && (await ports.desk.check(request)).length === 0) {
+          council = await convene(
+            orderMotion(
+              request,
+              rationale,
+              await ports.desk.account(),
+              ports.desk.mode
+            ),
+            box
+          );
+        }
 
         if (council && !council.carried) {
           return {
-            text: `${councilText(council)}\nNo proposal was made, and this reply may put no other. Tell the user how the units voted.`,
+            text: `${councilText(council)}\nNo proposal was made, and this reply may put no other. ${
+              councilOutcome(council) === CouncilOutcome.Undecided
+                ? "Tell the user which units gave no vote and why; the same motion may be put again in a later reply if they ask."
+                : "Tell the user how the units voted."
+            }`,
             details: { council } satisfies ProposeOrderDetails,
           };
         }

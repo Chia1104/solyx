@@ -31,7 +31,7 @@ export const MagiVote = {
 
 export type MagiVote = (typeof MagiVote)[keyof typeof MagiVote];
 
-const unitVoteSchema = z.object({
+export const unitVoteSchema = z.object({
   unit: z.enum(MagiUnit),
   /** `null` when the unit gave no vote that could be read. */
   vote: z.enum(MagiVote).nullable(),
@@ -60,4 +60,23 @@ export function resolveCouncil(votes: UnitVote[]): Council {
     carried:
       votes.filter(({ vote }) => vote === MagiVote.Approve).length >= MAJORITY,
   };
+}
+
+/** How a vote came out. */
+export const CouncilOutcome = {
+  Carried: "carried",
+  Rejected: "rejected",
+  /** Units that gave no vote could have carried it, so it was neither carried nor turned down. */
+  Undecided: "undecided",
+} as const;
+
+export type CouncilOutcome =
+  (typeof CouncilOutcome)[keyof typeof CouncilOutcome];
+
+export function councilOutcome({ votes, carried }: Council): CouncilOutcome {
+  if (carried) return CouncilOutcome.Carried;
+
+  const open = votes.filter(({ vote }) => vote !== MagiVote.Reject).length;
+
+  return open >= MAJORITY ? CouncilOutcome.Undecided : CouncilOutcome.Rejected;
 }

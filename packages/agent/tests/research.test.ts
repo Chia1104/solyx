@@ -147,8 +147,9 @@ function callApi(callId: string): ToolExecutionApi {
   return {
     conversationId: 7,
     callId,
-    async memo(name: string, candidate: JsonValue, _context: Context) {
-      if (!memos.has(name)) memos.set(name, candidate);
+    // Read alone when only a name and the context are passed, as the ballot box does.
+    async memo(name: string, ...rest: [Context] | [JsonValue, Context]) {
+      if (rest.length === 2 && !memos.has(name)) memos.set(name, rest[0]);
 
       return memos.get(name);
     },
@@ -381,7 +382,7 @@ test("a report older than the newest quarter is flagged and refuses a forecast",
   );
 });
 
-const votes = (...cast: MagiVote[]) =>
+const votes = (...cast: (MagiVote | null)[]) =>
   resolveCouncil(
     Object.values(MagiUnit).map((unit, index) => ({
       unit,
@@ -421,6 +422,19 @@ test("under the MAGI a rejected forecast is not kept, and its votes come back wi
   expect(details).toEqual({ symbol: TSMC, council });
   expect(text).toContain("The MAGI rejected the motion, 1 to 2.");
   expect(text).toContain("You may put one revised motion");
+});
+
+test("under the MAGI a forecast the missing votes could have carried is undecided, not rejected", async () => {
+  const { run, store } = setup(votes(MagiVote.Approve, null, MagiVote.Reject));
+
+  await run(AgentToolName.ReviseReport, REPORT);
+
+  const { text } = await run(AgentToolName.SubmitForecast, FORECAST);
+
+  expect(store.forecasts()).toEqual([]);
+  expect(text).toContain("The MAGI could not decide the motion, 1 to 1.");
+  expect(text).toContain("Tell the user which units gave no vote and why");
+  expect(text).not.toContain("revised motion");
 });
 
 test("no vote is held on a forecast the checks refuse", async () => {

@@ -435,6 +435,7 @@
     "title": "MAGI",
     "carried": "Carried",
     "rejected": "Rejected",
+    "undecided": "Undecided",
     "tally": "{{approved, number}} to {{rejected, number}}",
     "personas": {
       "melchior": "The scientist",

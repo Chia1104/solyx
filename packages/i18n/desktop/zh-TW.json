@@ -435,6 +435,7 @@
     "title": "MAGI",
     "carried": "可決",
     "rejected": "否決",
+    "undecided": "未決",
     "tally": "{{approved, number}} 比 {{rejected, number}}",
     "personas": {
       "melchior": "科學家",

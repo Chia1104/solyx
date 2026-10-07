@@ -2,7 +2,13 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { Interval } from "../src/candles.ts";
 import type { Candle } from "../src/candles.ts";
-import { MagiUnit, MagiVote, resolveCouncil } from "../src/council.ts";
+import {
+  CouncilOutcome,
+  MagiUnit,
+  MagiVote,
+  councilOutcome,
+  resolveCouncil,
+} from "../src/council.ts";
 import { ForecastDirection, ForecastViolationCode } from "../src/forecast.ts";
 import type { Forecast, ForecastDraft } from "../src/forecast.ts";
 import { InstrumentKind, Market, symbolKey } from "../src/market.ts";
@@ -396,6 +402,26 @@ test("two votes carry a motion, and a unit that gave none counts for neither sid
   expect(votes(Approve, Reject, Reject).carried).toBe(false);
   expect(votes(Approve, null, Approve).carried).toBe(true);
   expect(votes(Approve, null, null).carried).toBe(false);
+});
+
+test("a motion the missing votes could have carried is undecided rather than rejected", () => {
+  const { Approve, Reject } = MagiVote;
+
+  expect(councilOutcome(votes(Approve, Approve, null))).toBe(
+    CouncilOutcome.Carried
+  );
+  expect(councilOutcome(votes(Approve, null, Reject))).toBe(
+    CouncilOutcome.Undecided
+  );
+  expect(councilOutcome(votes(Reject, null, null))).toBe(
+    CouncilOutcome.Undecided
+  );
+  expect(councilOutcome(votes(Reject, Reject, null))).toBe(
+    CouncilOutcome.Rejected
+  );
+  expect(councilOutcome(votes(Approve, Reject, Reject))).toBe(
+    CouncilOutcome.Rejected
+  );
 });
 
 test("a forecast put to a vote is kept with the vote that carried it", async () => {

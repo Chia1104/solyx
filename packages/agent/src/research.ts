@@ -4,6 +4,7 @@ import { median, takeRight } from "es-toolkit";
 import * as z from "zod";
 
 import { Interval, candleDate } from "@solyx/core/candles";
+import { CouncilOutcome, councilOutcome } from "@solyx/core/council";
 import {
   ForecastViolationCode,
   MAX_HORIZON,
@@ -34,7 +35,7 @@ import {
 import type { Argument, Report, ReportViolation } from "@solyx/core/report";
 import type { ResearchDesk } from "@solyx/core/research";
 
-import { councilText, forecastMotion } from "./magi.ts";
+import { councilText, durableBallotBox, forecastMotion } from "./magi.ts";
 import type { MagiPort } from "./magi.ts";
 import { defineTool } from "./tools.ts";
 import type { ToolOutput } from "./tools.ts";
@@ -502,7 +503,9 @@ export function createResearch(options: ResearchOptions): Extension {
 
           const result = await desk.forecast(
             { ...draft, id },
-            convene && ((motion) => convene(forecastMotion(motion)))
+            convene &&
+              ((motion) =>
+                convene(forecastMotion(motion), durableBallotBox(api, context)))
           );
 
           const symbol = {
@@ -520,7 +523,11 @@ export function createResearch(options: ResearchOptions): Extension {
           // A rejection is the vote's answer rather than a fault, so it is told with its votes.
           if (rejected) {
             return {
-              text: `${councilText(rejected.council)}\nThe forecast was not kept. You may put one revised motion that answers the units' reasons; if that is rejected too, tell the user and stop.`,
+              text: `${councilText(rejected.council)}\nThe forecast was not kept. ${
+                councilOutcome(rejected.council) === CouncilOutcome.Undecided
+                  ? "Tell the user which units gave no vote and why; the same motion may be put again in a later reply if they ask, and that is not a revision."
+                  : "You may put one revised motion that answers the units' reasons; if that is rejected too, tell the user and stop."
+              }`,
               details: {
                 symbol,
                 council: rejected.council,

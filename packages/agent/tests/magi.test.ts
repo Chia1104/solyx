@@ -8,6 +8,7 @@ import { expect, test } from "vite-plus/test";
 
 import { BrokerMode } from "@solyx/core/broker";
 import { MagiUnit, MagiVote } from "@solyx/core/council";
+import type { Council, UnitVote } from "@solyx/core/council";
 import { ForecastDirection } from "@solyx/core/forecast";
 import { InstrumentKind, Market } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
@@ -19,6 +20,7 @@ import {
   forecastMotion,
   orderMotion,
 } from "../src/magi.ts";
+import type { BallotBox } from "../src/magi.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330", kind: InstrumentKind.Stock };
 
@@ -44,12 +46,14 @@ function setup(answer: (unit: string) => string | Error) {
     return fauxAssistantMessage(said);
   };
 
-  faux.setResponses([respond, respond, respond]);
+  // Enough for every unit's every try.
+  faux.setResponses(Array.from({ length: 9 }, () => respond));
 
   const convene = createMagi({
     models,
     model: async () => faux.getModel(),
     now: () => 0,
+    retryDelayMs: 0,
   });
 
   return { convene, prompts };
@@ -58,6 +62,36 @@ function setup(answer: (unit: string) => string | Error) {
 const ballot = (vote: MagiVote, reason: string) =>
   JSON.stringify({ vote, reason });
 
+/** A ballot box in memory, standing in for a tool call's durable memos. */
+function ballotBox(kept: UnitVote[] = [], counted?: Council) {
+  const votes = new Map(kept.map((vote) => [vote.unit, vote]));
+  let council = counted;
+
+  const box: BallotBox = {
+    vote: async (unit) => votes.get(unit),
+    keepVote: async (vote) => {
+      if (!votes.has(vote.unit)) votes.set(vote.unit, vote);
+
+      return votes.get(vote.unit) ?? vote;
+    },
+    council: async () => council,
+    keepCouncil: async (next) => {
+      council ??= next;
+
+      return council;
+    },
+  };
+
+  return Object.assign(box, { votes });
+}
+
+const kept = (unit: MagiUnit, vote: MagiVote): UnitVote => ({
+  unit,
+  vote,
+  reason: `${unit} voted before the app closed.`,
+  model: "faux",
+});
+
 test("each unit judges the motion alone under its own persona, and two votes carry it", async () => {
   const { convene, prompts } = setup((unit) =>
     unit === "BALTHASAR-2"
@@ -65,7 +99,10 @@ test("each unit judges the motion alone under its own persona, and two votes car
       : ballot(MagiVote.Approve, `${unit} agrees.`)
   );
 
-  const council = await convene("Motion: put on record a long forecast.");
+  const council = await convene(
+    "Motion: put on record a long forecast.",
+    ballotBox()
+  );
 
   expect(council.carried).toBe(true);
   expect(council.votes.map(({ unit, vote }) => [unit, vote])).toEqual([
@@ -80,8 +117,8 @@ test("each unit judges the motion alone under its own persona, and two votes car
   );
 });
 
-test("a unit that cannot be read or reached gives no vote, and the motion needs two of the rest", async () => {
-  const { convene } = setup((unit) => {
+test("a unit that cannot be read or reached after its retries gives no vote, and the motion needs two of the rest", async () => {
+  const { convene, prompts } = setup((unit) => {
     if (unit === "MELCHIOR-1") return "I would rather not say.";
 
     if (unit === "CASPER-3") return new Error("The model is out of reach");
@@ -89,7 +126,7 @@ test("a unit that cannot be read or reached gives no vote, and the motion needs 
     return ballot(MagiVote.Approve, "The cost is one the account can bear.");
   });
 
-  const council = await convene("Motion");
+  const council = await convene("Motion", ballotBox());
 
   expect(council.carried).toBe(false);
   expect(council.votes.map(({ vote }) => vote)).toEqual([
@@ -98,19 +135,139 @@ test("a unit that cannot be read or reached gives no vote, and the motion needs 
     null,
   ]);
   expect(council.votes[0].reason).toBe("It gave no vote that could be read.");
+  expect(council.votes[2].reason).toBe("The model is out of reach");
+  // One try for Balthasar, three each for the other two.
+  expect(prompts).toHaveLength(7);
 });
 
-test("a vote wrapped in prose or a code fence still counts", async () => {
-  const { convene } = setup(
-    () =>
-      `Here is my vote:\n\`\`\`json\n${ballot(MagiVote.Reject, "No.")}\n\`\`\``
+test("a unit whose model fails for a moment is asked again and votes", async () => {
+  const failed = new Set<string>();
+
+  const { convene } = setup((unit) => {
+    if (unit === "CASPER-3" && !failed.has(unit)) {
+      failed.add(unit);
+
+      return new Error("429 Too Many Requests");
+    }
+
+    return ballot(MagiVote.Approve, `${unit} agrees.`);
+  });
+
+  const council = await convene("Motion", ballotBox());
+
+  expect(council.carried).toBe(true);
+  expect(council.votes[2]).toMatchObject({
+    vote: MagiVote.Approve,
+    reason: "CASPER-3 agrees.",
+  });
+});
+
+test("a unit that slips on the format is shown its answer and votes", async () => {
+  const { convene, prompts } = setup((unit) => {
+    if (unit !== "MELCHIOR-1") return ballot(MagiVote.Reject, "No.");
+
+    // The correction follows its first answer in what it is sent.
+    return prompts.at(-1)?.includes("Answer again with the JSON object alone")
+      ? JSON.stringify({ vote: "Approve", reason: "The figures hold." })
+      : "I lean towards approving.";
+  });
+
+  const council = await convene("Motion", ballotBox());
+
+  expect(council.votes[0]).toMatchObject({
+    vote: MagiVote.Approve,
+    reason: "The figures hold.",
+  });
+  expect(
+    prompts.some(
+      (prompt) =>
+        prompt.includes("I lean towards approving.") &&
+        prompt.includes("Answer again with the JSON object alone")
+    )
+  ).toBe(true);
+});
+
+test("a unit without a model fails the vote before any unit is asked", async () => {
+  const faux = fauxProvider();
+  const models = createModels();
+  let asked = 0;
+
+  models.setProvider(faux.provider);
+  faux.setResponses(
+    Array.from({ length: 9 }, () => () => {
+      asked += 1;
+
+      return fauxAssistantMessage(ballot(MagiVote.Approve, "Yes."));
+    })
   );
 
-  expect((await convene("Motion")).votes.map(({ vote }) => vote)).toEqual([
-    MagiVote.Reject,
-    MagiVote.Reject,
+  const convene = createMagi({
+    models,
+    model: async (unit) => {
+      if (unit === MagiUnit.Casper) throw new Error("No key for its provider");
+
+      return faux.getModel();
+    },
+    now: () => 0,
+    retryDelayMs: 0,
+  });
+
+  await expect(convene("Motion", ballotBox())).rejects.toThrow(
+    "CASPER-3 has no model to answer on (No key for its provider)"
+  );
+  expect(asked).toBe(0);
+});
+
+test("each vote is kept as it is cast, but a unit that gave none is not", async () => {
+  const { convene } = setup((unit) =>
+    unit === "CASPER-3"
+      ? new Error("503 Service Unavailable")
+      : ballot(MagiVote.Approve, `${unit} agrees.`)
+  );
+
+  const box = ballotBox();
+  const council = await convene("Motion", box);
+
+  // Units answer at once, so they are kept in whatever order they finish.
+  expect(new Set(box.votes.keys())).toEqual(
+    new Set([MagiUnit.Melchior, MagiUnit.Balthasar])
+  );
+  expect(await box.council()).toEqual(council);
+});
+
+test("a call that runs again counts the votes it kept and asks only the units still to vote", async () => {
+  const { convene, prompts } = setup(() =>
+    ballot(MagiVote.Reject, "The crowd wants none of it.")
+  );
+
+  const council = await convene(
+    "Motion",
+    ballotBox([
+      kept(MagiUnit.Melchior, MagiVote.Approve),
+      kept(MagiUnit.Balthasar, MagiVote.Approve),
+    ])
+  );
+
+  expect(prompts).toHaveLength(1);
+  expect(prompts[0]).toContain("CASPER-3");
+  expect(council.carried).toBe(true);
+  expect(council.votes.map(({ vote }) => vote)).toEqual([
+    MagiVote.Approve,
+    MagiVote.Approve,
     MagiVote.Reject,
   ]);
+});
+
+test("a vote already counted comes back as it was, and no unit is asked", async () => {
+  const { convene, prompts } = setup(() => ballot(MagiVote.Approve, "Yes."));
+
+  const counted: Council = {
+    carried: false,
+    votes: Object.values(MagiUnit).map((unit) => kept(unit, MagiVote.Reject)),
+  };
+
+  expect(await convene("Motion", ballotBox([], counted))).toEqual(counted);
+  expect(prompts).toEqual([]);
 });
 
 test("the tally names each unit with its vote and reason", () => {
@@ -140,7 +297,7 @@ test("the tally names each unit with its vote and reason", () => {
     })
   ).toBe(
     [
-      "The MAGI rejected the motion, 1 to 1.",
+      "The MAGI could not decide the motion, 1 to 1.",
       "- MELCHIOR-1 approve: The figures bear it out.",
       "- BALTHASAR-2 reject: It walks into results.",
       "- CASPER-3 gave no vote: The model is out of reach",

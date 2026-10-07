@@ -1,7 +1,7 @@
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
-import { MagiUnit, MagiVote } from "@solyx/core/council";
+import { MagiUnit, MagiVote, councilOutcome } from "@solyx/core/council";
 import type { Council, UnitVote } from "@solyx/core/council";
 
 // The units keep their own names in every language.
@@ -61,7 +61,7 @@ export function MagiPanel({ council }: { council: Council }) {
           {t("magi.title")}
         </span>
         <span className="font-medium">
-          {t(council.carried ? "magi.carried" : "magi.rejected")}
+          {t(`magi.${councilOutcome(council)}`)}
         </span>
         <span className="text-xs text-muted tabular-nums">
           {t("magi.tally", {

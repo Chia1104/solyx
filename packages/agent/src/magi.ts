@@ -1,10 +1,23 @@
+import type { Context } from "@earendil-works/chord";
 import { contentText } from "@earendil-works/pi-ai";
-import type { Api, Model, Models } from "@earendil-works/pi-ai";
-import type { ConversationId } from "@earendil-works/pi-durable";
+import type { Api, Message, Model, Models } from "@earendil-works/pi-ai";
+import type {
+  ConversationId,
+  ToolExecutionApi,
+} from "@earendil-works/pi-durable";
+import { retry } from "es-toolkit";
 import * as z from "zod";
 
 import type { BrokerMode } from "@solyx/core/broker";
-import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
+import {
+  CouncilOutcome,
+  MagiUnit,
+  MagiVote,
+  councilOutcome,
+  councilSchema,
+  resolveCouncil,
+  unitVoteSchema,
+} from "@solyx/core/council";
 import type { Council, UnitVote } from "@solyx/core/council";
 import { symbolKey } from "@solyx/core/market";
 import { OrderType } from "@solyx/core/order";
@@ -14,14 +27,46 @@ import { errorMessage } from "@solyx/utils/error";
 
 export interface MagiOptions {
   models: Pick<Models, "completeSimple">;
-  /** The model that answers as a unit; a rejection keeps that unit from voting. */
+  /** The model that answers as a unit; a rejection fails the vote before any unit is asked. */
   model(unit: MagiUnit): Promise<Model<Api>>;
   /** @default Date.now */
   now?: () => number;
+  /** How long a unit waits before asking again, growing with each try. @default 1000 */
+  retryDelayMs?: number;
 }
 
-/** Puts a motion to the three units and counts their votes. */
-export type Convene = (motion: string) => Promise<Council>;
+/**
+ * Where a call keeps its vote as it is held, so a call that runs again after the app's exit counts
+ * the same votes instead of asking again. A unit that gave no vote is not kept, so it is asked
+ * again until the vote is counted; the count is kept once it is.
+ */
+export interface BallotBox {
+  vote(unit: MagiUnit): Promise<UnitVote | undefined>;
+  /** Returns the vote kept first, should the call have kept one meanwhile. */
+  keepVote(vote: UnitVote): Promise<UnitVote>;
+  council(): Promise<Council | undefined>;
+  keepCouncil(council: Council): Promise<Council>;
+}
+
+/** The ballot box in a tool call's durable memos. */
+export function durableBallotBox(
+  api: Pick<ToolExecutionApi, "memo">,
+  context: Context
+): BallotBox {
+  const voteMemo = (unit: MagiUnit) => `magi-vote-${unit}`;
+
+  return {
+    vote: async (unit) =>
+      unitVoteSchema.safeParse(await api.memo(voteMemo(unit), context)).data,
+    keepVote: (vote) => api.memo(voteMemo(vote.unit), vote, context),
+    council: async () =>
+      councilSchema.safeParse(await api.memo("magi-council", context)).data,
+    keepCouncil: (council) => api.memo("magi-council", council, context),
+  };
+}
+
+/** Puts a motion to the three units and counts their votes, keeping each in `box`. */
+export type Convene = (motion: string, box: BallotBox) => Promise<Council>;
 
 /**
  * The council for a conversation's motions while the user has decisions go to the MAGI;
@@ -48,13 +93,29 @@ const PERSONAS: Record<MagiUnit, string> = {
     "You are CASPER-3, the woman. You care for desire: what the crowd wants now, where the mood and the story are carrying the price, and what is given up by standing aside. Approve when the motion moves with that mood or sees it turning before others do. Reject when it fights what the market plainly wants, or wants something only because it has already run.",
 };
 
+// Lenient where a slip says nothing about the vote: its case, or a reason run long.
 const ballotSchema = z.object({
-  vote: z.enum(MagiVote),
-  reason: z.string().trim().min(1).max(600),
+  vote: z.string().trim().toLowerCase().pipe(z.enum(MagiVote)),
+  reason: z
+    .string()
+    .trim()
+    .min(1)
+    .transform((reason) => reason.slice(0, 600)),
 });
 
 // A unit may wrap its answer in prose or a code fence; the object is what counts.
 const JSON_OBJECT = /\{[\s\S]*\}/;
+
+// Tries after the first, for an answer that failed or could not be read.
+const RETRIES = 2;
+
+const UNREADABLE = "It gave no vote that could be read.";
+
+const CORRECTION =
+  'That answer held no vote that could be read. Answer again with the JSON object alone: {"vote": "approve" | "reject", "reason": "..."}';
+
+/** An answer that arrived but held no vote, which the unit is shown and asked to correct. */
+class UnreadableBallot extends Error {}
 
 function readBallot(text: string) {
   try {
@@ -65,62 +126,123 @@ function readBallot(text: string) {
   }
 }
 
-/** The council whose three units answer through `options.model`, each alone and all at once. */
-export function createMagi(options: MagiOptions): Convene {
-  const now = options.now ?? Date.now;
-
-  async function cast(unit: MagiUnit, motion: string): Promise<UnitVote> {
-    const abstained = (reason: string, model = "") => ({
-      unit,
-      vote: null,
-      reason,
-      model,
-    });
-
-    try {
-      const model = await options.model(unit);
-
-      const reply = await options.models.completeSimple(model, {
-        systemPrompt: `${PERSONAS[unit]}\n\n${CHARTER}`,
-        messages: [{ role: "user", content: motion, timestamp: now() }],
-      });
-
-      if (reply.stopReason === "error" || reply.stopReason === "aborted") {
-        return abstained(reply.errorMessage ?? reply.stopReason, model.id);
-      }
-
-      const ballot = readBallot(contentText(reply.content, ""));
-
-      return ballot
-        ? { unit, ...ballot, model: model.id }
-        : abstained("It gave no vote that could be read.", model.id);
-    } catch (error) {
-      return abstained(errorMessage(error));
-    }
-  }
-
-  return async (motion) =>
-    resolveCouncil(
-      await Promise.all(
-        Object.values(MagiUnit).map((unit) => cast(unit, motion))
-      )
-    );
-}
-
 const UNIT_NAME: Record<MagiUnit, string> = {
   [MagiUnit.Melchior]: "MELCHIOR-1",
   [MagiUnit.Balthasar]: "BALTHASAR-2",
   [MagiUnit.Casper]: "CASPER-3",
 };
 
+/**
+ * The council whose three units answer through `options.model`, each alone and all at once. A
+ * unit gives no vote only when its provider keeps failing, or keeps answering with no vote after
+ * being shown its answer; a unit without a model fails the whole vote instead, since that is a
+ * setting to fix rather than a vote lost.
+ */
+export function createMagi(options: MagiOptions): Convene {
+  const now = options.now ?? Date.now;
+  const retryDelayMs = options.retryDelayMs ?? 1000;
+
+  async function cast(
+    unit: MagiUnit,
+    model: Model<Api>,
+    motion: string
+  ): Promise<UnitVote> {
+    const messages: Message[] = [
+      { role: "user", content: motion, timestamp: now() },
+    ];
+
+    const ask = async (): Promise<UnitVote> => {
+      const reply = await options.models.completeSimple(model, {
+        systemPrompt: `${PERSONAS[unit]}\n\n${CHARTER}`,
+        messages,
+      });
+
+      if (reply.stopReason === "error" || reply.stopReason === "aborted") {
+        throw new Error(reply.errorMessage ?? reply.stopReason);
+      }
+
+      const ballot = readBallot(contentText(reply.content, ""));
+
+      if (ballot) return { unit, ...ballot, model: model.id };
+
+      messages.push(reply, {
+        role: "user",
+        content: CORRECTION,
+        timestamp: now(),
+      });
+
+      throw new UnreadableBallot(UNREADABLE);
+    };
+
+    try {
+      return await retry(ask, {
+        retries: RETRIES,
+        // A provider that failed gets time to recover; a correction needs none.
+        delay: (attempt, error) =>
+          error instanceof UnreadableBallot ? 0 : retryDelayMs * (attempt + 1),
+      });
+    } catch (error) {
+      return { unit, vote: null, reason: errorMessage(error), model: model.id };
+    }
+  }
+
+  return async (motion, box) => {
+    const held = await box.council();
+
+    if (held) return held;
+
+    const kept = await Promise.all(
+      Object.values(MagiUnit).map(async (unit) => ({
+        unit,
+        vote: await box.vote(unit),
+      }))
+    );
+
+    // Only units still to vote need a model.
+    const units = await Promise.all(
+      kept.map(async ({ unit, vote }) => {
+        if (vote) return { unit, vote };
+
+        try {
+          return { unit, model: await options.model(unit) };
+        } catch (error) {
+          throw new Error(
+            `The MAGI held no vote: ${UNIT_NAME[unit]} has no model to answer on (${errorMessage(error)}). Tell the user to fix it in Settings.`,
+            { cause: error }
+          );
+        }
+      })
+    );
+
+    const votes = await Promise.all(
+      units.map(async (each) => {
+        if (each.vote) return each.vote;
+
+        const vote = await cast(each.unit, each.model, motion);
+
+        return vote.vote === null ? vote : box.keepVote(vote);
+      })
+    );
+
+    return box.keepCouncil(resolveCouncil(votes));
+  };
+}
+
+const OUTCOME_TEXT: Record<CouncilOutcome, string> = {
+  [CouncilOutcome.Carried]: "carried",
+  [CouncilOutcome.Rejected]: "rejected",
+  [CouncilOutcome.Undecided]: "could not decide",
+};
+
 /** How the units voted, for the model to report: one line each under the tally. */
-export function councilText({ votes, carried }: Council): string {
+export function councilText(council: Council): string {
+  const { votes } = council;
   const approved = votes.filter(({ vote }) => vote === MagiVote.Approve).length;
 
   const rejected = votes.filter(({ vote }) => vote === MagiVote.Reject).length;
 
   return [
-    `The MAGI ${carried ? "carried" : "rejected"} the motion, ${approved} to ${rejected}.`,
+    `The MAGI ${OUTCOME_TEXT[councilOutcome(council)]} the motion, ${approved} to ${rejected}.`,
     ...votes.map(
       ({ unit, vote, reason }) =>
         `- ${UNIT_NAME[unit]} ${vote ?? "gave no vote"}: ${reason}`
