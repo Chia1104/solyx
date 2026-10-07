@@ -5,7 +5,7 @@ import { withTimeout } from "es-toolkit";
 
 import { registerIpc } from "./ipc/register-ipc.ts";
 import { createServices } from "./services.ts";
-import { createMainWindow } from "./shell/main-window.ts";
+import { APP_ICON, createMainWindow } from "./shell/main-window.ts";
 
 // The name picks userData and the OS secret store entry, so development never reads or
 // changes what an installed Solyx keeps, such as broker credentials. It must change before ready.
@@ -20,6 +20,9 @@ const CLOSE_TIMEOUT_MS = 3000;
 let quitting = false;
 
 void app.whenReady().then(() => {
+  // Unpackaged runs launch Electron's own app bundle, whose icon the Dock would show.
+  if (!app.isPackaged) app.dock?.setIcon(APP_ICON);
+
   const services = createServices();
 
   registerIpc(services);

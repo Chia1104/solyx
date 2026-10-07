@@ -19,7 +19,7 @@ The Electron app: the main process is the backend, the preload bridges it to the
 | `renderer/components/`                         | Module-neutral components composed from HeroUI: the error boundary fallback, the loading and error states every module renders, and the pane splitter, sheet, sections and symbol rows the workspace shares                                                                                                        |
 | `renderer/app/`                                | Router, root layout, i18n, query client, theme and zod setup                                                                                                                                                                                                                                                       |
 
-- Main, preload, utility processes and worker threads are bundled with `vp pack`, which inlines `@solyx/*` and copies beside the main bundle what it reads at runtime: each database's migrations for drizzle's migrator, and QuickJS's wasm for the agent's scripts; the renderer is built with `vp build`.
+- Main, preload, utility processes and worker threads are bundled with `vp pack`, which inlines `@solyx/*` and copies beside the main bundle what it reads at runtime: each database's migrations for drizzle's migrator, QuickJS's wasm for the agent's scripts, and the app icon, `resources/icon.png`, rendered at 1024px from its source `resources/icon.svg`; the renderer is built with `vp build`.
 
 ## IPC
 

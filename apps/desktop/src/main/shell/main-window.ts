@@ -12,6 +12,9 @@ const bundleDir = fileURLToPath(new URL(".", import.meta.url));
 
 const rendererUrl = process.env.SOLYX_RENDERER_URL;
 
+/** Rendered from `resources/icon.svg`, which is the icon's source. */
+export const APP_ICON = join(bundleDir, "icon.png");
+
 /** The renderer's title bar height; it lays itself out around the controls through `env(titlebar-area-*)`. */
 const TITLE_BAR_HEIGHT = 44;
 
@@ -48,6 +51,8 @@ export function createMainWindow(colors: () => PaletteColors) {
     minWidth: 1024,
     minHeight: 640,
     title: PRODUCT_NAME,
+    // Windows and Linux show it; macOS takes the app's.
+    icon: APP_ICON,
     backgroundColor: initial.background,
     titleBarStyle: "hidden",
     titleBarOverlay: titleBarOverlay(initial),

@@ -108,6 +108,7 @@ export default defineConfig({
           rename: "user",
         },
         { from: quickjsWasm, to: "dist/main" },
+        { from: "resources/icon.png", to: "dist/main" },
       ],
     },
     {
