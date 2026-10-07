@@ -5,8 +5,18 @@ directories:
   output: release
 files:
   - dist/**
+# The release workflow uploads the installers itself.
+publish: null
 mac:
   # Icon Composer's icon follows the system appearance; the build machine needs Xcode 26 or later.
   icon: icon.icon
   category: public.app-category.finance
   target: dmg
+  # Ad-hoc signed until there is a Developer ID. The hardened runtime only matters for notarization,
+  # and would then need the disable-library-validation entitlement to load a broker SDK the user
+  # downloaded.
+  identity: "-"
+  hardenedRuntime: false
+win:
+  # icon.ico, from buildResources, holds a full-bleed rendering per size; Windows does not pad icons.
+  target: nsis

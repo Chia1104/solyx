@@ -51,8 +51,8 @@ export function createMainWindow(colors: () => PaletteColors) {
     minWidth: 1024,
     minHeight: 640,
     title: PRODUCT_NAME,
-    // Windows and Linux show it; macOS takes the app's.
-    icon: APP_ICON,
+    // Windows shows the executable's icon and macOS the app's.
+    icon: process.platform === "linux" ? APP_ICON : undefined,
     backgroundColor: initial.background,
     titleBarStyle: "hidden",
     titleBarOverlay: titleBarOverlay(initial),

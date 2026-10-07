@@ -1,0 +1,70 @@
+# Once CI passes on a push to develop, packages Solyx Nightly and replaces the rolling `nightly`
+# prerelease with it. A newer push cancels a nightly still packaging.
+name: Nightly
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  version:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - id: version
+        run: echo "version=$(node -p "require('./apps/desktop/package.json').version")-nightly.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+
+  package:
+    needs: version
+    uses: ./.github/workflows/package.yml
+    with:
+      channel: nightly
+      ref: ${{ github.event.workflow_run.head_sha }}
+      version: ${{ needs.version.outputs.version }}
+
+  publish:
+    needs: [version, package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: installers
+          merge-multiple: true
+
+      - name: Replace the nightly prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          if gh release view nightly --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release delete nightly --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+          fi
+          {
+            echo "Built from $SHA. Solyx Nightly installs beside Solyx and keeps its own data, settings and keys."
+            echo
+            echo "Neither installer is signed by a paid certificate yet."
+            echo
+            echo "- **macOS (Apple Silicon):** open the app once, then allow it under System Settings → Privacy & Security → Open Anyway."
+            echo "- **Windows:** when SmartScreen stops the installer, choose More info → Run anyway."
+          } > notes.md
+          gh release create nightly installers/* --repo "$GITHUB_REPOSITORY" --prerelease \
+            --target "$SHA" --title "Nightly $VERSION" --notes-file notes.md

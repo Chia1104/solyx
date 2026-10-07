@@ -62,7 +62,8 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - A type assertion needs a `SAFETY:` comment; prefer narrowing, `satisfies` or a parser at the boundary so the assertion is not needed.
 - Use the Oxlint, Oxfmt and Vitest that ship with Vite+. Lint, format and staged rules live in the root `vite.config.ts` because Vite+ ignores nested configs; the pre-commit hook in `.vite-hooks/pre-commit` runs `vp staged`.
 - `vp run` executes tasks in a clean environment, so most variables set outside it do not reach the task.
-- Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org): `type(scope): summary`, with a type such as `feat`, `fix`, `refactor`, `docs`, `test` or `chore`. The scope is the package or app that owns the change, as in `feat(desktop): …` or `fix(decisions): …`, and is left out when the change spans several.
+- Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org): `type(scope): summary`, with a type such as `feat`, `fix`, `refactor`, `docs`, `test` or `chore`. The scope is the package or app that owns the change, as in `feat(desktop): …` or `fix(decisions): …`, and is left out when the change spans several. release-please builds `CHANGELOG.md` and the next version from them, so `feat` and `fix` are what users read.
+- Work lands on `develop`, the default branch. `main` holds released code and takes `develop` only through a pull request merged with a merge commit, never squashed, since release-please reads the individual commits.
 
 <!--VITE PLUS START-->
 
