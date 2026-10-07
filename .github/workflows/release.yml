@@ -1,13 +1,15 @@
-# Once CI passes on main, release-please keeps the release pull request current. Merging that pull
-# request tags the release and writes CHANGELOG.md; this workflow then attaches the installers and
-# merges the release back into develop, so nightly builds carry the new version.
+# Promotes the latest nightly to a stable release: its commit is packaged as Solyx `v<version>`, the
+# notes list what was merged since the previous stable release, develop takes the new version and
+# main moves to the released commit.
 name: Release
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable version, such as 1.2.0; defaults to the latest nightly's
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -17,32 +19,48 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release-please:
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+  resolve:
+    if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     outputs:
-      created: ${{ steps.release.outputs.release_created }}
-      tag: ${{ steps.release.outputs.tag_name }}
+      sha: ${{ steps.nightly.outputs.sha }}
+      version: ${{ steps.nightly.outputs.version }}
     steps:
-      - id: release
-        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
-        with:
-          # The default branch is develop, which only nightly builds come from.
-          target-branch: main
+      - id: nightly
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          tag=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 100 \
+            --json tagName --jq '[.[].tagName | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+-nightly\\."))][0] // ""')
+          if [ -z "$tag" ]; then
+            echo "::error::There is no nightly to promote"
+            exit 1
+          fi
+          version=${INPUT_VERSION:-$(echo "$tag" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+)-nightly\..*/\1/')}
+          if ! echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version $version is not X.Y.Z"
+            exit 1
+          fi
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "::error::v$version is already released"
+            exit 1
+          fi
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha)
+          echo "Promoting $tag ($sha) to v$version"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
   package:
-    needs: release-please
-    if: needs.release-please.outputs.created == 'true'
+    needs: resolve
     uses: ./.github/workflows/package.yml
     with:
       channel: stable
-      ref: ${{ needs.release-please.outputs.tag }}
+      ref: ${{ needs.resolve.outputs.sha }}
+      version: ${{ needs.resolve.outputs.version }}
 
-  attach:
-    needs: [release-please, package]
+  publish:
+    needs: [resolve, package]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -52,25 +70,26 @@ jobs:
           path: installers
           merge-multiple: true
 
-      - name: Attach the installers
+      - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release-please.outputs.tag }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          VERSION: ${{ needs.resolve.outputs.version }}
         run: |
-          gh release upload "$TAG" installers/* --repo "$GITHUB_REPOSITORY"
+          previous=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 100 \
+            --json tagName --jq '[.[].tagName | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))][0] // ""')
           {
             echo "Neither installer is signed by a paid certificate yet."
             echo
             echo "- **macOS (Apple Silicon):** open the app once, then allow it under System Settings → Privacy & Security → Open Anyway."
             echo "- **Windows:** when SmartScreen stops the installer, choose More info → Run anyway."
-            echo
-            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body
           } > notes.md
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
+          gh release create "v$VERSION" installers/* --repo "$GITHUB_REPOSITORY" --target "$SHA" \
+            --latest --title "Solyx $VERSION" \
+            --notes-file notes.md --generate-notes ${previous:+--notes-start-tag "$previous"}
 
-  merge-back:
-    needs: release-please
-    if: needs.release-please.outputs.created == 'true'
+  finalize:
+    needs: [resolve, publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -80,11 +99,21 @@ jobs:
           ref: develop
           fetch-depth: 0
 
-      - name: Merge the release into develop
+      # Pushes made with the workflow token start no workflows, so this commit cuts no nightly.
+      - name: Record the version on develop and move main to the release
         env:
-          TAG: ${{ needs.release-please.outputs.tag }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          VERSION: ${{ needs.resolve.outputs.version }}
         run: |
+          node -e '
+            const fs = require("node:fs");
+            const path = "apps/desktop/package.json";
+            const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
+            manifest.version = process.env.VERSION;
+            fs.writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+          '
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git merge --no-ff --no-edit "$TAG"
-          git push origin develop
+          git commit -am "chore(release): prepare v$VERSION"
+          git push origin HEAD:develop
+          git push origin "$SHA:refs/heads/main"

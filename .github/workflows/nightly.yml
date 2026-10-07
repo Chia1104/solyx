@@ -1,5 +1,5 @@
-# Once CI passes on a push to develop, packages Solyx Nightly and replaces the rolling `nightly`
-# prerelease with it. A newer push cancels a nightly still packaging.
+# Once CI passes on a push to develop, packages Solyx Nightly as its own prerelease, whose notes list
+# what was merged since the previous nightly. A newer push cancels a nightly still packaging.
 name: Nightly
 
 on:
@@ -27,8 +27,14 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
 
+      # A nightly previews the next patch release, which the stable release workflow promotes it to.
       - id: version
-        run: echo "version=$(node -p "require('./apps/desktop/package.json').version")-nightly.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+        run: |
+          next=$(node -p '
+            const [major, minor, patch] = require("./apps/desktop/package.json").version.split(".").map(Number);
+            `${major}.${minor}.${patch + 1}`
+          ')
+          echo "version=$next-nightly.$(date -u +%Y%m%d).$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
 
   package:
     needs: version
@@ -49,22 +55,22 @@ jobs:
           path: installers
           merge-multiple: true
 
-      - name: Replace the nightly prerelease
+      - name: Publish the nightly
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ github.event.workflow_run.head_sha }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          if gh release view nightly --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release delete nightly --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
-          fi
+          previous=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 100 \
+            --json tagName --jq '[.[].tagName | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+-nightly\\."))][0] // ""')
           {
-            echo "Built from $SHA. Solyx Nightly installs beside Solyx and keeps its own data, settings and keys."
+            echo "Solyx Nightly installs beside Solyx and keeps its own data, settings and keys."
             echo
             echo "Neither installer is signed by a paid certificate yet."
             echo
             echo "- **macOS (Apple Silicon):** open the app once, then allow it under System Settings → Privacy & Security → Open Anyway."
             echo "- **Windows:** when SmartScreen stops the installer, choose More info → Run anyway."
           } > notes.md
-          gh release create nightly installers/* --repo "$GITHUB_REPOSITORY" --prerelease \
-            --target "$SHA" --title "Nightly $VERSION" --notes-file notes.md
+          gh release create "v$VERSION" installers/* --repo "$GITHUB_REPOSITORY" --target "$SHA" \
+            --prerelease --latest=false --title "Solyx Nightly $VERSION" \
+            --notes-file notes.md --generate-notes ${previous:+--notes-start-tag "$previous"}

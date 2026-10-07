@@ -1,10 +1,9 @@
-# Checks, tests and builds every push to develop or main and every pull request; Release and Nightly
-# wait on it.
+# Checks, tests and builds every push to develop and every pull request; Nightly waits on it.
 name: CI
 
 on:
   push:
-    branches: [develop, main]
+    branches: [develop]
   pull_request:
 
 permissions:
