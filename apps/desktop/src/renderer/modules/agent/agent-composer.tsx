@@ -16,21 +16,28 @@ import {
   StopIcon,
 } from "@hugeicons/core-free-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import type { AgentModelPick } from "@solyx/agent/providers";
+import type { AgentModelPick, AgentModelRef } from "@solyx/agent/providers";
 import { ApprovalMode, emptyAgentView } from "@solyx/agent/wire";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+
+import type { AgentSettings } from "#shared/ipc/settings.ts";
 
 import { currentLocale } from "../../app/i18n.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 import { listingName, useListingName } from "../market/listing-name.tsx";
 import { listingQuery } from "../market/listing-query.ts";
-import { agentSettingsQuery } from "../settings/settings-query.ts";
+import {
+  agentSettingsQuery,
+  isModelReady,
+} from "../settings/settings-query.ts";
+import { SettingsSection } from "../settings/settings-section.ts";
 
 import { ApprovalModeMenu } from "./agent-approval-mode.tsx";
 import { AgentModelPicker } from "./agent-model-picker.tsx";
@@ -88,8 +95,40 @@ function FocusAttachment({ focus }: { focus: SymbolRef }) {
   );
 }
 
+/** Why the conversation's model cannot run, with the way to the settings that would let it. */
+function ModelUnavailable({
+  settings,
+  model,
+}: {
+  settings: AgentSettings;
+  model: AgentModelRef;
+}) {
+  const { t } = useTranslation();
+
+  const name =
+    settings.models.find(
+      (each) => each.provider === model.provider && each.id === model.id
+    )?.name ?? model.id;
+
+  const provider =
+    settings.providers.find((each) => each.provider === model.provider)?.name ??
+    model.provider;
+
+  return (
+    <p className="px-1 text-xs text-warning">
+      {t("agent.model-unavailable", { model: name, provider })}{" "}
+      <Link
+        to="/settings"
+        search={{ section: SettingsSection.Agent }}
+        className="underline underline-offset-2">
+        {t("agent.open-settings")}
+      </Link>
+    </p>
+  );
+}
+
 /**
- * Writes to the conversation on screen, starting one when there is none. Enter sends and
+ * Writes to the conversation on screen, starting one when there is none, on a model that can run. Enter sends and
  * Shift+Enter breaks the line; Enter that confirms an input method's composition does neither.
  */
 export function AgentComposer({
@@ -138,6 +177,16 @@ export function AgentComposer({
     sessionId === null
       ? unstarted.pick
       : { model: current?.model ?? null, thinking: current?.thinking ?? null };
+
+  const model =
+    settings &&
+    (pick.model ?? { provider: settings.provider, id: settings.model });
+
+  // Until the settings load, the model is taken to run rather than flash the notice.
+  const unavailable =
+    settings && model && !isModelReady(settings, model)
+      ? { settings, model }
+      : null;
 
   const approvalMode =
     sessionId === null
@@ -271,7 +320,7 @@ export function AgentComposer({
                     ) {
                       event.preventDefault();
 
-                      if (!running) void submit();
+                      if (!running && !unavailable) void submit();
                     }
                   }}
                 />
@@ -315,13 +364,14 @@ export function AgentComposer({
                 variant="secondary"
                 aria-label={t("agent.send")}
                 isPending={send.isPending}
-                isDisabled={!text.trim()}>
+                isDisabled={!text.trim() || unavailable !== null}>
                 <Icon icon={ArrowUp02Icon} />
               </Button>
             )}
           </div>
         </div>
       </div>
+      {unavailable ? <ModelUnavailable {...unavailable} /> : null}
       {setModel.error ? (
         <ErrorAlert
           title={t("agent.model-picker.failed")}

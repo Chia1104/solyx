@@ -178,7 +178,9 @@
       "voices": "Press {{press}} / Crowd {{crowd}}",
       "stories_one": "{{count}} story",
       "stories_other": "{{count}} stories",
-      "hint": "News and posts collected over the last {{days}} days, scored by the decisions model; 50 is neutral. Press covers filings and news, crowd covers forums and social networks. Items with the same title, such as reprints and replies, count as one story."
+      "hint": "News and posts collected over the last {{days}} days, scored by the decisions model; 50 is neutral. Press covers filings and news, crowd covers forums and social networks. Items with the same title, such as reprints and replies, count as one story.",
+      "off": "Sentiment off",
+      "unscored": "Set up a decisions model to score sentiment"
     },
     "coverage": {
       "collected": "Collected {{time}}",
@@ -218,6 +220,7 @@
     "send": "Send",
     "stop": "Stop",
     "send-failed": "Couldn't send the message",
+    "model-unavailable": "{{model}} can't run: {{provider}} needs a key or sign-in, or is switched off. Pick another model, or set it up.",
     "setup-title": "Set up the agent",
     "setup-description": "Pick a provider and save its API key, or sign in with ChatGPT, to start.",
     "open-settings": "Open settings",
@@ -287,6 +290,7 @@
         "auto": "Shell commands judged harmless run on their own, and pages this conversation found are read; everything else still asks",
         "bypass": "Tool calls and shell commands run without waiting for you"
       },
+      "auto-unjudged": "Pages this conversation found are read; everything else still asks, shell commands too until you set up a decisions model",
       "failed": "Couldn't change how tools are allowed"
     },
     "model-picker": {
@@ -778,7 +782,7 @@
     },
     "decisions": {
       "title": "Decisions model",
-      "description": "Scores news and posts with typed answers and their probabilities instead of written text, on your own key. Requests go straight from this computer to the provider.",
+      "description": "Answers typed questions with probabilities instead of written text, on your own key: it scores news and posts, checks the quotes the agent's research rests on, and judges shell commands in conversations set to Allow for me. These stay off until it is set up. Requests go straight from this computer to the provider.",
       "providers-description": "Providers",
       "provider-states": {
         "ready": "Ready",
@@ -786,7 +790,7 @@
         "needs-account": "Needs an account ID"
       },
       "provider-in-use": "In use",
-      "in-use-description": "In use: the provider whose model scores news and posts",
+      "in-use-description": "In use: the provider whose model scores news, checks quotes and judges commands",
       "provider": "Provider",
       "providers": {
         "typesafe": "TypeSafe",

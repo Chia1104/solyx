@@ -158,9 +158,7 @@ export function createAgentModels({
         models: providers
           .filter((each) => each.enabled)
           .flatMap((each) => catalog.options(each.provider)),
-        ready:
-          found !== undefined &&
-          providers.some((each) => each.provider === provider && each.usable),
+        ready: providers.some((each) => each.enabled && each.usable),
       };
     },
 

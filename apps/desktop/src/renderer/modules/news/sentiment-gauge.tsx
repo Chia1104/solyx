@@ -1,5 +1,6 @@
 import { Tooltip, cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { clamp } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +10,8 @@ import { NewsVoice, sentimentGauge } from "@solyx/core/news";
 import type { SentimentReading } from "@solyx/core/news";
 
 import type { NewsCoverage } from "#shared/ipc/news.ts";
+
+import { SettingsSection } from "../settings/settings-section.ts";
 
 import {
   NEWS_DAYS,
@@ -107,9 +110,17 @@ function Coverage({
 
 /**
  * The listing's news sentiment over the symbol page's window, overall and for the press and the
- * crowd. Where the main view is narrow only the overall reading and failing sources show.
+ * crowd, or a link to set up the decisions model that scores it while nothing was scored before.
+ * Where the main view is narrow only the overall reading and failing sources show.
  */
-export function SentimentGauge({ symbol }: { symbol: SymbolRef }) {
+export function SentimentGauge({
+  symbol,
+  scoring,
+}: {
+  symbol: SymbolRef;
+  /** Whether a decisions model scores the news. */
+  scoring: boolean;
+}) {
   const { t } = useTranslation();
   const { data } = useQuery(newsRecordsQuery(symbol));
   const { data: coverage } = useQuery(newsCoverageQuery(symbol));
@@ -120,21 +131,36 @@ export function SentimentGauge({ symbol }: { symbol: SymbolRef }) {
 
   return (
     <div className="flex shrink-0 items-center gap-3 text-xs text-muted tabular-nums">
-      <span
-        className="flex items-center gap-2"
-        title={t("news.gauge.hint", { days: NEWS_DAYS })}>
-        <span>{t("news.gauge.overall", { score: shown(overall) })}</span>
-        <GaugeBar score={overall.score} />
-        <span className="hidden @min-[52rem]/main:inline">
-          {t("news.gauge.voices", {
-            press: shown(voices[NewsVoice.Press]),
-            crowd: shown(voices[NewsVoice.Crowd]),
-          })}
+      {scoring || overall.score !== null ? (
+        <span
+          className="flex items-center gap-2"
+          title={t("news.gauge.hint", { days: NEWS_DAYS })}>
+          <span>{t("news.gauge.overall", { score: shown(overall) })}</span>
+          <GaugeBar score={overall.score} />
+          <span className="hidden @min-[52rem]/main:inline">
+            {t("news.gauge.voices", {
+              press: shown(voices[NewsVoice.Press]),
+              crowd: shown(voices[NewsVoice.Crowd]),
+            })}
+          </span>
+          <span className="hidden @min-[44rem]/main:inline">
+            {t("news.gauge.stories", { count: overall.stories })}
+          </span>
         </span>
-        <span className="hidden @min-[44rem]/main:inline">
-          {t("news.gauge.stories", { count: overall.stories })}
-        </span>
-      </span>
+      ) : (
+        <Link
+          to="/settings"
+          search={{ section: SettingsSection.Agent }}
+          title={t("news.gauge.unscored")}
+          className="underline underline-offset-2 hover:text-foreground">
+          <span className="@min-[52rem]/main:hidden">
+            {t("news.gauge.off")}
+          </span>
+          <span className="hidden @min-[52rem]/main:inline">
+            {t("news.gauge.unscored")}
+          </span>
+        </Link>
+      )}
       {coverage ? (
         <Coverage market={symbol.market} coverage={coverage} />
       ) : null}

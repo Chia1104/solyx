@@ -178,7 +178,9 @@
       "voices": "新聞 {{press}} / 社群 {{crowd}}",
       "stories_one": "{{count}} 則",
       "stories_other": "{{count}} 則",
-      "hint": "近 {{days}} 天收集到的新聞與討論，經決策模型評分，50 為中性。新聞含公告與媒體報導，社群含論壇與社群網站。標題相同的內容（例如轉載和回文）算作同一則。"
+      "hint": "近 {{days}} 天收集到的新聞與討論，經決策模型評分，50 為中性。新聞含公告與媒體報導，社群含論壇與社群網站。標題相同的內容（例如轉載和回文）算作同一則。",
+      "off": "情緒評分未啟用",
+      "unscored": "設定決策模型後即可評分情緒"
     },
     "coverage": {
       "collected": "收集於 {{time}}",
@@ -218,6 +220,7 @@
     "send": "送出",
     "stop": "停止",
     "send-failed": "無法送出訊息",
+    "model-unavailable": "無法使用 {{model}}：{{provider}} 尚未設定金鑰或登入，或已關閉。請改選其他模型，或完成設定。",
     "setup-title": "設定 Agent",
     "setup-description": "選擇服務商並儲存它的 API 金鑰，或使用 ChatGPT 登入後即可開始。",
     "open-settings": "開啟設定",
@@ -287,6 +290,7 @@
         "auto": "判斷為無害的 shell 指令直接執行，本對話找到的網頁直接讀取，其餘仍先詢問",
         "bypass": "工具呼叫與 shell 指令直接執行，不等你允許"
       },
+      "auto-unjudged": "本對話找到的網頁直接讀取，其餘仍先詢問；設定決策模型前，shell 指令也一律先詢問",
       "failed": "無法變更工具的允許方式"
     },
     "model-picker": {
@@ -778,7 +782,7 @@
     },
     "decisions": {
       "title": "決策模型",
-      "description": "用你自己的金鑰為新聞與貼文評分；模型回傳的是帶機率的結構化答案，不是文字。請求直接從這台電腦送到服務商。",
+      "description": "用你自己的金鑰回答結構化問題，回傳帶機率的答案而不是文字：為新聞與貼文評分、查核 Agent 研究引用的原文，並在「自動判斷」的對話中判斷 shell 指令。設定前這些功能都不會啟用。請求直接從這台電腦送到服務商。",
       "providers-description": "供應商",
       "provider-states": {
         "ready": "可以使用",
@@ -786,7 +790,7 @@
         "needs-account": "需要帳號 ID"
       },
       "provider-in-use": "使用中",
-      "in-use-description": "使用中：由這個供應商的模型為新聞與貼文評分",
+      "in-use-description": "使用中：由這個供應商的模型評分新聞、查核引文與判斷指令",
       "provider": "供應商",
       "providers": {
         "typesafe": "TypeSafe",

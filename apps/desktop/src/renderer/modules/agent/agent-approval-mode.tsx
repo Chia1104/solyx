@@ -19,6 +19,7 @@ import { ApprovalMode } from "@solyx/agent/wire";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { Icon } from "../../components/icon.tsx";
+import { useDecisionsReady } from "../settings/settings-query.ts";
 
 const ICONS: Record<ApprovalMode, IconSvgElement> = {
   [ApprovalMode.Ask]: HandIcon,
@@ -28,8 +29,9 @@ const ICONS: Record<ApprovalMode, IconSvgElement> = {
 
 /**
  * How the conversation's tool calls get allowed, picked from a menu that says what each mode
- * lets through. Running everything unasked is marked as the warning it is, in the menu and on the
- * trigger, so the mode in force is never out of sight.
+ * lets through, auto's shell commands only while a decisions model judges them. Running
+ * everything unasked is marked as the warning it is, in the menu and on the trigger, so the mode
+ * in force is never out of sight.
  */
 export function ApprovalModeMenu({
   mode,
@@ -41,6 +43,12 @@ export function ApprovalModeMenu({
   onChange: (mode: ApprovalMode) => void;
 }) {
   const { t } = useTranslation();
+  const judged = useDecisionsReady();
+
+  const description = (each: ApprovalMode) =>
+    each === ApprovalMode.Auto && !judged
+      ? t("agent.approval-mode.auto-unjudged")
+      : t(`agent.approval-mode.descriptions.${each}`);
 
   return (
     <Dropdown>
@@ -96,7 +104,7 @@ export function ApprovalModeMenu({
                           {t(`agent.approval-mode.modes.${each}`)}
                         </Label>
                         <Description className={cn(warns && "text-warning")}>
-                          {t(`agent.approval-mode.descriptions.${each}`)}
+                          {description(each)}
                         </Description>
                       </div>
                       {isSelected ? (

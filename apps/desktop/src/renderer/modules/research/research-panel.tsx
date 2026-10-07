@@ -16,6 +16,7 @@ import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { useAgentStore } from "../agent/agent-store.ts";
 import { numberFormats } from "../market/number-formats.ts";
+import { useDecisionsReady } from "../settings/settings-query.ts";
 
 import { ForecastBody } from "./forecast-card.tsx";
 import { researchCoverageQuery } from "./research-query.ts";
@@ -43,7 +44,10 @@ function DeepAnalysisButton({ symbol }: { symbol: SymbolRef }) {
   );
 }
 
-/** Each point over the fact it rests on, the source's own words, and how the fact was read against them. */
+/**
+ * Each point over the fact it rests on, the source's own words, and how a decisions model read the
+ * fact against them; an unread fact says so only while one is set up.
+ */
 function Claims({
   title,
   claims,
@@ -53,6 +57,7 @@ function Claims({
 }) {
   const { t, i18n } = useTranslation();
   const { percent } = numberFormats(i18n.language);
+  const audited = useDecisionsReady();
 
   return claims.length === 0 ? null : (
     <section className="flex flex-col gap-1.5">
@@ -65,14 +70,16 @@ function Claims({
             <span className="text-xs break-words text-muted">
               {claim.source} — “{claim.quote}”
             </span>
-            <span className="text-xs text-muted tabular-nums">
-              {claim.support
-                ? t("research.report.quote-read", {
-                    share: percent.format(claim.support.supported),
-                    model: claim.support.model,
-                  })
-                : t("research.report.quote-unread")}
-            </span>
+            {claim.support || audited ? (
+              <span className="text-xs text-muted tabular-nums">
+                {claim.support
+                  ? t("research.report.quote-read", {
+                      share: percent.format(claim.support.supported),
+                      model: claim.support.model,
+                    })
+                  : t("research.report.quote-unread")}
+              </span>
+            ) : null}
           </li>
         ))}
       </ul>

@@ -1,12 +1,14 @@
 import { useEffect } from "react";
 
-import { queryOptions, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
+import type { AgentModelRef } from "@solyx/agent/providers";
 import { Market } from "@solyx/core/market";
 
 import { DECISIONS_SECRETS, SecretState } from "#shared/ipc/settings.ts";
 import type {
+  AgentSettings,
   DecisionsSettings,
   MarketDataStatus,
   SecretsStatus,
@@ -49,6 +51,18 @@ export const marketDataQuery = () =>
 /** Whether Taiwan market data has everything its source connects with saved. */
 export function isMarketDataReady(status: MarketDataStatus | undefined) {
   return status?.markets[Market.TW]?.ready === true;
+}
+
+/** Whether the model's provider is switched on with its key saved or subscription signed in, so it can run. */
+export function isModelReady(settings: AgentSettings, model: AgentModelRef) {
+  return (
+    settings.models.some(
+      (each) => each.provider === model.provider && each.id === model.id
+    ) &&
+    settings.providers.some(
+      (each) => each.provider === model.provider && each.usable
+    )
+  );
 }
 
 /** Whether the vendor in use has its key saved, so news and the agent can search the web. */
@@ -129,6 +143,20 @@ export const decisionsSettingsQuery = () =>
     queryFn: () => window.solyx.settings.decisions(),
     staleTime: Infinity,
   });
+
+/**
+ * Whether a decisions model is set up, without which news goes unscored, research claims unread
+ * and auto asks about every shell command. Until the settings load, assumes one is rather than
+ * flash what shows without it.
+ */
+export function useDecisionsReady() {
+  const { data: settings } = useQuery(decisionsSettingsQuery());
+  const { data: secrets } = useQuery(secretsQuery());
+
+  return settings === undefined || secrets === undefined
+    ? true
+    : isDecisionsReady(settings, secrets);
+}
 
 /** Always stale, since skills and instructions are files the user edits outside the app. */
 export const agentSkillsQuery = () =>

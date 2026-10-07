@@ -23,6 +23,7 @@ import type {
 import type { AgentSettings } from "#shared/ipc/settings.ts";
 
 import { Icon } from "../../components/icon.tsx";
+import { isModelReady } from "../settings/settings-query.ts";
 
 import { ProviderMark } from "./agent-provider-mark.tsx";
 import { ThinkingSlider } from "./agent-thinking-slider.tsx";
@@ -36,7 +37,8 @@ const DEFAULT_KEY = "";
 /**
  * A model to run on: a rail of the providers switched on, their models to search through, and how
  * long the chosen one thinks. The first row follows the default model in Settings, which is what
- * a conversation runs on until the user picks its own.
+ * a conversation runs on until the user picks its own. A model whose provider has no key or
+ * sign-in cannot be picked, and one already picked is marked on the trigger.
  */
 export function AgentModelPicker({
   settings,
@@ -110,6 +112,12 @@ export function AgentModelPicker({
 
   const nameOf = (provider: AgentProvider) => names.get(provider) ?? provider;
 
+  // Following another picker's model, such as the conversation's, runs whatever that one does.
+  const defaultRuns =
+    fallback !== undefined || isModelReady(settings, defaults);
+
+  const runs = follows || isModelReady(settings, chosen);
+
   // In the order Settings lists them.
   const providers = settings.providers
     .map((provider) => provider.provider)
@@ -152,13 +160,18 @@ export function AgentModelPicker({
         variant="ghost"
         aria-label={label}
         isDisabled={isDisabled}
-        className="h-7 min-w-0 gap-1.5 px-2 text-xs text-muted">
+        className={cn(
+          "h-7 min-w-0 gap-1.5 px-2 text-xs text-muted",
+          !runs && "text-warning"
+        )}>
         {follows ? (
           <span className="max-w-40 truncate">{fallback}</span>
         ) : (
           <>
             <ProviderMark provider={chosen.provider} className="size-3.5" />
-            <span className="max-w-40 truncate">
+            <span
+              className="max-w-40 truncate"
+              title={runs ? undefined : t("agent.model-picker.needs-setup")}>
               {current?.name ?? chosen.id}
             </span>
           </>
@@ -262,8 +275,13 @@ export function AgentModelPicker({
                   <ListBox.Item
                     id={DEFAULT_KEY}
                     textValue={defaultLabel}
+                    isDisabled={!defaultRuns}
                     className="text-xs">
-                    <span className="truncate text-muted">{defaultLabel}</span>
+                    <span className="truncate text-muted">
+                      {defaultRuns
+                        ? defaultLabel
+                        : `${defaultLabel} · ${t("agent.model-picker.needs-setup")}`}
+                    </span>
                     <ListBox.ItemIndicator />
                   </ListBox.Item>
                 ) : null}

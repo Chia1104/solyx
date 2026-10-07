@@ -116,6 +116,20 @@ describe("picking a model", () => {
 
     await expect(models.choice(pick)).rejects.toThrow("Save an API key");
   });
+
+  test("the agent can run while a provider switched on can, whichever the default is", async () => {
+    const { config, secrets, models } = setup();
+
+    config.set(["agent", "provider"], "openai");
+    await secrets.save(agentKeySecret("anthropic"), "sk-ant-test");
+
+    expect((await models.settings()).ready).toBe(false);
+
+    config.set(["agent", "providers"], ["anthropic"]);
+
+    expect((await models.settings()).ready).toBe(true);
+    await expect(models.choice()).rejects.toThrow("Save an API key for openai");
+  });
 });
 
 describe("the providers offered", () => {

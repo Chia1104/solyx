@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 
+import { cn } from "@heroui/react";
 import { NewsIcon } from "@hugeicons/core-free-icons";
 import { useQuery } from "@tanstack/react-query";
 import { uniq } from "es-toolkit";
@@ -20,6 +21,7 @@ import type { NewsStory, Published } from "@solyx/core/news";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { ToggleMenu } from "../../components/toggle-menu.tsx";
+import { useDecisionsReady } from "../settings/settings-query.ts";
 
 import { newsRecordsQuery, useNewsChanges } from "./news-query.ts";
 import { GaugeBar, SentimentGauge } from "./sentiment-gauge.tsx";
@@ -47,7 +49,16 @@ function PublishedTime({
   return shown[published.precision];
 }
 
-function StoryRow({ market, story }: { market: Market; story: NewsStory }) {
+function StoryRow({
+  market,
+  story,
+  scored,
+}: {
+  market: Market;
+  story: NewsStory;
+  /** The list shows scores: a decisions model scores the news, or a story was scored before. */
+  scored: boolean;
+}) {
   const { t } = useTranslation();
   const { lead } = story;
   const { item } = lead;
@@ -56,7 +67,13 @@ function StoryRow({ market, story }: { market: Market; story: NewsStory }) {
 
   return (
     // One line where the main view is wide; narrower, the byline drops under the title.
-    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-0.5 px-6 py-2 @min-[48rem]/main:grid-cols-[6rem_2.5rem_minmax(0,1fr)_auto_5rem]">
+    <li
+      className={cn(
+        "grid items-start gap-x-3 gap-y-0.5 px-6 py-2",
+        scored
+          ? "grid-cols-[minmax(0,1fr)_auto] @min-[48rem]/main:grid-cols-[6rem_2.5rem_minmax(0,1fr)_auto_5rem]"
+          : "grid-cols-[minmax(0,1fr)] @min-[48rem]/main:grid-cols-[6rem_2.5rem_minmax(0,1fr)_auto]"
+      )}>
       <div className="flex min-w-0 flex-col gap-0.5 @min-[48rem]/main:col-start-3 @min-[48rem]/main:row-start-1">
         {item.url ? (
           <a
@@ -75,11 +92,13 @@ function StoryRow({ market, story }: { market: Market; story: NewsStory }) {
           </span>
         ) : null}
       </div>
-      <span className="flex items-center justify-end gap-1.5 pt-0.5 text-xs text-muted tabular-nums @min-[48rem]/main:col-start-5 @min-[48rem]/main:row-start-1">
-        {score ?? "—"}
-        <GaugeBar score={score} className="w-8" />
-      </span>
-      <div className="col-span-2 flex flex-wrap gap-x-3 text-xs text-muted tabular-nums @min-[48rem]/main:contents">
+      {scored ? (
+        <span className="flex items-center justify-end gap-1.5 pt-0.5 text-xs text-muted tabular-nums @min-[48rem]/main:col-start-5 @min-[48rem]/main:row-start-1">
+          {score ?? "—"}
+          <GaugeBar score={score} className="w-8" />
+        </span>
+      ) : null}
+      <div className="col-span-full flex flex-wrap gap-x-3 text-xs text-muted tabular-nums @min-[48rem]/main:contents">
         <span className="@min-[48rem]/main:col-start-1 @min-[48rem]/main:row-start-1 @min-[48rem]/main:pt-0.5">
           <PublishedTime market={market} published={item.published} />
         </span>
@@ -117,6 +136,7 @@ export function NewsList({
 }) {
   const { t } = useTranslation();
   const { data, error, refetch } = useQuery(newsRecordsQuery(symbol));
+  const scoring = useDecisionsReady();
 
   const [channels, setChannels] = useState<NewsChannel[]>(() =>
     Object.values(NewsChannel)
@@ -128,6 +148,8 @@ export function NewsList({
     (story) => isAboutListing(story) && channels.includes(story.channel)
   );
 
+  const scored = scoring || stories.some((story) => storyScore(story) !== null);
+
   let body = (
     <ul className="divide-y divide-separator">
       {stories.map((story) => (
@@ -135,6 +157,7 @@ export function NewsList({
           key={`${story.records[0].source}:${story.records[0].item.id}`}
           market={symbol.market}
           story={story}
+          scored={scored}
         />
       ))}
     </ul>
@@ -173,7 +196,7 @@ export function NewsList({
           disallowEmptySelection
         />
         <div className="ml-auto flex">
-          <SentimentGauge symbol={symbol} />
+          <SentimentGauge symbol={symbol} scoring={scoring} />
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>

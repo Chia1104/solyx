@@ -257,7 +257,10 @@ export interface AgentSettings {
   magi: Record<MagiUnit, AgentModelRef | null>;
   /** The chat models of every provider switched on, each provider's in its catalog's order. */
   models: AgentModelOption[];
-  /** The default model's provider can run and its catalog has the model, so the agent can run. */
+  /**
+   * A provider switched on can run, so the agent can run on one of its models; the default model
+   * may still be one that cannot.
+   */
   ready: boolean;
 }
 
