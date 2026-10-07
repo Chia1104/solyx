@@ -128,19 +128,20 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const decisionMode = () => options.config.read().agent.decisionMode;
 
-  // Every unit answers on the conversation's own model, so a vote runs wherever the conversation does.
+  // A unit answers on its own model where the user picked one, else on the conversation's.
   const magi: MagiPort = async (conversationId) => {
     if (decisionMode() !== DecisionMode.Magi) return undefined;
 
     return createMagi({
       models: models.models,
-      async model() {
+      async model(unit) {
         const session = (await runtime.sessions()).find(
           (each) => each.id === String(conversationId)
         );
 
         const { model } = await models.choice({
-          model: session?.model ?? null,
+          model:
+            options.config.read().agent.magi[unit] ?? session?.model ?? null,
           thinking: session?.thinking ?? null,
         });
 

@@ -63,6 +63,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       sharedSkills: [],
       shell: false,
       decisionMode: "single",
+      magi: { melchior: null, balthasar: null, casper: null },
       memory: true,
       mcpTools: {},
     },

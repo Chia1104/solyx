@@ -8,7 +8,7 @@ import * as z from "zod";
 
 import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import type { AgentProvider } from "@solyx/agent/providers";
-import { DecisionMode } from "@solyx/core/council";
+import { DecisionMode, MagiUnit } from "@solyx/core/council";
 
 import type { AgentProviderSettings } from "#shared/ipc/settings.ts";
 
@@ -122,7 +122,7 @@ export function AgentSettings() {
 
   if (!settings.data || !secrets.data) return <LoadingState />;
 
-  const { providers, provider, model, thinking, decisionMode, models } =
+  const { providers, provider, model, thinking, decisionMode, magi, models } =
     settings.data;
 
   const { available } = secrets.data;
@@ -140,6 +140,19 @@ export function AgentSettings() {
   const modelLabel = t("settings.agent.model");
   const thinkingLabel = t("settings.agent.thinking");
   const decisionModeLabel = t("settings.agent.decision-mode");
+
+  // A provider's id for a model means nothing under another, so the pair names a unit's model.
+  const modelKey = ({ provider: of, id }: { provider: string; id: string }) =>
+    `${of} ${id}`;
+
+  const unitModels = [
+    { id: "", label: t("settings.agent.magi.conversation-model") },
+    ...models.map((option) => ({
+      id: modelKey(option),
+      label: `${providers.find((each) => each.provider === option.provider)?.name ?? option.provider} · ${option.name}`,
+    })),
+  ];
+
   const authLabel = t("settings.agent.auth");
   const endpointLabel = t("settings.agent.endpoint");
 
@@ -381,6 +394,38 @@ export function AgentSettings() {
                 />
               }
             />
+            {decisionMode === DecisionMode.Magi
+              ? Object.values(MagiUnit).map((unit) => {
+                  const label = t(`settings.agent.magi.units.${unit}`);
+
+                  return (
+                    <SettingsRow
+                      key={unit}
+                      label={label}
+                      description={t(`settings.agent.magi.personas.${unit}`)}
+                      actions={
+                        <OptionSelect
+                          aria-label={label}
+                          className="w-56"
+                          value={magi[unit] ? modelKey(magi[unit]) : ""}
+                          isDisabled={save.isPending}
+                          options={unitModels}
+                          onChange={(next) =>
+                            save.mutate(() =>
+                              window.solyx.settings.setMagiModel(
+                                unit,
+                                models.find(
+                                  (option) => modelKey(option) === next
+                                ) ?? null
+                              )
+                            )
+                          }
+                        />
+                      }
+                    />
+                  );
+                })
+              : null}
           </SettingsList>
         </div>
         {save.error ? (

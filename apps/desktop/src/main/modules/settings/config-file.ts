@@ -10,10 +10,15 @@ import {
   AgentThinking,
   agentAuthSchema,
   agentProviderSchema,
+  agentModelRefSchema,
   agentThinkingSchema,
 } from "@solyx/agent/providers";
-import type { AgentProvider } from "@solyx/agent/providers";
-import { DecisionMode, decisionModeSchema } from "@solyx/core/council";
+import type { AgentModelRef, AgentProvider } from "@solyx/agent/providers";
+import {
+  DecisionMode,
+  MagiUnit,
+  decisionModeSchema,
+} from "@solyx/core/council";
 import type { Market } from "@solyx/core/market";
 import {
   CLOUDFLARE_BASE_URL,
@@ -55,6 +60,8 @@ import {
 import type { CustomPalette, PaletteToken } from "#shared/palette.ts";
 
 // Text that is empty or of the wrong shape reads as missing.
+const unitModelSchema = agentModelRefSchema.nullable().catch(null);
+
 const textSchema = z.string().trim().min(1).optional().catch(undefined);
 
 const paletteIdSchema = z.string().min(1).catch(Palette.Blueprint);
@@ -182,6 +189,22 @@ const configSchema = section(
           description:
             "Who decides the agent's forecasts and order proposals: the agent alone, or the MAGI, three units that each vote on them as one side of a mind, at the cost of three more requests to the model each time.",
         }),
+        // One model each, or null for the model of the conversation that put the motion.
+        magi: z
+          .object({
+            [MagiUnit.Melchior]: unitModelSchema,
+            [MagiUnit.Balthasar]: unitModelSchema,
+            [MagiUnit.Casper]: unitModelSchema,
+          })
+          .catch({
+            [MagiUnit.Melchior]: null,
+            [MagiUnit.Balthasar]: null,
+            [MagiUnit.Casper]: null,
+          })
+          .meta({
+            description:
+              "The model each MAGI unit answers on, by provider and model id; a unit without one answers on the conversation's model.",
+          }),
         memory: z.boolean().catch(true).meta({
           description:
             "Lets the agent read what it kept from earlier conversations and ask to save, rewrite or forget a memory; each change waits for you to allow it.",
@@ -290,6 +313,7 @@ type ConfigPath =
       ),
     ]
   | ["agent", "endpoints", AgentProvider]
+  | ["agent", "magi", MagiUnit]
   | ["agent", "mcpTools", string]
   | ["news", "collectEveryHours"]
   | ["webSearch", "provider"]
@@ -304,6 +328,8 @@ type ConfigValue =
   | boolean
   | string[]
   | CustomPalette
+  | AgentModelRef
+  | null
   | undefined;
 
 export type ConfigEntry = readonly [path: ConfigPath, value: ConfigValue];
