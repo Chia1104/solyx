@@ -88,7 +88,7 @@ export async function followAppearance() {
     if (data && data !== applied) applyPalettes(data);
   });
 
-  applyPalettes(await queryClient.fetchQuery(appearanceQuery()));
+  applyPalettes(await queryClient.query(appearanceQuery()));
 }
 
 function subscribeToScheme(onChange: () => void) {

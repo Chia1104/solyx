@@ -73,7 +73,13 @@ export function exchangeDate(market: Market, at: Date = new Date()): string {
 
 /** `YYYY-MM-DD HH:mm` on the exchange's clock. */
 export function exchangeTime(market: Market, at: Date = new Date()): string {
-  return exchangeClock(market, at)
+  return wallTime(MARKET_TIME_ZONE[market], at);
+}
+
+/** `YYYY-MM-DD HH:mm` on the clock of `timeZone`, an IANA name. */
+export function wallTime(timeZone: string, at: Date = new Date()): string {
+  return Temporal.Instant.fromEpochMilliseconds(at.getTime())
+    .toZonedDateTimeISO(timeZone)
     .toPlainDateTime()
     .toString({ smallestUnit: "minute" })
     .replace("T", " ");

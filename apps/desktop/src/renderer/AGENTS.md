@@ -7,6 +7,7 @@ The workspace's React app. It reads everything through `window.solyx`, makes no 
 - TanStack Router with hash history, since builds load from `file://`; TanStack Query for everything read from the main process; zustand for client-only state.
 - HeroUI v3 on Tailwind CSS v4, used directly. Compose `react-aria-components` where HeroUI has no equivalent; add no other primitive library.
 - Components take every user-facing string from `@solyx/i18n` through `react-i18next`.
+- The app's language (`app/i18n.ts`) and the user's time zone (`app/clock.ts`) are the renderer's own preferences, kept in local storage, and the composer sends both with every message so the agent's context carries them. The times of the app's own events, such as messages and memories, are formatted through `useClock`; anything on a market's calendar, such as charts, sessions and news, reads the exchange's zone from `@solyx/core/market` and never the user's.
 - Forms use react-hook-form with `zodResolver`; each HeroUI field is wrapped in a `Controller`, and validation messages come from the catalog.
 - The production CSP forbids eval and remote sources, so zod runs `jitless` and inline `<style>` is the only relaxation.
 - Routes fall back to `ErrorFallback` through the router's `defaultErrorComponent`. A widget that can fail on its own, such as the chart, sits in TanStack Router's `CatchBoundary` so the rest of its page stays usable.

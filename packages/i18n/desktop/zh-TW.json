@@ -501,6 +501,8 @@
     "use-default": "還原預設",
     "language": "語言",
     "language-description": "套用到整個 app，並保存在這台電腦上。「跟隨系統」會使用電腦的語言，沒有對應的翻譯時改用英文。",
+    "time-zone": "時區",
+    "time-zone-description": "app 本身的事件時間（例如訊息與記憶）依這個時鐘顯示；圖表與交易時段仍使用各交易所的時區。「跟隨系統」會使用電腦的時區。",
     "theme": "主題",
     "theme-description": "「跟隨系統」會依電腦的淺色或深色外觀切換。",
     "themes": {
@@ -992,6 +994,10 @@
     "system": "跟隨系統",
     "en-US": "English",
     "zh-TW": "繁體中文"
+  },
+  "time-zone": {
+    "system": "跟隨系統（{{zone}}）",
+    "search": "搜尋時區"
   },
   "sign-in-page": {
     "chatgpt": {

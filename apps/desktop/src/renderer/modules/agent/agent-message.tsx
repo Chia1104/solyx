@@ -6,12 +6,12 @@ import { useTranslation } from "react-i18next";
 
 import type { MessageView } from "@solyx/agent/wire";
 
+import { useClock } from "../../app/clock.ts";
 import { Icon } from "../../components/icon.tsx";
 
 import { ActivityMark } from "./agent-activity.tsx";
 import { AgentMarkdown } from "./agent-markdown.tsx";
 import { CopyAction, EditAction } from "./agent-message-actions.tsx";
-import { formatTime, formatFullTime } from "./agent-time.ts";
 
 /** When a message was sent, and its actions, which show while the pointer or focus is on it. */
 function MessageMeta({
@@ -26,7 +26,7 @@ function MessageMeta({
   end?: boolean;
   children?: ReactNode;
 }) {
-  const { i18n } = useTranslation();
+  const clock = useClock();
 
   return (
     <div
@@ -37,9 +37,9 @@ function MessageMeta({
       {at === undefined ? null : (
         <time
           dateTime={new Date(at).toISOString()}
-          title={formatFullTime(at, i18n.language)}
+          title={clock.fullTime(at)}
           className="tabular-nums">
-          {formatTime(at, i18n.language)}
+          {clock.time(at)}
         </time>
       )}
       <span className="flex items-center opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">

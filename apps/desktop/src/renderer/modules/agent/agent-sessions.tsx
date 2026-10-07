@@ -11,12 +11,12 @@ import { useTranslation } from "react-i18next";
 
 import type { AgentSession } from "@solyx/agent/wire";
 
+import { useClock } from "../../app/clock.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 
 import { agentQueryKeys, agentSessionsQuery } from "./agent-query.ts";
 import { useAgentStore } from "./agent-store.ts";
-import { formatFullTime, formatTime } from "./agent-time.ts";
 
 /** Asks before a conversation is erased, naming it so it cannot be taken for another. */
 function DeleteSessionDialog({
@@ -110,7 +110,8 @@ export function AgentSessionControls({
 }: {
   sessionId: string | null;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const clock = useClock();
   const select = useAgentStore((state) => state.select);
   const { data: sessions = [] } = useQuery(agentSessionsQuery());
   const [listOpen, setListOpen] = useState(false);
@@ -157,12 +158,9 @@ export function AgentSessionControls({
                         <span className="w-full truncate text-sm">{title}</span>
                         <time
                           dateTime={new Date(session.updatedAt).toISOString()}
-                          title={formatFullTime(
-                            session.updatedAt,
-                            i18n.language
-                          )}
+                          title={clock.fullTime(session.updatedAt)}
                           className="text-xs text-muted tabular-nums">
-                          {formatTime(session.updatedAt, i18n.language)}
+                          {clock.time(session.updatedAt)}
                         </time>
                       </Button>
                       <Button

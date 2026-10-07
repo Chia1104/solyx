@@ -28,6 +28,7 @@ import type { SymbolRef } from "@solyx/core/market";
 
 import type { AgentSettings } from "#shared/ipc/settings.ts";
 
+import { currentTimeZone } from "../../app/clock.ts";
 import { currentLocale } from "../../app/i18n.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
@@ -270,7 +271,8 @@ export function AgentComposer({
             locale
           ),
         },
-        locale
+        locale,
+        currentTimeZone()
       );
     },
     onSuccess: () => form.reset(),

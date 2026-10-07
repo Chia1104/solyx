@@ -6,7 +6,7 @@ import { symbolRefSchema } from "@solyx/core/market";
 
 import { agentChannels } from "#shared/ipc/agent.ts";
 import type { AgentApi } from "#shared/ipc/agent.ts";
-import { localeSchema } from "#shared/ipc/settings.ts";
+import { localeSchema, timeZoneSchema } from "#shared/ipc/settings.ts";
 
 import { bindIpc } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";
@@ -25,6 +25,7 @@ const schemas = {
       .object({ symbol: symbolRefSchema, name: z.string().max(200).optional() })
       .nullable(),
     localeSchema,
+    timeZoneSchema,
   ]),
   abort: z.tuple([idSchema]),
   approve: z.tuple([idSchema, idSchema, z.boolean()]),
@@ -38,7 +39,8 @@ export function registerAgentIpc({ agent }: Services) {
     createSession: () => agent.createSession(),
     deleteSession: (id) => agent.deleteSession(id),
     transcript: (id) => agent.transcript(id),
-    send: (id, text, focus, locale) => agent.send(id, text, focus, locale),
+    send: (id, text, focus, locale, timeZone) =>
+      agent.send(id, text, focus, locale, timeZone),
     abort: (id) => agent.abort(id),
     approve: async (id, toolCallId, approved) =>
       agent.approve(id, toolCallId, approved),

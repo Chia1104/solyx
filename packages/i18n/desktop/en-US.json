@@ -501,6 +501,8 @@
     "use-default": "Use default",
     "language": "Language",
     "language-description": "Applies to the whole app and is kept on this computer. System follows your computer's language, or English when the app has no translation for it.",
+    "time-zone": "Time zone",
+    "time-zone-description": "The times of the app's own events, such as messages and memories, read on this clock; charts and market hours stay on each exchange's. System follows your computer's time zone.",
     "theme": "Theme",
     "theme-description": "System follows your computer's light or dark appearance.",
     "themes": {
@@ -992,6 +994,10 @@
     "system": "System",
     "en-US": "English",
     "zh-TW": "繁體中文"
+  },
+  "time-zone": {
+    "system": "System ({{zone}})",
+    "search": "Search time zones"
   },
   "sign-in-page": {
     "chatgpt": {

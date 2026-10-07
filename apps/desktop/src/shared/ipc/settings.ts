@@ -18,6 +18,7 @@ import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { DecisionsProvider } from "@solyx/decisions/provider";
 import type { FuglePlan } from "@solyx/market-data/fugle";
+import { isTimeZone } from "@solyx/utils/is";
 import type { WebSearchProvider } from "@solyx/web-search/provider";
 
 import type { ColorScheme, CustomPalette, PaletteToken } from "../palette.ts";
@@ -153,6 +154,13 @@ export const Locale = {
 export type Locale = (typeof Locale)[keyof typeof Locale];
 
 export const localeSchema = z.enum(Locale);
+
+/** A time zone as an IANA name, such as `Asia/Taipei`, which the user's own clock follows. */
+export const timeZoneSchema = z
+  .string()
+  .refine(isTimeZone, { error: "Not a time zone this computer knows" });
+
+export type TimeZone = z.infer<typeof timeZoneSchema>;
 
 /** Where a market's charts and live bars come from. */
 export const MarketDataSource = {

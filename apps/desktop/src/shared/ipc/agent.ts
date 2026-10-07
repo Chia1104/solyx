@@ -6,7 +6,7 @@ import type {
 } from "@solyx/agent/wire";
 import type { SymbolRef } from "@solyx/core/market";
 
-import type { Locale } from "./settings.ts";
+import type { Locale, TimeZone } from "./settings.ts";
 
 /** The listing the user has open while writing, which the agent is told about. */
 export interface AgentFocus {
@@ -25,13 +25,15 @@ export interface AgentApi {
   transcript(id: string): Promise<AgentWireEvent[]>;
   /**
    * Starts a run and resolves once it is under way; its progress arrives through `onEvent`.
-   * `locale` is the app's language, which the agent replies in.
+   * `locale` is the app's language, which the agent replies in, and `timeZone` the user's own
+   * clock, which the agent is told the time on.
    */
   send(
     id: string,
     text: string,
     focus: AgentFocus | null,
-    locale: Locale
+    locale: Locale,
+    timeZone: TimeZone
   ): Promise<void>;
   abort(id: string): Promise<void>;
   /** Answers a call waiting for the user to allow it. */

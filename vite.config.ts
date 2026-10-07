@@ -91,6 +91,8 @@ export default defineConfig({
       // The base preset turns the correctness category off; an unawaited order call must not slip through.
       "typescript/no-floating-promises": "error",
       "typescript/no-misused-promises": "error",
+      // Dependencies mark what their next version drops; a use of it is a lint error, not a surprise at upgrade.
+      "typescript/no-deprecated": "error",
       "oxc/no-accumulating-spread": "error",
       // Its preferred iterator-helper form is not in the es2023 lib, and the arrays here are small.
       "anti-slop/no-array-filter-map": "off",

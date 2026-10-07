@@ -20,6 +20,7 @@ import { PriceColorsSelect } from "../modules/settings/price-colors-select.tsx";
 import { SettingsSection } from "../modules/settings/settings-section.ts";
 import { SettingsTabs } from "../modules/settings/settings-tabs.tsx";
 import { ThemeSelect } from "../modules/settings/theme-select.tsx";
+import { TimeZoneSelect } from "../modules/settings/time-zone-select.tsx";
 import { WebSearchSettings } from "../modules/settings/web-search-settings.tsx";
 import { StorageSettings } from "../modules/storage/storage-settings.tsx";
 
@@ -38,6 +39,7 @@ export function SettingsPage() {
           <PalettePicker />
           <PriceColorsSelect />
           <LanguageSelect />
+          <TimeZoneSelect />
           <SetupGuideLink />
         </div>
       </Section>

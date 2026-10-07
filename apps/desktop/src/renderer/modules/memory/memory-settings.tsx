@@ -12,7 +12,6 @@ import {
 } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { memoize } from "es-toolkit";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -24,6 +23,7 @@ import {
 } from "@solyx/core/memory";
 import type { Memory, MemoryChange } from "@solyx/core/memory";
 
+import { useClock } from "../../app/clock.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { FilterField, matchesFilter } from "../../components/filter-field.tsx";
 import { LoadError } from "../../components/load-error.tsx";
@@ -35,10 +35,6 @@ import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 import { memorySettingsQuery } from "../settings/settings-query.ts";
 
 import { memoryQuery } from "./memory-query.ts";
-
-const dateFormat = memoize(
-  (locale: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium" })
-);
 
 /** A memory as the user edits it; rebuilt per language so field errors come out localized. */
 function useMemoryChangeSchema() {
@@ -65,7 +61,8 @@ function useMemoryChangeSchema() {
 
 /** One memory: its description, what it is about and when it was written, edited below the row. */
 function MemoryRow({ memory }: { memory: Memory }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const clock = useClock();
   const [editing, setEditing] = useState(false);
 
   const form = useForm({
@@ -108,9 +105,7 @@ function MemoryRow({ memory }: { memory: Memory }) {
               <ListingName symbol={memory.listing} />
             </>
           ) : null}
-          <span className="shrink-0">
-            · {dateFormat(i18n.language).format(memory.updatedAt)}
-          </span>
+          <span className="shrink-0">· {clock.date(memory.updatedAt)}</span>
         </span>
       }
       actions={

@@ -37,7 +37,7 @@ import { isErrnoError } from "@solyx/utils/error";
 
 import { agentEvents } from "#shared/ipc/agent.ts";
 import type { AgentFocus, AgentUpdate } from "#shared/ipc/agent.ts";
-import type { Locale } from "#shared/ipc/settings.ts";
+import type { Locale, TimeZone } from "#shared/ipc/settings.ts";
 import type { ConversationsUsage } from "#shared/ipc/storage.ts";
 
 import { createAgentModels } from "./agent-models.ts";
@@ -271,7 +271,13 @@ export function createAgentService(options: AgentServiceOptions) {
       await options.mcp.close();
     },
 
-    send(id: string, text: string, focus: AgentFocus | null, locale: Locale) {
+    send(
+      id: string,
+      text: string,
+      focus: AgentFocus | null,
+      locale: Locale,
+      timeZone: TimeZone
+    ) {
       return runtime.send(id, {
         text,
         context: formatContext({
@@ -279,6 +285,7 @@ export function createAgentService(options: AgentServiceOptions) {
           brokerMode: options.desk.mode,
           focus: focus ?? undefined,
           locale,
+          timeZone,
           decisionMode: decisionMode(),
         }),
       });

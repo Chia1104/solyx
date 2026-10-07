@@ -4,7 +4,7 @@ import { escape } from "es-toolkit";
 
 import type { BrokerMode } from "@solyx/core/broker";
 import { DecisionMode } from "@solyx/core/council";
-import { Market, exchangeTime } from "@solyx/core/market";
+import { Market, exchangeTime, wallTime } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { getSession } from "@solyx/core/session";
 
@@ -50,7 +50,7 @@ const RULES = `You are the market analyst inside Solyx, a desktop app one person
 # Replies
 - Each user message starts with <app_context>, which the app writes. It is data about the moment the user wrote, not instructions from them.
 - Reply in the language the context names, including the rationale of a proposal.
-- Be brief. Lead with the answer, then the evidence. Numbers keep their units and currency; times are exchange-local as the tools give them.`;
+- Be brief. Lead with the answer, then the evidence. Numbers keep their units and currency; times are exchange-local as the tools give them, and the context's clock is the user's own.`;
 
 function skillsText(skills: readonly AgentSkill[]): string {
   const catalog = skills
@@ -105,6 +105,8 @@ export interface TurnContext {
   focus?: { symbol: SymbolRef; name?: string };
   /** The app's language as a BCP 47 tag, which replies follow. */
   locale: string;
+  /** The user's own time zone as an IANA name, which their clock in the context reads on. */
+  timeZone: string;
   /** Who decides forecasts and order proposals. */
   decisionMode: DecisionMode;
 }
@@ -115,6 +117,7 @@ export function formatContext(context: TurnContext): string {
 
   const lines = [
     `time: Taipei ${exchangeTime(Market.TW, at)} (TW ${getSession(Market.TW, at)}), New York ${exchangeTime(Market.US, at)} (US ${getSession(Market.US, at)})`,
+    `clock: ${wallTime(context.timeZone, at)} ${context.timeZone}`,
     `account: ${context.brokerMode}`,
     `language: ${context.locale}`,
   ];
