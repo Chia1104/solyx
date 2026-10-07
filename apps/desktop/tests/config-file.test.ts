@@ -69,6 +69,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       mcpTools: {},
     },
     news: { collectEveryHours: NEWS_COLLECTION_DEFAULT_HOURS },
+    updates: { check: true },
     webSearch: { provider: WebSearchProvider.Firecrawl },
     decisions: {
       provider: DecisionsProvider.TypeSafe,

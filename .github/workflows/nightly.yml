@@ -47,6 +47,7 @@ jobs:
   publish:
     needs: [version, package]
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: write
     steps:
@@ -71,6 +72,21 @@ jobs:
             echo "- **macOS (Apple Silicon):** open the app once, then allow it under System Settings → Privacy & Security → Open Anyway."
             echo "- **Windows:** when SmartScreen stops the installer, choose More info → Run anyway."
           } > notes.md
-          gh release create "v$VERSION" installers/* --repo "$GITHUB_REPOSITORY" --target "$SHA" \
+          gh release create "v$VERSION" installers/*.dmg installers/*.exe --repo "$GITHUB_REPOSITORY" --target "$SHA" \
             --prerelease --latest=false --title "Solyx Nightly $VERSION" \
             --notes-file notes.md --generate-notes ${previous:+--notes-start-tag "$previous"}
+
+      # The installers go up before the feed that names them, so no app reads a version it cannot
+      # download. Only the newest nightly is kept; its release on GitHub keeps the rest.
+      - name: Upload to download.usesolyx.trade
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_ENDPOINT_URL: https://${{ vars.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          TARGET: s3://${{ vars.R2_BUCKET }}/nightly/
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          aws s3 cp installers/ "$TARGET" --recursive --exclude "*.yml"
+          aws s3 cp installers/ "$TARGET" --recursive --exclude "*" --include "*.yml"
+          aws s3 rm "$TARGET" --recursive --exclude "*" --include "Solyx-*" --exclude "Solyx-$VERSION.*"

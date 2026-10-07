@@ -271,6 +271,12 @@ export function createSettingsApi({
       config.set(["agent", "memory"], enabled);
     },
 
+    updates: async () => ({ check: config.read().updates.check }),
+
+    async setUpdateChecks(enabled) {
+      config.set(["updates", "check"], enabled);
+    },
+
     async mcp() {
       const [{ error, servers }, saved] = await Promise.all([
         mcp.status(),

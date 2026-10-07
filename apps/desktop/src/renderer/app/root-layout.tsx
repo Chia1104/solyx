@@ -15,6 +15,7 @@ import { useMemoryChanges } from "../modules/memory/memory-query.ts";
 import { useProposalChanges } from "../modules/proposals/proposals-query.ts";
 import { useResearchChanges } from "../modules/research/research-query.ts";
 import { useSettingsChanges } from "../modules/settings/settings-query.ts";
+import { useUpdateChanges } from "../modules/updates/updates-query.ts";
 
 import { AgentPane } from "./agent-pane.tsx";
 import { useWorkspaceHotkeys } from "./hotkeys.ts";
@@ -165,6 +166,7 @@ export function RootLayout() {
   useSettingsChanges();
   useMemoryChanges();
   useResearchChanges();
+  useUpdateChanges();
 
   // First-run setup takes the whole window, without the workspace around it.
   const onboarding = matchRoute({ to: "/onboarding" }) !== false;

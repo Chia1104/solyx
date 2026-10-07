@@ -35,6 +35,7 @@ catalogs:
   electron:
     electron: ^44.5.1
     electron-builder: 26.17.0
+    electron-updater: 6.8.10
   drizzle:
     # 1.0.0-rc.5 ships only as commit builds; drizzle-kit must match drizzle-orm exactly.
     drizzle-kit: 1.0.0-rc.5-5935859

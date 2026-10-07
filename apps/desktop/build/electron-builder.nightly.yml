@@ -5,6 +5,9 @@ appId: dev.chia1104.solyx.nightly
 productName: Solyx Nightly
 extraMetadata:
   productName: Solyx Nightly
+publish:
+  provider: generic
+  url: https://download.usesolyx.trade/nightly
 mac:
   icon: icon-nightly.icon
 win:
