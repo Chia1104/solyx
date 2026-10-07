@@ -73,6 +73,22 @@ export default defineConfig({
   },
   // Tests cover main-process code under tests/, outside the renderer root.
   test: { root: import.meta.dirname },
+  // Installers are never replayed from a cache, and tracking the files that 7-Zip and NSIS touch
+  // stalls packaging on Windows.
+  run: {
+    tasks: {
+      package: {
+        command: "electron-builder",
+        dependsOn: ["build"],
+        cache: false,
+      },
+      "package:nightly": {
+        command: "electron-builder --config electron-builder.nightly.yml",
+        dependsOn: ["build"],
+        cache: false,
+      },
+    },
+  },
   build: { outDir: "../../dist/renderer", emptyOutDir: true },
   pack: [
     {

@@ -10,8 +10,6 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "vp build && vp pack",
-    "package": "vp run build && electron-builder",
-    "package:nightly": "vp run build && electron-builder --config electron-builder.nightly.yml",
     "start": "electron .",
     "test": "vp test"
   },
