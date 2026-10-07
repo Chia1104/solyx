@@ -1,4 +1,8 @@
-# Solyx
+<p align="center">
+  <img src="./apps/desktop/resources/icon.png" alt="Solyx icon" width="128" height="128" />
+</p>
+
+<h1 align="center">Solyx</h1>
 
 A personal desktop app for trading Taiwan and US stocks. An agent analyzes the market and proposes trades; nothing is sent to a broker until you confirm it yourself.
 
