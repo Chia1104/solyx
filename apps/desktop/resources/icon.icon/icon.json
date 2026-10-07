@@ -1,0 +1,115 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "automatic-gradient": "srgb:0.95294,0.96078,0.97255,1.00000"
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "automatic-gradient": "srgb:0.08627,0.10980,0.15294,1.00000"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "horizon.svg",
+          "name": "Horizon",
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.13725,0.15294,0.18431,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.89412,0.90980,0.93725,1.00000"
+              }
+            }
+          ]
+        },
+        {
+          "image-name": "ink.svg",
+          "name": "Ink",
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.16863,0.27059,0.83137,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.50196,0.59216,1.00000,1.00000"
+              }
+            }
+          ],
+          "glass": true
+        },
+        {
+          "image-name": "pencil.svg",
+          "name": "Pencil",
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.47843,0.51373,0.58039,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.54118,0.58039,0.65098,1.00000"
+              }
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "grid.svg",
+          "name": "Grid",
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.16863,0.27059,0.83137,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.50196,0.59216,1.00000,1.00000"
+              }
+            }
+          ],
+          "opacity": 0.08,
+          "glass": false
+        }
+      ],
+      "shadow": {
+        "kind": "none",
+        "opacity": 0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": ["macOS"]
+  }
+}

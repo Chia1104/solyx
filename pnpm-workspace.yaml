@@ -34,6 +34,7 @@ catalogs:
     openai: 7.30.0
   electron:
     electron: ^44.5.1
+    electron-builder: 26.17.0
   drizzle:
     # 1.0.0-rc.5 ships only as commit builds; drizzle-kit must match drizzle-orm exactly.
     drizzle-kit: 1.0.0-rc.5-5935859
@@ -74,9 +75,11 @@ catalogs:
     zustand: 5.0.15
 
 # esbuild (through drizzle-kit) runs from its platform package; its install script only verifies it.
-# pi-ai's Google SDK and protobufjs only print notices from theirs.
+# pi-ai's Google SDK and protobufjs only print notices from theirs. electron-winstaller's picks 7-Zip
+# for electron-builder's Squirrel.Windows target, which Solyx does not build.
 allowBuilds:
   "@google/genai": false
+  electron-winstaller: false
   esbuild: false
   protobufjs: false
 

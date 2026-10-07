@@ -12,7 +12,7 @@ const bundleDir = fileURLToPath(new URL(".", import.meta.url));
 
 const rendererUrl = process.env.SOLYX_RENDERER_URL;
 
-/** Rendered from `resources/icon.svg`, which is the icon's source. */
+/** The dark rendition of `resources/icon.icon`, which is the icon's source. */
 export const APP_ICON = join(bundleDir, "icon.png");
 
 /** The renderer's title bar height; it lays itself out around the controls through `env(titlebar-area-*)`. */

@@ -1,0 +1,12 @@
+# Packages what `vp run build` wrote to dist/, which already bundles every dependency but Electron.
+appId: dev.chia1104.solyx
+directories:
+  buildResources: resources
+  output: release
+files:
+  - dist/**
+mac:
+  # Icon Composer's icon follows the system appearance; the build machine needs Xcode 26 or later.
+  icon: icon.icon
+  category: public.app-category.finance
+  target: dmg
