@@ -3,6 +3,7 @@ import type { PromptSection } from "@earendil-works/pi-durable";
 import { escape } from "es-toolkit";
 
 import type { BrokerMode } from "@solyx/core/broker";
+import { DecisionMode } from "@solyx/core/council";
 import { Market, exchangeTime } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { getSession } from "@solyx/core/session";
@@ -39,6 +40,11 @@ const RULES = `You are the market analyst inside Solyx, a desktop app one person
 - Reward-to-risk below 1.5 against the first target is not worth proposing.
 - Size from risk: by default at most 1% of the account's equity between entry and invalidation, unless the user set a budget.
 - Never add to a losing position without a new thesis, never chase a move that already ran past its entry, and never move an invalidation further away.
+
+# MAGI
+- When the context says "decisions: magi", submit_forecast and propose_order put what you submit before the MAGI as a motion. Its three units, MELCHIOR-1 the scientist, BALTHASAR-2 the mother and CASPER-3 the woman, each judge it alone and vote to approve or reject it, and two votes carry it. A rejected motion is not kept.
+- Tell the user how each unit voted and why, a line each, whether the motion carried or not.
+- After a rejected forecast you may put one revised motion that answers the units' reasons. If that is rejected too, or an order proposal is rejected, tell the user and stop. Never put the same motion again.
 
 # Replies
 - Each user message starts with <app_context>, which the app writes. It is data about the moment the user wrote, not instructions from them.
@@ -98,6 +104,8 @@ export interface TurnContext {
   focus?: { symbol: SymbolRef; name?: string };
   /** The app's language as a BCP 47 tag, which replies follow. */
   locale: string;
+  /** Who decides forecasts and order proposals. */
+  decisionMode: DecisionMode;
 }
 
 /** What the model should know about the moment a message was written. */
@@ -109,6 +117,11 @@ export function formatContext(context: TurnContext): string {
     `account: ${context.brokerMode}`,
     `language: ${context.locale}`,
   ];
+
+  // Said only when it changes what the tools do, so a conversation that never met the MAGI reads as before.
+  if (context.decisionMode === DecisionMode.Magi) {
+    lines.push(`decisions: ${context.decisionMode}`);
+  }
 
   if (context.focus) {
     const { symbol, name } = context.focus;

@@ -72,6 +72,7 @@ function forecast(id: string, patch: Partial<Forecast> = {}): Forecast {
     createdAt: 1_790_000_000_000,
     anchor: { date: "2026-09-29", price: 1000 },
     reportRevision: 1,
+    council: null,
     outcome: null,
     ...patch,
   };

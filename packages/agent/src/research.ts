@@ -34,7 +34,10 @@ import {
 import type { Argument, Report, ReportViolation } from "@solyx/core/report";
 import type { ResearchDesk } from "@solyx/core/research";
 
+import { councilText, forecastMotion } from "./magi.ts";
+import type { MagiPort } from "./magi.ts";
 import { defineTool } from "./tools.ts";
+import type { ToolOutput } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
 import type { ReviseReportDetails, SubmitForecastDetails } from "./wire.ts";
 
@@ -42,6 +45,8 @@ export interface ResearchOptions {
   desk: ResearchDesk;
   fundamentals: Fundamentals;
   marketData: Pick<MarketData, "candles">;
+  /** Puts each forecast to a vote while the user has decisions go to the MAGI. */
+  magi?: MagiPort;
   /** @default () => new Date() */
   now?: () => Date;
 }
@@ -177,6 +182,8 @@ function forecastViolationText(
       return `The target pays ${violation.reward} against ${violation.risk} risked to the stop; it must pay at least as much.`;
     case ForecastViolationCode.ClaimUnsupported:
       return unsupportedText(violation);
+    case ForecastViolationCode.MotionRejected:
+      return councilText(violation.council);
   }
 }
 
@@ -368,7 +375,10 @@ export function createResearch(options: ResearchOptions): Extension {
                 : ["No forecasts yet."],
               "",
               recordText("this listing", coverage.record),
-              recordText("every listing", overall),
+              recordText("every listing", overall.all),
+              ...(overall.ratified.forecasts > 0
+                ? [recordText("those the MAGI carried", overall.ratified)]
+                : []),
             ]
               .flat()
               .join("\n"),
@@ -481,14 +491,42 @@ export function createResearch(options: ResearchOptions): Extension {
         description:
           "Puts a forecast for a listing on record under its report. The app anchors it on the newest daily bar, freezes it, and scores it once its horizon's session closes: the probabilities against the band the close lands in, and the plan against the bars, with every tie counted against the plan. One per listing per session. It is no order and reaches no broker.",
         parameters: forecastParameters,
-        async execute(draft, api, context) {
+        async execute(draft, api, context): Promise<ToolOutput> {
           const id = await api.memo(
             "forecast-id",
             crypto.randomUUID(),
             context
           );
 
-          const result = await desk.forecast({ ...draft, id });
+          const convene = await options.magi?.(api.conversationId);
+
+          const result = await desk.forecast(
+            { ...draft, id },
+            convene && ((motion) => convene(forecastMotion(motion)))
+          );
+
+          const symbol = {
+            market: draft.instrument.market,
+            symbol: draft.instrument.symbol,
+          };
+
+          const rejected = result.ok
+            ? undefined
+            : result.violations.find(
+                (violation) =>
+                  violation.code === ForecastViolationCode.MotionRejected
+              );
+
+          // A rejection is the vote's answer rather than a fault, so it is told with its votes.
+          if (rejected) {
+            return {
+              text: `${councilText(rejected.council)}\nThe forecast was not kept. You may put one revised motion that answers the units' reasons; if that is rejected too, tell the user and stop.`,
+              details: {
+                symbol,
+                council: rejected.council,
+              } satisfies SubmitForecastDetails,
+            };
+          }
 
           if (!result.ok) {
             throw new Error(
@@ -501,12 +539,12 @@ export function createResearch(options: ResearchOptions): Extension {
           const { forecast } = result;
 
           return {
-            text: `Kept and frozen:\n${forecastText(forecast)}`,
+            text: [
+              ...(forecast.council ? [councilText(forecast.council)] : []),
+              `Kept and frozen:\n${forecastText(forecast)}`,
+            ].join("\n"),
             details: {
-              symbol: {
-                market: forecast.instrument.market,
-                symbol: forecast.instrument.symbol,
-              },
+              symbol,
               forecastId: forecast.id,
             } satisfies SubmitForecastDetails,
           };

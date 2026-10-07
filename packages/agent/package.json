@@ -8,6 +8,7 @@
     "./chatgpt-oauth": "./src/chatgpt-oauth.ts",
     "./mcp": "./src/mcp.ts",
     "./mcp-config": "./src/mcp-config.ts",
+    "./magi": "./src/magi.ts",
     "./mcp-script": "./src/mcp-script.ts",
     "./memory": "./src/memory.ts",
     "./models": "./src/models.ts",

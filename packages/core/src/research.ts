@@ -2,9 +2,16 @@ import { groupBy } from "es-toolkit";
 
 import { Interval, candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
-import { checkForecast, forecastRecord, judgeForecast } from "./forecast.ts";
+import type { Council } from "./council.ts";
+import {
+  ForecastViolationCode,
+  checkForecast,
+  forecastRecord,
+  judgeForecast,
+} from "./forecast.ts";
 import type {
   Forecast,
+  ForecastAnchor,
   ForecastDraft,
   ForecastOutcome,
   ForecastRecord,
@@ -47,6 +54,22 @@ export interface ResearchDeskOptions {
   onChange?: (symbol: SymbolRef) => void;
   now?: () => number;
   createId?: () => string;
+}
+
+/** A forecast that passed every check, as it is put to a vote before it is kept. */
+export interface ForecastMotion {
+  draft: ForecastDraft;
+  anchor: ForecastAnchor;
+  report: Report;
+}
+
+/** Puts a forecast to a vote; the desk keeps it only when the vote carries it. */
+export type Ratify = (motion: ForecastMotion) => Promise<Council>;
+
+/** How every listing's forecasts have come out, and those a vote carried among them. */
+export interface TrackRecord {
+  all: ForecastRecord;
+  ratified: ForecastRecord;
 }
 
 export type ForecastResult =
@@ -109,10 +132,11 @@ export class ResearchDesk {
    * A caller that may run again after a crash passes the same `id` each time, and gets back the
    * forecast already made under it instead of a second one.
    */
-  async forecast({
-    id,
-    ...draft
-  }: ForecastDraft & { id?: string }): Promise<ForecastResult> {
+  async forecast(
+    { id, ...draft }: ForecastDraft & { id?: string },
+    /** Asked only of a forecast that passed every check, so no vote is spent on one that would be refused. */
+    ratify?: Ratify
+  ): Promise<ForecastResult> {
     const {
       store,
       marketData,
@@ -140,19 +164,44 @@ export class ResearchDesk {
 
     const newestQuarter = await this.#newestQuarter(instrument);
     const support = await this.#audit(draft.claims);
-    const report = store.report(instrument);
 
-    const violations = checkForecast(draft, {
-      anchor,
-      stance: report?.stance ?? null,
-      newerFinancials: report ? newerFinancials(report, newestQuarter) : null,
-      taken: store
-        .forecasts(instrument)
-        .some((forecast) => forecast.anchor.date === anchor.date),
-      support,
-    });
+    // Reads the store afresh each time, since a vote leaves room for another forecast to be kept.
+    const check = () => {
+      const report = store.report(instrument);
+
+      const violations = checkForecast(draft, {
+        anchor,
+        stance: report?.stance ?? null,
+        newerFinancials: report ? newerFinancials(report, newestQuarter) : null,
+        taken: store
+          .forecasts(instrument)
+          .some((forecast) => forecast.anchor.date === anchor.date),
+        support,
+      });
+
+      return { report, violations };
+    };
+
+    let { report, violations } = check();
 
     if (!report || violations.length > 0) return { ok: false, violations };
+
+    let council: Council | null = null;
+
+    if (ratify) {
+      council = await ratify({ draft, anchor, report });
+
+      if (!council.carried) {
+        return {
+          ok: false,
+          violations: [{ code: ForecastViolationCode.MotionRejected, council }],
+        };
+      }
+
+      ({ report, violations } = check());
+
+      if (!report || violations.length > 0) return { ok: false, violations };
+    }
 
     const forecast: Forecast = {
       ...draft,
@@ -164,6 +213,7 @@ export class ResearchDesk {
       createdAt: now(),
       anchor,
       reportRevision: report.revision,
+      council,
       outcome: null,
     };
 
@@ -188,21 +238,25 @@ export class ResearchDesk {
     };
   }
 
-  /** How every listing's forecasts have come out. */
-  async trackRecord(): Promise<ForecastRecord> {
+  async trackRecord(): Promise<TrackRecord> {
     const listings = Object.values(
       groupBy(this.#options.store.forecasts(), ({ instrument }) =>
         symbolKey(instrument)
       )
     );
 
-    const settled = await Promise.all(
-      listings.map((forecasts) =>
-        this.#settle(forecasts[0].instrument, forecasts)
+    const settled = (
+      await Promise.all(
+        listings.map((forecasts) =>
+          this.#settle(forecasts[0].instrument, forecasts)
+        )
       )
-    );
+    ).flat();
 
-    return forecastRecord(settled.flat());
+    return {
+      all: forecastRecord(settled),
+      ratified: forecastRecord(settled.filter((forecast) => forecast.council)),
+    };
   }
 
   /** Has each claim read against its quote, and answers with the reading a claim was given. */

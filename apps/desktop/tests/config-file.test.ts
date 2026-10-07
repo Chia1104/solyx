@@ -62,6 +62,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       endpoints: {},
       sharedSkills: [],
       shell: false,
+      decisionMode: "single",
       memory: true,
       mcpTools: {},
     },

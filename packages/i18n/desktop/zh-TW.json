@@ -431,6 +431,22 @@
       "r": "{{r}} R"
     }
   },
+  "magi": {
+    "title": "MAGI",
+    "carried": "可決",
+    "rejected": "否決",
+    "tally": "{{approved, number}} 比 {{rejected, number}}",
+    "personas": {
+      "melchior": "科學家",
+      "balthasar": "母親",
+      "casper": "女人"
+    },
+    "votes": {
+      "approve": "承認",
+      "reject": "否決",
+      "abstained": "未表決"
+    }
+  },
   "order-form": {
     "market": "市場",
     "kind": "類型",
@@ -691,6 +707,12 @@
         "low": "低",
         "medium": "中",
         "high": "高"
+      },
+      "decision-mode": "決策模式",
+      "decision-mode-description": "由誰決定 Agent 的預測與下單建議。選 MAGI 時，三個單元各以同一心智的一面（科學家、母親、女人）獨立判斷，兩票即通過。每次表決會多用三次對話模型的請求；每筆委託仍需你確認。",
+      "decision-modes": {
+        "single": "Agent 自行決定",
+        "magi": "MAGI"
       }
     },
     "web-search": {

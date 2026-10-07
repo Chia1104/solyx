@@ -431,6 +431,22 @@
       "r": "{{r}} R"
     }
   },
+  "magi": {
+    "title": "MAGI",
+    "carried": "Carried",
+    "rejected": "Rejected",
+    "tally": "{{approved, number}} to {{rejected, number}}",
+    "personas": {
+      "melchior": "The scientist",
+      "balthasar": "The mother",
+      "casper": "The woman"
+    },
+    "votes": {
+      "approve": "Approves",
+      "reject": "Rejects",
+      "abstained": "No vote"
+    }
+  },
   "order-form": {
     "market": "Market",
     "kind": "Type",
@@ -691,6 +707,12 @@
         "low": "Low",
         "medium": "Medium",
         "high": "High"
+      },
+      "decision-mode": "Decision mode",
+      "decision-mode-description": "Who decides the agent's forecasts and order proposals. With the MAGI, three units each judge one as a side of a single mind (the scientist, the mother and the woman), and two votes carry it. Every vote costs three more requests to the conversation's model, and you still confirm every order.",
+      "decision-modes": {
+        "single": "The agent alone",
+        "magi": "MAGI"
       }
     },
     "web-search": {

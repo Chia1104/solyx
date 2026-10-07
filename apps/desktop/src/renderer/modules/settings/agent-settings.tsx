@@ -8,6 +8,7 @@ import * as z from "zod";
 
 import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import type { AgentProvider } from "@solyx/agent/providers";
+import { DecisionMode } from "@solyx/core/council";
 
 import type { AgentProviderSettings } from "#shared/ipc/settings.ts";
 
@@ -121,7 +122,9 @@ export function AgentSettings() {
 
   if (!settings.data || !secrets.data) return <LoadingState />;
 
-  const { providers, provider, model, thinking, models } = settings.data;
+  const { providers, provider, model, thinking, decisionMode, models } =
+    settings.data;
+
   const { available } = secrets.data;
 
   const shown = providers.filter((each) => each.listed);
@@ -136,6 +139,7 @@ export function AgentSettings() {
   const providerLabel = t("settings.agent.default-provider");
   const modelLabel = t("settings.agent.model");
   const thinkingLabel = t("settings.agent.thinking");
+  const decisionModeLabel = t("settings.agent.decision-mode");
   const authLabel = t("settings.agent.auth");
   const endpointLabel = t("settings.agent.endpoint");
 
@@ -351,6 +355,27 @@ export function AgentSettings() {
                   onChange={(next) =>
                     save.mutate(() =>
                       window.solyx.settings.setAgentThinking(next)
+                    )
+                  }
+                />
+              }
+            />
+            <SettingsRow
+              label={decisionModeLabel}
+              description={t("settings.agent.decision-mode-description")}
+              actions={
+                <OptionSelect
+                  aria-label={decisionModeLabel}
+                  className="w-56"
+                  value={decisionMode}
+                  isDisabled={save.isPending}
+                  options={Object.values(DecisionMode).map((id) => ({
+                    id,
+                    label: t(`settings.agent.decision-modes.${id}`),
+                  }))}
+                  onChange={(next) =>
+                    save.mutate(() =>
+                      window.solyx.settings.setAgentDecisionMode(next)
                     )
                   }
                 />

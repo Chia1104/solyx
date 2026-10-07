@@ -8,6 +8,8 @@ import type {
 import { expect, test } from "vite-plus/test";
 
 import type { Candle } from "@solyx/core/candles";
+import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
+import type { Council } from "@solyx/core/council";
 import { ForecastDirection } from "@solyx/core/forecast";
 import type { Forecast } from "@solyx/core/forecast";
 import type { QuarterStatement } from "@solyx/core/fundamentals";
@@ -153,8 +155,9 @@ function callApi(callId: string): ToolExecutionApi {
   } as ToolExecutionApi;
 }
 
-function setup() {
+function setup(council?: Council) {
   const clock = { now: AT_ANCHOR };
+  const motions: string[] = [];
   const bars = { daily: [ANCHOR_BAR] };
   const filed = { quarters: QUARTERS, months: MONTHS };
   const store = fakeStore();
@@ -176,6 +179,13 @@ function setup() {
     desk,
     fundamentals,
     marketData,
+    magi: async () =>
+      council &&
+      (async (motion) => {
+        motions.push(motion);
+
+        return council;
+      }),
     now: () => new Date(clock.now),
   });
 
@@ -193,7 +203,7 @@ function setup() {
     return { text: contentText(result.content ?? []), details: result.details };
   }
 
-  return { run, store, clock, bars, filed };
+  return { run, store, clock, bars, filed, motions };
 }
 
 test("a listing without research says so", async () => {
@@ -369,4 +379,57 @@ test("a report older than the newest quarter is flagged and refuses a forecast",
   await expect(run(AgentToolName.SubmitForecast, FORECAST)).rejects.toThrow(
     "Read it with get_fundamentals, revise the report with revise_report, then submit again."
   );
+});
+
+const votes = (...cast: MagiVote[]) =>
+  resolveCouncil(
+    Object.values(MagiUnit).map((unit, index) => ({
+      unit,
+      vote: cast[index],
+      reason: `${unit} has its reason.`,
+      model: "faux",
+    }))
+  );
+
+test("under the MAGI a carried forecast is kept with its votes, which the model is told", async () => {
+  const council = votes(MagiVote.Approve, MagiVote.Reject, MagiVote.Approve);
+  const { run, store, motions } = setup(council);
+
+  await run(AgentToolName.ReviseReport, REPORT);
+
+  const { text, details } = await run(AgentToolName.SubmitForecast, FORECAST);
+  const [kept] = store.forecasts();
+
+  expect(kept.council).toEqual(council);
+  expect(details).toEqual({ symbol: TSMC, forecastId: kept.id });
+  expect(text).toContain("The MAGI carried the motion, 2 to 1.");
+  expect(text).toContain("- BALTHASAR-2 reject: balthasar has its reason.");
+  expect(motions[0]).toContain(
+    "put on record a long forecast for TW:2330 over 2 sessions"
+  );
+});
+
+test("under the MAGI a rejected forecast is not kept, and its votes come back without a fault", async () => {
+  const council = votes(MagiVote.Reject, MagiVote.Reject, MagiVote.Approve);
+  const { run, store } = setup(council);
+
+  await run(AgentToolName.ReviseReport, REPORT);
+
+  const { text, details } = await run(AgentToolName.SubmitForecast, FORECAST);
+
+  expect(store.forecasts()).toEqual([]);
+  expect(details).toEqual({ symbol: TSMC, council });
+  expect(text).toContain("The MAGI rejected the motion, 1 to 2.");
+  expect(text).toContain("You may put one revised motion");
+});
+
+test("no vote is held on a forecast the checks refuse", async () => {
+  const { run, motions } = setup(
+    votes(MagiVote.Approve, MagiVote.Approve, MagiVote.Approve)
+  );
+
+  await expect(run(AgentToolName.SubmitForecast, FORECAST)).rejects.toThrow(
+    "The listing has no report."
+  );
+  expect(motions).toEqual([]);
 });

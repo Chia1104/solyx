@@ -37,6 +37,7 @@ import { proposalsQuery } from "../proposals/proposals-query.ts";
 import { ForecastCard } from "../research/forecast-card.tsx";
 
 import { ActivityMark } from "./agent-activity.tsx";
+import { MagiPanel } from "./magi-panel.tsx";
 
 // Only the fields a row names; the model's arguments are not trusted to hold them.
 const argumentsSchema = z.object({
@@ -351,10 +352,13 @@ export function AgentToolCall({
         <ApprovalCard sessionId={sessionId} tool={tool} />
       ) : null}
       <RanCode tool={tool} />
-      {proposal ? <ProposalCard id={proposal.proposalId} /> : null}
-      {forecast ? (
+      {proposal?.proposalId ? <ProposalCard id={proposal.proposalId} /> : null}
+      {proposal?.council ? <MagiPanel council={proposal.council} /> : null}
+      {forecast?.forecastId ? (
         <ForecastCard symbol={forecast.symbol} id={forecast.forecastId} />
       ) : null}
+      {/* A forecast the vote carried shows its votes on its card; a rejected one left only them. */}
+      {forecast?.council ? <MagiPanel council={forecast.council} /> : null}
     </div>
   );
 }

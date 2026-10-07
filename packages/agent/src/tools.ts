@@ -50,6 +50,8 @@ import { stanceValue } from "@solyx/core/sentiment";
 import { getSession } from "@solyx/core/session";
 
 import { rememberAddresses } from "./found-addresses.ts";
+import { councilText, orderMotion } from "./magi.ts";
+import type { MagiPort } from "./magi.ts";
 import { promptSections } from "./prompt.ts";
 import type { PromptSources } from "./prompt.ts";
 import { AgentToolName } from "./wire.ts";
@@ -61,6 +63,8 @@ export interface TradingToolPorts extends PromptSources {
   watchlist(): SymbolRef[];
   news: NewsDesk;
   desk: ProposingDesk;
+  /** Puts each order proposal to a vote while the user has decisions go to the MAGI. */
+  magi?: MagiPort;
   now?: () => Date;
 }
 
@@ -620,6 +624,30 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         // Kept with the call, so a call that runs again after a restart finds its proposal.
         const id = await api.memo("proposal-id", crypto.randomUUID(), context);
+        const convene = await ports.magi?.(api.conversationId);
+
+        // An order the checks refuse is kept as rejected without a vote, and one already made
+        // under this call is not voted on again.
+        const council =
+          convene &&
+          !ports.desk.list().some((made) => made.id === id) &&
+          (await ports.desk.check(request)).length === 0
+            ? await convene(
+                orderMotion(
+                  request,
+                  rationale,
+                  await ports.desk.account(),
+                  ports.desk.mode
+                )
+              )
+            : undefined;
+
+        if (council && !council.carried) {
+          return {
+            text: `${councilText(council)}\nNo proposal was made, and this reply may put no other. Tell the user how the units voted.`,
+            details: { council } satisfies ProposeOrderDetails,
+          };
+        }
 
         const proposal = await ports.desk.propose({
           id,
@@ -629,8 +657,14 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         });
 
         return {
-          text: `Proposal ${describeProposal(proposal)}. It waits for the user to confirm or dismiss it in the app.`,
-          details: { proposalId: proposal.id } satisfies ProposeOrderDetails,
+          text: [
+            ...(council ? [councilText(council)] : []),
+            `Proposal ${describeProposal(proposal)}. It waits for the user to confirm or dismiss it in the app.`,
+          ].join("\n"),
+          details: {
+            proposalId: proposal.id,
+            ...(council && { council }),
+          } satisfies ProposeOrderDetails,
         };
       },
     }),

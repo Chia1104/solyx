@@ -6,6 +6,7 @@
 
 import * as z from "zod";
 
+import { councilSchema } from "@solyx/core/council";
 import { symbolRefSchema } from "@solyx/core/market";
 import {
   memoryBodySchema,
@@ -76,7 +77,11 @@ export const AgentToolName = {
 
 export type AgentToolName = (typeof AgentToolName)[keyof typeof AgentToolName];
 
-export const proposeOrderDetailsSchema = z.object({ proposalId: z.string() });
+/** What a proposal's call left: the proposal, unless a vote rejected it, and the vote where one was held. */
+export const proposeOrderDetailsSchema = z.object({
+  proposalId: z.string().optional(),
+  council: councilSchema.optional(),
+});
 
 export type ProposeOrderDetails = z.infer<typeof proposeOrderDetailsSchema>;
 
@@ -87,9 +92,11 @@ export const reviseReportDetailsSchema = z.object({
 
 export type ReviseReportDetails = z.infer<typeof reviseReportDetailsSchema>;
 
+/** What a forecast's call left: the forecast, or the vote that rejected it. */
 export const submitForecastDetailsSchema = z.object({
   symbol: symbolRefSchema,
-  forecastId: z.string(),
+  forecastId: z.string().optional(),
+  council: councilSchema.optional(),
 });
 
 export type SubmitForecastDetails = z.infer<typeof submitForecastDetailsSchema>;

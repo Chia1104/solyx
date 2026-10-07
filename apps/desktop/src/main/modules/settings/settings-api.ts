@@ -155,6 +155,10 @@ export function createSettingsApi({
       config.set(["agent", "thinking"], thinking);
     },
 
+    async setAgentDecisionMode(mode) {
+      config.set(["agent", "decisionMode"], mode);
+    },
+
     async setAgentAuth(auth) {
       config.set(["agent", "auth"], auth);
     },

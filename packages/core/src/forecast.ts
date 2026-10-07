@@ -3,6 +3,7 @@ import * as z from "zod";
 
 import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
+import type { Council } from "./council.ts";
 import { exchangeMidnight, instrumentSchema, shiftDate } from "./market.ts";
 import {
   ReportStance,
@@ -118,6 +119,8 @@ export interface Forecast extends ForecastDraft {
   anchor: ForecastAnchor;
   /** The report revision it was made under. */
   reportRevision: number;
+  /** The vote that carried it; `null` when the agent decided alone. */
+  council: Council | null;
   /** `null` until its horizon's session closes. */
   outcome: ForecastOutcome | null;
 }
@@ -151,6 +154,7 @@ export const ForecastViolationCode = {
   TargetWrongSide: "target-wrong-side",
   RewardBelowRisk: "reward-below-risk",
   ClaimUnsupported: "claim-unsupported",
+  MotionRejected: "motion-rejected",
 } as const;
 
 export type ForecastViolationCode =
@@ -192,7 +196,8 @@ export type ForecastViolation =
       claim: string;
       /** How likely its quote states it, from 0 to 1. */
       supported: number;
-    };
+    }
+  | { code: typeof ForecastViolationCode.MotionRejected; council: Council };
 
 // Prices on a tick grid differ by sums that floating point carries only nearly.
 const PRICE_EPSILON = 1e-9;
