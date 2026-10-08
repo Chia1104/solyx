@@ -79,7 +79,9 @@ export function SymbolPage() {
       <div className="box-content flex h-10 shrink-0 items-center gap-3 border-b border-separator px-6">
         <IntervalSelect
           value={interval}
-          onChange={(next) => void navigate({ search: { interval: next } })}
+          onChange={(next) =>
+            void navigate({ search: { interval: next }, replace: true })
+          }
         />
         <IndicatorMenu />
       </div>

@@ -64,12 +64,17 @@ export function OnboardingFlow({
   const previous = index > 0 ? ONBOARDING_STEPS.at(index - 1) : undefined;
   const next = ONBOARDING_STEPS.at(index + 1);
 
+  // Setup is one entry of the history, which leaving replaces, so Back never returns to it.
   const go = (target: OnboardingStep) =>
-    void navigate({ to: "/onboarding", search: { step: target } });
+    void navigate({
+      to: "/onboarding",
+      search: { step: target },
+      replace: true,
+    });
 
   const leave = () => {
     finish();
-    void navigate({ to: "/" });
+    void navigate({ to: "/", replace: true });
   };
 
   return (

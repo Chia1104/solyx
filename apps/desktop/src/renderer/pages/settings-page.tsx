@@ -64,7 +64,9 @@ export function SettingsPage() {
     <Sheet title={t("settings.title")}>
       <SettingsTabs
         current={section}
-        onChange={(next) => void navigate({ search: { section: next } })}
+        onChange={(next) =>
+          void navigate({ search: { section: next }, replace: true })
+        }
         panels={content}
       />
     </Sheet>
