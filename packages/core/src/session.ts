@@ -1,4 +1,10 @@
-import { Market, exchangeClock, exchangeMidnight } from "./market.ts";
+import {
+  Market,
+  exchangeClock,
+  exchangeDate,
+  exchangeMidnight,
+  shiftDate,
+} from "./market.ts";
 
 export const Session = {
   Pre: "pre",
@@ -70,4 +76,28 @@ export function regularHours(market: Market, date: string) {
   const { start, end } = REGULAR_WINDOWS[market];
 
   return { open: midnight + start * 60, close: midnight + end * 60 };
+}
+
+/**
+ * How many regular sessions trade between `from` and `to`, counting one already under way at
+ * either end. Every weekday has one, since exchange holidays are not modelled.
+ */
+export function sessionsBetween(market: Market, from: Date, to: Date): number {
+  let sessions = 0;
+
+  for (
+    let date = exchangeDate(market, from);
+    date <= exchangeDate(market, to);
+    date = shiftDate(date, 1)
+  ) {
+    if (Temporal.PlainDate.from(date).dayOfWeek >= SATURDAY) continue;
+
+    const { open, close } = regularHours(market, date);
+
+    if (close * 1000 > from.getTime() && open * 1000 < to.getTime()) {
+      sessions += 1;
+    }
+  }
+
+  return sessions;
 }

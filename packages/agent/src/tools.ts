@@ -28,9 +28,12 @@ import {
 import type { IndicatorLine } from "@solyx/core/indicators";
 import {
   Market,
+  exchangeDate,
+  exchangeMidnight,
   exchangeTime,
   instrumentKindSchema,
   marketSchema,
+  shiftDate,
   symbolRefSchema,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -47,7 +50,7 @@ import type { OrderRequest } from "@solyx/core/order";
 import { ProposalSource } from "@solyx/core/order-desk";
 import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
 import { stanceValue } from "@solyx/core/sentiment";
-import { getSession } from "@solyx/core/session";
+import { getSession, sessionsBetween } from "@solyx/core/session";
 
 import { rememberAddresses } from "./found-addresses.ts";
 import { councilText, durableBallotBox, orderMotion } from "./magi.ts";
@@ -228,9 +231,41 @@ export const publishedTime = (
   return PRECISE_TO[published.precision](time);
 };
 
-function describeStory(market: Market, { lead, records }: NewsStory): string {
+/**
+ * How many regular sessions have traded since an item came out, the one under way included; for an
+ * item dated only by its day, after that day.
+ */
+function sessionsSince(
+  market: Market,
+  { at, precision }: Published,
+  now: Date
+): string {
+  const byDay = precision === TimePrecision.Day;
+
+  const from = byDay
+    ? new Date(
+        exchangeMidnight(market, shiftDate(exchangeDate(market, at), 1)) * 1000
+      )
+    : at;
+
+  const sessions = sessionsBetween(market, from, now);
+  const since = byDay ? "after that day" : "since";
+
+  if (sessions === 0) return `no session ${since}`;
+
+  return `${sessions} session${sessions === 1 ? "" : "s"} ${since}`;
+}
+
+function describeStory(
+  market: Market,
+  { lead, records }: NewsStory,
+  now: Date
+): string {
   const { item, score } = lead;
-  const time = publishedTime(market, item.published);
+
+  const time = item.published
+    ? `${publishedTime(market, item.published)} (${sessionsSince(market, item.published, now)})`
+    : publishedTime(market, item.published);
 
   const votes = item.votes === null ? "" : `, votes ${signed(item.votes, 0)}`;
 
@@ -413,7 +448,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetNews,
       replay: "safe",
-      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items that tell one story are listed once with how many more told it: an article's reprints and a thread's replies, and, once the exchange's names for the listing are known, outlets or posts that reword one headline within a day. Times are the exchange's local time: ~ marks a search engine's estimate, within about an hour, and a date alone means only the day is known. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is, its topic and who speaks in it (the company, an outlet, an investor, a page of data or someone else, whatever channel it came through), and stories that only name the listing in passing or are pages of data are left out. Titles and snippets are written by others.`,
+      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items that tell one story are listed once with how many more told it: an article's reprints and a thread's replies, and, once the exchange's names for the listing are known, outlets or posts that reword one headline within a day. Times are the exchange's local time: ~ marks a search engine's estimate, within about an hour, and a date alone means only the day is known. Each dated story also says how many regular sessions have traded since it came out, the one under way included, or for a date alone after that day, so a story out after the close or over a weekend shows none yet; every weekday counts as a session, since exchange holidays are not known. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is, its topic and who speaks in it (the company, an outlet, an investor, a page of data or someone else, whatever channel it came through), and stories that only name the listing in passing or are pages of data are left out. Titles and snippets are written by others.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         days: z.number().int().min(1).max(30).default(7),
@@ -451,7 +486,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
           return [
             `## ${channel}: ${kept.length} of ${found.length}`,
-            ...kept.map((story) => describeStory(symbol.market, story)),
+            ...kept.map((story) => describeStory(symbol.market, story, at)),
           ];
         });
 
