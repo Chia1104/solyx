@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import { Interval } from "@solyx/core/candles";
 import { Market, shiftDate } from "@solyx/core/market";
 
-import { candleSeries, candles } from "../src/cache-schema.ts";
+import { candleSeries, candles, keptAnswers } from "../src/cache-schema.ts";
 import { openCache } from "../src/cache.ts";
 import type { Cache, CandleSeriesKey } from "../src/cache.ts";
 
@@ -76,7 +76,7 @@ describe("openCache", () => {
 
     const db = new DatabaseSync(join(directory, "cache.sqlite"));
 
-    for (const table of [candleSeries, candles]) {
+    for (const table of [candleSeries, candles, keptAnswers]) {
       const config = getTableConfig(table);
 
       const columns = db
@@ -267,5 +267,72 @@ describe("cache usage", () => {
     });
     expect(cache.usage().bytes).toBeLessThan(before);
     expect(cache.candles.coverage(DAILY)).toBeUndefined();
+  });
+});
+
+describe("kept answers", () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  test("an answer outlives the connection under its scope and key", () => {
+    const cache = open();
+    const askedAt = Date.now();
+
+    cache.answers<string[]>("days").write("TW", {
+      askedAt,
+      answer: ["2026-10-07"],
+    });
+
+    expect(reopen(cache).answers<string[]>("days").read("TW")).toEqual({
+      askedAt,
+      answer: ["2026-10-07"],
+    });
+  });
+
+  test("writing a key again replaces its answer", () => {
+    const days = open().answers<number>("days");
+
+    days.write("TW", { askedAt: 1, answer: 1 });
+    days.write("TW", { askedAt: 2, answer: 2 });
+
+    expect(days.read("TW")).toEqual({ askedAt: 2, answer: 2 });
+  });
+
+  test("forgetting a scope leaves the others", () => {
+    const cache = open();
+
+    cache.answers<number>("a").write("key", { askedAt: 1, answer: 1 });
+    cache.answers<number>("b").write("key", { askedAt: 1, answer: 2 });
+    cache.answers<number>("a").forget();
+
+    expect(cache.answers<number>("a").read("key")).toBeUndefined();
+    expect(cache.answers<number>("b").read("key")?.answer).toBe(2);
+  });
+
+  test("an answer a week old is dropped as the file opens", () => {
+    const cache = open();
+    const now = Date.now();
+
+    cache.answers<number>("a").write("old", {
+      askedAt: now - 8 * DAY_MS,
+      answer: 1,
+    });
+    cache.answers<number>("a").write("recent", {
+      askedAt: now - DAY_MS,
+      answer: 2,
+    });
+
+    const reopened = reopen(cache);
+
+    expect(reopened.answers<number>("a").read("old")).toBeUndefined();
+    expect(reopened.answers<number>("a").read("recent")?.answer).toBe(2);
+  });
+
+  test("clearing drops every answer", () => {
+    const cache = open();
+
+    cache.answers<number>("a").write("key", { askedAt: 1, answer: 1 });
+    cache.clear();
+
+    expect(cache.answers<number>("a").read("key")).toBeUndefined();
   });
 });

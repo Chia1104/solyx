@@ -2,12 +2,27 @@ import { exchangeDate } from "@solyx/core/market";
 import type { Market } from "@solyx/core/market";
 import { listedTradingDays, weekdays } from "@solyx/core/session";
 import type { TradingCalendarProvider, TradingDays } from "@solyx/core/session";
+import { keepFresh } from "@solyx/utils/fresh";
+import type { AnswerStores } from "@solyx/utils/fresh";
 
 export interface TradingCalendarOptions {
   /** One per market at most; the first that covers a market answers for it. */
   providers: readonly TradingCalendarProvider[];
+  /** Where each market's listed days are kept between runs. */
+  answers: AnswerStores;
   /** @default () => new Date() */
   now?: () => Date;
+}
+
+/** The days a market's provider listed from `since`, a year back from the exchange day they were read on. */
+interface ListedDays {
+  since: string;
+  listed: string[];
+}
+
+interface Ask {
+  market: Market;
+  provider: TradingCalendarProvider;
 }
 
 /**
@@ -16,9 +31,24 @@ export interface TradingCalendarOptions {
  */
 export function createTradingCalendar({
   providers,
+  answers,
   now = () => new Date(),
 }: TradingCalendarOptions) {
-  const kept = new Map<Market, { day: string; days: Promise<TradingDays> }>();
+  const listedDays = keepFresh<Ask, ListedDays>({
+    store: answers("trading-days"),
+    id: ({ market }) => market,
+    async ask({ market, provider }) {
+      const since = Temporal.PlainDate.from(exchangeDate(market, now()))
+        .subtract({ years: 1 })
+        .toString();
+
+      return { since, listed: await provider.tradingDays(market, since) };
+    },
+    fresh: ({ market }, askedAt, at) =>
+      exchangeDate(market, new Date(askedAt)) ===
+      exchangeDate(market, new Date(at)),
+    now: () => now().getTime(),
+  });
 
   /** Rejects when its provider fails, and asks again on the next call. */
   return (market: Market): Promise<TradingDays> => {
@@ -26,26 +56,9 @@ export function createTradingCalendar({
 
     if (!provider) return Promise.resolve(weekdays);
 
-    const day = exchangeDate(market, now());
-    const held = kept.get(market);
-
-    if (held?.day === day) return held.days;
-
-    const since = Temporal.PlainDate.from(day)
-      .subtract({ years: 1 })
-      .toString();
-
-    const days = provider
-      .tradingDays(market, since)
-      .then((listed) => listedTradingDays(since, listed));
-
-    kept.set(market, { day, days });
-
-    days.catch(() => {
-      if (kept.get(market)?.days === days) kept.delete(market);
-    });
-
-    return days;
+    return listedDays({ market, provider }).then(({ since, listed }) =>
+      listedTradingDays(since, listed)
+    );
   };
 }
 

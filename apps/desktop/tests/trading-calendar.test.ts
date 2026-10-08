@@ -2,6 +2,7 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { Market } from "@solyx/core/market";
 import type { TradingCalendarProvider } from "@solyx/core/session";
+import { memoryAnswers } from "@solyx/utils/fresh";
 
 import { createTradingCalendar } from "../src/main/modules/market/trading-calendar.ts";
 
@@ -23,6 +24,7 @@ function setup() {
 
   const tradingDays = createTradingCalendar({
     providers: [provider],
+    answers: memoryAnswers(),
     now: () => new Date(clock.now),
   });
 

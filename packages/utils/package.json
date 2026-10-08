@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./error": "./src/error.ts",
+    "./fresh": "./src/fresh.ts",
     "./is": "./src/is.ts",
     "./rate-limit": "./src/rate-limit.ts",
     "./search": "./src/search.ts",

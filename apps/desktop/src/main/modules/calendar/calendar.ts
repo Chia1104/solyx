@@ -5,6 +5,8 @@ import type { Fundamentals } from "@solyx/core/fundamentals";
 import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
 import { exchangeDate, shiftDate } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
+import { freshFor, keepFresh } from "@solyx/utils/fresh";
+import type { AnswerStores } from "@solyx/utils/fresh";
 
 import type { UpcomingEvents } from "#shared/ipc/calendar.ts";
 
@@ -15,8 +17,15 @@ export interface CalendarOptions {
   fundamentals: Fundamentals;
   /** One per market at most; the first that covers a market answers for it. */
   macro: readonly MacroCalendarProvider[];
+  /** Where each market's schedule is kept between runs. */
+  answers: AnswerStores;
   /** @default () => new Date() */
   now?: () => Date;
+}
+
+interface Ask {
+  market: Market;
+  provider: MacroCalendarProvider;
 }
 
 /**
@@ -26,35 +35,23 @@ export interface CalendarOptions {
 export function createCalendar({
   fundamentals,
   macro,
+  answers,
   now = () => new Date(),
 }: CalendarOptions) {
-  const schedules = new Map<
-    Market,
-    { at: number; releases: Promise<MacroRelease[]> }
-  >();
+  /** A market's releases from the day they were read on. */
+  const schedules = keepFresh<Ask, MacroRelease[]>({
+    store: answers("macro-releases"),
+    id: ({ market, provider }) => `${provider.id}:${market}`,
+    ask: ({ market, provider }) =>
+      provider.releases(market, exchangeDate(market, now())),
+    fresh: freshFor(SCHEDULE_FRESH_MS),
+    now: () => now().getTime(),
+  });
 
-  /** A market's releases from the day it was read on, read again once stale or after a failure. */
   function schedule(market: Market): Promise<MacroRelease[]> {
     const provider = macro.find(({ markets }) => markets.includes(market));
 
-    if (!provider) return Promise.resolve([]);
-
-    const at = now().getTime();
-    const held = schedules.get(market);
-
-    if (held && at - held.at < SCHEDULE_FRESH_MS) return held.releases;
-
-    const releases = provider.releases(market, exchangeDate(market, now()));
-
-    schedules.set(market, { at, releases });
-
-    releases.catch(() => {
-      if (schedules.get(market)?.releases === releases) {
-        schedules.delete(market);
-      }
-    });
-
-    return releases;
+    return provider ? schedules({ market, provider }) : Promise.resolve([]);
   }
 
   return {

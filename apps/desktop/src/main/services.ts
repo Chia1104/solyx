@@ -167,7 +167,10 @@ export function createServices() {
     plan: () => config.read().providers.finmind.plan,
   });
 
-  const fundamentals = createFundamentals({ providers: [finMind] });
+  const fundamentals = createFundamentals({
+    providers: [finMind],
+    answers: cache.answers,
+  });
 
   // The plan and the token set which restrictions FinMind reads, so a change to either reads them again.
   let finMindPlan = config.read().providers.finmind.plan;
@@ -185,11 +188,15 @@ export function createServices() {
     if (secret === Secret.FinMindToken) fundamentals.forget();
   });
 
-  const tradingDays = createTradingCalendar({ providers: [finMind] });
+  const tradingDays = createTradingCalendar({
+    providers: [finMind],
+    answers: cache.answers,
+  });
 
   const calendar = createCalendar({
     fundamentals,
     macro: [createStatGovTw()],
+    answers: cache.answers,
   });
 
   // Every window hears every change to the agent's research, whoever made it.
