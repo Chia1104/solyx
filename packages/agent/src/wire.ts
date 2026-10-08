@@ -14,6 +14,7 @@ import {
   memoryKindSchema,
 } from "@solyx/core/memory";
 
+import { agentModelPickSchema } from "./providers.ts";
 import type { AgentModelRef, AgentThinking } from "./providers.ts";
 
 /** How a conversation's calls that must ask get past the approval gate. */
@@ -46,6 +47,13 @@ export interface AgentSession {
   /** How long its model thinks; `null` follows the default. */
   thinking: AgentThinking | null;
 }
+
+/** What a new conversation starts on, picked before its first message. */
+export const agentSessionSetupSchema = agentModelPickSchema.extend({
+  approvalMode: approvalModeSchema,
+});
+
+export type AgentSessionSetup = z.infer<typeof agentSessionSetupSchema>;
 
 /** The agent's tools, which the renderer labels and whose `details` it narrows by name. */
 export const AgentToolName = {

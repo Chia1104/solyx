@@ -201,16 +201,12 @@ export function AgentComposer({
   async function session() {
     if (sessionId !== null) return sessionId;
 
-    const created = await window.solyx.agent.createSession();
-    const setup = useAgentStore.getState().unstarted;
+    const { pick, approvalMode } = useAgentStore.getState().unstarted;
 
-    if (setup.pick.model !== null || setup.pick.thinking !== null) {
-      await window.solyx.agent.setModel(created.id, setup.pick);
-    }
-
-    if (setup.approvalMode !== created.approvalMode) {
-      await window.solyx.agent.setApprovalMode(created.id, setup.approvalMode);
-    }
+    const created = await window.solyx.agent.createSession({
+      ...pick,
+      approvalMode,
+    });
 
     // Seeded before it is shown, so the run's first events fold in without a fetch and the
     // picker keeps showing what was picked.
@@ -219,7 +215,7 @@ export function AgentComposer({
       emptyAgentView()
     );
     queryClient.setQueryData(agentSessionsQuery().queryKey, (old) => [
-      { ...created, ...setup.pick, approvalMode: setup.approvalMode },
+      created,
       ...(old ?? []),
     ]);
     select(created.id);

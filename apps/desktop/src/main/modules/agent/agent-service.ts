@@ -21,7 +21,11 @@ import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
 import type { SkillFolders } from "@solyx/agent/skills";
 import { createTradingExtension } from "@solyx/agent/tools";
 import { createWebTools } from "@solyx/agent/web";
-import type { AgentWireEvent, ApprovalMode } from "@solyx/agent/wire";
+import type {
+  AgentSessionSetup,
+  AgentWireEvent,
+  ApprovalMode,
+} from "@solyx/agent/wire";
 import { BrokerMode } from "@solyx/core/broker";
 import { DecisionMode } from "@solyx/core/council";
 import type { Fundamentals } from "@solyx/core/fundamentals";
@@ -235,7 +239,7 @@ export function createAgentService(options: AgentServiceOptions) {
 
     sessions: () => runtime.sessions(),
 
-    createSession: () => runtime.create(),
+    createSession: (setup: AgentSessionSetup) => runtime.create(setup),
 
     deleteSession,
 

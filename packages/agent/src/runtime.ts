@@ -53,7 +53,12 @@ import {
   RunEndReason,
   ToolCallStatus,
 } from "./wire.ts";
-import type { AgentSession, AgentWireEvent, RunEndEvent } from "./wire.ts";
+import type {
+  AgentSession,
+  AgentSessionSetup,
+  AgentWireEvent,
+  RunEndEvent,
+} from "./wire.ts";
 
 /** The model the user configured, which pi-ai authenticates through the host's credentials. */
 export interface AgentModelChoice {
@@ -126,6 +131,13 @@ const SessionDoc = defineDoc<{
     thinking: null,
   }),
 });
+
+/** A conversation on the user's default model that asks before every call that must ask. */
+const DEFAULT_SETUP: AgentSessionSetup = {
+  model: null,
+  thinking: null,
+  approvalMode: ApprovalMode.Ask,
+};
 
 type Block = AssistantMessage["content"][number];
 
@@ -598,7 +610,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       );
     },
 
-    async create(): Promise<AgentSession> {
+    /** Starts a conversation on what was picked for it, in the same commit that makes it. */
+    async create(setup = DEFAULT_SETUP): Promise<AgentSession> {
       const { harness } = await opened;
       const at = Date.now();
 
@@ -610,6 +623,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
             session.createdAt = at;
             session.updatedAt = at;
+            session.model = setup.model;
+            session.thinking = setup.thinking;
+            (await tx.doc(ApprovalDoc, id)).mode = setup.approvalMode;
           },
         },
         BACKGROUND_CONTEXT
@@ -620,9 +636,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         title: "",
         createdAt: at,
         updatedAt: at,
-        approvalMode: ApprovalMode.Ask,
-        model: null,
-        thinking: null,
+        ...setup,
       };
     },
 

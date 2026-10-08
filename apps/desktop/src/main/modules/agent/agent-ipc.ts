@@ -1,7 +1,7 @@
 import * as z from "zod";
 
 import { agentModelPickSchema } from "@solyx/agent/providers";
-import { approvalModeSchema } from "@solyx/agent/wire";
+import { agentSessionSetupSchema, approvalModeSchema } from "@solyx/agent/wire";
 import { symbolRefSchema } from "@solyx/core/market";
 
 import { agentChannels } from "#shared/ipc/agent.ts";
@@ -15,7 +15,7 @@ const idSchema = z.string().min(1);
 
 const schemas = {
   sessions: z.tuple([]),
-  createSession: z.tuple([]),
+  createSession: z.tuple([agentSessionSetupSchema]),
   deleteSession: z.tuple([idSchema]),
   transcript: z.tuple([idSchema]),
   send: z.tuple([
@@ -36,7 +36,7 @@ const schemas = {
 export function registerAgentIpc({ agent }: Services) {
   bindIpc<AgentApi>(agentChannels, schemas, {
     sessions: () => agent.sessions(),
-    createSession: () => agent.createSession(),
+    createSession: (setup) => agent.createSession(setup),
     deleteSession: (id) => agent.deleteSession(id),
     transcript: (id) => agent.transcript(id),
     send: (id, text, focus, locale, timeZone) =>

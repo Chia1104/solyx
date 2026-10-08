@@ -1,6 +1,7 @@
 import type { AgentModelPick } from "@solyx/agent/providers";
 import type {
   AgentSession,
+  AgentSessionSetup,
   AgentWireEvent,
   ApprovalMode,
 } from "@solyx/agent/wire";
@@ -18,7 +19,8 @@ export interface AgentFocus {
 export interface AgentApi {
   /** Most recently active first. */
   sessions(): Promise<AgentSession[]>;
-  createSession(): Promise<AgentSession>;
+  /** Starts on what the user picked before its first message. */
+  createSession(setup: AgentSessionSetup): Promise<AgentSession>;
   /** Stops its run first, if one is going. */
   deleteSession(id: string): Promise<void>;
   /** The conversation as wire events to fold, including a run still going. */
