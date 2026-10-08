@@ -151,6 +151,8 @@ export function createNews(options: NewsOptions) {
             listing,
             title: lead.item.title,
             text: lead.item.snippet,
+            site: lead.item.site,
+            url: lead.item.url,
           });
 
           store.saveScore(symbol, lead, score);

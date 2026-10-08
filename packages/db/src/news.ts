@@ -18,7 +18,7 @@ type ItemRow = typeof newsItems.$inferSelect;
 type ListingRow = typeof listingNews.$inferSelect;
 
 function toRecord(item: ItemRow, listing: ListingRow): NewsRecord {
-  const { model, relevance, stance, kind, topic } = listing;
+  const { model, relevance, stance, kind, topic, speaker } = listing;
 
   return {
     source: item.source,
@@ -44,9 +44,11 @@ function toRecord(item: ItemRow, listing: ListingRow): NewsRecord {
       relevance === null ||
       stance === null ||
       kind === null ||
-      topic === null
+      topic === null ||
+      // A score that misses an answer is no score, so the story is scored again when next collected.
+      speaker === null
         ? null
-        : { model, relevance, stance, kind, topic },
+        : { model, relevance, stance, kind, topic, speaker },
   };
 }
 
@@ -125,6 +127,7 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
           stance: score.stance,
           kind: score.kind,
           topic: score.topic,
+          speaker: score.speaker,
         })
         .where(and(ofListing(symbol), inArray(listingNews.itemId, item)))
         .run();

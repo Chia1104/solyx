@@ -31,7 +31,12 @@ import { OrderType, Side } from "@solyx/core/order";
 import { ProposalSource, ProposalStatus } from "@solyx/core/order-desk";
 import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
 import { RiskViolationCode } from "@solyx/core/risk";
-import { Stance, TextKind, TextTopic } from "@solyx/core/sentiment";
+import {
+  Stance,
+  TextKind,
+  TextSpeaker,
+  TextTopic,
+} from "@solyx/core/sentiment";
 import type { SentimentScore } from "@solyx/core/sentiment";
 
 import { AgentThinking } from "../src/providers.ts";
@@ -206,6 +211,13 @@ function sentiment(relevance: number, positive: number): SentimentScore {
       [TextTopic.Legal]: 0,
       [TextTopic.Market]: 0,
       [TextTopic.Other]: 0,
+    },
+    speaker: {
+      [TextSpeaker.Company]: 0,
+      [TextSpeaker.Outlet]: 0.9,
+      [TextSpeaker.Investor]: 0.1,
+      [TextSpeaker.Reference]: 0,
+      [TextSpeaker.Other]: 0,
     },
   };
 }
@@ -587,11 +599,11 @@ test("news reads newest first, leaving out stories that only name the listing", 
     "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-29 +0.60 (n=1), 2026-09-30 +0.60 (n=1)",
     "## article: 2 of 3",
     "- ~2026-09-30 05:00 news.test: 外資買超",
-    "  stance +0.60, opinion, guidance",
+    "  stance +0.60, opinion, guidance, speaker outlet",
     "  外資買超 snippet",
     `  ${newsItem("外資買超", 5).url}`,
     "- ~2026-09-29 04:00 news.test: 法說前瞻",
-    "  stance +0.60, opinion, guidance",
+    "  stance +0.60, opinion, guidance, speaker outlet",
     "  法說前瞻 snippet",
     `  ${newsItem("法說前瞻", 30).url}`,
   ]);

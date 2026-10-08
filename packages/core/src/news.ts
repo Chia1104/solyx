@@ -1,9 +1,9 @@
-import { groupBy, sumBy } from "es-toolkit";
+import { groupBy, maxBy, sumBy } from "es-toolkit";
 
 import type { Listing } from "./market-data.ts";
 import { exchangeDate, symbolKey } from "./market.ts";
 import type { Market, SymbolRef } from "./market.ts";
-import { TextKind, TextTopic, stanceValue } from "./sentiment.ts";
+import { TextKind, TextSpeaker, TextTopic, stanceValue } from "./sentiment.ts";
 import type { SentimentScore } from "./sentiment.ts";
 
 /** Where items were published, which decides whose voice they carry. */
@@ -395,11 +395,11 @@ export interface NewsDesk {
 /** Below this relevance an item only names the listing in passing. */
 export const RELEVANCE_FLOOR = 0.5;
 
-/** Whose voice a channel carries. */
+/** Whose voice a text carries. */
 export const NewsVoice = {
-  /** Companies and news outlets: announcements and articles. */
+  /** Companies, news outlets and regulators. */
   Press: "press",
-  /** Investors themselves: forum and social posts. */
+  /** Investors themselves. */
   Crowd: "crowd",
 } as const;
 
@@ -412,9 +412,61 @@ export const CHANNEL_VOICE: Record<NewsChannel, NewsVoice> = {
   [NewsChannel.Social]: NewsVoice.Crowd,
 };
 
-/** Whether a story is about the listing: its lead scored above the relevance floor, or not scored yet. */
-export function isAboutListing({ lead: { score } }: NewsStory): boolean {
-  return !score || score.relevance >= RELEVANCE_FLOOR;
+/** Who speaks in each channel's items, until a model reads them. */
+export const CHANNEL_SPEAKER: Record<NewsChannel, TextSpeaker> = {
+  [NewsChannel.Announcement]: TextSpeaker.Company,
+  [NewsChannel.Article]: TextSpeaker.Outlet,
+  [NewsChannel.Forum]: TextSpeaker.Investor,
+  [NewsChannel.Social]: TextSpeaker.Investor,
+};
+
+// A page of data carries no voice, as it reports nothing.
+const SPEAKER_VOICE: Record<TextSpeaker, NewsVoice | null> = {
+  [TextSpeaker.Company]: NewsVoice.Press,
+  [TextSpeaker.Outlet]: NewsVoice.Press,
+  [TextSpeaker.Other]: NewsVoice.Press,
+  [TextSpeaker.Investor]: NewsVoice.Crowd,
+  [TextSpeaker.Reference]: null,
+};
+
+/**
+ * Below this the model is unsure who speaks, and a story's channel says instead; it rests on
+ * `scripts/eval-speakers.ts` in `@solyx/decisions`.
+ */
+export const SPEAKER_CONFIDENCE = 0.5;
+
+/**
+ * Who speaks in a story: who the model reads in its lead where it is sure, or else who speaks in
+ * its channel. Sureness is how far the likeliest speaker stands above an even spread, from 0 to 1.
+ */
+function storySpeaker({ channel, lead: { score } }: NewsStory): TextSpeaker {
+  if (!score) return CHANNEL_SPEAKER[channel];
+
+  const speakers = Object.values(TextSpeaker);
+  const even = 1 / speakers.length;
+  const likeliest = maxBy(speakers, (speaker) => score.speaker[speaker]);
+
+  if (likeliest === undefined) return CHANNEL_SPEAKER[channel];
+
+  const sureness = (score.speaker[likeliest] - even) / (1 - even);
+
+  return sureness >= SPEAKER_CONFIDENCE ? likeliest : CHANNEL_SPEAKER[channel];
+}
+
+/** Whose voice a story carries, by who speaks in it; `null` for a page of data. */
+const storyVoice = (story: NewsStory): NewsVoice | null =>
+  SPEAKER_VOICE[storySpeaker(story)];
+
+/**
+ * Whether a story is news about the listing: its lead read as more than a passing mention and not
+ * as a page of data, or not scored yet.
+ */
+export function isAboutListing(story: NewsStory): boolean {
+  const { score } = story.lead;
+
+  return (
+    !score || (score.relevance >= RELEVANCE_FLOOR && storyVoice(story) !== null)
+  );
 }
 
 /** A stance from −1 to 1 on the gauge's scale, 0 to 100 with 50 neutral. */
@@ -516,14 +568,10 @@ function sentimentGauge(about: readonly NewsStory[]): SentimentGauge {
     overall: reading(about),
     voices: {
       [NewsVoice.Press]: reading(
-        about.filter(
-          ({ channel }) => CHANNEL_VOICE[channel] === NewsVoice.Press
-        )
+        about.filter((story) => storyVoice(story) === NewsVoice.Press)
       ),
       [NewsVoice.Crowd]: reading(
-        about.filter(
-          ({ channel }) => CHANNEL_VOICE[channel] === NewsVoice.Crowd
-        )
+        about.filter((story) => storyVoice(story) === NewsVoice.Crowd)
       ),
     },
   };
@@ -568,12 +616,14 @@ export interface Headline {
   weight: number;
 }
 
-// The company's own filings outrank the press, and the press the crowd.
-const CHANNEL_WEIGHT: Record<NewsChannel, number> = {
-  [NewsChannel.Announcement]: 1,
-  [NewsChannel.Article]: 0.8,
-  [NewsChannel.Forum]: 0.5,
-  [NewsChannel.Social]: 0.4,
+// The company's own word outranks the press and regulators, and they the crowd; a page of data
+// is no news.
+const SPEAKER_WEIGHT: Record<TextSpeaker, number> = {
+  [TextSpeaker.Company]: 1,
+  [TextSpeaker.Outlet]: 0.8,
+  [TextSpeaker.Other]: 0.8,
+  [TextSpeaker.Investor]: 0.45,
+  [TextSpeaker.Reference]: 0,
 };
 
 // How directly each topic bears on what the shares are worth.
@@ -610,12 +660,12 @@ function storyReading({ lead: { score } }: NewsStory): number {
   );
 }
 
-/** A story's weight at `now`: its channel and reading, how often it was told and how recent it is. */
+/** A story's weight at `now`: who speaks in it and its reading, how often it was told and how recent it is. */
 function storyWeight(story: NewsStory, now: Date): number {
   const age = Math.max(0, now.getTime() - datedAt(story.lead).getTime());
 
   return (
-    CHANNEL_WEIGHT[story.channel] *
+    SPEAKER_WEIGHT[storySpeaker(story)] *
     storyReading(story) *
     Math.log2(1 + story.records.length) *
     0.5 ** (age / HEADLINE_HALF_LIFE_MS)

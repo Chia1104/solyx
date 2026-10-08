@@ -3,7 +3,12 @@ import type { NoulQuestion, SystemOneRequest } from "@typesafe-ai/sdk";
 import * as z from "zod";
 
 import type { ClaimAuditor } from "@solyx/core/report";
-import { Stance, TextKind, TextTopic } from "@solyx/core/sentiment";
+import {
+  Stance,
+  TextKind,
+  TextSpeaker,
+  TextTopic,
+} from "@solyx/core/sentiment";
 import type {
   SentimentInput,
   SentimentScore,
@@ -70,6 +75,22 @@ const QUESTIONS = {
       "The market, the sector or the economy, fund flows such as foreign investors' buying, or the share's price moves and chart",
     [TextTopic.Other]: "Something else",
   }),
+  // Measured with `scripts/eval-speakers.ts`; where it was published says as much as its words.
+  speaker: choice(
+    "Who wrote and published `text`, judging by what it says and by `source`, the site and address it was published at?",
+    {
+      [TextSpeaker.Company]:
+        "The company in `listing` itself: a filing with the exchange, a press release, or a statement on its own site",
+      [TextSpeaker.Outlet]:
+        "A news outlet's journalists or a broker's analysts: an article, a news brief, a column or a research note",
+      [TextSpeaker.Investor]:
+        "An individual investor: a post or comment on a forum, a discussion board or a social network, including a news article an investor reposts there",
+      [TextSpeaker.Reference]:
+        "A page of data or listings that tells no story of its own: quotes, charts, financial tables, holdings, a company profile, or a list of headlines or links",
+      [TextSpeaker.Other]:
+        "Someone else publishing in their own name, such as a regulator, an exchange or a government body",
+    }
+  ),
 };
 
 // Each asks for what the command does, since Jev is weak on negation; a command is harmless only
@@ -145,6 +166,9 @@ const answersSchema = z.object({
   }),
   kind: z.object({ probabilities: z.record(z.enum(TextKind), z.number()) }),
   topic: z.object({ probabilities: z.record(z.enum(TextTopic), z.number()) }),
+  speaker: z.object({
+    probabilities: z.record(z.enum(TextSpeaker), z.number()),
+  }),
 });
 
 const commandAnswersSchema = z.object({
@@ -231,6 +255,7 @@ export function createScorer(ask: Ask): SentimentScorer {
             },
             title: input.title ?? null,
             text: input.text.slice(0, MAX_TEXT_LENGTH),
+            source: { site: input.site, url: input.url },
           },
           questions: QUESTIONS,
         },
@@ -252,6 +277,7 @@ export function createScorer(ask: Ask): SentimentScorer {
         },
         kind: answers.kind.probabilities,
         topic: answers.topic.probabilities,
+        speaker: answers.speaker.probabilities,
       };
     },
   };

@@ -2,7 +2,12 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import * as z from "zod";
 
 import { Market } from "@solyx/core/market";
-import { Stance, TextKind, TextTopic } from "@solyx/core/sentiment";
+import {
+  Stance,
+  TextKind,
+  TextSpeaker,
+  TextTopic,
+} from "@solyx/core/sentiment";
 
 import {
   OPENAI_DEFAULT_MODEL,
@@ -22,6 +27,8 @@ const URL = `${OPTIONS.baseURL}/decisions`;
 const TSMC = {
   symbol: { market: Market.TW, symbol: "2330" },
   listing: { name: "台積電", englishName: "TSMC" },
+  site: "forum.test",
+  url: "https://forum.test/post/1",
 };
 
 /** A noul as OpenAI answers the predicate it is sent as. */
@@ -68,6 +75,19 @@ const ANSWERS = [
       { value: "analyst", probability: 0.05 },
       { value: "legal", probability: 0 },
       { value: "market", probability: 0.05 },
+      { value: "other", probability: 0 },
+    ],
+  },
+  {
+    type: "choice",
+    name: "speaker",
+    choice: "investor",
+    confidence: 0.8,
+    probabilities: [
+      { value: "company", probability: 0 },
+      { value: "outlet", probability: 0.1 },
+      { value: "investor", probability: 0.85 },
+      { value: "reference", probability: 0.05 },
       { value: "other", probability: 0 },
     ],
   },
@@ -121,6 +141,7 @@ const sentSchema = z.object({
     }),
     choiceSchema.extend({ name: z.literal("kind") }),
     choiceSchema.extend({ name: z.literal("topic") }),
+    choiceSchema.extend({ name: z.literal("speaker") }),
   ]),
 });
 
@@ -159,6 +180,13 @@ test("asks about the listing in OpenAI's question types and maps the answers ont
       market: 0.05,
       other: 0,
     },
+    speaker: {
+      company: 0,
+      outlet: 0.1,
+      investor: 0.85,
+      reference: 0.05,
+      other: 0,
+    },
   });
 
   const [request] = requests;
@@ -167,7 +195,7 @@ test("asks about the listing in OpenAI's question types and maps the answers ont
   expect(request.headers.get("Authorization")).toBe("Bearer test-key");
 
   const body = sentSchema.parse(await request.json());
-  const [, stance, kind, topic] = body.questions;
+  const [, stance, kind, topic, speaker] = body.questions;
 
   expect(body.model).toBe(OPENAI_DEFAULT_MODEL);
   expect(JSON.parse(body.input)).toEqual({
@@ -179,6 +207,7 @@ test("asks about the listing in OpenAI's question types and maps the answers ont
     },
     title: "法說會前瞻",
     text: "台積電這季應該會上修財測",
+    source: { site: "forum.test", url: "https://forum.test/post/1" },
   });
   expect(stance.levels.map((level) => level.label)).toEqual([
     "0",
@@ -192,6 +221,9 @@ test("asks about the listing in OpenAI's question types and maps the answers ont
   );
   expect(topic.choices.map((choice) => choice.value)).toEqual(
     Object.values(TextTopic)
+  );
+  expect(speaker.choices.map((choice) => choice.value)).toEqual(
+    Object.values(TextSpeaker)
   );
 });
 
