@@ -1,0 +1,250 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "dcdddf88-656c-419c-ad10-8a2e5916325a",
+  "prevIds": ["1a39ca3b-f978-400a-be9f-2f6c81b2c628"],
+  "ddl": [
+    {
+      "name": "candle_series",
+      "entityType": "tables"
+    },
+    {
+      "name": "candles",
+      "entityType": "tables"
+    },
+    {
+      "name": "kept_answers",
+      "entityType": "tables"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "candle_series"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "source",
+      "entityType": "columns",
+      "table": "candle_series"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "market",
+      "entityType": "columns",
+      "table": "candle_series"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "symbol",
+      "entityType": "columns",
+      "table": "candle_series"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "interval",
+      "entityType": "columns",
+      "table": "candle_series"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "covered_from",
+      "entityType": "columns",
+      "table": "candle_series"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "covered_to",
+      "entityType": "columns",
+      "table": "candle_series"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "series_id",
+      "entityType": "columns",
+      "table": "candles"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time",
+      "entityType": "columns",
+      "table": "candles"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "date",
+      "entityType": "columns",
+      "table": "candles"
+    },
+    {
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "open",
+      "entityType": "columns",
+      "table": "candles"
+    },
+    {
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "high",
+      "entityType": "columns",
+      "table": "candles"
+    },
+    {
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "low",
+      "entityType": "columns",
+      "table": "candles"
+    },
+    {
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "close",
+      "entityType": "columns",
+      "table": "candles"
+    },
+    {
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "volume",
+      "entityType": "columns",
+      "table": "candles"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "scope",
+      "entityType": "columns",
+      "table": "kept_answers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "key",
+      "entityType": "columns",
+      "table": "kept_answers"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "asked_at",
+      "entityType": "columns",
+      "table": "kept_answers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "answer",
+      "entityType": "columns",
+      "table": "kept_answers"
+    },
+    {
+      "columns": ["series_id"],
+      "tableTo": "candle_series",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_candles_series_id_candle_series_id_fk",
+      "entityType": "fks",
+      "table": "candles"
+    },
+    {
+      "columns": ["series_id", "time"],
+      "nameExplicit": false,
+      "name": "candles_pk",
+      "entityType": "pks",
+      "table": "candles"
+    },
+    {
+      "columns": ["scope", "key"],
+      "nameExplicit": false,
+      "name": "kept_answers_pk",
+      "entityType": "pks",
+      "table": "kept_answers"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "candle_series_pk",
+      "table": "candle_series",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["source", "market", "symbol", "interval"],
+      "nameExplicit": false,
+      "name": "candle_series_source_market_symbol_interval_unique",
+      "entityType": "uniques",
+      "table": "candle_series"
+    }
+  ],
+  "renames": []
+}

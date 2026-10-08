@@ -14,13 +14,17 @@ import { chunk } from "es-toolkit";
 
 import type { Candle, Interval } from "@solyx/core/candles";
 import type { Market } from "@solyx/core/market";
+import type { AnswerStore, AnswerStores } from "@solyx/utils/fresh";
 
-import { candleSeries, candles } from "./cache-schema.ts";
+import { candleSeries, candles, keptAnswers } from "./cache-schema.ts";
 import { connect } from "./connection.ts";
 import { databaseBytes, removeDatabase } from "./database-file.ts";
 
 // SQLite caps bound parameters per statement; eight columns per bar stays well under it.
 const INSERT_BATCH = 1000;
+
+// Every reader's answers go stale within a day, so one this old is never read again.
+const ANSWER_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface CandleSeriesKey {
   /** The provider's `id`, so providers never mix bars. */
@@ -158,6 +162,42 @@ function candleStore(db: NodeSQLiteDatabase) {
 
 export type CandleStore = ReturnType<typeof candleStore>;
 
+/** Each scope's answers, kept as its reader's `keepFresh` wrote them. */
+function answerStores(db: NodeSQLiteDatabase): AnswerStores {
+  const under = (scope: string, key: string) =>
+    and(eq(keptAnswers.scope, scope), eq(keptAnswers.key, key));
+
+  return <Answer>(scope: string): AnswerStore<Answer> => ({
+    read(key) {
+      const row = db
+        .select({ askedAt: keptAnswers.askedAt, answer: keptAnswers.answer })
+        .from(keptAnswers)
+        .where(under(scope, key))
+        .get();
+
+      // SAFETY: a scope's rows are written by `write` below with the `Answer` its one reader keeps.
+      return row && { askedAt: row.askedAt, answer: row.answer as Answer };
+    },
+
+    write(key, { askedAt, answer }) {
+      db.insert(keptAnswers)
+        .values({ scope, key, askedAt, answer })
+        .onConflictDoUpdate({
+          target: [keptAnswers.scope, keptAnswers.key],
+          set: {
+            askedAt: sql`excluded.asked_at`,
+            answer: sql`excluded.answer`,
+          },
+        })
+        .run();
+    },
+
+    forget() {
+      db.delete(keptAnswers).where(eq(keptAnswers.scope, scope)).run();
+    },
+  });
+}
+
 /** What one provider's bars take up in the cache. */
 export interface SourceUsage {
   /** The provider's `id`. */
@@ -189,8 +229,14 @@ export function openCache(path: string, migrationsFolder: string) {
 
   const { client, db } = connection;
 
+  db.delete(keptAnswers)
+    .where(lt(keptAnswers.askedAt, Date.now() - ANSWER_RETENTION_MS))
+    .run();
+
   return {
     candles: candleStore(db),
+
+    answers: answerStores(db),
 
     usage(): CacheUsage {
       const sources = db
@@ -208,9 +254,10 @@ export function openCache(path: string, migrationsFolder: string) {
       return { bytes: databaseBytes(path), sources };
     },
 
-    /** Deletes every series and its bars, and gives the space back to the disk. */
+    /** Deletes every series and its bars and every answer kept, and gives the space back to the disk. */
     clear() {
       db.delete(candleSeries).run();
+      db.delete(keptAnswers).run();
       // VACUUM rewrites the file through the log, so the log is truncated after it.
       client.exec("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);");
     },

@@ -7,6 +7,7 @@ import { MacroIndicator } from "@solyx/core/macro";
 import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
 import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import { memoryAnswers } from "@solyx/utils/fresh";
 
 import { createCalendar } from "../src/main/modules/calendar/calendar.ts";
 
@@ -72,6 +73,7 @@ function setup(dividends: Record<string, Dividend[]>) {
   const calendar = createCalendar({
     fundamentals,
     macro: [macro],
+    answers: memoryAnswers(),
     now: () => new Date(clock.now),
   });
 

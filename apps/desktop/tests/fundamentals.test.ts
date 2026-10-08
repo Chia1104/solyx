@@ -2,6 +2,7 @@ import { expect, test, vi } from "vite-plus/test";
 
 import type { FundamentalsProvider } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
+import { memoryAnswers } from "@solyx/utils/fresh";
 
 import { createFundamentals } from "../src/main/modules/fundamentals/fundamentals.ts";
 
@@ -9,7 +10,7 @@ const TSMC = { market: Market.TW, symbol: "2330" };
 
 const HOUR_MS = 60 * 60 * 1000;
 
-function setup() {
+function setup(answers = memoryAnswers()) {
   // 2026-10-07 10:00 in Taipei.
   const clock = { now: Date.parse("2026-10-07T02:00:00Z") };
 
@@ -28,6 +29,7 @@ function setup() {
 
   const fundamentals = createFundamentals({
     providers: [provider],
+    answers,
     now: () => new Date(clock.now),
   });
 
@@ -58,6 +60,29 @@ test("keeps a listing's answer for half a day", async () => {
   expect(provider.getStatements).toHaveBeenCalledTimes(1);
 
   clock.now += 2 * HOUR_MS;
+  await fundamentals.statements(TSMC);
+
+  expect(provider.getStatements).toHaveBeenCalledTimes(2);
+});
+
+test("an answer kept serves the next run over the same answers", async () => {
+  const answers = memoryAnswers();
+  const { fundamentals } = setup(answers);
+
+  await fundamentals.statements(TSMC);
+
+  const next = setup(answers);
+
+  await next.fundamentals.statements(TSMC);
+
+  expect(next.provider.getStatements).not.toHaveBeenCalled();
+});
+
+test("forgetting asks again", async () => {
+  const { provider, fundamentals } = setup();
+
+  await fundamentals.statements(TSMC);
+  fundamentals.forget();
   await fundamentals.statements(TSMC);
 
   expect(provider.getStatements).toHaveBeenCalledTimes(2);

@@ -43,3 +43,15 @@ export const candles = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.seriesId, table.time] })]
 );
+
+/** Providers' answers kept between runs, each under its scope and key, as the JSON the scope's reader wrote. */
+export const keptAnswers = sqliteTable(
+  "kept_answers",
+  {
+    scope: text().notNull(),
+    key: text().notNull(),
+    askedAt: integer("asked_at").notNull(),
+    answer: text({ mode: "json" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.scope, table.key] })]
+);

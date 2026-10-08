@@ -4,6 +4,8 @@ import type {
 } from "@solyx/core/fundamentals";
 import { exchangeDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import { freshFor, keepFresh } from "@solyx/utils/fresh";
+import type { AnswerStores, KeptFresh } from "@solyx/utils/fresh";
 
 // Five years of quarters, so a multiple three years back still has four quarters behind it.
 const STATEMENT_YEARS = 5;
@@ -16,8 +18,15 @@ const FRESH_MS = 12 * 60 * 60 * 1000;
 export interface FundamentalsOptions {
   /** One per market at most; the first that covers a listing's market answers for it. */
   providers: readonly FundamentalsProvider[];
+  /** Where each listing's answers are kept between runs. */
+  answers: AnswerStores;
   /** @default () => new Date() */
   now?: () => Date;
+}
+
+interface Ask {
+  symbol: SymbolRef;
+  provider: FundamentalsProvider;
 }
 
 /**
@@ -26,81 +35,74 @@ export interface FundamentalsOptions {
  */
 export function createFundamentals({
   providers,
+  answers,
   now = () => new Date(),
 }: FundamentalsOptions): Fundamentals & {
   /** Drops every answer kept, for when what a provider may read changes, as with the user's plan. */
   forget(): void;
 } {
-  const caches: Map<string, unknown>[] = [];
+  const kept: KeptFresh<Ask, unknown>[] = [];
 
-  /** `ask`'s answer per listing, asked again once it is stale or after it failed. */
+  /** `ask`'s answer per listing, kept under `scope`. */
   function fresh<Answer>(
+    scope: string,
     ask: (
       provider: FundamentalsProvider,
       symbol: SymbolRef,
       today: Temporal.PlainDate
     ) => Promise<Answer[]>
   ) {
-    const kept = new Map<string, { at: number; answer: Promise<Answer[]> }>();
+    const read = keepFresh<Ask, Answer[]>({
+      store: answers(`fundamentals:${scope}`),
+      id: ({ provider, symbol }) => `${provider.id}:${symbolKey(symbol)}`,
+      ask: ({ provider, symbol }) =>
+        ask(
+          provider,
+          symbol,
+          Temporal.PlainDate.from(exchangeDate(symbol.market, now()))
+        ),
+      fresh: freshFor(FRESH_MS),
+      now: () => now().getTime(),
+    });
 
-    caches.push(kept);
+    kept.push(read);
 
     return (symbol: SymbolRef): Promise<Answer[]> => {
       const provider = providers.find(({ markets }) =>
         markets.includes(symbol.market)
       );
 
-      if (!provider) return Promise.resolve([]);
-
-      const key = `${provider.id}:${symbolKey(symbol)}`;
-      const at = now().getTime();
-      const held = kept.get(key);
-
-      if (held && at - held.at < FRESH_MS) return held.answer;
-
-      const answer = ask(
-        provider,
-        symbol,
-        Temporal.PlainDate.from(exchangeDate(symbol.market, now()))
-      );
-
-      kept.set(key, { at, answer });
-
-      answer.catch(() => {
-        if (kept.get(key)?.answer === answer) kept.delete(key);
-      });
-
-      return answer;
+      return provider ? read({ provider, symbol }) : Promise.resolve([]);
     };
   }
 
   return {
     forget() {
-      for (const kept of caches) kept.clear();
+      for (const read of kept) read.forget();
     },
 
-    statements: fresh((provider, symbol, today) =>
+    statements: fresh("statements", (provider, symbol, today) =>
       provider.getStatements(
         symbol,
         today.subtract({ years: STATEMENT_YEARS }).toString()
       )
     ),
 
-    monthlyRevenue: fresh((provider, symbol, today) =>
+    monthlyRevenue: fresh("monthly-revenue", (provider, symbol, today) =>
       provider.getMonthlyRevenue(
         symbol,
         today.toPlainYearMonth().subtract({ months: REVENUE_MONTHS }).toString()
       )
     ),
 
-    dividends: fresh((provider, symbol, today) =>
+    dividends: fresh("dividends", (provider, symbol, today) =>
       provider.getDividends(
         symbol,
         today.subtract({ years: STATEMENT_YEARS }).toString()
       )
     ),
 
-    restrictions: fresh((provider, symbol, today) =>
+    restrictions: fresh("restrictions", (provider, symbol, today) =>
       provider.getRestrictions(symbol, today.subtract({ years: 1 }).toString())
     ),
   };
