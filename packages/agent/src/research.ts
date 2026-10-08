@@ -21,8 +21,9 @@ import {
   priceToEarnings,
   revenueTrend,
   statementMetrics,
+  trailingCash,
 } from "@solyx/core/fundamentals";
-import type { Fundamentals } from "@solyx/core/fundamentals";
+import type { Dividend, Fundamentals } from "@solyx/core/fundamentals";
 import { currencyOf, exchangeDate, symbolRefSchema } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -58,6 +59,9 @@ const LISTED_QUARTERS = 8;
 
 // A year and the month before it, so the newest month shows against the same month last year.
 const LISTED_MONTHS = 13;
+
+// Two years of quarterly distributions.
+const LISTED_DIVIDENDS = 8;
 
 const reviseParameters = reportDraftSchema.extend({
   stance: reportDraftSchema.shape.stance.describe(
@@ -296,6 +300,22 @@ const millions = (value: number | null) =>
 const figure = (value: number | null) =>
   value === null ? "n/a" : String(Number(value.toFixed(2)));
 
+/** A distribution's day: "none" without that part, "not set" while the company has not set it. */
+const distributionDay = (amount: number, day: string | null) =>
+  amount === 0 ? "none" : (day ?? "not set");
+
+function dividendRow(dividend: Dividend): string {
+  return [
+    dividend.announced,
+    dividend.period,
+    figure(dividend.cash),
+    distributionDay(dividend.cash, dividend.cashExDate),
+    distributionDay(dividend.cash, dividend.cashPaidOn),
+    figure(dividend.stock),
+    distributionDay(dividend.stock, dividend.stockExDate),
+  ].join(",");
+}
+
 /** Where the shares trade against their trailing earnings now, and where they have over the bars the chart keeps. */
 async function valuationText(
   symbol: SymbolRef,
@@ -391,15 +411,20 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetFundamentals,
         replay: "safe",
-        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; and its price-to-earnings multiple now against the range it has traded in. Taiwan listings only for now, and none for an ETF. Cite these rather than work them out again.`,
+        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. Taiwan listings only for now; an ETF has distributions alone. Cite these rather than work them out again.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
-          const [statements, monthly] = await Promise.all([
+          const [statements, monthly, dividends] = await Promise.all([
             fundamentals.statements(symbol),
             fundamentals.monthlyRevenue(symbol),
+            fundamentals.dividends(symbol),
           ]);
 
-          if (statements.length === 0 && monthly.length === 0) {
+          if (
+            statements.length === 0 &&
+            monthly.length === 0 &&
+            dividends.length === 0
+          ) {
             return {
               text: `No fundamentals for ${symbol.market} ${symbol.symbol}: it files no statements, as an ETF does not, or no source covers its market yet.`,
               details: { symbol },
@@ -435,10 +460,11 @@ export function createResearch(options: ResearchOptions): Extension {
           );
 
           const currency = currencyOf(symbol.market);
+          const today = exchangeDate(symbol.market, now());
 
           return {
             text: [
-              `${symbol.market} ${symbol.symbol} fundamentals as filed, as_of ${exchangeDate(symbol.market, now())}; amounts in ${currency} millions`,
+              `${symbol.market} ${symbol.symbol} fundamentals as filed, as_of ${today}; amounts in ${currency} millions`,
               ...(quarters.length > 0
                 ? [
                     "Quarters, each for the quarter alone, by its last day:",
@@ -452,6 +478,14 @@ export function createResearch(options: ResearchOptions): Extension {
                     "Monthly revenue, unaudited:",
                     "month,revenue,yoy,mom",
                     ...months,
+                  ]
+                : []),
+              ...(dividends.length > 0
+                ? [
+                    `Distributions by when announced, per share in ${currency}, stock at its par value:`,
+                    "announced,period,cash,cash ex,cash paid,stock,stock ex",
+                    ...takeRight(dividends, LISTED_DIVIDENDS).map(dividendRow),
+                    `Cash gone ex in the year through ${today}: ${figure(trailingCash(dividends, today))} per share.`,
                   ]
                 : []),
             ].join("\n"),

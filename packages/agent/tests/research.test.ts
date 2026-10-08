@@ -73,6 +73,27 @@ const MONTHS = [
   { month: "2026-08", revenue: 450e6 },
 ];
 
+const DIVIDENDS = [
+  {
+    period: "115年第1季",
+    announced: "2026-09-01",
+    cash: 7,
+    stock: 0,
+    cashExDate: "2026-09-16",
+    cashPaidOn: "2026-10-08",
+    stockExDate: null,
+  },
+  {
+    period: "115年第2季",
+    announced: "2026-09-25",
+    cash: 7.5,
+    stock: 0,
+    cashExDate: null,
+    cashPaidOn: null,
+    stockExDate: null,
+  },
+];
+
 const REPORT = {
   symbol: TSMC,
   stance: ReportStance.Bullish,
@@ -160,13 +181,14 @@ function setup(council?: Council) {
   const clock = { now: AT_ANCHOR };
   const motions: string[] = [];
   const bars = { daily: [ANCHOR_BAR] };
-  const filed = { quarters: QUARTERS, months: MONTHS };
+  const filed = { quarters: QUARTERS, months: MONTHS, dividends: DIVIDENDS };
   const store = fakeStore();
   const marketData = { candles: async () => bars.daily };
 
   const fundamentals = {
     statements: async () => filed.quarters,
     monthlyRevenue: async () => filed.months,
+    dividends: async () => filed.dividends,
   };
 
   const desk = new ResearchDesk({
@@ -353,6 +375,13 @@ test("fundamentals show each quarter alone with its growth, and what the shares 
   );
   expect(text).toContain("low 13.89, median 13.89, high 13.89");
   expect(text).toContain("2026-08,450,+50.0%,+12.5%");
+  expect(text).toContain(
+    "2026-09-01,115年第1季,7,2026-09-16,2026-10-08,0,none"
+  );
+  expect(text).toContain("2026-09-25,115年第2季,7.5,not set,not set,0,none");
+  expect(text).toContain(
+    "Cash gone ex in the year through 2026-09-29: 7 per share."
+  );
 });
 
 test("a listing without filings says so", async () => {
@@ -360,6 +389,7 @@ test("a listing without filings says so", async () => {
 
   filed.quarters = [];
   filed.months = [];
+  filed.dividends = [];
 
   expect(
     (await run(AgentToolName.GetFundamentals, { symbol: TSMC })).text

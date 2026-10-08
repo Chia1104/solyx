@@ -20,6 +20,7 @@ function setup() {
     getMonthlyRevenue: vi.fn<FundamentalsProvider["getMonthlyRevenue"]>(
       async () => []
     ),
+    getDividends: vi.fn<FundamentalsProvider["getDividends"]>(async () => []),
   };
 
   const fundamentals = createFundamentals({
@@ -30,14 +31,16 @@ function setup() {
   return { clock, provider, fundamentals };
 }
 
-test("asks the market's provider for five years of quarters and three of months", async () => {
+test("asks the market's provider for five years of quarters and dividends and three of months", async () => {
   const { provider, fundamentals } = setup();
 
   await fundamentals.statements(TSMC);
   await fundamentals.monthlyRevenue(TSMC);
+  await fundamentals.dividends(TSMC);
 
   expect(provider.getStatements).toHaveBeenCalledWith(TSMC, "2021-10-07");
   expect(provider.getMonthlyRevenue).toHaveBeenCalledWith(TSMC, "2023-10");
+  expect(provider.getDividends).toHaveBeenCalledWith(TSMC, "2021-10-07");
 });
 
 test("keeps a listing's answer for half a day", async () => {

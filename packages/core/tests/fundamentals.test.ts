@@ -5,8 +5,9 @@ import {
   priceToEarnings,
   revenueTrend,
   statementMetrics,
+  trailingCash,
 } from "../src/fundamentals.ts";
-import type { QuarterStatement } from "../src/fundamentals.ts";
+import type { Dividend, QuarterStatement } from "../src/fundamentals.ts";
 import { Market } from "../src/market.ts";
 import { twFilingDeadline } from "../src/rules/tw.ts";
 
@@ -144,4 +145,33 @@ test("priceToEarnings has no multiple while the trailing EPS is a loss", () => {
   expect(priceToEarnings(Market.TW, [bar("2026-09-01", 100)], losses)).toEqual(
     []
   );
+});
+
+function dividend(cash: number, cashExDate: string | null): Dividend {
+  return {
+    period: "114年第2季",
+    announced: "2025-11-26",
+    cash,
+    stock: 0,
+    cashExDate,
+    cashPaidOn: null,
+    stockExDate: null,
+  };
+}
+
+test("trailingCash adds the cash that went ex in the year through the day, and none set to come", () => {
+  const dividends = [
+    dividend(4.5, "2025-09-16"),
+    dividend(5, "2025-12-11"),
+    dividend(6, "2026-03-17"),
+    dividend(6, "2026-06-11"),
+    dividend(7, "2026-09-16"),
+    // Set to go ex after the day, and not set yet.
+    dividend(7, "2026-12-10"),
+    dividend(7, null),
+  ];
+
+  expect(trailingCash(dividends, "2026-09-16")).toBe(24);
+  expect(trailingCash(dividends, "2026-09-15")).toBe(21.5);
+  expect(trailingCash([], "2026-09-16")).toBe(0);
 });
