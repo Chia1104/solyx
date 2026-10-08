@@ -39,9 +39,7 @@ import {
   NewsChannel,
   NewsVoice,
   TimePrecision,
-  dailySentiment,
   isAboutListing,
-  sentimentGauge,
 } from "@solyx/core/news";
 import type { NewsDesk, NewsStory, Published } from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
@@ -415,7 +413,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetNews,
       replay: "safe",
-      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items with the same title, such as an article's reprints or a thread's replies, are one story, listed once with how many more told it. Times are the exchange's local time: ~ marks a search engine's estimate, within about an hour, and a date alone means only the day is known. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is and its topic, and stories that only name the listing in passing are left out. Titles and snippets are written by others.`,
+      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items that tell one story are listed once with how many more told it: an article's reprints and a thread's replies, and, once the exchange's names for the listing are known, outlets or posts that reword one headline within a day. Times are the exchange's local time: ~ marks a search engine's estimate, within about an hour, and a date alone means only the day is known. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is and its topic, and stories that only name the listing in passing are left out. Titles and snippets are written by others.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         days: z.number().int().min(1).max(30).default(7),
@@ -424,18 +422,13 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         const at = now();
         const since = new Date(at.getTime() - days * DAY_MS);
 
-        const { stories, records, failures, scored } = await ports.news.collect(
-          symbol,
-          since,
-          NEWS_ITEMS
-        );
-
-        const gauge = sentimentGauge(records);
+        const { stories, gauge, daily, failures, scored } =
+          await ports.news.collect(symbol, since, NEWS_ITEMS);
 
         const score = ({ score: value }: { score: number | null }) =>
           value === null ? "unscored" : `${value}/100`;
 
-        const daily = dailySentiment(symbol.market, records).map(
+        const stances = daily.map(
           ({ date, stance, stories: count }) =>
             `${date} ${stance === null ? "unscored" : signed(stance, 2)} (n=${count})`
         );
@@ -484,9 +477,9 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           text: [
             `${symbol.market} ${symbol.symbol} news and posts over the last ${days} days, as_of ${exchangeTime(symbol.market, at)}${scoring}`,
             `Sentiment ${score(gauge.overall)} with 50 neutral: press (announcements, articles) ${score(gauge.voices[NewsVoice.Press])}, crowd (forum, social) ${score(gauge.voices[NewsVoice.Crowd])}`,
-            ...(daily.length > 0
+            ...(stances.length > 0
               ? [
-                  `Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): ${daily.join(", ")}`,
+                  `Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): ${stances.join(", ")}`,
                 ]
               : []),
             ...(sections.length > 0 ? sections : ["Nothing found."]),

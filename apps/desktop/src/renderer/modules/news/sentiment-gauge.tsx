@@ -6,18 +6,14 @@ import { useTranslation } from "react-i18next";
 
 import { exchangeTime } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
-import { NewsVoice, sentimentGauge } from "@solyx/core/news";
-import type { SentimentReading } from "@solyx/core/news";
+import { NewsVoice } from "@solyx/core/news";
+import type { NewsReading, SentimentReading } from "@solyx/core/news";
 
 import type { NewsCoverage } from "#shared/ipc/news.ts";
 
 import { SettingsSection } from "../settings/settings-section.ts";
 
-import {
-  NEWS_DAYS,
-  newsCoverageQuery,
-  newsRecordsQuery,
-} from "./news-query.ts";
+import { NEWS_DAYS, newsCoverageQuery } from "./news-query.ts";
 
 const TOOLTIP_DELAY = 600;
 
@@ -115,19 +111,21 @@ function Coverage({
  */
 export function SentimentGauge({
   symbol,
+  gauge,
   scoring,
 }: {
   symbol: SymbolRef;
+  /** `undefined` until the listing's news is read. */
+  gauge: NewsReading["gauge"] | undefined;
   /** Whether a decisions model scores the news. */
   scoring: boolean;
 }) {
   const { t } = useTranslation();
-  const { data } = useQuery(newsRecordsQuery(symbol));
   const { data: coverage } = useQuery(newsCoverageQuery(symbol));
 
-  if (!data) return null;
+  if (!gauge) return null;
 
-  const { overall, voices } = sentimentGauge(data);
+  const { overall, voices } = gauge;
 
   return (
     <div className="flex shrink-0 items-center gap-3 text-xs text-muted tabular-nums">

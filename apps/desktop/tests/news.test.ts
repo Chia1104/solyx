@@ -149,7 +149,7 @@ test("a collection stores what each source finds and scores each channel's newes
 
   const collection = await news.collect(TSMC, SINCE, 2);
 
-  expect(collection.records.map((record) => record.item.id)).toEqual([
+  expect(news.records(TSMC, SINCE).map((record) => record.item.id)).toEqual([
     "scored before",
     "new",
     "older",
@@ -381,7 +381,7 @@ test("collecting on request searches a resting source too", async () => {
   expect(broken.search).toHaveBeenCalledTimes(4);
 });
 
-test("headlines rank what is stored about the listings asked for, heaviest first", () => {
+test("headlines rank what is stored about the listings asked for, heaviest first", async () => {
   const { news } = setup([]);
   const filings = { id: "filings", channel: NewsChannel.Announcement };
   const forum = { id: "forum", channel: NewsChannel.Forum };
@@ -391,12 +391,36 @@ test("headlines rank what is stored about the listings asked for, heaviest first
   data.store.save(MEDIATEK, filings, [item("mediatek filing", 30)], NOW);
 
   expect(
-    news
-      .headlines([TSMC, FOXCONN], SINCE, 5)
-      .map(({ story, symbols }) => [story.lead.item.id, symbols])
+    (await news.headlines([TSMC, FOXCONN], SINCE, 5)).map(
+      ({ story, symbols }) => [story.lead.item.id, symbols]
+    )
   ).toEqual([
     ["foxconn filing", [FOXCONN]],
     ["tsmc post", [TSMC]],
   ]);
-  expect(news.headlines([TSMC, FOXCONN], SINCE, 1)).toHaveLength(1);
+  expect(await news.headlines([TSMC, FOXCONN], SINCE, 1)).toHaveLength(1);
+});
+
+test("once a listing's names are known, outlets rewording one headline are one story in a collection and in the headlines", async () => {
+  const reworded = (id: string, title: string, site: string) => ({
+    ...item(id, 30),
+    title,
+    site,
+  });
+
+  const articles = source("news", NewsChannel.Article, async () => [
+    reworded("first", "台積電十月營收創新高 年增四成", "a.test"),
+    reworded("second", "快訊／台積電10月營收再創新高，年增逾四成", "b.test"),
+  ]);
+
+  const { news, listing } = setup([articles]);
+
+  listing.mockResolvedValue({ name: "台積電", englishName: "TSMC" });
+
+  const collection = await news.collect(TSMC, SINCE, 10);
+
+  expect(collection.stories).toHaveLength(1);
+  expect(collection.gauge.overall.stories).toBe(1);
+  expect(collection.stories[0].records).toHaveLength(2);
+  expect(await news.headlines([TSMC], SINCE, 5)).toHaveLength(1);
 });

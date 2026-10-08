@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 
 import type { SymbolRef } from "@solyx/core/market";
@@ -139,27 +139,6 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
         .orderBy(desc(listedAt))
         .all()
         .map((row) => toRecord(row.news_items, row.listing_news)),
-
-    listMany(symbols, since) {
-      if (symbols.length === 0) return [];
-
-      return db
-        .select()
-        .from(listingNews)
-        .innerJoin(newsItems, eq(listingNews.itemId, newsItems.id))
-        .where(
-          and(or(...symbols.map(ofListing)), gte(listedAt, since.getTime()))
-        )
-        .orderBy(desc(listedAt))
-        .all()
-        .map((row) => ({
-          symbol: {
-            market: row.listing_news.market,
-            symbol: row.listing_news.symbol,
-          },
-          record: toRecord(row.news_items, row.listing_news),
-        }));
-    },
 
     lastCollected(symbol) {
       const row = db

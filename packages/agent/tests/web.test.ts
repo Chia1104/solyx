@@ -11,7 +11,7 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { BrokerMode } from "@solyx/core/broker";
 import { Market } from "@solyx/core/market";
-import { NewsChannel, TimePrecision, newsStories } from "@solyx/core/news";
+import { NewsChannel, TimePrecision, readNews } from "@solyx/core/news";
 import type { NewsDesk, NewsRecord } from "@solyx/core/news";
 import type { OrderDesk } from "@solyx/core/order-desk";
 import { WebSearchKind } from "@solyx/core/web-search";
@@ -81,9 +81,8 @@ function fakeNews(): Pick<NewsDesk, "collect"> {
   };
 
   return {
-    collect: async () => ({
-      stories: newsStories([record]),
-      records: [record],
+    collect: async (symbol) => ({
+      ...readNews([record], { symbol, listing: null }),
       failures: [],
       scored: false,
     }),
