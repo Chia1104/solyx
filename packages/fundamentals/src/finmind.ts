@@ -11,6 +11,7 @@ import type {
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { twFilingDeadline } from "@solyx/core/rules/tw";
+import type { TradingCalendarProvider } from "@solyx/core/session";
 import { createRateLimiter } from "@solyx/utils/rate-limit";
 
 const FINMIND_API_URL = "https://api.finmindtrade.com/api/v4/";
@@ -57,6 +58,8 @@ const dividendRowSchema = z.object({
   StockExDividendTradingDate: dayOrUnsetSchema,
 });
 
+const tradingDateRowSchema = z.object({ date: z.iso.date() });
+
 const failureSchema = z.object({ msg: z.string() });
 
 // Net income attributable to the parent's owners, then the whole group's where FinMind names only that.
@@ -73,10 +76,13 @@ export interface FinMindOptions {
   fetch?: typeof globalThis.fetch;
 }
 
-/** Taiwan listings' quarterly income statements, monthly revenue and dividends from FinMind, on the user's token or none. */
+/**
+ * Taiwan listings' quarterly income statements, monthly revenue and dividends, and the days the
+ * exchange trades, from FinMind on the user's token or none.
+ */
 export function createFinMind(
   options: FinMindOptions = {}
-): FundamentalsProvider {
+): FundamentalsProvider & TradingCalendarProvider {
   const api = ky.create({
     baseUrl: FINMIND_API_URL,
     fetch: options.fetch,
@@ -108,15 +114,12 @@ export function createFinMind(
     token: createRateLimiter({ limit: TOKEN_REQUESTS, windowMs: HOUR_MS }),
   };
 
-  /** A dataset's rows for one listing from `since` on, each dropped unless it parses. */
-  async function rows<Row>(
+  /** A dataset's rows, each dropped unless it parses. */
+  async function data<Row>(
     dataset: string,
-    symbol: SymbolRef,
-    since: string,
+    params: Record<string, string>,
     schema: z.ZodType<Row>
   ): Promise<Row[]> {
-    if (symbol.market !== Market.TW) return [];
-
     const token = await options.token?.();
     const budget = token === undefined ? budgets.anonymous : budgets.token;
 
@@ -125,11 +128,7 @@ export function createFinMind(
         .get("data", {
           headers:
             token === undefined ? {} : { Authorization: `Bearer ${token}` },
-          searchParams: {
-            dataset,
-            data_id: symbol.symbol,
-            start_date: since,
-          },
+          searchParams: { dataset, ...params },
         })
         .json()
     );
@@ -139,6 +138,18 @@ export function createFinMind(
 
       return parsed.success ? [parsed.data] : [];
     });
+  }
+
+  /** A dataset's rows for one listing from `since` on. */
+  async function rows<Row>(
+    dataset: string,
+    symbol: SymbolRef,
+    since: string,
+    schema: z.ZodType<Row>
+  ): Promise<Row[]> {
+    if (symbol.market !== Market.TW) return [];
+
+    return data(dataset, { data_id: symbol.symbol, start_date: since }, schema);
   }
 
   return {
@@ -220,6 +231,18 @@ export function createFinMind(
           ({ announced, cash, stock }) => announced >= since && cash + stock > 0
         )
         .toSorted((a, b) => a.announced.localeCompare(b.announced));
+    },
+
+    async tradingDays(market, since) {
+      if (market !== Market.TW) return [];
+
+      const days = await data(
+        "TaiwanStockTradingDate",
+        { start_date: since },
+        tradingDateRowSchema
+      );
+
+      return days.map(({ date }) => date).toSorted();
     },
   };
 }

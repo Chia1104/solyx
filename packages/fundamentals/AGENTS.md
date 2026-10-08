@@ -1,6 +1,6 @@
 # `@solyx/fundamentals`
 
-Fundamentals providers, one module per provider, each implementing `FundamentalsProvider` from `@solyx/core/fundamentals`. `./finmind` reads Taiwan listings' quarterly income statements, monthly revenue and dividends from FinMind's open API, which answers without a token under a lower limit and with the user's token under a higher one; the token is read for every request, so a saved one applies at once.
+Fundamentals providers, one module per provider, each implementing `FundamentalsProvider` from `@solyx/core/fundamentals`. `./finmind` reads Taiwan listings' quarterly income statements, monthly revenue and dividends, and the days Taiwan's exchange trades (`TradingCalendarProvider` from `@solyx/core/session`), from FinMind's open API, which answers without a token under a lower limit and with the user's token under a higher one; the token is read for every request, so a saved one applies at once.
 
 ## Boundaries
 

@@ -35,6 +35,7 @@ import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
+import { createTradingCalendar } from "./modules/market/trading-calendar.ts";
 import { createMemories } from "./modules/memory/memories.ts";
 import { createNewsCollector } from "./modules/news/news-collector.ts";
 import { createNewsSources } from "./modules/news/news-sources.ts";
@@ -159,11 +160,14 @@ export function createServices() {
     onChange: (symbol) => broadcast(newsEvents.onChanged, symbol),
   });
 
-  const fundamentals = createFundamentals({
-    providers: [
-      createFinMind({ token: () => secrets.get(Secret.FinMindToken) }),
-    ],
+  // One client, so fundamentals and trading days share FinMind's hourly limit.
+  const finMind = createFinMind({
+    token: () => secrets.get(Secret.FinMindToken),
   });
+
+  const fundamentals = createFundamentals({ providers: [finMind] });
+
+  const tradingDays = createTradingCalendar({ providers: [finMind] });
 
   const calendar = createCalendar({ fundamentals });
 
@@ -197,6 +201,7 @@ export function createServices() {
     marketData,
     watchlist: () => userData.watchlist.list(),
     news,
+    tradingDays,
     web: () => webSearch.vendor(),
     desk,
     memory: memories.store,
