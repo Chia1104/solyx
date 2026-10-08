@@ -205,6 +205,22 @@ test("weekly bars merge whole weeks of the source's daily bars", async () => {
   ]);
 });
 
+test("a listing's names are asked for once found, and again after a miss", async () => {
+  const { marketData, provider } = setup();
+  const getListing = vi.mocked(provider.getListing);
+
+  getListing.mockResolvedValueOnce(null);
+
+  expect(await marketData.listing(TSMC)).toBeNull();
+  expect(await marketData.listing(TSMC)).toEqual({
+    name: "台積電",
+    englishName: "TSMC",
+  });
+  await marketData.listing(TSMC);
+
+  expect(getListing).toHaveBeenCalledTimes(2);
+});
+
 test("a market without a source is reported, not guessed", async () => {
   const { marketData } = setup();
   const apple = { market: Market.US, symbol: "AAPL" };

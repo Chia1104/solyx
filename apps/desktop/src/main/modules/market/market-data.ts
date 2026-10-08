@@ -6,7 +6,7 @@ import {
   resampleDaily,
 } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
-import { Market } from "@solyx/core/market";
+import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Listing } from "@solyx/core/market-data";
 import { sessionQuote } from "@solyx/core/quote";
@@ -37,6 +37,8 @@ export function createMarketData({
   onSourcesChanged,
   now = () => new Date(),
 }: MarketDataOptions) {
+  const listings = new Map<string, Listing>();
+
   const live = createLiveCandles({
     openStream: () => sources.openStream(),
     async dailyCandles(request) {
@@ -119,10 +121,18 @@ export function createMarketData({
       );
     },
 
+    /** Kept for the session once found, since news groups a listing's stories by its names on every read. */
     async listing(symbol: SymbolRef): Promise<Listing | null> {
-      const provider = await sources.provider(symbol.market);
+      const known = listings.get(symbolKey(symbol));
 
-      return provider ? provider.getListing(symbol) : null;
+      if (known) return known;
+
+      const provider = await sources.provider(symbol.market);
+      const listing = provider ? await provider.getListing(symbol) : null;
+
+      if (listing) listings.set(symbolKey(symbol), listing);
+
+      return listing;
     },
 
     /** Starts pushing `sender` today's bars of `symbol`; false when no live stream covers it. */

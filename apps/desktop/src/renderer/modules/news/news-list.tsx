@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 
 import { cn } from "@heroui/react";
 import { NewsIcon } from "@hugeicons/core-free-icons";
-import { useQuery } from "@tanstack/react-query";
 import { uniq } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
@@ -13,7 +12,6 @@ import {
   NewsChannel,
   TimePrecision,
   isAboutListing,
-  newsStories,
   storyScore,
 } from "@solyx/core/news";
 import type { NewsStory, Published } from "@solyx/core/news";
@@ -23,7 +21,7 @@ import { LoadingState } from "../../components/loading-state.tsx";
 import { ToggleMenu } from "../../components/toggle-menu.tsx";
 import { useDecisionsReady } from "../settings/settings-query.ts";
 
-import { newsRecordsQuery, useNewsChanges } from "./news-query.ts";
+import { useNewsChanges, useNewsReading } from "./news-query.ts";
 import { GaugeBar, SentimentGauge } from "./sentiment-gauge.tsx";
 
 /** A publication time no more exact than its source tells it, without the year. */
@@ -135,7 +133,7 @@ export function NewsList({
   heading?: ReactNode;
 }) {
   const { t } = useTranslation();
-  const { data, error, refetch } = useQuery(newsRecordsQuery(symbol));
+  const { reading, error, refetch } = useNewsReading(symbol);
   const scoring = useDecisionsReady();
 
   const [channels, setChannels] = useState<NewsChannel[]>(() =>
@@ -144,7 +142,7 @@ export function NewsList({
 
   useNewsChanges();
 
-  const stories = newsStories(data ?? []).filter(
+  const stories = (reading?.stories ?? []).filter(
     (story) => isAboutListing(story) && channels.includes(story.channel)
   );
 
@@ -169,7 +167,7 @@ export function NewsList({
         <LoadError error={error} onRetry={() => void refetch()} />
       </div>
     );
-  } else if (!data) {
+  } else if (!reading) {
     body = <LoadingState />;
   } else if (stories.length === 0) {
     body = <p className="px-6 py-4 text-sm text-muted">{t("news.empty")}</p>;
@@ -196,7 +194,11 @@ export function NewsList({
           disallowEmptySelection
         />
         <div className="ml-auto flex">
-          <SentimentGauge symbol={symbol} scoring={scoring} />
+          <SentimentGauge
+            symbol={symbol}
+            gauge={reading?.gauge}
+            scoring={scoring}
+          />
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>

@@ -20,7 +20,7 @@ import type { Candle } from "@solyx/core/candles";
 import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
 import { InstrumentKind, Market } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
-import { NewsChannel, TimePrecision, newsStories } from "@solyx/core/news";
+import { NewsChannel, TimePrecision, readNews } from "@solyx/core/news";
 import type {
   NewsCollection,
   NewsDesk,
@@ -86,8 +86,7 @@ function collection(
   overrides: Partial<NewsCollection> = {}
 ): NewsCollection {
   return {
-    stories: newsStories(records),
-    records,
+    ...readNews(records, { symbol: TSMC, listing: null }),
     failures: [],
     scored: true,
     ...overrides,
@@ -247,7 +246,7 @@ function agentOn(ports: TradingToolPorts) {
 }
 
 /** Runs get_news through the agent, since it notes the addresses it shows in the conversation. */
-async function readNews(
+async function getNews(
   ports: ReturnType<typeof setup>["ports"],
   args: ToolCall["arguments"]
 ) {
@@ -575,7 +574,7 @@ test("news reads newest first, leaving out stories that only name the listing", 
     ])
   );
 
-  const { text, details } = await readNews(ports, { symbol: TSMC, days: 3 });
+  const { text, details } = await getNews(ports, { symbol: TSMC, days: 3 });
 
   expect(news.collect).toHaveBeenCalledWith(
     TSMC,
@@ -618,7 +617,7 @@ test("without a decisions model, news is listed unscored", async () => {
     )
   );
 
-  const { text } = await readNews(ports, { symbol: TSMC });
+  const { text } = await getNews(ports, { symbol: TSMC });
 
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",
@@ -679,7 +678,7 @@ test("channels get sections, a thread is one story, and a failed source says how
     )
   );
 
-  const { text } = await readNews(ports, { symbol: TSMC });
+  const { text } = await getNews(ports, { symbol: TSMC });
 
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",

@@ -1,9 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
-import { queryOptions, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import { readNews } from "@solyx/core/news";
+
+import { useListing } from "../market/listing-name.tsx";
 
 /** The window the symbol page shows. */
 export const NEWS_DAYS = 7;
@@ -36,6 +39,22 @@ export const newsRecordsQuery = (symbol: SymbolRef) =>
     queryFn: () => window.solyx.news.records(symbol, NEWS_DAYS),
     staleTime: Infinity,
   });
+
+/**
+ * The listing's stories, gauge and daily stance over the symbol page's window, read once by its
+ * names as soon as they are known; `reading` is `undefined` until its records arrive.
+ */
+export function useNewsReading(symbol: SymbolRef) {
+  const { data, error, refetch } = useQuery(newsRecordsQuery(symbol));
+  const listing = useListing(symbol);
+
+  const reading = useMemo(
+    () => data && readNews(data, { symbol, listing }),
+    [data, symbol, listing]
+  );
+
+  return { reading, error, refetch };
+}
 
 /** Goes stale on its own too, since saving or deleting a key changes which sources cover a market. */
 export const newsCoverageQuery = (symbol: SymbolRef) =>

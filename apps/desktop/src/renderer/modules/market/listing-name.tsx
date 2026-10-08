@@ -22,23 +22,33 @@ export function listingName(
 }
 
 /**
- * Listings' names in the app's language, in their order. Each is asked for only once its
- * market's source has its settings, since a miss is kept for the rest of the session.
+ * How the exchanges name listings, in their order; `null` until known. Each is asked for only once
+ * its market's source has its settings, since a miss is kept for the rest of the session.
  */
-export function useListingNames(
-  symbols: readonly SymbolRef[]
-): (string | undefined)[] {
-  const { i18n } = useTranslation();
+export function useListings(symbols: readonly SymbolRef[]): (Listing | null)[] {
   const settings = useQuery(marketDataQuery());
 
-  const listings = useQueries({
+  return useQueries({
     queries: symbols.map((symbol) => ({
       ...listingQuery(symbol),
       enabled: settings.data?.markets[symbol.market]?.ready === true,
     })),
-  });
+  }).map((listing) => listing.data ?? null);
+}
 
-  return listings.map((listing) => listingName(listing.data, i18n.language));
+export function useListing(symbol: SymbolRef): Listing | null {
+  return useListings([symbol])[0];
+}
+
+/** Listings' names in the app's language, in their order. */
+export function useListingNames(
+  symbols: readonly SymbolRef[]
+): (string | undefined)[] {
+  const { i18n } = useTranslation();
+
+  return useListings(symbols).map((listing) =>
+    listingName(listing, i18n.language)
+  );
 }
 
 export function useListingName(symbol: SymbolRef): string | undefined {

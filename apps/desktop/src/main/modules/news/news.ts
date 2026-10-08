@@ -2,8 +2,9 @@ import { groupBy, mapAsync } from "es-toolkit";
 
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
-import { newsStories, rankHeadlines } from "@solyx/core/news";
+import { rankHeadlines, readNews } from "@solyx/core/news";
 import type {
+  Headline,
   NewsCollection,
   NewsSource,
   NewsStore,
@@ -118,11 +119,11 @@ export function createNews(options: NewsOptions) {
         return failed ? [failed] : [];
       });
 
+      const subject = { symbol, listing };
+      const read = readNews(store.list(symbol, since), subject);
+
       const newest = Object.values(
-        groupBy(
-          newsStories(store.list(symbol, since)),
-          (story) => story.channel
-        )
+        groupBy(read.stories, (story) => story.channel)
       ).flatMap((stories) => stories.slice(0, limit));
 
       const scorer = await options.scorer();
@@ -130,7 +131,8 @@ export function createNews(options: NewsOptions) {
       if (!scorer) {
         return {
           stories: newest,
-          records: store.list(symbol, since),
+          gauge: read.gauge,
+          daily: read.daily,
           failures,
           scored: false,
         };
@@ -166,9 +168,13 @@ export function createNews(options: NewsOptions) {
         { concurrency: SCORING_CONCURRENCY }
       );
 
+      // Read again, so the gauge counts the scores just given.
+      const { gauge, daily } = readNews(store.list(symbol, since), subject);
+
       return {
         stories,
-        records: store.list(symbol, since),
+        gauge,
+        daily,
         failures,
         scored: true,
       };
@@ -224,9 +230,24 @@ export function createNews(options: NewsOptions) {
     /** What is stored about the listing since `since`, newest first. */
     records: (symbol: SymbolRef, since: Date) => store.list(symbol, since),
 
-    /** The `limit` heaviest headlines about the listings since `since`. */
-    headlines: (symbols: readonly SymbolRef[], since: Date, limit: number) =>
-      rankHeadlines(store.listMany(symbols, since), now()).slice(0, limit),
+    /** The `limit` heaviest headlines about the listings since `since`, each grouped by its names once known. */
+    async headlines(
+      symbols: readonly SymbolRef[],
+      since: Date,
+      limit: number
+    ): Promise<Headline[]> {
+      const listings = await Promise.all(
+        symbols.map(async (symbol) => ({
+          subject: {
+            symbol,
+            listing: await options.marketData.listing(symbol).catch(() => null),
+          },
+          records: store.list(symbol, since),
+        }))
+      );
+
+      return rankHeadlines(listings, now()).slice(0, limit);
+    },
 
     /** Where the listing's news comes from, so a quiet listing can be told from a broken source. */
     async coverage(symbol: SymbolRef): Promise<NewsCoverage> {
