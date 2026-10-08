@@ -16,7 +16,9 @@ export interface CandleCacheOptions {
  * Serves bars from the cache and asks the provider only for what it lacks. Only closed
  * sessions are stored, since today's bars change until the close. Coverage ends at the
  * newest stored bar, so trailing holidays and sessions the provider has not published yet
- * are asked for again.
+ * are asked for again. Intraday series keep the requested window, or the furthest back a
+ * request reached since this cache was made, so history a chart scrolled back to is not asked
+ * for again while the app runs.
  */
 export function withCandleCache(
   provider: MarketDataProvider,
@@ -24,6 +26,7 @@ export function withCandleCache(
   options: CandleCacheOptions = {}
 ): MarketDataProvider {
   const now = options.now ?? (() => new Date());
+  const reached = new Map<string, string>();
 
   async function getCandles({
     symbol,
@@ -38,6 +41,7 @@ export function withCandleCache(
       interval,
     };
 
+    const series = `${symbol.market}:${symbol.symbol}:${interval}`;
     const today = exchangeDate(symbol.market, now());
     let covered = store.coverage(key);
 
@@ -45,6 +49,7 @@ export function withCandleCache(
     // starts past the covered span starts the series over.
     if (covered && from > shiftDate(covered.to, 1)) {
       store.remove(key);
+      reached.delete(series);
       covered = undefined;
     }
 
@@ -84,8 +89,13 @@ export function withCandleCache(
     const stored = store.read(key, from, to);
     const lastTime = stored.at(-1)?.time ?? -Infinity;
 
-    // Intraday history is only ever charted over a recent window.
-    if (isIntraday(interval)) store.trim(key, from);
+    if (isIntraday(interval)) {
+      const furthest = reached.get(series);
+      const keep = furthest !== undefined && furthest < from ? furthest : from;
+
+      reached.set(series, keep);
+      store.trim(key, keep);
+    }
 
     return [
       ...stored,

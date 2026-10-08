@@ -199,14 +199,44 @@ describe("withCandleCache", () => {
     );
   });
 
-  test("intraday series keep only the requested window", async () => {
+  test("intraday series keep the furthest a request reached while the app runs", async () => {
     const { calls, get } = setup();
 
     await get(Interval.FiveMinutes, "2026-09-24", "2026-09-29");
     await get(Interval.FiveMinutes, "2026-09-25", "2026-09-29");
     await get(Interval.FiveMinutes, "2026-09-24", "2026-09-29");
 
-    // The trimmed day is asked for again, beside today's live session.
+    // Only today's live session is asked for again.
+    expect(calls.slice(1)).toEqual([
+      { interval: Interval.FiveMinutes, from: "2026-09-29", to: "2026-09-29" },
+      { interval: Interval.FiveMinutes, from: "2026-09-29", to: "2026-09-29" },
+    ]);
+  });
+
+  test("after a restart, intraday series keep only the requested window", async () => {
+    const clock = { now: duringSession("2026-09-29") };
+    const { provider, calls } = fakeProvider(clock);
+    const { candles } = open();
+
+    const restarted = () =>
+      withCandleCache(provider, candles, { now: () => clock.now });
+
+    const get = (cache: MarketDataProvider, from: string, to = "2026-09-29") =>
+      cache.getCandles({
+        symbol: TSMC,
+        interval: Interval.FiveMinutes,
+        from,
+        to,
+      });
+
+    await get(restarted(), "2026-09-24");
+
+    const next = restarted();
+
+    await get(next, "2026-09-25");
+    await get(next, "2026-09-24");
+
+    // The day the first run reached is trimmed, so it is asked for again beside today's session.
     expect(calls.slice(-2)).toEqual([
       { interval: Interval.FiveMinutes, from: "2026-09-24", to: "2026-09-24" },
       { interval: Interval.FiveMinutes, from: "2026-09-29", to: "2026-09-29" },
