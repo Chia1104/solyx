@@ -17,6 +17,7 @@ import { openNews } from "@solyx/db/news";
 import { openResearch } from "@solyx/db/research";
 import { openUserData } from "@solyx/db/user";
 import { createFinMind } from "@solyx/fundamentals/finmind";
+import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 
 import { marketEvents } from "#shared/ipc/market.ts";
 import { memoryEvents } from "#shared/ipc/memory.ts";
@@ -168,7 +169,10 @@ export function createServices() {
 
   const tradingDays = createTradingCalendar({ providers: [finMind] });
 
-  const calendar = createCalendar({ fundamentals });
+  const calendar = createCalendar({
+    fundamentals,
+    macro: [createStatGovTw()],
+  });
 
   // Every window hears every change to the agent's research, whoever made it.
   const research = createResearch(

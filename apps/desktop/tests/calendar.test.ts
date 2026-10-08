@@ -1,7 +1,9 @@
 import { expect, test, vi } from "vite-plus/test";
 
-import { ListingEventKind } from "@solyx/core/calendar";
+import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
 import type { Dividend, Fundamentals } from "@solyx/core/fundamentals";
+import { MacroIndicator } from "@solyx/core/macro";
+import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
 import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
@@ -25,6 +27,20 @@ function cash(amount: number, cashExDate: string): Dividend {
   };
 }
 
+const AAPL = { market: Market.US, symbol: "AAPL" };
+
+const HOUR_MS = 60 * 60 * 1000;
+
+function consumerPrices(date: string, period: string): MacroRelease {
+  return {
+    market: Market.TW,
+    indicator: MacroIndicator.ConsumerPrices,
+    date,
+    timing: EventTiming.Set,
+    period,
+  };
+}
+
 function setup(dividends: Record<string, Dividend[]>) {
   const fundamentals: Fundamentals = {
     statements: async () => [],
@@ -38,13 +54,26 @@ function setup(dividends: Record<string, Dividend[]>) {
     }),
   };
 
+  const macro = {
+    id: "fake",
+    markets: [Market.TW],
+    releases: vi.fn<MacroCalendarProvider["releases"]>(async () => [
+      consumerPrices("2026-10-07", "2026-09"),
+      consumerPrices("2026-11-05", "2026-10"),
+      consumerPrices("2026-12-08", "2026-11"),
+    ]),
+  };
+
   // 2026-10-08 12:00 in Taipei.
+  const clock = { now: Date.parse("2026-10-08T04:00:00Z") };
+
   const calendar = createCalendar({
     fundamentals,
-    now: () => new Date("2026-10-08T04:00:00Z"),
+    macro: [macro],
+    now: () => new Date(clock.now),
   });
 
-  return { calendar };
+  return { calendar, macro, clock };
 }
 
 test("every listing's events come soonest first, within the days asked for", async () => {
@@ -73,4 +102,53 @@ test("a listing that cannot be read is named, and the others' events stay", asyn
 
   expect(events.map(({ symbol }) => symbol)).toEqual([TSMC]);
   expect(unread).toEqual([MEDIATEK]);
+});
+
+test("the listings' markets' releases come within the days asked for, each market's schedule read twice a day at most", async () => {
+  const { calendar, macro, clock } = setup({
+    [symbolKey(TSMC)]: [],
+    [symbolKey(FOXCONN)]: [],
+    [symbolKey(AAPL)]: [],
+  });
+
+  const { releases, unreadMarkets } = await calendar.upcoming(
+    [TSMC, FOXCONN, AAPL],
+    30
+  );
+
+  expect(releases).toEqual([consumerPrices("2026-11-05", "2026-10")]);
+  expect(unreadMarkets).toEqual([]);
+  expect(macro.releases).toHaveBeenCalledExactlyOnceWith(
+    Market.TW,
+    "2026-10-08"
+  );
+
+  clock.now += 11 * HOUR_MS;
+  await calendar.upcoming([TSMC], 30);
+
+  expect(macro.releases).toHaveBeenCalledTimes(1);
+
+  clock.now += 2 * HOUR_MS;
+  await calendar.upcoming([TSMC], 30);
+
+  expect(macro.releases).toHaveBeenCalledTimes(2);
+});
+
+test("a schedule that cannot be read names its market, read again on the next ask, and the listings' events stay", async () => {
+  const { calendar, macro } = setup({
+    [symbolKey(TSMC)]: [cash(7, "2026-10-20")],
+  });
+
+  macro.releases.mockRejectedValueOnce(new Error("stat.gov.tw answered 503"));
+
+  const failed = await calendar.upcoming([TSMC], 30);
+
+  expect(failed.events.map(({ symbol }) => symbol)).toEqual([TSMC]);
+  expect(failed.releases).toEqual([]);
+  expect(failed.unreadMarkets).toEqual([Market.TW]);
+
+  const again = await calendar.upcoming([TSMC], 30);
+
+  expect(again.unreadMarkets).toEqual([]);
+  expect(macro.releases).toHaveBeenCalledTimes(2);
 });

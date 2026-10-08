@@ -391,6 +391,9 @@ importers:
       '@solyx/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@solyx/macro':
+        specifier: workspace:*
+        version: link:../../packages/macro
       '@solyx/market-data':
         specifier: workspace:*
         version: link:../../packages/market-data
@@ -676,6 +679,31 @@ importers:
       es-toolkit:
         specifier: 'catalog:'
         version: 1.52.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.0.0(@types/node@26.6.4)(@vitest/ui@5.0.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1)
+
+  packages/macro:
+    dependencies:
+      '@solyx/core':
+        specifier: workspace:*
+        version: link:../core
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.52.0
+      ky:
+        specifier: 'catalog:'
+        version: 2.1.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.4
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
