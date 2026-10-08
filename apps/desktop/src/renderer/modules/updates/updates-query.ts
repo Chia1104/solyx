@@ -1,6 +1,5 @@
-import { useEffect } from "react";
-
-import { queryOptions, useQueryClient } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
 export const updatesQueryKeys = {
   all: ["updates"] as const,
@@ -15,14 +14,8 @@ export const updateStateQuery = () =>
   });
 
 /** Refetches the update state whenever it changes, whether a scheduled check or the user started it. */
-export function useUpdateChanges() {
-  const queryClient = useQueryClient();
-
-  useEffect(
-    () =>
-      window.solyx.updates.onChanged(() => {
-        void queryClient.invalidateQueries({ queryKey: updatesQueryKeys.all });
-      }),
-    [queryClient]
-  );
+export function followUpdateChanges(queryClient: QueryClient) {
+  window.solyx.updates.onChanged(() => {
+    void queryClient.invalidateQueries({ queryKey: updatesQueryKeys.all });
+  });
 }

@@ -21,7 +21,7 @@ import { LoadingState } from "../../components/loading-state.tsx";
 import { ToggleMenu } from "../../components/toggle-menu.tsx";
 import { useDecisionsReady } from "../settings/settings-query.ts";
 
-import { useNewsChanges, useNewsReading } from "./news-query.ts";
+import { useNewsReading } from "./news-query.ts";
 import { GaugeBar, SentimentGauge } from "./sentiment-gauge.tsx";
 
 /** A publication time no more exact than its source tells it, without the year. */
@@ -139,8 +139,6 @@ export function NewsList({
   const [channels, setChannels] = useState<NewsChannel[]>(() =>
     Object.values(NewsChannel)
   );
-
-  useNewsChanges();
 
   const stories = (reading?.stories ?? []).filter(
     (story) => isAboutListing(story) && channels.includes(story.channel)

@@ -412,9 +412,11 @@ export function AgentSettings() {
                                 unit,
                                 next.model
                               );
-                              await queryClient.invalidateQueries({
-                                queryKey: settingsQueryKeys.agent,
-                              });
+                              // Joins the read the settings push started.
+                              await queryClient.invalidateQueries(
+                                { queryKey: settingsQueryKeys.agent },
+                                { cancelRefetch: false }
+                              );
                             })
                           }
                         />

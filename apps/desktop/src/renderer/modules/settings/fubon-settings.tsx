@@ -35,8 +35,12 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
   const queryClient = useQueryClient();
   const secrets = useQuery(secretsQuery());
 
+  // A chosen file joins the read its settings push started; a sign-in changes no setting.
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: settingsQueryKeys.marketData });
+    queryClient.invalidateQueries(
+      { queryKey: settingsQueryKeys.marketData },
+      { cancelRefetch: false }
+    );
 
   const choose = useMutation({
     mutationFn: (file: FubonFile) =>

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
@@ -11,7 +12,7 @@ import { Sparkline } from "../../components/sparkline.tsx";
 import { numberFormats } from "./number-formats.ts";
 import { useDirectionColors } from "./price-colors.ts";
 import type { DirectionColors } from "./price-colors.ts";
-import { useQuote } from "./quote-query.ts";
+import { quoteQuery } from "./quote-query.ts";
 
 /** How far the last price moved from the close before, or `null` without that close. */
 export function quoteChange(quote: SessionQuote) {
@@ -40,7 +41,7 @@ export function QuoteLine({
   symbol: SymbolRef;
   className?: string;
 }) {
-  const { data } = useQuote(symbol);
+  const { data } = useQuery(quoteQuery(symbol));
   const direction = useDirectionColors(symbol.market);
 
   if (!data) return <span aria-hidden className={className} />;
@@ -65,7 +66,7 @@ export function QuoteLine({
 /** The newest session's last price, which flashes in its direction's colour when a refresh moves it. */
 export function QuotePrice({ symbol }: { symbol: SymbolRef }) {
   const { i18n } = useTranslation();
-  const { data } = useQuote(symbol);
+  const { data } = useQuery(quoteQuery(symbol));
   const direction = useDirectionColors(symbol.market);
   const element = useRef<HTMLSpanElement>(null);
   const seen = useRef<number | undefined>(undefined);
@@ -97,7 +98,7 @@ export function QuotePrice({ symbol }: { symbol: SymbolRef }) {
 /** The change since the close before, in percent and in the colour of its direction. */
 export function QuoteChange({ symbol }: { symbol: SymbolRef }) {
   const { i18n } = useTranslation();
-  const { data } = useQuote(symbol);
+  const { data } = useQuery(quoteQuery(symbol));
   const direction = useDirectionColors(symbol.market);
 
   const moved = data ? quoteChange(data) : null;

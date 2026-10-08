@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { Market } from "@solyx/core/market";
@@ -10,7 +11,7 @@ import { LoadingState } from "../../components/loading-state.tsx";
 import { numberFormats } from "./number-formats.ts";
 import { useDirectionColors } from "./price-colors.ts";
 import { directionOf } from "./quote-figures.tsx";
-import { useSectors } from "./quote-query.ts";
+import { sectorsQuery } from "./quote-query.ts";
 
 /** Sector indices move less than single listings, so the colour fills sooner. */
 const FULL_COLOUR_MOVE = 0.03;
@@ -21,7 +22,7 @@ const HEIGHT = 320;
 /** Taiwan's listed sectors, sized by value traded today and coloured by their index's move. */
 export function SectorHeatMap() {
   const { t, i18n } = useTranslation();
-  const { data, error, refetch } = useSectors();
+  const { data, error, refetch } = useQuery(sectorsQuery());
   const direction = useDirectionColors(Market.TW);
   const format = numberFormats(i18n.language);
 

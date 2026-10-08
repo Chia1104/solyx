@@ -1,3 +1,4 @@
+import { useQueries } from "@tanstack/react-query";
 import { sum } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
@@ -10,7 +11,7 @@ import { useListingNames } from "./listing-name.tsx";
 import { numberFormats } from "./number-formats.ts";
 import { useDirectionColors } from "./price-colors.ts";
 import { directionOf, quoteChange } from "./quote-figures.tsx";
-import { useQuotes } from "./quote-query.ts";
+import { quoteQuery } from "./quote-query.ts";
 
 /** A move this large in either direction takes the full colour. */
 const FULL_COLOUR_MOVE = 0.05;
@@ -39,7 +40,10 @@ export function QuoteHeatMap({ groups }: { groups: QuoteHeatMapGroup[] }) {
     group.tiles.map((tile) => tile.symbol)
   );
 
-  const quotes = useQuotes(symbols);
+  const quotes = useQueries({
+    queries: symbols.map((symbol) => quoteQuery(symbol)),
+  });
+
   const names = useListingNames(symbols);
 
   const quoteOf = new Map(

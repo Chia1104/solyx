@@ -62,7 +62,6 @@ export function SecretRow({
   available?: boolean;
   onSave: (value: string) => Promise<void>;
   onRemove: () => Promise<void>;
-  /** Refreshes what reads the secret once a save or removal settles. */
   /** Refreshes what the change reaches that the settings push does not. */
   onSettled?: () => Promise<void>;
 }) {

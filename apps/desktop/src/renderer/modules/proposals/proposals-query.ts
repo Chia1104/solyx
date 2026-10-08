@@ -1,6 +1,5 @@
-import { useEffect } from "react";
-
-import { queryOptions, useQueryClient } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
 import { accountQueryKeys } from "../account/account-query.ts";
 
@@ -17,17 +16,9 @@ export const proposalsQuery = () =>
   });
 
 /** Refetches the proposals and the account whenever a proposal changes, in any window or by the agent. */
-export function useProposalChanges() {
-  const queryClient = useQueryClient();
-
-  useEffect(
-    () =>
-      window.solyx.proposals.onChanged(() => {
-        void queryClient.invalidateQueries({
-          queryKey: proposalsQueryKeys.all,
-        });
-        void queryClient.invalidateQueries({ queryKey: accountQueryKeys.all });
-      }),
-    [queryClient]
-  );
+export function followProposalChanges(queryClient: QueryClient) {
+  window.solyx.proposals.onChanged(() => {
+    void queryClient.invalidateQueries({ queryKey: proposalsQueryKeys.all });
+    void queryClient.invalidateQueries({ queryKey: accountQueryKeys.all });
+  });
 }

@@ -748,6 +748,25 @@ test("in a conversation set to auto, a tool nothing can judge still asks", async
   await runtime.close();
 });
 
+test("a conversation starts on the model and approval mode picked before its first message", async () => {
+  const { runtime } = setup();
+
+  const picked = {
+    model: { provider: "openai", id: "gpt-6.1-sol" },
+    thinking: AgentThinking.High,
+    approvalMode: ApprovalMode.Bypass,
+  };
+
+  const created = await runtime.create(picked);
+
+  expect(created).toMatchObject(picked);
+  expect(await runtime.sessions()).toMatchObject([
+    { id: created.id, ...picked },
+  ]);
+
+  await runtime.close();
+});
+
 test("a conversation's own model and thinking reach the run, and one without them follows the default", async () => {
   const faux = fauxProvider();
   const models = createModels();

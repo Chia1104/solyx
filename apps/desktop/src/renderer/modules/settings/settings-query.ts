@@ -1,6 +1,5 @@
-import { useEffect } from "react";
-
-import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
 import type { AgentModelRef } from "@solyx/agent/providers";
@@ -19,7 +18,9 @@ const all = ["settings"] as const;
 
 export const settingsQueryKeys = {
   all,
-  appearance: [...all, "appearance"] as const,
+  // Outside `all`: the appearance arrives whole on a push of its own, so another setting's push
+  // never reads it again over a palette being previewed.
+  appearance: ["appearance"] as const,
   about: [...all, "about"] as const,
   secrets: [...all, "secrets"] as const,
   marketData: [...all, "market-data"] as const,
@@ -49,6 +50,21 @@ export const marketDataQuery = () =>
     queryFn: () => window.solyx.settings.marketData(),
     staleTime: 0,
   });
+
+const selectMarkets = (status: MarketDataStatus) => status.markets;
+
+/**
+ * Each market's source, for readers that need only whether it is ready. Only the config file and
+ * the secret store change that, and both push, so unlike the Fubon session it never goes stale
+ * on its own.
+ */
+export function useMarketSources() {
+  return useQuery({
+    ...marketDataQuery(),
+    staleTime: Infinity,
+    select: selectMarkets,
+  });
+}
 
 /** Whether Taiwan market data has everything its source connects with saved. */
 export function isMarketDataReady(status: MarketDataStatus | undefined) {
@@ -202,14 +218,8 @@ export const mcpQuery = () =>
  * Refetches the settings whenever one, or a saved secret, changes: on this page, in another window
  * or by hand in the config file. Queries that read only those never go stale on their own.
  */
-export function useSettingsChanges() {
-  const queryClient = useQueryClient();
-
-  useEffect(
-    () =>
-      window.solyx.settings.onChanged(() => {
-        void queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all });
-      }),
-    [queryClient]
-  );
+export function followSettingsChanges(queryClient: QueryClient) {
+  window.solyx.settings.onChanged(() => {
+    void queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all });
+  });
 }

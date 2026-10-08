@@ -22,7 +22,7 @@ export const agentSessionsQuery = () =>
 
 /**
  * A conversation folded into what the thread shows. Fetched once; after that, live events fold
- * into the cached view (see `useAgentEvents`), so it never goes stale on its own. A new
+ * into the cached view (see `followAgentEvents`), so it never goes stale on its own. A new
  * conversation (`null`) has none to fetch.
  */
 export const transcriptQuery = (id: string | null) =>

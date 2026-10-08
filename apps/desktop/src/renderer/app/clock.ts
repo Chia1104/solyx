@@ -1,5 +1,4 @@
-import { useMemo } from "react";
-
+import { memoize } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 import { create } from "zustand";
@@ -91,13 +90,16 @@ export function clock(
   };
 }
 
-/** The clock the app's language and the user's time zone give, rebuilt when either changes. */
+// Built once per language and zone, since a conversation reads one for every message.
+const sharedClock = memoize(
+  ([locale, timeZone]: [string, TimeZone]) => clock(locale, timeZone),
+  { getCacheKey: ([locale, timeZone]) => `${locale} ${timeZone}` }
+);
+
+/** The clock the app's language and the user's time zone give. */
 export function useClock(): Clock {
   const { i18n } = useTranslation();
   const timeZone = useClockStore((state) => resolveTimeZone(state.preference));
 
-  return useMemo(
-    () => clock(i18n.language, timeZone),
-    [i18n.language, timeZone]
-  );
+  return sharedClock([i18n.language, timeZone]);
 }

@@ -19,9 +19,7 @@ import { RailedColumn } from "../../components/sheet.tsx";
 import { agentQueryKeys } from "../agent/agent-query.ts";
 import { useAgentStore } from "../agent/agent-store.ts";
 import { candlesQueryKeys } from "../market/candles-query.ts";
-import { memoryQueryKeys } from "../memory/memory-query.ts";
 import { newsQueryKeys } from "../news/news-query.ts";
-import { researchQueryKeys } from "../research/research-query.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 import { watchlistQueryKeys } from "../watchlist/watchlist-query.ts";
 
@@ -48,12 +46,13 @@ function formatBytes(bytes: number, locale: string) {
 }
 
 /** What the rest of the workspace shows of each kind, read again once it is cleared. */
-const SHOWN_ELSEWHERE: Record<StoredData, QueryKey> = {
+const SHOWN_ELSEWHERE: Record<StoredData, QueryKey | null> = {
   [StoredData.Candles]: candlesQueryKeys.all,
   [StoredData.Conversations]: agentQueryKeys.sessions,
-  [StoredData.Memory]: memoryQueryKeys.all,
+  // Memory and research push their own clearing.
+  [StoredData.Memory]: null,
   [StoredData.News]: newsQueryKeys.all,
-  [StoredData.Research]: researchQueryKeys.all,
+  [StoredData.Research]: null,
   [StoredData.Watchlist]: watchlistQueryKeys.all,
 };
 
@@ -80,9 +79,11 @@ function ClearButton({
         queryClient.removeQueries({ queryKey: agentQueryKeys.transcripts });
       }
 
+      const shown = SHOWN_ELSEWHERE[data];
+
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: storageQueryKeys.all }),
-        queryClient.invalidateQueries({ queryKey: SHOWN_ELSEWHERE[data] }),
+        shown && queryClient.invalidateQueries({ queryKey: shown }),
       ]);
     },
   });

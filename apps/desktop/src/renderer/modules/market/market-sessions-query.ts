@@ -1,6 +1,5 @@
-import { useEffect } from "react";
-
-import { queryOptions, useQueryClient } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
 import { settingsQueryKeys } from "../settings/settings-query.ts";
 
@@ -11,26 +10,20 @@ export const marketQueryKeys = {
   sessions: [...all, "sessions"] as const,
 };
 
-/** Sessions change with the clock rather than with any write, so they poll. */
+/** Never stale on its own, since `followQuotes` polls it for every reader. */
 export const marketSessionsQuery = () =>
   queryOptions({
     queryKey: marketQueryKeys.sessions,
     queryFn: () => window.solyx.market.sessions(),
-    refetchInterval: 5 * 1000,
+    staleTime: Infinity,
   });
 
 /** Loads bars, names and the sources' state again whenever the main process says the sources changed. */
-export function useMarketDataChanges() {
-  const queryClient = useQueryClient();
-
-  useEffect(
-    () =>
-      window.solyx.market.onSourcesChanged(() => {
-        void queryClient.invalidateQueries({ queryKey: marketQueryKeys.all });
-        void queryClient.invalidateQueries({
-          queryKey: settingsQueryKeys.marketData,
-        });
-      }),
-    [queryClient]
-  );
+export function followMarketDataChanges(queryClient: QueryClient) {
+  window.solyx.market.onSourcesChanged(() => {
+    void queryClient.invalidateQueries({ queryKey: marketQueryKeys.all });
+    void queryClient.invalidateQueries({
+      queryKey: settingsQueryKeys.marketData,
+    });
+  });
 }
