@@ -16,7 +16,7 @@ import {
   QuotePrice,
   directionOf,
 } from "../market/quote-figures.tsx";
-import { useQuote } from "../market/quote-query.ts";
+import { quoteQuery } from "../market/quote-query.ts";
 
 import { accountQuery } from "./account-query.ts";
 
@@ -29,7 +29,7 @@ function PositionGain({
   position: Position;
 }) {
   const { t, i18n } = useTranslation();
-  const { data } = useQuote(symbol);
+  const { data } = useQuery(quoteQuery(symbol));
   const direction = useDirectionColors(symbol.market);
   const format = numberFormats(i18n.language);
 

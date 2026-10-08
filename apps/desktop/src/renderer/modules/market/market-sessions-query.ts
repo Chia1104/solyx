@@ -10,12 +10,12 @@ export const marketQueryKeys = {
   sessions: [...all, "sessions"] as const,
 };
 
-/** Sessions change with the clock rather than with any write, so they poll. */
+/** Never stale on its own, since `followQuotes` polls it for every reader. */
 export const marketSessionsQuery = () =>
   queryOptions({
     queryKey: marketQueryKeys.sessions,
     queryFn: () => window.solyx.market.sessions(),
-    refetchInterval: 5 * 1000,
+    staleTime: Infinity,
   });
 
 /** Loads bars, names and the sources' state again whenever the main process says the sources changed. */

@@ -12,7 +12,7 @@ import { router } from "./app/router.tsx";
 import { followAppearance } from "./app/theme.ts";
 import { followAgentEvents } from "./modules/agent/agent-events.ts";
 import { followMarketDataChanges } from "./modules/market/market-sessions-query.ts";
-import { followAfterHours } from "./modules/market/quote-query.ts";
+import { followQuotes } from "./modules/market/quote-query.ts";
 import { followMemoryChanges } from "./modules/memory/memory-query.ts";
 import { followNewsChanges } from "./modules/news/news-query.ts";
 import { followProposalChanges } from "./modules/proposals/proposals-query.ts";
@@ -24,11 +24,11 @@ import { followUpdateChanges } from "./modules/updates/updates-query.ts";
 // every change, whichever page is open.
 for (const follow of [
   followAgentEvents,
-  followAfterHours,
   followMarketDataChanges,
   followMemoryChanges,
   followNewsChanges,
   followProposalChanges,
+  followQuotes,
   followResearchChanges,
   followSettingsChanges,
   followUpdateChanges,
