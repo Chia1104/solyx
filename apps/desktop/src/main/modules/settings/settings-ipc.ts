@@ -15,6 +15,7 @@ import {
 import { MagiUnit, decisionModeSchema } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
 import { decisionsProviderSchema } from "@solyx/decisions/provider";
+import { finMindPlanSchema } from "@solyx/fundamentals/finmind";
 import { fuglePlanSchema } from "@solyx/market-data/fugle";
 import { webSearchProviderSchema } from "@solyx/web-search/provider";
 
@@ -96,6 +97,8 @@ const schemas = {
   signOutSubscription: z.tuple([agentProviderSchema]),
   news: z.tuple([]),
   setNewsCollectEveryHours: z.tuple([newsIntervalSchema]),
+  fundamentals: z.tuple([]),
+  setFinMindPlan: z.tuple([finMindPlanSchema]),
   webSearch: z.tuple([]),
   setWebSearchProvider: z.tuple([webSearchProviderSchema]),
   saveWebSearchKey: z.tuple([

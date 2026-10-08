@@ -17,6 +17,10 @@ import type { DecisionMode, MagiUnit } from "@solyx/core/council";
 import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { DecisionsProvider } from "@solyx/decisions/provider";
+import type {
+  FinMindPlan,
+  FinMindPlanLimits,
+} from "@solyx/fundamentals/finmind";
 import type { FuglePlan } from "@solyx/market-data/fugle";
 import { isTimeZone } from "@solyx/utils/is";
 import type { WebSearchProvider } from "@solyx/web-search/provider";
@@ -291,6 +295,11 @@ export interface NewsSettings {
   collectEveryHours: number;
 }
 
+export interface FundamentalsSettings {
+  /** The plans FinMind sells, in its order, and the one the user's token belongs to. */
+  finMind: { plan: FinMindPlan; plans: FinMindPlanLimits[] };
+}
+
 export interface MemorySettings {
   /** The agent reads its memories and may ask to save, rewrite or forget one. */
   enabled: boolean;
@@ -477,6 +486,9 @@ export interface SettingsApi {
   cancelSignIn(): Promise<void>;
   signOutSubscription(provider: AgentProvider): Promise<void>;
   news(): Promise<NewsSettings>;
+  fundamentals(): Promise<FundamentalsSettings>;
+  /** Saves the plan the FinMind token belongs to; its limit and the datasets read follow it at once. */
+  setFinMindPlan(plan: FinMindPlan): Promise<void>;
   setNewsCollectEveryHours(hours: number): Promise<void>;
   webSearch(): Promise<WebSearchSettings>;
   /** Picks the vendor news and the agent search through. */
@@ -572,6 +584,8 @@ export const settingsChannels = {
   signOutSubscription: "settings:sign-out-subscription",
   news: "settings:news",
   setNewsCollectEveryHours: "settings:set-news-collect-every-hours",
+  fundamentals: "settings:fundamentals",
+  setFinMindPlan: "settings:set-finmind-plan",
   webSearch: "settings:web-search",
   setWebSearchProvider: "settings:set-web-search-provider",
   saveWebSearchKey: "settings:save-web-search-key",

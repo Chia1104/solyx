@@ -164,9 +164,26 @@ export function createServices() {
   // One client, so fundamentals and trading days share FinMind's hourly limit.
   const finMind = createFinMind({
     token: () => secrets.get(Secret.FinMindToken),
+    plan: () => config.read().providers.finmind.plan,
   });
 
   const fundamentals = createFundamentals({ providers: [finMind] });
+
+  // The plan and the token set which restrictions FinMind reads, so a change to either reads them again.
+  let finMindPlan = config.read().providers.finmind.plan;
+
+  config.onChange(() => {
+    const plan = config.read().providers.finmind.plan;
+
+    if (plan === finMindPlan) return;
+
+    finMindPlan = plan;
+    fundamentals.forget();
+  });
+
+  secrets.onChange((secret) => {
+    if (secret === Secret.FinMindToken) fundamentals.forget();
+  });
 
   const tradingDays = createTradingCalendar({ providers: [finMind] });
 

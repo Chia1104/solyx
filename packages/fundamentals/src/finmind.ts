@@ -2,13 +2,15 @@ import { groupBy } from "es-toolkit";
 import ky, { isHTTPError } from "ky";
 import * as z from "zod";
 
+import { RestrictionKind } from "@solyx/core/fundamentals";
 import type {
   Dividend,
   FundamentalsProvider,
   MonthlyRevenue,
   QuarterStatement,
+  TradingRestriction,
 } from "@solyx/core/fundamentals";
-import { Market } from "@solyx/core/market";
+import { Market, shiftDate } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { twFilingDeadline } from "@solyx/core/rules/tw";
 import type { TradingCalendarProvider } from "@solyx/core/session";
@@ -16,12 +18,53 @@ import { createRateLimiter } from "@solyx/utils/rate-limit";
 
 const FINMIND_API_URL = "https://api.finmindtrade.com/api/v4/";
 
-// What FinMind allows an hour: without a token, and with a registered one.
+// What FinMind allows an hour without a token, whatever the plan.
 const ANONYMOUS_REQUESTS = 300;
 
-const TOKEN_REQUESTS = 600;
-
 const HOUR_MS = 60 * 60 * 1000;
+
+export const FinMindPlan = {
+  Free: "free",
+  Backer: "backer",
+  Sponsor: "sponsor",
+  SponsorPro: "sponsor-pro",
+} as const;
+
+export type FinMindPlan = (typeof FinMindPlan)[keyof typeof FinMindPlan];
+
+export const finMindPlanSchema = z.enum(FinMindPlan);
+
+/** What a FinMind plan allows its token. */
+export interface FinMindPlanLimits {
+  id: FinMindPlan;
+  requestsPerHour: number;
+  /** Whether it reads the datasets FinMind keeps for paying members, such as dispositions and halts. */
+  memberDatasets: boolean;
+}
+
+/** FinMind's published limits. */
+export const FINMIND_PLANS = {
+  [FinMindPlan.Free]: {
+    id: FinMindPlan.Free,
+    requestsPerHour: 600,
+    memberDatasets: false,
+  },
+  [FinMindPlan.Backer]: {
+    id: FinMindPlan.Backer,
+    requestsPerHour: 1600,
+    memberDatasets: true,
+  },
+  [FinMindPlan.Sponsor]: {
+    id: FinMindPlan.Sponsor,
+    requestsPerHour: 6000,
+    memberDatasets: true,
+  },
+  [FinMindPlan.SponsorPro]: {
+    id: FinMindPlan.SponsorPro,
+    requestsPerHour: 20_000,
+    memberDatasets: true,
+  },
+} satisfies { [Plan in FinMindPlan]: FinMindPlanLimits & { id: Plan } };
 
 const responseSchema = z.object({ data: z.array(z.unknown()) });
 
@@ -60,6 +103,28 @@ const dividendRowSchema = z.object({
 
 const tradingDateRowSchema = z.object({ date: z.iso.date() });
 
+// A suspension of selling short or of day trading that sells first, from its first day to its last.
+const suspensionRowSchema = z.object({
+  stock_id: z.string(),
+  date: z.iso.date(),
+  end_date: z.iso.date(),
+  reason: z.string(),
+});
+
+const dispositionRowSchema = z.object({
+  stock_id: z.string(),
+  measure: z.string(),
+  period_start: z.iso.date(),
+  period_end: z.iso.date(),
+});
+
+// FinMind leaves the day trading resumes empty while none is set.
+const haltRowSchema = z.object({
+  stock_id: z.string(),
+  date: z.iso.date(),
+  resumption_date: dayOrUnsetSchema,
+});
+
 const failureSchema = z.object({ msg: z.string() });
 
 // Net income attributable to the parent's owners, then the whole group's where FinMind names only that.
@@ -69,16 +134,23 @@ const NET_INCOME_LINES = [
   "IncomeAfterTax",
 ];
 
+const maxDate = (a: string, b: string) => (a > b ? a : b);
+
 export interface FinMindOptions {
-  /** The user's FinMind token, read for every request; `undefined` asks without one, under the lower limit. */
+  /** The user's FinMind token, read for every request; `undefined` asks without one, under the lowest limit and as the free plan. */
   token?: () => Promise<string | undefined>;
+  /**
+   * The plan the token belongs to, read for every request, which sets the limit and the datasets read.
+   * @default () => FinMindPlan.Free
+   */
+  plan?: () => FinMindPlan;
   /** @default globalThis.fetch */
   fetch?: typeof globalThis.fetch;
 }
 
 /**
- * Taiwan listings' quarterly income statements, monthly revenue and dividends, and the days the
- * exchange trades, from FinMind on the user's token or none.
+ * Taiwan listings' quarterly income statements, monthly revenue, dividends and restrictions, and
+ * the days the exchange trades, from FinMind on the user's token and plan or none.
  */
 export function createFinMind(
   options: FinMindOptions = {}
@@ -105,14 +177,35 @@ export function createFinMind(
     },
   });
 
-  // Each limit is FinMind's own, counted per hour, so the two are kept apart.
-  const budgets = {
-    anonymous: createRateLimiter({
-      limit: ANONYMOUS_REQUESTS,
-      windowMs: HOUR_MS,
-    }),
-    token: createRateLimiter({ limit: TOKEN_REQUESTS, windowMs: HOUR_MS }),
+  // Each limit is FinMind's own, counted per hour, so each is kept apart.
+  const budgets = new Map<number, ReturnType<typeof createRateLimiter>>();
+
+  const budget = (limit: number) => {
+    const held = budgets.get(limit);
+
+    if (held) return held;
+
+    const created = createRateLimiter({ limit, windowMs: HOUR_MS });
+
+    budgets.set(limit, created);
+
+    return created;
   };
+
+  /** What the user's token, or none, allows. */
+  async function access() {
+    const token = await options.token?.();
+
+    if (token === undefined) {
+      return {
+        token,
+        requestsPerHour: ANONYMOUS_REQUESTS,
+        memberDatasets: false,
+      };
+    }
+
+    return { token, ...FINMIND_PLANS[options.plan?.() ?? FinMindPlan.Free] };
+  }
 
   /** A dataset's rows, each dropped unless it parses. */
   async function data<Row>(
@@ -120,10 +213,9 @@ export function createFinMind(
     params: Record<string, string>,
     schema: z.ZodType<Row>
   ): Promise<Row[]> {
-    const token = await options.token?.();
-    const budget = token === undefined ? budgets.anonymous : budgets.token;
+    const { token, requestsPerHour } = await access();
 
-    const response = await budget(() =>
+    const response = await budget(requestsPerHour)(() =>
       api
         .get("data", {
           headers:
@@ -231,6 +323,70 @@ export function createFinMind(
           ({ announced, cash, stock }) => announced >= since && cash + stock > 0
         )
         .toSorted((a, b) => a.announced.localeCompare(b.announced));
+    },
+
+    async getRestrictions(symbol, since) {
+      if (symbol.market !== Market.TW) return [];
+
+      const own = ({ stock_id }: { stock_id: string }) =>
+        stock_id === symbol.symbol;
+
+      const suspensions = (dataset: string, kind: RestrictionKind) =>
+        rows(dataset, symbol, since, suspensionRowSchema).then((found) =>
+          found.filter(own).map((row): TradingRestriction => ({
+            kind,
+            from: row.date,
+            until: row.end_date,
+            note: row.reason || null,
+          }))
+        );
+
+      const reads = [
+        suspensions(
+          "TaiwanStockMarginShortSaleSuspension",
+          RestrictionKind.ShortSaleSuspension
+        ),
+      ];
+
+      // The rest are for paying members; each is asked by listing and checked by code, since a dataset may answer for every listing at once.
+      if ((await access()).memberDatasets) {
+        reads.push(
+          suspensions(
+            "TaiwanStockDayTradingSuspension",
+            RestrictionKind.DayTradingSuspension
+          ),
+          rows(
+            "TaiwanStockDispositionSecuritiesPeriod",
+            symbol,
+            since,
+            dispositionRowSchema
+          ).then((found) =>
+            found.filter(own).map((row): TradingRestriction => ({
+              kind: RestrictionKind.Disposition,
+              from: row.period_start,
+              until: row.period_end,
+              note: row.measure || null,
+            }))
+          ),
+          rows("TaiwanStockSuspended", symbol, since, haltRowSchema).then(
+            (found) =>
+              found.filter(own).map((row): TradingRestriction => ({
+                kind: RestrictionKind.Halt,
+                from: row.date,
+                // Halted through the day before trading resumes, which may be the day it began.
+                until:
+                  row.resumption_date === null
+                    ? null
+                    : maxDate(row.date, shiftDate(row.resumption_date, -1)),
+                note: null,
+              }))
+          )
+        );
+      }
+
+      return (await Promise.all(reads))
+        .flat()
+        .toSorted((a, b) => a.from.localeCompare(b.from));
     },
 
     async tradingDays(market, since) {

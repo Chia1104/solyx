@@ -6,6 +6,7 @@ import {
   upcomingEvents,
 } from "../src/calendar.ts";
 import type { ListingFilings } from "../src/calendar.ts";
+import { RestrictionKind } from "../src/fundamentals.ts";
 import type { Dividend, QuarterStatement } from "../src/fundamentals.ts";
 import { Market } from "../src/market.ts";
 import { twFilingDeadline } from "../src/rules/tw.ts";
@@ -41,6 +42,7 @@ const NONE: ListingFilings = {
   statements: [],
   monthlyRevenue: [],
   dividends: [],
+  restrictions: [],
 };
 
 const brief = (filings: ListingFilings, today: string, until: string) =>
@@ -144,6 +146,50 @@ test("a distribution's ex and payment days fall on the days the company set, eac
   ]);
 });
 
+test("a restriction comes on its first day, or today while it is in force, with its last day", () => {
+  expect(
+    upcomingEvents(
+      TSMC,
+      {
+        ...NONE,
+        restrictions: [
+          {
+            kind: RestrictionKind.ShortSaleSuspension,
+            from: "2026-10-05",
+            until: "2026-10-12",
+            note: "除息",
+          },
+          {
+            kind: RestrictionKind.Disposition,
+            from: "2026-10-15",
+            until: "2026-10-28",
+            note: "第一次處置",
+          },
+          {
+            kind: RestrictionKind.Halt,
+            from: "2026-09-01",
+            until: null,
+            note: null,
+          },
+          // Over before today.
+          {
+            kind: RestrictionKind.DayTradingSuspension,
+            from: "2026-09-10",
+            until: "2026-09-15",
+            note: "除息",
+          },
+        ],
+      },
+      "2026-10-08",
+      "2026-11-07"
+    ).map(({ date, kind, subject, until }) => [date, kind, subject, until])
+  ).toEqual([
+    ["2026-10-08", ListingEventKind.ShortSaleSuspension, "除息", "2026-10-12"],
+    ["2026-10-08", ListingEventKind.Halt, "", null],
+    ["2026-10-15", ListingEventKind.Disposition, "第一次處置", "2026-10-28"],
+  ]);
+});
+
 test("outside Taiwan no rules set a filing deadline", () => {
   const apple = { market: Market.US, symbol: "AAPL" };
 
@@ -154,6 +200,7 @@ test("outside Taiwan no rules set a filing deadline", () => {
         statements: [quarter("2026-06-30")],
         monthlyRevenue: [],
         dividends: [dividend({ cash: 0.26, cashExDate: "2026-11-09" })],
+        restrictions: [],
       },
       "2026-10-08",
       "2026-11-30"

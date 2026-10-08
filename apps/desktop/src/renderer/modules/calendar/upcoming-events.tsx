@@ -17,7 +17,7 @@ import { numberFormats } from "../market/number-formats.ts";
 
 import { CALENDAR_DAYS, upcomingEventsQuery } from "./calendar-query.ts";
 
-/** What an event is, in words: the period a filing covers, or a distribution's amount. */
+/** What an event is, in words: the period a filing covers, a distribution's amount, or how long a restriction lasts and why. */
 function EventLabel({ event }: { event: ListingEvent }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
@@ -34,10 +34,31 @@ function EventLabel({ event }: { event: ListingEvent }) {
 
     case ListingEventKind.MonthlyRevenue:
       return t("calendar.kinds.monthly-revenue", { month: event.subject });
-    default:
+    case ListingEventKind.ExDividend:
+    case ListingEventKind.ExRights:
+    case ListingEventKind.DividendPayment:
       return t(`calendar.kinds.${event.kind}`, {
         amount: format.price.format(event.amount ?? 0),
       });
+    default: {
+      const detail = [
+        event.until === null
+          ? null
+          : t("calendar.until", { date: event.until.slice("YYYY-".length) }),
+        event.subject || null,
+      ].filter((part) => part !== null);
+
+      return (
+        <>
+          {t(`calendar.kinds.${event.kind}`)}
+          {detail.length === 0 ? null : (
+            <span className="ms-1.5 text-xs text-muted">
+              {detail.join(" · ")}
+            </span>
+          )}
+        </>
+      );
+    }
   }
 }
 

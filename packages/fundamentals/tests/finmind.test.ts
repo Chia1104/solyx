@@ -1,8 +1,9 @@
 import { expect, test } from "vite-plus/test";
 
+import { RestrictionKind } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
 
-import { createFinMind } from "../src/finmind.ts";
+import { FinMindPlan, createFinMind } from "../src/finmind.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 
@@ -35,6 +36,93 @@ function fakeFinMindOn(
     finmind: createFinMind({ fetch, token: async () => token }),
   };
 }
+
+/** Answers each dataset with its rows, and none for a dataset not given. */
+function fakeDatasets(
+  access: { token?: string; plan?: FinMindPlan },
+  datasets: Record<string, unknown[]>
+) {
+  const sent: string[] = [];
+
+  const fetch = async (input: string | URL | Request, init?: RequestInit) => {
+    const dataset =
+      new URL(new Request(input, init).url).searchParams.get("dataset") ?? "";
+
+    sent.push(dataset);
+
+    return Response.json({ msg: "success", data: datasets[dataset] ?? [] });
+  };
+
+  return {
+    sent,
+    finmind: createFinMind({
+      fetch,
+      token: async () => access.token,
+      plan: () => access.plan ?? FinMindPlan.Free,
+    }),
+  };
+}
+
+const RESTRICTIONS = {
+  TaiwanStockMarginShortSaleSuspension: [
+    {
+      stock_id: "2330",
+      date: "2026-10-05",
+      end_date: "2026-10-12",
+      reason: "除息",
+    },
+    // Another listing's, which a dataset may answer with too.
+    {
+      stock_id: "0050",
+      date: "2026-10-05",
+      end_date: "2026-10-12",
+      reason: "分配收益",
+    },
+  ],
+  TaiwanStockDayTradingSuspension: [
+    {
+      stock_id: "2330",
+      date: "2026-10-06",
+      end_date: "2026-10-12",
+      reason: "除息",
+    },
+  ],
+  TaiwanStockDispositionSecuritiesPeriod: [
+    {
+      date: "2026-10-14",
+      stock_id: "2330",
+      stock_name: "台積電",
+      disposition_cnt: 1,
+      condition: "連續三次",
+      measure: "第一次處置",
+      period_start: "2026-10-15",
+      period_end: "2026-10-28",
+    },
+  ],
+  TaiwanStockSuspended: [
+    {
+      stock_id: "2330",
+      date: "2026-10-01",
+      suspension_time: "8:00",
+      resumption_date: "2026-10-03",
+      resumption_time: "8:00",
+    },
+    {
+      stock_id: "2330",
+      date: "2026-10-20",
+      suspension_time: "10:30",
+      resumption_date: "2026-10-20",
+      resumption_time: "13:00",
+    },
+    {
+      stock_id: "2330",
+      date: "2026-10-30",
+      suspension_time: "8:00",
+      resumption_date: "",
+      resumption_time: "",
+    },
+  ],
+};
 
 const line = (date: string, type: string, value: number) => ({
   date,
@@ -232,6 +320,84 @@ test("reads the days Taiwan's exchange trades from a day on, for every listing a
   });
 });
 
+test("the free plan reads a listing's short-sale suspensions alone", async () => {
+  const { sent, finmind } = fakeDatasets(
+    { token: "fm-token", plan: FinMindPlan.Free },
+    RESTRICTIONS
+  );
+
+  expect(await finmind.getRestrictions(TSMC, "2025-10-08")).toEqual([
+    {
+      kind: RestrictionKind.ShortSaleSuspension,
+      from: "2026-10-05",
+      until: "2026-10-12",
+      note: "除息",
+    },
+  ]);
+  expect(sent).toEqual(["TaiwanStockMarginShortSaleSuspension"]);
+});
+
+test("a paid plan also reads day-trading suspensions, dispositions and halts, each kept to the listing", async () => {
+  const { sent, finmind } = fakeDatasets(
+    { token: "fm-token", plan: FinMindPlan.Backer },
+    RESTRICTIONS
+  );
+
+  expect(await finmind.getRestrictions(TSMC, "2025-10-08")).toEqual([
+    // Halted through the day before trading resumed.
+    {
+      kind: RestrictionKind.Halt,
+      from: "2026-10-01",
+      until: "2026-10-02",
+      note: null,
+    },
+    {
+      kind: RestrictionKind.ShortSaleSuspension,
+      from: "2026-10-05",
+      until: "2026-10-12",
+      note: "除息",
+    },
+    {
+      kind: RestrictionKind.DayTradingSuspension,
+      from: "2026-10-06",
+      until: "2026-10-12",
+      note: "除息",
+    },
+    {
+      kind: RestrictionKind.Disposition,
+      from: "2026-10-15",
+      until: "2026-10-28",
+      note: "第一次處置",
+    },
+    // Resumed the day it began.
+    {
+      kind: RestrictionKind.Halt,
+      from: "2026-10-20",
+      until: "2026-10-20",
+      note: null,
+    },
+    // No day set to resume.
+    {
+      kind: RestrictionKind.Halt,
+      from: "2026-10-30",
+      until: null,
+      note: null,
+    },
+  ]);
+  expect(sent.toSorted()).toEqual(Object.keys(RESTRICTIONS).toSorted());
+});
+
+test("without a token a paid plan reads as the free one", async () => {
+  const { sent, finmind } = fakeDatasets(
+    { plan: FinMindPlan.Sponsor },
+    RESTRICTIONS
+  );
+
+  await finmind.getRestrictions(TSMC, "2025-10-08");
+
+  expect(sent).toEqual(["TaiwanStockMarginShortSaleSuspension"]);
+});
+
 test("outside Taiwan there is nothing to read, and it costs no request", async () => {
   const { sent, finmind } = fakeFinMind();
   const apple = { market: Market.US, symbol: "AAPL" };
@@ -239,6 +405,7 @@ test("outside Taiwan there is nothing to read, and it costs no request", async (
   expect(await finmind.getStatements(apple, "2025-01-01")).toEqual([]);
   expect(await finmind.getMonthlyRevenue(apple, "2025-01")).toEqual([]);
   expect(await finmind.getDividends(apple, "2025-01-01")).toEqual([]);
+  expect(await finmind.getRestrictions(apple, "2025-01-01")).toEqual([]);
   expect(await finmind.tradingDays(Market.US, "2025-01-01")).toEqual([]);
   expect(sent).toEqual([]);
 });

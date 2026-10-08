@@ -1,9 +1,11 @@
 import { sortBy } from "es-toolkit";
 
+import { RestrictionKind } from "./fundamentals.ts";
 import type {
   Dividend,
   MonthlyRevenue,
   QuarterStatement,
+  TradingRestriction,
 } from "./fundamentals.ts";
 import { Market } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
@@ -21,6 +23,7 @@ export const ListingEventKind = {
   ExRights: "ex-rights",
   /** A cash dividend is paid. */
   DividendPayment: "dividend-payment",
+  ...RestrictionKind,
 } as const;
 
 export type ListingEventKind =
@@ -39,13 +42,15 @@ export type EventTiming = (typeof EventTiming)[keyof typeof EventTiming];
 export interface ListingEvent {
   symbol: SymbolRef;
   kind: ListingEventKind;
-  /** `YYYY-MM-DD` on the exchange's calendar. */
+  /** `YYYY-MM-DD` on the exchange's calendar; today for a restriction already in force. */
   date: string;
   timing: EventTiming;
-  /** What it is about: a quarter's last day, a month (`YYYY-MM`) or a distribution's period. */
+  /** What it is about: a quarter's last day, a month (`YYYY-MM`), a distribution's period or a restriction's note. */
   subject: string;
-  /** A distribution's cash or stock per share, in the market's currency; `null` for a filing. */
+  /** A distribution's cash or stock per share, in the market's currency; `null` for a filing or a restriction. */
   amount: number | null;
+  /** A restriction's last day; `null` for an event of one day or a restriction with no end set. */
+  until: string | null;
 }
 
 /** What a listing's events are derived from, as `Fundamentals` serves it. */
@@ -53,6 +58,7 @@ export interface ListingFilings {
   statements: readonly QuarterStatement[];
   monthlyRevenue: readonly MonthlyRevenue[];
   dividends: readonly Dividend[];
+  restrictions: readonly TradingRestriction[];
 }
 
 function quarterEnd(periodEnd: string, quarters: number): string {
@@ -94,12 +100,12 @@ function duePeriods(
 /**
  * A listing's events from `today` through `until` (`YYYY-MM-DD` on the exchange's calendar),
  * soonest first: each quarter's statements and month's revenue not out yet, by the day they are
- * due, and the days its distributions go ex and are paid. Only Taiwan's rules set filing
- * deadlines, so elsewhere a listing has its distributions alone.
+ * due, the days its distributions go ex and are paid, and its restrictions, those in force today
+ * among them. Only Taiwan's rules set filing deadlines, so elsewhere a listing has no filings.
  */
 export function upcomingEvents(
   symbol: SymbolRef,
-  { statements, monthlyRevenue, dividends }: ListingFilings,
+  { statements, monthlyRevenue, dividends, restrictions }: ListingFilings,
   today: string,
   until: string
 ): ListingEvent[] {
@@ -118,6 +124,7 @@ export function upcomingEvents(
             timing: EventTiming.Deadline,
             subject: period,
             amount: null,
+            until: null,
           })),
           ...duePeriods(
             monthlyRevenue.at(-1)?.month,
@@ -131,6 +138,7 @@ export function upcomingEvents(
             timing: EventTiming.Deadline,
             subject: period,
             amount: null,
+            until: null,
           })),
         ]
       : [];
@@ -163,13 +171,30 @@ export function upcomingEvents(
               timing: EventTiming.Set,
               subject: dividend.period,
               amount,
+              until: null,
             },
           ]
     )
   );
 
+  const limits = restrictions.flatMap((restriction): ListingEvent[] =>
+    restriction.until !== null && restriction.until < today
+      ? []
+      : [
+          {
+            symbol,
+            kind: restriction.kind,
+            date: restriction.from < today ? today : restriction.from,
+            timing: EventTiming.Set,
+            subject: restriction.note ?? "",
+            amount: null,
+            until: restriction.until,
+          },
+        ]
+  );
+
   return sortBy(
-    [...filings, ...distributions].filter(
+    [...filings, ...distributions, ...limits].filter(
       ({ date }) => date >= today && date <= until
     ),
     [({ date }) => date]

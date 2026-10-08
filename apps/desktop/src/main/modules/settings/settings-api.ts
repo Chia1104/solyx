@@ -7,6 +7,7 @@ import { effectivePolicy, mcpToolKey } from "@solyx/agent/mcp-config";
 import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillFolders } from "@solyx/agent/skills";
 import { DecisionsProvider } from "@solyx/decisions/provider";
+import { FINMIND_PLANS } from "@solyx/fundamentals/finmind";
 
 import {
   AppLocation,
@@ -187,6 +188,17 @@ export function createSettingsApi({
 
     async setNewsCollectEveryHours(hours) {
       config.set(["news", "collectEveryHours"], hours);
+    },
+
+    fundamentals: async () => ({
+      finMind: {
+        plan: config.read().providers.finmind.plan,
+        plans: Object.values(FINMIND_PLANS),
+      },
+    }),
+
+    async setFinMindPlan(plan) {
+      config.set(["providers", "finmind", "plan"], plan);
     },
 
     webSearch: () => webSearch.settings(),

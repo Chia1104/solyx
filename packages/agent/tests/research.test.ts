@@ -189,6 +189,7 @@ function setup(council?: Council) {
     statements: async () => filed.quarters,
     monthlyRevenue: async () => filed.months,
     dividends: async () => filed.dividends,
+    restrictions: async () => [],
   };
 
   const desk = new ResearchDesk({

@@ -33,6 +33,7 @@ import {
   TYPESAFE_BASE_URL,
   TYPESAFE_DEFAULT_MODEL,
 } from "@solyx/decisions/typesafe";
+import { FinMindPlan, finMindPlanSchema } from "@solyx/fundamentals/finmind";
 import { FuglePlan, fuglePlanSchema } from "@solyx/market-data/fugle";
 import { isErrnoError } from "@solyx/utils/error";
 import { watchFile } from "@solyx/utils/server";
@@ -132,6 +133,13 @@ const configSchema = section(
             plan: fuglePlanSchema
               .catch(FuglePlan.Basic)
               .meta({ description: "Your Fugle key's plan." }),
+          })
+        ),
+        finmind: section(
+          z.looseObject({
+            plan: finMindPlanSchema
+              .catch(FinMindPlan.Free)
+              .meta({ description: "Your FinMind token's plan." }),
           })
         ),
         fubon: section(
@@ -318,7 +326,7 @@ type ConfigPath =
   | ["appearance", "palettes", string, "name"]
   | ["appearance", "palettes", string, ColorScheme, PaletteToken]
   | ["marketData", typeof Market.TW]
-  | ["providers", "fugle", "plan"]
+  | ["providers", "fugle" | "finmind", "plan"]
   | ["providers", "fubon", FubonFile]
   | [
       "agent",
