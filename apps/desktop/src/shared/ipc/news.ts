@@ -1,5 +1,10 @@
 import type { SymbolRef } from "@solyx/core/market";
-import type { NewsChannel, NewsRecord, SourceHealth } from "@solyx/core/news";
+import type {
+  Headline,
+  NewsChannel,
+  NewsRecord,
+  SourceHealth,
+} from "@solyx/core/news";
 
 /** A source a listing's news is searched in, and how its searches have gone. */
 export interface NewsSourceStatus {
@@ -21,6 +26,12 @@ export interface NewsApi {
   records(symbol: SymbolRef, days: number): Promise<NewsRecord[]>;
   /** Where a listing's news comes from, so a quiet listing can be told from a broken source. */
   coverage(symbol: SymbolRef): Promise<NewsCoverage>;
+  /** The `limit` heaviest headlines about the listings over the last `days` days. */
+  headlines(
+    symbols: SymbolRef[],
+    days: number,
+    limit: number
+  ): Promise<Headline[]>;
 }
 
 /** Pushes from the main process; each subscription returns a function that stops listening. */
@@ -32,6 +43,7 @@ export interface NewsEvents {
 export const newsChannels = {
   records: "news:records",
   coverage: "news:coverage",
+  headlines: "news:headlines",
 } as const satisfies Record<keyof NewsApi, string>;
 
 export const newsEvents = {

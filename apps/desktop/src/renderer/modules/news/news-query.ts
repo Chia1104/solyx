@@ -2,14 +2,22 @@ import { useEffect } from "react";
 
 import { queryOptions, useQueryClient } from "@tanstack/react-query";
 
+import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
 /** The window the symbol page shows. */
 export const NEWS_DAYS = 7;
 
+/** The window the overview's headlines are drawn from. */
+export const HEADLINE_DAYS = 7;
+
+const HEADLINE_COUNT = 8;
+
 const all = ["news"] as const;
 
 const coverage = [...all, "coverage"] as const;
+
+const headlines = [...all, "headlines"] as const;
 
 export const newsQueryKeys = {
   all,
@@ -17,6 +25,8 @@ export const newsQueryKeys = {
     [...all, "records", symbol.market, symbol.symbol] as const,
   coverage: (symbol: SymbolRef) =>
     [...coverage, symbol.market, symbol.symbol] as const,
+  headlines: (symbols: SymbolRef[]) =>
+    [...headlines, symbols.map(symbolKey)] as const,
 };
 
 /** Never stale: the main process says when what is stored about the listing changes. */
@@ -34,9 +44,18 @@ export const newsCoverageQuery = (symbol: SymbolRef) =>
     queryFn: () => window.solyx.news.coverage(symbol),
   });
 
+/** Never stale: the main process says when what is stored about any listing changes. */
+export const newsHeadlinesQuery = (symbols: SymbolRef[]) =>
+  queryOptions({
+    queryKey: newsQueryKeys.headlines(symbols),
+    queryFn: () =>
+      window.solyx.news.headlines(symbols, HEADLINE_DAYS, HEADLINE_COUNT),
+    staleTime: Infinity,
+  });
+
 /**
  * Refetches a listing's news whenever the main process collects or scores some, and every
- * listing's coverage, since sources are shared.
+ * listing's coverage and the headlines, since sources are shared and headlines span listings.
  */
 export function useNewsChanges() {
   const queryClient = useQueryClient();
@@ -48,6 +67,7 @@ export function useNewsChanges() {
           queryKey: newsQueryKeys.records(symbol),
         });
         void queryClient.invalidateQueries({ queryKey: coverage });
+        void queryClient.invalidateQueries({ queryKey: headlines });
       }),
     [queryClient]
   );

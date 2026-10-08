@@ -2,10 +2,11 @@ import { join } from "node:path";
 
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import type { WebContents } from "electron";
-import { kebabCase, omit } from "es-toolkit";
+import { kebabCase, omit, uniqBy } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
-import { Currency } from "@solyx/core/market";
+import { Currency, symbolKey } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import { OrderDesk } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
 import { Session } from "@solyx/core/session";
@@ -199,9 +200,23 @@ export function createServices() {
     fundamentals,
   });
 
+  /** What the user holds, then what they watch, each once; a broker that cannot be read leaves the watchlist. */
+  async function followedListings(): Promise<SymbolRef[]> {
+    const held = await desk.account().then(
+      ({ positions }) =>
+        positions.map(({ instrument: { market, symbol } }) => ({
+          market,
+          symbol,
+        })),
+      () => []
+    );
+
+    return uniqBy([...held, ...userData.watchlist.list()], symbolKey);
+  }
+
   const newsCollector = createNewsCollector({
     news,
-    watchlist: () => userData.watchlist.list(),
+    listings: followedListings,
     collectEveryHours: () => config.read().news.collectEveryHours,
   });
 

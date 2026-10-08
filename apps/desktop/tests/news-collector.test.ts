@@ -23,14 +23,14 @@ function setup(hours: number) {
 
   const collector = createNewsCollector({
     news: { refresh },
-    watchlist: () => [TSMC, FOXCONN],
+    listings: async () => [TSMC, FOXCONN],
     collectEveryHours: () => hours,
   });
 
   return { collector, refresh };
 }
 
-test("each watched listing is refreshed in turn at the interval set", async () => {
+test("each listing held or watched is refreshed in turn at the interval set", async () => {
   const { collector, refresh } = setup(72);
 
   await collector.check();

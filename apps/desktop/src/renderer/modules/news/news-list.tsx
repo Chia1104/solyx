@@ -27,7 +27,7 @@ import { newsRecordsQuery, useNewsChanges } from "./news-query.ts";
 import { GaugeBar, SentimentGauge } from "./sentiment-gauge.tsx";
 
 /** A publication time no more exact than its source tells it, without the year. */
-function PublishedTime({
+export function PublishedTime({
   market,
   published,
 }: {

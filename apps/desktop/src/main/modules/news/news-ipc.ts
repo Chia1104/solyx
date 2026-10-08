@@ -13,6 +13,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const schemas = {
   records: z.tuple([symbolRefSchema, z.number().int().min(1).max(90)]),
   coverage: z.tuple([symbolRefSchema]),
+  headlines: z.tuple([
+    z.array(symbolRefSchema).max(500),
+    z.number().int().min(1).max(90),
+    z.number().int().min(1).max(50),
+  ]),
 };
 
 export function registerNewsIpc({ news }: Services) {
@@ -20,5 +25,7 @@ export function registerNewsIpc({ news }: Services) {
     records: async (symbol, days) =>
       news.records(symbol, new Date(Date.now() - days * DAY_MS)),
     coverage: (symbol) => news.coverage(symbol),
+    headlines: async (symbols, days, limit) =>
+      news.headlines(symbols, new Date(Date.now() - days * DAY_MS), limit),
   });
 }

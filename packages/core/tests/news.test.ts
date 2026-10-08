@@ -1,15 +1,17 @@
 import { expect, test } from "vite-plus/test";
 
 import { Market } from "../src/market.ts";
+import type { SymbolRef } from "../src/market.ts";
 import {
   NewsChannel,
   NewsVoice,
   TimePrecision,
   dailySentiment,
   newsStories,
+  rankHeadlines,
   sentimentGauge,
 } from "../src/news.ts";
-import type { NewsItem, NewsRecord } from "../src/news.ts";
+import type { ListingRecord, NewsItem, NewsRecord } from "../src/news.ts";
 import { Stance, TextKind, TextTopic } from "../src/sentiment.ts";
 import type { SentimentScore } from "../src/sentiment.ts";
 
@@ -257,4 +259,126 @@ test("a story is led by its earliest scored record and weighed once", () => {
       }),
     ]).overall
   ).toEqual({ score: 75, stories: 2 });
+});
+
+const TSMC = { market: Market.TW, symbol: "2330" };
+
+const FOXCONN = { market: Market.TW, symbol: "2317" };
+
+const foundFor = (
+  symbol: SymbolRef,
+  ...records: NewsRecord[]
+): ListingRecord[] => records.map((record) => ({ symbol, record }));
+
+const headlineTitles = (found: ListingRecord[]) =>
+  rankHeadlines(found, NOW).map(({ story }) => story.lead.item.title);
+
+function about(topic: TextTopic, score: SentimentScore): SentimentScore {
+  return {
+    ...score,
+    topic: { ...SCORE.topic, [TextTopic.Business]: 0, [topic]: 1 },
+  };
+}
+
+test("filings outrank the press and the press the crowd, all else alike", () => {
+  expect(
+    headlineTitles(
+      foundFor(
+        TSMC,
+        told("PTT 熱議台積電法說會內容", "2026-10-02T02:00:00Z", {
+          channel: NewsChannel.Forum,
+        }),
+        told("台積電董事會決議配發現金股利", "2026-10-02T02:00:00Z", {
+          channel: NewsChannel.Announcement,
+        }),
+        told("台積電法說會上修全年營收展望", "2026-10-02T02:00:00Z")
+      )
+    )
+  ).toEqual([
+    "台積電董事會決議配發現金股利",
+    "台積電法說會上修全年營收展望",
+    "PTT 熱議台積電法說會內容",
+  ]);
+});
+
+test("a story told more often or more lately weighs more", () => {
+  expect(
+    headlineTitles(
+      foundFor(
+        TSMC,
+        told("台積電擬赴美設第二園區", "2026-09-27T02:00:00Z"),
+        told("台積電法說會上修全年營收展望", "2026-10-02T02:00:00Z"),
+        ...["money.udn.com", "cnyes.com", "ctee.com.tw"].map((site) =>
+          told("台積電十月營收創新高", "2026-10-01T02:00:00Z", { site })
+        )
+      )
+    )
+  ).toEqual([
+    "台積電十月營收創新高",
+    "台積電法說會上修全年營收展望",
+    "台積電擬赴美設第二園區",
+  ]);
+});
+
+test("a scored story weighs by how material, relevant and clear its reading is", () => {
+  const at = "2026-10-02T02:00:00Z";
+
+  expect(
+    headlineTitles(
+      foundFor(
+        TSMC,
+        told("台積電第三季獲利優於預期", at, {
+          score: about(TextTopic.Earnings, scored(1, 1)),
+        }),
+        told("台股今日成交量放大", at, {
+          score: about(TextTopic.Market, scored(1, 1)),
+        }),
+        told("台積電將於下週公布財報", at, {
+          score: about(TextTopic.Earnings, scored(1, 0)),
+        }),
+        told("加入群組領台積電飆股明牌", at, {
+          score: about(TextTopic.Earnings, scored(1, 1, 1)),
+        }),
+        // Only names the listing in passing.
+        told("半導體類股今日普遍上漲", at, {
+          score: about(TextTopic.Earnings, scored(0.2, 1)),
+        })
+      )
+    )
+  ).toEqual([
+    "台積電第三季獲利優於預期",
+    "台積電將於下週公布財報",
+    "台股今日成交量放大",
+    "加入群組領台積電飆股明牌",
+  ]);
+});
+
+test("a story found for several listings is one headline, led by the listing it weighs most for", () => {
+  const at = "2026-10-02T02:00:00Z";
+  const title = "鴻海與台積電合作 AI 伺服器";
+
+  const headlines = rankHeadlines(
+    [
+      ...foundFor(
+        TSMC,
+        told(title, at, { score: scored(0.6, 1) }),
+        told("台積電法說會上修全年營收展望", at, {
+          score: about(TextTopic.Guidance, scored(1, 1)),
+        })
+      ),
+      ...foundFor(FOXCONN, told(title, at, { score: scored(1, 1) })),
+    ],
+    NOW
+  );
+
+  expect(
+    headlines.map(({ story, symbols }) => [
+      story.lead.item.title,
+      story.lead.score?.relevance,
+      symbols.map(({ symbol }) => symbol),
+    ])
+  ).toEqual([
+    ["台積電法說會上修全年營收展望", 1, ["2330"]],
+    [title, 1, ["2317", "2330"]],
+  ]);
 });
