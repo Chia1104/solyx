@@ -380,3 +380,23 @@ test("collecting on request searches a resting source too", async () => {
 
   expect(broken.search).toHaveBeenCalledTimes(4);
 });
+
+test("headlines rank what is stored about the listings asked for, heaviest first", () => {
+  const { news } = setup([]);
+  const filings = { id: "filings", channel: NewsChannel.Announcement };
+  const forum = { id: "forum", channel: NewsChannel.Forum };
+
+  data.store.save(TSMC, forum, [item("tsmc post", 30)], NOW);
+  data.store.save(FOXCONN, filings, [item("foxconn filing", 30)], NOW);
+  data.store.save(MEDIATEK, filings, [item("mediatek filing", 30)], NOW);
+
+  expect(
+    news
+      .headlines([TSMC, FOXCONN], SINCE, 5)
+      .map(({ story, symbols }) => [story.lead.item.id, symbols])
+  ).toEqual([
+    ["foxconn filing", [FOXCONN]],
+    ["tsmc post", [TSMC]],
+  ]);
+  expect(news.headlines([TSMC, FOXCONN], SINCE, 1)).toHaveLength(1);
+});

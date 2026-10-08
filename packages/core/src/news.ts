@@ -1,9 +1,9 @@
 import { groupBy, sumBy } from "es-toolkit";
 
 import type { Listing } from "./market-data.ts";
-import { exchangeDate } from "./market.ts";
+import { exchangeDate, symbolKey } from "./market.ts";
 import type { Market, SymbolRef } from "./market.ts";
-import { TextKind, stanceValue } from "./sentiment.ts";
+import { TextKind, TextTopic, stanceValue } from "./sentiment.ts";
 import type { SentimentScore } from "./sentiment.ts";
 
 /** Where items were published, which decides whose voice they carry. */
@@ -82,6 +82,12 @@ export interface NewsRecord {
   score: SentimentScore | null;
 }
 
+/** A record and the listing it was found for. */
+export interface ListingRecord {
+  symbol: SymbolRef;
+  record: NewsRecord;
+}
+
 /** How a source's searches have gone, so a quiet listing can be told from a broken source. */
 export interface SourceHealth {
   source: string;
@@ -111,6 +117,8 @@ export interface NewsStore {
   saveScore(symbol: SymbolRef, record: NewsRecord, score: SentimentScore): void;
   /** A listing's records published since `since`, or found since then when undated, newest first. */
   list(symbol: SymbolRef, since: Date): NewsRecord[];
+  /** `list` for several listings at once, each record with the listing it was found for. */
+  listMany(symbols: readonly SymbolRef[], since: Date): ListingRecord[];
   /** When news was last collected for a listing; `null` before the first time. */
   lastCollected(symbol: SymbolRef): Date | null;
   markCollected(symbol: SymbolRef, at: Date): void;
@@ -358,4 +366,115 @@ export function sentimentGauge(records: readonly NewsRecord[]): SentimentGauge {
       ),
     },
   };
+}
+
+/** A story about one or more listings, ranked against the others. */
+export interface Headline {
+  /** The story as told about the listing it weighs most for. */
+  story: NewsStory;
+  /** Every listing it is about, the one it weighs most for first. */
+  symbols: SymbolRef[];
+  /** Zero or more, and comparable only among headlines ranked together. */
+  weight: number;
+}
+
+// The company's own filings outrank the press, and the press the crowd.
+const CHANNEL_WEIGHT: Record<NewsChannel, number> = {
+  [NewsChannel.Announcement]: 1,
+  [NewsChannel.Article]: 0.8,
+  [NewsChannel.Forum]: 0.5,
+  [NewsChannel.Social]: 0.4,
+};
+
+// How directly each topic bears on what the shares are worth.
+const TOPIC_WEIGHT: Record<TextTopic, number> = {
+  [TextTopic.Earnings]: 1,
+  [TextTopic.Guidance]: 1,
+  [TextTopic.Capital]: 0.8,
+  [TextTopic.Legal]: 0.8,
+  [TextTopic.Business]: 0.6,
+  [TextTopic.Analyst]: 0.6,
+  [TextTopic.Market]: 0.3,
+  [TextTopic.Other]: 0.3,
+};
+
+// An unscored story reads as a relevant, neutral story about the business would.
+const UNSCORED_READING = TOPIC_WEIGHT[TextTopic.Business] / 2;
+
+const HEADLINE_HALF_LIFE_MS = 2 * DAY_MS;
+
+/** How much a story's reading says it bears on the share price, from 0 to 1. */
+function storyReading({ lead: { score } }: NewsStory): number {
+  if (!score) return UNSCORED_READING;
+
+  const material = sumBy(
+    Object.values(TextTopic),
+    (topic) => score.topic[topic] * TOPIC_WEIGHT[topic]
+  );
+
+  // A neutral story counts half as much as one that clearly reads either way.
+  const strength = (1 + Math.abs(stanceValue(score.stance))) / 2;
+
+  return (
+    score.relevance * (1 - score.kind[TextKind.Promotion]) * material * strength
+  );
+}
+
+/** A story's weight at `now`: its channel and reading, how often it was told and how recent it is. */
+function storyWeight(story: NewsStory, now: Date): number {
+  const age = Math.max(0, now.getTime() - datedAt(story.lead).getTime());
+
+  return (
+    CHANNEL_WEIGHT[story.channel] *
+    storyReading(story) *
+    Math.log2(1 + story.records.length) *
+    0.5 ** (age / HEADLINE_HALF_LIFE_MS)
+  );
+}
+
+const recordKey = ({ source, item }: NewsRecord) => `${source}:${item.id}`;
+
+/**
+ * The stories about each listing as headlines, heaviest first. Stories that share an item, as one
+ * found for several listings does, make one headline, so a story about many of them counts once.
+ */
+export function rankHeadlines(
+  found: readonly ListingRecord[],
+  now: Date
+): Headline[] {
+  const told = Object.values(groupBy(found, ({ symbol }) => symbolKey(symbol)))
+    .flatMap((listing) =>
+      newsStories(listing.map(({ record }) => record))
+        .filter(isAboutListing)
+        .map((story) => ({
+          symbol: listing[0].symbol,
+          story,
+          weight: storyWeight(story, now),
+        }))
+    )
+    .toSorted((a, b) => b.weight - a.weight);
+
+  const headlines: Headline[] = [];
+  const byItem = new Map<string, Headline>();
+
+  for (const { symbol, story, weight } of told) {
+    const keys = story.records.map(recordKey);
+
+    let headline = keys
+      .map((key) => byItem.get(key))
+      .find((each) => each !== undefined);
+
+    if (headline === undefined) {
+      headline = { story, symbols: [symbol], weight };
+      headlines.push(headline);
+    } else if (
+      !headline.symbols.some((each) => symbolKey(each) === symbolKey(symbol))
+    ) {
+      headline.symbols.push(symbol);
+    }
+
+    for (const key of keys) if (!byItem.has(key)) byItem.set(key, headline);
+  }
+
+  return headlines;
 }

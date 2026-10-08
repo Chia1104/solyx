@@ -199,6 +199,47 @@ test("one item found for two listings is scored for each on its own", () => {
   expect(store.list(FOXCONN, since)[0].score).toBeNull();
 });
 
+test("several listings' records come newest first, each with its listing and its score for it", () => {
+  const { store } = open();
+  const since = new Date("2026-09-26T00:00:00Z");
+  const shared = item("both", "2026-10-02T00:00:00Z");
+  const mediatek = { market: Market.TW, symbol: "2454" };
+
+  store.save(TSMC, NEWS, [shared, item("old", "2026-09-20T00:00:00Z")], FOUND);
+  store.save(FOXCONN, NEWS, [shared], FOUND);
+  store.save(FOXCONN, PTT, [item("new", "2026-10-02T06:00:00Z")], FOUND);
+  store.save(mediatek, PTT, [item("unasked", "2026-10-02T00:00:00Z")], FOUND);
+  store.saveScore(TSMC, store.list(TSMC, since)[0], SCORE);
+
+  const found = store.listMany([TSMC, FOXCONN], since);
+
+  expect(found[0]).toEqual({
+    symbol: FOXCONN,
+    record: {
+      source: PTT.id,
+      channel: PTT.channel,
+      item: item("new", "2026-10-02T06:00:00Z"),
+      foundAt: FOUND,
+      score: null,
+    },
+  });
+
+  expect(
+    found
+      .map(
+        ({ symbol, record }) =>
+          `${symbol.symbol} ${record.item.id} ${record.score?.model ?? "unscored"}`
+      )
+      .toSorted()
+  ).toEqual([
+    "2317 both unscored",
+    "2317 new unscored",
+    "2330 both jev-1.13.0",
+  ]);
+
+  expect(store.listMany([], since)).toEqual([]);
+});
+
 test("records outlive the connection", () => {
   const first = open();
 

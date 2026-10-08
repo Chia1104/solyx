@@ -198,7 +198,13 @@
     "alike_other": "+{{count}} alike",
     "undated": "Undated",
     "approximate": "~{{time}}",
-    "empty": "Nothing collected in the last 7 days. News is collected at the interval set in Settings, or when you ask the agent."
+    "empty": "Nothing collected in the last 7 days. News is collected at the interval set in Settings, or when you ask the agent.",
+    "headlines": {
+      "title": "Headlines",
+      "description": "The stories that weigh most about what you hold and watch over the last {{days}} days, weighed by where they come from (filings first, then news, then forums and social posts), how much they bear on the listing, how widely they were told and how recent they are.",
+      "unfollowed": "Hold or watch listings, and the stories that weigh most about them show here.",
+      "empty": "Nothing collected about what you hold and watch in the last {{days}} days. News is collected at the interval set in Settings, or when you ask the agent."
+    }
   },
   "agent": {
     "title": "Agent",

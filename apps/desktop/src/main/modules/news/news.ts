@@ -2,7 +2,7 @@ import { groupBy, mapAsync } from "es-toolkit";
 
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
-import { newsStories } from "@solyx/core/news";
+import { newsStories, rankHeadlines } from "@solyx/core/news";
 import type {
   NewsCollection,
   NewsSource,
@@ -223,6 +223,10 @@ export function createNews(options: NewsOptions) {
 
     /** What is stored about the listing since `since`, newest first. */
     records: (symbol: SymbolRef, since: Date) => store.list(symbol, since),
+
+    /** The `limit` heaviest headlines about the listings since `since`. */
+    headlines: (symbols: readonly SymbolRef[], since: Date, limit: number) =>
+      rankHeadlines(store.listMany(symbols, since), now()).slice(0, limit),
 
     /** Where the listing's news comes from, so a quiet listing can be told from a broken source. */
     async coverage(symbol: SymbolRef): Promise<NewsCoverage> {
