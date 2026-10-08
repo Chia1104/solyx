@@ -44,11 +44,15 @@ export function McpStateChip({ state }: { state: McpServerState }) {
   );
 }
 
+/** Joins a read already under way, such as the one a settings push started, rather than start another. */
 function useRefresh() {
   const queryClient = useQueryClient();
 
   return () =>
-    queryClient.invalidateQueries({ queryKey: settingsQueryKeys.mcp });
+    queryClient.invalidateQueries(
+      { queryKey: settingsQueryKeys.mcp },
+      { cancelRefetch: false }
+    );
 }
 
 /** A secret the server's entry names as `secret:NAME`. */
@@ -61,7 +65,6 @@ function McpSecretRow({
   name: string;
   saved: boolean;
 }) {
-  const refresh = useRefresh();
   const label = `secret:${name}`;
 
   return (
@@ -73,7 +76,6 @@ function McpSecretRow({
         window.solyx.settings.saveMcpSecret(server, name, value)
       }
       onRemove={() => window.solyx.settings.deleteMcpSecret(server, name)}
-      onSettled={refresh}
     />
   );
 }
