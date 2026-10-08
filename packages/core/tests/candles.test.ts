@@ -4,6 +4,7 @@ import {
   Interval,
   liveBar,
   mergeCandles,
+  olderRange,
   periodStart,
   resampleDaily,
   upsertCandles,
@@ -34,6 +35,26 @@ describe("periodStart", () => {
 
   test("a month opens on its first day", () => {
     expect(periodStart("2024-02-29", Interval.OneMonth)).toBe("2024-02-01");
+  });
+});
+
+describe("olderRange", () => {
+  test("ends the day before the oldest bar's session, a lookback long", () => {
+    const before = session("2026-03-02", 1, 1).time;
+
+    expect(olderRange(Market.TW, Interval.OneDay, before)).toEqual({
+      from: "2024-09-07",
+      to: "2026-03-01",
+    });
+  });
+
+  test("an intraday page outlasts any closure, however short its lookback", () => {
+    const before = Date.parse("2026-02-23T09:00:00+08:00") / 1000;
+
+    expect(olderRange(Market.TW, Interval.OneMinute, before)).toEqual({
+      from: "2026-02-01",
+      to: "2026-02-22",
+    });
   });
 });
 

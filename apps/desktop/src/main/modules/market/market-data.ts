@@ -2,6 +2,7 @@ import {
   Interval,
   isCalendarInterval,
   lookbackRange,
+  olderRange,
   periodStart,
   resampleDaily,
 } from "@solyx/core/candles";
@@ -67,25 +68,35 @@ export function createMarketData({
     onSourcesChanged();
   });
 
+  async function read(
+    symbol: SymbolRef,
+    interval: Interval,
+    { from, to }: { from: string; to: string }
+  ): Promise<Candle[]> {
+    const provider = await providerOf(symbol.market);
+
+    if (!isCalendarInterval(interval)) {
+      return provider.getCandles({ symbol, interval, from, to });
+    }
+
+    // Whole periods of daily bars, the ones the live bar of the current period starts from.
+    const daily = await provider.getCandles({
+      symbol,
+      interval: Interval.OneDay,
+      from: periodStart(from, interval),
+      to,
+    });
+
+    return resampleDaily(daily, interval, symbol.market);
+  }
+
   return {
-    async candles(symbol: SymbolRef, interval: Interval): Promise<Candle[]> {
-      const provider = await providerOf(symbol.market);
-      const { from, to } = lookbackRange(symbol.market, interval, now());
+    candles: (symbol: SymbolRef, interval: Interval) =>
+      read(symbol, interval, lookbackRange(symbol.market, interval, now())),
 
-      if (!isCalendarInterval(interval)) {
-        return provider.getCandles({ symbol, interval, from, to });
-      }
-
-      // Whole periods of daily bars, the ones the live bar of the current period starts from.
-      const daily = await provider.getCandles({
-        symbol,
-        interval: Interval.OneDay,
-        from: periodStart(from, interval),
-        to,
-      });
-
-      return resampleDaily(daily, interval, symbol.market);
-    },
+    /** The page of history before the bar opening at `before`; empty once the source has nothing older. */
+    olderCandles: (symbol: SymbolRef, interval: Interval, before: number) =>
+      read(symbol, interval, olderRange(symbol.market, interval, before)),
 
     /**
      * Reads the five-minute bars a chart of that interval reads, so both share one cached series

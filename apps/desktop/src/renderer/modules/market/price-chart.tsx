@@ -66,16 +66,22 @@ const VOLUME_OPTIONS: HistogramSeriesPartialOptions = {
   lastValueVisible: false,
 };
 
+// Older bars are asked for once this few are left to the left of the view.
+const NEAR_OLDEST_BARS = 20;
+
 /** Indicators compute only while enabled, each in its own component. */
 export function PriceChart({
   candles,
   market,
   interval,
+  onNearOldest,
   children,
 }: {
   candles: Candle[];
   market: Market;
   interval: Interval;
+  /** Called as the view nears the oldest bar, to load older ones. */
+  onNearOldest?: () => void;
   /** What else is drawn on the price pane, over the candles. */
   children?: ReactNode;
 }) {
@@ -181,7 +187,12 @@ export function PriceChart({
     2 + oscillators.indexOf(indicator);
 
   return (
-    <Chart options={options} className="size-full">
+    <Chart
+      options={options}
+      className="size-full"
+      onVisibleLogicalRangeChange={(range) => {
+        if (range && range.from < NEAR_OLDEST_BARS) onNearOldest?.();
+      }}>
       <Series
         definition={CandlestickSeries}
         data={bars.candles}

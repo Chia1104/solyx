@@ -23,6 +23,12 @@ export interface MarketApi {
   listing(symbol: SymbolRef): Promise<Listing | null>;
   /** Recent bars, oldest first; the lookback depends on the interval. */
   candles(symbol: SymbolRef, interval: Interval): Promise<Candle[]>;
+  /** The page of history before the bar opening at `before`, oldest first; empty once the source has nothing older. */
+  olderCandles(
+    symbol: SymbolRef,
+    interval: Interval,
+    before: number
+  ): Promise<Candle[]>;
   /**
    * The newest session's five-minute line against the close before it; `null` when no source
    * covers the market or the source has no bars for the symbol. It takes no stream slot.
@@ -46,6 +52,7 @@ export const marketChannels = {
   sessions: "market:sessions",
   listing: "market:listing",
   candles: "market:candles",
+  olderCandles: "market:older-candles",
   quote: "market:quote",
   sectors: "market:sectors",
   watchCandles: "market:watch-candles",

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 
 import type { Interval } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
@@ -21,7 +21,7 @@ export function useCandles(symbol: SymbolRef, interval: Interval) {
 
   const live = useLiveCandles(symbol, interval, ready);
 
-  const candles = useQuery({
+  const candles = useInfiniteQuery({
     ...candlesQuery(symbol, interval, live),
     enabled: ready,
   });
