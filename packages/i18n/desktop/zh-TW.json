@@ -208,8 +208,8 @@
   },
   "calendar": {
     "title": "接下來",
-    "description": "未來 {{days}} 天庫存與自選的重要日期：公司已訂定的除權息日與股利發放日，以及法規規定的下一期財報與月營收最晚公布日。目前僅支援台股。",
-    "unfollowed": "加入自選或持有股票後，這裡會顯示它們接下來的除權息與財報日期。",
+    "description": "未來 {{days}} 天庫存與自選的重要日期：公司已訂定的除權息日與股利發放日、法規規定的下一期財報與月營收最晚公布日，以及所屬市場的總經數據公布日。目前僅支援台股。",
+    "unfollowed": "加入自選或持有股票後，這裡會顯示它們接下來的除權息與財報日期，以及所屬市場的總經數據公布日。",
     "empty": "未來 {{days}} 天沒有排定的事件。",
     "unread": "無法讀取 {{symbols}} 的基本面資料，它們的日期可能缺漏。",
     "by": "{{date}} 前",
@@ -220,6 +220,21 @@
       "ex-dividend": "除息，每股現金股利 {{amount}} 元",
       "ex-rights": "除權，每股股票股利 {{amount}} 元",
       "dividend-payment": "發放現金股利，每股 {{amount}} 元"
+    },
+    "economy": "總經",
+    "release-deadline-hint": "主管機關訂定的最晚日期，可能提早公布。",
+    "schedule-unread": "無法讀取{{markets}}的總經數據公布時程，部分日期可能缺漏。",
+    "indicators": {
+      "consumer-prices": "消費者物價指數",
+      "advance-gdp": "國內生產毛額概估",
+      "gdp": "國內生產毛額修正",
+      "economic-forecast": "經濟預測",
+      "unemployment": "失業率",
+      "trade": "海關進出口貿易",
+      "export-orders": "外銷訂單",
+      "industrial-production": "工業生產",
+      "business-signal": "景氣對策信號",
+      "purchasing-managers": "採購經理人指數"
     }
   },
   "agent": {

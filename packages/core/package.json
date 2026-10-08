@@ -11,6 +11,7 @@
     "./forecast": "./src/forecast.ts",
     "./fundamentals": "./src/fundamentals.ts",
     "./indicators": "./src/indicators.ts",
+    "./macro": "./src/macro.ts",
     "./market": "./src/market.ts",
     "./market-data": "./src/market-data.ts",
     "./memory": "./src/memory.ts",

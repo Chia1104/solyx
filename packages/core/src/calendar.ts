@@ -28,9 +28,9 @@ export type ListingEventKind =
 
 /** How surely an event falls on its day. */
 export const EventTiming = {
-  /** The company set the day. */
+  /** Whoever releases it set the day. */
   Set: "set",
-  /** The latest day the rules allow; the company may well come earlier. */
+  /** The latest day the rules or the agency allow; it may well come earlier. */
   Deadline: "deadline",
 } as const;
 

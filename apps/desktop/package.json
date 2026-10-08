@@ -29,6 +29,7 @@
     "@solyx/decisions": "workspace:*",
     "@solyx/fundamentals": "workspace:*",
     "@solyx/i18n": "workspace:*",
+    "@solyx/macro": "workspace:*",
     "@solyx/market-data": "workspace:*",
     "@solyx/news": "workspace:*",
     "@solyx/trading-chart": "workspace:*",
