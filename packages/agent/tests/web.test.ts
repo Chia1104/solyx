@@ -115,6 +115,12 @@ function setup(vendor = fakeVendor()) {
     watchlist: () => [],
     news: fakeNews(),
     tradingDays: async () => weekdays,
+    calendar: async () => ({
+      events: [],
+      unread: [],
+      releases: [],
+      unreadMarkets: [],
+    }),
     desk: {
       check: vi.fn<OrderDesk["check"]>(async () => []),
       propose: vi.fn<OrderDesk["propose"]>(),

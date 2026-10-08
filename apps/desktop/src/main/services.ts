@@ -230,6 +230,7 @@ export function createServices() {
     watchlist: () => userData.watchlist.list(),
     news,
     tradingDays,
+    calendar,
     web: () => webSearch.vendor(),
     desk,
     memory: memories.store,

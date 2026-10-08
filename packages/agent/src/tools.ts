@@ -9,9 +9,11 @@ import type {
   ToolExecutionApi,
   ToolRegistration,
 } from "@earendil-works/pi-durable";
-import { maxBy, omit, takeRight, uniq } from "es-toolkit";
+import { maxBy, omit, takeRight, uniq, uniqBy } from "es-toolkit";
 import * as z from "zod";
 
+import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
+import type { ListingEvent, UpcomingEvents } from "@solyx/core/calendar";
 import { candleDate, intervalSchema, isIntraday } from "@solyx/core/candles";
 import type { Candle, Interval } from "@solyx/core/candles";
 import { CouncilOutcome, councilOutcome } from "@solyx/core/council";
@@ -26,6 +28,7 @@ import {
   sma,
 } from "@solyx/core/indicators";
 import type { IndicatorLine } from "@solyx/core/indicators";
+import type { MacroRelease } from "@solyx/core/macro";
 import {
   Market,
   exchangeDate,
@@ -34,6 +37,7 @@ import {
   instrumentKindSchema,
   marketSchema,
   shiftDate,
+  symbolKey,
   symbolRefSchema,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -69,6 +73,11 @@ export interface TradingToolPorts extends PromptSources {
   news: NewsDesk;
   /** The days a market trades, as far as the host knows them. */
   tradingDays(market: Market): Promise<TradingDays>;
+  /** The listings' coming events and their markets' releases over the next `days` days, as the app's overview lists them. */
+  calendar(
+    symbols: readonly SymbolRef[],
+    days: number
+  ): Promise<UpcomingEvents>;
   desk: ProposingDesk;
   /** Puts each order proposal to a vote while the user has decisions go to the MAGI. */
   magi?: MagiPort;
@@ -259,6 +268,46 @@ function sessionsSince(
   if (sessions === 0) return `no session ${since}`;
 
   return `${sessions} session${sessions === 1 ? "" : "s"} ${since}`;
+}
+
+/** An event's day, which a deadline shows as the latest it may come. */
+function eventDay(date: string, timing: EventTiming): string {
+  return timing === EventTiming.Deadline ? `by ${date}` : date;
+}
+
+const perShare = (amount: number | null) => String(amount ?? 0);
+
+function describeEvent(event: ListingEvent): string {
+  const where = `${eventDay(event.date, event.timing)} ${event.symbol.market} ${event.symbol.symbol}`;
+
+  switch (event.kind) {
+    case ListingEventKind.QuarterlyReport: {
+      const end = Temporal.PlainDate.from(event.subject);
+
+      return `${where} Q${Math.ceil(end.month / 3)} ${end.year} statements due`;
+    }
+
+    case ListingEventKind.MonthlyRevenue:
+      return `${where} ${event.subject} revenue due`;
+    case ListingEventKind.ExDividend:
+      return `${where} goes ex-dividend, ${perShare(event.amount)} cash a share (${event.subject})`;
+    case ListingEventKind.ExRights:
+      return `${where} goes ex-rights, ${perShare(event.amount)} in stock a share (${event.subject})`;
+    case ListingEventKind.DividendPayment:
+      return `${where} pays its dividend, ${perShare(event.amount)} cash a share (${event.subject})`;
+    default: {
+      const span = event.until === null ? "" : ` until ${event.until}`;
+      const note = event.subject ? ` (${event.subject})` : "";
+
+      return `${where} ${event.kind.replaceAll("-", " ")}${span}${note}`;
+    }
+  }
+}
+
+function describeRelease(release: MacroRelease): string {
+  const period = release.period === null ? "" : ` for ${release.period}`;
+
+  return `${eventDay(release.date, release.timing)} ${release.market} ${release.indicator.replaceAll("-", " ")}${period}`;
 }
 
 /** A market's trading days, or every weekday and the reason they could not be read. */
@@ -565,6 +614,73 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             listings.length === 0
               ? "The watchlist is empty."
               : listings.map((ref) => `${ref.market} ${ref.symbol}`).join("\n"),
+        };
+      },
+    }),
+
+    defineTool({
+      name: AgentToolName.GetCalendar,
+      replay: "safe",
+      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them; trading restrictions such as short-sale suspensions and dispositions; and the economic releases of the listings' markets, each on its day or by the latest day its agency set. Dates are YYYY-MM-DD on each market's exchange calendar, and "by" marks a latest day. Taiwan only for now: a US listing has no events here, no US releases are known, and earnings calls, holidays and market closures are not on it. Defaults to the listings the user holds and watches.`,
+      parameters: z.object({
+        symbols: z
+          .array(symbolRefSchema)
+          .optional()
+          .describe("Defaults to the listings the user holds and watches"),
+        days: z.number().int().min(1).max(90).default(30),
+      }),
+      execute: async ({ symbols, days }) => {
+        const listings =
+          symbols ??
+          uniqBy(
+            [
+              ...(await ports.desk.account()).positions.map(
+                ({ instrument: { market, symbol } }) => ({ market, symbol })
+              ),
+              ...ports.watchlist(),
+            ],
+            symbolKey
+          );
+
+        const { events, unread, releases, unreadMarkets } =
+          await ports.calendar(listings, days);
+
+        const named = listings
+          .map(({ market, symbol }) => `${market} ${symbol}`)
+          .join(", ");
+
+        const missing = [
+          ...(unread.length > 0
+            ? [
+                `the fundamentals of ${unread.map(({ market, symbol }) => `${market} ${symbol}`).join(", ")}`,
+              ]
+            : []),
+          ...(unreadMarkets.length > 0
+            ? [`the release schedule of ${unreadMarkets.join(", ")}`]
+            : []),
+        ];
+
+        return {
+          text: [
+            `Calendar of ${listings.length === 0 ? "no listings" : named} over the next ${days} days, each market from its own day today, as_of ${exchangeTime(Market.TW, now())} Taipei; the same list the app's overview shows`,
+            "Listings' filings, distributions and restrictions:",
+            ...(events.length > 0 ? events.map(describeEvent) : ["None."]),
+            "Economic releases of their markets:",
+            ...(releases.length > 0
+              ? releases.map(describeRelease)
+              : ["None."]),
+            ...(missing.length > 0
+              ? [
+                  `Could not read ${missing.join("; ")} this time, so dates may be missing.`,
+                ]
+              : []),
+          ].join("\n"),
+          details: {
+            symbols: listings,
+            days,
+            events: events.length,
+            releases: releases.length,
+          },
         };
       },
     }),

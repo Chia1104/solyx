@@ -1,14 +1,13 @@
 import { sortBy, uniq } from "es-toolkit";
 
 import { upcomingEvents } from "@solyx/core/calendar";
+import type { UpcomingEvents } from "@solyx/core/calendar";
 import type { Fundamentals } from "@solyx/core/fundamentals";
 import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
 import { exchangeDate, shiftDate } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
-
-import type { UpcomingEvents } from "#shared/ipc/calendar.ts";
 
 // An agency sets its schedule months ahead, so a market's is read twice a day at most.
 const SCHEDULE_FRESH_MS = 12 * 60 * 60 * 1000;

@@ -54,6 +54,7 @@ export const AgentToolName = {
   GetIndicators: "get_indicators",
   GetNews: "get_news",
   GetWatchlist: "get_watchlist",
+  GetCalendar: "get_calendar",
   GetAccount: "get_account",
   ListProposals: "list_proposals",
   CheckOrder: "check_order",
