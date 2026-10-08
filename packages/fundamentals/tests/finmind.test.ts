@@ -213,13 +213,33 @@ test("reads each distribution's cash and stock per share and its days, those sti
   });
 });
 
-test("a listing outside Taiwan has no fundamentals and costs no request", async () => {
+test("reads the days Taiwan's exchange trades from a day on, for every listing at once", async () => {
+  const { sent, finmind } = fakeFinMind({
+    body: {
+      msg: "success",
+      status: 200,
+      data: [{ date: "2026-09-29" }, { date: "2026-09-25" }, { date: "unset" }],
+    },
+  });
+
+  expect(await finmind.tradingDays(Market.TW, "2026-09-25")).toEqual([
+    "2026-09-25",
+    "2026-09-29",
+  ]);
+  expect(Object.fromEntries(new URL(sent[0]).searchParams)).toEqual({
+    dataset: "TaiwanStockTradingDate",
+    start_date: "2026-09-25",
+  });
+});
+
+test("outside Taiwan there is nothing to read, and it costs no request", async () => {
   const { sent, finmind } = fakeFinMind();
   const apple = { market: Market.US, symbol: "AAPL" };
 
   expect(await finmind.getStatements(apple, "2025-01-01")).toEqual([]);
   expect(await finmind.getMonthlyRevenue(apple, "2025-01")).toEqual([]);
   expect(await finmind.getDividends(apple, "2025-01-01")).toEqual([]);
+  expect(await finmind.tradingDays(Market.US, "2025-01-01")).toEqual([]);
   expect(sent).toEqual([]);
 });
 

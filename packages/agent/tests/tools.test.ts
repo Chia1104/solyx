@@ -38,6 +38,7 @@ import {
   TextTopic,
 } from "@solyx/core/sentiment";
 import type { SentimentScore } from "@solyx/core/sentiment";
+import { listedTradingDays, weekdays } from "@solyx/core/session";
 
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
@@ -133,10 +134,15 @@ function setup(candles: Candle[] = dailyBars(80)) {
     collect: vi.fn<NewsDesk["collect"]>(async () => collection([])),
   };
 
+  const tradingDays = vi.fn<TradingToolPorts["tradingDays"]>(
+    async () => weekdays
+  );
+
   const ports = {
     marketData,
     watchlist: () => [TSMC],
     news,
+    tradingDays,
     desk,
     skills: async () => [
       {
@@ -164,7 +170,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     return { text: contentText(result.content ?? []), details: result.details };
   };
 
-  return { run, desk, ports, marketData, news };
+  return { run, desk, ports, marketData, news, tradingDays };
 }
 
 function newsItem(title: string, hoursAgo: number | null): NewsItem {
@@ -643,6 +649,37 @@ test("without a decisions model, news is listed unscored", async () => {
     "  只知道日期 snippet",
     `  ${newsItem("只知道日期", null).url}`,
   ]);
+});
+
+test("sessions since a story leave out the exchange's holidays, or count every weekday when they cannot be read", async () => {
+  const { ports, news, tradingDays } = setup();
+
+  news.collect.mockResolvedValue(
+    collection([newsRecord(newsItem("法說前瞻", 30), null)], { scored: false })
+  );
+
+  // Tuesday 2026-09-29 is a holiday.
+  tradingDays.mockResolvedValueOnce(
+    listedTradingDays("2026-09-28", ["2026-09-28", "2026-09-30"])
+  );
+
+  const holiday = await getNews(ports, { symbol: TSMC });
+
+  expect(tradingDays).toHaveBeenCalledWith(Market.TW);
+  expect(holiday.text).toContain(
+    "- ~2026-09-29 04:00 (1 session since) news.test: 法說前瞻"
+  );
+
+  tradingDays.mockRejectedValueOnce(new Error("FinMind answered 402"));
+
+  const unread = (await getNews(ports, { symbol: TSMC })).text.split("\n");
+
+  expect(unread).toContain(
+    "- ~2026-09-29 04:00 (2 sessions since) news.test: 法說前瞻"
+  );
+  expect(unread.at(-1)).toBe(
+    "The exchange's trading days could not be read (FinMind answered 402), so every weekday counted as a session."
+  );
 });
 
 test("channels get sections, a thread is one story, and a failed source says how it has gone", async () => {

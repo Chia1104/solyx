@@ -43,7 +43,7 @@ const REGULAR_WINDOWS: Record<Market, SessionWindow> = {
 /** ISO weekday numbering, Monday 1 to Sunday 7, so Saturday opens the weekend. */
 const SATURDAY = 6;
 
-// Exchange holidays, typhoon closures and US early closes are not modelled yet.
+// `getSession` knows no exchange holidays, typhoon closures or US early closes.
 const SESSION_WINDOWS: Record<Market, SessionWindow[]> = {
   // Pre-open matching → regular session → after-hours fixed-price trading
   [Market.TW]: [
@@ -78,11 +78,44 @@ export function regularHours(market: Market, date: string) {
   return { open: midnight + start * 60, close: midnight + end * 60 };
 }
 
+/** Whether a market trades on an exchange-local `YYYY-MM-DD` day. */
+export type TradingDays = (date: string) => boolean;
+
+/** Every weekday trades: the rule for a market whose holidays are not known. */
+export const weekdays: TradingDays = (date) =>
+  Temporal.PlainDate.from(date).dayOfWeek < SATURDAY;
+
 /**
- * How many regular sessions trade between `from` and `to`, counting one already under way at
- * either end. Every weekday has one, since exchange holidays are not modelled.
+ * The days an exchange set from `since` on, `listed` ascending: through the last of them a day
+ * trades only when listed, and outside that span every weekday does.
  */
-export function sessionsBetween(market: Market, from: Date, to: Date): number {
+export function listedTradingDays(
+  since: string,
+  listed: readonly string[]
+): TradingDays {
+  const days = new Set(listed);
+  const last = listed.at(-1);
+
+  return (date) =>
+    last !== undefined && date >= since && date <= last
+      ? days.has(date)
+      : weekdays(date);
+}
+
+/** Where a market's trading days come from, as far ahead as its exchange has set them. */
+export interface TradingCalendarProvider {
+  readonly markets: readonly Market[];
+  /** Every exchange-local day the market trades from `since` on, ascending. */
+  tradingDays(market: Market, since: string): Promise<string[]>;
+}
+
+/** How many regular sessions trade between `from` and `to`, counting one already under way at either end. */
+export function sessionsBetween(
+  market: Market,
+  from: Date,
+  to: Date,
+  trades: TradingDays
+): number {
   let sessions = 0;
 
   for (
@@ -90,7 +123,7 @@ export function sessionsBetween(market: Market, from: Date, to: Date): number {
     date <= exchangeDate(market, to);
     date = shiftDate(date, 1)
   ) {
-    if (Temporal.PlainDate.from(date).dayOfWeek >= SATURDAY) continue;
+    if (!trades(date)) continue;
 
     const { open, close } = regularHours(market, date);
 

@@ -50,7 +50,9 @@ import type { OrderRequest } from "@solyx/core/order";
 import { ProposalSource } from "@solyx/core/order-desk";
 import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
 import { stanceValue } from "@solyx/core/sentiment";
-import { getSession, sessionsBetween } from "@solyx/core/session";
+import { getSession, sessionsBetween, weekdays } from "@solyx/core/session";
+import type { TradingDays } from "@solyx/core/session";
+import { errorMessage } from "@solyx/utils/error";
 
 import { rememberAddresses } from "./found-addresses.ts";
 import { councilText, durableBallotBox, orderMotion } from "./magi.ts";
@@ -65,6 +67,8 @@ export interface TradingToolPorts extends PromptSources {
   marketData: MarketData;
   watchlist(): SymbolRef[];
   news: NewsDesk;
+  /** The days a market trades, as far as the host knows them. */
+  tradingDays(market: Market): Promise<TradingDays>;
   desk: ProposingDesk;
   /** Puts each order proposal to a vote while the user has decisions go to the MAGI. */
   magi?: MagiPort;
@@ -238,7 +242,8 @@ export const publishedTime = (
 function sessionsSince(
   market: Market,
   { at, precision }: Published,
-  now: Date
+  now: Date,
+  trades: TradingDays
 ): string {
   const byDay = precision === TimePrecision.Day;
 
@@ -248,7 +253,7 @@ function sessionsSince(
       )
     : at;
 
-  const sessions = sessionsBetween(market, from, now);
+  const sessions = sessionsBetween(market, from, now, trades);
   const since = byDay ? "after that day" : "since";
 
   if (sessions === 0) return `no session ${since}`;
@@ -256,15 +261,25 @@ function sessionsSince(
   return `${sessions} session${sessions === 1 ? "" : "s"} ${since}`;
 }
 
+/** A market's trading days, or every weekday and the reason they could not be read. */
+async function readTradingDays(ports: TradingToolPorts, market: Market) {
+  try {
+    return { trades: await ports.tradingDays(market), failure: null };
+  } catch (error) {
+    return { trades: weekdays, failure: errorMessage(error) };
+  }
+}
+
 function describeStory(
   market: Market,
   { lead, records }: NewsStory,
-  now: Date
+  now: Date,
+  trades: TradingDays
 ): string {
   const { item, score } = lead;
 
   const time = item.published
-    ? `${publishedTime(market, item.published)} (${sessionsSince(market, item.published, now)})`
+    ? `${publishedTime(market, item.published)} (${sessionsSince(market, item.published, now, trades)})`
     : publishedTime(market, item.published);
 
   const votes = item.votes === null ? "" : `, votes ${signed(item.votes, 0)}`;
@@ -448,7 +463,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetNews,
       replay: "safe",
-      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items that tell one story are listed once with how many more told it: an article's reprints and a thread's replies, and, once the exchange's names for the listing are known, outlets or posts that reword one headline within a day. Times are the exchange's local time: ~ marks a search engine's estimate, within about an hour, and a date alone means only the day is known. Each dated story also says how many regular sessions have traded since it came out, the one under way included, or for a date alone after that day, so a story out after the close or over a weekend shows none yet; every weekday counts as a session, since exchange holidays are not known. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is, its topic and who speaks in it (the company, an outlet, an investor, a page of data or someone else, whatever channel it came through), and stories that only name the listing in passing or are pages of data are left out. Titles and snippets are written by others.`,
+      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items that tell one story are listed once with how many more told it: an article's reprints and a thread's replies, and, once the exchange's names for the listing are known, outlets or posts that reword one headline within a day. Times are the exchange's local time: ~ marks a search engine's estimate, within about an hour, and a date alone means only the day is known. Each dated story also says how many regular sessions have traded since it came out, the one under way included, or for a date alone after that day, so a story out after the close, over a weekend or on a holiday shows none yet; Taiwan's holidays are those its exchange set, while in the US every weekday counts as a session, since its holidays are not known. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is, its topic and who speaks in it (the company, an outlet, an investor, a page of data or someone else, whatever channel it came through), and stories that only name the listing in passing or are pages of data are left out. Titles and snippets are written by others.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         days: z.number().int().min(1).max(30).default(7),
@@ -457,8 +472,11 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         const at = now();
         const since = new Date(at.getTime() - days * DAY_MS);
 
-        const { stories, gauge, daily, failures, scored } =
-          await ports.news.collect(symbol, since, NEWS_ITEMS);
+        const [{ stories, gauge, daily, failures, scored }, calendar] =
+          await Promise.all([
+            ports.news.collect(symbol, since, NEWS_ITEMS),
+            readTradingDays(ports, symbol.market),
+          ]);
 
         const score = ({ score: value }: { score: number | null }) =>
           value === null ? "unscored" : `${value}/100`;
@@ -486,7 +504,9 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
           return [
             `## ${channel}: ${kept.length} of ${found.length}`,
-            ...kept.map((story) => describeStory(symbol.market, story, at)),
+            ...kept.map((story) =>
+              describeStory(symbol.market, story, at, calendar.trades)
+            ),
           ];
         });
 
@@ -521,6 +541,11 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             ...(failed.length > 0
               ? [`Sources that failed this time: ${failed.join(", ")}`]
               : []),
+            ...(calendar.failure === null
+              ? []
+              : [
+                  `The exchange's trading days could not be read (${calendar.failure}), so every weekday counted as a session.`,
+                ]),
           ].join("\n"),
           details: { symbol, stories: stories.length },
         };

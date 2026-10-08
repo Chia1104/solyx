@@ -14,6 +14,7 @@ import { Market } from "@solyx/core/market";
 import { NewsChannel, TimePrecision, readNews } from "@solyx/core/news";
 import type { NewsDesk, NewsRecord } from "@solyx/core/news";
 import type { OrderDesk } from "@solyx/core/order-desk";
+import { weekdays } from "@solyx/core/session";
 import { WebSearchKind } from "@solyx/core/web-search";
 import type { WebReader, WebSearch } from "@solyx/core/web-search";
 
@@ -113,6 +114,7 @@ function setup(vendor = fakeVendor()) {
     marketData: { candles: vi.fn(), listing: vi.fn(async () => null) },
     watchlist: () => [],
     news: fakeNews(),
+    tradingDays: async () => weekdays,
     desk: {
       check: vi.fn<OrderDesk["check"]>(async () => []),
       propose: vi.fn<OrderDesk["propose"]>(),
