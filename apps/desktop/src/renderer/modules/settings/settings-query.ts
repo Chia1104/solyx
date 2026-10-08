@@ -25,6 +25,7 @@ export const settingsQueryKeys = {
   marketData: [...all, "market-data"] as const,
   agent: [...all, "agent"] as const,
   news: [...all, "news"] as const,
+  fundamentals: [...all, "fundamentals"] as const,
   webSearch: [...all, "web-search"] as const,
   decisions: [...all, "decisions"] as const,
   agentSkills: [...all, "agent-skills"] as const,
@@ -134,6 +135,14 @@ export const newsSettingsQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.news,
     queryFn: () => window.solyx.settings.news(),
+    staleTime: Infinity,
+  });
+
+/** Never stale, as below. */
+export const fundamentalsSettingsQuery = () =>
+  queryOptions({
+    queryKey: settingsQueryKeys.fundamentals,
+    queryFn: () => window.solyx.settings.fundamentals(),
     staleTime: Infinity,
   });
 

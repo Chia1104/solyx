@@ -27,7 +27,12 @@ export interface FundamentalsOptions {
 export function createFundamentals({
   providers,
   now = () => new Date(),
-}: FundamentalsOptions): Fundamentals {
+}: FundamentalsOptions): Fundamentals & {
+  /** Drops every answer kept, for when what a provider may read changes, as with the user's plan. */
+  forget(): void;
+} {
+  const caches: Map<string, unknown>[] = [];
+
   /** `ask`'s answer per listing, asked again once it is stale or after it failed. */
   function fresh<Answer>(
     ask: (
@@ -37,6 +42,8 @@ export function createFundamentals({
     ) => Promise<Answer[]>
   ) {
     const kept = new Map<string, { at: number; answer: Promise<Answer[]> }>();
+
+    caches.push(kept);
 
     return (symbol: SymbolRef): Promise<Answer[]> => {
       const provider = providers.find(({ markets }) =>
@@ -68,6 +75,10 @@ export function createFundamentals({
   }
 
   return {
+    forget() {
+      for (const kept of caches) kept.clear();
+    },
+
     statements: fresh((provider, symbol, today) =>
       provider.getStatements(
         symbol,
@@ -87,6 +98,10 @@ export function createFundamentals({
         symbol,
         today.subtract({ years: STATEMENT_YEARS }).toString()
       )
+    ),
+
+    restrictions: fresh((provider, symbol, today) =>
+      provider.getRestrictions(symbol, today.subtract({ years: 1 }).toString())
     ),
   };
 }

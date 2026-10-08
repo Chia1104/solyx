@@ -44,6 +44,31 @@ export interface Dividend {
   stockExDate: string | null;
 }
 
+/** A limit the exchange puts on how a listing trades. */
+export const RestrictionKind = {
+  /** Selling short on margin is suspended, as around an ex-date or a shareholders' meeting. */
+  ShortSaleSuspension: "short-sale-suspension",
+  /** Day trading that sells before it buys is suspended. */
+  DayTradingSuspension: "day-trading-suspension",
+  /** The listing is under disposition: its orders match in batches, and may need paying for in advance. */
+  Disposition: "disposition",
+  /** Trading is halted. */
+  Halt: "halt",
+} as const;
+
+export type RestrictionKind =
+  (typeof RestrictionKind)[keyof typeof RestrictionKind];
+
+export interface TradingRestriction {
+  kind: RestrictionKind;
+  /** The first day it applies, `YYYY-MM-DD` on the exchange's calendar. */
+  from: string;
+  /** The last day it applies; `null` while no end is set. */
+  until: string | null;
+  /** Why, or what it imposes, in the exchange's words; `null` where it gives none. */
+  note: string | null;
+}
+
 /** One implementation per provider (`@solyx/fundamentals/*`); it runs only in the main process. */
 export interface FundamentalsProvider {
   readonly id: string;
@@ -57,6 +82,11 @@ export interface FundamentalsProvider {
   ): Promise<MonthlyRevenue[]>;
   /** Distributions announced on or after `since` (`YYYY-MM-DD`), oldest first, those still to go ex among them. */
   getDividends(symbol: SymbolRef, since: string): Promise<Dividend[]>;
+  /** Restrictions starting on or after `since` (`YYYY-MM-DD`), oldest first; only those the user's plan with the provider reads. */
+  getRestrictions(
+    symbol: SymbolRef,
+    since: string
+  ): Promise<TradingRestriction[]>;
 }
 
 /** A listing's fundamentals from whichever provider covers its market, oldest first; none while no provider does. */
@@ -66,6 +96,8 @@ export interface Fundamentals {
   monthlyRevenue(symbol: SymbolRef): Promise<MonthlyRevenue[]>;
   /** As many years of distributions as of quarters. */
   dividends(symbol: SymbolRef): Promise<Dividend[]>;
+  /** A year of restrictions, those still in force among them. */
+  restrictions(symbol: SymbolRef): Promise<TradingRestriction[]>;
 }
 
 /** A quarter with what it says against the quarters around it; `null` where a figure it needs is missing. */

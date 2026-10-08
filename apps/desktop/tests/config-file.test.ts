@@ -15,6 +15,7 @@ import {
   TYPESAFE_BASE_URL,
   TYPESAFE_DEFAULT_MODEL,
 } from "@solyx/decisions/typesafe";
+import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
@@ -54,7 +55,11 @@ test("a missing file reads as the defaults, which a new file's template holds be
       priceColors: PriceColors.Market,
     },
     marketData: { TW: MarketDataSource.Fugle },
-    providers: { fugle: { plan: FuglePlan.Basic }, fubon: {} },
+    providers: {
+      fugle: { plan: FuglePlan.Basic },
+      finmind: { plan: FinMindPlan.Free },
+      fubon: {},
+    },
     agent: {
       providers: [],
       provider: "anthropic",

@@ -1,6 +1,7 @@
 import { expect, test, vi } from "vite-plus/test";
 
 import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
+import { RestrictionKind } from "@solyx/core/fundamentals";
 import type { Dividend, Fundamentals } from "@solyx/core/fundamentals";
 import { MacroIndicator } from "@solyx/core/macro";
 import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
@@ -42,9 +43,10 @@ function consumerPrices(date: string, period: string): MacroRelease {
 }
 
 function setup(dividends: Record<string, Dividend[]>) {
-  const fundamentals: Fundamentals = {
+  const fundamentals = {
     statements: async () => [],
     monthlyRevenue: async () => [],
+    restrictions: vi.fn<Fundamentals["restrictions"]>(async () => []),
     dividends: vi.fn(async (symbol: SymbolRef) => {
       const listed = dividends[symbolKey(symbol)];
 
@@ -73,7 +75,7 @@ function setup(dividends: Record<string, Dividend[]>) {
     now: () => new Date(clock.now),
   });
 
-  return { calendar, macro, clock };
+  return { calendar, fundamentals, macro, clock };
 }
 
 test("every listing's events come soonest first, within the days asked for", async () => {
@@ -91,6 +93,33 @@ test("every listing's events come soonest first, within the days asked for", asy
     ["2330", ListingEventKind.ExDividend, "2026-10-20"],
   ]);
   expect(unread).toEqual([]);
+});
+
+test("a restriction in force shows today, with its last day", async () => {
+  const { calendar, fundamentals } = setup({ [symbolKey(TSMC)]: [] });
+
+  fundamentals.restrictions.mockResolvedValue([
+    {
+      kind: RestrictionKind.ShortSaleSuspension,
+      from: "2026-10-05",
+      until: "2026-10-12",
+      note: "除息",
+    },
+  ]);
+
+  const { events } = await calendar.upcoming([TSMC], 30);
+
+  expect(events).toEqual([
+    {
+      symbol: TSMC,
+      kind: ListingEventKind.ShortSaleSuspension,
+      date: "2026-10-08",
+      timing: EventTiming.Set,
+      subject: "除息",
+      amount: null,
+      until: "2026-10-12",
+    },
+  ]);
 });
 
 test("a listing that cannot be read is named, and the others' events stay", async () => {

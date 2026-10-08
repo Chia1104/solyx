@@ -75,17 +75,19 @@ export function createCalendar({
       const [read, scheduled] = await Promise.all([
         Promise.allSettled(
           symbols.map(async (symbol) => {
-            const [statements, monthlyRevenue, dividends] = await Promise.all([
-              fundamentals.statements(symbol),
-              fundamentals.monthlyRevenue(symbol),
-              fundamentals.dividends(symbol),
-            ]);
+            const [statements, monthlyRevenue, dividends, restrictions] =
+              await Promise.all([
+                fundamentals.statements(symbol),
+                fundamentals.monthlyRevenue(symbol),
+                fundamentals.dividends(symbol),
+                fundamentals.restrictions(symbol),
+              ]);
 
             const today = exchangeDate(symbol.market, at);
 
             return upcomingEvents(
               symbol,
-              { statements, monthlyRevenue, dividends },
+              { statements, monthlyRevenue, dividends, restrictions },
               today,
               shiftDate(today, days)
             );
