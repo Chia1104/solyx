@@ -91,7 +91,25 @@ export function SymbolChart({
     );
   }
 
-  const { data, isPlaceholderData } = candles;
+  const {
+    data,
+    isPlaceholderData,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+  } = candles;
+
+  // Bars standing in for another interval, or a page that failed, ask for nothing more.
+  const loadOlder = () => {
+    if (
+      hasNextPage &&
+      !isFetchingNextPage &&
+      !isFetchNextPageError &&
+      !isPlaceholderData
+    ) {
+      void candles.fetchNextPage();
+    }
+  };
 
   if (!data) return <Skeleton className="size-full rounded-sm" />;
 
@@ -113,10 +131,18 @@ export function SymbolChart({
           key={dataset}
           candles={data.candles}
           market={data.symbol.market}
-          interval={data.interval}>
+          interval={data.interval}
+          onNearOldest={loadOlder}>
           {overlay?.(data.candles)}
         </PriceChart>
       </CatchBoundary>
+      {isFetchingNextPage ? (
+        <Spinner
+          size="sm"
+          aria-label={t("chart.loading-older")}
+          className="absolute top-1/2 left-2 z-20 -translate-y-1/2"
+        />
+      ) : null}
       {isPlaceholderData ? (
         // Shows only once loading takes a moment, so bars that arrive at once never flash it.
         <div className="absolute inset-0 z-20 flex animate-[fade-in_150ms_var(--ease-out-quint)_150ms_both] items-center justify-center bg-background/50">

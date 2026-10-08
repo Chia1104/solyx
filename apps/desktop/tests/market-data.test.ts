@@ -1,6 +1,11 @@
 import { expect, test, vi } from "vite-plus/test";
 
-import { Interval, lookbackRange, periodStart } from "@solyx/core/candles";
+import {
+  Interval,
+  lookbackRange,
+  olderRange,
+  periodStart,
+} from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import type {
   MarketDataProvider,
@@ -105,6 +110,19 @@ test("bars reach back the interval's lookback, from the market's source", async 
   expect(await marketData.listing(TSMC)).toEqual({
     name: "台積電",
     englishName: "TSMC",
+  });
+});
+
+test("a page of older bars ends the day before the oldest bar's session", async () => {
+  const { marketData, provider } = setup();
+  const before = taipei("2026-03-02");
+
+  await marketData.olderCandles(TSMC, Interval.OneDay, before);
+
+  expect(provider.getCandles).toHaveBeenCalledWith({
+    symbol: TSMC,
+    interval: Interval.OneDay,
+    ...olderRange(Market.TW, Interval.OneDay, before),
   });
 });
 

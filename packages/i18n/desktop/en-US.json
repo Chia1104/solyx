@@ -128,6 +128,7 @@
     }
   },
   "chart": {
+    "loading-older": "Loading older bars",
     "search-label": "Symbol",
     "search-placeholder": "Symbol, e.g. 2330",
     "no-data": "No candles in this range.",

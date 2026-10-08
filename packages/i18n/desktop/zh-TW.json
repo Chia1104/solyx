@@ -128,6 +128,7 @@
     }
   },
   "chart": {
+    "loading-older": "正在載入更早的 K 線",
     "search-label": "代號",
     "search-placeholder": "代號，例如 2330",
     "no-data": "這段期間沒有 K 線資料。",

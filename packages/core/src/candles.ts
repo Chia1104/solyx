@@ -42,6 +42,25 @@ export function lookbackRange(
   return { from: shiftDate(to, -LOOKBACK_DAYS[interval]), to };
 }
 
+// Longer than any market's closure, such as Taiwan's Lunar New Year, so an empty page of older
+// bars means the source has none.
+const OLDER_PAGE_MIN_DAYS = 21;
+
+/**
+ * The exchange-local dates of the page of history that ends the day before the session of the
+ * bar at `before`, as long as `interval`'s lookback but never shorter than any closure.
+ */
+export function olderRange(
+  market: Market,
+  interval: Interval,
+  before: Candle["time"]
+) {
+  const to = shiftDate(candleDate(market, before), -1);
+  const days = Math.max(LOOKBACK_DAYS[interval], OLDER_PAGE_MIN_DAYS);
+
+  return { from: shiftDate(to, -days), to };
+}
+
 /** Bars shorter than a day. */
 export type IntradayInterval = Exclude<
   Interval,

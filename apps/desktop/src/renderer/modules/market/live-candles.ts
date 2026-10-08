@@ -48,9 +48,20 @@ export function useLiveCandles(
 
       if (bars.length === 0) return;
 
-      queryClient.setQueryData(queryKey, (set) =>
-        set ? { ...set, candles: upsertCandles(set.candles, bars) } : set
-      );
+      // Today's bars belong to the first page, the one that reaches now.
+      queryClient.setQueryData(queryKey, (data) => {
+        if (!data) return data;
+
+        const [latest, ...older] = data.pages;
+
+        return {
+          ...data,
+          pages: [
+            { ...latest, candles: upsertCandles(latest.candles, bars) },
+            ...older,
+          ],
+        };
+      });
     });
 
     const watching = window.solyx.market.watchCandles(watched, interval);

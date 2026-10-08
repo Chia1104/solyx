@@ -14,6 +14,7 @@ const schemas = {
   sessions: z.tuple([]),
   listing: z.tuple([symbolRefSchema]),
   candles: z.tuple([symbolRefSchema, intervalSchema]),
+  olderCandles: z.tuple([symbolRefSchema, intervalSchema, z.number()]),
   quote: z.tuple([symbolRefSchema]),
   sectors: z.tuple([]),
   watchCandles: z.tuple([symbolRefSchema, intervalSchema]),
@@ -28,6 +29,8 @@ export function registerMarketIpc({ marketData }: Services) {
     }),
     listing: (symbol) => marketData.listing(symbol),
     candles: (symbol, interval) => marketData.candles(symbol, interval),
+    olderCandles: (symbol, interval, before) =>
+      marketData.olderCandles(symbol, interval, before),
     quote: (symbol) => marketData.quote(symbol),
     sectors: () => marketData.sectors(),
     watchCandles: (symbol, interval, event) =>
