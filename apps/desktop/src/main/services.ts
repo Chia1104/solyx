@@ -48,6 +48,7 @@ import { createSecretStore } from "./modules/settings/secret-store.ts";
 import { createAppUpdater } from "./modules/updates/app-updater.ts";
 import { createUpdates } from "./modules/updates/updates.ts";
 import { createWebSearch } from "./modules/web-search/web-search.ts";
+import { createScheduler } from "./scheduler.ts";
 import { paintWindow } from "./shell/main-window.ts";
 
 const PAPER_CASH = { [Currency.TWD]: 1_000_000, [Currency.USD]: 30_000 };
@@ -229,6 +230,11 @@ export function createServices() {
     onChange: () => broadcast(updatesEvents.onChanged),
   });
 
+  const scheduler = createScheduler();
+
+  scheduler.register("News collection", newsCollector);
+  scheduler.register("Update check", updates);
+
   const appearance = createAppearance({
     config,
     // Windows and their renderers' prefers-color-scheme follow themeSource; the rest is pushed to
@@ -283,8 +289,8 @@ export function createServices() {
     webSearch,
     news,
     newsData,
-    newsCollector,
     updates,
+    scheduler,
   };
 }
 

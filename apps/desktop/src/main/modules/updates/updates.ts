@@ -10,10 +10,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const CHECK_EVERY_MS = 6 * HOUR_MS;
 
 // Short enough that switching checks on is followed by one soon after.
-const TICK_MS = 30 * 60 * 1000;
-
-// Lets the app finish starting before the first check.
-const FIRST_TICK_MS = 60 * 1000;
+const PASS_EVERY_MS = 30 * 60 * 1000;
 
 /** The update feed of the channel the app was built for. */
 export interface Updater {
@@ -29,7 +26,7 @@ export interface Updater {
 export interface UpdatesOptions {
   /** `null` where the app cannot update. */
   updater: Updater | null;
-  /** Read before every scheduled check, so a changed setting applies without a restart. */
+  /** Read before every pass, so a changed setting applies without a restart. */
   checkEnabled: () => boolean;
   onChange: () => void;
 }
@@ -45,7 +42,6 @@ export function createUpdates({
   };
 
   let checkedAt = 0;
-  let timers: NodeJS.Timeout[] = [];
 
   function set(next: UpdateState) {
     state = next;
@@ -86,11 +82,6 @@ export function createUpdates({
     }
   }
 
-  function tick() {
-    if (checkEnabled() && Date.now() - checkedAt >= CHECK_EVERY_MS)
-      void check();
-  }
-
   return {
     state: () => state,
 
@@ -100,16 +91,12 @@ export function createUpdates({
       if (state.status === UpdateStatus.Ready) updater?.install();
     },
 
-    start() {
-      if (!updater) return;
+    everyMs: PASS_EVERY_MS,
 
-      timers = [setTimeout(tick, FIRST_TICK_MS), setInterval(tick, TICK_MS)];
-    },
-
-    stop() {
-      for (const timer of timers) clearTimeout(timer);
-
-      timers = [];
+    /** Checks while the user has checks on and the last was long enough ago. */
+    async run() {
+      if (checkEnabled() && Date.now() - checkedAt >= CHECK_EVERY_MS)
+        await check();
     },
   };
 }
