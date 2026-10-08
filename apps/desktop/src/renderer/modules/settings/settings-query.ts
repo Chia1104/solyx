@@ -18,7 +18,9 @@ const all = ["settings"] as const;
 
 export const settingsQueryKeys = {
   all,
-  appearance: [...all, "appearance"] as const,
+  // Outside `all`: the appearance arrives whole on a push of its own, so another setting's push
+  // never reads it again over a palette being previewed.
+  appearance: ["appearance"] as const,
   about: [...all, "about"] as const,
   secrets: [...all, "secrets"] as const,
   marketData: [...all, "market-data"] as const,
