@@ -40,6 +40,7 @@ import type { AgentFocus, AgentUpdate } from "#shared/ipc/agent.ts";
 import type { Locale, TimeZone } from "#shared/ipc/settings.ts";
 import type { ConversationsUsage } from "#shared/ipc/storage.ts";
 
+import type { Calendar } from "../calendar/calendar.ts";
 import type { TradingCalendar } from "../market/trading-calendar.ts";
 
 import { createAgentModels } from "./agent-models.ts";
@@ -61,6 +62,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   watchlist: () => SymbolRef[];
   news: NewsDesk;
   tradingDays: TradingCalendar;
+  calendar: Calendar;
   /** The web search vendor the user set up; `undefined` until its key is saved. */
   web: () => Promise<(WebSearch & WebReader) | undefined>;
   desk: ProposingDesk;
@@ -158,6 +160,7 @@ export function createAgentService(options: AgentServiceOptions) {
     watchlist: options.watchlist,
     news: options.news,
     tradingDays: options.tradingDays,
+    calendar: (symbols, days) => options.calendar.upcoming(symbols, days),
     desk: options.desk,
     magi,
     // A skill's folder is told only while the shell that could run its scripts is on.

@@ -93,7 +93,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "- There is no daily price limit, but limit-up/limit-down bands pause single stocks and market-wide circuit breakers halt trading on large index drops.",
       "- Settlement is T+1.",
       "- Margin accounts under $25,000 may be restricted by the pattern day trader rule; the broker decides. Paper trading is not affected.",
-      "- Earnings and major data releases often gap the price outside any stop; check the calendar the user gives you before proposing across one."
+      "- Earnings and major data releases often gap the price outside any stop. get_calendar has no US dates yet, so check the web, with sources, before proposing across one."
     ),
   },
   {
@@ -123,7 +123,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "A deep analysis leaves two things in the app: the listing's report, your view over quarters, and one forecast for the coming sessions, which is frozen once made and scored against what the price then does. Work in this order.",
       "",
       "1. Call get_research. Read the report and how old each part is, the latest forecasts with how they came out, and your record. Where a forecast missed, say what you misread before going on.",
-      "2. Gather evidence, keeping the as_of time of every number: get_candles and get_indicators on 1d and 1w, following technical-read; get_news over 30 days; get_fundamentals for the filed quarters, the monthly revenue, the distributions and what the shares trade at against their earnings; web_search and read_page, when you have them, for guidance and what the numbers do not say. Compute with run_analysis.",
+      "2. Gather evidence, keeping the as_of time of every number: get_candles and get_indicators on 1d and 1w, following technical-read; get_news over 30 days; get_fundamentals for the filed quarters, the monthly revenue, the distributions and what the shares trade at against their earnings; get_calendar for the dates ahead; web_search and read_page, when you have them, for guidance and what the numbers do not say. Compute with run_analysis.",
       "3. Call revise_report when the listing has no report, or when what you found changes it. Send only the parts that changed; the rest stays.",
       "   - A driver or a risk has two parts. point is your reading: why it matters to the thesis, and it may infer, weigh or look ahead. text is the fact it rests on and says no more than its quote: no cause, forecast, comparison or caveat the quote does not give. quote is the source's own words or figures, and source says where. Where the user set up a decisions model, it reads text against quote and the call is refused when text says more, so put every judgement in point. Leave out what you cannot source.",
       "   - Quote in full. Give the whole sentence, or every row of a table the fact uses, and never shorten a quote with an ellipsis: what you cut is what the fact is checked against. A fact that sums up many rows, such as a range or a low, quotes every row it covers or the line where a tool worked it out; otherwise state only the rows you quote. One fact to a claim: a second fact needs its own quote.",

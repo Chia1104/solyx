@@ -288,6 +288,7 @@
       "get_indicators": "Read indicators",
       "get_news": "Read news",
       "get_watchlist": "Read your watchlist",
+      "get_calendar": "Read the calendar",
       "get_account": "Read your account",
       "list_proposals": "Read your proposals",
       "check_order": "Checked an order",

@@ -7,6 +7,7 @@ import type {
   QuarterStatement,
   TradingRestriction,
 } from "./fundamentals.ts";
+import type { MacroRelease } from "./macro.ts";
 import { Market } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { twFilingDeadline, twRevenueDeadline } from "./rules/tw.ts";
@@ -51,6 +52,18 @@ export interface ListingEvent {
   amount: number | null;
   /** A restriction's last day; `null` for an event of one day or a restriction with no end set. */
   until: string | null;
+}
+
+/** Some listings' coming events and their markets' releases, as a host's calendar serves them. */
+export interface UpcomingEvents {
+  /** Soonest first. */
+  events: ListingEvent[];
+  /** Listings whose fundamentals could not be read this time, so their events may be missing. */
+  unread: SymbolRef[];
+  /** The economic releases of the listings' markets, soonest first. */
+  releases: MacroRelease[];
+  /** Markets whose release schedule could not be read this time, so their releases may be missing. */
+  unreadMarkets: Market[];
 }
 
 /** What a listing's events are derived from, as `Fundamentals` serves it. */

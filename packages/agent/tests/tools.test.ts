@@ -15,9 +15,12 @@ import type {
 import { expect, test, vi } from "vite-plus/test";
 
 import { BrokerMode } from "@solyx/core/broker";
+import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
+import type { UpcomingEvents } from "@solyx/core/calendar";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
+import { MacroIndicator } from "@solyx/core/macro";
 import { InstrumentKind, Market } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import { NewsChannel, TimePrecision, readNews } from "@solyx/core/news";
@@ -126,7 +129,10 @@ function setup(candles: Candle[] = dailyBars(80)) {
     check: vi.fn<OrderDesk["check"]>(async () => []),
     propose: vi.fn<OrderDesk["propose"]>(async () => proposal({})),
     list: vi.fn<OrderDesk["list"]>(() => []),
-    account: async () => ({ cash: { TWD: 1_000_000 }, positions: [] }),
+    account: vi.fn<OrderDesk["account"]>(async () => ({
+      cash: { TWD: 1_000_000 },
+      positions: [],
+    })),
     mode: BrokerMode.Paper,
   };
 
@@ -138,11 +144,21 @@ function setup(candles: Candle[] = dailyBars(80)) {
     async () => weekdays
   );
 
+  const calendar = vi.fn<TradingToolPorts["calendar"]>(
+    async (): Promise<UpcomingEvents> => ({
+      events: [],
+      unread: [],
+      releases: [],
+      unreadMarkets: [],
+    })
+  );
+
   const ports = {
     marketData,
     watchlist: () => [TSMC],
     news,
     tradingDays,
+    calendar,
     desk,
     skills: async () => [
       {
@@ -170,7 +186,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     return { text: contentText(result.content ?? []), details: result.details };
   };
 
-  return { run, desk, ports, marketData, news, tradingDays };
+  return { run, desk, ports, marketData, news, tradingDays, calendar };
 }
 
 function newsItem(title: string, hoursAgo: number | null): NewsItem {
@@ -566,6 +582,99 @@ test("the prompt carries the skills and the user's instructions", async () => {
   expect(seen.indexOf("# Orders")).toBeLessThan(seen.indexOf("Risk at most"));
 
   await runtime.close();
+});
+
+test("the calendar lists the followed listings' events and their markets' releases, deadlines marked", async () => {
+  const { run, desk, calendar } = setup();
+
+  desk.account.mockResolvedValue({
+    cash: { TWD: 1_000_000 },
+    positions: [
+      {
+        instrument: {
+          market: Market.TW,
+          symbol: "6669",
+          kind: InstrumentKind.Stock,
+        },
+        quantity: 1000,
+        avgPrice: 2200,
+      },
+    ],
+  });
+
+  calendar.mockResolvedValue({
+    events: [
+      {
+        symbol: TSMC,
+        kind: ListingEventKind.DividendPayment,
+        date: "2026-10-08",
+        timing: EventTiming.Set,
+        subject: "115年第1季",
+        amount: 7,
+        until: null,
+      },
+      {
+        symbol: { market: Market.TW, symbol: "6669" },
+        kind: ListingEventKind.MonthlyRevenue,
+        date: "2026-10-10",
+        timing: EventTiming.Deadline,
+        subject: "2026-09",
+        amount: null,
+        until: null,
+      },
+      {
+        symbol: { market: Market.TW, symbol: "6669" },
+        kind: ListingEventKind.ShortSaleSuspension,
+        date: "2026-10-12",
+        timing: EventTiming.Set,
+        subject: "除息",
+        amount: null,
+        until: "2026-10-15",
+      },
+    ],
+    unread: [{ market: Market.TW, symbol: "6669" }],
+    releases: [
+      {
+        market: Market.TW,
+        indicator: MacroIndicator.Trade,
+        date: "2026-10-08",
+        timing: EventTiming.Set,
+        period: "2026-09",
+      },
+      {
+        market: Market.TW,
+        indicator: MacroIndicator.PurchasingManagers,
+        date: "2026-11-03",
+        timing: EventTiming.Deadline,
+        period: "2026-10",
+      },
+    ],
+    unreadMarkets: [],
+  });
+
+  const { text, details } = await run(AgentToolName.GetCalendar, { days: 30 });
+
+  expect(calendar).toHaveBeenCalledWith(
+    [{ market: Market.TW, symbol: "6669" }, TSMC],
+    30
+  );
+  expect(text.split("\n")).toEqual([
+    "Calendar of TW 6669, TW 2330 over the next 30 days, each market from its own day today, as_of 2026-09-30 10:00 Taipei; the same list the app's overview shows",
+    "Listings' filings, distributions and restrictions:",
+    "2026-10-08 TW 2330 pays its dividend, 7 cash a share (115年第1季)",
+    "by 2026-10-10 TW 6669 2026-09 revenue due",
+    "2026-10-12 TW 6669 short sale suspension until 2026-10-15 (除息)",
+    "Economic releases of their markets:",
+    "2026-10-08 TW trade for 2026-09",
+    "by 2026-11-03 TW purchasing managers for 2026-10",
+    "Could not read the fundamentals of TW 6669 this time, so dates may be missing.",
+  ]);
+  expect(details).toEqual({
+    symbols: [{ market: Market.TW, symbol: "6669" }, TSMC],
+    days: 30,
+    events: 3,
+    releases: 2,
+  });
 });
 
 test("skills are read by name", async () => {

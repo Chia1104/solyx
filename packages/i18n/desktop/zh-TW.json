@@ -288,6 +288,7 @@
       "get_indicators": "讀取技術指標",
       "get_news": "讀取新聞",
       "get_watchlist": "讀取自選股",
+      "get_calendar": "讀取行事曆",
       "get_account": "讀取帳戶",
       "list_proposals": "讀取提案",
       "check_order": "檢查委託",
