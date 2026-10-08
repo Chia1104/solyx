@@ -206,6 +206,22 @@
       "empty": "近 {{days}} 天還沒有收集到庫存與自選的消息。新聞會依設定頁的頻率自動收集，也可以請 agent 查詢。"
     }
   },
+  "calendar": {
+    "title": "接下來",
+    "description": "未來 {{days}} 天庫存與自選的重要日期：公司已訂定的除權息日與股利發放日，以及法規規定的下一期財報與月營收最晚公布日。目前僅支援台股。",
+    "unfollowed": "加入自選或持有股票後，這裡會顯示它們接下來的除權息與財報日期。",
+    "empty": "未來 {{days}} 天沒有排定的事件。",
+    "unread": "無法讀取 {{symbols}} 的基本面資料，它們的日期可能缺漏。",
+    "by": "{{date}} 前",
+    "deadline-hint": "法規規定的最晚日期，公司可能提早公布。",
+    "kinds": {
+      "quarterly-report": "{{year}} 年第 {{quarter}} 季財報公布",
+      "monthly-revenue": "{{month}} 月營收公布",
+      "ex-dividend": "除息，每股現金股利 {{amount}} 元",
+      "ex-rights": "除權，每股股票股利 {{amount}} 元",
+      "dividend-payment": "發放現金股利，每股 {{amount}} 元"
+    }
+  },
   "agent": {
     "title": "Agent",
     "tabs": {

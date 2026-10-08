@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./broker": "./src/broker.ts",
+    "./calendar": "./src/calendar.ts",
     "./candles": "./src/candles.ts",
     "./council": "./src/council.ts",
     "./forecast": "./src/forecast.ts",

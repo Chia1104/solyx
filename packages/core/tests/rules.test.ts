@@ -1,7 +1,11 @@
 import { describe, expect, test } from "vite-plus/test";
 
 import { InstrumentKind } from "../src/market.ts";
-import { isValidTwQuantity, twTickSize } from "../src/rules/tw.ts";
+import {
+  isValidTwQuantity,
+  twRevenueDeadline,
+  twTickSize,
+} from "../src/rules/tw.ts";
 import { usTickSize } from "../src/rules/us.ts";
 
 describe("twTickSize", () => {
@@ -37,4 +41,9 @@ describe("isValidTwQuantity", () => {
 test("usTickSize allows sub-penny only below $1", () => {
   expect(usTickSize(0.5)).toBe(0.0001);
   expect(usTickSize(1)).toBe(0.01);
+});
+
+test("a month's revenue is due by the tenth of the next, December's in the next year", () => {
+  expect(twRevenueDeadline("2026-09")).toBe("2026-10-10");
+  expect(twRevenueDeadline("2026-12")).toBe("2027-01-10");
 });
