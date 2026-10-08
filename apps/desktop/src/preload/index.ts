@@ -5,6 +5,8 @@ import { accountChannels } from "#shared/ipc/account.ts";
 import type { AccountApi } from "#shared/ipc/account.ts";
 import { agentChannels, agentEvents } from "#shared/ipc/agent.ts";
 import type { AgentApi, AgentEvents } from "#shared/ipc/agent.ts";
+import { calendarChannels } from "#shared/ipc/calendar.ts";
+import type { CalendarApi } from "#shared/ipc/calendar.ts";
 import { marketChannels, marketEvents } from "#shared/ipc/market.ts";
 import type { MarketApi, MarketEvents } from "#shared/ipc/market.ts";
 import { memoryChannels, memoryEvents } from "#shared/ipc/memory.ts";
@@ -82,6 +84,7 @@ function bridge<Api, Events = Record<never, never>>(
 const api: SolyxApi = {
   account: bridge<AccountApi>(accountChannels),
   agent: bridge<AgentApi, AgentEvents>(agentChannels, agentEvents),
+  calendar: bridge<CalendarApi>(calendarChannels),
   market: bridge<MarketApi, MarketEvents>(marketChannels, marketEvents),
   memory: bridge<MemoryApi, MemoryEvents>(memoryChannels, memoryEvents),
   news: bridge<NewsApi, NewsEvents>(newsChannels, newsEvents),

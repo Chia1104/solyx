@@ -29,6 +29,7 @@ import { ColorScheme } from "#shared/palette.ts";
 
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
+import { createCalendar } from "./modules/calendar/calendar.ts";
 import { createDecisions } from "./modules/decisions/decisions.ts";
 import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
@@ -163,6 +164,8 @@ export function createServices() {
     ],
   });
 
+  const calendar = createCalendar({ fundamentals });
+
   // Every window hears every change to the agent's research, whoever made it.
   const research = createResearch(
     openResearch(
@@ -273,6 +276,7 @@ export function createServices() {
     userData,
     memories,
     research,
+    calendar,
     agent,
     mcp,
     decisions,

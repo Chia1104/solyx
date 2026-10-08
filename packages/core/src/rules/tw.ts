@@ -48,6 +48,14 @@ export function twFilingDeadline(periodEnd: string): string {
     .toString();
 }
 
+/** The date, `YYYY-MM-DD`, by which a month's (`YYYY-MM`) revenue is reported: the tenth of the next. */
+export function twRevenueDeadline(month: string): string {
+  return Temporal.PlainYearMonth.from(month)
+    .add({ months: 1 })
+    .toPlainDate({ day: 10 })
+    .toString();
+}
+
 /** Board lots and odd lots trade in separate books, so one order is either whole board lots or 1–999 shares. */
 export function isValidTwQuantity(quantity: number): boolean {
   if (!Number.isInteger(quantity) || quantity <= 0) return false;

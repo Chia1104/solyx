@@ -206,6 +206,22 @@
       "empty": "Nothing collected about what you hold and watch in the last {{days}} days. News is collected at the interval set in Settings, or when you ask the agent."
     }
   },
+  "calendar": {
+    "title": "Coming up",
+    "description": "The next {{days}} days for what you hold and watch: the days shares go ex and dividends are paid, as each company set them, and the latest days the rules allow for the next statements and monthly revenue. Taiwan listings only for now.",
+    "unfollowed": "Hold or watch listings, and their coming dividends and filings show here.",
+    "empty": "Nothing on the calendar in the next {{days}} days.",
+    "unread": "Couldn't read the fundamentals of {{symbols}}, so their dates may be missing.",
+    "by": "by {{date}}",
+    "deadline-hint": "The latest day the rules allow; the company may well report earlier.",
+    "kinds": {
+      "quarterly-report": "Q{{quarter}} {{year}} statements due",
+      "monthly-revenue": "{{month}} revenue due",
+      "ex-dividend": "Goes ex-dividend, {{amount}} cash a share",
+      "ex-rights": "Goes ex-rights, {{amount}} in stock a share",
+      "dividend-payment": "Pays its dividend, {{amount}} cash a share"
+    }
+  },
   "agent": {
     "title": "Agent",
     "tabs": {
