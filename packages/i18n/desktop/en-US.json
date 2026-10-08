@@ -178,7 +178,7 @@
       "voices": "Press {{press}} / Crowd {{crowd}}",
       "stories_one": "{{count}} story",
       "stories_other": "{{count}} stories",
-      "hint": "News and posts collected over the last {{days}} days, scored by the decisions model; 50 is neutral. Press covers filings and news, crowd covers forums and social networks. Items that tell one story count once: reprints and replies, and outlets or posts that reword one headline within a day.",
+      "hint": "News and posts collected over the last {{days}} days, scored by the decisions model; 50 is neutral. Press covers what companies, outlets and regulators publish, crowd what investors post: the decisions model tells who wrote each, and where it is unsure the channel does. Pages of data count as no news. Items that tell one story count once: reprints and replies, and outlets or posts that reword one headline within a day.",
       "off": "Sentiment off",
       "unscored": "Set up a decisions model to score sentiment"
     },

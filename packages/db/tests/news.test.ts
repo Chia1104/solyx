@@ -10,7 +10,12 @@ import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 import { Market } from "@solyx/core/market";
 import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { NewsItem } from "@solyx/core/news";
-import { Stance, TextKind, TextTopic } from "@solyx/core/sentiment";
+import {
+  Stance,
+  TextKind,
+  TextSpeaker,
+  TextTopic,
+} from "@solyx/core/sentiment";
 import type { SentimentScore } from "@solyx/core/sentiment";
 
 import {
@@ -75,6 +80,13 @@ const SCORE: SentimentScore = {
     [TextTopic.Legal]: 0,
     [TextTopic.Market]: 0,
     [TextTopic.Other]: 0,
+  },
+  speaker: {
+    [TextSpeaker.Company]: 0,
+    [TextSpeaker.Outlet]: 0.9,
+    [TextSpeaker.Investor]: 0.1,
+    [TextSpeaker.Reference]: 0,
+    [TextSpeaker.Other]: 0,
   },
 };
 
@@ -197,6 +209,21 @@ test("one item found for two listings is scored for each on its own", () => {
 
   expect(store.list(TSMC, since)[0].score).toEqual(SCORE);
   expect(store.list(FOXCONN, since)[0].score).toBeNull();
+});
+
+test("a score that misses who speaks reads as no score, so the story is scored again", () => {
+  const { store } = open();
+  const since = new Date("2026-09-26T00:00:00Z");
+
+  store.save(TSMC, NEWS, [item("a", "2026-10-02T00:00:00Z")], FOUND);
+  store.saveScore(TSMC, store.list(TSMC, since)[0], SCORE);
+
+  const db = new DatabaseSync(join(directory, "news.sqlite"));
+
+  db.exec("UPDATE listing_news SET speaker = NULL");
+  db.close();
+
+  expect(store.list(TSMC, since)[0].score).toBeNull();
 });
 
 test("records outlive the connection", () => {

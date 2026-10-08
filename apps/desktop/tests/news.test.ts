@@ -10,7 +10,12 @@ import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { NewsItem, NewsSource } from "@solyx/core/news";
-import { Stance, TextKind, TextTopic } from "@solyx/core/sentiment";
+import {
+  Stance,
+  TextKind,
+  TextSpeaker,
+  TextTopic,
+} from "@solyx/core/sentiment";
 import type { SentimentScore, SentimentScorer } from "@solyx/core/sentiment";
 import { openNews } from "@solyx/db/news";
 import type { NewsData } from "@solyx/db/news";
@@ -59,6 +64,13 @@ const SCORE: SentimentScore = {
     [TextTopic.Legal]: 0,
     [TextTopic.Market]: 0,
     [TextTopic.Other]: 0,
+  },
+  speaker: {
+    [TextSpeaker.Company]: 0,
+    [TextSpeaker.Outlet]: 0.9,
+    [TextSpeaker.Investor]: 0.1,
+    [TextSpeaker.Reference]: 0,
+    [TextSpeaker.Other]: 0,
   },
 };
 

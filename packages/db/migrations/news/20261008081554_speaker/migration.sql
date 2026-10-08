@@ -1,0 +1,1 @@
+ALTER TABLE `listing_news` ADD `speaker` text;

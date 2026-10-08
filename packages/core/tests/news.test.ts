@@ -6,6 +6,7 @@ import {
   NewsChannel,
   NewsVoice,
   TimePrecision,
+  isAboutListing,
   rankHeadlines,
   readNews,
 } from "../src/news.ts";
@@ -15,7 +16,7 @@ import type {
   NewsRecord,
   NewsSubject,
 } from "../src/news.ts";
-import { Stance, TextKind, TextTopic } from "../src/sentiment.ts";
+import { Stance, TextKind, TextSpeaker, TextTopic } from "../src/sentiment.ts";
 import type { SentimentScore } from "../src/sentiment.ts";
 
 const NOW = new Date("2026-10-03T05:00:00Z");
@@ -66,7 +67,33 @@ const SCORE: SentimentScore = {
     [TextTopic.Market]: 0,
     [TextTopic.Other]: 0,
   },
+  // Spread evenly, so the model is unsure who speaks and the channel says.
+  speaker: {
+    [TextSpeaker.Company]: 0.2,
+    [TextSpeaker.Outlet]: 0.2,
+    [TextSpeaker.Investor]: 0.2,
+    [TextSpeaker.Reference]: 0.2,
+    [TextSpeaker.Other]: 0.2,
+  },
 };
+
+/** `score` as the model reads it when all but sure that `speaker` wrote the text. */
+function spokenBy(
+  speaker: TextSpeaker,
+  score: SentimentScore = SCORE
+): SentimentScore {
+  return {
+    ...score,
+    speaker: {
+      [TextSpeaker.Company]: 0.01,
+      [TextSpeaker.Outlet]: 0.01,
+      [TextSpeaker.Investor]: 0.01,
+      [TextSpeaker.Reference]: 0.01,
+      [TextSpeaker.Other]: 0.01,
+      [speaker]: 0.96,
+    },
+  };
+}
 
 function record(
   hour: string,
@@ -419,6 +446,44 @@ test("reworded titles stay apart a day apart, on two exchange days when one is d
   ).toHaveLength(2);
 });
 
+test("who speaks decides a story's voice where the model is sure, and its channel otherwise", () => {
+  const { gauge } = readNews(
+    [
+      // A forum post a news search found: an article by its channel, an investor's by its words.
+      told("外資連三賣 散戶還該抱著嗎", "2026-10-02T02:00:00Z", {
+        site: "forum.test",
+        score: spokenBy(TextSpeaker.Investor, scored(1, 0)),
+      }),
+      told("台積電法說會上修全年營收展望", "2026-10-02T03:00:00Z", {
+        score: scored(1, 1),
+      }),
+    ],
+    UNNAMED
+  );
+
+  expect(gauge.voices).toEqual({
+    [NewsVoice.Press]: { score: 100, stories: 1 },
+    [NewsVoice.Crowd]: { score: 50, stories: 1 },
+  });
+});
+
+test("a page of data is no news about the listing", () => {
+  const records = [
+    told("毛利率查詢｜歷年毛利率與營益率分析", "2026-10-02T02:00:00Z", {
+      site: "data.test",
+      score: spokenBy(TextSpeaker.Reference, scored(1, 1)),
+    }),
+    told("台積電法說會上修全年營收展望", "2026-10-02T03:00:00Z", {
+      score: scored(1, 1),
+    }),
+  ];
+
+  const { stories, gauge } = readNews(records, UNNAMED);
+
+  expect(stories.filter(isAboutListing)).toHaveLength(1);
+  expect(gauge.overall.stories).toBe(1);
+});
+
 const TSMC = { market: Market.TW, symbol: "2330" };
 
 const FOXCONN = { market: Market.TW, symbol: "2317" };
@@ -457,6 +522,27 @@ test("filings outrank the press and the press the crowd, all else alike", () => 
     "台積電法說會上修全年營收展望",
     "PTT 熱議台積電法說會內容",
   ]);
+});
+
+test("who speaks weighs a headline: an investor's post an outlet's site carries ranks below its articles", () => {
+  const at = "2026-10-02T02:00:00Z";
+
+  expect(
+    headlineTitles(
+      foundFor(
+        TSMC,
+        told("外資連三賣 散戶還該抱著嗎", at, {
+          site: "forum.test",
+          score: spokenBy(TextSpeaker.Investor),
+        }),
+        told("台積電擴大先進封裝產能", at, { score: SCORE }),
+        told("毛利率查詢｜歷年毛利率與營益率分析", at, {
+          site: "data.test",
+          score: spokenBy(TextSpeaker.Reference),
+        })
+      )
+    )
+  ).toEqual(["台積電擴大先進封裝產能", "外資連三賣 散戶還該抱著嗎"]);
 });
 
 test("a story told more often or more lately weighs more", () => {

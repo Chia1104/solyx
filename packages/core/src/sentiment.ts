@@ -40,6 +40,22 @@ export const TextTopic = {
 
 export type TextTopic = (typeof TextTopic)[keyof typeof TextTopic];
 
+/** Who speaks in a text, which decides whose voice it carries. */
+export const TextSpeaker = {
+  /** The company itself: a filing, a press release or its own statement. */
+  Company: "company",
+  /** A news outlet or a broker's research. */
+  Outlet: "outlet",
+  /** An individual investor posting on a forum or social network. */
+  Investor: "investor",
+  /** A page of data, quotes or listings that reports no event. */
+  Reference: "reference",
+  /** Anyone else, such as a regulator or an exchange. */
+  Other: "other",
+} as const;
+
+export type TextSpeaker = (typeof TextSpeaker)[keyof typeof TextSpeaker];
+
 /** A text and the listing it is judged about. */
 export interface SentimentInput {
   symbol: SymbolRef;
@@ -47,6 +63,9 @@ export interface SentimentInput {
   listing: Listing | null;
   title?: string;
   text: string;
+  /** Where it was published: the host without `www.`, and its address when the source gives one. */
+  site: string;
+  url: string | null;
 }
 
 /** Probabilities; each record sums to one across its options. */
@@ -58,6 +77,7 @@ export interface SentimentScore {
   stance: Record<Stance, number>;
   kind: Record<TextKind, number>;
   topic: Record<TextTopic, number>;
+  speaker: Record<TextSpeaker, number>;
 }
 
 /**

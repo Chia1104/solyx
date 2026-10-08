@@ -2,7 +2,12 @@ import { expect, test } from "vite-plus/test";
 import * as z from "zod";
 
 import { Market } from "@solyx/core/market";
-import { Stance, TextKind, TextTopic } from "@solyx/core/sentiment";
+import {
+  Stance,
+  TextKind,
+  TextSpeaker,
+  TextTopic,
+} from "@solyx/core/sentiment";
 
 import {
   CLOUDFLARE_DEFAULT_MODEL,
@@ -22,6 +27,8 @@ const URL = `${OPTIONS.baseURL}/accounts/account-1/ai/run/@cf/cloudflare/clef`;
 const TSMC = {
   symbol: { market: Market.TW, symbol: "2330" },
   listing: { name: "台積電", englishName: "TSMC" },
+  site: "forum.test",
+  url: "https://forum.test/post/1",
 };
 
 const ANSWERS = {
@@ -51,6 +58,18 @@ const ANSWERS = {
       analyst: 0.05,
       legal: 0,
       market: 0.05,
+      other: 0,
+    },
+  },
+  speaker: {
+    type: "choice",
+    choice: "investor",
+    confidence: 0.8,
+    probabilities: {
+      company: 0,
+      outlet: 0.1,
+      investor: 0.85,
+      reference: 0.05,
       other: 0,
     },
   },
@@ -100,6 +119,7 @@ const sentSchema = z.object({
     }),
     title: z.string().nullable(),
     text: z.string(),
+    source: z.object({ site: z.string(), url: z.string().nullable() }),
   }),
   questions: z.strictObject({
     relevance: z.object({ type: z.literal("noul") }),
@@ -112,6 +132,10 @@ const sentSchema = z.object({
       criteria: z.record(z.string(), z.string()),
     }),
     topic: z.object({
+      type: z.literal("choice"),
+      criteria: z.record(z.string(), z.string()),
+    }),
+    speaker: z.object({
       type: z.literal("choice"),
       criteria: z.record(z.string(), z.string()),
     }),
@@ -152,6 +176,7 @@ test("asks the account's model about the listing and maps the answers onto the s
     },
     kind: ANSWERS.kind.probabilities,
     topic: ANSWERS.topic.probabilities,
+    speaker: ANSWERS.speaker.probabilities,
   });
 
   const [request] = requests;
@@ -171,7 +196,11 @@ test("asks the account's model about the listing and maps the answers onto the s
     },
     title: "法說會前瞻",
     text: "台積電這季應該會上修財測",
+    source: { site: "forum.test", url: "https://forum.test/post/1" },
   });
+  expect(Object.keys(body.questions.speaker.criteria)).toEqual(
+    Object.values(TextSpeaker)
+  );
   expect(Object.keys(body.questions.kind.criteria)).toEqual(
     Object.values(TextKind)
   );

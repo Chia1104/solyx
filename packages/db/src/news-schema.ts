@@ -10,7 +10,12 @@ import {
 
 import type { Market } from "@solyx/core/market";
 import type { NewsChannel, TimePrecision } from "@solyx/core/news";
-import type { Stance, TextKind, TextTopic } from "@solyx/core/sentiment";
+import type {
+  Stance,
+  TextKind,
+  TextSpeaker,
+  TextTopic,
+} from "@solyx/core/sentiment";
 
 // drizzle-kit generates ../migrations/news from these tables.
 
@@ -55,6 +60,7 @@ export const listingNews = sqliteTable(
     stance: text({ mode: "json" }).$type<Record<Stance, number>>(),
     kind: text({ mode: "json" }).$type<Record<TextKind, number>>(),
     topic: text({ mode: "json" }).$type<Record<TextTopic, number>>(),
+    speaker: text({ mode: "json" }).$type<Record<TextSpeaker, number>>(),
   },
   (table) => [
     primaryKey({ columns: [table.itemId, table.market, table.symbol] }),
