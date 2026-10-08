@@ -77,6 +77,11 @@ const MarkdownLink: Components["a"] = ({ children, className, href }) => {
   );
 };
 
+// Streamdown memoizes on these by identity, so they live outside the component.
+const controls = { table: false, mermaid: false };
+
+const plugins = { cjk };
+
 // Streamdown's defaults use shadcn tokens, which HeroUI's palette does not define.
 const components: Components = {
   code: ({ children }) => (
@@ -126,10 +131,10 @@ export function AgentMarkdown({
     <Streamdown
       className="text-sm leading-6 [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-semibold [&_table]:text-xs"
       components={components}
-      controls={{ table: false, mermaid: false }}
+      controls={controls}
       isAnimating={streaming}
       mode={streaming ? "streaming" : "static"}
-      plugins={{ cjk }}>
+      plugins={plugins}>
       {text}
     </Streamdown>
   );

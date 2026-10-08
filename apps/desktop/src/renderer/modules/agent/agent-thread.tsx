@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { memo, useLayoutEffect, useRef } from "react";
 
 import { ScrollShadow, Spinner } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
@@ -59,7 +59,14 @@ function keyOf(item: AgentViewItem, index: number): string {
   }
 }
 
-function Item({ sessionId, item }: { sessionId: string; item: AgentViewItem }) {
+/** Renders again only when its item changes, since applying an event keeps every other item. */
+const Item = memo(function Item({
+  sessionId,
+  item,
+}: {
+  sessionId: string;
+  item: AgentViewItem;
+}) {
   switch (item.kind) {
     case AgentItemKind.User:
       return <UserMessage message={item} />;
@@ -70,7 +77,7 @@ function Item({ sessionId, item }: { sessionId: string; item: AgentViewItem }) {
     default:
       return <Notice notice={item} />;
   }
-}
+});
 
 export function EmptyThread() {
   const { t } = useTranslation();

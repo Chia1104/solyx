@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useMatch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import type { AgentView } from "@solyx/agent/wire";
 import type { SymbolRef } from "@solyx/core/market";
 
 import { agentSettingsQuery } from "../settings/settings-query.ts";
@@ -10,6 +11,9 @@ import { SettingsSection } from "../settings/settings-section.ts";
 import { AgentComposer } from "./agent-composer.tsx";
 import { transcriptQuery } from "./agent-query.ts";
 import { AgentThread, EmptyThread } from "./agent-thread.tsx";
+
+// Streaming replaces the transcript every frame, while the composer needs only this.
+const isRunning = (view: AgentView) => view.running;
 
 /** The listing on screen, which the agent is told about with each message. */
 function useFocus(): SymbolRef | null {
@@ -47,7 +51,12 @@ function AgentSetup() {
  */
 export function AgentChat({ sessionId }: { sessionId: string | null }) {
   const settings = useQuery(agentSettingsQuery());
-  const transcript = useQuery(transcriptQuery(sessionId));
+
+  const running = useQuery({
+    ...transcriptQuery(sessionId),
+    select: isRunning,
+  });
+
   const focus = useFocus();
 
   // Until the settings load, assume they are ready rather than flash the setup notice.
@@ -65,7 +74,7 @@ export function AgentChat({ sessionId }: { sessionId: string | null }) {
       {ready ? (
         <AgentComposer
           sessionId={sessionId}
-          running={transcript.data?.running ?? false}
+          running={running.data ?? false}
           focus={focus}
         />
       ) : (
