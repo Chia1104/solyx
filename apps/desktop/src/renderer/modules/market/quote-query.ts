@@ -1,11 +1,10 @@
-import { useEffect } from "react";
-
 import {
+  QueryObserver,
   queryOptions,
   useQueries,
   useQuery,
-  useQueryClient,
 } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -86,24 +85,42 @@ export function useSectors() {
   });
 }
 
-/** Loads a market's quotes and sectors once more as its after-hours session opens, by when the last trades of the day have arrived. */
-export function useQuoteRefresh() {
-  const queryClient = useQueryClient();
-  const { data: sessions } = useQuery(marketSessionsQuery());
+/**
+ * Loads a market's quotes and sectors once more as its after-hours session opens, by when the
+ * last trades of the day have arrived. Only a session that turns into after-hours counts, since
+ * quotes first read during it are already final.
+ */
+export function followAfterHours(queryClient: QueryClient) {
+  let last: Record<Market, Session> | undefined;
 
-  useEffect(() => {
-    if (!sessions) return;
+  new QueryObserver(queryClient, marketSessionsQuery()).subscribe(
+    ({ data: sessions }) => {
+      if (!sessions || sessions === last) return;
 
-    for (const market of Object.values(Market)) {
-      if (sessions[market] === Session.Post) {
+      const previous = last;
+
+      last = sessions;
+
+      if (!previous) return;
+
+      for (const market of Object.values(Market)) {
+        if (
+          sessions[market] !== Session.Post ||
+          previous[market] === Session.Post
+        ) {
+          continue;
+        }
+
         void queryClient.invalidateQueries({
           queryKey: quoteQueryKeys.market(market),
         });
+
+        if (market === Market.TW) {
+          void queryClient.invalidateQueries({
+            queryKey: sectorsQueryKeys.all,
+          });
+        }
       }
     }
-
-    if (sessions[Market.TW] === Session.Post) {
-      void queryClient.invalidateQueries({ queryKey: sectorsQueryKeys.all });
-    }
-  }, [queryClient, sessions]);
+  );
 }

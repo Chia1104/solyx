@@ -9,7 +9,6 @@ import { AgentChat } from "../modules/agent/agent-chat.tsx";
 import { agentSessionsQuery } from "../modules/agent/agent-query.ts";
 import { AgentSessionControls } from "../modules/agent/agent-sessions.tsx";
 import { useAgentStore } from "../modules/agent/agent-store.ts";
-import { useAgentEvents } from "../modules/agent/use-agent-events.ts";
 import { ProposalForm } from "../modules/proposals/proposal-form.tsx";
 import { ProposalQueue } from "../modules/proposals/proposal-queue.tsx";
 import { proposalsQuery } from "../modules/proposals/proposals-query.ts";
@@ -30,8 +29,6 @@ export function AgentPane() {
   const selected = useAgentStore((state) => state.selected);
   const sessions = useQuery(agentSessionsQuery());
   const proposals = useQuery(proposalsQuery());
-
-  useAgentEvents();
 
   const sessionId =
     selected === undefined ? (sessions.data?.[0]?.id ?? null) : selected;

@@ -12,11 +12,7 @@ import { LoadingState } from "../../components/loading-state.tsx";
 import { ListingName } from "../market/listing-name.tsx";
 
 import { PublishedTime } from "./news-list.tsx";
-import {
-  HEADLINE_DAYS,
-  newsHeadlinesQuery,
-  useNewsChanges,
-} from "./news-query.ts";
+import { HEADLINE_DAYS, newsHeadlinesQuery } from "./news-query.ts";
 import { GaugeBar } from "./sentiment-gauge.tsx";
 
 function HeadlineRow({ headline: { story, symbols } }: { headline: Headline }) {
@@ -76,8 +72,6 @@ function HeadlineRow({ headline: { story, symbols } }: { headline: Headline }) {
 export function HeadlineList({ symbols }: { symbols: SymbolRef[] }) {
   const { t } = useTranslation();
   const { data, error, refetch } = useQuery(newsHeadlinesQuery(symbols));
-
-  useNewsChanges();
 
   if (error) return <LoadError error={error} onRetry={() => void refetch()} />;
 

@@ -1,6 +1,5 @@
-import { useEffect } from "react";
-
-import { queryOptions, useQueryClient } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
 import type { SymbolRef } from "@solyx/core/market";
 
@@ -23,14 +22,8 @@ export const researchCoverageQuery = (symbol: SymbolRef) =>
   });
 
 /** Refetches research whenever the agent revises a report, a forecast is made or settled, or it is cleared. */
-export function useResearchChanges() {
-  const queryClient = useQueryClient();
-
-  useEffect(
-    () =>
-      window.solyx.research.onChanged(() => {
-        void queryClient.invalidateQueries({ queryKey: researchQueryKeys.all });
-      }),
-    [queryClient]
-  );
+export function followResearchChanges(queryClient: QueryClient) {
+  window.solyx.research.onChanged(() => {
+    void queryClient.invalidateQueries({ queryKey: researchQueryKeys.all });
+  });
 }

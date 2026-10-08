@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
-import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -76,18 +77,12 @@ export const newsHeadlinesQuery = (symbols: SymbolRef[]) =>
  * Refetches a listing's news whenever the main process collects or scores some, and every
  * listing's coverage and the headlines, since sources are shared and headlines span listings.
  */
-export function useNewsChanges() {
-  const queryClient = useQueryClient();
-
-  useEffect(
-    () =>
-      window.solyx.news.onChanged((symbol) => {
-        void queryClient.invalidateQueries({
-          queryKey: newsQueryKeys.records(symbol),
-        });
-        void queryClient.invalidateQueries({ queryKey: coverage });
-        void queryClient.invalidateQueries({ queryKey: headlines });
-      }),
-    [queryClient]
-  );
+export function followNewsChanges(queryClient: QueryClient) {
+  window.solyx.news.onChanged((symbol) => {
+    void queryClient.invalidateQueries({
+      queryKey: newsQueryKeys.records(symbol),
+    });
+    void queryClient.invalidateQueries({ queryKey: coverage });
+    void queryClient.invalidateQueries({ queryKey: headlines });
+  });
 }

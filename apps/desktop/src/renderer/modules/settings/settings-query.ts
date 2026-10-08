@@ -1,6 +1,5 @@
-import { useEffect } from "react";
-
-import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
 import type { AgentModelRef } from "@solyx/agent/providers";
@@ -202,14 +201,8 @@ export const mcpQuery = () =>
  * Refetches the settings whenever one, or a saved secret, changes: on this page, in another window
  * or by hand in the config file. Queries that read only those never go stale on their own.
  */
-export function useSettingsChanges() {
-  const queryClient = useQueryClient();
-
-  useEffect(
-    () =>
-      window.solyx.settings.onChanged(() => {
-        void queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all });
-      }),
-    [queryClient]
-  );
+export function followSettingsChanges(queryClient: QueryClient) {
+  window.solyx.settings.onChanged(() => {
+    void queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all });
+  });
 }

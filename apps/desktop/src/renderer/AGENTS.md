@@ -5,6 +5,7 @@ The workspace's React app. It reads everything through `window.solyx`, makes no 
 ## Stack
 
 - TanStack Router with hash history, since builds load from `file://`; TanStack Query for everything read from the main process; zustand for client-only state.
+- A push that only refreshes the query cache is followed by a `followXxx(queryClient)` beside the module's query keys, called once in `main.tsx` for the window's whole life, so a query that never goes stale on its own hears of every change whichever page is open. A component subscribes to a push only for state of its own, as a chart watches its live candles again when the sources change.
 - HeroUI v3 on Tailwind CSS v4, used directly. Compose `react-aria-components` where HeroUI has no equivalent; add no other primitive library.
 - Components take every user-facing string from `@solyx/i18n` through `react-i18next`.
 - The app's language (`app/i18n.ts`) and the user's time zone (`app/clock.ts`) are the renderer's own preferences, kept in local storage, and the composer sends both with every message so the agent's context carries them. The times of the app's own events, such as messages and memories, are formatted through `useClock`; anything on a market's calendar, such as charts, sessions and news, reads the exchange's zone from `@solyx/core/market` and never the user's.

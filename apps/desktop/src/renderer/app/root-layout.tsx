@@ -9,13 +9,6 @@ import { useTranslation } from "react-i18next";
 
 import { PaneSplitter, SplitterEdge } from "../components/pane-splitter.tsx";
 import { BrokerModeRule } from "../modules/account/broker-mode-chip.tsx";
-import { useMarketDataChanges } from "../modules/market/market-sessions-query.ts";
-import { useQuoteRefresh } from "../modules/market/quote-query.ts";
-import { useMemoryChanges } from "../modules/memory/memory-query.ts";
-import { useProposalChanges } from "../modules/proposals/proposals-query.ts";
-import { useResearchChanges } from "../modules/research/research-query.ts";
-import { useSettingsChanges } from "../modules/settings/settings-query.ts";
-import { useUpdateChanges } from "../modules/updates/updates-query.ts";
 
 import { AgentPane } from "./agent-pane.tsx";
 import { useWorkspaceHotkeys } from "./hotkeys.ts";
@@ -159,14 +152,6 @@ function Workspace() {
 export function RootLayout() {
   const { i18n } = useTranslation();
   const matchRoute = useMatchRoute();
-
-  useMarketDataChanges();
-  useQuoteRefresh();
-  useProposalChanges();
-  useSettingsChanges();
-  useMemoryChanges();
-  useResearchChanges();
-  useUpdateChanges();
 
   // First-run setup takes the whole window, without the workspace around it.
   const onboarding = matchRoute({ to: "/onboarding" }) !== false;
