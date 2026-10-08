@@ -49,6 +49,21 @@ export const marketDataQuery = () =>
     staleTime: 0,
   });
 
+const selectMarkets = (status: MarketDataStatus) => status.markets;
+
+/**
+ * Each market's source, for readers that need only whether it is ready. Only the config file and
+ * the secret store change that, and both push, so unlike the Fubon session it never goes stale
+ * on its own.
+ */
+export function useMarketSources() {
+  return useQuery({
+    ...marketDataQuery(),
+    staleTime: Infinity,
+    select: selectMarkets,
+  });
+}
+
 /** Whether Taiwan market data has everything its source connects with saved. */
 export function isMarketDataReady(status: MarketDataStatus | undefined) {
   return status?.markets[Market.TW]?.ready === true;

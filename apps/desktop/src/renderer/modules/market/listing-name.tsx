@@ -1,5 +1,5 @@
 import { cn } from "@heroui/react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
@@ -7,7 +7,7 @@ import type { Listing } from "@solyx/core/market-data";
 
 import { Locale } from "#shared/ipc/settings.ts";
 
-import { marketDataQuery } from "../settings/settings-query.ts";
+import { useMarketSources } from "../settings/settings-query.ts";
 
 import { listingQuery } from "./listing-query.ts";
 
@@ -26,12 +26,12 @@ export function listingName(
  * its market's source has its settings, since a miss is kept for the rest of the session.
  */
 export function useListings(symbols: readonly SymbolRef[]): (Listing | null)[] {
-  const settings = useQuery(marketDataQuery());
+  const sources = useMarketSources();
 
   return useQueries({
     queries: symbols.map((symbol) => ({
       ...listingQuery(symbol),
-      enabled: settings.data?.markets[symbol.market]?.ready === true,
+      enabled: sources.data?.[symbol.market]?.ready === true,
     })),
   }).map((listing) => listing.data ?? null);
 }
