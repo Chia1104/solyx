@@ -5,6 +5,7 @@ The workspace's React app. It reads everything through `window.solyx`, makes no 
 ## Stack
 
 - TanStack Router with hash history, since builds load from `file://`; TanStack Query for everything read from the main process; zustand for client-only state.
+- Back goes to the previous page, so a choice within a page, such as a chart's interval or a settings section, replaces its history entry rather than pushing one; first-run setup is a single entry, which leaving it replaces.
 - A push that only refreshes the query cache is followed by a `followXxx(queryClient)` beside the module's query keys, called once in `main.tsx` for the window's whole life, so a query that never goes stale on its own hears of every change whichever page is open. What several places read and changes with the clock, such as sessions and quotes, refreshes there on one timer too, since every observer with a `refetchInterval` polls on its own and a listing shown twice would cost its provider twice. A component subscribes to a push only for state of its own, as a chart watches its live candles again when the sources change.
 - HeroUI v3 on Tailwind CSS v4, used directly. Compose `react-aria-components` where HeroUI has no equivalent; add no other primitive library.
 - Components take every user-facing string from `@solyx/i18n` through `react-i18next`.

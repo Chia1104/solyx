@@ -2,6 +2,7 @@ import type { Ref } from "react";
 
 import { Button, Kbd, Tooltip, cn } from "@heroui/react";
 import {
+  ArrowLeft01Icon,
   Settings01Icon,
   SidebarLeft01Icon,
   SidebarLeftIcon,
@@ -9,7 +10,13 @@ import {
   SidebarRightIcon,
 } from "@hugeicons/core-free-icons";
 import { formatForDisplay } from "@tanstack/react-hotkeys";
-import { Link, useMatchRoute, useNavigate } from "@tanstack/react-router";
+import {
+  Link,
+  useCanGoBack,
+  useMatchRoute,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { Icon } from "../components/icon.tsx";
@@ -20,7 +27,7 @@ import { MarketSessions } from "../modules/market/market-sessions.tsx";
 import { SymbolSearch } from "../modules/market/symbol-search.tsx";
 import { UpdateAction } from "../modules/updates/update-action.tsx";
 
-import { PANE_HOTKEY } from "./hotkeys.ts";
+import { BACK_HOTKEYS, PANE_HOTKEY } from "./hotkeys.ts";
 import { PANE_EDGE, Pane, paneId, useLayoutStore } from "./layout-store.ts";
 
 const TOOLTIP_DELAY = 600;
@@ -60,6 +67,33 @@ function PaneToggle({ pane }: { pane: Pane }) {
   );
 }
 
+/** Goes back a page; switching a chart's interval or a settings section is not a page. */
+function BackButton() {
+  const { t } = useTranslation();
+  const { history } = useRouter();
+  const canGoBack = useCanGoBack();
+
+  return (
+    <Tooltip delay={TOOLTIP_DELAY}>
+      <Button
+        isIconOnly
+        size="sm"
+        variant="ghost"
+        aria-label={t("nav.back")}
+        isDisabled={!canGoBack}
+        onPress={() => history.back()}>
+        <Icon icon={ArrowLeft01Icon} />
+      </Button>
+      <Tooltip.Content className="flex items-center gap-2">
+        {t("nav.back")}
+        <Kbd>
+          <Kbd.Content>{formatForDisplay(BACK_HOTKEYS[0], {})}</Kbd.Content>
+        </Kbd>
+      </Tooltip.Content>
+    </Tooltip>
+  );
+}
+
 function SettingsButton() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -83,13 +117,14 @@ function SettingsButton() {
   );
 }
 
-/** The workspace's title bar: the pane toggles, search, a waiting update, market sessions and settings. */
+/** The workspace's title bar: the pane toggles, back, search, a waiting update, market sessions and settings. */
 export function TitleBar({ searchRef }: { searchRef: Ref<HTMLInputElement> }) {
   const { t } = useTranslation();
 
   return (
     <WindowTitleBar className="px-2">
       <PaneToggle pane={Pane.Symbols} />
+      <BackButton />
       <Link to="/" title={t("nav.overview")} className="text-sm font-semibold">
         Solyx
       </Link>
