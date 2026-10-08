@@ -1,3 +1,5 @@
+import { sumBy } from "es-toolkit";
+
 import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import type { Market, SymbolRef } from "./market.ts";
@@ -24,6 +26,24 @@ export interface MonthlyRevenue {
   revenue: number;
 }
 
+/** A distribution the company decided on, per share, with the days its shares trade without it. */
+export interface Dividend {
+  /** The period whose earnings it distributes, as the company names it, such as `114年第2季`. */
+  period: string;
+  /** The exchange-local date it was announced, `YYYY-MM-DD`. */
+  announced: string;
+  /** Cash per share, in the market's currency. */
+  cash: number;
+  /** Shares distributed per share, at their par value in the market's currency. */
+  stock: number;
+  /** The first session the shares trade without the cash; `null` while there is none or it is not set. */
+  cashExDate: string | null;
+  /** `null` while there is no cash or the day is not set. */
+  cashPaidOn: string | null;
+  /** The first session the shares trade without the stock; `null` while there is none or it is not set. */
+  stockExDate: string | null;
+}
+
 /** One implementation per provider (`@solyx/fundamentals/*`); it runs only in the main process. */
 export interface FundamentalsProvider {
   readonly id: string;
@@ -35,6 +55,8 @@ export interface FundamentalsProvider {
     symbol: SymbolRef,
     since: string
   ): Promise<MonthlyRevenue[]>;
+  /** Distributions announced on or after `since` (`YYYY-MM-DD`), oldest first, those still to go ex among them. */
+  getDividends(symbol: SymbolRef, since: string): Promise<Dividend[]>;
 }
 
 /** A listing's fundamentals from whichever provider covers its market, oldest first; none while no provider does. */
@@ -42,6 +64,8 @@ export interface Fundamentals {
   /** Enough quarters to compare each recent one with the year before. */
   statements(symbol: SymbolRef): Promise<QuarterStatement[]>;
   monthlyRevenue(symbol: SymbolRef): Promise<MonthlyRevenue[]>;
+  /** As many years of distributions as of quarters. */
+  dividends(symbol: SymbolRef): Promise<Dividend[]>;
 }
 
 /** A quarter with what it says against the quarters around it; `null` where a figure it needs is missing. */
@@ -130,6 +154,24 @@ export function revenueTrend(
     yoy: growth(revenue, byMonth.get(shiftMonth(month, -12))),
     mom: growth(revenue, byMonth.get(shiftMonth(month, -1))),
   }));
+}
+
+/** Cash per share of the distributions that went ex in the year through `date` (`YYYY-MM-DD`). */
+export function trailingCash(
+  dividends: readonly Dividend[],
+  date: string
+): number {
+  const yearBefore = Temporal.PlainDate.from(date)
+    .subtract({ years: 1 })
+    .toString();
+
+  return sumBy(
+    dividends.filter(
+      ({ cashExDate }) =>
+        cashExDate !== null && cashExDate > yearBefore && cashExDate <= date
+    ),
+    ({ cash }) => cash
+  );
 }
 
 /**

@@ -3,6 +3,7 @@ import ky, { isHTTPError } from "ky";
 import * as z from "zod";
 
 import type {
+  Dividend,
   FundamentalsProvider,
   MonthlyRevenue,
   QuarterStatement,
@@ -37,6 +38,25 @@ const revenueRowSchema = z.object({
   revenue_month: z.number().int().min(1).max(12),
 });
 
+// FinMind leaves a day that is not set, or does not apply, empty.
+const dayOrUnsetSchema = z.union([
+  z.iso.date(),
+  z.literal("").transform(() => null),
+]);
+
+// One distribution, its amounts per share, cash and stock each from earnings and from surplus.
+const dividendRowSchema = z.object({
+  year: z.string(),
+  AnnouncementDate: z.iso.date(),
+  CashEarningsDistribution: z.number(),
+  CashStatutorySurplus: z.number(),
+  StockEarningsDistribution: z.number(),
+  StockStatutorySurplus: z.number(),
+  CashExDividendTradingDate: dayOrUnsetSchema,
+  CashDividendPaymentDate: dayOrUnsetSchema,
+  StockExDividendTradingDate: dayOrUnsetSchema,
+});
+
 const failureSchema = z.object({ msg: z.string() });
 
 // Net income attributable to the parent's owners, then the whole group's where FinMind names only that.
@@ -53,7 +73,7 @@ export interface FinMindOptions {
   fetch?: typeof globalThis.fetch;
 }
 
-/** Taiwan listings' quarterly income statements and monthly revenue from FinMind, on the user's token or none. */
+/** Taiwan listings' quarterly income statements, monthly revenue and dividends from FinMind, on the user's token or none. */
 export function createFinMind(
   options: FinMindOptions = {}
 ): FundamentalsProvider {
@@ -175,6 +195,31 @@ export function createFinMind(
         }))
         .filter(({ month }) => month >= since)
         .toSorted((a, b) => a.month.localeCompare(b.month));
+    },
+
+    async getDividends(symbol, since) {
+      // FinMind dates a distribution after it goes ex, so asking from `since` finds every one announced since.
+      const distributions = await rows(
+        "TaiwanStockDividend",
+        symbol,
+        since,
+        dividendRowSchema
+      );
+
+      return distributions
+        .map((row): Dividend => ({
+          period: row.year,
+          announced: row.AnnouncementDate,
+          cash: row.CashEarningsDistribution + row.CashStatutorySurplus,
+          stock: row.StockEarningsDistribution + row.StockStatutorySurplus,
+          cashExDate: row.CashExDividendTradingDate,
+          cashPaidOn: row.CashDividendPaymentDate,
+          stockExDate: row.StockExDividendTradingDate,
+        }))
+        .filter(
+          ({ announced, cash, stock }) => announced >= since && cash + stock > 0
+        )
+        .toSorted((a, b) => a.announced.localeCompare(b.announced));
     },
   };
 }

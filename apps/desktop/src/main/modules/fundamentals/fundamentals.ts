@@ -81,5 +81,12 @@ export function createFundamentals({
         today.toPlainYearMonth().subtract({ months: REVENUE_MONTHS }).toString()
       )
     ),
+
+    dividends: fresh((provider, symbol, today) =>
+      provider.getDividends(
+        symbol,
+        today.subtract({ years: STATEMENT_YEARS }).toString()
+      )
+    ),
   };
 }

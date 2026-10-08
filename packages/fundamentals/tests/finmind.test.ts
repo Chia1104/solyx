@@ -140,12 +140,86 @@ test("reads each month from its own fields rather than the day it was announced"
   expect(new URL(sent[0]).searchParams.get("start_date")).toBe("2026-07-01");
 });
 
+test("reads each distribution's cash and stock per share and its days, those still to go ex among them", async () => {
+  const distribution = (
+    announced: string,
+    patch: Record<string, string | number> = {}
+  ) => ({
+    date: "2026-11-03",
+    stock_id: "2330",
+    year: "115年第2季",
+    StockEarningsDistribution: 0,
+    StockStatutorySurplus: 0,
+    StockExDividendTradingDate: "",
+    CashEarningsDistribution: 0,
+    CashStatutorySurplus: 0,
+    CashExDividendTradingDate: "",
+    CashDividendPaymentDate: "",
+    TotalNumberOfCashCapitalIncrease: 0,
+    AnnouncementDate: announced,
+    AnnouncementTime: "17:50:47",
+    ...patch,
+  });
+
+  const { sent, finmind } = fakeFinMind({
+    body: {
+      data: [
+        distribution("2026-09-29", {
+          year: "114年",
+          StockEarningsDistribution: 0.8,
+          StockExDividendTradingDate: "2026-10-06",
+          CashEarningsDistribution: 0.3,
+          CashStatutorySurplus: 0.1,
+          CashExDividendTradingDate: "2026-10-06",
+          CashDividendPaymentDate: "2026-11-23",
+        }),
+        distribution("2026-08-25", {
+          CashEarningsDistribution: 0.6,
+          CashExDividendTradingDate: "2026-10-28",
+        }),
+        // A cash capital increase alone distributes nothing.
+        distribution("2026-09-01", { TotalNumberOfCashCapitalIncrease: 1e8 }),
+        // Announced before the day asked from, though it went ex after.
+        distribution("2026-07-30", { CashEarningsDistribution: 1 }),
+        distribution("2026-09-10", { AnnouncementDate: "" }),
+      ],
+    },
+  });
+
+  expect(await finmind.getDividends(TSMC, "2026-08-01")).toEqual([
+    {
+      period: "115年第2季",
+      announced: "2026-08-25",
+      cash: 0.6,
+      stock: 0,
+      cashExDate: "2026-10-28",
+      cashPaidOn: null,
+      stockExDate: null,
+    },
+    {
+      period: "114年",
+      announced: "2026-09-29",
+      cash: 0.4,
+      stock: 0.8,
+      cashExDate: "2026-10-06",
+      cashPaidOn: "2026-11-23",
+      stockExDate: "2026-10-06",
+    },
+  ]);
+  expect(Object.fromEntries(new URL(sent[0]).searchParams)).toEqual({
+    dataset: "TaiwanStockDividend",
+    data_id: "2330",
+    start_date: "2026-08-01",
+  });
+});
+
 test("a listing outside Taiwan has no fundamentals and costs no request", async () => {
   const { sent, finmind } = fakeFinMind();
   const apple = { market: Market.US, symbol: "AAPL" };
 
   expect(await finmind.getStatements(apple, "2025-01-01")).toEqual([]);
   expect(await finmind.getMonthlyRevenue(apple, "2025-01")).toEqual([]);
+  expect(await finmind.getDividends(apple, "2025-01-01")).toEqual([]);
   expect(sent).toEqual([]);
 });
 
