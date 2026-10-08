@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, powerMonitor } from "electron";
 import { withTimeout } from "es-toolkit";
 
 import { registerIpc } from "./ipc/register-ipc.ts";
@@ -32,8 +32,10 @@ void app.whenReady().then(() => {
   // fails every agent call too, which the renderer shows.
   services.agent.resume().catch(console.error);
 
-  services.newsCollector.start();
-  services.updates.start();
+  services.scheduler.start();
+
+  // Timers sleep with the computer, so what came due meanwhile starts as it wakes.
+  powerMonitor.on("resume", services.scheduler.tick);
 
   // Runs still going are stored where they stopped and continue at the next start, and stdio MCP
   // servers are shut down rather than left running without the app.
@@ -42,8 +44,7 @@ void app.whenReady().then(() => {
 
     quitting = true;
     event.preventDefault();
-    services.newsCollector.stop();
-    services.updates.stop();
+    services.scheduler.stop();
 
     void withTimeout(() => services.agent.close(), CLOSE_TIMEOUT_MS)
       .catch(console.error)

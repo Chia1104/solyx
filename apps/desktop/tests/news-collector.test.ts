@@ -33,7 +33,7 @@ function setup(hours: number) {
 test("each listing held or watched is refreshed in turn at the interval set", async () => {
   const { collector, refresh } = setup(72);
 
-  await collector.check();
+  await collector.run();
 
   expect(refresh.mock.calls).toEqual([
     [TSMC, 72 * HOUR_MS],
@@ -44,7 +44,7 @@ test("each listing held or watched is refreshed in turn at the interval set", as
 test("an interval of 0 refreshes nothing", async () => {
   const { collector, refresh } = setup(0);
 
-  await collector.check();
+  await collector.run();
 
   expect(refresh).not.toHaveBeenCalled();
 });
@@ -54,7 +54,7 @@ test("a listing whose refresh fails leaves the rest refreshed", async () => {
   const { collector, refresh } = setup(72);
 
   refresh.mockRejectedValueOnce(new Error("decisions model down"));
-  await collector.check();
+  await collector.run();
 
   expect(error).toHaveBeenCalledWith(
     "News collection for TW 2330 failed: decisions model down"
