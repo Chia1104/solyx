@@ -39,6 +39,7 @@
     "@tailwindcss/vite": "catalog:tailwindcss",
     "@tanstack/react-hotkeys": "catalog:tanstack",
     "@tanstack/react-query": "catalog:tanstack",
+    "@tanstack/react-query-devtools": "catalog:tanstack",
     "@tanstack/react-router": "catalog:tanstack",
     "@types/d3-hierarchy": "catalog:charts",
     "@types/node": "catalog:",

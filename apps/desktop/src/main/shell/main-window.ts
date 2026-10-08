@@ -84,8 +84,13 @@ export function createMainWindow(colors: () => PaletteColors) {
       event.preventDefault();
   });
 
-  if (rendererUrl) void win.loadURL(rendererUrl);
-  else void win.loadFile(join(bundleDir, "../renderer/index.html"));
+  if (rendererUrl) {
+    void win.loadURL(rendererUrl);
+    // Detached, since docked it would squeeze the workspace's panes.
+    win.webContents.openDevTools({ mode: "detach" });
+  } else {
+    void win.loadFile(join(bundleDir, "../renderer/index.html"));
+  }
 
   return win;
 }
