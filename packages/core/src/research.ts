@@ -1,8 +1,10 @@
-import { groupBy, keyBy } from "es-toolkit";
+import { groupBy, keyBy, pick, uniqBy } from "es-toolkit";
 
 import { Interval, candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import type { Council } from "./council.ts";
+import { cosine } from "./embedding.ts";
+import type { Embedder } from "./embedding.ts";
 import {
   ForecastViolationCode,
   checkForecast,
@@ -21,7 +23,9 @@ import type { Fundamentals } from "./fundamentals.ts";
 import type { MarketData } from "./market-data.ts";
 import { symbolKey } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
-import { reviseReport } from "./report.ts";
+import { storyText } from "./news.ts";
+import type { NewsItem, NewsRecord } from "./news.ts";
+import { CLAIM_SUPPORT_LINE, reviseReport } from "./report.ts";
 import type {
   Claim,
   ClaimAuditor,
@@ -49,7 +53,38 @@ export interface ResearchStore {
   searchReports(query: string, limit: number, symbol?: SymbolRef): Report[];
   /** Up to `limit` forecasts holding any word of `query`, best first; `symbol` keeps to that listing. */
   searchForecasts(query: string, limit: number, symbol?: SymbolRef): Forecast[];
+  /** Every news item a revision's falsifiers were read against. */
+  falsifierChecks(symbol: SymbolRef, revision: number): FalsifierCheck[];
+  addFalsifierCheck(symbol: SymbolRef, check: FalsifierCheck): void;
 }
+
+/** A news item a falsifier was read against, and how far the item states that it happened. */
+export interface FalsifierCheck {
+  falsifier: string;
+  /** The revision whose falsifier it is. */
+  revision: number;
+  /** The news source that found the item. */
+  source: string;
+  item: Pick<NewsItem, "id" | "title" | "url" | "site" | "published">;
+  support: ClaimSupport;
+  /** Epoch ms. */
+  checkedAt: number;
+}
+
+/**
+ * By space, the cosine below which a news item lies too far from a falsifier to be read against
+ * it. A falsifier is a condition and an item a headline, so they read less alike than two
+ * headlines do; a space not listed watches nothing.
+ */
+export const FALSIFIER_FLOORS = new Map<string, number>([
+  ["qwen3-embedding:0.6b", 0.45],
+]);
+
+// The items read against each falsifier: the nearest above the floor.
+const FALSIFIER_CANDIDATES = 3;
+
+const checkKey = (falsifier: string, source: string, item: string) =>
+  JSON.stringify([falsifier, source, item]);
 
 export interface ResearchDeskOptions {
   store: ResearchStore;
@@ -91,6 +126,8 @@ export interface Coverage {
   /** Oldest first. */
   forecasts: Forecast[];
   record: ForecastRecord;
+  /** News the report's falsifiers were read as stated by, newest first. */
+  signals: FalsifierCheck[];
 }
 
 /** A report revision a search found. */
@@ -255,7 +292,103 @@ export class ResearchDesk {
         : null,
       forecasts,
       record: forecastRecord(forecasts),
+      signals: report
+        ? store
+            .falsifierChecks(symbol, report.revision)
+            .filter(({ support }) => support.supported >= CLAIM_SUPPORT_LINE)
+            .toSorted(
+              (a, b) =>
+                (b.item.published?.at.getTime() ?? b.checkedAt) -
+                (a.item.published?.at.getTime() ?? a.checkedAt)
+            )
+        : [],
     };
+  }
+
+  /**
+   * Reads each of a listing's falsifiers against the news `records` lie nearest to it, once per
+   * falsifier and item, and tells `onChange` when one reads as stated. `records` carry vectors in
+   * `embedder`'s space; without an auditor, or on a space with no floor, nothing is read.
+   */
+  async watch(
+    symbol: SymbolRef,
+    records: readonly NewsRecord[],
+    embedder: Embedder
+  ): Promise<void> {
+    const { store, now = Date.now } = this.#options;
+    const report = store.report(symbol);
+    const floor = FALSIFIER_FLOORS.get(embedder.space);
+
+    if (!report || report.falsifiers.length === 0 || floor === undefined) {
+      return;
+    }
+
+    const embedded = uniqBy(
+      records.flatMap((record) =>
+        record.embedding?.space === embedder.space
+          ? [{ record, values: record.embedding.values }]
+          : []
+      ),
+      ({ record }) => `${record.source}:${record.item.id}`
+    );
+
+    const auditor = await this.#options.auditor?.();
+
+    if (!auditor || embedded.length === 0) return;
+
+    const vectors = await embedder.embed(report.falsifiers);
+
+    const checked = new Set(
+      store
+        .falsifierChecks(symbol, report.revision)
+        .map((check) => checkKey(check.falsifier, check.source, check.item.id))
+    );
+
+    const due = report.falsifiers.flatMap((falsifier, index) =>
+      embedded
+        .map(({ record, values }) => ({
+          record,
+          similarity: cosine(vectors[index], values),
+        }))
+        .filter(({ similarity }) => similarity >= floor)
+        .toSorted((a, b) => b.similarity - a.similarity)
+        .slice(0, FALSIFIER_CANDIDATES)
+        .filter(
+          ({ record }) =>
+            !checked.has(checkKey(falsifier, record.source, record.item.id))
+        )
+        .map(({ record }) => ({ falsifier, record }))
+    );
+
+    let stated = false;
+
+    for (const { falsifier, record } of due) {
+      const { item } = record;
+
+      const support = await auditor
+        .audit({
+          text: falsifier,
+          source: (item.url ?? item.site).slice(0, 300),
+          quote: storyText(item),
+        })
+        // An item the model could not read is read again with the next collection.
+        .catch(() => null);
+
+      if (!support) continue;
+
+      store.addFalsifierCheck(symbol, {
+        falsifier,
+        revision: report.revision,
+        source: record.source,
+        item: pick(item, ["id", "title", "url", "site", "published"]),
+        support,
+        checkedAt: now(),
+      });
+
+      stated ||= support.supported >= CLAIM_SUPPORT_LINE;
+    }
+
+    if (stated) this.#options.onChange?.(symbol);
   }
 
   async trackRecord(): Promise<TrackRecord> {

@@ -438,6 +438,7 @@
       "drivers": "What carries the view",
       "risks": "Risks",
       "falsifiers": "What would change the view",
+      "falsifier-stated": "News may say this happened, read as stated at {{share}}:",
       "valuation": "Fair range {{low}} to {{high}}",
       "events": "Dates ahead",
       "written": "written {{date}}",

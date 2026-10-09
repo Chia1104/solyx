@@ -15,10 +15,12 @@ import {
 import { ForecastDirection, ForecastViolationCode } from "../src/forecast.ts";
 import type { Forecast, ForecastDraft } from "../src/forecast.ts";
 import { InstrumentKind, Market, symbolKey } from "../src/market.ts";
+import { NewsChannel, TimePrecision } from "../src/news.ts";
+import type { NewsRecord } from "../src/news.ts";
 import { ReportStance } from "../src/report.ts";
 import type { Report } from "../src/report.ts";
-import { ResearchDesk } from "../src/research.ts";
-import type { ResearchStore } from "../src/research.ts";
+import { FALSIFIER_FLOORS, ResearchDesk } from "../src/research.ts";
+import type { FalsifierCheck, ResearchStore } from "../src/research.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330", kind: InstrumentKind.Stock };
 
@@ -71,6 +73,7 @@ const draft: ForecastDraft = {
 function memoryStore(): ResearchStore {
   const reports: Report[] = [];
   const forecasts = new Map<string, Forecast>();
+  const checks: { symbol: string; check: FalsifierCheck }[] = [];
 
   return {
     report: (symbol) =>
@@ -119,6 +122,19 @@ function memoryStore(): ResearchStore {
         )
         .slice(0, limit)
         .map((forecast) => structuredClone(forecast)),
+    falsifierChecks: (symbol, revision) =>
+      checks
+        .filter(
+          (each) =>
+            each.symbol === symbolKey(symbol) &&
+            each.check.revision === revision
+        )
+        .map(({ check }) => structuredClone(check)),
+    addFalsifierCheck: (symbol, check) =>
+      void checks.push({
+        symbol: symbolKey(symbol),
+        check: structuredClone(check),
+      }),
   };
 }
 
@@ -516,4 +532,150 @@ test("no vote is spent on a forecast the checks refuse", async () => {
 
   expect((await desk.forecast(draft, ratify)).ok).toBe(false);
   expect(ratify).not.toHaveBeenCalled();
+});
+
+const LOCAL_SPACE = [...FALSIFIER_FLOORS.keys()][0];
+
+/** A news record whose vector lies `degrees` from [1, 0]. */
+function nearby(id: string, degrees: number, space = LOCAL_SPACE): NewsRecord {
+  const angle = (degrees * Math.PI) / 180;
+
+  return {
+    source: "news",
+    channel: NewsChannel.Article,
+    item: {
+      id,
+      url: `https://news.test/${id}`,
+      title: id,
+      snippet: "",
+      site: "news.test",
+      published: {
+        at: new Date("2026-10-01T02:00:00Z"),
+        precision: TimePrecision.Minute,
+      },
+      votes: null,
+    },
+    foundAt: new Date("2026-10-01T03:00:00Z"),
+    score: null,
+    embedding: {
+      space,
+      values: Float32Array.of(Math.cos(angle), Math.sin(angle)),
+    },
+  };
+}
+
+function watching(audit = vi.fn()) {
+  const store = memoryStore();
+  const onChange = vi.fn();
+
+  const desk = new ResearchDesk({
+    store,
+    marketData: { candles: async () => [ANCHOR_BAR] },
+    fundamentals: { statements: async () => [] },
+    auditor: async () => ({ audit }),
+    onChange,
+    now: () => AT_ANCHOR,
+  });
+
+  // Every falsifier's vector is [1, 0].
+  const embedder = {
+    space: LOCAL_SPACE,
+    embed: vi.fn(async (texts: readonly string[]) =>
+      texts.map(() => Float32Array.of(1, 0))
+    ),
+  };
+
+  return { store, desk, onChange, audit, embedder };
+}
+
+test("each falsifier is read against the news nearest it once, and an item that states it is a signal", async () => {
+  const audit = vi.fn(async ({ quote }: { quote: string }) => ({
+    model: "jev",
+    supported: quote === "margins fell" ? 0.9 : 0.1,
+  }));
+
+  const { desk, onChange, embedder } = watching(audit);
+
+  await desk.revise({
+    symbol: TSMC,
+    stance: ReportStance.Bullish,
+    thesis: "Advanced nodes stay sold out.",
+    falsifiers: ["Gross margin falls below 53%"],
+  });
+  onChange.mockClear();
+
+  const records = [
+    nearby("margins fell", 10),
+    nearby("capex rose", 20),
+    nearby("dividend set", 30),
+    nearby("chip launch", 35),
+    // cos 70° ≈ 0.34 lies below the floor.
+    nearby("unrelated", 70),
+  ];
+
+  await desk.watch(TSMC, records, embedder);
+
+  expect(audit.mock.calls.map(([claim]) => claim.quote)).toEqual([
+    "margins fell",
+    "capex rose",
+    "dividend set",
+  ]);
+  expect(audit).toHaveBeenCalledWith({
+    text: "Gross margin falls below 53%",
+    source: "https://news.test/margins fell",
+    quote: "margins fell",
+  });
+  expect(onChange).toHaveBeenCalledExactlyOnceWith(TSMC);
+  expect((await desk.coverage(TSMC)).signals).toEqual([
+    {
+      falsifier: "Gross margin falls below 53%",
+      revision: 1,
+      source: "news",
+      item: {
+        id: "margins fell",
+        title: "margins fell",
+        url: "https://news.test/margins fell",
+        site: "news.test",
+        published: {
+          at: new Date("2026-10-01T02:00:00Z"),
+          precision: TimePrecision.Minute,
+        },
+      },
+      support: { model: "jev", supported: 0.9 },
+      checkedAt: AT_ANCHOR,
+    },
+  ]);
+
+  audit.mockClear();
+  onChange.mockClear();
+  await desk.watch(TSMC, records, embedder);
+
+  expect(audit).not.toHaveBeenCalled();
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+test("nothing is watched without falsifiers, an auditor, vectors in the embedder's space or a floor for it", async () => {
+  const { desk, audit, embedder } = watching();
+
+  await desk.watch(TSMC, [nearby("margins fell", 0)], embedder);
+
+  await desk.revise({
+    symbol: TSMC,
+    stance: ReportStance.Bullish,
+    thesis: "Advanced nodes stay sold out.",
+    falsifiers: ["Gross margin falls below 53%"],
+  });
+
+  await desk.watch(
+    TSMC,
+    [nearby("margins fell", 0, "another-space")],
+    embedder
+  );
+  await desk.watch(TSMC, [nearby("margins fell", 0, "another-space")], {
+    ...embedder,
+    space: "another-space",
+  });
+
+  expect(audit).not.toHaveBeenCalled();
+  expect(embedder.embed).not.toHaveBeenCalled();
 });

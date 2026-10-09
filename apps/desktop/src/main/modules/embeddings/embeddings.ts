@@ -56,6 +56,18 @@ export function createEmbeddings({ config, secrets }: EmbeddingsOptions) {
         : createOpenAICompatibleEmbedder({ ...endpoint, apiKey });
     },
 
+    /**
+     * The embedder for the user's own text, such as reports, memories and what the agent searches
+     * for: only a model on this computer, so that text never leaves it.
+     */
+    localEmbedder(): Embedder | undefined {
+      const { enabled, provider, endpoint } = read();
+
+      return enabled && provider === EmbeddingsProvider.Local
+        ? createOpenAICompatibleEmbedder(endpoint)
+        : undefined;
+    },
+
     settings(): EmbeddingsSettings {
       const { enabled, provider, endpoint } = read();
       const { space } = createOpenAICompatibleEmbedder(endpoint);

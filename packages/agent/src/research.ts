@@ -34,11 +34,11 @@ import {
   reportDraftSchema,
 } from "@solyx/core/report";
 import type { Argument, Report, ReportViolation } from "@solyx/core/report";
-import type { ResearchDesk } from "@solyx/core/research";
+import type { FalsifierCheck, ResearchDesk } from "@solyx/core/research";
 
 import { councilText, durableBallotBox, forecastMotion } from "./magi.ts";
 import type { MagiPort } from "./magi.ts";
-import { defineTool } from "./tools.ts";
+import { defineTool, publishedTime } from "./tools.ts";
 import type { ToolOutput } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
 import type { ReviseReportDetails, SubmitForecastDetails } from "./wire.ts";
@@ -262,6 +262,23 @@ export function forecastText(forecast: Forecast): string {
   return lines.join("\n");
 }
 
+/** News a decisions model read as stating that a falsifier happened, newest first. */
+function signalsText(
+  market: Market,
+  signals: readonly FalsifierCheck[]
+): string[] {
+  if (signals.length === 0) return [];
+
+  return [
+    "",
+    "Falsifiers news may say happened, as a decisions model read each item against the falsifier; read the item before you rely on it:",
+    ...signals.map(
+      ({ falsifier, item, support }) =>
+        `- "${falsifier}": ${publishedTime(market, item.published)} ${item.site}: ${item.title} (read as stated, ${support.supported.toFixed(2)})${item.url ? ` ${item.url}` : ""}`
+    ),
+  ];
+}
+
 function recordText(scope: string, record: ForecastRecord): string {
   if (record.settled === 0) {
     return `Record, ${scope}: ${record.forecasts} forecasts, none settled yet.`;
@@ -367,7 +384,7 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetResearch,
         replay: "safe",
-        description: `What the app holds of a listing's research: its report with when each part was written, its last ${LISTED_FORECASTS} forecasts with how those past their horizon came out, and how your forecasts have held, for this listing and for every listing. A report is what you thought when you wrote it, never current data.`,
+        description: `What the app holds of a listing's research: its report with when each part was written, its last ${LISTED_FORECASTS} forecasts with how those past their horizon came out, news a decisions model read as stating that one of its falsifiers happened, and how your forecasts have held, for this listing and for every listing. A report is what you thought when you wrote it, never current data.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
           const [coverage, overall] = await Promise.all([
@@ -394,6 +411,7 @@ export function createResearch(options: ResearchOptions): Extension {
               forecasts.length > 0
                 ? ["Forecasts, newest first:", ...forecasts.map(forecastText)]
                 : ["No forecasts yet."],
+              ...signalsText(symbol.market, coverage.signals),
               "",
               recordText("this listing", coverage.record),
               recordText("every listing", overall.all),

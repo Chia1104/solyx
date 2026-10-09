@@ -14,10 +14,11 @@ import { ForecastDirection } from "@solyx/core/forecast";
 import type { Forecast } from "@solyx/core/forecast";
 import type { QuarterStatement } from "@solyx/core/fundamentals";
 import { InstrumentKind, Market, symbolKey } from "@solyx/core/market";
+import { TimePrecision } from "@solyx/core/news";
 import { ReportSection, ReportStance } from "@solyx/core/report";
 import type { Report } from "@solyx/core/report";
 import { ResearchDesk } from "@solyx/core/research";
-import type { ResearchStore } from "@solyx/core/research";
+import type { FalsifierCheck, ResearchStore } from "@solyx/core/research";
 import { twFilingDeadline } from "@solyx/core/rules/tw";
 
 import { createResearch } from "../src/research.ts";
@@ -138,6 +139,7 @@ const FORECAST = {
 function fakeStore(): ResearchStore {
   const reports: Report[] = [];
   const forecasts = new Map<string, Forecast>();
+  const checks: FalsifierCheck[] = [];
 
   return {
     report: (symbol) =>
@@ -159,6 +161,9 @@ function fakeStore(): ResearchStore {
     },
     searchReports: () => [],
     searchForecasts: () => [],
+    falsifierChecks: (_symbol, revision) =>
+      checks.filter((check) => check.revision === revision),
+    addFalsifierCheck: (_symbol, check) => void checks.push(check),
   };
 }
 
@@ -259,6 +264,40 @@ test("a revision is kept and read back with its sources and each part's age", as
     '- Demand is still strong.\n  rests on: August revenue rose 53% on the year. [TWSE monthly revenue, 2026-08: "去年同月增減 53.32%"]'
   );
   expect(text).toContain("## business, written 2026-09-29");
+});
+
+test("news a decisions model read as stating a falsifier is listed with the report", async () => {
+  const { run, store } = setup();
+
+  await run(AgentToolName.ReviseReport, REPORT);
+
+  const read = (title: string, supported: number): FalsifierCheck => ({
+    falsifier: "Gross margin falls below 53%",
+    revision: 1,
+    source: "news",
+    item: {
+      id: title,
+      title,
+      url: "https://news.test/margin",
+      site: "news.test",
+      published: {
+        at: new Date("2026-10-01T02:00:00Z"),
+        precision: TimePrecision.Minute,
+      },
+    },
+    support: { model: "jev", supported },
+    checkedAt: 0,
+  });
+
+  store.addFalsifierCheck(TSMC, read("Gross margin slides to 52%", 0.9));
+  store.addFalsifierCheck(TSMC, read("Capex rises", 0.1));
+
+  const { text } = await run(AgentToolName.GetResearch, { symbol: TSMC });
+
+  expect(text).toContain(
+    '- "Gross margin falls below 53%": 2026-10-01 10:00 news.test: Gross margin slides to 52% (read as stated, 0.90) https://news.test/margin'
+  );
+  expect(text).not.toContain("Capex rises");
 });
 
 test("a refused revision tells the model what is missing", async () => {
