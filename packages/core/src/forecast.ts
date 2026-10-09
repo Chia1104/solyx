@@ -1,6 +1,8 @@
 import { countBy, meanBy, range, sortBy, sumBy } from "es-toolkit";
 import * as z from "zod";
 
+import { sentences } from "@solyx/utils/search";
+
 import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import type { Council } from "./council.ts";
@@ -570,4 +572,13 @@ export function forecastRecord(forecasts: readonly Forecast[]): ForecastRecord {
       };
     }),
   };
+}
+
+/** The parts of a forecast a search reads one by one: each sentence of its rationale, its contrary case and its claims. */
+export function forecastPassages(forecast: ForecastDraft): string[] {
+  return [
+    ...sentences(forecast.rationale),
+    ...(forecast.contrary ? [`contrary: ${forecast.contrary}`] : []),
+    ...forecast.claims.map((claim) => `claim: ${claim.text}`),
+  ];
 }

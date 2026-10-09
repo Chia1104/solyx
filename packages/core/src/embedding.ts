@@ -39,3 +39,27 @@ export function cosine(a: Float32Array, b: Float32Array): number {
 
   return normA === 0 || normB === 0 ? 0 : dot / Math.sqrt(normA * normB);
 }
+
+// How much nearer than the rest a hit reads: a query nothing answers still has a nearest item.
+const STANDOUT = 0.12;
+
+/**
+ * Up to `limit` items that read clearly nearer a query than the rest do, nearest first. The line
+ * follows each query's own mean, since how alike a query reads to everything varies by query and
+ * by space.
+ */
+export function clearlyNearest<T>(
+  scored: readonly { item: T; similarity: number }[],
+  limit: number
+): T[] {
+  if (scored.length === 0) return [];
+
+  const mean =
+    scored.reduce((sum, { similarity }) => sum + similarity, 0) / scored.length;
+
+  return scored
+    .filter(({ similarity }) => similarity >= mean + STANDOUT)
+    .toSorted((a, b) => b.similarity - a.similarity)
+    .slice(0, limit)
+    .map(({ item }) => item);
+}

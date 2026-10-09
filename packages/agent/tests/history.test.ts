@@ -141,7 +141,7 @@ function setup() {
   };
 
   const news = {
-    search: vi.fn<NewsDesk["search"]>(() => [
+    search: vi.fn<NewsDesk["search"]>(async () => [
       NEWS,
       // Another source's copy of the headline.
       { ...NEWS, source: "web-article", item: { ...NEWS.item, id: "b" } },

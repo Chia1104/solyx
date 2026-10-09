@@ -473,3 +473,36 @@ test("records carry their items' vectors in the space asked for, and one space i
 
   expect(vectors(TSMC, "large")).toEqual({ b: undefined });
 });
+
+test("the items whose vectors read clearly nearest a query are found, for one listing or any", () => {
+  const { store } = open();
+  const items = ["a", "b", "c", "d", "e"].map((id) => item(id, null));
+
+  store.save(TSMC, NEWS, items, FOUND);
+  store.save(FOXCONN, NEWS, [items[4]], FOUND);
+  store.saveEmbeddings(
+    "small",
+    items.map((each, index) => ({
+      record: { source: NEWS.id, item: each },
+      // "a" lies along the query, "e" near it, the rest across it.
+      values:
+        index === 0
+          ? Float32Array.of(1, 0)
+          : index === 4
+            ? Float32Array.of(0.9, 0.1)
+            : Float32Array.of(0, 1),
+    }))
+  );
+
+  const nearest = (symbol?: typeof TSMC) =>
+    store
+      .nearest("small", Float32Array.of(1, 0), 5, symbol)
+      .map(({ item: { id }, listings }) => [id, listings.length]);
+
+  expect(nearest()).toEqual([
+    ["a", 1],
+    ["e", 2],
+  ]);
+  expect(nearest(FOXCONN)).toEqual([]);
+  expect(store.nearest("large", Float32Array.of(1, 0), 5)).toEqual([]);
+});

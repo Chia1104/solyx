@@ -131,6 +131,7 @@ function setup(
     store: data.store,
     scorer: async () => decisions,
     embedder: async () => embedder,
+    localEmbedder: () => embedder,
     marketData: { listing },
     onChange,
     now: () => clock.now,
@@ -521,4 +522,33 @@ test("news groups by titles alone while the embedder cannot be reached", async (
   );
 
   error.mockRestore();
+});
+
+test("a search finds by meaning, through a model on this computer, what shares no word with the query", async () => {
+  const told = (id: string, title: string, site: string) => ({
+    ...item(id, 30),
+    title,
+    site,
+  });
+
+  const articles = source("news", NewsChannel.Article, async () => [
+    told("sales", "鴻海9月營收創同期新高 年增逾兩成", "a.test"),
+    told("cars", "鴻海宣布與日本車廠合資", "b.test"),
+    told("meeting", "鴻海股東會改選董事", "c.test"),
+  ]);
+
+  const embedder = embedderOf({
+    "鴻海9月營收創同期新高 年增逾兩成": 0,
+    鴻海宣布與日本車廠合資: 80,
+    鴻海股東會改選董事: 85,
+    "record monthly sales": 2,
+  });
+
+  const { news } = setup([articles], undefined, embedder);
+
+  await news.collect(FOXCONN, SINCE, 10);
+
+  expect(
+    (await news.search("record monthly sales", 5)).map(({ item }) => item.id)
+  ).toEqual(["sales"]);
 });

@@ -2,8 +2,14 @@ import { and, asc, count, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { groupBy, keyBy } from "es-toolkit";
 
+import { clearlyNearest, cosine } from "@solyx/core/embedding";
 import type { SymbolRef } from "@solyx/core/market";
-import type { NewsItem, NewsRecord, NewsStore } from "@solyx/core/news";
+import type {
+  NewsItem,
+  NewsMatch,
+  NewsRecord,
+  NewsStore,
+} from "@solyx/core/news";
 
 import { connect } from "./connection.ts";
 import { databaseBytes } from "./database-file.ts";
@@ -111,6 +117,50 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
 
   // Undated items are listed by when they were found.
   const listedAt = sql<number>`coalesce(${newsItems.publishedAt}, ${listingNews.foundAt})`;
+
+  /** The stored items with these ids, in their order, each with every listing it was found for. */
+  function matchesOf(ids: readonly number[]): NewsMatch[] {
+    const items = keyBy(
+      db
+        .select()
+        .from(newsItems)
+        .where(inArray(newsItems.id, [...ids]))
+        .all(),
+      (row) => row.id
+    );
+
+    const listings = groupBy(
+      db
+        .select({
+          itemId: listingNews.itemId,
+          market: listingNews.market,
+          symbol: listingNews.symbol,
+        })
+        .from(listingNews)
+        .where(inArray(listingNews.itemId, [...ids]))
+        .orderBy(asc(listingNews.foundAt))
+        .all(),
+      (row) => row.itemId
+    );
+
+    return ids.flatMap((id) => {
+      const item = items[id];
+
+      if (!item) return [];
+
+      return [
+        {
+          source: item.source,
+          channel: item.channel,
+          item: toItem(item),
+          listings: (listings[id] ?? []).map(({ market, symbol }) => ({
+            market,
+            symbol,
+          })),
+        },
+      ];
+    });
+  }
 
   return {
     save(symbol, source, items, foundAt) {
@@ -319,6 +369,36 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
           lastError: row.lastError,
         })),
 
+    nearest(space, query, limit, symbol) {
+      const rows = db
+        .select({ id: itemEmbeddings.itemId, vector: itemEmbeddings.vector })
+        .from(itemEmbeddings)
+        .where(
+          and(
+            eq(itemEmbeddings.space, space),
+            symbol &&
+              inArray(
+                itemEmbeddings.itemId,
+                db
+                  .select({ id: listingNews.itemId })
+                  .from(listingNews)
+                  .where(ofListing(symbol))
+              )
+          )
+        )
+        .all();
+
+      return matchesOf(
+        clearlyNearest(
+          rows.map(({ id, vector }) => ({
+            item: id,
+            similarity: cosine(query, toValues(vector)),
+          })),
+          limit
+        )
+      );
+    },
+
     search(query, limit, symbol) {
       const match = anyTerm(query);
 
@@ -337,44 +417,7 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
           LIMIT ${limit}`
       );
 
-      const ids = ranked.map((row) => row.id);
-
-      const items = keyBy(
-        db.select().from(newsItems).where(inArray(newsItems.id, ids)).all(),
-        (row) => row.id
-      );
-
-      const listings = groupBy(
-        db
-          .select({
-            itemId: listingNews.itemId,
-            market: listingNews.market,
-            symbol: listingNews.symbol,
-          })
-          .from(listingNews)
-          .where(inArray(listingNews.itemId, ids))
-          .orderBy(asc(listingNews.foundAt))
-          .all(),
-        (row) => row.itemId
-      );
-
-      return ids.flatMap((id) => {
-        const item = items[id];
-
-        if (!item) return [];
-
-        return [
-          {
-            source: item.source,
-            channel: item.channel,
-            item: toItem(item),
-            listings: (listings[id] ?? []).map(({ market, symbol }) => ({
-              market,
-              symbol,
-            })),
-          },
-        ];
-      });
+      return matchesOf(ranked.map((row) => row.id));
     },
   };
 }

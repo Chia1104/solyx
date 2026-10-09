@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { createSearchIndex, searchTerms } from "../src/search.ts";
+import { createSearchIndex, fuseRankings, searchTerms } from "../src/search.ts";
 
 const search = (texts: string[], query: string) =>
   createSearchIndex(texts, (text) => [text])(query);
@@ -64,4 +64,20 @@ test("a query of stop words alone finds nothing, and ties keep their order", () 
     "price a",
     "price b",
   ]);
+});
+
+test("fused rankings lift what several rank high, and keep the first ranking's order on ties", () => {
+  const id = (item: string) => item;
+
+  expect(
+    fuseRankings(
+      [
+        ["a", "b", "c"],
+        ["c", "d"],
+      ],
+      id
+    )
+  ).toEqual(["c", "a", "b", "d"]);
+  expect(fuseRankings([["a", "b"], []], id)).toEqual(["a", "b"]);
+  expect(fuseRankings([["x"], ["y"]], id)).toEqual(["x", "y"]);
 });

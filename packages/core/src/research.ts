@@ -1,13 +1,16 @@
-import { groupBy, keyBy, pick, uniqBy } from "es-toolkit";
+import { groupBy, keyBy, pick, uniq, uniqBy } from "es-toolkit";
+
+import { fuseRankings } from "@solyx/utils/search";
 
 import { Interval, candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import type { Council } from "./council.ts";
-import { cosine } from "./embedding.ts";
+import { clearlyNearest, cosine } from "./embedding.ts";
 import type { Embedder } from "./embedding.ts";
 import {
   ForecastViolationCode,
   checkForecast,
+  forecastPassages,
   forecastRecord,
   judgeForecast,
 } from "./forecast.ts";
@@ -25,7 +28,7 @@ import { symbolKey } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { storyText } from "./news.ts";
 import type { NewsItem, NewsRecord } from "./news.ts";
-import { CLAIM_SUPPORT_LINE, reviseReport } from "./report.ts";
+import { CLAIM_SUPPORT_LINE, reportPassages, reviseReport } from "./report.ts";
 import type {
   Claim,
   ClaimAuditor,
@@ -56,6 +59,18 @@ export interface ResearchStore {
   /** Every news item a revision's falsifiers were read against. */
   falsifierChecks(symbol: SymbolRef, revision: number): FalsifierCheck[];
   addFalsifierCheck(symbol: SymbolRef, check: FalsifierCheck): void;
+  /** Every revision of one listing's report, or of every listing's, oldest first. */
+  reports(symbol?: SymbolRef): Report[];
+  /** The vectors kept in `space` for those of `texts` that have one. */
+  passageVectors(
+    space: string,
+    texts: readonly string[]
+  ): Map<string, Float32Array>;
+  /** Keeps each text's vector in `space`, dropping every vector of another space. */
+  savePassageVectors(
+    space: string,
+    vectors: readonly { text: string; values: Float32Array }[]
+  ): void;
 }
 
 /** A news item a falsifier was read against, and how far the item states that it happened. */
@@ -92,6 +107,8 @@ export interface ResearchDeskOptions {
   fundamentals: Pick<Fundamentals, "statements">;
   /** Reads each claim against its quote as it is kept; none until the user sets up a decisions model. */
   auditor?: () => Promise<ClaimAuditor | undefined>;
+  /** Embeds what the desk keeps to search it by meaning; only a model on this computer, since it is the user's own. */
+  embedder?: () => Embedder | undefined;
   /** Called after a listing's research changes, so whoever shows it can refresh. */
   onChange?: (symbol: SymbolRef) => void;
   now?: () => number;
@@ -336,7 +353,7 @@ export class ResearchDesk {
 
     if (!auditor || embedded.length === 0) return;
 
-    const vectors = await embedder.embed(report.falsifiers);
+    const vectors = await this.#vectors(embedder, report.falsifiers);
 
     const checked = new Set(
       store
@@ -344,11 +361,15 @@ export class ResearchDesk {
         .map((check) => checkKey(check.falsifier, check.source, check.item.id))
     );
 
-    const due = report.falsifiers.flatMap((falsifier, index) =>
-      embedded
+    const due = report.falsifiers.flatMap((falsifier) => {
+      const vector = vectors.get(falsifier);
+
+      if (!vector) return [];
+
+      return embedded
         .map(({ record, values }) => ({
           record,
-          similarity: cosine(vectors[index], values),
+          similarity: cosine(vector, values),
         }))
         .filter(({ similarity }) => similarity >= floor)
         .toSorted((a, b) => b.similarity - a.similarity)
@@ -357,8 +378,8 @@ export class ResearchDesk {
           ({ record }) =>
             !checked.has(checkKey(falsifier, record.source, record.item.id))
         )
-        .map(({ record }) => ({ falsifier, record }))
-    );
+        .map(({ record }) => ({ falsifier, record }));
+    });
 
     let stated = false;
 
@@ -422,7 +443,21 @@ export class ResearchDesk {
     symbol?: SymbolRef
   ): Promise<ResearchMatches> {
     const { store } = this.#options;
-    const found = store.searchForecasts(query, limit, symbol);
+    const near = await this.#nearest(query, limit, symbol);
+
+    // Each listing's best revision, by words or by meaning.
+    const reports = uniqBy(
+      fuseRankings(
+        [store.searchReports(query, limit, symbol), near?.reports ?? []],
+        (report) => `${symbolKey(report.symbol)}#${report.revision}`
+      ),
+      (report) => symbolKey(report.symbol)
+    ).slice(0, limit);
+
+    const found = fuseRankings(
+      [store.searchForecasts(query, limit, symbol), near?.forecasts ?? []],
+      (forecast) => forecast.id
+    ).slice(0, limit);
 
     const settled = keyBy(
       (
@@ -436,12 +471,102 @@ export class ResearchDesk {
     );
 
     return {
-      reports: store.searchReports(query, limit, symbol).map((report) => ({
+      reports: reports.map((report) => ({
         report,
         newest: store.report(report.symbol)?.revision ?? report.revision,
       })),
       forecasts: found.map((forecast) => settled[forecast.id] ?? forecast),
     };
+  }
+
+  /**
+   * The report revisions and forecasts with a passage reading clearly nearest `query`, nearest
+   * first; `undefined` without an embedder, or while it cannot be reached, so search goes on by words.
+   */
+  async #nearest(
+    query: string,
+    limit: number,
+    symbol?: SymbolRef
+  ): Promise<{ reports: Report[]; forecasts: Forecast[] } | undefined> {
+    const embedder = this.#options.embedder?.();
+
+    if (!embedder) return undefined;
+
+    const { store } = this.#options;
+    const reports = store.reports(symbol);
+    const forecasts = store.forecasts(symbol);
+
+    const reportParts = reports.map((report) => [
+      report.thesis,
+      ...reportPassages(report),
+    ]);
+
+    const forecastParts = forecasts.map(forecastPassages);
+
+    let vectors: Map<string, Float32Array>;
+    let asked: Float32Array;
+
+    try {
+      [asked] = await embedder.embed([query]);
+      vectors = await this.#vectors(embedder, [
+        ...reportParts.flat(),
+        ...forecastParts.flat(),
+      ]);
+    } catch {
+      return undefined;
+    }
+
+    const nearestOf = (parts: string[]) =>
+      Math.max(
+        ...parts.flatMap((part) => {
+          const vector = vectors.get(part);
+
+          return vector ? [cosine(asked, vector)] : [];
+        })
+      );
+
+    return {
+      reports: clearlyNearest(
+        reports.map((item, index) => ({
+          item,
+          similarity: nearestOf(reportParts[index]),
+        })),
+        limit
+      ),
+      forecasts: clearlyNearest(
+        forecasts.map((item, index) => ({
+          item,
+          similarity: nearestOf(forecastParts[index]),
+        })),
+        limit
+      ),
+    };
+  }
+
+  /** Each text's vector in `embedder`'s space, embedding and keeping those not kept before. */
+  async #vectors(
+    embedder: Embedder,
+    texts: readonly string[]
+  ): Promise<Map<string, Float32Array>> {
+    const { store } = this.#options;
+    const unique = uniq(texts);
+    const kept = store.passageVectors(embedder.space, unique);
+    const missing = unique.filter((text) => !kept.has(text));
+
+    if (missing.length > 0) {
+      const made = await embedder.embed(missing);
+
+      const vectors = missing.map((text, index) => ({
+        text,
+        values: made[index],
+      }));
+
+      store.savePassageVectors(embedder.space, vectors);
+
+      for (const { text, values } of vectors) kept.set(text, values);
+    }
+
+    return kept;
   }
 
   /** Has each claim read against its quote, and answers with the reading a claim was given. */

@@ -34,7 +34,12 @@ export function createResearch(
   },
   onChange: () => void
 ) {
-  const desk = new ResearchDesk({ store: data.store, ...sources, onChange });
+  const desk = new ResearchDesk({
+    store: data.store,
+    ...sources,
+    embedder,
+    onChange,
+  });
 
   return {
     desk,

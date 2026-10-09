@@ -15,7 +15,12 @@ import { ReportStance } from "@solyx/core/report";
 import type { Report } from "@solyx/core/report";
 import type { FalsifierCheck } from "@solyx/core/research";
 
-import { falsifierChecks, forecasts, reports } from "../src/research-schema.ts";
+import {
+  falsifierChecks,
+  forecasts,
+  passageVectors,
+  reports,
+} from "../src/research-schema.ts";
 import { openResearch } from "../src/research.ts";
 import type { ResearchData } from "../src/research.ts";
 
@@ -111,7 +116,7 @@ function open() {
 }
 
 // A schema change committed without `db:generate` fails here.
-test.each([reports, forecasts, falsifierChecks])(
+test.each([reports, forecasts, falsifierChecks, passageVectors])(
   "migrations build the table the schema describes",
   (table) => {
     open().close();
@@ -385,4 +390,59 @@ test("a falsifier is read against an item once per revision, and clearing forget
   research.clear();
 
   expect(store.falsifierChecks(TSMC, 1)).toEqual([]);
+});
+
+test("every revision reads back oldest first, for one listing or all", () => {
+  const { store } = open();
+
+  store.addReport(report(1));
+  store.addReport(report(1, { symbol: MEDIATEK }));
+  store.addReport(report(2));
+
+  expect(store.reports(TSMC).map(({ revision }) => revision)).toEqual([1, 2]);
+  expect(store.reports().map(({ symbol }) => symbol.symbol)).toEqual([
+    "2330",
+    "2454",
+    "2330",
+  ]);
+});
+
+test("a passage's vector is kept once per space, one space at a time, and clearing forgets them", () => {
+  const research = open();
+  const { store } = research;
+
+  store.savePassageVectors("small", [
+    { text: "Advanced nodes stay sold out.", values: Float32Array.of(0.5, -1) },
+  ]);
+  store.savePassageVectors("small", [
+    { text: "Advanced nodes stay sold out.", values: Float32Array.of(9, 9) },
+    { text: "driver: Demand holds.", values: Float32Array.of(1, 0) },
+  ]);
+
+  const kept = (space: string) =>
+    Object.fromEntries(
+      [
+        ...store.passageVectors(space, [
+          "Advanced nodes stay sold out.",
+          "driver: Demand holds.",
+          "never embedded",
+        ]),
+      ].map(([text, values]) => [text, [...values]])
+    );
+
+  expect(kept("small")).toEqual({
+    "Advanced nodes stay sold out.": [0.5, -1],
+    "driver: Demand holds.": [1, 0],
+  });
+
+  store.savePassageVectors("large", [
+    { text: "driver: Demand holds.", values: Float32Array.of(2, 2, 2) },
+  ]);
+
+  expect(kept("small")).toEqual({});
+  expect(kept("large")).toEqual({ "driver: Demand holds.": [2, 2, 2] });
+
+  research.clear();
+
+  expect(kept("large")).toEqual({});
 });

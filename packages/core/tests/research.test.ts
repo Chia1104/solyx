@@ -74,6 +74,7 @@ function memoryStore(): ResearchStore {
   const reports: Report[] = [];
   const forecasts = new Map<string, Forecast>();
   const checks: { symbol: string; check: FalsifierCheck }[] = [];
+  const passages = new Map<string, Float32Array>();
 
   return {
     report: (symbol) =>
@@ -135,6 +136,29 @@ function memoryStore(): ResearchStore {
         symbol: symbolKey(symbol),
         check: structuredClone(check),
       }),
+    reports: (symbol) =>
+      reports
+        .filter(
+          (report) => !symbol || symbolKey(report.symbol) === symbolKey(symbol)
+        )
+        .map((report) => structuredClone(report)),
+    passageVectors: (space, texts) =>
+      new Map(
+        texts.flatMap((text) => {
+          const values = passages.get(`${space}\n${text}`);
+
+          return values ? [[text, values] as const] : [];
+        })
+      ),
+    savePassageVectors(space, vectors) {
+      for (const key of passages.keys()) {
+        if (!key.startsWith(`${space}\n`)) passages.delete(key);
+      }
+
+      for (const { text, values } of vectors) {
+        passages.set(`${space}\n${text}`, values);
+      }
+    },
   };
 }
 
@@ -678,4 +702,67 @@ test("nothing is watched without falsifiers, an auditor, vectors in the embedder
 
   expect(audit).not.toHaveBeenCalled();
   expect(embedder.embed).not.toHaveBeenCalled();
+});
+
+test("a search finds by meaning what shares no word with the query, beside what does, and goes on by words while vectors are out of reach", async () => {
+  const { store, cover, desk: plain } = setup();
+
+  // Vectors on two axes: near [1, 0] reads like the query, near [0, 1] does not.
+  const axis = (text: string) =>
+    /資本支出|capex|擴產/.test(text)
+      ? Float32Array.of(1, 0)
+      : Float32Array.of(0, 1);
+
+  const embed = vi.fn(async (texts: readonly string[]) => texts.map(axis));
+  const reachable = { up: true };
+
+  const desk = new ResearchDesk({
+    store,
+    marketData: { candles: async () => [ANCHOR_BAR] },
+    fundamentals: { statements: async () => [] },
+    embedder: () => ({
+      space: "local",
+      embed: async (texts: readonly string[]) => {
+        if (!reachable.up) throw new Error("Ollama is not running");
+
+        return embed(texts);
+      },
+    }),
+    now: () => AT_ANCHOR,
+  });
+
+  await cover();
+  await desk.revise({
+    symbol: { ...TSMC, symbol: "2454" },
+    stance: ReportStance.Neutral,
+    thesis: "台積電擴產帶動設備需求。",
+  });
+  await desk.revise({
+    symbol: { ...TSMC, symbol: "2317" },
+    stance: ReportStance.Neutral,
+    thesis: "Servers carry the year.",
+  });
+
+  const found = await desk.search("capex", 5);
+
+  // The 2454 report says 擴產, which shares no word with "capex"; nothing else reads near it.
+  expect(found.reports.map(({ report }) => report.symbol.symbol)).toEqual([
+    "2454",
+  ]);
+
+  // What was embedded is kept, so a second search embeds the query alone.
+  embed.mockClear();
+  await desk.search("capex", 5);
+
+  expect(embed.mock.calls).toEqual([[["capex"]]]);
+
+  reachable.up = false;
+
+  expect((await desk.search("advanced", 5)).reports).toMatchObject([
+    { report: { symbol: { symbol: "2330" } } },
+  ]);
+  expect(await plain.search("capex", 5)).toEqual({
+    reports: [],
+    forecasts: [],
+  });
 });

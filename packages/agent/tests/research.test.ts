@@ -164,6 +164,9 @@ function fakeStore(): ResearchStore {
     falsifierChecks: (_symbol, revision) =>
       checks.filter((check) => check.revision === revision),
     addFalsifierCheck: (_symbol, check) => void checks.push(check),
+    reports: () => reports,
+    passageVectors: () => new Map(),
+    savePassageVectors: () => undefined,
   };
 }
 

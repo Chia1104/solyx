@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import { sentences } from "@solyx/utils/search";
+
 import { symbolRefSchema } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { holdsSecret } from "./memory.ts";
@@ -276,4 +278,27 @@ export function reviseReport(
       sections,
     },
   };
+}
+
+/**
+ * The parts of a report a search reads one by one, each labelled with where it stands: every
+ * driver and risk, falsifier, valuation, event and sentence of its prose. The thesis stands apart.
+ */
+export function reportPassages(report: Report): string[] {
+  return [
+    ...report.drivers.map(
+      (driver) => `driver: ${driver.point} Rests on: ${driver.text}`
+    ),
+    ...report.risks.map((risk) => `risk: ${risk.point} Rests on: ${risk.text}`),
+    ...report.falsifiers.map((falsifier) => `falsifier: ${falsifier}`),
+    ...(report.valuation
+      ? [
+          `valuation: ${report.valuation.low} to ${report.valuation.high} (${report.valuation.basis})`,
+        ]
+      : []),
+    ...report.events.map((event) => `event: ${event.date} ${event.label}`),
+    ...Object.entries(report.sections).flatMap(([section, part]) =>
+      sentences(part.text).map((sentence) => `${section}: ${sentence}`)
+    ),
+  ];
 }

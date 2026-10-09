@@ -7,6 +7,7 @@ import { rankHeadlines, readNews, storyText } from "@solyx/core/news";
 import type {
   Headline,
   NewsCollection,
+  NewsMatch,
   NewsReading,
   NewsRecord,
   NewsSource,
@@ -16,6 +17,7 @@ import type {
 } from "@solyx/core/news";
 import type { SentimentScorer } from "@solyx/core/sentiment";
 import { errorMessage } from "@solyx/utils/error";
+import { fuseRankings } from "@solyx/utils/search";
 
 import type { NewsCoverage } from "#shared/ipc/news.ts";
 
@@ -48,6 +50,8 @@ export interface NewsOptions {
   scorer: () => Promise<SentimentScorer | undefined>;
   /** `undefined` while news groups by titles alone. */
   embedder: () => Promise<Embedder | undefined>;
+  /** Embeds what the agent searches for; only a model on this computer, since a query is the user's own. */
+  localEmbedder: () => Embedder | undefined;
   marketData: Pick<MarketData, "listing">;
   /** Called once per collection of a listing's news, even one that failed partway. */
   onChange: (symbol: SymbolRef) => void;
@@ -299,8 +303,33 @@ export function createNews(options: NewsOptions) {
       return { ...reading, stories: reading.stories.map(shown) };
     },
 
-    search: (query: string, limit: number, symbol?: SymbolRef) =>
-      store.search(query, limit, symbol),
+    /**
+     * What is stored, by words and, where a model on this computer embeds the query in the space
+     * the items were embedded in, by meaning as well.
+     */
+    async search(
+      query: string,
+      limit: number,
+      symbol?: SymbolRef
+    ): Promise<NewsMatch[]> {
+      const byWords = store.search(query, limit, symbol);
+      const local = options.localEmbedder();
+
+      if (!local) return byWords;
+
+      try {
+        const [asked] = await local.embed([query]);
+
+        return fuseRankings(
+          [byWords, store.nearest(local.space, asked, limit, symbol)],
+          ({ source, item }) => `${source}:${item.id}`
+        ).slice(0, limit);
+      } catch (error) {
+        console.error(`Embedding a news search failed: ${errorMessage(error)}`);
+
+        return byWords;
+      }
+    },
 
     /** The `limit` heaviest headlines about the listings since `since`, each grouped by its names once known. */
     async headlines(
