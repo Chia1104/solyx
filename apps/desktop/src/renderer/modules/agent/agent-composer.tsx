@@ -23,7 +23,14 @@ import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
 import type { AgentModelPick, AgentModelRef } from "@solyx/agent/providers";
-import { ApprovalMode, emptyAgentView } from "@solyx/agent/wire";
+import {
+  AgentCommand,
+  ApprovalMode,
+  CompactionOutcome,
+  emptyAgentView,
+  messageCommand,
+} from "@solyx/agent/wire";
+import type { AgentView } from "@solyx/agent/wire";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
@@ -43,8 +50,13 @@ import {
 
 import { ApprovalModeMenu } from "./agent-approval-mode.tsx";
 import { AgentModelPicker } from "./agent-model-picker.tsx";
-import { agentQueryKeys, agentSessionsQuery } from "./agent-query.ts";
+import {
+  agentQueryKeys,
+  agentSessionsQuery,
+  transcriptQuery,
+} from "./agent-query.ts";
 import { useAgentStore } from "./agent-store.ts";
+import { ContextMeter } from "./agent-usage.tsx";
 import {
   ComposerMenu,
   suggests,
@@ -55,6 +67,13 @@ import { ComposerTokenKind, replaceToken, tokenAt } from "./composer-token.ts";
 
 // An empty message only disables sending, so it needs no message of its own.
 const composerSchema = z.object({ text: z.string().trim().min(1) });
+
+// Streaming replaces the transcript every frame, while the composer needs only this.
+const progressOf = (view: AgentView) => ({
+  context: view.context,
+  /** A summary the user asked for is being written. */
+  compacting: view.compactions.some((each) => each.manual),
+});
 
 /** The listing on screen, sent with each message unless the user detaches it. */
 function FocusAttachment({ focus }: { focus: SymbolRef }) {
@@ -230,6 +249,19 @@ export function AgentComposer({
     settings &&
     (pick.model ?? { provider: settings.provider, id: settings.model });
 
+  // The next run's model, whose window the context has to fit.
+  const contextWindow =
+    settings &&
+    model &&
+    settings.models.find(
+      (each) => each.provider === model.provider && each.id === model.id
+    )?.contextWindow;
+
+  const progress = useQuery({
+    ...transcriptQuery(sessionId),
+    select: progressOf,
+  });
+
   // Until the settings load, the model is taken to run rather than flash the notice.
   const unavailable =
     settings && model && !isModelReady(settings, model)
@@ -298,7 +330,25 @@ export function AgentComposer({
     else setApprovalMode.mutate({ id: sessionId, mode });
   }
 
+  const compact = useMutation({
+    mutationFn: ({
+      id,
+      instructions,
+    }: {
+      id: string | null;
+      instructions: string | null;
+    }) =>
+      // A conversation not yet started holds nothing to summarize.
+      id === null
+        ? Promise.resolve(CompactionOutcome.NothingOld)
+        : window.solyx.agent.compact(id, instructions),
+  });
+
+  const compacting = progress.data?.compacting === true || compact.isPending;
+  const busy = running || compacting;
+
   const send = useMutation({
+    onMutate: () => compact.reset(),
     mutationFn: async (message: string) => {
       const id = await session();
       const locale = currentLocale();
@@ -327,7 +377,18 @@ export function AgentComposer({
     mutationFn: (id: string) => window.solyx.agent.abort(id),
   });
 
-  const submit = form.handleSubmit((values) => send.mutate(values.text));
+  const submit = form.handleSubmit(({ text }) => {
+    const command = messageCommand(text);
+
+    if (command?.command === AgentCommand.Compact) {
+      compact.mutate(
+        { id: sessionId, instructions: command.rest || null },
+        { onSuccess: () => form.reset() }
+      );
+    } else {
+      send.mutate(text);
+    }
+  });
 
   return (
     <Form
@@ -338,6 +399,12 @@ export function AgentComposer({
         <ErrorAlert
           title={t("agent.send-failed")}
           description={send.error.message}
+        />
+      ) : null}
+      {compact.error && compact.variables.id === sessionId ? (
+        <ErrorAlert
+          title={t("agent.compaction.failed")}
+          description={compact.error.message}
         />
       ) : null}
       <div className="relative flex flex-col">
@@ -420,7 +487,7 @@ export function AgentComposer({
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
 
-                        if (!running && !unavailable) void submit();
+                        if (!busy && !unavailable) void submit();
                       }
                     }}
                   />
@@ -442,37 +509,56 @@ export function AgentComposer({
                   settings={settings}
                   pick={pick}
                   // A run keeps the model it started on, so the next one takes the change.
-                  isDisabled={running}
+                  isDisabled={busy}
                   onChange={pickModel}
                 />
               ) : null}
             </div>
-            {running && sessionId !== null ? (
-              <Button
-                isIconOnly
-                size="sm"
-                variant="tertiary"
-                aria-label={t("agent.stop")}
-                isPending={abort.isPending}
-                onPress={() => abort.mutate(sessionId)}>
-                <Icon icon={StopIcon} />
-              </Button>
-            ) : (
-              <Button
-                isIconOnly
-                type="submit"
-                size="sm"
-                variant="secondary"
-                aria-label={t("agent.send")}
-                isPending={send.isPending}
-                isDisabled={!text.trim() || unavailable !== null}>
-                <Icon icon={ArrowUp02Icon} />
-              </Button>
-            )}
+            <div className="flex shrink-0 items-center gap-1">
+              {progress.data?.context !== undefined && contextWindow ? (
+                <ContextMeter
+                  used={progress.data.context}
+                  window={contextWindow}
+                  compacting={compacting}
+                  canCompact={!busy && unavailable === null}
+                  onCompact={() =>
+                    compact.mutate({ id: sessionId, instructions: null })
+                  }
+                />
+              ) : null}
+              {busy && sessionId !== null ? (
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="tertiary"
+                  aria-label={t("agent.stop")}
+                  isPending={abort.isPending}
+                  onPress={() => abort.mutate(sessionId)}>
+                  <Icon icon={StopIcon} />
+                </Button>
+              ) : (
+                <Button
+                  isIconOnly
+                  type="submit"
+                  size="sm"
+                  variant="secondary"
+                  aria-label={t("agent.send")}
+                  isPending={send.isPending}
+                  isDisabled={!text.trim() || unavailable !== null}>
+                  <Icon icon={ArrowUp02Icon} />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
       {unavailable ? <ModelUnavailable {...unavailable} /> : null}
+      {compact.data === CompactionOutcome.NothingOld &&
+      compact.variables.id === sessionId ? (
+        <p className="px-1 text-xs text-muted">
+          {t("agent.compaction.nothing-old")}
+        </p>
+      ) : null}
       {setModel.error ? (
         <ErrorAlert
           title={t("agent.model-picker.failed")}

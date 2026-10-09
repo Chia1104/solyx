@@ -14,7 +14,11 @@ import type {
 } from "@earendil-works/pi-ai";
 import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { MemoryStorage, defineExtension } from "@earendil-works/pi-durable";
-import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
+import type {
+  Extension,
+  HarnessSettings,
+  ToolRegistration,
+} from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
@@ -25,6 +29,7 @@ import {
   AgentEventType,
   AgentItemKind,
   ApprovalMode,
+  CompactionOutcome,
   RunEndReason,
   ToolCallStatus,
   foldEvents,
@@ -57,9 +62,11 @@ function memoryStore(): AgentConversationStore {
 function setup({
   store = memoryStore(),
   faux = fauxProvider(),
+  settings,
 }: {
   store?: AgentConversationStore;
   faux?: ReturnType<typeof fauxProvider>;
+  settings?: HarnessSettings;
 } = {}) {
   const models = createModels();
 
@@ -93,6 +100,7 @@ function setup({
       })
     ),
     onEvent: (_sessionId, event) => events.push(event),
+    settings,
   });
 
   /** Resolves once `count` runs have ended. */
@@ -819,4 +827,52 @@ test("a conversation's own model and thinking reach the run, and one without the
   expect(await runtime.sessions()).toMatchObject([{ id, ...pick }]);
 
   await runtime.close();
+});
+
+test("compacting by hand places a summary the thread shows, and the context shrinks", async () => {
+  const { faux, events, runtime, ended } = setup({
+    settings: { compaction: { keepRecentTokens: 1 } },
+  });
+
+  const { id } = await runtime.create();
+  const long = "word ".repeat(1500);
+
+  faux.setResponses([
+    fauxAssistantMessage(`one ${long}`),
+    fauxAssistantMessage(`two ${long}`),
+    fauxAssistantMessage("## Goal\nWatch 2330"),
+  ]);
+  await runtime.send(id, { text: "first", context: "" });
+  await ended(1);
+  await runtime.send(id, { text: "second", context: "" });
+  await ended(2);
+
+  const before = foldEvents(events).context ?? 0;
+
+  expect(await runtime.compact(id, "Keep the watchlist")).toBe(
+    CompactionOutcome.Summarized
+  );
+  await vi.waitFor(() =>
+    expect(foldEvents(events).items.at(-1)).toMatchObject({
+      kind: AgentItemKind.Compaction,
+      summary: "## Goal\nWatch 2330",
+    })
+  );
+
+  const after = foldEvents(events);
+
+  expect(after.compactions).toEqual([]);
+  expect(after.context).toBeLessThan(before);
+  expect(foldEvents(await runtime.transcript(id))).toEqual(after);
+});
+
+test("a conversation whose messages are all recent has nothing to compact", async () => {
+  const { faux, runtime, ended } = setup();
+  const { id } = await runtime.create();
+
+  faux.setResponses([fauxAssistantMessage("hello")]);
+  await runtime.send(id, { text: "hi", context: "" });
+  await ended();
+
+  expect(await runtime.compact(id)).toBe(CompactionOutcome.NothingOld);
 });

@@ -158,6 +158,8 @@ export interface AgentModelOption {
   id: string;
   name: string;
   reasoning: boolean;
+  /** Tokens a request may hold, prompt and answer together. */
+  contextWindow: number;
 }
 
 /** The page the browser lands on when a sign-in returns, written for whoever started it. */
@@ -275,7 +277,13 @@ export function createModelCatalog({
     options(provider: AgentProvider): AgentModelOption[] {
       return models
         .getModels(provider)
-        .map(({ id, name, reasoning }) => ({ provider, id, name, reasoning }));
+        .map(({ id, name, reasoning, contextWindow }) => ({
+          provider,
+          id,
+          name,
+          reasoning,
+          contextWindow,
+        }));
     },
 
     /**

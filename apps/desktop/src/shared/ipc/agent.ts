@@ -4,6 +4,7 @@ import type {
   AgentSessionSetup,
   AgentWireEvent,
   ApprovalMode,
+  CompactionOutcome,
 } from "@solyx/agent/wire";
 import type { SymbolRef } from "@solyx/core/market";
 
@@ -38,6 +39,11 @@ export interface AgentApi {
     timeZone: TimeZone
   ): Promise<void>;
   abort(id: string): Promise<void>;
+  /**
+   * Summarizes the conversation's older messages, guided by `instructions`, and resolves once the
+   * summary is placed or nothing is old enough. Stopping the conversation stops it.
+   */
+  compact(id: string, instructions: string | null): Promise<CompactionOutcome>;
   /** Answers a call waiting for the user to allow it. */
   approve(id: string, toolCallId: string, approved: boolean): Promise<void>;
   /** Sets whether the conversation's tool calls ask first, from its next call on. */
@@ -63,6 +69,7 @@ export const agentChannels = {
   transcript: "agent:transcript",
   send: "agent:send",
   abort: "agent:abort",
+  compact: "agent:compact",
   approve: "agent:approve",
   setApprovalMode: "agent:set-approval-mode",
   setModel: "agent:set-model",

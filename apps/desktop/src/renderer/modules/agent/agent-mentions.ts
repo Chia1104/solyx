@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { uniqBy } from "es-toolkit";
 
+import { AgentCommand } from "@solyx/agent/wire";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import { isEnumValue } from "@solyx/utils/is";
 
 import { accountQuery } from "../account/account-query.ts";
 import { useListingNames } from "../market/listing-name.tsx";
@@ -58,11 +60,14 @@ export function useMentionableListings(
   }));
 }
 
-/** The skills the user may ask for by starting a message with `/name`. */
+/** The skills the user may ask for by starting a message with `/name`, which a command's name hides. */
 export function useCommandSkills() {
   const { data } = useQuery(agentSkillsQuery());
 
   return (data?.skills ?? []).filter(
-    (skill) => skill.offered && skill.userInvocable
+    (skill) =>
+      skill.offered &&
+      skill.userInvocable &&
+      !isEnumValue(AgentCommand, skill.name)
   );
 }

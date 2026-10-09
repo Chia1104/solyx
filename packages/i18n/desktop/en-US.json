@@ -20,6 +20,8 @@
     "error-title": "Something went wrong",
     "retry": "Retry",
     "cancel": "Cancel",
+    "show-more": "Show more",
+    "show-less": "Show less",
     "not-found": {
       "title": "This page doesn't exist",
       "description": "Nothing in Solyx lives at this address.",
@@ -306,7 +308,7 @@
     },
     "composer-menu": {
       "listings": "Listings",
-      "skills": "Skills",
+      "skills": "Commands and skills",
       "on-screen": "On screen",
       "held": "Held",
       "watched": "Watched"
@@ -317,6 +319,32 @@
     "thinking": "Thinking",
     "thought": "Thought",
     "working": "Working…",
+    "compacting": "Summarizing earlier messages…",
+    "context-meter": {
+      "label": "Context used",
+      "title": "Context window",
+      "used": "{{used}} of {{window}} tokens ({{percent}})",
+      "summarized": "Older messages are summarized as it fills.",
+      "compact": "Summarize earlier messages",
+      "hint": "Typing /compact does the same, followed by what the summary should keep."
+    },
+    "compaction": {
+      "summarized": "Earlier messages summarized",
+      "failed": "Couldn't summarize the conversation",
+      "nothing-old": "Nothing to summarize yet: the latest messages are always kept as they are."
+    },
+    "commands": {
+      "compact": "Summarize earlier messages to free up context"
+    },
+    "usage": {
+      "label": "Tokens",
+      "prompt": "Prompt",
+      "cache-read": "From cache",
+      "cache-write": "Written to cache",
+      "uncached": "Not cached",
+      "output": "Reply",
+      "share": "{{tokens}} ({{percent}})"
+    },
     "notices": {
       "aborted": "Stopped.",
       "error": "The agent stopped with an error",

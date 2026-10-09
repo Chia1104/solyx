@@ -6,8 +6,10 @@ import type {
   Model,
   Models,
 } from "@earendil-works/pi-ai";
+import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import {
   AssistantEntry,
+  CompactionEntry,
   ConversationBusy,
   Harness,
   LiveDoc,
@@ -20,6 +22,7 @@ import {
 import type {
   AgentEvent,
   AgentEventStream,
+  CompactionReason,
   Conversation,
   ConversationId,
   Cursor,
@@ -30,6 +33,8 @@ import type {
   Page,
   Storage,
   SubmissionRecord,
+  TaskId,
+  Tx,
 } from "@earendil-works/pi-durable";
 import { maxBy, noop } from "es-toolkit";
 import * as z from "zod";
@@ -49,6 +54,7 @@ import type { Transcriber } from "./transcript.ts";
 import {
   AgentEventType,
   ApprovalMode,
+  CompactionOutcome,
   DeltaChannel,
   RunEndReason,
   ToolCallStatus,
@@ -154,6 +160,8 @@ interface Watch {
   streaming?: { id: string; content: Block[]; text: string; thinking: string };
   /** Why the run's input went unanswered, when it ended without a final reply. */
   failure?: RunEndEvent;
+  /** The tokens last sent as the next request's context. */
+  context?: number;
 }
 
 const TITLE_LENGTH = 60;
@@ -215,6 +223,29 @@ function applyChanges(content: Block[], changes: readonly MessageChange[]) {
         break;
     }
   }
+}
+
+// The events after which the next request holds something else.
+const CONTEXT_CHANGES = new Set<AgentEvent["type"]>([
+  "message_end",
+  "tool_execution_end",
+  "entry_appended",
+]);
+
+const compactionStart = (status: {
+  taskId: TaskId;
+  reason: CompactionReason;
+}): AgentWireEvent => ({
+  type: AgentEventType.CompactionStart,
+  id: String(status.taskId),
+  manual: status.reason === "manual",
+});
+
+/** What the conversation's next request holds, as pi estimates it; 0 while it holds nothing. */
+async function contextTokens(conversation: Conversation) {
+  const { messages } = await conversation.context(BACKGROUND_CONTEXT);
+
+  return estimateContextTokens(messages).tokens;
 }
 
 /** How an input went unanswered, as pi-durable settles it, in the run's terms. */
@@ -340,6 +371,29 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     return entries.reverse();
   }
 
+  /** The model and thinking the conversation's next request runs on, once the host resolves them. */
+  async function choiceOf(id: ConversationId) {
+    const { harness } = await opened;
+
+    const session =
+      (await harness.snapshot(SessionDoc, id, BACKGROUND_CONTEXT)) ??
+      SessionDoc.definition.initial();
+
+    return options.model({ model: session.model, thinking: session.thinking });
+  }
+
+  /** Sets the model of the conversation's next request, which a compaction uses too. */
+  async function configureModel(
+    tx: Tx,
+    id: ConversationId,
+    { model, thinking }: AgentModelChoice
+  ) {
+    await configure(tx, id, {
+      model: { provider: model.provider, modelId: model.id },
+      thinkingLevel: clampThinkingLevel(model, thinking),
+    });
+  }
+
   /** The conversation's approval mode and what its calls that asked were answered. */
   async function approvalsOf(id: ConversationId) {
     const { harness } = await opened;
@@ -433,10 +487,24 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
           if (AssistantEntry.is(event.entry)) {
             transcriber.message(event.entry, watch.streaming?.id).forEach(emit);
             watch.streaming = undefined;
-          } else if (UserEntry.is(event.entry)) {
+          } else if (
+            UserEntry.is(event.entry) ||
+            CompactionEntry.is(event.entry)
+          ) {
             transcriber.message(event.entry).forEach(emit);
           }
 
+          break;
+
+        case "compaction_start":
+          emit(compactionStart(event));
+          break;
+
+        case "compaction_end":
+          emit({
+            type: AgentEventType.CompactionEnd,
+            id: String(event.taskId),
+          });
           break;
 
         case "tool_execution_start":
@@ -509,7 +577,14 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       const base = transcriber.replay(entries, running);
       const partial = snapshot.generation?.message;
 
-      const created: Watch = { stream, base, log: [], transcriber };
+      base.push(...snapshot.compactions.map(compactionStart));
+
+      const context = await contextTokens(conversation);
+
+      if (context > 0)
+        base.push({ type: AgentEventType.Context, tokens: context });
+
+      const created: Watch = { stream, base, log: [], transcriber, context };
 
       if (running && partial) {
         const id = crypto.randomUUID();
@@ -539,7 +614,22 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       }
 
       watchesBySession.set(sessionId, created);
-      stream.start(async (events) => handle(created, sessionId, events));
+      // The context a commit leaves goes out before its events, so a run's end stays its last.
+      stream.start(async (events) => {
+        if (events.some((event) => CONTEXT_CHANGES.has(event.type))) {
+          const tokens = await contextTokens(conversation);
+
+          if (tokens !== created.context) {
+            created.context = tokens;
+            publish(created, sessionId, {
+              type: AgentEventType.Context,
+              tokens,
+            });
+          }
+        }
+
+        handle(created, sessionId, events);
+      });
 
       return created;
     })();
@@ -679,10 +769,20 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         BACKGROUND_CONTEXT
       );
 
-      return createTranscriber(await approvalsOf(conversation.id)).replay(
-        await history(conversation),
-        live?.run !== undefined
-      );
+      const events = [
+        ...createTranscriber(await approvalsOf(conversation.id)).replay(
+          await history(conversation),
+          live?.run !== undefined
+        ),
+        ...(live?.compactions ?? []).map(compactionStart),
+      ];
+
+      const context = await contextTokens(conversation);
+
+      if (context > 0)
+        events.push({ type: AgentEventType.Context, tokens: context });
+
+      return events;
     },
 
     /**
@@ -704,17 +804,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         throw busy;
       }
 
-      const session =
-        (await harness.snapshot(
-          SessionDoc,
-          conversation.id,
-          BACKGROUND_CONTEXT
-        )) ?? SessionDoc.definition.initial();
-
-      const { model, thinking } = await options.model({
-        model: session.model,
-        thinking: session.thinking,
-      });
+      const choice = await choiceOf(conversation.id);
 
       await toolset.load();
 
@@ -724,11 +814,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
       // The model is the conversation's from here on, so it is set before the input can start a run.
       await conversation.commit(async (tx) => {
-        await configure(tx, conversation.id, {
-          model: { provider: model.provider, modelId: model.id },
-          thinkingLevel: clampThinkingLevel(model, thinking),
-        });
-
+        await configureModel(tx, conversation.id, choice);
         await toolset.offer(tx, conversation.id);
 
         const session = await tx.doc(SessionDoc, conversation.id);
@@ -752,6 +838,65 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     },
 
     approve: gate.approve,
+
+    /**
+     * Summarizes the conversation's older messages on the model its next run would use, keeping
+     * the latest as they are, and resolves once the summary is placed or nothing is old enough;
+     * stopping the conversation stops it. Rejects without starting while a run or another
+     * compaction the user asked for is going, or the model is not set up, and with the provider's
+     * message when the summary fails.
+     */
+    async compact(
+      sessionId: string,
+      instructions?: string
+    ): Promise<CompactionOutcome> {
+      const conversation = await conversationOf(sessionId);
+      const { harness } = await opened;
+
+      const live = await harness.snapshot(
+        LiveDoc,
+        conversation.id,
+        BACKGROUND_CONTEXT
+      );
+
+      if (live?.run) {
+        throw new Error("The agent is still answering in this conversation");
+      }
+
+      if (
+        (live?.compactions ?? []).some((status) => status.reason === "manual")
+      ) {
+        throw new Error("The conversation is already being summarized");
+      }
+
+      const choice = await choiceOf(conversation.id);
+
+      await attach(conversation);
+      await conversation.commit(
+        (tx) => configureModel(tx, conversation.id, choice),
+        BACKGROUND_CONTEXT
+      );
+
+      const task = await conversation.compact(instructions, BACKGROUND_CONTEXT);
+
+      const { outcome } = (await harness.waitForTask(task, BACKGROUND_CONTEXT))
+        .state;
+
+      switch (outcome.status) {
+        case "completed":
+          return outcome.result.submissionId === undefined &&
+            outcome.result.entryId === undefined
+            ? CompactionOutcome.NothingOld
+            : CompactionOutcome.Summarized;
+        case "aborted":
+          return CompactionOutcome.Stopped;
+        case "failed":
+        case "faulted":
+          throw new Error(outcome.error.message);
+        default:
+          throw new Error(outcome.reason);
+      }
+    },
 
     /** Stops a run; what it streamed so far is kept, ending as aborted. */
     async abort(sessionId: string) {

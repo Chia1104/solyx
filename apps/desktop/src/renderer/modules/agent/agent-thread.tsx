@@ -12,6 +12,7 @@ import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
 import { ActivityMark } from "./agent-activity.tsx";
+import { CompactionDivider } from "./agent-compaction.tsx";
 import { AssistantMessage, UserMessage } from "./agent-message.tsx";
 import { transcriptQuery } from "./agent-query.ts";
 import { AgentToolCall } from "./agent-tool-call.tsx";
@@ -74,6 +75,8 @@ const Item = memo(function Item({
       return <AssistantMessage message={item} />;
     case AgentItemKind.Tool:
       return <AgentToolCall sessionId={sessionId} tool={item} />;
+    case AgentItemKind.Compaction:
+      return <CompactionDivider compaction={item} />;
     default:
       return <Notice notice={item} />;
   }
@@ -115,7 +118,10 @@ export function AgentThread({ sessionId }: { sessionId: string }) {
 
   if (data.items.length === 0 && !data.running) return <EmptyThread />;
 
-  const working = data.running && !showsProgress(data.items.at(-1));
+  const compacting = data.compactions.length > 0;
+
+  const working =
+    compacting || (data.running && !showsProgress(data.items.at(-1)));
 
   return (
     <ScrollShadow
@@ -141,7 +147,7 @@ export function AgentThread({ sessionId }: { sessionId: string }) {
             <ActivityMark>
               <Spinner size="sm" color="current" className="size-3" />
             </ActivityMark>
-            {t("agent.working")}
+            {compacting ? t("agent.compacting") : t("agent.working")}
           </p>
         ) : null}
       </div>

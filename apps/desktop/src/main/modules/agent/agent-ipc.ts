@@ -28,6 +28,7 @@ const schemas = {
     timeZoneSchema,
   ]),
   abort: z.tuple([idSchema]),
+  compact: z.tuple([idSchema, z.string().trim().min(1).max(20_000).nullable()]),
   approve: z.tuple([idSchema, idSchema, z.boolean()]),
   setApprovalMode: z.tuple([idSchema, approvalModeSchema]),
   setModel: z.tuple([idSchema, agentModelPickSchema]),
@@ -42,6 +43,7 @@ export function registerAgentIpc({ agent }: Services) {
     send: (id, text, focus, locale, timeZone) =>
       agent.send(id, text, focus, locale, timeZone),
     abort: (id) => agent.abort(id),
+    compact: (id, instructions) => agent.compact(id, instructions),
     approve: async (id, toolCallId, approved) =>
       agent.approve(id, toolCallId, approved),
     setApprovalMode: (id, mode) => agent.setApprovalMode(id, mode),

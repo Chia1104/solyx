@@ -2,6 +2,7 @@ import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import type { Message } from "@earendil-works/pi-ai";
 import {
   AssistantEntry,
+  CompactionEntry,
   ToolResultEntry,
   UserEntry,
 } from "@earendil-works/pi-durable";
@@ -58,6 +59,25 @@ const reply = (
     AssistantEntry.kind,
     fauxAssistantMessage(text, { timestamp: 2, ...options })
   );
+
+/** A reply whose request read `cacheRead` tokens from the provider's cache. */
+const counted = (
+  id: number,
+  text: string,
+  cacheRead: number,
+  options?: Parameters<typeof fauxAssistantMessage>[1]
+) =>
+  entry(id, AssistantEntry.kind, {
+    ...fauxAssistantMessage(text, { timestamp: 2, ...options }),
+    usage: {
+      input: 100,
+      cacheRead,
+      cacheWrite: 10,
+      output: 50,
+      totalTokens: 160 + cacheRead,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+  });
 
 const toolCall = (id: number) =>
   entry(
@@ -254,4 +274,57 @@ test("a call the model let run reads back from storage as the model's", () => {
     { type: AgentEventType.ToolStart },
     { type: AgentEventType.ApprovalResolved, approved: true, auto: true },
   ]);
+});
+
+test("a reply carries what its request counted, unless it failed", () => {
+  const usage = transcriptEvents(
+    [
+      user(1, "hi"),
+      counted(2, "hello", 150),
+      user(3, "again"),
+      counted(4, "", 150, { stopReason: "error", errorMessage: "overloaded" }),
+    ],
+    false
+  ).flatMap((event) =>
+    event.type === AgentEventType.AssistantEnd ? [event.usage] : []
+  );
+
+  expect(usage).toEqual([
+    { input: 100, cacheRead: 150, cacheWrite: 10, output: 50 },
+    undefined,
+  ]);
+});
+
+test("a summary replays where it was placed, as the model's note holds it", () => {
+  const view = foldEvents(
+    transcriptEvents(
+      [
+        user(1, "hi"),
+        reply(2, "hello"),
+        entry(
+          3,
+          CompactionEntry.kind,
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Earlier, summarized:\n\n<summary>\n## Goal\nWatch 2330\n</summary>",
+              },
+            ],
+            timestamp: 5,
+          },
+          { reason: "manual" }
+        ),
+      ],
+      false
+    )
+  );
+
+  expect(view.items.at(-1)).toEqual({
+    kind: "compaction",
+    messageId: "3",
+    summary: "## Goal\nWatch 2330",
+    at: 5,
+  });
 });

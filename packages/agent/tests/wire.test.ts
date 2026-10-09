@@ -1,11 +1,13 @@
 import { expect, test } from "vite-plus/test";
 
 import {
+  AgentCommand,
   AgentEventType,
   RunEndReason,
   ToolCallStatus,
   MessagePartKind,
   foldEvents,
+  messageCommand,
   messageParts,
   messageTokens,
 } from "../src/wire.ts";
@@ -113,4 +115,22 @@ test("a message is cut into its text, the skill it opens with and the codes it n
   expect(messageParts("no tokens")).toEqual([
     { kind: MessagePartKind.Text, text: "no tokens" },
   ]);
+});
+
+test("a leading /compact is the app's command rather than a skill, and what follows guides it", () => {
+  expect(messageParts("/compact keep 2330")).toEqual([
+    {
+      kind: MessagePartKind.Command,
+      text: "/compact",
+      name: AgentCommand.Compact,
+    },
+    { kind: MessagePartKind.Text, text: " keep 2330" },
+  ]);
+  expect(messageTokens("/compact").skill).toBeUndefined();
+  expect(messageCommand("/compact keep @2330 ")).toEqual({
+    command: AgentCommand.Compact,
+    rest: "keep @2330",
+  });
+  expect(messageCommand("/compacted")).toBeUndefined();
+  expect(messageCommand("compact")).toBeUndefined();
 });

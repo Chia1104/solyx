@@ -15,6 +15,7 @@ import {
   memoryDescriptionSchema,
   memoryKindSchema,
 } from "@solyx/core/memory";
+import { isEnumValue } from "@solyx/utils/is";
 
 import { agentModelPickSchema } from "./providers.ts";
 import type { AgentModelRef, AgentThinking } from "./providers.ts";
@@ -64,11 +65,21 @@ const MENTION = /(?<![0-9A-Za-z])[@＠]([0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)/g;
 // Names as the Agent Skills format allows them.
 const COMMAND = /^(\s*)([/／]([a-z0-9]+(?:-[a-z0-9]+)*))(?=\s|$)/;
 
+/** What a leading `/name` asks the app itself to do, so no skill of that name can be asked for. */
+export const AgentCommand = {
+  /** Summarize the conversation's older messages; what follows the name guides the summary. */
+  Compact: "compact",
+} as const;
+
+export type AgentCommand = (typeof AgentCommand)[keyof typeof AgentCommand];
+
 /** What the grammar reads a stretch of a message as. */
 export const MessagePartKind = {
   Text: "text",
   /** A leading `/name`, asking for a skill. */
   Skill: "skill",
+  /** A leading `/name` that is an `AgentCommand`. */
+  Command: "command",
   /** `@` and a code, naming a listing. */
   Listing: "listing",
 } as const;
@@ -79,11 +90,12 @@ export type MessagePartKind =
 export type MessagePart =
   | { kind: typeof MessagePartKind.Text; text: string }
   | { kind: typeof MessagePartKind.Skill; text: string; name: string }
+  | { kind: typeof MessagePartKind.Command; text: string; name: AgentCommand }
   | { kind: typeof MessagePartKind.Listing; text: string; code: string };
 
 /**
- * A message cut, in order, into its text and what it names: the skill a leading `/name` asks for
- * and each code `@` marks, upper-cased. Whether they name a skill or a listing the app knows is
+ * A message cut, in order, into its text and what it names: the skill or command a leading
+ * `/name` asks for and each code `@` marks, upper-cased. Whether they name a skill or a listing the app knows is
  * for whoever reads them to resolve.
  */
 export function messageParts(text: string): MessagePart[] {
@@ -98,9 +110,13 @@ export function messageParts(text: string): MessagePart[] {
   };
 
   if (command) {
+    const [, space, token, name] = command;
+
     parts.push(
-      { kind: MessagePartKind.Text, text: command[1] },
-      { kind: MessagePartKind.Skill, text: command[2], name: command[3] }
+      { kind: MessagePartKind.Text, text: space },
+      isEnumValue(AgentCommand, name)
+        ? { kind: MessagePartKind.Command, text: token, name }
+        : { kind: MessagePartKind.Skill, text: token, name }
     );
     at = command[0].length;
   }
@@ -135,6 +151,19 @@ export function messageTokens(text: string) {
       )
     ),
   };
+}
+
+/** The command a message starts with, and what follows its name. */
+export function messageCommand(text: string) {
+  const command = COMMAND.exec(text);
+
+  if (!command) return undefined;
+
+  const [whole, , , name] = command;
+
+  return isEnumValue(AgentCommand, name)
+    ? { command: name, rest: text.slice(whole.length).trim() }
+    : undefined;
 }
 
 /** The agent's tools, which the renderer labels and whose `details` it narrows by name. */
@@ -269,6 +298,12 @@ export const AgentEventType = {
   ApprovalRequest: "approval:request",
   ApprovalResolved: "approval:resolved",
   RunEnd: "run:end",
+  /** What the conversation's next request holds, which changes with every message. */
+  Context: "context",
+  CompactionStart: "compaction:start",
+  CompactionEnd: "compaction:end",
+  /** A summary took the place of the older messages in what the model reads. */
+  Compacted: "compacted",
 } as const;
 
 export type AgentEventType =
@@ -327,6 +362,31 @@ export const RunEndReason = {
 
 export type RunEndReason = (typeof RunEndReason)[keyof typeof RunEndReason];
 
+/**
+ * A reply's request and answer in tokens, as its provider counted them. The request's prompt is
+ * `input`, `cacheRead` and `cacheWrite` together.
+ */
+export interface ReplyUsage {
+  /** Prompt tokens the provider's cache neither served nor stored. */
+  input: number;
+  /** Prompt tokens the provider's prompt cache served. */
+  cacheRead: number;
+  /** Prompt tokens stored in the provider's prompt cache for the requests that follow. */
+  cacheWrite: number;
+  output: number;
+}
+
+/** How a compaction the user asked for ended. */
+export const CompactionOutcome = {
+  Summarized: "summarized",
+  /** Every message is recent enough to keep as it is. */
+  NothingOld: "nothing-old",
+  Stopped: "stopped",
+} as const;
+
+export type CompactionOutcome =
+  (typeof CompactionOutcome)[keyof typeof CompactionOutcome];
+
 export type AgentWireEvent =
   | { type: typeof AgentEventType.RunStart }
   | {
@@ -350,6 +410,8 @@ export type AgentWireEvent =
       text: string;
       thinking?: string;
       at: number;
+      /** Absent for a reply that failed or was cut short, whose count stands for no whole request. */
+      usage?: ReplyUsage;
     }
   | {
       type: typeof AgentEventType.ToolStart;
@@ -387,6 +449,24 @@ export type AgentWireEvent =
       reason: RunEndReason;
       /** The provider's or the runtime's message when `reason` is `error`. */
       error?: string;
+    }
+  | {
+      type: typeof AgentEventType.Context;
+      /** As pi estimates it: the latest reply's count, and what followed it guessed from its length. */
+      tokens: number;
+    }
+  | {
+      type: typeof AgentEventType.CompactionStart;
+      id: string;
+      /** The user asked for it; otherwise the context grew past its threshold. */
+      manual: boolean;
+    }
+  | { type: typeof AgentEventType.CompactionEnd; id: string }
+  | {
+      type: typeof AgentEventType.Compacted;
+      messageId: string;
+      summary: string;
+      at: number;
     };
 
 export type RunEndEvent = Extract<
@@ -409,6 +489,7 @@ export const AgentItemKind = {
   Assistant: "assistant",
   Tool: "tool",
   Notice: "notice",
+  Compaction: "compaction",
 } as const;
 
 export type AgentItemKind = (typeof AgentItemKind)[keyof typeof AgentItemKind];
@@ -421,6 +502,7 @@ export interface MessageView {
   /** Epoch ms; unset while an assistant message is still streaming. */
   at?: number;
   streaming: boolean;
+  usage?: ReplyUsage;
 }
 
 export interface ToolCallView {
@@ -445,14 +527,35 @@ export interface NoticeView {
   error?: string;
 }
 
-export type AgentViewItem = MessageView | ToolCallView | NoticeView;
+/** Where a summary took the place of the messages before it, which stay in the thread. */
+export interface CompactionView {
+  kind: typeof AgentItemKind.Compaction;
+  messageId: string;
+  summary: string;
+  /** Epoch ms. */
+  at: number;
+}
+
+export type AgentViewItem =
+  | MessageView
+  | ToolCallView
+  | NoticeView
+  | CompactionView;
 
 export interface AgentView {
   items: AgentViewItem[];
   running: boolean;
+  /** Tokens the next request holds; unset until the conversation holds a message. */
+  context?: number;
+  /** Compactions under way. */
+  compactions: { id: string; manual: boolean }[];
 }
 
-export const emptyAgentView = (): AgentView => ({ items: [], running: false });
+export const emptyAgentView = (): AgentView => ({
+  items: [],
+  running: false,
+  compactions: [],
+});
 
 /** Pure: the same events in the same order always give the same view. */
 export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
@@ -472,7 +575,7 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
 
   switch (event.type) {
     case AgentEventType.RunStart:
-      return { items, running: true };
+      return { ...view, items, running: true };
 
     case AgentEventType.User:
       items.push({
@@ -519,6 +622,7 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
         thinking: event.thinking,
         at: event.at,
         streaming: false,
+        usage: event.usage,
       };
 
       if (index === -1) items.push(message);
@@ -635,8 +739,48 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
         });
       }
 
-      return { items: settled, running: false };
+      return { ...view, items: settled, running: false };
     }
+
+    case AgentEventType.Context:
+      return { ...view, context: event.tokens };
+
+    case AgentEventType.CompactionStart:
+      return view.compactions.some((each) => each.id === event.id)
+        ? view
+        : {
+            ...view,
+            compactions: [
+              ...view.compactions,
+              { id: event.id, manual: event.manual },
+            ],
+          };
+
+    case AgentEventType.CompactionEnd:
+      return {
+        ...view,
+        compactions: view.compactions.filter((each) => each.id !== event.id),
+      };
+
+    case AgentEventType.Compacted:
+      if (
+        items.some(
+          (item) =>
+            item.kind === AgentItemKind.Compaction &&
+            item.messageId === event.messageId
+        )
+      ) {
+        return view;
+      }
+
+      items.push({
+        kind: AgentItemKind.Compaction,
+        messageId: event.messageId,
+        summary: event.summary,
+        at: event.at,
+      });
+
+      return { ...view, items };
 
     default: {
       const exhaustive: never = event;
