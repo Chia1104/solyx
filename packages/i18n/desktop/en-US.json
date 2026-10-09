@@ -152,6 +152,9 @@
       "rsi": "RSI",
       "kd": "KD",
       "vol-ratio": "Volume ratio",
+      "year-range": "52-week range",
+      "zones": "Support zones",
+      "volume-profile": "Volume profile",
       "foreign-flow": "Foreign net buying",
       "trust-flow": "Trust net buying",
       "margin": "Margin balance"
@@ -160,6 +163,18 @@
       "foreign-flow": "Foreign",
       "trust-flow": "Trusts",
       "margin": "Margin"
+    },
+    "levels": {
+      "quarter-line-break": "MA60 break",
+      "year-line-break": "MA240 break",
+      "year-high": "52W high",
+      "year-low": "52W low",
+      "control": "POC",
+      "zones": {
+        "quarter-line": "MA60 support {{low}}–{{high}}",
+        "half-year-line": "MA120 support {{low}}–{{high}}",
+        "volume": "Dense trading {{low}}–{{high}}"
+      }
     },
     "legend": {
       "open": "O",

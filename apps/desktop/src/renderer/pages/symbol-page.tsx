@@ -95,7 +95,7 @@ export function SymbolPage() {
             void navigate({ search: { interval: next }, replace: true })
           }
         />
-        <IndicatorMenu market={symbol.market} />
+        <IndicatorMenu market={symbol.market} interval={interval} />
       </div>
       <div ref={split} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-40 flex-1 border-b border-separator p-3">

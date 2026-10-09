@@ -17,8 +17,8 @@ import type {
 } from "lightweight-charts";
 import { useTranslation } from "react-i18next";
 
-import { isIntraday } from "@solyx/core/candles";
-import type { Candle, Interval } from "@solyx/core/candles";
+import { Interval, isIntraday } from "@solyx/core/candles";
+import type { Candle } from "@solyx/core/candles";
 import { MOVING_AVERAGE_PERIODS, sma } from "@solyx/core/indicators";
 import { MARKET_TIME_ZONE } from "@solyx/core/market";
 import type { Market } from "@solyx/core/market";
@@ -48,6 +48,7 @@ import {
 } from "./indicator-panes.tsx";
 import { ChartIndicator, useIndicatorStore } from "./indicator-store.ts";
 import { useDirectionColors } from "./price-colors.ts";
+import { useLevels } from "./use-levels.ts";
 
 // Indicators drawn apart from price each get a pane below volume, in this order.
 const PANE_INDICATORS: readonly ChartIndicator[] = [
@@ -181,6 +182,13 @@ export function PriceChart({
     [candles, times, direction]
   );
 
+  const levels = useLevels({
+    candles,
+    times,
+    closes,
+    daily: interval === Interval.OneDay,
+  });
+
   const showShort = enabled.includes(ChartIndicator.MovingAverage);
   const showLong = enabled.includes(ChartIndicator.LongMovingAverage);
 
@@ -217,6 +225,9 @@ export function PriceChart({
         definition={CandlestickSeries}
         data={bars.candles}
         options={candleOptions}
+        priceLines={levels.priceLines}
+        markers={levels.markers}
+        bands={levels.bands}
         paneStretch={PRICE_PANE_STRETCH}
       />
       {movingAverages.map((average) => (

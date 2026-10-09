@@ -152,6 +152,9 @@
       "rsi": "RSI",
       "kd": "KD",
       "vol-ratio": "量能比",
+      "year-range": "52 週高低",
+      "zones": "支撐區",
+      "volume-profile": "成交分布",
       "foreign-flow": "外資買賣超",
       "trust-flow": "投信買賣超",
       "margin": "融資餘額"
@@ -160,6 +163,18 @@
       "foreign-flow": "外資",
       "trust-flow": "投信",
       "margin": "融資"
+    },
+    "levels": {
+      "quarter-line-break": "跌破季線",
+      "year-line-break": "跌破年線",
+      "year-high": "52 週高",
+      "year-low": "52 週低",
+      "control": "最大量價",
+      "zones": {
+        "quarter-line": "季線支撐 {{low}}–{{high}}",
+        "half-year-line": "半年線支撐 {{low}}–{{high}}",
+        "volume": "成交密集區 {{low}}–{{high}}"
+      }
     },
     "legend": {
       "open": "開",

@@ -13,6 +13,7 @@
     "./forecast": "./src/forecast.ts",
     "./fundamentals": "./src/fundamentals.ts",
     "./indicators": "./src/indicators.ts",
+    "./levels": "./src/levels.ts",
     "./macro": "./src/macro.ts",
     "./market": "./src/market.ts",
     "./market-data": "./src/market-data.ts",
