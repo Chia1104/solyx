@@ -788,7 +788,8 @@ export interface ListingNews {
 
 /**
  * The stories about each listing as headlines, heaviest first. Stories that share an item, as one
- * found for several listings does, make one headline, so a story about many of them counts once.
+ * found for several listings does, make one headline, so a story about many of them counts once;
+ * so do stories whose leads two sites published on one day and whose vectors read alike.
  */
 export function rankHeadlines(
   listings: readonly ListingNews[],
@@ -812,9 +813,11 @@ export function rankHeadlines(
   for (const { symbol, story, weight } of told) {
     const keys = story.records.map(recordKey);
 
-    let headline = keys
-      .map((key) => byItem.get(key))
-      .find((each) => each !== undefined);
+    let headline =
+      keys.map((key) => byItem.get(key)).find((each) => each !== undefined) ??
+      headlines.find((each) =>
+        readAlike(each.story.lead, story.lead, symbol.market)
+      );
 
     if (headline === undefined) {
       headline = { story, symbols: [symbol], weight };

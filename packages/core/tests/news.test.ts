@@ -755,3 +755,47 @@ test("a story's vector reads the title and the start of the snippet, its spaces 
     })
   ).toBe(`台積電法說會\n上修 展望${"。".repeat(495)}`);
 });
+
+test("stories two listings' searches found through different outlets make one headline once their vectors read alike", () => {
+  const listing = (symbol: string) => ({
+    subject: { symbol: { market: Market.TW, symbol }, listing: null },
+  });
+
+  const wistron = embedded(
+    told("緯創9月營收創同期新高", "2026-10-02T02:00:00Z", {
+      site: "a.test",
+      score: scored(1, 1),
+    }),
+    0
+  );
+
+  const wiwynn = embedded(
+    told("AI 伺服器供應鏈9月營收齊創高", "2026-10-02T04:00:00Z", {
+      site: "b.test",
+      score: scored(1, 1),
+    }),
+    10
+  );
+
+  const headlines = rankHeadlines(
+    [
+      { ...listing("3231"), records: [wistron] },
+      { ...listing("6669"), records: [wiwynn] },
+    ],
+    new Date("2026-10-02T06:00:00Z")
+  );
+
+  // The later story weighs more, so its listing leads.
+  expect(
+    headlines.map(({ symbols }) => symbols.map(({ symbol }) => symbol))
+  ).toEqual([["6669", "3231"]]);
+  expect(
+    rankHeadlines(
+      [
+        { ...listing("3231"), records: [wistron] },
+        { ...listing("6669"), records: [embedded(wiwynn, 60)] },
+      ],
+      new Date("2026-10-02T06:00:00Z")
+    )
+  ).toHaveLength(2);
+});
