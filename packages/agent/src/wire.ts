@@ -78,6 +78,7 @@ export const AgentToolName = {
   Forget: "forget",
   GetResearch: "get_research",
   GetFundamentals: "get_fundamentals",
+  GetFlows: "get_flows",
   ReviseReport: "revise_report",
   SubmitForecast: "submit_forecast",
   SearchHistory: "search_history",

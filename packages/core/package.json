@@ -9,6 +9,7 @@
     "./candles": "./src/candles.ts",
     "./council": "./src/council.ts",
     "./embedding": "./src/embedding.ts",
+    "./flows": "./src/flows.ts",
     "./forecast": "./src/forecast.ts",
     "./fundamentals": "./src/fundamentals.ts",
     "./indicators": "./src/indicators.ts",

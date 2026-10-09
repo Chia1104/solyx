@@ -6,6 +6,7 @@ import { BrowserWindow } from "electron";
 import { omit, sum } from "es-toolkit";
 
 import { createAnalysis } from "@solyx/agent/analysis";
+import { createFlowTools } from "@solyx/agent/flows";
 import { createHistory } from "@solyx/agent/history";
 import { createMagi } from "@solyx/agent/magi";
 import type { MagiPort } from "@solyx/agent/magi";
@@ -30,6 +31,7 @@ import type {
 import { BrokerMode } from "@solyx/core/broker";
 import { DecisionMode } from "@solyx/core/council";
 import type { Embedder } from "@solyx/core/embedding";
+import type { Flows } from "@solyx/core/flows";
 import type { Fundamentals } from "@solyx/core/fundamentals";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -78,6 +80,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   localEmbedder: () => Embedder | undefined;
   research: ResearchDesk;
   fundamentals: Fundamentals;
+  flows: Flows;
 }
 
 // `vp pack` ships QuickJS beside the main bundle and builds the scripts' worker next to it.
@@ -202,6 +205,8 @@ export function createAgentService(options: AgentServiceOptions) {
     magi,
   });
 
+  const flows = createFlowTools({ flows: options.flows });
+
   const history = createHistory({
     research: options.research,
     news: options.news,
@@ -222,6 +227,7 @@ export function createAgentService(options: AgentServiceOptions) {
           trading,
           analysis,
           research,
+          flows,
           history,
           ...(shellOn() ? [shell.extension(guard)] : []),
           ...(webOn ? [web.extension(guard)] : []),

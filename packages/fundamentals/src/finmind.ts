@@ -1,7 +1,18 @@
-import { groupBy } from "es-toolkit";
+import { groupBy, sumBy } from "es-toolkit";
 import ky, { isHTTPError } from "ky";
 import * as z from "zod";
 
+import {
+  Investor,
+  emptyListingFlows,
+  emptyMarketFlows,
+} from "@solyx/core/flows";
+import type {
+  FlowsProvider,
+  FuturesPosition,
+  InvestorTrades,
+  MarketMargin,
+} from "@solyx/core/flows";
 import { RestrictionKind } from "@solyx/core/fundamentals";
 import type {
   Dividend,
@@ -12,7 +23,7 @@ import type {
 } from "@solyx/core/fundamentals";
 import { Market, shiftDate } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { twFilingDeadline } from "@solyx/core/rules/tw";
+import { TW_BOARD_LOT, twFilingDeadline } from "@solyx/core/rules/tw";
 import type { TradingCalendarProvider } from "@solyx/core/session";
 import { createRateLimiter } from "@solyx/utils/rate-limit";
 
@@ -125,7 +136,93 @@ const haltRowSchema = z.object({
   resumption_date: dayOrUnsetSchema,
 });
 
+// One group's buying and selling in a session: of a listing in shares, or of the whole market in New Taiwan dollars.
+const tradesRowSchema = z.object({
+  date: z.iso.date(),
+  name: z.string(),
+  buy: z.number(),
+  sell: z.number(),
+});
+
+const listingTradesRowSchema = tradesRowSchema.extend({ stock_id: z.string() });
+
+// A listing's margin and short balances at the close, in board lots.
+const marginRowSchema = z.object({
+  stock_id: z.string(),
+  date: z.iso.date(),
+  MarginPurchaseTodayBalance: z.number(),
+  MarginPurchaseLimit: z.number(),
+  ShortSaleTodayBalance: z.number(),
+});
+
+// Foreign investors' holding and its limit, in percent of the shares issued.
+const shareholdingRowSchema = z.object({
+  stock_id: z.string(),
+  date: z.iso.date(),
+  ForeignInvestmentSharesRatio: z.number(),
+  ForeignInvestmentUpperLimitRatio: z.number(),
+});
+
+// One of the market's balances at the close: `MarginPurchase` and `ShortSale` in board lots, `MarginPurchaseMoney` in New Taiwan dollars.
+const marketMarginRowSchema = z.object({
+  date: z.iso.date(),
+  name: z.string(),
+  TodayBalance: z.number(),
+});
+
+const futuresRowSchema = z.object({
+  date: z.iso.date(),
+  institutional_investors: z.string(),
+  long_open_interest_balance_volume: z.number(),
+  short_open_interest_balance_volume: z.number(),
+});
+
 const failureSchema = z.object({ msg: z.string() });
+
+// FinMind's names for the groups trading on the exchange; a foreign group's dealers count with it, and `total` is left out.
+const EXCHANGE_INVESTORS = new Map<string, Investor>([
+  ["Foreign_Investor", Investor.Foreign],
+  ["Foreign_Dealer_Self", Investor.Foreign],
+  ["Investment_Trust", Investor.InvestmentTrust],
+  ["Dealer_self", Investor.Dealer],
+  ["Dealer_Hedging", Investor.DealerHedging],
+]);
+
+// The futures exchange's names for the groups, which it does not split by hedging.
+const FUTURES_INVESTORS = new Map<string, Investor>([
+  ["外資", Investor.Foreign],
+  ["投信", Investor.InvestmentTrust],
+  ["自營商", Investor.Dealer],
+]);
+
+// TAIEX futures.
+const INDEX_FUTURE = "TX";
+
+const byDate = <Row extends { date: string }>(a: Row, b: Row) =>
+  a.date.localeCompare(b.date);
+
+/** Each group's trades per session, oldest first, the rows FinMind splits a group into added up. */
+function investorTrades(
+  rows: readonly z.infer<typeof tradesRowSchema>[]
+): InvestorTrades[] {
+  const named = rows.flatMap((row): InvestorTrades[] => {
+    const investor = EXCHANGE_INVESTORS.get(row.name);
+
+    return investor === undefined
+      ? []
+      : [{ date: row.date, investor, bought: row.buy, sold: row.sell }];
+  });
+
+  return Object.values(
+    groupBy(named, ({ date, investor }) => `${date}:${investor}`)
+  )
+    .map(([first, ...rest]): InvestorTrades => ({
+      ...first,
+      bought: first.bought + sumBy(rest, ({ bought }) => bought),
+      sold: first.sold + sumBy(rest, ({ sold }) => sold),
+    }))
+    .toSorted(byDate);
+}
 
 // Net income attributable to the parent's owners, then the whole group's where FinMind names only that.
 const NET_INCOME_LINES = [
@@ -149,12 +246,13 @@ export interface FinMindOptions {
 }
 
 /**
- * Taiwan listings' quarterly income statements, monthly revenue, dividends and restrictions, and
- * the days the exchange trades, from FinMind on the user's token and plan or none.
+ * Taiwan listings' quarterly income statements, monthly revenue, dividends and restrictions, who
+ * trades them and the market, and the days the exchange trades, from FinMind on the user's token
+ * and plan or none.
  */
 export function createFinMind(
   options: FinMindOptions = {}
-): FundamentalsProvider & TradingCalendarProvider {
+): FundamentalsProvider & FlowsProvider & TradingCalendarProvider {
   const api = ky.create({
     baseUrl: FINMIND_API_URL,
     fetch: options.fetch,
@@ -387,6 +485,118 @@ export function createFinMind(
       return (await Promise.all(reads))
         .flat()
         .toSorted((a, b) => a.from.localeCompare(b.from));
+    },
+
+    async getListingFlows(symbol, since) {
+      if (symbol.market !== Market.TW) return emptyListingFlows();
+
+      const own = ({ stock_id }: { stock_id: string }) =>
+        stock_id === symbol.symbol;
+
+      const [trades, margin, foreign] = await Promise.all([
+        rows(
+          "TaiwanStockInstitutionalInvestorsBuySell",
+          symbol,
+          since,
+          listingTradesRowSchema
+        ),
+        rows(
+          "TaiwanStockMarginPurchaseShortSale",
+          symbol,
+          since,
+          marginRowSchema
+        ),
+        rows("TaiwanStockShareholding", symbol, since, shareholdingRowSchema),
+      ]);
+
+      return {
+        trades: investorTrades(trades.filter(own)),
+        margin: margin
+          .filter(own)
+          .map((row) => ({
+            date: row.date,
+            margin: row.MarginPurchaseTodayBalance * TW_BOARD_LOT,
+            marginLimit: row.MarginPurchaseLimit * TW_BOARD_LOT,
+            short: row.ShortSaleTodayBalance * TW_BOARD_LOT,
+          }))
+          .toSorted(byDate),
+        foreign: foreign
+          .filter(own)
+          .map((row) => ({
+            date: row.date,
+            ratio: row.ForeignInvestmentSharesRatio / 100,
+            limit: row.ForeignInvestmentUpperLimitRatio / 100,
+          }))
+          .toSorted(byDate),
+      };
+    },
+
+    async getMarketFlows(market, since) {
+      if (market !== Market.TW) return emptyMarketFlows();
+
+      const [trades, balances, futures] = await Promise.all([
+        data(
+          "TaiwanStockTotalInstitutionalInvestors",
+          { start_date: since },
+          tradesRowSchema
+        ),
+        data(
+          "TaiwanStockTotalMarginPurchaseShortSale",
+          { start_date: since },
+          marketMarginRowSchema
+        ),
+        data(
+          "TaiwanFuturesInstitutionalInvestors",
+          { data_id: INDEX_FUTURE, start_date: since },
+          futuresRowSchema
+        ),
+      ]);
+
+      // A session missing one of its balances is dropped, so every one reads whole.
+      const margin = Object.entries(
+        groupBy(balances, ({ date }) => date)
+      ).flatMap(([date, session]): MarketMargin[] => {
+        const balance = (name: string) =>
+          session.find((row) => row.name === name)?.TodayBalance;
+
+        const marginValue = balance("MarginPurchaseMoney");
+        const shares = balance("MarginPurchase");
+        const short = balance("ShortSale");
+
+        return marginValue === undefined ||
+          shares === undefined ||
+          short === undefined
+          ? []
+          : [
+              {
+                date,
+                marginValue,
+                margin: shares * TW_BOARD_LOT,
+                short: short * TW_BOARD_LOT,
+              },
+            ];
+      });
+
+      return {
+        trades: investorTrades(trades),
+        margin: margin.toSorted(byDate),
+        futures: futures
+          .flatMap((row): FuturesPosition[] => {
+            const investor = FUTURES_INVESTORS.get(row.institutional_investors);
+
+            return investor === undefined
+              ? []
+              : [
+                  {
+                    date: row.date,
+                    investor,
+                    long: row.long_open_interest_balance_volume,
+                    short: row.short_open_interest_balance_volume,
+                  },
+                ];
+          })
+          .toSorted(byDate),
+      };
     },
 
     async tradingDays(market, since) {
