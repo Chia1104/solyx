@@ -62,17 +62,77 @@ export type AgentSessionSetup = z.infer<typeof agentSessionSetupSchema>;
 const MENTION = /(?<![0-9A-Za-z])[@＠]([0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)/g;
 
 // Names as the Agent Skills format allows them.
-const COMMAND = /^\s*[/／]([a-z0-9]+(?:-[a-z0-9]+)*)(?=\s|$)/;
+const COMMAND = /^(\s*)([/／]([a-z0-9]+(?:-[a-z0-9]+)*))(?=\s|$)/;
+
+/** What the grammar reads a stretch of a message as. */
+export const MessagePartKind = {
+  Text: "text",
+  /** A leading `/name`, asking for a skill. */
+  Skill: "skill",
+  /** `@` and a code, naming a listing. */
+  Listing: "listing",
+} as const;
+
+export type MessagePartKind =
+  (typeof MessagePartKind)[keyof typeof MessagePartKind];
+
+export type MessagePart =
+  | { kind: typeof MessagePartKind.Text; text: string }
+  | { kind: typeof MessagePartKind.Skill; text: string; name: string }
+  | { kind: typeof MessagePartKind.Listing; text: string; code: string };
 
 /**
- * What a message names: the skill a leading `/name` asks for, and each code `@` marks, once and
- * upper-cased. Whether they name a skill or a listing the app knows is the host's to resolve.
+ * A message cut, in order, into its text and what it names: the skill a leading `/name` asks for
+ * and each code `@` marks, upper-cased. Whether they name a skill or a listing the app knows is
+ * for whoever reads them to resolve.
  */
+export function messageParts(text: string): MessagePart[] {
+  const parts: MessagePart[] = [];
+  const command = COMMAND.exec(text);
+
+  let at = 0;
+
+  const plain = (end: number) => {
+    if (end > at)
+      parts.push({ kind: MessagePartKind.Text, text: text.slice(at, end) });
+  };
+
+  if (command) {
+    parts.push(
+      { kind: MessagePartKind.Text, text: command[1] },
+      { kind: MessagePartKind.Skill, text: command[2], name: command[3] }
+    );
+    at = command[0].length;
+  }
+
+  // A `/name` holds no `@`, so every mention lies past it.
+  for (const mention of text.matchAll(MENTION)) {
+    plain(mention.index);
+    parts.push({
+      kind: MessagePartKind.Listing,
+      text: mention[0],
+      code: mention[1].toUpperCase(),
+    });
+    at = mention.index + mention[0].length;
+  }
+
+  plain(text.length);
+
+  return parts.filter((part) => part.text !== "");
+}
+
+/** The skill a message asks for and the codes it names, each once. */
 export function messageTokens(text: string) {
+  const parts = messageParts(text);
+
   return {
-    skill: COMMAND.exec(text)?.[1],
+    skill: parts.flatMap((part) =>
+      part.kind === MessagePartKind.Skill ? [part.name] : []
+    )[0],
     codes: uniq(
-      Array.from(text.matchAll(MENTION), (match) => match[1].toUpperCase())
+      parts.flatMap((part) =>
+        part.kind === MessagePartKind.Listing ? [part.code] : []
+      )
     ),
   };
 }

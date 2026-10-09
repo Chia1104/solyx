@@ -12,6 +12,7 @@ import { Icon } from "../../components/icon.tsx";
 import { ActivityMark } from "./agent-activity.tsx";
 import { AgentMarkdown } from "./agent-markdown.tsx";
 import { CopyAction, EditAction } from "./agent-message-actions.tsx";
+import { MessageText } from "./message-text.tsx";
 
 /** When a message was sent, and its actions, which show while the pointer or focus is on it. */
 function MessageMeta({
@@ -54,7 +55,7 @@ export function UserMessage({ message }: { message: MessageView }) {
   return (
     <div className="group/message flex flex-col items-end gap-1">
       <p className="max-w-[85%] rounded-sm bg-surface-secondary px-3 py-2 text-sm leading-6 whitespace-pre-wrap">
-        {message.text}
+        <MessageText text={message.text} />
       </p>
       <MessageMeta at={message.at} text={message.text} end>
         <EditAction text={message.text} />

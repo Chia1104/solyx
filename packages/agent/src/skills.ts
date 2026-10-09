@@ -204,7 +204,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "## Conversations",
       "- Each conversation has an approval mode the user sets in the composer: ask, where calls that need it wait for them; auto, where a shell command the decisions model judges harmless runs and a page your searches found is read; and bypass, where they all run unasked. Order proposals always wait for the user to confirm, whatever the mode.",
       "- A conversation may pick its own model and thinking; otherwise it runs on the default.",
-      "- The user may start a message with /name to ask for a skill, and write @ before a code to name a listing they have on screen, hold or watch.",
+      "- The user may start a message with /name to ask for a skill, and write @ before a code to name a listing they have on screen, hold or watch. The composer suggests both as they type, and the Skills tab shows each skill that can be asked for as /name.",
       "",
       "## Files the user writes for you",
       "- The config folder (get_setup gives its path) holds config.json, every setting as JSON with config.schema.json documenting each entry; a saved edit applies without a restart. Beside it: skills/<name>/SKILL.md for their own playbooks, which replace a built-in of the same name, and which user-invocable: false in the frontmatter keeps from being asked for with /name; AGENTS.md for standing instructions sent with every message; mcp.json for MCP servers.",

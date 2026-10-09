@@ -256,11 +256,12 @@ export function createSettingsApi({
 
       return {
         skills: catalog.skills.map(
-          ({ name, description, source, offered }) => ({
+          ({ name, description, source, offered, userInvocable }) => ({
             name,
             description,
             source,
             offered,
+            userInvocable,
             switchable: source === SkillSource.Shared,
           })
         ),

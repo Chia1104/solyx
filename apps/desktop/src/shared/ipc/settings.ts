@@ -389,6 +389,8 @@ export interface AgentSkillInfo {
   source: SkillSource;
   /** Offered to the agent: the user's own and built-ins always, shared ones once switched on. */
   offered: boolean;
+  /** The user may ask for it by starting a message with `/name`. */
+  userInvocable: boolean;
   /** Shared skills, which the user switches on one by one. */
   switchable: boolean;
 }
