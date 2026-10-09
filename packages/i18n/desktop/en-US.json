@@ -558,6 +558,8 @@
     "palette": "Palette",
     "palette-description": "Pick one for light and one for dark; the theme decides which one shows.",
     "palette-swatch": "{{palette}}, {{scheme}}",
+    "palette-count_one": "{{count}} palette",
+    "palette-count_other": "{{count}} palettes",
     "palettes": {
       "blueprint": "Blueprint",
       "graphite": "Graphite",
