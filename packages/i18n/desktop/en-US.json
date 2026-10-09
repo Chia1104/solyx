@@ -567,7 +567,9 @@
       "asuka": "Asuka",
       "rei": "Rei",
       "unit-01": "Unit-01",
-      "mari": "Mari"
+      "mari": "Mari",
+      "cyberpunk": "Cyberpunk",
+      "lucy": "Lucy"
     },
     "palette-copy": "Copy {{name}}",
     "palette-edit": "Edit {{name}}",
