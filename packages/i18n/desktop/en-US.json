@@ -20,6 +20,8 @@
     "error-title": "Something went wrong",
     "retry": "Retry",
     "cancel": "Cancel",
+    "show-more": "Show more",
+    "show-less": "Show less",
     "not-found": {
       "title": "This page doesn't exist",
       "description": "Nothing in Solyx lives at this address.",
@@ -324,7 +326,7 @@
       "used": "{{used}} of {{window}} tokens ({{percent}})",
       "summarized": "Older messages are summarized as it fills.",
       "compact": "Summarize earlier messages",
-      "hint": "Or type /compact, followed by what the summary should keep."
+      "hint": "Typing /compact does the same, followed by what the summary should keep."
     },
     "compaction": {
       "summarized": "Earlier messages summarized",

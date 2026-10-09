@@ -44,12 +44,7 @@ export function ContextMeter({
 
   return (
     <Popover>
-      <Button
-        isIconOnly
-        size="sm"
-        variant="ghost"
-        aria-label={label}
-        className="size-8">
+      <Button isIconOnly size="sm" variant="ghost" aria-label={label}>
         <ProgressCircle
           aria-label={label}
           size="sm"
@@ -66,7 +61,9 @@ export function ContextMeter({
       <Popover.Content
         placement="top end"
         className="w-80 max-w-[calc(100vw-1.5rem)]">
-        <Popover.Dialog aria-label={title} className="flex flex-col gap-3 p-3">
+        <Popover.Dialog
+          aria-label={title}
+          className="flex flex-col gap-2 p-3 text-xs">
           <ProgressBar
             size="sm"
             color="default"
@@ -77,24 +74,23 @@ export function ContextMeter({
               window: compactAmount.format(window),
               percent: percent.format(Math.min(used / window, 1)),
             })}>
-            <Label>{title}</Label>
-            <ProgressBar.Output className="tabular-nums" />
+            <Label className="text-xs">{title}</Label>
+            <ProgressBar.Output className="text-xs tabular-nums" />
             <ProgressBar.Track>
               <ProgressBar.Fill />
             </ProgressBar.Track>
           </ProgressBar>
-          <p className="text-xs text-muted">
-            {t("agent.context-meter.summarized")}
-          </p>
+          <p className="text-muted">{t("agent.context-meter.summarized")}</p>
+          <p className="text-muted">{t("agent.context-meter.hint")}</p>
           <Button
             size="sm"
             variant="secondary"
+            className="mt-1 text-xs"
             isPending={compacting}
             isDisabled={!canCompact}
             onPress={onCompact}>
             {t("agent.context-meter.compact")}
           </Button>
-          <p className="text-xs text-muted">{t("agent.context-meter.hint")}</p>
         </Popover.Dialog>
       </Popover.Content>
     </Popover>

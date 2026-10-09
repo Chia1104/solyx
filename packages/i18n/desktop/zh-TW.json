@@ -20,6 +20,8 @@
     "error-title": "發生錯誤",
     "retry": "重試",
     "cancel": "取消",
+    "show-more": "顯示更多",
+    "show-less": "收合",
     "not-found": {
       "title": "找不到這個頁面",
       "description": "Solyx 裡沒有這個位址對應的內容。",
@@ -324,7 +326,7 @@
       "used": "{{used}} / {{window}} tokens（{{percent}}）",
       "summarized": "快滿時，較早的訊息會整理成摘要。",
       "compact": "整理較早的訊息",
-      "hint": "也可以輸入 /compact，後面接摘要要保留的重點。"
+      "hint": "輸入 /compact 也能整理，後面可以接摘要要保留的重點。"
     },
     "compaction": {
       "summarized": "較早的訊息已整理成摘要",

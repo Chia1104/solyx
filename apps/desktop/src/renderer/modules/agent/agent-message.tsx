@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import type { MessageView } from "@solyx/agent/wire";
 
 import { useClock } from "../../app/clock.ts";
+import { Expandable } from "../../components/expandable.tsx";
 import { Icon } from "../../components/icon.tsx";
 
 import { ActivityMark } from "./agent-activity.tsx";
@@ -14,6 +15,9 @@ import { AgentMarkdown } from "./agent-markdown.tsx";
 import { CopyAction, EditAction } from "./agent-message-actions.tsx";
 import { ReplyUsageMark } from "./agent-usage.tsx";
 import { MessageText } from "./message-text.tsx";
+
+// Taller messages fold down to this until the user opens them.
+const USER_MESSAGE_MAX_HEIGHT = 240;
 
 /** When a message was sent, and its actions, which show while the pointer or focus is on it. */
 function MessageMeta({
@@ -55,9 +59,14 @@ function MessageMeta({
 export function UserMessage({ message }: { message: MessageView }) {
   return (
     <div className="group/message flex flex-col items-end gap-1">
-      <p className="max-w-[85%] rounded-sm bg-surface-secondary px-3 py-2 text-sm leading-6 whitespace-pre-wrap">
-        <MessageText text={message.text} />
-      </p>
+      <Expandable
+        maxHeight={USER_MESSAGE_MAX_HEIGHT}
+        className="max-w-[85%] rounded-sm bg-surface-secondary px-3 py-2 text-sm leading-6"
+        toggleClassName="-mb-1 justify-end pt-1">
+        <p className="whitespace-pre-wrap">
+          <MessageText text={message.text} />
+        </p>
+      </Expandable>
       <MessageMeta at={message.at} text={message.text} end>
         <EditAction text={message.text} />
       </MessageMeta>
