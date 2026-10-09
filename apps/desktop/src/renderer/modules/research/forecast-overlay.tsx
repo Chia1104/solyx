@@ -5,11 +5,13 @@ import { LineSeries, LineStyle } from "lightweight-charts";
 import type {
   CreatePriceLineOptions,
   LineSeriesPartialOptions,
+  SeriesMarker,
+  Time,
 } from "lightweight-charts";
 import { useTranslation } from "react-i18next";
 
 import type { Candle } from "@solyx/core/candles";
-import { forecastTimeline } from "@solyx/core/forecast";
+import { ForecastDirection, forecastTimeline } from "@solyx/core/forecast";
 import type { Forecast } from "@solyx/core/forecast";
 import type { SymbolRef } from "@solyx/core/market";
 import { Series } from "@solyx/trading-chart/series";
@@ -22,6 +24,13 @@ import { researchCoverageQuery } from "./research-query.ts";
 
 // The least likely path still reads; the likeliest is drawn in full ink.
 const FAINTEST = 0.3;
+
+const DIRECTION_MARKS: Record<ForecastDirection, SeriesMarker<Time>["shape"]> =
+  {
+    [ForecastDirection.Long]: "arrowUp",
+    [ForecastDirection.Short]: "arrowDown",
+    [ForecastDirection.Neutral]: "circle",
+  };
 
 function ForecastPaths({
   forecast,
@@ -85,6 +94,36 @@ function ForecastPaths({
     ];
   }, [forecast, colors, t]);
 
+  // The paths fan out from the anchor, so its mark says which way the forecast went and, once
+  // settled, how it came out.
+  const markers = useMemo(() => {
+    const anchor = paths[0]?.[0];
+
+    if (!anchor) return undefined;
+
+    const { direction, outcome, scenarios } = forecast;
+    const label = t(`research.direction.${direction}`);
+
+    let result: string | null = null;
+
+    if (outcome?.plan) {
+      result = t(`research.forecast.plan-result.${outcome.plan.result}`);
+    } else if (outcome) {
+      result = `${scenarios[outcome.scenario].label} ${t("research.forecast.held")}`;
+    }
+
+    return [
+      {
+        time: anchor.time,
+        position: "inBar",
+        // Lightweight Charts' own field; a computed key keeps it apart from the names we choose.
+        ["shape"]: DIRECTION_MARKS[direction],
+        color: colors.foreground,
+        text: result ? `${label} · ${result}` : label,
+      },
+    ] satisfies SeriesMarker<Time>[];
+  }, [forecast, paths, colors, t]);
+
   return paths.map((data, index) => (
     <Series
       key={forecast.scenarios[index].label}
@@ -92,13 +131,14 @@ function ForecastPaths({
       data={data}
       options={options[index]}
       priceLines={index === 0 ? levels : undefined}
+      markers={index === 0 ? markers : undefined}
     />
   ));
 }
 
 /**
  * A listing's newest forecast over its daily bars: each scenario's path from the anchor, fainter
- * the less likely, and the plan's levels. Bars that trade later draw over the paths, which stay
+ * the less likely, a mark at the anchor with its direction and outcome, and the plan's levels. Bars that trade later draw over the paths, which stay
  * as they were made.
  */
 export function ForecastOverlay({
