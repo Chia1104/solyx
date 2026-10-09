@@ -3,8 +3,15 @@ import type { Candle } from "./candles.ts";
 /** One value per input bar; `null` while the indicator is still warming up. */
 export type IndicatorLine = (number | null)[];
 
-/** The simple moving averages charts draw and the agent reads, shortest first. */
-export const MOVING_AVERAGE_PERIODS: readonly number[] = [5, 10, 20, 60];
+/**
+ * The simple moving averages charts draw and the agent reads, shortest first, in the groups
+ * Taiwan reads them in: the week, fortnight and month lines, then the quarter, half-year and
+ * year lines that say which way the trend runs.
+ */
+export const MOVING_AVERAGE_PERIODS = {
+  short: [5, 10, 20],
+  long: [60, 120, 240],
+};
 
 export function sma(values: readonly number[], period: number): IndicatorLine {
   const line: IndicatorLine = [];
@@ -19,6 +26,23 @@ export function sma(values: readonly number[], period: number): IndicatorLine {
   }
 
   return line;
+}
+
+/**
+ * Each bar's volume over the average of the `period` bars ending with it, so 1.5 reads as half
+ * again a usual session's; `null` where those bars traded nothing.
+ */
+export function volumeRatio(
+  volumes: readonly number[],
+  period = 20
+): IndicatorLine {
+  const average = sma(volumes, period);
+
+  return volumes.map((volume, i) => {
+    const mean = average[i];
+
+    return mean === null || mean === 0 ? null : volume / mean;
+  });
 }
 
 /** Seeded with the SMA of its first `period` values; leading nulls from an upstream line are skipped. */

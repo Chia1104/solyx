@@ -10,7 +10,7 @@ import type {
 } from "lightweight-charts";
 
 import type { Candle } from "@solyx/core/candles";
-import { bollinger, kd, macd, rsi } from "@solyx/core/indicators";
+import { bollinger, kd, macd, rsi, volumeRatio } from "@solyx/core/indicators";
 import { Series } from "@solyx/trading-chart/series";
 
 import { LINE_COLORS } from "./chart-palette.ts";
@@ -57,6 +57,13 @@ const BOUNDED_SCALE: DeepPartial<PriceScaleOptions> = {
 const RSI_LEVELS = [level(30), level(70)];
 
 const KD_LEVELS = [level(20), level(80)];
+
+// A session of half again its usual volume stands out, and so does one of under half of it.
+const VOLUME_SURGE = 1.5;
+
+const VOLUME_LULL = 0.5;
+
+const VOLUME_RATIO_LEVELS = [level(1), level(VOLUME_SURGE)];
 
 export function BollingerBands({
   times,
@@ -193,5 +200,45 @@ export function KdPane({
         pane={pane}
       />
     </>
+  );
+}
+
+export function VolumeRatioPane({
+  times,
+  candles,
+  pane,
+}: {
+  times: UTCTimestamp[];
+  candles: Candle[];
+  pane: number;
+}) {
+  const data = useMemo(() => {
+    const ratios = volumeRatio(candles.map((candle) => candle.volume));
+
+    return times.map((time, i) => {
+      const value = ratios[i];
+
+      if (value === null) return { time };
+
+      const color =
+        value >= VOLUME_SURGE
+          ? LINE_COLORS.surge
+          : value < VOLUME_LULL
+            ? LINE_COLORS.lull
+            : LINE_COLORS.volume;
+
+      return { time, value, color };
+    });
+  }, [times, candles]);
+
+  return (
+    <Series
+      definition={HistogramSeries}
+      data={data}
+      options={HISTOGRAM_OPTIONS}
+      priceLines={VOLUME_RATIO_LEVELS}
+      pane={pane}
+      paneStretch={LOWER_PANE_STRETCH}
+    />
   );
 }

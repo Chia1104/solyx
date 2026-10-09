@@ -43,7 +43,7 @@ describe("olderRange", () => {
     const before = session("2026-03-02", 1, 1).time;
 
     expect(olderRange(Market.TW, Interval.OneDay, before)).toEqual({
-      from: "2024-09-07",
+      from: "2024-03-01",
       to: "2026-03-01",
     });
   });

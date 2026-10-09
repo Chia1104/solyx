@@ -7,7 +7,15 @@ import { omit } from "es-toolkit";
 import * as z from "zod";
 
 import { candleDate, intervalSchema, isIntraday } from "@solyx/core/candles";
-import { bollinger, ema, kd, macd, rsi, sma } from "@solyx/core/indicators";
+import {
+  bollinger,
+  ema,
+  kd,
+  macd,
+  rsi,
+  sma,
+  volumeRatio,
+} from "@solyx/core/indicators";
 import { exchangeTime, symbolRefSchema } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -78,6 +86,16 @@ const indicators: CodemodeTool[] = [
     input: z.tuple([valuesSchema, z.number().int().positive()]),
     output: lineSchema,
     run: ([values, period]) => ema(values, period),
+  }),
+  scriptFunction({
+    name: "indicators.volumeRatio",
+    description:
+      "Each bar's volume over the average of the 20 bars ending with it; null until 20 bars exist, or where they traded nothing.",
+    spread: true,
+    signature: `(volumes: number[]): Promise<${LINE}>`,
+    input: z.tuple([valuesSchema]),
+    output: lineSchema,
+    run: ([volumes]) => volumeRatio(volumes),
   }),
   scriptFunction({
     name: "indicators.rsi",

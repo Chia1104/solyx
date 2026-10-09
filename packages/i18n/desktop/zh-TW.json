@@ -145,11 +145,13 @@
     },
     "indicators-label": "技術指標",
     "indicators": {
-      "ma": "均線",
+      "ma": "短期均線",
+      "ma-long": "長期均線",
       "boll": "布林",
       "macd": "MACD",
       "rsi": "RSI",
       "kd": "KD",
+      "vol-ratio": "量能比",
       "foreign-flow": "外資買賣超",
       "trust-flow": "投信買賣超",
       "margin": "融資餘額"
