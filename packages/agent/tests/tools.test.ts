@@ -359,6 +359,19 @@ test("indicators report the latest and previous values", async () => {
   expect(text).toContain("close: 1079 (previous 1078)");
   expect(text).toContain("MA5: 1077 (previous 1076)");
   expect(text).toContain("MA10: 1074.5 (previous 1073.5)");
+  expect(text).toContain("52-week range: 996-1082");
+  expect(text).toMatch(/support zones: .*MA60 1028\.51-1070\.49/);
+});
+
+test("indicators leave the daily levels out of intraday bars", async () => {
+  const { run } = setup();
+
+  const { text } = await run(AgentToolName.GetIndicators, {
+    symbol: TSMC,
+    interval: Interval.FiveMinutes,
+  });
+
+  expect(text).not.toContain("52-week range");
 });
 
 test("a limit order needs its price", async () => {

@@ -16,17 +16,12 @@ import { Series } from "@solyx/trading-chart/series";
 import { utcTimestamp } from "@solyx/trading-chart/time-format";
 
 import { usePaletteColors } from "../../app/theme.ts";
+import { faded } from "../market/chart-palette.ts";
 
 import { researchCoverageQuery } from "./research-query.ts";
 
 // The least likely path still reads; the likeliest is drawn in full ink.
 const FAINTEST = 0.3;
-
-/** A palette colour, which is six-digit hex, at an opacity from 0 to 1. */
-const faded = (color: string, opacity: number) =>
-  `${color}${Math.round(opacity * 255)
-    .toString(16)
-    .padStart(2, "0")}`;
 
 function ForecastPaths({
   forecast,

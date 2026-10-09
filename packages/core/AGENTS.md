@@ -6,6 +6,7 @@ The trading domain every other package builds on: market rules (tick sizes, boar
 
 - Pure and cross-runtime: no I/O and no Node or DOM APIs, so every process imports it. Implementations of its contracts live in their own packages.
 - Technical indicators are pure functions, one value per bar and `null` while warming up, so the charts and the agent read the same numbers.
+- `./levels` derives the prices a daily chart marks from its bars: the year's range, the volume profile, support zones around the quarter and half-year lines and under the profile's densest trading, and closes breaking below a line. They are pure functions too, so the chart and the agent cite the same levels.
 - `./session` counts regular sessions on the days a market trades, which the caller hands it: the days its exchange set, and outside their span every weekday, the rule for a market whose holidays are not known. `getSession` knows no holidays.
 - `./quote` reduces a listing's intraday bars to its newest session against the last close before it, so the symbols pane and the overview's heat map read the same numbers.
 - `./sectors` lists the Taiwan Stock Exchange's own sector indices in its current classification and leaves out the indices that add sectors up, so no listing counts twice.

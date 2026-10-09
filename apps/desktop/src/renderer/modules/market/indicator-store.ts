@@ -12,6 +12,9 @@ export const ChartIndicator = {
   Rsi: "rsi",
   Kd: "kd",
   VolumeRatio: "vol-ratio",
+  YearRange: "year-range",
+  Zones: "zones",
+  VolumeProfile: "volume-profile",
   ForeignFlow: "foreign-flow",
   TrustFlow: "trust-flow",
   Margin: "margin",
@@ -27,6 +30,13 @@ export const FLOW_INDICATORS: readonly ChartIndicator[] = [
   ChartIndicator.ForeignFlow,
   ChartIndicator.TrustFlow,
   ChartIndicator.Margin,
+];
+
+/** Drawn from sessions, which only daily bars count one by one. */
+export const DAILY_INDICATORS: readonly ChartIndicator[] = [
+  ChartIndicator.YearRange,
+  ChartIndicator.Zones,
+  ChartIndicator.VolumeProfile,
 ];
 
 interface IndicatorState {

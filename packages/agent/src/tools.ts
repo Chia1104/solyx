@@ -14,8 +14,13 @@ import * as z from "zod";
 
 import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
 import type { ListingEvent, UpcomingEvents } from "@solyx/core/calendar";
-import { candleDate, intervalSchema, isIntraday } from "@solyx/core/candles";
-import type { Candle, Interval } from "@solyx/core/candles";
+import {
+  Interval,
+  candleDate,
+  intervalSchema,
+  isIntraday,
+} from "@solyx/core/candles";
+import type { Candle } from "@solyx/core/candles";
 import { CouncilOutcome, councilOutcome } from "@solyx/core/council";
 import type { Council } from "@solyx/core/council";
 import {
@@ -29,6 +34,15 @@ import {
   volumeRatio,
 } from "@solyx/core/indicators";
 import type { IndicatorLine } from "@solyx/core/indicators";
+import {
+  PROFILE_SESSIONS,
+  ZoneKind,
+  pointOfControl,
+  supportZones,
+  volumeProfile,
+  yearRange,
+} from "@solyx/core/levels";
+import type { PriceRange } from "@solyx/core/levels";
 import type { MacroRelease } from "@solyx/core/macro";
 import {
   Market,
@@ -164,6 +178,34 @@ const MOVING_AVERAGES = [
   ...MOVING_AVERAGE_PERIODS.short,
   ...MOVING_AVERAGE_PERIODS.long,
 ];
+
+const ZONE_NAMES: Record<ZoneKind, string> = {
+  [ZoneKind.QuarterLine]: "MA60",
+  [ZoneKind.HalfYearLine]: "MA120",
+  [ZoneKind.Volume]: "dense trading",
+};
+
+const priceRange = ({ low, high }: PriceRange) =>
+  `${Number(low.toFixed(2))}-${Number(high.toFixed(2))}`;
+
+/** The levels a daily chart marks, as `get_indicators` reports them. */
+function dailyLevels(daily: Candle[]): string[] {
+  const year = yearRange(daily);
+  const zones = supportZones(daily);
+  const control = pointOfControl(volumeProfile(daily));
+
+  return [
+    `52-week range: ${year ? priceRange(year) : "n/a"}`,
+    `support zones: ${
+      zones.length === 0
+        ? "none"
+        : zones
+            .map((zone) => `${ZONE_NAMES[zone.kind]} ${priceRange(zone)}`)
+            .join("; ")
+    }`,
+    `volume point of control: ${control ? priceRange(control) : "n/a"}`,
+  ];
+}
 
 const valueAt = (line: IndicatorLine, offset: number) => {
   const value = line.at(offset);
@@ -476,7 +518,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetIndicators,
       replay: "safe",
-      description: `The latest and previous bar's MA(${MOVING_AVERAGES.join(", ")}), EMA(12, 26), RSI(14), MACD(12, 26, 9) as DIF/MACD/OSC, KD(9), Bollinger Bands(20, 2) and volume over its 20-bar average for a listing.`,
+      description: `The latest and previous bar's MA(${MOVING_AVERAGES.join(", ")}), EMA(12, 26), RSI(14), MACD(12, 26, 9) as DIF/MACD/OSC, KD(9), Bollinger Bands(20, 2) and volume over its 20-bar average for a listing. On daily bars also the levels its chart marks: the 52-week range, the support zones (within 2% of MA60 and 3% of MA120 while the close is above each, and the densest trading under the close) and the volume profile's point of control over the last ${PROFILE_SESSIONS} sessions.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         interval: intervalSchema,
@@ -513,6 +555,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
               "Volume/MA20",
               volumeRatio(candles.map((candle) => candle.volume))
             ),
+            ...(interval === Interval.OneDay ? dailyLevels(candles) : []),
           ].join("\n"),
           details: { symbol, interval },
         };

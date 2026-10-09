@@ -1,13 +1,16 @@
 import { useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import type { Ref } from "react";
 
+import { createSeriesMarkers } from "lightweight-charts";
 import type {
   CreatePriceLineOptions,
   DeepPartial,
   ISeriesApi,
+  ISeriesMarkersPluginApi,
   PriceScaleOptions,
   SeriesDataItemTypeMap,
   SeriesDefinition,
+  SeriesMarker,
   SeriesPartialOptionsMap,
   SeriesType,
   Time,
@@ -15,6 +18,8 @@ import type {
 
 import { isChartRemoved, useChart } from "./chart.tsx";
 import { liveTail } from "./live-tail.ts";
+import { PriceBands } from "./price-bands.ts";
+import type { PriceBand } from "./price-bands.ts";
 
 export interface SeriesProps<T extends SeriesType> {
   definition: SeriesDefinition<T>;
@@ -22,6 +27,10 @@ export interface SeriesProps<T extends SeriesType> {
   options?: SeriesPartialOptionsMap[T];
   /** Horizontal reference levels, such as RSI's 30 and 70. */
   priceLines?: CreatePriceLineOptions[];
+  /** Marks on bars, in time order, such as where a close crossed a moving average. */
+  markers?: SeriesMarker<Time>[];
+  /** Price ranges shaded behind the bars, such as support zones. */
+  bands?: PriceBand[];
   /**
    * Pane to draw in; a missing pane is created.
    * @default 0
@@ -36,14 +45,17 @@ export interface SeriesProps<T extends SeriesType> {
 
 /**
  * One series on the enclosing chart. It is recreated only when the definition or pane changes;
- * options, data, price lines and price scale options are applied to the live series. Data that
- * only moves its last bar, or adds one, goes through `update`, which is cheaper and keeps the view.
+ * options, data, price lines, markers, bands and price scale options are applied to the live
+ * series. Data that only moves its last bar, or adds one, goes through `update`, which is
+ * cheaper and keeps the view.
  */
 export function Series<T extends SeriesType>({
   definition,
   data,
   options,
   priceLines,
+  markers,
+  bands,
   pane = 0,
   paneStretch,
   priceScale,
@@ -101,6 +113,49 @@ export function Series<T extends SeriesType>({
       for (const line of lines) series.removePriceLine(line);
     };
   }, [chart, series, priceLines]);
+
+  const marking = markers !== undefined;
+  const markerPlugin = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+
+  useLayoutEffect(() => {
+    if (!series || !marking) return;
+
+    const plugin = createSeriesMarkers(series);
+
+    markerPlugin.current = plugin;
+
+    return () => {
+      markerPlugin.current = null;
+
+      if (!isChartRemoved(chart)) plugin.detach();
+    };
+  }, [chart, series, marking]);
+
+  useLayoutEffect(() => {
+    if (markers) markerPlugin.current?.setMarkers(markers);
+  }, [series, marking, markers]);
+
+  const banding = bands !== undefined;
+  const bandPrimitive = useRef<PriceBands | null>(null);
+
+  useLayoutEffect(() => {
+    if (!series || !banding) return;
+
+    const primitive = new PriceBands();
+
+    series.attachPrimitive(primitive);
+    bandPrimitive.current = primitive;
+
+    return () => {
+      bandPrimitive.current = null;
+
+      if (!isChartRemoved(chart)) series.detachPrimitive(primitive);
+    };
+  }, [chart, series, banding]);
+
+  useLayoutEffect(() => {
+    if (bands) bandPrimitive.current?.setBands(bands);
+  }, [series, banding, bands]);
 
   useLayoutEffect(() => {
     if (series && paneStretch !== undefined) {

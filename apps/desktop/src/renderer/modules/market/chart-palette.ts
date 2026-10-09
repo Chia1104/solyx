@@ -21,4 +21,12 @@ export const LINE_COLORS = {
   volume: BLUE,
   surge: AMBER,
   lull: ZINC,
+  /** A volume profile's busiest slice and the densest trading under the close. */
+  control: AMBER,
 };
+
+/** A six-digit hex colour, as palettes and these constants are, at an opacity from 0 to 1. */
+export const faded = (color: string, opacity: number) =>
+  `${color}${Math.round(opacity * 255)
+    .toString(16)
+    .padStart(2, "0")}`;

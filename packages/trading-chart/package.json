@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./chart": "./src/chart.tsx",
+    "./price-bands": "./src/price-bands.ts",
     "./series": "./src/series.tsx",
     "./time-format": "./src/time-format.ts"
   },
