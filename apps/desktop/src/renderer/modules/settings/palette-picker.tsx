@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import type { CSSProperties } from "react";
 
-import { Button, Description } from "@heroui/react";
+import { Button, Description, cn } from "@heroui/react";
 import {
   Copy01Icon,
   Moon02Icon,
@@ -56,9 +56,10 @@ interface PaletteChoice {
 
 /**
  * A card per palette, built-in ones first, with a swatch per scheme; picking a swatch sets that
- * scheme's palette. Any palette can be copied into one of the user's own, which they can edit.
+ * scheme's palette. While `editable`, any palette can be copied into one of the user's own, which
+ * they can edit; first-run setup only picks.
  */
-export function PalettePicker() {
+export function PalettePicker({ editable = true }: { editable?: boolean }) {
   const { t } = useTranslation();
   const labelId = useId();
   const descriptionId = useId();
@@ -104,7 +105,10 @@ export function PalettePicker() {
               return (
                 <div
                   key={palette}
-                  className="flex flex-col gap-2 rounded border border-border bg-surface p-4 pb-2">
+                  className={cn(
+                    "flex flex-col gap-2 rounded border border-border bg-surface p-4",
+                    editable && "pb-2"
+                  )}>
                   <div className="flex justify-center gap-4">
                     {Object.values(ColorScheme).map((scheme) => {
                       const icon = SCHEME_ICON[scheme];
@@ -134,10 +138,14 @@ export function PalettePicker() {
                     })}
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="min-w-0 grow truncate text-sm">
+                    <span
+                      className={cn(
+                        "min-w-0 grow truncate text-sm",
+                        !editable && "text-center"
+                      )}>
                       {name}
                     </span>
-                    {isCustomPalette(palette, data.palettes) ? (
+                    {editable && isCustomPalette(palette, data.palettes) ? (
                       <Button
                         isIconOnly
                         size="sm"
@@ -151,16 +159,18 @@ export function PalettePicker() {
                         <Icon icon={PencilEdit02Icon} />
                       </Button>
                     ) : null}
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="ghost"
-                      aria-label={t("settings.palette-copy", { name })}
-                      className="text-muted"
-                      isDisabled={copy.isPending}
-                      onPress={() => copy.mutate(palette)}>
-                      <Icon icon={Copy01Icon} />
-                    </Button>
+                    {editable ? (
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="ghost"
+                        aria-label={t("settings.palette-copy", { name })}
+                        className="text-muted"
+                        isDisabled={copy.isPending}
+                        onPress={() => copy.mutate(palette)}>
+                        <Icon icon={Copy01Icon} />
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               );
