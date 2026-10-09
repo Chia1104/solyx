@@ -342,6 +342,7 @@
       "submit_forecast": "提出預測",
       "search_history": "搜尋過往紀錄",
       "get_setup": "讀取設定",
+      "change_setting": "變更設定",
       "bash": "執行指令"
     },
     "tool-status": {
@@ -396,6 +397,7 @@
       "read-page-description": "你的網路搜尋供應商會讀取這個網址。如果不是你預期的網址，可能是 agent 讀過的網頁想藉此把你的資料送出去，允許前請先確認。",
       "remember-description": "Agent 想把這段內容留到之後的對話，而且每次對話都會讀取。允許前請確認它寫的是你的意思。",
       "forget-description": "Agent 想遺忘這筆記憶，之後的對話將不再知道它。",
+      "change-setting-description": "Agent 想變更這項設定。允許後會立即生效，如同你在設定頁變更。",
       "allow": "允許",
       "deny": "不允許",
       "auto-allowed": "由決策模型放行",

@@ -1,25 +1,36 @@
+import * as z from "zod";
+
 import { McpServerState } from "@solyx/agent/mcp-config";
+import { AgentThinking } from "@solyx/agent/providers";
 import type { SetupArea, SetupPort, SetupSetting } from "@solyx/agent/setup";
 import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillCatalog } from "@solyx/agent/skills";
+import type { SettingChange } from "@solyx/agent/wire";
 import { DecisionMode } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
 import type { MemoryStore } from "@solyx/core/memory";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 import { EmbeddingsProvider } from "@solyx/embeddings/provider";
+import { FinMindPlan } from "@solyx/fundamentals/finmind";
+import { FuglePlan } from "@solyx/market-data/fugle";
+import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import {
   DECISIONS_SECRETS,
   FubonFile,
   FubonSessionState,
   MarketDataSource,
+  PriceColors,
   Secret,
   SecretState,
+  Theme,
   isDecisionsReady,
   isMarketDataReady,
   isWebSearchReady,
   mcpSecretKey,
+  newsIntervalSchema,
 } from "#shared/ipc/settings.ts";
+import { ColorScheme, Palette } from "#shared/palette.ts";
 import { SettingsSection, settingsLink } from "#shared/settings-section.ts";
 
 import type { Decisions } from "../decisions/decisions.ts";
@@ -36,7 +47,10 @@ import type { McpServers } from "./mcp-servers.ts";
 
 /** What the agent's setup reads beyond what the agent itself holds. */
 export interface AgentSetupSources {
-  appearance: Pick<AppearanceSettings, "read">;
+  appearance: Pick<
+    AppearanceSettings,
+    "read" | "setTheme" | "setPalette" | "setPriceColors"
+  >;
   marketData: Pick<MarketDataModule, "status">;
   webSearch: Pick<WebSearchModule, "settings">;
   decisions: Pick<Decisions, "settings">;
@@ -49,7 +63,7 @@ export interface AgentSetupSources {
 export interface AgentSetupOptions extends AgentSetupSources {
   config: ConfigFile;
   secrets: Pick<SecretStore, "available" | "states" | "saved">;
-  models: Pick<AgentModels, "settings">;
+  models: Pick<AgentModels, "settings" | "setDefaultProvider">;
   mcp: Pick<McpServers, "file" | "status">;
   skills: () => Promise<SkillCatalog>;
   instructions: () => Promise<string | undefined>;
@@ -75,6 +89,49 @@ const stateText = (state: SecretState) =>
 
 const onOff = (on: boolean) => (on ? "on" : "off");
 
+/** A setting the agent may change once the user allows it. */
+interface Changeable {
+  /** What it takes, worded for the model. */
+  accepts: string;
+  /** What saves `value`, or `undefined` where the setting does not take it. */
+  parse(value: string): (() => Promise<void>) | undefined;
+}
+
+// More would crowd get_setup's answer; a gateway lists hundreds of models.
+const LISTED_MODELS = 30;
+
+const oneOf = (values: readonly string[]) => `one of ${values.join(", ")}`;
+
+/** A setting that takes one of `values`. */
+function choice<T extends string>(
+  values: readonly T[],
+  save: (value: T) => void | Promise<void>,
+  accepts = oneOf(values)
+): Changeable {
+  return {
+    accepts,
+    parse(value) {
+      const found = values.find((each) => each === value);
+
+      return found === undefined
+        ? undefined
+        : async () => {
+            await save(found);
+          };
+    },
+  };
+}
+
+/** A setting that is on or off, as true or false. */
+const flag = (save: (on: boolean) => void) =>
+  choice(["true", "false"], (value) => save(value === "true"));
+
+const hoursSchema = z
+  .string()
+  .regex(/^\d+$/)
+  .transform(Number)
+  .pipe(newsIntervalSchema);
+
 /** The settings page's tabs as the agent reads them, with what keeps each from working. */
 export function createAgentSetup(options: AgentSetupOptions): SetupPort {
   const { config, secrets } = options;
@@ -92,10 +149,11 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       missing: [],
       settings: [
         entry(["appearance", "theme"], theme),
-        entry(
-          ["appearance", "palette"],
-          `light ${paletteName(palette.light)}, dark ${paletteName(palette.dark)}`
-        ),
+        ...Object.values(ColorScheme).map((scheme) => ({
+          name: `appearance.palette.${scheme}`,
+          value: paletteName(palette[scheme]),
+          description: entryDescription(["appearance", "palette"]),
+        })),
         entry(["appearance", "priceColors"], priceColors),
         {
           name: "language and time zone",
@@ -370,7 +428,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         link,
         missing: embeddingsMissing,
         settings: [
-          entry(["embeddings", "enabled"], onOff(embeddings.enabled)),
+          entry(["embeddings", "enabled"], String(embeddings.enabled)),
           entry(["embeddings", "provider"], embeddings.provider),
           { name: "embedding model", value: embeddings.space },
         ],
@@ -412,8 +470,8 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         entry(
           ["agent", "shell"],
           shell && !options.shellOn()
-            ? "on, but kept off while the account is live"
-            : onOff(shell)
+            ? "true, but kept off while the account is live"
+            : String(shell)
         ),
       ],
     };
@@ -425,7 +483,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       link: settingsLink(SettingsSection.Memory),
       missing: [],
       settings: [
-        entry(["agent", "memory"], onOff(config.read().agent.memory)),
+        entry(["agent", "memory"], String(config.read().agent.memory)),
         {
           name: "memories kept",
           value: String(options.memory.list().length),
@@ -484,7 +542,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       missing: [],
       settings: [
         { name: "version", value: options.version },
-        entry(["updates", "check"], onOff(config.read().updates.check)),
+        entry(["updates", "check"], String(config.read().updates.check)),
         { name: "config file", value: tildify(options.files.config) },
         { name: "skills folder", value: tildify(options.files.skills) },
         {
@@ -496,14 +554,168 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     };
   }
 
+  /**
+   * The settings the agent may change, through the writers the settings page uses. A key, a
+   * sign-in, a provider switched on, an endpoint, the shell, MCP tools, shared skills and memory
+   * stay the user's alone, since each would widen what the agent reaches.
+   */
+  async function changeables(): Promise<Map<string, Changeable>> {
+    const models = await options.models.settings();
+    const { palettes } = options.appearance.read();
+
+    const usable = models.providers
+      .filter((each) => each.usable)
+      .map((each) => each.provider);
+
+    const modelIds = models.models
+      .filter((each) => each.provider === models.provider)
+      .map((each) => each.id);
+
+    const paletteIds = [...Object.values(Palette), ...Object.keys(palettes)];
+
+    const hours: Changeable = {
+      accepts:
+        "a whole number of hours from 0 to 720, 0 turning automatic collection off",
+      parse(value) {
+        const parsed = hoursSchema.safeParse(value);
+
+        return parsed.success
+          ? async () => config.set(["news", "collectEveryHours"], parsed.data)
+          : undefined;
+      },
+    };
+
+    return new Map([
+      [
+        "appearance.theme",
+        choice(Object.values(Theme), (theme) =>
+          options.appearance.setTheme(theme)
+        ),
+      ],
+      ...Object.values(ColorScheme).map(
+        (scheme) =>
+          [
+            `appearance.palette.${scheme}`,
+            choice(paletteIds, (palette) =>
+              options.appearance.setPalette(scheme, palette)
+            ),
+          ] as const
+      ),
+      [
+        "appearance.priceColors",
+        choice(Object.values(PriceColors), (priceColors) =>
+          options.appearance.setPriceColors(priceColors)
+        ),
+      ],
+      [
+        "marketData.TW",
+        choice(Object.values(MarketDataSource), (source) =>
+          config.set(["marketData", Market.TW], source)
+        ),
+      ],
+      [
+        "providers.fugle.plan",
+        choice(Object.values(FuglePlan), (plan) =>
+          config.set(["providers", "fugle", "plan"], plan)
+        ),
+      ],
+      [
+        "providers.finmind.plan",
+        choice(Object.values(FinMindPlan), (plan) =>
+          config.set(["providers", "finmind", "plan"], plan)
+        ),
+      ],
+      [
+        "agent.provider",
+        choice(
+          usable,
+          (provider) => options.models.setDefaultProvider(provider),
+          `${oneOf(usable)}, the providers with a key saved or a subscription signed in; it starts on the provider's default model`
+        ),
+      ],
+      [
+        "agent.model",
+        choice(
+          modelIds,
+          (model) => config.set(["agent", "model"], model),
+          modelIds.length > LISTED_MODELS
+            ? `a model id ${models.provider} lists, such as ${modelIds.slice(0, LISTED_MODELS).join(", ")}; ask the user for the id the model picker shows`
+            : oneOf(modelIds)
+        ),
+      ],
+      [
+        "agent.thinking",
+        choice(Object.values(AgentThinking), (thinking) =>
+          config.set(["agent", "thinking"], thinking)
+        ),
+      ],
+      [
+        "agent.decisionMode",
+        choice(Object.values(DecisionMode), (mode) =>
+          config.set(["agent", "decisionMode"], mode)
+        ),
+      ],
+      ["news.collectEveryHours", hours],
+      [
+        "webSearch.provider",
+        choice(Object.values(WebSearchProvider), (provider) =>
+          config.set(["webSearch", "provider"], provider)
+        ),
+      ],
+      [
+        "decisions.provider",
+        choice(Object.values(DecisionsProvider), (provider) =>
+          config.set(["decisions", "provider"], provider)
+        ),
+      ],
+      [
+        "embeddings.enabled",
+        flag((enabled) => config.set(["embeddings", "enabled"], enabled)),
+      ],
+      [
+        "embeddings.provider",
+        choice(Object.values(EmbeddingsProvider), (provider) =>
+          config.set(["embeddings", "provider"], provider)
+        ),
+      ],
+      [
+        "updates.check",
+        flag((check) => config.set(["updates", "check"], check)),
+      ],
+    ]);
+  }
+
+  /** What makes the change, or the reason the agent may not make it, worded for the model. */
+  async function prepare({ setting, value }: SettingChange) {
+    const changeable = (await changeables()).get(setting);
+
+    if (!changeable) {
+      throw new Error(
+        `${setting} is not a setting change_setting takes: either only the user changes it, on its tab, or no setting has that name. get_setup says which settings it takes.`
+      );
+    }
+
+    const save = changeable.parse(value);
+
+    if (!save) {
+      throw new Error(
+        `${setting} takes ${changeable.accepts}, not "${value}".`
+      );
+    }
+
+    return save;
+  }
+
   return {
     async read() {
-      const [market, agentAreas, skillsArea, mcpArea] = await Promise.all([
-        marketData(),
-        agent(),
-        skills(),
-        mcp(),
-      ]);
+      const [market, agentAreas, skillsArea, mcpArea, changes] =
+        await Promise.all([
+          marketData(),
+          agent(),
+          skills(),
+          mcp(),
+          changeables(),
+        ]);
 
       return [
         appearance(),
@@ -513,7 +725,24 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         memory(),
         mcpArea,
         about(),
-      ];
+      ].map((area) => ({
+        ...area,
+        settings: area.settings.map((setting) => {
+          const accepts = changes.get(setting.name)?.accepts;
+
+          return accepts ? { ...setting, accepts } : setting;
+        }),
+      }));
+    },
+
+    async check(change) {
+      await prepare(change);
+    },
+
+    async change(change) {
+      await (
+        await prepare(change)
+      )();
     },
   };
 }

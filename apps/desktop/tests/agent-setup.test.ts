@@ -79,17 +79,19 @@ function setup() {
     })),
   };
 
+  const models = createAgentModels({
+    config,
+    secrets,
+    getDeviceId: () => "00000000-0000-4000-8000-000000000000",
+    openExternal: vi.fn(),
+  });
+
   const port = createAgentSetup({
     config,
     secrets,
     appearance: createAppearance({ config, onChange: vi.fn() }),
     marketData,
-    models: createAgentModels({
-      config,
-      secrets,
-      getDeviceId: () => "00000000-0000-4000-8000-000000000000",
-      openExternal: vi.fn(),
-    }),
+    models,
     webSearch: createWebSearch({ config, secrets }),
     decisions: createDecisions({ config, secrets }),
     embeddings: createEmbeddings({ config, secrets }),
@@ -107,7 +109,7 @@ function setup() {
     },
   });
 
-  return { port, config, secrets, marketData, mcp };
+  return { port, config, secrets, models, marketData, mcp };
 }
 
 const area = (areas: SetupArea[], name: string) => {
@@ -160,6 +162,7 @@ test("a config entry carries the description its JSON Schema gives", async () =>
     name: "marketData.TW",
     value: MarketDataSource.Fugle,
     description: "Where Taiwan charts come from.",
+    accepts: "one of fugle, fubon",
   });
   expect(setting(area(areas, "Agent models"), "agent.thinking")).toMatchObject({
     description: "How long the model thinks before it answers.",
@@ -238,4 +241,81 @@ test("an MCP server says which secrets it waits for and why it failed", async ()
   expect(found.settings).toEqual([
     { name: "github", value: "failed, 0 tools" },
   ]);
+});
+
+test("a setting the agent may change says what it takes; one only the user changes does not", async () => {
+  const { port } = setup();
+
+  const areas = await port.read();
+
+  expect(setting(area(areas, "Agent models"), "agent.thinking")?.accepts).toBe(
+    "one of off, low, medium, high"
+  );
+  expect(
+    setting(area(areas, "Embeddings"), "embeddings.enabled")
+  ).toMatchObject({
+    value: "false",
+    accepts: "one of true, false",
+  });
+  expect(
+    setting(area(areas, "Memory"), "agent.memory")?.accepts
+  ).toBeUndefined();
+  expect(
+    setting(area(areas, "Skills"), "agent.shell")?.accepts
+  ).toBeUndefined();
+  expect(
+    setting(area(areas, "Market data"), "Fugle API key")?.accepts
+  ).toBeUndefined();
+});
+
+test("a change goes through the writers the settings page uses", async () => {
+  const { port, config, models } = setup();
+
+  await port.change({ setting: "agent.thinking", value: "high" });
+  await port.change({ setting: "agent.decisionMode", value: "magi" });
+  await port.change({ setting: "appearance.theme", value: "dark" });
+  await port.change({ setting: "appearance.palette.dark", value: "sepia" });
+  await port.change({ setting: "embeddings.enabled", value: "true" });
+  await port.change({ setting: "news.collectEveryHours", value: "24" });
+
+  await models.saveKey("anthropic", "anthropic-key");
+  await port.change({ setting: "agent.provider", value: "anthropic" });
+
+  const saved = config.read();
+
+  expect(saved.agent).toMatchObject({
+    thinking: "high",
+    decisionMode: "magi",
+    provider: "anthropic",
+  });
+  expect(saved.appearance.theme).toBe("dark");
+  expect(saved.appearance.palette.dark).toBe("sepia");
+  expect(saved.embeddings.enabled).toBe(true);
+  expect(saved.news.collectEveryHours).toBe(24);
+});
+
+test("a change the agent may not make is refused with what the setting takes, and nothing is saved", async () => {
+  const { port, config } = setup();
+  const before = JSON.stringify(config.read());
+
+  await expect(
+    port.check({ setting: "agent.shell", value: "true" })
+  ).rejects.toThrow("agent.shell is not a setting change_setting takes");
+  await expect(
+    port.check({ setting: "constructor", value: "x" })
+  ).rejects.toThrow("constructor is not a setting change_setting takes");
+  await expect(
+    port.change({ setting: "agent.thinking", value: "max" })
+  ).rejects.toThrow(
+    'agent.thinking takes one of off, low, medium, high, not "max".'
+  );
+  await expect(
+    port.check({ setting: "news.collectEveryHours", value: "1e3" })
+  ).rejects.toThrow("news.collectEveryHours takes a whole number of hours");
+  // A provider without a key saved could not run, so it cannot be the default.
+  await expect(
+    port.check({ setting: "agent.provider", value: "anthropic" })
+  ).rejects.toThrow("agent.provider takes one of");
+
+  expect(JSON.stringify(config.read())).toBe(before);
 });

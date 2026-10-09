@@ -13,6 +13,7 @@ import {
   AgentToolName,
   ToolCallStatus,
   bashArgumentsSchema,
+  changeSettingArgumentsSchema,
   forgetArgumentsSchema,
   proposeOrderDetailsSchema,
   readPageArgumentsSchema,
@@ -49,11 +50,12 @@ const argumentsSchema = z.object({
   query: z.string().optional(),
   url: z.string().optional(),
   description: z.string().optional(),
+  setting: z.string().optional(),
 });
 
 /**
  * What a call was about: a listing and its interval, an order's or a forecast's listing, a
- * playbook, a search, a page or a memory.
+ * playbook, a search, a page, a memory or a setting.
  */
 function Subject({ tool }: { tool: ToolCallView }) {
   const { t } = useTranslation();
@@ -76,7 +78,12 @@ function Subject({ tool }: { tool: ToolCallView }) {
     );
   }
 
-  const text = args?.name ?? args?.query ?? args?.url ?? args?.description;
+  const text =
+    args?.name ??
+    args?.query ??
+    args?.url ??
+    args?.description ??
+    args?.setting;
 
   return text ? <span className="min-w-0 truncate">{text}</span> : null;
 }
@@ -151,8 +158,8 @@ function ApprovalCard({
     enabled: tool.toolName === AgentToolName.Forget,
   });
 
-  // A shell command is shown as the user would type it, whole, a page by its address and a
-  // memory as the agent wrote it.
+  // A shell command is shown as the user would type it, whole, a page by its address, a setting
+  // with the value it would take and a memory as the agent wrote it.
   const command =
     tool.toolName === AgentToolName.Bash
       ? bashArgumentsSchema.safeParse(tool.args).data?.command
@@ -165,12 +172,21 @@ function ApprovalCard({
 
   const memory = memoryChange(tool, memories.data ?? []);
 
+  const change =
+    tool.toolName === AgentToolName.ChangeSetting
+      ? changeSettingArgumentsSchema.safeParse(tool.args).data
+      : undefined;
+
+  const setting = change && `${change.setting} → ${change.value}`;
+
   let description = t("agent.approval.description", { tool: tool.toolName });
 
   if (command !== undefined) {
     description = t("agent.approval.shell-description");
   } else if (address !== undefined) {
     description = t("agent.approval.read-page-description");
+  } else if (setting !== undefined) {
+    description = t("agent.approval.change-setting-description");
   } else if (memory !== undefined) {
     description = t(
       tool.toolName === AgentToolName.Forget
@@ -184,7 +200,11 @@ function ApprovalCard({
       <p className="text-sm font-medium">{t("agent.approval.title")}</p>
       <p className="text-xs text-muted">{description}</p>
       <pre className="max-h-40 overflow-auto rounded-sm bg-surface-secondary p-2 font-mono text-xs whitespace-pre-wrap">
-        {command ?? address ?? memory ?? JSON.stringify(tool.args, null, 2)}
+        {command ??
+          address ??
+          setting ??
+          memory ??
+          JSON.stringify(tool.args, null, 2)}
       </pre>
       <div className="flex gap-2">
         <Button

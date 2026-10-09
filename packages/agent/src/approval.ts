@@ -68,6 +68,29 @@ export type ToolGuard = (
   auto?: AutoCheck
 ) => ToolRegistration;
 
+/**
+ * Parses and checks a call's arguments before `guarded` asks, so the user is never asked about a
+ * call that cannot run.
+ */
+export function checkedFirst<Schema extends z.ZodType>(
+  guarded: ToolRegistration,
+  schema: Schema,
+  check: (args: z.infer<Schema>) => void | Promise<void>
+): ToolRegistration {
+  return {
+    ...guarded,
+    async execute(params, api, context) {
+      const parsed = schema.safeParse(params);
+
+      if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
+
+      await check(parsed.data);
+
+      return guarded.execute(params, api, context);
+    },
+  };
+}
+
 /** What a transcript shows after a call's start: its question and answer, or that the model let it run. */
 export function approvalEvents(
   record: ApprovalRecord,

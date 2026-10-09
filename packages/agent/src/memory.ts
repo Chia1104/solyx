@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import { defineExtension, section } from "@earendil-works/pi-durable";
-import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
+import type { Extension } from "@earendil-works/pi-durable";
 import { escape, maxBy, partition, uniqBy } from "es-toolkit";
 import * as z from "zod";
 
@@ -13,6 +13,7 @@ import { MEMORY_LINES, MemoryKind, memoryText } from "@solyx/core/memory";
 import type { Memory, MemoryStore } from "@solyx/core/memory";
 import { fuseRankings } from "@solyx/utils/search";
 
+import { checkedFirst } from "./approval.ts";
 import type { ToolGuard } from "./approval.ts";
 import { defineTool } from "./tools.ts";
 import {
@@ -96,29 +97,6 @@ function memoryBlock(memory: Memory) {
     ...(memory.body ? ["", escape(memory.body)] : []),
     "</memory>",
   ].join("\n");
-}
-
-/**
- * Parses and checks a call's arguments before `guarded` asks, so the user is never asked about a
- * call that cannot run.
- */
-function checkedFirst<Schema extends z.ZodType>(
-  guarded: ToolRegistration,
-  schema: Schema,
-  check: (args: z.infer<Schema>) => void | Promise<void>
-): ToolRegistration {
-  return {
-    ...guarded,
-    async execute(params, api, context) {
-      const parsed = schema.safeParse(params);
-
-      if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
-
-      await check(parsed.data);
-
-      return guarded.execute(params, api, context);
-    },
-  };
 }
 
 /**
