@@ -25,6 +25,8 @@ export const Palette = {
   /** Unit-01's purple armour and green trim: by day its accent is purple with green text. */
   Unit01: "unit-01",
   Mari: "mari",
+  /** Edgerunners' neon yellow and magenta, which swap between the accent and its text by night. */
+  Cyberpunk: "cyberpunk",
 } as const;
 
 export type Palette = (typeof Palette)[keyof typeof Palette];
@@ -413,6 +415,42 @@ export const PALETTES: Record<Palette, Record<ColorScheme, PaletteColors>> = {
       border: "#432c3e",
       accent: "#fc7db5",
       accentForeground: "#1b0f18",
+      ...PRICE_COLORS[ColorScheme.Dark],
+    },
+  },
+  [Palette.Cyberpunk]: {
+    [ColorScheme.Light]: {
+      background: "#f8f5e5",
+      foreground: "#29271b",
+      surface: "#fefdf8",
+      surfaceSecondary: "#f3f0db",
+      surfaceTertiary: "#efebd1",
+      overlay: "#fefdf8",
+      fieldBackground: "#fefdf8",
+      segment: "#fefdf8",
+      default: "#efebd1",
+      muted: "#716d51",
+      separator: "#e5e1c5",
+      border: "#ddd8bb",
+      accent: "#aa0098",
+      accentForeground: "#fff02d",
+      ...PRICE_COLORS[ColorScheme.Light],
+    },
+    [ColorScheme.Dark]: {
+      background: "#101223",
+      foreground: "#e5e7f3",
+      surface: "#171a30",
+      surfaceSecondary: "#1d1f38",
+      surfaceTertiary: "#232644",
+      overlay: "#171a30",
+      fieldBackground: "#1d1f38",
+      segment: "#2e3153",
+      default: "#232644",
+      muted: "#8c91b3",
+      separator: "#252846",
+      border: "#2e3153",
+      accent: "#fae91d",
+      accentForeground: "#500348",
       ...PRICE_COLORS[ColorScheme.Dark],
     },
   },
