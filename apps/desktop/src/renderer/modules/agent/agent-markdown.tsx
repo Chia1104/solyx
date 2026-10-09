@@ -1,7 +1,8 @@
 import { Children, isValidElement, useState } from "react";
 import type { ReactNode } from "react";
 
-import { AlertDialog, Button, cn } from "@heroui/react";
+import { AlertDialog, Button, ScrollShadow, cn } from "@heroui/react";
+import { tableVariants } from "@heroui/styles";
 import { cjk } from "@streamdown/cjk";
 import { useTranslation } from "react-i18next";
 import { Streamdown } from "streamdown";
@@ -82,6 +83,25 @@ const controls = { table: false, mermaid: false };
 
 const plugins = { cjk };
 
+const table = tableVariants({ variant: "secondary" });
+
+/**
+ * Holds back a table until its delimiter row is complete, so its header does not flash as a
+ * line of pipes and its columns take their alignment at once.
+ */
+function holdTableHead(text: string): string {
+  const lines = text.split("\n");
+  const end = lines.at(-1) === "" ? lines.length - 1 : lines.length;
+  let start = end;
+
+  while (lines[start - 1]?.trimStart().startsWith("|")) start--;
+
+  // Every line before the last ended in a newline.
+  return start < end && lines.length - 1 - start < 2
+    ? lines.slice(0, start).join("\n")
+    : text;
+}
+
 // Streamdown's defaults use shadcn tokens, which HeroUI's palette does not define.
 const components: Components = {
   code: ({ children }) => (
@@ -104,8 +124,31 @@ const components: Components = {
     </blockquote>
   ),
   hr: () => <hr className="my-4 border-separator" />,
-  thead: ({ children }) => (
-    <thead className="bg-surface-secondary">{children}</thead>
+  // HeroUI's Table is a React Aria grid; a reply's table is prose, so it borrows only the styles.
+  // Replacing Streamdown's wrapper also drops its nested scroller that follows a streaming table.
+  table: ({ children }) => (
+    <div className={cn(table.base(), "my-3")}>
+      <ScrollShadow orientation="horizontal">
+        <table className={table.content({ className: "tabular-nums" })}>
+          {children}
+        </table>
+      </ScrollShadow>
+    </div>
+  ),
+  thead: ({ children }) => <thead className={table.header()}>{children}</thead>,
+  tbody: ({ children }) => <tbody className={table.body()}>{children}</tbody>,
+  tr: ({ children }) => <tr className={table.row()}>{children}</tr>,
+  // `style` carries the alignment a delimiter row sets. A column keeps its width in a narrow
+  // pane, and a wide table scrolls sideways, faded at the edge that has more.
+  th: ({ children, style }) => (
+    <th className={table.column({ className: "min-w-32" })} style={style}>
+      {children}
+    </th>
+  ),
+  td: ({ children, style }) => (
+    <td className={table.cell()} style={style}>
+      {children}
+    </td>
   ),
   a: MarkdownLink,
   // An image would load from wherever the model pointed it, so it is shown as its link.
@@ -129,13 +172,13 @@ export function AgentMarkdown({
 }) {
   return (
     <Streamdown
-      className="text-sm leading-6 [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-semibold [&_table]:text-xs"
+      className="text-sm leading-6 [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-semibold"
       components={components}
       controls={controls}
       isAnimating={streaming}
       mode={streaming ? "streaming" : "static"}
       plugins={plugins}>
-      {text}
+      {streaming ? holdTableHead(text) : text}
     </Streamdown>
   );
 }
