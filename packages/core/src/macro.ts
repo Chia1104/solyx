@@ -7,12 +7,8 @@ export const MacroIndicator = {
   ConsumerPrices: "consumer-prices",
   /** The first estimate of a quarter's output. */
   AdvanceGdp: "advance-gdp",
-  /** Past quarters' output as revised. */
-  Gdp: "gdp",
   /** The official forecast of growth and prices. */
   EconomicForecast: "economic-forecast",
-  /** A month's unemployment rate. */
-  Unemployment: "unemployment",
   /** A month's exports and imports through customs. */
   Trade: "trade",
   /** A month's export orders taken. */

@@ -20,9 +20,7 @@ const RELEASES: { agency: string; id: string; indicator: MacroIndicator }[] = [
   // Directorate-General of Budget, Accounting and Statistics
   { agency: "4527", id: "166", indicator: MacroIndicator.ConsumerPrices },
   { agency: "4527", id: "1331", indicator: MacroIndicator.AdvanceGdp },
-  { agency: "4527", id: "158", indicator: MacroIndicator.Gdp },
   { agency: "4527", id: "160", indicator: MacroIndicator.EconomicForecast },
-  { agency: "4527", id: "149", indicator: MacroIndicator.Unemployment },
   // Ministry of Finance
   { agency: "A07000000D", id: "107", indicator: MacroIndicator.Trade },
   // Ministry of Economic Affairs

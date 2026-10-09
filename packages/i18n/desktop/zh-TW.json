@@ -233,9 +233,7 @@
     "indicators": {
       "consumer-prices": "消費者物價指數",
       "advance-gdp": "國內生產毛額概估",
-      "gdp": "國內生產毛額修正",
       "economic-forecast": "經濟預測",
-      "unemployment": "失業率",
       "trade": "海關進出口貿易",
       "export-orders": "外銷訂單",
       "industrial-production": "工業生產",

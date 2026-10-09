@@ -233,9 +233,7 @@
     "indicators": {
       "consumer-prices": "Consumer price index",
       "advance-gdp": "GDP, advance estimate",
-      "gdp": "GDP, revised",
       "economic-forecast": "Economic forecast",
-      "unemployment": "Unemployment rate",
       "trade": "Exports and imports",
       "export-orders": "Export orders",
       "industrial-production": "Industrial production",

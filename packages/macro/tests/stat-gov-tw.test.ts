@@ -55,7 +55,7 @@ test("reads the followed releases of each agency from a day on, soonest first", 
           [{ date: "7", time: "16:00", notice: "(11509)" }],
           [{ date: "5", time: "16:00", notice: "(11510)" }],
         ]),
-        release("158", "國內生產毛額", [
+        release("1331", "國內生產毛額概估", [
           [],
           [{ date: "30日以前", time: "16:00", notice: "(113~115Q3)" }],
         ]),
@@ -103,7 +103,7 @@ test("reads the followed releases of each agency from a day on, soonest first", 
     },
     {
       market: Market.TW,
-      indicator: MacroIndicator.Gdp,
+      indicator: MacroIndicator.AdvanceGdp,
       date: "2026-11-30",
       timing: EventTiming.Deadline,
       period: "2026-Q3",
