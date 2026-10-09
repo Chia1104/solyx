@@ -4,7 +4,7 @@ import { ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { Interval } from "@solyx/core/candles";
+import { Interval, isIntraday } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
 
@@ -15,6 +15,7 @@ import {
   SplitterEdge,
   SplitterOrientation,
 } from "../components/pane-splitter.tsx";
+import { FlowPanes } from "../modules/flows/flow-panes.tsx";
 import { ListingFlowsPanel } from "../modules/flows/listing-flows.tsx";
 import { IndicatorMenu } from "../modules/market/indicator-menu.tsx";
 import { IntervalSelect } from "../modules/market/interval-select.tsx";
@@ -94,7 +95,7 @@ export function SymbolPage() {
             void navigate({ search: { interval: next }, replace: true })
           }
         />
-        <IndicatorMenu />
+        <IndicatorMenu market={symbol.market} />
       </div>
       <div ref={split} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-40 flex-1 border-b border-separator p-3">
@@ -106,6 +107,18 @@ export function SymbolPage() {
               interval === Interval.OneDay
                 ? (candles) => (
                     <ForecastOverlay symbol={symbol} candles={candles} />
+                  )
+                : undefined
+            }
+            // Flows come a session at a time, so they are drawn on daily bars and longer.
+            panes={
+              flowsShown && !isIntraday(interval)
+                ? (candles, firstPane) => (
+                    <FlowPanes
+                      symbol={symbol}
+                      candles={candles}
+                      firstPane={firstPane}
+                    />
                   )
                 : undefined
             }

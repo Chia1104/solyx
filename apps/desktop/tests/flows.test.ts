@@ -38,14 +38,14 @@ function setup(answers = memoryAnswers()) {
   return { clock, provider, flows };
 }
 
-test("asks the market's provider for two months of a listing's and the market's flows", async () => {
+test("asks the market's provider for a year of a listing's and the market's flows", async () => {
   const { provider, flows } = setup();
 
   await flows.listing(TSMC);
   await flows.market(Market.TW);
 
-  expect(provider.getListingFlows).toHaveBeenCalledWith(TSMC, "2026-08-08");
-  expect(provider.getMarketFlows).toHaveBeenCalledWith(Market.TW, "2026-08-08");
+  expect(provider.getListingFlows).toHaveBeenCalledWith(TSMC, "2025-10-07");
+  expect(provider.getMarketFlows).toHaveBeenCalledWith(Market.TW, "2025-10-07");
 });
 
 test("keeps an answer until a session's next figures come out", async () => {

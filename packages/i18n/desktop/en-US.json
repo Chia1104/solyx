@@ -149,7 +149,15 @@
       "boll": "BOLL",
       "macd": "MACD",
       "rsi": "RSI",
-      "kd": "KD"
+      "kd": "KD",
+      "foreign-flow": "Foreign net buying",
+      "trust-flow": "Trust net buying",
+      "margin": "Margin balance"
+    },
+    "flow-titles": {
+      "foreign-flow": "Foreign",
+      "trust-flow": "Trusts",
+      "margin": "Margin"
     },
     "legend": {
       "open": "O",

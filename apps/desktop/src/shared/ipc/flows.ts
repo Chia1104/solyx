@@ -2,7 +2,7 @@ import type { ListingFlows, MarketFlows } from "@solyx/core/flows";
 import type { Market, SymbolRef } from "@solyx/core/market";
 
 export interface FlowsApi {
-  /** Who traded a listing over the last two months of sessions, oldest first. */
+  /** Who traded a listing over the last year of sessions, oldest first. */
   listing(symbol: SymbolRef): Promise<ListingFlows>;
   /** Who traded the whole market and its index future over the same sessions. */
   market(market: Market): Promise<MarketFlows>;

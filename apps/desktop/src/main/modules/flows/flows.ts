@@ -16,8 +16,8 @@ import type { Market, SymbolRef } from "@solyx/core/market";
 import { keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
 
-// Two months hold the month of sessions a figure sums over, and a run of sessions twice as long.
-const LOOKBACK_DAYS = 60;
+// A year of sessions, so the chart's daily bars carry flows as far back as they are usually read.
+const LOOKBACK_DAYS = 365;
 
 // When FinMind has a Taiwan session's figures in, with half an hour to spare: the market's
 // institutions at 15:00, its index future at 18:00, and the rest at 21:00.
@@ -59,8 +59,8 @@ export interface FlowsOptions {
 }
 
 /**
- * Who trades each listing and market, from the provider that covers its market, two months back,
- * each answer kept until a session's next figures come out.
+ * Who trades each listing and market, from the provider that covers its market, a year back, each
+ * answer kept until a session's next figures come out.
  */
 export function createFlows({
   providers,

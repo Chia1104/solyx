@@ -50,11 +50,14 @@ export function SymbolChart({
   symbol,
   interval,
   overlay,
+  panes,
 }: {
   symbol: SymbolRef;
   interval: Interval;
   /** What else to draw on the price pane, given the bars the chart shows. */
   overlay?: (candles: Candle[]) => ReactNode;
+  /** Panes to draw below the indicators', given the bars and the first pane free. */
+  panes?: (candles: Candle[], firstPane: number) => ReactNode;
 }) {
   const { t } = useTranslation();
   const { settings, source, candles } = useCandles(symbol, interval);
@@ -132,7 +135,8 @@ export function SymbolChart({
           candles={data.candles}
           market={data.symbol.market}
           interval={data.interval}
-          onNearOldest={loadOlder}>
+          onNearOldest={loadOlder}
+          panes={panes && ((firstPane) => panes(data.candles, firstPane))}>
           {overlay?.(data.candles)}
         </PriceChart>
       </CatchBoundary>

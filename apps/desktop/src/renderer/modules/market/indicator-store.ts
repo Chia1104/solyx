@@ -10,12 +10,22 @@ export const ChartIndicator = {
   Macd: "macd",
   Rsi: "rsi",
   Kd: "kd",
+  ForeignFlow: "foreign-flow",
+  TrustFlow: "trust-flow",
+  Margin: "margin",
 } as const;
 
 export type ChartIndicator =
   (typeof ChartIndicator)[keyof typeof ChartIndicator];
 
 const chartIndicatorSchema = z.enum(ChartIndicator);
+
+/** Drawn from who traded a listing, which only Taiwan's exchanges report. */
+export const FLOW_INDICATORS: readonly ChartIndicator[] = [
+  ChartIndicator.ForeignFlow,
+  ChartIndicator.TrustFlow,
+  ChartIndicator.Margin,
+];
 
 interface IndicatorState {
   enabled: ChartIndicator[];
