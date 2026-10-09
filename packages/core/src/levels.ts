@@ -1,8 +1,11 @@
 import { maxBy, sumBy } from "es-toolkit";
 
-import type { Candle } from "./candles.ts";
+import { barSeconds, candleDate } from "./candles.ts";
+import type { Candle, IntradayInterval } from "./candles.ts";
 import { MOVING_AVERAGE_PERIODS, sma } from "./indicators.ts";
 import type { IndicatorLine } from "./indicators.ts";
+import type { Market } from "./market.ts";
+import { regularHours } from "./session.ts";
 
 const [QUARTER_LINE, HALF_YEAR_LINE, YEAR_LINE] = MOVING_AVERAGE_PERIODS.long;
 
@@ -19,10 +22,17 @@ const PROFILE_BINS = 30;
 // A slice beside the densest one joins its zone while it holds this share of the densest's volume.
 const DENSE_SHARE = 0.6;
 
+const OPENING_RANGE_SECONDS = 30 * 60;
+
 export interface PriceRange {
   low: number;
   high: number;
 }
+
+const rangeOf = (bars: readonly Candle[]): PriceRange => ({
+  low: Math.min(...bars.map((bar) => bar.low)),
+  high: Math.max(...bars.map((bar) => bar.high)),
+});
 
 /** What a support zone is drawn from. */
 export const ZoneKind = {
@@ -46,12 +56,7 @@ export interface VolumeSlice extends PriceRange {
 export function yearRange(daily: readonly Candle[]): PriceRange | null {
   const year = daily.slice(-YEAR_LINE);
 
-  if (year.length === 0) return null;
-
-  return {
-    low: Math.min(...year.map((candle) => candle.low)),
-    high: Math.max(...year.map((candle) => candle.high)),
-  };
+  return year.length === 0 ? null : rangeOf(year);
 }
 
 /**
@@ -184,4 +189,66 @@ export function breaksBelow(
   }
 
   return breaks;
+}
+
+export interface SessionRange extends PriceRange {
+  close: number;
+}
+
+/** The index of the first of `bars` in the session of the bar at `index`. */
+function sessionStart(
+  market: Market,
+  bars: readonly Candle[],
+  index: number
+): number {
+  const date = candleDate(market, bars[index].time);
+  let start = index;
+
+  while (start > 0 && candleDate(market, bars[start - 1].time) === date) {
+    start--;
+  }
+
+  return start;
+}
+
+/**
+ * The high, low and close of the session before the newest in intraday bars; `null` when the
+ * bars hold only one session.
+ */
+export function previousSession(
+  market: Market,
+  bars: readonly Candle[]
+): SessionRange | null {
+  if (bars.length === 0) return null;
+
+  const end = sessionStart(market, bars, bars.length - 1) - 1;
+
+  if (end < 0) return null;
+
+  const session = bars.slice(sessionStart(market, bars, end), end + 1);
+
+  return { ...rangeOf(session), close: bars[end].close };
+}
+
+/**
+ * The high and low of the newest session's first half hour of regular trading, from bars of
+ * `interval`; `null` on bars longer than that half hour, and until the session trades past it.
+ */
+export function openingRange(
+  market: Market,
+  interval: IntradayInterval,
+  bars: readonly Candle[]
+): PriceRange | null {
+  const last = bars.at(-1);
+
+  if (!last || barSeconds(interval) > OPENING_RANGE_SECONDS) return null;
+
+  const { open } = regularHours(market, candleDate(market, last.time));
+  const end = open + OPENING_RANGE_SECONDS;
+
+  if (last.time < end) return null;
+
+  const opening = bars.filter((bar) => bar.time >= open && bar.time < end);
+
+  return opening.length === 0 ? null : rangeOf(opening);
 }

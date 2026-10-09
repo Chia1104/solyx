@@ -146,6 +146,11 @@ const INTRADAY_SECONDS: Record<IntradayInterval, number> = {
   [Interval.OneHour]: 60 * 60,
 };
 
+/** How long a bar of `interval` lasts, in seconds. */
+export function barSeconds(interval: IntradayInterval): number {
+  return INTRADAY_SECONDS[interval];
+}
+
 /**
  * The bar of `interval` holding the minute at `time`, merged from one session's minute bars in
  * time order; weekly and monthly bars also merge the period's earlier daily bars. Intraday bars

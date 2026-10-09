@@ -1,4 +1,6 @@
+import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
+import type { Market } from "./market.ts";
 
 /** One value per input bar; `null` while the indicator is still warming up. */
 export type IndicatorLine = (number | null)[];
@@ -43,6 +45,34 @@ export function volumeRatio(
 
     return mean === null || mean === 0 ? null : volume / mean;
   });
+}
+
+/**
+ * The average price of each session so far, weighted by volume: each bar's typical price (its
+ * high, low and close averaged) over the session's bars up to it, starting over each exchange
+ * day; `null` until the session trades.
+ */
+export function vwap(market: Market, bars: readonly Candle[]): IndicatorLine {
+  const line: IndicatorLine = [];
+  let session = "";
+  let value = 0;
+  let volume = 0;
+
+  for (const bar of bars) {
+    const date = candleDate(market, bar.time);
+
+    if (date !== session) {
+      session = date;
+      value = 0;
+      volume = 0;
+    }
+
+    value += ((bar.high + bar.low + bar.close) / 3) * bar.volume;
+    volume += bar.volume;
+    line.push(volume === 0 ? null : value / volume);
+  }
+
+  return line;
 }
 
 /** The sessions relative strength is read over: a month, a quarter and half a year. */

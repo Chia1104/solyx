@@ -1,7 +1,7 @@
 import { ChartAverageIcon } from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
-import { Interval } from "@solyx/core/candles";
+import { Interval, isIntraday } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 
 import { ToggleMenu } from "../../components/toggle-menu.tsx";
@@ -10,6 +10,7 @@ import {
   ChartIndicator,
   DAILY_INDICATORS,
   FLOW_INDICATORS,
+  INTRADAY_INDICATORS,
   useIndicatorStore,
 } from "./indicator-store.ts";
 
@@ -31,7 +32,8 @@ export function IndicatorMenu({
   const offered = Object.values(ChartIndicator).filter(
     (indicator) =>
       (market === Market.TW || !FLOW_INDICATORS.includes(indicator)) &&
-      (interval === Interval.OneDay || !DAILY_INDICATORS.includes(indicator))
+      (interval === Interval.OneDay || !DAILY_INDICATORS.includes(indicator)) &&
+      (isIntraday(interval) || !INTRADAY_INDICATORS.includes(indicator))
   );
 
   return (

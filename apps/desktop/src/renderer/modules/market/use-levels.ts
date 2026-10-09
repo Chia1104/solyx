@@ -8,16 +8,20 @@ import type {
 } from "lightweight-charts";
 import { useTranslation } from "react-i18next";
 
+import { Interval, isIntraday } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { MOVING_AVERAGE_PERIODS, sma } from "@solyx/core/indicators";
 import {
   ZoneKind,
   breaksBelow,
+  openingRange,
   pointOfControl,
+  previousSession,
   supportZones,
   volumeProfile,
   yearRange,
 } from "@solyx/core/levels";
+import type { Market } from "@solyx/core/market";
 import type { PriceBand } from "@solyx/trading-chart/price-bands";
 
 import { usePaletteColors } from "../../app/theme.ts";
@@ -43,24 +47,28 @@ const ZONE_OPACITY = 0.12;
 const PROFILE_WIDTH = 0.2;
 
 /**
- * What a daily chart marks on its bars as the user switched it on: closes breaking below the
- * quarter and year lines, which come with the long moving averages, the 52-week range, the
- * support zones and the volume profile. Every part is `undefined` while it is off.
+ * What a chart marks on its bars as the user switched it on. Daily bars mark closes breaking
+ * below the quarter and year lines, which come with the long moving averages, the 52-week
+ * range, the support zones and the volume profile; intraday bars mark the session before's
+ * high, low and close and the opening range. Every part is `undefined` while it is off.
  */
 export function useLevels({
   candles,
   times,
   closes,
-  daily,
+  market,
+  interval,
 }: {
   candles: Candle[];
   times: UTCTimestamp[];
   closes: number[];
-  daily: boolean;
+  market: Market;
+  interval: Interval;
 }) {
   const { t, i18n } = useTranslation();
   const colors = usePaletteColors();
   const enabled = useIndicatorStore((state) => state.enabled);
+  const daily = interval === Interval.OneDay;
 
   const shown = (indicator: ChartIndicator) =>
     daily && enabled.includes(indicator);
@@ -95,32 +103,70 @@ export function useLevels({
     ].toSorted((a, b) => a.time - b.time);
   }, [showBreaks, closes, times, t]);
 
-  // Read apart from the price lines, which then change only when the range does.
-  const range = useMemo(
-    () => (showRange ? yearRange(candles) : null),
-    [showRange, candles]
+  const sessionInterval =
+    isIntraday(interval) && enabled.includes(ChartIndicator.SessionLevels)
+      ? interval
+      : null;
+
+  // Read apart from the price lines, which then change only when a price does.
+  const prices = useMemo(
+    () => ({
+      year: showRange ? yearRange(candles) : null,
+      previous: sessionInterval ? previousSession(market, candles) : null,
+      opening: sessionInterval
+        ? openingRange(market, sessionInterval, candles)
+        : null,
+    }),
+    [showRange, sessionInterval, market, candles]
   );
 
-  const high = range?.high;
-  const low = range?.low;
+  const yearHigh = prices.year?.high;
+  const yearLow = prices.year?.low;
+  const previousHigh = prices.previous?.high;
+  const previousClose = prices.previous?.close;
+  const previousLow = prices.previous?.low;
+  const openingHigh = prices.opening?.high;
+  const openingLow = prices.opening?.low;
 
   const priceLines = useMemo(() => {
-    if (high === undefined || low === undefined) return undefined;
+    const lines: CreatePriceLineOptions[] = [];
 
-    const line = (price: number, title: string): CreatePriceLineOptions => ({
-      price,
-      title,
-      color: LINE_COLORS.level,
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-      axisLabelVisible: true,
-    });
+    const add = (
+      price: number | undefined,
+      title: string,
+      lineStyle: LineStyle
+    ) => {
+      if (price === undefined) return;
 
-    return [
-      line(high, t("chart.levels.year-high")),
-      line(low, t("chart.levels.year-low")),
-    ];
-  }, [high, low, t]);
+      lines.push({
+        price,
+        title,
+        color: LINE_COLORS.level,
+        lineWidth: 1,
+        lineStyle,
+        axisLabelVisible: true,
+      });
+    };
+
+    add(yearHigh, t("chart.levels.year-high"), LineStyle.Dashed);
+    add(yearLow, t("chart.levels.year-low"), LineStyle.Dashed);
+    add(previousHigh, t("chart.levels.previous-high"), LineStyle.Dotted);
+    add(previousClose, t("chart.levels.previous-close"), LineStyle.Dotted);
+    add(previousLow, t("chart.levels.previous-low"), LineStyle.Dotted);
+    add(openingHigh, t("chart.levels.opening-high"), LineStyle.LargeDashed);
+    add(openingLow, t("chart.levels.opening-low"), LineStyle.LargeDashed);
+
+    return lines.length === 0 ? undefined : lines;
+  }, [
+    yearHigh,
+    yearLow,
+    previousHigh,
+    previousClose,
+    previousLow,
+    openingHigh,
+    openingLow,
+    t,
+  ]);
 
   const bands = useMemo(() => {
     if (!showZones && !showProfile) return undefined;

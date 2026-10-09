@@ -10,7 +10,9 @@ import {
   rsi,
   sma,
   volumeRatio,
+  vwap,
 } from "../src/indicators.ts";
+import { Market } from "../src/market.ts";
 
 function candle(high: number, low: number, close: number): Candle {
   return { time: 0, open: close, high, low, close, volume: 0 };
@@ -116,4 +118,27 @@ test("relativeReturn subtracts the benchmark's return in percentage points", () 
   expect(line[0]).toBeNull();
   expect(line[1]).toBeCloseTo(5);
   expect(line[2]).toBeNull();
+});
+
+test("vwap weighs each bar's typical price by volume and starts over each session", () => {
+  const at = (date: string, time: string) =>
+    Date.parse(`${date}T${time}:00+08:00`) / 1000;
+
+  const bar = (time: number, price: number, volume: number): Candle => ({
+    time,
+    open: price,
+    high: price,
+    low: price,
+    close: price,
+    volume,
+  });
+
+  expect(
+    vwap(Market.TW, [
+      bar(at("2026-03-02", "09:00"), 0, 0),
+      bar(at("2026-03-02", "09:01"), 10, 1),
+      bar(at("2026-03-02", "09:02"), 20, 3),
+      bar(at("2026-03-03", "09:00"), 30, 2),
+    ])
+  ).toEqual([null, 10, 17.5, 30]);
 });

@@ -21,7 +21,7 @@ import {
   intervalSchema,
   isIntraday,
 } from "@solyx/core/candles";
-import type { Candle } from "@solyx/core/candles";
+import type { Candle, IntradayInterval } from "@solyx/core/candles";
 import { CouncilOutcome, councilOutcome } from "@solyx/core/council";
 import type { Council } from "@solyx/core/council";
 import {
@@ -35,12 +35,15 @@ import {
   rsi,
   sma,
   volumeRatio,
+  vwap,
 } from "@solyx/core/indicators";
 import type { IndicatorLine } from "@solyx/core/indicators";
 import {
   PROFILE_SESSIONS,
   ZoneKind,
+  openingRange,
   pointOfControl,
+  previousSession,
   supportZones,
   volumeProfile,
   yearRange,
@@ -191,6 +194,27 @@ const ZONE_NAMES: Record<ZoneKind, string> = {
 
 const priceRange = ({ low, high }: PriceRange) =>
   `${Number(low.toFixed(2))}-${Number(high.toFixed(2))}`;
+
+/** The levels an intraday chart marks, as `get_indicators` reports them. */
+function sessionLevels(
+  market: Market,
+  interval: IntradayInterval,
+  bars: Candle[]
+): string[] {
+  const line = vwap(market, bars);
+  const previous = previousSession(market, bars);
+  const opening = openingRange(market, interval, bars);
+
+  return [
+    `VWAP: ${valueAt(line, -1)} (previous ${valueAt(line, -2)})`,
+    `previous session: ${
+      previous
+        ? `high ${previous.high}, low ${previous.low}, close ${previous.close}`
+        : "n/a"
+    }`,
+    `opening range: ${opening ? priceRange(opening) : "n/a"}`,
+  ];
+}
 
 /** The levels a daily chart marks and its strength against the market's index, as `get_indicators` reports them. */
 function dailyLevels(
@@ -537,7 +561,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetIndicators,
       replay: "safe",
-      description: `The latest and previous bar's MA(${MOVING_AVERAGES.join(", ")}), EMA(12, 26), RSI(14), MACD(12, 26, 9) as DIF/MACD/OSC, KD(9), Bollinger Bands(20, 2) and volume over its 20-bar average for a listing. On daily bars also the levels its chart marks: the 52-week range, the support zones (within 2% of MA60 and 3% of MA120 while the close is above each, and the densest trading under the close) and the volume profile's point of control over the last ${PROFILE_SESSIONS} sessions; and relative strength against the market's index (${BENCHMARK[Market.TW].name} in Taiwan, ${BENCHMARK[Market.US].name} in the US), the percentage points by which the listing's return beat the index's over the last ${RELATIVE_STRENGTH_PERIODS.join(", ")} sessions.`,
+      description: `The latest and previous bar's MA(${MOVING_AVERAGES.join(", ")}), EMA(12, 26), RSI(14), MACD(12, 26, 9) as DIF/MACD/OSC, KD(9), Bollinger Bands(20, 2) and volume over its 20-bar average for a listing. On daily bars also the levels its chart marks: the 52-week range, the support zones (within 2% of MA60 and 3% of MA120 while the close is above each, and the densest trading under the close) and the volume profile's point of control over the last ${PROFILE_SESSIONS} sessions; and relative strength against the market's index (${BENCHMARK[Market.TW].name} in Taiwan, ${BENCHMARK[Market.US].name} in the US), the percentage points by which the listing's return beat the index's over the last ${RELATIVE_STRENGTH_PERIODS.join(", ")} sessions. On intraday bars also the newest session's VWAP, the high, low and close of the session before it, and its opening range, the high and low of its first 30 minutes of regular trading, on bars of 30 minutes or less once those minutes have passed.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         interval: intervalSchema,
@@ -582,6 +606,9 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
               volumeRatio(candles.map((candle) => candle.volume))
             ),
             ...(daily ? dailyLevels(candles, benchmark, benchmarkBars) : []),
+            ...(isIntraday(interval)
+              ? sessionLevels(symbol.market, interval, candles)
+              : []),
           ].join("\n"),
           details: { symbol, interval },
         };
