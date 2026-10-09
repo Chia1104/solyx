@@ -76,7 +76,8 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "- Prices move at most 10% from the previous close in a day; some ETFs have no limit.",
       "- Costs: brokers charge up to 0.1425% commission on each side, and selling pays securities transaction tax (0.3% for stocks, lower for ETFs and day trades). Include them when the edge is small.",
       "- Settlement is T+2; cash must be in the account by then.",
-      "- Taiwan quotes rising prices in red and falling prices in green, the opposite of the US."
+      "- Taiwan quotes rising prices in red and falling prices in green, the opposite of the US.",
+      "- get_flows says who traded after each session. Read the week and the month and the runs, not one session: foreign flows carry ETF and index arbitrage, and dealer hedging follows the warrants dealers issued. Margin purchases rising while the price falls are holders who may be forced to sell."
     ),
   },
   {
@@ -123,7 +124,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "A deep analysis leaves two things in the app: the listing's report, your view over quarters, and one forecast for the coming sessions, which is frozen once made and scored against what the price then does. Work in this order.",
       "",
       "1. Call get_research. Read the report and how old each part is, the latest forecasts with how they came out, your record, and any news read as stating a falsifier. Where a forecast missed, say what you misread; where news may have met a falsifier, read the item and say whether it did, before going on.",
-      "2. Gather evidence, keeping the as_of time of every number: get_candles and get_indicators on 1d and 1w, following technical-read; get_news over 30 days; get_fundamentals for the filed quarters, the monthly revenue, the distributions and what the shares trade at against their earnings; get_calendar for the dates ahead; web_search and read_page, when you have them, for guidance and what the numbers do not say. Compute with run_analysis.",
+      "2. Gather evidence, keeping the as_of time of every number: get_candles and get_indicators on 1d and 1w, following technical-read; get_news over 30 days; get_fundamentals for the filed quarters, the monthly revenue, the distributions and what the shares trade at against their earnings; get_calendar for the dates ahead; get_flows, for a Taiwan listing, for who has been buying and selling it and the market; web_search and read_page, when you have them, for guidance and what the numbers do not say. Compute with run_analysis.",
       "3. Call revise_report when the listing has no report, or when what you found changes it. Send only the parts that changed; the rest stays.",
       "   - A driver or a risk has two parts. point is your reading: why it matters to the thesis, and it may infer, weigh or look ahead. text is the fact it rests on and says no more than its quote: no cause, forecast, comparison or caveat the quote does not give. quote is the source's own words or figures, and source says where. Where the user set up a decisions model, it reads text against quote and the call is refused when text says more, so put every judgement in point. Leave out what you cannot source.",
       "   - Quote in full. Give the whole sentence, or every row of a table the fact uses, and never shorten a quote with an ellipsis: what you cut is what the fact is checked against. A fact that sums up many rows, such as a range or a low, quotes every row it covers or the line where a tool worked it out; otherwise state only the rows you quote. One fact to a claim: a second fact needs its own quote.",

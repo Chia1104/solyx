@@ -33,6 +33,7 @@ import { createMcpServers } from "./modules/agent/mcp-servers.ts";
 import { createCalendar } from "./modules/calendar/calendar.ts";
 import { createDecisions } from "./modules/decisions/decisions.ts";
 import { createEmbeddings } from "./modules/embeddings/embeddings.ts";
+import { createFlows } from "./modules/flows/flows.ts";
 import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
@@ -169,7 +170,7 @@ export function createServices() {
     },
   });
 
-  // One client, so fundamentals and trading days share FinMind's hourly limit.
+  // One client, so fundamentals, flows and trading days share FinMind's hourly limit.
   const finMind = createFinMind({
     token: () => secrets.get(Secret.FinMindToken),
     plan: () => config.read().providers.finmind.plan,
@@ -195,6 +196,8 @@ export function createServices() {
   secrets.onChange((secret) => {
     if (secret === Secret.FinMindToken) fundamentals.forget();
   });
+
+  const flows = createFlows({ providers: [finMind], answers: cache.answers });
 
   const tradingDays = createTradingCalendar({
     providers: [finMind],
@@ -251,6 +254,7 @@ export function createServices() {
     localEmbedder: () => embeddings.localEmbedder(),
     research: research.desk,
     fundamentals,
+    flows,
   });
 
   /** What the user holds, then what they watch, each once; a broker that cannot be read leaves the watchlist. */

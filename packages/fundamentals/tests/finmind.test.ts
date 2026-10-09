@@ -1,5 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
+import { Investor } from "@solyx/core/flows";
 import { RestrictionKind } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
 
@@ -43,18 +44,21 @@ function fakeDatasets(
   datasets: Record<string, unknown[]>
 ) {
   const sent: string[] = [];
+  const params: Record<string, string>[] = [];
 
   const fetch = async (input: string | URL | Request, init?: RequestInit) => {
-    const dataset =
-      new URL(new Request(input, init).url).searchParams.get("dataset") ?? "";
+    const url = new URL(new Request(input, init).url);
+    const dataset = url.searchParams.get("dataset") ?? "";
 
     sent.push(dataset);
+    params.push(Object.fromEntries(url.searchParams));
 
     return Response.json({ msg: "success", data: datasets[dataset] ?? [] });
   };
 
   return {
     sent,
+    params,
     finmind: createFinMind({
       fetch,
       token: async () => access.token,
@@ -407,6 +411,16 @@ test("outside Taiwan there is nothing to read, and it costs no request", async (
   expect(await finmind.getDividends(apple, "2025-01-01")).toEqual([]);
   expect(await finmind.getRestrictions(apple, "2025-01-01")).toEqual([]);
   expect(await finmind.tradingDays(Market.US, "2025-01-01")).toEqual([]);
+  expect(await finmind.getListingFlows(apple, "2025-01-01")).toEqual({
+    trades: [],
+    margin: [],
+    foreign: [],
+  });
+  expect(await finmind.getMarketFlows(Market.US, "2025-01-01")).toEqual({
+    trades: [],
+    margin: [],
+    futures: [],
+  });
   expect(sent).toEqual([]);
 });
 
@@ -430,4 +444,181 @@ test("a saved token goes with every request, and none without one", async () => 
 
   expect(anonymous.authorizations).toEqual([null]);
   expect(registered.authorizations).toEqual(["Bearer fm-token"]);
+});
+
+const trades = (date: string, name: string, buy: number, sell: number) => ({
+  date,
+  buy,
+  name,
+  sell,
+});
+
+const ofTsmc = <Row extends object>(row: Row) => ({ ...row, stock_id: "2330" });
+
+test("reads a listing's flows in shares, a foreign group's dealers counted with it, and drops another listing's rows", async () => {
+  const { sent, finmind } = fakeDatasets(
+    {},
+    {
+      TaiwanStockInstitutionalInvestorsBuySell: [
+        ofTsmc(trades("2026-10-08", "Foreign_Investor", 7_000, 19_000)),
+        ofTsmc(trades("2026-10-08", "Foreign_Dealer_Self", 500, 0)),
+        ofTsmc(trades("2026-10-08", "Investment_Trust", 800, 30)),
+        ofTsmc(trades("2026-10-08", "Dealer_Hedging", 300, 60)),
+        ofTsmc(trades("2026-10-07", "Foreign_Investor", 9_000, 11_000)),
+        { ...trades("2026-10-08", "Foreign_Investor", 1, 0), stock_id: "0050" },
+      ],
+      TaiwanStockMarginPurchaseShortSale: [
+        {
+          date: "2026-10-08",
+          stock_id: "2330",
+          MarginPurchaseTodayBalance: 31_586,
+          MarginPurchaseLimit: 6_483_092,
+          ShortSaleTodayBalance: 45,
+          Note: " ",
+        },
+      ],
+      TaiwanStockShareholding: [
+        {
+          date: "2026-10-08",
+          stock_id: "2330",
+          ForeignInvestmentSharesRatio: 69.14,
+          ForeignInvestmentUpperLimitRatio: 100,
+        },
+      ],
+    }
+  );
+
+  expect(await finmind.getListingFlows(TSMC, "2026-08-09")).toEqual({
+    trades: [
+      {
+        date: "2026-10-07",
+        investor: Investor.Foreign,
+        bought: 9_000,
+        sold: 11_000,
+      },
+      {
+        date: "2026-10-08",
+        investor: Investor.Foreign,
+        bought: 7_500,
+        sold: 19_000,
+      },
+      {
+        date: "2026-10-08",
+        investor: Investor.InvestmentTrust,
+        bought: 800,
+        sold: 30,
+      },
+      {
+        date: "2026-10-08",
+        investor: Investor.DealerHedging,
+        bought: 300,
+        sold: 60,
+      },
+    ],
+    margin: [
+      {
+        date: "2026-10-08",
+        margin: 31_586_000,
+        marginLimit: 6_483_092_000,
+        short: 45_000,
+      },
+    ],
+    foreign: [{ date: "2026-10-08", ratio: 0.6914, limit: 1 }],
+  });
+  expect(sent.toSorted()).toEqual([
+    "TaiwanStockInstitutionalInvestorsBuySell",
+    "TaiwanStockMarginPurchaseShortSale",
+    "TaiwanStockShareholding",
+  ]);
+});
+
+test("reads the market's flows: its groups' trades without the total, whole sessions of margin, and the index future's positions", async () => {
+  const { params, finmind } = fakeDatasets(
+    {},
+    {
+      TaiwanStockTotalInstitutionalInvestors: [
+        trades("2026-10-08", "Foreign_Investor", 286e9, 361e9),
+        trades("2026-10-08", "Dealer_self", 6e9, 9e9),
+        trades("2026-10-08", "total", 340e9, 432e9),
+      ],
+      TaiwanStockTotalMarginPurchaseShortSale: [
+        { date: "2026-10-08", name: "MarginPurchase", TodayBalance: 9_406_720 },
+        { date: "2026-10-08", name: "ShortSale", TodayBalance: 211_949 },
+        {
+          date: "2026-10-08",
+          name: "MarginPurchaseMoney",
+          TodayBalance: 646_405_767_000,
+        },
+        // A session missing a balance.
+        { date: "2026-10-07", name: "MarginPurchase", TodayBalance: 9_358_246 },
+      ],
+      TaiwanFuturesInstitutionalInvestors: [
+        {
+          futures_id: "TX",
+          date: "2026-10-08",
+          institutional_investors: "外資",
+          long_open_interest_balance_volume: 11_389,
+          short_open_interest_balance_volume: 94_583,
+        },
+        {
+          futures_id: "TX",
+          date: "2026-10-08",
+          institutional_investors: "投信",
+          long_open_interest_balance_volume: 79_091,
+          short_open_interest_balance_volume: 2_752,
+        },
+      ],
+    }
+  );
+
+  expect(await finmind.getMarketFlows(Market.TW, "2026-08-09")).toEqual({
+    trades: [
+      {
+        date: "2026-10-08",
+        investor: Investor.Foreign,
+        bought: 286e9,
+        sold: 361e9,
+      },
+      { date: "2026-10-08", investor: Investor.Dealer, bought: 6e9, sold: 9e9 },
+    ],
+    margin: [
+      {
+        date: "2026-10-08",
+        marginValue: 646_405_767_000,
+        margin: 9_406_720_000,
+        short: 211_949_000,
+      },
+    ],
+    futures: [
+      {
+        date: "2026-10-08",
+        investor: Investor.Foreign,
+        long: 11_389,
+        short: 94_583,
+      },
+      {
+        date: "2026-10-08",
+        investor: Investor.InvestmentTrust,
+        long: 79_091,
+        short: 2_752,
+      },
+    ],
+  });
+  expect(params.toSorted((a, b) => a.dataset.localeCompare(b.dataset))).toEqual(
+    [
+      {
+        dataset: "TaiwanFuturesInstitutionalInvestors",
+        data_id: "TX",
+        start_date: "2026-08-09",
+      },
+      {
+        dataset: "TaiwanStockTotalInstitutionalInvestors",
+        start_date: "2026-08-09",
+      },
+      {
+        dataset: "TaiwanStockTotalMarginPurchaseShortSale",
+        start_date: "2026-08-09",
+      },
+    ]
+  );
 });
