@@ -8,6 +8,7 @@
     "./calendar": "./src/calendar.ts",
     "./candles": "./src/candles.ts",
     "./council": "./src/council.ts",
+    "./embedding": "./src/embedding.ts",
     "./forecast": "./src/forecast.ts",
     "./fundamentals": "./src/fundamentals.ts",
     "./indicators": "./src/indicators.ts",
