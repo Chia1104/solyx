@@ -84,6 +84,12 @@ export function createMainWindow(colors: () => PaletteColors) {
       event.preventDefault();
   });
 
+  // Frames hold only the views the agent draws, which stay on the markup they were given.
+  win.webContents.on("will-frame-navigate", (event) => {
+    if (!event.isMainFrame && event.url !== "about:srcdoc")
+      event.preventDefault();
+  });
+
   if (rendererUrl) {
     void win.loadURL(rendererUrl);
     // Detached, since docked it would squeeze the workspace's panes.

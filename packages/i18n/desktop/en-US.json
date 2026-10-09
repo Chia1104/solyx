@@ -331,6 +331,10 @@
       "open": "Open",
       "cancel": "Cancel"
     },
+    "view": {
+      "title": "A view the agent drew",
+      "drawing": "Drawing…"
+    },
     "approval-mode": {
       "label": "How should the agent's actions be allowed?",
       "modes": {

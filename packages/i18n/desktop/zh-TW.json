@@ -331,6 +331,10 @@
       "open": "開啟",
       "cancel": "取消"
     },
+    "view": {
+      "title": "Agent 繪製的內容",
+      "drawing": "繪製中…"
+    },
     "approval-mode": {
       "label": "Agent 的動作要怎麼放行？",
       "modes": {
