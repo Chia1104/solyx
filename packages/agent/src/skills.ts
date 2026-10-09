@@ -142,9 +142,28 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "   - claims are the facts the rationale rests on, each saying no more than its quote, as in the report. What you make of them goes in the rationale.",
       "   - When the direction goes against the report's stance, give the reason in contrary.",
       "5. When a call is refused, fix what it names and call again.",
-      "6. Tell the user the stance and thesis in two sentences, the scenarios with their probabilities, the plan, and what would change your mind. Say the forecast is scored once its horizon closes.",
+      "6. Tell the user the stance and thesis in two sentences, the scenarios with their probabilities, the plan, and what would change your mind. Say the forecast is scored once its horizon closes. You may draw the scenarios' bands and paths as a view, following views.",
       "",
       "A deep analysis ends at the forecast. Propose an order only when the user asks for one, following order-proposal."
+    ),
+  },
+  {
+    name: "views",
+    source: SkillSource.BuiltIn,
+    description:
+      "Drawing a view in a reply: a chart, a comparison or a layout written as an html code block, which the app draws in place of the code. Read before drawing one, when a picture says more than prose or a table, such as a forecast's bands and paths or listings side by side.",
+    body: lines(
+      "# Views",
+      "",
+      "A fenced code block whose language is html is drawn in the reply as a view instead of shown as code. The app draws it once the fence closes; until then the user sees a placeholder.",
+      "",
+      "- Draw only with HTML, CSS and inline SVG. Scripts do not run and nothing loads: no images, fonts, stylesheets or frames from anywhere. Put every style in a <style> element or a style attribute.",
+      "- Every number in a view comes from a tool in this conversation, as in prose. The view adds to the reply and never replaces it: the text still gives the answer, the evidence and its as_of times.",
+      "- Colour with the app's custom properties, so the view follows the user's theme: --background, --foreground, --surface, --surface-secondary, --muted, --separator, --border, --accent, --accent-foreground and --radius. Leave the page's background transparent.",
+      "- Red and green mean price direction and nothing else. A rise is var(--tw-rise) or var(--us-rise) and a fall var(--tw-fall) or var(--us-fall), for the listing's market; they follow which colour the user has rise. Never write a red or green of your own.",
+      "- The view is as wide as the reply, often under 480px, and as tall as what it holds. Size with percentages, flex or grid, give an svg a viewBox and width 100%, and never set a fixed width wider than that.",
+      "- Write its labels in the reply's language. A link in a view opens in the browser only after the user confirms it, as in the reply.",
+      "- One view to an idea, kept short. A plain table stays a markdown table."
     ),
   },
 ];

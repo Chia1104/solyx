@@ -1,12 +1,14 @@
 import { Children, isValidElement, useState } from "react";
 import type { ReactNode } from "react";
 
-import { AlertDialog, Button, ScrollShadow, cn } from "@heroui/react";
+import { ScrollShadow, cn } from "@heroui/react";
 import { tableVariants } from "@heroui/styles";
 import { cjk } from "@streamdown/cjk";
-import { useTranslation } from "react-i18next";
 import { Streamdown } from "streamdown";
 import type { AnimateOptions, Components } from "streamdown";
+
+import { AgentLinkDialog } from "./agent-link-dialog.tsx";
+import { AgentView } from "./agent-view.tsx";
 
 /** Streamdown hands a fence's body as a string, or as a `<code>` element wrapping one. */
 function codeText(children: ReactNode): string {
@@ -19,12 +21,7 @@ function codeText(children: ReactNode): string {
     .join("");
 }
 
-/**
- * A link from the model opens in the browser only after the user reads the address, since
- * nothing checked where it points.
- */
 const MarkdownLink: Components["a"] = ({ children, className, href }) => {
-  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const linkClass = cn("text-accent underline underline-offset-2", className);
 
@@ -40,40 +37,7 @@ const MarkdownLink: Components["a"] = ({ children, className, href }) => {
         onClick={() => setOpen(true)}>
         {children}
       </button>
-      <AlertDialog isOpen={open} onOpenChange={setOpen}>
-        <AlertDialog.Backdrop>
-          <AlertDialog.Container>
-            <AlertDialog.Dialog className="sm:max-w-md">
-              <AlertDialog.Header>
-                <AlertDialog.Heading>
-                  {t("agent.link.title")}
-                </AlertDialog.Heading>
-              </AlertDialog.Header>
-              <AlertDialog.Body className="flex flex-col gap-3">
-                <p className="text-sm text-muted">
-                  {t("agent.link.description")}
-                </p>
-                <p className="rounded-sm bg-surface-secondary px-3 py-2 font-mono text-xs break-all">
-                  {href}
-                </p>
-              </AlertDialog.Body>
-              <AlertDialog.Footer>
-                <Button variant="tertiary" onPress={() => setOpen(false)}>
-                  {t("agent.link.cancel")}
-                </Button>
-                <Button
-                  onPress={() => {
-                    // The main process opens https links in the system browser.
-                    window.open(href, "_blank", "noreferrer");
-                    setOpen(false);
-                  }}>
-                  {t("agent.link.open")}
-                </Button>
-              </AlertDialog.Footer>
-            </AlertDialog.Dialog>
-          </AlertDialog.Container>
-        </AlertDialog.Backdrop>
-      </AlertDialog>
+      <AgentLinkDialog href={href} isOpen={open} onOpenChange={setOpen} />
     </>
   );
 };
@@ -118,11 +82,14 @@ function holdTableRows(text: string): string {
 
 // Streamdown's defaults use shadcn tokens, which HeroUI's palette does not define.
 const components: Components = {
-  code: ({ children }) => (
-    <pre className="my-3 overflow-x-auto rounded-sm bg-surface-secondary p-3 font-mono text-xs leading-relaxed">
-      {codeText(children).replace(/\n$/, "")}
-    </pre>
-  ),
+  code: ({ children, className }) =>
+    className === "language-html" ? (
+      <AgentView html={codeText(children)} />
+    ) : (
+      <pre className="my-3 overflow-x-auto rounded-sm bg-surface-secondary p-3 font-mono text-xs leading-relaxed">
+        {codeText(children).replace(/\n$/, "")}
+      </pre>
+    ),
   inlineCode: ({ className, children }) => (
     <code
       className={cn(
