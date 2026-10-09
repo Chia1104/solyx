@@ -166,6 +166,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
         description: "Mine",
         body: "# Breakout watch",
         source: SkillSource.Solyx,
+        userInvocable: true,
       },
     ],
     instructions: async () => "Risk at most 0.5% per trade.",

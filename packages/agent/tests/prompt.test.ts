@@ -2,6 +2,7 @@ import { expect, test } from "vite-plus/test";
 
 import { BrokerMode } from "@solyx/core/broker";
 import { DecisionMode } from "@solyx/core/council";
+import { Market } from "@solyx/core/market";
 
 import { formatContext } from "../src/prompt.ts";
 
@@ -19,5 +20,27 @@ test("the context tells the time on each exchange and on the user's own clock", 
     "clock: 2026-10-07 12:27 Europe/London",
     "account: paper",
     "language: zh-TW",
+  ]);
+});
+
+test("the context names the listing on screen, those the user named and the skill they asked for", () => {
+  const context = formatContext({
+    now: new Date("2026-10-07T11:27:00Z"),
+    brokerMode: BrokerMode.Paper,
+    focus: { symbol: { market: Market.TW, symbol: "2317" }, name: "鴻海" },
+    mentions: [
+      { symbol: { market: Market.TW, symbol: "2330" }, name: "台積電" },
+      { symbol: { market: Market.US, symbol: "NVDA" } },
+    ],
+    skill: "deep-analysis",
+    locale: "zh-TW",
+    timeZone: "Asia/Taipei",
+    decisionMode: DecisionMode.Single,
+  });
+
+  expect(context.split("\n").slice(4)).toEqual([
+    "viewing: TW 2317 (鴻海)",
+    "mentions: TW 2330 (台積電), US NVDA",
+    "skill: deep-analysis",
   ]);
 });

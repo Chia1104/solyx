@@ -125,6 +125,32 @@ test("hidden and broken skills are left out, the broken ones reported", async ()
   expect(catalog.warnings[0]).toContain("broken");
 });
 
+test("background skills cannot be asked for with /name, and a skill can be unless it says so", async () => {
+  await writeSkill(folders.solyx, "dividend-check", "Before ex-dividend dates");
+  await writeSkill(
+    folders.solyx,
+    "house-style",
+    "How I like replies",
+    "user-invocable: false\n"
+  );
+
+  const catalog = await loadSkillCatalog(folders, new Set());
+
+  expect(
+    catalog.skills
+      .filter((skill) => skill.userInvocable)
+      .map((skill) => skill.name)
+  ).toEqual([
+    "dividend-check",
+    "order-proposal",
+    "technical-read",
+    "portfolio-review",
+    "deep-analysis",
+    "solyx-guide",
+  ]);
+  expect(catalog.warnings).toEqual([]);
+});
+
 test("standing instructions are read when present and follow the rules in the prompt", async () => {
   const file = join(root, ".solyx", "AGENTS.md");
 

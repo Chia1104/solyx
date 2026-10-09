@@ -16,6 +16,8 @@ export interface AgentSkill {
   description: string;
   body: string;
   source: SkillSource;
+  /** The user may ask for it by starting a message with `/name`; background knowledge is not asked for. */
+  userInvocable: boolean;
   /** Where its files are, such as the scripts its playbook names; a built-in has none. */
   folder?: string;
 }
@@ -26,6 +28,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
   {
     name: "order-proposal",
     source: SkillSource.BuiltIn,
+    userInvocable: true,
     description:
       "Turning a trade idea into an order proposal: entry, invalidation, size and the rationale the user reviews. Read before calling check_order or propose_order.",
     body: lines(
@@ -46,6 +49,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
   {
     name: "technical-read",
     source: SkillSource.BuiltIn,
+    userInvocable: true,
     description:
       "Reading a chart across timeframes with the indicators the app computes (MA, EMA, RSI, MACD, KD, Bollinger Bands). Read before giving a view on trend, momentum or levels.",
     body: lines(
@@ -64,6 +68,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
   {
     name: "taiwan-market",
     source: SkillSource.BuiltIn,
+    userInvocable: false,
     description:
       "Taiwan (TWSE and TPEx) trading rules: sessions, board and odd lots, tick sizes, price limits, costs and settlement. Read before sizing or pricing a Taiwan order.",
     body: lines(
@@ -83,6 +88,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
   {
     name: "us-market",
     source: SkillSource.BuiltIn,
+    userInvocable: false,
     description:
       "US equity trading rules: regular and extended hours, ticks, halts, settlement and day-trading limits. Read before sizing or pricing a US order.",
     body: lines(
@@ -100,6 +106,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
   {
     name: "portfolio-review",
     source: SkillSource.BuiltIn,
+    userInvocable: true,
     description:
       "Reviewing the account: exposure, concentration, positions without a plan, and cash per currency. Read when the user asks how their account or positions look.",
     body: lines(
@@ -116,6 +123,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
   {
     name: "deep-analysis",
     source: SkillSource.BuiltIn,
+    userInvocable: true,
     description:
       "A deep analysis of one listing: bringing its research report up to date, then one forecast for the coming sessions that the app scores. Read when the user asks for a deep analysis, a research report, a forecast or a prediction of a listing.",
     body: lines(
@@ -150,6 +158,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
   {
     name: "views",
     source: SkillSource.BuiltIn,
+    userInvocable: false,
     description:
       "Drawing a view in a reply: a chart, a comparison or a layout written as an html code block, which the app draws in place of the code. Read before drawing one, when a picture says more than prose or a table, such as a forecast's bands and paths or listings side by side.",
     body: lines(
@@ -169,6 +178,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
   {
     name: "solyx-guide",
     source: SkillSource.BuiltIn,
+    userInvocable: true,
     description:
       "Using and setting up Solyx itself: first-time setup, what each setting does, keys and sign-ins, approval modes, skills, memory, MCP servers and why a feature does not work. Read when the user asks how to use or set up the app, or something in it does not work.",
     body: lines(
@@ -194,9 +204,10 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "## Conversations",
       "- Each conversation has an approval mode the user sets in the composer: ask, where calls that need it wait for them; auto, where a shell command the decisions model judges harmless runs and a page your searches found is read; and bypass, where they all run unasked. Order proposals always wait for the user to confirm, whatever the mode.",
       "- A conversation may pick its own model and thinking; otherwise it runs on the default.",
+      "- The user may start a message with /name to ask for a skill, and write @ before a code to name a listing they have on screen, hold or watch.",
       "",
       "## Files the user writes for you",
-      "- The config folder (get_setup gives its path) holds config.json, every setting as JSON with config.schema.json documenting each entry; a saved edit applies without a restart. Beside it: skills/<name>/SKILL.md for their own playbooks, which replace a built-in of the same name; AGENTS.md for standing instructions sent with every message; mcp.json for MCP servers.",
+      "- The config folder (get_setup gives its path) holds config.json, every setting as JSON with config.schema.json documenting each entry; a saved edit applies without a restart. Beside it: skills/<name>/SKILL.md for their own playbooks, which replace a built-in of the same name, and which user-invocable: false in the frontmatter keeps from being asked for with /name; AGENTS.md for standing instructions sent with every message; mcp.json for MCP servers.",
       "- Skills in ~/.agents/skills are offered only once the user switches each on, on the Skills tab.",
       "- MCP servers: each tool is off, asks first, or runs on its own, which only a tool its server marks read-only may. A secret an entry names as secret:NAME is entered on the MCP tab, and a remote server may need the user to sign in there.",
       "",
@@ -240,6 +251,7 @@ const frontmatterSchema = z.looseObject({
   name: z.string().optional(),
   description: z.string().optional(),
   "disable-model-invocation": z.boolean().optional(),
+  "user-invocable": z.boolean().optional(),
 });
 
 const FRONTMATTER = /^---\n([\s\S]*?)\n---(?:\n|$)/;
@@ -254,7 +266,8 @@ interface SkillProblem {
 /**
  * Every `<folder>/<name>/SKILL.md` under `root`. A skill without a description is left out, and
  * one hidden with `disable-model-invocation` too; other breaks of the format are reported but
- * keep the skill.
+ * keep the skill. `user-invocable: false` keeps it from being asked for with `/name`, as other
+ * agents read it.
  */
 async function readSkillFolder(root: string, source: SkillSource) {
   const skills: AgentSkill[] = [];
@@ -350,6 +363,7 @@ async function readSkillFolder(root: string, source: SkillSource) {
       description,
       body: normalized.slice(match?.[0].length ?? 0).trim(),
       source,
+      userInvocable: metadata["user-invocable"] !== false,
       folder: join(root, folder),
     });
   }

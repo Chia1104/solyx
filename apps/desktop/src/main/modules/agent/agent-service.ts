@@ -57,6 +57,7 @@ import type { AgentModelsOptions } from "./agent-models.ts";
 import { createAgentSetup } from "./agent-setup.ts";
 import type { AgentSetupSources } from "./agent-setup.ts";
 import type { McpServers } from "./mcp-servers.ts";
+import { messageContext } from "./message-context.ts";
 import { loginShellPath } from "./shell-path.ts";
 
 interface AgentServiceOptions extends AgentModelsOptions {
@@ -325,19 +326,38 @@ export function createAgentService(options: AgentServiceOptions) {
       await options.mcp.close();
     },
 
-    send(
+    async send(
       id: string,
       text: string,
       focus: AgentFocus | null,
       locale: Locale,
       timeZone: TimeZone
     ) {
+      const now = new Date();
+
+      const { mentions, skill } = await messageContext(text, {
+        focus,
+        watchlist: options.watchlist,
+        holdings: async () =>
+          (await options.desk.account()).positions.map(
+            (position) => position.instrument
+          ),
+        name: async (symbol) =>
+          (await options.marketData.listing(symbol))?.name,
+        commands: async () =>
+          (await skills()).skills
+            .filter((each) => each.offered && each.userInvocable)
+            .map((each) => each.name),
+      });
+
       return runtime.send(id, {
         text,
         context: formatContext({
-          now: new Date(),
+          now,
           brokerMode: options.desk.mode,
           focus: focus ?? undefined,
+          mentions,
+          skill,
           locale,
           timeZone,
           decisionMode: decisionMode(),
