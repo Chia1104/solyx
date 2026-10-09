@@ -568,7 +568,8 @@
       "rei": "Rei",
       "unit-01": "Unit-01",
       "mari": "Mari",
-      "cyberpunk": "Cyberpunk"
+      "cyberpunk": "Cyberpunk",
+      "lucy": "Lucy"
     },
     "palette-copy": "Copy {{name}}",
     "palette-edit": "Edit {{name}}",
