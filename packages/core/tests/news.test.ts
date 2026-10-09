@@ -9,6 +9,7 @@ import {
   isAboutListing,
   rankHeadlines,
   readNews,
+  storyText,
 } from "../src/news.ts";
 import type {
   ListingNews,
@@ -625,4 +626,16 @@ test("a story found for several listings is one headline, led by the listing it 
     ["台積電法說會上修全年營收展望", 1, ["2330"]],
     [title, 1, ["2317", "2330"]],
   ]);
+});
+
+test("a story's vector reads the title and the start of the snippet, its spaces folded", () => {
+  expect(storyText({ title: " 台積電法說會 ", snippet: "" })).toBe(
+    "台積電法說會"
+  );
+  expect(
+    storyText({
+      title: "台積電法說會",
+      snippet: `上修\n\n展望${"。".repeat(600)}`,
+    })
+  ).toBe(`台積電法說會\n上修 展望${"。".repeat(495)}`);
 });

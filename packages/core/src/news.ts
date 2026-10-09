@@ -153,6 +153,19 @@ export interface NewsStory {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// An event is told up front; what follows, such as an announcement's boilerplate, only dilutes it.
+const STORY_SNIPPET = 500;
+
+/** What a story's vector is made of: an item's title and the start of its snippet. */
+export function storyText({
+  title,
+  snippet,
+}: Pick<NewsItem, "title" | "snippet">): string {
+  const lead = snippet.replace(/\s+/g, " ").trim().slice(0, STORY_SNIPPET);
+
+  return lead ? `${title.trim()}\n${lead}` : title.trim();
+}
+
 // Replies and forwards repeat the title they answer, as PTT's `Re:` and `Fw:` do.
 const REPLY_PREFIX = /^(?:(?:re|fw|fwd)\s*:\s*)+/i;
 
