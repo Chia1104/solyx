@@ -45,6 +45,38 @@ export function volumeRatio(
   });
 }
 
+/** The sessions relative strength is read over: a month, a quarter and half a year. */
+export const RELATIVE_STRENGTH_PERIODS = [20, 60, 120];
+
+/**
+ * Percentage points by which `values` outran `benchmark` over the `period` bars ending with
+ * each, as the difference of their returns; `null` where the benchmark lacks either end.
+ */
+export function relativeReturn(
+  values: readonly number[],
+  benchmark: readonly (number | null)[],
+  period: number
+): IndicatorLine {
+  return values.map((value, i) => {
+    if (i < period) return null;
+
+    const start = values[i - period];
+    const benchmarkStart = benchmark[i - period];
+    const benchmarkEnd = benchmark[i];
+
+    if (
+      benchmarkStart === null ||
+      benchmarkEnd === null ||
+      start === 0 ||
+      benchmarkStart === 0
+    ) {
+      return null;
+    }
+
+    return (value / start - benchmarkEnd / benchmarkStart) * 100;
+  });
+}
+
 /** Seeded with the SMA of its first `period` values; leading nulls from an upstream line are skipped. */
 export function ema(
   values: readonly (number | null)[],

@@ -46,8 +46,13 @@ import {
   RsiPane,
   VolumeRatioPane,
 } from "./indicator-panes.tsx";
-import { ChartIndicator, useIndicatorStore } from "./indicator-store.ts";
+import {
+  ChartIndicator,
+  DAILY_INDICATORS,
+  useIndicatorStore,
+} from "./indicator-store.ts";
 import { useDirectionColors } from "./price-colors.ts";
+import { RelativeStrengthPane } from "./relative-strength-pane.tsx";
 import { useLevels } from "./use-levels.ts";
 
 // Indicators drawn apart from price each get a pane below volume, in this order.
@@ -56,6 +61,7 @@ const PANE_INDICATORS: readonly ChartIndicator[] = [
   ChartIndicator.Rsi,
   ChartIndicator.Kd,
   ChartIndicator.VolumeRatio,
+  ChartIndicator.RelativeStrength,
 ];
 
 function averages(
@@ -182,12 +188,9 @@ export function PriceChart({
     [candles, times, direction]
   );
 
-  const levels = useLevels({
-    candles,
-    times,
-    closes,
-    daily: interval === Interval.OneDay,
-  });
+  const daily = interval === Interval.OneDay;
+
+  const levels = useLevels({ candles, times, closes, daily });
 
   const showShort = enabled.includes(ChartIndicator.MovingAverage);
   const showLong = enabled.includes(ChartIndicator.LongMovingAverage);
@@ -207,8 +210,10 @@ export function PriceChart({
   );
 
   // Volume takes pane 1; enabled pane indicators follow it without gaps.
-  const oscillators = PANE_INDICATORS.filter((indicator) =>
-    enabled.includes(indicator)
+  const oscillators = PANE_INDICATORS.filter(
+    (indicator) =>
+      enabled.includes(indicator) &&
+      (daily || !DAILY_INDICATORS.includes(indicator))
   );
 
   const paneOf = (indicator: ChartIndicator) =>
@@ -276,6 +281,14 @@ export function PriceChart({
           times={times}
           candles={candles}
           pane={paneOf(ChartIndicator.VolumeRatio)}
+        />
+      ) : null}
+      {oscillators.includes(ChartIndicator.RelativeStrength) ? (
+        <RelativeStrengthPane
+          market={market}
+          candles={candles}
+          times={times}
+          pane={paneOf(ChartIndicator.RelativeStrength)}
         />
       ) : null}
       {panes?.(2 + oscillators.length)}

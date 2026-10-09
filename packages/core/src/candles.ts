@@ -183,6 +183,16 @@ export function liveBar(
     : mergeCandles([...earlierDaily, day]);
 }
 
+/** `other`'s close at each of `bars`' times, `null` where it has no bar then. */
+export function alignedCloses(
+  bars: readonly Candle[],
+  other: readonly Candle[]
+): (number | null)[] {
+  const closes = new Map(other.map((candle) => [candle.time, candle.close]));
+
+  return bars.map((bar) => closes.get(bar.time) ?? null);
+}
+
 /** Replaces bars with the same time and inserts the rest in time order, returning a new array. */
 export function upsertCandles(
   candles: readonly Candle[],

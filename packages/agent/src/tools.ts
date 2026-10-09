@@ -16,6 +16,7 @@ import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
 import type { ListingEvent, UpcomingEvents } from "@solyx/core/calendar";
 import {
   Interval,
+  alignedCloses,
   candleDate,
   intervalSchema,
   isIntraday,
@@ -25,10 +26,12 @@ import { CouncilOutcome, councilOutcome } from "@solyx/core/council";
 import type { Council } from "@solyx/core/council";
 import {
   MOVING_AVERAGE_PERIODS,
+  RELATIVE_STRENGTH_PERIODS,
   bollinger,
   ema,
   kd,
   macd,
+  relativeReturn,
   rsi,
   sma,
   volumeRatio,
@@ -45,6 +48,7 @@ import {
 import type { PriceRange } from "@solyx/core/levels";
 import type { MacroRelease } from "@solyx/core/macro";
 import {
+  BENCHMARK,
   Market,
   exchangeDate,
   exchangeMidnight,
@@ -55,7 +59,7 @@ import {
   symbolKey,
   symbolRefSchema,
 } from "@solyx/core/market";
-import type { SymbolRef } from "@solyx/core/market";
+import type { Benchmark, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import {
   NewsChannel,
@@ -188,11 +192,25 @@ const ZONE_NAMES: Record<ZoneKind, string> = {
 const priceRange = ({ low, high }: PriceRange) =>
   `${Number(low.toFixed(2))}-${Number(high.toFixed(2))}`;
 
-/** The levels a daily chart marks, as `get_indicators` reports them. */
-function dailyLevels(daily: Candle[]): string[] {
+/** The levels a daily chart marks and its strength against the market's index, as `get_indicators` reports them. */
+function dailyLevels(
+  daily: Candle[],
+  benchmark: Benchmark,
+  benchmarkBars: Candle[]
+): string[] {
   const year = yearRange(daily);
   const zones = supportZones(daily);
   const control = pointOfControl(volumeProfile(daily));
+  const closes = daily.map((candle) => candle.close);
+  const aligned = alignedCloses(daily, benchmarkBars);
+
+  const strength = RELATIVE_STRENGTH_PERIODS.map((period) => {
+    const value = relativeReturn(closes, aligned, period).at(-1);
+
+    return `${period} sessions ${
+      value === null || value === undefined ? "n/a" : signed(value, 2)
+    }`;
+  });
 
   return [
     `52-week range: ${year ? priceRange(year) : "n/a"}`,
@@ -204,6 +222,7 @@ function dailyLevels(daily: Candle[]): string[] {
             .join("; ")
     }`,
     `volume point of control: ${control ? priceRange(control) : "n/a"}`,
+    `relative strength vs ${benchmark.name}, percentage points: ${strength.join(", ")}`,
   ];
 }
 
@@ -518,13 +537,20 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetIndicators,
       replay: "safe",
-      description: `The latest and previous bar's MA(${MOVING_AVERAGES.join(", ")}), EMA(12, 26), RSI(14), MACD(12, 26, 9) as DIF/MACD/OSC, KD(9), Bollinger Bands(20, 2) and volume over its 20-bar average for a listing. On daily bars also the levels its chart marks: the 52-week range, the support zones (within 2% of MA60 and 3% of MA120 while the close is above each, and the densest trading under the close) and the volume profile's point of control over the last ${PROFILE_SESSIONS} sessions.`,
+      description: `The latest and previous bar's MA(${MOVING_AVERAGES.join(", ")}), EMA(12, 26), RSI(14), MACD(12, 26, 9) as DIF/MACD/OSC, KD(9), Bollinger Bands(20, 2) and volume over its 20-bar average for a listing. On daily bars also the levels its chart marks: the 52-week range, the support zones (within 2% of MA60 and 3% of MA120 while the close is above each, and the densest trading under the close) and the volume profile's point of control over the last ${PROFILE_SESSIONS} sessions; and relative strength against the market's index (${BENCHMARK[Market.TW].name} in Taiwan, ${BENCHMARK[Market.US].name} in the US), the percentage points by which the listing's return beat the index's over the last ${RELATIVE_STRENGTH_PERIODS.join(", ")} sessions.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         interval: intervalSchema,
       }),
       execute: async ({ symbol, interval }) => {
-        const candles = await candlesOf(symbol, interval);
+        const daily = interval === Interval.OneDay;
+        const benchmark = BENCHMARK[symbol.market];
+
+        const [candles, benchmarkBars] = await Promise.all([
+          candlesOf(symbol, interval),
+          daily ? candlesOf(benchmark.symbol, interval) : [],
+        ]);
+
         const closes = candles.map((candle) => candle.close);
         const lines = macd(closes);
         const stochastic = kd(candles);
@@ -555,7 +581,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
               "Volume/MA20",
               volumeRatio(candles.map((candle) => candle.volume))
             ),
-            ...(interval === Interval.OneDay ? dailyLevels(candles) : []),
+            ...(daily ? dailyLevels(candles, benchmark, benchmarkBars) : []),
           ].join("\n"),
           details: { symbol, interval },
         };
