@@ -563,7 +563,11 @@
       "graphite": "Graphite",
       "sepia": "Sepia",
       "iris": "Iris",
-      "lagoon": "Lagoon"
+      "lagoon": "Lagoon",
+      "asuka": "Asuka",
+      "rei": "Rei",
+      "unit-01": "Unit-01",
+      "mari": "Mari"
     },
     "palette-copy": "Copy {{name}}",
     "palette-edit": "Edit {{name}}",
