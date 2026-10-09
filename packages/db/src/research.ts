@@ -1,16 +1,6 @@
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  inArray,
-  isNull,
-  ne,
-  sql,
-} from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
-import { chunk, keyBy, omit, sortBy, uniqBy } from "es-toolkit";
+import { keyBy, omit, sortBy, uniqBy } from "es-toolkit";
 
 import type { Forecast } from "@solyx/core/forecast";
 import { symbolKey } from "@solyx/core/market";
@@ -27,6 +17,7 @@ import {
   passageVectors,
   reports,
 } from "./research-schema.ts";
+import { vectorCache } from "./vectors.ts";
 
 function toForecast(row: typeof forecasts.$inferSelect): Forecast {
   return { ...row.forecast, outcome: row.outcome };
@@ -248,53 +239,7 @@ function researchStore(db: NodeSQLiteDatabase): ResearchStore {
         .all()
         .map((row) => row.report),
 
-    passageVectors(space, texts) {
-      // In batches, well under SQLite's limit on a statement's parameters.
-      const rows = chunk([...texts], 500).flatMap((batch) =>
-        db
-          .select({
-            passage: passageVectors.passage,
-            vector: passageVectors.vector,
-          })
-          .from(passageVectors)
-          .where(
-            and(
-              eq(passageVectors.space, space),
-              inArray(passageVectors.passage, batch)
-            )
-          )
-          .all()
-      );
-
-      // Copied, since SQLite's bytes need not start where a Float32Array may.
-      return new Map(
-        rows.map(({ passage, vector }) => [
-          passage,
-          new Float32Array(Uint8Array.from(vector).buffer),
-        ])
-      );
-    },
-
-    savePassageVectors(space, vectors) {
-      db.transaction((tx) => {
-        tx.delete(passageVectors).where(ne(passageVectors.space, space)).run();
-
-        for (const { text, values } of vectors) {
-          tx.insert(passageVectors)
-            .values({
-              space,
-              passage: text,
-              vector: Buffer.from(
-                values.buffer,
-                values.byteOffset,
-                values.byteLength
-              ),
-            })
-            .onConflictDoNothing()
-            .run();
-        }
-      });
-    },
+    ...vectorCache(db, passageVectors),
 
     searchReports(query, limit, symbol) {
       const match = anyTerm(query);

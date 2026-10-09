@@ -2,12 +2,16 @@ import { randomBytes } from "node:crypto";
 
 import { defineExtension, section } from "@earendil-works/pi-durable";
 import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
-import { escape, partition, uniqBy } from "es-toolkit";
+import { escape, maxBy, partition, uniqBy } from "es-toolkit";
 import * as z from "zod";
 
-import { Market, exchangeDate } from "@solyx/core/market";
-import { MemoryKind } from "@solyx/core/memory";
+import { cachedVectors, clearlyNearest, cosine } from "@solyx/core/embedding";
+import type { Embedder } from "@solyx/core/embedding";
+import { Market, exchangeDate, symbolKey } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
+import { MEMORY_LINES, MemoryKind, memoryText } from "@solyx/core/memory";
 import type { Memory, MemoryStore } from "@solyx/core/memory";
+import { fuseRankings } from "@solyx/utils/search";
 
 import type { ToolGuard } from "./approval.ts";
 import { defineTool } from "./tools.ts";
@@ -19,6 +23,8 @@ import {
 
 export interface MemoryOptions {
   store: MemoryStore;
+  /** Embeds memories to search them and tell one said again; only a model on this computer, since they are the user's own. */
+  embedder?: () => Embedder | undefined;
   /** @default () => new Date() */
   now?: () => Date;
 }
@@ -83,7 +89,7 @@ function indexText(memories: readonly Memory[]) {
   ].join("\n");
 }
 
-function memoryText(memory: Memory) {
+function memoryBlock(memory: Memory) {
   return [
     `<memory ${attributes(memory)}>`,
     escape(memory.description),
@@ -99,7 +105,7 @@ function memoryText(memory: Memory) {
 function checkedFirst<Schema extends z.ZodType>(
   guarded: ToolRegistration,
   schema: Schema,
-  check: (args: z.infer<Schema>) => void
+  check: (args: z.infer<Schema>) => void | Promise<void>
 ): ToolRegistration {
   return {
     ...guarded,
@@ -108,7 +114,7 @@ function checkedFirst<Schema extends z.ZodType>(
 
       if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
 
-      check(parsed.data);
+      await check(parsed.data);
 
       return guarded.execute(params, api, context);
     },
@@ -136,6 +142,91 @@ export function createMemory(options: MemoryOptions) {
     return id;
   }
 
+  /** The memories whose text reads clearly nearest `query`; none without an embedder or while it cannot be reached. */
+  async function nearest(query: string): Promise<Memory[]> {
+    const embedder = options.embedder?.();
+    const memories = store.list();
+
+    if (!embedder || memories.length === 0) return [];
+
+    try {
+      const [asked] = await embedder.embed([query]);
+
+      const vectors = await cachedVectors(
+        embedder,
+        store,
+        memories.map(memoryText)
+      );
+
+      return clearlyNearest(
+        memories.flatMap((item) => {
+          const vector = vectors.get(memoryText(item));
+
+          return vector ? [{ item, similarity: cosine(asked, vector) }] : [];
+        }),
+        FOUND
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * The memory of the same kind and listing a new one reads as said again, if one does; none
+   * without an embedder, on a space with no line, or while the embedder cannot be reached.
+   */
+  async function saidAgain(draft: {
+    kind: MemoryKind;
+    listing?: SymbolRef;
+    description: string;
+    body: string;
+  }): Promise<Memory | undefined> {
+    const embedder = options.embedder?.();
+    const line = embedder && MEMORY_LINES.get(embedder.space);
+
+    if (!embedder || line === undefined) return undefined;
+
+    const listing = draft.listing ? symbolKey(draft.listing) : null;
+
+    const kept = store
+      .list()
+      .filter(
+        (memory) =>
+          memory.kind === draft.kind &&
+          (memory.listing ? symbolKey(memory.listing) : null) === listing
+      );
+
+    if (kept.length === 0) return undefined;
+
+    try {
+      const text = memoryText(draft);
+
+      const vectors = await cachedVectors(embedder, store, [
+        text,
+        ...kept.map(memoryText),
+      ]);
+
+      const asked = vectors.get(text);
+
+      if (!asked) return undefined;
+
+      const nearestKept = maxBy(
+        kept.flatMap((memory) => {
+          const vector = vectors.get(memoryText(memory));
+
+          return vector ? [{ memory, similarity: cosine(asked, vector) }] : [];
+        }),
+        ({ similarity }) => similarity
+      );
+
+      return nearestKept && nearestKept.similarity >= line
+        ? nearestKept.memory
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   const recall = defineTool({
     name: AgentToolName.Recall,
     replay: "safe",
@@ -160,13 +251,20 @@ export function createMemory(options: MemoryOptions) {
       }
 
       const read = store.read(ids);
-      const found = query ? store.search(query, FOUND) : [];
+
+      const found = query
+        ? fuseRankings(
+            [store.search(query, FOUND), await nearest(query)],
+            (memory) => memory.id
+          ).slice(0, FOUND)
+        : [];
+
       const shown = uniqBy([...read, ...found], (memory) => memory.id);
 
       const gone = ids.filter((id) => !read.some((memory) => memory.id === id));
 
       const text = [
-        ...shown.map(memoryText),
+        ...shown.map(memoryBlock),
         ...(gone.length > 0
           ? [`No memory has the id ${gone.join(", ")}; it may be forgotten.`]
           : []),
@@ -229,13 +327,27 @@ export function createMemory(options: MemoryOptions) {
         name: "solyx-memory",
         tools: [
           recall,
-          checkedFirst(guard(remember), rememberArgumentsSchema, ({ id }) => {
-            if (id !== undefined && missing(id)) {
-              throw new Error(
-                `No memory has the id ${id}; leave the id out to save a new one`
-              );
+          checkedFirst(
+            guard(remember),
+            rememberArgumentsSchema,
+            async ({ id, distinct, ...draft }) => {
+              if (id !== undefined && missing(id)) {
+                throw new Error(
+                  `No memory has the id ${id}; leave the id out to save a new one`
+                );
+              }
+
+              if (id !== undefined || distinct) return;
+
+              const kept = await saidAgain(draft);
+
+              if (kept) {
+                throw new Error(
+                  `Memory ${kept.id} reads as holding this already: "${kept.description}". Rewrite it under its id if this updates it, or call remember again with distinct true if this holds something it does not.`
+                );
+              }
             }
-          }),
+          ),
           checkedFirst(guard(forget), forgetArgumentsSchema, ({ id }) => {
             if (missing(id)) throw new Error(`No memory has the id ${id}`);
           }),

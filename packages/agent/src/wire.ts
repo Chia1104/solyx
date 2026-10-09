@@ -149,6 +149,12 @@ export const rememberArgumentsSchema = z.object({
   body: memoryBodySchema
     .default("")
     .describe("The details recall reads; may be empty"),
+  distinct: z
+    .boolean()
+    .default(false)
+    .describe(
+      "True to save a new memory the app read as one already kept, once you checked that it holds something that one does not"
+    ),
 });
 
 export const forgetArgumentsSchema = z.object({

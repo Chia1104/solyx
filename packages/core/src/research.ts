@@ -1,12 +1,12 @@
-import { groupBy, keyBy, pick, uniq, uniqBy } from "es-toolkit";
+import { groupBy, keyBy, pick, uniqBy } from "es-toolkit";
 
 import { fuseRankings } from "@solyx/utils/search";
 
 import { Interval, candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import type { Council } from "./council.ts";
-import { clearlyNearest, cosine } from "./embedding.ts";
-import type { Embedder } from "./embedding.ts";
+import { cachedVectors, clearlyNearest, cosine } from "./embedding.ts";
+import type { Embedder, VectorCache } from "./embedding.ts";
 import {
   ForecastViolationCode,
   checkForecast,
@@ -39,7 +39,7 @@ import type {
 } from "./report.ts";
 
 /** Where research persists. Synchronous so the desk checks a forecast and keeps it without an await between. */
-export interface ResearchStore {
+export interface ResearchStore extends VectorCache {
   /** A listing's newest revision. */
   report(symbol: SymbolRef): Report | undefined;
   addReport(report: Report): void;
@@ -61,16 +61,6 @@ export interface ResearchStore {
   addFalsifierCheck(symbol: SymbolRef, check: FalsifierCheck): void;
   /** Every revision of one listing's report, or of every listing's, oldest first. */
   reports(symbol?: SymbolRef): Report[];
-  /** The vectors kept in `space` for those of `texts` that have one. */
-  passageVectors(
-    space: string,
-    texts: readonly string[]
-  ): Map<string, Float32Array>;
-  /** Keeps each text's vector in `space`, dropping every vector of another space. */
-  savePassageVectors(
-    space: string,
-    vectors: readonly { text: string; values: Float32Array }[]
-  ): void;
 }
 
 /** A news item a falsifier was read against, and how far the item states that it happened. */
@@ -353,7 +343,7 @@ export class ResearchDesk {
 
     if (!auditor || embedded.length === 0) return;
 
-    const vectors = await this.#vectors(embedder, report.falsifiers);
+    const vectors = await cachedVectors(embedder, store, report.falsifiers);
 
     const checked = new Set(
       store
@@ -508,7 +498,7 @@ export class ResearchDesk {
 
     try {
       [asked] = await embedder.embed([query]);
-      vectors = await this.#vectors(embedder, [
+      vectors = await cachedVectors(embedder, this.#options.store, [
         ...reportParts.flat(),
         ...forecastParts.flat(),
       ]);
@@ -541,32 +531,6 @@ export class ResearchDesk {
         limit
       ),
     };
-  }
-
-  /** Each text's vector in `embedder`'s space, embedding and keeping those not kept before. */
-  async #vectors(
-    embedder: Embedder,
-    texts: readonly string[]
-  ): Promise<Map<string, Float32Array>> {
-    const { store } = this.#options;
-    const unique = uniq(texts);
-    const kept = store.passageVectors(embedder.space, unique);
-    const missing = unique.filter((text) => !kept.has(text));
-
-    if (missing.length > 0) {
-      const made = await embedder.embed(missing);
-
-      const vectors = missing.map((text, index) => ({
-        text,
-        values: made[index],
-      }));
-
-      store.savePassageVectors(embedder.space, vectors);
-
-      for (const { text, values } of vectors) kept.set(text, values);
-    }
-
-    return kept;
   }
 
   /** Has each claim read against its quote, and answers with the reading a claim was given. */

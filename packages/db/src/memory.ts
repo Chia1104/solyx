@@ -7,7 +7,8 @@ import type { Memory, MemoryDraft, MemoryStore } from "@solyx/core/memory";
 import { connect } from "./connection.ts";
 import { databaseBytes } from "./database-file.ts";
 import { anyTerm, indexedTerms } from "./full-text.ts";
-import { memories } from "./memory-schema.ts";
+import { memories, memoryVectors } from "./memory-schema.ts";
+import { vectorCache } from "./vectors.ts";
 
 function toMemory(row: typeof memories.$inferSelect): Memory {
   return {
@@ -32,6 +33,8 @@ function termsOf(draft: MemoryDraft) {
 
 function memoryStore(db: NodeSQLiteDatabase): MemoryStore {
   return {
+    ...vectorCache(db, memoryVectors),
+
     list: () =>
       db
         .select()
@@ -162,6 +165,7 @@ export function openMemory(path: string, migrationsFolder: string) {
     clear() {
       db.transaction((tx) => {
         tx.delete(memories).run();
+        tx.delete(memoryVectors).run();
         tx.run(
           sql`INSERT INTO memory_terms (memory_terms) VALUES ('delete-all')`
         );

@@ -1,5 +1,6 @@
 import * as z from "zod";
 
+import type { VectorCache } from "./embedding.ts";
 import type { SymbolRef } from "./market.ts";
 
 /** What a memory holds, which decides where the agent's index lists it. */
@@ -84,8 +85,8 @@ export interface Memory {
 
 export type MemoryDraft = Omit<Memory, "createdAt" | "updatedAt">;
 
-/** Where memories persist across conversations. */
-export interface MemoryStore {
+/** Where memories persist across conversations, and the vectors of what they hold. */
+export interface MemoryStore extends VectorCache {
   /** Most recently updated first. */
   list(): Memory[];
   /** The memories with these ids, in the order asked; an id no memory has is left out. */
@@ -100,3 +101,19 @@ export interface MemoryStore {
   /** Whether a memory had the id. */
   forget(id: string): boolean;
 }
+
+/** What a memory's vector is made of: its description and body. */
+export function memoryText({
+  description,
+  body,
+}: Pick<Memory, "description" | "body">): string {
+  return body ? `${description}\n${body}` : description;
+}
+
+/**
+ * By space, the line above which a new memory reads as one of the same kind and listing said again.
+ * Each rests on `eval-memories` in `@solyx/embeddings`; a space not listed flags none.
+ */
+export const MEMORY_LINES = new Map<string, number>([
+  ["qwen3-embedding:0.6b", 0.72],
+]);

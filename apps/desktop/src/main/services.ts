@@ -248,6 +248,7 @@ export function createServices() {
     web: () => webSearch.vendor(),
     desk,
     memory: memories.store,
+    localEmbedder: () => embeddings.localEmbedder(),
     research: research.desk,
     fundamentals,
   });

@@ -21,6 +21,7 @@ import {
   newsItems,
   newsSourceHealth,
 } from "./news-schema.ts";
+import { toBytes, toValues } from "./vectors.ts";
 
 type ItemRow = typeof newsItems.$inferSelect;
 
@@ -69,10 +70,6 @@ function indexMissing(db: NodeSQLiteDatabase) {
 }
 
 type EmbeddingRow = typeof itemEmbeddings.$inferSelect;
-
-// Copied, since SQLite's bytes need not start where a Float32Array may.
-const toValues = (vector: Uint8Array) =>
-  new Float32Array(Uint8Array.from(vector).buffer);
 
 function toRecord(
   item: ItemRow,
@@ -275,11 +272,7 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
 
           if (!item) continue;
 
-          const vector = Buffer.from(
-            values.buffer,
-            values.byteOffset,
-            values.byteLength
-          );
+          const vector = toBytes(values);
 
           tx.insert(itemEmbeddings)
             .values({ itemId: item.id, space, vector })

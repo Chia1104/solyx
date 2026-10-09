@@ -11,7 +11,7 @@ import { Market } from "@solyx/core/market";
 import { MemoryKind } from "@solyx/core/memory";
 import type { MemoryDraft } from "@solyx/core/memory";
 
-import { memories } from "../src/memory-schema.ts";
+import { memories, memoryVectors } from "../src/memory-schema.ts";
 import { openMemory } from "../src/memory.ts";
 import type { MemoryData } from "../src/memory.ts";
 
@@ -58,32 +58,35 @@ function open() {
 }
 
 // A schema change committed without `db:generate` fails here.
-test("migrations build the table the schema describes", () => {
-  open().close();
-  opened = [];
+test.each([memories, memoryVectors])(
+  "migrations build the table the schema describes",
+  (table) => {
+    open().close();
+    opened = [];
 
-  const db = new DatabaseSync(join(directory, "memory.sqlite"));
-  const config = getTableConfig(memories);
+    const db = new DatabaseSync(join(directory, "memory.sqlite"));
+    const config = getTableConfig(table);
 
-  const columns = db
-    .prepare(`SELECT name, type, "notnull" FROM pragma_table_info(?)`)
-    .all(config.name)
-    .map((column) => [
-      column.name,
-      String(column.type).toLowerCase(),
-      column.notnull === 1,
-    ]);
+    const columns = db
+      .prepare(`SELECT name, type, "notnull" FROM pragma_table_info(?)`)
+      .all(config.name)
+      .map((column) => [
+        column.name,
+        String(column.type).toLowerCase(),
+        column.notnull === 1,
+      ]);
 
-  db.close();
+    db.close();
 
-  expect(columns).toEqual(
-    config.columns.map((column) => [
-      column.name,
-      column.getSQLType(),
-      column.notNull && !column.primary,
-    ])
-  );
-});
+    expect(columns).toEqual(
+      config.columns.map((column) => [
+        column.name,
+        column.getSQLType(),
+        column.notNull && !column.primary,
+      ])
+    );
+  }
+);
 
 test("a memory is kept across opens, newest first, and read by id in the order asked", () => {
   const first = open();
@@ -187,4 +190,22 @@ test("clearing forgets every memory and its words", () => {
   expect(memory.store.search("毛利", 10).map((found) => found.id)).toEqual([
     "b",
   ]);
+});
+
+test("a memory's vector is kept by its text, and clearing forgets it", () => {
+  const memory = open();
+
+  memory.store.savePassageVectors("small", [
+    { text: "Prefers limit orders", values: Float32Array.of(1, 0) },
+  ]);
+
+  expect([
+    ...memory.store.passageVectors("small", ["Prefers limit orders"]).keys(),
+  ]).toEqual(["Prefers limit orders"]);
+
+  memory.clear();
+
+  expect(
+    memory.store.passageVectors("small", ["Prefers limit orders"])
+  ).toEqual(new Map());
 });

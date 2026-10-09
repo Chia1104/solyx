@@ -1,7 +1,5 @@
 import {
-  blob,
   integer,
-  primaryKey,
   real,
   sqliteTable,
   text,
@@ -12,6 +10,8 @@ import type { Forecast, ForecastOutcome } from "@solyx/core/forecast";
 import type { Market } from "@solyx/core/market";
 import type { TimePrecision } from "@solyx/core/news";
 import type { Report } from "@solyx/core/report";
+
+import { passageVectorsTable } from "./vectors.ts";
 
 // drizzle-kit generates ../migrations/research from these tables.
 
@@ -86,13 +86,4 @@ export const falsifierChecks = sqliteTable(
  * The vector of each passage of research, by its text, in one space at a time: a revision carries
  * most passages over unchanged, so each is embedded once.
  */
-export const passageVectors = sqliteTable(
-  "passage_vectors",
-  {
-    space: text().notNull(),
-    passage: text().notNull(),
-    /** Float32 values in the platform's byte order. */
-    vector: blob({ mode: "buffer" }).notNull(),
-  },
-  (table) => [primaryKey({ columns: [table.space, table.passage] })]
-);
+export const passageVectors = passageVectorsTable("passage_vectors");

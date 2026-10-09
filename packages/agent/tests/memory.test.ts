@@ -16,6 +16,7 @@ import type {
 } from "@earendil-works/pi-durable";
 import { expect, test, vi } from "vite-plus/test";
 
+import type { Embedder } from "@solyx/core/embedding";
 import { Market } from "@solyx/core/market";
 import { MemoryKind } from "@solyx/core/memory";
 import type { Memory, MemoryDraft, MemoryStore } from "@solyx/core/memory";
@@ -43,6 +44,7 @@ const TSMC = { market: Market.TW, symbol: "2330" };
 /** Memories in a map, found by any word of a query; the SQLite store is tested in @solyx/db. */
 function fakeStore(): MemoryStore {
   const memories = new Map<string, Memory>();
+  const vectors = new Map<string, Float32Array>();
 
   const list = () =>
     [...memories.values()].toSorted((a, b) => b.updatedAt - a.updatedAt);
@@ -74,6 +76,19 @@ function fakeStore(): MemoryStore {
       return saved;
     },
     forget: (id) => memories.delete(id),
+    passageVectors: (space, texts) =>
+      new Map(
+        texts.flatMap((text) => {
+          const values = vectors.get(`${space}\n${text}`);
+
+          return values ? [[text, values] as const] : [];
+        })
+      ),
+    savePassageVectors(space, saved) {
+      for (const { text, values } of saved) {
+        vectors.set(`${space}\n${text}`, values);
+      }
+    },
   };
 }
 
@@ -176,10 +191,12 @@ function callApi(callId: string): ToolExecutionApi {
 }
 
 /** The extension's tools with nothing to ask, called as pi-durable would call them. */
-function direct(store: MemoryStore) {
-  const extension = createMemory({ store, now: () => NOW }).extension(
-    (tool) => tool
-  );
+function direct(store: MemoryStore, embedder?: Embedder) {
+  const extension = createMemory({
+    store,
+    embedder: () => embedder,
+    now: () => NOW,
+  }).extension((tool) => tool);
 
   async function run(
     name: AgentToolName,
@@ -377,4 +394,74 @@ test("the list leads with profile and feedback, then the newest notes, and count
   expect(text.length).toBeLessThan(10_000);
 
   expect(await direct(fakeStore()).index()).toContain("No memories yet.");
+});
+
+/** Vectors on a measured space: texts about stop losses or day trading lie along [1, 0], the rest across it. */
+const embedder: Embedder = {
+  space: "qwen3-embedding:0.6b",
+  embed: async (texts) =>
+    texts.map((text) =>
+      /當沖|沖銷|stop|停損/i.test(text)
+        ? Float32Array.of(1, 0)
+        : Float32Array.of(0, 1)
+    ),
+};
+
+test("a new memory read as one of its kind already kept fails before the user is asked, unless it is distinct", async () => {
+  const store = fakeStore();
+
+  store.save(
+    {
+      ...note("kept"),
+      kind: MemoryKind.Profile,
+      description: "使用者偏好中長期持有台股，不做當日沖銷",
+    },
+    1
+  );
+  store.save(note("other", { description: "Prefers short replies" }), 2);
+
+  const { run } = direct(store, embedder);
+
+  const again = {
+    kind: MemoryKind.Profile,
+    description: "使用者偏好台股中長線，不做當沖",
+  };
+
+  await expect(run(AgentToolName.Remember, again)).rejects.toThrow(
+    'Memory kept reads as holding this already: "使用者偏好中長期持有台股，不做當日沖銷"'
+  );
+  expect(store.list()).toHaveLength(2);
+
+  // A note is not a profile, distinct says it holds more, and a rewrite names its memory.
+  await run(AgentToolName.Remember, { ...again, kind: MemoryKind.Note });
+  await run(
+    AgentToolName.Remember,
+    { ...again, distinct: true },
+    callApi("call-2")
+  );
+  await run(
+    AgentToolName.Remember,
+    { ...again, id: "kept" },
+    callApi("call-3")
+  );
+
+  expect(store.list()).toHaveLength(4);
+  expect(store.read(["kept"])[0].description).toBe(again.description);
+});
+
+test("recall finds by meaning a memory that shares no word with the search", async () => {
+  const store = fakeStore();
+
+  store.save(note("stop", { description: "停損設在進場價下方 7%" }), 1);
+  store.save(note("reply", { description: "Prefers short replies" }), 2);
+  store.save(note("chart", { description: "Reads weekly charts first" }), 3);
+
+  const { run } = direct(store, embedder);
+
+  expect(await run(AgentToolName.Recall, { query: "stop loss" })).toContain(
+    "停損設在進場價下方 7%"
+  );
+  expect(await run(AgentToolName.Recall, { query: "stop loss" })).not.toContain(
+    "Prefers short replies"
+  );
 });
