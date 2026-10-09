@@ -49,10 +49,12 @@ import type { ConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
+import { createTraces } from "./modules/traces/traces.ts";
 import { createAppUpdater } from "./modules/updates/app-updater.ts";
 import { createUpdates } from "./modules/updates/updates.ts";
 import { createWebSearch } from "./modules/web-search/web-search.ts";
 import { createScheduler } from "./scheduler.ts";
+import { appChannel } from "./shell/app-channel.ts";
 import { paintWindow } from "./shell/main-window.ts";
 
 const PAPER_CASH = { [Currency.TWD]: 1_000_000, [Currency.USD]: 30_000 };
@@ -103,6 +105,13 @@ export function createServices(config: ConfigFile) {
   );
 
   config.create();
+
+  const traces = createTraces({
+    config,
+    secrets,
+    version: app.getVersion(),
+    channel: appChannel(),
+  });
 
   const marketData = createMarketData({
     sources: createMarketDataSources({
@@ -246,6 +255,7 @@ export function createServices(config: ConfigFile) {
   const agent = createAgentService({
     config,
     secrets,
+    tracer: traces.tracer,
     getDeviceId: installationId(join(userDataDir, "installation-id")),
     openExternal,
     skillFolders,
@@ -309,7 +319,7 @@ export function createServices(config: ConfigFile) {
     onChange: () => broadcast(updatesEvents.onChanged),
   });
 
-  const scheduler = createScheduler();
+  const scheduler = createScheduler({ tracer: traces.tracer });
 
   scheduler.register("News collection", newsCollector);
   scheduler.register("Update check", updates);
@@ -343,6 +353,7 @@ export function createServices(config: ConfigFile) {
     calendar,
     flows,
     agent,
+    traces,
     mcp,
     decisions,
     embeddings,

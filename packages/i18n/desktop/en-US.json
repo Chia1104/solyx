@@ -820,6 +820,10 @@
       "finmind-token": {
         "label": "FinMind token",
         "hint": "FinMind answers without one, up to 300 requests an hour; a free account's token raises that to 600."
+      },
+      "trace-headers": {
+        "label": "OTLP headers",
+        "hint": "What traces are sent with, as OTEL_EXPORTER_OTLP_HEADERS writes them, such as the authorization Grafana Cloud shows. A collector that needs none goes without."
       }
     },
     "sign-in": {
@@ -1187,6 +1191,14 @@
       "reveal-mac": "Show in Finder",
       "reveal": "Show in folder",
       "license": "License"
+    },
+    "traces": {
+      "title": "Traces",
+      "description": "Sends a trace of each agent run, with its model requests and tool calls, and of each pass of scheduled work to an OpenTelemetry endpoint you choose, such as Grafana Cloud's. Traces hold models, token counts and timings, never what a conversation says. Nothing is sent until an endpoint is set.",
+      "endpoint": "OTLP endpoint",
+      "endpoint-description": "As OTEL_EXPORTER_OTLP_ENDPOINT names it; traces go to its /v1/traces over HTTP.",
+      "endpoint-invalid": "Enter an http or https address",
+      "stop": "Stop sending"
     }
   },
   "updates": {

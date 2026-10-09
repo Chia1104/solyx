@@ -27,6 +27,7 @@ export const settingsQueryKeys = {
   memory: [...all, "memory"] as const,
   updates: [...all, "updates"] as const,
   crashReports: [...all, "crash-reports"] as const,
+  traces: [...all, "traces"] as const,
   mcp: [...all, "mcp"] as const,
 };
 
@@ -110,6 +111,14 @@ export const updateSettingsQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.updates,
     queryFn: () => window.solyx.settings.updates(),
+    staleTime: Infinity,
+  });
+
+/** Never stale, as below. */
+export const traceSettingsQuery = () =>
+  queryOptions({
+    queryKey: settingsQueryKeys.traces,
+    queryFn: () => window.solyx.settings.traces(),
     staleTime: Infinity,
   });
 

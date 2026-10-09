@@ -820,6 +820,10 @@
       "finmind-token": {
         "label": "FinMind token",
         "hint": "不填也能用，每小時 300 次請求；免費註冊的 token 可提高到 600 次。"
+      },
+      "trace-headers": {
+        "label": "OTLP headers",
+        "hint": "傳送 traces 時附帶的 header，格式同 OTEL_EXPORTER_OTLP_HEADERS，例如 Grafana Cloud 提供的授權。不需要 header 的 collector 可以留空。"
       }
     },
     "sign-in": {
@@ -1187,6 +1191,14 @@
       "reveal-mac": "在 Finder 中顯示",
       "reveal": "開啟所在資料夾",
       "license": "授權"
+    },
+    "traces": {
+      "title": "Traces",
+      "description": "把每次 agent 執行（含其中的模型請求與工具呼叫），以及每一輪排程工作的 trace，送到你指定的 OpenTelemetry 端點，例如 Grafana Cloud。Trace 只記錄模型、token 數與耗時，不會包含對話內容。設定端點之前不會傳送任何東西。",
+      "endpoint": "OTLP 端點",
+      "endpoint-description": "格式同 OTEL_EXPORTER_OTLP_ENDPOINT；traces 會透過 HTTP 送到它的 /v1/traces。",
+      "endpoint-invalid": "請輸入 http 或 https 網址",
+      "stop": "停止傳送"
     }
   },
   "updates": {

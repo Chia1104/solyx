@@ -57,7 +57,11 @@ void app.whenReady().then(() => {
     event.preventDefault();
     services.scheduler.stop();
 
-    void withTimeout(() => services.agent.close(), CLOSE_TIMEOUT_MS)
+    // Traces last, so they hold how the runs stopped.
+    void withTimeout(async () => {
+      await services.agent.close();
+      await services.traces.close();
+    }, CLOSE_TIMEOUT_MS)
       .catch(console.error)
       .finally(() => app.quit());
   });

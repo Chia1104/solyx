@@ -21,6 +21,7 @@ export function TextSettingRow({
   description,
   value,
   isDefault,
+  resetLabel,
   schema,
   onSave,
   onSettled,
@@ -29,6 +30,8 @@ export function TextSettingRow({
   description?: ReactNode;
   value: string;
   isDefault: boolean;
+  /** What going back to the default does, where "use default" would not say it. */
+  resetLabel?: string;
   /** Validates the entered text, with localized messages. */
   schema: z.ZodType<string, string>;
   /** `null` goes back to the default. */
@@ -83,7 +86,7 @@ export function TextSettingRow({
                 variant="tertiary"
                 isPending={save.isPending}
                 onPress={() => save.mutate(null)}>
-                {t("settings.use-default")}
+                {resetLabel ?? t("settings.use-default")}
               </Button>
             )}
           </>

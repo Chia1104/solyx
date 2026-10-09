@@ -6,6 +6,8 @@ import {
 } from "@sentry/electron/main";
 import { app } from "electron";
 
+import { appChannel } from "../../shell/app-channel.ts";
+
 import { scrubEvent } from "./scrub-event.ts";
 
 // Written into the bundle by `vp pack` from the release workflow, so development builds and forks
@@ -30,7 +32,7 @@ export function startCrashReports(sending: () => boolean) {
     dsn: DSN,
     // The release the package workflow uploads the renderer's source maps to.
     release: `solyx@${version}`,
-    environment: version.includes("-nightly.") ? "nightly" : "stable",
+    environment: appChannel(),
     // The preload carries Sentry's bridge, so the renderer needs no protocol of its own.
     ipcMode: IPCMode.Classic,
     dataCollection: {

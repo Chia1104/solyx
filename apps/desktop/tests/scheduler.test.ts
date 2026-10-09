@@ -1,3 +1,4 @@
+import { trace } from "@opentelemetry/api";
 import { noop } from "es-toolkit";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
@@ -16,7 +17,10 @@ const settle = () => new Promise((resolve) => setImmediate(resolve));
 function setup() {
   let now = 0;
 
-  const scheduler = createScheduler({ now: () => now });
+  const scheduler = createScheduler({
+    tracer: trace.getTracer("test"),
+    now: () => now,
+  });
 
   return {
     scheduler,
@@ -89,7 +93,7 @@ test("a failed pass is logged under its name and leaves the others going", async
 test("the clock ticks a minute after start, then every minute, until stopped", async () => {
   vi.useFakeTimers();
 
-  const scheduler = createScheduler();
+  const scheduler = createScheduler({ tracer: trace.getTracer("test") });
   const run = vi.fn(async () => undefined);
 
   scheduler.register("work", { everyMs: MINUTE_MS, run });
