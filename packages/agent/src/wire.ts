@@ -1,9 +1,11 @@
 /**
- * What the main process tells a renderer about a conversation, and the fold that turns it into
- * what the thread shows. A live run and a replayed transcript go through the same fold, and this
- * module imports nothing from pi, so the renderer can use it.
+ * What the main process tells a renderer about a conversation, the fold that turns it into what
+ * the thread shows, and what a message the user writes names. A live run and a replayed
+ * transcript go through the same fold, and this module imports nothing from pi, so the renderer
+ * can use it.
  */
 
+import { uniq } from "es-toolkit";
 import * as z from "zod";
 
 import { councilSchema } from "@solyx/core/council";
@@ -54,6 +56,26 @@ export const agentSessionSetupSchema = agentModelPickSchema.extend({
 });
 
 export type AgentSessionSetup = z.infer<typeof agentSessionSetupSchema>;
+
+// `@` opens a code where no letter or digit precedes it, so an address is not read as one, and a
+// trailing full stop is not part of it. A Chinese input method writes the full-width forms.
+const MENTION = /(?<![0-9A-Za-z])[@＠]([0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)/g;
+
+// Names as the Agent Skills format allows them.
+const COMMAND = /^\s*[/／]([a-z0-9]+(?:-[a-z0-9]+)*)(?=\s|$)/;
+
+/**
+ * What a message names: the skill a leading `/name` asks for, and each code `@` marks, once and
+ * upper-cased. Whether they name a skill or a listing the app knows is the host's to resolve.
+ */
+export function messageTokens(text: string) {
+  return {
+    skill: COMMAND.exec(text)?.[1],
+    codes: uniq(
+      Array.from(text.matchAll(MENTION), (match) => match[1].toUpperCase())
+    ),
+  };
+}
 
 /** The agent's tools, which the renderer labels and whose `details` it narrows by name. */
 export const AgentToolName = {

@@ -5,6 +5,7 @@ import {
   RunEndReason,
   ToolCallStatus,
   foldEvents,
+  messageTokens,
 } from "../src/wire.ts";
 import type { AgentWireEvent } from "../src/wire.ts";
 
@@ -69,4 +70,26 @@ test("a script's calls sit under it, after those it made before, while its round
     { toolCallId: "script/2", parentToolCallId: "script" },
     { toolCallId: "other" },
   ]);
+});
+
+test("a message names the skill it opens with and each code after @, once", () => {
+  expect(
+    messageTokens(
+      "/deep-analysis 比較@2330和 @2454，再看 ＠nvda、@2330 與 @BRK.B."
+    )
+  ).toEqual({
+    skill: "deep-analysis",
+    codes: ["2330", "2454", "NVDA", "BRK.B"],
+  });
+});
+
+test("an address, a slash inside the text and a bare @ name nothing", () => {
+  expect(messageTokens("寄到 me@example.com，看 a/b 的 @ 號")).toEqual({
+    skill: undefined,
+    codes: [],
+  });
+  expect(messageTokens("/deep-analysis/x")).toEqual({
+    skill: undefined,
+    codes: [],
+  });
 });
