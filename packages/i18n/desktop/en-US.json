@@ -145,11 +145,13 @@
     },
     "indicators-label": "Indicators",
     "indicators": {
-      "ma": "MA",
+      "ma": "Short MAs",
+      "ma-long": "Long MAs",
       "boll": "BOLL",
       "macd": "MACD",
       "rsi": "RSI",
       "kd": "KD",
+      "vol-ratio": "Volume ratio",
       "foreign-flow": "Foreign net buying",
       "trust-flow": "Trust net buying",
       "margin": "Margin balance"

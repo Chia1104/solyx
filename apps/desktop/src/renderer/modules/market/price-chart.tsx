@@ -13,6 +13,7 @@ import type {
   ChartOptions,
   DeepPartial,
   HistogramSeriesPartialOptions,
+  LineWidth,
 } from "lightweight-charts";
 import { useTranslation } from "react-i18next";
 
@@ -43,22 +44,36 @@ import {
   KdPane,
   MacdPane,
   RsiPane,
+  VolumeRatioPane,
 } from "./indicator-panes.tsx";
 import { ChartIndicator, useIndicatorStore } from "./indicator-store.ts";
 import { useDirectionColors } from "./price-colors.ts";
 
-// Oscillators each get a pane below volume, in this order.
+// Indicators drawn apart from price each get a pane below volume, in this order.
 const PANE_INDICATORS: readonly ChartIndicator[] = [
   ChartIndicator.Macd,
   ChartIndicator.Rsi,
   ChartIndicator.Kd,
+  ChartIndicator.VolumeRatio,
 ];
 
-const MOVING_AVERAGES = MOVING_AVERAGE_PERIODS.map((period, index) => {
-  const color = MOVING_AVERAGE_COLORS[index];
+function averages(
+  periods: readonly number[],
+  colors: readonly string[],
+  lineWidth: LineWidth
+) {
+  return periods.map((period, index) => {
+    const color = colors[index];
 
-  return { period, color, options: lineOptions(color) };
-});
+    return { period, color, options: { ...lineOptions(color), lineWidth } };
+  });
+}
+
+// The long lines are drawn heavier, since they carry the trend the short ones move about.
+const MOVING_AVERAGES = {
+  short: averages(MOVING_AVERAGE_PERIODS.short, MOVING_AVERAGE_COLORS.short, 1),
+  long: averages(MOVING_AVERAGE_PERIODS.long, MOVING_AVERAGE_COLORS.long, 2),
+};
 
 const VOLUME_OPTIONS: HistogramSeriesPartialOptions = {
   priceFormat: { type: "volume" },
@@ -166,22 +181,24 @@ export function PriceChart({
     [candles, times, direction]
   );
 
-  const showMovingAverages = enabled.includes(ChartIndicator.MovingAverage);
+  const showShort = enabled.includes(ChartIndicator.MovingAverage);
+  const showLong = enabled.includes(ChartIndicator.LongMovingAverage);
 
   // The legend reads the same values, so moving averages are computed here rather than in a pane.
   const movingAverages = useMemo(
     () =>
-      showMovingAverages
-        ? MOVING_AVERAGES.map((average) => {
-            const values = sma(closes, average.period);
+      [
+        ...(showShort ? MOVING_AVERAGES.short : []),
+        ...(showLong ? MOVING_AVERAGES.long : []),
+      ].map((average) => {
+        const values = sma(closes, average.period);
 
-            return { ...average, values, data: toLine(times, values) };
-          })
-        : [],
-    [showMovingAverages, closes, times]
+        return { ...average, values, data: toLine(times, values) };
+      }),
+    [showShort, showLong, closes, times]
   );
 
-  // Volume takes pane 1; enabled oscillators follow it without gaps.
+  // Volume takes pane 1; enabled pane indicators follow it without gaps.
   const oscillators = PANE_INDICATORS.filter((indicator) =>
     enabled.includes(indicator)
   );
@@ -241,6 +258,13 @@ export function PriceChart({
           times={times}
           candles={candles}
           pane={paneOf(ChartIndicator.Kd)}
+        />
+      ) : null}
+      {oscillators.includes(ChartIndicator.VolumeRatio) ? (
+        <VolumeRatioPane
+          times={times}
+          candles={candles}
+          pane={paneOf(ChartIndicator.VolumeRatio)}
         />
       ) : null}
       {panes?.(2 + oscillators.length)}

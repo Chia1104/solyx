@@ -1,7 +1,15 @@
 import { describe, expect, test } from "vite-plus/test";
 
 import type { Candle } from "../src/candles.ts";
-import { bollinger, ema, kd, macd, rsi, sma } from "../src/indicators.ts";
+import {
+  bollinger,
+  ema,
+  kd,
+  macd,
+  rsi,
+  sma,
+  volumeRatio,
+} from "../src/indicators.ts";
 
 function candle(high: number, low: number, close: number): Candle {
   return { time: 0, open: close, high, low, close, volume: 0 };
@@ -9,6 +17,11 @@ function candle(high: number, low: number, close: number): Candle {
 
 test("sma averages the trailing window", () => {
   expect(sma([1, 2, 3, 4, 5], 3)).toEqual([null, null, 2, 3, 4]);
+});
+
+test("volumeRatio divides each bar's volume by the average ending with it", () => {
+  expect(volumeRatio([30, 30, 30, 90], 3)).toEqual([null, null, 1, 1.8]);
+  expect(volumeRatio([0, 0, 0, 0], 3)).toEqual([null, null, null, null]);
 });
 
 describe("ema", () => {

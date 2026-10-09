@@ -26,6 +26,7 @@ import {
   macd,
   rsi,
   sma,
+  volumeRatio,
 } from "@solyx/core/indicators";
 import type { IndicatorLine } from "@solyx/core/indicators";
 import type { MacroRelease } from "@solyx/core/macro";
@@ -158,6 +159,11 @@ const NEWS_ITEMS = 10;
 export const SNIPPET_LENGTH = 280;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+const MOVING_AVERAGES = [
+  ...MOVING_AVERAGE_PERIODS.short,
+  ...MOVING_AVERAGE_PERIODS.long,
+];
 
 const valueAt = (line: IndicatorLine, offset: number) => {
   const value = line.at(offset);
@@ -470,7 +476,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetIndicators,
       replay: "safe",
-      description: `The latest and previous bar's MA(${MOVING_AVERAGE_PERIODS.join(", ")}), EMA(12, 26), RSI(14), MACD(12, 26, 9) as DIF/MACD/OSC, KD(9) and Bollinger Bands(20, 2) for a listing.`,
+      description: `The latest and previous bar's MA(${MOVING_AVERAGES.join(", ")}), EMA(12, 26), RSI(14), MACD(12, 26, 9) as DIF/MACD/OSC, KD(9), Bollinger Bands(20, 2) and volume over its 20-bar average for a listing.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         interval: intervalSchema,
@@ -489,7 +495,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           text: [
             heading(symbol, interval, candles[candles.length - 1]),
             `close: ${closes[closes.length - 1]} (previous ${closes.at(-2) ?? "n/a"})`,
-            ...MOVING_AVERAGE_PERIODS.map((period) =>
+            ...MOVING_AVERAGES.map((period) =>
               row(`MA${period}`, sma(closes, period))
             ),
             row("EMA12", ema(closes, 12)),
@@ -503,6 +509,10 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             row("BB upper", bands.upper),
             row("BB middle", bands.middle),
             row("BB lower", bands.lower),
+            row(
+              "Volume/MA20",
+              volumeRatio(candles.map((candle) => candle.volume))
+            ),
           ].join("\n"),
           details: { symbol, interval },
         };

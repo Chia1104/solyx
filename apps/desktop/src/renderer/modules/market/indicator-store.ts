@@ -6,10 +6,12 @@ import { persistOptions } from "../../app/persist.ts";
 
 export const ChartIndicator = {
   MovingAverage: "ma",
+  LongMovingAverage: "ma-long",
   Bollinger: "boll",
   Macd: "macd",
   Rsi: "rsi",
   Kd: "kd",
+  VolumeRatio: "vol-ratio",
   ForeignFlow: "foreign-flow",
   TrustFlow: "trust-flow",
   Margin: "margin",

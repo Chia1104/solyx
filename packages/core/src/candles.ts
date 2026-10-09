@@ -26,7 +26,7 @@ const LOOKBACK_DAYS: Record<Interval, number> = {
   [Interval.FifteenMinutes]: 60,
   [Interval.ThirtyMinutes]: 120,
   [Interval.OneHour]: 180,
-  [Interval.OneDay]: 540,
+  [Interval.OneDay]: 2 * 365,
   [Interval.OneWeek]: 3 * 365,
   [Interval.OneMonth]: 5 * 365,
 };
