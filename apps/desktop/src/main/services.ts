@@ -161,6 +161,7 @@ export function createServices() {
     store: newsData.store,
     scorer: () => decisions.scorer(),
     embedder: () => embeddings.embedder(),
+    localEmbedder: () => embeddings.localEmbedder(),
     marketData,
     onChange(symbol) {
       broadcast(newsEvents.onChanged, symbol);

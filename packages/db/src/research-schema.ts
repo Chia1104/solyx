@@ -1,5 +1,7 @@
 import {
+  blob,
   integer,
+  primaryKey,
   real,
   sqliteTable,
   text,
@@ -78,4 +80,19 @@ export const falsifierChecks = sqliteTable(
       table.itemKey
     ),
   ]
+);
+
+/**
+ * The vector of each passage of research, by its text, in one space at a time: a revision carries
+ * most passages over unchanged, so each is embedded once.
+ */
+export const passageVectors = sqliteTable(
+  "passage_vectors",
+  {
+    space: text().notNull(),
+    passage: text().notNull(),
+    /** Float32 values in the platform's byte order. */
+    vector: blob({ mode: "buffer" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.space, table.passage] })]
 );

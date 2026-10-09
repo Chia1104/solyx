@@ -6,6 +6,7 @@ import * as z from "zod";
 import { exchangeDate, symbolKey, symbolRefSchema } from "@solyx/core/market";
 import type { NewsDesk, NewsMatch } from "@solyx/core/news";
 import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
+import { reportPassages } from "@solyx/core/report";
 import type { ReportMatch, ResearchDesk } from "@solyx/core/research";
 import { createSearchIndex } from "@solyx/utils/search";
 
@@ -53,32 +54,10 @@ const clip = (text: string, length: number) => {
   return flat.length > length ? `${flat.slice(0, length)}…` : flat;
 };
 
-/** A text's sentences, split after their closing marks and at line breaks. */
-const sentences = (text: string) =>
-  text
-    .split(/(?<=[。！？；])|(?<=[.!?;])\s+|\n+/u)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean);
-
 function reportText({ report, newest }: ReportMatch, query: string): string {
   const { market, symbol } = report.symbol;
 
-  const passages = [
-    ...report.drivers.map(
-      (driver) => `driver: ${driver.point} Rests on: ${driver.text}`
-    ),
-    ...report.risks.map((risk) => `risk: ${risk.point} Rests on: ${risk.text}`),
-    ...report.falsifiers.map((falsifier) => `falsifier: ${falsifier}`),
-    ...(report.valuation
-      ? [
-          `valuation: ${report.valuation.low} to ${report.valuation.high} (${report.valuation.basis})`,
-        ]
-      : []),
-    ...report.events.map((event) => `event: ${event.date} ${event.label}`),
-    ...Object.entries(report.sections).flatMap(([section, part]) =>
-      sentences(part.text).map((sentence) => `${section}: ${sentence}`)
-    ),
-  ];
+  const passages = reportPassages(report);
 
   const best = createSearchIndex(passages, (passage) => [passage])(query).slice(
     0,
@@ -135,7 +114,7 @@ export function createHistory(options: HistoryOptions): Extension {
       defineTool({
         name: AgentToolName.SearchHistory,
         replay: "safe",
-        description: `Searches what the app has kept, however long ago: your reports in every revision, your forecasts with how they came out, the news found for any listing, and order proposals with their rationale. It finds what holds any of the words, best first, so give every name a source might use, in Chinese and English alike, such as 台積電 TSMC 2330. Of a listing's report it shows the newest revision that matches, which may since have been revised; get_research reads the one in force. Memories are searched with recall, and conversations are not searched. What it finds is history as of when it was written, never current data, and news titles and snippets are written by others.`,
+        description: `Searches what the app has kept, however long ago: your reports in every revision, your forecasts with how they came out, the news found for any listing, and order proposals with their rationale. It finds what holds any of the words, best first, so give every name a source might use, in Chinese and English alike, such as 台積電 TSMC 2330; where the user runs embeddings on this computer, it also finds what says the same in other words. Of a listing's report it shows the newest revision that matches, which may since have been revised; get_research reads the one in force. Memories are searched with recall, and conversations are not searched. What it finds is history as of when it was written, never current data, and news titles and snippets are written by others.`,
         parameters: z.object({
           query: z
             .string()
@@ -183,7 +162,7 @@ export function createHistory(options: HistoryOptions): Extension {
           if (searches.has(HistoryKind.News)) {
             // Sources and outlets repeat a headline, which is shown once.
             const items = uniqBy(
-              news.search(query, FOUND_NEWS * 2, symbol),
+              await news.search(query, FOUND_NEWS * 2, symbol),
               ({ item }) => item.title.replace(/\s+/g, "")
             ).slice(0, FOUND_NEWS);
 

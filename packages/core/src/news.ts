@@ -151,6 +151,16 @@ export interface NewsStore {
    * among equals, whenever they were found; `symbol` keeps to items found for that listing.
    */
   search(query: string, limit: number, symbol?: SymbolRef): NewsMatch[];
+  /**
+   * Up to `limit` items whose vectors in `space` read clearly nearest `query`, nearest first;
+   * `symbol` keeps to items found for that listing.
+   */
+  nearest(
+    space: string,
+    query: Float32Array,
+    limit: number,
+    symbol?: SymbolRef
+  ): NewsMatch[];
 }
 
 /**
@@ -477,8 +487,15 @@ export interface NewsDesk {
     since: Date,
     limit: number
   ): Promise<NewsCollection>;
-  /** Searches what is stored, as `NewsStore.search` does, without asking any source. */
-  search(query: string, limit: number, symbol?: SymbolRef): NewsMatch[];
+  /**
+   * Searches what is stored without asking any source: by words, as `NewsStore.search` does, and by
+   * meaning where a model on this computer embeds the query.
+   */
+  search(
+    query: string,
+    limit: number,
+    symbol?: SymbolRef
+  ): Promise<NewsMatch[]>;
 }
 
 /** Below this relevance an item only names the listing in passing. */

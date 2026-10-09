@@ -32,6 +32,9 @@ const CASED_WORD = /[\p{Script=Latin}\p{N}]+/gu;
 // A lone letter, such as a possessive's s or one a case change splits off, matches nearly anything.
 const LONE_LETTER = /^\p{Script=Latin}$/u;
 
+// Reciprocal rank fusion's usual constant, which keeps one list's top item from drowning the rest.
+const FUSION_K = 60;
+
 // Okapi BM25's usual parameters.
 const K1 = 1.2;
 
@@ -89,6 +92,13 @@ export function searchTerms(text: string): string[] {
     .map(singular);
 }
 
+/** A text's sentences, split after their closing marks and at line breaks. */
+export const sentences = (text: string): string[] =>
+  text
+    .split(/(?<=[。！？；])|(?<=[.!?;])\s+|\n+/u)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
 /**
  * Ranks `items` for a query with Okapi BM25 over the text `fields` gives each, read once here.
  * The search returns the items matching any of the query's terms, best first, ties in their order.
@@ -136,4 +146,29 @@ export function createSearchIndex<T>(
       .toSorted((a, b) => b.score - a.score)
       .map((match) => match.item);
   };
+}
+
+/**
+ * Fuses rankings of one kind of item, each best first, by reciprocal rank: an item ranked high in
+ * any ranking rises, and one in several rises further. `key` tells one item apart across rankings,
+ * and ties keep the order the rankings first gave.
+ */
+export function fuseRankings<T>(
+  rankings: readonly (readonly T[])[],
+  key: (item: T) => string
+): T[] {
+  const fused = new Map<string, { item: T; score: number }>();
+
+  for (const ranking of rankings) {
+    for (const [rank, item] of ranking.entries()) {
+      const at = fused.get(key(item)) ?? { item, score: 0 };
+
+      at.score += 1 / (FUSION_K + rank + 1);
+      fused.set(key(item), at);
+    }
+  }
+
+  return [...fused.values()]
+    .toSorted((a, b) => b.score - a.score)
+    .map(({ item }) => item);
 }

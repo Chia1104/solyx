@@ -1,6 +1,16 @@
-import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  ne,
+  sql,
+} from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
-import { keyBy, omit, sortBy, uniqBy } from "es-toolkit";
+import { chunk, keyBy, omit, sortBy, uniqBy } from "es-toolkit";
 
 import type { Forecast } from "@solyx/core/forecast";
 import { symbolKey } from "@solyx/core/market";
@@ -11,7 +21,12 @@ import type { FalsifierCheck, ResearchStore } from "@solyx/core/research";
 import { connect } from "./connection.ts";
 import { databaseBytes } from "./database-file.ts";
 import { anyTerm, indexedTerms } from "./full-text.ts";
-import { falsifierChecks, forecasts, reports } from "./research-schema.ts";
+import {
+  falsifierChecks,
+  forecasts,
+  passageVectors,
+  reports,
+} from "./research-schema.ts";
 
 function toForecast(row: typeof forecasts.$inferSelect): Forecast {
   return { ...row.forecast, outcome: row.outcome };
@@ -218,6 +233,69 @@ function researchStore(db: NodeSQLiteDatabase): ResearchStore {
         .run();
     },
 
+    reports: (symbol) =>
+      db
+        .select({ report: reports.report })
+        .from(reports)
+        .where(
+          symbol &&
+            and(
+              eq(reports.market, symbol.market),
+              eq(reports.symbol, symbol.symbol)
+            )
+        )
+        .orderBy(asc(reports.id))
+        .all()
+        .map((row) => row.report),
+
+    passageVectors(space, texts) {
+      // In batches, well under SQLite's limit on a statement's parameters.
+      const rows = chunk([...texts], 500).flatMap((batch) =>
+        db
+          .select({
+            passage: passageVectors.passage,
+            vector: passageVectors.vector,
+          })
+          .from(passageVectors)
+          .where(
+            and(
+              eq(passageVectors.space, space),
+              inArray(passageVectors.passage, batch)
+            )
+          )
+          .all()
+      );
+
+      // Copied, since SQLite's bytes need not start where a Float32Array may.
+      return new Map(
+        rows.map(({ passage, vector }) => [
+          passage,
+          new Float32Array(Uint8Array.from(vector).buffer),
+        ])
+      );
+    },
+
+    savePassageVectors(space, vectors) {
+      db.transaction((tx) => {
+        tx.delete(passageVectors).where(ne(passageVectors.space, space)).run();
+
+        for (const { text, values } of vectors) {
+          tx.insert(passageVectors)
+            .values({
+              space,
+              passage: text,
+              vector: Buffer.from(
+                values.buffer,
+                values.byteOffset,
+                values.byteLength
+              ),
+            })
+            .onConflictDoNothing()
+            .run();
+        }
+      });
+    },
+
     searchReports(query, limit, symbol) {
       const match = anyTerm(query);
 
@@ -339,6 +417,7 @@ export function openResearch(path: string, migrationsFolder: string) {
         tx.delete(reports).run();
         tx.delete(forecasts).run();
         tx.delete(falsifierChecks).run();
+        tx.delete(passageVectors).run();
         tx.run(
           sql`INSERT INTO report_terms (report_terms) VALUES ('delete-all')`
         );
