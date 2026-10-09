@@ -2,6 +2,7 @@ import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import type { Message } from "@earendil-works/pi-ai";
 import {
   AssistantEntry,
+  CompactionEntry,
   ToolResultEntry,
   UserEntry,
 } from "@earendil-works/pi-durable";
@@ -18,7 +19,6 @@ import {
   AgentEventType,
   RunEndReason,
   ToolCallStatus,
-  contextTokens,
   foldEvents,
 } from "../src/wire.ts";
 
@@ -276,47 +276,55 @@ test("a call the model let run reads back from storage as the model's", () => {
   ]);
 });
 
-test("a reply carries what its request counted, and the context holds what the latest left", () => {
-  const view = foldEvents(
-    transcriptEvents(
-      [
-        user(1, "hi"),
-        counted(2, "hello", 0),
-        user(3, "again"),
-        counted(4, "hello again", 150),
-      ],
-      false
-    )
+test("a reply carries what its request counted, unless it failed", () => {
+  const usage = transcriptEvents(
+    [
+      user(1, "hi"),
+      counted(2, "hello", 150),
+      user(3, "again"),
+      counted(4, "", 150, { stopReason: "error", errorMessage: "overloaded" }),
+    ],
+    false
+  ).flatMap((event) =>
+    event.type === AgentEventType.AssistantEnd ? [event.usage] : []
   );
 
-  expect(view.items[3]).toMatchObject({
-    kind: "assistant",
-    usage: {
-      input: 100,
-      cacheRead: 150,
-      cacheWrite: 10,
-      output: 50,
-      context: 310,
-    },
-  });
-  expect(contextTokens(view)).toBe(310);
+  expect(usage).toEqual([
+    { input: 100, cacheRead: 150, cacheWrite: 10, output: 50 },
+    undefined,
+  ]);
 });
 
-test("a reply that failed counts no request, so the context stays as the one before left it", () => {
+test("a summary replays where it was placed, as the model's note holds it", () => {
   const view = foldEvents(
     transcriptEvents(
       [
         user(1, "hi"),
-        counted(2, "hello", 0),
-        user(3, "again"),
-        counted(4, "", 150, {
-          stopReason: "error",
-          errorMessage: "overloaded",
-        }),
+        reply(2, "hello"),
+        entry(
+          3,
+          CompactionEntry.kind,
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Earlier, summarized:\n\n<summary>\n## Goal\nWatch 2330\n</summary>",
+              },
+            ],
+            timestamp: 5,
+          },
+          { reason: "manual" }
+        ),
       ],
       false
     )
   );
 
-  expect(contextTokens(view)).toBe(160);
+  expect(view.items.at(-1)).toEqual({
+    kind: "compaction",
+    messageId: "3",
+    summary: "## Goal\nWatch 2330",
+    at: 5,
+  });
 });

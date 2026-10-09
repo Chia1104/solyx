@@ -306,7 +306,7 @@
     },
     "composer-menu": {
       "listings": "標的",
-      "skills": "技能",
+      "skills": "指令與技能",
       "on-screen": "畫面上",
       "held": "持股",
       "watched": "自選"
@@ -317,10 +317,22 @@
     "thinking": "思考中",
     "thought": "已思考",
     "working": "處理中…",
+    "compacting": "正在整理較早的訊息…",
     "context-meter": {
       "label": "已用的上下文",
+      "title": "上下文用量",
       "used": "{{used}} / {{window}} tokens（{{percent}}）",
-      "summarized": "快滿時，較早的訊息會整理成摘要。"
+      "summarized": "快滿時，較早的訊息會整理成摘要。",
+      "compact": "整理較早的訊息",
+      "hint": "也可以輸入 /compact，後面接摘要要保留的重點。"
+    },
+    "compaction": {
+      "summarized": "較早的訊息已整理成摘要",
+      "failed": "無法整理這段對話",
+      "nothing-old": "目前沒有可整理的內容：最近的訊息一律保留原文。"
+    },
+    "commands": {
+      "compact": "把較早的訊息整理成摘要，騰出上下文空間"
     },
     "usage": {
       "label": "Token 用量",

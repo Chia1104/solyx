@@ -1,6 +1,7 @@
 import { ListBox } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
+import { AgentCommand } from "@solyx/agent/wire";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
@@ -33,13 +34,22 @@ export function useComposerSuggestions(
   const skills = useCommandSkills();
 
   if (token?.kind === ComposerTokenKind.Skill) {
-    return skills.map((skill) => ({
-      id: skill.name,
-      value: `/${skill.name}`,
-      keywords: skill.name,
-      label: `/${skill.name}`,
-      detail: skill.description,
-    }));
+    return [
+      ...Object.values(AgentCommand).map((command) => ({
+        id: command,
+        value: `/${command}`,
+        keywords: command,
+        label: `/${command}`,
+        detail: t(`agent.commands.${command}`),
+      })),
+      ...skills.map((skill) => ({
+        id: skill.name,
+        value: `/${skill.name}`,
+        keywords: skill.name,
+        label: `/${skill.name}`,
+        detail: skill.description,
+      })),
+    ];
   }
 
   return listings.map(({ symbol, origin, name }) => ({

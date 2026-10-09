@@ -306,7 +306,7 @@
     },
     "composer-menu": {
       "listings": "Listings",
-      "skills": "Skills",
+      "skills": "Commands and skills",
       "on-screen": "On screen",
       "held": "Held",
       "watched": "Watched"
@@ -317,10 +317,22 @@
     "thinking": "Thinking",
     "thought": "Thought",
     "working": "Working…",
+    "compacting": "Summarizing earlier messages…",
     "context-meter": {
       "label": "Context used",
+      "title": "Context window",
       "used": "{{used}} of {{window}} tokens ({{percent}})",
-      "summarized": "Older messages are summarized as it fills."
+      "summarized": "Older messages are summarized as it fills.",
+      "compact": "Summarize earlier messages",
+      "hint": "Or type /compact, followed by what the summary should keep."
+    },
+    "compaction": {
+      "summarized": "Earlier messages summarized",
+      "failed": "Couldn't summarize the conversation",
+      "nothing-old": "Nothing to summarize yet: the latest messages are always kept as they are."
+    },
+    "commands": {
+      "compact": "Summarize earlier messages to free up context"
     },
     "usage": {
       "label": "Tokens",

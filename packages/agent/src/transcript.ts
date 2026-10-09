@@ -8,6 +8,7 @@ import type {
 import { calculateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import {
   AssistantEntry,
+  CompactionEntry,
   ToolResultEntry,
   UserEntry,
 } from "@earendil-works/pi-durable";
@@ -74,9 +75,12 @@ export function replyText(
 /** `undefined` for a reply that failed or was cut short, which counts no whole request. */
 function replyUsage(message: AssistantMessage): ReplyUsage | undefined {
   const { usage, stopReason } = message;
-  const context = calculateContextTokens(usage);
 
-  if (stopReason === "error" || stopReason === "aborted" || context === 0) {
+  if (
+    stopReason === "error" ||
+    stopReason === "aborted" ||
+    calculateContextTokens(usage) === 0
+  ) {
     return undefined;
   }
 
@@ -85,9 +89,11 @@ function replyUsage(message: AssistantMessage): ReplyUsage | undefined {
     cacheRead: usage.cacheRead,
     cacheWrite: usage.cacheWrite,
     output: usage.output,
-    context,
   };
 }
+
+// pi-durable wraps a summary in a note for the model; the thread shows what is inside.
+const SUMMARY = /<summary>\n([\s\S]*)\n<\/summary>/;
 
 function assistantEndEvent(
   messageId: string,
@@ -240,7 +246,10 @@ export function createTranscriber(approvals: ApprovalRecord) {
     return events;
   }
 
-  /** A stored user message or reply; `id` names a reply that streamed under an id of its own. */
+  /**
+   * A stored user message, reply or summary; `id` names a reply that streamed under an id of its
+   * own.
+   */
   function message(
     entry: EntryRecord,
     id = messageId(entry)
@@ -262,6 +271,19 @@ export function createTranscriber(approvals: ApprovalRecord) {
       pending = runEndOf(stored);
 
       return [...closeOpen(), assistantEndEvent(id, stored)];
+    }
+
+    if (CompactionEntry.is(entry) && stored?.role === "user") {
+      const text = contentText(stored.content);
+
+      return [
+        {
+          type: AgentEventType.Compacted,
+          messageId: id,
+          summary: SUMMARY.exec(text)?.[1] ?? text,
+          at: stored.timestamp,
+        },
+      ];
     }
 
     return [];

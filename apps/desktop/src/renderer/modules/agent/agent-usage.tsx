@@ -1,6 +1,14 @@
 import { Fragment } from "react";
 
-import { ProgressCircle, Tooltip, cn } from "@heroui/react";
+import {
+  Button,
+  Label,
+  Popover,
+  ProgressBar,
+  ProgressCircle,
+  Tooltip,
+  cn,
+} from "@heroui/react";
 import { DashboardSpeed02Icon } from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
@@ -11,23 +19,37 @@ import { numberFormats } from "../market/number-formats.ts";
 
 const TOOLTIP_DELAY = 600;
 
-/** How much of its model's context window the conversation fills, as its latest reply left it. */
+/**
+ * How much of its model's context window the conversation's next request fills, opening onto the
+ * way to summarize its older messages and make room.
+ */
 export function ContextMeter({
   used,
   window,
+  compacting,
+  canCompact,
+  onCompact,
 }: {
   used: number;
   window: number;
+  /** A summary the user asked for is being written. */
+  compacting: boolean;
+  canCompact: boolean;
+  onCompact: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const { compactAmount, percent } = numberFormats(i18n.language);
   const label = t("agent.context-meter.label");
+  const title = t("agent.context-meter.title");
 
   return (
-    <Tooltip delay={TOOLTIP_DELAY}>
-      <Tooltip.Trigger
+    <Popover>
+      <Button
+        isIconOnly
+        size="sm"
+        variant="ghost"
         aria-label={label}
-        className="flex size-8 items-center justify-center">
+        className="size-8">
         <ProgressCircle
           aria-label={label}
           size="sm"
@@ -40,18 +62,42 @@ export function ContextMeter({
             <ProgressCircle.FillCircle />
           </ProgressCircle.Track>
         </ProgressCircle>
-      </Tooltip.Trigger>
-      <Tooltip.Content className="flex flex-col gap-0.5">
-        <p className="tabular-nums">
-          {t("agent.context-meter.used", {
-            used: compactAmount.format(used),
-            window: compactAmount.format(window),
-            percent: percent.format(Math.min(used / window, 1)),
-          })}
-        </p>
-        <p className="text-muted">{t("agent.context-meter.summarized")}</p>
-      </Tooltip.Content>
-    </Tooltip>
+      </Button>
+      <Popover.Content
+        placement="top end"
+        className="w-80 max-w-[calc(100vw-1.5rem)]">
+        <Popover.Dialog aria-label={title} className="flex flex-col gap-3 p-3">
+          <ProgressBar
+            size="sm"
+            color="default"
+            value={used}
+            maxValue={window}
+            valueLabel={t("agent.context-meter.used", {
+              used: compactAmount.format(used),
+              window: compactAmount.format(window),
+              percent: percent.format(Math.min(used / window, 1)),
+            })}>
+            <Label>{title}</Label>
+            <ProgressBar.Output className="tabular-nums" />
+            <ProgressBar.Track>
+              <ProgressBar.Fill />
+            </ProgressBar.Track>
+          </ProgressBar>
+          <p className="text-xs text-muted">
+            {t("agent.context-meter.summarized")}
+          </p>
+          <Button
+            size="sm"
+            variant="secondary"
+            isPending={compacting}
+            isDisabled={!canCompact}
+            onPress={onCompact}>
+            {t("agent.context-meter.compact")}
+          </Button>
+          <p className="text-xs text-muted">{t("agent.context-meter.hint")}</p>
+        </Popover.Dialog>
+      </Popover.Content>
+    </Popover>
   );
 }
 

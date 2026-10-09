@@ -311,6 +311,9 @@ export function createAgentService(options: AgentServiceOptions) {
 
     abort: (id: string) => runtime.abort(id),
 
+    compact: (id: string, instructions: string | null) =>
+      runtime.compact(id, instructions ?? undefined),
+
     approve: (id: string, toolCallId: string, approved: boolean) =>
       runtime.approve(id, toolCallId, approved),
 
