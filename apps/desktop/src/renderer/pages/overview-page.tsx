@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { uniqBy } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
-import { symbolKey } from "@solyx/core/market";
+import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
 import { LoadingState } from "../components/loading-state.tsx";
@@ -14,6 +14,7 @@ import { accountQuery } from "../modules/account/account-query.ts";
 import { AccountSummary } from "../modules/account/account-summary.tsx";
 import { CALENDAR_DAYS } from "../modules/calendar/calendar-query.ts";
 import { UpcomingEvents } from "../modules/calendar/upcoming-events.tsx";
+import { MarketFlows } from "../modules/flows/market-flows.tsx";
 import { QuoteHeatMap } from "../modules/market/quote-heat-map.tsx";
 import { SectorHeatMap } from "../modules/market/sector-heat-map.tsx";
 import { HeadlineList } from "../modules/news/headline-list.tsx";
@@ -142,6 +143,11 @@ export function OverviewPage() {
         title={t("heat-map.sectors.title")}
         description={t("heat-map.sectors.description")}>
         <SectorHeatMap />
+      </Section>
+      <Section
+        title={t("flows.market-title")}
+        description={t("flows.market-description")}>
+        <MarketFlows market={Market.TW} />
       </Section>
       <AccountSummary />
     </Sheet>

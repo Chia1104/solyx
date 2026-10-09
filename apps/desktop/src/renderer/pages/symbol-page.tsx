@@ -5,6 +5,7 @@ import { getRouteApi } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { Interval } from "@solyx/core/candles";
+import { Market } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { NEWS_HEIGHT, useLayoutStore } from "../app/layout-store.ts";
@@ -14,6 +15,7 @@ import {
   SplitterEdge,
   SplitterOrientation,
 } from "../components/pane-splitter.tsx";
+import { ListingFlowsPanel } from "../modules/flows/listing-flows.tsx";
 import { IndicatorMenu } from "../modules/market/indicator-menu.tsx";
 import { IntervalSelect } from "../modules/market/interval-select.tsx";
 import { SymbolChart } from "../modules/market/symbol-chart.tsx";
@@ -31,6 +33,7 @@ const NEWS_PANE_ID = "symbol-news";
 const LowerView = {
   News: "news",
   Research: "research",
+  Flows: "flows",
 } as const;
 
 type LowerView = (typeof LowerView)[keyof typeof LowerView];
@@ -47,7 +50,12 @@ export function SymbolPage() {
   const news = useRef<HTMLDivElement>(null);
   const newsHeight = useLayoutStore((state) => state.newsHeight);
   const setNewsHeight = useLayoutStore((state) => state.setNewsHeight);
-  const [lowerView, setLowerView] = useState<LowerView>(LowerView.News);
+  const [picked, setLowerView] = useState<LowerView>(LowerView.News);
+  // Only Taiwan's exchanges report flows, so a US listing shows the news in their place.
+  const flowsShown = symbol.market === Market.TW;
+
+  const lowerView =
+    picked === LowerView.Flows && !flowsShown ? LowerView.News : picked;
 
   const lowerViews = (
     <ToggleButtonGroup
@@ -64,6 +72,9 @@ export function SymbolPage() {
       }}>
       <ToggleButton id={LowerView.News}>{t("news.title")}</ToggleButton>
       <ToggleButton id={LowerView.Research}>{t("research.title")}</ToggleButton>
+      {flowsShown ? (
+        <ToggleButton id={LowerView.Flows}>{t("flows.title")}</ToggleButton>
+      ) : null}
     </ToggleButtonGroup>
   );
 
@@ -128,9 +139,13 @@ export function SymbolPage() {
           />
           {lowerView === LowerView.News ? (
             <NewsList symbol={symbol} heading={lowerViews} />
-          ) : (
+          ) : null}
+          {lowerView === LowerView.Research ? (
             <ResearchPanel symbol={symbol} heading={lowerViews} />
-          )}
+          ) : null}
+          {lowerView === LowerView.Flows ? (
+            <ListingFlowsPanel symbol={symbol} heading={lowerViews} />
+          ) : null}
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { registerAccountIpc } from "../modules/account/account-ipc.ts";
 import { registerAgentIpc } from "../modules/agent/agent-ipc.ts";
 import { registerCalendarIpc } from "../modules/calendar/calendar-ipc.ts";
+import { registerFlowsIpc } from "../modules/flows/flows-ipc.ts";
 import { registerMarketIpc } from "../modules/market/market-ipc.ts";
 import { registerMemoryIpc } from "../modules/memory/memory-ipc.ts";
 import { registerNewsIpc } from "../modules/news/news-ipc.ts";
@@ -16,6 +17,7 @@ export function registerIpc(services: Services) {
   registerAccountIpc(services);
   registerAgentIpc(services);
   registerCalendarIpc(services);
+  registerFlowsIpc(services);
   registerMarketIpc(services);
   registerMemoryIpc(services);
   registerNewsIpc(services);

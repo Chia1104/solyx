@@ -336,6 +336,7 @@ export function createServices() {
     memories,
     research,
     calendar,
+    flows,
     agent,
     mcp,
     decisions,
