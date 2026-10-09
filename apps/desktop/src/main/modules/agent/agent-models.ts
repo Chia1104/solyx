@@ -263,3 +263,5 @@ export function createAgentModels({
     signOut: (provider: AgentProvider) => catalog.signOut(provider),
   };
 }
+
+export type AgentModels = ReturnType<typeof createAgentModels>;

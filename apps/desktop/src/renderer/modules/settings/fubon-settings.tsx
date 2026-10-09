@@ -2,7 +2,12 @@ import { Button, cn } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { FubonFile, FubonSessionState, Secret } from "#shared/ipc/settings.ts";
+import {
+  FubonFile,
+  FubonSessionState,
+  Secret,
+  isMarketDataReady,
+} from "#shared/ipc/settings.ts";
 import type { MarketDataStatus } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
@@ -12,11 +17,7 @@ import { LoadingState } from "../../components/loading-state.tsx";
 import { PlanLimits } from "./plan-limits.tsx";
 import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import {
-  isMarketDataReady,
-  secretsQuery,
-  settingsQueryKeys,
-} from "./settings-query.ts";
+import { secretsQuery, settingsQueryKeys } from "./settings-query.ts";
 
 const FUBON_SECRETS = [
   Secret.FubonPersonalId,

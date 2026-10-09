@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { ScrollShadow, cn } from "@heroui/react";
 import { tableVariants } from "@heroui/styles";
 import { cjk } from "@streamdown/cjk";
+import { useNavigate } from "@tanstack/react-router";
 import { Streamdown } from "streamdown";
 import type { AnimateOptions, Components } from "streamdown";
 
@@ -23,7 +24,20 @@ function codeText(children: ReactNode): string {
 
 const MarkdownLink: Components["a"] = ({ children, className, href }) => {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
   const linkClass = cn("text-accent underline underline-offset-2", className);
+
+  // A link into the app, such as a settings tab get_setup names, opens its page in place.
+  if (href?.startsWith("#/")) {
+    return (
+      <button
+        type="button"
+        className={cn("text-left", linkClass)}
+        onClick={() => void navigate({ href: href.slice(1) })}>
+        {children}
+      </button>
+    );
+  }
 
   if (!href?.startsWith("https://")) {
     return <span className={linkClass}>{children}</span>;

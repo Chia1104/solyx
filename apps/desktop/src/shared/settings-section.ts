@@ -16,3 +16,7 @@ export type SettingsSection =
   (typeof SettingsSection)[keyof typeof SettingsSection];
 
 export const settingsSectionSchema = z.enum(SettingsSection);
+
+/** The tab's address in the router's hash, which the agent's replies link to. */
+export const settingsLink = (section: SettingsSection) =>
+  `#/settings?section=${section}`;

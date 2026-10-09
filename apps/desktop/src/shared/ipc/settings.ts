@@ -14,7 +14,7 @@ import type {
 import type { AgentModelRef } from "@solyx/agent/providers";
 import type { SkillSource } from "@solyx/agent/skill-source";
 import type { DecisionMode, MagiUnit } from "@solyx/core/council";
-import type { Market } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { DecisionsProvider } from "@solyx/decisions/provider";
 import type { EmbeddingsProvider } from "@solyx/embeddings/provider";
@@ -226,6 +226,11 @@ export interface MarketDataStatus {
   };
 }
 
+/** Whether Taiwan market data has everything its source connects with saved. */
+export function isMarketDataReady(status: MarketDataStatus | undefined) {
+  return status?.markets[Market.TW]?.ready === true;
+}
+
 /** A model the agent can run on, from its provider's catalog. */
 export interface AgentModelOption {
   provider: AgentProvider;
@@ -319,6 +324,14 @@ export interface WebSearchSettings {
   keys: Record<WebSearchProvider, SecretState>;
 }
 
+/** Whether the vendor in use has its key saved, so news and the agent can search the web. */
+export function isWebSearchReady(settings: WebSearchSettings | undefined) {
+  return (
+    settings !== undefined &&
+    settings.keys[settings.provider] === SecretState.Saved
+  );
+}
+
 /** The secret each decisions provider's key is kept under. */
 export const DECISIONS_SECRETS = {
   typesafe: Secret.DecisionsApiKey,
@@ -341,6 +354,22 @@ export interface DecisionsProviderSettings {
 export interface DecisionsSettings {
   provider: DecisionsProvider;
   providers: DecisionsProviderSettings[];
+}
+
+/** Whether the provider in use has its key saved, and Cloudflare its account, so its model can score. */
+export function isDecisionsReady(
+  settings: DecisionsSettings | undefined,
+  secrets: SecretsStatus | undefined
+) {
+  const current = settings?.providers.find(
+    (each) => each.provider === settings.provider
+  );
+
+  return (
+    current !== undefined &&
+    current.accountId !== null &&
+    secrets?.states[DECISIONS_SECRETS[current.provider]] === SecretState.Saved
+  );
 }
 
 /** Experimental: news grouping that also joins items whose vectors read alike. */

@@ -52,6 +52,7 @@ test("with no folders the built-in playbooks are offered", async () => {
     "portfolio-review",
     "deep-analysis",
     "views",
+    "solyx-guide",
   ]);
   expect(catalog.warnings).toEqual([]);
 });

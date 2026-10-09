@@ -10,11 +10,11 @@ import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
 import type { MarketDataSource } from "#shared/ipc/settings.ts";
+import { SettingsSection } from "#shared/settings-section.ts";
 
 import { ErrorFallback } from "../../components/error-fallback.tsx";
 import { FallbackFrame } from "../../components/fallback-frame.tsx";
 import { LoadError } from "../../components/load-error.tsx";
-import { SettingsSection } from "../settings/settings-section.ts";
 
 import { PriceChart } from "./price-chart.tsx";
 import { useCandles } from "./use-candles.ts";

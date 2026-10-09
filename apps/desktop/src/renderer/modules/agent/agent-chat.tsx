@@ -5,8 +5,9 @@ import { useTranslation } from "react-i18next";
 import type { AgentView } from "@solyx/agent/wire";
 import type { SymbolRef } from "@solyx/core/market";
 
+import { SettingsSection } from "#shared/settings-section.ts";
+
 import { agentSettingsQuery } from "../settings/settings-query.ts";
-import { SettingsSection } from "../settings/settings-section.ts";
 
 import { AgentComposer } from "./agent-composer.tsx";
 import { transcriptQuery } from "./agent-query.ts";

@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { SettingsSection } from "#shared/settings-section.ts";
+
 import { Section } from "../components/section.tsx";
 import { Sheet } from "../components/sheet.tsx";
 import { MemorySettings } from "../modules/memory/memory-settings.tsx";
@@ -18,7 +20,6 @@ import { McpSettings } from "../modules/settings/mcp-settings.tsx";
 import { NewsSettings } from "../modules/settings/news-settings.tsx";
 import { PalettePicker } from "../modules/settings/palette-picker.tsx";
 import { PriceColorsSelect } from "../modules/settings/price-colors-select.tsx";
-import { SettingsSection } from "../modules/settings/settings-section.ts";
 import { SettingsTabs } from "../modules/settings/settings-tabs.tsx";
 import { ThemeSelect } from "../modules/settings/theme-select.tsx";
 import { TimeZoneSelect } from "../modules/settings/time-zone-select.tsx";

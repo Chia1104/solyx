@@ -5,9 +5,9 @@ import { useTranslation } from "react-i18next";
 
 import { isEnumValue } from "@solyx/utils/is";
 
-import { RAILED_COLUMN } from "../../components/sheet.tsx";
+import { SettingsSection } from "#shared/settings-section.ts";
 
-import { SettingsSection } from "./settings-section.ts";
+import { RAILED_COLUMN } from "../../components/sheet.tsx";
 
 /**
  * The settings sections as tabs, drawn like the agent pane's. The URL holds the open section, so

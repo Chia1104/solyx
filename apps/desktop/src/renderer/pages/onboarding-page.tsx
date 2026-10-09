@@ -4,6 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import {
+  isDecisionsReady,
+  isMarketDataReady,
+  isWebSearchReady,
+} from "#shared/ipc/settings.ts";
+
 import { Section } from "../components/section.tsx";
 import { OnboardingFlow } from "../modules/onboarding/onboarding-flow.tsx";
 import { OnboardingStep } from "../modules/onboarding/onboarding-step.ts";
@@ -18,9 +24,6 @@ import { PriceColorsSelect } from "../modules/settings/price-colors-select.tsx";
 import {
   agentSettingsQuery,
   decisionsSettingsQuery,
-  isDecisionsReady,
-  isMarketDataReady,
-  isWebSearchReady,
   marketDataQuery,
   secretsQuery,
   webSearchSettingsQuery,

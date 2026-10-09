@@ -226,6 +226,27 @@ export function createServices() {
     () => broadcast(researchEvents.onChanged)
   );
 
+  const appearance = createAppearance({
+    config,
+    // Windows and their renderers' prefers-color-scheme follow themeSource; the rest is pushed to
+    // every renderer, so a hand edit applies as the settings page's does.
+    onChange(next) {
+      nativeTheme.themeSource = next.theme;
+
+      for (const window of BrowserWindow.getAllWindows()) {
+        paintWindow(window, windowColors());
+        window.webContents.send(settingsEvents.onAppearance, next);
+      }
+    },
+  });
+
+  /** The palette windows show now, in the scheme the theme or the computer picks. */
+  function windowColors() {
+    return appearance.colors(
+      nativeTheme.shouldUseDarkColors ? ColorScheme.Dark : ColorScheme.Light
+    );
+  }
+
   const agent = createAgentService({
     config,
     secrets,
@@ -255,6 +276,15 @@ export function createServices() {
     research: research.desk,
     fundamentals,
     flows,
+    setup: {
+      appearance,
+      marketData,
+      webSearch,
+      decisions,
+      embeddings,
+      version: app.getVersion(),
+      home,
+    },
   });
 
   /** What the user holds, then what they watch, each once; a broker that cannot be read leaves the watchlist. */
@@ -287,27 +317,6 @@ export function createServices() {
 
   scheduler.register("News collection", newsCollector);
   scheduler.register("Update check", updates);
-
-  const appearance = createAppearance({
-    config,
-    // Windows and their renderers' prefers-color-scheme follow themeSource; the rest is pushed to
-    // every renderer, so a hand edit applies as the settings page's does.
-    onChange(next) {
-      nativeTheme.themeSource = next.theme;
-
-      for (const window of BrowserWindow.getAllWindows()) {
-        paintWindow(window, windowColors());
-        window.webContents.send(settingsEvents.onAppearance, next);
-      }
-    },
-  });
-
-  /** The palette windows show now, in the scheme the theme or the computer picks. */
-  function windowColors() {
-    return appearance.colors(
-      nativeTheme.shouldUseDarkColors ? ColorScheme.Dark : ColorScheme.Light
-    );
-  }
 
   nativeTheme.themeSource = appearance.read().theme;
 

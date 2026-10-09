@@ -10,8 +10,7 @@ import { NewsVoice } from "@solyx/core/news";
 import type { NewsReading, SentimentReading } from "@solyx/core/news";
 
 import type { NewsCoverage } from "#shared/ipc/news.ts";
-
-import { SettingsSection } from "../settings/settings-section.ts";
+import { SettingsSection } from "#shared/settings-section.ts";
 
 import { NEWS_DAYS, newsCoverageQuery } from "./news-query.ts";
 

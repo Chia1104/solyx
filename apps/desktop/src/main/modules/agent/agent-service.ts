@@ -17,6 +17,7 @@ import type { AgentModelPick } from "@solyx/agent/providers";
 import { createResearch } from "@solyx/agent/research";
 import { createAgentRuntime } from "@solyx/agent/runtime";
 import { createScriptRunner } from "@solyx/agent/script-runner";
+import { createSetupTools } from "@solyx/agent/setup";
 import { createShell } from "@solyx/agent/shell";
 import type { ShellOptions } from "@solyx/agent/shell";
 import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
@@ -53,6 +54,8 @@ import type { TradingCalendar } from "../market/trading-calendar.ts";
 
 import { createAgentModels } from "./agent-models.ts";
 import type { AgentModelsOptions } from "./agent-models.ts";
+import { createAgentSetup } from "./agent-setup.ts";
+import type { AgentSetupSources } from "./agent-setup.ts";
 import type { McpServers } from "./mcp-servers.ts";
 import { loginShellPath } from "./shell-path.ts";
 
@@ -81,6 +84,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   research: ResearchDesk;
   fundamentals: Fundamentals;
   flows: Flows;
+  /** What the agent reads of the rest of the app's settings. */
+  setup: AgentSetupSources;
 }
 
 // `vp pack` ships QuickJS beside the main bundle and builds the scripts' worker next to it.
@@ -213,6 +218,25 @@ export function createAgentService(options: AgentServiceOptions) {
     desk: options.desk,
   });
 
+  const setup = createSetupTools({
+    setup: createAgentSetup({
+      ...options.setup,
+      config: options.config,
+      secrets: options.secrets,
+      models,
+      mcp: options.mcp,
+      skills,
+      instructions,
+      memory: options.memory,
+      shellOn,
+      files: {
+        config: options.config.file,
+        skills: options.skillFolders.solyx,
+        instructions: options.instructionsFile,
+      },
+    }),
+  });
+
   const runtime = createAgentRuntime({
     store: options.conversations,
     models: models.models,
@@ -229,6 +253,7 @@ export function createAgentService(options: AgentServiceOptions) {
           research,
           flows,
           history,
+          setup,
           ...(shellOn() ? [shell.extension(guard)] : []),
           ...(webOn ? [web.extension(guard)] : []),
           ...(options.config.read().agent.memory

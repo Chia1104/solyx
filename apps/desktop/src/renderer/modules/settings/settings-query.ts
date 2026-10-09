@@ -3,16 +3,9 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
 import type { AgentModelRef } from "@solyx/agent/providers";
-import { Market } from "@solyx/core/market";
 
-import { DECISIONS_SECRETS, SecretState } from "#shared/ipc/settings.ts";
-import type {
-  AgentSettings,
-  DecisionsSettings,
-  MarketDataStatus,
-  SecretsStatus,
-  WebSearchSettings,
-} from "#shared/ipc/settings.ts";
+import { isDecisionsReady } from "#shared/ipc/settings.ts";
+import type { AgentSettings, MarketDataStatus } from "#shared/ipc/settings.ts";
 
 const all = ["settings"] as const;
 
@@ -67,11 +60,6 @@ export function useMarketSources() {
   });
 }
 
-/** Whether Taiwan market data has everything its source connects with saved. */
-export function isMarketDataReady(status: MarketDataStatus | undefined) {
-  return status?.markets[Market.TW]?.ready === true;
-}
-
 /** Whether the model's provider is switched on with its key saved or subscription signed in, so it can run. */
 export function isModelReady(settings: AgentSettings, model: AgentModelRef) {
   return (
@@ -81,30 +69,6 @@ export function isModelReady(settings: AgentSettings, model: AgentModelRef) {
     settings.providers.some(
       (each) => each.provider === model.provider && each.usable
     )
-  );
-}
-
-/** Whether the vendor in use has its key saved, so news and the agent can search the web. */
-export function isWebSearchReady(settings: WebSearchSettings | undefined) {
-  return (
-    settings !== undefined &&
-    settings.keys[settings.provider] === SecretState.Saved
-  );
-}
-
-/** Whether the provider in use has its key saved, and Cloudflare its account, so its model can score. */
-export function isDecisionsReady(
-  settings: DecisionsSettings | undefined,
-  secrets: SecretsStatus | undefined
-) {
-  const current = settings?.providers.find(
-    (each) => each.provider === settings.provider
-  );
-
-  return (
-    current !== undefined &&
-    current.accountId !== null &&
-    secrets?.states[DECISIONS_SECRETS[current.provider]] === SecretState.Saved
   );
 }
 

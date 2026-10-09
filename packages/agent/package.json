@@ -19,6 +19,7 @@
     "./research": "./src/research.ts",
     "./runtime": "./src/runtime.ts",
     "./script-runner": "./src/script-runner.ts",
+    "./setup": "./src/setup.ts",
     "./shell": "./src/shell.ts",
     "./skill-source": "./src/skill-source.ts",
     "./skills": "./src/skills.ts",

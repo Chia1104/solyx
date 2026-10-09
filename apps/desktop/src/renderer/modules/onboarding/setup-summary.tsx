@@ -3,14 +3,17 @@ import { useTranslation } from "react-i18next";
 
 import { Market } from "@solyx/core/market";
 
+import {
+  isDecisionsReady,
+  isMarketDataReady,
+  isWebSearchReady,
+} from "#shared/ipc/settings.ts";
+
 import { accountQuery } from "../account/account-query.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 import {
   agentSettingsQuery,
   decisionsSettingsQuery,
-  isDecisionsReady,
-  isMarketDataReady,
-  isWebSearchReady,
   marketDataQuery,
   secretsQuery,
   webSearchSettingsQuery,
