@@ -15,6 +15,12 @@ export interface Embedder {
   ): Promise<Float32Array[]>;
 }
 
+/** A text's vector and the space it lies in. */
+export interface Embedding {
+  space: string;
+  values: Float32Array;
+}
+
 /** How alike two vectors of one space point, from -1 to 1; 0 when either is all zeros. */
 export function cosine(a: Float32Array, b: Float32Array): number {
   if (a.length !== b.length) {

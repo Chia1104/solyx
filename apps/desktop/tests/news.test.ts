@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
+import type { Embedder } from "@solyx/core/embedding";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -118,7 +119,8 @@ const scorer = () => ({
 
 function setup(
   sources: NewsSource[],
-  decisions: SentimentScorer | undefined = undefined
+  decisions: SentimentScorer | undefined = undefined,
+  embedder: Embedder | undefined = undefined
 ) {
   const clock = { now: NOW };
   const onChange = vi.fn<(symbol: SymbolRef) => void>();
@@ -128,6 +130,7 @@ function setup(
     sources: async () => sources,
     store: data.store,
     scorer: async () => decisions,
+    embedder: async () => embedder,
     marketData: { listing },
     onChange,
     now: () => clock.now,
@@ -161,7 +164,7 @@ test("a collection stores what each source finds and scores each channel's newes
 
   const collection = await news.collect(TSMC, SINCE, 2);
 
-  expect(news.records(TSMC, SINCE).map((record) => record.item.id)).toEqual([
+  expect(data.store.list(TSMC, SINCE).map((record) => record.item.id)).toEqual([
     "scored before",
     "new",
     "older",
@@ -312,7 +315,7 @@ test("each collection is told once, even one that fails partway", async () => {
   expect(onChange).toHaveBeenCalledOnce();
   expect(onChange).toHaveBeenCalledWith(TSMC);
   // Stored before scoring failed, so the next collection scores it.
-  expect(news.records(TSMC, SINCE)[0].score).toBeNull();
+  expect(data.store.list(TSMC, SINCE)[0].score).toBeNull();
 });
 
 test("a listing is refreshed once per interval, first a week back, then overlapping the last by a day", async () => {
@@ -435,4 +438,87 @@ test("once a listing's names are known, outlets rewording one headline are one s
   expect(collection.gauge.overall.stories).toBe(1);
   expect(collection.stories[0].records).toHaveLength(2);
   expect(await news.headlines([TSMC], SINCE, 5)).toHaveLength(1);
+});
+
+/** Vectors on a measured space, alike for every title the map names alike and apart otherwise. */
+function embedderOf(alike: Record<string, number>) {
+  return {
+    space: "qwen3-embedding:0.6b",
+    embed: vi.fn<Embedder["embed"]>(async (texts) =>
+      texts.map((text) => {
+        const angle =
+          ((alike[text] ?? texts.indexOf(text) * 10 + 45) * Math.PI) / 180;
+
+        return Float32Array.of(Math.cos(angle), Math.sin(angle));
+      })
+    ),
+  };
+}
+
+test("outlets wording one event too differently for their titles are one story once their vectors read alike", async () => {
+  const told = (id: string, title: string, site: string) => ({
+    ...item(id, 30),
+    title,
+    site,
+  });
+
+  const articles = source("news", NewsChannel.Article, async () => [
+    told("first", "鴻海9月營收創同期新高 年增逾兩成", "a.test"),
+    told("second", "雲端產品撐腰 鴻海上月營收寫同期最佳", "b.test"),
+  ]);
+
+  const embedder = embedderOf({
+    "鴻海9月營收創同期新高 年增逾兩成": 0,
+    "雲端產品撐腰 鴻海上月營收寫同期最佳": 5,
+  });
+
+  const { news } = setup([articles], undefined, embedder);
+  const collection = await news.collect(FOXCONN, SINCE, 10);
+
+  expect(collection.stories).toHaveLength(1);
+  expect(embedder.embed).toHaveBeenCalledOnce();
+
+  const reading = await news.reading(FOXCONN, SINCE);
+
+  expect(reading.stories).toHaveLength(1);
+  // Vectors stay in the main process, and nothing kept is embedded again.
+  expect(reading.stories[0].records.every((record) => !record.embedding)).toBe(
+    true
+  );
+  expect(
+    (await news.headlines([FOXCONN], SINCE, 5))[0].story.lead
+  ).not.toHaveProperty("embedding");
+  expect(embedder.embed).toHaveBeenCalledOnce();
+});
+
+test("news groups by titles alone while the embedder cannot be reached", async () => {
+  const articles = source("news", NewsChannel.Article, async () => [
+    {
+      ...item("first", 30),
+      title: "鴻海9月營收創同期新高 年增逾兩成",
+      site: "a.test",
+    },
+    {
+      ...item("second", 30),
+      title: "雲端產品撐腰 鴻海上月營收寫同期最佳",
+      site: "b.test",
+    },
+  ]);
+
+  const embedder = {
+    space: "qwen3-embedding:0.6b",
+    embed: vi.fn<Embedder["embed"]>(async () => {
+      throw new Error("127.0.0.1:11434: fetch failed");
+    }),
+  };
+
+  const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const { news } = setup([articles], undefined, embedder);
+
+  expect((await news.collect(FOXCONN, SINCE, 10)).stories).toHaveLength(2);
+  expect(error).toHaveBeenCalledWith(
+    "Embedding news failed: 127.0.0.1:11434: fetch failed"
+  );
+
+  error.mockRestore();
 });

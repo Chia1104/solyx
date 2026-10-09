@@ -1,13 +1,8 @@
-import { useMemo } from "react";
-
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { readNews } from "@solyx/core/news";
-
-import { useListing } from "../market/listing-name.tsx";
 
 /** The window the symbol page shows. */
 export const NEWS_DAYS = 7;
@@ -25,8 +20,8 @@ const headlines = [...all, "headlines"] as const;
 
 export const newsQueryKeys = {
   all,
-  records: (symbol: SymbolRef) =>
-    [...all, "records", symbol.market, symbol.symbol] as const,
+  reading: (symbol: SymbolRef) =>
+    [...all, "reading", symbol.market, symbol.symbol] as const,
   coverage: (symbol: SymbolRef) =>
     [...coverage, symbol.market, symbol.symbol] as const,
   headlines: (symbols: SymbolRef[]) =>
@@ -34,25 +29,16 @@ export const newsQueryKeys = {
 };
 
 /** Never stale: the main process says when what is stored about the listing changes. */
-export const newsRecordsQuery = (symbol: SymbolRef) =>
+export const newsReadingQuery = (symbol: SymbolRef) =>
   queryOptions({
-    queryKey: newsQueryKeys.records(symbol),
-    queryFn: () => window.solyx.news.records(symbol, NEWS_DAYS),
+    queryKey: newsQueryKeys.reading(symbol),
+    queryFn: () => window.solyx.news.reading(symbol, NEWS_DAYS),
     staleTime: Infinity,
   });
 
-/**
- * The listing's stories, gauge and daily stance over the symbol page's window, read once by its
- * names as soon as they are known; `reading` is `undefined` until its records arrive.
- */
+/** The listing's stories, gauge and daily stance over the symbol page's window; `reading` is `undefined` until they arrive. */
 export function useNewsReading(symbol: SymbolRef) {
-  const { data, error, refetch } = useQuery(newsRecordsQuery(symbol));
-  const listing = useListing(symbol);
-
-  const reading = useMemo(
-    () => data && readNews(data, { symbol, listing }),
-    [data, symbol, listing]
-  );
+  const { data: reading, error, refetch } = useQuery(newsReadingQuery(symbol));
 
   return { reading, error, refetch };
 }
@@ -80,7 +66,7 @@ export const newsHeadlinesQuery = (symbols: SymbolRef[]) =>
 export function followNewsChanges(queryClient: QueryClient) {
   window.solyx.news.onChanged((symbol) => {
     void queryClient.invalidateQueries({
-      queryKey: newsQueryKeys.records(symbol),
+      queryKey: newsQueryKeys.reading(symbol),
     });
     void queryClient.invalidateQueries({ queryKey: coverage });
     void queryClient.invalidateQueries({ queryKey: headlines });

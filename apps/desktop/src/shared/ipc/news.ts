@@ -2,7 +2,7 @@ import type { SymbolRef } from "@solyx/core/market";
 import type {
   Headline,
   NewsChannel,
-  NewsRecord,
+  NewsReading,
   SourceHealth,
 } from "@solyx/core/news";
 
@@ -22,8 +22,8 @@ export interface NewsCoverage {
 }
 
 export interface NewsApi {
-  /** What was collected about a listing over the last `days` days, newest first. */
-  records(symbol: SymbolRef, days: number): Promise<NewsRecord[]>;
+  /** A listing's stories, gauge and daily stance over the last `days` days, grouped in the main process. */
+  reading(symbol: SymbolRef, days: number): Promise<NewsReading>;
   /** Where a listing's news comes from, so a quiet listing can be told from a broken source. */
   coverage(symbol: SymbolRef): Promise<NewsCoverage>;
   /** The `limit` heaviest headlines about the listings over the last `days` days. */
@@ -41,7 +41,7 @@ export interface NewsEvents {
 }
 
 export const newsChannels = {
-  records: "news:records",
+  reading: "news:reading",
   coverage: "news:coverage",
   headlines: "news:headlines",
 } as const satisfies Record<keyof NewsApi, string>;

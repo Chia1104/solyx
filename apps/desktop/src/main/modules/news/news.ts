@@ -1,13 +1,17 @@
-import { groupBy, mapAsync } from "es-toolkit";
+import { groupBy, mapAsync, omit, uniqBy } from "es-toolkit";
 
+import type { Embedder } from "@solyx/core/embedding";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
-import { rankHeadlines, readNews } from "@solyx/core/news";
+import { rankHeadlines, readNews, storyText } from "@solyx/core/news";
 import type {
   Headline,
   NewsCollection,
+  NewsReading,
+  NewsRecord,
   NewsSource,
   NewsStore,
+  NewsStory,
   SourceHealth,
 } from "@solyx/core/news";
 import type { SentimentScorer } from "@solyx/core/sentiment";
@@ -42,12 +46,21 @@ export interface NewsOptions {
   store: NewsStore;
   /** `undefined` until the user sets up a decisions model. */
   scorer: () => Promise<SentimentScorer | undefined>;
+  /** `undefined` while news groups by titles alone. */
+  embedder: () => Promise<Embedder | undefined>;
   marketData: Pick<MarketData, "listing">;
   /** Called once per collection of a listing's news, even one that failed partway. */
   onChange: (symbol: SymbolRef) => void;
   /** @default () => new Date() */
   now?: () => Date;
 }
+
+/** A story as windows get it: vectors stay in the main process. */
+const shown = (story: NewsStory): NewsStory => ({
+  ...story,
+  lead: omit(story.lead, ["embedding"]),
+  records: story.records.map((record) => omit(record, ["embedding"])),
+});
 
 function isResting(health: SourceHealth | undefined, at: Date) {
   return (
@@ -68,6 +81,44 @@ export function createNews(options: NewsOptions) {
 
   const healthBySource = () =>
     new Map(store.sourceHealth().map((health) => [health.source, health]));
+
+  /**
+   * The listing's records since `since`, each with its vector once the embedder gave one. Items
+   * without one are embedded now; while the embedder cannot be reached, they group by titles alone.
+   */
+  async function embedded(
+    symbol: SymbolRef,
+    since: Date,
+    embedder: Embedder | undefined
+  ): Promise<NewsRecord[]> {
+    const records = store.list(symbol, since, embedder?.space);
+
+    if (!embedder) return records;
+
+    const missing = uniqBy(
+      records.filter((record) => !record.embedding),
+      ({ source, item }) => `${source}:${item.id}`
+    );
+
+    if (missing.length === 0) return records;
+
+    try {
+      const vectors = await embedder.embed(
+        missing.map(({ item }) => storyText(item))
+      );
+
+      store.saveEmbeddings(
+        embedder.space,
+        missing.map((record, index) => ({ record, values: vectors[index] }))
+      );
+    } catch (error) {
+      console.error(`Embedding news failed: ${errorMessage(error)}`);
+
+      return records;
+    }
+
+    return store.list(symbol, since, embedder.space);
+  }
 
   async function sourcesFor(market: Market) {
     return (await options.sources()).filter((source) =>
@@ -120,7 +171,8 @@ export function createNews(options: NewsOptions) {
       });
 
       const subject = { symbol, listing };
-      const read = readNews(store.list(symbol, since), subject);
+      const embedder = await options.embedder();
+      const read = readNews(await embedded(symbol, since, embedder), subject);
 
       const newest = Object.values(
         groupBy(read.stories, (story) => story.channel)
@@ -171,7 +223,10 @@ export function createNews(options: NewsOptions) {
       );
 
       // Read again, so the gauge counts the scores just given.
-      const { gauge, daily } = readNews(store.list(symbol, since), subject);
+      const { gauge, daily } = readNews(
+        store.list(symbol, since, embedder?.space),
+        subject
+      );
 
       return {
         stories,
@@ -229,8 +284,20 @@ export function createNews(options: NewsOptions) {
       await collect(symbol, searchable, since, REFRESH_ITEMS);
     },
 
-    /** What is stored about the listing since `since`, newest first. */
-    records: (symbol: SymbolRef, since: Date) => store.list(symbol, since),
+    /** The listing's stories since `since`, grouped as `get_news` groups them. */
+    async reading(symbol: SymbolRef, since: Date): Promise<NewsReading> {
+      const [listing, embedder] = await Promise.all([
+        options.marketData.listing(symbol).catch(() => null),
+        options.embedder(),
+      ]);
+
+      const reading = readNews(await embedded(symbol, since, embedder), {
+        symbol,
+        listing,
+      });
+
+      return { ...reading, stories: reading.stories.map(shown) };
+    },
 
     search: (query: string, limit: number, symbol?: SymbolRef) =>
       store.search(query, limit, symbol),
@@ -241,17 +308,21 @@ export function createNews(options: NewsOptions) {
       since: Date,
       limit: number
     ): Promise<Headline[]> {
+      const embedder = await options.embedder();
+
       const listings = await Promise.all(
         symbols.map(async (symbol) => ({
           subject: {
             symbol,
             listing: await options.marketData.listing(symbol).catch(() => null),
           },
-          records: store.list(symbol, since),
+          records: await embedded(symbol, since, embedder),
         }))
       );
 
-      return rankHeadlines(listings, now()).slice(0, limit);
+      return rankHeadlines(listings, now())
+        .slice(0, limit)
+        .map((headline) => ({ ...headline, story: shown(headline.story) }));
     },
 
     /** Where the listing's news comes from, so a quiet listing can be told from a broken source. */

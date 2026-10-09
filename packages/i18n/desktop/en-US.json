@@ -703,6 +703,10 @@
         "label": "API key",
         "hint": "An API key from the OpenAI platform; signing in with ChatGPT doesn't cover the Decisions API."
       },
+      "embeddings-api-key": {
+        "label": "API key",
+        "hint": "An API key from the OpenAI platform, kept apart from the agent's and the decisions model's; signing in with ChatGPT doesn't cover embeddings."
+      },
       "finmind-token": {
         "label": "FinMind token",
         "hint": "FinMind answers without one, up to 300 requests an hour; a free account's token raises that to 600."
@@ -879,6 +883,24 @@
       "base-url": "Endpoint",
       "base-url-description": "Where requests go. Change it only for a proxy or a compatible service.",
       "base-url-invalid": "Enter an http or https URL"
+    },
+    "embeddings": {
+      "title": "Group news by meaning (experimental)",
+      "description": "Two outlets often word one event too differently for their titles to match. With this on, Solyx also turns each item's title and the start of its snippet into a vector, and counts items two sites published on one day as one story when their vectors read alike.",
+      "enabled": "Group by meaning",
+      "enabled-description": "Off, stories are told apart by their titles alone.",
+      "provider": "Vectors from",
+      "providers": {
+        "local": "This computer (Ollama)",
+        "openai": "OpenAI"
+      },
+      "provider-descriptions": {
+        "local": "A model Ollama runs on this computer; nothing leaves it. Pull the model in Ollama first.",
+        "openai": "OpenAI's model, on its own key below; each item's title and the start of its snippet are sent to OpenAI."
+      },
+      "model": "Model",
+      "measured": "Measured: Solyx knows how alike this model reads one story.",
+      "unmeasured": "Not measured: its vectors are kept, but join no stories until a line is measured for this model."
     },
     "skills": {
       "title": "Skills",

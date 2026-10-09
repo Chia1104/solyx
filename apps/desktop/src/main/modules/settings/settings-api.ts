@@ -19,6 +19,7 @@ import type { AppInfo, FubonFile, SettingsApi } from "#shared/ipc/settings.ts";
 import type { AgentService } from "../agent/agent-service.ts";
 import type { McpServers } from "../agent/mcp-servers.ts";
 import type { Decisions } from "../decisions/decisions.ts";
+import type { Embeddings } from "../embeddings/embeddings.ts";
 import type { MarketDataModule } from "../market/market-data.ts";
 import type { WebSearchModule } from "../web-search/web-search.ts";
 
@@ -56,6 +57,7 @@ export interface SettingsApiOptions {
     | "create"
   >;
   decisions: Pick<Decisions, "settings">;
+  embeddings: Pick<Embeddings, "settings">;
   webSearch: Pick<WebSearchModule, "settings">;
   /** Paths are shown with it as `~`. */
   home: string;
@@ -82,6 +84,7 @@ export function createSettingsApi({
   agent,
   mcp,
   decisions,
+  embeddings,
   webSearch,
   home,
   locations,
@@ -233,6 +236,16 @@ export function createSettingsApi({
         ["decisions", DecisionsProvider.Cloudflare, "accountId"],
         accountId ?? undefined
       );
+    },
+
+    embeddings: async () => embeddings.settings(),
+
+    async setEmbeddingsEnabled(enabled) {
+      config.set(["embeddings", "enabled"], enabled);
+    },
+
+    async setEmbeddingsProvider(provider) {
+      config.set(["embeddings", "provider"], provider);
     },
 
     async agentSkills() {

@@ -15,6 +15,7 @@ import {
 import { MagiUnit, decisionModeSchema } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
 import { decisionsProviderSchema } from "@solyx/decisions/provider";
+import { embeddingsProviderSchema } from "@solyx/embeddings/provider";
 import { finMindPlanSchema } from "@solyx/fundamentals/finmind";
 import { fuglePlanSchema } from "@solyx/market-data/fugle";
 import { webSearchProviderSchema } from "@solyx/web-search/provider";
@@ -119,6 +120,9 @@ const schemas = {
   setDecisionsAccountId: z.tuple([
     z.string().trim().min(1).max(200).nullable(),
   ]),
+  embeddings: z.tuple([]),
+  setEmbeddingsEnabled: z.tuple([z.boolean()]),
+  setEmbeddingsProvider: z.tuple([embeddingsProviderSchema]),
   agentSkills: z.tuple([]),
   setSharedSkill: z.tuple([z.string().min(1).max(64), z.boolean()]),
   setAgentShell: z.tuple([z.boolean()]),

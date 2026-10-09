@@ -388,6 +388,9 @@ importers:
       '@solyx/decisions':
         specifier: workspace:*
         version: link:../../packages/decisions
+      '@solyx/embeddings':
+        specifier: workspace:*
+        version: link:../../packages/embeddings
       '@solyx/fundamentals':
         specifier: workspace:*
         version: link:../../packages/fundamentals
@@ -667,6 +670,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.5
     devDependencies:
+      '@solyx/db':
+        specifier: workspace:*
+        version: link:../db
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.4

@@ -107,6 +107,7 @@ function setup() {
     },
     mcp,
     decisions: { settings: vi.fn() },
+    embeddings: { settings: vi.fn() },
     webSearch: createWebSearch({ config, secrets }),
     home,
     locations: {
