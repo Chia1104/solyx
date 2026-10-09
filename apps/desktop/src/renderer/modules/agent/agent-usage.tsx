@@ -10,6 +10,7 @@ import {
   cn,
 } from "@heroui/react";
 import { DashboardSpeed02Icon } from "@hugeicons/core-free-icons";
+import { memoize } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import type { ReplyUsage } from "@solyx/agent/wire";
@@ -18,6 +19,16 @@ import { Icon } from "../../components/icon.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
 const TOOLTIP_DELAY = 600;
+
+/** Token counts: shortened where the locale shortens them, and grouped where shown in full. */
+const tokenFormat = memoize(
+  (locale: string) =>
+    new Intl.NumberFormat(locale, {
+      notation: "compact",
+      maximumFractionDigits: 2,
+      useGrouping: "always",
+    })
+);
 
 /**
  * How much of its model's context window the conversation's next request fills, opening onto the
@@ -38,7 +49,8 @@ export function ContextMeter({
   onCompact: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const { compactAmount, percent } = numberFormats(i18n.language);
+  const { percent } = numberFormats(i18n.language);
+  const tokens = tokenFormat(i18n.language);
   const label = t("agent.context-meter.label");
   const title = t("agent.context-meter.title");
 
@@ -70,8 +82,8 @@ export function ContextMeter({
             value={used}
             maxValue={window}
             valueLabel={t("agent.context-meter.used", {
-              used: compactAmount.format(used),
-              window: compactAmount.format(window),
+              used: tokens.format(used),
+              window: tokens.format(window),
               percent: percent.format(Math.min(used / window, 1)),
             })}>
             <Label className="text-xs">{title}</Label>
@@ -100,17 +112,18 @@ export function ContextMeter({
 /** A reply's tokens, with how much of its prompt the provider's cache served or kept. */
 export function ReplyUsageMark({ usage }: { usage: ReplyUsage }) {
   const { t, i18n } = useTranslation();
-  const { compactAmount, percent } = numberFormats(i18n.language);
+  const { percent } = numberFormats(i18n.language);
+  const tokens = tokenFormat(i18n.language);
   const prompt = usage.input + usage.cacheRead + usage.cacheWrite;
 
-  const share = (tokens: number) =>
+  const share = (count: number) =>
     t("agent.usage.share", {
-      tokens: compactAmount.format(tokens),
-      percent: percent.format(prompt === 0 ? 0 : tokens / prompt),
+      tokens: tokens.format(count),
+      percent: percent.format(prompt === 0 ? 0 : count / prompt),
     });
 
   const rows = [
-    { label: t("agent.usage.prompt"), value: compactAmount.format(prompt) },
+    { label: t("agent.usage.prompt"), value: tokens.format(prompt) },
     {
       label: t("agent.usage.cache-read"),
       value: share(usage.cacheRead),
@@ -124,7 +137,7 @@ export function ReplyUsageMark({ usage }: { usage: ReplyUsage }) {
     { label: t("agent.usage.uncached"), value: share(usage.input), part: true },
     {
       label: t("agent.usage.output"),
-      value: compactAmount.format(usage.output),
+      value: tokens.format(usage.output),
     },
   ];
 
