@@ -218,23 +218,21 @@ export function createAgentService(options: AgentServiceOptions) {
     desk: options.desk,
   });
 
-  const setup = createSetupTools({
-    setup: createAgentSetup({
-      ...options.setup,
-      config: options.config,
-      secrets: options.secrets,
-      models,
-      mcp: options.mcp,
-      skills,
-      instructions,
-      memory: options.memory,
-      shellOn,
-      files: {
-        config: options.config.file,
-        skills: options.skillFolders.solyx,
-        instructions: options.instructionsFile,
-      },
-    }),
+  const setup = createAgentSetup({
+    ...options.setup,
+    config: options.config,
+    secrets: options.secrets,
+    models,
+    mcp: options.mcp,
+    skills,
+    instructions,
+    memory: options.memory,
+    shellOn,
+    files: {
+      config: options.config.file,
+      skills: options.skillFolders.solyx,
+      instructions: options.instructionsFile,
+    },
   });
 
   const runtime = createAgentRuntime({
@@ -253,7 +251,7 @@ export function createAgentService(options: AgentServiceOptions) {
           research,
           flows,
           history,
-          setup,
+          createSetupTools({ setup, guard }),
           ...(shellOn() ? [shell.extension(guard)] : []),
           ...(webOn ? [web.extension(guard)] : []),
           ...(options.config.read().agent.memory

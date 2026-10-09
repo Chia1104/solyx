@@ -83,6 +83,7 @@ export const AgentToolName = {
   SubmitForecast: "submit_forecast",
   SearchHistory: "search_history",
   GetSetup: "get_setup",
+  ChangeSetting: "change_setting",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
   Bash: "bash",
 } as const;
@@ -162,6 +163,18 @@ export const rememberArgumentsSchema = z.object({
 export const forgetArgumentsSchema = z.object({
   id: z.string().describe("A memory's id from the list"),
 });
+
+/** A setting the agent changes once the user allows it, as the user reads it before they do. */
+export const changeSettingArgumentsSchema = z.object({
+  setting: z
+    .string()
+    .describe(
+      "The setting's name as get_setup gives it, such as agent.thinking"
+    ),
+  value: z.string().describe("A value get_setup says the setting takes"),
+});
+
+export type SettingChange = z.infer<typeof changeSettingArgumentsSchema>;
 
 export const AgentEventType = {
   RunStart: "run:start",

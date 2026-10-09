@@ -204,7 +204,10 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "- The shell is off until the user switches it on, and stays off while the account is live; each command waits for them unless the approval mode lets it run.",
       "- Memory: you save, rewrite or forget a memory only once the user allows it; they read and edit them on the Memory tab, or switch memory off there.",
       "- Updates: the app checks every six hours while that setting is on. Windows installs on restart; on macOS the update is linked for the user to download.",
-      "- Settings change only on their tab or in config.json; walk the user there with the tab's link and say what to pick."
+      "",
+      "## Changing settings",
+      "- change_setting changes a setting get_setup says it takes, such as the theme, the default model and thinking, who decides forecasts and proposals, data sources and plans, news collection and the vendors in use. Use it when the user asks for that change or agrees to one you suggested, and say what the change does first. The user allows each change unless the conversation's approval mode lets it run, and it applies at once.",
+      "- Keys, sign-ins, the providers switched on, endpoints, the shell, MCP tools, shared skills and memory only the user changes: walk them to the tab with its link and say what to pick."
     ),
   },
 ];

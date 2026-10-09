@@ -342,6 +342,7 @@
       "submit_forecast": "Made a forecast",
       "search_history": "Searched history",
       "get_setup": "Read the setup",
+      "change_setting": "Changed a setting",
       "bash": "Ran a command"
     },
     "tool-status": {
@@ -396,6 +397,7 @@
       "read-page-description": "Your web search vendor will fetch this address. One you didn't expect could be a page the agent read trying to send your data out, so check it before you allow it.",
       "remember-description": "The agent wants to keep this for later conversations, and reads it in every one. Check it says what you mean.",
       "forget-description": "The agent wants to forget this memory, so later conversations won't know it.",
+      "change-setting-description": "The agent wants to change this setting. It applies at once, as if you changed it in Settings.",
       "allow": "Allow",
       "deny": "Don't allow",
       "auto-allowed": "allowed by the decisions model",
