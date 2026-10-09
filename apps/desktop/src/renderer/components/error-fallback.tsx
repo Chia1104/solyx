@@ -1,3 +1,6 @@
+import { useEffect } from "react";
+
+import { captureException } from "@sentry/electron/renderer";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -13,6 +16,11 @@ import { FallbackFrame } from "./fallback-frame.tsx";
  */
 export function ErrorFallback({ error, reset }: ErrorComponentProps) {
   const { t } = useTranslation();
+
+  // A boundary keeps the error from reaching the window, where Sentry would hear of it.
+  useEffect(() => {
+    captureException(error);
+  }, [error]);
 
   // A zod error's message is its issues as JSON, so they are listed instead.
   const description =

@@ -2,13 +2,17 @@ import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import { join } from "node:path";
 
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { debounce, omit } from "es-toolkit";
 import { defineConfig } from "vite-plus";
 import type { Plugin } from "vite-plus";
 import type { PackUserConfig } from "vite-plus/pack";
+
+import packageJson from "./package.json" with { type: "json" };
 
 const MAIN_BUNDLE = "dist/main/index.mjs";
 
@@ -19,6 +23,28 @@ const PRELOAD_BUNDLE = "dist/preload/index.cjs";
 const rendererUrl = process.env.SOLYX_RENDERER_URL;
 
 const isDev = Boolean(rendererUrl);
+
+// Set only by the package workflow, which uploads the renderer's source maps so Sentry can read its
+// minified stacks, and deletes them so they never ship.
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+
+const uploadSourceMaps = sentryAuthToken
+  ? sentryVitePlugin({
+      authToken: sentryAuthToken,
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      telemetry: false,
+      // Named as the main process names its reports. Maps match by the debug ids injected into the
+      // bundle, so the release is not injected.
+      release: { name: `solyx@${packageJson.version}`, inject: false },
+      sourcemaps: {
+        filesToDeleteAfterUpload: join(
+          import.meta.dirname,
+          "dist/renderer/**/*.map"
+        ),
+      },
+    })
+  : [];
 
 let electron: ChildProcess | undefined;
 
@@ -66,7 +92,7 @@ const nodeBundle: PackUserConfig = {
 export default defineConfig({
   root: "src/renderer",
   base: "./",
-  plugins: [react(), tailwindcss(), contentSecurityPolicy],
+  plugins: [react(), tailwindcss(), contentSecurityPolicy, ...uploadSourceMaps],
   server: {
     port: rendererUrl ? Number(new URL(rendererUrl).port) : undefined,
     strictPort: true,
@@ -77,6 +103,15 @@ export default defineConfig({
   // stalls packaging on Windows.
   run: {
     tasks: {
+      // The package workflow's Sentry DSN is written into the main bundle, and its token turns on
+      // the renderer's source maps, so both reach the task.
+      build: {
+        command: ["vp build", "vp pack"],
+        cache: {
+          env: ["SENTRY_DSN", "SENTRY_AUTH_TOKEN"],
+          untrackedEnv: ["SENTRY_ORG", "SENTRY_PROJECT"],
+        },
+      },
       package: {
         command:
           "electron-builder --config build/electron-builder.yml --publish never",
@@ -91,13 +126,19 @@ export default defineConfig({
       },
     },
   },
-  build: { outDir: "../../dist/renderer", emptyOutDir: true },
+  build: {
+    outDir: "../../dist/renderer",
+    emptyOutDir: true,
+    sourcemap: sentryAuthToken ? "hidden" : false,
+  },
   pack: [
     {
       ...nodeBundle,
       entry: { index: "src/main/index.ts" },
       outDir: "dist/main",
       format: "esm",
+      // Empty in development and forks, which then have nowhere to send crash reports.
+      env: { SENTRY_DSN: process.env.SENTRY_DSN ?? "" },
       // drizzle's migrator reads SQL files at runtime, so they ship beside the bundle.
       copy: [
         {

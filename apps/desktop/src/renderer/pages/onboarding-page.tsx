@@ -11,6 +11,7 @@ import {
 } from "#shared/ipc/settings.ts";
 
 import { Section } from "../components/section.tsx";
+import { CrashReportSection } from "../modules/crash-reports/crash-report-row.tsx";
 import { OnboardingFlow } from "../modules/onboarding/onboarding-flow.tsx";
 import { OnboardingStep } from "../modules/onboarding/onboarding-step.ts";
 import { SetupSummary } from "../modules/onboarding/setup-summary.tsx";
@@ -49,16 +50,19 @@ export function OnboardingPage() {
     [OnboardingStep.Welcome]: {
       complete: true,
       content: (
-        <Section
-          title={t("onboarding.welcome.title")}
-          description={t("onboarding.welcome.description")}>
-          <div className="flex flex-col gap-6">
-            <ThemeSelect />
-            <PalettePicker editable={false} />
-            <PriceColorsSelect />
-            <LanguageSelect />
-          </div>
-        </Section>
+        <>
+          <Section
+            title={t("onboarding.welcome.title")}
+            description={t("onboarding.welcome.description")}>
+            <div className="flex flex-col gap-6">
+              <ThemeSelect />
+              <PalettePicker editable={false} />
+              <PriceColorsSelect />
+              <LanguageSelect />
+            </div>
+          </Section>
+          <CrashReportSection />
+        </>
       ),
     },
     [OnboardingStep.MarketData]: {

@@ -80,6 +80,7 @@ function setup() {
       node: "24.0.0",
       os: "macOS 26.0 (arm64)",
     }),
+    canReportCrashes: true,
   };
 
   const skillFolders = {
@@ -263,6 +264,17 @@ test("the shell is off until the user switches it on", async () => {
 
   expect(config.read().agent.shell).toBe(true);
   expect((await api.agentSkills()).shell).toBe(true);
+});
+
+test("crash reports stay unsent until the user agrees to send them", async () => {
+  const { api, config } = setup();
+
+  expect(await api.crashReports()).toEqual({ send: false, available: true });
+
+  await api.setCrashReports(true);
+
+  expect(config.read().crashReports.send).toBe(true);
+  expect(await api.crashReports()).toEqual({ send: true, available: true });
 });
 
 test("memory is on until the user switches it off", async () => {

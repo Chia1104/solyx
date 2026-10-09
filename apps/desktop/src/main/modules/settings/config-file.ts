@@ -248,6 +248,14 @@ const configSchema = section(
         }),
       })
     ),
+    crashReports: section(
+      z.looseObject({
+        send: z.boolean().catch(false).meta({
+          description:
+            "Sends Solyx's maintainer a report through Sentry when Solyx crashes or hits an error it did not expect: what went wrong, where in the code, and the versions of Solyx, Electron and the operating system. Reports leave out your keys, conversations, holdings and orders.",
+        }),
+      })
+    ),
     webSearch: section(
       z.looseObject({
         provider: webSearchProviderSchema
@@ -394,6 +402,7 @@ type ConfigPath =
   | ["agent", "mcpTools", string]
   | ["news", "collectEveryHours"]
   | ["updates", "check"]
+  | ["crashReports", "send"]
   | ["webSearch", "provider"]
   | ["decisions", "provider"]
   | ["decisions", DecisionsProvider, "model" | "baseURL"]

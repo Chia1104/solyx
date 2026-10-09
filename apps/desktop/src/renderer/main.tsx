@@ -1,3 +1,4 @@
+import "./app/crash-reports.ts";
 import "./app/zod-config.ts";
 import "./app/i18n.ts";
 import "./styles.css";

@@ -1207,6 +1207,13 @@
       "failed": "無法檢查更新"
     }
   },
+  "crash-reports": {
+    "title": "協助改善 Solyx",
+    "description": "Solyx 當機或遇到預期外的錯誤時，可以透過 Sentry 把報告傳給維護者，讓問題得以修正。在你開啟之前不會傳送任何東西，之後也可以隨時在「設定 → 關於」更改。",
+    "send": "傳送當機報告",
+    "send-description": "內容包括出了什麼錯、發生在程式的哪裡，以及 Solyx、Electron 與作業系統的版本。報告不會包含你的金鑰、對話、持股與委託。",
+    "unavailable": "此版本不會傳送報告"
+  },
   "locale": {
     "system": "跟隨系統",
     "en-US": "English",

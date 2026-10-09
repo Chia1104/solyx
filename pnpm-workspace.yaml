@@ -62,6 +62,9 @@ catalogs:
     "@vitejs/plugin-react": ^6.1.1
     react: ^19.3.0
     react-dom: ^19.3.0
+  sentry:
+    "@sentry/electron": 8.1.0
+    "@sentry/vite-plugin": 5.4.1
   tailwindcss:
     "@tailwindcss/vite": 4.3.3
     tailwindcss: 4.3.3
@@ -76,11 +79,13 @@ catalogs:
     "@lobehub/icons-static-svg": 1.95.1
     zustand: 5.0.15
 
-# esbuild (through drizzle-kit) runs from its platform package; its install script only verifies it.
+# esbuild (through drizzle-kit) and sentry-cli (through Sentry's Vite plugin) run from their platform
+# packages; their install scripts only verify them, or download one when it is missing.
 # pi-ai's Google SDK and protobufjs only print notices from theirs. electron-winstaller's picks 7-Zip
 # for electron-builder's Squirrel.Windows target, which Solyx does not build.
 allowBuilds:
   "@google/genai": false
+  "@sentry/cli": false
   electron-winstaller: false
   esbuild: false
   protobufjs: false

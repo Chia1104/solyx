@@ -37,6 +37,8 @@ export interface SettingsShell {
   showItemInFolder(path: string): void;
   /** The app and the runtime it runs on, as About shows them. */
   about(): Omit<AppInfo, "locations">;
+  /** This build has somewhere to send crash reports. */
+  canReportCrashes: boolean;
 }
 
 export interface SettingsApiOptions {
@@ -301,6 +303,15 @@ export function createSettingsApi({
 
     async setUpdateChecks(enabled) {
       config.set(["updates", "check"], enabled);
+    },
+
+    crashReports: async () => ({
+      send: config.read().crashReports.send,
+      available: shell.canReportCrashes,
+    }),
+
+    async setCrashReports(send) {
+      config.set(["crashReports", "send"], send);
     },
 
     async mcp() {
