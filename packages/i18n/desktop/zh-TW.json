@@ -558,6 +558,8 @@
     "palette": "配色",
     "palette-description": "淺色與深色各選一套，主題決定顯示哪一套。",
     "palette-swatch": "{{palette}}，{{scheme}}",
+    "palette-count_one": "共 {{count}} 套",
+    "palette-count_other": "共 {{count}} 套",
     "palettes": {
       "blueprint": "藍圖",
       "graphite": "石墨",
