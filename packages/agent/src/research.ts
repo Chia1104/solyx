@@ -226,11 +226,11 @@ function reportText(report: Report): string {
   ].join("\n");
 }
 
-function forecastText(forecast: Forecast): string {
-  const { anchor, plan, outcome, scenarios } = forecast;
+export function forecastText(forecast: Forecast): string {
+  const { instrument, anchor, plan, outcome, scenarios } = forecast;
 
   const lines = [
-    `- ${forecast.id}: ${forecast.direction} over ${sessions(forecast.horizon)} from ${anchor.date} at ${anchor.price}, under report revision ${forecast.reportRevision}`,
+    `- ${forecast.id}: ${instrument.market} ${instrument.symbol} ${forecast.direction} over ${sessions(forecast.horizon)} from ${anchor.date} at ${anchor.price}, under report revision ${forecast.reportRevision}`,
     `  scenarios: ${scenarios
       .map(
         (scenario) =>

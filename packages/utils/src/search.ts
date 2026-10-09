@@ -26,6 +26,12 @@ const STOP_WORDS: ReadonlySet<string> = new Set([
 const UNSPACED_RUN =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+/gu;
 
+// Words that may change case within, such as `getQuotes` or `CoWoS`.
+const CASED_WORD = /[\p{Script=Latin}\p{N}]+/gu;
+
+// A lone letter, such as a possessive's s or one a case change splits off, matches nearly anything.
+const LONE_LETTER = /^\p{Script=Latin}$/u;
+
 // Okapi BM25's usual parameters.
 const K1 = 1.2;
 
@@ -38,6 +44,15 @@ function pairs(run: string): string[] {
   return chars.length === 1
     ? chars
     : chars.slice(1).map((char, index) => `${chars[index]}${char}`);
+}
+
+/** A word whole, then split where its case changes, so `getQuotes` finds `quote` and `CoWoS` matches whole. */
+function caseParts(word: string): string {
+  const parts = word
+    .replace(/([\p{Ll}\p{N}])(\p{Lu})/gu, "$1 $2")
+    .replace(/(\p{Lu}+)(\p{Lu}\p{Ll})/gu, "$1 $2");
+
+  return parts === word ? word : `${word} ${parts}`;
 }
 
 /** Naive singular form, so `quotes` finds `quote` and `searches` finds `search`. */
@@ -56,18 +71,21 @@ function singular(term: string): string {
 }
 
 /**
- * The terms a search compares: words split at camelCase and anything but letters and digits,
- * lowercased, without stop words or plurals, and runs of Chinese, Japanese or Korean as
- * overlapping pairs of characters. A full-text index fed these terms matches as this module does.
+ * The terms a search compares: words split at anything but letters and digits, each whole and
+ * again where its case changes, lowercased, without stop words, lone letters or plurals, and runs
+ * of Chinese, Japanese or Korean as overlapping pairs of characters. A full-text index fed these
+ * terms matches as this module does.
  */
 export function searchTerms(text: string): string[] {
   return text
-    .replace(/([\p{Ll}\p{N}])(\p{Lu})/gu, "$1 $2")
-    .replace(/(\p{Lu}+)(\p{Lu}\p{Ll})/gu, "$1 $2")
+    .replace(CASED_WORD, caseParts)
     .replace(UNSPACED_RUN, (run) => ` ${pairs(run).join(" ")} `)
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
-    .filter((term) => term.length > 0 && !STOP_WORDS.has(term))
+    .filter(
+      (term) =>
+        term.length > 0 && !STOP_WORDS.has(term) && !LONE_LETTER.test(term)
+    )
     .map(singular);
 }
 

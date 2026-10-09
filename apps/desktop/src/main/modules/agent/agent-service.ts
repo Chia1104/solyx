@@ -6,6 +6,7 @@ import { BrowserWindow } from "electron";
 import { omit, sum } from "es-toolkit";
 
 import { createAnalysis } from "@solyx/agent/analysis";
+import { createHistory } from "@solyx/agent/history";
 import { createMagi } from "@solyx/agent/magi";
 import type { MagiPort } from "@solyx/agent/magi";
 import { mcpScriptExtension } from "@solyx/agent/mcp-script";
@@ -195,6 +196,12 @@ export function createAgentService(options: AgentServiceOptions) {
     magi,
   });
 
+  const history = createHistory({
+    research: options.research,
+    news: options.news,
+    desk: options.desk,
+  });
+
   const runtime = createAgentRuntime({
     store: options.conversations,
     models: models.models,
@@ -209,6 +216,7 @@ export function createAgentService(options: AgentServiceOptions) {
           trading,
           analysis,
           research,
+          history,
           ...(shellOn() ? [shell.extension(guard)] : []),
           ...(webOn ? [web.extension(guard)] : []),
           ...(options.config.read().agent.memory

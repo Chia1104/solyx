@@ -6,6 +6,7 @@
   "exports": {
     "./analysis": "./src/analysis.ts",
     "./chatgpt-oauth": "./src/chatgpt-oauth.ts",
+    "./history": "./src/history.ts",
     "./mcp": "./src/mcp.ts",
     "./mcp-config": "./src/mcp-config.ts",
     "./magi": "./src/magi.ts",

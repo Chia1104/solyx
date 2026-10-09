@@ -70,7 +70,7 @@ import type { ProposeOrderDetails } from "./wire.ts";
 export interface TradingToolPorts extends PromptSources {
   marketData: MarketData;
   watchlist(): SymbolRef[];
-  news: NewsDesk;
+  news: Pick<NewsDesk, "collect">;
   /** The days a market trades, as far as the host knows them. */
   tradingDays(market: Market): Promise<TradingDays>;
   /** The listings' coming events and their markets' releases over the next `days` days, as the app's overview lists them. */
@@ -155,7 +155,7 @@ const LISTED_PROPOSALS = 20;
 const NEWS_ITEMS = 10;
 
 // Announcements run long; the scorer reads them whole.
-const SNIPPET_LENGTH = 280;
+export const SNIPPET_LENGTH = 280;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -361,7 +361,7 @@ function describeStory(
   return lines.join("\n");
 }
 
-function describeProposal(proposal: TradeProposal): string {
+export function describeProposal(proposal: TradeProposal): string {
   const { order } = proposal;
   const price = order.type === OrderType.Limit ? order.limitPrice : "market";
 

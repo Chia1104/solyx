@@ -210,3 +210,124 @@ test("usage counts listings with a report and forecasts, and clearing empties bo
   expect(research.usage()).toMatchObject({ reports: 0, forecasts: 0 });
   expect(research.store.report(TSMC)).toBeUndefined();
 });
+
+test("a search finds each listing's newest revision holding a word, best first", () => {
+  const { store } = open();
+
+  store.addReport(
+    report(1, {
+      thesis: "CoWoS capacity doubles and advanced packaging sells out.",
+    })
+  );
+  store.addReport(report(2, { thesis: "先進封裝產能翻倍，CoWoS 供不應求。" }));
+  store.addReport(report(3));
+  store.addReport(
+    report(1, {
+      symbol: MEDIATEK,
+      sections: {
+        business: { text: "Handsets lean on advanced nodes.", revisedAt: 0 },
+      },
+    })
+  );
+
+  expect(
+    store
+      .searchReports("CoWoS", 5)
+      .map(({ symbol, revision }) => [symbol.symbol, revision])
+  ).toEqual([["2330", 2]]);
+  expect(
+    store.searchReports("先進封裝", 5).map(({ revision }) => revision)
+  ).toEqual([2]);
+  expect(
+    store.searchReports("advanced nodes", 5).map(({ symbol }) => symbol.symbol)
+  ).toEqual(["2454", "2330"]);
+  expect(
+    store
+      .searchReports("advanced", 5, MEDIATEK)
+      .map(({ symbol }) => symbol.symbol)
+  ).toEqual(["2454"]);
+  expect(store.searchReports("advanced", 1)).toHaveLength(1);
+  expect(store.searchReports("…", 5)).toEqual([]);
+});
+
+test("a search finds forecasts by their rationale, claims and listing", () => {
+  const { store } = open();
+
+  store.addForecast(
+    forecast("a", {
+      claims: [
+        {
+          text: "Revenue rose 30%.",
+          source: "MOPS",
+          quote: "營收年增 30%",
+          support: null,
+        },
+      ],
+    })
+  );
+  store.addForecast(
+    forecast("b", {
+      instrument: { ...MEDIATEK, kind: InstrumentKind.Stock },
+      rationale: "Results day; the range should break.",
+    })
+  );
+  store.settle("a", OUTCOME);
+
+  expect(store.searchForecasts("營收", 5)).toEqual([
+    forecast("a", {
+      claims: [
+        {
+          text: "Revenue rose 30%.",
+          source: "MOPS",
+          quote: "營收年增 30%",
+          support: null,
+        },
+      ],
+      outcome: OUTCOME,
+    }),
+  ]);
+  expect(store.searchForecasts("results", 5).map(({ id }) => id)).toEqual([
+    "b",
+    "a",
+  ]);
+  expect(store.searchForecasts("results", 5, TSMC).map(({ id }) => id)).toEqual(
+    ["a"]
+  );
+  expect(store.searchForecasts("2454", 5).map(({ id }) => id)).toEqual(["b"]);
+});
+
+test("research kept before its search existed is found once the file opens", () => {
+  const first = open();
+
+  first.store.addReport(report(1, { thesis: "Dividend grows every year." }));
+  first.store.addForecast(forecast("a", { rationale: "Dividend day ahead." }));
+  first.close();
+  opened = [];
+
+  const db = new DatabaseSync(join(directory, "research.sqlite"));
+
+  db.exec(
+    "INSERT INTO report_terms (report_terms) VALUES ('delete-all'); INSERT INTO forecast_terms (forecast_terms) VALUES ('delete-all');"
+  );
+  db.close();
+
+  const { store } = open();
+
+  expect(
+    store.searchReports("dividend", 5).map(({ revision }) => revision)
+  ).toEqual([1]);
+  expect(store.searchForecasts("dividend", 5).map(({ id }) => id)).toEqual([
+    "a",
+  ]);
+});
+
+test("clearing research empties its search", () => {
+  const research = open();
+
+  research.store.addReport(report(1));
+  research.store.addForecast(forecast("a"));
+  research.clear();
+
+  expect(research.store.searchReports("advanced", 5)).toEqual([]);
+  expect(research.store.searchForecasts("range", 5)).toEqual([]);
+});

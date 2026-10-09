@@ -1,12 +1,12 @@
 import { count, desc, eq, inArray, sql } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
-import { keyBy, uniq } from "es-toolkit";
+import { keyBy } from "es-toolkit";
 
 import type { Memory, MemoryDraft, MemoryStore } from "@solyx/core/memory";
-import { searchTerms } from "@solyx/utils/search";
 
 import { connect } from "./connection.ts";
 import { databaseBytes } from "./database-file.ts";
+import { anyTerm, indexedTerms } from "./full-text.ts";
 import { memories } from "./memory-schema.ts";
 
 function toMemory(row: typeof memories.$inferSelect): Memory {
@@ -27,9 +27,7 @@ function toMemory(row: typeof memories.$inferSelect): Memory {
 
 /** What `memory_terms` holds of a memory: the words of its listing's code, description and body. */
 function termsOf(draft: MemoryDraft) {
-  return searchTerms(
-    [draft.listing?.symbol, draft.description, draft.body].join(" ")
-  ).join(" ");
+  return indexedTerms([draft.listing?.symbol, draft.description, draft.body]);
 }
 
 function memoryStore(db: NodeSQLiteDatabase): MemoryStore {
@@ -56,12 +54,9 @@ function memoryStore(db: NodeSQLiteDatabase): MemoryStore {
     },
 
     search(query, limit) {
-      const terms = uniq(searchTerms(query));
+      const match = anyTerm(query);
 
-      if (terms.length === 0) return [];
-
-      // Terms hold only letters and digits, so quoting each makes it a plain word to FTS5.
-      const match = terms.map((term) => `"${term}"`).join(" OR ");
+      if (match === null) return [];
 
       const ranked = db.all<{ id: number }>(
         sql`SELECT memories.id AS id FROM memory_terms

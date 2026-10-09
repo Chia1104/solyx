@@ -232,6 +232,9 @@ export function createNews(options: NewsOptions) {
     /** What is stored about the listing since `since`, newest first. */
     records: (symbol: SymbolRef, since: Date) => store.list(symbol, since),
 
+    search: (query: string, limit: number, symbol?: SymbolRef) =>
+      store.search(query, limit, symbol),
+
     /** The `limit` heaviest headlines about the listings since `since`, each grouped by its names once known. */
     async headlines(
       symbols: readonly SymbolRef[],

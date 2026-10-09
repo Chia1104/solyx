@@ -311,8 +311,113 @@ test("clearing deletes every item and each listing's last collection, and keeps 
   expect(news.usage()).toEqual({ bytes: expect.any(Number), items: 0 });
   expect(news.usage().bytes).toBeLessThan(before.bytes);
   expect(news.store.list(TSMC, new Date(0))).toEqual([]);
+  expect(news.store.search("title", 5)).toEqual([]);
   expect(news.store.lastCollected(TSMC)).toBeNull();
   expect(news.store.sourceHealth()).toEqual([
     expect.objectContaining({ source: NEWS.id, failureStreak: 1 }),
   ]);
+});
+
+test("a search finds items by title and snippet with every listing they were found for", () => {
+  const { store } = open();
+
+  store.save(
+    TSMC,
+    NEWS,
+    [
+      {
+        ...item("a", "2026-10-01T02:00:00Z"),
+        title: "台積電法說會上調資本支出",
+      },
+      {
+        ...item("b", "2026-10-02T02:00:00Z"),
+        snippet: "Capex guidance raised again",
+      },
+    ],
+    FOUND
+  );
+  store.save(
+    FOXCONN,
+    NEWS,
+    [
+      {
+        ...item("b", "2026-10-02T02:00:00Z"),
+        snippet: "Capex guidance raised again",
+      },
+    ],
+    new Date(FOUND.getTime() + 1000)
+  );
+  store.save(
+    FOXCONN,
+    PTT,
+    [{ ...item("c", null), title: "鴻海資本支出" }],
+    FOUND
+  );
+
+  expect(store.search("資本支出", 5).map(({ item: { id } }) => id)).toEqual([
+    "c",
+    "a",
+  ]);
+  expect(store.search("capex", 5)).toEqual([
+    {
+      source: NEWS.id,
+      channel: NEWS.channel,
+      item: {
+        ...item("b", "2026-10-02T02:00:00Z"),
+        snippet: "Capex guidance raised again",
+      },
+      listings: [TSMC, FOXCONN],
+    },
+  ]);
+  expect(
+    store.search("資本支出", 5, FOXCONN).map(({ item: { id } }) => id)
+  ).toEqual(["c"]);
+  expect(store.search("資本支出", 1)).toHaveLength(1);
+  expect(store.search("…", 5)).toEqual([]);
+});
+
+test("an item found again is searched by its latest title", () => {
+  const { store } = open();
+
+  store.save(
+    TSMC,
+    NEWS,
+    [{ ...item("a", null), title: "Dividend raised" }],
+    FOUND
+  );
+  store.save(
+    TSMC,
+    NEWS,
+    [{ ...item("a", null), title: "Buyback announced" }],
+    FOUND
+  );
+
+  expect(store.search("dividend", 5)).toEqual([]);
+  expect(store.search("buyback", 5).map(({ item: { id } }) => id)).toEqual([
+    "a",
+  ]);
+});
+
+test("items kept before their search existed are found once the file opens", () => {
+  const first = open();
+
+  first.store.save(
+    TSMC,
+    NEWS,
+    [{ ...item("a", null), title: "Dividend raised" }],
+    FOUND
+  );
+  first.close();
+  opened = [];
+
+  const db = new DatabaseSync(join(directory, "news.sqlite"));
+
+  db.exec("INSERT INTO news_terms (news_terms) VALUES ('delete-all')");
+  db.close();
+
+  expect(
+    open()
+      .store.search("dividend", 5)
+      .map(({ item: { id } }) => id)
+  ).toEqual(["a"]);
 });

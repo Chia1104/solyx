@@ -86,6 +86,15 @@ export interface NewsRecord {
   score: SentimentScore | null;
 }
 
+/** A stored item a search found, with every listing it was found for. */
+export interface NewsMatch {
+  source: string;
+  channel: NewsChannel;
+  item: NewsItem;
+  /** In the order it was first found for each. */
+  listings: SymbolRef[];
+}
+
 /** How a source's searches have gone, so a quiet listing can be told from a broken source. */
 export interface SourceHealth {
   source: string;
@@ -122,6 +131,11 @@ export interface NewsStore {
   markSearched(source: string, at: Date, error: string | null): void;
   /** Every source searched so far. */
   sourceHealth(): SourceHealth[];
+  /**
+   * Up to `limit` items whose title or snippet holds any word of `query`, best first and the newest
+   * among equals, whenever they were found; `symbol` keeps to items found for that listing.
+   */
+  search(query: string, limit: number, symbol?: SymbolRef): NewsMatch[];
 }
 
 /**
@@ -390,6 +404,8 @@ export interface NewsDesk {
     since: Date,
     limit: number
   ): Promise<NewsCollection>;
+  /** Searches what is stored, as `NewsStore.search` does, without asking any source. */
+  search(query: string, limit: number, symbol?: SymbolRef): NewsMatch[];
 }
 
 /** Below this relevance an item only names the listing in passing. */
