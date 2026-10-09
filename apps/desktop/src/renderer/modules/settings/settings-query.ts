@@ -29,6 +29,7 @@ export const settingsQueryKeys = {
   fundamentals: [...all, "fundamentals"] as const,
   webSearch: [...all, "web-search"] as const,
   decisions: [...all, "decisions"] as const,
+  embeddings: [...all, "embeddings"] as const,
   agentSkills: [...all, "agent-skills"] as const,
   memory: [...all, "memory"] as const,
   updates: [...all, "updates"] as const,
@@ -175,6 +176,14 @@ export const decisionsSettingsQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.decisions,
     queryFn: () => window.solyx.settings.decisions(),
+    staleTime: Infinity,
+  });
+
+/** Never stale, as below. */
+export const embeddingsSettingsQuery = () =>
+  queryOptions({
+    queryKey: settingsQueryKeys.embeddings,
+    queryFn: () => window.solyx.settings.embeddings(),
     staleTime: Infinity,
   });
 

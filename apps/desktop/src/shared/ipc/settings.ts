@@ -17,6 +17,7 @@ import type { DecisionMode, MagiUnit } from "@solyx/core/council";
 import type { Market } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { DecisionsProvider } from "@solyx/decisions/provider";
+import type { EmbeddingsProvider } from "@solyx/embeddings/provider";
 import type {
   FinMindPlan,
   FinMindPlanLimits,
@@ -40,6 +41,8 @@ export const Secret = {
   CloudflareApiKey: "cloudflare-api-key",
   /** An OpenAI API key for its Decisions API, kept apart from the agent's OpenAI sign-in or key. */
   OpenAIDecisionsApiKey: "openai-decisions-api-key",
+  /** OpenAI's embeddings, kept apart from the agent's and the decisions model's OpenAI keys. */
+  EmbeddingsApiKey: "embeddings-api-key",
   /** Optional: FinMind answers without one under a lower limit. */
   FinMindToken: "finmind-token",
   /** The ChatGPT sign-in's OAuth tokens; the main process saves and refreshes them, nobody types them. */
@@ -340,6 +343,16 @@ export interface DecisionsSettings {
   providers: DecisionsProviderSettings[];
 }
 
+/** Experimental: news grouping that also joins items whose vectors read alike. */
+export interface EmbeddingsSettings {
+  enabled: boolean;
+  provider: EmbeddingsProvider;
+  /** The model and vector length the provider's settings pick. */
+  space: string;
+  /** A line was measured on `space`, without which its vectors join nothing. */
+  measured: boolean;
+}
+
 /** A playbook the agent can read, as the settings page lists it. */
 export interface AgentSkillInfo {
   name: string;
@@ -510,6 +523,10 @@ export interface SettingsApi {
   ): Promise<void>;
   /** Cloudflare's account; `null` removes it. */
   setDecisionsAccountId(accountId: string | null): Promise<void>;
+  embeddings(): Promise<EmbeddingsSettings>;
+  setEmbeddingsEnabled(enabled: boolean): Promise<void>;
+  /** Picks where vectors come from; vectors of the other provider's model are dropped as new ones are kept. */
+  setEmbeddingsProvider(provider: EmbeddingsProvider): Promise<void>;
   agentSkills(): Promise<AgentSkills>;
   /** Offers a skill from ~/.agents/skills to the agent, or stops offering it. */
   setSharedSkill(name: string, enabled: boolean): Promise<void>;
@@ -595,6 +612,9 @@ export const settingsChannels = {
   setDecisionsModel: "settings:set-decisions-model",
   setDecisionsBaseURL: "settings:set-decisions-base-url",
   setDecisionsAccountId: "settings:set-decisions-account-id",
+  embeddings: "settings:embeddings",
+  setEmbeddingsEnabled: "settings:set-embeddings-enabled",
+  setEmbeddingsProvider: "settings:set-embeddings-provider",
   agentSkills: "settings:agent-skills",
   setSharedSkill: "settings:set-shared-skill",
   setAgentShell: "settings:set-agent-shell",

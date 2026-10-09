@@ -15,47 +15,11 @@ import { groupBy, uniq } from "es-toolkit";
 
 import { cosine } from "@solyx/core/embedding";
 import { storyText } from "@solyx/core/news";
-import { isEnumValue } from "@solyx/utils/is";
 
-import { createOpenAICompatibleEmbedder } from "../src/openai-compatible.ts";
-import { EMBEDDINGS_DEFAULTS, EmbeddingsProvider } from "../src/provider.ts";
-
+import { embedderFromEnv } from "./env-embedder.ts";
 import { STORY_PAIRS, isSameStory } from "./story-samples.ts";
 
-function required(name: string): string {
-  const value = process.env[name];
-
-  if (!value) throw new Error(`Set ${name}`);
-
-  return value;
-}
-
-function dimensionsOf(value: string | undefined, fallback: number | null) {
-  if (value === undefined) return fallback;
-
-  return value === "native" ? null : Number(value);
-}
-
-const provider = process.env.EMBEDDINGS_PROVIDER ?? EmbeddingsProvider.OpenAI;
-
-if (!isEnumValue(EmbeddingsProvider, provider)) {
-  throw new Error(`EMBEDDINGS_PROVIDER is local or openai, not ${provider}`);
-}
-
-const defaults = EMBEDDINGS_DEFAULTS[provider];
-
-const embedder = createOpenAICompatibleEmbedder({
-  baseURL: defaults.baseURL,
-  apiKey:
-    provider === EmbeddingsProvider.OpenAI
-      ? required("OPENAI_API_KEY")
-      : undefined,
-  model: process.env.EMBEDDINGS_MODEL ?? defaults.model,
-  dimensions: dimensionsOf(
-    process.env.EMBEDDINGS_DIMENSIONS,
-    defaults.dimensions
-  ),
-});
+const embedder = embedderFromEnv();
 
 const texts = uniq(
   STORY_PAIRS.flatMap(({ a, b }) => [storyText(a), storyText(b)])

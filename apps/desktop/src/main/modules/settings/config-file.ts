@@ -33,6 +33,11 @@ import {
   TYPESAFE_BASE_URL,
   TYPESAFE_DEFAULT_MODEL,
 } from "@solyx/decisions/typesafe";
+import {
+  EMBEDDINGS_DEFAULTS,
+  EmbeddingsProvider,
+  embeddingsProviderSchema,
+} from "@solyx/embeddings/provider";
 import { FinMindPlan, finMindPlanSchema } from "@solyx/fundamentals/finmind";
 import { FuglePlan, fuglePlanSchema } from "@solyx/market-data/fugle";
 import { isErrnoError } from "@solyx/utils/error";
@@ -307,6 +312,48 @@ const configSchema = section(
         ),
       })
     ),
+    // A missing model or endpoint reads as the provider's default where it is read.
+    embeddings: section(
+      z.looseObject({
+        enabled: z.boolean().catch(false).meta({
+          description:
+            "Experimental: news also counts items two sites published on one day as one story when their vectors read alike, which catches a story reworded too far for its titles to match. Off, stories are told apart by their titles alone.",
+        }),
+        provider: embeddingsProviderSchema
+          .catch(EmbeddingsProvider.Local)
+          .meta({
+            description:
+              "Where vectors come from: a model on this computer through Ollama, which sends nothing off it, or OpenAI's, on the key saved in the app for it, which is sent each item's title and the start of its snippet. Only a model a line was measured on joins stories.",
+          }),
+        local: section(
+          z.looseObject({
+            model: textSchema.meta({
+              description:
+                "The model Ollama runs, pulled first with `ollama pull`.",
+              default: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.Local].model,
+            }),
+            baseURL: endpointSchema.optional().catch(undefined).meta({
+              description:
+                "Where Ollama, or another server that speaks OpenAI's embeddings API, listens.",
+              default: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.Local].baseURL,
+            }),
+          })
+        ),
+        openai: section(
+          z.looseObject({
+            model: textSchema.meta({
+              description: "The id of OpenAI's embedding model.",
+              default: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.OpenAI].model,
+            }),
+            baseURL: endpointSchema.optional().catch(undefined).meta({
+              description:
+                "Where requests to OpenAI go; change it only for a proxy or a gateway.",
+              default: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.OpenAI].baseURL,
+            }),
+          })
+        ),
+      })
+    ),
   })
 ).meta({
   title: "Solyx settings",
@@ -350,7 +397,8 @@ type ConfigPath =
   | ["webSearch", "provider"]
   | ["decisions", "provider"]
   | ["decisions", DecisionsProvider, "model" | "baseURL"]
-  | ["decisions", typeof DecisionsProvider.Cloudflare, "accountId"];
+  | ["decisions", typeof DecisionsProvider.Cloudflare, "accountId"]
+  | ["embeddings", "enabled" | "provider"];
 
 /** `undefined` removes the entry. */
 type ConfigValue =
@@ -405,6 +453,17 @@ const TEMPLATE = serialize({
       baseURL: CLOUDFLARE_BASE_URL,
     },
     openai: { model: OPENAI_DEFAULT_MODEL, baseURL: OPENAI_BASE_URL },
+  },
+  embeddings: {
+    ...DEFAULTS.embeddings,
+    local: {
+      model: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.Local].model,
+      baseURL: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.Local].baseURL,
+    },
+    openai: {
+      model: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.OpenAI].model,
+      baseURL: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.OpenAI].baseURL,
+    },
   },
 });
 

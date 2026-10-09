@@ -1,5 +1,7 @@
 import { groupBy, maxBy, sumBy } from "es-toolkit";
 
+import { cosine } from "./embedding.ts";
+import type { Embedding } from "./embedding.ts";
 import type { Listing } from "./market-data.ts";
 import { exchangeDate, symbolKey } from "./market.ts";
 import type { Market, SymbolRef } from "./market.ts";
@@ -84,6 +86,8 @@ export interface NewsRecord {
   /** When a search first found it for the listing. */
   foundAt: Date;
   score: SentimentScore | null;
+  /** The item's vector in the space its reader asked for; absent when it has none there. */
+  embedding?: Embedding;
 }
 
 /** A stored item a search found, with every listing it was found for. */
@@ -122,8 +126,19 @@ export interface NewsStore {
   ): void;
   /** Stores the decisions model's reading of a record's item for the listing. */
   saveScore(symbol: SymbolRef, record: NewsRecord, score: SentimentScore): void;
-  /** A listing's records published since `since`, or found since then when undated, newest first. */
-  list(symbol: SymbolRef, since: Date): NewsRecord[];
+  /**
+   * A listing's records published since `since`, or found since then when undated, newest first,
+   * each with its item's vector in `space` where it has one.
+   */
+  list(symbol: SymbolRef, since: Date, space?: string): NewsRecord[];
+  /** Keeps each item's vector in `space`, dropping every vector of another space. */
+  saveEmbeddings(
+    space: string,
+    vectors: readonly {
+      record: Pick<NewsRecord, "source" | "item">;
+      values: Float32Array;
+    }[]
+  ): void;
   /** When news was last collected for a listing; `null` before the first time. */
   lastCollected(symbol: SymbolRef): Date | null;
   markCollected(symbol: SymbolRef, at: Date): void;
@@ -184,6 +199,15 @@ const RETOLD_OVERLAP = 0.4;
 
 // A title with fewer letter pairs than this, once the listing's names are gone, says too little.
 const RETOLD_MIN_PAIRS = 4;
+
+/**
+ * By space, the line above which two items' vectors tell one story. Each rests on `eval-stories`
+ * in `@solyx/embeddings` and on pairs of collected news a person read; a space not listed joins none.
+ */
+export const STORY_LINES = new Map<string, number>([
+  ["text-embedding-3-large/1024", 0.82],
+  ["qwen3-embedding:0.6b", 0.89],
+]);
 
 // Where a site sets its own label apart from the headline, as in `Headline - Site` or `Site | Headline`.
 const TITLE_SEPARATOR = /\s+[-–—]\s*|\s*[-–—]\s+|\s*[|｜]\s*/u;
@@ -307,11 +331,46 @@ function retold(
 }
 
 /**
+ * Whether two records' vectors may say they tell one story: records of one voice that two sites
+ * published on one exchange day, since a site's daily pages and series, and reports of consecutive
+ * days, read alike while telling different stories.
+ */
+export function comparableByVector(
+  a: NewsRecord,
+  b: NewsRecord,
+  market: Market
+): boolean {
+  const [first, second] = [a.item.published, b.item.published];
+
+  return (
+    first !== null &&
+    second !== null &&
+    CHANNEL_VOICE[a.channel] === CHANNEL_VOICE[b.channel] &&
+    a.item.site !== b.item.site &&
+    exchangeDate(market, first.at) === exchangeDate(market, second.at)
+  );
+}
+
+/** Whether two comparable records' vectors read alike above the line measured on their space. */
+function readAlike(a: NewsRecord, b: NewsRecord, market: Market): boolean {
+  if (!a.embedding || a.embedding.space !== b.embedding?.space) return false;
+
+  const line = STORY_LINES.get(a.embedding.space);
+
+  return (
+    line !== undefined &&
+    comparableByVector(a, b, market) &&
+    cosine(a.embedding.values, b.embedding.values) >= line
+  );
+}
+
+/**
  * Groups the records that tell the same story, newest story first, so a story told many times is
  * weighed once. Records of one channel whose titles read the same are one story, as reprints and a
  * thread's replies are. Once the exchange's names for the listing are known, records of one voice
  * whose titles are reworded from each other within a day are one story too, as several outlets
- * reporting one event are; without them every title names the listing and reads alike.
+ * reporting one event are; without them every title names the listing and reads alike. Records
+ * whose vectors read alike are one story as well, which catches rewordings that share few letters.
  */
 function newsStories(
   records: readonly NewsRecord[],
@@ -359,25 +418,26 @@ function newsStories(
     latest.set(key, index);
   }
 
-  if (listing) {
-    const names = [symbol.symbol, listing.name, listing.englishName].flatMap(
-      (name) => (name ? [name.normalize("NFKC").toLowerCase()] : [])
-    );
+  const names = listing
+    ? [symbol.symbol, listing.name, listing.englishName].flatMap((name) =>
+        name ? [name.normalize("NFKC").toLowerCase()] : []
+      )
+    : null;
 
-    for (let i = 0; i < sorted.length; i += 1) {
-      for (let j = i + 1; j < sorted.length; j += 1) {
-        const apart =
-          datedAt(sorted[j]).getTime() - datedAt(sorted[i]).getTime();
+  for (let i = 0; i < sorted.length; i += 1) {
+    for (let j = i + 1; j < sorted.length; j += 1) {
+      const apart = datedAt(sorted[j]).getTime() - datedAt(sorted[i]).getTime();
 
-        // Sorted by time, so nothing later is close enough either.
-        if (apart > RETOLD_WINDOW_MS) break;
+      // Sorted by time, so nothing later is close enough either.
+      if (apart > RETOLD_WINDOW_MS) break;
 
-        if (
-          root(i) !== root(j) &&
-          retold(sorted[i], sorted[j], symbol.market, names)
-        ) {
-          join(i, j);
-        }
+      if (
+        root(i) !== root(j) &&
+        ((names !== null &&
+          retold(sorted[i], sorted[j], symbol.market, names)) ||
+          readAlike(sorted[i], sorted[j], symbol.market))
+      ) {
+        join(i, j);
       }
     }
   }

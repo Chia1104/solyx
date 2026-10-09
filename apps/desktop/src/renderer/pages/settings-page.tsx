@@ -11,6 +11,7 @@ import { AboutSettings } from "../modules/settings/about-settings.tsx";
 import { AgentSettings } from "../modules/settings/agent-settings.tsx";
 import { AgentSkills } from "../modules/settings/agent-skills.tsx";
 import { DecisionsSettings } from "../modules/settings/decisions-settings.tsx";
+import { EmbeddingsSettings } from "../modules/settings/embeddings-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
 import { MarketDataSettings } from "../modules/settings/market-data-settings.tsx";
 import { McpSettings } from "../modules/settings/mcp-settings.tsx";
@@ -51,6 +52,7 @@ export function SettingsPage() {
         <WebSearchSettings />
         <NewsSettings />
         <DecisionsSettings />
+        <EmbeddingsSettings />
       </>
     ),
     [SettingsSection.Skills]: <AgentSkills />,

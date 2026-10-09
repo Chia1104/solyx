@@ -15,6 +15,10 @@ import {
   TYPESAFE_BASE_URL,
   TYPESAFE_DEFAULT_MODEL,
 } from "@solyx/decisions/typesafe";
+import {
+  EMBEDDINGS_DEFAULTS,
+  EmbeddingsProvider,
+} from "@solyx/embeddings/provider";
 import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { WebSearchProvider } from "@solyx/web-search/provider";
@@ -82,11 +86,17 @@ test("a missing file reads as the defaults, which a new file's template holds be
       cloudflare: {},
       openai: {},
     },
+    embeddings: {
+      enabled: false,
+      provider: EmbeddingsProvider.Local,
+      local: {},
+      openai: {},
+    },
   });
 
   config.create();
 
-  // The template names its schema, and the decisions model and endpoint.
+  // The template names its schema, and each decisions and embeddings model and endpoint.
   expect(config.read()).toEqual({
     $schema: "./config.schema.json",
     ...defaults,
@@ -98,6 +108,18 @@ test("a missing file reads as the defaults, which a new file's template holds be
         baseURL: CLOUDFLARE_BASE_URL,
       },
       openai: { model: OPENAI_DEFAULT_MODEL, baseURL: OPENAI_BASE_URL },
+    },
+    embeddings: {
+      enabled: false,
+      provider: EmbeddingsProvider.Local,
+      local: {
+        model: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.Local].model,
+        baseURL: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.Local].baseURL,
+      },
+      openai: {
+        model: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.OpenAI].model,
+        baseURL: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.OpenAI].baseURL,
+      },
     },
   });
   expect(JSON.parse(await readFile(file, "utf8"))).toMatchObject({

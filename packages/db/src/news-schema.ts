@@ -1,4 +1,5 @@
 import {
+  blob,
   index,
   integer,
   primaryKey,
@@ -89,4 +90,17 @@ export const newsSourceHealth = sqliteTable("news_source_health", {
   lastFailureAt: integer("last_failure_at"),
   failureStreak: integer("failure_streak").notNull(),
   lastError: text("last_error"),
+});
+
+/**
+ * Each item's vector, in the one space news grouping reads: keeping vectors of another space drops
+ * these, since vectors of two spaces never compare.
+ */
+export const itemEmbeddings = sqliteTable("item_embeddings", {
+  itemId: integer("item_id")
+    .primaryKey()
+    .references(() => newsItems.id, { onDelete: "cascade" }),
+  space: text().notNull(),
+  /** Float32 values in the platform's byte order. */
+  vector: blob({ mode: "buffer" }).notNull(),
 });

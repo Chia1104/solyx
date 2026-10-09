@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { groupBy, keyBy } from "es-toolkit";
 
@@ -9,6 +9,7 @@ import { connect } from "./connection.ts";
 import { databaseBytes } from "./database-file.ts";
 import { anyTerm, indexedTerms } from "./full-text.ts";
 import {
+  itemEmbeddings,
   listingNews,
   newsCollections,
   newsItems,
@@ -61,10 +62,20 @@ function indexMissing(db: NodeSQLiteDatabase) {
   });
 }
 
-function toRecord(item: ItemRow, listing: ListingRow): NewsRecord {
+type EmbeddingRow = typeof itemEmbeddings.$inferSelect;
+
+// Copied, since SQLite's bytes need not start where a Float32Array may.
+const toValues = (vector: Uint8Array) =>
+  new Float32Array(Uint8Array.from(vector).buffer);
+
+function toRecord(
+  item: ItemRow,
+  listing: ListingRow,
+  embedding: EmbeddingRow | null = null
+): NewsRecord {
   const { model, relevance, stance, kind, topic, speaker } = listing;
 
-  return {
+  const record: NewsRecord = {
     source: item.source,
     channel: item.channel,
     item: toItem(item),
@@ -80,6 +91,15 @@ function toRecord(item: ItemRow, listing: ListingRow): NewsRecord {
         ? null
         : { model, relevance, stance, kind, topic, speaker },
   };
+
+  if (embedding) {
+    record.embedding = {
+      space: embedding.space,
+      values: toValues(embedding.vector),
+    };
+  }
+
+  return record;
 }
 
 function newsStore(db: NodeSQLiteDatabase): NewsStore {
@@ -168,15 +188,59 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
         .run();
     },
 
-    list: (symbol, since) =>
+    list: (symbol, since, space) =>
       db
         .select()
         .from(listingNews)
         .innerJoin(newsItems, eq(listingNews.itemId, newsItems.id))
+        .leftJoin(
+          itemEmbeddings,
+          and(
+            eq(itemEmbeddings.itemId, newsItems.id),
+            eq(itemEmbeddings.space, space ?? "")
+          )
+        )
         .where(and(ofListing(symbol), gte(listedAt, since.getTime())))
         .orderBy(desc(listedAt))
         .all()
-        .map((row) => toRecord(row.news_items, row.listing_news)),
+        .map((row) =>
+          toRecord(row.news_items, row.listing_news, row.item_embeddings)
+        ),
+
+    saveEmbeddings(space, vectors) {
+      db.transaction((tx) => {
+        tx.delete(itemEmbeddings).where(ne(itemEmbeddings.space, space)).run();
+
+        for (const { record, values } of vectors) {
+          const item = tx
+            .select({ id: newsItems.id })
+            .from(newsItems)
+            .where(
+              and(
+                eq(newsItems.source, record.source),
+                eq(newsItems.key, record.item.id)
+              )
+            )
+            .get();
+
+          if (!item) continue;
+
+          const vector = Buffer.from(
+            values.buffer,
+            values.byteOffset,
+            values.byteLength
+          );
+
+          tx.insert(itemEmbeddings)
+            .values({ itemId: item.id, space, vector })
+            .onConflictDoUpdate({
+              target: itemEmbeddings.itemId,
+              set: { space, vector },
+            })
+            .run();
+        }
+      });
+    },
 
     lastCollected(symbol) {
       const row = db

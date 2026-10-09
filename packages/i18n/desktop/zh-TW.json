@@ -703,6 +703,10 @@
         "label": "API 金鑰",
         "hint": "在 OpenAI 平台建立的 API 金鑰；用 ChatGPT 登入無法使用 Decisions API。"
       },
+      "embeddings-api-key": {
+        "label": "API 金鑰",
+        "hint": "OpenAI 平台的 API 金鑰，與 agent 和決策模型的金鑰分開保存；用 ChatGPT 登入無法使用 embeddings。"
+      },
       "finmind-token": {
         "label": "FinMind token",
         "hint": "不填也能用，每小時 300 次請求；免費註冊的 token 可提高到 600 次。"
@@ -879,6 +883,24 @@
       "base-url": "端點",
       "base-url-description": "請求送往的位址。只有使用代理或相容服務時才需要更改。",
       "base-url-invalid": "請輸入 http 或 https 網址"
+    },
+    "embeddings": {
+      "title": "依語意合併新聞（實驗功能）",
+      "description": "不同媒體報導同一件事時，標題常常寫得差很多，比對不出來。開啟後，Solyx 會把每則新聞的標題和摘要開頭轉成向量；兩個網站同一天發布、向量又夠相近的新聞，會合併成同一個故事。",
+      "enabled": "依語意合併",
+      "enabled-description": "關閉時只靠標題判斷是不是同一個故事。",
+      "provider": "向量來源",
+      "providers": {
+        "local": "這台電腦（Ollama）",
+        "openai": "OpenAI"
+      },
+      "provider-descriptions": {
+        "local": "用這台電腦上的 Ollama 執行模型，資料不會離開這台電腦。請先在 Ollama 下載模型。",
+        "openai": "使用 OpenAI 的模型與下方的專用金鑰；每則新聞的標題和摘要開頭會送到 OpenAI。"
+      },
+      "model": "模型",
+      "measured": "已量測：Solyx 知道這個模型怎樣算是同一個故事。",
+      "unmeasured": "尚未量測：向量照樣會保存，但在替這個模型量出門檻前，不會用來合併新聞。"
     },
     "skills": {
       "title": "Skills",

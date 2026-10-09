@@ -447,6 +447,122 @@ test("reworded titles stay apart a day apart, on two exchange days when one is d
   ).toHaveLength(2);
 });
 
+const MEASURED = "qwen3-embedding:0.6b";
+
+/** A record with a vector in `space`, whose angle from [1, 0] is `degrees`. */
+const embedded = (
+  record: NewsRecord,
+  degrees: number,
+  space = MEASURED
+): NewsRecord => ({
+  ...record,
+  embedding: {
+    space,
+    values: Float32Array.of(
+      Math.cos((degrees * Math.PI) / 180),
+      Math.sin((degrees * Math.PI) / 180)
+    ),
+  },
+});
+
+test("two sites' items whose vectors read alike on one exchange day are one story, names known or not", () => {
+  const first = told(
+    "鴻海9月營收創同期新高 年增逾兩成",
+    "2026-10-02T02:00:00Z",
+    {
+      site: "a.test",
+    }
+  );
+
+  const second = told(
+    "雲端產品撐腰 鴻海上月營收寫同期最佳",
+    "2026-10-02T06:00:00Z",
+    {
+      site: "b.test",
+    }
+  );
+
+  // cos 20° ≈ 0.94 reads alike on the measured space; cos 40° ≈ 0.77 does not.
+  expect(
+    storyTitlesOf([embedded(first, 0), embedded(second, 20)], UNNAMED)
+  ).toHaveLength(1);
+  expect(
+    storyTitlesOf([embedded(first, 0), embedded(second, 40)], NAMED)
+  ).toHaveLength(2);
+  expect(storyTitlesOf([first, second], NAMED)).toHaveLength(2);
+});
+
+test("vectors join nothing from one site, across exchange days or voices, undated, or off a measured space", () => {
+  const first = embedded(
+    told("三大法人買賣超 外資買超台積電", "2026-10-02T02:00:00Z", {
+      site: "a.test",
+    }),
+    0
+  );
+
+  const apart = (other: NewsRecord) =>
+    storyTitlesOf([first, other], UNNAMED).length;
+
+  const alike = (
+    title: string,
+    publishedAt: string,
+    options: Parameters<typeof told>[2] = {}
+  ) => embedded(told(title, publishedAt, { site: "b.test", ...options }), 10);
+
+  expect(
+    apart(alike("三大法人買賣超 投信買超台積電", "2026-10-02T03:00:00Z"))
+  ).toBe(1);
+  expect(
+    apart(
+      alike("三大法人買賣超 投信買超台積電", "2026-10-02T03:00:00Z", {
+        site: "a.test",
+      })
+    )
+  ).toBe(2);
+  // 00:30 on 2026-10-03 in Taipei: within a day, but the next exchange day.
+  expect(apart(alike("台股拚5萬 台積電創高", "2026-10-02T16:30:00Z"))).toBe(2);
+  expect(
+    apart(
+      alike("[新聞] 外資買超台積電", "2026-10-02T03:00:00Z", {
+        channel: NewsChannel.Forum,
+      })
+    )
+  ).toBe(2);
+
+  const undated = alike(
+    "三大法人買賣超 投信買超台積電",
+    "2026-10-02T03:00:00Z"
+  );
+
+  expect(
+    apart({ ...undated, item: { ...undated.item, published: null } })
+  ).toBe(2);
+  expect(
+    apart(
+      embedded(
+        told("三大法人買賣超 投信買超台積電", "2026-10-02T03:00:00Z", {
+          site: "b.test",
+        }),
+        10,
+        "text-embedding-3-large/1024"
+      )
+    )
+  ).toBe(2);
+  expect(
+    storyTitlesOf(
+      [
+        embedded(first, 0, "unmeasured-model"),
+        embedded(
+          alike("三大法人買賣超 投信買超台積電", "2026-10-02T03:00:00Z"),
+          10,
+          "unmeasured-model"
+        ),
+      ],
+      UNNAMED
+    )
+  ).toHaveLength(2);
+});
+
 test("who speaks decides a story's voice where the model is sure, and its channel otherwise", () => {
   const { gauge } = readNews(
     [

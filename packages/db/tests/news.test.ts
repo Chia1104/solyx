@@ -19,6 +19,7 @@ import {
 import type { SentimentScore } from "@solyx/core/sentiment";
 
 import {
+  itemEmbeddings,
   listingNews,
   newsCollections,
   newsItems,
@@ -113,35 +114,38 @@ function open() {
 }
 
 // A schema change committed without `db:generate` fails here.
-test.each([newsItems, listingNews, newsCollections, newsSourceHealth])(
-  "migrations build the tables the schema describes",
-  (table) => {
-    open().close();
-    opened = [];
+test.each([
+  newsItems,
+  listingNews,
+  newsCollections,
+  newsSourceHealth,
+  itemEmbeddings,
+])("migrations build the tables the schema describes", (table) => {
+  open().close();
+  opened = [];
 
-    const db = new DatabaseSync(join(directory, "news.sqlite"));
-    const config = getTableConfig(table);
+  const db = new DatabaseSync(join(directory, "news.sqlite"));
+  const config = getTableConfig(table);
 
-    const columns = db
-      .prepare(`SELECT name, type, "notnull" FROM pragma_table_info(?)`)
-      .all(config.name)
-      .map((column) => [
-        column.name,
-        String(column.type).toLowerCase(),
-        column.notnull === 1,
-      ]);
+  const columns = db
+    .prepare(`SELECT name, type, "notnull" FROM pragma_table_info(?)`)
+    .all(config.name)
+    .map((column) => [
+      column.name,
+      String(column.type).toLowerCase(),
+      column.notnull === 1,
+    ]);
 
-    db.close();
+  db.close();
 
-    expect(columns).toEqual(
-      config.columns.map((column) => [
-        column.name,
-        column.getSQLType(),
-        column.notNull && !column.primary,
-      ])
-    );
-  }
-);
+  expect(columns).toEqual(
+    config.columns.map((column) => [
+      column.name,
+      column.getSQLType(),
+      column.notNull && !column.primary,
+    ])
+  );
+});
 
 test("a listing's records come newest first, undated ones by when they were found", () => {
   const { store } = open();
@@ -420,4 +424,52 @@ test("items kept before their search existed are found once the file opens", () 
       .store.search("dividend", 5)
       .map(({ item: { id } }) => id)
   ).toEqual(["a"]);
+});
+
+test("records carry their items' vectors in the space asked for, and one space is kept at a time", () => {
+  const news = open();
+  const a = { source: NEWS.id, item: item("a", null) };
+  const b = { source: NEWS.id, item: item("b", null) };
+
+  news.store.save(TSMC, NEWS, [a.item, b.item], FOUND);
+  news.store.save(FOXCONN, NEWS, [a.item], FOUND);
+  news.store.saveEmbeddings("small", [
+    { record: a, values: Float32Array.of(0.5, -1.25) },
+  ]);
+
+  const vectors = (symbol: typeof TSMC, space?: string) =>
+    Object.fromEntries(
+      news.store
+        .list(symbol, new Date(0), space)
+        .map(({ item: { id }, embedding }) => [
+          id,
+          embedding && [embedding.space, [...embedding.values]],
+        ])
+    );
+
+  expect(vectors(TSMC, "small")).toEqual({
+    b: undefined,
+    a: ["small", [0.5, -1.25]],
+  });
+  expect(vectors(FOXCONN, "small")).toEqual({ a: ["small", [0.5, -1.25]] });
+  expect(vectors(TSMC)).toEqual({ b: undefined, a: undefined });
+
+  news.store.saveEmbeddings("large", [
+    { record: b, values: Float32Array.of(1, 2, 3) },
+    {
+      record: { source: NEWS.id, item: item("gone", null) },
+      values: Float32Array.of(1),
+    },
+  ]);
+
+  expect(vectors(TSMC, "small")).toEqual({ b: undefined, a: undefined });
+  expect(vectors(TSMC, "large")).toEqual({
+    b: ["large", [1, 2, 3]],
+    a: undefined,
+  });
+
+  news.clear();
+  news.store.save(TSMC, NEWS, [b.item], FOUND);
+
+  expect(vectors(TSMC, "large")).toEqual({ b: undefined });
 });

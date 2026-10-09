@@ -32,6 +32,7 @@ import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
 import { createCalendar } from "./modules/calendar/calendar.ts";
 import { createDecisions } from "./modules/decisions/decisions.ts";
+import { createEmbeddings } from "./modules/embeddings/embeddings.ts";
 import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
@@ -137,6 +138,8 @@ export function createServices() {
 
   const decisions = createDecisions({ config, secrets });
 
+  const embeddings = createEmbeddings({ config, secrets });
+
   const webSearch = createWebSearch({ config, secrets });
 
   const newsData = openNews(
@@ -157,6 +160,7 @@ export function createServices() {
     sources: createNewsSources(() => webSearch.vendor()),
     store: newsData.store,
     scorer: () => decisions.scorer(),
+    embedder: () => embeddings.embedder(),
     marketData,
     onChange: (symbol) => broadcast(newsEvents.onChanged, symbol),
   });
@@ -320,6 +324,7 @@ export function createServices() {
     agent,
     mcp,
     decisions,
+    embeddings,
     webSearch,
     news,
     newsData,
