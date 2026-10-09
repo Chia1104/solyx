@@ -6,7 +6,7 @@ import { tableVariants } from "@heroui/styles";
 import { cjk } from "@streamdown/cjk";
 import { useTranslation } from "react-i18next";
 import { Streamdown } from "streamdown";
-import type { Components } from "streamdown";
+import type { AnimateOptions, Components } from "streamdown";
 
 /** Streamdown hands a fence's body as a string, or as a `<code>` element wrapping one. */
 function codeText(children: ReactNode): string {
@@ -83,23 +83,37 @@ const controls = { table: false, mermaid: false };
 
 const plugins = { cjk };
 
+// Chinese puts no spaces between words, so a reply fades in by the character.
+const animated: AnimateOptions = {
+  animation: "fadeIn",
+  sep: "char",
+  duration: 240,
+  stagger: 10,
+  easing: "var(--ease-out-quint)",
+};
+
 const table = tableVariants({ variant: "secondary" });
 
 /**
- * Holds back a table until its delimiter row is complete, so its header does not flash as a
- * line of pipes and its columns take their alignment at once.
+ * Holds back a table until its delimiter row is complete, and each row until it ends. A header
+ * would otherwise flash as a line of pipes, and a half-written row makes Streamdown fade in the
+ * cells already shown again.
  */
-function holdTableHead(text: string): string {
+function holdTableRows(text: string): string {
   const lines = text.split("\n");
-  const end = lines.at(-1) === "" ? lines.length - 1 : lines.length;
-  let start = end;
+  const last = lines.length - 1;
+  const tail = lines.at(-1) ?? "";
+  const open = tail.trimStart().startsWith("|");
+  let start = last;
 
   while (lines[start - 1]?.trimStart().startsWith("|")) start--;
 
+  if (!open && (tail !== "" || start === last)) return text;
+
   // Every line before the last ended in a newline.
-  return start < end && lines.length - 1 - start < 2
-    ? lines.slice(0, start).join("\n")
-    : text;
+  const keep = last - start < 2 ? start : open ? last : lines.length;
+
+  return lines.slice(0, keep).join("\n");
 }
 
 // Streamdown's defaults use shadcn tokens, which HeroUI's palette does not define.
@@ -175,10 +189,11 @@ export function AgentMarkdown({
       className="text-sm leading-6 [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-semibold"
       components={components}
       controls={controls}
+      animated={animated}
       isAnimating={streaming}
       mode={streaming ? "streaming" : "static"}
       plugins={plugins}>
-      {streaming ? holdTableHead(text) : text}
+      {streaming ? holdTableRows(text) : text}
     </Streamdown>
   );
 }
