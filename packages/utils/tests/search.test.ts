@@ -31,6 +31,13 @@ test("words match across camelCase, plurals and case", () => {
   expect(search(texts, "searches")).toEqual(["Search"]);
 });
 
+test("a word whose case changes within matches whole before its parts, and a lone letter matches nothing", () => {
+  expect(searchTerms("TSMC's CoWoS")).toEqual(["tsmc", "cowo", "co", "wo"]);
+  expect(
+    search(["Co-founder's view", "CoWoS capacity", "Plan B"], "CoWoS")
+  ).toEqual(["CoWoS capacity", "Co-founder's view"]);
+});
+
 test("Chinese matches by pairs of characters, since it is written without spaces", () => {
   expect(search(["取得台股即時報價", "查詢帳戶餘額"], "報價")).toEqual([
     "取得台股即時報價",

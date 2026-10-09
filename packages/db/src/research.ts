@@ -1,17 +1,83 @@
-import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
-import { omit } from "es-toolkit";
+import { keyBy, omit, sortBy, uniqBy } from "es-toolkit";
 
 import type { Forecast } from "@solyx/core/forecast";
-import type { SymbolRef } from "@solyx/core/market";
+import { symbolKey } from "@solyx/core/market";
+import type { Market, SymbolRef } from "@solyx/core/market";
+import type { Report } from "@solyx/core/report";
 import type { ResearchStore } from "@solyx/core/research";
 
 import { connect } from "./connection.ts";
 import { databaseBytes } from "./database-file.ts";
+import { anyTerm, indexedTerms } from "./full-text.ts";
 import { forecasts, reports } from "./research-schema.ts";
 
 function toForecast(row: typeof forecasts.$inferSelect): Forecast {
   return { ...row.forecast, outcome: row.outcome };
+}
+
+/** What `report_terms` holds of a revision: its listing's code and every text it carries. */
+function reportTerms(report: Report) {
+  return indexedTerms([
+    report.symbol.symbol,
+    report.thesis,
+    ...[...report.drivers, ...report.risks].flatMap((argument) => [
+      argument.point,
+      argument.text,
+      argument.quote,
+      argument.source,
+    ]),
+    ...report.falsifiers,
+    report.valuation?.basis,
+    ...report.events.map((event) => event.label),
+    ...Object.values(report.sections).map((part) => part.text),
+  ]);
+}
+
+/** What `forecast_terms` holds of a forecast: its listing's code and every text it carries. */
+function forecastTerms(forecast: Omit<Forecast, "outcome">) {
+  return indexedTerms([
+    forecast.instrument.symbol,
+    forecast.rationale,
+    forecast.contrary,
+    ...forecast.claims.flatMap((claim) => [
+      claim.text,
+      claim.quote,
+      claim.source,
+    ]),
+    ...forecast.scenarios.map((scenario) => scenario.label),
+  ]);
+}
+
+const ofListing = (symbol: SymbolRef | undefined) =>
+  symbol
+    ? sql`AND market = ${symbol.market} AND symbol = ${symbol.symbol}`
+    : sql``;
+
+/** Indexes the rows kept before their full-text tables existed. */
+function indexMissing(db: NodeSQLiteDatabase) {
+  db.transaction((tx) => {
+    for (const row of tx
+      .select({ id: reports.id, report: reports.report })
+      .from(reports)
+      .where(sql`${reports.id} NOT IN (SELECT rowid FROM report_terms)`)
+      .all()) {
+      tx.run(
+        sql`INSERT INTO report_terms (rowid, terms) VALUES (${row.id}, ${reportTerms(row.report)})`
+      );
+    }
+
+    for (const row of tx
+      .select({ seq: forecasts.seq, forecast: forecasts.forecast })
+      .from(forecasts)
+      .where(sql`${forecasts.seq} NOT IN (SELECT rowid FROM forecast_terms)`)
+      .all()) {
+      tx.run(
+        sql`INSERT INTO forecast_terms (rowid, terms) VALUES (${row.seq}, ${forecastTerms(row.forecast)})`
+      );
+    }
+  });
 }
 
 function researchStore(db: NodeSQLiteDatabase): ResearchStore {
@@ -26,9 +92,17 @@ function researchStore(db: NodeSQLiteDatabase): ResearchStore {
         .get()?.report,
 
     addReport(report) {
-      db.insert(reports)
-        .values({ ...report.symbol, revision: report.revision, report })
-        .run();
+      db.transaction((tx) => {
+        const row = tx
+          .insert(reports)
+          .values({ ...report.symbol, revision: report.revision, report })
+          .returning({ id: reports.id })
+          .get();
+
+        tx.run(
+          sql`INSERT INTO report_terms (rowid, terms) VALUES (${row.id}, ${reportTerms(report)})`
+        );
+      });
     },
 
     forecast(id) {
@@ -53,16 +127,24 @@ function researchStore(db: NodeSQLiteDatabase): ResearchStore {
         .map(toForecast),
 
     addForecast(forecast) {
-      db.insert(forecasts)
-        .values({
-          id: forecast.id,
-          market: forecast.instrument.market,
-          symbol: forecast.instrument.symbol,
-          anchorDate: forecast.anchor.date,
-          forecast: omit(forecast, ["outcome"]),
-          outcome: forecast.outcome,
-        })
-        .run();
+      db.transaction((tx) => {
+        const row = tx
+          .insert(forecasts)
+          .values({
+            id: forecast.id,
+            market: forecast.instrument.market,
+            symbol: forecast.instrument.symbol,
+            anchorDate: forecast.anchor.date,
+            forecast: omit(forecast, ["outcome"]),
+            outcome: forecast.outcome,
+          })
+          .returning({ seq: forecasts.seq })
+          .get();
+
+        tx.run(
+          sql`INSERT INTO forecast_terms (rowid, terms) VALUES (${row.seq}, ${forecastTerms(forecast)})`
+        );
+      });
     },
 
     settle(id, outcome) {
@@ -71,6 +153,84 @@ function researchStore(db: NodeSQLiteDatabase): ResearchStore {
         .set({ outcome })
         .where(and(eq(forecasts.id, id), isNull(forecasts.outcome)))
         .run();
+    },
+
+    searchReports(query, limit, symbol) {
+      const match = anyTerm(query);
+
+      if (match === null) return [];
+
+      const matched = db.all<{
+        id: number;
+        market: Market;
+        symbol: string;
+        revision: number;
+        score: number;
+      }>(
+        sql`SELECT id, market, symbol, revision, bm25(report_terms) AS score
+          FROM report_terms JOIN reports ON reports.id = report_terms.rowid
+          WHERE report_terms MATCH ${match} ${ofListing(symbol)}`
+      );
+
+      // Each listing's newest revision that matches, ranked by how well it matches.
+      const ranked = sortBy(
+        uniqBy(sortBy(matched, [(row) => -row.revision]), symbolKey),
+        [(row) => row.score, (row) => -row.id]
+      ).slice(0, limit);
+
+      const found = keyBy(
+        db
+          .select({ id: reports.id, report: reports.report })
+          .from(reports)
+          .where(
+            inArray(
+              reports.id,
+              ranked.map((row) => row.id)
+            )
+          )
+          .all(),
+        (row) => row.id
+      );
+
+      return ranked.flatMap(({ id }) => {
+        const row = found[id];
+
+        return row ? [row.report] : [];
+      });
+    },
+
+    searchForecasts(query, limit, symbol) {
+      const match = anyTerm(query);
+
+      if (match === null) return [];
+
+      const ranked = db.all<{ seq: number }>(
+        sql`SELECT seq FROM forecast_terms
+          JOIN forecasts ON forecasts.seq = forecast_terms.rowid
+          WHERE forecast_terms MATCH ${match} ${ofListing(symbol)}
+          ORDER BY bm25(forecast_terms), seq DESC
+          LIMIT ${limit}`
+      );
+
+      const found = keyBy(
+        db
+          .select()
+          .from(forecasts)
+          .where(
+            inArray(
+              forecasts.seq,
+              ranked.map((row) => row.seq)
+            )
+          )
+          .all(),
+        (row) => row.seq
+      );
+
+      return ranked.flatMap(({ seq }) => {
+        const row = found[seq];
+
+        return row ? [toForecast(row)] : [];
+      });
     },
   };
 }
@@ -91,6 +251,8 @@ export interface ResearchUsage {
  */
 export function openResearch(path: string, migrationsFolder: string) {
   const { client, db } = connect(path, migrationsFolder);
+
+  indexMissing(db);
 
   return {
     store: researchStore(db),
@@ -113,6 +275,12 @@ export function openResearch(path: string, migrationsFolder: string) {
       db.transaction((tx) => {
         tx.delete(reports).run();
         tx.delete(forecasts).run();
+        tx.run(
+          sql`INSERT INTO report_terms (report_terms) VALUES ('delete-all')`
+        );
+        tx.run(
+          sql`INSERT INTO forecast_terms (forecast_terms) VALUES ('delete-all')`
+        );
       });
       // VACUUM rewrites the file through the log, so the log is truncated after it.
       client.exec("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);");

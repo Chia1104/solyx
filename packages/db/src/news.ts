@@ -1,11 +1,13 @@
-import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
+import { groupBy, keyBy } from "es-toolkit";
 
 import type { SymbolRef } from "@solyx/core/market";
-import type { NewsRecord, NewsStore } from "@solyx/core/news";
+import type { NewsItem, NewsRecord, NewsStore } from "@solyx/core/news";
 
 import { connect } from "./connection.ts";
 import { databaseBytes } from "./database-file.ts";
+import { anyTerm, indexedTerms } from "./full-text.ts";
 import {
   listingNews,
   newsCollections,
@@ -17,27 +19,55 @@ type ItemRow = typeof newsItems.$inferSelect;
 
 type ListingRow = typeof listingNews.$inferSelect;
 
+function toItem(item: ItemRow): NewsItem {
+  return {
+    id: item.key,
+    url: item.url,
+    title: item.title,
+    snippet: item.snippet,
+    site: item.site,
+    published:
+      item.publishedAt === null || item.publishedPrecision === null
+        ? null
+        : {
+            at: new Date(item.publishedAt),
+            precision: item.publishedPrecision,
+          },
+    votes: item.votes,
+  };
+}
+
+/** What `news_terms` holds of an item: the words of its title and snippet. */
+function itemTerms(item: Pick<NewsItem, "title" | "snippet">) {
+  return indexedTerms([item.title, item.snippet]);
+}
+
+/** Indexes the items kept before `news_terms` existed. */
+function indexMissing(db: NodeSQLiteDatabase) {
+  db.transaction((tx) => {
+    for (const row of tx
+      .select({
+        id: newsItems.id,
+        title: newsItems.title,
+        snippet: newsItems.snippet,
+      })
+      .from(newsItems)
+      .where(sql`${newsItems.id} NOT IN (SELECT rowid FROM news_terms)`)
+      .all()) {
+      tx.run(
+        sql`INSERT INTO news_terms (rowid, terms) VALUES (${row.id}, ${itemTerms(row)})`
+      );
+    }
+  });
+}
+
 function toRecord(item: ItemRow, listing: ListingRow): NewsRecord {
   const { model, relevance, stance, kind, topic, speaker } = listing;
 
   return {
     source: item.source,
     channel: item.channel,
-    item: {
-      id: item.key,
-      url: item.url,
-      title: item.title,
-      snippet: item.snippet,
-      site: item.site,
-      published:
-        item.publishedAt === null || item.publishedPrecision === null
-          ? null
-          : {
-              at: new Date(item.publishedAt),
-              precision: item.publishedPrecision,
-            },
-      votes: item.votes,
-    },
+    item: toItem(item),
     foundAt: new Date(listing.foundAt),
     score:
       model === null ||
@@ -95,6 +125,11 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
             })
             .returning({ id: newsItems.id })
             .get();
+
+          tx.run(sql`DELETE FROM news_terms WHERE rowid = ${stored.id}`);
+          tx.run(
+            sql`INSERT INTO news_terms (rowid, terms) VALUES (${stored.id}, ${itemTerms(item)})`
+          );
 
           tx.insert(listingNews)
             .values({
@@ -219,6 +254,64 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
           failureStreak: row.failureStreak,
           lastError: row.lastError,
         })),
+
+    search(query, limit, symbol) {
+      const match = anyTerm(query);
+
+      if (match === null) return [];
+
+      const ofListing = symbol
+        ? sql`AND news_items.id IN (SELECT item_id FROM listing_news
+            WHERE market = ${symbol.market} AND symbol = ${symbol.symbol})`
+        : sql``;
+
+      const ranked = db.all<{ id: number }>(
+        sql`SELECT news_items.id AS id FROM news_terms
+          JOIN news_items ON news_items.id = news_terms.rowid
+          WHERE news_terms MATCH ${match} ${ofListing}
+          ORDER BY bm25(news_terms), news_items.published_at DESC, news_items.id DESC
+          LIMIT ${limit}`
+      );
+
+      const ids = ranked.map((row) => row.id);
+
+      const items = keyBy(
+        db.select().from(newsItems).where(inArray(newsItems.id, ids)).all(),
+        (row) => row.id
+      );
+
+      const listings = groupBy(
+        db
+          .select({
+            itemId: listingNews.itemId,
+            market: listingNews.market,
+            symbol: listingNews.symbol,
+          })
+          .from(listingNews)
+          .where(inArray(listingNews.itemId, ids))
+          .orderBy(asc(listingNews.foundAt))
+          .all(),
+        (row) => row.itemId
+      );
+
+      return ids.flatMap((id) => {
+        const item = items[id];
+
+        if (!item) return [];
+
+        return [
+          {
+            source: item.source,
+            channel: item.channel,
+            item: toItem(item),
+            listings: (listings[id] ?? []).map(({ market, symbol }) => ({
+              market,
+              symbol,
+            })),
+          },
+        ];
+      });
+    },
   };
 }
 
@@ -236,6 +329,8 @@ export interface NewsUsage {
  */
 export function openNews(path: string, migrationsFolder: string) {
   const { client, db } = connect(path, migrationsFolder);
+
+  indexMissing(db);
 
   return {
     store: newsStore(db),
@@ -255,6 +350,7 @@ export function openNews(path: string, migrationsFolder: string) {
       db.transaction((tx) => {
         tx.delete(newsItems).run();
         tx.delete(newsCollections).run();
+        tx.run(sql`INSERT INTO news_terms (news_terms) VALUES ('delete-all')`);
       });
       // VACUUM rewrites the file through the log, so the log is truncated after it.
       client.exec("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);");

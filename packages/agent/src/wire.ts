@@ -80,6 +80,7 @@ export const AgentToolName = {
   GetFundamentals: "get_fundamentals",
   ReviseReport: "revise_report",
   SubmitForecast: "submit_forecast",
+  SearchHistory: "search_history",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
   Bash: "bash",
 } as const;

@@ -1,4 +1,4 @@
-import { groupBy } from "es-toolkit";
+import { groupBy, keyBy } from "es-toolkit";
 
 import { Interval, candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
@@ -42,6 +42,13 @@ export interface ResearchStore {
   addForecast(forecast: Forecast): void;
   /** Keeps how a forecast came out. */
   settle(id: string, outcome: ForecastOutcome): void;
+  /**
+   * Up to `limit` listings' reports holding any word of `query`, best first: of each listing, its
+   * newest revision that holds one. `symbol` keeps to that listing.
+   */
+  searchReports(query: string, limit: number, symbol?: SymbolRef): Report[];
+  /** Up to `limit` forecasts holding any word of `query`, best first; `symbol` keeps to that listing. */
+  searchForecasts(query: string, limit: number, symbol?: SymbolRef): Forecast[];
 }
 
 export interface ResearchDeskOptions {
@@ -84,6 +91,19 @@ export interface Coverage {
   /** Oldest first. */
   forecasts: Forecast[];
   record: ForecastRecord;
+}
+
+/** A report revision a search found. */
+export interface ReportMatch {
+  report: Report;
+  /** The listing's newest revision, which is the one in force. */
+  newest: number;
+}
+
+/** What a search found of every listing's research, best first. */
+export interface ResearchMatches {
+  reports: ReportMatch[];
+  forecasts: Forecast[];
 }
 
 /** The quarter that makes a report stale: one newer than the newest it was revised with. */
@@ -256,6 +276,38 @@ export class ResearchDesk {
     return {
       all: forecastRecord(settled),
       ratified: forecastRecord(settled.filter((forecast) => forecast.council)),
+    };
+  }
+
+  /**
+   * Up to `limit` reports and `limit` forecasts holding any word of `query`, as the store finds
+   * them, each forecast past its horizon settled as `coverage` settles it.
+   */
+  async search(
+    query: string,
+    limit: number,
+    symbol?: SymbolRef
+  ): Promise<ResearchMatches> {
+    const { store } = this.#options;
+    const found = store.searchForecasts(query, limit, symbol);
+
+    const settled = keyBy(
+      (
+        await Promise.all(
+          Object.values(
+            groupBy(found, ({ instrument }) => symbolKey(instrument))
+          ).map((forecasts) => this.#settle(forecasts[0].instrument, forecasts))
+        )
+      ).flat(),
+      (forecast) => forecast.id
+    );
+
+    return {
+      reports: store.searchReports(query, limit, symbol).map((report) => ({
+        report,
+        newest: store.report(report.symbol)?.revision ?? report.revision,
+      })),
+      forecasts: found.map((forecast) => settled[forecast.id] ?? forecast),
     };
   }
 

@@ -308,6 +308,7 @@
       "get_fundamentals": "Read fundamentals",
       "revise_report": "Revised the report",
       "submit_forecast": "Made a forecast",
+      "search_history": "Searched history",
       "bash": "Ran a command"
     },
     "tool-status": {

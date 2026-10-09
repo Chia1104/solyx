@@ -157,6 +157,8 @@ function fakeStore(): ResearchStore {
 
       if (forecast) forecasts.set(id, { ...forecast, outcome });
     },
+    searchReports: () => [],
+    searchForecasts: () => [],
   };
 }
 

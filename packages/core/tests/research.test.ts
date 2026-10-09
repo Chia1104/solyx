@@ -1,4 +1,7 @@
+import { uniqBy } from "es-toolkit";
 import { expect, test, vi } from "vite-plus/test";
+
+import { createSearchIndex } from "@solyx/utils/search";
 
 import { Interval } from "../src/candles.ts";
 import type { Candle } from "../src/candles.ts";
@@ -92,6 +95,30 @@ function memoryStore(): ResearchStore {
 
       if (forecast) forecasts.set(id, { ...forecast, outcome });
     },
+    searchReports: (query, limit, symbol) =>
+      uniqBy(
+        createSearchIndex(reports.toReversed(), (report) => [
+          report.symbol.symbol,
+          report.thesis,
+        ])(query),
+        (report) => symbolKey(report.symbol)
+      )
+        .filter(
+          (report) => !symbol || symbolKey(report.symbol) === symbolKey(symbol)
+        )
+        .slice(0, limit)
+        .map((report) => structuredClone(report)),
+    searchForecasts: (query, limit, symbol) =>
+      createSearchIndex([...forecasts.values()], (forecast) => [
+        forecast.instrument.symbol,
+        forecast.rationale,
+      ])(query)
+        .filter(
+          (forecast) =>
+            !symbol || symbolKey(forecast.instrument) === symbolKey(symbol)
+        )
+        .slice(0, limit)
+        .map((forecast) => structuredClone(forecast)),
   };
 }
 
@@ -299,6 +326,30 @@ test("the track record settles every listing's forecasts", async () => {
     all: { forecasts: 1, settled: 1 },
     ratified: { forecasts: 0 },
   });
+});
+
+test("a search names each listing's newest revision and settles the forecasts it finds", async () => {
+  const { desk, store, cover, clock, bars } = setup();
+
+  await cover();
+  await desk.forecast(draft);
+  await desk.revise({ symbol: TSMC, thesis: "Margins hold." });
+
+  clock.now = AFTER_HORIZON;
+  bars.daily = [ANCHOR_BAR, ...LATER_BARS];
+
+  const found = await desk.search("advanced average", 5);
+
+  expect(found.reports).toEqual([
+    { report: expect.objectContaining({ revision: 1 }), newest: 2 },
+  ]);
+  expect(found.forecasts).toMatchObject([
+    { id: "f-1", outcome: { close: 1020 } },
+  ]);
+  expect(store.forecast("f-1")?.outcome?.close).toBe(1020);
+  expect(await desk.search("advanced", 5, { ...TSMC, symbol: "2454" })).toEqual(
+    { reports: [], forecasts: [] }
+  );
 });
 
 test("a newer quarter makes the report stale until it is revised", async () => {

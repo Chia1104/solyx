@@ -308,6 +308,7 @@
       "get_fundamentals": "讀取財報",
       "revise_report": "修訂研究報告",
       "submit_forecast": "提出預測",
+      "search_history": "搜尋過往紀錄",
       "bash": "執行指令"
     },
     "tool-status": {
