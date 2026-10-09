@@ -166,6 +166,47 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "- One view to an idea, kept short. A plain table stays a markdown table."
     ),
   },
+  {
+    name: "solyx-guide",
+    source: SkillSource.BuiltIn,
+    description:
+      "Using and setting up Solyx itself: first-time setup, what each setting does, keys and sign-ins, approval modes, skills, memory, MCP servers and why a feature does not work. Read when the user asks how to use or set up the app, or something in it does not work.",
+    body: lines(
+      "# Solyx guide",
+      "",
+      "Read get_setup before you answer: it says what is set up and what is missing, tab by tab, with each tab's link. Answer from it rather than from this guide's general account, and link the tab the user acts on.",
+      "",
+      "## What Solyx is",
+      "- A desktop app for trading Taiwan (TWSE, TPEx) and US stocks. You research and may propose an order; the user confirms or dismisses it in the app, and only then does it reach the broker. The account is paper, with no real money, until the user turns a live broker on.",
+      "- Everything runs on the user's computer on their own keys. The app runs no server between them and their providers.",
+      "",
+      "## First-time setup, in the order the app's own setup takes",
+      "1. Market data, for Taiwan's charts, quotes and news: a Fugle API key, or Fubon. Fubon needs its SDK, which the user downloads from Fubon and the app loads from the folder they pick, the certificate exported from Fubon's website, their ID number and API key. A failed Fubon sign-in is not tried again on its own, since repeated failures could lock the account: the user fixes the settings or signs in again on the tab.",
+      "2. The agent's model: a provider switched on with its API key saved, or OpenAI signed in with ChatGPT. The default model, its thinking and who decides forecasts and proposals (the agent alone, or the MAGI's three units, at three more requests each time) are on the same tab.",
+      "3. Web search: a Firecrawl, Exa or Tavily key. Without one you have no web_search or read_page, and news searches only its sources that need no key.",
+      "4. A decisions model (TypeSafe, Cloudflare Workers AI or OpenAI) scores news, checks the claims in research against their quotes, and judges shell commands for the auto approval mode. Without one, news goes unscored and auto asks about every command.",
+      "- Optional: a FinMind token raises its request limit, and a paid plan adds the trading restrictions only members read; fundamentals and investor flows work without one. Embeddings, experimental, group news by meaning.",
+      "",
+      "## Keys, tokens and sign-ins",
+      "- The user enters them on the tab, never in the conversation: the app keeps them encrypted in the computer's secret store and never shows them again, while whatever is written in a conversation is kept with it and sent to the model's provider. Where the computer has no secret store, nothing can be saved.",
+      "- If the user pastes one, do not repeat it. Tell them it is now in the conversation and was sent to the model's provider, and that they should revoke it with whoever issued it and save a new one on the tab.",
+      "",
+      "## Conversations",
+      "- Each conversation has an approval mode the user sets in the composer: ask, where calls that need it wait for them; auto, where a shell command the decisions model judges harmless runs and a page your searches found is read; and bypass, where they all run unasked. Order proposals always wait for the user to confirm, whatever the mode.",
+      "- A conversation may pick its own model and thinking; otherwise it runs on the default.",
+      "",
+      "## Files the user writes for you",
+      "- The config folder (get_setup gives its path) holds config.json, every setting as JSON with config.schema.json documenting each entry; a saved edit applies without a restart. Beside it: skills/<name>/SKILL.md for their own playbooks, which replace a built-in of the same name; AGENTS.md for standing instructions sent with every message; mcp.json for MCP servers.",
+      "- Skills in ~/.agents/skills are offered only once the user switches each on, on the Skills tab.",
+      "- MCP servers: each tool is off, asks first, or runs on its own, which only a tool its server marks read-only may. A secret an entry names as secret:NAME is entered on the MCP tab, and a remote server may need the user to sign in there.",
+      "",
+      "## The rest",
+      "- The shell is off until the user switches it on, and stays off while the account is live; each command waits for them unless the approval mode lets it run.",
+      "- Memory: you save, rewrite or forget a memory only once the user allows it; they read and edit them on the Memory tab, or switch memory off there.",
+      "- Updates: the app checks every six hours while that setting is on. Windows installs on restart; on macOS the update is linked for the user to download.",
+      "- Settings change only on their tab or in config.json; walk the user there with the tab's link and say what to pick."
+    ),
+  },
 ];
 
 export interface SkillFolders {

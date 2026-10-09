@@ -7,6 +7,7 @@ import { McpServerState } from "@solyx/agent/mcp-config";
 
 import { AppLocation } from "#shared/ipc/settings.ts";
 import type { McpServerSetting } from "#shared/ipc/settings.ts";
+import { SettingsSection } from "#shared/settings-section.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
@@ -18,7 +19,6 @@ import { PolicyLegend, PolicyTally } from "./mcp-policy.tsx";
 import { McpServer, McpStateChip } from "./mcp-server.tsx";
 import { SettingsList } from "./settings-list.tsx";
 import { mcpQuery } from "./settings-query.ts";
-import { SettingsSection } from "./settings-section.ts";
 
 /**
  * One server in the list, opening its page. A connected server shows what its tools may do; any

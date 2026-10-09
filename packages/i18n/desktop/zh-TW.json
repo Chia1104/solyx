@@ -341,6 +341,7 @@
       "revise_report": "修訂研究報告",
       "submit_forecast": "提出預測",
       "search_history": "搜尋過往紀錄",
+      "get_setup": "讀取設定",
       "bash": "執行指令"
     },
     "tool-status": {

@@ -27,6 +27,7 @@ import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
 import type { AgentSettings } from "#shared/ipc/settings.ts";
+import { SettingsSection } from "#shared/settings-section.ts";
 
 import { currentTimeZone } from "../../app/clock.ts";
 import { currentLocale } from "../../app/i18n.ts";
@@ -38,7 +39,6 @@ import {
   agentSettingsQuery,
   isModelReady,
 } from "../settings/settings-query.ts";
-import { SettingsSection } from "../settings/settings-section.ts";
 
 import { ApprovalModeMenu } from "./agent-approval-mode.tsx";
 import { AgentModelPicker } from "./agent-model-picker.tsx";

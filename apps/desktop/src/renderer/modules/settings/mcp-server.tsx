@@ -12,6 +12,7 @@ import type { McpToolPolicy } from "@solyx/agent/mcp-config";
 
 import { SecretState } from "#shared/ipc/settings.ts";
 import type { McpServerSetting, McpToolSetting } from "#shared/ipc/settings.ts";
+import { SettingsSection } from "#shared/settings-section.ts";
 
 import { currentLocale } from "../../app/i18n.ts";
 import { FilterField, matchesFilter } from "../../components/filter-field.tsx";
@@ -21,7 +22,6 @@ import { PolicyTally, PolicyToggle } from "./mcp-policy.tsx";
 import { SecretRow } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { settingsQueryKeys } from "./settings-query.ts";
-import { SettingsSection } from "./settings-section.ts";
 import { SignInRow } from "./sign-in-row.tsx";
 
 const STATE_COLOR: Record<McpServerState, ChipProps["color"]> = {

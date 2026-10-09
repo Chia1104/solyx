@@ -431,16 +431,39 @@ const serialize = (value: Saved | Config | z.core.JSONSchema.JSONSchema) =>
   `${JSON.stringify(value, null, 2)}\n`;
 
 // Generated from the schema the app reads with, so editors check the file against the same rules.
-const JSON_SCHEMA = serialize(
-  z.toJSONSchema(configSchema, {
-    io: "input",
-    target: "draft-07",
-    // Every entry reads as its default when missing, so none is required.
-    override: ({ jsonSchema }) => {
-      delete jsonSchema.required;
-    },
-  })
-);
+const jsonSchema = z.toJSONSchema(configSchema, {
+  io: "input",
+  target: "draft-07",
+  // Every entry reads as its default when missing, so none is required.
+  override: ({ jsonSchema }) => {
+    delete jsonSchema.required;
+  },
+});
+
+const JSON_SCHEMA = serialize(jsonSchema);
+
+/** An entry of the JSON Schema with only what describes it and the entries beneath it. */
+const describedSchema = z.object({
+  description: z.string().optional(),
+  get properties(): z.ZodOptional<
+    z.ZodRecord<z.ZodString, typeof describedSchema>
+  > {
+    return z.record(z.string(), describedSchema).optional();
+  },
+});
+
+type Described = z.infer<typeof describedSchema>;
+
+const DESCRIBED = describedSchema.parse(jsonSchema);
+
+/** What the JSON Schema says of the entry at `path`, as an editor shows it beside the file. */
+export function entryDescription(path: readonly string[]): string | undefined {
+  let entry: Described | undefined = DESCRIBED;
+
+  for (const key of path) entry = entry?.properties?.[key];
+
+  return entry?.description;
+}
 
 const TEMPLATE = serialize({
   $schema: `./${SCHEMA_FILE}`,

@@ -341,6 +341,7 @@
       "revise_report": "Revised the report",
       "submit_forecast": "Made a forecast",
       "search_history": "Searched history",
+      "get_setup": "Read the setup",
       "bash": "Ran a command"
     },
     "tool-status": {

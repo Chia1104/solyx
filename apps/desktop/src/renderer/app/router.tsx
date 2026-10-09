@@ -10,6 +10,12 @@ import * as z from "zod";
 import { Interval, intervalSchema } from "@solyx/core/candles";
 import { symbolRefSchema } from "@solyx/core/market";
 
+import { isMarketDataReady } from "#shared/ipc/settings.ts";
+import {
+  SettingsSection,
+  settingsSectionSchema,
+} from "#shared/settings-section.ts";
+
 import { ErrorFallback } from "../components/error-fallback.tsx";
 import { NotFound } from "../components/not-found.tsx";
 import {
@@ -17,14 +23,7 @@ import {
   onboardingStepSchema,
 } from "../modules/onboarding/onboarding-step.ts";
 import { useOnboardingStore } from "../modules/onboarding/onboarding-store.ts";
-import {
-  isMarketDataReady,
-  marketDataQuery,
-} from "../modules/settings/settings-query.ts";
-import {
-  SettingsSection,
-  settingsSectionSchema,
-} from "../modules/settings/settings-section.ts";
+import { marketDataQuery } from "../modules/settings/settings-query.ts";
 import { OnboardingPage } from "../pages/onboarding-page.tsx";
 import { OverviewPage } from "../pages/overview-page.tsx";
 import { SettingsPage } from "../pages/settings-page.tsx";
