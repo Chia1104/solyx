@@ -23,7 +23,7 @@ import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
 import type { AgentModelPick, AgentModelRef } from "@solyx/agent/providers";
-import { ApprovalMode, emptyAgentView } from "@solyx/agent/wire";
+import { ApprovalMode, contextTokens, emptyAgentView } from "@solyx/agent/wire";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
@@ -43,8 +43,13 @@ import {
 
 import { ApprovalModeMenu } from "./agent-approval-mode.tsx";
 import { AgentModelPicker } from "./agent-model-picker.tsx";
-import { agentQueryKeys, agentSessionsQuery } from "./agent-query.ts";
+import {
+  agentQueryKeys,
+  agentSessionsQuery,
+  transcriptQuery,
+} from "./agent-query.ts";
 import { useAgentStore } from "./agent-store.ts";
+import { ContextMeter } from "./agent-usage.tsx";
 import {
   ComposerMenu,
   suggests,
@@ -229,6 +234,19 @@ export function AgentComposer({
   const model =
     settings &&
     (pick.model ?? { provider: settings.provider, id: settings.model });
+
+  // The next run's model, whose window the context has to fit.
+  const contextWindow =
+    settings &&
+    model &&
+    settings.models.find(
+      (each) => each.provider === model.provider && each.id === model.id
+    )?.contextWindow;
+
+  const context = useQuery({
+    ...transcriptQuery(sessionId),
+    select: contextTokens,
+  });
 
   // Until the settings load, the model is taken to run rather than flash the notice.
   const unavailable =
@@ -447,28 +465,33 @@ export function AgentComposer({
                 />
               ) : null}
             </div>
-            {running && sessionId !== null ? (
-              <Button
-                isIconOnly
-                size="sm"
-                variant="tertiary"
-                aria-label={t("agent.stop")}
-                isPending={abort.isPending}
-                onPress={() => abort.mutate(sessionId)}>
-                <Icon icon={StopIcon} />
-              </Button>
-            ) : (
-              <Button
-                isIconOnly
-                type="submit"
-                size="sm"
-                variant="secondary"
-                aria-label={t("agent.send")}
-                isPending={send.isPending}
-                isDisabled={!text.trim() || unavailable !== null}>
-                <Icon icon={ArrowUp02Icon} />
-              </Button>
-            )}
+            <div className="flex shrink-0 items-center gap-1">
+              {context.data !== undefined && contextWindow ? (
+                <ContextMeter used={context.data} window={contextWindow} />
+              ) : null}
+              {running && sessionId !== null ? (
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="tertiary"
+                  aria-label={t("agent.stop")}
+                  isPending={abort.isPending}
+                  onPress={() => abort.mutate(sessionId)}>
+                  <Icon icon={StopIcon} />
+                </Button>
+              ) : (
+                <Button
+                  isIconOnly
+                  type="submit"
+                  size="sm"
+                  variant="secondary"
+                  aria-label={t("agent.send")}
+                  isPending={send.isPending}
+                  isDisabled={!text.trim() || unavailable !== null}>
+                  <Icon icon={ArrowUp02Icon} />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>

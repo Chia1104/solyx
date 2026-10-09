@@ -238,6 +238,8 @@ export interface AgentModelOption {
   name: string;
   /** Whether the thinking setting applies to it. */
   reasoning: boolean;
+  /** Tokens a request may hold, prompt and answer together. */
+  contextWindow: number;
 }
 
 /** One provider as the settings page lists it. */

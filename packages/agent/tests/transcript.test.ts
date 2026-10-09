@@ -18,6 +18,7 @@ import {
   AgentEventType,
   RunEndReason,
   ToolCallStatus,
+  contextTokens,
   foldEvents,
 } from "../src/wire.ts";
 
@@ -58,6 +59,25 @@ const reply = (
     AssistantEntry.kind,
     fauxAssistantMessage(text, { timestamp: 2, ...options })
   );
+
+/** A reply whose request read `cacheRead` tokens from the provider's cache. */
+const counted = (
+  id: number,
+  text: string,
+  cacheRead: number,
+  options?: Parameters<typeof fauxAssistantMessage>[1]
+) =>
+  entry(id, AssistantEntry.kind, {
+    ...fauxAssistantMessage(text, { timestamp: 2, ...options }),
+    usage: {
+      input: 100,
+      cacheRead,
+      cacheWrite: 10,
+      output: 50,
+      totalTokens: 160 + cacheRead,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+  });
 
 const toolCall = (id: number) =>
   entry(
@@ -254,4 +274,49 @@ test("a call the model let run reads back from storage as the model's", () => {
     { type: AgentEventType.ToolStart },
     { type: AgentEventType.ApprovalResolved, approved: true, auto: true },
   ]);
+});
+
+test("a reply carries what its request counted, and the context holds what the latest left", () => {
+  const view = foldEvents(
+    transcriptEvents(
+      [
+        user(1, "hi"),
+        counted(2, "hello", 0),
+        user(3, "again"),
+        counted(4, "hello again", 150),
+      ],
+      false
+    )
+  );
+
+  expect(view.items[3]).toMatchObject({
+    kind: "assistant",
+    usage: {
+      input: 100,
+      cacheRead: 150,
+      cacheWrite: 10,
+      output: 50,
+      context: 310,
+    },
+  });
+  expect(contextTokens(view)).toBe(310);
+});
+
+test("a reply that failed counts no request, so the context stays as the one before left it", () => {
+  const view = foldEvents(
+    transcriptEvents(
+      [
+        user(1, "hi"),
+        counted(2, "hello", 0),
+        user(3, "again"),
+        counted(4, "", 150, {
+          stopReason: "error",
+          errorMessage: "overloaded",
+        }),
+      ],
+      false
+    )
+  );
+
+  expect(contextTokens(view)).toBe(160);
 });

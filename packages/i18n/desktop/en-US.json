@@ -317,6 +317,20 @@
     "thinking": "Thinking",
     "thought": "Thought",
     "working": "Working…",
+    "context-meter": {
+      "label": "Context used",
+      "used": "{{used}} of {{window}} tokens ({{percent}})",
+      "summarized": "Older messages are summarized as it fills."
+    },
+    "usage": {
+      "label": "Tokens",
+      "prompt": "Prompt",
+      "cache-read": "From cache",
+      "cache-write": "Written to cache",
+      "uncached": "Not cached",
+      "output": "Reply",
+      "share": "{{tokens}} ({{percent}})"
+    },
     "notices": {
       "aborted": "Stopped.",
       "error": "The agent stopped with an error",

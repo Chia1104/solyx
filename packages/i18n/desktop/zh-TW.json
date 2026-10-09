@@ -317,6 +317,20 @@
     "thinking": "思考中",
     "thought": "已思考",
     "working": "處理中…",
+    "context-meter": {
+      "label": "已用的上下文",
+      "used": "{{used}} / {{window}} tokens（{{percent}}）",
+      "summarized": "快滿時，較早的訊息會整理成摘要。"
+    },
+    "usage": {
+      "label": "Token 用量",
+      "prompt": "輸入",
+      "cache-read": "快取命中",
+      "cache-write": "寫入快取",
+      "uncached": "未快取",
+      "output": "回覆",
+      "share": "{{tokens}}（{{percent}}）"
+    },
     "notices": {
       "aborted": "已停止。",
       "error": "Agent 因錯誤而停止",

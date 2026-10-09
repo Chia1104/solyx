@@ -12,6 +12,7 @@ import { Icon } from "../../components/icon.tsx";
 import { ActivityMark } from "./agent-activity.tsx";
 import { AgentMarkdown } from "./agent-markdown.tsx";
 import { CopyAction, EditAction } from "./agent-message-actions.tsx";
+import { ReplyUsageMark } from "./agent-usage.tsx";
 import { MessageText } from "./message-text.tsx";
 
 /** When a message was sent, and its actions, which show while the pointer or focus is on it. */
@@ -110,7 +111,9 @@ export function AssistantMessage({ message }: { message: MessageView }) {
         <div className="group/message flex flex-col gap-1">
           <AgentMarkdown text={message.text} streaming={message.streaming} />
           {message.streaming ? null : (
-            <MessageMeta at={message.at} text={message.text} />
+            <MessageMeta at={message.at} text={message.text}>
+              {message.usage ? <ReplyUsageMark usage={message.usage} /> : null}
+            </MessageMeta>
           )}
         </div>
       ) : null}

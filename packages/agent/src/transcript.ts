@@ -5,6 +5,7 @@ import type {
   ToolResultMessage,
   UserMessage,
 } from "@earendil-works/pi-ai";
+import { calculateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import {
   AssistantEntry,
   ToolResultEntry,
@@ -26,6 +27,7 @@ import type {
   AgentWireEvent,
   RunEndEvent,
   NestedCall,
+  ReplyUsage,
   ToolEndEvent,
   ToolStartEvent,
 } from "./wire.ts";
@@ -69,6 +71,24 @@ export function replyText(
   };
 }
 
+/** `undefined` for a reply that failed or was cut short, which counts no whole request. */
+function replyUsage(message: AssistantMessage): ReplyUsage | undefined {
+  const { usage, stopReason } = message;
+  const context = calculateContextTokens(usage);
+
+  if (stopReason === "error" || stopReason === "aborted" || context === 0) {
+    return undefined;
+  }
+
+  return {
+    input: usage.input,
+    cacheRead: usage.cacheRead,
+    cacheWrite: usage.cacheWrite,
+    output: usage.output,
+    context,
+  };
+}
+
 function assistantEndEvent(
   messageId: string,
   message: AssistantMessage
@@ -81,6 +101,7 @@ function assistantEndEvent(
     text,
     thinking: thinking || undefined,
     at: message.timestamp,
+    usage: replyUsage(message),
   };
 }
 

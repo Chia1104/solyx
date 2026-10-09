@@ -327,6 +327,22 @@ export const RunEndReason = {
 
 export type RunEndReason = (typeof RunEndReason)[keyof typeof RunEndReason];
 
+/**
+ * A reply's request and answer in tokens, as its provider counted them. The request's prompt is
+ * `input`, `cacheRead` and `cacheWrite` together.
+ */
+export interface ReplyUsage {
+  /** Prompt tokens the provider's cache neither served nor stored. */
+  input: number;
+  /** Prompt tokens the provider's prompt cache served. */
+  cacheRead: number;
+  /** Prompt tokens stored in the provider's prompt cache for the requests that follow. */
+  cacheWrite: number;
+  output: number;
+  /** What the conversation's context holds with the reply in it. */
+  context: number;
+}
+
 export type AgentWireEvent =
   | { type: typeof AgentEventType.RunStart }
   | {
@@ -350,6 +366,8 @@ export type AgentWireEvent =
       text: string;
       thinking?: string;
       at: number;
+      /** Absent for a reply that failed or was cut short, whose count stands for no whole request. */
+      usage?: ReplyUsage;
     }
   | {
       type: typeof AgentEventType.ToolStart;
@@ -421,6 +439,7 @@ export interface MessageView {
   /** Epoch ms; unset while an assistant message is still streaming. */
   at?: number;
   streaming: boolean;
+  usage?: ReplyUsage;
 }
 
 export interface ToolCallView {
@@ -519,6 +538,7 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
         thinking: event.thinking,
         at: event.at,
         streaming: false,
+        usage: event.usage,
       };
 
       if (index === -1) items.push(message);
@@ -650,3 +670,11 @@ export const foldEvents = (
   events: readonly AgentWireEvent[],
   initial: AgentView = emptyAgentView()
 ): AgentView => events.reduce(applyEvent, initial);
+
+/** What the conversation's context holds, as its latest reply that counted it left it. */
+export function contextTokens(view: AgentView): number | undefined {
+  return view.items.findLast(
+    (item): item is MessageView =>
+      item.kind === AgentItemKind.Assistant && item.usage !== undefined
+  )?.usage?.context;
+}
