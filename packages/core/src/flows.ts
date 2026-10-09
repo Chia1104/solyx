@@ -188,3 +188,55 @@ export function balanceTrend(
     month: since(MONTH_SESSIONS),
   };
 }
+
+/**
+ * Rows grouped under the bars they fall in, each bar dated by its first session (`YYYY-MM-DD`,
+ * oldest first) and holding the sessions until the next bar's; `null` for a bar that holds none or
+ * began before the first row, so a week or month the rows only partly cover reads as unknown.
+ */
+function byBar<Row extends { date: string }>(
+  rows: readonly Row[],
+  bars: readonly string[]
+): (Row[] | null)[] {
+  const first = rows[0]?.date;
+  let at = 0;
+
+  return bars.map((date, index) => {
+    const next = bars[index + 1];
+
+    while (at < rows.length && rows[at].date < date) at++;
+
+    const start = at;
+
+    while (at < rows.length && (next === undefined || rows[at].date < next)) {
+      at++;
+    }
+
+    return first === undefined || date < first || at === start
+      ? null
+      : rows.slice(start, at);
+  });
+}
+
+/** One group's net buying over each bar's sessions, one value per bar. */
+export function netBuyingByBar(
+  trades: readonly InvestorTrades[],
+  investor: Investor,
+  bars: readonly string[]
+): (number | null)[] {
+  return byBar(
+    trades.filter((trade) => trade.investor === investor),
+    bars
+  ).map(
+    (sessions) =>
+      sessions && sumBy(sessions, ({ bought, sold }) => bought - sold)
+  );
+}
+
+/** A balance at the last session of each bar, one value per bar. */
+export function balanceByBar(
+  series: readonly { date: string; value: number }[],
+  bars: readonly string[]
+): (number | null)[] {
+  return byBar(series, bars).map((sessions) => sessions?.at(-1)?.value ?? null);
+}

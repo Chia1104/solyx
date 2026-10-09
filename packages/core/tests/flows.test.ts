@@ -1,6 +1,12 @@
 import { expect, test } from "vite-plus/test";
 
-import { Investor, balanceTrend, netBuying } from "../src/flows.ts";
+import {
+  Investor,
+  balanceByBar,
+  balanceTrend,
+  netBuying,
+  netBuyingByBar,
+} from "../src/flows.ts";
 import type { InvestorTrades } from "../src/flows.ts";
 
 /** Consecutive sessions from 2026-09-01, one per net given. */
@@ -80,4 +86,32 @@ test("a balance moves against the session, week and month before, as far back as
     month: null,
   });
   expect(balanceTrend([])).toBeNull();
+});
+
+test("a group's net buying sums over each bar's sessions, and a bar begun before the first session is unknown", () => {
+  const trades = sessions(Investor.Foreign, [1, 2, 3, 4, 5, 6]);
+
+  // Bars from 2026-08-31, 09-03 and 09-05: the first began before the rows did.
+  expect(
+    netBuyingByBar(trades, Investor.Foreign, [
+      "2026-08-31",
+      "2026-09-03",
+      "2026-09-05",
+    ])
+  ).toEqual([null, 3 + 4, 5 + 6]);
+  expect(
+    netBuyingByBar(trades, Investor.Dealer, ["2026-09-01", "2026-09-02"])
+  ).toEqual([null, null]);
+});
+
+test("a balance reads at the last session of each bar, and a bar with none is unknown", () => {
+  const series = [
+    { date: "2026-09-01", value: 10 },
+    { date: "2026-09-02", value: 12 },
+    { date: "2026-09-08", value: 15 },
+  ];
+
+  expect(
+    balanceByBar(series, ["2026-09-01", "2026-09-03", "2026-09-07"])
+  ).toEqual([12, null, 15]);
 });

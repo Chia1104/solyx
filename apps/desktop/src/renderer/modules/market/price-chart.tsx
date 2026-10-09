@@ -76,6 +76,7 @@ export function PriceChart({
   interval,
   onNearOldest,
   children,
+  panes,
 }: {
   candles: Candle[];
   market: Market;
@@ -84,6 +85,8 @@ export function PriceChart({
   onNearOldest?: () => void;
   /** What else is drawn on the price pane, over the candles. */
   children?: ReactNode;
+  /** Panes drawn below the indicators', from `firstPane` on without gaps. */
+  panes?: (firstPane: number) => ReactNode;
 }) {
   const { i18n } = useTranslation();
   const colors = usePaletteColors();
@@ -240,6 +243,7 @@ export function PriceChart({
           pane={paneOf(ChartIndicator.Kd)}
         />
       ) : null}
+      {panes?.(2 + oscillators.length)}
       <ChartLegend
         candles={candles}
         lines={movingAverages.map((average) => ({

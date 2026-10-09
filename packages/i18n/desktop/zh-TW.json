@@ -149,7 +149,15 @@
       "boll": "布林",
       "macd": "MACD",
       "rsi": "RSI",
-      "kd": "KD"
+      "kd": "KD",
+      "foreign-flow": "外資買賣超",
+      "trust-flow": "投信買賣超",
+      "margin": "融資餘額"
+    },
+    "flow-titles": {
+      "foreign-flow": "外資",
+      "trust-flow": "投信",
+      "margin": "融資"
     },
     "legend": {
       "open": "開",
