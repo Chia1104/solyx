@@ -3,6 +3,8 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { Market } from "@solyx/core/market";
 import type { MemoryKind } from "@solyx/core/memory";
 
+import { passageVectorsTable } from "./vectors.ts";
+
 // drizzle-kit generates ../migrations/memory from these tables. The full-text index,
 // `memory_terms`, is a custom migration, since drizzle has no virtual tables.
 
@@ -23,3 +25,6 @@ export const memories = sqliteTable("memories", {
   updatedAt: integer("updated_at").notNull(),
   source: text(),
 });
+
+/** The vector of each memory's text, by the text, in one space at a time. */
+export const memoryVectors = passageVectorsTable("memory_vectors");

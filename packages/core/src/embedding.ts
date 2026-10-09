@@ -21,6 +21,42 @@ export interface Embedding {
   values: Float32Array;
 }
 
+/** Where vectors of texts are kept by the text, one space at a time. */
+export interface VectorCache {
+  /** The vectors kept in `space` for those of `texts` that have one. */
+  passageVectors(
+    space: string,
+    texts: readonly string[]
+  ): Map<string, Float32Array>;
+  /** Keeps each text's vector in `space`, dropping every vector of another space. */
+  savePassageVectors(
+    space: string,
+    vectors: readonly { text: string; values: Float32Array }[]
+  ): void;
+}
+
+/** Each text's vector in `embedder`'s space, embedding and keeping those `cache` lacks. */
+export async function cachedVectors(
+  embedder: Embedder,
+  cache: VectorCache,
+  texts: readonly string[]
+): Promise<Map<string, Float32Array>> {
+  const unique = [...new Set(texts)];
+  const kept = cache.passageVectors(embedder.space, unique);
+  const missing = unique.filter((text) => !kept.has(text));
+
+  if (missing.length === 0) return kept;
+
+  const made = await embedder.embed(missing);
+  const vectors = missing.map((text, index) => ({ text, values: made[index] }));
+
+  cache.savePassageVectors(embedder.space, vectors);
+
+  for (const { text, values } of vectors) kept.set(text, values);
+
+  return kept;
+}
+
 /** How alike two vectors of one space point, from -1 to 1; 0 when either is all zeros. */
 export function cosine(a: Float32Array, b: Float32Array): number {
   if (a.length !== b.length) {

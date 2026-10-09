@@ -29,6 +29,7 @@ import type {
 } from "@solyx/agent/wire";
 import { BrokerMode } from "@solyx/core/broker";
 import { DecisionMode } from "@solyx/core/council";
+import type { Embedder } from "@solyx/core/embedding";
 import type { Fundamentals } from "@solyx/core/fundamentals";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -73,6 +74,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   desk: ProposingDesk;
   mcp: McpServers;
   memory: MemoryStore;
+  /** Embeds memories to search them and tell one said again; only a model on this computer. */
+  localEmbedder: () => Embedder | undefined;
   research: ResearchDesk;
   fundamentals: Fundamentals;
 }
@@ -187,7 +190,10 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const web = createWebTools({ vendor: options.web });
 
-  const memory = createMemory({ store: options.memory });
+  const memory = createMemory({
+    store: options.memory,
+    embedder: options.localEmbedder,
+  });
 
   const research = createResearch({
     desk: options.research,
