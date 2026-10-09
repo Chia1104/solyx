@@ -13,6 +13,8 @@ import { DecisionsSettings } from "../modules/settings/decisions-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
 import { MarketDataSettings } from "../modules/settings/market-data-settings.tsx";
 import { NewsSettings } from "../modules/settings/news-settings.tsx";
+import { PalettePicker } from "../modules/settings/palette-picker.tsx";
+import { PriceColorsSelect } from "../modules/settings/price-colors-select.tsx";
 import {
   agentSettingsQuery,
   decisionsSettingsQuery,
@@ -49,6 +51,8 @@ export function OnboardingPage() {
           description={t("onboarding.welcome.description")}>
           <div className="flex flex-col gap-6">
             <ThemeSelect />
+            <PalettePicker editable={false} />
+            <PriceColorsSelect />
             <LanguageSelect />
           </div>
         </Section>
