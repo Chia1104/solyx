@@ -17,9 +17,9 @@ import type {
 } from "lightweight-charts";
 import { useTranslation } from "react-i18next";
 
-import { Interval, isIntraday } from "@solyx/core/candles";
+import { Interval, candleDate, isIntraday } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
-import { MOVING_AVERAGE_PERIODS, sma } from "@solyx/core/indicators";
+import { MOVING_AVERAGE_PERIODS, sma, vwap } from "@solyx/core/indicators";
 import { MARKET_TIME_ZONE } from "@solyx/core/market";
 import type { Market } from "@solyx/core/market";
 import { Chart } from "@solyx/trading-chart/chart";
@@ -32,7 +32,7 @@ import {
 import { usePaletteColors } from "../../app/theme.ts";
 
 import { ChartLegend } from "./chart-legend.tsx";
-import { MOVING_AVERAGE_COLORS } from "./chart-palette.ts";
+import { LINE_COLORS, MOVING_AVERAGE_COLORS } from "./chart-palette.ts";
 import {
   LOWER_PANE_STRETCH,
   PRICE_PANE_STRETCH,
@@ -80,6 +80,12 @@ function averages(
 const MOVING_AVERAGES = {
   short: averages(MOVING_AVERAGE_PERIODS.short, MOVING_AVERAGE_COLORS.short, 1),
   long: averages(MOVING_AVERAGE_PERIODS.long, MOVING_AVERAGE_COLORS.long, 2),
+};
+
+// Drawn as heavy as the long lines: it is the session's trend, as they are the market's.
+const VWAP_OPTIONS = {
+  ...lineOptions(LINE_COLORS.vwap),
+  lineWidth: 2 as const,
 };
 
 const VOLUME_OPTIONS: HistogramSeriesPartialOptions = {
@@ -190,7 +196,27 @@ export function PriceChart({
 
   const daily = interval === Interval.OneDay;
 
-  const levels = useLevels({ candles, times, closes, daily });
+  const levels = useLevels({ candles, times, closes, market, interval });
+
+  const showVwap =
+    isIntraday(interval) && enabled.includes(ChartIndicator.Vwap);
+
+  const vwapLine = useMemo(() => {
+    if (!showVwap) return null;
+
+    const values = vwap(market, candles);
+    const dates = candles.map((candle) => candleDate(market, candle.time));
+
+    // A point's colour paints the segment after it, so each session's last point leaves the
+    // jump to the next session's average undrawn.
+    const data = toLine(times, values).map((point, i) =>
+      "value" in point && i < dates.length - 1 && dates[i + 1] !== dates[i]
+        ? { ...point, color: "transparent" }
+        : point
+    );
+
+    return { values, data };
+  }, [showVwap, market, candles, times]);
 
   const showShort = enabled.includes(ChartIndicator.MovingAverage);
   const showLong = enabled.includes(ChartIndicator.LongMovingAverage);
@@ -243,6 +269,13 @@ export function PriceChart({
           options={average.options}
         />
       ))}
+      {vwapLine ? (
+        <Series
+          definition={LineSeries}
+          data={vwapLine.data}
+          options={VWAP_OPTIONS}
+        />
+      ) : null}
       {enabled.includes(ChartIndicator.Bollinger) ? (
         <BollingerBands times={times} closes={closes} />
       ) : null}
@@ -294,11 +327,22 @@ export function PriceChart({
       {panes?.(2 + oscillators.length)}
       <ChartLegend
         candles={candles}
-        lines={movingAverages.map((average) => ({
-          label: `MA${average.period}`,
-          color: average.color,
-          values: average.values,
-        }))}
+        lines={[
+          ...movingAverages.map((average) => ({
+            label: `MA${average.period}`,
+            color: average.color,
+            values: average.values,
+          })),
+          ...(vwapLine
+            ? [
+                {
+                  label: "VWAP",
+                  color: LINE_COLORS.vwap,
+                  values: vwapLine.values,
+                },
+              ]
+            : []),
+        ]}
       />
     </Chart>
   );

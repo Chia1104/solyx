@@ -16,8 +16,13 @@ import {
   rsi,
   sma,
   volumeRatio,
+  vwap,
 } from "@solyx/core/indicators";
-import { exchangeTime, symbolRefSchema } from "@solyx/core/market";
+import {
+  exchangeTime,
+  marketSchema,
+  symbolRefSchema,
+} from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import type { ProposingDesk } from "@solyx/core/order-desk";
@@ -144,6 +149,20 @@ const indicators: CodemodeTool[] = [
       lower: lineSchema,
     }),
     run: ([values]) => bollinger(values),
+  }),
+  scriptFunction({
+    name: "indicators.vwap",
+    description:
+      "Each session's VWAP so far, from the bars `tools.candles` returns: their typical prices weighted by volume, starting over each exchange day.",
+    spread: true,
+    signature: `(market: "TW" | "US", bars: Bar[]): Promise<${LINE}>`,
+    input: z.tuple([marketSchema, z.array(barSchema)]),
+    output: lineSchema,
+    run: ([market, bars]) =>
+      vwap(
+        market,
+        bars.map((bar) => ({ ...omit(bar, ["epoch"]), time: bar.epoch }))
+      ),
   }),
   scriptFunction({
     name: "indicators.kd",

@@ -23,6 +23,7 @@ export const LINE_COLORS = {
   lull: ZINC,
   /** A volume profile's busiest slice and the densest trading under the close. */
   control: AMBER,
+  vwap: "#06b6d4",
 };
 
 /** A six-digit hex colour, as palettes and these constants are, at an opacity from 0 to 1. */

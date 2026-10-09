@@ -148,6 +148,7 @@
       "ma": "短期均線",
       "ma-long": "長期均線",
       "boll": "布林",
+      "vwap": "VWAP",
       "macd": "MACD",
       "rsi": "RSI",
       "kd": "KD",
@@ -156,6 +157,7 @@
       "year-range": "52 週高低",
       "zones": "支撐區",
       "volume-profile": "成交分布",
+      "session-levels": "日內參考價",
       "foreign-flow": "外資買賣超",
       "trust-flow": "投信買賣超",
       "margin": "融資餘額"
@@ -170,6 +172,11 @@
       "year-line-break": "跌破年線",
       "year-high": "52 週高",
       "year-low": "52 週低",
+      "previous-high": "昨高",
+      "previous-close": "昨收",
+      "previous-low": "昨低",
+      "opening-high": "開盤區高",
+      "opening-low": "開盤區低",
       "control": "最大量價",
       "zones": {
         "quarter-line": "季線支撐 {{low}}–{{high}}",

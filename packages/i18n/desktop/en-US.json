@@ -148,6 +148,7 @@
       "ma": "Short MAs",
       "ma-long": "Long MAs",
       "boll": "BOLL",
+      "vwap": "VWAP",
       "macd": "MACD",
       "rsi": "RSI",
       "kd": "KD",
@@ -156,6 +157,7 @@
       "year-range": "52-week range",
       "zones": "Support zones",
       "volume-profile": "Volume profile",
+      "session-levels": "Session levels",
       "foreign-flow": "Foreign net buying",
       "trust-flow": "Trust net buying",
       "margin": "Margin balance"
@@ -170,6 +172,11 @@
       "year-line-break": "MA240 break",
       "year-high": "52W high",
       "year-low": "52W low",
+      "previous-high": "Prev high",
+      "previous-close": "Prev close",
+      "previous-low": "Prev low",
+      "opening-high": "Opening high",
+      "opening-low": "Opening low",
       "control": "POC",
       "zones": {
         "quarter-line": "MA60 support {{low}}–{{high}}",

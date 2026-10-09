@@ -382,6 +382,37 @@ test("indicators measure a daily listing against the market's index", async () =
   );
 });
 
+test("indicators read an intraday session's VWAP, the session before and the opening range", async () => {
+  const at = (date: string, time: string) =>
+    Date.parse(`${date}T${time}:00+08:00`) / 1000;
+
+  const bar = (time: number, close: number, volume: number): Candle => ({
+    time,
+    open: close,
+    high: close + 1,
+    low: close - 1,
+    close,
+    volume,
+  });
+
+  const { run } = setup([
+    bar(at("2026-09-28", "09:00"), 1000, 10),
+    bar(at("2026-09-28", "13:25"), 1010, 10),
+    bar(at("2026-09-29", "09:00"), 1020, 10),
+    bar(at("2026-09-29", "09:25"), 1030, 30),
+    bar(at("2026-09-29", "09:30"), 1040, 10),
+  ]);
+
+  const { text } = await run(AgentToolName.GetIndicators, {
+    symbol: TSMC,
+    interval: Interval.FiveMinutes,
+  });
+
+  expect(text).toContain("VWAP: 1030 (previous 1027.5)");
+  expect(text).toContain("previous session: high 1011, low 999, close 1010");
+  expect(text).toContain("opening range: 1019-1031");
+});
+
 test("indicators leave the daily levels out of intraday bars", async () => {
   const { run } = setup();
 

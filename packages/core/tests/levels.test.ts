@@ -1,17 +1,21 @@
 import { sumBy } from "es-toolkit";
 import { describe, expect, test } from "vite-plus/test";
 
+import { Interval } from "../src/candles.ts";
 import type { Candle } from "../src/candles.ts";
 import { sma } from "../src/indicators.ts";
 import {
   PROFILE_SESSIONS,
   ZoneKind,
   breaksBelow,
+  openingRange,
   pointOfControl,
+  previousSession,
   supportZones,
   volumeProfile,
   yearRange,
 } from "../src/levels.ts";
+import { Market } from "../src/market.ts";
 
 function bar(low: number, high: number, close: number, volume = 1): Candle {
   return { time: 0, open: close, high, low, close, volume };
@@ -94,4 +98,62 @@ test("breaksBelow marks a close falling under the line from at or above it", () 
   expect(
     breaksBelow([10, 11, 9, 8, 12, 9], [null, 10, 10, 10, 10, 10])
   ).toEqual([2, 5]);
+});
+
+/** A five-minute bar opening at `time` on a Taipei date, a point either side of its close. */
+function fiveMinutes(date: string, time: string, close: number): Candle {
+  return {
+    ...bar(close - 1, close + 1, close),
+    time: Date.parse(`${date}T${time}:00+08:00`) / 1000,
+  };
+}
+
+describe("previousSession", () => {
+  test("reads the high, low and close of the session before the newest", () => {
+    const bars = [
+      fiveMinutes("2026-03-02", "09:00", 100),
+      fiveMinutes("2026-03-02", "13:25", 110),
+      fiveMinutes("2026-03-03", "09:00", 120),
+    ];
+
+    expect(previousSession(Market.TW, bars)).toEqual({
+      low: 99,
+      high: 111,
+      close: 110,
+    });
+  });
+
+  test("has none while the bars hold one session", () => {
+    expect(
+      previousSession(Market.TW, [fiveMinutes("2026-03-03", "09:00", 120)])
+    ).toBeNull();
+  });
+});
+
+describe("openingRange", () => {
+  const session = (until: string) =>
+    ["09:00", "09:05", "09:25", "09:30", "10:00"]
+      .filter((time) => time <= until)
+      .map((time, i) => fiveMinutes("2026-03-03", time, 100 + i * 10));
+
+  test("spans the newest session's first half hour once it has passed", () => {
+    expect(
+      openingRange(Market.TW, Interval.FiveMinutes, session("10:00"))
+    ).toEqual({
+      low: 99,
+      high: 121,
+    });
+  });
+
+  test("waits for the half hour to pass", () => {
+    expect(
+      openingRange(Market.TW, Interval.FiveMinutes, session("09:25"))
+    ).toBeNull();
+  });
+
+  test("has none on bars longer than the half hour", () => {
+    expect(
+      openingRange(Market.TW, Interval.OneHour, session("10:00"))
+    ).toBeNull();
+  });
 });

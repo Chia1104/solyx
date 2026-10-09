@@ -8,6 +8,7 @@ export const ChartIndicator = {
   MovingAverage: "ma",
   LongMovingAverage: "ma-long",
   Bollinger: "boll",
+  Vwap: "vwap",
   Macd: "macd",
   Rsi: "rsi",
   Kd: "kd",
@@ -16,6 +17,7 @@ export const ChartIndicator = {
   YearRange: "year-range",
   Zones: "zones",
   VolumeProfile: "volume-profile",
+  SessionLevels: "session-levels",
   ForeignFlow: "foreign-flow",
   TrustFlow: "trust-flow",
   Margin: "margin",
@@ -39,6 +41,12 @@ export const DAILY_INDICATORS: readonly ChartIndicator[] = [
   ChartIndicator.YearRange,
   ChartIndicator.Zones,
   ChartIndicator.VolumeProfile,
+];
+
+/** Drawn session by session, which needs bars shorter than one. */
+export const INTRADAY_INDICATORS: readonly ChartIndicator[] = [
+  ChartIndicator.Vwap,
+  ChartIndicator.SessionLevels,
 ];
 
 interface IndicatorState {
