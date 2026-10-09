@@ -1,7 +1,6 @@
 import { SpanStatusCode } from "@opentelemetry/api";
-import type { Tracer } from "@opentelemetry/api";
 
-import { errorMessage } from "@solyx/utils/error";
+import type { Telemetry } from "./modules/telemetry/telemetry.ts";
 
 // A minute places each pass closely enough for work due every half hour or less often.
 const TICK_MS = 60 * 1000;
@@ -18,8 +17,11 @@ export interface ScheduledWork {
 }
 
 export interface SchedulerOptions {
-  /** Each pass is a trace of its own, under the name its work registered with. */
-  tracer: Tracer;
+  /**
+   * Each pass is a trace of its own, under the name its work registered with, and what it logs
+   * joins that trace.
+   */
+  telemetry: Pick<Telemetry, "tracer" | "within" | "diagnostics">;
   /** @default Date.now */
   now?: () => number;
 }
@@ -34,10 +36,13 @@ interface Registration {
 /**
  * The one clock for the main process's periodic work: on each tick it starts a pass of every
  * registered work that is due. A pass still going when its next is due is skipped rather than
- * queued, and a pass that fails is logged and leaves the others going. Timers sleep with the
+ * queued, and a pass that fails is reported and leaves the others going. Timers sleep with the
  * computer, so the host ticks it again as the computer wakes.
  */
-export function createScheduler({ tracer, now = Date.now }: SchedulerOptions) {
+export function createScheduler({
+  telemetry: { tracer, within, diagnostics },
+  now = Date.now,
+}: SchedulerOptions) {
   const registrations = new Map<string, Registration>();
   let timers: NodeJS.Timeout[] = [];
 
@@ -55,16 +60,17 @@ export function createScheduler({ tracer, now = Date.now }: SchedulerOptions) {
 
       const span = tracer.startSpan(name);
 
-      work
-        .run()
-        .catch((error) => {
+      void within(span, async () => {
+        try {
+          await work.run();
+        } catch (error) {
           span.setStatus({ code: SpanStatusCode.ERROR });
-          console.error(`${name} failed: ${errorMessage(error)}`);
-        })
-        .finally(() => {
+          diagnostics.report(error, "scheduler.pass", { "solyx.work": name });
+        } finally {
           span.end();
           registration.running = false;
-        });
+        }
+      });
     }
   }
 

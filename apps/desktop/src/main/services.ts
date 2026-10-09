@@ -31,6 +31,7 @@ import { ColorScheme } from "#shared/palette.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
 import { createCalendar } from "./modules/calendar/calendar.ts";
+import { reportError } from "./modules/crash-reports/crash-reports.ts";
 import { createDecisions } from "./modules/decisions/decisions.ts";
 import { createEmbeddings } from "./modules/embeddings/embeddings.ts";
 import { createFlows } from "./modules/flows/flows.ts";
@@ -49,7 +50,7 @@ import type { ConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
-import { createTraces } from "./modules/traces/traces.ts";
+import { createTelemetry } from "./modules/telemetry/telemetry.ts";
 import { createAppUpdater } from "./modules/updates/app-updater.ts";
 import { createUpdates } from "./modules/updates/updates.ts";
 import { createWebSearch } from "./modules/web-search/web-search.ts";
@@ -106,12 +107,15 @@ export function createServices(config: ConfigFile) {
 
   config.create();
 
-  const traces = createTraces({
+  const telemetry = createTelemetry({
     config,
     secrets,
     version: app.getVersion(),
     channel: appChannel(),
+    report: reportError,
   });
+
+  const { diagnostics } = telemetry;
 
   const marketData = createMarketData({
     sources: createMarketDataSources({
@@ -122,6 +126,7 @@ export function createServices(config: ConfigFile) {
       openFubonProcess,
     }),
     onSourcesChanged: () => broadcast(marketEvents.onSourcesChanged),
+    diagnostics,
   });
 
   // The user's own skills and instructions sit beside the config file they edit.
@@ -163,6 +168,7 @@ export function createServices(config: ConfigFile) {
   );
 
   const news = createNews({
+    diagnostics,
     sources: createNewsSources(() => webSearch.vendor()),
     store: newsData.store,
     scorer: () => decisions.scorer(),
@@ -227,6 +233,7 @@ export function createServices(config: ConfigFile) {
       auditor: () => decisions.claimAuditor(),
       news: newsData.store,
       embedder: () => embeddings.localEmbedder(),
+      diagnostics,
     },
     () => broadcast(researchEvents.onChanged)
   );
@@ -255,7 +262,7 @@ export function createServices(config: ConfigFile) {
   const agent = createAgentService({
     config,
     secrets,
-    tracer: traces.tracer,
+    tracer: telemetry.tracer,
     getDeviceId: installationId(join(userDataDir, "installation-id")),
     openExternal,
     skillFolders,
@@ -308,6 +315,7 @@ export function createServices(config: ConfigFile) {
   }
 
   const newsCollector = createNewsCollector({
+    diagnostics,
     news,
     listings: followedListings,
     collectEveryHours: () => config.read().news.collectEveryHours,
@@ -319,7 +327,7 @@ export function createServices(config: ConfigFile) {
     onChange: () => broadcast(updatesEvents.onChanged),
   });
 
-  const scheduler = createScheduler({ tracer: traces.tracer });
+  const scheduler = createScheduler({ telemetry });
 
   scheduler.register("News collection", newsCollector);
   scheduler.register("Update check", updates);
@@ -353,7 +361,7 @@ export function createServices(config: ConfigFile) {
     calendar,
     flows,
     agent,
-    traces,
+    telemetry,
     mcp,
     decisions,
     embeddings,

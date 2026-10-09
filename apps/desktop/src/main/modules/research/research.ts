@@ -1,12 +1,14 @@
 import type { Embedder } from "@solyx/core/embedding";
 import type { Fundamentals } from "@solyx/core/fundamentals";
+import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import type { NewsStore } from "@solyx/core/news";
 import type { ClaimAuditor } from "@solyx/core/report";
 import { ResearchDesk } from "@solyx/core/research";
 import type { ResearchData } from "@solyx/db/research";
-import { errorMessage } from "@solyx/utils/error";
+
+import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -23,6 +25,7 @@ export function createResearch(
   {
     news,
     embedder,
+    diagnostics,
     ...sources
   }: {
     marketData: Pick<MarketData, "candles">;
@@ -31,6 +34,7 @@ export function createResearch(
     news: Pick<NewsStore, "list">;
     /** Only a model on this computer, since a report is the user's own. */
     embedder: () => Embedder | undefined;
+    diagnostics: Pick<Diagnostics, "recovered">;
   },
   onChange: () => void
 ) {
@@ -58,9 +62,9 @@ export function createResearch(
       try {
         await desk.watch(symbol, news.list(symbol, since, local.space), local);
       } catch (error) {
-        console.error(
-          `Watching ${symbol.market} ${symbol.symbol}'s falsifiers failed: ${errorMessage(error)}`
-        );
+        diagnostics.recovered(error, "research.watch", {
+          "solyx.listing": symbolKey(symbol),
+        });
       }
     },
 

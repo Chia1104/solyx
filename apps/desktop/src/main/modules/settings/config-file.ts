@@ -248,11 +248,11 @@ const configSchema = section(
         }),
       })
     ),
-    traces: section(
+    otlp: section(
       z.looseObject({
         endpoint: endpointSchema.optional().catch(undefined).meta({
           description:
-            "The OpenTelemetry endpoint Solyx sends traces to over OTLP/HTTP, as OTEL_EXPORTER_OTLP_ENDPOINT names it, such as Grafana Cloud's OTLP gateway or a collector on this computer: traces go to its /v1/traces. Each agent run is a trace of its model requests and tool calls, with models, token counts and timings but never what the conversation says, and each pass of scheduled work is one too. Headers it needs, such as Grafana Cloud's authorization, are saved in the app as a secret. Unset sends nothing.",
+            "The OpenTelemetry endpoint Solyx sends traces and logs to over OTLP/HTTP, as OTEL_EXPORTER_OTLP_ENDPOINT names it, such as Grafana Cloud's OTLP gateway or a collector on this computer: traces go to its /v1/traces and logs to its /v1/logs. Each agent run is a trace of its model requests and tool calls, with models, token counts and timings but never what the conversation says, and each pass of scheduled work is one too. Each failure the app recovers from or did not expect is a log of what failed and its kind, never the message a provider sent. Headers it needs, such as Grafana Cloud's authorization, are saved in the app as a secret. Unset sends nothing.",
         }),
       })
     ),
@@ -411,7 +411,7 @@ type ConfigPath =
   | ["news", "collectEveryHours"]
   | ["updates", "check"]
   | ["crashReports", "send"]
-  | ["traces", "endpoint"]
+  | ["otlp", "endpoint"]
   | ["webSearch", "provider"]
   | ["decisions", "provider"]
   | ["decisions", DecisionsProvider, "model" | "baseURL"]

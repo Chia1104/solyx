@@ -22,7 +22,7 @@ import type { McpServers } from "../agent/mcp-servers.ts";
 import type { Decisions } from "../decisions/decisions.ts";
 import type { Embeddings } from "../embeddings/embeddings.ts";
 import type { MarketDataModule } from "../market/market-data.ts";
-import { parseOtlpHeaders } from "../traces/otlp-headers.ts";
+import { parseOtlpHeaders } from "../telemetry/otlp-headers.ts";
 import type { WebSearchModule } from "../web-search/web-search.ts";
 
 import type { AppearanceSettings } from "./appearance.ts";
@@ -125,8 +125,8 @@ export function createSettingsApi({
     }),
 
     async saveSecret(secret, value) {
-      // Checked here, since a value that does not parse would only fail as traces go out.
-      if (secret === Secret.TraceHeaders) parseOtlpHeaders(value);
+      // Checked here, since a value that does not parse would only fail as traces and logs go out.
+      if (secret === Secret.OtlpHeaders) parseOtlpHeaders(value);
 
       await secrets.save(secret, value);
     },
@@ -312,10 +312,10 @@ export function createSettingsApi({
       config.set(["updates", "check"], enabled);
     },
 
-    traces: async () => ({ endpoint: config.read().traces.endpoint ?? null }),
+    otlp: async () => ({ endpoint: config.read().otlp.endpoint ?? null }),
 
-    async setTraceEndpoint(endpoint) {
-      config.set(["traces", "endpoint"], endpoint ?? undefined);
+    async setOtlpEndpoint(endpoint) {
+      config.set(["otlp", "endpoint"], endpoint ?? undefined);
     },
 
     crashReports: async () => ({

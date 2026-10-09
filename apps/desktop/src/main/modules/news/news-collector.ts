@@ -1,7 +1,8 @@
+import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { errorMessage } from "@solyx/utils/error";
 
 import type { ScheduledWork } from "../../scheduler.ts";
+import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 import type { News } from "./news.ts";
 
@@ -12,6 +13,7 @@ const PASS_EVERY_MS = 30 * 60 * 1000;
 
 export interface NewsCollectorOptions {
   news: Pick<News, "refresh">;
+  diagnostics: Pick<Diagnostics, "recovered">;
   /** The listings the user holds or watches, read before every pass. */
   listings: () => Promise<SymbolRef[]>;
   /** Read before every pass, so a changed setting applies without a restart; 0 stops collecting. */
@@ -39,9 +41,9 @@ export function createNewsCollector(
         try {
           await options.news.refresh(symbol, everyMs);
         } catch (error) {
-          console.error(
-            `News collection for ${symbol.market} ${symbol.symbol} failed: ${errorMessage(error)}`
-          );
+          options.diagnostics.recovered(error, "news.collect", {
+            "solyx.listing": symbolKey(symbol),
+          });
         }
       }
     },

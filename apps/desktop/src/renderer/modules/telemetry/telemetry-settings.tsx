@@ -11,16 +11,13 @@ import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
 import { AppSecretRow, SecretsUnavailable } from "../settings/secret-row.tsx";
 import { SettingsList } from "../settings/settings-list.tsx";
-import {
-  secretsQuery,
-  traceSettingsQuery,
-} from "../settings/settings-query.ts";
+import { secretsQuery, otlpSettingsQuery } from "../settings/settings-query.ts";
 import { TextSettingRow } from "../settings/text-setting-row.tsx";
 
-/** Where the app's traces go, and the headers they are sent with. */
-export function TraceSettings() {
+/** Where the app's traces and logs go, and the headers they are sent with. */
+export function TelemetrySettings() {
   const { t } = useTranslation();
-  const settings = useQuery(traceSettingsQuery());
+  const settings = useQuery(otlpSettingsQuery());
   const secrets = useQuery(secretsQuery());
 
   // Rebuilt per language so the field error comes out localized.
@@ -32,7 +29,7 @@ export function TraceSettings() {
         .pipe(
           z.url({
             protocol: /^https?$/,
-            error: t("settings.traces.endpoint-invalid"),
+            error: t("settings.telemetry.endpoint-invalid"),
           })
         ),
     [t]
@@ -42,8 +39,8 @@ export function TraceSettings() {
 
   return (
     <Section
-      title={t("settings.traces.title")}
-      description={t("settings.traces.description")}>
+      title={t("settings.telemetry.title")}
+      description={t("settings.telemetry.description")}>
       {failed ? (
         <LoadError
           error={failed}
@@ -59,17 +56,17 @@ export function TraceSettings() {
           {secrets.data.available ? null : <SecretsUnavailable />}
           <SettingsList>
             <TextSettingRow
-              label={t("settings.traces.endpoint")}
-              description={t("settings.traces.endpoint-description")}
+              label={t("settings.telemetry.endpoint")}
+              description={t("settings.telemetry.endpoint-description")}
               value={settings.data.endpoint ?? ""}
               isDefault={settings.data.endpoint === null}
-              resetLabel={t("settings.traces.stop")}
+              resetLabel={t("settings.telemetry.stop")}
               schema={endpointSchema}
-              onSave={(next) => window.solyx.settings.setTraceEndpoint(next)}
+              onSave={(next) => window.solyx.settings.setOtlpEndpoint(next)}
             />
             <AppSecretRow
-              secret={Secret.TraceHeaders}
-              state={secrets.data.states[Secret.TraceHeaders]}
+              secret={Secret.OtlpHeaders}
+              state={secrets.data.states[Secret.OtlpHeaders]}
               available={secrets.data.available}
               optional
             />

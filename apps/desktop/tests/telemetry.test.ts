@@ -5,14 +5,14 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, expect, test } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { Secret } from "#shared/ipc/settings.ts";
 
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
 import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
-import { parseOtlpHeaders } from "../src/main/modules/traces/otlp-headers.ts";
-import { createTraces } from "../src/main/modules/traces/traces.ts";
+import { parseOtlpHeaders } from "../src/main/modules/telemetry/otlp-headers.ts";
+import { createTelemetry } from "../src/main/modules/telemetry/telemetry.ts";
 import { AppChannel } from "../src/main/shell/app-channel.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
@@ -67,17 +67,20 @@ function setup() {
     fakeCipher().cipher
   );
 
-  const traces = createTraces({
+  const report = vi.fn();
+
+  const telemetry = createTelemetry({
     config,
     secrets,
     version: "1.2.3",
     channel: AppChannel.Nightly,
+    report,
   });
 
-  return { config, secrets, traces };
+  return { config, secrets, telemetry, report };
 }
 
-/** Lets the traces module follow a change, which it applies one at a time. */
+/** Lets the telemetry module follow a change, which it applies one at a time. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 
 test("headers read as OTEL_EXPORTER_OTLP_HEADERS writes them, the line Grafana Cloud shows included", () => {
@@ -99,36 +102,71 @@ test("headers read as OTEL_EXPORTER_OTLP_HEADERS writes them, the line Grafana C
 });
 
 test("nothing is sent until an endpoint is set", async () => {
-  const { traces } = setup();
+  const { telemetry } = setup();
 
   await settle();
-  traces.tracer.startSpan("unsent").end();
-  await traces.close();
+  telemetry.tracer.startSpan("unsent").end();
+  telemetry.diagnostics.recovered(new Error("offline"), "news.embed");
+  await telemetry.close();
 
   expect(received).toEqual([]);
 });
 
-test("spans go to the endpoint's /v1/traces with the saved headers, and stop when it is unset", async () => {
-  const { config, secrets, traces } = setup();
+test("traces and logs go to the endpoint with the saved headers, and stop when it is unset", async () => {
+  const { config, secrets, telemetry } = setup();
 
-  await secrets.save(Secret.TraceHeaders, "Authorization=Basic%20abc");
-  config.set(["traces", "endpoint"], endpoint);
+  await secrets.save(Secret.OtlpHeaders, "Authorization=Basic%20abc");
+  config.set(["otlp", "endpoint"], endpoint);
   await settle();
 
-  traces.tracer.startSpan("News collection").end();
+  const pass = telemetry.tracer.startSpan("News collection");
 
-  config.set(["traces", "endpoint"], undefined);
+  await telemetry.within(pass, async () =>
+    telemetry.diagnostics.recovered(
+      Object.assign(new Error("429 for sk-live-1234"), { status: 429 }),
+      "news.collect",
+      { "solyx.listing": "TW:2330" }
+    )
+  );
+  pass.end();
+
+  config.set(["otlp", "endpoint"], undefined);
   await settle();
 
-  traces.tracer.startSpan("after").end();
-  await traces.close();
+  telemetry.tracer.startSpan("after").end();
+  await telemetry.close();
 
-  expect(received).toHaveLength(1);
-  expect(received[0]).toMatchObject({
-    url: "/otlp/v1/traces",
-    headers: { authorization: "Basic abc" },
+  const traces = received.find(({ url }) => url === "/otlp/v1/traces");
+  const logs = received.find(({ url }) => url === "/otlp/v1/logs");
+
+  expect(received).toHaveLength(2);
+  expect(traces?.headers.authorization).toBe("Basic abc");
+  expect(traces?.body).toContain('"News collection"');
+  expect(traces?.body).toContain('"nightly"');
+  expect(traces?.body).not.toContain('"after"');
+
+  expect(logs?.headers.authorization).toBe("Basic abc");
+  expect(logs?.body).toContain('"news.collect failed"');
+  expect(logs?.body).toContain('"TW:2330"');
+  expect(logs?.body).toContain(pass.spanContext().traceId);
+  expect(logs?.body).toContain('"http.response.status_code"');
+  // What a provider answered may echo a key, so the log keeps only its kind.
+  expect(logs?.body).not.toContain("sk-live-1234");
+});
+
+test("only a failure nothing should cause is reported, tagged with what failed", () => {
+  const { telemetry, report } = setup();
+  const offline = new Error("offline");
+  const broken = new TypeError("cannot read properties of undefined");
+
+  telemetry.diagnostics.recovered(offline, "news.embed");
+  telemetry.diagnostics.report(broken, "scheduler.pass", {
+    "solyx.work": "News collection",
   });
-  expect(received[0]?.body).toContain('"News collection"');
-  expect(received[0]?.body).toContain('"nightly"');
-  expect(received[0]?.body).not.toContain('"after"');
+
+  expect(report).toHaveBeenCalledOnce();
+  expect(report).toHaveBeenCalledWith(broken, {
+    event: "scheduler.pass",
+    "solyx.work": "News collection",
+  });
 });

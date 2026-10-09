@@ -267,31 +267,31 @@ test("the shell is off until the user switches it on", async () => {
   expect((await api.agentSkills()).shell).toBe(true);
 });
 
-test("traces go nowhere until an endpoint is set, and their headers must parse before they are saved", async () => {
+test("traces and logs go nowhere until an endpoint is set, and their headers must parse before they are saved", async () => {
   const { api, config, secrets } = setup();
 
-  expect(await api.traces()).toEqual({ endpoint: null });
+  expect(await api.otlp()).toEqual({ endpoint: null });
 
-  await api.setTraceEndpoint("https://otlp-gateway.example.net/otlp");
+  await api.setOtlpEndpoint("https://otlp-gateway.example.net/otlp");
 
-  expect(config.read().traces.endpoint).toBe(
+  expect(config.read().otlp.endpoint).toBe(
     "https://otlp-gateway.example.net/otlp"
   );
 
-  await expect(
-    api.saveSecret(Secret.TraceHeaders, "glc_token")
-  ).rejects.toThrow(/key=value/);
-  expect(await secrets.get(Secret.TraceHeaders)).toBeUndefined();
+  await expect(api.saveSecret(Secret.OtlpHeaders, "glc_token")).rejects.toThrow(
+    /key=value/
+  );
+  expect(await secrets.get(Secret.OtlpHeaders)).toBeUndefined();
 
-  await api.saveSecret(Secret.TraceHeaders, "Authorization=Basic%20abc");
+  await api.saveSecret(Secret.OtlpHeaders, "Authorization=Basic%20abc");
 
-  expect(await secrets.get(Secret.TraceHeaders)).toBe(
+  expect(await secrets.get(Secret.OtlpHeaders)).toBe(
     "Authorization=Basic%20abc"
   );
 
-  await api.setTraceEndpoint(null);
+  await api.setOtlpEndpoint(null);
 
-  expect(await api.traces()).toEqual({ endpoint: null });
+  expect(await api.otlp()).toEqual({ endpoint: null });
 });
 
 test("crash reports stay unsent until the user agrees to send them", async () => {

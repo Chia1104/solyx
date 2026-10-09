@@ -41,7 +41,11 @@ void app.whenReady().then(() => {
 
   // Runs the last session left unfinished continue where they stopped. A store that cannot open
   // fails every agent call too, which the renderer shows.
-  services.agent.resume().catch(console.error);
+  services.agent
+    .resume()
+    .catch((error) =>
+      services.telemetry.diagnostics.report(error, "agent.resume")
+    );
 
   services.scheduler.start();
 
@@ -60,9 +64,11 @@ void app.whenReady().then(() => {
     // Traces last, so they hold how the runs stopped.
     void withTimeout(async () => {
       await services.agent.close();
-      await services.traces.close();
+      await services.telemetry.close();
     }, CLOSE_TIMEOUT_MS)
-      .catch(console.error)
+      .catch((error) =>
+        services.telemetry.diagnostics.report(error, "app.close")
+      )
       .finally(() => app.quit());
   });
 

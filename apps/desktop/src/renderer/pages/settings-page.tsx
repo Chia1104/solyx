@@ -25,7 +25,7 @@ import { ThemeSelect } from "../modules/settings/theme-select.tsx";
 import { TimeZoneSelect } from "../modules/settings/time-zone-select.tsx";
 import { WebSearchSettings } from "../modules/settings/web-search-settings.tsx";
 import { StorageSettings } from "../modules/storage/storage-settings.tsx";
-import { TraceSettings } from "../modules/traces/trace-settings.tsx";
+import { TelemetrySettings } from "../modules/telemetry/telemetry-settings.tsx";
 
 const route = getRouteApi("/settings");
 
@@ -64,7 +64,7 @@ export function SettingsPage() {
     [SettingsSection.About]: (
       <>
         <AboutSettings />
-        <TraceSettings />
+        <TelemetrySettings />
       </>
     ),
   };

@@ -1,4 +1,3 @@
-import { noop } from "es-toolkit";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { Market } from "@solyx/core/market";
@@ -21,13 +20,16 @@ function setup(hours: number) {
     async (_symbol: SymbolRef, _everyMs: number) => undefined
   );
 
+  const diagnostics = { recovered: vi.fn() };
+
   const collector = createNewsCollector({
     news: { refresh },
+    diagnostics,
     listings: async () => [TSMC, FOXCONN],
     collectEveryHours: () => hours,
   });
 
-  return { collector, refresh };
+  return { collector, refresh, diagnostics };
 }
 
 test("each listing held or watched is refreshed in turn at the interval set", async () => {
@@ -49,15 +51,15 @@ test("an interval of 0 refreshes nothing", async () => {
   expect(refresh).not.toHaveBeenCalled();
 });
 
-test("a listing whose refresh fails leaves the rest refreshed", async () => {
-  const error = vi.spyOn(console, "error").mockImplementation(noop);
-  const { collector, refresh } = setup(72);
+test("a listing whose refresh fails is logged by its listing and leaves the rest refreshed", async () => {
+  const { collector, refresh, diagnostics } = setup(72);
+  const failure = new Error("decisions model down");
 
-  refresh.mockRejectedValueOnce(new Error("decisions model down"));
+  refresh.mockRejectedValueOnce(failure);
   await collector.run();
 
-  expect(error).toHaveBeenCalledWith(
-    "News collection for TW 2330 failed: decisions model down"
-  );
+  expect(diagnostics.recovered).toHaveBeenCalledWith(failure, "news.collect", {
+    "solyx.listing": "TW:2330",
+  });
   expect(refresh).toHaveBeenLastCalledWith(FOXCONN, 72 * HOUR_MS);
 });
