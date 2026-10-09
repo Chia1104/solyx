@@ -1,9 +1,11 @@
 import { join } from "node:path";
 
 import { app, BrowserWindow, powerMonitor } from "electron";
-import { withTimeout } from "es-toolkit";
+import { kebabCase, withTimeout } from "es-toolkit";
 
 import { registerIpc } from "./ipc/register-ipc.ts";
+import { startCrashReports } from "./modules/crash-reports/crash-reports.ts";
+import { createConfigFile } from "./modules/settings/config-file.ts";
 import { createServices } from "./services.ts";
 import { APP_ICON, createMainWindow } from "./shell/main-window.ts";
 
@@ -14,6 +16,15 @@ if (!app.isPackaged) {
   app.setPath("userData", join(app.getPath("appData"), app.getName()));
 }
 
+// Settings a person edits live in a dotfolder named after the app, so each channel keeps its own.
+const config = createConfigFile(
+  join(app.getPath("home"), `.${kebabCase(app.getName())}`, "config.json")
+);
+
+// Before the app is ready, so a failure while it starts is caught too; nothing is sent until the
+// user agrees.
+startCrashReports(() => config.read().crashReports.send);
+
 // Long enough for runs to store where they stopped, short enough never to hold up quitting.
 const CLOSE_TIMEOUT_MS = 3000;
 
@@ -23,7 +34,7 @@ void app.whenReady().then(() => {
   // Unpackaged runs launch Electron's own app bundle, whose icon the Dock would show.
   if (!app.isPackaged) app.dock?.setIcon(APP_ICON);
 
-  const services = createServices();
+  const services = createServices(config);
 
   registerIpc(services);
   createMainWindow(services.windowColors);

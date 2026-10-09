@@ -41,6 +41,7 @@ import {
 
 import { bindIpc } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";
+import { canReportCrashes } from "../crash-reports/crash-reports.ts";
 
 import { endpointSchema } from "./config-file.ts";
 import { createSettingsApi } from "./settings-api.ts";
@@ -130,6 +131,8 @@ const schemas = {
   setMemoryEnabled: z.tuple([z.boolean()]),
   updates: z.tuple([]),
   setUpdateChecks: z.tuple([z.boolean()]),
+  crashReports: z.tuple([]),
+  setCrashReports: z.tuple([z.boolean()]),
   mcp: z.tuple([]),
   setMcpToolPolicy: z.tuple([
     mcpNameSchema,
@@ -190,6 +193,8 @@ const electronShell: SettingsShell = {
     node: process.versions.node,
     os: `${OS_NAME[process.platform] ?? process.platform} ${process.getSystemVersion()} (${process.arch})`,
   }),
+
+  canReportCrashes,
 };
 
 export function registerSettingsIpc(services: Services) {

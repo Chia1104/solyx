@@ -1207,6 +1207,13 @@
       "failed": "Couldn't check for updates"
     }
   },
+  "crash-reports": {
+    "title": "Help improve Solyx",
+    "description": "When Solyx crashes or hits an error it didn't expect, it can send its maintainer a report through Sentry so the bug gets fixed. Nothing is sent until you switch this on, and you can change it any time under Settings → About.",
+    "send": "Send crash reports",
+    "send-description": "What went wrong and where in the code, with the versions of Solyx, Electron and your operating system. Reports leave out your keys, conversations, holdings and orders.",
+    "unavailable": "This build doesn't send reports"
+  },
   "locale": {
     "system": "System",
     "en-US": "English",

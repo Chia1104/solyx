@@ -320,6 +320,13 @@ export interface UpdateSettings {
   check: boolean;
 }
 
+export interface CrashReportSettings {
+  /** The user agreed to send Solyx's maintainer a report of each crash and unexpected error. */
+  send: boolean;
+  /** This build has somewhere to send them; development builds and forks do not. */
+  available: boolean;
+}
+
 /** The web search vendor news and the agent search and read through, and each vendor's key. */
 export interface WebSearchSettings {
   provider: WebSearchProvider;
@@ -570,6 +577,9 @@ export interface SettingsApi {
   setMemoryEnabled(enabled: boolean): Promise<void>;
   updates(): Promise<UpdateSettings>;
   setUpdateChecks(enabled: boolean): Promise<void>;
+  crashReports(): Promise<CrashReportSettings>;
+  /** Starts or stops sending crash reports at once, including what is still queued to send. */
+  setCrashReports(send: boolean): Promise<void>;
   /** Connects the servers in mcp.json on first use. */
   mcp(): Promise<McpSettings>;
   /** Lets the agent do the same with each of a server's `tools`, saved in one write. */
@@ -655,6 +665,8 @@ export const settingsChannels = {
   setMemoryEnabled: "settings:set-memory-enabled",
   updates: "settings:updates",
   setUpdateChecks: "settings:set-update-checks",
+  crashReports: "settings:crash-reports",
+  setCrashReports: "settings:set-crash-reports",
   mcp: "settings:mcp",
   setMcpToolPolicy: "settings:set-mcp-tool-policy",
   saveMcpSecret: "settings:save-mcp-secret",

@@ -1,3 +1,5 @@
+// Sentry's bridge, which hands the renderer's reports to the main process; it sends nothing itself.
+import "@sentry/electron/preload";
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 

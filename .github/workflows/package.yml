@@ -28,6 +28,8 @@ jobs:
         # macos-26 carries the Xcode 26 that compiles the Icon Composer icons.
         runner: [macos-26, windows-2025]
     runs-on: ${{ matrix.runner }}
+    # Holds the Sentry DSN the build writes into the app and the token that uploads its source maps.
+    environment: release
     timeout-minutes: 60
     defaults:
       run:
@@ -56,9 +58,14 @@ jobs:
             fs.writeFileSync("package.json", `${JSON.stringify(manifest, null, 2)}\n`);
           '
 
+      # The DSN only lets the app send to the project's Sentry, so it is a variable, not a secret.
       - name: Package
         env:
           SCRIPT: ${{ inputs.channel == 'nightly' && 'package:nightly' || 'package' }}
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: vp run "@solyx/desktop#$SCRIPT"
 
       - uses: actions/upload-artifact@v7

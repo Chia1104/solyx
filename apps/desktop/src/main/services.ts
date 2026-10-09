@@ -1,8 +1,8 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import type { WebContents } from "electron";
-import { kebabCase, omit, uniqBy } from "es-toolkit";
+import { omit, uniqBy } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
 import { Currency, symbolKey } from "@solyx/core/market";
@@ -45,7 +45,7 @@ import { createNewsSources } from "./modules/news/news-sources.ts";
 import { createNews } from "./modules/news/news.ts";
 import { createResearch } from "./modules/research/research.ts";
 import { createAppearance } from "./modules/settings/appearance.ts";
-import { createConfigFile } from "./modules/settings/config-file.ts";
+import type { ConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
@@ -71,12 +71,10 @@ function broadcast(...push: Parameters<WebContents["send"]>) {
 }
 
 /** Composition root. A live broker is only ever wired here after the user explicitly turns it on. */
-export function createServices() {
+export function createServices(config: ConfigFile) {
   const userDataDir = app.getPath("userData");
   const home = app.getPath("home");
-
-  // Settings a person edits live in a dotfolder named after the app, so each channel keeps its own.
-  const configDir = join(home, `.${kebabCase(app.getName())}`);
+  const configDir = dirname(config.file);
 
   const userData = openUserData(
     join(userDataDir, "user.sqlite"),
@@ -103,8 +101,6 @@ export function createServices() {
     // vp pack copies the migrations next to the bundle; see vite.config.ts.
     join(import.meta.dirname, "migrations", "cache")
   );
-
-  const config = createConfigFile(join(configDir, "config.json"));
 
   config.create();
 
