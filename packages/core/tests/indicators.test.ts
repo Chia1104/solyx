@@ -6,6 +6,7 @@ import {
   ema,
   kd,
   macd,
+  relativeReturn,
   rsi,
   sma,
   volumeRatio,
@@ -107,4 +108,12 @@ describe("kd", () => {
 
     expect(k[1]).toBeCloseTo(50);
   });
+});
+
+test("relativeReturn subtracts the benchmark's return in percentage points", () => {
+  const line = relativeReturn([100, 110, 121], [100, 105, null], 1);
+
+  expect(line[0]).toBeNull();
+  expect(line[1]).toBeCloseTo(5);
+  expect(line[2]).toBeNull();
 });

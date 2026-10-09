@@ -47,6 +47,24 @@ export const instrumentSchema = symbolRefSchema.extend({
 
 export type Instrument = z.infer<typeof instrumentSchema>;
 
+/** What a market's listings are measured against. */
+export interface Benchmark {
+  symbol: SymbolRef;
+  name: string;
+}
+
+/** Taiwan's capitalization-weighted index, and an S&P 500 fund for the US. */
+export const BENCHMARK: Record<Market, Benchmark> = {
+  [Market.TW]: {
+    symbol: { market: Market.TW, symbol: "IX0001" },
+    name: "TAIEX",
+  },
+  [Market.US]: {
+    symbol: { market: Market.US, symbol: "SPY" },
+    name: "S&P 500 (SPY)",
+  },
+};
+
 /** Identifies a listing across markets, as `TW:2330`. */
 export function symbolKey({ market, symbol }: SymbolRef): string {
   return `${market}:${symbol}`;

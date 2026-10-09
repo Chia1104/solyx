@@ -12,6 +12,7 @@ import {
   ema,
   kd,
   macd,
+  relativeReturn,
   rsi,
   sma,
   volumeRatio,
@@ -96,6 +97,17 @@ const indicators: CodemodeTool[] = [
     input: z.tuple([valuesSchema]),
     output: lineSchema,
     run: ([volumes]) => volumeRatio(volumes),
+  }),
+  scriptFunction({
+    name: "indicators.relativeReturn",
+    description:
+      "Percentage points by which `values` outran `benchmark` over the `period` bars ending with each; pass the benchmark's closes at the same bars' times, null where it has none. The market's index is TW:IX0001 (TAIEX) in Taiwan.",
+    spread: true,
+    signature: `(values: number[], benchmark: (number | null)[], period: number): Promise<${LINE}>`,
+    input: z.tuple([valuesSchema, lineSchema, z.number().int().positive()]),
+    output: lineSchema,
+    run: ([values, benchmark, period]) =>
+      relativeReturn(values, benchmark, period),
   }),
   scriptFunction({
     name: "indicators.rsi",

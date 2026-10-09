@@ -12,6 +12,7 @@ export const ChartIndicator = {
   Rsi: "rsi",
   Kd: "kd",
   VolumeRatio: "vol-ratio",
+  RelativeStrength: "rs",
   YearRange: "year-range",
   Zones: "zones",
   VolumeProfile: "volume-profile",
@@ -34,6 +35,7 @@ export const FLOW_INDICATORS: readonly ChartIndicator[] = [
 
 /** Drawn from sessions, which only daily bars count one by one. */
 export const DAILY_INDICATORS: readonly ChartIndicator[] = [
+  ChartIndicator.RelativeStrength,
   ChartIndicator.YearRange,
   ChartIndicator.Zones,
   ChartIndicator.VolumeProfile,

@@ -363,6 +363,25 @@ test("indicators report the latest and previous values", async () => {
   expect(text).toMatch(/support zones: .*MA60 1028\.51-1070\.49/);
 });
 
+test("indicators measure a daily listing against the market's index", async () => {
+  const { run, marketData } = setup();
+  const flatIndex = dailyBars(80).map((bar) => ({ ...bar, close: 20_000 }));
+
+  marketData.candles.mockImplementation(async (symbol) =>
+    symbol.symbol === "IX0001" ? flatIndex : dailyBars(80)
+  );
+
+  const { text } = await run(AgentToolName.GetIndicators, {
+    symbol: TSMC,
+    interval: Interval.OneDay,
+  });
+
+  // Against a flat index, strength is the listing's own return: 1079 from 1059 and from 1019.
+  expect(text).toContain(
+    "relative strength vs TAIEX, percentage points: 20 sessions +1.89, 60 sessions +5.89, 120 sessions n/a"
+  );
+});
+
 test("indicators leave the daily levels out of intraday bars", async () => {
   const { run } = setup();
 

@@ -2,6 +2,7 @@ import { describe, expect, test } from "vite-plus/test";
 
 import {
   Interval,
+  alignedCloses,
   liveBar,
   mergeCandles,
   olderRange,
@@ -56,6 +57,13 @@ describe("olderRange", () => {
       to: "2026-02-22",
     });
   });
+});
+
+test("alignedCloses reads the other series' close at each bar's time", () => {
+  const bars = [session("2026-03-02", 1, 1), session("2026-03-03", 1, 1)];
+  const other = [session("2026-03-03", 1, 50)];
+
+  expect(alignedCloses(bars, other)).toEqual([null, 50]);
 });
 
 test("mergeCandles spans the bars' range and sums their volume", () => {
