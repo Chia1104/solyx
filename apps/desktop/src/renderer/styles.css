@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 
-/* Streamdown's elements carry their own utility classes. */
+/* Streamdown's elements carry their own utility classes; its stylesheet holds the fade keyframes. */
+@import "streamdown/styles.css";
 @source "../../node_modules/streamdown/dist/*.js";
 
 /*
