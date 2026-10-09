@@ -22,6 +22,21 @@ export const numberFormats = memoize((locale: string) => ({
     notation: "compact",
     maximumFractionDigits: 2,
   }),
+  /** A large sum, such as what the whole market traded. */
+  compactAmount: new Intl.NumberFormat(locale, {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }),
+  signedCompactAmount: new Intl.NumberFormat(locale, {
+    notation: "compact",
+    signDisplay: "exceptZero",
+    maximumFractionDigits: 2,
+  }),
+  /** A share of a whole to the hundredth of a percent, such as a holding. */
+  fineShare: new Intl.NumberFormat(locale, {
+    style: "percent",
+    maximumFractionDigits: 2,
+  }),
   /** A signed sum of money, such as a holding's gain. */
   signedAmount: new Intl.NumberFormat(locale, {
     signDisplay: "exceptZero",
