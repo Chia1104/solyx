@@ -46,7 +46,12 @@ function SkillRow({
 
   return (
     <SettingsRow
-      label={<span className="font-mono text-xs">{skill.name}</span>}
+      // A skill the user may ask for is shown as they would write it.
+      label={
+        <span className="font-mono text-xs">
+          {skill.userInvocable ? `/${skill.name}` : skill.name}
+        </span>
+      }
       description={
         <span className="line-clamp-1" title={skill.description}>
           {skill.description}

@@ -4,7 +4,9 @@ import {
   AgentEventType,
   RunEndReason,
   ToolCallStatus,
+  MessagePartKind,
   foldEvents,
+  messageParts,
   messageTokens,
 } from "../src/wire.ts";
 import type { AgentWireEvent } from "../src/wire.ts";
@@ -92,4 +94,23 @@ test("an address, a slash inside the text and a bare @ name nothing", () => {
     skill: undefined,
     codes: [],
   });
+});
+
+test("a message is cut into its text, the skill it opens with and the codes it names", () => {
+  expect(messageParts(" /deep-analysis 比較@2330和 ＠nvda.")).toEqual([
+    { kind: MessagePartKind.Text, text: " " },
+    {
+      kind: MessagePartKind.Skill,
+      text: "/deep-analysis",
+      name: "deep-analysis",
+    },
+    { kind: MessagePartKind.Text, text: " 比較" },
+    { kind: MessagePartKind.Listing, text: "@2330", code: "2330" },
+    { kind: MessagePartKind.Text, text: "和 " },
+    { kind: MessagePartKind.Listing, text: "＠nvda", code: "NVDA" },
+    { kind: MessagePartKind.Text, text: "." },
+  ]);
+  expect(messageParts("no tokens")).toEqual([
+    { kind: MessagePartKind.Text, text: "no tokens" },
+  ]);
 });

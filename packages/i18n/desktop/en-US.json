@@ -304,6 +304,13 @@
       "attach": "Attach",
       "detach": "Don't attach {{label}}"
     },
+    "composer-menu": {
+      "listings": "Listings",
+      "skills": "Skills",
+      "on-screen": "On screen",
+      "held": "Held",
+      "watched": "Watched"
+    },
     "copy": "Copy",
     "copied": "Copied",
     "edit-message": "Edit as a new message",

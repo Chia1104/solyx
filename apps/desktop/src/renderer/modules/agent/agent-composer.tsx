@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   Button,
@@ -17,6 +17,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { Autocomplete } from "react-aria-components";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -44,6 +45,13 @@ import { ApprovalModeMenu } from "./agent-approval-mode.tsx";
 import { AgentModelPicker } from "./agent-model-picker.tsx";
 import { agentQueryKeys, agentSessionsQuery } from "./agent-query.ts";
 import { useAgentStore } from "./agent-store.ts";
+import {
+  ComposerMenu,
+  suggests,
+  useComposerSuggestions,
+} from "./composer-menu.tsx";
+import type { ComposerSuggestion } from "./composer-menu.tsx";
+import { ComposerTokenKind, replaceToken, tokenAt } from "./composer-token.ts";
 
 // An empty message only disables sending, so it needs no message of its own.
 const composerSchema = z.object({ text: z.string().trim().min(1) });
@@ -130,7 +138,8 @@ function ModelUnavailable({
 
 /**
  * Writes to the conversation on screen, starting one when there is none, on a model that can run. Enter sends and
- * Shift+Enter breaks the line; Enter that confirms an input method's composition does neither.
+ * Shift+Enter breaks the line; Enter that confirms an input method's composition does neither. `@` suggests a
+ * listing and a leading `/` a skill: while the list is open, Enter and Tab pick and Escape closes it.
  */
 export function AgentComposer({
   sessionId,
@@ -157,6 +166,44 @@ export function AgentComposer({
   });
 
   const text = useWatch({ control: form.control, name: "text" });
+
+  const input = useRef<HTMLTextAreaElement | null>(null);
+  const [caret, setCaret] = useState(0);
+  // The token Escape closed the menu on, which stays closed until the caret leaves it.
+  const [dismissed, setDismissed] = useState<number | null>(null);
+
+  // Chromium fires `selectionchange` at a textarea without bubbling, so React's `onSelect` misses it.
+  useEffect(() => {
+    const element = input.current;
+
+    if (!element) return;
+
+    const follow = () => setCaret(element.selectionStart);
+
+    element.addEventListener("selectionchange", follow);
+
+    return () => element.removeEventListener("selectionchange", follow);
+  }, []);
+
+  const token = tokenAt(text, caret);
+  const suggestions = useComposerSuggestions(token, focus);
+
+  const menuOpen =
+    token !== null &&
+    token.start !== dismissed &&
+    suggestions.some((each) => suggests(each.keywords, token.query));
+
+  function complete(suggestion: ComposerSuggestion) {
+    if (!token) return;
+
+    const next = replaceToken(text, token, suggestion.value);
+
+    form.setValue("text", next.text);
+    setCaret(next.caret);
+    requestAnimationFrame(() =>
+      input.current?.setSelectionRange(next.caret, next.caret)
+    );
+  }
 
   const attachedFocus =
     focus && symbolKey(focus) !== detachedFocus ? focus : null;
@@ -293,7 +340,7 @@ export function AgentComposer({
           description={send.error.message}
         />
       ) : null}
-      <div className="flex flex-col">
+      <div className="relative flex flex-col">
         {focus ? (
           <div className="mx-2 rounded-t-sm border border-b-0 border-border bg-surface-secondary">
             <FocusAttachment focus={focus} />
@@ -304,25 +351,81 @@ export function AgentComposer({
             control={form.control}
             name="text"
             render={({ field }) => (
-              <TextField aria-label={t("agent.placeholder")} className="w-full">
-                <TextArea
-                  {...field}
-                  rows={1}
-                  className="block field-sizing-content max-h-50 min-h-10 w-full resize-none rounded-none border-0 bg-transparent px-3 pt-2 pb-1 text-sm leading-6 shadow-none ring-0"
-                  placeholder={t("agent.placeholder")}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === "Enter" &&
-                      !event.shiftKey &&
-                      !event.nativeEvent.isComposing
-                    ) {
-                      event.preventDefault();
+              <Autocomplete
+                inputValue={field.value}
+                onInputChange={field.onChange}
+                filter={(keywords) =>
+                  token !== null && suggests(keywords, token.query)
+                }>
+                {menuOpen ? (
+                  <ComposerMenu
+                    label={t(
+                      token.kind === ComposerTokenKind.Skill
+                        ? "agent.composer-menu.skills"
+                        : "agent.composer-menu.listings"
+                    )}
+                    suggestions={suggestions}
+                    onPick={complete}
+                  />
+                ) : null}
+                <TextField
+                  aria-label={t("agent.placeholder")}
+                  className="w-full">
+                  <TextArea
+                    name={field.name}
+                    ref={(element) => {
+                      field.ref(element);
+                      input.current = element;
+                    }}
+                    rows={1}
+                    className="block field-sizing-content max-h-50 min-h-10 w-full resize-none rounded-none border-0 bg-transparent px-3 pt-2 pb-1 text-sm leading-6 shadow-none ring-0"
+                    placeholder={t("agent.placeholder")}
+                    // The Autocomplete turns spell checking off as for a search field; a message keeps it.
+                    spellCheck
+                    onBlur={field.onBlur}
+                    onKeyDown={(event) => {
+                      if (event.nativeEvent.isComposing) return;
 
-                      if (!running && !unavailable) void submit();
-                    }
-                  }}
-                />
-              </TextField>
+                      if (menuOpen) {
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          setDismissed(token.start);
+
+                          return;
+                        }
+
+                        // Enter picks through the Autocomplete; Tab picks the same option.
+                        if (event.key === "Tab") {
+                          event.preventDefault();
+
+                          // The active descendant trails typing by design, so the focused option is read instead.
+                          const list =
+                            event.currentTarget.getAttribute("aria-controls");
+
+                          document
+                            .getElementById(list ?? "")
+                            ?.querySelector<HTMLElement>("[data-focused]")
+                            ?.click();
+
+                          return;
+                        }
+
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+
+                          return;
+                        }
+                      }
+
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+
+                        if (!running && !unavailable) void submit();
+                      }
+                    }}
+                  />
+                </TextField>
+              </Autocomplete>
             )}
           />
           <div className="flex items-center justify-between gap-2 px-1.5 pb-1.5">

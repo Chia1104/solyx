@@ -304,6 +304,13 @@
       "attach": "附加",
       "detach": "不附加 {{label}}"
     },
+    "composer-menu": {
+      "listings": "標的",
+      "skills": "技能",
+      "on-screen": "畫面上",
+      "held": "持股",
+      "watched": "自選"
+    },
     "copy": "複製",
     "copied": "已複製",
     "edit-message": "編輯成新訊息",
