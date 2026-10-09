@@ -10,10 +10,12 @@ import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 import { ForecastDirection } from "@solyx/core/forecast";
 import type { Forecast, ForecastOutcome } from "@solyx/core/forecast";
 import { InstrumentKind, Market } from "@solyx/core/market";
+import { TimePrecision } from "@solyx/core/news";
 import { ReportStance } from "@solyx/core/report";
 import type { Report } from "@solyx/core/report";
+import type { FalsifierCheck } from "@solyx/core/research";
 
-import { forecasts, reports } from "../src/research-schema.ts";
+import { falsifierChecks, forecasts, reports } from "../src/research-schema.ts";
 import { openResearch } from "../src/research.ts";
 import type { ResearchData } from "../src/research.ts";
 
@@ -109,7 +111,7 @@ function open() {
 }
 
 // A schema change committed without `db:generate` fails here.
-test.each([reports, forecasts])(
+test.each([reports, forecasts, falsifierChecks])(
   "migrations build the table the schema describes",
   (table) => {
     open().close();
@@ -330,4 +332,57 @@ test("clearing research empties its search", () => {
 
   expect(research.store.searchReports("advanced", 5)).toEqual([]);
   expect(research.store.searchForecasts("range", 5)).toEqual([]);
+});
+
+function check(
+  item: string,
+  patch: Partial<FalsifierCheck> = {}
+): FalsifierCheck {
+  return {
+    falsifier: "Gross margin falls below 53%",
+    revision: 1,
+    source: "news",
+    item: {
+      id: item,
+      title: item,
+      url: `https://news.test/${item}`,
+      site: "news.test",
+      published: {
+        at: new Date("2026-10-01T02:00:00Z"),
+        precision: TimePrecision.Minute,
+      },
+    },
+    support: { model: "jev", supported: 0.9 },
+    checkedAt: 1_790_000_000_000,
+    ...patch,
+  };
+}
+
+test("a falsifier is read against an item once per revision, and clearing forgets every reading", () => {
+  const research = open();
+  const { store } = research;
+
+  store.addFalsifierCheck(TSMC, check("a"));
+  store.addFalsifierCheck(
+    TSMC,
+    check("a", { support: { model: "jev", supported: 0.1 } })
+  );
+  store.addFalsifierCheck(
+    TSMC,
+    check("b", {
+      item: { ...check("b").item, url: null, published: null },
+    })
+  );
+  store.addFalsifierCheck(TSMC, check("a", { revision: 2 }));
+  store.addFalsifierCheck(MEDIATEK, check("a"));
+
+  expect(store.falsifierChecks(TSMC, 1)).toEqual([
+    check("a"),
+    check("b", { item: { ...check("b").item, url: null, published: null } }),
+  ]);
+  expect(store.falsifierChecks(TSMC, 2)).toEqual([check("a", { revision: 2 })]);
+
+  research.clear();
+
+  expect(store.falsifierChecks(TSMC, 1)).toEqual([]);
 });

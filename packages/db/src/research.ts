@@ -6,15 +6,38 @@ import type { Forecast } from "@solyx/core/forecast";
 import { symbolKey } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { Report } from "@solyx/core/report";
-import type { ResearchStore } from "@solyx/core/research";
+import type { FalsifierCheck, ResearchStore } from "@solyx/core/research";
 
 import { connect } from "./connection.ts";
 import { databaseBytes } from "./database-file.ts";
 import { anyTerm, indexedTerms } from "./full-text.ts";
-import { forecasts, reports } from "./research-schema.ts";
+import { falsifierChecks, forecasts, reports } from "./research-schema.ts";
 
 function toForecast(row: typeof forecasts.$inferSelect): Forecast {
   return { ...row.forecast, outcome: row.outcome };
+}
+
+function toCheck(row: typeof falsifierChecks.$inferSelect): FalsifierCheck {
+  return {
+    falsifier: row.falsifier,
+    revision: row.revision,
+    source: row.source,
+    item: {
+      id: row.itemKey,
+      title: row.title,
+      url: row.url,
+      site: row.site,
+      published:
+        row.publishedAt === null || row.publishedPrecision === null
+          ? null
+          : {
+              at: new Date(row.publishedAt),
+              precision: row.publishedPrecision,
+            },
+    },
+    support: { model: row.model, supported: row.supported },
+    checkedAt: row.checkedAt,
+  };
 }
 
 /** What `report_terms` holds of a revision: its listing's code and every text it carries. */
@@ -155,6 +178,46 @@ function researchStore(db: NodeSQLiteDatabase): ResearchStore {
         .run();
     },
 
+    falsifierChecks: ({ market, symbol }, revision) =>
+      db
+        .select()
+        .from(falsifierChecks)
+        .where(
+          and(
+            eq(falsifierChecks.market, market),
+            eq(falsifierChecks.symbol, symbol),
+            eq(falsifierChecks.revision, revision)
+          )
+        )
+        .orderBy(asc(falsifierChecks.id))
+        .all()
+        .map(toCheck),
+
+    addFalsifierCheck({ market, symbol }, check) {
+      const { item, support } = check;
+
+      // A check is kept once: reading the same falsifier against the same item again changes nothing.
+      db.insert(falsifierChecks)
+        .values({
+          market,
+          symbol,
+          revision: check.revision,
+          falsifier: check.falsifier,
+          source: check.source,
+          itemKey: item.id,
+          title: item.title,
+          url: item.url,
+          site: item.site,
+          publishedAt: item.published?.at.getTime() ?? null,
+          publishedPrecision: item.published?.precision ?? null,
+          model: support.model,
+          supported: support.supported,
+          checkedAt: check.checkedAt,
+        })
+        .onConflictDoNothing()
+        .run();
+    },
+
     searchReports(query, limit, symbol) {
       const match = anyTerm(query);
 
@@ -275,6 +338,7 @@ export function openResearch(path: string, migrationsFolder: string) {
       db.transaction((tx) => {
         tx.delete(reports).run();
         tx.delete(forecasts).run();
+        tx.delete(falsifierChecks).run();
         tx.run(
           sql`INSERT INTO report_terms (report_terms) VALUES ('delete-all')`
         );

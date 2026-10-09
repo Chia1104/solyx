@@ -66,3 +66,19 @@ test("OpenAI's embeddings wait for their own key", async () => {
   );
   expect(embeddings.settings()).toMatchObject({ measured: true });
 });
+
+test("the user's own text is embedded only by a model on this computer", async () => {
+  const { config, secrets, embeddings } = setup();
+
+  expect(embeddings.localEmbedder()).toBeUndefined();
+
+  config.set(["embeddings", "enabled"], true);
+
+  expect(embeddings.localEmbedder()?.space).toBe("qwen3-embedding:0.6b");
+
+  config.set(["embeddings", "provider"], EmbeddingsProvider.OpenAI);
+  await secrets.save(Secret.EmbeddingsApiKey, "sk-test");
+
+  expect(await embeddings.embedder()).toBeDefined();
+  expect(embeddings.localEmbedder()).toBeUndefined();
+});

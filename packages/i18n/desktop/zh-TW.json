@@ -438,6 +438,7 @@
       "drivers": "論點支撐",
       "risks": "風險",
       "falsifiers": "什麼會改變看法",
+      "falsifier-stated": "新聞可能顯示這件事已發生（判讀為 {{share}}）：",
       "valuation": "合理區間 {{low}} 至 {{high}}",
       "events": "未來事件",
       "written": "{{date}} 撰寫",

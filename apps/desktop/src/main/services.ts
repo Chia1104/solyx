@@ -162,7 +162,10 @@ export function createServices() {
     scorer: () => decisions.scorer(),
     embedder: () => embeddings.embedder(),
     marketData,
-    onChange: (symbol) => broadcast(newsEvents.onChanged, symbol),
+    onChange(symbol) {
+      broadcast(newsEvents.onChanged, symbol);
+      void research.watch(symbol);
+    },
   });
 
   // One client, so fundamentals and trading days share FinMind's hourly limit.
@@ -209,7 +212,13 @@ export function createServices() {
       join(userDataDir, "research.sqlite"),
       join(import.meta.dirname, "migrations", "research")
     ),
-    { marketData, fundamentals, auditor: () => decisions.claimAuditor() },
+    {
+      marketData,
+      fundamentals,
+      auditor: () => decisions.claimAuditor(),
+      news: newsData.store,
+      embedder: () => embeddings.localEmbedder(),
+    },
     () => broadcast(researchEvents.onChanged)
   );
 

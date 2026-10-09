@@ -6,16 +6,17 @@ import { useTranslation } from "react-i18next";
 
 import type { ForecastRecord } from "@solyx/core/forecast";
 import { exchangeDate } from "@solyx/core/market";
-import type { SymbolRef } from "@solyx/core/market";
+import type { Market, SymbolRef } from "@solyx/core/market";
 import { ReportSection } from "@solyx/core/report";
 import type { Argument, Audited, Report } from "@solyx/core/report";
-import type { Coverage } from "@solyx/core/research";
+import type { Coverage, FalsifierCheck } from "@solyx/core/research";
 
 import { Pane, useLayoutStore } from "../../app/layout-store.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { useAgentStore } from "../agent/agent-store.ts";
 import { numberFormats } from "../market/number-formats.ts";
+import { PublishedTime } from "../news/news-list.tsx";
 import { useDecisionsReady } from "../settings/settings-query.ts";
 
 import { ForecastBody } from "./forecast-card.tsx";
@@ -87,13 +88,59 @@ function Claims({
   );
 }
 
+/** A falsifier, over the news a decisions model read as stating that it happened. */
+function Falsifier({
+  falsifier,
+  market,
+  signals,
+}: {
+  falsifier: string;
+  market: Market;
+  signals: FalsifierCheck[];
+}) {
+  const { t, i18n } = useTranslation();
+  const { percent } = numberFormats(i18n.language);
+
+  return (
+    <li className="flex flex-col gap-1">
+      <span>{falsifier}</span>
+      {signals.map(({ source, item, support }) => (
+        <span
+          key={`${source}:${item.id}`}
+          className="rounded-sm border border-dashed border-separator px-2 py-1 text-xs text-muted">
+          {t("research.report.falsifier-stated", {
+            share: percent.format(support.supported),
+          })}{" "}
+          {item.url ? (
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground hover:underline">
+              {item.title}
+            </a>
+          ) : (
+            <span className="text-foreground">{item.title}</span>
+          )}{" "}
+          <span className="tabular-nums">
+            · {item.site} ·{" "}
+            <PublishedTime market={market} published={item.published} />
+          </span>
+        </span>
+      ))}
+    </li>
+  );
+}
+
 function ReportView({
   report,
   newerFinancials,
+  signals,
 }: {
   report: Report;
   /** The last day of a quarter published since the report was revised, if one was. */
   newerFinancials: string | null;
+  signals: FalsifierCheck[];
 }) {
   const { t, i18n } = useTranslation();
   const { price } = numberFormats(i18n.language);
@@ -124,9 +171,16 @@ function ReportView({
           <h4 className="text-xs font-medium text-muted">
             {t("research.report.falsifiers")}
           </h4>
-          <ul className="list-disc pl-4">
+          <ul className="flex list-disc flex-col gap-1 pl-4">
             {report.falsifiers.map((falsifier) => (
-              <li key={falsifier}>{falsifier}</li>
+              <Falsifier
+                key={falsifier}
+                falsifier={falsifier}
+                market={market}
+                signals={signals.filter(
+                  (signal) => signal.falsifier === falsifier
+                )}
+              />
             ))}
           </ul>
         </section>
@@ -202,7 +256,7 @@ function RecordLine({ record }: { record: ForecastRecord }) {
 
 function CoverageView({ coverage }: { coverage: Coverage }) {
   const { t } = useTranslation();
-  const { report, newerFinancials, forecasts, record } = coverage;
+  const { report, newerFinancials, forecasts, record, signals } = coverage;
 
   if (!report && forecasts.length === 0) {
     return (
@@ -214,7 +268,11 @@ function CoverageView({ coverage }: { coverage: Coverage }) {
     // Side by side where the main view is wide; narrower, the forecasts follow the report.
     <div className="grid gap-6 px-6 py-4 @min-[56rem]/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       {report ? (
-        <ReportView report={report} newerFinancials={newerFinancials} />
+        <ReportView
+          report={report}
+          newerFinancials={newerFinancials}
+          signals={signals}
+        />
       ) : (
         <p className="text-sm text-muted">{t("research.report.none")}</p>
       )}
