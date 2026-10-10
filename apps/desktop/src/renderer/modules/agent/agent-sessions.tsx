@@ -156,12 +156,22 @@ export function AgentSessionControls({
                           setListOpen(false);
                         }}>
                         <span className="w-full truncate text-sm">{title}</span>
-                        <time
-                          dateTime={new Date(session.updatedAt).toISOString()}
-                          title={clock.fullTime(session.updatedAt)}
-                          className="text-xs text-muted tabular-nums">
-                          {clock.time(session.updatedAt)}
-                        </time>
+                        <span className="flex w-full min-w-0 gap-1.5 text-xs text-muted">
+                          <time
+                            dateTime={new Date(session.updatedAt).toISOString()}
+                            title={clock.fullTime(session.updatedAt)}
+                            className="shrink-0 tabular-nums">
+                            {clock.time(session.updatedAt)}
+                          </time>
+                          {session.schedule ? (
+                            <span className="truncate">
+                              ·{" "}
+                              {t("agent.scheduled", {
+                                name: session.schedule.name,
+                              })}
+                            </span>
+                          ) : null}
+                        </span>
                       </Button>
                       <Button
                         isIconOnly

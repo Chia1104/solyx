@@ -293,6 +293,7 @@
     "new-chat": "新對話",
     "conversations": "對話紀錄",
     "untitled": "新對話",
+    "scheduled": "排程：{{name}}",
     "delete": "刪除對話",
     "delete-named": "刪除「{{title}}」",
     "delete-title": "要刪除這段對話嗎？",
@@ -656,7 +657,8 @@
       "agent": "AI Agent",
       "skills": "Skills",
       "memory": "記憶",
-      "mcp": "MCP"
+      "mcp": "MCP",
+      "schedules": "排程"
     },
     "general": "一般",
     "save-failed": "無法儲存設定",
@@ -1070,6 +1072,56 @@
       "too-long": "請少於 {{count, number}} 個字",
       "secret": "記憶不能包含金鑰、權杖、密碼或身分證字號",
       "change-failed": "無法變更這筆記憶"
+    },
+    "schedules": {
+      "title": "排程任務",
+      "description-text": "Solyx 開著時自動送給 Agent 的訊息，每次執行都開一個獨立對話，做了什麼都在那裡看。沒人看著的執行可以讀取、研究並修訂報告；它提出的下單仍然要等你確認，每次執行都會花用你的模型 token。",
+      "empty": "還沒有排程任務。",
+      "add": "新增任務",
+      "name": "名稱",
+      "prompt": "要送出的內容",
+      "prompt-description": "照你平常會寫的方式送出。以 /watchlist-upkeep 開頭，可以巡一輪庫存與自選。",
+      "kind": "何時",
+      "kinds": {
+        "interval": "每隔一段時間",
+        "fixed-time": "每天固定時間"
+      },
+      "every": "頻率",
+      "every-minutes_one": "每 {{count}} 分鐘",
+      "every-minutes_other": "每 {{count}} 分鐘",
+      "every-hours_one": "每 {{count}} 小時",
+      "every-hours_other": "每 {{count}} 小時",
+      "time": "時間",
+      "time-description": "以你的時區 {{timeZone}} 為準。",
+      "on-days": "日子",
+      "days": {
+        "every-day": "每天",
+        "TW": "台股交易日",
+        "US": "美股交易日"
+      },
+      "at-time": "{{time}} {{timeZone}} · {{days}}",
+      "approval": "需要詢問的呼叫",
+      "approvals": {
+        "ask": "等我回答",
+        "auto": "判定無害的直接放行"
+      },
+      "approval-descriptions": {
+        "ask": "執行會停在第一個這類呼叫，直到你在它的對話中回答。",
+        "auto": "這次執行自己搜尋到的網頁會直接讀取，decisions model 判定無害的 shell 指令會直接執行，其餘仍等你回答。任何任務都不能讓所有呼叫不經詢問。"
+      },
+      "required": "請填寫",
+      "too-long": "請控制在 {{count}} 個字元內",
+      "secret": "這看起來像金鑰、權杖或身分證號，任務不會保存這類內容",
+      "time-required": "請選擇時間",
+      "enabled": "依排程執行 {{name}}",
+      "run-now": "立即執行",
+      "delete": "刪除",
+      "next-run": "下次 {{time}}",
+      "running": "執行中。",
+      "last-run": "上次執行 {{time}}。",
+      "last-failed": "{{time}} 無法啟動：{{reason}}",
+      "open-run": "開啟對話",
+      "change-failed": "無法變更任務"
     },
     "mcp": {
       "title": "MCP server",

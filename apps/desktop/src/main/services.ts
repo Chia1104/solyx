@@ -24,6 +24,7 @@ import { memoryEvents } from "#shared/ipc/memory.ts";
 import { newsEvents } from "#shared/ipc/news.ts";
 import { proposalsEvents } from "#shared/ipc/proposals.ts";
 import { researchEvents } from "#shared/ipc/research.ts";
+import { schedulesEvents } from "#shared/ipc/schedules.ts";
 import { AppLocation, Secret, settingsEvents } from "#shared/ipc/settings.ts";
 import { updatesEvents } from "#shared/ipc/updates.ts";
 import { ColorScheme } from "#shared/palette.ts";
@@ -45,6 +46,7 @@ import { createNewsCollector } from "./modules/news/news-collector.ts";
 import { createNewsSources } from "./modules/news/news-sources.ts";
 import { createNews } from "./modules/news/news.ts";
 import { createResearch } from "./modules/research/research.ts";
+import { createSchedules } from "./modules/schedules/schedules.ts";
 import { createAppearance } from "./modules/settings/appearance.ts";
 import type { ConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
@@ -298,6 +300,7 @@ export function createServices(config: ConfigFile) {
       webSearch,
       decisions,
       embeddings,
+      schedules: userData.schedules,
       version: app.getVersion(),
       home,
     },
@@ -330,10 +333,19 @@ export function createServices(config: ConfigFile) {
     onChange: () => broadcast(updatesEvents.onChanged),
   });
 
+  const schedules = createSchedules({
+    store: userData.schedules,
+    agent,
+    tradingDays,
+    diagnostics,
+    onChange: () => broadcast(schedulesEvents.onChanged),
+  });
+
   const scheduler = createScheduler({ telemetry });
 
   scheduler.register("News collection", newsCollector);
   scheduler.register("Update check", updates);
+  scheduler.register("Scheduled tasks", schedules.work);
 
   nativeTheme.themeSource = appearance.read().theme;
 
@@ -372,6 +384,7 @@ export function createServices(config: ConfigFile) {
     news,
     newsData,
     updates,
+    schedules,
     scheduler,
   };
 }

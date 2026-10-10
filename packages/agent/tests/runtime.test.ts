@@ -307,6 +307,52 @@ test("a provider error ends the run with its message", async () => {
   await runtime.close();
 });
 
+test("a conversation a scheduled task started says so, and is busy only while its run goes", async () => {
+  const { faux, runtime, ended } = setup();
+
+  const mine = await runtime.create();
+
+  const scheduled = await runtime.create(
+    { model: null, thinking: null, approvalMode: ApprovalMode.Auto },
+    { id: "brief", name: "Morning brief" }
+  );
+
+  expect(scheduled.schedule).toEqual({ id: "brief", name: "Morning brief" });
+  expect(
+    (await runtime.sessions()).map(({ id, schedule, approvalMode }) => [
+      id,
+      schedule,
+      approvalMode,
+    ])
+  ).toEqual(
+    expect.arrayContaining([
+      [mine.id, null, ApprovalMode.Ask],
+      [scheduled.id, { id: "brief", name: "Morning brief" }, ApprovalMode.Auto],
+    ])
+  );
+
+  faux.setResponses([
+    async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      return fauxAssistantMessage("done");
+    },
+  ]);
+
+  expect(await runtime.busy(scheduled.id)).toBe(false);
+
+  await runtime.send(scheduled.id, { text: "go", context: "" });
+
+  expect(await runtime.busy(scheduled.id)).toBe(true);
+
+  await ended();
+
+  expect(await runtime.busy(scheduled.id)).toBe(false);
+  expect(await runtime.busy("999")).toBe(false);
+
+  await runtime.close();
+});
+
 test("one run per conversation at a time", async () => {
   const { faux, runtime, ended } = setup();
   const { id } = await runtime.create();

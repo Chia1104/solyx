@@ -27,6 +27,7 @@
     "./risk": "./src/risk.ts",
     "./rules/tw": "./src/rules/tw.ts",
     "./rules/us": "./src/rules/us.ts",
+    "./schedule": "./src/schedule.ts",
     "./sectors": "./src/sectors.ts",
     "./sentiment": "./src/sentiment.ts",
     "./session": "./src/session.ts",

@@ -16,8 +16,15 @@ import {
 } from "@solyx/core/order-desk";
 import type { TradeProposal } from "@solyx/core/order-desk";
 import { RiskViolationCode } from "@solyx/core/risk";
+import { ScheduleApproval, ScheduleKind } from "@solyx/core/schedule";
+import type { ScheduledTask } from "@solyx/core/schedule";
 
-import { paperAccount, proposals, watchlist } from "../src/user-schema.ts";
+import {
+  paperAccount,
+  proposals,
+  scheduledTasks,
+  watchlist,
+} from "../src/user-schema.ts";
 import { openUserData } from "../src/user.ts";
 import type { UserData } from "../src/user.ts";
 
@@ -74,7 +81,7 @@ function open(file = "user.sqlite") {
 
 describe("openUserData", () => {
   // A schema change committed without `db:generate` fails here.
-  test.each([watchlist, proposals, paperAccount])(
+  test.each([watchlist, proposals, paperAccount, scheduledTasks])(
     "migrations build the tables the schema describes",
     (table) => {
       open().close();
@@ -311,5 +318,63 @@ describe("proposal store", () => {
     opened = [];
 
     expect(open().proposals.list()).toStrictEqual([submitted]);
+  });
+});
+
+describe("schedule store", () => {
+  const brief: ScheduledTask = {
+    id: "brief",
+    name: "Morning brief",
+    prompt: "/watchlist-upkeep",
+    schedule: {
+      kind: ScheduleKind.FixedTime,
+      time: "08:30",
+      tradingDaysOf: Market.TW,
+    },
+    timeZone: "Asia/Taipei",
+    locale: "zh-TW",
+    approval: ScheduleApproval.Auto,
+    enabled: true,
+    createdAt: 1_790_000_000_000,
+    updatedAt: 1_790_000_000_000,
+    lastRun: null,
+  };
+
+  const hourly: ScheduledTask = {
+    ...brief,
+    id: "hourly",
+    name: "Hourly check",
+    schedule: { kind: ScheduleKind.Interval, everyMinutes: 60 },
+  };
+
+  test("tasks keep the order they were made in, and saving one again replaces it", () => {
+    const { schedules } = open();
+
+    schedules.save(brief);
+    schedules.save(hourly);
+
+    const ran = {
+      ...brief,
+      enabled: false,
+      lastRun: { at: 1_790_000_100_000, sessionId: "7", failure: null },
+    };
+
+    schedules.save(ran);
+
+    expect(schedules.list()).toStrictEqual([ran, hourly]);
+    expect(schedules.get("brief")).toStrictEqual(ran);
+    expect(schedules.get("gone")).toBeUndefined();
+  });
+
+  test("a removed task is gone, and the rest outlive the connection", () => {
+    const first = open();
+
+    first.schedules.save(brief);
+    first.schedules.save(hourly);
+    first.schedules.remove("brief");
+    first.close();
+    opened = [];
+
+    expect(open().schedules.list()).toStrictEqual([hourly]);
   });
 });

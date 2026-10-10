@@ -6,6 +6,7 @@ export const SettingsSection = {
   MarketData: "market-data",
   Agent: "agent",
   Skills: "skills",
+  Schedules: "schedules",
   Memory: "memory",
   Mcp: "mcp",
   Storage: "storage",

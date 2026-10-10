@@ -6,7 +6,7 @@ The app's SQLite databases: drizzle-orm schemas on the runtime's built-in `node:
 
 - One module and one file per database. Only `./cache` holds what can be fetched again, so only its file is deleted and rebuilt when it is corrupt or holds a schema its migrations do not know; every other database is never deleted, and its migration failures surface as errors.
   - `./cache`: candles, and the answers `keepFresh` readers keep, each under its scope as the JSON its reader wrote and dropped a week after it was asked for.
-  - `./user`: what the user made, such as the watchlist, trade proposals and the paper account.
+  - `./user`: what the user made, such as the watchlist, trade proposals, the paper account and their scheduled tasks, each with its last run.
   - `./news`: what news sources found for each listing, the decisions model's scores and each item's vector. Sources reach back only days, so its history cannot be fetched again.
   - `./memory`: what the agent keeps across conversations, each memory saved once the user allowed it, and the vectors of their texts.
   - `./research`: every revision of each listing's report, every forecast as it was made with its outcome, which is written once, each reading of a falsifier against a news item, kept once, and each passage's vector by its text.

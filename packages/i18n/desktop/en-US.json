@@ -293,6 +293,7 @@
     "new-chat": "New conversation",
     "conversations": "Conversations",
     "untitled": "New conversation",
+    "scheduled": "Scheduled: {{name}}",
     "delete": "Delete conversation",
     "delete-named": "Delete “{{title}}”",
     "delete-title": "Delete this conversation?",
@@ -656,7 +657,8 @@
       "agent": "AI agent",
       "skills": "Skills",
       "memory": "Memory",
-      "mcp": "MCP"
+      "mcp": "MCP",
+      "schedules": "Schedules"
     },
     "general": "General",
     "save-failed": "Couldn't save the setting",
@@ -1070,6 +1072,56 @@
       "too-long": "Keep it under {{count, number}} characters",
       "secret": "A memory can't hold a key, token, password or ID number",
       "change-failed": "Couldn't change the memory"
+    },
+    "schedules": {
+      "title": "Scheduled tasks",
+      "description-text": "Messages the agent is sent on its own while Solyx is open, each in a conversation of its own, so you read there what it did. A run nobody watches can read, research and revise its reports. An order it proposes still waits for you to confirm it, and each run spends your model's tokens.",
+      "empty": "No scheduled tasks yet.",
+      "add": "Add a task",
+      "name": "Name",
+      "prompt": "What to send",
+      "prompt-description": "Sent as you would write it. Start with /watchlist-upkeep for a round over what you hold and watch.",
+      "kind": "When",
+      "kinds": {
+        "interval": "Every so often",
+        "fixed-time": "At a time of day"
+      },
+      "every": "How often",
+      "every-minutes_one": "Every {{count}} minute",
+      "every-minutes_other": "Every {{count}} minutes",
+      "every-hours_one": "Every {{count}} hour",
+      "every-hours_other": "Every {{count}} hours",
+      "time": "Time",
+      "time-description": "On your clock, {{timeZone}}.",
+      "on-days": "On",
+      "days": {
+        "every-day": "Every day",
+        "TW": "Days Taiwan trades",
+        "US": "Days the US trades"
+      },
+      "at-time": "{{time}} {{timeZone}} · {{days}}",
+      "approval": "Calls that must ask",
+      "approvals": {
+        "ask": "Wait for me",
+        "auto": "Allow what is judged harmless"
+      },
+      "approval-descriptions": {
+        "ask": "The run rests at the first such call until you answer it in its conversation.",
+        "auto": "Pages the run's own searches found are read, and shell commands a decisions model judges harmless run. Everything else waits for you. No task can run every call unasked."
+      },
+      "required": "Fill this in",
+      "too-long": "Keep it within {{count}} characters",
+      "secret": "This looks like a key, token or ID number, which a task never holds",
+      "time-required": "Pick a time",
+      "enabled": "Run {{name}} on its schedule",
+      "run-now": "Run now",
+      "delete": "Delete",
+      "next-run": "next {{time}}",
+      "running": "Running now.",
+      "last-run": "Last ran {{time}}.",
+      "last-failed": "Couldn't start {{time}}: {{reason}}",
+      "open-run": "Open its conversation",
+      "change-failed": "Couldn't change the task"
     },
     "mcp": {
       "title": "MCP servers",

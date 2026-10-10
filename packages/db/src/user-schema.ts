@@ -12,6 +12,11 @@ import type {
   SubmissionFailure,
 } from "@solyx/core/order-desk";
 import type { RiskViolation } from "@solyx/core/risk";
+import type {
+  Schedule,
+  ScheduleApproval,
+  ScheduledRun,
+} from "@solyx/core/schedule";
 
 // drizzle-kit generates ../migrations/user from these tables.
 
@@ -49,4 +54,22 @@ export const paperAccount = sqliteTable("paper_account", {
   cash: text({ mode: "json" }).$type<AccountSnapshot["cash"]>().notNull(),
   positions: text({ mode: "json" }).$type<Position[]>().notNull(),
   orders: integer().notNull(),
+});
+
+/** Every scheduled task as the user wrote it, and its last run; `seq` keeps the order they were made in. */
+export const scheduledTasks = sqliteTable("scheduled_tasks", {
+  seq: integer().primaryKey(),
+  id: text().notNull().unique(),
+  name: text().notNull(),
+  prompt: text().notNull(),
+  schedule: text({ mode: "json" }).$type<Schedule>().notNull(),
+  timeZone: text("time_zone").notNull(),
+  locale: text().notNull(),
+  approval: text().$type<ScheduleApproval>().notNull(),
+  enabled: integer({ mode: "boolean" }).notNull(),
+  /** Unix milliseconds. */
+  createdAt: integer("created_at").notNull(),
+  /** Unix milliseconds. */
+  updatedAt: integer("updated_at").notNull(),
+  lastRun: text("last_run", { mode: "json" }).$type<ScheduledRun>(),
 });

@@ -64,6 +64,7 @@ import type {
   AgentSessionSetup,
   AgentWireEvent,
   RunEndEvent,
+  SessionSchedule,
 } from "./wire.ts";
 
 /** The model the user configured, which pi-ai authenticates through the host's credentials. */
@@ -136,6 +137,18 @@ const SessionDoc = defineDoc<{
     model: null,
     thinking: null,
   }),
+});
+
+/** What started a conversation when the user did not; a fork is the user's own. */
+const OriginDoc = defineDoc<{
+  schedule: { id: string; name: string } | null;
+}>({
+  kind: "solyx.origin",
+  version: 1,
+  scope: "conversation",
+  history: "latest",
+  fork: "initial",
+  initial: () => ({ schedule: null }),
 });
 
 /** A conversation on the user's default model that asks before every call that must ask. */
@@ -338,16 +351,23 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     options.tools(gate.guard)
   );
 
-  async function conversationOf(sessionId: string): Promise<Conversation> {
+  /** The conversation a session id names, if it still names one. */
+  async function findConversation(
+    sessionId: string
+  ): Promise<Conversation | undefined> {
     const { harness } = await opened;
 
-    const found = /^[1-9]\d*$/.test(sessionId)
+    return /^[1-9]\d*$/.test(sessionId)
       ? // SAFETY: the brand only marks pi-durable's ids; looking the id up checks it names one.
-        await harness.conversation(
+        harness.conversation(
           Number(sessionId) as ConversationId,
           BACKGROUND_CONTEXT
         )
       : undefined;
+  }
+
+  async function conversationOf(sessionId: string): Promise<Conversation> {
+    const found = await findConversation(sessionId);
 
     if (!found) throw new Error(`Conversation ${sessionId} not found`);
 
@@ -692,6 +712,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
               BACKGROUND_CONTEXT
             )) ?? SessionDoc.definition.initial()),
             approvalMode: (await approvalsOf(record.id)).mode,
+            schedule:
+              (await harness.snapshot(OriginDoc, record.id, BACKGROUND_CONTEXT))
+                ?.schedule ?? null,
           }))
       );
 
@@ -700,8 +723,14 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       );
     },
 
-    /** Starts a conversation on what was picked for it, in the same commit that makes it. */
-    async create(setup = DEFAULT_SETUP): Promise<AgentSession> {
+    /**
+     * Starts a conversation on what was picked for it, in the same commit that makes it.
+     * `schedule` names the scheduled task that starts it, which only the host can say.
+     */
+    async create(
+      setup = DEFAULT_SETUP,
+      schedule: SessionSchedule | null = null
+    ): Promise<AgentSession> {
       const { harness } = await opened;
       const at = Date.now();
 
@@ -716,6 +745,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
             session.model = setup.model;
             session.thinking = setup.thinking;
             (await tx.doc(ApprovalDoc, id)).mode = setup.approvalMode;
+
+            if (schedule) (await tx.doc(OriginDoc, id)).schedule = schedule;
           },
         },
         BACKGROUND_CONTEXT
@@ -727,7 +758,23 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         createdAt: at,
         updatedAt: at,
         ...setup,
+        schedule,
       };
+    },
+
+    /**
+     * Whether a run is going in the conversation, one waiting for the user among them; a
+     * conversation since deleted has none.
+     */
+    async busy(sessionId: string): Promise<boolean> {
+      const { harness } = await opened;
+      const conversation = await findConversation(sessionId);
+
+      return (
+        conversation !== undefined &&
+        (await harness.snapshot(LiveDoc, conversation.id, BACKGROUND_CONTEXT))
+          ?.run !== undefined
+      );
     },
 
     /** Sets what the conversation runs on from its next run: a model of its own, or the default. */

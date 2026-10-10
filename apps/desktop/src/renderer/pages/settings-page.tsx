@@ -9,6 +9,7 @@ import { Section } from "../components/section.tsx";
 import { Sheet } from "../components/sheet.tsx";
 import { MemorySettings } from "../modules/memory/memory-settings.tsx";
 import { SetupGuideLink } from "../modules/onboarding/setup-guide-link.tsx";
+import { ScheduleSettings } from "../modules/schedules/schedule-settings.tsx";
 import { AboutSettings } from "../modules/settings/about-settings.tsx";
 import { AgentSettings } from "../modules/settings/agent-settings.tsx";
 import { AgentSkills } from "../modules/settings/agent-skills.tsx";
@@ -58,6 +59,7 @@ export function SettingsPage() {
       </>
     ),
     [SettingsSection.Skills]: <AgentSkills />,
+    [SettingsSection.Schedules]: <ScheduleSettings />,
     [SettingsSection.Memory]: <MemorySettings />,
     [SettingsSection.Mcp]: <McpSettings server={server} />,
     [SettingsSection.Storage]: <StorageSettings />,
