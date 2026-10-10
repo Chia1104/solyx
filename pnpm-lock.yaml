@@ -256,6 +256,9 @@ catalogs:
     '@heroui/styles':
       specifier: 3.2.6
       version: 3.2.6
+    '@internationalized/date':
+      specifier: 3.12.4
+      version: 3.12.4
     react-aria-components:
       specifier: 1.21.1
       version: 1.21.1
@@ -402,6 +405,9 @@ importers:
       '@hugeicons/react':
         specifier: catalog:ui
         version: 1.1.10(react@19.3.0)
+      '@internationalized/date':
+        specifier: catalog:heroui-v3
+        version: 3.12.4
       '@lobehub/icons-static-svg':
         specifier: catalog:ui
         version: 1.95.1

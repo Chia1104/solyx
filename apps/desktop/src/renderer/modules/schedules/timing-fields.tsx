@@ -1,11 +1,9 @@
-import {
-  Description,
-  FieldError,
-  Input,
-  Label,
-  TextField,
-} from "@heroui/react";
+import { useContext, useEffect } from "react";
+
+import { Description, FieldError, Label, TimeField } from "@heroui/react";
+import { parseTime } from "@internationalized/date";
 import type { TFunction } from "i18next";
+import { TimeFieldStateContext } from "react-aria-components";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -22,6 +20,11 @@ const HOUR_MINUTES = 60;
 const DAY_MINUTES = 24 * HOUR_MINUTES;
 
 const EVERY_DAY = "every-day";
+
+// A time of day as a schedule keeps it: `HH:MM` on a 24-hour clock.
+const TIME_OF_DAY = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+const twoDigits = (value: number) => String(value).padStart(2, "0");
 
 // Every day, or only the days one market trades.
 const DAY_CHOICES: (typeof EVERY_DAY | Market)[] = [
@@ -72,7 +75,7 @@ export function scheduleText(
 export const timingFieldSchemas = (t: TFunction) => ({
   kind: z.enum(ScheduleKind),
   everyMinutes: z.number(),
-  time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, {
+  time: z.string().regex(TIME_OF_DAY, {
     error: t("settings.schedules.time-required"),
   }),
   days: z.union([z.literal(EVERY_DAY), marketSchema]),
@@ -123,6 +126,33 @@ export function scheduleOf(form: TimingForm): Schedule {
 }
 
 /**
+ * Keeps the form's time as the field around it shows it: `HH:MM` for a whole time, empty for one
+ * left unfinished. The field's own change events cannot say this: React Aria keeps a field's last
+ * whole value once a segment is cleared, and tells nobody when the same time is typed back.
+ */
+function ShownTime() {
+  const state = useContext(TimeFieldStateContext);
+  const { setValue } = useFormContext<TimingForm>();
+
+  const whole =
+    state !== null &&
+    state.value !== null &&
+    state.segments.every(
+      ({ isEditable, isPlaceholder }) => !isEditable || !isPlaceholder
+    );
+
+  const time = whole
+    ? `${twoDigits(state.timeValue.hour)}:${twoDigits(state.timeValue.minute)}`
+    : "";
+
+  useEffect(() => {
+    setValue("time", time);
+  }, [time, setValue]);
+
+  return null;
+}
+
+/**
  * The fields that say when something runs, for whichever form provides them: which kind of the
  * `kinds` offered, then its span among `intervals`, in minutes, or its time of day and days.
  */
@@ -161,16 +191,33 @@ export function TimingFields({
             control={control}
             name="time"
             render={({ field, fieldState }) => (
-              <TextField isRequired isInvalid={fieldState.invalid}>
+              // The form keeps the time as the schedule does, `HH:MM`, whatever hour cycle the
+              // app's language shows it in. The field starts from the form's time and then holds
+              // its own, which `ShownTime` hands back, so a time left unfinished keeps the
+              // segments still filled while the form refuses it as it is saved.
+              <TimeField
+                fullWidth
+                isRequired
+                name={field.name}
+                isInvalid={fieldState.invalid}
+                defaultValue={
+                  TIME_OF_DAY.test(field.value) ? parseTime(field.value) : null
+                }
+                onBlur={field.onBlur}>
+                <ShownTime />
                 <Label>{t("settings.schedules.time")}</Label>
-                <Input {...field} type="time" />
+                <TimeField.Group fullWidth>
+                  <TimeField.Input>
+                    {(segment) => <TimeField.Segment segment={segment} />}
+                  </TimeField.Input>
+                </TimeField.Group>
                 <Description>
                   {t("settings.schedules.time-description", {
                     timeZone: clock.timeZone,
                   })}
                 </Description>
                 <FieldError>{fieldState.error?.message}</FieldError>
-              </TextField>
+              </TimeField>
             )}
           />
           <Controller
