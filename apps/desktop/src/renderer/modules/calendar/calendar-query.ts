@@ -3,8 +3,8 @@ import { queryOptions } from "@tanstack/react-query";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
-/** How far ahead the overview's calendar looks. */
-export const CALENDAR_DAYS = 30;
+/** How far ahead the overview's calendar looks, the most the main process serves. */
+export const CALENDAR_DAYS = 90;
 
 const all = ["calendar"] as const;
 

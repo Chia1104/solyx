@@ -101,7 +101,7 @@ export function MarketFlows({ market }: { market: Market }) {
   }
 
   return (
-    <div className="grid gap-6 @min-[56rem]/main:grid-cols-2">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
         <NetBuyingTable
           title={t("flows.net-value")}
@@ -114,18 +114,16 @@ export function MarketFlows({ market }: { market: Market }) {
           <p className="text-xs text-muted">{t("flows.hedging-note")}</p>
         ) : null}
       </div>
-      <div className="flex flex-col gap-6">
-        <TrendTable
-          title={t("flows.balances")}
-          label={t("flows.item")}
-          rows={balances}
-        />
-        <TrendTable
-          title={t("flows.futures")}
-          label={t("flows.investor")}
-          rows={positions}
-        />
-      </div>
+      <TrendTable
+        title={t("flows.balances")}
+        label={t("flows.item")}
+        rows={balances}
+      />
+      <TrendTable
+        title={t("flows.futures")}
+        label={t("flows.investor")}
+        rows={positions}
+      />
     </div>
   );
 }

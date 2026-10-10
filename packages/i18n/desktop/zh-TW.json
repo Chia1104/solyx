@@ -10,6 +10,14 @@
     "toggle": "顯示或隱藏{{pane}}",
     "resize": "調整{{pane}}寬度"
   },
+  "overview": {
+    "tabs": {
+      "today": "今日",
+      "news": "消息",
+      "calendar": "行事曆",
+      "market": "大盤"
+    }
+  },
   "broker-mode": {
     "paper": "模擬交易",
     "live": "真實交易"
@@ -282,7 +290,24 @@
       "business-signal": "景氣對策信號",
       "purchasing-managers": "採購經理人指數"
     },
-    "until": "至 {{date}}"
+    "until": "至 {{date}}",
+    "view": "檢視",
+    "views": {
+      "week": "週",
+      "month": "月"
+    },
+    "today": "今天",
+    "earlier": "往前",
+    "later": "往後",
+    "marked_one": "{{count}} 個日期",
+    "marked_other": "{{count}} 個日期",
+    "legend": {
+      "set": "日期已定",
+      "open": "最晚或預期的日期"
+    },
+    "empty-day": "這一天沒有排定的事件。",
+    "empty-span": "這段期間沒有排定的事件。",
+    "next-date": "下一個日期：{{date}}"
   },
   "themes": {
     "title": "主題",

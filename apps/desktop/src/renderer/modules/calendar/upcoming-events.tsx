@@ -1,21 +1,23 @@
-import { cn } from "@heroui/react";
+import { Button, cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { sortBy } from "es-toolkit";
+import { groupBy, mapValues, sortBy, uniq } from "es-toolkit";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
 import type { ListingEvent, ResearchEvent } from "@solyx/core/calendar";
 import type { MacroRelease } from "@solyx/core/macro";
-import { symbolKey } from "@solyx/core/market";
+import { exchangeDate, shiftDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
+import { useClock } from "../../app/clock.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { ListingName } from "../market/listing-name.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
+import { Agenda } from "./agenda.tsx";
 import { CALENDAR_DAYS, upcomingEventsQuery } from "./calendar-query.ts";
 
 /** What an event is, in words: the period a filing covers, a distribution's amount, or how long a restriction lasts and why. */
@@ -198,20 +200,33 @@ function ReleaseRow({ release }: { release: MacroRelease }) {
 
 /**
  * The listings' coming filings and distributions, the dates their reports hold and their markets'
- * economic releases, soonest first, with the listings and markets whose dates could not be read.
+ * economic releases, on an agenda that shows a week or a month of them soonest first, with the
+ * listings and markets whose dates could not be read.
  */
 export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
   const { t } = useTranslation();
+  const clock = useClock();
   const { data, error, refetch } = useQuery(upcomingEventsQuery(symbols));
 
   if (error) return <LoadError error={error} onRetry={() => void refetch()} />;
 
   if (!data) return <LoadingState />;
 
+  const today = Temporal.Now.plainDateISO(clock.timeZone).toString();
+
+  // An event's day is its exchange's, so the agenda opens on the earliest day still running on any.
+  const running = [
+    today,
+    ...uniq(symbols.map(({ market }) => market)).map((market) =>
+      exchangeDate(market)
+    ),
+  ].toSorted();
+
   const rows = sortBy(
     [
       ...data.events.map((event) => ({
         date: event.date,
+        timing: event.timing,
         row: (
           <EventRow
             key={`${symbolKey(event.symbol)}:${event.kind}:${event.date}:${event.subject}`}
@@ -221,6 +236,7 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
       })),
       ...data.research.map((event) => ({
         date: event.date,
+        timing: event.timing,
         row: (
           <ResearchRow
             key={`${symbolKey(event.symbol)}:report:${event.date}:${event.label}`}
@@ -230,6 +246,7 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
       })),
       ...data.releases.map((release) => ({
         date: release.date,
+        timing: release.timing,
         row: (
           <ReleaseRow
             key={`${release.market}:${release.indicator}:${release.date}:${release.period}`}
@@ -241,6 +258,21 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
     [({ date }) => date]
   );
 
+  const marks = new Map(
+    Object.entries(
+      mapValues(
+        groupBy(rows, ({ date }) => date),
+        (day) => {
+          const inked = day.filter(
+            ({ timing }) => timing === EventTiming.Set
+          ).length;
+
+          return { inked, pencilled: day.length - inked };
+        }
+      )
+    )
+  );
+
   return (
     <div className="flex flex-col gap-2">
       {rows.length === 0 ? (
@@ -248,9 +280,41 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
           {t("calendar.empty", { days: CALENDAR_DAYS })}
         </p>
       ) : (
-        <ul className="divide-y divide-separator">
-          {rows.map(({ row }) => row)}
-        </ul>
+        <Agenda
+          from={running.at(0) ?? today}
+          to={shiftDate(running.at(-1) ?? today, CALENDAR_DAYS)}
+          today={today}
+          marks={marks}>
+          {({ from, to, show }) => {
+            const shown = rows.filter(({ date }) => date >= from && date <= to);
+
+            if (shown.length > 0) {
+              return (
+                <ul className="divide-y divide-separator">
+                  {shown.map(({ row }) => row)}
+                </ul>
+              );
+            }
+
+            const next = rows.find(({ date }) => date > to);
+
+            return (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1 text-xs text-muted">
+                {t(from === to ? "calendar.empty-day" : "calendar.empty-span")}
+                {next ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onPress={() => show(next.date)}>
+                    {t("calendar.next-date", {
+                      date: next.date.slice("YYYY-".length),
+                    })}
+                  </Button>
+                ) : null}
+              </div>
+            );
+          }}
+        </Agenda>
       )}
       {data.unread.length === 0 ? null : (
         <p className="text-xs text-warning">
