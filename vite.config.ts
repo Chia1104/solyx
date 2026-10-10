@@ -94,6 +94,9 @@ export default defineConfig({
       // Dependencies mark what their next version drops; a use of it is a lint error, not a surprise at upgrade.
       "typescript/no-deprecated": "error",
       "oxc/no-accumulating-spread": "error",
+      // A failure goes through the main process's diagnostics, which log it where the user set and
+      // report what nothing should cause; a stray console line reaches neither.
+      "no-console": "error",
       // Its preferred iterator-helper form is not in the es2023 lib, and the arrays here are small.
       "anti-slop/no-array-filter-map": "off",
       "anti-slop/no-reduce-accumulator-copy": "error",
@@ -121,6 +124,14 @@ export default defineConfig({
           // TypeScript intentionally allows a value and a type to share one name.
           "no-redeclare": "off",
         },
+      },
+      {
+        // The one place a failure reaches the terminal, and command-line scripts that print results.
+        files: [
+          "apps/desktop/src/main/modules/telemetry/diagnostics.ts",
+          "**/scripts/**",
+        ],
+        rules: { "no-console": "off" },
       },
       {
         files: ["apps/desktop/src/renderer/**", "packages/trading-chart/**"],

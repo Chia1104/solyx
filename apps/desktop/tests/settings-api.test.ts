@@ -16,6 +16,7 @@ import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import {
   AppLocation,
+  Secret,
   SecretState,
   agentKeySecret,
   mcpSecretKey,
@@ -264,6 +265,33 @@ test("the shell is off until the user switches it on", async () => {
 
   expect(config.read().agent.shell).toBe(true);
   expect((await api.agentSkills()).shell).toBe(true);
+});
+
+test("traces and logs go nowhere until an endpoint is set, and their headers must parse before they are saved", async () => {
+  const { api, config, secrets } = setup();
+
+  expect(await api.otlp()).toEqual({ endpoint: null });
+
+  await api.setOtlpEndpoint("https://otlp-gateway.example.net/otlp");
+
+  expect(config.read().otlp.endpoint).toBe(
+    "https://otlp-gateway.example.net/otlp"
+  );
+
+  await expect(api.saveSecret(Secret.OtlpHeaders, "glc_token")).rejects.toThrow(
+    /key=value/
+  );
+  expect(await secrets.get(Secret.OtlpHeaders)).toBeUndefined();
+
+  await api.saveSecret(Secret.OtlpHeaders, "Authorization=Basic%20abc");
+
+  expect(await secrets.get(Secret.OtlpHeaders)).toBe(
+    "Authorization=Basic%20abc"
+  );
+
+  await api.setOtlpEndpoint(null);
+
+  expect(await api.otlp()).toEqual({ endpoint: null });
 });
 
 test("crash reports stay unsent until the user agrees to send them", async () => {

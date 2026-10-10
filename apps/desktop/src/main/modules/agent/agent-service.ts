@@ -2,6 +2,7 @@ import { lstat, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import type { Tracer } from "@opentelemetry/api";
 import { BrowserWindow } from "electron";
 import { omit, sum } from "es-toolkit";
 
@@ -23,6 +24,7 @@ import type { ShellOptions } from "@solyx/agent/shell";
 import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
 import type { SkillFolders } from "@solyx/agent/skills";
 import { createTradingExtension } from "@solyx/agent/tools";
+import { createRunTraces } from "@solyx/agent/traces";
 import { createWebTools } from "@solyx/agent/web";
 import type {
   AgentSessionSetup,
@@ -61,6 +63,8 @@ import { messageContext } from "./message-context.ts";
 import { loginShellPath } from "./shell-path.ts";
 
 interface AgentServiceOptions extends AgentModelsOptions {
+  /** Each run is a trace of its model requests and tool calls. */
+  tracer: Tracer;
   skillFolders: SkillFolders;
   /** AGENTS.md beside the config file. */
   instructionsFile: string;
@@ -127,9 +131,13 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const instructions = () => loadInstructions(options.instructionsFile);
 
+  const traces = createRunTraces(options.tracer);
+
   // Every window shows the same conversations, so every window hears every run.
   const onEvent = (sessionId: string, event: AgentWireEvent) => {
     const update: AgentUpdate = { sessionId, event };
+
+    traces.event(sessionId, event);
 
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send(agentEvents.onEvent, update);
@@ -260,6 +268,7 @@ export function createAgentService(options: AgentServiceOptions) {
             : []),
           mcp.search,
           mcpScriptExtension(mcp.catalog, scripts),
+          traces.extension,
         ],
         deferred: [mcp.tools],
       };

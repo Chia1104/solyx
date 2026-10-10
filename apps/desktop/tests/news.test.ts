@@ -126,7 +126,10 @@ function setup(
   const onChange = vi.fn<(symbol: SymbolRef) => void>();
   const listing = vi.fn<MarketData["listing"]>(async () => null);
 
+  const diagnostics = { recovered: vi.fn() };
+
   const news = createNews({
+    diagnostics,
     sources: async () => sources,
     store: data.store,
     scorer: async () => decisions,
@@ -137,7 +140,7 @@ function setup(
     now: () => clock.now,
   });
 
-  return { news, clock, onChange, listing };
+  return { news, clock, onChange, listing, diagnostics };
 }
 
 test("a collection stores what each source finds and scores each channel's newest unscored stories once", async () => {
@@ -513,15 +516,13 @@ test("news groups by titles alone while the embedder cannot be reached", async (
     }),
   };
 
-  const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
-  const { news } = setup([articles], undefined, embedder);
+  const { news, diagnostics } = setup([articles], undefined, embedder);
 
   expect((await news.collect(FOXCONN, SINCE, 10)).stories).toHaveLength(2);
-  expect(error).toHaveBeenCalledWith(
-    "Embedding news failed: 127.0.0.1:11434: fetch failed"
+  expect(diagnostics.recovered).toHaveBeenCalledWith(
+    new Error("127.0.0.1:11434: fetch failed"),
+    "news.embed"
   );
-
-  error.mockRestore();
 });
 
 test("a search finds by meaning, through a model on this computer, what shares no word with the query", async () => {

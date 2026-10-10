@@ -16,12 +16,15 @@ import { TW_SECTOR_INDICES } from "@solyx/core/sectors";
 
 import type { SectorQuote } from "#shared/ipc/market.ts";
 
+import type { Diagnostics } from "../telemetry/diagnostics.ts";
+
 import { createLiveCandles } from "./live-candles.ts";
 import type { LiveSender } from "./live-candles.ts";
 import type { MarketDataSources } from "./market-data-sources.ts";
 
 interface MarketDataOptions {
   sources: MarketDataSources;
+  diagnostics: Pick<Diagnostics, "recovered">;
   /** Where some market's bars come from changed: charts load again and watch afresh. */
   onSourcesChanged: () => void;
   /** @default () => new Date() */
@@ -35,6 +38,7 @@ interface MarketDataOptions {
  */
 export function createMarketData({
   sources,
+  diagnostics,
   onSourcesChanged,
   now = () => new Date(),
 }: MarketDataOptions) {
@@ -64,7 +68,9 @@ export function createMarketData({
 
   sources.onStreamChange(() => {
     // Windows watch again once told, and their watches wait for the stream this restart opens.
-    live.restart().catch(console.error);
+    live
+      .restart()
+      .catch((error) => diagnostics.recovered(error, "market.stream.restart"));
     onSourcesChanged();
   });
 

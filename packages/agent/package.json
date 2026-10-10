@@ -24,6 +24,7 @@
     "./skill-source": "./src/skill-source.ts",
     "./skills": "./src/skills.ts",
     "./tools": "./src/tools.ts",
+    "./traces": "./src/traces.ts",
     "./transcript": "./src/transcript.ts",
     "./web": "./src/web.ts",
     "./wire": "./src/wire.ts"
@@ -37,6 +38,7 @@
     "@earendil-works/pi-codemode": "catalog:agent",
     "@earendil-works/pi-durable": "catalog:agent",
     "@earendil-works/pi-mcp": "catalog:agent",
+    "@opentelemetry/api": "catalog:otel",
     "@solyx/core": "workspace:*",
     "@solyx/utils": "workspace:*",
     "es-toolkit": "catalog:",
@@ -44,6 +46,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@opentelemetry/sdk-trace-base": "catalog:otel",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"

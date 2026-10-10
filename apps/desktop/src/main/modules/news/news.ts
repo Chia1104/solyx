@@ -21,6 +21,8 @@ import { fuseRankings } from "@solyx/utils/search";
 
 import type { NewsCoverage } from "#shared/ipc/news.ts";
 
+import type { Diagnostics } from "../telemetry/diagnostics.ts";
+
 const HOUR_MS = 60 * 60 * 1000;
 
 const DAY_MS = 24 * HOUR_MS;
@@ -43,6 +45,7 @@ const RESTING_STREAK = 3;
 const REST_MS = 6 * HOUR_MS;
 
 export interface NewsOptions {
+  diagnostics: Pick<Diagnostics, "recovered">;
   /** Read afresh for every collection, since a source may join once its key is saved. */
   sources: () => Promise<NewsSource[]>;
   store: NewsStore;
@@ -116,7 +119,7 @@ export function createNews(options: NewsOptions) {
         missing.map((record, index) => ({ record, values: vectors[index] }))
       );
     } catch (error) {
-      console.error(`Embedding news failed: ${errorMessage(error)}`);
+      options.diagnostics.recovered(error, "news.embed");
 
       return records;
     }
@@ -325,7 +328,7 @@ export function createNews(options: NewsOptions) {
           ({ source, item }) => `${source}:${item.id}`
         ).slice(0, limit);
       } catch (error) {
-        console.error(`Embedding a news search failed: ${errorMessage(error)}`);
+        options.diagnostics.recovered(error, "news.search.embed");
 
         return byWords;
       }

@@ -1,16 +1,25 @@
 import {
   IPCMode,
+  captureException,
   init,
   makeElectronOfflineTransport,
   makeElectronTransport,
 } from "@sentry/electron/main";
 import { app } from "electron";
 
+import { appChannel } from "../../shell/app-channel.ts";
+import type { ReportError } from "../telemetry/diagnostics.ts";
+
 import { scrubEvent } from "./scrub-event.ts";
 
 // Written into the bundle by `vp pack` from the release workflow, so development builds and forks
 // have nowhere to send reports.
 const DSN = process.env.SENTRY_DSN ?? "";
+
+/** Sends a failure nothing should cause, tagged with what failed; the transport drops it unless the user agreed. */
+export const reportError: ReportError = (cause, tags) => {
+  captureException(cause, { tags });
+};
 
 /** This build has somewhere to send crash reports. */
 export const canReportCrashes = app.isPackaged && DSN !== "";
@@ -30,7 +39,7 @@ export function startCrashReports(sending: () => boolean) {
     dsn: DSN,
     // The release the package workflow uploads the renderer's source maps to.
     release: `solyx@${version}`,
-    environment: version.includes("-nightly.") ? "nightly" : "stable",
+    environment: appChannel(),
     // The preload carries Sentry's bridge, so the renderer needs no protocol of its own.
     ipcMode: IPCMode.Classic,
     dataCollection: {

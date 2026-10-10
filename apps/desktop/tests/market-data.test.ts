@@ -81,6 +81,7 @@ function setup() {
 
   const marketData = createMarketData({
     sources,
+    diagnostics: { recovered: vi.fn() },
     onSourcesChanged,
     now: () => NOW,
   });

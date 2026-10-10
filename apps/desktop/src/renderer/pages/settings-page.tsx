@@ -25,6 +25,7 @@ import { ThemeSelect } from "../modules/settings/theme-select.tsx";
 import { TimeZoneSelect } from "../modules/settings/time-zone-select.tsx";
 import { WebSearchSettings } from "../modules/settings/web-search-settings.tsx";
 import { StorageSettings } from "../modules/storage/storage-settings.tsx";
+import { TelemetrySettings } from "../modules/telemetry/telemetry-settings.tsx";
 
 const route = getRouteApi("/settings");
 
@@ -60,7 +61,12 @@ export function SettingsPage() {
     [SettingsSection.Memory]: <MemorySettings />,
     [SettingsSection.Mcp]: <McpSettings server={server} />,
     [SettingsSection.Storage]: <StorageSettings />,
-    [SettingsSection.About]: <AboutSettings />,
+    [SettingsSection.About]: (
+      <>
+        <AboutSettings />
+        <TelemetrySettings />
+      </>
+    ),
   };
 
   return (

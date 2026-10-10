@@ -131,6 +131,8 @@ const schemas = {
   setMemoryEnabled: z.tuple([z.boolean()]),
   updates: z.tuple([]),
   setUpdateChecks: z.tuple([z.boolean()]),
+  otlp: z.tuple([]),
+  setOtlpEndpoint: z.tuple([endpointSchema.nullable()]),
   crashReports: z.tuple([]),
   setCrashReports: z.tuple([z.boolean()]),
   mcp: z.tuple([]),

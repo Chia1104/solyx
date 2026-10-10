@@ -1,3 +1,5 @@
+import { trace } from "@opentelemetry/api";
+import type { Span } from "@opentelemetry/api";
 import { noop } from "es-toolkit";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
@@ -10,16 +12,27 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+/** The scheduler's telemetry: passes trace nowhere and failures are only recorded. */
+function telemetry() {
+  return {
+    tracer: trace.getTracer("test"),
+    within: <T>(_span: Span, work: () => Promise<T>) => work(),
+    diagnostics: { recovered: vi.fn(), report: vi.fn() },
+  };
+}
+
 /** Lets the passes a tick started settle. */
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 function setup() {
   let now = 0;
+  const diagnosed = telemetry();
 
-  const scheduler = createScheduler({ now: () => now });
+  const scheduler = createScheduler({ telemetry: diagnosed, now: () => now });
 
   return {
     scheduler,
+    diagnostics: diagnosed.diagnostics,
     /** Moves the clock, ticks and lets the passes settle. */
     async tickAt(minutes: number) {
       now = minutes * MINUTE_MS;
@@ -68,10 +81,10 @@ test("a pass still going when the next is due is skipped, not queued", async () 
   expect(run).toHaveBeenCalledTimes(2);
 });
 
-test("a failed pass is logged under its name and leaves the others going", async () => {
-  const error = vi.spyOn(console, "error").mockImplementation(noop);
-  const { scheduler, tickAt } = setup();
-  const failing = vi.fn(() => Promise.reject(new Error("feed offline")));
+test("a failed pass is reported under its name and leaves the others going", async () => {
+  const { scheduler, tickAt, diagnostics } = setup();
+  const failure = new Error("feed offline");
+  const failing = vi.fn(() => Promise.reject(failure));
   const other = vi.fn(async () => undefined);
 
   scheduler.register("Update check", { everyMs: MINUTE_MS, run: failing });
@@ -79,7 +92,9 @@ test("a failed pass is logged under its name and leaves the others going", async
 
   await tickAt(0);
 
-  expect(error).toHaveBeenCalledWith("Update check failed: feed offline");
+  expect(diagnostics.report).toHaveBeenCalledWith(failure, "scheduler.pass", {
+    "solyx.work": "Update check",
+  });
   expect(other).toHaveBeenCalledOnce();
 
   await tickAt(1);
@@ -89,7 +104,7 @@ test("a failed pass is logged under its name and leaves the others going", async
 test("the clock ticks a minute after start, then every minute, until stopped", async () => {
   vi.useFakeTimers();
 
-  const scheduler = createScheduler();
+  const scheduler = createScheduler({ telemetry: telemetry() });
   const run = vi.fn(async () => undefined);
 
   scheduler.register("work", { everyMs: MINUTE_MS, run });

@@ -45,6 +45,8 @@ export const Secret = {
   EmbeddingsApiKey: "embeddings-api-key",
   /** Optional: FinMind answers without one under a lower limit. */
   FinMindToken: "finmind-token",
+  /** Optional: what traces and logs are sent with, such as an authorization, as OTEL_EXPORTER_OTLP_HEADERS writes them. */
+  OtlpHeaders: "otlp-headers",
   /** The ChatGPT sign-in's OAuth tokens; the main process saves and refreshes them, nobody types them. */
   OpenAIChatGPT: "openai-chatgpt",
 } as const;
@@ -320,6 +322,11 @@ export interface UpdateSettings {
   check: boolean;
 }
 
+export interface OtlpSettings {
+  /** Where traces and logs go over OTLP/HTTP; `null` sends none. */
+  endpoint: string | null;
+}
+
 export interface CrashReportSettings {
   /** The user agreed to send Solyx's maintainer a report of each crash and unexpected error. */
   send: boolean;
@@ -577,6 +584,9 @@ export interface SettingsApi {
   setMemoryEnabled(enabled: boolean): Promise<void>;
   updates(): Promise<UpdateSettings>;
   setUpdateChecks(enabled: boolean): Promise<void>;
+  otlp(): Promise<OtlpSettings>;
+  /** Sends traces and logs to `endpoint` from now on; `null` stops sending them. */
+  setOtlpEndpoint(endpoint: string | null): Promise<void>;
   crashReports(): Promise<CrashReportSettings>;
   /** Starts or stops sending crash reports at once, including what is still queued to send. */
   setCrashReports(send: boolean): Promise<void>;
@@ -665,6 +675,8 @@ export const settingsChannels = {
   setMemoryEnabled: "settings:set-memory-enabled",
   updates: "settings:updates",
   setUpdateChecks: "settings:set-update-checks",
+  otlp: "settings:otlp",
+  setOtlpEndpoint: "settings:set-otlp-endpoint",
   crashReports: "settings:crash-reports",
   setCrashReports: "settings:set-crash-reports",
   mcp: "settings:mcp",
