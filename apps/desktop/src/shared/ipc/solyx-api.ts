@@ -10,6 +10,7 @@ import type { ResearchApi, ResearchEvents } from "./research.ts";
 import type { SchedulesApi, SchedulesEvents } from "./schedules.ts";
 import type { SettingsApi, SettingsEvents } from "./settings.ts";
 import type { StorageApi } from "./storage.ts";
+import type { ThemesApi, ThemesEvents } from "./themes.ts";
 import type { UpdatesApi, UpdatesEvents } from "./updates.ts";
 import type { WatchlistApi } from "./watchlist.ts";
 
@@ -27,6 +28,7 @@ export interface SolyxApi {
   schedules: SchedulesApi & SchedulesEvents;
   settings: SettingsApi & SettingsEvents;
   storage: StorageApi;
+  themes: ThemesApi & ThemesEvents;
   updates: UpdatesApi & UpdatesEvents;
   watchlist: WatchlistApi;
 }

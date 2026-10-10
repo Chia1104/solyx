@@ -18,6 +18,7 @@ import {
   proposeOrderDetailsSchema,
   readPageArgumentsSchema,
   rememberArgumentsSchema,
+  saveThemeArgumentsSchema,
   runAnalysisDetailsSchema,
   runToolScriptDetailsSchema,
   scriptArgumentsSchema,
@@ -179,6 +180,24 @@ function ApprovalCard({
 
   const setting = change && `${change.setting} → ${change.value}`;
 
+  const theme =
+    tool.toolName === AgentToolName.SaveTheme
+      ? saveThemeArgumentsSchema.safeParse(tool.args).data
+      : undefined;
+
+  const watched =
+    theme &&
+    [
+      theme.title,
+      theme.thesis,
+      ...theme.signposts.map((signpost) => `· ${signpost}`),
+      theme.queries.join(" / "),
+      ...theme.listings.map(
+        ({ symbol, exposure }) =>
+          `${symbol.market} ${symbol.symbol}: ${exposure}`
+      ),
+    ].join("\n");
+
   let description = t("agent.approval.description", { tool: tool.toolName });
 
   if (command !== undefined) {
@@ -187,6 +206,8 @@ function ApprovalCard({
     description = t("agent.approval.read-page-description");
   } else if (setting !== undefined) {
     description = t("agent.approval.change-setting-description");
+  } else if (watched !== undefined) {
+    description = t("agent.approval.save-theme-description");
   } else if (memory !== undefined) {
     description = t(
       tool.toolName === AgentToolName.Forget
@@ -203,6 +224,7 @@ function ApprovalCard({
         {command ??
           address ??
           setting ??
+          watched ??
           memory ??
           JSON.stringify(tool.args, null, 2)}
       </pre>

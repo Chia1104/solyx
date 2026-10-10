@@ -284,6 +284,18 @@
     },
     "until": "至 {{date}}"
   },
+  "themes": {
+    "title": "主題",
+    "description": "你讓 app 持續觀察的國際時事：現在不影響股價，但長期可能波及你持有的標的。每個主題每天搜尋一次新聞，直到有新聞被判讀為符合某個觀察訊號之前都保持安靜。",
+    "empty": "還沒有主題。請 Agent 追蹤一個議題，或到設定裡自己寫一個。",
+    "manage": "管理主題",
+    "developments_one": "{{count}} 個訊號可能已發生",
+    "developments_other": "{{count}} 個訊號可能已發生",
+    "quiet-since": "自 {{date}} 起無進展",
+    "read-as-stated": "判讀為已發生 {{share}}",
+    "not-searched": "尚未搜尋。",
+    "searched": "上次搜尋 {{time}}。"
+  },
   "agent": {
     "title": "Agent",
     "tabs": {
@@ -386,7 +398,9 @@
       "search_history": "搜尋過往紀錄",
       "get_setup": "讀取設定",
       "change_setting": "變更設定",
-      "bash": "執行指令"
+      "bash": "執行指令",
+      "get_themes": "讀取主題",
+      "save_theme": "寫入主題"
     },
     "tool-status": {
       "running": "執行中",
@@ -440,6 +454,7 @@
       "read-page-description": "你的網路搜尋供應商會讀取這個網址。如果不是你預期的網址，可能是 agent 讀過的網頁想藉此把你的資料送出去，允許前請先確認。",
       "remember-description": "Agent 想把這段內容留到之後的對話，而且每次對話都會讀取。允許前請確認它寫的是你的意思。",
       "forget-description": "Agent 想遺忘這筆記憶，之後的對話將不再知道它。",
+      "save-theme-description": "Agent 想讓 app 觀察這個主題。你同意後，app 每天會用你的網路搜尋金鑰搜尋它的關鍵字一次，並把找到的新聞對照它的觀察訊號判讀。",
       "change-setting-description": "Agent 想變更這項設定。允許後會立即生效，如同你在設定頁變更。",
       "allow": "允許",
       "deny": "不允許",
@@ -658,7 +673,8 @@
       "skills": "Skills",
       "memory": "記憶",
       "mcp": "MCP",
-      "schedules": "排程"
+      "schedules": "排程",
+      "themes": "主題"
     },
     "general": "一般",
     "save-failed": "無法儲存設定",
@@ -1259,6 +1275,34 @@
       "endpoint-description": "格式同 OTEL_EXPORTER_OTLP_ENDPOINT；traces 會透過 HTTP 送到它的 /v1/traces，logs 送到 /v1/logs。",
       "endpoint-invalid": "請輸入 http 或 https 網址",
       "stop": "停止傳送"
+    },
+    "theme-watch": {
+      "title": "主題",
+      "description-text": "app 替你持續觀察的國際時事，例如疫情、衝突或醞釀中的法規。每個主題的關鍵字每天透過你的網路搜尋廠商搜尋一次新聞，再由 decisions model 對照觀察訊號判讀，所以在有事情被判讀為已發生之前，主題都保持安靜。Agent 經你同意後可以寫入主題，只有你能刪除。",
+      "add": "新增主題",
+      "name": "觀察什麼",
+      "thesis": "為什麼可能有影響",
+      "queries": "新聞搜尋關鍵字",
+      "queries-description_one": "一行一組，每組幾個字，用這類新聞會使用的語言。最多 {{count}} 組。",
+      "queries-description_other": "一行一組，每組幾個字，用這類新聞會使用的語言。最多 {{count}} 組。",
+      "signposts": "觀察訊號",
+      "signposts-description_one": "一行一個：一件會發生、而且新聞標題說得出來的事。最多 {{count}} 個。",
+      "signposts-description_other": "一行一個：一件會發生、而且新聞標題說得出來的事。最多 {{count}} 個。",
+      "listings": "可能波及的標的",
+      "listings-description": "一行一檔，依序寫市場、代號、冒號與影響方式，例如 TW 2603：港口關閉會減少航班。",
+      "required": "請填寫",
+      "too-long": "請控制在 {{count}} 個字元內",
+      "too-many_one": "最多 {{count}} 行",
+      "too-many_other": "最多 {{count}} 行",
+      "line-too-long": "每行請控制在 {{count}} 個字元內",
+      "listing-format": "每行請依序寫市場、代號、冒號與影響方式，例如 TW 2603：航班減少",
+      "secret": "這看起來像金鑰、權杖或身分證號，主題不會保存這類內容",
+      "found_one": "找到 {{count}} 則",
+      "found_other": "找到 {{count}} 則",
+      "check": "立即搜尋",
+      "check-failed": "無法搜尋這個主題",
+      "delete": "刪除",
+      "change-failed": "無法變更主題"
     }
   },
   "updates": {

@@ -8,6 +8,7 @@ import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { InstrumentKind, Market } from "@solyx/core/market";
+import { TimePrecision } from "@solyx/core/news";
 import { OrderType, Side } from "@solyx/core/order";
 import {
   ProposalSource,
@@ -18,11 +19,15 @@ import type { TradeProposal } from "@solyx/core/order-desk";
 import { RiskViolationCode } from "@solyx/core/risk";
 import { ScheduleApproval, ScheduleKind } from "@solyx/core/schedule";
 import type { ScheduledTask } from "@solyx/core/schedule";
+import type { Theme, ThemeItem } from "@solyx/core/theme";
 
 import {
   paperAccount,
   proposals,
   scheduledTasks,
+  themeItems,
+  themeReadings,
+  themes,
   watchlist,
 } from "../src/user-schema.ts";
 import { openUserData } from "../src/user.ts";
@@ -81,35 +86,40 @@ function open(file = "user.sqlite") {
 
 describe("openUserData", () => {
   // A schema change committed without `db:generate` fails here.
-  test.each([watchlist, proposals, paperAccount, scheduledTasks])(
-    "migrations build the tables the schema describes",
-    (table) => {
-      open().close();
-      opened = [];
+  test.each([
+    watchlist,
+    proposals,
+    paperAccount,
+    scheduledTasks,
+    themes,
+    themeItems,
+    themeReadings,
+  ])("migrations build the tables the schema describes", (table) => {
+    open().close();
+    opened = [];
 
-      const db = new DatabaseSync(join(directory, "user.sqlite"));
-      const config = getTableConfig(table);
+    const db = new DatabaseSync(join(directory, "user.sqlite"));
+    const config = getTableConfig(table);
 
-      const columns = db
-        .prepare(`SELECT name, type, "notnull" FROM pragma_table_info(?)`)
-        .all(config.name)
-        .map((column) => [
-          column.name,
-          String(column.type).toLowerCase(),
-          column.notnull === 1,
-        ]);
+    const columns = db
+      .prepare(`SELECT name, type, "notnull" FROM pragma_table_info(?)`)
+      .all(config.name)
+      .map((column) => [
+        column.name,
+        String(column.type).toLowerCase(),
+        column.notnull === 1,
+      ]);
 
-      db.close();
+    db.close();
 
-      expect(columns).toEqual(
-        config.columns.map((column) => [
-          column.name,
-          column.getSQLType(),
-          column.notNull && !column.primary,
-        ])
-      );
-    }
-  );
+    expect(columns).toEqual(
+      config.columns.map((column) => [
+        column.name,
+        column.getSQLType(),
+        column.notNull && !column.primary,
+      ])
+    );
+  });
 
   test("a file that is not a database is kept and reported", async () => {
     const file = join(directory, "garbage.sqlite");
@@ -376,5 +386,116 @@ describe("schedule store", () => {
     opened = [];
 
     expect(open().schedules.list()).toStrictEqual([hourly]);
+  });
+});
+
+describe("theme store", () => {
+  const outbreak: Theme = {
+    id: "outbreak",
+    title: "Outbreak near the border",
+    thesis: "A wider outbreak could close ports.",
+    queries: ["outbreak border"],
+    signposts: ["A port suspends operations."],
+    listings: [
+      {
+        symbol: { market: Market.TW, symbol: "2603" },
+        exposure: "Fewer sailings.",
+      },
+    ],
+    createdAt: 1_790_000_000_000,
+    updatedAt: 1_790_000_000_000,
+  };
+
+  const found = (id: string, foundAt: number): ThemeItem => ({
+    id,
+    title: id,
+    snippet: "",
+    url: `https://news.test/${id}`,
+    site: "news.test",
+    published: {
+      at: new Date(foundAt - 1000),
+      precision: TimePrecision.Minute,
+    },
+    foundAt,
+  });
+
+  test("a theme written again keeps its place and age, and its searches' time", () => {
+    const { themes: store } = open();
+
+    store.save(outbreak);
+    store.save({ ...outbreak, id: "tariffs", title: "Tariffs" });
+    store.markCollected("outbreak", 5);
+    store.save({
+      ...outbreak,
+      thesis: "It is spreading.",
+      createdAt: 9,
+      updatedAt: 9,
+    });
+
+    expect(
+      store
+        .list()
+        .map(({ id, thesis, createdAt, updatedAt }) => [
+          id,
+          thesis,
+          createdAt,
+          updatedAt,
+        ])
+    ).toEqual([
+      ["outbreak", "It is spreading.", outbreak.createdAt, 9],
+      ["tariffs", outbreak.thesis, outbreak.createdAt, outbreak.updatedAt],
+    ]);
+    expect(store.collectedAt("outbreak")).toBe(5);
+    expect(store.collectedAt("tariffs")).toBe(null);
+    expect(store.get("gone")).toBeUndefined();
+  });
+
+  test("an item is kept once per theme, the last found first, and a reading once per signpost and item", () => {
+    const { themes: store } = open();
+
+    store.save(outbreak);
+    store.addItems("outbreak", [found("a", 1), found("b", 2)]);
+    store.addItems("outbreak", [
+      { ...found("a", 3), title: "found again" },
+      found("c", 3),
+    ]);
+
+    expect(store.items("outbreak", 2)).toStrictEqual([
+      found("c", 3),
+      found("b", 2),
+    ]);
+
+    const reading = {
+      signpost: "A port suspends operations.",
+      itemId: "a",
+      support: { model: "jev", supported: 0.9 },
+      checkedAt: 4,
+    };
+
+    store.addReading("outbreak", reading);
+    store.addReading("outbreak", {
+      ...reading,
+      support: { model: "jev", supported: 0.1 },
+    });
+
+    expect(store.readings("outbreak")).toStrictEqual([reading]);
+  });
+
+  test("removing a theme removes what was found and read for it", () => {
+    const { themes: store } = open();
+
+    store.save(outbreak);
+    store.addItems("outbreak", [found("a", 1)]);
+    store.addReading("outbreak", {
+      signpost: "A port suspends operations.",
+      itemId: "a",
+      support: { model: "jev", supported: 0.9 },
+      checkedAt: 4,
+    });
+    store.remove("outbreak");
+
+    expect(store.list()).toEqual([]);
+    expect(store.items("outbreak", 10)).toEqual([]);
+    expect(store.readings("outbreak")).toEqual([]);
   });
 });

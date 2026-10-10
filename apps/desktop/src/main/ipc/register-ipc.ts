@@ -10,6 +10,7 @@ import { registerResearchIpc } from "../modules/research/research-ipc.ts";
 import { registerSchedulesIpc } from "../modules/schedules/schedules-ipc.ts";
 import { registerSettingsIpc } from "../modules/settings/settings-ipc.ts";
 import { registerStorageIpc } from "../modules/storage/storage-ipc.ts";
+import { registerThemesIpc } from "../modules/themes/themes-ipc.ts";
 import { registerUpdatesIpc } from "../modules/updates/updates-ipc.ts";
 import { registerWatchlistIpc } from "../modules/watchlist/watchlist-ipc.ts";
 import type { Services } from "../services.ts";
@@ -27,6 +28,7 @@ export function registerIpc(services: Services) {
   registerSchedulesIpc(services);
   registerSettingsIpc(services);
   registerStorageIpc(services);
+  registerThemesIpc(services);
   registerUpdatesIpc(services);
   registerWatchlistIpc(services);
 }

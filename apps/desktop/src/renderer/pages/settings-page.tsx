@@ -27,6 +27,7 @@ import { TimeZoneSelect } from "../modules/settings/time-zone-select.tsx";
 import { WebSearchSettings } from "../modules/settings/web-search-settings.tsx";
 import { StorageSettings } from "../modules/storage/storage-settings.tsx";
 import { TelemetrySettings } from "../modules/telemetry/telemetry-settings.tsx";
+import { ThemeSettings } from "../modules/themes/theme-settings.tsx";
 
 const route = getRouteApi("/settings");
 
@@ -60,6 +61,7 @@ export function SettingsPage() {
     ),
     [SettingsSection.Skills]: <AgentSkills />,
     [SettingsSection.Schedules]: <ScheduleSettings />,
+    [SettingsSection.Themes]: <ThemeSettings />,
     [SettingsSection.Memory]: <MemorySettings />,
     [SettingsSection.Mcp]: <McpSettings server={server} />,
     [SettingsSection.Storage]: <StorageSettings />,

@@ -1,4 +1,4 @@
-import { and, asc, eq, max } from "drizzle-orm";
+import { and, asc, desc, eq, max } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { clamp, omit } from "es-toolkit";
 
@@ -7,12 +7,16 @@ import type { SymbolRef } from "@solyx/core/market";
 import type { AccountSnapshot } from "@solyx/core/order";
 import type { ProposalStore, TradeProposal } from "@solyx/core/order-desk";
 import type { ScheduleStore } from "@solyx/core/schedule";
+import type { ThemeItem, ThemeStore } from "@solyx/core/theme";
 
 import { connect } from "./connection.ts";
 import {
   paperAccount,
   proposals,
   scheduledTasks,
+  themeItems,
+  themeReadings,
+  themes,
   watchlist,
 } from "./user-schema.ts";
 
@@ -175,6 +179,114 @@ function scheduleStore(db: NodeSQLiteDatabase): ScheduleStore {
   };
 }
 
+function toThemeItem(row: typeof themeItems.$inferSelect): ThemeItem {
+  return {
+    id: row.key,
+    url: row.url,
+    title: row.title,
+    snippet: row.snippet,
+    site: row.site,
+    published:
+      row.publishedAt === null || row.publishedPrecision === null
+        ? null
+        : { at: new Date(row.publishedAt), precision: row.publishedPrecision },
+    foundAt: row.foundAt,
+  };
+}
+
+function themeStore(db: NodeSQLiteDatabase): ThemeStore {
+  const toTheme = ({
+    id,
+    theme,
+    createdAt,
+    updatedAt,
+  }: typeof themes.$inferSelect) => ({ ...theme, id, createdAt, updatedAt });
+
+  return {
+    list: () =>
+      db.select().from(themes).orderBy(asc(themes.seq)).all().map(toTheme),
+
+    get(id) {
+      const row = db.select().from(themes).where(eq(themes.id, id)).get();
+
+      return row && toTheme(row);
+    },
+
+    save({ id, createdAt, updatedAt, ...theme }) {
+      db.insert(themes)
+        .values({ id, theme, createdAt, updatedAt })
+        .onConflictDoUpdate({ target: themes.id, set: { theme, updatedAt } })
+        .run();
+    },
+
+    remove(id) {
+      db.delete(themes).where(eq(themes.id, id)).run();
+    },
+
+    items: (themeId, limit) =>
+      db
+        .select()
+        .from(themeItems)
+        .where(eq(themeItems.themeId, themeId))
+        .orderBy(desc(themeItems.foundAt), desc(themeItems.id))
+        .limit(limit)
+        .all()
+        .map(toThemeItem),
+
+    addItems(themeId, items) {
+      if (items.length === 0) return;
+
+      db.insert(themeItems)
+        .values(
+          items.map(({ id, published, ...item }) => ({
+            ...item,
+            themeId,
+            key: id,
+            publishedAt: published?.at.getTime() ?? null,
+            publishedPrecision: published?.precision ?? null,
+          }))
+        )
+        .onConflictDoNothing()
+        .run();
+    },
+
+    readings: (themeId) =>
+      db
+        .select()
+        .from(themeReadings)
+        .where(eq(themeReadings.themeId, themeId))
+        .orderBy(asc(themeReadings.id))
+        .all()
+        .map(({ signpost, itemKey, model, supported, checkedAt }) => ({
+          signpost,
+          itemId: itemKey,
+          support: { model, supported },
+          checkedAt,
+        })),
+
+    addReading(themeId, { signpost, itemId, support, checkedAt }) {
+      db.insert(themeReadings)
+        .values({ themeId, signpost, itemKey: itemId, ...support, checkedAt })
+        .onConflictDoNothing()
+        .run();
+    },
+
+    collectedAt: (themeId) =>
+      db
+        .select({ collectedAt: themes.collectedAt })
+        .from(themes)
+        .where(eq(themes.id, themeId))
+        .get()?.collectedAt ?? null,
+
+    markCollected(themeId, at) {
+      db.update(themes)
+        .set({ collectedAt: at })
+        .where(eq(themes.id, themeId))
+        .run();
+    },
+  };
+}
+
 /**
  * The user's database, holding what cannot be fetched again. It is never deleted, so a
  * file its migrations cannot open is an error. `migrationsFolder` is `migrations/user`
@@ -188,6 +300,7 @@ export function openUserData(path: string, migrationsFolder: string) {
     proposals: proposalStore(connection.db),
     paperAccount: paperAccountStore(connection.db),
     schedules: scheduleStore(connection.db),
+    themes: themeStore(connection.db),
     close: () => connection.client.close(),
   };
 }

@@ -7,6 +7,7 @@ export const SettingsSection = {
   Agent: "agent",
   Skills: "skills",
   Schedules: "schedules",
+  Themes: "themes",
   Memory: "memory",
   Mcp: "mcp",
   Storage: "storage",

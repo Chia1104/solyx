@@ -284,6 +284,18 @@
     },
     "until": "until {{date}}"
   },
+  "themes": {
+    "title": "Themes",
+    "description": "Topics in the world you have the app watch because they could reach what you hold over quarters, though they move no price now. Each is searched for news once a day and stays quiet until an item reads as stating one of its signposts.",
+    "empty": "No themes yet. Ask the agent to follow a topic, or write one in Settings.",
+    "manage": "Manage themes",
+    "developments_one": "{{count}} signpost may have been met",
+    "developments_other": "{{count}} signposts may have been met",
+    "quiet-since": "quiet since {{date}}",
+    "read-as-stated": "read as stated, {{share}}",
+    "not-searched": "Not searched yet.",
+    "searched": "Last searched {{time}}."
+  },
   "agent": {
     "title": "Agent",
     "tabs": {
@@ -386,7 +398,9 @@
       "search_history": "Searched history",
       "get_setup": "Read the setup",
       "change_setting": "Changed a setting",
-      "bash": "Ran a command"
+      "bash": "Ran a command",
+      "get_themes": "Read your themes",
+      "save_theme": "Wrote a theme"
     },
     "tool-status": {
       "running": "Running",
@@ -440,6 +454,7 @@
       "read-page-description": "Your web search vendor will fetch this address. One you didn't expect could be a page the agent read trying to send your data out, so check it before you allow it.",
       "remember-description": "The agent wants to keep this for later conversations, and reads it in every one. Check it says what you mean.",
       "forget-description": "The agent wants to forget this memory, so later conversations won't know it.",
+      "save-theme-description": "The agent wants the app to watch this theme. Once you allow it, the app searches its queries for news once a day on your web search key and reads what it finds against its signposts.",
       "change-setting-description": "The agent wants to change this setting. It applies at once, as if you changed it in Settings.",
       "allow": "Allow",
       "deny": "Don't allow",
@@ -658,7 +673,8 @@
       "skills": "Skills",
       "memory": "Memory",
       "mcp": "MCP",
-      "schedules": "Schedules"
+      "schedules": "Schedules",
+      "themes": "Themes"
     },
     "general": "General",
     "save-failed": "Couldn't save the setting",
@@ -1259,6 +1275,34 @@
       "endpoint-description": "As OTEL_EXPORTER_OTLP_ENDPOINT names it; traces go to its /v1/traces and logs to its /v1/logs over HTTP.",
       "endpoint-invalid": "Enter an http or https address",
       "stop": "Stop sending"
+    },
+    "theme-watch": {
+      "title": "Themes",
+      "description-text": "Topics in the world the app watches for you: an outbreak, a conflict, a rule in the making. Each theme's queries are searched for news once a day through your web search vendor, and a decisions model reads what they find against its signposts, so a theme stays quiet until something reads as having happened. The agent may write a theme once you allow it; only you remove one.",
+      "add": "Add a theme",
+      "name": "What is watched",
+      "thesis": "Why it may matter",
+      "queries": "News searches",
+      "queries-description_one": "One a line, a few words each, in the languages its news is written in. Up to {{count}}.",
+      "queries-description_other": "One a line, a few words each, in the languages its news is written in. Up to {{count}}.",
+      "signposts": "Signposts",
+      "signposts-description_one": "One a line: something that happens and that a headline could state. Up to {{count}}.",
+      "signposts-description_other": "One a line: something that happens and that a headline could state. Up to {{count}}.",
+      "listings": "Listings it could reach",
+      "listings-description": "One a line, as market, code, a colon and how: TW 2603: port closures cut its sailings.",
+      "required": "Fill this in",
+      "too-long": "Keep it within {{count}} characters",
+      "too-many_one": "At most {{count}} line",
+      "too-many_other": "At most {{count}} lines",
+      "line-too-long": "Keep each line within {{count}} characters",
+      "listing-format": "Write each line as market, code, a colon and how, such as TW 2603: fewer sailings",
+      "secret": "This looks like a key, token or ID number, which a theme never holds",
+      "found_one": "{{count}} item found",
+      "found_other": "{{count}} items found",
+      "check": "Search now",
+      "check-failed": "Couldn't search for the theme",
+      "delete": "Delete",
+      "change-failed": "Couldn't change the theme"
     }
   },
   "updates": {

@@ -23,6 +23,7 @@
     "./shell": "./src/shell.ts",
     "./skill-source": "./src/skill-source.ts",
     "./skills": "./src/skills.ts",
+    "./themes": "./src/themes.ts",
     "./tools": "./src/tools.ts",
     "./traces": "./src/traces.ts",
     "./transcript": "./src/transcript.ts",

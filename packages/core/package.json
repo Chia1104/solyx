@@ -31,6 +31,7 @@
     "./sectors": "./src/sectors.ts",
     "./sentiment": "./src/sentiment.ts",
     "./session": "./src/session.ts",
+    "./theme": "./src/theme.ts",
     "./web-search": "./src/web-search.ts"
   },
   "scripts": {

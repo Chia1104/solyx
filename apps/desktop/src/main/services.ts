@@ -26,6 +26,7 @@ import { proposalsEvents } from "#shared/ipc/proposals.ts";
 import { researchEvents } from "#shared/ipc/research.ts";
 import { schedulesEvents } from "#shared/ipc/schedules.ts";
 import { AppLocation, Secret, settingsEvents } from "#shared/ipc/settings.ts";
+import { themesEvents } from "#shared/ipc/themes.ts";
 import { updatesEvents } from "#shared/ipc/updates.ts";
 import { ColorScheme } from "#shared/palette.ts";
 
@@ -53,6 +54,7 @@ import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
 import { createTelemetry } from "./modules/telemetry/telemetry.ts";
+import { createThemes } from "./modules/themes/themes.ts";
 import { createAppUpdater } from "./modules/updates/app-updater.ts";
 import { createUpdates } from "./modules/updates/updates.ts";
 import { createWebSearch } from "./modules/web-search/web-search.ts";
@@ -264,6 +266,14 @@ export function createServices(config: ConfigFile) {
     );
   }
 
+  const themes = createThemes({
+    store: userData.themes,
+    web: () => webSearch.vendor(),
+    auditor: () => decisions.claimAuditor(),
+    diagnostics,
+    onChange: () => broadcast(themesEvents.onChanged),
+  });
+
   const agent = createAgentService({
     config,
     secrets,
@@ -292,6 +302,7 @@ export function createServices(config: ConfigFile) {
     memory: memories.store,
     localEmbedder: () => embeddings.localEmbedder(),
     research: research.desk,
+    themes: themes.desk,
     fundamentals,
     flows,
     setup: {
@@ -301,6 +312,7 @@ export function createServices(config: ConfigFile) {
       decisions,
       embeddings,
       schedules: userData.schedules,
+      themes: userData.themes,
       version: app.getVersion(),
       home,
     },
@@ -346,6 +358,7 @@ export function createServices(config: ConfigFile) {
   scheduler.register("News collection", newsCollector);
   scheduler.register("Update check", updates);
   scheduler.register("Scheduled tasks", schedules.work);
+  scheduler.register("Theme watch", themes.work);
 
   nativeTheme.themeSource = appearance.read().theme;
 
@@ -385,6 +398,7 @@ export function createServices(config: ConfigFile) {
     newsData,
     updates,
     schedules,
+    themes,
     scheduler,
   };
 }
