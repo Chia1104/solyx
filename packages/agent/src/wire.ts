@@ -15,6 +15,7 @@ import {
   memoryDescriptionSchema,
   memoryKindSchema,
 } from "@solyx/core/memory";
+import { themeDraftSchema } from "@solyx/core/theme";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { agentModelPickSchema } from "./providers.ts";
@@ -201,6 +202,8 @@ export const AgentToolName = {
   ReviseReport: "revise_report",
   SubmitForecast: "submit_forecast",
   SearchHistory: "search_history",
+  GetThemes: "get_themes",
+  SaveTheme: "save_theme",
   GetSetup: "get_setup",
   ChangeSetting: "change_setting",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
@@ -249,6 +252,31 @@ export const bashArgumentsSchema = z.object({ command: z.string() });
 
 export const readPageArgumentsSchema = z.object({
   url: z.url({ protocol: /^https?$/ }).describe("The page's full address"),
+});
+
+/** A theme the agent writes, or writes again whole under its id, once the user allows it. */
+export const saveThemeArgumentsSchema = themeDraftSchema.extend({
+  id: z
+    .string()
+    .optional()
+    .describe(
+      "A theme's id from get_themes, to write it again whole; left out, a new theme is kept"
+    ),
+  title: themeDraftSchema.shape.title.describe(
+    "What is being watched, in a few words"
+  ),
+  thesis: themeDraftSchema.shape.thesis.describe(
+    "Why it may come to matter to what the user holds, in a few sentences, in their language"
+  ),
+  queries: themeDraftSchema.shape.queries.describe(
+    "What the app's daily news search asks for: a few words each, one per language the topic's news is written in"
+  ),
+  signposts: themeDraftSchema.shape.signposts.describe(
+    "What would show it coming closer, each one thing that happens and that a headline could state, such as a port suspending operations"
+  ),
+  listings: themeDraftSchema.shape.listings.describe(
+    "The listings it could reach, each with how; leave empty when none is clear yet"
+  ),
 });
 
 /** A memory the agent saves, or rewrites whole under its id, once the user allows it. */

@@ -21,6 +21,7 @@ import { followProposalChanges } from "./modules/proposals/proposals-query.ts";
 import { followResearchChanges } from "./modules/research/research-query.ts";
 import { followScheduleChanges } from "./modules/schedules/schedules-query.ts";
 import { followSettingsChanges } from "./modules/settings/settings-query.ts";
+import { followThemeChanges } from "./modules/themes/themes-query.ts";
 import { followUpdateChanges } from "./modules/updates/updates-query.ts";
 
 // Followed for the window's whole life, so a query that never goes stale on its own hears of
@@ -35,6 +36,7 @@ for (const follow of [
   followResearchChanges,
   followScheduleChanges,
   followSettingsChanges,
+  followThemeChanges,
   followUpdateChanges,
 ]) {
   follow(queryClient);

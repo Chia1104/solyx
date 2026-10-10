@@ -23,6 +23,7 @@ import { createShell } from "@solyx/agent/shell";
 import type { ShellOptions } from "@solyx/agent/shell";
 import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
 import type { SkillFolders } from "@solyx/agent/skills";
+import { createThemeTools } from "@solyx/agent/themes";
 import { createTradingExtension } from "@solyx/agent/tools";
 import { createRunTraces } from "@solyx/agent/traces";
 import { createWebTools } from "@solyx/agent/web";
@@ -45,6 +46,7 @@ import type { ProposingDesk } from "@solyx/core/order-desk";
 import type { ResearchDesk } from "@solyx/core/research";
 import { ScheduleApproval } from "@solyx/core/schedule";
 import type { ScheduledTask } from "@solyx/core/schedule";
+import type { ThemeDesk } from "@solyx/core/theme";
 import type { WebReader, WebSearch } from "@solyx/core/web-search";
 import type { AgentStore } from "@solyx/db/agent";
 import { isErrnoError } from "@solyx/utils/error";
@@ -90,6 +92,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   /** Embeds memories to search them and tell one said again; only a model on this computer. */
   localEmbedder: () => Embedder | undefined;
   research: ResearchDesk;
+  themes: ThemeDesk;
   fundamentals: Fundamentals;
   flows: Flows;
   /** What the agent reads of the rest of the app's settings. */
@@ -230,6 +233,8 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const flows = createFlowTools({ flows: options.flows });
 
+  const themes = createThemeTools({ desk: options.themes });
+
   const history = createHistory({
     research: options.research,
     news: options.news,
@@ -269,6 +274,7 @@ export function createAgentService(options: AgentServiceOptions) {
           research,
           flows,
           history,
+          themes.extension(guard),
           createSetupTools({ setup, guard }),
           ...(shellOn() ? [shell.extension(guard)] : []),
           ...(webOn ? [web.extension(guard)] : []),

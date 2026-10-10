@@ -19,6 +19,7 @@ import { QuoteHeatMap } from "../modules/market/quote-heat-map.tsx";
 import { SectorHeatMap } from "../modules/market/sector-heat-map.tsx";
 import { HeadlineList } from "../modules/news/headline-list.tsx";
 import { HEADLINE_DAYS } from "../modules/news/news-query.ts";
+import { ThemeList } from "../modules/themes/theme-list.tsx";
 import { watchlistQuery } from "../modules/watchlist/watchlist-query.ts";
 
 /** Today's moves of what the user holds and watches; a listing held and watched shows as held. */
@@ -139,6 +140,9 @@ export function OverviewPage() {
         unfollowed={t("calendar.unfollowed")}>
         {(symbols) => <UpcomingEvents symbols={symbols} />}
       </FollowedSection>
+      <Section title={t("themes.title")} description={t("themes.description")}>
+        <ThemeList />
+      </Section>
       <Section
         title={t("heat-map.sectors.title")}
         description={t("heat-map.sectors.description")}>

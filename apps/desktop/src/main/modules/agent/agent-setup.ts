@@ -11,6 +11,7 @@ import { Market } from "@solyx/core/market";
 import type { MemoryStore } from "@solyx/core/memory";
 import { ScheduleKind } from "@solyx/core/schedule";
 import type { ScheduleStore } from "@solyx/core/schedule";
+import type { ThemeStore } from "@solyx/core/theme";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 import { EmbeddingsProvider } from "@solyx/embeddings/provider";
 import { FinMindPlan } from "@solyx/fundamentals/finmind";
@@ -59,6 +60,8 @@ export interface AgentSetupSources {
   embeddings: Pick<Embeddings, "settings">;
   /** The scheduled tasks the user wrote, which only they change. */
   schedules: Pick<ScheduleStore, "list">;
+  /** The themes the app watches for the user. */
+  themes: Pick<ThemeStore, "list">;
   version: string;
   /** Paths are shown with it as `~`. */
   home: string;
@@ -519,6 +522,22 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     };
   }
 
+  function themes(): SetupArea {
+    const watched = options.themes.list();
+
+    return {
+      name: "Themes",
+      link: settingsLink(SettingsSection.Themes),
+      missing: [],
+      settings: [
+        {
+          name: "themes watched",
+          value: watched.map(({ title }) => title).join("; ") || "none",
+        },
+      ],
+    };
+  }
+
   async function mcp(): Promise<SetupArea> {
     const [{ error, servers }, saved] = await Promise.all([
       options.mcp.status(),
@@ -750,6 +769,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         ...agentAreas,
         skillsArea,
         schedules(),
+        themes(),
         memory(),
         mcpArea,
         about(),
