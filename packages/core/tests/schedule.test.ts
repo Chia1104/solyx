@@ -39,17 +39,20 @@ function task(schedule: Schedule, patch: Partial<Timed> = {}): Timed {
 
 const ran = (at: number) => ({ at, sessionId: "1", failure: null });
 
+// Every weekday trades, and nothing the app watches has changed.
+const QUIET = { trades: weekdays, changed: false };
+
 test("an interval is due once its span has passed since the task was saved or last ran", () => {
   const hourly = task({ kind: ScheduleKind.Interval, everyMinutes: 60 });
 
-  expect(isDue(hourly, SAVED + HOUR_MS - 1, weekdays)).toBe(false);
-  expect(isDue(hourly, SAVED + HOUR_MS, weekdays)).toBe(true);
-  expect(nextRun(hourly, SAVED, weekdays)).toBe(SAVED + HOUR_MS);
+  expect(isDue(hourly, SAVED + HOUR_MS - 1, QUIET)).toBe(false);
+  expect(isDue(hourly, SAVED + HOUR_MS, QUIET)).toBe(true);
+  expect(nextRun(hourly, SAVED, QUIET)).toBe(SAVED + HOUR_MS);
 
   const again = { ...hourly, lastRun: ran(SAVED + HOUR_MS) };
 
-  expect(isDue(again, SAVED + 1.5 * HOUR_MS, weekdays)).toBe(false);
-  expect(nextRun(again, SAVED + 1.5 * HOUR_MS, weekdays)).toBe(
+  expect(isDue(again, SAVED + 1.5 * HOUR_MS, QUIET)).toBe(false);
+  expect(nextRun(again, SAVED + 1.5 * HOUR_MS, QUIET)).toBe(
     SAVED + 2 * HOUR_MS
   );
 });
@@ -57,16 +60,16 @@ test("an interval is due once its span has passed since the task was saved or la
 test("a time of day is due from its moment on the task's clock, once a day", () => {
   const daily = task(everyDay);
 
-  expect(isDue(daily, taipei("2026-10-08T08:29:00"), weekdays)).toBe(false);
-  expect(nextRun(daily, taipei("2026-10-08T08:29:00"), weekdays)).toBe(
+  expect(isDue(daily, taipei("2026-10-08T08:29:00"), QUIET)).toBe(false);
+  expect(nextRun(daily, taipei("2026-10-08T08:29:00"), QUIET)).toBe(
     taipei("2026-10-08T08:30:00")
   );
-  expect(isDue(daily, taipei("2026-10-08T08:30:00"), weekdays)).toBe(true);
+  expect(isDue(daily, taipei("2026-10-08T08:30:00"), QUIET)).toBe(true);
 
   const done = { ...daily, lastRun: ran(taipei("2026-10-08T08:31:00")) };
 
-  expect(isDue(done, taipei("2026-10-08T15:00:00"), weekdays)).toBe(false);
-  expect(nextRun(done, taipei("2026-10-08T15:00:00"), weekdays)).toBe(
+  expect(isDue(done, taipei("2026-10-08T15:00:00"), QUIET)).toBe(false);
+  expect(nextRun(done, taipei("2026-10-08T15:00:00"), QUIET)).toBe(
     taipei("2026-10-09T08:30:00")
   );
 });
@@ -75,16 +78,16 @@ test("a time the app slept through is made up for within the grace, and dropped 
   const daily = task(everyDay);
   const moment = taipei("2026-10-08T08:30:00");
 
-  expect(isDue(daily, moment + FIXED_TIME_GRACE_MS, weekdays)).toBe(true);
-  expect(isDue(daily, moment + FIXED_TIME_GRACE_MS + 1, weekdays)).toBe(false);
+  expect(isDue(daily, moment + FIXED_TIME_GRACE_MS, QUIET)).toBe(true);
+  expect(isDue(daily, moment + FIXED_TIME_GRACE_MS + 1, QUIET)).toBe(false);
 
   // Days later only the newest time counts, so one run makes up for them all.
-  expect(isDue(daily, taipei("2026-10-12T09:00:00"), weekdays)).toBe(true);
+  expect(isDue(daily, taipei("2026-10-12T09:00:00"), QUIET)).toBe(true);
   expect(
     isDue(
       { ...daily, lastRun: ran(taipei("2026-10-12T09:00:00")) },
       taipei("2026-10-12T09:01:00"),
-      weekdays
+      QUIET
     )
   ).toBe(false);
 });
@@ -92,8 +95,8 @@ test("a time the app slept through is made up for within the grace, and dropped 
 test("a task saved after today's time waits for tomorrow's", () => {
   const late = task(everyDay, { updatedAt: taipei("2026-10-08T09:00:00") });
 
-  expect(isDue(late, taipei("2026-10-08T09:01:00"), weekdays)).toBe(false);
-  expect(isDue(late, taipei("2026-10-09T08:30:00"), weekdays)).toBe(true);
+  expect(isDue(late, taipei("2026-10-08T09:01:00"), QUIET)).toBe(false);
+  expect(isDue(late, taipei("2026-10-09T08:30:00"), QUIET)).toBe(true);
 });
 
 test("a time kept to a market's trading days skips the days it is closed", () => {
@@ -103,8 +106,8 @@ test("a time kept to a market's trading days skips the days it is closed", () =>
     lastRun: ran(saturday - 23 * HOUR_MS),
   });
 
-  expect(isDue(briefing, saturday + HOUR_MS, weekdays)).toBe(false);
-  expect(nextRun(briefing, saturday + HOUR_MS, weekdays)).toBe(
+  expect(isDue(briefing, saturday + HOUR_MS, QUIET)).toBe(false);
+  expect(nextRun(briefing, saturday + HOUR_MS, QUIET)).toBe(
     taipei("2026-10-12T08:30:00")
   );
 
@@ -112,10 +115,18 @@ test("a time kept to a market's trading days skips the days it is closed", () =>
   const closedMonday = (date: string) =>
     weekdays(date) && date !== "2026-10-12";
 
-  expect(nextRun(briefing, saturday + HOUR_MS, closedMonday)).toBe(
-    taipei("2026-10-13T08:30:00")
-  );
-  expect(isDue(task(everyDay), saturday + HOUR_MS, closedMonday)).toBe(true);
+  expect(
+    nextRun(briefing, saturday + HOUR_MS, {
+      trades: closedMonday,
+      changed: false,
+    })
+  ).toBe(taipei("2026-10-13T08:30:00"));
+  expect(
+    isDue(task(everyDay), saturday + HOUR_MS, {
+      trades: closedMonday,
+      changed: false,
+    })
+  ).toBe(true);
 });
 
 test("a trading day is read on the exchange's calendar, whatever clock the task keeps", () => {
@@ -128,15 +139,15 @@ test("a trading day is read on the exchange's calendar, whatever clock the task 
     }
   );
 
-  expect(
-    isDue(evening, Date.parse("2026-10-11T20:30:00-04:00"), weekdays)
-  ).toBe(true);
+  expect(isDue(evening, Date.parse("2026-10-11T20:30:00-04:00"), QUIET)).toBe(
+    true
+  );
   // Friday evening there is Saturday in Taipei.
   expect(
     isDue(
       { ...evening, updatedAt: Date.parse("2026-10-09T12:00:00-04:00") },
       Date.parse("2026-10-09T20:30:00-04:00"),
-      weekdays
+      QUIET
     )
   ).toBe(false);
 });
@@ -164,4 +175,19 @@ test("a draft refuses what cannot run: a span too short, a time that is none, a 
   expect(
     refused.map((each) => scheduledTaskDraftSchema.safeParse(each).success)
   ).toEqual([false, false, false, false, false]);
+});
+
+test("a task that waits on a change runs only once something changed, and no sooner than its shortest span", () => {
+  const upkeep = task({
+    kind: ScheduleKind.OnChange,
+    atMostEveryMinutes: 60,
+  });
+
+  const changed = { trades: weekdays, changed: true };
+
+  expect(isDue(upkeep, SAVED + 2 * HOUR_MS, QUIET)).toBe(false);
+  expect(nextRun(upkeep, SAVED + 2 * HOUR_MS, QUIET)).toBe(null);
+  expect(isDue(upkeep, SAVED + HOUR_MS - 1, changed)).toBe(false);
+  expect(isDue(upkeep, SAVED + HOUR_MS, changed)).toBe(true);
+  expect(nextRun(upkeep, SAVED + HOUR_MS, changed)).toBe(SAVED + HOUR_MS);
 });

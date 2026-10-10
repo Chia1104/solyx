@@ -12,6 +12,8 @@ export const ScheduleKind = {
   Interval: "interval",
   /** At one time of day on the task's own clock. */
   FixedTime: "fixed-time",
+  /** Once something the app watches has changed since its last run. */
+  OnChange: "on-change",
 } as const;
 
 export type ScheduleKind = (typeof ScheduleKind)[keyof typeof ScheduleKind];
@@ -36,6 +38,15 @@ export const scheduleSchema = z.discriminatedUnion("kind", [
     time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
     /** Runs only where its moment falls on a day this market trades, on the exchange's calendar; `null` runs every day. */
     tradingDaysOf: marketSchema.nullable(),
+  }),
+  z.object({
+    kind: z.literal(ScheduleKind.OnChange),
+    /** The shortest span between two runs, however much changes. */
+    atMostEveryMinutes: z
+      .number()
+      .int()
+      .min(MIN_INTERVAL_MINUTES)
+      .max(MAX_INTERVAL_MINUTES),
   }),
 ]);
 
@@ -169,52 +180,84 @@ function fixedTime(
   return null;
 }
 
-/** The moment a task's next run counts from. */
-const countedFrom = ({ updatedAt, lastRun }: Timed) =>
+/** The moment a task's next run counts from: when it last ran, or was saved if that is later. */
+export const countedFrom = ({
+  updatedAt,
+  lastRun,
+}: Pick<Timed, "updatedAt" | "lastRun">) =>
   Math.max(updatedAt, lastRun?.at ?? 0);
 
+/** What a task's time depends on beyond the clock. */
+export interface Occasion {
+  /** The days the schedule's market trades; read only by a time of day that names one. */
+  trades: TradingDays;
+  /** Whether what the app watches has changed since `countedFrom`; read only by a task that waits on it. */
+  changed: boolean;
+}
+
 /**
- * Whether the task owes a run at `now`: its span has passed, or its time of day has come since it
- * last ran or was saved and is not yet `FIXED_TIME_GRACE_MS` old. Earlier times the app slept
- * through are dropped rather than made up one by one. `trades` says which days the schedule's
- * market trades, and is read only by a schedule that names one.
+ * Whether the task owes a run at `now`: its span has passed, its time of day has come since it
+ * last ran or was saved and is not yet `FIXED_TIME_GRACE_MS` old, or something changed and its
+ * shortest span has passed. Earlier times the app slept through are dropped rather than made up
+ * one by one.
  */
-export function isDue(task: Timed, now: number, trades: TradingDays): boolean {
+export function isDue(
+  task: Timed,
+  now: number,
+  { trades, changed }: Occasion
+): boolean {
   const { schedule, timeZone } = task;
   const from = countedFrom(task);
 
-  if (schedule.kind === ScheduleKind.Interval) {
-    return now - from >= schedule.everyMinutes * MINUTE_MS;
+  switch (schedule.kind) {
+    case ScheduleKind.Interval:
+      return now - from >= schedule.everyMinutes * MINUTE_MS;
+    case ScheduleKind.OnChange:
+      return changed && now - from >= schedule.atMostEveryMinutes * MINUTE_MS;
+    case ScheduleKind.FixedTime: {
+      const latest = fixedTime(
+        schedule,
+        timeZone,
+        now,
+        -1,
+        trades,
+        (moment) => moment <= now
+      );
+
+      return (
+        latest !== null && latest > from && now - latest <= FIXED_TIME_GRACE_MS
+      );
+    }
   }
-
-  const latest = fixedTime(
-    schedule,
-    timeZone,
-    now,
-    -1,
-    trades,
-    (moment) => moment <= now
-  );
-
-  return (
-    latest !== null && latest > from && now - latest <= FIXED_TIME_GRACE_MS
-  );
 }
 
 /**
  * When the task next runs while the app stays open, in epoch ms: `now` for one already due, and
- * `null` for a time of day with no day to fall on within the days searched.
+ * `null` for a time of day with no day to fall on within the days searched, or for a task that
+ * waits on a change, which no clock tells.
  */
 export function nextRun(
   task: Timed,
   now: number,
-  trades: TradingDays
+  occasion: Occasion
 ): number | null {
-  if (isDue(task, now, trades)) return now;
+  if (isDue(task, now, occasion)) return now;
 
   const { schedule, timeZone } = task;
 
-  return schedule.kind === ScheduleKind.Interval
-    ? countedFrom(task) + schedule.everyMinutes * MINUTE_MS
-    : fixedTime(schedule, timeZone, now, 1, trades, (moment) => moment > now);
+  switch (schedule.kind) {
+    case ScheduleKind.Interval:
+      return countedFrom(task) + schedule.everyMinutes * MINUTE_MS;
+    case ScheduleKind.OnChange:
+      return null;
+    case ScheduleKind.FixedTime:
+      return fixedTime(
+        schedule,
+        timeZone,
+        now,
+        1,
+        occasion.trades,
+        (moment) => moment > now
+      );
+  }
 }

@@ -1,6 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
 import { BrokerMode } from "@solyx/core/broker";
+import { ChangeKind } from "@solyx/core/changes";
 import { DecisionMode } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
 
@@ -54,10 +55,25 @@ test("the context says when a scheduled task sent the message in the user's plac
     timeZone: "Asia/Taipei",
     decisionMode: DecisionMode.Single,
     scheduled: "Morning brief",
+    changes: [
+      {
+        kind: ChangeKind.EventPassed,
+        symbol: { market: Market.TW, symbol: "2330" },
+        date: "2026-10-06",
+        label: "Earnings call",
+      },
+      {
+        kind: ChangeKind.SignpostMet,
+        theme: "Outbreak",
+        signpost: "A port suspends operations.",
+      },
+    ],
   });
 
   expect(context.split("\n").slice(4)).toEqual([
     "skill: watchlist-upkeep",
     "scheduled: Morning brief",
+    'changed: TW 2330: the event "Earnings call" of 2026-10-06 has passed',
+    'changed: theme "Outbreak": news may state the signpost "A port suspends operations."',
   ]);
 });

@@ -34,6 +34,7 @@ import type {
   AgentWireEvent,
 } from "@solyx/agent/wire";
 import { BrokerMode } from "@solyx/core/broker";
+import type { Change } from "@solyx/core/changes";
 import { DecisionMode } from "@solyx/core/council";
 import type { Embedder } from "@solyx/core/embedding";
 import type { Flows } from "@solyx/core/flows";
@@ -307,11 +308,14 @@ export function createAgentService(options: AgentServiceOptions) {
       locale,
       timeZone,
       scheduled,
+      changes,
     }: {
       focus: AgentFocus | null;
       locale: string;
       timeZone: string;
       scheduled?: string;
+      /** What the app saw change, for a task that ran because of it. */
+      changes?: readonly Change[];
     }
   ) {
     const now = new Date();
@@ -342,6 +346,7 @@ export function createAgentService(options: AgentServiceOptions) {
         timeZone,
         decisionMode: decisionMode(),
         scheduled,
+        changes,
       }),
     });
   }
@@ -414,20 +419,24 @@ export function createAgentService(options: AgentServiceOptions) {
 
     /**
      * Starts a conversation of its own for a scheduled task and sends it the task's prompt, on the
-     * default model and with no listing on screen, since nobody is at the app. A prompt that could
-     * not be sent leaves no conversation behind.
+     * default model and with no listing on screen, since nobody is at the app, with what the app
+     * saw change where that is why it runs. A prompt that could not be sent leaves no conversation
+     * behind.
      */
-    async runScheduled({
-      id,
-      name,
-      prompt,
-      approval,
-      locale,
-      timeZone,
-    }: Pick<
-      ScheduledTask,
-      "id" | "name" | "prompt" | "approval" | "locale" | "timeZone"
-    >): Promise<AgentSession> {
+    async runScheduled(
+      {
+        id,
+        name,
+        prompt,
+        approval,
+        locale,
+        timeZone,
+      }: Pick<
+        ScheduledTask,
+        "id" | "name" | "prompt" | "approval" | "locale" | "timeZone"
+      >,
+      changes: readonly Change[] = []
+    ): Promise<AgentSession> {
       const session = await runtime.create(
         {
           model: null,
@@ -443,6 +452,7 @@ export function createAgentService(options: AgentServiceOptions) {
           locale,
           timeZone,
           scheduled: name,
+          changes,
         });
       } catch (error) {
         await deleteSession(session.id);

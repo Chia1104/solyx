@@ -10,7 +10,7 @@ import { DecisionMode } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
 import type { MemoryStore } from "@solyx/core/memory";
 import { ScheduleKind } from "@solyx/core/schedule";
-import type { ScheduleStore } from "@solyx/core/schedule";
+import type { Schedule, ScheduleStore } from "@solyx/core/schedule";
 import type { ThemeStore } from "@solyx/core/theme";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 import { EmbeddingsProvider } from "@solyx/embeddings/provider";
@@ -499,6 +499,18 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     };
   }
 
+  /** When a scheduled task runs, in words. */
+  function when(schedule: Schedule, timeZone: string): string {
+    switch (schedule.kind) {
+      case ScheduleKind.Interval:
+        return `every ${schedule.everyMinutes} minutes`;
+      case ScheduleKind.FixedTime:
+        return `at ${schedule.time} ${timeZone}${schedule.tradingDaysOf === null ? "" : ` on days ${schedule.tradingDaysOf} trades`}`;
+      case ScheduleKind.OnChange:
+        return `when something the app watches changed, at most every ${schedule.atMostEveryMinutes} minutes`;
+    }
+  }
+
   function schedules(): SetupArea {
     const tasks = options.schedules.list();
 
@@ -512,9 +524,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
           : tasks.map(({ name, schedule, timeZone, approval, enabled }) => ({
               name,
               value: [
-                schedule.kind === ScheduleKind.Interval
-                  ? `every ${schedule.everyMinutes} minutes`
-                  : `at ${schedule.time} ${timeZone}${schedule.tradingDaysOf === null ? "" : ` on days ${schedule.tradingDaysOf} trades`}`,
+                when(schedule, timeZone),
                 onOff(enabled),
                 `calls that must ask: ${approval}`,
               ].join(", "),
