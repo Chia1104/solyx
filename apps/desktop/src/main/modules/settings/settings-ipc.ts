@@ -25,6 +25,7 @@ import {
   appLocationSchema,
   enteredSecretSchema,
   fubonFileSchema,
+  languagePreferenceSchema,
   localeSchema,
   marketDataSourceSchema,
   priceColorsSchema,
@@ -68,6 +69,7 @@ const schemas = {
   ]),
   deletePalette: z.tuple([paletteIdSchema]),
   setPriceColors: z.tuple([priceColorsSchema]),
+  setLanguage: z.tuple([languagePreferenceSchema]),
   secrets: z.tuple([]),
   saveSecret: z.tuple([
     enteredSecretSchema,
@@ -126,6 +128,9 @@ const schemas = {
   setAgentShell: z.tuple([z.boolean()]),
   memory: z.tuple([]),
   setMemoryEnabled: z.tuple([z.boolean()]),
+  tray: z.tuple([]),
+  setTrayShown: z.tuple([z.boolean()]),
+  setDockHidden: z.tuple([z.boolean()]),
   updates: z.tuple([]),
   setUpdateChecks: z.tuple([z.boolean()]),
   otlp: z.tuple([]),
@@ -194,6 +199,8 @@ const electronShell: SettingsShell = {
   }),
 
   canReportCrashes,
+
+  hasDock: process.platform === "darwin",
 };
 
 export function registerSettingsIpc(services: Services) {

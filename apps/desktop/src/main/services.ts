@@ -27,7 +27,12 @@ import { newsEvents } from "#shared/ipc/news.ts";
 import { proposalsEvents } from "#shared/ipc/proposals.ts";
 import { researchEvents } from "#shared/ipc/research.ts";
 import { schedulesEvents } from "#shared/ipc/schedules.ts";
-import { AppLocation, Secret, settingsEvents } from "#shared/ipc/settings.ts";
+import {
+  AppLocation,
+  Secret,
+  resolveLocale,
+  settingsEvents,
+} from "#shared/ipc/settings.ts";
 import { themesEvents } from "#shared/ipc/themes.ts";
 import { updatesEvents } from "#shared/ipc/updates.ts";
 import { ColorScheme } from "#shared/palette.ts";
@@ -53,18 +58,21 @@ import { createResearch } from "./modules/research/research.ts";
 import { createCollections } from "./modules/schedules/collections.ts";
 import { createSchedules } from "./modules/schedules/schedules.ts";
 import { createAppearance } from "./modules/settings/appearance.ts";
+import { CATALOGS } from "./modules/settings/catalogs.ts";
 import type { ConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
 import { createTelemetry } from "./modules/telemetry/telemetry.ts";
 import { createThemes } from "./modules/themes/themes.ts";
+import { createTray } from "./modules/tray/tray.ts";
 import { createAppUpdater } from "./modules/updates/app-updater.ts";
 import { createUpdates } from "./modules/updates/updates.ts";
 import { createWebSearch } from "./modules/web-search/web-search.ts";
 import { createScheduler } from "./scheduler.ts";
 import { appChannel } from "./shell/app-channel.ts";
-import { paintWindow } from "./shell/main-window.ts";
+import { paintWindow, showMainWindow } from "./shell/main-window.ts";
+import { createTrayShell } from "./shell/tray-icon.ts";
 
 const PAPER_CASH = { [Currency.TWD]: 1_000_000, [Currency.USD]: 30_000 };
 
@@ -270,6 +278,14 @@ export function createServices(config: ConfigFile) {
     );
   }
 
+  // What the main process writes itself is in the language the windows show.
+  const tray = createTray({
+    settings: () => config.read().tray,
+    copy: () =>
+      CATALOGS[resolveLocale(appearance.read().language, app.getLocale())].tray,
+    shell: createTrayShell(() => showMainWindow(windowColors)),
+  });
+
   const scheduleDays = createScheduleDays({ tradingDays, diagnostics });
 
   const themes = createThemes({
@@ -406,6 +422,8 @@ export function createServices(config: ConfigFile) {
   // A collection's plan lives in the config file, so whoever shows the plans hears of every edit.
   config.onChange(() => broadcast(schedulesEvents.onChanged));
   secrets.onChange(() => broadcast(settingsEvents.onChanged));
+  // Its switches and its menu's language both live in the config file.
+  config.onChange(() => tray.sync());
   config.watch();
 
   return {
@@ -443,6 +461,7 @@ export function createServices(config: ConfigFile) {
     collections,
     themes,
     scheduler,
+    tray,
   };
 }
 

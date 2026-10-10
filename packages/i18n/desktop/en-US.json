@@ -1348,6 +1348,14 @@
       "check-failed": "Couldn't search for the theme",
       "delete": "Delete",
       "change-failed": "Couldn't change the theme"
+    },
+    "tray": {
+      "title": "Background",
+      "show-menu-bar": "Keep Solyx in the menu bar",
+      "show-system-tray": "Keep Solyx in the system tray",
+      "show-description": "Solyx stays open there after its last window closes, so scheduled tasks and collections go on.",
+      "hide-dock": "Leave the Dock while no window is open",
+      "hide-dock-description": "The icon in the menu bar opens Solyx again."
     }
   },
   "updates": {
@@ -1367,6 +1375,10 @@
       "available": "{{version}} is out",
       "failed": "Couldn't check for updates"
     }
+  },
+  "tray": {
+    "open": "Open Solyx",
+    "quit": "Quit Solyx"
   },
   "crash-reports": {
     "title": "Help improve Solyx",

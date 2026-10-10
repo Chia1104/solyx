@@ -2,7 +2,12 @@ import { isEqual } from "es-toolkit";
 
 import { isEnumValue } from "@solyx/utils/is";
 
-import type { Appearance, PriceColors, Theme } from "#shared/ipc/settings.ts";
+import type {
+  Appearance,
+  LanguagePreference,
+  PriceColors,
+  Theme,
+} from "#shared/ipc/settings.ts";
 import {
   ColorScheme,
   Palette,
@@ -24,7 +29,7 @@ interface AppearanceOptions {
   onChange: (appearance: Appearance) => void;
 }
 
-/** The theme, the palettes each scheme shows and the price colours, with the rules for the user's own palettes. */
+/** The theme, the palettes each scheme shows, the price colours and the language, with the rules for the user's own palettes. */
 export function createAppearance({ config, onChange }: AppearanceOptions) {
   const read = (): Appearance => config.read().appearance;
 
@@ -134,6 +139,10 @@ export function createAppearance({ config, onChange }: AppearanceOptions) {
 
     setPriceColors(priceColors: PriceColors) {
       config.set(["appearance", "priceColors"], priceColors);
+    },
+
+    setLanguage(language: LanguagePreference) {
+      config.set(["appearance", "language"], language);
     },
   };
 }

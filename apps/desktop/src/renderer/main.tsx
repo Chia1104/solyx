@@ -9,6 +9,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { RouterProvider } from "@tanstack/react-router";
 
+import { followLanguage } from "./app/i18n.ts";
 import { queryClient } from "./app/query-client.ts";
 import { router } from "./app/router.tsx";
 import { followAppearance } from "./app/theme.ts";
@@ -43,6 +44,8 @@ for (const follow of [
 }
 
 await followAppearance();
+
+await followLanguage();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

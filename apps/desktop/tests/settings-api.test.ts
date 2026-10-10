@@ -82,6 +82,7 @@ function setup() {
       os: "macOS 26.0 (arm64)",
     }),
     canReportCrashes: true,
+    hasDock: true,
   };
 
   const skillFolders = {

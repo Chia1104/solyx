@@ -26,6 +26,7 @@ import { WebSearchSettings } from "../modules/settings/web-search-settings.tsx";
 import { StorageSettings } from "../modules/storage/storage-settings.tsx";
 import { TelemetrySettings } from "../modules/telemetry/telemetry-settings.tsx";
 import { ThemeSettings } from "../modules/themes/theme-settings.tsx";
+import { TraySettings } from "../modules/tray/tray-settings.tsx";
 
 const route = getRouteApi("/settings");
 
@@ -35,16 +36,19 @@ export function SettingsPage() {
 
   const content: Record<SettingsSection, ReactNode> = {
     [SettingsSection.General]: (
-      <Section title={t("settings.sections.general")}>
-        <div className="flex flex-col gap-6">
-          <ThemeSelect />
-          <PalettePicker />
-          <PriceColorsSelect />
-          <LanguageSelect />
-          <TimeZoneSelect />
-          <SetupGuideLink />
-        </div>
-      </Section>
+      <>
+        <Section title={t("settings.sections.general")}>
+          <div className="flex flex-col gap-6">
+            <ThemeSelect />
+            <PalettePicker />
+            <PriceColorsSelect />
+            <LanguageSelect />
+            <TimeZoneSelect />
+            <SetupGuideLink />
+          </div>
+        </Section>
+        <TraySettings />
+      </>
     ),
     [SettingsSection.MarketData]: <MarketDataSettings />,
     [SettingsSection.Agent]: (

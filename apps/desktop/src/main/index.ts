@@ -7,7 +7,11 @@ import { registerIpc } from "./ipc/register-ipc.ts";
 import { startCrashReports } from "./modules/crash-reports/crash-reports.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
 import { createServices } from "./services.ts";
-import { APP_ICON, createMainWindow } from "./shell/main-window.ts";
+import {
+  APP_ICON,
+  createMainWindow,
+  showMainWindow,
+} from "./shell/main-window.ts";
 
 // The name picks userData and the OS secret store entry, so development never reads or
 // changes what an installed Solyx keeps, such as broker credentials. It must change before ready.
@@ -15,6 +19,13 @@ if (!app.isPackaged) {
   app.setName(`${app.getName()} Dev`);
   app.setPath("userData", join(app.getPath("appData"), app.getName()));
 }
+
+// A second instance would run the clock and the order desk again over the same files, so its
+// launch brings the first one's window forward instead. The lock is the userData folder's, which
+// the name above picks.
+const alone = app.requestSingleInstanceLock();
+
+if (!alone) app.quit();
 
 // Settings a person edits live in a dotfolder named after the app, so each channel keeps its own.
 const config = createConfigFile(
@@ -31,6 +42,8 @@ const CLOSE_TIMEOUT_MS = 3000;
 let quitting = false;
 
 void app.whenReady().then(() => {
+  if (!alone) return;
+
   // Unpackaged runs launch Electron's own app bundle, whose icon the Dock would show.
   if (!app.isPackaged) app.dock?.setIcon(APP_ICON);
 
@@ -38,6 +51,12 @@ void app.whenReady().then(() => {
 
   registerIpc(services);
   createMainWindow(services.windowColors);
+  services.tray.sync();
+
+  // The Dock follows whether a window is open.
+  app.on("browser-window-created", () => services.tray.sync());
+
+  app.on("second-instance", () => showMainWindow(services.windowColors));
 
   // Runs the last session left unfinished continue where they stopped. A store that cannot open
   // fails every agent call too, which the renderer shows.
@@ -60,6 +79,7 @@ void app.whenReady().then(() => {
     quitting = true;
     event.preventDefault();
     services.scheduler.stop();
+    services.tray.close();
 
     // Traces last, so they hold how the runs stopped.
     void withTimeout(async () => {
@@ -76,10 +96,12 @@ void app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0)
       createMainWindow(services.windowColors);
   });
-});
 
-// A quit that a signal such as SIGTERM started closes the windows but stops there once
-// before-quit has deferred it, so closing the last window finishes it.
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin" || quitting) app.quit();
+  // The app goes on in the tray, or in the Dock as a macOS app does. A quit that a signal such as
+  // SIGTERM started closes the windows but stops there once before-quit has deferred it, so
+  // closing the last window finishes it.
+  app.on("window-all-closed", () => {
+    if (quitting || !services.tray.staysOpen()) app.quit();
+    else services.tray.sync();
+  });
 });

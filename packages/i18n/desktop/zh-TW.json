@@ -1348,6 +1348,14 @@
       "check-failed": "無法搜尋這個主題",
       "delete": "刪除",
       "change-failed": "無法變更主題"
+    },
+    "tray": {
+      "title": "背景執行",
+      "show-menu-bar": "讓 Solyx 常駐選單列",
+      "show-system-tray": "讓 Solyx 常駐系統匣",
+      "show-description": "關閉最後一個視窗後，Solyx 仍在那裡繼續執行，排程任務與資料收集不會中斷。",
+      "hide-dock": "沒有視窗時離開 Dock",
+      "hide-dock-description": "從選單列的圖示可以再開啟 Solyx。"
     }
   },
   "updates": {
@@ -1367,6 +1375,10 @@
       "available": "{{version}} 已推出",
       "failed": "無法檢查更新"
     }
+  },
+  "tray": {
+    "open": "開啟 Solyx",
+    "quit": "結束 Solyx"
   },
   "crash-reports": {
     "title": "協助改善 Solyx",
