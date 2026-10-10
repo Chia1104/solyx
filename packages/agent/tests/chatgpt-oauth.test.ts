@@ -136,6 +136,20 @@ test("a callback with the wrong state is turned away and the sign-in keeps waiti
   await expect(login).resolves.toMatchObject({ clientId: "oaiapp_1" });
 });
 
+test("the listener closes each connection it answers on, so none is kept to a port the next sign-in listens on", async () => {
+  const { login, authorizeUrl, controller } = setup();
+  const callback = (await authorizeUrl).searchParams.get("redirect_uri") ?? "";
+
+  // Turned away for its state, which leaves the sign-in waiting and the listener open.
+  const response = await globalThis.fetch(`${callback}?code=code&state=forged`);
+
+  expect(response.status).toBe(400);
+  expect(response.headers.get("connection")).toBe("close");
+
+  controller.abort();
+  await expect(login).rejects.toThrow("Sign-in cancelled");
+});
+
 test("a refusal from OpenAI ends the sign-in and shows its code", async () => {
   const { login, returnTo } = setup();
 

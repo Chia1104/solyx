@@ -148,8 +148,11 @@ export function chatgptOAuth(options: ChatGPTOAuthOptions): OAuthAuth {
       outcome: SignInOutcome,
       detail?: string
     ) => {
+      // The listener ends with its sign-in, so a browser keeps no connection open to a port the
+      // next sign-in, or another app, listens on.
       response.writeHead(status, {
         "content-type": "text/html; charset=utf-8",
+        connection: "close",
       });
       response.end(options.callbackPage(outcome, detail));
     };
