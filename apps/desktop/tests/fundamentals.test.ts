@@ -18,6 +18,10 @@ function setup(answers = memoryAnswers()) {
     id: "fake",
     markets: [Market.TW],
     getStatements: vi.fn<FundamentalsProvider["getStatements"]>(async () => []),
+    getBalanceSheets: vi.fn<FundamentalsProvider["getBalanceSheets"]>(
+      async () => []
+    ),
+    getCashFlows: vi.fn<FundamentalsProvider["getCashFlows"]>(async () => []),
     getMonthlyRevenue: vi.fn<FundamentalsProvider["getMonthlyRevenue"]>(
       async () => []
     ),
@@ -36,15 +40,19 @@ function setup(answers = memoryAnswers()) {
   return { clock, provider, fundamentals };
 }
 
-test("asks the market's provider for five years of quarters and dividends, three of months and one of restrictions", async () => {
+test("asks the market's provider for five years of quarters and dividends, three of balance sheets, cash flows and months, and one of restrictions", async () => {
   const { provider, fundamentals } = setup();
 
   await fundamentals.statements(TSMC);
+  await fundamentals.balanceSheets(TSMC);
+  await fundamentals.cashFlows(TSMC);
   await fundamentals.monthlyRevenue(TSMC);
   await fundamentals.dividends(TSMC);
   await fundamentals.restrictions(TSMC);
 
   expect(provider.getStatements).toHaveBeenCalledWith(TSMC, "2021-10-07");
+  expect(provider.getBalanceSheets).toHaveBeenCalledWith(TSMC, "2023-10-07");
+  expect(provider.getCashFlows).toHaveBeenCalledWith(TSMC, "2023-10-07");
   expect(provider.getMonthlyRevenue).toHaveBeenCalledWith(TSMC, "2023-10");
   expect(provider.getDividends).toHaveBeenCalledWith(TSMC, "2021-10-07");
   expect(provider.getRestrictions).toHaveBeenCalledWith(TSMC, "2025-10-07");

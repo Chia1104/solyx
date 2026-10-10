@@ -14,6 +14,8 @@ import type { Council } from "@solyx/core/council";
 import { ForecastDirection } from "@solyx/core/forecast";
 import type { Forecast } from "@solyx/core/forecast";
 import type {
+  BalanceSheet,
+  CashFlow,
   Dividend,
   MonthlyRevenue,
   QuarterStatement,
@@ -78,6 +80,36 @@ const MONTHS = [
   { month: "2026-07", revenue: 400e6 },
   { month: "2026-08", revenue: 450e6 },
 ];
+
+const SHEETS: BalanceSheet[] = [
+  {
+    periodEnd: "2026-06-30",
+    totalAssets: 1500e6,
+    totalLiabilities: 1200e6,
+    equity: 300e6,
+    cash: 120e6,
+    receivables: 570e6,
+    inventories: 530e6,
+    currentAssets: 1380e6,
+    currentLiabilities: 1150e6,
+    shortTermBorrowings: 425e6,
+    longTermBorrowings: 58e6,
+    bondsPayable: null,
+  },
+];
+
+const FLOWS: CashFlow[] = [
+  ["2025-09-30", 400e6, 280e6],
+  ["2025-12-31", 700e6, 350e6],
+  ["2026-03-31", -140e6, 90e6],
+  ["2026-06-30", 600e6, 100e6],
+].map(([periodEnd, operating, capitalExpenditure]) => ({
+  periodEnd: String(periodEnd),
+  operating: Number(operating),
+  capitalExpenditure: Number(capitalExpenditure),
+  investing: -300e6,
+  financing: null,
+}));
 
 const DIVIDENDS = [
   {
@@ -195,6 +227,8 @@ function callApi(callId: string): ToolExecutionApi {
 /** What the fake source has on file, which a test may change. */
 interface Filed {
   quarters: QuarterStatement[];
+  sheets: BalanceSheet[];
+  flows: CashFlow[];
   months: MonthlyRevenue[];
   dividends: Dividend[];
   /** Why the months cannot be read, while they cannot. */
@@ -208,6 +242,8 @@ function setup(council?: Council) {
 
   const filed: Filed = {
     quarters: QUARTERS,
+    sheets: SHEETS,
+    flows: FLOWS,
     months: MONTHS,
     dividends: DIVIDENDS,
   };
@@ -218,6 +254,8 @@ function setup(council?: Council) {
   const fundamentals = {
     source: (market: Market) => (market === Market.TW ? "fake" : undefined),
     statements: async () => filed.quarters,
+    balanceSheets: async () => filed.sheets,
+    cashFlows: async () => filed.flows,
     monthlyRevenue: async () => {
       if (filed.monthsFailure) throw new Error(filed.monthsFailure);
 
@@ -482,6 +520,11 @@ test("fundamentals show each quarter alone with its growth, and what the shares 
     "Price to earnings: 13.89, the close of 1000 in the week of 2026-09-29 over trailing EPS 72 (four quarters through 2026-06-30)."
   );
   expect(text).toContain("low 13.89, median 13.89, high 13.89");
+  expect(text).toContain(
+    "2026-06-30,120,570,530,1380,1150,1.2,425,58,n/a,1500,1200,80.0%,300"
+  );
+  expect(text).toContain("2026-06-30,600,100,500,-300,n/a,1560,740");
+  expect(text).toContain("2025-09-30,400,280,120,-300,n/a,n/a,n/a");
   expect(text).toContain("2026-08,450,+50.0%,+12.5%");
   expect(text).toContain(
     "2026-09-01,115年第1季,7,2026-09-16,2026-10-08,0,none"
@@ -496,6 +539,8 @@ test("a fund's distributions read without statements or revenue, which it files 
   const { run, filed } = setup();
 
   filed.quarters = [];
+  filed.sheets = [];
+  filed.flows = [];
   filed.months = [];
   filed.dividends = [
     {
@@ -522,6 +567,8 @@ test("a listing with nothing on file says so of each part", async () => {
   const { run, filed } = setup();
 
   filed.quarters = [];
+  filed.sheets = [];
+  filed.flows = [];
   filed.months = [];
   filed.dividends = [];
 

@@ -18,6 +18,8 @@ import type {
   ForecastViolation,
 } from "@solyx/core/forecast";
 import {
+  balanceSheetMetrics,
+  cashFlowMetrics,
   priceToEarnings,
   revenueTrend,
   statementMetrics,
@@ -453,7 +455,7 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetFundamentals,
         replay: "safe",
-        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
+        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; its balance sheets at those quarters' ends, with the current ratio and liabilities against assets; its cash flows for each quarter alone, with free cash flow and the four quarters each closes; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
           const listing = `${symbol.market} ${symbol.symbol}`;
@@ -466,13 +468,16 @@ export function createResearch(options: ResearchOptions): Extension {
             };
           }
 
-          const [statements, monthly, dividends] = await Promise.all([
-            filed(fundamentals.statements(symbol)),
-            filed(fundamentals.monthlyRevenue(symbol)),
-            filed(fundamentals.dividends(symbol)),
-          ]);
+          const [statements, sheets, flows, monthly, dividends] =
+            await Promise.all([
+              filed(fundamentals.statements(symbol)),
+              filed(fundamentals.balanceSheets(symbol)),
+              filed(fundamentals.cashFlows(symbol)),
+              filed(fundamentals.monthlyRevenue(symbol)),
+              filed(fundamentals.dividends(symbol)),
+            ]);
 
-          const parts = [statements, monthly, dividends];
+          const parts = [statements, sheets, flows, monthly, dividends];
 
           if (parts.every(({ failure }) => failure !== null)) {
             throw new Error(
@@ -529,6 +534,49 @@ export function createResearch(options: ResearchOptions): Extension {
                 ...(statements.rows.length > 0
                   ? [await valuationText(symbol, options)]
                   : []),
+              ]),
+              ...part("Balance sheets", sheets, [
+                "Balance sheets, at each quarter's last day:",
+                "quarter,cash,receivables,inventories,current assets,current liabilities,current ratio,short-term borrowings,long-term borrowings,bonds payable,total assets,total liabilities,liabilities to assets,equity",
+                ...takeRight(
+                  balanceSheetMetrics(sheets.rows),
+                  LISTED_QUARTERS
+                ).map(({ sheet, currentRatio, liabilitiesToAssets }) =>
+                  [
+                    sheet.periodEnd,
+                    millions(sheet.cash),
+                    millions(sheet.receivables),
+                    millions(sheet.inventories),
+                    millions(sheet.currentAssets),
+                    millions(sheet.currentLiabilities),
+                    figure(currentRatio),
+                    millions(sheet.shortTermBorrowings),
+                    millions(sheet.longTermBorrowings),
+                    millions(sheet.bondsPayable),
+                    millions(sheet.totalAssets),
+                    millions(sheet.totalLiabilities),
+                    margin(liabilitiesToAssets),
+                    millions(sheet.equity),
+                  ].join(",")
+                ),
+                "  The three borrowing lines are as filed and leave out long-term debt due within a year, so they do not add up to all it owes lenders.",
+              ]),
+              ...part("Cash flows", flows, [
+                "Cash flows, each for the quarter alone, capital expenditure as what was paid:",
+                "quarter,operating,capital expenditure,free cash flow,investing,financing,trailing operating,trailing free cash flow",
+                ...takeRight(cashFlowMetrics(flows.rows), LISTED_QUARTERS).map(
+                  (each) =>
+                    [
+                      each.flow.periodEnd,
+                      millions(each.flow.operating),
+                      millions(each.flow.capitalExpenditure),
+                      millions(each.freeCashFlow),
+                      millions(each.flow.investing),
+                      millions(each.flow.financing),
+                      millions(each.trailingOperating),
+                      millions(each.trailingFreeCashFlow),
+                    ].join(",")
+                ),
               ]),
               ...part("Monthly revenue", monthly, [
                 "Monthly revenue, unaudited:",

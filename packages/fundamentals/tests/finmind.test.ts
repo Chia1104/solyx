@@ -205,6 +205,127 @@ test("net income falls back to the whole group's where the parent's is not named
   );
 });
 
+test("reads each quarter's balance sheet by its lines, a line it does not report left empty", async () => {
+  const { sent, finmind } = fakeFinMind({
+    body: {
+      data: [
+        line("2026-06-30", "CashAndCashEquivalents", 120),
+        line("2026-06-30", "AccountsReceivableNet", 570),
+        line("2026-06-30", "AccountsReceivableDuefromRelatedPartiesNet", 5),
+        line("2026-06-30", "Inventories", 530),
+        line("2026-06-30", "CurrentAssets", 1380),
+        line("2026-06-30", "CurrentLiabilities", 1170),
+        line("2026-06-30", "ShorttermBorrowings", 425),
+        line("2026-06-30", "LongtermBorrowings", 58),
+        line("2026-06-30", "BondsPayable", 48),
+        line("2026-06-30", "TotalAssets", 1570),
+        line("2026-06-30", "TotalAssets_per", 100),
+        line("2026-06-30", "Liabilities", 1295),
+        line("2026-06-30", "Equity", 275),
+        // A financial holding reports no current lines, inventories or borrowings.
+        line("2026-03-31", "CashAndCashEquivalents", 360),
+        line("2026-03-31", "TotalAssets", 14_960),
+        line("2026-03-31", "Liabilities", 13_830),
+        line("2026-03-31", "Equity", 1130),
+        // A quarter without total assets says nothing a balance sheet can hold.
+        line("2025-12-31", "Equity", 1100),
+      ],
+    },
+  });
+
+  expect(await finmind.getBalanceSheets(TSMC, "2025-10-01")).toEqual([
+    {
+      periodEnd: "2026-03-31",
+      totalAssets: 14_960,
+      totalLiabilities: 13_830,
+      equity: 1130,
+      cash: 360,
+      receivables: null,
+      inventories: null,
+      currentAssets: null,
+      currentLiabilities: null,
+      shortTermBorrowings: null,
+      longTermBorrowings: null,
+      bondsPayable: null,
+    },
+    {
+      periodEnd: "2026-06-30",
+      totalAssets: 1570,
+      totalLiabilities: 1295,
+      equity: 275,
+      cash: 120,
+      receivables: 575,
+      inventories: 530,
+      currentAssets: 1380,
+      currentLiabilities: 1170,
+      shortTermBorrowings: 425,
+      longTermBorrowings: 58,
+      bondsPayable: 48,
+    },
+  ]);
+  expect(Object.fromEntries(new URL(sent[0]).searchParams)).toEqual({
+    dataset: "TaiwanStockBalanceSheet",
+    data_id: "2330",
+    start_date: "2025-10-01",
+  });
+});
+
+test("reads each quarter's cash flows alone from lines FinMind gives from the year's start", async () => {
+  const operating = "CashFlowsFromOperatingActivities";
+  const paid = "PropertyAndPlantAndEquipment";
+
+  const { sent, finmind } = fakeFinMind({
+    body: {
+      data: [
+        line("2025-03-31", operating, 600),
+        line("2025-03-31", paid, -300),
+        line("2025-06-30", operating, 1100),
+        line("2025-06-30", paid, -620),
+        line("2025-06-30", "CashProvidedByInvestingActivities", -700),
+        line("2025-09-30", operating, 1500),
+        line("2025-09-30", paid, -900),
+        line("2025-09-30", "CashProvidedByInvestingActivities", -1000),
+        line("2025-09-30", "CashFlowsProvidedFromFinancingActivities", -90),
+        // The year's first quarter is its own figure.
+        line("2026-03-31", operating, -140),
+        line("2026-03-31", "CashFlowsProvidedFromFinancingActivities", 260),
+        // The quarter before it is missing, so this one cannot be told alone.
+        line("2026-09-30", operating, 900),
+      ],
+    },
+  });
+
+  expect(await finmind.getCashFlows(TSMC, "2025-06-01")).toEqual([
+    {
+      periodEnd: "2025-06-30",
+      operating: 500,
+      capitalExpenditure: 320,
+      // The first quarter reports no investing line to take from the half year's.
+      investing: null,
+      financing: null,
+    },
+    {
+      periodEnd: "2025-09-30",
+      operating: 400,
+      capitalExpenditure: 280,
+      investing: -300,
+      financing: null,
+    },
+    {
+      periodEnd: "2026-03-31",
+      operating: -140,
+      capitalExpenditure: null,
+      investing: null,
+      financing: 260,
+    },
+  ]);
+  expect(Object.fromEntries(new URL(sent[0]).searchParams)).toEqual({
+    dataset: "TaiwanStockCashFlowsStatement",
+    data_id: "2330",
+    start_date: "2025-01-01",
+  });
+});
+
 test("reads each month from its own fields rather than the day it was announced", async () => {
   const month = (date: string, year: number, monthOfYear: number) => ({
     date,

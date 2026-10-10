@@ -15,6 +15,8 @@ import type {
 } from "@solyx/core/flows";
 import { RestrictionKind } from "@solyx/core/fundamentals";
 import type {
+  BalanceSheet,
+  CashFlow,
   Dividend,
   FundamentalsProvider,
   MonthlyRevenue,
@@ -235,6 +237,26 @@ const NET_INCOME_LINES = [
 
 const maxDate = (a: string, b: string) => (a > b ? a : b);
 
+/** A statement's lines by the quarter they are filed for, oldest first, each read by its name. */
+function byQuarter(lines: readonly z.infer<typeof statementRowSchema>[]) {
+  return Object.entries(groupBy(lines, (line) => line.date))
+    .toSorted(([a], [b]) => a.localeCompare(b))
+    .map(([periodEnd, quarter]) => ({
+      periodEnd,
+      /** The first of `names` the quarter reports; `null` where it reports none of them. */
+      line: (...names: string[]) =>
+        names
+          .map((name) => quarter.find((each) => each.type === name)?.value)
+          .find((value) => value !== undefined) ?? null,
+    }));
+}
+
+/** The sum of the lines a statement reports; `null` where it reports none of them. */
+const sumOf = (...lines: (number | null)[]) =>
+  lines.every((line) => line === null)
+    ? null
+    : sumBy(lines, (line) => line ?? 0);
+
 export interface FinMindOptions {
   /** The user's FinMind token, read for every request; `undefined` asks without one, under the lowest limit and as the free plan. */
   token?: () => Promise<string | undefined>;
@@ -248,7 +270,7 @@ export interface FinMindOptions {
 }
 
 /**
- * Taiwan listings' quarterly income statements, monthly revenue, dividends and restrictions, who
+ * Taiwan listings' quarterly statements, monthly revenue, dividends and restrictions, who
  * trades them and the market, and the days the exchange trades, from FinMind on the user's token
  * and plan or none.
  */
@@ -369,14 +391,8 @@ export function createFinMind(
         statementRowSchema
       );
 
-      return Object.entries(groupBy(lines, (line) => line.date))
-        .toSorted(([a], [b]) => a.localeCompare(b))
-        .flatMap(([periodEnd, quarter]): QuarterStatement[] => {
-          const line = (...names: string[]) =>
-            names
-              .map((name) => quarter.find((each) => each.type === name)?.value)
-              .find((value) => value !== undefined) ?? null;
-
+      return byQuarter(lines).flatMap(
+        ({ periodEnd, line }): QuarterStatement[] => {
           const revenue = line("Revenue");
 
           if (revenue === null) return [];
@@ -392,7 +408,95 @@ export function createFinMind(
               eps: line("EPS"),
             },
           ];
+        }
+      );
+    },
+
+    async getBalanceSheets(symbol, since) {
+      const lines = await rows(
+        "TaiwanStockBalanceSheet",
+        symbol,
+        since,
+        statementRowSchema
+      );
+
+      return byQuarter(lines).flatMap(({ periodEnd, line }): BalanceSheet[] => {
+        const totalAssets = line("TotalAssets");
+
+        if (totalAssets === null) return [];
+
+        return [
+          {
+            periodEnd,
+            totalAssets,
+            totalLiabilities: line("Liabilities"),
+            equity: line("Equity"),
+            cash: line("CashAndCashEquivalents"),
+            receivables: sumOf(
+              line("AccountsReceivableNet"),
+              line("AccountsReceivableDuefromRelatedPartiesNet")
+            ),
+            inventories: line("Inventories"),
+            currentAssets: line("CurrentAssets"),
+            currentLiabilities: line("CurrentLiabilities"),
+            shortTermBorrowings: line("ShorttermBorrowings"),
+            longTermBorrowings: line("LongtermBorrowings"),
+            bondsPayable: line("BondsPayable"),
+          },
+        ];
+      });
+    },
+
+    async getCashFlows(symbol, since) {
+      // FinMind gives each line from the year's start through the quarter, and Taiwan's listings keep the calendar year, so the year is asked for from its first day.
+      const lines = await rows(
+        "TaiwanStockCashFlowsStatement",
+        symbol,
+        `${since.slice(0, 4)}-01-01`,
+        statementRowSchema
+      );
+
+      const throughQuarter = byQuarter(lines);
+
+      return throughQuarter.flatMap(({ periodEnd, line }): CashFlow[] => {
+        if (periodEnd < since) return [];
+
+        const { year, month } = Temporal.PlainDate.from(periodEnd);
+
+        const before = throughQuarter.find((quarter) => {
+          const end = Temporal.PlainDate.from(quarter.periodEnd);
+
+          return end.year === year && end.month === month - 3;
         });
+
+        /** A line for the quarter alone; `null` where it or the quarter before reports none, so it cannot be told. */
+        const alone = (name: string) => {
+          const through = line(name);
+
+          if (through === null || month === 3) return through;
+
+          const earlier = before?.line(name) ?? null;
+
+          return earlier === null ? null : through - earlier;
+        };
+
+        const operating = alone("CashFlowsFromOperatingActivities");
+
+        if (operating === null) return [];
+
+        const paid = alone("PropertyAndPlantAndEquipment");
+
+        return [
+          {
+            periodEnd,
+            operating,
+            // Filed as cash going out.
+            capitalExpenditure: paid === null ? null : -paid,
+            investing: alone("CashProvidedByInvestingActivities"),
+            financing: alone("CashFlowsProvidedFromFinancingActivities"),
+          },
+        ];
+      });
     },
 
     async getMonthlyRevenue(symbol, since) {

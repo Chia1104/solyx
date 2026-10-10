@@ -2,12 +2,19 @@ import { expect, test } from "vite-plus/test";
 
 import type { Candle } from "../src/candles.ts";
 import {
+  balanceSheetMetrics,
+  cashFlowMetrics,
   priceToEarnings,
   revenueTrend,
   statementMetrics,
   trailingCash,
 } from "../src/fundamentals.ts";
-import type { Dividend, QuarterStatement } from "../src/fundamentals.ts";
+import type {
+  BalanceSheet,
+  CashFlow,
+  Dividend,
+  QuarterStatement,
+} from "../src/fundamentals.ts";
 import { Market } from "../src/market.ts";
 import { twFilingDeadline } from "../src/rules/tw.ts";
 
@@ -104,6 +111,75 @@ test("growth from a loss is measured against the loss's size", () => {
   ]).slice(1);
 
   expect(metrics.epsYoY).toBeCloseTo(1.5);
+});
+
+function sheet(patch: Partial<BalanceSheet>): BalanceSheet {
+  return {
+    periodEnd: "2026-06-30",
+    totalAssets: 1500,
+    totalLiabilities: 1200,
+    equity: 300,
+    cash: 120,
+    receivables: 570,
+    inventories: 530,
+    currentAssets: 1380,
+    currentLiabilities: 1150,
+    shortTermBorrowings: 425,
+    longTermBorrowings: 58,
+    bondsPayable: 48,
+    ...patch,
+  };
+}
+
+test("balanceSheetMetrics sets current assets and all liabilities against what they are measured by", () => {
+  const [whole, bank] = balanceSheetMetrics([
+    sheet({}),
+    // A bank reports no current lines.
+    sheet({ currentAssets: null, currentLiabilities: null }),
+  ]);
+
+  expect(whole.currentRatio).toBeCloseTo(1.2);
+  expect(whole.liabilitiesToAssets).toBeCloseTo(0.8);
+  expect(bank.currentRatio).toBe(null);
+  expect(bank.liabilitiesToAssets).toBeCloseTo(0.8);
+});
+
+function flow(
+  periodEnd: string,
+  operating: number,
+  capitalExpenditure: number | null
+): CashFlow {
+  return {
+    periodEnd,
+    operating,
+    capitalExpenditure,
+    investing: null,
+    financing: null,
+  };
+}
+
+test("cashFlowMetrics takes capital expenditure from operating cash flow and adds up the four quarters each closes", () => {
+  const metrics = cashFlowMetrics([
+    flow("2025-06-30", 500, 300),
+    flow("2025-09-30", 400, 280),
+    flow("2025-12-31", 700, 350),
+    flow("2026-03-31", -140, 90),
+    flow("2026-06-30", 600, null),
+  ]);
+
+  expect(metrics[3]).toMatchObject({
+    freeCashFlow: -230,
+    trailingOperating: 1460,
+    trailingFreeCashFlow: 440,
+  });
+  // No capital expenditure is reported, so what the quarter leaves cannot be told.
+  expect(metrics[4]).toMatchObject({
+    freeCashFlow: null,
+    trailingOperating: 1560,
+    trailingFreeCashFlow: null,
+  });
+  // The quarters before the first are missing.
+  expect(metrics[2].trailingOperating).toBe(null);
 });
 
 test("revenueTrend compares each month with the one before and the year before", () => {

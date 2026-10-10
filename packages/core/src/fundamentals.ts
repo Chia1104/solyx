@@ -20,6 +20,41 @@ export interface QuarterStatement {
   eps: number | null;
 }
 
+/** What a company held and owed on a quarter's last day, in the market's currency; a line is `null` where it reports none, as a bank reports no inventories. */
+export interface BalanceSheet {
+  /** The quarter's last day, `YYYY-MM-DD`. */
+  periodEnd: string;
+  totalAssets: number;
+  totalLiabilities: number | null;
+  /** The owners' and the non-controlling interests' together. */
+  equity: number | null;
+  cash: number | null;
+  /** Trade receivables, net, those due from related parties among them. */
+  receivables: number | null;
+  inventories: number | null;
+  currentAssets: number | null;
+  currentLiabilities: number | null;
+  /**
+   * The three borrowing lines as filed. Long-term debt due within a year is filed apart from
+   * them, so they do not add up to all a company owes lenders.
+   */
+  shortTermBorrowings: number | null;
+  longTermBorrowings: number | null;
+  bondsPayable: number | null;
+}
+
+/** One quarter's cash flows, for that quarter alone, in the market's currency. */
+export interface CashFlow {
+  /** The quarter's last day, `YYYY-MM-DD`. */
+  periodEnd: string;
+  /** From operations; negative where they used cash. */
+  operating: number;
+  /** Paid for property, plant and equipment, as a positive amount; `null` where none is reported. */
+  capitalExpenditure: number | null;
+  investing: number | null;
+  financing: number | null;
+}
+
 export interface MonthlyRevenue {
   /** `YYYY-MM`. */
   month: string;
@@ -75,6 +110,10 @@ export interface FundamentalsProvider {
   readonly markets: readonly Market[];
   /** Quarters ending on or after `since` (`YYYY-MM-DD`), oldest first; none for a listing without statements, such as an ETF. */
   getStatements(symbol: SymbolRef, since: string): Promise<QuarterStatement[]>;
+  /** Balance sheets of quarters ending on or after `since` (`YYYY-MM-DD`), oldest first; none for a listing without statements. */
+  getBalanceSheets(symbol: SymbolRef, since: string): Promise<BalanceSheet[]>;
+  /** Cash flows of quarters ending on or after `since` (`YYYY-MM-DD`), oldest first; none for a listing without statements. */
+  getCashFlows(symbol: SymbolRef, since: string): Promise<CashFlow[]>;
   /** Months from `since` (`YYYY-MM`) on, oldest first; none where the market reports none. */
   getMonthlyRevenue(
     symbol: SymbolRef,
@@ -95,6 +134,9 @@ export interface Fundamentals {
   source(market: Market): string | undefined;
   /** Enough quarters to compare each recent one with the year before. */
   statements(symbol: SymbolRef): Promise<QuarterStatement[]>;
+  /** Enough quarters for each recent one to have the three before it. */
+  balanceSheets(symbol: SymbolRef): Promise<BalanceSheet[]>;
+  cashFlows(symbol: SymbolRef): Promise<CashFlow[]>;
   monthlyRevenue(symbol: SymbolRef): Promise<MonthlyRevenue[]>;
   /** As many years of distributions as of quarters. */
   dividends(symbol: SymbolRef): Promise<Dividend[]>;
@@ -113,6 +155,24 @@ export interface StatementMetrics {
   epsYoY: number | null;
   /** This quarter's EPS and the three before it. */
   trailingEps: number | null;
+}
+
+/** A balance sheet with what its lines say against each other; `null` where a line it needs is missing. */
+export interface BalanceSheetMetrics {
+  sheet: BalanceSheet;
+  /** Current assets over current liabilities. */
+  currentRatio: number | null;
+  liabilitiesToAssets: number | null;
+}
+
+/** A quarter's cash flows with what they leave and the year they close; `null` where a figure it needs is missing. */
+export interface CashFlowMetrics {
+  flow: CashFlow;
+  /** Operating cash flow less capital expenditure. */
+  freeCashFlow: number | null;
+  /** This quarter's operating cash flow and the three before it. */
+  trailingOperating: number | null;
+  trailingFreeCashFlow: number | null;
 }
 
 export interface RevenueTrend {
@@ -141,8 +201,22 @@ const share = (part: number | null, whole: number) =>
 const shiftMonth = (month: string, months: number) =>
   Temporal.PlainYearMonth.from(month).add({ months }).toString();
 
-const monthOf = (statement: QuarterStatement) =>
-  statement.periodEnd.slice(0, 7);
+const monthOf = ({ periodEnd }: { periodEnd: string }) => periodEnd.slice(0, 7);
+
+/** The sum of four quarters' figures; `null` where one is missing. */
+function yearOf(
+  quarters: readonly (number | null | undefined)[]
+): number | null {
+  let sum = 0;
+
+  for (const each of quarters) {
+    if (each === null || each === undefined) return null;
+
+    sum += each;
+  }
+
+  return sum;
+}
 
 /** Each quarter against the one before and the one a year before, oldest first as given. */
 export function statementMetrics(
@@ -157,9 +231,7 @@ export function statementMetrics(
     const before = (months: number) => byMonth.get(shiftMonth(month, -months));
     const yearAgo = before(12);
 
-    const year = [statement, before(3), before(6), before(9)].map(
-      (quarter) => quarter?.eps ?? null
-    );
+    const year = [statement, before(3), before(6), before(9)];
 
     return {
       statement,
@@ -169,9 +241,46 @@ export function statementMetrics(
       operatingMargin: share(statement.operatingIncome, statement.revenue),
       netMargin: share(statement.netIncome, statement.revenue),
       epsYoY: growth(statement.eps, yearAgo?.eps),
-      trailingEps: year.includes(null)
+      trailingEps: yearOf(year.map((quarter) => quarter?.eps)),
+    };
+  });
+}
+
+/** Each balance sheet's ratios, oldest first as given. */
+export function balanceSheetMetrics(
+  sheets: readonly BalanceSheet[]
+): BalanceSheetMetrics[] {
+  return sheets.map((sheet) => ({
+    sheet,
+    currentRatio:
+      sheet.currentLiabilities === null
         ? null
-        : year.reduce<number>((sum, eps) => sum + (eps ?? 0), 0),
+        : share(sheet.currentAssets, sheet.currentLiabilities),
+    liabilitiesToAssets: share(sheet.totalLiabilities, sheet.totalAssets),
+  }));
+}
+
+const freeCashFlow = ({ operating, capitalExpenditure }: CashFlow) =>
+  capitalExpenditure === null ? null : operating - capitalExpenditure;
+
+/** Each quarter's free cash flow and the four quarters it closes, oldest first as given. */
+export function cashFlowMetrics(flows: readonly CashFlow[]): CashFlowMetrics[] {
+  const byMonth = new Map(flows.map((flow) => [monthOf(flow), flow]));
+
+  return flows.map((flow) => {
+    const month = monthOf(flow);
+
+    const year = [0, 3, 6, 9].map((months) =>
+      byMonth.get(shiftMonth(month, -months))
+    );
+
+    return {
+      flow,
+      freeCashFlow: freeCashFlow(flow),
+      trailingOperating: yearOf(year.map((quarter) => quarter?.operating)),
+      trailingFreeCashFlow: yearOf(
+        year.map((quarter) => quarter && freeCashFlow(quarter))
+      ),
     };
   });
 }
