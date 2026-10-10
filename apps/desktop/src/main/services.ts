@@ -5,6 +5,7 @@ import type { WebContents } from "electron";
 import { omit, uniqBy } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
+import { changesSince } from "@solyx/core/changes";
 import { Currency, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderDesk } from "@solyx/core/order-desk";
@@ -349,6 +350,28 @@ export function createServices(config: ConfigFile) {
     store: userData.schedules,
     agent,
     tradingDays,
+    async changes(since) {
+      const followed = await followedListings();
+
+      return changesSince(since, Date.now(), {
+        reports: followed.flatMap((symbol) => {
+          const report = researchData.store.report(symbol);
+
+          return report
+            ? [
+                {
+                  report,
+                  checks: researchData.store.falsifierChecks(
+                    symbol,
+                    report.revision
+                  ),
+                },
+              ]
+            : [];
+        }),
+        themes: themes.desk.list(),
+      });
+    },
     diagnostics,
     onChange: () => broadcast(schedulesEvents.onChanged),
   });
@@ -358,6 +381,7 @@ export function createServices(config: ConfigFile) {
   scheduler.register("News collection", newsCollector);
   scheduler.register("Update check", updates);
   scheduler.register("Scheduled tasks", schedules.work);
+  scheduler.register("Change watch", schedules.changeWork);
   scheduler.register("Theme watch", themes.work);
 
   nativeTheme.themeSource = appearance.read().theme;

@@ -102,6 +102,8 @@ export interface Development {
   signpost: string;
   item: ThemeItem;
   support: ClaimSupport;
+  /** Epoch ms the item was read against the signpost. */
+  checkedAt: number;
 }
 
 /** A theme with what watching it has found. */
@@ -157,16 +159,18 @@ export class ThemeDesk {
 
         const developments = store
           .readings(theme.id)
-          .flatMap(({ signpost, itemId, support }): Development[] => {
-            const item = items.get(itemId);
+          .flatMap(
+            ({ signpost, itemId, support, checkedAt }): Development[] => {
+              const item = items.get(itemId);
 
-            // A signpost rewritten since is no longer the theme's, and an item past the newest is no longer shown.
-            return item &&
-              theme.signposts.includes(signpost) &&
-              support.supported >= CLAIM_SUPPORT_LINE
-              ? [{ signpost, item, support }]
-              : [];
-          })
+              // A signpost rewritten since is no longer the theme's, and an item past the newest is no longer shown.
+              return item &&
+                theme.signposts.includes(signpost) &&
+                support.supported >= CLAIM_SUPPORT_LINE
+                ? [{ signpost, item, support, checkedAt }]
+                : [];
+            }
+          )
           .toSorted((a, b) => datedAt(b.item) - datedAt(a.item));
 
         return {

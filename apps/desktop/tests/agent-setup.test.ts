@@ -358,8 +358,17 @@ test("the scheduled tasks the user wrote read with when each runs and how its ca
   expect(area(await setup().port.read(), "Scheduled tasks").settings).toEqual([
     { name: "tasks", value: "none written" },
   ]);
+
+  const onChange: ScheduledTask = {
+    ...hourly,
+    id: "upkeep",
+    name: "Upkeep",
+    schedule: { kind: ScheduleKind.OnChange, atMostEveryMinutes: 120 },
+  };
+
   expect(
-    area(await setup([brief, hourly]).port.read(), "Scheduled tasks").settings
+    area(await setup([brief, hourly, onChange]).port.read(), "Scheduled tasks")
+      .settings
   ).toEqual([
     {
       name: "Morning brief",
@@ -369,6 +378,11 @@ test("the scheduled tasks the user wrote read with when each runs and how its ca
     {
       name: "Hourly check",
       value: "every 60 minutes, off, calls that must ask: ask",
+    },
+    {
+      name: "Upkeep",
+      value:
+        "when something the app watches changed, at most every 120 minutes, off, calls that must ask: ask",
     },
   ]);
 });

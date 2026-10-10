@@ -2,6 +2,8 @@ import { expect, test, vi } from "vite-plus/test";
 
 import type { AgentSession } from "@solyx/agent/wire";
 import { ApprovalMode } from "@solyx/agent/wire";
+import { ChangeKind } from "@solyx/core/changes";
+import type { Change } from "@solyx/core/changes";
 import { Market } from "@solyx/core/market";
 import { ScheduleApproval, ScheduleKind } from "@solyx/core/schedule";
 import type {
@@ -52,34 +54,41 @@ function setup() {
   const going = new Set<string>();
   let sessions = 0;
 
-  const runScheduled = vi.fn(async (): Promise<AgentSession> => {
-    sessions += 1;
+  const runScheduled = vi.fn(
+    async (
+      _task: Pick<ScheduledTask, "id" | "prompt">,
+      _changes?: readonly Change[]
+    ): Promise<AgentSession> => {
+      sessions += 1;
 
-    const id = String(sessions);
+      const id = String(sessions);
 
-    going.add(id);
+      going.add(id);
 
-    return {
-      id,
-      title: "",
-      createdAt: clock.now,
-      updatedAt: clock.now,
-      approvalMode: ApprovalMode.Auto,
-      model: null,
-      thinking: null,
-      schedule: null,
-    };
-  });
+      return {
+        id,
+        title: "",
+        createdAt: clock.now,
+        updatedAt: clock.now,
+        approvalMode: ApprovalMode.Auto,
+        model: null,
+        thinking: null,
+        schedule: null,
+      };
+    }
+  );
 
   const tradingDays = vi.fn<TradingCalendar>(async () => weekdays);
   const diagnostics = { recovered: vi.fn() };
   const onChange = vi.fn();
+  const changes = vi.fn(async (_since: number): Promise<Change[]> => []);
   let ids = 0;
 
   const schedules = createSchedules({
     store,
     agent: { runScheduled, busy: async (id) => going.has(id) },
     tradingDays,
+    changes,
     diagnostics,
     onChange,
     now: () => clock.now,
@@ -93,6 +102,7 @@ function setup() {
     going,
     runScheduled,
     tradingDays,
+    changes,
     diagnostics,
     onChange,
   };
@@ -116,7 +126,8 @@ test("a task runs once its time comes, in a conversation its last run names", as
   await schedules.work.run();
 
   expect(runScheduled).toHaveBeenCalledExactlyOnceWith(
-    expect.objectContaining({ id: "task-1", prompt: "/watchlist-upkeep" })
+    expect.objectContaining({ id: "task-1", prompt: "/watchlist-upkeep" }),
+    []
   );
   expect(store.get("task-1")?.lastRun).toEqual({
     at: clock.now,
@@ -232,4 +243,48 @@ test("a market whose trading days cannot be read keeps to weekdays", async () =>
   await schedules.work.run();
 
   expect(runScheduled).toHaveBeenCalledOnce();
+});
+
+test("a task that waits on a change runs on the slower pass, once something changed since it last ran, and is told what", async () => {
+  const { schedules, clock, changes, runScheduled } = setup();
+
+  const passed: Change = {
+    kind: ChangeKind.EventPassed,
+    symbol: { market: Market.TW, symbol: "2330" },
+    date: "2026-10-07",
+    label: "Earnings call",
+  };
+
+  schedules.create({
+    ...BRIEF,
+    schedule: { kind: ScheduleKind.OnChange, atMostEveryMinutes: 60 },
+  });
+
+  clock.now = START + 2 * 60 * MINUTE_MS;
+  await schedules.work.run();
+  await schedules.changeWork.run();
+
+  expect(changes).toHaveBeenCalledExactlyOnceWith(START);
+  expect(runScheduled).not.toHaveBeenCalled();
+  expect(await schedules.list()).toMatchObject([{ nextRunAt: null }]);
+
+  changes.mockResolvedValue([passed]);
+  // The clock's own pass leaves it alone.
+  await schedules.work.run();
+
+  expect(runScheduled).not.toHaveBeenCalled();
+
+  await schedules.changeWork.run();
+
+  expect(runScheduled).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ id: "task-1" }),
+    [passed]
+  );
+
+  // Within its shortest span nothing runs, whatever changed; after it, the changes count from the last run.
+  clock.now += 30 * MINUTE_MS;
+  await schedules.changeWork.run();
+
+  expect(runScheduled).toHaveBeenCalledOnce();
+  expect(changes).toHaveBeenLastCalledWith(START + 2 * 60 * MINUTE_MS);
 });

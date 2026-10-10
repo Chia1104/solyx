@@ -1100,9 +1100,12 @@
       "kind": "When",
       "kinds": {
         "interval": "Every so often",
-        "fixed-time": "At a time of day"
+        "fixed-time": "At a time of day",
+        "on-change": "When something changed"
       },
       "every": "How often",
+      "at-most": "At most",
+      "on-change-description": "Runs once news may say that something a report names as changing its view has happened, or that a theme's signpost has, or once the day of a report's event has gone by, for what you hold and watch. Looked at every half hour.",
       "every-minutes_one": "Every {{count}} minute",
       "every-minutes_other": "Every {{count}} minutes",
       "every-hours_one": "Every {{count}} hour",
@@ -1116,6 +1119,10 @@
         "US": "Days the US trades"
       },
       "at-time": "{{time}} {{timeZone}} · {{days}}",
+      "on-change-minutes_one": "When something changed, at most every {{count}} minute",
+      "on-change-minutes_other": "When something changed, at most every {{count}} minutes",
+      "on-change-hours_one": "When something changed, at most every {{count}} hour",
+      "on-change-hours_other": "When something changed, at most every {{count}} hours",
       "approval": "Calls that must ask",
       "approvals": {
         "ask": "Wait for me",
@@ -1133,6 +1140,7 @@
       "run-now": "Run now",
       "delete": "Delete",
       "next-run": "next {{time}}",
+      "waits": "waits for a change",
       "running": "Running now.",
       "last-run": "Last ran {{time}}.",
       "last-failed": "Couldn't start {{time}}: {{reason}}",

@@ -236,7 +236,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "- The user may start a message with /name to ask for a skill, and write @ before a code to name a listing they have on screen, hold or watch. The composer suggests both as they type, and the Skills tab shows each skill that can be asked for as /name.",
       "",
       "## Scheduled tasks",
-      "- On the Scheduled tasks tab the user writes messages the app sends you on its own while it is open: at a time of day on their clock, every day or only on the days a market trades, or every so often. Each run is a conversation of its own, marked with its task, where they read what you did. A time the app was closed through is made up for once, when it opens within half a day.",
+      "- On the Scheduled tasks tab the user writes messages the app sends you on its own while it is open: at a time of day on their clock, every day or only on the days a market trades, every so often, or when something changed for what they hold and watch: news that may state a report's falsifier or a theme's signpost, or a report's event whose day went by. Each run is a conversation of its own, marked with its task, where they read what you did. A time the app was closed through is made up for once, when it opens within half a day.",
       "- Each task says how its calls that must ask get past with nobody there: wait for the user, or auto as in a conversation. No task runs every call unasked, and a proposal always waits for them.",
       "- Only the user writes, changes or removes a task. To suggest one, give them the text to send and when; /watchlist-upkeep is the round over what they hold and watch.",
       "",

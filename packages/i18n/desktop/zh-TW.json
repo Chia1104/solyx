@@ -1100,9 +1100,12 @@
       "kind": "何時",
       "kinds": {
         "interval": "每隔一段時間",
-        "fixed-time": "每天固定時間"
+        "fixed-time": "每天固定時間",
+        "on-change": "有變化時"
       },
       "every": "頻率",
+      "at-most": "最多",
+      "on-change-description": "當新聞可能顯示報告列出的「什麼會改變看法」已發生、主題的觀察訊號已發生，或報告記下的事件日期已過時才執行，範圍是你的庫存與自選。每半小時檢查一次。",
       "every-minutes_one": "每 {{count}} 分鐘",
       "every-minutes_other": "每 {{count}} 分鐘",
       "every-hours_one": "每 {{count}} 小時",
@@ -1116,6 +1119,10 @@
         "US": "美股交易日"
       },
       "at-time": "{{time}} {{timeZone}} · {{days}}",
+      "on-change-minutes_one": "有變化時，最多每 {{count}} 分鐘一次",
+      "on-change-minutes_other": "有變化時，最多每 {{count}} 分鐘一次",
+      "on-change-hours_one": "有變化時，最多每 {{count}} 小時一次",
+      "on-change-hours_other": "有變化時，最多每 {{count}} 小時一次",
       "approval": "需要詢問的呼叫",
       "approvals": {
         "ask": "等我回答",
@@ -1133,6 +1140,7 @@
       "run-now": "立即執行",
       "delete": "刪除",
       "next-run": "下次 {{time}}",
+      "waits": "等待變化",
       "running": "執行中。",
       "last-run": "上次執行 {{time}}。",
       "last-failed": "{{time}} 無法啟動：{{reason}}",

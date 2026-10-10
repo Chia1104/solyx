@@ -65,17 +65,28 @@ const everyText = (t: TFunction, minutes: number) =>
     ? t("settings.schedules.every-minutes", { count: minutes })
     : t("settings.schedules.every-hours", { count: minutes / HOUR_MINUTES });
 
-/** When a task runs, in a line: its span, or its time on its own clock and the days it keeps to. */
+/** When a task runs, in a line: its span, its time on its own clock and the days it keeps to, or what it waits on. */
 function scheduleText(t: TFunction, schedule: Schedule, timeZone: string) {
-  if (schedule.kind === ScheduleKind.Interval) {
-    return everyText(t, schedule.everyMinutes);
+  switch (schedule.kind) {
+    case ScheduleKind.Interval:
+      return everyText(t, schedule.everyMinutes);
+    case ScheduleKind.FixedTime:
+      return t("settings.schedules.at-time", {
+        time: schedule.time,
+        timeZone,
+        days: t(
+          `settings.schedules.days.${schedule.tradingDaysOf ?? EVERY_DAY}`
+        ),
+      });
+    case ScheduleKind.OnChange:
+      return schedule.atMostEveryMinutes < HOUR_MINUTES
+        ? t("settings.schedules.on-change-minutes", {
+            count: schedule.atMostEveryMinutes,
+          })
+        : t("settings.schedules.on-change-hours", {
+            count: schedule.atMostEveryMinutes / HOUR_MINUTES,
+          });
   }
-
-  return t("settings.schedules.at-time", {
-    time: schedule.time,
-    timeZone,
-    days: t(`settings.schedules.days.${schedule.tradingDaysOf ?? EVERY_DAY}`),
-  });
 }
 
 /** A task as its form holds it; rebuilt per language so field errors come out localized. */
@@ -119,20 +130,49 @@ const NEW_TASK: TaskForm = {
   approval: ScheduleApproval.Ask,
 };
 
-function formOf({ name, prompt, schedule, approval }: ScheduledTaskDraft) {
-  return {
-    ...NEW_TASK,
-    name,
-    prompt,
-    approval,
-    ...(schedule.kind === ScheduleKind.Interval
-      ? { kind: schedule.kind, everyMinutes: schedule.everyMinutes }
-      : {
-          kind: schedule.kind,
-          time: schedule.time,
-          days: schedule.tradingDaysOf ?? EVERY_DAY,
-        }),
-  } satisfies TaskForm;
+/** The form's fields a schedule fills; the rest keep what a new task starts with. */
+function timingOf(schedule: Schedule): Partial<TaskForm> {
+  switch (schedule.kind) {
+    case ScheduleKind.Interval:
+      return { kind: schedule.kind, everyMinutes: schedule.everyMinutes };
+    case ScheduleKind.OnChange:
+      return { kind: schedule.kind, everyMinutes: schedule.atMostEveryMinutes };
+    case ScheduleKind.FixedTime:
+      return {
+        kind: schedule.kind,
+        time: schedule.time,
+        days: schedule.tradingDaysOf ?? EVERY_DAY,
+      };
+  }
+}
+
+const formOf = ({
+  name,
+  prompt,
+  schedule,
+  approval,
+}: ScheduledTaskDraft): TaskForm => ({
+  ...NEW_TASK,
+  name,
+  prompt,
+  approval,
+  ...timingOf(schedule),
+});
+
+/** The schedule a form describes; its span is how often for an interval and how seldom at least for a change. */
+function scheduleOf(form: TaskForm): Schedule {
+  switch (form.kind) {
+    case ScheduleKind.Interval:
+      return { kind: form.kind, everyMinutes: form.everyMinutes };
+    case ScheduleKind.OnChange:
+      return { kind: form.kind, atMostEveryMinutes: form.everyMinutes };
+    case ScheduleKind.FixedTime:
+      return {
+        kind: form.kind,
+        time: form.time,
+        tradingDaysOf: form.days === EVERY_DAY ? null : form.days,
+      };
+  }
 }
 
 /**
@@ -143,14 +183,7 @@ function draftOf(form: TaskForm, enabled: boolean): ScheduledTaskDraft {
   return {
     name: form.name,
     prompt: form.prompt,
-    schedule:
-      form.kind === ScheduleKind.Interval
-        ? { kind: form.kind, everyMinutes: form.everyMinutes }
-        : {
-            kind: form.kind,
-            time: form.time,
-            tradingDaysOf: form.days === EVERY_DAY ? null : form.days,
-          },
+    schedule: scheduleOf(form),
     timeZone: currentTimeZone(),
     locale: currentLocale(),
     approval: form.approval,
@@ -242,13 +275,22 @@ function TaskEditor({
             />
           )}
         />
-        {kind === ScheduleKind.Interval ? (
+        {kind === ScheduleKind.FixedTime ? null : (
           <Controller
             control={form.control}
             name="everyMinutes"
             render={({ field }) => (
               <OptionSelect
-                label={t("settings.schedules.every")}
+                label={t(
+                  kind === ScheduleKind.OnChange
+                    ? "settings.schedules.at-most"
+                    : "settings.schedules.every"
+                )}
+                description={
+                  kind === ScheduleKind.OnChange
+                    ? t("settings.schedules.on-change-description")
+                    : undefined
+                }
                 options={INTERVALS.map((minutes) => ({
                   id: String(minutes),
                   label: everyText(t, minutes),
@@ -258,7 +300,8 @@ function TaskEditor({
               />
             )}
           />
-        ) : (
+        )}
+        {kind === ScheduleKind.FixedTime ? (
           <>
             <Controller
               control={form.control}
@@ -292,7 +335,7 @@ function TaskEditor({
               )}
             />
           </>
-        )}
+        ) : null}
       </div>
       <Controller
         control={form.control}
@@ -409,6 +452,9 @@ function TaskRow({ task }: { task: ScheduledTaskView }) {
       description={
         <span className="flex flex-wrap items-center gap-x-2">
           <span>{scheduleText(t, task.schedule, task.timeZone)}</span>
+          {task.enabled && task.schedule.kind === ScheduleKind.OnChange ? (
+            <span>· {t("settings.schedules.waits")}</span>
+          ) : null}
           {task.nextRunAt === null ? null : (
             <span className="tabular-nums">
               ·{" "}

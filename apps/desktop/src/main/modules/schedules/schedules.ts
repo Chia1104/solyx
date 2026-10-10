@@ -1,4 +1,10 @@
-import { ScheduleKind, isDue, nextRun } from "@solyx/core/schedule";
+import type { Change } from "@solyx/core/changes";
+import {
+  ScheduleKind,
+  countedFrom,
+  isDue,
+  nextRun,
+} from "@solyx/core/schedule";
 import type {
   ScheduleStore,
   ScheduledRun,
@@ -19,10 +25,16 @@ import type { Diagnostics } from "../telemetry/diagnostics.ts";
 // Each pass only looks for tasks that are due, so it follows the scheduler's own tick.
 const PASS_EVERY_MS = 60 * 1000;
 
+// Telling what changed reads the account, which a live broker answers over the network, so tasks
+// that wait on a change are looked at only this often, as news collection reads it.
+const CHANGE_PASS_EVERY_MS = 30 * 60 * 1000;
+
 export interface SchedulesOptions {
   store: ScheduleStore;
   agent: Pick<AgentService, "runScheduled" | "busy">;
   tradingDays: TradingCalendar;
+  /** What changed after `since`, epoch ms, in what the app keeps of the listings the user follows and of their themes. */
+  changes: (since: number) => Promise<Change[]>;
   diagnostics: Pick<Diagnostics, "recovered">;
   /** Called after a task is saved or removed and after each run, so whoever shows them can refresh. */
   onChange: () => void;
@@ -69,12 +81,12 @@ export function createSchedules(options: SchedulesOptions) {
   const running = async ({ lastRun }: ScheduledTask) =>
     lastRun?.sessionId != null && (await agent.busy(lastRun.sessionId));
 
-  async function run(task: ScheduledTask) {
+  async function run(task: ScheduledTask, changes: readonly Change[] = []) {
     const at = now();
     let lastRun: ScheduledRun;
 
     try {
-      const session = await agent.runScheduled(task);
+      const session = await agent.runScheduled(task, changes);
 
       lastRun = { at, sessionId: session.id, failure: null };
     } catch (error) {
@@ -100,32 +112,55 @@ export function createSchedules(options: SchedulesOptions) {
     return task;
   }
 
+  const waitsOnChange = ({ schedule }: ScheduledTask) =>
+    schedule.kind === ScheduleKind.OnChange;
+
+  /** What changed since the task last ran, where it waits on that; nothing for a task the clock alone times. */
+  const changesFor = async (task: ScheduledTask) =>
+    waitsOnChange(task) ? options.changes(countedFrom(task)) : [];
+
+  /** Starts each of `tasks` that is due, one after another, so a model's limit sees no burst. */
+  async function pass(tasks: readonly ScheduledTask[]) {
+    for (const task of tasks) {
+      if (!task.enabled) continue;
+
+      const changes = await changesFor(task);
+
+      const due = isDue(task, now(), {
+        trades: await tradesOf(task),
+        changed: changes.length > 0,
+      });
+
+      if (due && !(await running(task))) await run(task, changes);
+    }
+  }
+
   const work: ScheduledWork = {
     everyMs: PASS_EVERY_MS,
+    run: () => pass(store.list().filter((task) => !waitsOnChange(task))),
+  };
 
-    /** Starts each task that is due, one after another, so a model's limit sees no burst. */
-    async run() {
-      for (const task of store.list()) {
-        if (
-          task.enabled &&
-          isDue(task, now(), await tradesOf(task)) &&
-          !(await running(task))
-        ) {
-          await run(task);
-        }
-      }
-    },
+  const changeWork: ScheduledWork = {
+    everyMs: CHANGE_PASS_EVERY_MS,
+    run: () => pass(store.list().filter(waitsOnChange)),
   };
 
   return {
+    /** The pass over the tasks the clock times. */
     work,
+    /** The slower pass over the tasks that wait on a change. */
+    changeWork,
 
     list: (): Promise<ScheduledTaskView[]> =>
       Promise.all(
         store.list().map(async (task) => ({
           ...task,
+          // What changed is not read for the list, so a task that waits on a change shows no time.
           nextRunAt: task.enabled
-            ? nextRun(task, now(), await tradesOf(task))
+            ? nextRun(task, now(), {
+                trades: await tradesOf(task),
+                changed: false,
+              })
             : null,
           running: await running(task),
         }))
@@ -163,7 +198,7 @@ export function createSchedules(options: SchedulesOptions) {
         throw new Error("Its last run is still going");
       }
 
-      await run(task);
+      await run(task, await changesFor(task));
     },
   };
 }

@@ -3,6 +3,8 @@ import type { PromptSection } from "@earendil-works/pi-durable";
 import { escape } from "es-toolkit";
 
 import type { BrokerMode } from "@solyx/core/broker";
+import { changeText } from "@solyx/core/changes";
+import type { Change } from "@solyx/core/changes";
 import { DecisionMode } from "@solyx/core/council";
 import { Market, exchangeTime, wallTime } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -58,6 +60,7 @@ const RULES = `You are the market analyst inside Solyx, a desktop app one person
 - When the context has a "scheduled" line, the user set this message to be sent on its own and is not at the app. Do what it asks without asking them anything, and never wait for an answer.
 - A call that must ask rests until they return, and nothing after it runs, so do first what needs no approval and leave such calls for last. A proposal still waits for them to confirm it.
 - Keep in research only what a source's own words bear out, as always: nobody reads this run as it goes, so what you keep is what they find.
+- Each "changed" line names something the app saw change since the task last ran, which is why it runs now: start with those, and read the item or the date behind each before you rely on it.
 - End with what they should read first: what changed, what you kept or revised, what waits for them, and what you could not do.
 
 # The app
@@ -140,6 +143,8 @@ export interface TurnContext {
   decisionMode: DecisionMode;
   /** The scheduled task that sent the message while nobody watched, by its name. */
   scheduled?: string;
+  /** What the app saw change since that task last ran, where that is why it runs. */
+  changes?: readonly Change[];
 }
 
 const listingText = ({ symbol, name }: ContextListing) =>
@@ -171,6 +176,10 @@ export function formatContext(context: TurnContext): string {
 
   if (context.scheduled !== undefined) {
     lines.push(`scheduled: ${context.scheduled}`);
+  }
+
+  for (const change of context.changes ?? []) {
+    lines.push(`changed: ${changeText(change)}`);
   }
 
   return lines.join("\n");
