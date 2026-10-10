@@ -8,7 +8,7 @@ The app's SQLite databases: drizzle-orm schemas on the runtime's built-in `node:
   - `./cache`: candles, and the answers `keepFresh` readers keep, each under its scope as the JSON its reader wrote and dropped a week after it was asked for.
   - `./user`: what the user made, such as the watchlist, trade proposals, the paper account, their scheduled tasks, each with its last run, and the themes they have the app watch, each with the news its searches found and how each item read against its signposts.
   - `./news`: what news sources found for each listing, the decisions model's scores and each item's vector. Sources reach back only days, so its history cannot be fetched again.
-  - `./memory`: what the agent keeps across conversations, each memory saved once the user allowed it, and the vectors of their texts.
+  - `./memory`: what the agent keeps across conversations, which the user reads and edits, and the vectors of their texts.
   - `./research`: every revision of each listing's report, every forecast as it was made with its outcome, which is written once, each reading of a falsifier against a news item, kept once, and each passage's vector by its text.
   - `./agent`: the agent's conversations, which are the user's too, in pi-durable's own schema. pi-durable migrates the file as it opens it, and the module only opens it, compacts it and erases a conversation, which pi-durable cannot. Its SQL is written against one pi-durable schema version and refuses any other.
 - Vectors kept by text share one table shape and cache, `./vectors.ts`. A database keeps one space at a time, so keeping another space's vectors drops the ones it held.

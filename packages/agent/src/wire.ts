@@ -26,8 +26,8 @@ export const ApprovalMode = {
   /** Each call waits for the user to allow it. */
   Ask: "ask",
   /**
-   * A shell command the decisions model judges harmless runs, and a page the conversation's own
-   * searches or news found is read; every other call still asks.
+   * A shell command the decisions model judges harmless runs, a page the conversation's own
+   * searches or news found is read, and a memory is saved; every other call still asks.
    */
   Auto: "auto",
   /** Calls run without asking, shell commands included. */
@@ -279,7 +279,7 @@ export const saveThemeArgumentsSchema = themeDraftSchema.extend({
   ),
 });
 
-/** A memory the agent saves, or rewrites whole under its id, once the user allows it. */
+/** A memory the agent saves, or rewrites whole under its id. */
 export const rememberArgumentsSchema = z.object({
   id: z
     .string()
@@ -288,7 +288,7 @@ export const rememberArgumentsSchema = z.object({
       "A memory's id from the list, to rewrite it whole; left out, a new memory is saved"
     ),
   kind: memoryKindSchema.describe(
-    "profile: who the user is, their goals and limits; feedback: how they want you to work; note: a thesis or fact worth keeping"
+    "profile: who the user is, their goals and limits, and how they trade; feedback: how they want you to work; note: a thesis or fact worth keeping"
   ),
   listing: symbolRefSchema
     .optional()

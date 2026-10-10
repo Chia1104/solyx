@@ -67,7 +67,7 @@ export const memoryChangeSchema = z.object({
 
 export type MemoryChange = z.infer<typeof memoryChangeSchema>;
 
-/** What the agent keeps across conversations, each saved once the user allowed it. */
+/** What the agent keeps across conversations, which the user reads and edits. */
 export interface Memory {
   id: string;
   kind: MemoryKind;

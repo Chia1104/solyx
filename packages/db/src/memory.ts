@@ -143,7 +143,7 @@ export interface MemoryUsage {
 }
 
 /**
- * What the agent keeps across conversations, each memory saved once the user allowed it. Like the
+ * What the agent keeps across conversations, which the user reads and edits. Like the
  * user's database it is never deleted, so a file its migrations cannot open is an error.
  * `migrationsFolder` is `migrations/memory` wherever the host ships it.
  */

@@ -15,7 +15,7 @@ const answersSchema = z.record(z.string(), z.boolean().nullable());
 export interface ApprovalRecord {
   /** What the user answered: `null` while the question is open or was withdrawn with its run. */
   answers: Readonly<Record<string, boolean | null>>;
-  /** Calls the decisions model let run unasked, in a conversation set to auto. */
+  /** Calls their tool's own check let run unasked, in a conversation set to auto. */
   auto: readonly string[];
 }
 

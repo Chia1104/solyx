@@ -297,6 +297,52 @@ test("a memory the user does not allow is not saved, and bypass saves without as
   await bypass.runtime.close();
 });
 
+test("a conversation set to auto saves and rewrites a memory unasked, and still asks before it forgets one", async () => {
+  const { store, runtime, calls, ended, start } = setup();
+
+  store.save(note("kept"), NOW.getTime());
+
+  const id = await start(
+    ApprovalMode.Auto,
+    [
+      AgentToolName.Remember,
+      { kind: MemoryKind.Profile, description: "Holds for quarters, not days" },
+    ],
+    [
+      AgentToolName.Remember,
+      {
+        id: "kept",
+        kind: MemoryKind.Note,
+        description: "Note kept, rewritten",
+      },
+    ],
+    [AgentToolName.Forget, { id: "kept" }]
+  );
+
+  await vi.waitFor(() =>
+    expect(calls()[2]).toMatchObject({
+      status: ToolCallStatus.AwaitingApproval,
+    })
+  );
+
+  expect(calls().slice(0, 2)).toMatchObject([
+    { status: ToolCallStatus.Ok, autoApproved: true },
+    { status: ToolCallStatus.Ok, autoApproved: true },
+  ]);
+  expect(
+    store
+      .list()
+      .map(({ description }) => description)
+      .toSorted()
+  ).toEqual(["Holds for quarters, not days", "Note kept, rewritten"]);
+
+  runtime.approve(id, calls()[2].toolCallId, false);
+  await ended();
+
+  expect(store.list()).toHaveLength(2);
+  await runtime.close();
+});
+
 test("a call that cannot run fails before the user is asked", async () => {
   const { store, events, calls, ended, start, runtime } = setup();
 

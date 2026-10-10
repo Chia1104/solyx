@@ -453,10 +453,10 @@
       },
       "descriptions": {
         "ask": "Tool calls and shell commands wait for you to allow them",
-        "auto": "Shell commands judged harmless run on their own, and pages this conversation found are read; everything else still asks",
+        "auto": "Shell commands judged harmless run on their own, pages this conversation found are read, and the agent saves what it learns about you to memory; everything else still asks",
         "bypass": "Tool calls and shell commands run without waiting for you"
       },
-      "auto-unjudged": "Pages this conversation found are read; everything else still asks, shell commands too until you set up a decisions model",
+      "auto-unjudged": "Pages this conversation found are read, and the agent saves what it learns about you to memory; everything else still asks, shell commands too until you set up a decisions model",
       "failed": "Couldn't change how tools are allowed"
     },
     "model-picker": {
@@ -485,6 +485,7 @@
       "deny": "Don't allow",
       "auto-allowed": "allowed by the decisions model",
       "auto-allowed-found": "allowed: an address this conversation found",
+      "auto-allowed-memory": "saved without asking, as this conversation allows",
       "failed": "Couldn't send your answer"
     }
   },
@@ -1087,10 +1088,10 @@
     },
     "memory": {
       "title": "Memory",
-      "description-text": "What the agent keeps across conversations and reads in each one. It saves, rewrites or forgets a memory only once you allow it, and deleting a conversation keeps what it saved.",
+      "description-text": "What the agent keeps across conversations and reads in each one, as it learns who you are and how you trade. It asks before it saves or rewrites a memory where a conversation asks first, and does so on its own where you let the conversation allow for you. Deleting a conversation keeps what it saved.",
       "enabled": "Use memory",
-      "enabled-description": "The agent reads its memories in every conversation and asks before it saves, rewrites or forgets one. Switched off, they stay saved but go unused.",
-      "empty": "No memories yet. The agent asks before it saves one.",
+      "enabled-description": "The agent reads its memories in every conversation and saves what it learns about you. Switched off, they stay saved but go unused.",
+      "empty": "No memories yet. The agent saves one as it learns about you.",
       "filter": "Filter memories",
       "no-matches": "No memory matches “{{query}}”.",
       "kinds": {
@@ -1167,7 +1168,7 @@
       },
       "approval-descriptions": {
         "ask": "The run rests at the first such call until you answer it in its conversation.",
-        "auto": "Pages the run's own searches found are read, and shell commands a decisions model judges harmless run. Everything else waits for you. No task can run every call unasked."
+        "auto": "Pages the run's own searches found are read, shell commands a decisions model judges harmless run, and the agent saves what it learns about you to memory. Everything else waits for you. No task can run every call unasked."
       },
       "required": "Fill this in",
       "too-long": "Keep it within {{count}} characters",
@@ -1258,7 +1259,7 @@
       },
       "memory": {
         "title": "Memory",
-        "description": "What the agent keeps across conversations, each memory saved once you allowed it.",
+        "description": "What the agent keeps across conversations about you and your listings.",
         "count": "Memories",
         "clear": "Forget all memories",
         "confirm-title": "Forget every memory?",
