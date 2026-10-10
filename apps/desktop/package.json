@@ -20,6 +20,7 @@
     "@hookform/resolvers": "catalog:forms",
     "@hugeicons/core-free-icons": "catalog:ui",
     "@hugeicons/react": "catalog:ui",
+    "@internationalized/date": "catalog:heroui-v3",
     "@lobehub/icons-static-svg": "catalog:ui",
     "@opentelemetry/api": "catalog:otel",
     "@opentelemetry/api-logs": "catalog:otel",

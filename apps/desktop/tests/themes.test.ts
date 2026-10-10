@@ -1,6 +1,9 @@
 import { expect, test, vi } from "vite-plus/test";
 
 import { Market } from "@solyx/core/market";
+import { ScheduleKind } from "@solyx/core/schedule";
+import type { CollectionPlan } from "@solyx/core/schedule";
+import { weekdays } from "@solyx/core/session";
 import type {
   SignpostReading,
   Theme,
@@ -61,6 +64,12 @@ function memoryStore(): ThemeStore {
   };
 }
 
+const DAILY: CollectionPlan = {
+  enabled: true,
+  schedule: { kind: ScheduleKind.Interval, everyMinutes: 24 * 60 },
+  timeZone: "Asia/Taipei",
+};
+
 const page = (name: string): WebResult => ({
   url: `https://news.test/${name}`,
   title: name,
@@ -80,20 +89,23 @@ function setup() {
   const web = vi.fn(async (): Promise<WebSearch | undefined> => ({ search }));
   const diagnostics = { recovered: vi.fn() };
   const onChange = vi.fn();
+  const planned = { current: DAILY };
 
   const themes = createThemes({
     store,
     web,
     auditor: async () => undefined,
+    plan: () => planned.current,
+    days: async () => weekdays,
     diagnostics,
     onChange,
     now: () => clock.now,
   });
 
-  return { themes, store, clock, search, web, diagnostics, onChange };
+  return { themes, store, clock, search, web, diagnostics, onChange, planned };
 }
 
-test("each theme's queries are searched for news once a day, on no market's calendar", async () => {
+test("each theme's queries are searched for news as the plan has them due, on no market's calendar", async () => {
   const { themes, clock, search } = setup();
   const { id } = themes.desk.save(OUTBREAK);
 
@@ -188,4 +200,27 @@ test("a theme removed meanwhile is neither written again nor searched", async ()
   expect(() => themes.update(id, OUTBREAK)).toThrow("no longer exists");
   await expect(themes.check(id)).rejects.toThrow("no longer exists");
   expect(themes.desk.list()).toEqual([]);
+});
+
+test("a plan switched off searches nothing until asked to collect now, and the status says when each is next due", async () => {
+  const { themes, clock, search, planned } = setup();
+
+  themes.desk.save(OUTBREAK);
+  planned.current = { ...DAILY, enabled: false };
+  await themes.work.run();
+
+  expect(search).not.toHaveBeenCalled();
+  expect(await themes.status()).toEqual({ lastAt: null, nextAt: null });
+
+  await themes.collectNow();
+
+  expect(search).toHaveBeenCalledTimes(2);
+
+  planned.current = DAILY;
+  clock.now = START + HOUR_MS;
+
+  expect(await themes.status()).toEqual({
+    lastAt: START,
+    nextAt: START + DAY_MS,
+  });
 });

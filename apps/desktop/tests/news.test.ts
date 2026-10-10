@@ -322,10 +322,16 @@ test("each collection is told once, even one that fails partway", async () => {
   expect(data.store.list(TSMC, SINCE)[0].score).toBeNull();
 });
 
-test("a listing is refreshed once per interval, first a week back, then overlapping the last by a day", async () => {
+/** Due once the listing's last collection is three days old, as a plan of that span has it. */
+const afterThreeDays =
+  (clock: { now: Date }) =>
+  (last: Date | null): boolean =>
+    last === null || clock.now.getTime() - last.getTime() >= 72 * HOUR_MS;
+
+test("a listing is refreshed where its last collection is due, first a week back, then overlapping the last by a day", async () => {
   const forum = source("forum", NewsChannel.Forum, async () => []);
   const { news, clock } = setup([forum]);
-  const every = 72 * HOUR_MS;
+  const every = afterThreeDays(clock);
 
   await news.refresh(TSMC, every);
   await news.refresh(TSMC, every);
@@ -338,6 +344,8 @@ test("a listing is refreshed once per interval, first a week back, then overlapp
     since: new Date("2026-09-26T05:00:00Z"),
   });
   expect((await news.coverage(APPLE)).collectedAt).toBeNull();
+  expect(news.lastCollected(APPLE)).toBeNull();
+  expect(news.lastCollected(TSMC)).toEqual(clock.now);
 
   // A day short of the interval.
   clock.now = new Date("2026-10-05T05:00:00Z");
@@ -366,7 +374,7 @@ test("a source that keeps failing rests from refreshes, and a listing only it co
 
   const working = source("forum", NewsChannel.Forum, async () => []);
   const { news, clock } = setup([broken, working]);
-  const every = 72 * HOUR_MS;
+  const every = afterThreeDays(clock);
 
   for (const symbol of [TSMC, FOXCONN, MEDIATEK, APPLE]) {
     await news.refresh(symbol, every);
@@ -392,7 +400,7 @@ test("collecting on request searches a resting source too", async () => {
   const { news } = setup([broken]);
 
   for (const symbol of [TSMC, FOXCONN, MEDIATEK]) {
-    await news.refresh(symbol, HOUR_MS);
+    await news.refresh(symbol, () => true);
   }
 
   await news.collect(TSMC, SINCE, 10);

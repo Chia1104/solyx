@@ -1,4 +1,9 @@
-import type { ScheduledTask, ScheduledTaskDraft } from "@solyx/core/schedule";
+import type {
+  CollectionJob,
+  CollectionPlan,
+  ScheduledTask,
+  ScheduledTaskDraft,
+} from "@solyx/core/schedule";
 
 /** A scheduled task as the settings show it. */
 export interface ScheduledTaskView extends ScheduledTask {
@@ -8,7 +13,26 @@ export interface ScheduledTaskView extends ScheduledTask {
   running: boolean;
 }
 
+/** When one of the app's own collections last ran and next will. */
+export interface CollectionStatus {
+  /** Epoch ms anything it covers was last collected, by it or for the agent; `null` before any. */
+  lastAt: number | null;
+  /** Epoch ms the first of what it covers is next due while the app stays open; `null` while it is switched off, covers nothing, or no day ahead takes it. */
+  nextAt: number | null;
+}
+
+/** One of the app's own collections as the settings show it. */
+export interface CollectionView extends CollectionStatus {
+  job: CollectionJob;
+  plan: CollectionPlan;
+}
+
 export interface SchedulesApi {
+  /** What the app collects on its own, in a fixed order. */
+  collections(): Promise<CollectionView[]>;
+  setCollection(job: CollectionJob, plan: CollectionPlan): Promise<void>;
+  /** Collects now, whatever its plan says, and resolves once it is done. */
+  collectNow(job: CollectionJob): Promise<void>;
   /** Oldest first. */
   list(): Promise<ScheduledTaskView[]>;
   create(draft: ScheduledTaskDraft): Promise<void>;
@@ -21,11 +45,14 @@ export interface SchedulesApi {
 
 /** Pushes from the main process; each subscription returns a function that stops listening. */
 export interface SchedulesEvents {
-  /** A task was saved or removed, or one of them ran. */
+  /** A task was saved or removed, or one of them ran, or a collection's plan changed. */
   onChanged(listener: () => void): () => void;
 }
 
 export const schedulesChannels = {
+  collections: "schedules:collections",
+  setCollection: "schedules:set-collection",
+  collectNow: "schedules:collect-now",
   list: "schedules:list",
   create: "schedules:create",
   update: "schedules:update",

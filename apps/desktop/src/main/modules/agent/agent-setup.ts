@@ -9,7 +9,7 @@ import type { SettingChange } from "@solyx/agent/wire";
 import { DecisionMode } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
 import type { MemoryStore } from "@solyx/core/memory";
-import { ScheduleKind } from "@solyx/core/schedule";
+import { CollectionJob, ScheduleKind } from "@solyx/core/schedule";
 import type { Schedule, ScheduleStore } from "@solyx/core/schedule";
 import type { ThemeStore } from "@solyx/core/theme";
 import { DecisionsProvider } from "@solyx/decisions/provider";
@@ -31,7 +31,6 @@ import {
   isMarketDataReady,
   isWebSearchReady,
   mcpSecretKey,
-  newsIntervalSchema,
 } from "#shared/ipc/settings.ts";
 import { ColorScheme, Palette } from "#shared/palette.ts";
 import { SettingsSection, settingsLink } from "#shared/settings-section.ts";
@@ -133,11 +132,20 @@ function choice<T extends string>(
 const flag = (save: (on: boolean) => void) =>
   choice(["true", "false"], (value) => save(value === "true"));
 
+const HOUR_MINUTES = 60;
+
+// A span between collections as the agent may set it, in whole hours, up to a week.
 const hoursSchema = z
   .string()
   .regex(/^\d+$/)
   .transform(Number)
-  .pipe(newsIntervalSchema);
+  .pipe(
+    z
+      .number()
+      .int()
+      .min(1)
+      .max(7 * 24)
+  );
 
 /** The settings page's tabs as the agent reads them, with what keeps each from working. */
 export function createAgentSetup(options: AgentSetupOptions): SetupPort {
@@ -386,17 +394,6 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         ],
       },
       {
-        name: "News",
-        link,
-        missing: [],
-        settings: [
-          entry(
-            ["news", "collectEveryHours"],
-            String(config.read().news.collectEveryHours)
-          ),
-        ],
-      },
-      {
         name: "Decisions model",
         link,
         missing: isDecisionsReady(decisions, secretsStatus)
@@ -513,22 +510,30 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
 
   function schedules(): SetupArea {
     const tasks = options.schedules.list();
+    const plans = config.read().collection;
 
     return {
-      name: "Scheduled tasks",
+      name: "Schedules",
       link: settingsLink(SettingsSection.Schedules),
       missing: [],
-      settings:
-        tasks.length === 0
-          ? [{ name: "tasks", value: "none written" }]
+      settings: [
+        ...Object.values(CollectionJob).map((job) =>
+          entry(
+            ["collection", job],
+            `${when(plans[job].schedule, plans[job].timeZone)}, ${onOff(plans[job].enabled)}`
+          )
+        ),
+        ...(tasks.length === 0
+          ? [{ name: "tasks for the agent", value: "none written" }]
           : tasks.map(({ name, schedule, timeZone, approval, enabled }) => ({
-              name,
+              name: `task "${name}"`,
               value: [
                 when(schedule, timeZone),
                 onOff(enabled),
                 `calls that must ask: ${approval}`,
               ].join(", "),
-            })),
+            }))),
+      ],
     };
   }
 
@@ -629,17 +634,35 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
 
     const paletteIds = [...Object.values(Palette), ...Object.keys(palettes)];
 
-    const hours: Changeable = {
+    /** Switches one of the app's collections on or off, or has it run every so many hours; a time of day stays the user's to set. */
+    const collection = (job: CollectionJob): Changeable => ({
       accepts:
-        "a whole number of hours from 0 to 720, 0 turning automatic collection off",
+        "off, on, or a whole number of hours from 1 to 168 between collections, which also switches it on",
       parse(value) {
-        const parsed = hoursSchema.safeParse(value);
+        const plan = config.read().collection[job];
+        const hours = hoursSchema.safeParse(value);
 
-        return parsed.success
-          ? async () => config.set(["news", "collectEveryHours"], parsed.data)
+        if (value === "off" || value === "on") {
+          return async () =>
+            config.set(["collection", job], {
+              ...plan,
+              enabled: value === "on",
+            });
+        }
+
+        return hours.success
+          ? async () =>
+              config.set(["collection", job], {
+                ...plan,
+                enabled: true,
+                schedule: {
+                  kind: ScheduleKind.Interval,
+                  everyMinutes: hours.data * HOUR_MINUTES,
+                },
+              })
           : undefined;
       },
-    };
+    });
 
     return new Map([
       [
@@ -711,7 +734,9 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
           config.set(["agent", "decisionMode"], mode)
         ),
       ],
-      ["news.collectEveryHours", hours],
+      ...Object.values(CollectionJob).map(
+        (job) => [`collection.${job}`, collection(job)] as const
+      ),
       [
         "webSearch.provider",
         choice(Object.values(WebSearchProvider), (provider) =>

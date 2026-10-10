@@ -18,7 +18,6 @@ import { EmbeddingsSettings } from "../modules/settings/embeddings-settings.tsx"
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
 import { MarketDataSettings } from "../modules/settings/market-data-settings.tsx";
 import { McpSettings } from "../modules/settings/mcp-settings.tsx";
-import { NewsSettings } from "../modules/settings/news-settings.tsx";
 import { PalettePicker } from "../modules/settings/palette-picker.tsx";
 import { PriceColorsSelect } from "../modules/settings/price-colors-select.tsx";
 import { SettingsTabs } from "../modules/settings/settings-tabs.tsx";
@@ -54,7 +53,6 @@ export function SettingsPage() {
       <>
         <AgentSettings />
         <WebSearchSettings />
-        <NewsSettings />
         <DecisionsSettings />
         <EmbeddingsSettings />
       </>

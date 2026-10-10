@@ -13,12 +13,10 @@ import {
 } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { TFunction } from "i18next";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { Market, marketSchema } from "@solyx/core/market";
 import { holdsSecret } from "@solyx/core/memory";
 import {
   SCHEDULE_NAME_LENGTH,
@@ -26,7 +24,7 @@ import {
   ScheduleApproval,
   ScheduleKind,
 } from "@solyx/core/schedule";
-import type { Schedule, ScheduledTaskDraft } from "@solyx/core/schedule";
+import type { ScheduledTaskDraft } from "@solyx/core/schedule";
 
 import type { ScheduledTaskView } from "#shared/ipc/schedules.ts";
 
@@ -42,52 +40,19 @@ import { RailedColumn } from "../../components/sheet.tsx";
 import { useAgentStore } from "../agent/agent-store.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 
+import { CollectionList } from "./collection-settings.tsx";
 import { schedulesQuery } from "./schedules-query.ts";
+import {
+  NEW_TIMING,
+  TimingFields,
+  scheduleOf,
+  scheduleText,
+  timingFieldSchemas,
+  timingOf,
+} from "./timing-fields.tsx";
 
 // The spans a task may recur at, in minutes.
 const INTERVALS = [30, 60, 120, 240, 360, 720, 1440];
-
-const HOUR_MINUTES = 60;
-
-const EVERY_DAY = "every-day";
-
-// Every day, or only the days one market trades.
-const DAY_CHOICES: (typeof EVERY_DAY | Market)[] = [
-  EVERY_DAY,
-  ...Object.values(Market),
-];
-
-const DEFAULT_TIME = "08:30";
-
-/** A span as words: minutes below an hour, whole hours from there. */
-const everyText = (t: TFunction, minutes: number) =>
-  minutes < HOUR_MINUTES
-    ? t("settings.schedules.every-minutes", { count: minutes })
-    : t("settings.schedules.every-hours", { count: minutes / HOUR_MINUTES });
-
-/** When a task runs, in a line: its span, its time on its own clock and the days it keeps to, or what it waits on. */
-function scheduleText(t: TFunction, schedule: Schedule, timeZone: string) {
-  switch (schedule.kind) {
-    case ScheduleKind.Interval:
-      return everyText(t, schedule.everyMinutes);
-    case ScheduleKind.FixedTime:
-      return t("settings.schedules.at-time", {
-        time: schedule.time,
-        timeZone,
-        days: t(
-          `settings.schedules.days.${schedule.tradingDaysOf ?? EVERY_DAY}`
-        ),
-      });
-    case ScheduleKind.OnChange:
-      return schedule.atMostEveryMinutes < HOUR_MINUTES
-        ? t("settings.schedules.on-change-minutes", {
-            count: schedule.atMostEveryMinutes,
-          })
-        : t("settings.schedules.on-change-hours", {
-            count: schedule.atMostEveryMinutes / HOUR_MINUTES,
-          });
-  }
-}
 
 /** A task as its form holds it; rebuilt per language so field errors come out localized. */
 function useTaskFormSchema() {
@@ -107,13 +72,8 @@ function useTaskFormSchema() {
         (value) => !holdsSecret(value),
         { error: t("settings.schedules.secret") }
       ),
-      kind: z.enum(ScheduleKind),
-      everyMinutes: z.number(),
-      time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, {
-        error: t("settings.schedules.time-required"),
-      }),
-      days: z.union([z.literal(EVERY_DAY), marketSchema]),
       approval: z.enum(ScheduleApproval),
+      ...timingFieldSchemas(t),
     });
   }, [t]);
 }
@@ -121,30 +81,11 @@ function useTaskFormSchema() {
 type TaskForm = z.infer<ReturnType<typeof useTaskFormSchema>>;
 
 const NEW_TASK: TaskForm = {
+  ...NEW_TIMING,
   name: "",
   prompt: "",
-  kind: ScheduleKind.FixedTime,
-  everyMinutes: HOUR_MINUTES,
-  time: DEFAULT_TIME,
-  days: EVERY_DAY,
   approval: ScheduleApproval.Ask,
 };
-
-/** The form's fields a schedule fills; the rest keep what a new task starts with. */
-function timingOf(schedule: Schedule): Partial<TaskForm> {
-  switch (schedule.kind) {
-    case ScheduleKind.Interval:
-      return { kind: schedule.kind, everyMinutes: schedule.everyMinutes };
-    case ScheduleKind.OnChange:
-      return { kind: schedule.kind, everyMinutes: schedule.atMostEveryMinutes };
-    case ScheduleKind.FixedTime:
-      return {
-        kind: schedule.kind,
-        time: schedule.time,
-        days: schedule.tradingDaysOf ?? EVERY_DAY,
-      };
-  }
-}
 
 const formOf = ({
   name,
@@ -158,22 +99,6 @@ const formOf = ({
   approval,
   ...timingOf(schedule),
 });
-
-/** The schedule a form describes; its span is how often for an interval and how seldom at least for a change. */
-function scheduleOf(form: TaskForm): Schedule {
-  switch (form.kind) {
-    case ScheduleKind.Interval:
-      return { kind: form.kind, everyMinutes: form.everyMinutes };
-    case ScheduleKind.OnChange:
-      return { kind: form.kind, atMostEveryMinutes: form.everyMinutes };
-    case ScheduleKind.FixedTime:
-      return {
-        kind: form.kind,
-        time: form.time,
-        tradingDaysOf: form.days === EVERY_DAY ? null : form.days,
-      };
-  }
-}
 
 /**
  * The task a form describes, on the clock and in the language the app shows now: a task saved
@@ -201,7 +126,6 @@ function TaskEditor({
   onDone: () => void;
 }) {
   const { t } = useTranslation();
-  const clock = useClock();
 
   const form = useForm({
     resolver: zodResolver(useTaskFormSchema()),
@@ -209,7 +133,6 @@ function TaskEditor({
     defaultValues: task ? formOf(task) : NEW_TASK,
   });
 
-  const kind = useWatch({ control: form.control, name: "kind" });
   const approval = useWatch({ control: form.control, name: "approval" });
 
   const save = useMutation({
@@ -259,84 +182,12 @@ function TaskEditor({
           </TextField>
         )}
       />
-      <div className="grid gap-3 @min-[40rem]/main:grid-cols-3">
-        <Controller
-          control={form.control}
-          name="kind"
-          render={({ field }) => (
-            <OptionSelect
-              label={t("settings.schedules.kind")}
-              options={Object.values(ScheduleKind).map((id) => ({
-                id,
-                label: t(`settings.schedules.kinds.${id}`),
-              }))}
-              value={field.value}
-              onChange={field.onChange}
-            />
-          )}
+      <FormProvider {...form}>
+        <TimingFields
+          kinds={Object.values(ScheduleKind)}
+          intervals={INTERVALS}
         />
-        {kind === ScheduleKind.FixedTime ? null : (
-          <Controller
-            control={form.control}
-            name="everyMinutes"
-            render={({ field }) => (
-              <OptionSelect
-                label={t(
-                  kind === ScheduleKind.OnChange
-                    ? "settings.schedules.at-most"
-                    : "settings.schedules.every"
-                )}
-                description={
-                  kind === ScheduleKind.OnChange
-                    ? t("settings.schedules.on-change-description")
-                    : undefined
-                }
-                options={INTERVALS.map((minutes) => ({
-                  id: String(minutes),
-                  label: everyText(t, minutes),
-                }))}
-                value={String(field.value)}
-                onChange={(id) => field.onChange(Number(id))}
-              />
-            )}
-          />
-        )}
-        {kind === ScheduleKind.FixedTime ? (
-          <>
-            <Controller
-              control={form.control}
-              name="time"
-              render={({ field, fieldState }) => (
-                <TextField isRequired isInvalid={fieldState.invalid}>
-                  <Label>{t("settings.schedules.time")}</Label>
-                  <Input {...field} type="time" />
-                  <Description>
-                    {t("settings.schedules.time-description", {
-                      timeZone: clock.timeZone,
-                    })}
-                  </Description>
-                  <FieldError>{fieldState.error?.message}</FieldError>
-                </TextField>
-              )}
-            />
-            <Controller
-              control={form.control}
-              name="days"
-              render={({ field }) => (
-                <OptionSelect
-                  label={t("settings.schedules.on-days")}
-                  options={DAY_CHOICES.map((id) => ({
-                    id,
-                    label: t(`settings.schedules.days.${id}`),
-                  }))}
-                  value={field.value}
-                  onChange={field.onChange}
-                />
-              )}
-            />
-          </>
-        ) : null}
-      </div>
+      </FormProvider>
       <Controller
         control={form.control}
         name="approval"
@@ -538,6 +389,30 @@ export function ScheduleSettings() {
   }
 
   if (!data) return <LoadingState />;
+
+  return (
+    <>
+      <Section
+        title={t("settings.schedules.collections.title")}
+        description={t("settings.schedules.collections.description")}>
+        <CollectionList />
+      </Section>
+      <TaskList tasks={data} adding={adding} setAdding={setAdding} />
+    </>
+  );
+}
+
+/** The tasks the agent is sent, with a way to write another. */
+function TaskList({
+  tasks: data,
+  adding,
+  setAdding,
+}: {
+  tasks: ScheduledTaskView[];
+  adding: boolean;
+  setAdding: (adding: boolean) => void;
+}) {
+  const { t } = useTranslation();
 
   return (
     <Section

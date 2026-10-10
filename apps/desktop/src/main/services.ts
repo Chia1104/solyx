@@ -10,6 +10,7 @@ import { Currency, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderDesk } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
+import { CollectionJob } from "@solyx/core/schedule";
 import { Session } from "@solyx/core/session";
 import { openAgentStore } from "@solyx/db/agent";
 import { openCache } from "@solyx/db/cache";
@@ -42,12 +43,14 @@ import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
+import { createScheduleDays } from "./modules/market/schedule-days.ts";
 import { createTradingCalendar } from "./modules/market/trading-calendar.ts";
 import { createMemories } from "./modules/memory/memories.ts";
 import { createNewsCollector } from "./modules/news/news-collector.ts";
 import { createNewsSources } from "./modules/news/news-sources.ts";
 import { createNews } from "./modules/news/news.ts";
 import { createResearch } from "./modules/research/research.ts";
+import { createCollections } from "./modules/schedules/collections.ts";
 import { createSchedules } from "./modules/schedules/schedules.ts";
 import { createAppearance } from "./modules/settings/appearance.ts";
 import type { ConfigFile } from "./modules/settings/config-file.ts";
@@ -267,10 +270,14 @@ export function createServices(config: ConfigFile) {
     );
   }
 
+  const scheduleDays = createScheduleDays({ tradingDays, diagnostics });
+
   const themes = createThemes({
     store: userData.themes,
     web: () => webSearch.vendor(),
     auditor: () => decisions.claimAuditor(),
+    plan: () => config.read().collection[CollectionJob.Themes],
+    days: scheduleDays,
     diagnostics,
     onChange: () => broadcast(themesEvents.onChanged),
   });
@@ -337,7 +344,16 @@ export function createServices(config: ConfigFile) {
     diagnostics,
     news,
     listings: followedListings,
-    collectEveryHours: () => config.read().news.collectEveryHours,
+    plan: () => config.read().collection[CollectionJob.News],
+    days: scheduleDays,
+  });
+
+  const collections = createCollections({
+    config,
+    collectors: {
+      [CollectionJob.News]: newsCollector,
+      [CollectionJob.Themes]: themes,
+    },
   });
 
   const updates = createUpdates({
@@ -349,7 +365,7 @@ export function createServices(config: ConfigFile) {
   const schedules = createSchedules({
     store: userData.schedules,
     agent,
-    tradingDays,
+    days: scheduleDays,
     async changes(since) {
       const followed = await followedListings();
 
@@ -378,7 +394,7 @@ export function createServices(config: ConfigFile) {
 
   const scheduler = createScheduler({ telemetry });
 
-  scheduler.register("News collection", newsCollector);
+  scheduler.register("News collection", newsCollector.work);
   scheduler.register("Update check", updates);
   scheduler.register("Scheduled tasks", schedules.work);
   scheduler.register("Change watch", schedules.changeWork);
@@ -387,6 +403,8 @@ export function createServices(config: ConfigFile) {
   nativeTheme.themeSource = appearance.read().theme;
 
   config.onChange(() => broadcast(settingsEvents.onChanged));
+  // A collection's plan lives in the config file, so whoever shows the plans hears of every edit.
+  config.onChange(() => broadcast(schedulesEvents.onChanged));
   secrets.onChange(() => broadcast(settingsEvents.onChanged));
   config.watch();
 
@@ -422,6 +440,7 @@ export function createServices(config: ConfigFile) {
     newsData,
     updates,
     schedules,
+    collections,
     themes,
     scheduler,
   };

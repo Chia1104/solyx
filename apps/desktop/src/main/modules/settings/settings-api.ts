@@ -194,14 +194,6 @@ export function createSettingsApi({
 
     signOutSubscription: (provider) => agent.models.signOut(provider),
 
-    news: async () => ({
-      collectEveryHours: config.read().news.collectEveryHours,
-    }),
-
-    async setNewsCollectEveryHours(hours) {
-      config.set(["news", "collectEveryHours"], hours);
-    },
-
     fundamentals: async () => ({
       finMind: {
         plan: config.read().providers.finmind.plan,

@@ -13,7 +13,6 @@ import type {
 } from "@solyx/core/schedule";
 import { weekdays } from "@solyx/core/session";
 
-import type { TradingCalendar } from "../src/main/modules/market/trading-calendar.ts";
 import { createSchedules } from "../src/main/modules/schedules/schedules.ts";
 
 const taipei = (time: string) => Date.parse(`${time}+08:00`);
@@ -78,7 +77,6 @@ function setup() {
     }
   );
 
-  const tradingDays = vi.fn<TradingCalendar>(async () => weekdays);
   const diagnostics = { recovered: vi.fn() };
   const onChange = vi.fn();
   const changes = vi.fn(async (_since: number): Promise<Change[]> => []);
@@ -87,7 +85,7 @@ function setup() {
   const schedules = createSchedules({
     store,
     agent: { runScheduled, busy: async (id) => going.has(id) },
-    tradingDays,
+    days: async () => weekdays,
     changes,
     diagnostics,
     onChange,
@@ -101,7 +99,6 @@ function setup() {
     clock,
     going,
     runScheduled,
-    tradingDays,
     changes,
     diagnostics,
     onChange,
@@ -220,29 +217,6 @@ test("saving a task again counts its next run from then, and running it now igno
   schedules.remove("task-1");
 
   expect(await schedules.list()).toEqual([]);
-});
-
-test("a market whose trading days cannot be read keeps to weekdays", async () => {
-  const { schedules, clock, tradingDays, runScheduled, diagnostics } = setup();
-
-  tradingDays.mockRejectedValue(new Error("FinMind answered 402"));
-  schedules.create(BRIEF);
-
-  // A Saturday, then the Monday after.
-  clock.now = taipei("2026-10-10T08:31:00");
-  await schedules.work.run();
-
-  expect(runScheduled).not.toHaveBeenCalled();
-  expect(diagnostics.recovered).toHaveBeenCalledWith(
-    expect.any(Error),
-    "schedules.trading-days",
-    { "solyx.market": Market.TW }
-  );
-
-  clock.now = taipei("2026-10-12T08:31:00");
-  await schedules.work.run();
-
-  expect(runScheduled).toHaveBeenCalledOnce();
 });
 
 test("a task that waits on a change runs on the slower pass, once something changed since it last ran, and is told what", async () => {

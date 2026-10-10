@@ -23,15 +23,13 @@ import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
-import {
-  MarketDataSource,
-  NEWS_COLLECTION_DEFAULT_HOURS,
-  PriceColors,
-  Theme,
-} from "#shared/ipc/settings.ts";
+import { MarketDataSource, PriceColors, Theme } from "#shared/ipc/settings.ts";
 import { Palette } from "#shared/palette.ts";
 
-import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
+import {
+  DEFAULT_COLLECTION_PLANS,
+  createConfigFile,
+} from "../src/main/modules/settings/config-file.ts";
 
 let directory: string;
 
@@ -77,7 +75,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       memory: true,
       mcpTools: {},
     },
-    news: { collectEveryHours: NEWS_COLLECTION_DEFAULT_HOURS },
+    collection: DEFAULT_COLLECTION_PLANS,
     updates: { check: true },
     otlp: {},
     crashReports: { send: false },

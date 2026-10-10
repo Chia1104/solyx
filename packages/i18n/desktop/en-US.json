@@ -983,15 +983,7 @@
     },
     "news": {
       "title": "News",
-      "description": "The agent reads Taiwan companies' material announcements and PTT's Stock board on its own. Once web search is set up, it also searches news articles and samples posts on Threads in Taiwan and X in the US; each search uses the vendor's credits. Requests go straight from this computer to each source.",
-      "collect-every": "Collect automatically",
-      "collect-every-description": "How often each watched listing's news is collected while Solyx runs. With web search set up, every collection uses the vendor's credits; exchange announcements only reach back a day, so longer intervals miss some.",
-      "intervals": {
-        "off": "Off",
-        "daily": "Every day",
-        "days": "Every {{n}} days",
-        "hours": "Every {{n}} hours"
-      }
+      "description": "The agent reads Taiwan companies' material announcements and PTT's Stock board on its own. Once web search is set up, it also searches news articles and samples posts on Threads in Taiwan and X in the US; each search uses the vendor's credits. Requests go straight from this computer to each source."
     },
     "decisions": {
       "title": "Decisions model",
@@ -1090,6 +1082,24 @@
       "change-failed": "Couldn't change the memory"
     },
     "schedules": {
+      "collections": {
+        "title": "What the app collects",
+        "description": "Work the app does on its own while it is open, with no model and no conversation. What it collects is what the overview shows and what the agent's tasks then read.",
+        "news": {
+          "title": "News of what you hold and watch",
+          "description": "Each listing is collected when its time comes, unless the agent collected it since. With web search set up, every collection uses the vendor's credits; exchange announcements only reach back a day, so longer spans miss some."
+        },
+        "themes": {
+          "title": "News for your themes",
+          "description": "Each theme's queries are searched through your web search vendor, one search a query, and a decisions model reads what they find against the theme's signposts. Nothing is searched until that vendor's key is saved."
+        },
+        "collect-now": "Collect now",
+        "last": "Last collected {{time}}.",
+        "never": "Not collected yet.",
+        "enabled": "Collect {{name}} on its schedule",
+        "change-failed": "Couldn't change when it is collected",
+        "collect-failed": "Couldn't collect"
+      },
       "title": "Scheduled tasks",
       "description-text": "Messages the agent is sent on its own while Solyx is open, each in a conversation of its own, so you read there what it did. A run nobody watches can read, research and revise its reports. An order it proposes still waits for you to confirm it, and each run spends your model's tokens.",
       "empty": "No scheduled tasks yet.",
@@ -1110,6 +1120,8 @@
       "every-minutes_other": "Every {{count}} minutes",
       "every-hours_one": "Every {{count}} hour",
       "every-hours_other": "Every {{count}} hours",
+      "every-days_one": "Every {{count}} day",
+      "every-days_other": "Every {{count}} days",
       "time": "Time",
       "time-description": "On your clock, {{timeZone}}.",
       "on-days": "On",

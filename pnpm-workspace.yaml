@@ -46,6 +46,7 @@ catalogs:
   heroui-v3:
     "@heroui/react": 3.2.6
     "@heroui/styles": 3.2.6
+    "@internationalized/date": 3.12.4
     react-aria-components: 1.21.1
   i18n:
     i18next: 26.4.2
