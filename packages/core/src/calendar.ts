@@ -10,6 +10,7 @@ import type {
 import type { MacroRelease } from "./macro.ts";
 import { Market } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
+import type { Report, ReportEvent } from "./report.ts";
 import { twFilingDeadline, twRevenueDeadline } from "./rules/tw.ts";
 
 /** What happens on a listing's calendar. */
@@ -36,6 +37,8 @@ export const EventTiming = {
   Set: "set",
   /** The latest day the rules or the agency allow; it may well come earlier. */
   Deadline: "deadline",
+  /** A day a source expects, which nobody has set. */
+  Expected: "expected",
 } as const;
 
 export type EventTiming = (typeof EventTiming)[keyof typeof EventTiming];
@@ -54,10 +57,17 @@ export interface ListingEvent {
   until: string | null;
 }
 
+/** A date a listing's report holds: what the agent found with its source, never a filing of the exchange or the company. */
+export interface ResearchEvent extends ReportEvent {
+  symbol: SymbolRef;
+}
+
 /** Some listings' coming events and their markets' releases, as a host's calendar serves them. */
 export interface UpcomingEvents {
   /** Soonest first. */
   events: ListingEvent[];
+  /** The dates the listings' reports hold, soonest first. */
+  research: ResearchEvent[];
   /** Listings whose fundamentals could not be read this time, so their events may be missing. */
   unread: SymbolRef[];
   /** The economic releases of the listings' markets, soonest first. */
@@ -210,6 +220,24 @@ export function upcomingEvents(
     [...filings, ...distributions, ...limits].filter(
       ({ date }) => date >= today && date <= until
     ),
+    [({ date }) => date]
+  );
+}
+
+/**
+ * The dates a report holds from `today` through `until` (`YYYY-MM-DD` on the exchange's calendar),
+ * soonest first. One whose day is behind `today` is no longer ahead, so it is left out until the
+ * report says what came of it.
+ */
+export function reportedEvents(
+  { symbol, events }: Pick<Report, "symbol" | "events">,
+  today: string,
+  until: string
+): ResearchEvent[] {
+  return sortBy(
+    events
+      .filter(({ date }) => date >= today && date <= until)
+      .map((event) => ({ ...event, symbol })),
     [({ date }) => date]
   );
 }

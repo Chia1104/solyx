@@ -2,9 +2,11 @@ import * as z from "zod";
 
 import { sentences } from "@solyx/utils/search";
 
-import { symbolRefSchema } from "./market.ts";
+import { EventTiming } from "./calendar.ts";
+import { Market, symbolRefSchema } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { holdsSecret } from "./memory.ts";
+import { twRocDate } from "./rules/tw.ts";
 
 /** Where a report expects the shares to go over quarters, not sessions. */
 export const ReportStance = {
@@ -86,8 +88,8 @@ export function unsupportedClaims(
   });
 }
 
-/** A claim as kept, with the reading its fact was given; `null` when no decisions model read it. */
-export type Audited<Kept extends Claim> = Kept & {
+/** A claim or an event as kept, with the reading its fact was given; `null` when no decisions model read it. */
+export type Audited<Kept extends Claim | ReportEvent> = Kept & {
   support: ClaimSupport | null;
 };
 
@@ -113,11 +115,55 @@ const valuationSchema = z.object({
   basis: proseSchema(300),
 });
 
-const reportEventSchema = z.object({
+/** A date ahead that could move the shares, with the source's own words for it. */
+export const reportEventSchema = z.object({
   /** Exchange-local date, `YYYY-MM-DD`. */
   date: z.iso.date(),
+  /** What happens, saying no more than its quote does. */
   label: proseSchema(100),
+  timing: z.enum(EventTiming),
+  /** Where the date comes from: a page's address, or a name such as a filing's. */
+  source: proseSchema(300),
+  /** The source's own words that give the date. */
+  quote: proseSchema(1_200),
 });
+
+export type ReportEvent = z.infer<typeof reportEventSchema>;
+
+const TIMING_WORDS: Record<EventTiming, string> = {
+  [EventTiming.Set]: "on",
+  [EventTiming.Deadline]: "by",
+  [EventTiming.Expected]: "expected around",
+};
+
+/** The day an event's claim names, in the form a quote most likely gives it. */
+function claimedDay(date: string, timing: EventTiming, market: Market) {
+  // A source that only expects a day seldom gives its year.
+  if (timing === EventTiming.Expected) {
+    const { month, day } = Temporal.PlainDate.from(date);
+
+    return `${month}/${day}`;
+  }
+
+  // Taiwan's filings date by the Republic of China calendar, and a model reads `115 年` against
+  // `2026` poorly: it takes another year's same day for it.
+  return market === Market.TW ? `${date} (${twRocDate(date)})` : date;
+}
+
+/**
+ * What an event asserts, as a claim its quote is read against. `eval-claims` in `@solyx/decisions`
+ * measures how it words the day: measure again after changing it.
+ */
+export function eventClaim(
+  { date, label, timing, source, quote }: ReportEvent,
+  market: Market
+): Claim {
+  return {
+    text: `${label}, ${TIMING_WORDS[timing]} ${claimedDay(date, timing, market)}`,
+    source,
+    quote,
+  };
+}
 
 /**
  * What a revision changes. A part left out stays as the last revision had it, so a report is
@@ -135,7 +181,7 @@ export const reportDraftSchema = z.object({
   falsifiers: z.array(proseSchema(300)).max(6).optional(),
   /** `null` drops the range. */
   valuation: valuationSchema.nullable().optional(),
-  /** Dates ahead that could move the shares, such as results or a dividend. */
+  /** Dates ahead that could move the shares and that no filing sets, such as an earnings call or a ruling. */
   events: z.array(reportEventSchema).max(8).optional(),
   sections: z
     .partialRecord(z.enum(ReportSection), proseSchema(6_000))
@@ -159,7 +205,8 @@ export interface Report {
   risks: Audited<Argument>[];
   falsifiers: string[];
   valuation: z.infer<typeof valuationSchema> | null;
-  events: z.infer<typeof reportEventSchema>[];
+  /** As they were written: one whose day has passed stays until a revision says what came of it. */
+  events: Audited<ReportEvent>[];
   /** Each part with when it was last written, in epoch ms, which tells how old it is. */
   sections: Partial<Record<ReportSection, { text: string; revisedAt: number }>>;
 }
@@ -169,6 +216,8 @@ export const ReportViolationCode = {
   MissingThesis: "missing-thesis",
   ValuationInverted: "valuation-inverted",
   ClaimUnsupported: "claim-unsupported",
+  EventPassed: "event-passed",
+  EventUnsupported: "event-unsupported",
 } as const;
 
 export type ReportViolationCode =
@@ -188,6 +237,18 @@ export type ReportViolation =
       claim: string;
       /** How likely its quote states it, from 0 to 1. */
       supported: number;
+    }
+  | {
+      code: typeof ReportViolationCode.EventPassed;
+      date: string;
+      label: string;
+    }
+  | {
+      code: typeof ReportViolationCode.EventUnsupported;
+      date: string;
+      label: string;
+      /** How likely its quote gives that day for it, from 0 to 1. */
+      supported: number;
     };
 
 export type Revision =
@@ -198,20 +259,23 @@ export type Revision =
 export interface RevisionContext {
   /** Epoch ms. */
   at: number;
+  /** The day on the listing's exchange, `YYYY-MM-DD`. */
+  today: string;
   /** The last day of the newest quarter public now; `null` when none is known. */
   financialsThrough: string | null;
-  /** The reading each of the draft's claims was given; `null` for one that was not read. */
+  /** The reading each of the draft's claims was given, its events' among them; `null` for one that was not read. */
   support: (claim: Claim) => ClaimSupport | null;
 }
 
 /**
  * The revision `draft` makes of `previous`; a listing's first must give a stance and a thesis,
- * since nothing earlier holds them.
+ * since nothing earlier holds them. An event the draft names must still lie ahead, while one
+ * carried over from `previous` stays though its day has passed.
  */
 export function reviseReport(
   previous: Report | null,
   draft: ReportDraft,
-  { at, financialsThrough, support }: RevisionContext
+  { at, today, financialsThrough, support }: RevisionContext
 ): Revision {
   const audited = (claims: Argument[] | undefined) =>
     claims?.map((claim) => ({ ...claim, support: support(claim) }));
@@ -249,6 +313,26 @@ export function reviseReport(
     violations.push({ code: ReportViolationCode.ClaimUnsupported, ...weak });
   }
 
+  const { market } = draft.symbol;
+
+  for (const event of draft.events ?? []) {
+    const { date, label } = event;
+    const reading = support(eventClaim(event, market));
+
+    if (date < today) {
+      violations.push({ code: ReportViolationCode.EventPassed, date, label });
+    }
+
+    if (reading && reading.supported < CLAIM_SUPPORT_LINE) {
+      violations.push({
+        code: ReportViolationCode.EventUnsupported,
+        date,
+        label,
+        supported: reading.supported,
+      });
+    }
+  }
+
   if (stance === undefined || thesis === undefined || violations.length > 0) {
     return { ok: false, violations };
   }
@@ -274,10 +358,27 @@ export function reviseReport(
       risks: audited(draft.risks) ?? previous?.risks ?? [],
       falsifiers: draft.falsifiers ?? previous?.falsifiers ?? [],
       valuation,
-      events: draft.events ?? previous?.events ?? [],
+      events:
+        draft.events?.map((event) => ({
+          ...event,
+          support: support(eventClaim(event, market)),
+        })) ??
+        previous?.events ??
+        [],
       sections,
     },
   };
+}
+
+/**
+ * The report's events whose day is behind `today`, an exchange-local day: no longer ahead, so the
+ * report owes what came of each.
+ */
+export function passedEvents(
+  { events }: Pick<Report, "events">,
+  today: string
+): Audited<ReportEvent>[] {
+  return events.filter(({ date }) => date < today);
 }
 
 /**

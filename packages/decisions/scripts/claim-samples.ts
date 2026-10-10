@@ -1,3 +1,7 @@
+import { EventTiming } from "@solyx/core/calendar";
+import { Market } from "@solyx/core/market";
+import { eventClaim } from "@solyx/core/report";
+
 /** A synthetic claim with the quote it rests on, and whether the quote states it. */
 export interface ClaimSample {
   claim: string;
@@ -20,6 +24,16 @@ const outrun = (claim: string, quote: string, note: string): ClaimSample => ({
   supported: false,
   note,
 });
+
+/** What a report's event asserts of its day, worded as the app words it for the auditor. */
+const dated = (
+  market: Market,
+  label: string,
+  date: string,
+  timing: EventTiming
+) =>
+  eventClaim({ label, date, timing, source: "sample", quote: "sample" }, market)
+    .text;
 
 export const CLAIM_SAMPLES: ClaimSample[] = [
   held(
@@ -93,7 +107,102 @@ export const CLAIM_SAMPLES: ClaimSample[] = [
     "本季有效稅率約 8%，去年同期約 20%。",
     "本季有效稅率約為 8%，顯著低於去年同期的 20%"
   ),
+  held(
+    dated(Market.TW, "第三季法說會", "2026-10-16", EventTiming.Set),
+    "本公司訂於 115 年 10 月 16 日（星期五）下午 2 時召開法人說明會",
+    "an event's day, in the ROC calendar"
+  ),
+  held(
+    dated(Market.TW, "第三季法說會", "2026-10-16", EventTiming.Set),
+    "115/10/16 法人說明會",
+    "an event's day, in the ROC calendar, as a table gives it"
+  ),
+  held(
+    dated(Market.TW, "股東常會", "2027-06-08", EventTiming.Set),
+    "The annual general meeting of shareholders will be held on June 8, 2027.",
+    "an event's day, across languages"
+  ),
+  held(
+    dated(Market.TW, "新廠動土典禮", "2026-11-05", EventTiming.Expected),
+    "市場預期新廠將於 11 月 5 日前後動土",
+    "a day a source expects"
+  ),
+  held(
+    dated(
+      Market.US,
+      "Third-quarter earnings call",
+      "2026-10-16",
+      EventTiming.Set
+    ),
+    "3Q26 Earnings Conference: October 16, 2026",
+    "an event's day"
+  ),
+  held(
+    dated(
+      Market.US,
+      "FDA decision on the new drug application",
+      "2026-12-20",
+      EventTiming.Deadline
+    ),
+    "The FDA has set a target action date of December 20, 2026 for the application.",
+    "an event's latest day"
+  ),
+  held(
+    dated(
+      Market.US,
+      "Final export rule published",
+      "2026-10-28",
+      EventTiming.Expected
+    ),
+    "The final rule is expected to be published around October 28.",
+    "a day a source expects"
+  ),
 
+  outrun(
+    dated(Market.TW, "新機發表會", "2026-11-12", EventTiming.Set),
+    "新機預計十一月發表",
+    "a day the quote does not give"
+  ),
+  outrun(
+    dated(Market.TW, "股東常會", "2026-10-16", EventTiming.Set),
+    "本公司訂於 115 年 10 月 16 日（星期五）下午 2 時召開法人說明會",
+    "another event on that day"
+  ),
+  outrun(
+    dated(Market.TW, "第三季法說會", "2026-10-16", EventTiming.Set),
+    "本公司訂於 114 年 10 月 16 日召開法人說明會",
+    "the same day of another ROC year"
+  ),
+  outrun(
+    dated(
+      Market.US,
+      "Third-quarter earnings call",
+      "2026-10-23",
+      EventTiming.Set
+    ),
+    "3Q26 Earnings Conference: October 16, 2026",
+    "a different day"
+  ),
+  outrun(
+    dated(
+      Market.US,
+      "Final export rule published",
+      "2026-10-28",
+      EventTiming.Expected
+    ),
+    "The final rule is expected to be published in the fourth quarter.",
+    "a quarter told as a day"
+  ),
+  outrun(
+    dated(Market.TW, "新廠動土典禮", "2026-11-05", EventTiming.Expected),
+    "新廠動土時間尚未確定",
+    "no day at all"
+  ),
+  outrun(
+    dated(Market.US, "Export rule decision", "2026-10-28", EventTiming.Set),
+    "A decision could come as soon as late October, people familiar with the matter said.",
+    "a guess told as a set day"
+  ),
   outrun(
     "AI 訂單明年將翻倍。",
     "Entering 2026, we expect AI-related demand to continue to be robust.",

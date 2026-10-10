@@ -2,10 +2,11 @@ import { cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { sortBy } from "es-toolkit";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
-import type { ListingEvent } from "@solyx/core/calendar";
+import type { ListingEvent, ResearchEvent } from "@solyx/core/calendar";
 import type { MacroRelease } from "@solyx/core/macro";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -67,7 +68,23 @@ const ROW_CLASS =
 
 const WHAT_CLASS = "col-start-2 min-w-0 truncate @min-[40rem]/main:col-start-3";
 
-/** An event's day, which a deadline shows as the latest it may come, explained by `hint`. */
+/** An event's day as its timing reads: the latest it may come for a deadline, about then for an expected one. */
+export function timedDay(
+  t: TFunction,
+  date: string,
+  timing: EventTiming
+): string {
+  switch (timing) {
+    case EventTiming.Set:
+      return date;
+    case EventTiming.Deadline:
+      return t("calendar.by", { date });
+    case EventTiming.Expected:
+      return t("calendar.around", { date });
+  }
+}
+
+/** An event's day, which `hint` explains unless whoever holds the event set it. */
 function EventDay({
   date,
   timing,
@@ -78,14 +95,13 @@ function EventDay({
   hint: string;
 }) {
   const { t } = useTranslation();
-  const day = date.slice("YYYY-".length);
-  const deadline = timing === EventTiming.Deadline;
+  const set = timing === EventTiming.Set;
 
   return (
     <span
-      className={cn("text-xs tabular-nums", deadline && "text-muted")}
-      title={deadline ? hint : undefined}>
-      {deadline ? t("calendar.by", { date: day }) : day}
+      className={cn("text-xs tabular-nums", !set && "text-muted")}
+      title={set ? undefined : hint}>
+      {timedDay(t, date.slice("YYYY-".length), timing)}
     </span>
   );
 }
@@ -110,6 +126,39 @@ function EventRow({ event }: { event: ListingEvent }) {
       </Link>
       <span className={cn(WHAT_CLASS, deadline && "text-muted")}>
         <EventLabel event={event} />
+      </span>
+    </li>
+  );
+}
+
+/** A date a listing's report holds, marked as the agent's finding and showing its source on hover. */
+function ResearchRow({ event }: { event: ResearchEvent }) {
+  const { t } = useTranslation();
+
+  return (
+    <li className={ROW_CLASS}>
+      <EventDay
+        date={event.date}
+        timing={event.timing}
+        hint={t(`calendar.report-hints.${event.timing}`)}
+      />
+      <Link
+        to="/symbol/$market/$symbol"
+        params={event.symbol}
+        className="flex min-w-0 items-baseline gap-1.5 hover:underline">
+        <span className="shrink-0 font-medium">{event.symbol.symbol}</span>
+        <ListingName symbol={event.symbol} className="text-xs text-muted" />
+      </Link>
+      <span
+        className={cn(
+          WHAT_CLASS,
+          event.timing !== EventTiming.Set && "text-muted"
+        )}
+        title={`${event.source} — “${event.quote}”`}>
+        {event.label}
+        <span className="ms-1.5 text-xs text-muted">
+          {t("calendar.from-report")}
+        </span>
       </span>
     </li>
   );
@@ -148,8 +197,8 @@ function ReleaseRow({ release }: { release: MacroRelease }) {
 }
 
 /**
- * The listings' coming filings and distributions and their markets' economic releases, soonest
- * first, with the listings and markets whose dates could not be read.
+ * The listings' coming filings and distributions, the dates their reports hold and their markets'
+ * economic releases, soonest first, with the listings and markets whose dates could not be read.
  */
 export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
   const { t } = useTranslation();
@@ -166,6 +215,15 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
         row: (
           <EventRow
             key={`${symbolKey(event.symbol)}:${event.kind}:${event.date}:${event.subject}`}
+            event={event}
+          />
+        ),
+      })),
+      ...data.research.map((event) => ({
+        date: event.date,
+        row: (
+          <ResearchRow
+            key={`${symbolKey(event.symbol)}:report:${event.date}:${event.label}`}
             event={event}
           />
         ),

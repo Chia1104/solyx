@@ -7,6 +7,7 @@ import type {
 } from "@earendil-works/pi-durable";
 import { expect, test } from "vite-plus/test";
 
+import { EventTiming } from "@solyx/core/calendar";
 import type { Candle } from "@solyx/core/candles";
 import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
 import type { Council } from "@solyx/core/council";
@@ -267,6 +268,44 @@ test("a revision is kept and read back with its sources and each part's age", as
     '- Demand is still strong.\n  rests on: August revenue rose 53% on the year. [TWSE monthly revenue, 2026-08: "去年同月增減 53.32%"]'
   );
   expect(text).toContain("## business, written 2026-09-29");
+});
+
+test("a report's events read back with their sources, one behind today is refused, and one that has passed is marked", async () => {
+  const { run, clock } = setup();
+
+  const call = {
+    date: "2026-10-16",
+    label: "Third-quarter earnings call",
+    timing: EventTiming.Deadline,
+    source: "Investor relations calendar",
+    quote: "3Q26 Earnings Conference: October 16, 2026",
+  };
+
+  await expect(
+    run(AgentToolName.ReviseReport, {
+      ...REPORT,
+      events: [{ ...call, date: "2026-09-28" }],
+    })
+  ).rejects.toThrow(
+    'The event "Third-quarter earnings call" is dated 2026-09-28, which has passed.'
+  );
+
+  await run(AgentToolName.ReviseReport, { ...REPORT, events: [call] });
+
+  const line =
+    '- by 2026-10-16 Third-quarter earnings call [Investor relations calendar: "3Q26 Earnings Conference: October 16, 2026"]';
+
+  expect(
+    (await run(AgentToolName.GetResearch, { symbol: TSMC })).text
+  ).toContain(`Events:\n${line}`);
+
+  clock.now = Date.parse("2026-10-17T09:00:00+08:00");
+
+  expect(
+    (await run(AgentToolName.GetResearch, { symbol: TSMC })).text
+  ).toContain(
+    "- by 2026-10-16 Third-quarter earnings call (passed: say what came of it and drop it when you next revise) [Investor relations calendar:"
+  );
 });
 
 test("news a decisions model read as stating a falsifier is listed with the report", async () => {

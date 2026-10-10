@@ -3,6 +3,7 @@ import { expect, test } from "vite-plus/test";
 import {
   EventTiming,
   ListingEventKind,
+  reportedEvents,
   upcomingEvents,
 } from "../src/calendar.ts";
 import type { ListingFilings } from "../src/calendar.ts";
@@ -206,4 +207,36 @@ test("outside Taiwan no rules set a filing deadline", () => {
       "2026-11-30"
     ).map(({ kind }) => kind)
   ).toEqual([ListingEventKind.ExDividend]);
+});
+
+test("a report's dates come soonest first, from today through the last day asked for", () => {
+  const event = (date: string, label: string) => ({
+    date,
+    label,
+    timing: EventTiming.Expected,
+    source: "Company presentation",
+    quote: label,
+    support: null,
+  });
+
+  expect(
+    reportedEvents(
+      {
+        symbol: TSMC,
+        events: [
+          event("2026-11-20", "Technology forum"),
+          event("2026-10-07", "Passed already"),
+          event("2026-10-16", "Earnings call"),
+          event("2026-10-08", "Today"),
+          event("2026-12-01", "Too far ahead"),
+        ],
+      },
+      "2026-10-08",
+      "2026-11-20"
+    ).map(({ symbol, date, label }) => [symbol, date, label])
+  ).toEqual([
+    [TSMC, "2026-10-08", "Today"],
+    [TSMC, "2026-10-16", "Earnings call"],
+    [TSMC, "2026-11-20", "Technology forum"],
+  ]);
 });

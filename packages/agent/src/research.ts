@@ -38,7 +38,7 @@ import type { FalsifierCheck, ResearchDesk } from "@solyx/core/research";
 
 import { councilText, durableBallotBox, forecastMotion } from "./magi.ts";
 import type { MagiPort } from "./magi.ts";
-import { defineTool, publishedTime } from "./tools.ts";
+import { defineTool, eventDay, publishedTime } from "./tools.ts";
 import type { ToolOutput } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
 import type { ReviseReportDetails, SubmitForecastDetails } from "./wire.ts";
@@ -83,7 +83,7 @@ const reviseParameters = reportDraftSchema.extend({
     "The range of prices you find fair and what it is measured by; null drops it"
   ),
   events: reportDraftSchema.shape.events.describe(
-    "Dates ahead that could move the shares, on the exchange's calendar"
+    "Dates ahead that could move the shares and that get_calendar does not already list, such as an earnings call, a shareholders' meeting, a launch or a ruling, on the exchange's calendar; the app's calendar shows them from then on. label says what happens and no more than quote does; quote is the source's own words that give the day, in full; timing is set when whoever holds the event set the day, deadline for the latest day it may come, and expected when a source only expects it. A day already behind today is refused. Sending events replaces the whole list"
   ),
   sections: reportDraftSchema.shape.sections.describe(
     "The prose, by part: what stays true for quarters, not a chart read. A part you leave out stays as it was"
@@ -147,6 +147,10 @@ function reportViolationText(violation: ReportViolation): string {
       return `The valuation's low ${violation.low} is above its high ${violation.high}.`;
     case ReportViolationCode.ClaimUnsupported:
       return unsupportedText(violation);
+    case ReportViolationCode.EventPassed:
+      return `The event "${violation.label}" is dated ${violation.date}, which has passed. Events are dates ahead: leave it out, and say what came of it in the catalysts section or in a driver or risk.`;
+    case ReportViolationCode.EventUnsupported:
+      return `The quote given for the event "${violation.label}" does not give ${violation.date} for it. Quote the source's words that name the day, set timing to expected when the source only expects it, or leave the event out.`;
   }
 }
 
@@ -195,8 +199,19 @@ function forecastViolationText(
 const argumentText = (argument: Argument) =>
   `- ${argument.point}\n  rests on: ${argument.text} [${argument.source}: "${argument.quote}"]`;
 
-function reportText(report: Report): string {
+/** A report as the model reads it, each of its `passed` events marked as no longer ahead. */
+function reportText(
+  report: Report,
+  passed: readonly Report["events"][number][]
+): string {
   const { market } = report.symbol;
+
+  const eventText = (event: Report["events"][number]) =>
+    `- ${eventDay(event.date, event.timing)} ${event.label}${
+      passed.includes(event)
+        ? " (passed: say what came of it and drop it when you next revise)"
+        : ""
+    } [${event.source}: "${event.quote}"]`;
 
   const listed = (title: string, lines: string[]) =>
     lines.length > 0 ? [`${title}:`, ...lines] : [];
@@ -215,10 +230,7 @@ function reportText(report: Report): string {
           `Valuation: ${report.valuation.low} to ${report.valuation.high} (${report.valuation.basis})`,
         ]
       : []),
-    ...listed(
-      "Events",
-      report.events.map((event) => `- ${event.date} ${event.label}`)
-    ),
+    ...listed("Events", report.events.map(eventText)),
     ...Object.entries(report.sections).flatMap(([section, part]) => [
       `## ${section}, written ${day(market, part.revisedAt)}`,
       part.text,
@@ -384,7 +396,7 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetResearch,
         replay: "safe",
-        description: `What the app holds of a listing's research: its report with when each part was written, its last ${LISTED_FORECASTS} forecasts with how those past their horizon came out, news a decisions model read as stating that one of its falsifiers happened, and how your forecasts have held, for this listing and for every listing. A report is what you thought when you wrote it, never current data.`,
+        description: `What the app holds of a listing's research: its report with when each part was written and which of its events have passed, its last ${LISTED_FORECASTS} forecasts with how those past their horizon came out, news a decisions model read as stating that one of its falsifiers happened, and how your forecasts have held, for this listing and for every listing. A report is what you thought when you wrote it, never current data.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
           const [coverage, overall] = await Promise.all([
@@ -400,7 +412,7 @@ export function createResearch(options: ResearchOptions): Extension {
           return {
             text: [
               coverage.report
-                ? reportText(coverage.report)
+                ? reportText(coverage.report, coverage.passedEvents)
                 : `${symbol.market} ${symbol.symbol} has no report yet.`,
               ...(coverage.newerFinancials
                 ? [

@@ -24,17 +24,25 @@ import type {
 } from "./forecast.ts";
 import type { Fundamentals } from "./fundamentals.ts";
 import type { MarketData } from "./market-data.ts";
-import { symbolKey } from "./market.ts";
+import { exchangeDate, symbolKey } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { storyText } from "./news.ts";
 import type { NewsItem, NewsRecord } from "./news.ts";
-import { CLAIM_SUPPORT_LINE, reportPassages, reviseReport } from "./report.ts";
+import {
+  CLAIM_SUPPORT_LINE,
+  eventClaim,
+  passedEvents,
+  reportPassages,
+  reviseReport,
+} from "./report.ts";
 import type {
+  Audited,
   Claim,
   ClaimAuditor,
   ClaimSupport,
   Report,
   ReportDraft,
+  ReportEvent,
   Revision,
 } from "./report.ts";
 
@@ -130,6 +138,8 @@ export interface Coverage {
   report: Report | null;
   /** The last day of a quarter published since the report was revised, which it must take in before the next forecast; `null` when it is current. */
   newerFinancials: string | null;
+  /** The report's events whose day has passed on the listing's exchange, which its next revision accounts for. */
+  passedEvents: Audited<ReportEvent>[];
   /** Oldest first. */
   forecasts: Forecast[];
   record: ForecastRecord;
@@ -176,10 +186,16 @@ export class ResearchDesk {
     const support = await this.#audit([
       ...(draft.drivers ?? []),
       ...(draft.risks ?? []),
+      ...(draft.events ?? []).map((event) =>
+        eventClaim(event, draft.symbol.market)
+      ),
     ]);
 
+    const at = now();
+
     const revision = reviseReport(store.report(draft.symbol) ?? null, draft, {
-      at: now(),
+      at,
+      today: exchangeDate(draft.symbol.market, new Date(at)),
       financialsThrough,
       support,
     });
@@ -288,7 +304,7 @@ export class ResearchDesk {
   }
 
   async coverage(symbol: SymbolRef): Promise<Coverage> {
-    const { store } = this.#options;
+    const { store, now = Date.now } = this.#options;
     const forecasts = await this.#settle(symbol, store.forecasts(symbol));
     const report = store.report(symbol) ?? null;
 
@@ -297,6 +313,9 @@ export class ResearchDesk {
       newerFinancials: report
         ? newerFinancials(report, await this.#newestQuarter(symbol))
         : null,
+      passedEvents: report
+        ? passedEvents(report, exchangeDate(symbol.market, new Date(now())))
+        : [],
       forecasts,
       record: forecastRecord(forecasts),
       signals: report
@@ -533,11 +552,15 @@ export class ResearchDesk {
     };
   }
 
-  /** Has each claim read against its quote, and answers with the reading a claim was given. */
+  /**
+   * Has each claim read against its quote, and answers with the reading a claim was given: by what
+   * the auditor saw of it, so a claim built again from the same event reads the same.
+   */
   async #audit(
     claims: readonly Claim[]
   ): Promise<(claim: Claim) => ClaimSupport | null> {
     const auditor = await this.#options.auditor?.();
+    const seen = ({ text, quote }: Claim) => JSON.stringify([text, quote]);
 
     const readings = await Promise.all(
       claims.map(async (claim) =>
@@ -546,7 +569,11 @@ export class ResearchDesk {
       )
     );
 
-    return (claim) => readings[claims.indexOf(claim)] ?? null;
+    const read = new Map<string, ClaimSupport | null>(
+      claims.map((claim, index) => [seen(claim), readings[index]])
+    );
+
+    return (claim) => read.get(seen(claim)) ?? null;
   }
 
   /** The last day of the newest quarter public for a listing; `null` when none is. */

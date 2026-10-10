@@ -13,7 +13,11 @@ import { maxBy, omit, takeRight, uniq, uniqBy } from "es-toolkit";
 import * as z from "zod";
 
 import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
-import type { ListingEvent, UpcomingEvents } from "@solyx/core/calendar";
+import type {
+  ListingEvent,
+  ResearchEvent,
+  UpcomingEvents,
+} from "@solyx/core/calendar";
 import {
   Interval,
   alignedCloses,
@@ -361,9 +365,16 @@ function sessionsSince(
   return `${sessions} session${sessions === 1 ? "" : "s"} ${since}`;
 }
 
-/** An event's day, which a deadline shows as the latest it may come. */
-function eventDay(date: string, timing: EventTiming): string {
-  return timing === EventTiming.Deadline ? `by ${date}` : date;
+/** An event's day, which a deadline shows as the latest it may come and an expected one as about then. */
+export function eventDay(date: string, timing: EventTiming): string {
+  switch (timing) {
+    case EventTiming.Set:
+      return date;
+    case EventTiming.Deadline:
+      return `by ${date}`;
+    case EventTiming.Expected:
+      return `around ${date}`;
+  }
 }
 
 const perShare = (amount: number | null) => String(amount ?? 0);
@@ -394,6 +405,9 @@ function describeEvent(event: ListingEvent): string {
     }
   }
 }
+
+const describeResearchEvent = (event: ResearchEvent) =>
+  `${eventDay(event.date, event.timing)} ${event.symbol.market} ${event.symbol.symbol} ${event.label} [${event.source}]`;
 
 function describeRelease(release: MacroRelease): string {
   const period = release.period === null ? "" : ` for ${release.period}`;
@@ -727,7 +741,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetCalendar,
       replay: "safe",
-      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them; trading restrictions such as short-sale suspensions and dispositions; and the economic releases of the listings' markets, each on its day or by the latest day its agency set. Dates are YYYY-MM-DD on each market's exchange calendar, and "by" marks a latest day. Taiwan only for now: a US listing has no events here, no US releases are known, and earnings calls, holidays and market closures are not on it. Defaults to the listings the user holds and watches.`,
+      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them; trading restrictions such as short-sale suspensions and dispositions; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; and the economic releases of the listings' markets, each on its day or by the latest day its agency set. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Filings and releases are Taiwan's only for now: a US listing has only its report's dates, no US releases are known, an earnings call is on it only once a report holds it, and holidays and market closures are not on it. Defaults to the listings the user holds and watches.`,
       parameters: z.object({
         symbols: z
           .array(symbolRefSchema)
@@ -748,7 +762,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             symbolKey
           );
 
-        const { events, unread, releases, unreadMarkets } =
+        const { events, research, unread, releases, unreadMarkets } =
           await ports.calendar(listings, days);
 
         const named = listings
@@ -771,6 +785,10 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             `Calendar of ${listings.length === 0 ? "no listings" : named} over the next ${days} days, each market from its own day today, as_of ${exchangeTime(Market.TW, now())} Taipei; the same list the app's overview shows`,
             "Listings' filings, distributions and restrictions:",
             ...(events.length > 0 ? events.map(describeEvent) : ["None."]),
+            "Dates their reports hold, each as you found it, with its source:",
+            ...(research.length > 0
+              ? research.map(describeResearchEvent)
+              : ["None."]),
             "Economic releases of their markets:",
             ...(releases.length > 0
               ? releases.map(describeRelease)
@@ -784,7 +802,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           details: {
             symbols: listings,
             days,
-            events: events.length,
+            events: events.length + research.length,
             releases: releases.length,
           },
         };

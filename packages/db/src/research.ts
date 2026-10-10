@@ -59,7 +59,11 @@ function reportTerms(report: Report) {
     ]),
     ...report.falsifiers,
     report.valuation?.basis,
-    ...report.events.map((event) => event.label),
+    ...report.events.flatMap((event) => [
+      event.label,
+      event.quote,
+      event.source,
+    ]),
     ...Object.values(report.sections).map((part) => part.text),
   ]);
 }
