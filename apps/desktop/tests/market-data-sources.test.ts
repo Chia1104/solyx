@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -23,6 +23,7 @@ import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
 import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
+import { handEdit } from "./hand-edit.ts";
 
 const MIGRATIONS = join(
   import.meta.dirname,
@@ -307,9 +308,14 @@ test("a hand edit of Taiwan's source changes the stream once", async () => {
 
   const stop = config.watch();
 
-  await writeFile(configFile, '{ "marketData": { "TW": "fubon" } }');
-  await vi.waitFor(() => expect(changes).toHaveBeenCalledTimes(1));
+  await handEdit(
+    configFile,
+    '{ "marketData": { "TW": "fubon" } }',
+    () => changes.mock.calls.length > 0
+  );
   stop();
+
+  expect(changes).toHaveBeenCalledTimes(1);
 });
 
 test("signing in to Fubon again changes the stream, since it keeps the session it opened with", async () => {
