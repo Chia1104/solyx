@@ -4,11 +4,12 @@ Decisions models, which answer typed questions with probabilities instead of wri
 
 ## Boundaries
 
-- Runs only in the main process: modules hold the user's key and make network requests. `./provider` alone holds neither, so the renderer may import it.
-- The provider, model, key and endpoint come only from the user's settings (`decisions.provider`, then `model` and `baseURL` under `decisions.<provider>`, Cloudflare's `accountId`, and one secret per provider). A module passes every option its SDK would otherwise read from the environment, and keeps the SDK's logging off, since it can print the texts being judged.
+- `./provider` holds no key and makes no request, so the renderer may import it.
+- The provider, model, key and endpoint are the settings `decisions.provider`, then `model` and `baseURL` under `decisions.<provider>`, Cloudflare's `accountId`, and one secret per provider. Keep each SDK's logging off, since it can print the texts being judged.
 - `src/system-one.ts` holds the one set of questions, in TypeSafe's System One format, and reads every vendor's answers; a vendor's module only carries a request to its model. A vendor whose model reads a shared question badly rewords that question in its own module, as `./cloudflare` does for one command question, rather than bending the shared wording. A default model is pinned to a version where the vendor versions its models, so the questions keep the behaviour they were measured against.
 - Questions say what a text does rather than what it does not: Jev is weak on negation.
-- Tests use synthetic responses shaped like the vendor's; never commit real posts or articles.
-- `scripts/eval-claims.ts` measures the claim question against labelled synthetic claims the same way. `CLAIM_SUPPORT_LINE` in `@solyx/core/report`, below which research refuses a claim, rests on its result, so run it again for every provider after changing the question, and for a provider after changing its default model. The auditor sees a claim and its quote alone, never the source.
-- `scripts/eval-speakers.ts` measures the question of who wrote a text, given where it was published, against labelled synthetic texts the same way. `SPEAKER_CONFIDENCE` in `@solyx/core/news`, below which a story's channel names its speaker instead, rests on its result, so run it again for every provider after changing the question, and for a provider after changing its default model.
-- `scripts/eval-commands.ts` measures the command questions against labelled synthetic commands on a real key, for the provider `DECISIONS_PROVIDER` names. Run it again for every provider after changing a question, and for a provider after changing its default model, since the agent's threshold for running a command unasked rests on its result.
+- Three scripts measure a question against labelled synthetic samples, and a line elsewhere rests on each result. Run a script again for every provider after changing its question, and for a provider after changing its default model.
+  - `scripts/eval-claims.ts`: `CLAIM_SUPPORT_LINE` in `@solyx/core/report`, below which research refuses a claim.
+  - `scripts/eval-speakers.ts`, the question of who wrote a text given where it was published: `SPEAKER_CONFIDENCE` in `@solyx/core/news`, below which a story's channel names its speaker instead.
+  - `scripts/eval-commands.ts`, on a real key for the provider `DECISIONS_PROVIDER` names: the agent's threshold for running a command unasked.
+- The claim auditor sees a claim and its quote alone, never the source.
