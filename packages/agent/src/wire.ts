@@ -37,6 +37,12 @@ export type ApprovalMode = (typeof ApprovalMode)[keyof typeof ApprovalMode];
 
 export const approvalModeSchema = z.enum(ApprovalMode);
 
+/** The scheduled task that started a conversation, as it was named then. */
+export interface SessionSchedule {
+  id: string;
+  name: string;
+}
+
 /** One conversation with the agent. */
 export interface AgentSession {
   id: string;
@@ -49,6 +55,8 @@ export interface AgentSession {
   model: AgentModelRef | null;
   /** How long its model thinks; `null` follows the default. */
   thinking: AgentThinking | null;
+  /** The scheduled task that started it while nobody watched; `null` for one the user started. */
+  schedule: SessionSchedule | null;
 }
 
 /** What a new conversation starts on, picked before its first message. */

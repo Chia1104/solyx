@@ -6,6 +6,9 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { McpServerState, McpTransportKind } from "@solyx/agent/mcp-config";
 import type { SetupArea } from "@solyx/agent/setup";
+import { Market } from "@solyx/core/market";
+import { ScheduleApproval, ScheduleKind } from "@solyx/core/schedule";
+import type { ScheduledTask } from "@solyx/core/schedule";
 import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FUGLE_PLANS, FuglePlan } from "@solyx/market-data/fugle";
 
@@ -56,7 +59,7 @@ function marketStatus(
   };
 }
 
-function setup() {
+function setup(scheduled: ScheduledTask[] = []) {
   const configDir = join(home, ".solyx");
   const config = createConfigFile(join(configDir, "config.json"));
 
@@ -99,6 +102,7 @@ function setup() {
     skills: async () => ({ skills: [], warnings: [] }),
     instructions: async () => undefined,
     memory: { list: () => [] },
+    schedules: { list: () => scheduled },
     shellOn: () => false,
     version: "0.9.0",
     home,
@@ -137,6 +141,7 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
     ["Decisions model", "#/settings?section=agent"],
     ["Embeddings", "#/settings?section=agent"],
     ["Skills", "#/settings?section=skills"],
+    ["Scheduled tasks", "#/settings?section=schedules"],
     ["Memory", "#/settings?section=memory"],
     ["MCP servers", "#/settings?section=mcp"],
     ["About", "#/settings?section=about"],
@@ -318,4 +323,50 @@ test("a change the agent may not make is refused with what the setting takes, an
   ).rejects.toThrow("agent.provider takes one of");
 
   expect(JSON.stringify(config.read())).toBe(before);
+});
+
+test("the scheduled tasks the user wrote read with when each runs and how its calls get past", async () => {
+  const brief: ScheduledTask = {
+    id: "brief",
+    name: "Morning brief",
+    prompt: "/watchlist-upkeep",
+    schedule: {
+      kind: ScheduleKind.FixedTime,
+      time: "08:30",
+      tradingDaysOf: Market.TW,
+    },
+    timeZone: "Asia/Taipei",
+    locale: "zh-TW",
+    approval: ScheduleApproval.Auto,
+    enabled: true,
+    createdAt: 0,
+    updatedAt: 0,
+    lastRun: null,
+  };
+
+  const hourly: ScheduledTask = {
+    ...brief,
+    id: "hourly",
+    name: "Hourly check",
+    schedule: { kind: ScheduleKind.Interval, everyMinutes: 60 },
+    approval: ScheduleApproval.Ask,
+    enabled: false,
+  };
+
+  expect(area(await setup().port.read(), "Scheduled tasks").settings).toEqual([
+    { name: "tasks", value: "none written" },
+  ]);
+  expect(
+    area(await setup([brief, hourly]).port.read(), "Scheduled tasks").settings
+  ).toEqual([
+    {
+      name: "Morning brief",
+      value:
+        "at 08:30 Asia/Taipei on days TW trades, on, calls that must ask: auto",
+    },
+    {
+      name: "Hourly check",
+      value: "every 60 minutes, off, calls that must ask: ask",
+    },
+  ]);
 });

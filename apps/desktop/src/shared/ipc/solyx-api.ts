@@ -7,6 +7,7 @@ import type { MemoryApi, MemoryEvents } from "./memory.ts";
 import type { NewsApi, NewsEvents } from "./news.ts";
 import type { ProposalsApi, ProposalsEvents } from "./proposals.ts";
 import type { ResearchApi, ResearchEvents } from "./research.ts";
+import type { SchedulesApi, SchedulesEvents } from "./schedules.ts";
 import type { SettingsApi, SettingsEvents } from "./settings.ts";
 import type { StorageApi } from "./storage.ts";
 import type { UpdatesApi, UpdatesEvents } from "./updates.ts";
@@ -23,6 +24,7 @@ export interface SolyxApi {
   news: NewsApi & NewsEvents;
   proposals: ProposalsApi & ProposalsEvents;
   research: ResearchApi & ResearchEvents;
+  schedules: SchedulesApi & SchedulesEvents;
   settings: SettingsApi & SettingsEvents;
   storage: StorageApi;
   updates: UpdatesApi & UpdatesEvents;

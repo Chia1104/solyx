@@ -44,3 +44,20 @@ test("the context names the listing on screen, those the user named and the skil
     "skill: deep-analysis",
   ]);
 });
+
+test("the context says when a scheduled task sent the message in the user's place", () => {
+  const context = formatContext({
+    now: new Date("2026-10-07T11:27:00Z"),
+    brokerMode: BrokerMode.Paper,
+    skill: "watchlist-upkeep",
+    locale: "zh-TW",
+    timeZone: "Asia/Taipei",
+    decisionMode: DecisionMode.Single,
+    scheduled: "Morning brief",
+  });
+
+  expect(context.split("\n").slice(4)).toEqual([
+    "skill: watchlist-upkeep",
+    "scheduled: Morning brief",
+  ]);
+});

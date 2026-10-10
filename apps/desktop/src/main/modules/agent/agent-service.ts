@@ -26,10 +26,11 @@ import type { SkillFolders } from "@solyx/agent/skills";
 import { createTradingExtension } from "@solyx/agent/tools";
 import { createRunTraces } from "@solyx/agent/traces";
 import { createWebTools } from "@solyx/agent/web";
+import { ApprovalMode } from "@solyx/agent/wire";
 import type {
+  AgentSession,
   AgentSessionSetup,
   AgentWireEvent,
-  ApprovalMode,
 } from "@solyx/agent/wire";
 import { BrokerMode } from "@solyx/core/broker";
 import { DecisionMode } from "@solyx/core/council";
@@ -42,6 +43,8 @@ import type { MemoryStore } from "@solyx/core/memory";
 import type { NewsDesk } from "@solyx/core/news";
 import type { ProposingDesk } from "@solyx/core/order-desk";
 import type { ResearchDesk } from "@solyx/core/research";
+import { ScheduleApproval } from "@solyx/core/schedule";
+import type { ScheduledTask } from "@solyx/core/schedule";
 import type { WebReader, WebSearch } from "@solyx/core/web-search";
 import type { AgentStore } from "@solyx/db/agent";
 import { isErrnoError } from "@solyx/utils/error";
@@ -97,6 +100,12 @@ interface AgentServiceOptions extends AgentModelsOptions {
 const SCRIPT_FILES = {
   wasm: join(import.meta.dirname, "quickjs.wasm"),
   worker: pathToFileURL(join(import.meta.dirname, "../worker/script.mjs")),
+};
+
+// A scheduled task names no way to let every call run, so no run nobody watches is set to bypass.
+const UNATTENDED_MODE: Record<ScheduleApproval, ApprovalMode> = {
+  [ScheduleApproval.Ask]: ApprovalMode.Ask,
+  [ScheduleApproval.Auto]: ApprovalMode.Auto,
 };
 
 /** What a file takes up on disk, or a folder with everything under it; nothing once it is gone. */
@@ -283,6 +292,54 @@ export function createAgentService(options: AgentServiceOptions) {
     await rm(workspace(id), { recursive: true, force: true });
   }
 
+  /** Sends a message with the app's context for its moment; `scheduled` names the task that sent it in the user's place. */
+  async function send(
+    id: string,
+    text: string,
+    {
+      focus,
+      locale,
+      timeZone,
+      scheduled,
+    }: {
+      focus: AgentFocus | null;
+      locale: string;
+      timeZone: string;
+      scheduled?: string;
+    }
+  ) {
+    const now = new Date();
+
+    const { mentions, skill } = await messageContext(text, {
+      focus,
+      watchlist: options.watchlist,
+      holdings: async () =>
+        (await options.desk.account()).positions.map(
+          (position) => position.instrument
+        ),
+      name: async (symbol) => (await options.marketData.listing(symbol))?.name,
+      commands: async () =>
+        (await skills()).skills
+          .filter((each) => each.offered && each.userInvocable)
+          .map((each) => each.name),
+    });
+
+    return runtime.send(id, {
+      text,
+      context: formatContext({
+        now,
+        brokerMode: options.desk.mode,
+        focus: focus ?? undefined,
+        mentions,
+        skill,
+        locale,
+        timeZone,
+        decisionMode: decisionMode(),
+        scheduled,
+      }),
+    });
+  }
+
   return {
     models,
     skills,
@@ -338,43 +395,56 @@ export function createAgentService(options: AgentServiceOptions) {
       await options.mcp.close();
     },
 
-    async send(
+    send: (
       id: string,
       text: string,
       focus: AgentFocus | null,
       locale: Locale,
       timeZone: TimeZone
-    ) {
-      const now = new Date();
+    ) => send(id, text, { focus, locale, timeZone }),
 
-      const { mentions, skill } = await messageContext(text, {
-        focus,
-        watchlist: options.watchlist,
-        holdings: async () =>
-          (await options.desk.account()).positions.map(
-            (position) => position.instrument
-          ),
-        name: async (symbol) =>
-          (await options.marketData.listing(symbol))?.name,
-        commands: async () =>
-          (await skills()).skills
-            .filter((each) => each.offered && each.userInvocable)
-            .map((each) => each.name),
-      });
+    /** Whether a run is going in the conversation; one since deleted has none. */
+    busy: (id: string) => runtime.busy(id),
 
-      return runtime.send(id, {
-        text,
-        context: formatContext({
-          now,
-          brokerMode: options.desk.mode,
-          focus: focus ?? undefined,
-          mentions,
-          skill,
+    /**
+     * Starts a conversation of its own for a scheduled task and sends it the task's prompt, on the
+     * default model and with no listing on screen, since nobody is at the app. A prompt that could
+     * not be sent leaves no conversation behind.
+     */
+    async runScheduled({
+      id,
+      name,
+      prompt,
+      approval,
+      locale,
+      timeZone,
+    }: Pick<
+      ScheduledTask,
+      "id" | "name" | "prompt" | "approval" | "locale" | "timeZone"
+    >): Promise<AgentSession> {
+      const session = await runtime.create(
+        {
+          model: null,
+          thinking: null,
+          approvalMode: UNATTENDED_MODE[approval],
+        },
+        { id, name }
+      );
+
+      try {
+        await send(session.id, prompt, {
+          focus: null,
           locale,
           timeZone,
-          decisionMode: decisionMode(),
-        }),
-      });
+          scheduled: name,
+        });
+      } catch (error) {
+        await deleteSession(session.id);
+
+        throw error;
+      }
+
+      return session;
     },
   };
 }

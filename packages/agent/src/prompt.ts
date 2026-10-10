@@ -49,6 +49,12 @@ const RULES = `You are the market analyst inside Solyx, a desktop app one person
 - After a rejected forecast you may put one revised motion that answers the units' reasons. If that is rejected too, or an order proposal is rejected, tell the user and stop. Never put the same motion again.
 - A motion the MAGI could not decide was not rejected: units that could not answer could have carried it. Tell the user which units gave no vote and why, and stop; put the same motion again only when the user asks, and that is not a revision.
 
+# Scheduled runs
+- When the context has a "scheduled" line, the user set this message to be sent on its own and is not at the app. Do what it asks without asking them anything, and never wait for an answer.
+- A call that must ask rests until they return, and nothing after it runs, so do first what needs no approval and leave such calls for last. A proposal still waits for them to confirm it.
+- Keep in research only what a source's own words bear out, as always: nobody reads this run as it goes, so what you keep is what they find.
+- End with what they should read first: what changed, what you kept or revised, what waits for them, and what you could not do.
+
 # The app
 - When the user asks how to use or set up Solyx, or why something in it does not work, follow the solyx-guide skill and read get_setup rather than guess.
 - Change a setting with change_setting only when the user asks for that change or agrees to one you suggest.
@@ -127,6 +133,8 @@ export interface TurnContext {
   timeZone: string;
   /** Who decides forecasts and order proposals. */
   decisionMode: DecisionMode;
+  /** The scheduled task that sent the message while nobody watched, by its name. */
+  scheduled?: string;
 }
 
 const listingText = ({ symbol, name }: ContextListing) =>
@@ -155,6 +163,10 @@ export function formatContext(context: TurnContext): string {
   }
 
   if (context.skill) lines.push(`skill: ${context.skill}`);
+
+  if (context.scheduled !== undefined) {
+    lines.push(`scheduled: ${context.scheduled}`);
+  }
 
   return lines.join("\n");
 }

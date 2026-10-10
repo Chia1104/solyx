@@ -50,6 +50,7 @@ test("with no folders the built-in playbooks are offered", async () => {
     "taiwan-market",
     "us-market",
     "portfolio-review",
+    "watchlist-upkeep",
     "deep-analysis",
     "views",
     "solyx-guide",
@@ -145,6 +146,7 @@ test("background skills cannot be asked for with /name, and a skill can be unles
     "order-proposal",
     "technical-read",
     "portfolio-review",
+    "watchlist-upkeep",
     "deep-analysis",
     "solyx-guide",
   ]);

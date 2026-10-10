@@ -19,6 +19,7 @@ import { followMemoryChanges } from "./modules/memory/memory-query.ts";
 import { followNewsChanges } from "./modules/news/news-query.ts";
 import { followProposalChanges } from "./modules/proposals/proposals-query.ts";
 import { followResearchChanges } from "./modules/research/research-query.ts";
+import { followScheduleChanges } from "./modules/schedules/schedules-query.ts";
 import { followSettingsChanges } from "./modules/settings/settings-query.ts";
 import { followUpdateChanges } from "./modules/updates/updates-query.ts";
 
@@ -32,6 +33,7 @@ for (const follow of [
   followProposalChanges,
   followQuotes,
   followResearchChanges,
+  followScheduleChanges,
   followSettingsChanges,
   followUpdateChanges,
 ]) {

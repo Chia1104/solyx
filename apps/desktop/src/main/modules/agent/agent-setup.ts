@@ -9,6 +9,8 @@ import type { SettingChange } from "@solyx/agent/wire";
 import { DecisionMode } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
 import type { MemoryStore } from "@solyx/core/memory";
+import { ScheduleKind } from "@solyx/core/schedule";
+import type { ScheduleStore } from "@solyx/core/schedule";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 import { EmbeddingsProvider } from "@solyx/embeddings/provider";
 import { FinMindPlan } from "@solyx/fundamentals/finmind";
@@ -55,6 +57,8 @@ export interface AgentSetupSources {
   webSearch: Pick<WebSearchModule, "settings">;
   decisions: Pick<Decisions, "settings">;
   embeddings: Pick<Embeddings, "settings">;
+  /** The scheduled tasks the user wrote, which only they change. */
+  schedules: Pick<ScheduleStore, "list">;
   version: string;
   /** Paths are shown with it as `~`. */
   home: string;
@@ -492,6 +496,29 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     };
   }
 
+  function schedules(): SetupArea {
+    const tasks = options.schedules.list();
+
+    return {
+      name: "Scheduled tasks",
+      link: settingsLink(SettingsSection.Schedules),
+      missing: [],
+      settings:
+        tasks.length === 0
+          ? [{ name: "tasks", value: "none written" }]
+          : tasks.map(({ name, schedule, timeZone, approval, enabled }) => ({
+              name,
+              value: [
+                schedule.kind === ScheduleKind.Interval
+                  ? `every ${schedule.everyMinutes} minutes`
+                  : `at ${schedule.time} ${timeZone}${schedule.tradingDaysOf === null ? "" : ` on days ${schedule.tradingDaysOf} trades`}`,
+                onOff(enabled),
+                `calls that must ask: ${approval}`,
+              ].join(", "),
+            })),
+    };
+  }
+
   async function mcp(): Promise<SetupArea> {
     const [{ error, servers }, saved] = await Promise.all([
       options.mcp.status(),
@@ -722,6 +749,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         market,
         ...agentAreas,
         skillsArea,
+        schedules(),
         memory(),
         mcpArea,
         about(),
