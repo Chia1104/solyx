@@ -28,6 +28,8 @@ import type { TaskPort } from "@solyx/agent/tasks";
 import { createThemeTools } from "@solyx/agent/themes";
 import { createTradingExtension } from "@solyx/agent/tools";
 import { createRunTraces } from "@solyx/agent/traces";
+import { createWatchlistTools } from "@solyx/agent/watchlist";
+import type { WatchlistPort } from "@solyx/agent/watchlist";
 import { createWebTools } from "@solyx/agent/web";
 import { ApprovalMode } from "@solyx/agent/wire";
 import type {
@@ -41,7 +43,6 @@ import { DecisionMode } from "@solyx/core/council";
 import type { Embedder } from "@solyx/core/embedding";
 import type { Flows } from "@solyx/core/flows";
 import type { Fundamentals } from "@solyx/core/fundamentals";
-import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import type { MemoryStore } from "@solyx/core/memory";
 import type { NewsDesk } from "@solyx/core/news";
@@ -84,7 +85,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   /** Where conversations persist, opening as the app starts. */
   conversations: Promise<AgentStore>;
   marketData: MarketData;
-  watchlist: () => SymbolRef[];
+  watchlist: WatchlistPort;
   news: NewsDesk;
   tradingDays: TradingCalendar;
   calendar: Calendar;
@@ -206,7 +207,7 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const trading = createTradingExtension({
     marketData: options.marketData,
-    watchlist: options.watchlist,
+    watchlist: options.watchlist.list,
     news: options.news,
     tradingDays: options.tradingDays,
     calendar: (symbols, days) => options.calendar.upcoming(symbols, days),
@@ -224,7 +225,7 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const analysis = createAnalysis({
     marketData: options.marketData,
-    watchlist: options.watchlist,
+    watchlist: options.watchlist.list,
     desk: options.desk,
     scripts,
   });
@@ -248,6 +249,11 @@ export function createAgentService(options: AgentServiceOptions) {
   const themes = createThemeTools({ desk: options.themes });
 
   const tasks = createTaskTools({ tasks: options.tasks });
+
+  const watched = createWatchlistTools({
+    watchlist: options.watchlist,
+    marketData: options.marketData,
+  });
 
   const history = createHistory({
     research: options.research,
@@ -290,6 +296,7 @@ export function createAgentService(options: AgentServiceOptions) {
           history,
           themes.extension(guard),
           tasks.extension(guard),
+          watched.extension(guard),
           createSetupTools({ setup, guard }),
           ...(shellOn() ? [shell.extension(guard)] : []),
           ...(webOn ? [web.extension(guard)] : []),
@@ -338,7 +345,7 @@ export function createAgentService(options: AgentServiceOptions) {
 
     const { mentions, skill } = await messageContext(text, {
       focus,
-      watchlist: options.watchlist,
+      watchlist: options.watchlist.list,
       holdings: async () =>
         (await options.desk.account()).positions.map(
           (position) => position.instrument

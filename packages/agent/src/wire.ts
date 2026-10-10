@@ -212,6 +212,7 @@ export const AgentToolName = {
   SaveTheme: "save_theme",
   GetTasks: "get_tasks",
   SaveTask: "save_task",
+  ChangeWatchlist: "change_watchlist",
   GetSetup: "get_setup",
   ChangeSetting: "change_setting",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
@@ -362,6 +363,23 @@ export function taskSchedule({
       return { kind: when, time, tradingDaysOf };
   }
 }
+
+// As many as a reply would reasonably name; more is a list to write by hand.
+const WATCHLIST_CHANGES = 20;
+
+/** Listings the agent adds to the user's watchlist and takes off it, once the user allows it. */
+export const changeWatchlistArgumentsSchema = z.object({
+  add: z
+    .array(symbolRefSchema)
+    .max(WATCHLIST_CHANGES)
+    .default([])
+    .describe("Listings to start watching, each with its market"),
+  remove: z
+    .array(symbolRefSchema)
+    .max(WATCHLIST_CHANGES)
+    .default([])
+    .describe("Watched listings to stop watching"),
+});
 
 /** A memory the agent saves, or rewrites whole under its id. */
 export const rememberArgumentsSchema = z.object({

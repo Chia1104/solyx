@@ -76,15 +76,12 @@ export function Watchlist() {
     return () => cancelAnimationFrame(frame);
   }, [data, accent]);
 
-  const settle = () =>
-    queryClient.invalidateQueries({ queryKey: watchlistQueryKeys.all });
-
   const remove = useMutation({
     mutationFn: (symbol: SymbolRef) => window.solyx.watchlist.remove(symbol),
-    onSettled: settle,
   });
 
-  // The row lands where it was dropped at once; the main process's order replaces it once saved.
+  // The row lands where it was dropped at once; the main process's order replaces it once saved,
+  // and a move that failed pushes nothing, so the list is read again either way.
   const move = useMutation({
     mutationFn: ({ symbol, index }: { symbol: SymbolRef; index: number }) =>
       window.solyx.watchlist.move(symbol, index),
@@ -96,7 +93,8 @@ export function Watchlist() {
         (current) => current && moved(current, symbol, index)
       );
     },
-    onSettled: settle,
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: watchlistQueryKeys.all }),
   });
 
   const { dragAndDropHooks } = useDragAndDrop<{ symbol: SymbolRef }>({

@@ -1,16 +1,15 @@
 import { Button } from "@heroui/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { isEqual } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
 
-import { watchlistQuery, watchlistQueryKeys } from "./watchlist-query.ts";
+import { watchlistQuery } from "./watchlist-query.ts";
 
 /** Adds the open listing to the watchlist or takes it off. */
 export function WatchToggle({ symbol }: { symbol: SymbolRef }) {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const { data } = useQuery(watchlistQuery());
 
   const watched = data?.some((other) => isEqual(other, symbol)) ?? false;
@@ -20,8 +19,6 @@ export function WatchToggle({ symbol }: { symbol: SymbolRef }) {
       watched
         ? window.solyx.watchlist.remove(symbol)
         : window.solyx.watchlist.add(symbol),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: watchlistQueryKeys.all }),
   });
 
   return (
