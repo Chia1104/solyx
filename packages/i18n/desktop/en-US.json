@@ -425,7 +425,9 @@
       "change_setting": "Changed a setting",
       "bash": "Ran a command",
       "get_themes": "Read your themes",
-      "save_theme": "Wrote a theme"
+      "save_theme": "Wrote a theme",
+      "get_tasks": "Read your scheduled tasks",
+      "save_task": "Wrote a scheduled task"
     },
     "tool-status": {
       "running": "Running",
@@ -481,6 +483,8 @@
       "forget-description": "The agent wants to forget this memory, so later conversations won't know it.",
       "save-theme-description": "The agent wants the app to watch this theme. Once you allow it, the app searches its queries for news once a day on your web search key and reads what it finds against its signposts.",
       "change-setting-description": "The agent wants to change this setting. It applies at once, as if you changed it in Settings.",
+      "save-task-description": "The agent wants to keep this scheduled task. Once you allow it, the app sends the agent this message on its own while Solyx is open, each run in a conversation of its own that spends your model's tokens. You change, switch off or remove it in Settings.",
+      "save-task-off": "Switched off",
       "allow": "Allow",
       "deny": "Don't allow",
       "auto-allowed": "allowed by the decisions model",
@@ -1127,7 +1131,7 @@
         "collect-failed": "Couldn't collect"
       },
       "title": "Scheduled tasks",
-      "description-text": "Messages the agent is sent on its own while Solyx is open, each in a conversation of its own, so you read there what it did. A run nobody watches can read, research and revise its reports. An order it proposes still waits for you to confirm it, and each run spends your model's tokens.",
+      "description-text": "Messages the agent is sent on its own while Solyx is open, each in a conversation of its own, so you read there what it did. A run nobody watches can read, research and revise its reports. An order it proposes still waits for you to confirm it, and each run spends your model's tokens. The agent may write a task once you allow it; only you remove one.",
       "empty": "No scheduled tasks yet.",
       "add": "Add a task",
       "name": "Name",

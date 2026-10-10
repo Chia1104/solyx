@@ -9,12 +9,18 @@ import { uniq } from "es-toolkit";
 import * as z from "zod";
 
 import { councilSchema } from "@solyx/core/council";
-import { symbolRefSchema } from "@solyx/core/market";
+import { marketSchema, symbolRefSchema } from "@solyx/core/market";
 import {
   memoryBodySchema,
   memoryDescriptionSchema,
   memoryKindSchema,
 } from "@solyx/core/memory";
+import {
+  MIN_INTERVAL_MINUTES,
+  ScheduleApproval,
+  ScheduleKind,
+  scheduledTaskDraftSchema,
+} from "@solyx/core/schedule";
 import { themeDraftSchema } from "@solyx/core/theme";
 import { isEnumValue } from "@solyx/utils/is";
 
@@ -204,6 +210,8 @@ export const AgentToolName = {
   SearchHistory: "search_history",
   GetThemes: "get_themes",
   SaveTheme: "save_theme",
+  GetTasks: "get_tasks",
+  SaveTask: "save_task",
   GetSetup: "get_setup",
   ChangeSetting: "change_setting",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
@@ -278,6 +286,82 @@ export const saveThemeArgumentsSchema = themeDraftSchema.extend({
     "The listings it could reach, each with how; leave empty when none is clear yet"
   ),
 });
+
+/**
+ * A scheduled task the agent writes, or writes again whole under its id, once the user allows it.
+ * How it recurs is flat here, since models fill one object more surely than a choice of shapes;
+ * `taskSchedule` reads it as the schedule it names.
+ */
+export const saveTaskArgumentsSchema = z.object({
+  id: z
+    .string()
+    .optional()
+    .describe(
+      "A task's id from get_tasks, to write it again whole; left out, a new task is kept"
+    ),
+  name: scheduledTaskDraftSchema.shape.name.describe(
+    "What the task is for, in a few words, in the user's language"
+  ),
+  prompt: scheduledTaskDraftSchema.shape.prompt.describe(
+    "The message each run is sent, written as the user would send it and whole without this conversation, which a run never reads; a leading /name asks for a skill"
+  ),
+  when: z
+    .enum(ScheduleKind)
+    .describe(
+      "interval: again every so many minutes. fixed-time: at one time of day. on-change: once something the app watches changed for what the user holds, watches or keeps as a theme"
+    ),
+  everyMinutes: z
+    .number()
+    .int()
+    .optional()
+    .describe(
+      `For interval, the span between runs; for on-change, the shortest span between two runs. From ${MIN_INTERVAL_MINUTES} minutes to a week`
+    ),
+  time: z
+    .string()
+    .optional()
+    .describe(
+      "For fixed-time, the time of day as HH:MM on the user's own clock, which the context gives"
+    ),
+  tradingDaysOf: marketSchema
+    .nullable()
+    .default(null)
+    .describe(
+      "For fixed-time, the market whose trading days it keeps to, read on the exchange's calendar; null runs every day"
+    ),
+  approval: z
+    .enum(ScheduleApproval)
+    .default(ScheduleApproval.Auto)
+    .describe(
+      "How a run nobody watches gets past a call that must ask. auto: a page its own searches found is read, a shell command judged harmless runs and a memory is saved, and the rest waits for the user. ask: every such call waits, so the run rests at the first"
+    ),
+  enabled: z
+    .boolean()
+    .default(true)
+    .describe("False keeps the task without running it"),
+});
+
+export type SaveTaskArguments = z.infer<typeof saveTaskArgumentsSchema>;
+
+/** The schedule a task's arguments name, for `scheduleSchema` to check: a part its kind needs may still be missing. */
+export function taskSchedule({
+  when,
+  everyMinutes,
+  time,
+  tradingDaysOf,
+}: Pick<
+  SaveTaskArguments,
+  "when" | "everyMinutes" | "time" | "tradingDaysOf"
+>) {
+  switch (when) {
+    case ScheduleKind.Interval:
+      return { kind: when, everyMinutes };
+    case ScheduleKind.OnChange:
+      return { kind: when, atMostEveryMinutes: everyMinutes };
+    case ScheduleKind.FixedTime:
+      return { kind: when, time, tradingDaysOf };
+  }
+}
 
 /** A memory the agent saves, or rewrites whole under its id. */
 export const rememberArgumentsSchema = z.object({
