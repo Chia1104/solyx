@@ -335,6 +335,17 @@ function RanCode({ tool }: { tool: ToolCallView }) {
   return null;
 }
 
+/** Why a call ran unasked in a conversation set to auto, by what its tool's check goes by. */
+function autoAllowedLabel(toolName: string) {
+  if (toolName === AgentToolName.ReadPage) {
+    return "agent.approval.auto-allowed-found";
+  }
+
+  return toolName === AgentToolName.Remember
+    ? "agent.approval.auto-allowed-memory"
+    : "agent.approval.auto-allowed";
+}
+
 export function AgentToolCall({
   sessionId,
   tool,
@@ -377,12 +388,7 @@ export function AgentToolCall({
         <Subject tool={tool} />
         {tool.autoApproved ? (
           <span className="shrink-0">
-            ·{" "}
-            {t(
-              tool.toolName === AgentToolName.ReadPage
-                ? "agent.approval.auto-allowed-found"
-                : "agent.approval.auto-allowed"
-            )}
+            · {t(autoAllowedLabel(tool.toolName))}
           </span>
         ) : null}
         <span className="sr-only">{t(`agent.tool-status.${tool.status}`)}</span>

@@ -252,7 +252,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "",
       "## The rest",
       "- The shell is off until the user switches it on, and stays off while the account is live; each command waits for them unless the approval mode lets it run.",
-      "- Memory: you save, rewrite or forget a memory only once the user allows it; they read and edit them on the Memory tab, or switch memory off there.",
+      "- Memory: you save and rewrite memories on your own as you learn the user, and each waits for them only where the conversation asks first; forgetting one waits for them unless nothing asks. They read and edit them on the Memory tab, or switch memory off there.",
       "- Updates: the app checks every six hours while that setting is on. Windows installs on restart; on macOS the update is linked for the user to download.",
       "",
       "## Changing settings",
