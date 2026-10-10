@@ -50,6 +50,13 @@ test("asks the market's provider for five years of quarters and dividends, three
   expect(provider.getRestrictions).toHaveBeenCalledWith(TSMC, "2025-10-07");
 });
 
+test("names the provider that covers a market, and none for a market without one", () => {
+  const { fundamentals } = setup();
+
+  expect(fundamentals.source(Market.TW)).toBe("fake");
+  expect(fundamentals.source(Market.US)).toBeUndefined();
+});
+
 test("keeps a listing's answer for half a day", async () => {
   const { clock, provider, fundamentals } = setup();
 

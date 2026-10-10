@@ -3,7 +3,7 @@ import type {
   FundamentalsProvider,
 } from "@solyx/core/fundamentals";
 import { exchangeDate, symbolKey } from "@solyx/core/market";
-import type { SymbolRef } from "@solyx/core/market";
+import type { Market, SymbolRef } from "@solyx/core/market";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores, KeptFresh } from "@solyx/utils/fresh";
 
@@ -43,6 +43,9 @@ export function createFundamentals({
 } {
   const kept: KeptFresh<Ask, unknown>[] = [];
 
+  const covering = (market: Market) =>
+    providers.find(({ markets }) => markets.includes(market));
+
   /** `ask`'s answer per listing, kept under `scope`. */
   function fresh<Answer>(
     scope: string,
@@ -68,9 +71,7 @@ export function createFundamentals({
     kept.push(read);
 
     return (symbol: SymbolRef): Promise<Answer[]> => {
-      const provider = providers.find(({ markets }) =>
-        markets.includes(symbol.market)
-      );
+      const provider = covering(symbol.market);
 
       return provider ? read({ provider, symbol }) : Promise.resolve([]);
     };
@@ -80,6 +81,8 @@ export function createFundamentals({
     forget() {
       for (const read of kept) read.forget();
     },
+
+    source: (market) => covering(market)?.id,
 
     statements: fresh("statements", (provider, symbol, today) =>
       provider.getStatements(

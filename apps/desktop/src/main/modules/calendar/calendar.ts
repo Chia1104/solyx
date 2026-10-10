@@ -14,7 +14,10 @@ import type { AnswerStores } from "@solyx/utils/fresh";
 const SCHEDULE_FRESH_MS = 12 * 60 * 60 * 1000;
 
 export interface CalendarOptions {
-  fundamentals: Fundamentals;
+  fundamentals: Pick<
+    Fundamentals,
+    "statements" | "monthlyRevenue" | "dividends" | "restrictions"
+  >;
   /** One per market at most; the first that covers a market answers for it. */
   macro: readonly MacroCalendarProvider[];
   /** Each listing's report in force, for the dates it holds. */

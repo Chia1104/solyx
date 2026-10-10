@@ -13,7 +13,11 @@ import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
 import type { Council } from "@solyx/core/council";
 import { ForecastDirection } from "@solyx/core/forecast";
 import type { Forecast } from "@solyx/core/forecast";
-import type { QuarterStatement } from "@solyx/core/fundamentals";
+import type {
+  Dividend,
+  MonthlyRevenue,
+  QuarterStatement,
+} from "@solyx/core/fundamentals";
 import { InstrumentKind, Market, symbolKey } from "@solyx/core/market";
 import { TimePrecision } from "@solyx/core/news";
 import { ReportSection, ReportStance } from "@solyx/core/report";
@@ -188,17 +192,37 @@ function callApi(callId: string): ToolExecutionApi {
   } as ToolExecutionApi;
 }
 
+/** What the fake source has on file, which a test may change. */
+interface Filed {
+  quarters: QuarterStatement[];
+  months: MonthlyRevenue[];
+  dividends: Dividend[];
+  /** Why the months cannot be read, while they cannot. */
+  monthsFailure?: string;
+}
+
 function setup(council?: Council) {
   const clock = { now: AT_ANCHOR };
   const motions: string[] = [];
   const bars = { daily: [ANCHOR_BAR] };
-  const filed = { quarters: QUARTERS, months: MONTHS, dividends: DIVIDENDS };
+
+  const filed: Filed = {
+    quarters: QUARTERS,
+    months: MONTHS,
+    dividends: DIVIDENDS,
+  };
+
   const store = fakeStore();
   const marketData = { candles: async () => bars.daily };
 
   const fundamentals = {
+    source: (market: Market) => (market === Market.TW ? "fake" : undefined),
     statements: async () => filed.quarters,
-    monthlyRevenue: async () => filed.months,
+    monthlyRevenue: async () => {
+      if (filed.monthsFailure) throw new Error(filed.monthsFailure);
+
+      return filed.months;
+    },
     dividends: async () => filed.dividends,
     restrictions: async () => [],
   };
@@ -447,7 +471,7 @@ test("fundamentals show each quarter alone with its growth, and what the shares 
   const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
 
   expect(text).toContain(
-    "TW 2330 fundamentals as filed, as_of 2026-09-29; amounts in TWD millions"
+    "TW 2330 fundamentals as filed, from fake, as_of 2026-09-29; amounts in TWD millions"
   );
   expect(text).toContain(
     "2026-06-30,1350,+50.0%,+12.5%,60.0%,50.0%,40.0%,24,+100.0%,72"
@@ -468,16 +492,72 @@ test("fundamentals show each quarter alone with its growth, and what the shares 
   );
 });
 
-test("a listing without filings says so", async () => {
+test("a fund's distributions read without statements or revenue, which it files none of", async () => {
+  const { run, filed } = setup();
+
+  filed.quarters = [];
+  filed.months = [];
+  filed.dividends = [
+    {
+      period: "115",
+      announced: null,
+      cash: 1,
+      stock: 0,
+      cashExDate: "2026-07-21",
+      cashPaidOn: "2026-08-10",
+      stockExDate: null,
+    },
+  ];
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain("No quarterly statements on file with fake.");
+  expect(text).toContain("No monthly revenue on file with fake.");
+  expect(text).toContain("it reads as a fund such as an ETF");
+  expect(text).toContain("not given,115,1,2026-07-21,2026-08-10,0,none");
+  expect(text).not.toContain("Price to earnings");
+});
+
+test("a listing with nothing on file says so of each part", async () => {
   const { run, filed } = setup();
 
   filed.quarters = [];
   filed.months = [];
   filed.dividends = [];
 
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain("No quarterly statements on file with fake.");
+  expect(text).toContain("No distributions on file with fake.");
+  expect(text).toContain("or a code fake does not know");
+});
+
+test("a market no source covers is told from a listing with nothing on file", async () => {
+  const { run } = setup();
+
   expect(
-    (await run(AgentToolName.GetFundamentals, { symbol: TSMC })).text
-  ).toContain("No fundamentals for TW 2330");
+    (
+      await run(AgentToolName.GetFundamentals, {
+        symbol: { market: Market.US, symbol: "AAPL" },
+      })
+    ).text
+  ).toBe(
+    "No source covers US fundamentals yet, so US AAPL has none to read. That says nothing of what it files."
+  );
+});
+
+test("a part that cannot be read says why and leaves the others to read", async () => {
+  const { run, filed } = setup();
+
+  filed.monthsFailure = "FinMind answered 402: Requests reach the upper limit.";
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    "Monthly revenue could not be read: FinMind answered 402: Requests reach the upper limit."
+  );
+  expect(text).toContain("Quarters, each for the quarter alone");
+  expect(text).toContain("Cash gone ex in the year through 2026-09-29");
 });
 
 test("a report older than the newest quarter is flagged and refuses a forecast", async () => {

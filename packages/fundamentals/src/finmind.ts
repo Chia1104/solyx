@@ -101,8 +101,10 @@ const dayOrUnsetSchema = z.union([
 
 // One distribution, its amounts per share, cash and stock each from earnings and from surplus.
 const dividendRowSchema = z.object({
+  date: z.iso.date(),
   year: z.string(),
-  AnnouncementDate: z.iso.date(),
+  // Unset for a fund's distribution, which no announcement of the exchange's carries.
+  AnnouncementDate: dayOrUnsetSchema,
   CashEarningsDistribution: z.number(),
   CashStatutorySurplus: z.number(),
   StockEarningsDistribution: z.number(),
@@ -305,7 +307,10 @@ export function createFinMind(
     return { token, ...FINMIND_PLANS[options.plan?.() ?? FinMindPlan.Free] };
   }
 
-  /** A dataset's rows, each dropped unless it parses. */
+  /**
+   * A dataset's rows, each dropped unless it parses. An answer none of whose rows parse fails,
+   * since that is FinMind writing the dataset another way, not a listing with nothing filed.
+   */
   async function data<Row>(
     dataset: string,
     params: Record<string, string>,
@@ -323,11 +328,21 @@ export function createFinMind(
         .json()
     );
 
-    return responseSchema.parse(response).data.flatMap((row) => {
+    const answered = responseSchema.parse(response).data;
+
+    const read = answered.flatMap((row) => {
       const parsed = schema.safeParse(row);
 
       return parsed.success ? [parsed.data] : [];
     });
+
+    if (answered.length > 0 && read.length === 0) {
+      throw new Error(
+        `FinMind: none of the ${answered.length} rows of ${dataset} read as expected`
+      );
+    }
+
+    return read;
   }
 
   /** A dataset's rows for one listing from `since` on. */
@@ -408,19 +423,25 @@ export function createFinMind(
       );
 
       return distributions
-        .map((row): Dividend => ({
-          period: row.year,
-          announced: row.AnnouncementDate,
-          cash: row.CashEarningsDistribution + row.CashStatutorySurplus,
-          stock: row.StockEarningsDistribution + row.StockStatutorySurplus,
-          cashExDate: row.CashExDividendTradingDate,
-          cashPaidOn: row.CashDividendPaymentDate,
-          stockExDate: row.StockExDividendTradingDate,
+        .map((row) => ({
+          // One with no announcement is placed by FinMind's own date for it.
+          placed: row.AnnouncementDate ?? row.date,
+          dividend: {
+            period: row.year,
+            announced: row.AnnouncementDate,
+            cash: row.CashEarningsDistribution + row.CashStatutorySurplus,
+            stock: row.StockEarningsDistribution + row.StockStatutorySurplus,
+            cashExDate: row.CashExDividendTradingDate,
+            cashPaidOn: row.CashDividendPaymentDate,
+            stockExDate: row.StockExDividendTradingDate,
+          } satisfies Dividend,
         }))
         .filter(
-          ({ announced, cash, stock }) => announced >= since && cash + stock > 0
+          ({ placed, dividend }) =>
+            placed >= since && dividend.cash + dividend.stock > 0
         )
-        .toSorted((a, b) => a.announced.localeCompare(b.announced));
+        .toSorted((a, b) => a.placed.localeCompare(b.placed))
+        .map(({ dividend }) => dividend);
     },
 
     async getRestrictions(symbol, since) {
