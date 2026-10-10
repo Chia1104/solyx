@@ -48,7 +48,6 @@ export function AgentPane() {
         variant="secondary"
         defaultSelectedKey={AgentTab.Chat}
         className="flex min-h-0 flex-1 flex-col gap-0">
-        {/* The settings page's section links set the height and rule these tabs match. */}
         <Tabs.ListContainer className="shrink-0 border-separator px-2">
           <Tabs.List aria-label={t("agent.title")}>
             {Object.values(AgentTab).map((tab: AgentTab) => (

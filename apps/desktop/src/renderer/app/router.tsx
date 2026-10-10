@@ -91,12 +91,12 @@ const symbolRoute = createRoute({
   component: SymbolPage,
 });
 
-// An unknown tab falls back to the first rather than failing the page.
+// An unknown section falls back to the first rather than failing the page.
 const settingsSearchSchema = z.object({
   section: settingsSectionSchema
     .default(SettingsSection.General)
     .catch(SettingsSection.General),
-  /** The MCP server opened from the MCP tab's list. */
+  /** The MCP server opened from the MCP section's list. */
   server: z.string().min(1).optional().catch(undefined),
 });
 
@@ -121,6 +121,8 @@ export const router = createRouter({
   history: createHashHistory(),
   defaultErrorComponent: ErrorFallback,
   defaultNotFoundComponent: NotFound,
+  // The main view scrolls rather than the window, so a new page or settings section opens at its top.
+  scrollToTopSelectors: ["main"],
   // Moving to another kind of page crossfades the main view. Flipping between listings, the most
   // frequent move and often by keyboard, and a new interval or settings section update in place.
   defaultViewTransition: {

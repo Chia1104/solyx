@@ -13,7 +13,6 @@ import { formatForDisplay } from "@tanstack/react-hotkeys";
 import {
   Link,
   useCanGoBack,
-  useMatchRoute,
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
@@ -29,6 +28,7 @@ import { UpdateAction } from "../modules/updates/update-action.tsx";
 
 import { BACK_HOTKEYS, PANE_HOTKEY } from "./hotkeys.ts";
 import { PANE_EDGE, Pane, paneId, useLayoutStore } from "./layout-store.ts";
+import { useHeldPane, useSettingsOpen } from "./settings-open.ts";
 
 const TOOLTIP_DELAY = 600;
 
@@ -40,7 +40,8 @@ const PANE_ICON = {
 
 function PaneToggle({ pane }: { pane: Pane }) {
   const { t } = useTranslation();
-  const open = useLayoutStore((state) => state.panes[pane].open);
+  const held = useHeldPane() === pane;
+  const open = useLayoutStore((state) => state.panes[pane].open) || held;
   const toggle = useLayoutStore((state) => state.toggle);
 
   const label = t("workspace.toggle", { pane: t(`workspace.${pane}`) });
@@ -54,6 +55,7 @@ function PaneToggle({ pane }: { pane: Pane }) {
         aria-label={label}
         aria-expanded={open}
         aria-controls={paneId(pane)}
+        isDisabled={held}
         onPress={() => toggle(pane)}>
         <Icon icon={PANE_ICON[PANE_EDGE[pane]][open ? "open" : "closed"]} />
       </Button>
@@ -97,9 +99,7 @@ function BackButton() {
 function SettingsButton() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const matchRoute = useMatchRoute();
-
-  const open = matchRoute({ to: "/settings" }) !== false;
+  const open = useSettingsOpen();
 
   return (
     <Tooltip delay={TOOLTIP_DELAY}>
