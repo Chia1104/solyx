@@ -35,6 +35,7 @@ import {
 } from "@solyx/core/report";
 import type { Argument, Report, ReportViolation } from "@solyx/core/report";
 import type { FalsifierCheck, ResearchDesk } from "@solyx/core/research";
+import { errorMessage } from "@solyx/utils/error";
 
 import { councilText, durableBallotBox, forecastMotion } from "./magi.ts";
 import type { MagiPort } from "./magi.ts";
@@ -335,7 +336,7 @@ const distributionDay = (amount: number, day: string | null) =>
 
 function dividendRow(dividend: Dividend): string {
   return [
-    dividend.announced,
+    dividend.announced ?? "not given",
     dividend.period,
     figure(dividend.cash),
     distributionDay(dividend.cash, dividend.cashExDate),
@@ -343,6 +344,17 @@ function dividendRow(dividend: Dividend): string {
     figure(dividend.stock),
     distributionDay(dividend.stock, dividend.stockExDate),
   ].join(",");
+}
+
+/** What a source filed of one kind, or why it could not be read, so one that fails leaves the others to read. */
+async function filed<Row>(
+  asked: Promise<Row[]>
+): Promise<{ rows: Row[]; failure: string | null }> {
+  try {
+    return { rows: await asked, failure: null };
+  } catch (error) {
+    return { rows: [], failure: errorMessage(error) };
+  }
 }
 
 /** Where the shares trade against their trailing earnings now, and where they have over the bars the chart keeps. */
@@ -441,83 +453,109 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetFundamentals,
         replay: "safe",
-        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. Taiwan listings only for now; an ETF has distributions alone. Cite these rather than work them out again.`,
+        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
-          const [statements, monthly, dividends] = await Promise.all([
-            fundamentals.statements(symbol),
-            fundamentals.monthlyRevenue(symbol),
-            fundamentals.dividends(symbol),
-          ]);
+          const listing = `${symbol.market} ${symbol.symbol}`;
+          const source = fundamentals.source(symbol.market);
 
-          if (
-            statements.length === 0 &&
-            monthly.length === 0 &&
-            dividends.length === 0
-          ) {
+          if (source === undefined) {
             return {
-              text: `No fundamentals for ${symbol.market} ${symbol.symbol}: it files no statements, as an ETF does not, or no source covers its market yet.`,
+              text: `No source covers ${symbol.market} fundamentals yet, so ${listing} has none to read. That says nothing of what it files.`,
               details: { symbol },
             };
           }
 
-          const quarters = takeRight(
-            statementMetrics(statements),
-            LISTED_QUARTERS
-          ).map((each) =>
-            [
-              each.statement.periodEnd,
-              millions(each.statement.revenue),
-              percent(each.revenueYoY),
-              percent(each.revenueQoQ),
-              margin(each.grossMargin),
-              margin(each.operatingMargin),
-              margin(each.netMargin),
-              figure(each.statement.eps),
-              percent(each.epsYoY),
-              figure(each.trailingEps),
-            ].join(",")
-          );
+          const [statements, monthly, dividends] = await Promise.all([
+            filed(fundamentals.statements(symbol)),
+            filed(fundamentals.monthlyRevenue(symbol)),
+            filed(fundamentals.dividends(symbol)),
+          ]);
 
-          const months = takeRight(revenueTrend(monthly), LISTED_MONTHS).map(
-            (each) =>
-              [
-                each.month,
-                millions(each.revenue),
-                percent(each.yoy),
-                percent(each.mom),
-              ].join(",")
-          );
+          const parts = [statements, monthly, dividends];
+
+          if (parts.every(({ failure }) => failure !== null)) {
+            throw new Error(
+              `${listing}'s fundamentals could not be read from ${source}: ${statements.failure}`
+            );
+          }
 
           const currency = currencyOf(symbol.market);
           const today = exchangeDate(symbol.market, now());
 
+          /** A part's lines, or that the source has none of it on file, or why it could not be read. */
+          const part = (
+            name: string,
+            { rows, failure }: { rows: unknown[]; failure: string | null },
+            lines: string[]
+          ) => {
+            if (failure !== null) {
+              return [`${name} could not be read: ${failure}`];
+            }
+
+            return rows.length === 0
+              ? [`No ${name.toLowerCase()} on file with ${source}.`]
+              : lines;
+          };
+
+          const nothingFiled =
+            parts.every(({ failure }) => failure === null) &&
+            statements.rows.length === 0 &&
+            monthly.rows.length === 0;
+
           return {
             text: [
-              `${symbol.market} ${symbol.symbol} fundamentals as filed, as_of ${today}; amounts in ${currency} millions`,
-              ...(quarters.length > 0
+              `${listing} fundamentals as filed, from ${source}, as_of ${today}; amounts in ${currency} millions`,
+              ...part("Quarterly statements", statements, [
+                "Quarters, each for the quarter alone, by its last day:",
+                "quarter,revenue,revenue yoy,revenue qoq,gross margin,operating margin,net margin,eps,eps yoy,trailing eps",
+                ...takeRight(
+                  statementMetrics(statements.rows),
+                  LISTED_QUARTERS
+                ).map((each) =>
+                  [
+                    each.statement.periodEnd,
+                    millions(each.statement.revenue),
+                    percent(each.revenueYoY),
+                    percent(each.revenueQoQ),
+                    margin(each.grossMargin),
+                    margin(each.operatingMargin),
+                    margin(each.netMargin),
+                    figure(each.statement.eps),
+                    percent(each.epsYoY),
+                    figure(each.trailingEps),
+                  ].join(",")
+                ),
+                ...(statements.rows.length > 0
+                  ? [await valuationText(symbol, options)]
+                  : []),
+              ]),
+              ...part("Monthly revenue", monthly, [
+                "Monthly revenue, unaudited:",
+                "month,revenue,yoy,mom",
+                ...takeRight(revenueTrend(monthly.rows), LISTED_MONTHS).map(
+                  (each) =>
+                    [
+                      each.month,
+                      millions(each.revenue),
+                      percent(each.yoy),
+                      percent(each.mom),
+                    ].join(",")
+                ),
+              ]),
+              ...(nothingFiled
                 ? [
-                    "Quarters, each for the quarter alone, by its last day:",
-                    "quarter,revenue,revenue yoy,revenue qoq,gross margin,operating margin,net margin,eps,eps yoy,trailing eps",
-                    ...quarters,
-                    await valuationText(symbol, options),
-                  ]
-                : ["No quarterly statements."]),
-              ...(months.length > 0
-                ? [
-                    "Monthly revenue, unaudited:",
-                    "month,revenue,yoy,mom",
-                    ...months,
+                    dividends.rows.length > 0
+                      ? "With distributions and neither statements nor revenue, it reads as a fund such as an ETF, which files none."
+                      : `With nothing on file, it is a fund that distributes nothing, a listing too new to have filed, or a code ${source} does not know.`,
                   ]
                 : []),
-              ...(dividends.length > 0
-                ? [
-                    `Distributions by when announced, per share in ${currency}, stock at its par value:`,
-                    "announced,period,cash,cash ex,cash paid,stock,stock ex",
-                    ...takeRight(dividends, LISTED_DIVIDENDS).map(dividendRow),
-                    `Cash gone ex in the year through ${today}: ${figure(trailingCash(dividends, today))} per share.`,
-                  ]
-                : []),
+              ...part("Distributions", dividends, [
+                `Distributions, oldest first, per share in ${currency}, stock at its par value:`,
+                "announced,period,cash,cash ex,cash paid,stock,stock ex",
+                ...takeRight(dividends.rows, LISTED_DIVIDENDS).map(dividendRow),
+                `Cash gone ex in the year through ${today}: ${figure(trailingCash(dividends.rows, today))} per share.`,
+              ]),
             ].join("\n"),
             details: { symbol },
           };

@@ -30,8 +30,8 @@ export interface MonthlyRevenue {
 export interface Dividend {
   /** The period whose earnings it distributes, as the company names it, such as `114年第2季`. */
   period: string;
-  /** The exchange-local date it was announced, `YYYY-MM-DD`. */
-  announced: string;
+  /** The exchange-local date it was announced, `YYYY-MM-DD`; `null` where the provider gives none, as for a fund's. */
+  announced: string | null;
   /** Cash per share, in the market's currency. */
   cash: number;
   /** Shares distributed per share, at their par value in the market's currency. */
@@ -80,7 +80,7 @@ export interface FundamentalsProvider {
     symbol: SymbolRef,
     since: string
   ): Promise<MonthlyRevenue[]>;
-  /** Distributions announced on or after `since` (`YYYY-MM-DD`), oldest first, those still to go ex among them. */
+  /** Distributions announced on or after `since` (`YYYY-MM-DD`), or dated so by the provider where none says when, oldest first, those still to go ex among them. */
   getDividends(symbol: SymbolRef, since: string): Promise<Dividend[]>;
   /** Restrictions starting on or after `since` (`YYYY-MM-DD`), oldest first; only those the user's plan with the provider reads. */
   getRestrictions(
@@ -91,6 +91,8 @@ export interface FundamentalsProvider {
 
 /** A listing's fundamentals from whichever provider covers its market, oldest first; none while no provider does. */
 export interface Fundamentals {
+  /** The id of the provider that covers a market; `undefined` while none does, which is why its listings have nothing to read. */
+  source(market: Market): string | undefined;
   /** Enough quarters to compare each recent one with the year before. */
   statements(symbol: SymbolRef): Promise<QuarterStatement[]>;
   monthlyRevenue(symbol: SymbolRef): Promise<MonthlyRevenue[]>;

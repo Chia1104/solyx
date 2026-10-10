@@ -305,6 +305,68 @@ test("reads each distribution's cash and stock per share and its days, those sti
   });
 });
 
+test("reads a fund's distributions, which carry no announcement, by the date FinMind gives them", async () => {
+  const distribution = (date: string, cash: number, ex: string) => ({
+    date,
+    stock_id: "0050",
+    year: "115",
+    StockEarningsDistribution: 0,
+    StockStatutorySurplus: 0,
+    StockExDividendTradingDate: "",
+    CashEarningsDistribution: cash,
+    CashStatutorySurplus: 0,
+    CashExDividendTradingDate: ex,
+    CashDividendPaymentDate: "",
+    AnnouncementDate: "",
+    AnnouncementTime: "",
+  });
+
+  const { finmind } = fakeFinMind({
+    body: {
+      data: [
+        distribution("2026-07-27", 0.6, "2026-07-21"),
+        distribution("2026-01-28", 1, "2026-01-22"),
+      ],
+    },
+  });
+
+  expect(
+    await finmind.getDividends(
+      { market: Market.TW, symbol: "0050" },
+      "2026-01-01"
+    )
+  ).toEqual([
+    {
+      period: "115",
+      announced: null,
+      cash: 1,
+      stock: 0,
+      cashExDate: "2026-01-22",
+      cashPaidOn: null,
+      stockExDate: null,
+    },
+    {
+      period: "115",
+      announced: null,
+      cash: 0.6,
+      stock: 0,
+      cashExDate: "2026-07-21",
+      cashPaidOn: null,
+      stockExDate: null,
+    },
+  ]);
+});
+
+test("fails when none of a dataset's rows read, rather than answer that nothing is filed", async () => {
+  const { finmind } = fakeFinMind({
+    body: { data: [{ date: "2026-06-30", type: "Revenue", value: "n/a" }] },
+  });
+
+  await expect(finmind.getStatements(TSMC, "2026-01-01")).rejects.toThrow(
+    "FinMind: none of the 1 rows of TaiwanStockFinancialStatements read as expected"
+  );
+});
+
 test("reads the days Taiwan's exchange trades from a day on, for every listing at once", async () => {
   const { sent, finmind } = fakeFinMind({
     body: {
