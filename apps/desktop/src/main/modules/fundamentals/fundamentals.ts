@@ -10,6 +10,9 @@ import type { AnswerStores, KeptFresh } from "@solyx/utils/fresh";
 // Five years of quarters, so a multiple three years back still has four quarters behind it.
 const STATEMENT_YEARS = 5;
 
+// Three years of balance sheets and cash flows, so each recent quarter has the three before it and the same one a year back.
+const SHEET_YEARS = 3;
+
 const REVENUE_MONTHS = 36;
 
 // A quarter or a month is published once, so a listing is asked about twice a day at most.
@@ -88,6 +91,20 @@ export function createFundamentals({
       provider.getStatements(
         symbol,
         today.subtract({ years: STATEMENT_YEARS }).toString()
+      )
+    ),
+
+    balanceSheets: fresh("balance-sheets", (provider, symbol, today) =>
+      provider.getBalanceSheets(
+        symbol,
+        today.subtract({ years: SHEET_YEARS }).toString()
+      )
+    ),
+
+    cashFlows: fresh("cash-flows", (provider, symbol, today) =>
+      provider.getCashFlows(
+        symbol,
+        today.subtract({ years: SHEET_YEARS }).toString()
       )
     ),
 
