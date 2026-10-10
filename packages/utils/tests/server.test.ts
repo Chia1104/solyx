@@ -20,31 +20,41 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-test("reports a change to the file", async () => {
-  const changed = new Promise<void>((resolve) => {
-    const stop = watchFile(file, () => {
-      stop();
-      resolve();
-    });
-  });
+/**
+ * Saves the file until the watcher has noticed, which shows as its debounce waiting. The system
+ * starts watching a folder a moment after `watch` returns, and a save made before then is never
+ * reported, so one save alone may go unseen.
+ */
+async function saveUntilNoticed() {
+  while (vi.getTimerCount() === 0) {
+    await writeFile(file, "{}");
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+}
 
-  await writeFile(file, "{}");
-  await changed;
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 });
 
-test("stopping drops a change still waiting to be reported", async () => {
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-
+test("reports a change to the file once, however many saves made it", async () => {
   const onChange = vi.fn();
   const stop = watchFile(file, onChange);
 
-  await writeFile(file, "{}");
+  await saveUntilNoticed();
 
-  // The change is noticed and waits out the debounce.
-  while (vi.getTimerCount() === 0) {
-    await new Promise((resolve) => setImmediate(resolve));
-  }
+  expect(onChange).not.toHaveBeenCalled();
 
+  vi.runAllTimers();
+  stop();
+
+  expect(onChange).toHaveBeenCalledOnce();
+});
+
+test("stopping drops a change still waiting to be reported", async () => {
+  const onChange = vi.fn();
+  const stop = watchFile(file, onChange);
+
+  await saveUntilNoticed();
   stop();
   vi.runAllTimers();
 

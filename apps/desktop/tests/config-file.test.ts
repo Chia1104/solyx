@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, expect, test } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import {
@@ -36,6 +36,8 @@ import {
   DEFAULT_COLLECTION_PLANS,
   createConfigFile,
 } from "../src/main/modules/settings/config-file.ts";
+
+import { handEdit } from "./hand-edit.ts";
 
 let directory: string;
 
@@ -262,18 +264,18 @@ test("changes made outside the app are reported while watched", async () => {
   config.create();
 
   const stop = config.watch();
+  const changes = vi.fn();
 
-  const changed = new Promise<void>((resolve) => {
-    const stopListening = config.onChange(() => {
-      stopListening();
-      resolve();
-    });
-  });
+  config.onChange(changes);
 
-  await writeFile(file, '{ "providers": { "fugle": { "plan": "advanced" } } }');
-  await changed;
+  await handEdit(
+    file,
+    '{ "providers": { "fugle": { "plan": "advanced" } } }',
+    () => changes.mock.calls.length > 0
+  );
   stop();
 
+  expect(changes).toHaveBeenCalledOnce();
   expect(fuglePlan(config)).toBe("advanced");
 });
 
