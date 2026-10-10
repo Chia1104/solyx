@@ -34,6 +34,14 @@ export const PANE_LIMITS: Record<Pane, PaneLimits> = {
   [Pane.Agent]: { min: 320, max: 560, default: 380 },
 };
 
+/** How many days the overview's agenda shows at once. */
+export const AgendaView = {
+  Week: "week",
+  Month: "month",
+} as const;
+
+export type AgendaView = (typeof AgendaView)[keyof typeof AgendaView];
+
 /** Dragging stops before the main view gets narrower than this. */
 export const MAIN_MIN_WIDTH = 480;
 
@@ -48,12 +56,14 @@ interface PaneState {
 interface LayoutState {
   panes: Record<Pane, PaneState>;
   newsHeight: number;
+  agendaView: AgendaView;
 }
 
 interface LayoutActions {
   setWidth: (pane: Pane, width: number) => void;
   toggle: (pane: Pane) => void;
   setNewsHeight: (height: number) => void;
+  setAgendaView: (view: AgendaView) => void;
 }
 
 type LayoutStore = LayoutState & LayoutActions;
@@ -73,6 +83,7 @@ const defaultState: LayoutState = {
     open: true,
   })),
   newsHeight: NEWS_HEIGHT.default,
+  agendaView: AgendaView.Week,
 };
 
 // Limits can change between versions, so saved widths are clamped as they load.
@@ -87,6 +98,7 @@ const persistedLayoutSchema = z.object({
   ),
   // Caught on its own, so a height that does not parse leaves the saved pane widths.
   newsHeight: z.number().transform(clampNewsHeight).catch(NEWS_HEIGHT.default),
+  agendaView: z.enum(AgendaView).catch(AgendaView.Week),
 });
 
 export const useLayoutStore = create<LayoutStore>()(
@@ -111,6 +123,7 @@ export const useLayoutStore = create<LayoutStore>()(
           },
         })),
       setNewsHeight: (height) => set({ newsHeight: clampNewsHeight(height) }),
+      setAgendaView: (agendaView) => set({ agendaView }),
     }),
     persistOptions<LayoutStore>("workspace-layout", persistedLayoutSchema)
   )

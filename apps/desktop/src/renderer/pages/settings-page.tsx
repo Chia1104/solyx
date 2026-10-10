@@ -20,7 +20,6 @@ import { MarketDataSettings } from "../modules/settings/market-data-settings.tsx
 import { McpSettings } from "../modules/settings/mcp-settings.tsx";
 import { PalettePicker } from "../modules/settings/palette-picker.tsx";
 import { PriceColorsSelect } from "../modules/settings/price-colors-select.tsx";
-import { SettingsTabs } from "../modules/settings/settings-tabs.tsx";
 import { ThemeSelect } from "../modules/settings/theme-select.tsx";
 import { TimeZoneSelect } from "../modules/settings/time-zone-select.tsx";
 import { WebSearchSettings } from "../modules/settings/web-search-settings.tsx";
@@ -33,7 +32,6 @@ const route = getRouteApi("/settings");
 export function SettingsPage() {
   const { t } = useTranslation();
   const { section, server } = route.useSearch();
-  const navigate = route.useNavigate();
 
   const content: Record<SettingsSection, ReactNode> = {
     [SettingsSection.General]: (
@@ -71,15 +69,5 @@ export function SettingsPage() {
     ),
   };
 
-  return (
-    <Sheet title={t("settings.title")}>
-      <SettingsTabs
-        current={section}
-        onChange={(next) =>
-          void navigate({ search: { section: next }, replace: true })
-        }
-        panels={content}
-      />
-    </Sheet>
-  );
+  return <Sheet title={t("settings.title")}>{content[section]}</Sheet>;
 }

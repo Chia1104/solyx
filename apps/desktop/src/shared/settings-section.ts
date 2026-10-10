@@ -1,6 +1,6 @@
 import * as z from "zod";
 
-/** The settings page's tabs, kept in the URL so links can open one. */
+/** The settings page's sections, kept in the URL so links can open one. */
 export const SettingsSection = {
   General: "general",
   MarketData: "market-data",
@@ -19,6 +19,6 @@ export type SettingsSection =
 
 export const settingsSectionSchema = z.enum(SettingsSection);
 
-/** The tab's address in the router's hash, which the agent's replies link to. */
+/** The section's address in the router's hash, which the agent's replies link to. */
 export const settingsLink = (section: SettingsSection) =>
   `#/settings?section=${section}`;

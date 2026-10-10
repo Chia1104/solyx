@@ -10,6 +10,14 @@
     "toggle": "Show or hide {{pane}}",
     "resize": "Resize {{pane}}"
   },
+  "overview": {
+    "tabs": {
+      "today": "Today",
+      "news": "News",
+      "calendar": "Calendar",
+      "market": "Market"
+    }
+  },
   "broker-mode": {
     "paper": "Paper trading",
     "live": "Live trading"
@@ -282,7 +290,24 @@
       "business-signal": "Business monitoring signal",
       "purchasing-managers": "Purchasing managers' index"
     },
-    "until": "until {{date}}"
+    "until": "until {{date}}",
+    "view": "View",
+    "views": {
+      "week": "Week",
+      "month": "Month"
+    },
+    "today": "Today",
+    "earlier": "Earlier",
+    "later": "Later",
+    "marked_one": "{{count}} date",
+    "marked_other": "{{count}} dates",
+    "legend": {
+      "set": "Day set",
+      "open": "Latest or expected day"
+    },
+    "empty-day": "Nothing on the calendar that day.",
+    "empty-span": "Nothing on the calendar in these days.",
+    "next-date": "Next date: {{date}}"
   },
   "themes": {
     "title": "Themes",

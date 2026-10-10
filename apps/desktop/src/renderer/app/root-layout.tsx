@@ -2,8 +2,8 @@ import { useRef } from "react";
 import type { ReactNode, RefObject } from "react";
 
 import { cn } from "@heroui/react";
-import { Outlet, useMatchRoute } from "@tanstack/react-router";
-import { clamp } from "es-toolkit";
+import { Outlet, useMatchRoute, useNavigate } from "@tanstack/react-router";
+import { clamp, mapValues } from "es-toolkit";
 import { I18nProvider } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
@@ -20,6 +20,8 @@ import {
   paneId,
   useLayoutStore,
 } from "./layout-store.ts";
+import { useHeldPane, useLastPage, useSettingsOpen } from "./settings-open.ts";
+import { SettingsPane } from "./settings-pane.tsx";
 import { SymbolsPane } from "./symbols-pane.tsx";
 import { TitleBar } from "./title-bar.tsx";
 
@@ -37,10 +39,16 @@ const WIDTH_CLASS: Record<Pane, string> = {
 /** A side pane of the workspace; closed, it keeps its width so its content slides out whole. */
 function SidePane({
   pane,
+  label,
+  shown,
   workspace,
   children,
 }: {
   pane: Pane;
+  /** Names the pane for what it shows now. */
+  label: string;
+  /** Which panes show, this one and the other. */
+  shown: Record<Pane, boolean>;
   workspace: RefObject<HTMLDivElement | null>;
   children: ReactNode;
 }) {
@@ -48,7 +56,8 @@ function SidePane({
   const panes = useLayoutStore((state) => state.panes);
   const setWidth = useLayoutStore((state) => state.setWidth);
 
-  const { open, width } = panes[pane];
+  const { width } = panes[pane];
+  const open = shown[pane];
   const edge = PANE_EDGE[pane];
   const other = pane === Pane.Symbols ? Pane.Agent : Pane.Symbols;
 
@@ -56,7 +65,7 @@ function SidePane({
   const maxWidth = () => {
     const total = workspace.current?.clientWidth ?? window.innerWidth;
 
-    const otherWidth = panes[other].open ? panes[other].width : 0;
+    const otherWidth = shown[other] ? panes[other].width : 0;
 
     return clamp(
       total - MAIN_MIN_WIDTH - otherWidth,
@@ -68,7 +77,7 @@ function SidePane({
   return (
     <aside
       id={paneId(pane)}
-      aria-label={t(`workspace.${pane}`)}
+      aria-label={label}
       inert={!open}
       className={cn(
         "relative min-w-0",
@@ -88,7 +97,7 @@ function SidePane({
       {open ? (
         <PaneSplitter
           edge={edge}
-          label={t("workspace.resize", { pane: t(`workspace.${pane}`) })}
+          label={t("workspace.resize", { pane: label })}
           controls={paneId(pane)}
           size={width}
           min={PANE_LIMITS[pane].min}
@@ -107,16 +116,58 @@ function SidePane({
   );
 }
 
+// The symbols pane's two views lie over each other; the one out of use waits to its side, unseen.
+const PANE_VIEW =
+  "absolute inset-0 transition-[translate,opacity,visibility] duration-200 ease-out-quint motion-reduce:translate-x-0 motion-reduce:transition-[opacity,visibility]";
+
+/**
+ * What the symbols pane shows: the listings, or the settings page's sections while it is open.
+ * Both stay mounted, so the listings keep their scroll, and one slides aside as the other arrives.
+ */
+function SymbolsPaneViews() {
+  const settings = useSettingsOpen();
+  const navigate = useNavigate();
+  const lastPage = useLastPage();
+
+  return (
+    <div className="relative h-full overflow-clip">
+      <div
+        inert={settings}
+        className={cn(
+          PANE_VIEW,
+          settings && "invisible -translate-x-6 opacity-0"
+        )}>
+        <SymbolsPane />
+      </div>
+      <div
+        inert={!settings}
+        className={cn(
+          PANE_VIEW,
+          !settings && "invisible translate-x-6 opacity-0"
+        )}>
+        <SettingsPane
+          onLeave={() => void navigate({ href: lastPage.current })}
+        />
+      </div>
+    </div>
+  );
+}
+
 /** The panes around the routed main view, under the window's title bar. */
 function Workspace() {
+  const { t } = useTranslation();
   const workspace = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const panes = useLayoutStore((state) => state.panes);
+  const settings = useSettingsOpen();
+  const held = useHeldPane();
 
   useWorkspaceHotkeys(searchRef);
 
+  const shown = mapValues(panes, ({ open }, pane) => open || pane === held);
+
   const column = (pane: Pane) =>
-    panes[pane].open ? `var(${WIDTH_VARIABLE[pane]})` : "0px";
+    shown[pane] ? `var(${WIDTH_VARIABLE[pane]})` : "0px";
 
   // Spread in, since CSSProperties does not list custom properties.
   const widths = {
@@ -135,13 +186,21 @@ function Workspace() {
           ...widths,
           gridTemplateColumns: `${column(Pane.Symbols)} minmax(0, 1fr) ${column(Pane.Agent)}`,
         }}>
-        <SidePane pane={Pane.Symbols} workspace={workspace}>
-          <SymbolsPane />
+        <SidePane
+          pane={Pane.Symbols}
+          label={t(settings ? "settings.title" : "workspace.symbols")}
+          shown={shown}
+          workspace={workspace}>
+          <SymbolsPaneViews />
         </SidePane>
         <main className="@container/main min-w-0 overflow-y-auto [view-transition-name:main]">
           <Outlet />
         </main>
-        <SidePane pane={Pane.Agent} workspace={workspace}>
+        <SidePane
+          pane={Pane.Agent}
+          label={t("workspace.agent")}
+          shown={shown}
+          workspace={workspace}>
           <AgentPane />
         </SidePane>
       </div>

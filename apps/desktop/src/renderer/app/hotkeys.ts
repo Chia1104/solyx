@@ -6,6 +6,7 @@ import type { Hotkey } from "@tanstack/react-hotkeys";
 import { useRouter } from "@tanstack/react-router";
 
 import { Pane, useLayoutStore } from "./layout-store.ts";
+import { useHeldPane } from "./settings-open.ts";
 
 export const PANE_HOTKEY: Record<Pane, Hotkey> = {
   [Pane.Symbols]: "Mod+B",
@@ -34,14 +35,16 @@ function toggleAtOnce(toggle: () => void) {
 }
 
 /**
- * ⌘B and ⌘I show or hide the side panes and ⌘K jumps to symbol search, with Ctrl off macOS. A
- * keyboard toggle is instant, since a shortcut is for getting somewhere fast; the title bar's
- * buttons slide the panes. The back shortcuts and the mouse's back button go back a page.
+ * ⌘B and ⌘I show or hide the side panes, but for one held open, and ⌘K jumps to symbol search,
+ * with Ctrl off macOS. A keyboard toggle is instant, since a shortcut is for getting somewhere
+ * fast; the title bar's buttons slide the panes. The back shortcuts and the mouse's back button
+ * go back a page.
  */
 export function useWorkspaceHotkeys(
   search: RefObject<HTMLInputElement | null>
 ) {
   const toggle = useLayoutStore((state) => state.toggle);
+  const held = useHeldPane();
   const { history } = useRouter();
 
   const back = () => {
@@ -52,7 +55,9 @@ export function useWorkspaceHotkeys(
     { hotkey: SEARCH_HOTKEY, callback: () => search.current?.focus() },
     ...Object.values(Pane).map((pane) => ({
       hotkey: PANE_HOTKEY[pane],
-      callback: () => toggleAtOnce(() => toggle(pane)),
+      callback: () => {
+        if (pane !== held) toggleAtOnce(() => toggle(pane));
+      },
     })),
     ...BACK_HOTKEYS.map((hotkey) => ({ hotkey, callback: back })),
   ]);
