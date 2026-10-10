@@ -12,7 +12,7 @@ import type { SettingsApi, SettingsEvents } from "./settings.ts";
 import type { StorageApi } from "./storage.ts";
 import type { ThemesApi, ThemesEvents } from "./themes.ts";
 import type { UpdatesApi, UpdatesEvents } from "./updates.ts";
-import type { WatchlistApi } from "./watchlist.ts";
+import type { WatchlistApi, WatchlistEvents } from "./watchlist.ts";
 import type { WorkspaceApi, WorkspaceEvents } from "./workspace.ts";
 
 /** Everything the renderer can ask of the main process, exposed as `window.solyx`, one key per module. */
@@ -31,6 +31,6 @@ export interface SolyxApi {
   storage: StorageApi;
   themes: ThemesApi & ThemesEvents;
   updates: UpdatesApi & UpdatesEvents;
-  watchlist: WatchlistApi;
+  watchlist: WatchlistApi & WatchlistEvents;
   workspace: WorkspaceApi & WorkspaceEvents;
 }

@@ -14,6 +14,7 @@ import {
   ToolCallStatus,
   bashArgumentsSchema,
   changeSettingArgumentsSchema,
+  changeWatchlistArgumentsSchema,
   forgetArgumentsSchema,
   proposeOrderDetailsSchema,
   readPageArgumentsSchema,
@@ -28,7 +29,7 @@ import {
 } from "@solyx/agent/wire";
 import type { ToolCallView } from "@solyx/agent/wire";
 import { intervalSchema } from "@solyx/core/candles";
-import { marketSchema, symbolRefSchema } from "@solyx/core/market";
+import { marketSchema, symbolKey, symbolRefSchema } from "@solyx/core/market";
 import type { Memory } from "@solyx/core/memory";
 import { scheduleSchema } from "@solyx/core/schedule";
 import { isEnumValue } from "@solyx/utils/is";
@@ -191,6 +192,25 @@ function ApprovalCard({
       ? saveThemeArgumentsSchema.safeParse(tool.args).data
       : undefined;
 
+  const listings =
+    tool.toolName === AgentToolName.ChangeWatchlist
+      ? changeWatchlistArgumentsSchema.safeParse(tool.args).data
+      : undefined;
+
+  const watching = listings && (
+    <>
+      {[
+        ...listings.add.map((symbol) => ({ sign: "+", symbol })),
+        ...listings.remove.map((symbol) => ({ sign: "−", symbol })),
+      ].map(({ sign, symbol }) => (
+        <span key={`${sign}${symbolKey(symbol)}`} className="flex gap-1">
+          {sign} {symbol.market} {symbol.symbol}
+          <ListingName symbol={symbol} />
+        </span>
+      ))}
+    </>
+  );
+
   const task =
     tool.toolName === AgentToolName.SaveTask
       ? saveTaskArgumentsSchema.safeParse(tool.args).data
@@ -236,6 +256,8 @@ function ApprovalCard({
     description = t("agent.approval.save-theme-description");
   } else if (scheduled !== undefined) {
     description = t("agent.approval.save-task-description");
+  } else if (watching !== undefined) {
+    description = t("agent.approval.change-watchlist-description");
   } else if (memory !== undefined) {
     description = t(
       tool.toolName === AgentToolName.Forget
@@ -254,6 +276,7 @@ function ApprovalCard({
           setting ??
           watched ??
           scheduled ??
+          watching ??
           memory ??
           JSON.stringify(tool.args, null, 2)}
       </pre>

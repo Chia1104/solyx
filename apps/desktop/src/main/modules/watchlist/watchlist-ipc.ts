@@ -15,11 +15,11 @@ const schemas = {
   move: z.tuple([symbolRefSchema, z.number().int().nonnegative()]),
 };
 
-export function registerWatchlistIpc({ userData }: Services) {
+export function registerWatchlistIpc({ watchlist }: Services) {
   bindIpc<WatchlistApi>(watchlistChannels, schemas, {
-    list: async () => userData.watchlist.list(),
-    add: async (symbol) => userData.watchlist.add(symbol),
-    remove: async (symbol) => userData.watchlist.remove(symbol),
-    move: async (symbol, index) => userData.watchlist.move(symbol, index),
+    list: async () => watchlist.list(),
+    add: async (symbol) => watchlist.add(symbol),
+    remove: async (symbol) => watchlist.remove(symbol),
+    move: async (symbol, index) => watchlist.move(symbol, index),
   });
 }

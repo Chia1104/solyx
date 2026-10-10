@@ -251,6 +251,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "- MCP servers: each tool is off, asks first, or runs on its own, which only a tool its server marks read-only may. A secret an entry names as secret:NAME is entered on the MCP tab, and a remote server may need the user to sign in there.",
       "",
       "## The rest",
+      "- Watchlist: the user adds the listing on screen with the button above its chart, and reorders or removes rows in the symbols pane. change_watchlist adds or removes listings for them once they allow it.",
       "- The shell is off until the user switches it on, and stays off while the account is live; each command waits for them unless the approval mode lets it run.",
       "- Memory: you save and rewrite memories on your own as you learn the user, and each waits for them only where the conversation asks first; forgetting one waits for them unless nothing asks. They read and edit them on the Memory tab, or switch memory off there.",
       "- Updates: the app checks every six hours while that setting is on. Windows installs on restart; on macOS the update is linked for the user to download.",

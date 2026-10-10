@@ -427,7 +427,8 @@
       "get_themes": "Read your themes",
       "save_theme": "Wrote a theme",
       "get_tasks": "Read your scheduled tasks",
-      "save_task": "Wrote a scheduled task"
+      "save_task": "Wrote a scheduled task",
+      "change_watchlist": "Changed your watchlist"
     },
     "tool-status": {
       "running": "Running",
@@ -485,6 +486,7 @@
       "change-setting-description": "The agent wants to change this setting. It applies at once, as if you changed it in Settings.",
       "save-task-description": "The agent wants to keep this scheduled task. Once you allow it, the app sends the agent this message on its own while Solyx is open, each run in a conversation of its own that spends your model's tokens. You change, switch off or remove it in Settings.",
       "save-task-off": "Switched off",
+      "change-watchlist-description": "The agent wants to change your watchlist. The app collects news for every listing you watch, and tasks that wait on a change run for them.",
       "allow": "Allow",
       "deny": "Don't allow",
       "auto-allowed": "allowed by the decisions model",

@@ -32,8 +32,8 @@ import { themesChannels, themesEvents } from "#shared/ipc/themes.ts";
 import type { ThemesApi, ThemesEvents } from "#shared/ipc/themes.ts";
 import { updatesChannels, updatesEvents } from "#shared/ipc/updates.ts";
 import type { UpdatesApi, UpdatesEvents } from "#shared/ipc/updates.ts";
-import { watchlistChannels } from "#shared/ipc/watchlist.ts";
-import type { WatchlistApi } from "#shared/ipc/watchlist.ts";
+import { watchlistChannels, watchlistEvents } from "#shared/ipc/watchlist.ts";
+import type { WatchlistApi, WatchlistEvents } from "#shared/ipc/watchlist.ts";
 import { workspaceChannels, workspaceEvents } from "#shared/ipc/workspace.ts";
 import type { WorkspaceApi, WorkspaceEvents } from "#shared/ipc/workspace.ts";
 
@@ -118,7 +118,10 @@ const api: SolyxApi = {
   storage: bridge<StorageApi>(storageChannels),
   themes: bridge<ThemesApi, ThemesEvents>(themesChannels, themesEvents),
   updates: bridge<UpdatesApi, UpdatesEvents>(updatesChannels, updatesEvents),
-  watchlist: bridge<WatchlistApi>(watchlistChannels),
+  watchlist: bridge<WatchlistApi, WatchlistEvents>(
+    watchlistChannels,
+    watchlistEvents
+  ),
   workspace: bridge<WorkspaceApi, WorkspaceEvents>(
     workspaceChannels,
     workspaceEvents

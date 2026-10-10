@@ -36,6 +36,7 @@ import {
 } from "#shared/ipc/settings.ts";
 import { themesEvents } from "#shared/ipc/themes.ts";
 import { updatesEvents } from "#shared/ipc/updates.ts";
+import { watchlistEvents } from "#shared/ipc/watchlist.ts";
 import { workspaceEvents } from "#shared/ipc/workspace.ts";
 import { ColorScheme } from "#shared/palette.ts";
 
@@ -70,6 +71,7 @@ import { createTray } from "./modules/tray/tray.ts";
 import type { TrayState } from "./modules/tray/tray.ts";
 import { createAppUpdater } from "./modules/updates/app-updater.ts";
 import { createUpdates } from "./modules/updates/updates.ts";
+import { createWatchlist } from "./modules/watchlist/watchlist.ts";
 import { createWebSearch } from "./modules/web-search/web-search.ts";
 import { createWorkspace } from "./modules/workspace/workspace.ts";
 import { createScheduler } from "./scheduler.ts";
@@ -102,6 +104,11 @@ export function createServices(config: ConfigFile) {
     join(userDataDir, "user.sqlite"),
     join(import.meta.dirname, "migrations", "user")
   );
+
+  const watchlist = createWatchlist({
+    store: userData.watchlist,
+    onChange: () => broadcast(watchlistEvents.onChanged),
+  });
 
   const desk = new OrderDesk({
     broker: createPaperBroker({
@@ -325,7 +332,7 @@ export function createServices(config: ConfigFile) {
     },
     conversations: openAgentStore(join(userDataDir, "agent.sqlite")),
     marketData,
-    watchlist: () => userData.watchlist.list(),
+    watchlist,
     news,
     tradingDays,
     calendar,
@@ -368,7 +375,7 @@ export function createServices(config: ConfigFile) {
       () => []
     );
 
-    return uniqBy([...held, ...userData.watchlist.list()], symbolKey);
+    return uniqBy([...held, ...watchlist.list()], symbolKey);
   }
 
   const newsCollector = createNewsCollector({
@@ -515,6 +522,7 @@ export function createServices(config: ConfigFile) {
     windowColors,
     marketData,
     userData,
+    watchlist,
     memories,
     research,
     calendar,

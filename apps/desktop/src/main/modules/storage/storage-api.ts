@@ -1,6 +1,5 @@
 import type { Cache } from "@solyx/db/cache";
 import type { NewsData } from "@solyx/db/news";
-import type { UserData } from "@solyx/db/user";
 
 import { StoredData } from "#shared/ipc/storage.ts";
 import type { StorageApi } from "#shared/ipc/storage.ts";
@@ -8,6 +7,7 @@ import type { StorageApi } from "#shared/ipc/storage.ts";
 import type { AgentService } from "../agent/agent-service.ts";
 import type { Memories } from "../memory/memories.ts";
 import type { Research } from "../research/research.ts";
+import type { Watchlist } from "../watchlist/watchlist.ts";
 
 export interface StorageApiOptions {
   cache: Pick<Cache, "usage" | "clear">;
@@ -15,7 +15,7 @@ export interface StorageApiOptions {
   memories: Pick<Memories, "usage" | "clear">;
   news: Pick<NewsData, "usage" | "clear">;
   research: Pick<Research, "usage" | "clear">;
-  watchlist: Pick<UserData["watchlist"], "list" | "clear">;
+  watchlist: Pick<Watchlist, "list" | "clear">;
 }
 
 /** The storage page's side of the main process, one method per `StorageApi` channel. */

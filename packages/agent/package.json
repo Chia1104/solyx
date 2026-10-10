@@ -28,6 +28,7 @@
     "./tools": "./src/tools.ts",
     "./traces": "./src/traces.ts",
     "./transcript": "./src/transcript.ts",
+    "./watchlist": "./src/watchlist.ts",
     "./web": "./src/web.ts",
     "./wire": "./src/wire.ts"
   },
