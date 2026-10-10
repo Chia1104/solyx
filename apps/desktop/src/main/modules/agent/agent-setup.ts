@@ -22,6 +22,7 @@ import {
   DECISIONS_SECRETS,
   FubonFile,
   FubonSessionState,
+  LanguagePreference,
   MarketDataSource,
   PriceColors,
   Secret,
@@ -51,7 +52,7 @@ import type { McpServers } from "./mcp-servers.ts";
 export interface AgentSetupSources {
   appearance: Pick<
     AppearanceSettings,
-    "read" | "setTheme" | "setPalette" | "setPriceColors"
+    "read" | "setTheme" | "setPalette" | "setPriceColors" | "setLanguage"
   >;
   marketData: Pick<MarketDataModule, "status">;
   webSearch: Pick<WebSearchModule, "settings">;
@@ -153,7 +154,10 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
   const tildify = (path: string) => path.replace(options.home, "~");
 
   function appearance(): SetupArea {
-    const { theme, palette, palettes, priceColors } = options.appearance.read();
+    const { theme, palette, palettes, priceColors, language } =
+      options.appearance.read();
+
+    const tray = config.read().tray;
 
     const paletteName = (id: string) =>
       palettes[id] ? `${id} (the user's own "${palettes[id].name}")` : id;
@@ -170,12 +174,14 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
           description: entryDescription(["appearance", "palette"]),
         })),
         entry(["appearance", "priceColors"], priceColors),
+        entry(["appearance", "language"], language),
         {
-          name: "language and time zone",
-          value: "as the context gives them",
-          description:
-            "Set on this tab and kept by the app's window; replies follow the language.",
+          name: "time zone",
+          value: "as the context gives it",
+          description: "Set on this tab and kept by the app's window.",
         },
+        entry(["tray", "show"], String(tray.show)),
+        entry(["tray", "hideDock"], String(tray.hideDock)),
       ],
     };
   }
@@ -617,8 +623,8 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
 
   /**
    * The settings the agent may change, through the writers the settings page uses. A key, a
-   * sign-in, a provider switched on, an endpoint, the shell, MCP tools, shared skills and memory
-   * stay the user's alone, since each would widen what the agent reaches.
+   * sign-in, a provider switched on, an endpoint, the shell, MCP tools, shared skills, memory and
+   * the tray stay the user's alone, since each would widen what the agent reaches.
    */
   async function changeables(): Promise<Map<string, Changeable>> {
     const models = await options.models.settings();
@@ -684,6 +690,12 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         "appearance.priceColors",
         choice(Object.values(PriceColors), (priceColors) =>
           options.appearance.setPriceColors(priceColors)
+        ),
+      ],
+      [
+        "appearance.language",
+        choice(Object.values(LanguagePreference), (language) =>
+          options.appearance.setLanguage(language)
         ),
       ],
       [

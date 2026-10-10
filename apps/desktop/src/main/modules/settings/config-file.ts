@@ -54,9 +54,11 @@ import {
 } from "@solyx/web-search/provider";
 
 import {
+  LanguagePreference,
   MarketDataSource,
   PriceColors,
   Theme,
+  languagePreferenceSchema,
   marketDataSourceSchema,
   priceColorsSchema,
   themeSchema,
@@ -133,6 +135,12 @@ const configSchema = section(
             description:
               'Which colour marks a rise; "market" is red in Taiwan and green in the US.',
           }),
+          language: languagePreferenceSchema
+            .catch(LanguagePreference.System)
+            .meta({
+              description:
+                'The language Solyx shows, its windows and its tray menu alike; "system" follows the computer\'s, or English when Solyx has no translation for it.',
+            }),
         })
         .transform((appearance) => {
           // A palette that is neither built in nor one of the user's reads as the default.
@@ -147,6 +155,18 @@ const configSchema = section(
             },
           };
         })
+    ),
+    tray: section(
+      z.looseObject({
+        show: z.boolean().catch(true).meta({
+          description:
+            "Keeps an icon for Solyx in the menu bar, or the system tray on Windows and Linux, and keeps Solyx running there once its last window closes, so scheduled tasks and collections go on. Off, closing the last window quits Solyx on Windows and Linux.",
+        }),
+        hideDock: z.boolean().catch(false).meta({
+          description:
+            "On macOS, takes Solyx out of the Dock while none of its windows is open, so the icon in the menu bar is the way back to it. Applies only while that icon is shown.",
+        }),
+      })
     ),
     marketData: section(
       z.looseObject({
@@ -413,11 +433,12 @@ const DEFAULTS: Config = configSchema.parse({});
 
 /** The values the app edits; the file may hold others a person added. */
 type ConfigPath =
-  | ["appearance", "theme" | "priceColors"]
+  | ["appearance", "theme" | "priceColors" | "language"]
   | ["appearance", "palette", ColorScheme]
   | ["appearance", "palettes", string]
   | ["appearance", "palettes", string, "name"]
   | ["appearance", "palettes", string, ColorScheme, PaletteToken]
+  | ["tray", "show" | "hideDock"]
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle" | "finmind", "plan"]
   | ["providers", "fubon", FubonFile]

@@ -168,6 +168,8 @@ export default defineConfig({
         },
         { from: quickjsWasm, to: "dist/main" },
         { from: "resources/icon.png", to: "dist/main" },
+        { from: "resources/trayTemplate.png", to: "dist/main" },
+        { from: "resources/trayTemplate@2x.png", to: "dist/main" },
       ],
     },
     {

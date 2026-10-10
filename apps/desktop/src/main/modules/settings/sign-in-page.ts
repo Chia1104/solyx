@@ -1,12 +1,12 @@
 import { escape } from "es-toolkit";
 
 import type { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
-import enUS from "@solyx/i18n/desktop/en-US.json" with { type: "json" };
-import zhTW from "@solyx/i18n/desktop/zh-TW.json" with { type: "json" };
 
-import { Locale } from "#shared/ipc/settings.ts";
+import type { Locale } from "#shared/ipc/settings.ts";
 
 import { PRODUCT_NAME } from "../../product.ts";
+
+import { CATALOGS } from "./catalogs.ts";
 
 // The same inks and rules as the renderer's styles.css and sheets, since the browser shows this
 // page outside the app.
@@ -83,8 +83,7 @@ export function signInPage(
   outcome: SignInOutcome,
   detail?: string
 ): string {
-  const catalog = locale === Locale.ZhTW ? zhTW : enUS;
-  const page = catalog["sign-in-page"][flow];
+  const page = CATALOGS[locale]["sign-in-page"][flow];
   const copy = page[outcome];
 
   return `<!doctype html>

@@ -23,7 +23,12 @@ import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
-import { MarketDataSource, PriceColors, Theme } from "#shared/ipc/settings.ts";
+import {
+  LanguagePreference,
+  MarketDataSource,
+  PriceColors,
+  Theme,
+} from "#shared/ipc/settings.ts";
 import { Palette } from "#shared/palette.ts";
 
 import {
@@ -55,7 +60,9 @@ test("a missing file reads as the defaults, which a new file's template holds be
       palette: { light: Palette.Blueprint, dark: Palette.Blueprint },
       palettes: {},
       priceColors: PriceColors.Market,
+      language: LanguagePreference.System,
     },
+    tray: { show: true, hideDock: false },
     marketData: { TW: MarketDataSource.Fugle },
     providers: {
       fugle: { plan: FuglePlan.Basic },
@@ -328,6 +335,7 @@ test("the appearance falls back entry by entry until values the app knows are sa
     palette: { light: Palette.Blueprint, dark: Palette.Blueprint },
     palettes: {},
     priceColors: PriceColors.Market,
+    language: LanguagePreference.System,
   };
 
   config.create();
@@ -341,6 +349,7 @@ test("the appearance falls back entry by entry until values the app knows are sa
         theme: "sepia",
         palette: { light: "iris", dark: "neon" },
         priceColors: "blue-up",
+        language: "tlh",
       },
       marketData: { TW: "fubon" },
     })
@@ -354,12 +363,14 @@ test("the appearance falls back entry by entry until values the app knows are sa
   config.set(["appearance", "theme"], "dark");
   config.set(["appearance", "palette", "dark"], "lagoon");
   config.set(["appearance", "priceColors"], "red-up");
+  config.set(["appearance", "language"], "zh-TW");
 
   expect(config.read().appearance).toEqual({
     theme: Theme.Dark,
     palette: { light: Palette.Iris, dark: Palette.Lagoon },
     palettes: {},
     priceColors: PriceColors.RedUp,
+    language: LanguagePreference.ZhTW,
   });
   expect(config.read().marketData.TW).toBe("fubon");
 });

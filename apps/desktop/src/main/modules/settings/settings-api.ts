@@ -41,6 +41,8 @@ export interface SettingsShell {
   about(): Omit<AppInfo, "locations">;
   /** This build has somewhere to send crash reports. */
   canReportCrashes: boolean;
+  /** This computer has a Dock, as only macOS does. */
+  hasDock: boolean;
 }
 
 export interface SettingsApiOptions {
@@ -118,6 +120,8 @@ export function createSettingsApi({
 
     setPriceColors: async (priceColors) =>
       appearance.setPriceColors(priceColors),
+
+    setLanguage: async (language) => appearance.setLanguage(language),
 
     secrets: async () => ({
       available: await secrets.available(),
@@ -296,6 +300,20 @@ export function createSettingsApi({
 
     async setMemoryEnabled(enabled) {
       config.set(["agent", "memory"], enabled);
+    },
+
+    async tray() {
+      const { show, hideDock } = config.read().tray;
+
+      return { show, hideDock, hasDock: shell.hasDock };
+    },
+
+    async setTrayShown(shown) {
+      config.set(["tray", "show"], shown);
+    },
+
+    async setDockHidden(hidden) {
+      config.set(["tray", "hideDock"], hidden);
     },
 
     updates: async () => ({ check: config.read().updates.check }),

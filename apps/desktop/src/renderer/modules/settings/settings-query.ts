@@ -24,6 +24,7 @@ export const settingsQueryKeys = {
   embeddings: [...all, "embeddings"] as const,
   agentSkills: [...all, "agent-skills"] as const,
   memory: [...all, "memory"] as const,
+  tray: [...all, "tray"] as const,
   updates: [...all, "updates"] as const,
   crashReports: [...all, "crash-reports"] as const,
   otlp: [...all, "otlp"] as const,
@@ -102,6 +103,14 @@ export const memorySettingsQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.memory,
     queryFn: () => window.solyx.settings.memory(),
+    staleTime: Infinity,
+  });
+
+/** Never stale, as below. */
+export const traySettingsQuery = () =>
+  queryOptions({
+    queryKey: settingsQueryKeys.tray,
+    queryFn: () => window.solyx.settings.tray(),
     staleTime: Infinity,
   });
 

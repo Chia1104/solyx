@@ -152,6 +152,7 @@ export interface Appearance {
   /** The user's own palettes, by id. */
   palettes: Record<string, CustomPalette>;
   priceColors: PriceColors;
+  language: LanguagePreference;
 }
 
 /** The languages the app has catalogs for, as BCP 47 tags. */
@@ -163,6 +164,26 @@ export const Locale = {
 export type Locale = (typeof Locale)[keyof typeof Locale];
 
 export const localeSchema = z.enum(Locale);
+
+/** The language the user picked: a catalog, or `system` to follow the computer's language. */
+export const LanguagePreference = { System: "system", ...Locale } as const;
+
+export type LanguagePreference =
+  (typeof LanguagePreference)[keyof typeof LanguagePreference];
+
+export const languagePreferenceSchema = z.enum(LanguagePreference);
+
+/** The catalog `preference` shows on a computer whose own language is `system`, a BCP 47 tag. */
+export function resolveLocale(
+  preference: LanguagePreference,
+  system: string
+): Locale {
+  if (preference !== LanguagePreference.System) return preference;
+
+  // zh-TW is the only Chinese catalog, so every Chinese system locale lands on it; any other
+  // language has no catalog and gets English.
+  return system.toLowerCase().startsWith("zh") ? Locale.ZhTW : Locale.EnUS;
+}
 
 /** A time zone as an IANA name, such as `Asia/Taipei`, which the user's own clock follows. */
 export const timeZoneSchema = z
@@ -296,6 +317,15 @@ export interface FundamentalsSettings {
 export interface MemorySettings {
   /** The agent reads its memories and may ask to save, rewrite or forget one. */
   enabled: boolean;
+}
+
+export interface TraySettings {
+  /** The app keeps an icon in the tray and stays open there once its last window closes. */
+  show: boolean;
+  /** The app leaves the Dock while no window is open, which applies only while the icon shows. */
+  hideDock: boolean;
+  /** This computer has a Dock to leave, as only macOS does. */
+  hasDock: boolean;
 }
 
 export interface UpdateSettings {
@@ -483,6 +513,8 @@ export interface SettingsApi {
   /** A scheme that showed it goes back to the palette it was copied from. */
   deletePalette(palette: string): Promise<void>;
   setPriceColors(priceColors: PriceColors): Promise<void>;
+  /** Saves the language; every window and the tray's menu switch at once. */
+  setLanguage(language: LanguagePreference): Promise<void>;
   secrets(): Promise<SecretsStatus>;
   saveSecret(secret: EnteredSecret, value: string): Promise<void>;
   deleteSecret(secret: EnteredSecret): Promise<void>;
@@ -561,6 +593,10 @@ export interface SettingsApi {
   memory(): Promise<MemorySettings>;
   /** Gives the agent its memories from its next run on, or takes them away; they stay saved. */
   setMemoryEnabled(enabled: boolean): Promise<void>;
+  tray(): Promise<TraySettings>;
+  /** Puts the icon in the tray or takes it away, at once. */
+  setTrayShown(shown: boolean): Promise<void>;
+  setDockHidden(hidden: boolean): Promise<void>;
   updates(): Promise<UpdateSettings>;
   setUpdateChecks(enabled: boolean): Promise<void>;
   otlp(): Promise<OtlpSettings>;
@@ -609,6 +645,7 @@ export const settingsChannels = {
   setPaletteColor: "settings:set-palette-color",
   deletePalette: "settings:delete-palette",
   setPriceColors: "settings:set-price-colors",
+  setLanguage: "settings:set-language",
   secrets: "settings:secrets",
   saveSecret: "settings:save-secret",
   deleteSecret: "settings:delete-secret",
@@ -650,6 +687,9 @@ export const settingsChannels = {
   setAgentShell: "settings:set-agent-shell",
   memory: "settings:memory",
   setMemoryEnabled: "settings:set-memory-enabled",
+  tray: "settings:tray",
+  setTrayShown: "settings:set-tray-shown",
+  setDockHidden: "settings:set-dock-hidden",
   updates: "settings:updates",
   setUpdateChecks: "settings:set-update-checks",
   otlp: "settings:otlp",

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { BrowserWindow, nativeTheme, shell } from "electron";
+import { BrowserWindow, app, nativeTheme, shell } from "electron";
 
 import type { PaletteColors } from "#shared/palette.ts";
 
@@ -99,4 +99,21 @@ export function createMainWindow(colors: () => PaletteColors) {
   }
 
   return win;
+}
+
+/** Brings the app's window to the front, opening one when none is. */
+export function showMainWindow(colors: () => PaletteColors) {
+  const [win] = BrowserWindow.getAllWindows();
+
+  if (win) {
+    if (win.isMinimized()) win.restore();
+
+    win.show();
+    win.focus();
+  } else {
+    createMainWindow(colors);
+  }
+
+  // Asked for from the tray or by a second launch, the app is behind whatever the user was in.
+  app.focus({ steal: true });
 }
