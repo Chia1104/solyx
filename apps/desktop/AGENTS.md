@@ -30,6 +30,7 @@ The Electron app: the main process is the backend, the preload bridges it to the
 - A module pushes with `webContents.send` on an event channel whenever what it holds changes, whoever changed it (settings and secrets, market data sources, proposals, news). The renderer refetches on a push rather than guessing what a mutation reached; a query goes stale on its own only for what nothing pushes.
 - The preload exposes each push as `onXxx(listener)`, which returns a function that stops listening, and never exposes `ipcRenderer` itself. It also carries Sentry's bridge, which hands the renderer's crash reports to the main process. A handler that needs the asking window takes the invoke event as its last argument.
 - A module may use another module's query keys to invalidate what it changes (a confirmed order refreshes `account`); anything shared more widely moves to a package.
+- The main process asks for a place in the window, such as the one a row of the tray's menu names, through the workspace module: it keeps the destination and pushes that one waits, and a window takes it on the push and again as it loads, so a window opened for it shows it too.
 
 ## Identity, settings and secrets
 
@@ -43,6 +44,6 @@ The Electron app: the main process is the backend, the preload bridges it to the
 ## Appearance
 
 - The appearance is a setting. The main process applies its theme through `nativeTheme.themeSource`, which the renderer's `prefers-color-scheme` follows, and pushes every change to the renderers, so the renderer never picks a scheme or price colours on its own.
-- The language is part of the appearance, since the main process writes in it too, as the tray's menu is. `resolveLocale` turns the saved preference into a catalog in either process, each against its own reading of the computer's language.
+- The language and the user's time zone are part of the appearance, since the main process writes in them too, as the tray's menu is. `resolveLocale` and `resolveTimeZone` turn the saved preferences into a catalog and a zone in either process, each against its own reading of the computer's, and `#shared/clock.ts` formats the app's own times for both.
 - Palettes are sRGB hex in `shared/palette.ts`, since the chart canvas and Electron's window chrome accept nothing else. The user picks one per scheme, built in or their own from `appearance.palettes`, which sets colours over a built-in palette but never the price pair.
 - The renderer writes the picked palettes as the CSS custom properties HeroUI reads before its first render; the charts and window chrome read them directly.

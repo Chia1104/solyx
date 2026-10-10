@@ -24,6 +24,7 @@ import { followScheduleChanges } from "./modules/schedules/schedules-query.ts";
 import { followSettingsChanges } from "./modules/settings/settings-query.ts";
 import { followThemeChanges } from "./modules/themes/themes-query.ts";
 import { followUpdateChanges } from "./modules/updates/updates-query.ts";
+import { followDestinations } from "./modules/workspace/destination.ts";
 
 // Followed for the window's whole life, so a query that never goes stale on its own hears of
 // every change, whichever page is open.
@@ -56,3 +57,5 @@ createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </StrictMode>
 );
+
+followDestinations();

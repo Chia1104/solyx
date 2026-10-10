@@ -13,6 +13,7 @@ import { registerStorageIpc } from "../modules/storage/storage-ipc.ts";
 import { registerThemesIpc } from "../modules/themes/themes-ipc.ts";
 import { registerUpdatesIpc } from "../modules/updates/updates-ipc.ts";
 import { registerWatchlistIpc } from "../modules/watchlist/watchlist-ipc.ts";
+import { registerWorkspaceIpc } from "../modules/workspace/workspace-ipc.ts";
 import type { Services } from "../services.ts";
 
 export function registerIpc(services: Services) {
@@ -31,4 +32,5 @@ export function registerIpc(services: Services) {
   registerThemesIpc(services);
   registerUpdatesIpc(services);
   registerWatchlistIpc(services);
+  registerWorkspaceIpc(services);
 }

@@ -62,6 +62,8 @@ interface LayoutState {
 interface LayoutActions {
   setWidth: (pane: Pane, width: number) => void;
   toggle: (pane: Pane) => void;
+  /** Opens the pane where it is closed. */
+  show: (pane: Pane) => void;
   setNewsHeight: (height: number) => void;
   setAgendaView: (view: AgendaView) => void;
 }
@@ -120,6 +122,13 @@ export const useLayoutStore = create<LayoutStore>()(
           panes: {
             ...state.panes,
             [pane]: { ...state.panes[pane], open: !state.panes[pane].open },
+          },
+        })),
+      show: (pane) =>
+        set((state) => ({
+          panes: {
+            ...state.panes,
+            [pane]: { ...state.panes[pane], open: true },
           },
         })),
       setNewsHeight: (height) => set({ newsHeight: clampNewsHeight(height) }),

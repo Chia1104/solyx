@@ -17,7 +17,8 @@ The app's backend, composed in `services.ts`. Layout, IPC, settings and secrets 
 
 - The app runs as one instance per identity, since a second would run the clock and the order desk again over the same files; a second launch brings the first one's window forward and exits.
 - While `tray.show` is on, the app keeps an icon in the menu bar or the system tray and stays open there once its last window closes, so the clock's work goes on; off, it quits with its last window, except on macOS, where it stays in the Dock. `tray.hideDock` takes it out of the Dock only while no window is open and the icon is there to bring it back.
-- The tray module decides what the icon and the Dock show through a port, and `main/shell` draws them. Its menu is the main process's own, so it opens the window for anything that waits for the user and never confirms an order or answers an approval itself.
+- The tray module decides what the icon and the Dock show through a port, and `main/shell` draws them. Its menu lists what waits for the user (proposals to confirm and conversations with a call to allow, counted beside the icon), the scheduled tasks running and next, and an update to install. Whatever tells the windows of a change to one of those tells the tray, which then reads them all afresh. The menu is the main process's own, so a row opens the window at its place through the workspace module and never confirms an order or answers an approval itself.
+- The agent module knows which conversations have a call waiting from its runs' events alone, since a question lives only as long as its run.
 
 ## Markets and providers
 

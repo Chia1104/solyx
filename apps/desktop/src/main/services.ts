@@ -8,7 +8,7 @@ import { createPaperBroker } from "@solyx/brokers/paper";
 import { changesSince } from "@solyx/core/changes";
 import { Currency, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { OrderDesk } from "@solyx/core/order-desk";
+import { OrderDesk, ProposalStatus } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
 import { CollectionJob } from "@solyx/core/schedule";
 import { Session } from "@solyx/core/session";
@@ -31,10 +31,12 @@ import {
   AppLocation,
   Secret,
   resolveLocale,
+  resolveTimeZone,
   settingsEvents,
 } from "#shared/ipc/settings.ts";
 import { themesEvents } from "#shared/ipc/themes.ts";
 import { updatesEvents } from "#shared/ipc/updates.ts";
+import { workspaceEvents } from "#shared/ipc/workspace.ts";
 import { ColorScheme } from "#shared/palette.ts";
 
 import { createAgentService } from "./modules/agent/agent-service.ts";
@@ -58,7 +60,6 @@ import { createResearch } from "./modules/research/research.ts";
 import { createCollections } from "./modules/schedules/collections.ts";
 import { createSchedules } from "./modules/schedules/schedules.ts";
 import { createAppearance } from "./modules/settings/appearance.ts";
-import { CATALOGS } from "./modules/settings/catalogs.ts";
 import type { ConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
@@ -66,9 +67,11 @@ import { createSecretStore } from "./modules/settings/secret-store.ts";
 import { createTelemetry } from "./modules/telemetry/telemetry.ts";
 import { createThemes } from "./modules/themes/themes.ts";
 import { createTray } from "./modules/tray/tray.ts";
+import type { TrayState } from "./modules/tray/tray.ts";
 import { createAppUpdater } from "./modules/updates/app-updater.ts";
 import { createUpdates } from "./modules/updates/updates.ts";
 import { createWebSearch } from "./modules/web-search/web-search.ts";
+import { createWorkspace } from "./modules/workspace/workspace.ts";
 import { createScheduler } from "./scheduler.ts";
 import { appChannel } from "./shell/app-channel.ts";
 import { paintWindow, showMainWindow } from "./shell/main-window.ts";
@@ -107,7 +110,10 @@ export function createServices(config: ConfigFile) {
     }),
     store: userData.proposals,
     limits: PAPER_LIMITS,
-    onChange: () => broadcast(proposalsEvents.onChanged),
+    onChange() {
+      broadcast(proposalsEvents.onChanged);
+      void tray.sync();
+    },
   });
 
   const secrets = createSecretStore(
@@ -278,14 +284,6 @@ export function createServices(config: ConfigFile) {
     );
   }
 
-  // What the main process writes itself is in the language the windows show.
-  const tray = createTray({
-    settings: () => config.read().tray,
-    copy: () =>
-      CATALOGS[resolveLocale(appearance.read().language, app.getLocale())].tray,
-    shell: createTrayShell(() => showMainWindow(windowColors)),
-  });
-
   const scheduleDays = createScheduleDays({ tradingDays, diagnostics });
 
   const themes = createThemes({
@@ -340,6 +338,7 @@ export function createServices(config: ConfigFile) {
       version: app.getVersion(),
       home,
     },
+    onActivity: () => void tray.sync(),
   });
 
   /** What the user holds, then what they watch, each once; a broker that cannot be read leaves the watchlist. */
@@ -375,7 +374,10 @@ export function createServices(config: ConfigFile) {
   const updates = createUpdates({
     updater: createAppUpdater(),
     checkEnabled: () => config.read().updates.check,
-    onChange: () => broadcast(updatesEvents.onChanged),
+    onChange() {
+      broadcast(updatesEvents.onChanged);
+      void tray.sync();
+    },
   });
 
   const schedules = createSchedules({
@@ -405,7 +407,65 @@ export function createServices(config: ConfigFile) {
       });
     },
     diagnostics,
-    onChange: () => broadcast(schedulesEvents.onChanged),
+    onChange() {
+      broadcast(schedulesEvents.onChanged);
+      void tray.sync();
+    },
+  });
+
+  const showWindow = () => showMainWindow(windowColors);
+
+  const workspace = createWorkspace({
+    showWindow,
+    onDestination: () => broadcast(workspaceEvents.onDestination),
+  });
+
+  /** What the tray's menu lists of the desk, the agent, the scheduled tasks and updates. */
+  async function trayState(): Promise<TrayState> {
+    const asked = new Set(agent.waiting());
+
+    // Conversations are read only for the titles of those that ask.
+    const [sessions, tasks] = await Promise.all([
+      asked.size > 0 ? agent.sessions() : [],
+      schedules.list(),
+    ]);
+
+    return {
+      mode: desk.mode,
+      proposals: desk
+        .list()
+        .filter(
+          (proposal) => proposal.status === ProposalStatus.AwaitingConfirmation
+        ).length,
+      approvals: sessions
+        .filter((session) => asked.has(session.id))
+        .map(({ id, title }) => ({ sessionId: id, title })),
+      tasks: tasks
+        .filter((task) => task.enabled || task.running)
+        .map(({ name, running, nextRunAt, lastRun }) => ({
+          name,
+          running,
+          nextRunAt,
+          sessionId: lastRun?.sessionId ?? null,
+        })),
+      update: updates.state(),
+    };
+  }
+
+  // What the main process writes itself is in the language and on the clock the windows show.
+  const tray = createTray({
+    settings: () => config.read().tray,
+    locale: () => resolveLocale(appearance.read().language, app.getLocale()),
+    timeZone: () =>
+      resolveTimeZone(
+        appearance.read().timeZone,
+        new Intl.DateTimeFormat().resolvedOptions().timeZone
+      ),
+    state: trayState,
+    open: (destination) => workspace.open(destination),
+    installUpdate: () => updates.install(),
+    shell: createTrayShell(showWindow),
+    diagnostics,
   });
 
   const scheduler = createScheduler({ telemetry });
@@ -422,8 +482,8 @@ export function createServices(config: ConfigFile) {
   // A collection's plan lives in the config file, so whoever shows the plans hears of every edit.
   config.onChange(() => broadcast(schedulesEvents.onChanged));
   secrets.onChange(() => broadcast(settingsEvents.onChanged));
-  // Its switches and its menu's language both live in the config file.
-  config.onChange(() => tray.sync());
+  // Its switches and its menu's language and clock all live in the config file.
+  config.onChange(() => void tray.sync());
   config.watch();
 
   return {
@@ -462,6 +522,7 @@ export function createServices(config: ConfigFile) {
     themes,
     scheduler,
     tray,
+    workspace,
   };
 }
 

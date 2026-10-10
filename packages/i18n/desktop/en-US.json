@@ -1378,7 +1378,18 @@
   },
   "tray": {
     "open": "Open Solyx",
-    "quit": "Quit Solyx"
+    "quit": "Quit Solyx",
+    "waiting": "Waiting for you",
+    "proposals_one": "{{count}} proposal to confirm",
+    "proposals_other": "{{count}} proposals to confirm",
+    "approval": "{{title}}: a call to allow",
+    "tasks": "Scheduled tasks",
+    "task-running": "{{name}} · running",
+    "task-next": "{{name}} · {{time}}",
+    "update-ready": "Restart to update to {{version}}",
+    "update-available": "Solyx {{version}} is available",
+    "hint_one": "{{count}} waiting for you",
+    "hint_other": "{{count}} waiting for you"
   },
   "crash-reports": {
     "title": "Help improve Solyx",

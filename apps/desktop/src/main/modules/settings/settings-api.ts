@@ -123,6 +123,8 @@ export function createSettingsApi({
 
     setLanguage: async (language) => appearance.setLanguage(language),
 
+    setTimeZone: async (timeZone) => appearance.setTimeZone(timeZone),
+
     secrets: async () => ({
       available: await secrets.available(),
       states: await secrets.states(),

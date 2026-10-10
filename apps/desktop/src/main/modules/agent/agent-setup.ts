@@ -32,6 +32,7 @@ import {
   isMarketDataReady,
   isWebSearchReady,
   mcpSecretKey,
+  timeZonePreferenceSchema,
 } from "#shared/ipc/settings.ts";
 import { ColorScheme, Palette } from "#shared/palette.ts";
 import { SettingsSection, settingsLink } from "#shared/settings-section.ts";
@@ -52,7 +53,12 @@ import type { McpServers } from "./mcp-servers.ts";
 export interface AgentSetupSources {
   appearance: Pick<
     AppearanceSettings,
-    "read" | "setTheme" | "setPalette" | "setPriceColors" | "setLanguage"
+    | "read"
+    | "setTheme"
+    | "setPalette"
+    | "setPriceColors"
+    | "setLanguage"
+    | "setTimeZone"
   >;
   marketData: Pick<MarketDataModule, "status">;
   webSearch: Pick<WebSearchModule, "settings">;
@@ -154,7 +160,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
   const tildify = (path: string) => path.replace(options.home, "~");
 
   function appearance(): SetupArea {
-    const { theme, palette, palettes, priceColors, language } =
+    const { theme, palette, palettes, priceColors, language, timeZone } =
       options.appearance.read();
 
     const tray = config.read().tray;
@@ -175,11 +181,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         })),
         entry(["appearance", "priceColors"], priceColors),
         entry(["appearance", "language"], language),
-        {
-          name: "time zone",
-          value: "as the context gives it",
-          description: "Set on this tab and kept by the app's window.",
-        },
+        entry(["appearance", "timeZone"], timeZone),
         entry(["tray", "show"], String(tray.show)),
         entry(["tray", "hideDock"], String(tray.hideDock)),
       ],
@@ -697,6 +699,19 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         choice(Object.values(LanguagePreference), (language) =>
           options.appearance.setLanguage(language)
         ),
+      ],
+      [
+        "appearance.timeZone",
+        {
+          accepts: 'system, or an IANA time zone name such as "Asia/Taipei"',
+          parse(value) {
+            const timeZone = timeZonePreferenceSchema.safeParse(value);
+
+            return timeZone.success
+              ? async () => options.appearance.setTimeZone(timeZone.data)
+              : undefined;
+          },
+        },
       ],
       [
         "marketData.TW",

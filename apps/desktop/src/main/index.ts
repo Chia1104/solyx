@@ -7,11 +7,7 @@ import { registerIpc } from "./ipc/register-ipc.ts";
 import { startCrashReports } from "./modules/crash-reports/crash-reports.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
 import { createServices } from "./services.ts";
-import {
-  APP_ICON,
-  createMainWindow,
-  showMainWindow,
-} from "./shell/main-window.ts";
+import { APP_ICON, createMainWindow } from "./shell/main-window.ts";
 
 // The name picks userData and the OS secret store entry, so development never reads or
 // changes what an installed Solyx keeps, such as broker credentials. It must change before ready.
@@ -51,12 +47,12 @@ void app.whenReady().then(() => {
 
   registerIpc(services);
   createMainWindow(services.windowColors);
-  services.tray.sync();
+  void services.tray.sync();
 
   // The Dock follows whether a window is open.
-  app.on("browser-window-created", () => services.tray.sync());
+  app.on("browser-window-created", () => void services.tray.sync());
 
-  app.on("second-instance", () => showMainWindow(services.windowColors));
+  app.on("second-instance", () => services.workspace.open());
 
   // Runs the last session left unfinished continue where they stopped. A store that cannot open
   // fails every agent call too, which the renderer shows.
@@ -102,6 +98,6 @@ void app.whenReady().then(() => {
   // closing the last window finishes it.
   app.on("window-all-closed", () => {
     if (quitting || !services.tray.staysOpen()) app.quit();
-    else services.tray.sync();
+    else void services.tray.sync();
   });
 });

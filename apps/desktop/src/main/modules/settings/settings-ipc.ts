@@ -31,6 +31,7 @@ import {
   priceColorsSchema,
   settingsChannels,
   themeSchema,
+  timeZonePreferenceSchema,
 } from "#shared/ipc/settings.ts";
 import type { SettingsApi } from "#shared/ipc/settings.ts";
 import {
@@ -70,6 +71,7 @@ const schemas = {
   deletePalette: z.tuple([paletteIdSchema]),
   setPriceColors: z.tuple([priceColorsSchema]),
   setLanguage: z.tuple([languagePreferenceSchema]),
+  setTimeZone: z.tuple([timeZonePreferenceSchema]),
   secrets: z.tuple([]),
   saveSecret: z.tuple([
     enteredSecretSchema,

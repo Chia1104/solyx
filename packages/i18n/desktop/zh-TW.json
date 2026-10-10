@@ -1378,7 +1378,18 @@
   },
   "tray": {
     "open": "開啟 Solyx",
-    "quit": "結束 Solyx"
+    "quit": "結束 Solyx",
+    "waiting": "等你處理",
+    "proposals_one": "{{count}} 筆提案待確認",
+    "proposals_other": "{{count}} 筆提案待確認",
+    "approval": "{{title}}：等待你允許",
+    "tasks": "排程任務",
+    "task-running": "{{name}} · 執行中",
+    "task-next": "{{name}} · {{time}}",
+    "update-ready": "重新啟動以更新到 {{version}}",
+    "update-available": "Solyx {{version}} 可供下載",
+    "hint_one": "{{count}} 件事等你處理",
+    "hint_other": "{{count}} 件事等你處理"
   },
   "crash-reports": {
     "title": "協助改善 Solyx",
