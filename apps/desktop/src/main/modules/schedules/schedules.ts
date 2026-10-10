@@ -11,15 +11,13 @@ import type {
   ScheduledTask,
   ScheduledTaskDraft,
 } from "@solyx/core/schedule";
-import { weekdays } from "@solyx/core/session";
-import type { TradingDays } from "@solyx/core/session";
 import { errorMessage } from "@solyx/utils/error";
 
 import type { ScheduledTaskView } from "#shared/ipc/schedules.ts";
 
 import type { ScheduledWork } from "../../scheduler.ts";
 import type { AgentService } from "../agent/agent-service.ts";
-import type { TradingCalendar } from "../market/trading-calendar.ts";
+import type { ScheduleDays } from "../market/schedule-days.ts";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 // Each pass only looks for tasks that are due, so it follows the scheduler's own tick.
@@ -32,7 +30,8 @@ const CHANGE_PASS_EVERY_MS = 30 * 60 * 1000;
 export interface SchedulesOptions {
   store: ScheduleStore;
   agent: Pick<AgentService, "runScheduled" | "busy">;
-  tradingDays: TradingCalendar;
+  /** The days a schedule's market trades. */
+  days: ScheduleDays;
   /** What changed after `since`, epoch ms, in what the app keeps of the listings the user follows and of their themes. */
   changes: (since: number) => Promise<Change[]>;
   diagnostics: Pick<Diagnostics, "recovered">;
@@ -59,24 +58,6 @@ export function createSchedules(options: SchedulesOptions) {
     now = Date.now,
     createId = () => crypto.randomUUID(),
   } = options;
-
-  /** The days the task's market trades; every weekday when it names none or its calendar cannot be read. */
-  async function tradesOf({ schedule }: ScheduledTask): Promise<TradingDays> {
-    const market =
-      schedule.kind === ScheduleKind.FixedTime ? schedule.tradingDaysOf : null;
-
-    if (market === null) return weekdays;
-
-    try {
-      return await options.tradingDays(market);
-    } catch (error) {
-      diagnostics.recovered(error, "schedules.trading-days", {
-        "solyx.market": market,
-      });
-
-      return weekdays;
-    }
-  }
 
   const running = async ({ lastRun }: ScheduledTask) =>
     lastRun?.sessionId != null && (await agent.busy(lastRun.sessionId));
@@ -127,7 +108,7 @@ export function createSchedules(options: SchedulesOptions) {
       const changes = await changesFor(task);
 
       const due = isDue(task, now(), {
-        trades: await tradesOf(task),
+        trades: await options.days(task.schedule),
         changed: changes.length > 0,
       });
 
@@ -158,7 +139,7 @@ export function createSchedules(options: SchedulesOptions) {
           // What changed is not read for the list, so a task that waits on a change shows no time.
           nextRunAt: task.enabled
             ? nextRun(task, now(), {
-                trades: await tradesOf(task),
+                trades: await options.days(task.schedule),
                 changed: false,
               })
             : null,

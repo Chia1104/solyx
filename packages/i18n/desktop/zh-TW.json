@@ -983,15 +983,7 @@
     },
     "news": {
       "title": "新聞",
-      "description": "Agent 會自行讀取台股公司的重大訊息和 PTT 股票板。設定好網路搜尋後，還會搜尋新聞，並取樣台股的 Threads 與美股的 X 貼文；每次搜尋都會用掉供應商的額度。請求直接從這台電腦送到各個來源。",
-      "collect-every": "自動收集",
-      "collect-every-description": "Solyx 開著時，每檔自選股多久收集一次新聞。設定好網路搜尋後，每次收集都會用掉供應商的額度；重大訊息只提供前一天的資料，間隔越長漏掉越多。",
-      "intervals": {
-        "off": "關閉",
-        "daily": "每天",
-        "days": "每 {{n}} 天",
-        "hours": "每 {{n}} 小時"
-      }
+      "description": "Agent 會自行讀取台股公司的重大訊息和 PTT 股票板。設定好網路搜尋後，還會搜尋新聞，並取樣台股的 Threads 與美股的 X 貼文；每次搜尋都會用掉供應商的額度。請求直接從這台電腦送到各個來源。"
     },
     "decisions": {
       "title": "決策模型",
@@ -1090,6 +1082,24 @@
       "change-failed": "無法變更這筆記憶"
     },
     "schedules": {
+      "collections": {
+        "title": "App 自己收集的資料",
+        "description": "Solyx 開著時自己做的事，不經過模型，也不開對話。收集到的內容就是總覽顯示的，也是 Agent 任務接著會讀的。",
+        "news": {
+          "title": "庫存與自選的新聞",
+          "description": "每檔在時間到時收集一次，除非 Agent 之後已經收過。設定好網路搜尋後，每次收集都會用掉供應商的額度；重大訊息只提供前一天的資料，間隔越長漏掉越多。"
+        },
+        "themes": {
+          "title": "主題的新聞",
+          "description": "每個主題的關鍵字透過你的網路搜尋廠商搜尋，一組關鍵字一次，再由 decisions model 對照主題的觀察訊號判讀。在儲存廠商金鑰之前不會搜尋。"
+        },
+        "collect-now": "立即收集",
+        "last": "上次收集 {{time}}。",
+        "never": "尚未收集。",
+        "enabled": "依排程收集{{name}}",
+        "change-failed": "無法變更收集時間",
+        "collect-failed": "無法收集"
+      },
       "title": "排程任務",
       "description-text": "Solyx 開著時自動送給 Agent 的訊息，每次執行都開一個獨立對話，做了什麼都在那裡看。沒人看著的執行可以讀取、研究並修訂報告；它提出的下單仍然要等你確認，每次執行都會花用你的模型 token。",
       "empty": "還沒有排程任務。",
@@ -1110,6 +1120,8 @@
       "every-minutes_other": "每 {{count}} 分鐘",
       "every-hours_one": "每 {{count}} 小時",
       "every-hours_other": "每 {{count}} 小時",
+      "every-days_one": "每 {{count}} 天",
+      "every-days_other": "每 {{count}} 天",
       "time": "時間",
       "time-description": "以你的時區 {{timeZone}} 為準。",
       "on-days": "日子",

@@ -239,6 +239,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "- On the Scheduled tasks tab the user writes messages the app sends you on its own while it is open: at a time of day on their clock, every day or only on the days a market trades, every so often, or when something changed for what they hold and watch: news that may state a report's falsifier or a theme's signpost, or a report's event whose day went by. Each run is a conversation of its own, marked with its task, where they read what you did. A time the app was closed through is made up for once, when it opens within half a day.",
       "- Each task says how its calls that must ask get past with nobody there: wait for the user, or auto as in a conversation. No task runs every call unasked, and a proposal always waits for them.",
       "- Only the user writes, changes or removes a task. To suggest one, give them the text to send and when; /watchlist-upkeep is the round over what they hold and watch.",
+      "- The same tab times what the app collects on its own, with no model: the news of what they hold and watch, and the news for their themes, each every so often or at a time of day. You may switch either on or off or set its span in hours with change_setting; a time of day is theirs to set there.",
       "",
       "## Themes",
       "- A theme is a topic in the world the user has the app watch because it could reach what they hold over quarters. The overview lists them, and the Themes tab is where they are written, searched now and removed. You may write one with save_theme once the user allows it; only they remove one.",
@@ -255,7 +256,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "- Updates: the app checks every six hours while that setting is on. Windows installs on restart; on macOS the update is linked for the user to download.",
       "",
       "## Changing settings",
-      "- change_setting changes a setting get_setup says it takes, such as the theme, the default model and thinking, who decides forecasts and proposals, data sources and plans, news collection and the vendors in use. Use it when the user asks for that change or agrees to one you suggested, and say what the change does first. The user allows each change unless the conversation's approval mode lets it run, and it applies at once.",
+      "- change_setting changes a setting get_setup says it takes, such as the theme, the default model and thinking, who decides forecasts and proposals, data sources and plans, whether and how often news and themes are collected, and the vendors in use. Use it when the user asks for that change or agrees to one you suggested, and say what the change does first. The user allows each change unless the conversation's approval mode lets it run, and it applies at once.",
       "- Keys, sign-ins, the providers switched on, endpoints, the shell, MCP tools, shared skills and memory only the user changes: walk them to the tab with its link and say what to pick."
     ),
   },

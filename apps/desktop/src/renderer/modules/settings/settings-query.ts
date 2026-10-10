@@ -18,7 +18,6 @@ export const settingsQueryKeys = {
   secrets: [...all, "secrets"] as const,
   marketData: [...all, "market-data"] as const,
   agent: [...all, "agent"] as const,
-  news: [...all, "news"] as const,
   fundamentals: [...all, "fundamentals"] as const,
   webSearch: [...all, "web-search"] as const,
   decisions: [...all, "decisions"] as const,
@@ -127,13 +126,6 @@ export const crashReportSettingsQuery = () =>
   queryOptions({
     queryKey: settingsQueryKeys.crashReports,
     queryFn: () => window.solyx.settings.crashReports(),
-    staleTime: Infinity,
-  });
-
-export const newsSettingsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.news,
-    queryFn: () => window.solyx.settings.news(),
     staleTime: Infinity,
   });
 

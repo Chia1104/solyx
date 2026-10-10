@@ -1,6 +1,10 @@
 import * as z from "zod";
 
-import { scheduledTaskDraftSchema } from "@solyx/core/schedule";
+import {
+  CollectionJob,
+  collectionPlanSchema,
+  scheduledTaskDraftSchema,
+} from "@solyx/core/schedule";
 
 import { schedulesChannels } from "#shared/ipc/schedules.ts";
 import type { SchedulesApi } from "#shared/ipc/schedules.ts";
@@ -14,7 +18,12 @@ const draftSchema = scheduledTaskDraftSchema.extend({ locale: localeSchema });
 
 const id = z.string().min(1);
 
+const job = z.enum(CollectionJob);
+
 const schemas = {
+  collections: z.tuple([]),
+  setCollection: z.tuple([job, collectionPlanSchema]),
+  collectNow: z.tuple([job]),
   list: z.tuple([]),
   create: z.tuple([draftSchema]),
   update: z.tuple([id, draftSchema]),
@@ -22,8 +31,11 @@ const schemas = {
   runNow: z.tuple([id]),
 };
 
-export function registerSchedulesIpc({ schedules }: Services) {
+export function registerSchedulesIpc({ schedules, collections }: Services) {
   bindIpc<SchedulesApi>(schedulesChannels, schemas, {
+    collections: () => collections.list(),
+    setCollection: async (which, plan) => collections.set(which, plan),
+    collectNow: (which) => collections.collectNow(which),
     list: () => schedules.list(),
     create: async (draft) => schedules.create(draft),
     update: async (taskId, draft) => schedules.update(taskId, draft),

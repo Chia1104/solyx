@@ -288,25 +288,6 @@ export interface AgentSettings {
   ready: boolean;
 }
 
-/** Hours between automatic news collections for each watched listing; 0 turns it off. */
-export const newsIntervalSchema = z
-  .number()
-  .int()
-  .min(0)
-  .max(24 * 30);
-
-/** Every three days, so a web search vendor's free tier covers a watchlist of about ten listings. */
-export const NEWS_COLLECTION_DEFAULT_HOURS = 72;
-
-/** The intervals the settings page offers, in hours; the config file takes any. */
-export const NEWS_COLLECTION_PRESETS: readonly number[] = [
-  0, 6, 12, 24, 72, 168,
-];
-
-export interface NewsSettings {
-  collectEveryHours: number;
-}
-
 export interface FundamentalsSettings {
   /** The plans FinMind sells, in its order, and the one the user's token belongs to. */
   finMind: { plan: FinMindPlan; plans: FinMindPlanLimits[] };
@@ -545,11 +526,9 @@ export interface SettingsApi {
   signInSubscription(provider: AgentProvider, locale: Locale): Promise<void>;
   cancelSignIn(): Promise<void>;
   signOutSubscription(provider: AgentProvider): Promise<void>;
-  news(): Promise<NewsSettings>;
   fundamentals(): Promise<FundamentalsSettings>;
   /** Saves the plan the FinMind token belongs to; its limit and the datasets read follow it at once. */
   setFinMindPlan(plan: FinMindPlan): Promise<void>;
-  setNewsCollectEveryHours(hours: number): Promise<void>;
   webSearch(): Promise<WebSearchSettings>;
   /** Picks the vendor news and the agent search through. */
   setWebSearchProvider(provider: WebSearchProvider): Promise<void>;
@@ -652,8 +631,6 @@ export const settingsChannels = {
   signInSubscription: "settings:sign-in-subscription",
   cancelSignIn: "settings:cancel-sign-in",
   signOutSubscription: "settings:sign-out-subscription",
-  news: "settings:news",
-  setNewsCollectEveryHours: "settings:set-news-collect-every-hours",
   fundamentals: "settings:fundamentals",
   setFinMindPlan: "settings:set-finmind-plan",
   webSearch: "settings:web-search",

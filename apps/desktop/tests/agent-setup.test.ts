@@ -138,11 +138,10 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
     ["Market data", "#/settings?section=market-data"],
     ["Agent models", "#/settings?section=agent"],
     ["Web search", "#/settings?section=agent"],
-    ["News", "#/settings?section=agent"],
     ["Decisions model", "#/settings?section=agent"],
     ["Embeddings", "#/settings?section=agent"],
     ["Skills", "#/settings?section=skills"],
-    ["Scheduled tasks", "#/settings?section=schedules"],
+    ["Schedules", "#/settings?section=schedules"],
     ["Themes", "#/settings?section=themes"],
     ["Memory", "#/settings?section=memory"],
     ["MCP servers", "#/settings?section=mcp"],
@@ -283,7 +282,8 @@ test("a change goes through the writers the settings page uses", async () => {
   await port.change({ setting: "appearance.theme", value: "dark" });
   await port.change({ setting: "appearance.palette.dark", value: "sepia" });
   await port.change({ setting: "embeddings.enabled", value: "true" });
-  await port.change({ setting: "news.collectEveryHours", value: "24" });
+  await port.change({ setting: "collection.news", value: "24" });
+  await port.change({ setting: "collection.themes", value: "off" });
 
   await models.saveKey("anthropic", "anthropic-key");
   await port.change({ setting: "agent.provider", value: "anthropic" });
@@ -298,7 +298,15 @@ test("a change goes through the writers the settings page uses", async () => {
   expect(saved.appearance.theme).toBe("dark");
   expect(saved.appearance.palette.dark).toBe("sepia");
   expect(saved.embeddings.enabled).toBe(true);
-  expect(saved.news.collectEveryHours).toBe(24);
+  expect(saved.collection.news).toMatchObject({
+    enabled: true,
+    schedule: { kind: ScheduleKind.Interval, everyMinutes: 24 * 60 },
+  });
+  // Switching off keeps when it would run.
+  expect(saved.collection.themes).toMatchObject({
+    enabled: false,
+    schedule: { kind: ScheduleKind.Interval, everyMinutes: 24 * 60 },
+  });
 });
 
 test("a change the agent may not make is refused with what the setting takes, and nothing is saved", async () => {
@@ -317,8 +325,10 @@ test("a change the agent may not make is refused with what the setting takes, an
     'agent.thinking takes one of off, low, medium, high, not "max".'
   );
   await expect(
-    port.check({ setting: "news.collectEveryHours", value: "1e3" })
-  ).rejects.toThrow("news.collectEveryHours takes a whole number of hours");
+    port.check({ setting: "collection.news", value: "1e3" })
+  ).rejects.toThrow(
+    "collection.news takes off, on, or a whole number of hours from 1 to 168"
+  );
   // A provider without a key saved could not run, so it cannot be the default.
   await expect(
     port.check({ setting: "agent.provider", value: "anthropic" })
@@ -355,9 +365,15 @@ test("the scheduled tasks the user wrote read with when each runs and how its ca
     enabled: false,
   };
 
-  expect(area(await setup().port.read(), "Scheduled tasks").settings).toEqual([
-    { name: "tasks", value: "none written" },
+  const none = area(await setup().port.read(), "Schedules").settings;
+
+  // The app's own collections come first, each with what change_setting takes for it.
+  expect(none.map(({ name, value }) => [name, value])).toEqual([
+    ["collection.news", "every 4320 minutes, on"],
+    ["collection.themes", "every 1440 minutes, on"],
+    ["tasks for the agent", "none written"],
   ]);
+  expect(none[0].accepts).toContain("off, on, or a whole number of hours");
 
   const onChange: ScheduledTask = {
     ...hourly,
@@ -367,20 +383,21 @@ test("the scheduled tasks the user wrote read with when each runs and how its ca
   };
 
   expect(
-    area(await setup([brief, hourly, onChange]).port.read(), "Scheduled tasks")
-      .settings
+    area(await setup([brief, hourly, onChange]).port.read(), "Schedules")
+      .settings.slice(2)
+      .map(({ name, value }) => ({ name, value }))
   ).toEqual([
     {
-      name: "Morning brief",
+      name: 'task "Morning brief"',
       value:
         "at 08:30 Asia/Taipei on days TW trades, on, calls that must ask: auto",
     },
     {
-      name: "Hourly check",
+      name: 'task "Hourly check"',
       value: "every 60 minutes, off, calls that must ask: ask",
     },
     {
-      name: "Upkeep",
+      name: 'task "Upkeep"',
       value:
         "when something the app watches changed, at most every 120 minutes, off, calls that must ask: ask",
     },

@@ -5,7 +5,10 @@ import {
   FIXED_TIME_GRACE_MS,
   ScheduleApproval,
   ScheduleKind,
+  collectionDue,
+  collectionPlanSchema,
   isDue,
+  nextCollection,
   nextRun,
   scheduledTaskDraftSchema,
 } from "../src/schedule.ts";
@@ -190,4 +193,82 @@ test("a task that waits on a change runs only once something changed, and no soo
   expect(isDue(upkeep, SAVED + HOUR_MS - 1, changed)).toBe(false);
   expect(isDue(upkeep, SAVED + HOUR_MS, changed)).toBe(true);
   expect(nextRun(upkeep, SAVED + HOUR_MS, changed)).toBe(SAVED + HOUR_MS);
+});
+
+test("a collection is due at once when never made, then once its span has passed since whoever collected last", () => {
+  const plan = {
+    schedule: { kind: ScheduleKind.Interval, everyMinutes: 180 } as const,
+    timeZone: "Asia/Taipei",
+  };
+
+  expect(collectionDue(plan, null, SAVED, weekdays)).toBe(true);
+  expect(nextCollection(plan, null, SAVED, weekdays)).toBe(SAVED);
+  expect(collectionDue(plan, SAVED, SAVED + 3 * HOUR_MS - 1, weekdays)).toBe(
+    false
+  );
+  expect(nextCollection(plan, SAVED, SAVED + HOUR_MS, weekdays)).toBe(
+    SAVED + 3 * HOUR_MS
+  );
+  expect(collectionDue(plan, SAVED, SAVED + 3 * HOUR_MS, weekdays)).toBe(true);
+});
+
+test("a collection at a time of day is due once that time has come since it was last made, however long ago", () => {
+  const plan = {
+    schedule: {
+      kind: ScheduleKind.FixedTime,
+      time: "08:00",
+      tradingDaysOf: Market.TW,
+    } as const,
+    timeZone: "Asia/Taipei",
+  };
+
+  const thursday = taipei("2026-10-08T08:00:00");
+
+  expect(collectionDue(plan, thursday - HOUR_MS, thursday - 1, weekdays)).toBe(
+    false
+  );
+  expect(collectionDue(plan, thursday - HOUR_MS, thursday, weekdays)).toBe(
+    true
+  );
+  // The app opens in the evening: the morning's collection is still made.
+  expect(
+    collectionDue(plan, thursday - HOUR_MS, thursday + 13 * HOUR_MS, weekdays)
+  ).toBe(true);
+  // Collected since, by the agent or by this pass, so not again today or over the weekend.
+  expect(
+    collectionDue(plan, thursday + HOUR_MS, thursday + 13 * HOUR_MS, weekdays)
+  ).toBe(false);
+  expect(
+    collectionDue(
+      plan,
+      taipei("2026-10-09T08:05:00"),
+      taipei("2026-10-11T20:00:00"),
+      weekdays
+    )
+  ).toBe(false);
+  expect(
+    nextCollection(
+      plan,
+      taipei("2026-10-09T08:05:00"),
+      taipei("2026-10-10T09:00:00"),
+      weekdays
+    )
+  ).toBe(taipei("2026-10-12T08:00:00"));
+});
+
+test("a collection never waits on a change", () => {
+  const plan = { enabled: true, timeZone: "Asia/Taipei" };
+
+  expect(
+    collectionPlanSchema.safeParse({
+      ...plan,
+      schedule: { kind: ScheduleKind.Interval, everyMinutes: 60 },
+    }).success
+  ).toBe(true);
+  expect(
+    collectionPlanSchema.safeParse({
+      ...plan,
+      schedule: { kind: ScheduleKind.OnChange, atMostEveryMinutes: 60 },
+    }).success
+  ).toBe(false);
 });

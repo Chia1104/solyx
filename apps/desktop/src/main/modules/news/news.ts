@@ -265,16 +265,23 @@ export function createNews(options: NewsOptions) {
       return collect(symbol, sources, since, limit);
     },
 
+    /** When the listing's news was last collected, by a refresh or for the agent; `null` before the first. */
+    lastCollected: (symbol: SymbolRef): Date | null =>
+      store.lastCollected(symbol),
+
     /**
-     * Collects the listing once its last collection is `everyMs` old, leaving out sources that
+     * Collects the listing where `due` says so of its last collection, leaving out sources that
      * keep failing. A listing only resting sources cover stays due, so it is collected once one
      * recovers.
      */
-    async refresh(symbol: SymbolRef, everyMs: number): Promise<void> {
+    async refresh(
+      symbol: SymbolRef,
+      due: (last: Date | null) => boolean
+    ): Promise<void> {
       const at = now();
       const last = store.lastCollected(symbol);
 
-      if (last !== null && at.getTime() - last.getTime() < everyMs) return;
+      if (!due(last)) return;
 
       const health = healthBySource();
 

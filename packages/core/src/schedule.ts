@@ -23,31 +23,37 @@ export const MIN_INTERVAL_MINUTES = 30;
 
 const MAX_INTERVAL_MINUTES = 7 * 24 * 60;
 
+const intervalSchema = z.object({
+  kind: z.literal(ScheduleKind.Interval),
+  everyMinutes: z
+    .number()
+    .int()
+    .min(MIN_INTERVAL_MINUTES)
+    .max(MAX_INTERVAL_MINUTES),
+});
+
+const fixedTimeSchema = z.object({
+  kind: z.literal(ScheduleKind.FixedTime),
+  /** `HH:MM` on the clock it is kept with. */
+  time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
+  /** Runs only where its moment falls on a day this market trades, on the exchange's calendar; `null` runs every day. */
+  tradingDaysOf: marketSchema.nullable(),
+});
+
+const onChangeSchema = z.object({
+  kind: z.literal(ScheduleKind.OnChange),
+  /** The shortest span between two runs, however much changes. */
+  atMostEveryMinutes: z
+    .number()
+    .int()
+    .min(MIN_INTERVAL_MINUTES)
+    .max(MAX_INTERVAL_MINUTES),
+});
+
 export const scheduleSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal(ScheduleKind.Interval),
-    everyMinutes: z
-      .number()
-      .int()
-      .min(MIN_INTERVAL_MINUTES)
-      .max(MAX_INTERVAL_MINUTES),
-  }),
-  z.object({
-    kind: z.literal(ScheduleKind.FixedTime),
-    /** `HH:MM` on the task's own clock. */
-    time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
-    /** Runs only where its moment falls on a day this market trades, on the exchange's calendar; `null` runs every day. */
-    tradingDaysOf: marketSchema.nullable(),
-  }),
-  z.object({
-    kind: z.literal(ScheduleKind.OnChange),
-    /** The shortest span between two runs, however much changes. */
-    atMostEveryMinutes: z
-      .number()
-      .int()
-      .min(MIN_INTERVAL_MINUTES)
-      .max(MAX_INTERVAL_MINUTES),
-  }),
+  intervalSchema,
+  fixedTimeSchema,
+  onChangeSchema,
 ]);
 
 export type Schedule = z.infer<typeof scheduleSchema>;
@@ -137,7 +143,7 @@ export const FIXED_TIME_GRACE_MS = 12 * 60 * MINUTE_MS;
 // Far enough to step over an exchange's longest closure.
 const SEARCHED_DAYS = 31;
 
-type FixedTime = Extract<Schedule, { kind: typeof ScheduleKind.FixedTime }>;
+type FixedTime = z.infer<typeof fixedTimeSchema>;
 
 /** What decides when a task runs. */
 export type Timed = Pick<
@@ -260,4 +266,85 @@ export function nextRun(
         (moment) => moment > now
       );
   }
+}
+
+/** What the app collects on its own while it runs, with no model and no conversation. */
+export const CollectionJob = {
+  /** The news of each listing the user holds or watches. */
+  News: "news",
+  /** The news each theme's queries find. */
+  Themes: "themes",
+} as const;
+
+export type CollectionJob = (typeof CollectionJob)[keyof typeof CollectionJob];
+
+/** When a collection recurs: every so often or at a time of day, never on a change, which is what collecting finds. */
+export const collectionScheduleSchema = z.discriminatedUnion("kind", [
+  intervalSchema,
+  fixedTimeSchema,
+]);
+
+export type CollectionSchedule = z.infer<typeof collectionScheduleSchema>;
+
+/** When one of the app's own collections runs. */
+export const collectionPlanSchema = z.object({
+  enabled: z.boolean(),
+  schedule: collectionScheduleSchema,
+  /** The clock a time of day reads on, as an IANA name. */
+  timeZone: z
+    .string()
+    .refine(isTimeZone, "Not a time zone this computer knows"),
+});
+
+export type CollectionPlan = z.infer<typeof collectionPlanSchema>;
+
+type Collected = Pick<CollectionPlan, "schedule" | "timeZone">;
+
+/**
+ * Whether something collected on a plan is due at `now`, having last been collected at `last`,
+ * both epoch ms: at once when it never was, once its span has passed, or once its time of day has
+ * come since. A time long gone still counts, unlike a task's: what is collected reaches back days,
+ * so a late collection loses little, and whoever collected meanwhile, the agent among them, counts.
+ */
+export function collectionDue(
+  { schedule, timeZone }: Collected,
+  last: number | null,
+  now: number,
+  trades: TradingDays
+): boolean {
+  if (last === null) return true;
+
+  if (schedule.kind === ScheduleKind.Interval) {
+    return now - last >= schedule.everyMinutes * MINUTE_MS;
+  }
+
+  const latest = fixedTime(
+    schedule,
+    timeZone,
+    now,
+    -1,
+    trades,
+    (moment) => moment <= now
+  );
+
+  return latest !== null && latest > last;
+}
+
+/**
+ * When something collected on a plan is next due while the app stays open, in epoch ms: `now` for
+ * one already due, and `null` for a time of day with no day to fall on within the days searched.
+ */
+export function nextCollection(
+  plan: Collected,
+  last: number | null,
+  now: number,
+  trades: TradingDays
+): number | null {
+  if (last === null || collectionDue(plan, last, now, trades)) return now;
+
+  const { schedule, timeZone } = plan;
+
+  return schedule.kind === ScheduleKind.Interval
+    ? last + schedule.everyMinutes * MINUTE_MS
+    : fixedTime(schedule, timeZone, now, 1, trades, (moment) => moment > now);
 }

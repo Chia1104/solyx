@@ -21,6 +21,12 @@ import {
 } from "@solyx/core/council";
 import type { Market } from "@solyx/core/market";
 import {
+  CollectionJob,
+  ScheduleKind,
+  collectionPlanSchema,
+} from "@solyx/core/schedule";
+import type { CollectionPlan } from "@solyx/core/schedule";
+import {
   CLOUDFLARE_BASE_URL,
   CLOUDFLARE_DEFAULT_MODEL,
 } from "@solyx/decisions/cloudflare";
@@ -49,11 +55,9 @@ import {
 
 import {
   MarketDataSource,
-  NEWS_COLLECTION_DEFAULT_HOURS,
   PriceColors,
   Theme,
   marketDataSourceSchema,
-  newsIntervalSchema,
   priceColorsSchema,
   themeSchema,
 } from "#shared/ipc/settings.ts";
@@ -75,6 +79,26 @@ const paletteIdSchema = z.string().min(1).catch(Palette.Blueprint);
 
 /** An http(s) endpoint, which a proxy on this computer may serve without TLS. */
 export const endpointSchema = z.url({ protocol: /^https?$/ }).max(2048);
+
+const HOUR_MINUTES = 60;
+
+/**
+ * When each of the app's own collections runs until the user says otherwise, on this computer's
+ * clock: news every three days, so a web search vendor's free tier covers a watchlist of about ten
+ * listings, and themes daily, since a theme moves over weeks.
+ */
+export const DEFAULT_COLLECTION_PLANS: Record<CollectionJob, CollectionPlan> = {
+  [CollectionJob.News]: {
+    enabled: true,
+    schedule: { kind: ScheduleKind.Interval, everyMinutes: 72 * HOUR_MINUTES },
+    timeZone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
+  },
+  [CollectionJob.Themes]: {
+    enabled: true,
+    schedule: { kind: ScheduleKind.Interval, everyMinutes: 24 * HOUR_MINUTES },
+    timeZone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
+  },
+};
 
 /** A section that is missing or of the wrong shape reads as empty, so each of its entries reads as its default. */
 function section<T extends z.ZodType>(schema: T) {
@@ -230,13 +254,19 @@ const configSchema = section(
         }),
       })
     ),
-    news: section(
+    collection: section(
       z.looseObject({
-        collectEveryHours: newsIntervalSchema
-          .catch(NEWS_COLLECTION_DEFAULT_HOURS)
+        [CollectionJob.News]: collectionPlanSchema
+          .catch(DEFAULT_COLLECTION_PLANS[CollectionJob.News])
           .meta({
             description:
-              "How often news is collected for each watched listing, in hours; 0 turns automatic collection off. Each collection spends the web search vendor's credits once its key is saved, and exchange announcements only reach back a day.",
+              "When news is collected for each listing you hold or watch while Solyx runs: every so many minutes, or at a time of day on timeZone's clock, which may keep to the days a market trades. Each collection spends the web search vendor's credits once its key is saved, and exchange announcements only reach back a day.",
+          }),
+        [CollectionJob.Themes]: collectionPlanSchema
+          .catch(DEFAULT_COLLECTION_PLANS[CollectionJob.Themes])
+          .meta({
+            description:
+              "When each theme's queries are searched for news while Solyx runs, timed as news collection is. Each query is one search on the web search vendor's key, and each item found is read against the theme's signposts by the decisions model.",
           }),
       })
     ),
@@ -408,7 +438,7 @@ type ConfigPath =
   | ["agent", "endpoints", AgentProvider]
   | ["agent", "magi", MagiUnit]
   | ["agent", "mcpTools", string]
-  | ["news", "collectEveryHours"]
+  | ["collection", CollectionJob]
   | ["updates", "check"]
   | ["crashReports", "send"]
   | ["otlp", "endpoint"]
@@ -426,6 +456,7 @@ type ConfigValue =
   | string[]
   | CustomPalette
   | AgentModelRef
+  | CollectionPlan
   | null
   | undefined;
 
