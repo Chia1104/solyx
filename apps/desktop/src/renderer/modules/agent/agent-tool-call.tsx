@@ -18,18 +18,22 @@ import {
   proposeOrderDetailsSchema,
   readPageArgumentsSchema,
   rememberArgumentsSchema,
+  saveTaskArgumentsSchema,
   saveThemeArgumentsSchema,
   runAnalysisDetailsSchema,
   runToolScriptDetailsSchema,
   scriptArgumentsSchema,
   submitForecastDetailsSchema,
+  taskSchedule,
 } from "@solyx/agent/wire";
 import type { ToolCallView } from "@solyx/agent/wire";
 import { intervalSchema } from "@solyx/core/candles";
 import { marketSchema, symbolRefSchema } from "@solyx/core/market";
 import type { Memory } from "@solyx/core/memory";
+import { scheduleSchema } from "@solyx/core/schedule";
 import { isEnumValue } from "@solyx/utils/is";
 
+import { useClock } from "../../app/clock.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 import { ListingName } from "../market/listing-name.tsx";
@@ -37,6 +41,7 @@ import { memoryQuery } from "../memory/memory-query.ts";
 import { ProposalItem } from "../proposals/proposal-item.tsx";
 import { proposalsQuery } from "../proposals/proposals-query.ts";
 import { ForecastCard } from "../research/forecast-card.tsx";
+import { scheduleText } from "../schedules/timing-fields.tsx";
 
 import { ActivityMark } from "./agent-activity.tsx";
 import { MagiPanel } from "./magi-panel.tsx";
@@ -147,6 +152,7 @@ function ApprovalCard({
   tool: ToolCallView;
 }) {
   const { t } = useTranslation();
+  const { timeZone } = useClock();
 
   const answer = useMutation({
     mutationFn: (approved: boolean) =>
@@ -185,6 +191,26 @@ function ApprovalCard({
       ? saveThemeArgumentsSchema.safeParse(tool.args).data
       : undefined;
 
+  const task =
+    tool.toolName === AgentToolName.SaveTask
+      ? saveTaskArgumentsSchema.safeParse(tool.args).data
+      : undefined;
+
+  // A part the kind needs may be missing, which the call is refused for before it asks.
+  const timed = task && scheduleSchema.safeParse(taskSchedule(task)).data;
+
+  const scheduled =
+    task &&
+    timed &&
+    [
+      task.name,
+      scheduleText(t, timed, timeZone),
+      t(`settings.schedules.approvals.${task.approval}`),
+      ...(task.enabled ? [] : [t("agent.approval.save-task-off")]),
+      "",
+      task.prompt,
+    ].join("\n");
+
   const watched =
     theme &&
     [
@@ -208,6 +234,8 @@ function ApprovalCard({
     description = t("agent.approval.change-setting-description");
   } else if (watched !== undefined) {
     description = t("agent.approval.save-theme-description");
+  } else if (scheduled !== undefined) {
+    description = t("agent.approval.save-task-description");
   } else if (memory !== undefined) {
     description = t(
       tool.toolName === AgentToolName.Forget
@@ -225,6 +253,7 @@ function ApprovalCard({
           address ??
           setting ??
           watched ??
+          scheduled ??
           memory ??
           JSON.stringify(tool.args, null, 2)}
       </pre>

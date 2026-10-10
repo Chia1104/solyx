@@ -296,6 +296,16 @@ export function createServices(config: ConfigFile) {
     onChange: () => broadcast(themesEvents.onChanged),
   });
 
+  // What the main process writes itself is in the language and on the clock the windows show.
+  const userLocale = () =>
+    resolveLocale(appearance.read().language, app.getLocale());
+
+  const userTimeZone = () =>
+    resolveTimeZone(
+      appearance.read().timeZone,
+      new Intl.DateTimeFormat().resolvedOptions().timeZone
+    );
+
   const agent = createAgentService({
     config,
     secrets,
@@ -325,6 +335,12 @@ export function createServices(config: ConfigFile) {
     localEmbedder: () => embeddings.localEmbedder(),
     research: research.desk,
     themes: themes.desk,
+    // The tasks run through the agent, so they are built after it and reached only as a tool is called.
+    tasks: {
+      list: () => schedules.list(),
+      save: (id, draft) => schedules.save(id, draft),
+      clock: () => ({ timeZone: userTimeZone(), locale: userLocale() }),
+    },
     fundamentals,
     flows,
     setup: {
@@ -452,15 +468,10 @@ export function createServices(config: ConfigFile) {
     };
   }
 
-  // What the main process writes itself is in the language and on the clock the windows show.
   const tray = createTray({
     settings: () => config.read().tray,
-    locale: () => resolveLocale(appearance.read().language, app.getLocale()),
-    timeZone: () =>
-      resolveTimeZone(
-        appearance.read().timeZone,
-        new Intl.DateTimeFormat().resolvedOptions().timeZone
-      ),
+    locale: userLocale,
+    timeZone: userTimeZone,
     state: trayState,
     open: (destination) => workspace.open(destination),
     installUpdate: () => updates.install(),

@@ -23,6 +23,8 @@ import { createShell } from "@solyx/agent/shell";
 import type { ShellOptions } from "@solyx/agent/shell";
 import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
 import type { SkillFolders } from "@solyx/agent/skills";
+import { createTaskTools } from "@solyx/agent/tasks";
+import type { TaskPort } from "@solyx/agent/tasks";
 import { createThemeTools } from "@solyx/agent/themes";
 import { createTradingExtension } from "@solyx/agent/tools";
 import { createRunTraces } from "@solyx/agent/traces";
@@ -95,6 +97,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   localEmbedder: () => Embedder | undefined;
   research: ResearchDesk;
   themes: ThemeDesk;
+  /** The scheduled tasks, which run through this service and so are built after it. */
+  tasks: TaskPort;
   fundamentals: Fundamentals;
   flows: Flows;
   /** What the agent reads of the rest of the app's settings. */
@@ -243,6 +247,8 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const themes = createThemeTools({ desk: options.themes });
 
+  const tasks = createTaskTools({ tasks: options.tasks });
+
   const history = createHistory({
     research: options.research,
     news: options.news,
@@ -283,6 +289,7 @@ export function createAgentService(options: AgentServiceOptions) {
           flows,
           history,
           themes.extension(guard),
+          tasks.extension(guard),
           createSetupTools({ setup, guard }),
           ...(shellOn() ? [shell.extension(guard)] : []),
           ...(webOn ? [web.extension(guard)] : []),

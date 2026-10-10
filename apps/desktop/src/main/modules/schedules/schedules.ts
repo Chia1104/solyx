@@ -93,6 +93,18 @@ export function createSchedules(options: SchedulesOptions) {
     return task;
   }
 
+  function save(id: string, draft: ScheduledTaskDraft) {
+    const at = now();
+    const kept = store.get(id);
+
+    store.save(
+      kept
+        ? { ...kept, ...draft, updatedAt: at }
+        : { ...draft, id, createdAt: at, updatedAt: at, lastRun: null }
+    );
+    onChange();
+  }
+
   const waitsOnChange = ({ schedule }: ScheduledTask) =>
     schedule.kind === ScheduleKind.OnChange;
 
@@ -148,23 +160,17 @@ export function createSchedules(options: SchedulesOptions) {
       ),
 
     create(draft: ScheduledTaskDraft) {
-      const at = now();
-
-      store.save({
-        ...draft,
-        id: createId(),
-        createdAt: at,
-        updatedAt: at,
-        lastRun: null,
-      });
-      onChange();
+      save(createId(), draft);
     },
 
     /** Saves the task as written again, so a time of day already past today waits for tomorrow's. */
     update(id: string, draft: ScheduledTaskDraft) {
-      store.save({ ...existing(id), ...draft, updatedAt: now() });
-      onChange();
+      existing(id);
+      save(id, draft);
     },
+
+    /** Keeps a new task under `id`, or saves the one of that id again, for a writer that names the id itself so that saving twice keeps one task. */
+    save,
 
     remove(id: string) {
       store.remove(id);

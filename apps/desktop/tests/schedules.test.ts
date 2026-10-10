@@ -219,6 +219,27 @@ test("saving a task again counts its next run from then, and running it now igno
   expect(await schedules.list()).toEqual([]);
 });
 
+test("a task saved under an id its writer names is kept once, and saved again keeps its last run", async () => {
+  const { schedules, store, clock, onChange } = setup();
+
+  schedules.save("from-the-agent", BRIEF);
+  await schedules.runNow("from-the-agent");
+
+  clock.now += MINUTE_MS;
+  schedules.save("from-the-agent", { ...BRIEF, name: "Brief" });
+
+  expect(store.list()).toMatchObject([
+    {
+      id: "from-the-agent",
+      name: "Brief",
+      createdAt: START,
+      updatedAt: START + MINUTE_MS,
+      lastRun: { at: START, sessionId: "1" },
+    },
+  ]);
+  expect(onChange).toHaveBeenCalledTimes(3);
+});
+
 test("a task that waits on a change runs on the slower pass, once something changed since it last ran, and is told what", async () => {
   const { schedules, clock, changes, runScheduled } = setup();
 
