@@ -3,22 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { ProposalStatus } from "@solyx/core/order-desk";
+import { isEnumValue } from "@solyx/utils/is";
 
 import { ColumnHeader } from "../components/column-header.tsx";
 import { AgentChat } from "../modules/agent/agent-chat.tsx";
 import { agentSessionsQuery } from "../modules/agent/agent-query.ts";
 import { AgentSessionControls } from "../modules/agent/agent-sessions.tsx";
-import { useAgentStore } from "../modules/agent/agent-store.ts";
+import { AgentTab, useAgentStore } from "../modules/agent/agent-store.ts";
 import { ProposalForm } from "../modules/proposals/proposal-form.tsx";
 import { ProposalQueue } from "../modules/proposals/proposal-queue.tsx";
 import { proposalsQuery } from "../modules/proposals/proposals-query.ts";
-
-const AgentTab = {
-  Chat: "chat",
-  Proposals: "proposals",
-} as const;
-
-type AgentTab = (typeof AgentTab)[keyof typeof AgentTab];
 
 /**
  * The conversation with the agent, and the proposals waiting for the user to confirm them. A
@@ -27,6 +21,8 @@ type AgentTab = (typeof AgentTab)[keyof typeof AgentTab];
 export function AgentPane() {
   const { t } = useTranslation();
   const selected = useAgentStore((state) => state.selected);
+  const tab = useAgentStore((state) => state.tab);
+  const showTab = useAgentStore((state) => state.showTab);
   const sessions = useQuery(agentSessionsQuery());
   const proposals = useQuery(proposalsQuery());
 
@@ -46,7 +42,10 @@ export function AgentPane() {
       </ColumnHeader>
       <Tabs
         variant="secondary"
-        defaultSelectedKey={AgentTab.Chat}
+        selectedKey={tab}
+        onSelectionChange={(key) => {
+          if (isEnumValue(AgentTab, key)) showTab(key);
+        }}
         className="flex min-h-0 flex-1 flex-col gap-0">
         <Tabs.ListContainer className="shrink-0 border-separator px-2">
           <Tabs.List aria-label={t("agent.title")}>

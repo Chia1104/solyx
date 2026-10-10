@@ -28,6 +28,7 @@ import {
   MarketDataSource,
   PriceColors,
   Theme,
+  TimeZonePreference,
 } from "#shared/ipc/settings.ts";
 import { Palette } from "#shared/palette.ts";
 
@@ -61,6 +62,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       palettes: {},
       priceColors: PriceColors.Market,
       language: LanguagePreference.System,
+      timeZone: TimeZonePreference.System,
     },
     tray: { show: true, hideDock: false },
     marketData: { TW: MarketDataSource.Fugle },
@@ -336,6 +338,7 @@ test("the appearance falls back entry by entry until values the app knows are sa
     palettes: {},
     priceColors: PriceColors.Market,
     language: LanguagePreference.System,
+    timeZone: TimeZonePreference.System,
   };
 
   config.create();
@@ -350,6 +353,7 @@ test("the appearance falls back entry by entry until values the app knows are sa
         palette: { light: "iris", dark: "neon" },
         priceColors: "blue-up",
         language: "tlh",
+        timeZone: "Mars/Olympus",
       },
       marketData: { TW: "fubon" },
     })
@@ -364,6 +368,7 @@ test("the appearance falls back entry by entry until values the app knows are sa
   config.set(["appearance", "palette", "dark"], "lagoon");
   config.set(["appearance", "priceColors"], "red-up");
   config.set(["appearance", "language"], "zh-TW");
+  config.set(["appearance", "timeZone"], "Asia/Taipei");
 
   expect(config.read().appearance).toEqual({
     theme: Theme.Dark,
@@ -371,6 +376,7 @@ test("the appearance falls back entry by entry until values the app knows are sa
     palettes: {},
     priceColors: PriceColors.RedUp,
     language: LanguagePreference.ZhTW,
+    timeZone: "Asia/Taipei",
   });
   expect(config.read().marketData.TW).toBe("fubon");
 });

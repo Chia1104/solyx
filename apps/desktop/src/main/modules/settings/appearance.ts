@@ -7,6 +7,7 @@ import type {
   LanguagePreference,
   PriceColors,
   Theme,
+  TimeZonePreference,
 } from "#shared/ipc/settings.ts";
 import {
   ColorScheme,
@@ -29,7 +30,7 @@ interface AppearanceOptions {
   onChange: (appearance: Appearance) => void;
 }
 
-/** The theme, the palettes each scheme shows, the price colours and the language, with the rules for the user's own palettes. */
+/** The theme, the palettes each scheme shows, the price colours, the language and the clock, with the rules for the user's own palettes. */
 export function createAppearance({ config, onChange }: AppearanceOptions) {
   const read = (): Appearance => config.read().appearance;
 
@@ -143,6 +144,10 @@ export function createAppearance({ config, onChange }: AppearanceOptions) {
 
     setLanguage(language: LanguagePreference) {
       config.set(["appearance", "language"], language);
+    },
+
+    setTimeZone(timeZone: TimeZonePreference) {
+      config.set(["appearance", "timeZone"], timeZone);
     },
   };
 }

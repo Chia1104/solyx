@@ -34,6 +34,8 @@ import { updatesChannels, updatesEvents } from "#shared/ipc/updates.ts";
 import type { UpdatesApi, UpdatesEvents } from "#shared/ipc/updates.ts";
 import { watchlistChannels } from "#shared/ipc/watchlist.ts";
 import type { WatchlistApi } from "#shared/ipc/watchlist.ts";
+import { workspaceChannels, workspaceEvents } from "#shared/ipc/workspace.ts";
+import type { WorkspaceApi, WorkspaceEvents } from "#shared/ipc/workspace.ts";
 
 // Electron prefixes a failed handler's error with its channel; the renderer shows the main
 // process's own message.
@@ -117,6 +119,10 @@ const api: SolyxApi = {
   themes: bridge<ThemesApi, ThemesEvents>(themesChannels, themesEvents),
   updates: bridge<UpdatesApi, UpdatesEvents>(updatesChannels, updatesEvents),
   watchlist: bridge<WatchlistApi>(watchlistChannels),
+  workspace: bridge<WorkspaceApi, WorkspaceEvents>(
+    workspaceChannels,
+    workspaceEvents
+  ),
 };
 
 contextBridge.exposeInMainWorld("solyx", api);

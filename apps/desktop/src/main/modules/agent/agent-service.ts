@@ -67,6 +67,7 @@ import type { AgentSetupSources } from "./agent-setup.ts";
 import type { McpServers } from "./mcp-servers.ts";
 import { messageContext } from "./message-context.ts";
 import { loginShellPath } from "./shell-path.ts";
+import { createWaitingCalls } from "./waiting-calls.ts";
 
 interface AgentServiceOptions extends AgentModelsOptions {
   /** Each run is a trace of its model requests and tool calls. */
@@ -98,6 +99,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   flows: Flows;
   /** What the agent reads of the rest of the app's settings. */
   setup: AgentSetupSources;
+  /** A run started or ended, or one of its calls began or stopped waiting for the user. */
+  onActivity: () => void;
 }
 
 // `vp pack` ships QuickJS beside the main bundle and builds the scripts' worker next to it.
@@ -146,6 +149,8 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const traces = createRunTraces(options.tracer);
 
+  const waitingCalls = createWaitingCalls();
+
   // Every window shows the same conversations, so every window hears every run.
   const onEvent = (sessionId: string, event: AgentWireEvent) => {
     const update: AgentUpdate = { sessionId, event };
@@ -155,6 +160,8 @@ export function createAgentService(options: AgentServiceOptions) {
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send(agentEvents.onEvent, update);
     }
+
+    if (waitingCalls.follow(sessionId, event)) options.onActivity();
   };
 
   // Unsandboxed commands could reach the app's own files, so the shell stays off beside real money.
@@ -297,6 +304,8 @@ export function createAgentService(options: AgentServiceOptions) {
   async function deleteSession(id: string) {
     await runtime.delete(id);
     await rm(workspace(id), { recursive: true, force: true });
+    waitingCalls.forget(id);
+    options.onActivity();
   }
 
   /** Sends a message with the app's context for its moment; `scheduled` names the task that sent it in the user's place. */
@@ -416,6 +425,9 @@ export function createAgentService(options: AgentServiceOptions) {
 
     /** Whether a run is going in the conversation; one since deleted has none. */
     busy: (id: string) => runtime.busy(id),
+
+    /** The conversations with a call waiting for the user to allow it. */
+    waiting: () => waitingCalls.sessions(),
 
     /**
      * Starts a conversation of its own for a scheduled task and sends it the task's prompt, on the

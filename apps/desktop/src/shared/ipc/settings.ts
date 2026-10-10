@@ -153,6 +153,7 @@ export interface Appearance {
   palettes: Record<string, CustomPalette>;
   priceColors: PriceColors;
   language: LanguagePreference;
+  timeZone: TimeZonePreference;
 }
 
 /** The languages the app has catalogs for, as BCP 47 tags. */
@@ -191,6 +192,26 @@ export const timeZoneSchema = z
   .refine(isTimeZone, { error: "Not a time zone this computer knows" });
 
 export type TimeZone = z.infer<typeof timeZoneSchema>;
+
+/** The time zone the user picked: an IANA name, or `system` to follow the computer's clock. */
+export const TimeZonePreference = { System: "system" } as const;
+
+export type TimeZonePreference =
+  | (typeof TimeZonePreference)[keyof typeof TimeZonePreference]
+  | TimeZone;
+
+export const timeZonePreferenceSchema = z.union([
+  z.literal(TimeZonePreference.System),
+  timeZoneSchema,
+]);
+
+/** The zone `preference` shows on a computer whose own clock keeps `system`. */
+export function resolveTimeZone(
+  preference: TimeZonePreference,
+  system: TimeZone
+): TimeZone {
+  return preference === TimeZonePreference.System ? system : preference;
+}
 
 /** Where a market's charts and live bars come from. */
 export const MarketDataSource = {
@@ -515,6 +536,8 @@ export interface SettingsApi {
   setPriceColors(priceColors: PriceColors): Promise<void>;
   /** Saves the language; every window and the tray's menu switch at once. */
   setLanguage(language: LanguagePreference): Promise<void>;
+  /** Saves the clock the app's own times show on; every window and the tray's menu follow at once. */
+  setTimeZone(timeZone: TimeZonePreference): Promise<void>;
   secrets(): Promise<SecretsStatus>;
   saveSecret(secret: EnteredSecret, value: string): Promise<void>;
   deleteSecret(secret: EnteredSecret): Promise<void>;
@@ -646,6 +669,7 @@ export const settingsChannels = {
   deletePalette: "settings:delete-palette",
   setPriceColors: "settings:set-price-colors",
   setLanguage: "settings:set-language",
+  setTimeZone: "settings:set-time-zone",
   secrets: "settings:secrets",
   saveSecret: "settings:save-secret",
   deleteSecret: "settings:delete-secret",

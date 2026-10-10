@@ -58,10 +58,12 @@ import {
   MarketDataSource,
   PriceColors,
   Theme,
+  TimeZonePreference,
   languagePreferenceSchema,
   marketDataSourceSchema,
   priceColorsSchema,
   themeSchema,
+  timeZonePreferenceSchema,
 } from "#shared/ipc/settings.ts";
 import type { FubonFile } from "#shared/ipc/settings.ts";
 import {
@@ -140,6 +142,12 @@ const configSchema = section(
             .meta({
               description:
                 'The language Solyx shows, its windows and its tray menu alike; "system" follows the computer\'s, or English when Solyx has no translation for it.',
+            }),
+          timeZone: timeZonePreferenceSchema
+            .catch(TimeZonePreference.System)
+            .meta({
+              description:
+                'The clock the times of Solyx\'s own events show on, such as messages and scheduled runs, as an IANA name like "Asia/Taipei"; "system" follows the computer\'s. Charts and sessions keep each exchange\'s own zone.',
             }),
         })
         .transform((appearance) => {
@@ -433,7 +441,7 @@ const DEFAULTS: Config = configSchema.parse({});
 
 /** The values the app edits; the file may hold others a person added. */
 type ConfigPath =
-  | ["appearance", "theme" | "priceColors" | "language"]
+  | ["appearance", "theme" | "priceColors" | "language" | "timeZone"]
   | ["appearance", "palette", ColorScheme]
   | ["appearance", "palettes", string]
   | ["appearance", "palettes", string, "name"]

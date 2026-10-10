@@ -9,14 +9,18 @@ import {
   ListLayout,
   Virtualizer,
 } from "@heroui/react";
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import {
   TimeZonePreference,
-  systemTimeZone,
   timeZonePreferenceSchema,
-  useClockStore,
-} from "../../app/clock.ts";
+} from "#shared/ipc/settings.ts";
+
+import { systemTimeZone } from "../../app/clock.ts";
+import { ErrorAlert } from "../../components/error-alert.tsx";
+
+import { appearanceQuery } from "./settings-query.ts";
 
 interface TimeZoneOption {
   id: TimeZonePreference;
@@ -37,8 +41,13 @@ function zoneLabel(timeZone: string, now: Date): string {
 
 export function TimeZoneSelect() {
   const { t } = useTranslation();
-  const preference = useClockStore((state) => state.preference);
-  const setPreference = useClockStore((state) => state.setPreference);
+  const { timeZone: preference } = useSuspenseQuery(appearanceQuery()).data;
+
+  // The main process pushes the saved appearance, which the query takes.
+  const save = useMutation({
+    mutationFn: (timeZone: TimeZonePreference) =>
+      window.solyx.settings.setTimeZone(timeZone),
+  });
 
   const options = useMemo<TimeZoneOption[]>(() => {
     const now = new Date();
@@ -66,7 +75,7 @@ export function TimeZoneSelect() {
       onChange={(key) => {
         const next = timeZonePreferenceSchema.safeParse(key);
 
-        if (next.success && next.data !== preference) setPreference(next.data);
+        if (next.success && next.data !== preference) save.mutate(next.data);
       }}>
       <Label>{t("settings.time-zone")}</Label>
       <ComboBox.InputGroup>
@@ -74,6 +83,12 @@ export function TimeZoneSelect() {
         <ComboBox.Trigger />
       </ComboBox.InputGroup>
       <Description>{t("settings.time-zone-description")}</Description>
+      {save.error ? (
+        <ErrorAlert
+          title={t("settings.save-failed")}
+          description={save.error.message}
+        />
+      ) : null}
       {/* The popover takes the input's width: the virtualizer sizes its rows to the list box, so a list box sized to its rows would grow without end. */}
       <ComboBox.Popover className="w-(--trigger-width)">
         {/* Some four hundred zones: only the rows in view are rendered, and the list box scrolls rather than the popover. */}
