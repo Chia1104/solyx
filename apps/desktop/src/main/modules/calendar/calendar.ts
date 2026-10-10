@@ -1,11 +1,12 @@
 import { sortBy, uniq } from "es-toolkit";
 
-import { upcomingEvents } from "@solyx/core/calendar";
+import { reportedEvents, upcomingEvents } from "@solyx/core/calendar";
 import type { UpcomingEvents } from "@solyx/core/calendar";
 import type { Fundamentals } from "@solyx/core/fundamentals";
 import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
 import { exchangeDate, shiftDate } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
+import type { Report } from "@solyx/core/report";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
 
@@ -16,6 +17,10 @@ export interface CalendarOptions {
   fundamentals: Fundamentals;
   /** One per market at most; the first that covers a market answers for it. */
   macro: readonly MacroCalendarProvider[];
+  /** Each listing's report in force, for the dates it holds. */
+  reports: {
+    report(symbol: SymbolRef): Pick<Report, "symbol" | "events"> | undefined;
+  };
   /** Where each market's schedule is kept between runs. */
   answers: AnswerStores;
   /** @default () => new Date() */
@@ -29,11 +34,13 @@ interface Ask {
 
 /**
  * Listings' events as their fundamentals tell them, read through the fundamentals module, which
- * keeps each listing's answer for half a day, beside the economic releases of their markets.
+ * keeps each listing's answer for half a day, beside the dates their reports hold and the economic
+ * releases of their markets.
  */
 export function createCalendar({
   fundamentals,
   macro,
+  reports,
   answers,
   now = () => new Date(),
 }: CalendarOptions) {
@@ -97,6 +104,17 @@ export function createCalendar({
           read.flatMap((each) =>
             each.status === "fulfilled" ? each.value : []
           ),
+          [({ date }) => date]
+        ),
+        research: sortBy(
+          symbols.flatMap((symbol) => {
+            const report = reports.report(symbol);
+            const today = exchangeDate(symbol.market, at);
+
+            return report
+              ? reportedEvents(report, today, shiftDate(today, days))
+              : [];
+          }),
           [({ date }) => date]
         ),
         unread: symbols.filter((_, index) => read[index].status === "rejected"),

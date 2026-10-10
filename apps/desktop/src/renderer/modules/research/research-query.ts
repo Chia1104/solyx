@@ -3,6 +3,8 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import type { SymbolRef } from "@solyx/core/market";
 
+import { calendarQueryKeys } from "../calendar/calendar-query.ts";
+
 const all = ["research"] as const;
 
 export const researchQueryKeys = {
@@ -21,9 +23,13 @@ export const researchCoverageQuery = (symbol: SymbolRef) =>
     staleTime: SETTLES_WITHIN_MS,
   });
 
-/** Refetches research whenever the agent revises a report, a forecast is made or settled, or it is cleared. */
+/**
+ * Refetches research whenever the agent revises a report, a forecast is made or settled, or it is
+ * cleared, and the calendar with it, which shows the dates reports hold.
+ */
 export function followResearchChanges(queryClient: QueryClient) {
   window.solyx.research.onChanged(() => {
     void queryClient.invalidateQueries({ queryKey: researchQueryKeys.all });
+    void queryClient.invalidateQueries({ queryKey: calendarQueryKeys.all });
   });
 }

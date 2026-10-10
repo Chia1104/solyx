@@ -56,6 +56,14 @@ export function twRevenueDeadline(month: string): string {
     .toString();
 }
 
+/** A date, `YYYY-MM-DD`, as Taiwan's filings write it, in the Republic of China calendar: `民國 115 年 10 月 16 日`. */
+export function twRocDate(date: string): string {
+  const { year, month, day } =
+    Temporal.PlainDate.from(date).withCalendar("roc");
+
+  return `民國 ${year} 年 ${month} 月 ${day} 日`;
+}
+
 /** Board lots and odd lots trade in separate books, so one order is either whole board lots or 1–999 shares. */
 export function isValidTwQuantity(quantity: number): boolean {
   if (!Number.isInteger(quantity) || quantity <= 0) return false;

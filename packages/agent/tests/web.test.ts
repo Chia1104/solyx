@@ -117,6 +117,7 @@ function setup(vendor = fakeVendor()) {
     tradingDays: async () => weekdays,
     calendar: async () => ({
       events: [],
+      research: [],
       unread: [],
       releases: [],
       unreadMarkets: [],

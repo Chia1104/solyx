@@ -215,18 +215,14 @@ export function createServices(config: ConfigFile) {
     answers: cache.answers,
   });
 
-  const calendar = createCalendar({
-    fundamentals,
-    macro: [createStatGovTw()],
-    answers: cache.answers,
-  });
-
   // Every window hears every change to the agent's research, whoever made it.
+  const researchData = openResearch(
+    join(userDataDir, "research.sqlite"),
+    join(import.meta.dirname, "migrations", "research")
+  );
+
   const research = createResearch(
-    openResearch(
-      join(userDataDir, "research.sqlite"),
-      join(import.meta.dirname, "migrations", "research")
-    ),
+    researchData,
     {
       marketData,
       fundamentals,
@@ -237,6 +233,13 @@ export function createServices(config: ConfigFile) {
     },
     () => broadcast(researchEvents.onChanged)
   );
+
+  const calendar = createCalendar({
+    fundamentals,
+    macro: [createStatGovTw()],
+    reports: researchData.store,
+    answers: cache.answers,
+  });
 
   const appearance = createAppearance({
     config,

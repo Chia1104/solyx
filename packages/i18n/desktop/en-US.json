@@ -245,12 +245,19 @@
   },
   "calendar": {
     "title": "Coming up",
-    "description": "The next {{days}} days for what you hold and watch: the days shares go ex and dividends are paid, as each company set them, the latest days the rules allow for the next statements and monthly revenue, the limits the exchange puts on their trading, such as short-sale suspensions and dispositions, and the days their markets' economic figures come out. Taiwan only for now.",
-    "unfollowed": "Hold or watch listings, and their coming dividends and filings show here, with their markets' economic releases.",
+    "description": "The next {{days}} days for what you hold and watch: the days shares go ex and dividends are paid, as each company set them, the latest days the rules allow for the next statements and monthly revenue, the limits the exchange puts on their trading, such as short-sale suspensions and dispositions, the dates the agent's reports hold, such as an earnings call, each as it found them with its source, and the days their markets' economic figures come out. Filings and releases are Taiwan's only for now.",
+    "unfollowed": "Hold or watch listings, and their coming dividends and filings show here, with the dates the agent's reports hold and their markets' economic releases.",
     "empty": "Nothing on the calendar in the next {{days}} days.",
     "unread": "Couldn't read the fundamentals of {{symbols}}, so their dates may be missing.",
     "by": "by {{date}}",
+    "around": "~{{date}}",
     "deadline-hint": "The latest day the rules allow; the company may well report earlier.",
+    "from-report": "from the agent's report",
+    "report-hints": {
+      "set": "The day its source says is set.",
+      "deadline": "The latest day its source gives; it may well come earlier.",
+      "expected": "A day its source only expects; nobody has set it."
+    },
     "kinds": {
       "quarterly-report": "Q{{quarter}} {{year}} statements due",
       "monthly-revenue": "{{month}} revenue due",
@@ -550,6 +557,7 @@
       "falsifier-stated": "News may say this happened, read as stated at {{share}}:",
       "valuation": "Fair range {{low}} to {{high}}",
       "events": "Dates ahead",
+      "event-passed": "Passed. The agent says what came of it when it next revises the report.",
       "written": "written {{date}}",
       "none": "No report yet.",
       "stale": "A newer quarter, ending {{date}}, came out after this report was revised. The agent revises it before its next forecast.",

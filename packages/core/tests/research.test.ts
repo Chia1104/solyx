@@ -3,6 +3,7 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { createSearchIndex } from "@solyx/utils/search";
 
+import { EventTiming } from "../src/calendar.ts";
 import { Interval } from "../src/candles.ts";
 import type { Candle } from "../src/candles.ts";
 import {
@@ -17,7 +18,7 @@ import type { Forecast, ForecastDraft } from "../src/forecast.ts";
 import { InstrumentKind, Market, symbolKey } from "../src/market.ts";
 import { NewsChannel, TimePrecision } from "../src/news.ts";
 import type { NewsRecord } from "../src/news.ts";
-import { ReportStance } from "../src/report.ts";
+import { ReportStance, ReportViolationCode } from "../src/report.ts";
 import type { Report } from "../src/report.ts";
 import { FALSIFIER_FLOORS, ResearchDesk } from "../src/research.ts";
 import type { FalsifierCheck, ResearchStore } from "../src/research.ts";
@@ -474,6 +475,68 @@ test("claims are read against their quotes as they are kept, and stay when the m
     ok: true,
     forecast: { claims: [{ support: { model: "jev", supported: 0.8 } }] },
   });
+});
+
+test("a report's events are read against their quotes, refused once behind the exchange's day, and named once they pass", async () => {
+  const { store, clock } = setup();
+  const audit = vi.fn(async () => ({ model: "jev", supported: 0.9 }));
+
+  const desk = new ResearchDesk({
+    store,
+    marketData: { candles: async () => [ANCHOR_BAR] },
+    fundamentals: { statements: async () => [] },
+    auditor: async () => ({ audit }),
+    now: () => clock.now,
+  });
+
+  const call = {
+    date: "2026-10-16",
+    label: "Third-quarter earnings call",
+    timing: EventTiming.Set,
+    source: "Investor relations calendar",
+    quote: "3Q26 Earnings Conference: October 16, 2026",
+  };
+
+  const report = {
+    symbol: TSMC,
+    stance: ReportStance.Bullish,
+    thesis: "Advanced nodes stay sold out.",
+  };
+
+  expect(
+    await desk.revise({
+      ...report,
+      events: [{ ...call, date: "2026-09-28", label: "Technology forum" }],
+    })
+  ).toEqual({
+    ok: false,
+    violations: [
+      {
+        code: ReportViolationCode.EventPassed,
+        date: "2026-09-28",
+        label: "Technology forum",
+      },
+    ],
+  });
+
+  await desk.revise({ ...report, events: [call] });
+
+  expect(audit).toHaveBeenLastCalledWith({
+    text: "Third-quarter earnings call, on 2026-10-16 (民國 115 年 10 月 16 日)",
+    source: call.source,
+    quote: call.quote,
+  });
+
+  const kept = { ...call, support: { model: "jev", supported: 0.9 } };
+
+  expect(await desk.coverage(TSMC)).toMatchObject({
+    report: { events: [kept] },
+    passedEvents: [],
+  });
+
+  clock.now = Date.parse("2026-10-17T09:00:00+08:00");
+
+  expect((await desk.coverage(TSMC)).passedEvents).toEqual([kept]);
 });
 
 const votes = (...cast: (MagiVote | null)[]) =>

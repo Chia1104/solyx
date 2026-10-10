@@ -7,6 +7,7 @@ import { MacroIndicator } from "@solyx/core/macro";
 import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
 import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import type { Report } from "@solyx/core/report";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
 import { createCalendar } from "../src/main/modules/calendar/calendar.ts";
@@ -69,15 +70,17 @@ function setup(dividends: Record<string, Dividend[]>) {
 
   // 2026-10-08 12:00 in Taipei.
   const clock = { now: Date.parse("2026-10-08T04:00:00Z") };
+  const held = new Map<string, Pick<Report, "symbol" | "events">>();
 
   const calendar = createCalendar({
     fundamentals,
     macro: [macro],
+    reports: { report: (symbol) => held.get(symbolKey(symbol)) },
     answers: memoryAnswers(),
     now: () => new Date(clock.now),
   });
 
-  return { calendar, fundamentals, macro, clock };
+  return { calendar, fundamentals, macro, clock, held };
 }
 
 test("every listing's events come soonest first, within the days asked for", async () => {
@@ -121,6 +124,44 @@ test("a restriction in force shows today, with its last day", async () => {
       amount: null,
       until: "2026-10-12",
     },
+  ]);
+});
+
+test("the dates the listings' reports hold come soonest first, without those behind today or past the days asked for", async () => {
+  const { calendar, held } = setup({
+    [symbolKey(TSMC)]: [],
+    [symbolKey(FOXCONN)]: [],
+  });
+
+  const event = (date: string, label: string) => ({
+    date,
+    label,
+    timing: EventTiming.Set,
+    source: "Investor relations calendar",
+    quote: label,
+    support: null,
+  });
+
+  held.set(symbolKey(TSMC), {
+    symbol: TSMC,
+    events: [
+      event("2026-10-16", "Earnings call"),
+      event("2026-10-07", "Technology forum"),
+      event("2026-12-01", "Shareholders' meeting"),
+    ],
+  });
+  held.set(symbolKey(FOXCONN), {
+    symbol: FOXCONN,
+    events: [event("2026-10-13", "Technology day")],
+  });
+
+  const { research } = await calendar.upcoming([TSMC, FOXCONN, MEDIATEK], 30);
+
+  expect(
+    research.map(({ symbol, date, label }) => [symbol, date, label])
+  ).toEqual([
+    [FOXCONN, "2026-10-13", "Technology day"],
+    [TSMC, "2026-10-16", "Earnings call"],
   ]);
 });
 

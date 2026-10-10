@@ -147,6 +147,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
   const calendar = vi.fn<TradingToolPorts["calendar"]>(
     async (): Promise<UpcomingEvents> => ({
       events: [],
+      research: [],
       unread: [],
       releases: [],
       unreadMarkets: [],
@@ -696,6 +697,24 @@ test("the calendar lists the followed listings' events and their markets' releas
         until: "2026-10-15",
       },
     ],
+    research: [
+      {
+        symbol: TSMC,
+        date: "2026-10-16",
+        label: "Third-quarter earnings call",
+        timing: EventTiming.Set,
+        source: "https://investor.test/calendar",
+        quote: "3Q26 Earnings Conference: October 16, 2026",
+      },
+      {
+        symbol: TSMC,
+        date: "2026-10-28",
+        label: "Export rule decision",
+        timing: EventTiming.Expected,
+        source: "news.test",
+        quote: "A decision is expected in late October.",
+      },
+    ],
     unread: [{ market: Market.TW, symbol: "6669" }],
     releases: [
       {
@@ -728,6 +747,9 @@ test("the calendar lists the followed listings' events and their markets' releas
     "2026-10-08 TW 2330 pays its dividend, 7 cash a share (115年第1季)",
     "by 2026-10-10 TW 6669 2026-09 revenue due",
     "2026-10-12 TW 6669 short sale suspension until 2026-10-15 (除息)",
+    "Dates their reports hold, each as you found it, with its source:",
+    "2026-10-16 TW 2330 Third-quarter earnings call [https://investor.test/calendar]",
+    "around 2026-10-28 TW 2330 Export rule decision [news.test]",
     "Economic releases of their markets:",
     "2026-10-08 TW trade for 2026-09",
     "by 2026-11-03 TW purchasing managers for 2026-10",
@@ -736,7 +758,7 @@ test("the calendar lists the followed listings' events and their markets' releas
   expect(details).toEqual({
     symbols: [{ market: Market.TW, symbol: "6669" }, TSMC],
     days: 30,
-    events: 3,
+    events: 5,
     releases: 2,
   });
 });

@@ -8,13 +8,20 @@ import type { ForecastRecord } from "@solyx/core/forecast";
 import { exchangeDate } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import { ReportSection } from "@solyx/core/report";
-import type { Argument, Audited, Report } from "@solyx/core/report";
+import type {
+  Argument,
+  Audited,
+  ClaimSupport,
+  Report,
+  ReportEvent,
+} from "@solyx/core/report";
 import type { Coverage, FalsifierCheck } from "@solyx/core/research";
 
 import { Pane, useLayoutStore } from "../../app/layout-store.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { useAgentStore } from "../agent/agent-store.ts";
+import { timedDay } from "../calendar/upcoming-events.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 import { PublishedTime } from "../news/news-list.tsx";
 import { useDecisionsReady } from "../settings/settings-query.ts";
@@ -45,10 +52,25 @@ function DeepAnalysisButton({ symbol }: { symbol: SymbolRef }) {
   );
 }
 
-/**
- * Each point over the fact it rests on, the source's own words, and how a decisions model read the
- * fact against them; an unread fact says so only while one is set up.
- */
+/** How a decisions model read a fact against its quote; an unread one says so only while one is set up. */
+function QuoteReading({ support }: { support: ClaimSupport | null }) {
+  const { t, i18n } = useTranslation();
+  const { percent } = numberFormats(i18n.language);
+  const audited = useDecisionsReady();
+
+  return support || audited ? (
+    <span className="text-xs text-muted tabular-nums">
+      {support
+        ? t("research.report.quote-read", {
+            share: percent.format(support.supported),
+            model: support.model,
+          })
+        : t("research.report.quote-unread")}
+    </span>
+  ) : null;
+}
+
+/** Each point over the fact it rests on, the source's own words, and how the fact was read against them. */
 function Claims({
   title,
   claims,
@@ -56,10 +78,6 @@ function Claims({
   title: string;
   claims: Audited<Argument>[];
 }) {
-  const { t, i18n } = useTranslation();
-  const { percent } = numberFormats(i18n.language);
-  const audited = useDecisionsReady();
-
   return claims.length === 0 ? null : (
     <section className="flex flex-col gap-1.5">
       <h4 className="text-xs font-medium text-muted">{title}</h4>
@@ -71,16 +89,7 @@ function Claims({
             <span className="text-xs break-words text-muted">
               {claim.source} — “{claim.quote}”
             </span>
-            {claim.support || audited ? (
-              <span className="text-xs text-muted tabular-nums">
-                {claim.support
-                  ? t("research.report.quote-read", {
-                      share: percent.format(claim.support.supported),
-                      model: claim.support.model,
-                    })
-                  : t("research.report.quote-unread")}
-              </span>
-            ) : null}
+            <QuoteReading support={claim.support} />
           </li>
         ))}
       </ul>
@@ -132,14 +141,61 @@ function Falsifier({
   );
 }
 
+/**
+ * The dates a report holds, each over the source's own words for it; one whose day has passed
+ * waits for the revision that says what came of it.
+ */
+function Events({
+  events,
+  passed,
+}: {
+  events: Audited<ReportEvent>[];
+  passed: Audited<ReportEvent>[];
+}) {
+  const { t } = useTranslation();
+  const eventKey = ({ date, label }: ReportEvent) => `${date}:${label}`;
+  const behind = new Set(passed.map(eventKey));
+
+  return events.length === 0 ? null : (
+    <section className="flex flex-col gap-1.5">
+      <h4 className="text-xs font-medium text-muted">
+        {t("research.report.events")}
+      </h4>
+      <ul className="flex flex-col gap-2">
+        {events.map((event) => (
+          <li key={eventKey(event)} className="flex flex-col gap-0.5">
+            <span className="flex flex-wrap items-baseline gap-x-2">
+              <span className="shrink-0 text-muted tabular-nums">
+                {timedDay(t, event.date, event.timing)}
+              </span>
+              <span>{event.label}</span>
+              {behind.has(eventKey(event)) ? (
+                <span className="text-xs text-warning">
+                  {t("research.report.event-passed")}
+                </span>
+              ) : null}
+            </span>
+            <span className="text-xs break-words text-muted">
+              {event.source} — “{event.quote}”
+            </span>
+            <QuoteReading support={event.support} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function ReportView({
   report,
   newerFinancials,
+  passedEvents,
   signals,
 }: {
   report: Report;
   /** The last day of a quarter published since the report was revised, if one was. */
   newerFinancials: string | null;
+  passedEvents: Audited<ReportEvent>[];
   signals: FalsifierCheck[];
 }) {
   const { t, i18n } = useTranslation();
@@ -196,23 +252,7 @@ function ReportView({
           <span className="text-muted"> · {report.valuation.basis}</span>
         </p>
       ) : null}
-      {report.events.length > 0 ? (
-        <section className="flex flex-col gap-1.5">
-          <h4 className="text-xs font-medium text-muted">
-            {t("research.report.events")}
-          </h4>
-          <ul className="flex flex-col gap-0.5">
-            {report.events.map((event) => (
-              <li key={`${event.date}:${event.label}`} className="flex gap-2">
-                <span className="shrink-0 text-muted tabular-nums">
-                  {event.date}
-                </span>
-                <span>{event.label}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      <Events events={report.events} passed={passedEvents} />
       {Object.values(ReportSection).map((section) => {
         const part = report.sections[section];
 
@@ -256,7 +296,9 @@ function RecordLine({ record }: { record: ForecastRecord }) {
 
 function CoverageView({ coverage }: { coverage: Coverage }) {
   const { t } = useTranslation();
-  const { report, newerFinancials, forecasts, record, signals } = coverage;
+
+  const { report, newerFinancials, passedEvents, forecasts, record, signals } =
+    coverage;
 
   if (!report && forecasts.length === 0) {
     return (
@@ -271,6 +313,7 @@ function CoverageView({ coverage }: { coverage: Coverage }) {
         <ReportView
           report={report}
           newerFinancials={newerFinancials}
+          passedEvents={passedEvents}
           signals={signals}
         />
       ) : (
