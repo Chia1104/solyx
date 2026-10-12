@@ -27,7 +27,7 @@ import type {
 } from "./forecast.ts";
 import type { Dividend, Fundamentals } from "./fundamentals.ts";
 import type { MarketData } from "./market-data.ts";
-import { exchangeDate, symbolKey } from "./market.ts";
+import { BENCHMARK, exchangeDate, symbolKey } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { storyText } from "./news.ts";
 import type { NewsItem, NewsRecord } from "./news.ts";
@@ -37,6 +37,7 @@ import {
   passedEvents,
   reportPassages,
   reviseReport,
+  stanceSpells,
 } from "./report.ts";
 import type {
   Audited,
@@ -47,6 +48,7 @@ import type {
   ReportDraft,
   ReportEvent,
   Revision,
+  StanceSpell,
 } from "./report.ts";
 
 /** Where research persists. Synchronous so the desk checks a forecast and keeps it without an await between. */
@@ -160,6 +162,8 @@ export interface Coverage {
   record: ForecastRecord;
   /** News the report's falsifiers were read as stated by, newest first. */
   signals: FalsifierCheck[];
+  /** Each stretch the report kept one stance, oldest first, against its market's index; none while the bars cannot be read. */
+  stances: StanceSpell[];
 }
 
 /** A report revision a search found. */
@@ -377,6 +381,7 @@ export class ResearchDesk {
         : [],
       forecasts,
       record: forecastRecord(forecasts),
+      stances: await this.#stances(symbol),
       signals: report
         ? store
             .falsifierChecks(symbol, report.revision)
@@ -644,6 +649,26 @@ export class ResearchDesk {
     } catch {
       // Fundamentals can be out of reach; research goes on without knowing of a newer quarter.
       return null;
+    }
+  }
+
+  /** Each stretch the listing's report kept one stance, against its market's index. */
+  async #stances(symbol: SymbolRef): Promise<StanceSpell[]> {
+    const { store, marketData } = this.#options;
+    const revisions = store.reports(symbol);
+
+    if (revisions.length === 0) return [];
+
+    try {
+      const [daily, benchmark] = await Promise.all([
+        marketData.candles(symbol, Interval.OneDay),
+        marketData.candles(BENCHMARK[symbol.market].symbol, Interval.OneDay),
+      ]);
+
+      return stanceSpells(revisions, daily, benchmark);
+    } catch {
+      // Bars can be out of reach; the report still reads without how its stance has done.
+      return [];
     }
   }
 

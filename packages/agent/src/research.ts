@@ -33,7 +33,12 @@ import type {
   FundProfile,
   Fundamentals,
 } from "@solyx/core/fundamentals";
-import { currencyOf, exchangeDate, symbolRefSchema } from "@solyx/core/market";
+import {
+  BENCHMARK,
+  currencyOf,
+  exchangeDate,
+  symbolRefSchema,
+} from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import {
@@ -42,7 +47,12 @@ import {
   proseSchema,
   reportDraftSchema,
 } from "@solyx/core/report";
-import type { Argument, Report, ReportViolation } from "@solyx/core/report";
+import type {
+  Argument,
+  Report,
+  ReportViolation,
+  StanceSpell,
+} from "@solyx/core/report";
 import type { FalsifierCheck, ResearchDesk } from "@solyx/core/research";
 import { errorMessage } from "@solyx/utils/error";
 
@@ -212,6 +222,22 @@ function forecastViolationText(
 const argumentText = (argument: Argument) =>
   `- ${argument.point}\n  rests on: ${argument.text} [${argument.source}: "${argument.quote}"]`;
 
+/** How each stretch of one stance did against the market's index, the standing one last. */
+function stancesText(
+  market: Market,
+  stances: readonly StanceSpell[]
+): string[] {
+  if (stances.length === 0) return [];
+
+  return [
+    `Stance against ${BENCHMARK[market].name}, each stretch the report kept one, on closes as they traded:`,
+    ...stances.map(
+      (spell) =>
+        `- ${spell.stance} from ${spell.from} (revision ${spell.revision}) ${spell.until === null ? "and standing" : `to ${spell.until}`}, ${sessions(spell.sessions)}: ${percent(spell.change)} against the index's ${percent(spell.benchmark)}, ${points(spell.change - spell.benchmark)}`
+    ),
+  ];
+}
+
 /** A report as the model reads it, each of its `passed` events marked as no longer ahead. */
 function reportText(
   report: Report,
@@ -338,6 +364,10 @@ function recordText(scope: string, record: ForecastRecord): string {
     `  scenarios by the probability you gave: ${held}`,
   ].join("\n");
 }
+
+/** A gap between two changes, in the percentage points one stands above the other. */
+const points = (gap: number) =>
+  `${gap >= 0 ? "+" : ""}${(gap * 100).toFixed(1)} points`;
 
 const percent = (value: number | null) =>
   value === null
@@ -474,7 +504,7 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetResearch,
         replay: "safe",
-        description: `What the app holds of a listing's research: its report with when each part was written and which of its events have passed, its last ${LISTED_FORECASTS} forecasts with how those past their horizon came out, news a decisions model read as stating that one of its falsifiers happened, and how your forecasts have held, for this listing and for every listing. A report is what you thought when you wrote it, never current data.`,
+        description: `What the app holds of a listing's research: its report with when each part was written and which of its events have passed, how each stretch it kept one stance did against the market's index, its last ${LISTED_FORECASTS} forecasts with how those past their horizon came out, news a decisions model read as stating that one of its falsifiers happened, and how your forecasts have held, for this listing and for every listing. A report is what you thought when you wrote it, never current data.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
           const [coverage, overall] = await Promise.all([
@@ -492,6 +522,7 @@ export function createResearch(options: ResearchOptions): Extension {
               coverage.report
                 ? reportText(coverage.report, coverage.passedEvents)
                 : `${symbol.market} ${symbol.symbol} has no report yet.`,
+              ...stancesText(symbol.market, coverage.stances),
               ...(coverage.newerFinancials
                 ? [
                     `The report was revised before the quarter ending ${coverage.newerFinancials} was out. Revise it with that quarter before forecasting.`,

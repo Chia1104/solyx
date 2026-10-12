@@ -624,6 +624,7 @@
     },
     "report": {
       "revision": "第 {{revision, number}} 版 · {{date}} 修訂",
+      "stance-since": "自 {{date}} 起 {{count, number}} 個交易日：{{change}}，同期 {{index}} {{benchmark}}",
       "drivers": "論點支撐",
       "risks": "風險",
       "falsifiers": "什麼會改變看法",

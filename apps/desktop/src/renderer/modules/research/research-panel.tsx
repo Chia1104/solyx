@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type { ForecastRecord } from "@solyx/core/forecast";
-import { exchangeDate } from "@solyx/core/market";
+import { BENCHMARK, exchangeDate } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import { ReportSection } from "@solyx/core/report";
 import type {
@@ -14,6 +14,7 @@ import type {
   ClaimSupport,
   Report,
   ReportEvent,
+  StanceSpell,
 } from "@solyx/core/report";
 import type { Coverage, FalsifierCheck } from "@solyx/core/research";
 
@@ -191,15 +192,18 @@ function ReportView({
   newerFinancials,
   passedEvents,
   signals,
+  standing,
 }: {
   report: Report;
   /** The last day of a quarter published since the report was revised, if one was. */
   newerFinancials: string | null;
   passedEvents: Audited<ReportEvent>[];
   signals: FalsifierCheck[];
+  /** The stretch the report's stance has stood, against its market's index; `undefined` while it cannot be measured. */
+  standing: StanceSpell | undefined;
 }) {
   const { t, i18n } = useTranslation();
-  const { price } = numberFormats(i18n.language);
+  const { price, percentChange } = numberFormats(i18n.language);
   const { market } = report.symbol;
   const day = (at: number) => exchangeDate(market, new Date(at));
 
@@ -214,6 +218,17 @@ function ReportView({
           })}
         </span>
       </header>
+      {standing ? (
+        <p className="text-xs text-muted tabular-nums">
+          {t("research.report.stance-since", {
+            date: standing.from,
+            count: standing.sessions,
+            change: percentChange.format(standing.change),
+            benchmark: percentChange.format(standing.benchmark),
+            index: BENCHMARK[market].name,
+          })}
+        </p>
+      ) : null}
       {newerFinancials ? (
         <p className="rounded-sm border border-dashed border-separator px-3 py-2 text-xs text-muted">
           {t("research.report.stale", { date: newerFinancials })}
@@ -305,8 +320,15 @@ function RecordLine({ record }: { record: ForecastRecord }) {
 function CoverageView({ coverage }: { coverage: Coverage }) {
   const { t } = useTranslation();
 
-  const { report, newerFinancials, passedEvents, forecasts, record, signals } =
-    coverage;
+  const {
+    report,
+    newerFinancials,
+    passedEvents,
+    forecasts,
+    record,
+    signals,
+    stances,
+  } = coverage;
 
   if (!report && forecasts.length === 0) {
     return (
@@ -323,6 +345,7 @@ function CoverageView({ coverage }: { coverage: Coverage }) {
           newerFinancials={newerFinancials}
           passedEvents={passedEvents}
           signals={signals}
+          standing={stances.findLast(({ until }) => until === null)}
         />
       ) : (
         <p className="text-sm text-muted">{t("research.report.none")}</p>

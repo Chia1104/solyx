@@ -3,7 +3,9 @@ import * as z from "zod";
 import { sentences } from "@solyx/utils/search";
 
 import { EventTiming } from "./calendar.ts";
-import { Market, symbolRefSchema } from "./market.ts";
+import { candleDate } from "./candles.ts";
+import type { Candle } from "./candles.ts";
+import { Market, exchangeDate, symbolRefSchema } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { holdsSecret } from "./memory.ts";
 import { twRocDate } from "./rules/tw.ts";
@@ -402,4 +404,76 @@ export function reportPassages(report: Report): string[] {
       sentences(part.text).map((sentence) => `${section}: ${sentence}`)
     ),
   ];
+}
+
+/** A stretch over which a listing's report kept one stance, and what the price did against its market's index through it. */
+export interface StanceSpell {
+  stance: ReportStance;
+  /** The revision that took the stance. */
+  revision: number;
+  /** The exchange-local day it was taken, and the day a revision changed it; `null` while it stands. */
+  from: string;
+  until: string | null;
+  /** Sessions traded after the day it was taken, through its end or the newest bar. */
+  sessions: number;
+  /** How far the listing's close and the index's moved over them, as shares of where each stood. */
+  change: number;
+  benchmark: number;
+}
+
+/**
+ * Each stretch a listing's report kept one stance, oldest first, from its `revisions` in the order
+ * they were kept, measured on the listing's daily bars against its market's index's, as they
+ * traded. A stretch taken before the bars begin, or with no session after it yet, is left out,
+ * since there is nothing to measure it by.
+ */
+export function stanceSpells(
+  revisions: readonly Report[],
+  daily: readonly Candle[],
+  benchmark: readonly Candle[]
+): StanceSpell[] {
+  const taken = revisions.filter(
+    (report, index) => report.stance !== revisions[index - 1]?.stance
+  );
+
+  return taken.flatMap((report, index): StanceSpell[] => {
+    const { market } = report.symbol;
+    const dayOf = (bar: Candle) => candleDate(market, bar.time);
+
+    const dayKept = ({ revisedAt }: Report) =>
+      exchangeDate(market, new Date(revisedAt));
+
+    /** The newest bar on or before a day, which is the close a stance taken that day stood on. */
+    const closeBy = (bars: readonly Candle[], day: string) =>
+      bars.findLast((bar) => dayOf(bar) <= day);
+
+    const from = dayKept(report);
+    const next = taken.at(index + 1);
+    const until = next ? dayKept(next) : null;
+    const start = closeBy(daily, from);
+    const end = until === null ? daily.at(-1) : closeBy(daily, until);
+
+    if (!start || !end) return [];
+
+    const sessions = daily.filter(
+      (bar) => bar.time > start.time && bar.time <= end.time
+    ).length;
+
+    const indexStart = closeBy(benchmark, dayOf(start));
+    const indexEnd = closeBy(benchmark, dayOf(end));
+
+    if (sessions === 0 || !indexStart || !indexEnd) return [];
+
+    return [
+      {
+        stance: report.stance,
+        revision: report.revision,
+        from,
+        until,
+        sessions,
+        change: end.close / start.close - 1,
+        benchmark: indexEnd.close / indexStart.close - 1,
+      },
+    ];
+  });
 }

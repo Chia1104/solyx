@@ -562,6 +562,25 @@ test("a kept forecast shows what history alone gave its bands, and the record me
   );
 });
 
+test("research says how the report's stance has done against the index since it was taken", async () => {
+  const { run, clock, bars } = setup();
+
+  await run(AgentToolName.ReviseReport, REPORT);
+
+  clock.now = AFTER_HORIZON;
+  bars.daily = [ANCHOR_BAR, ...LATER_BARS];
+
+  // The fake source answers the index with the listing's own bars, so the two moved alike.
+  expect(
+    (await run(AgentToolName.GetResearch, { symbol: TSMC })).text
+  ).toContain(
+    [
+      "Stance against TAIEX, each stretch the report kept one, on closes as they traded:",
+      "- bullish from 2026-09-29 (revision 1) and standing, 2 sessions: +4.5% against the index's +4.5%, +0.0 points",
+    ].join("\n")
+  );
+});
+
 test("an outcome says what went ex inside the horizon and was added back", async () => {
   const { run, clock, bars, filed } = setup();
 
