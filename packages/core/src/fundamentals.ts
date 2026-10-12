@@ -123,24 +123,6 @@ export interface FundamentalsProvider {
   getDividends(symbol: SymbolRef, since: string): Promise<Dividend[]>;
 }
 
-/** A restriction with the listing it is on, as an exchange lists its whole market's at once. */
-export interface ListedRestriction extends TradingRestriction {
-  /** The listing's exchange code, as a `SymbolRef` writes it. */
-  symbol: string;
-}
-
-/** One implementation per source of the exchanges' own lists (`@solyx/fundamentals/*`); it runs only in the main process. */
-export interface RestrictionsProvider {
-  readonly id: string;
-  readonly markets: readonly Market[];
-  /**
-   * What a market's exchanges list today for all their listings, oldest first: the restrictions in
-   * force, those announced, and whichever ended ones the lists still hold. None for a market it
-   * does not cover.
-   */
-  getRestrictions(market: Market): Promise<ListedRestriction[]>;
-}
-
 /** What a fund is, as its exchange lists it. */
 export interface FundProfile {
   /** Its full name. */
@@ -162,18 +144,37 @@ export interface FundProfile {
   asOf: string;
 }
 
-/** A fund's profile with its code, as an exchange lists all its funds at once. */
-export interface ListedFund extends FundProfile {
-  /** The fund's exchange code, as a `SymbolRef` writes it. */
-  symbol: string;
+/** Where a listing's price stands against its earnings, dividends and book value, as its exchange works them out from a session's close. */
+export interface ExchangeMultiples {
+  /** The session whose close they are of, `YYYY-MM-DD` on the exchange's calendar. */
+  asOf: string;
+  /** `null` where the exchange works none out, as for a company whose earnings add up to a loss. */
+  priceToEarnings: number | null;
+  /** The dividend the exchange counts for a share over the close, in percent; `null` where it gives none. */
+  dividendYield: number | null;
+  priceToBook: number | null;
 }
 
-/** One implementation per source of the exchanges' own lists (`@solyx/fundamentals/*`); it runs only in the main process. */
-export interface FundsProvider {
+/** A row of an exchange's list with the listing it is about, since an exchange lists its whole market's at once. */
+export type Listed<Row> = Row & {
+  /** The listing's exchange code, as a `SymbolRef` writes it. */
+  symbol: string;
+};
+
+/**
+ * One implementation per source of the exchanges' own lists (`@solyx/fundamentals/*`); it runs only
+ * in the main process. Each list is a market's whole as its exchanges publish it today, and empty
+ * for a market the source does not cover.
+ */
+export interface ExchangeListsProvider {
   readonly id: string;
   readonly markets: readonly Market[];
-  /** Every fund a market's exchanges list today; none for a market it does not cover. */
-  getFunds(market: Market): Promise<ListedFund[]>;
+  /** Oldest first: the restrictions in force, those announced, and whichever ended ones the lists still hold. */
+  getRestrictions(market: Market): Promise<Listed<TradingRestriction>[]>;
+  /** Every fund the exchanges list. */
+  getFunds(market: Market): Promise<Listed<FundProfile>[]>;
+  /** Every listing the exchanges work multiples out for. */
+  getMultiples(market: Market): Promise<Listed<ExchangeMultiples>[]>;
 }
 
 /** A listing's fundamentals from whichever provider covers its market, oldest first; none while no provider does. */
@@ -192,6 +193,8 @@ export interface Fundamentals {
   restrictions(symbol: SymbolRef): Promise<TradingRestriction[]>;
   /** What the listing is as a fund; `null` for one no source lists as a fund, which a stock is and a fund its exchange publishes no list of may be. */
   fund(symbol: SymbolRef): Promise<FundProfile | null>;
+  /** Its multiples from the last close its exchange has worked them out for; `null` for a listing no source lists any for, which a fund is. */
+  multiples(symbol: SymbolRef): Promise<ExchangeMultiples | null>;
 }
 
 /** A quarter with what it says against the quarters around it; `null` where a figure it needs is missing. */

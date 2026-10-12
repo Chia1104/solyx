@@ -27,6 +27,7 @@ import {
 } from "@solyx/core/fundamentals";
 import type {
   Dividend,
+  ExchangeMultiples,
   FundProfile,
   Fundamentals,
 } from "@solyx/core/fundamentals";
@@ -383,6 +384,16 @@ function fundText(fund: FundProfile): string[] {
   ];
 }
 
+/** A listing's multiples as its exchange works them out, which are not the app's own beside its statements. */
+function multiplesText(multiples: ExchangeMultiples): string {
+  const dividendYield =
+    multiples.dividendYield === null
+      ? "n/a"
+      : `${figure(multiples.dividendYield)}%`;
+
+  return `Multiples as its exchange works them out from the close of ${multiples.asOf}: price to earnings ${figure(multiples.priceToEarnings)}, dividend yield ${dividendYield}, price to book ${figure(multiples.priceToBook)}.`;
+}
+
 /** Why a listing has neither statements nor revenue on file with `source`. */
 function nothingFiledText(
   fund: FundProfile | undefined,
@@ -492,7 +503,7 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetFundamentals,
         replay: "safe",
-        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; its balance sheets at those quarters' ends, with the current ratio and liabilities against assets; its cash flows for each quarter alone, with free cash flow and the four quarters each closes; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. For a fund the Taiwan Stock Exchange lists, the answer opens with what it is: its kind in the exchange's words, such as a leveraged, inverse, futures or actively managed fund, the index it tracks or what it measures itself against, whether it may hold securities listed abroad, the day it listed, its manager and its units outstanding. The Taipei Exchange publishes no such list, so a fund listed there, as bond ETFs are, opens with none. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
+        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; its balance sheets at those quarters' ends, with the current ratio and liabilities against assets; its cash flows for each quarter alone, with free cash flow and the four quarters each closes; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. Beside the app's own price-to-earnings multiple, the answer gives the multiples the listing's exchange works out from its last close, price to earnings, dividend yield and price to book, each "n/a" where the exchange works none out, as it does no price to earnings for a company whose earnings add up to a loss; a fund has none. For a fund the Taiwan Stock Exchange lists, the answer opens with what it is: its kind in the exchange's words, such as a leveraged, inverse, futures or actively managed fund, the index it tracks or what it measures itself against, whether it may hold securities listed abroad, the day it listed, its manager and its units outstanding. The Taipei Exchange publishes no such list, so a fund listed there, as bond ETFs are, opens with none. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
           const listing = `${symbol.market} ${symbol.symbol}`;
@@ -505,19 +516,31 @@ export function createResearch(options: ResearchOptions): Extension {
             };
           }
 
-          const [statements, sheets, flows, monthly, dividends, funds] =
-            await Promise.all([
-              filed(fundamentals.statements(symbol)),
-              filed(fundamentals.balanceSheets(symbol)),
-              filed(fundamentals.cashFlows(symbol)),
-              filed(fundamentals.monthlyRevenue(symbol)),
-              filed(fundamentals.dividends(symbol)),
-              filed(
-                fundamentals
-                  .fund(symbol)
-                  .then((fund) => (fund === null ? [] : [fund]))
-              ),
-            ]);
+          const [
+            statements,
+            sheets,
+            flows,
+            monthly,
+            dividends,
+            funds,
+            multiples,
+          ] = await Promise.all([
+            filed(fundamentals.statements(symbol)),
+            filed(fundamentals.balanceSheets(symbol)),
+            filed(fundamentals.cashFlows(symbol)),
+            filed(fundamentals.monthlyRevenue(symbol)),
+            filed(fundamentals.dividends(symbol)),
+            filed(
+              fundamentals
+                .fund(symbol)
+                .then((fund) => (fund === null ? [] : [fund]))
+            ),
+            filed(
+              fundamentals
+                .multiples(symbol)
+                .then((each) => (each === null ? [] : [each]))
+            ),
+          ]);
 
           const parts = [statements, sheets, flows, monthly, dividends];
 
@@ -557,6 +580,11 @@ export function createResearch(options: ResearchOptions): Extension {
                 ? funds.rows.flatMap(fundText)
                 : [
                     `Whether its exchange lists it as a fund could not be read: ${funds.failure}`,
+                  ]),
+              ...(multiples.failure === null
+                ? multiples.rows.map(multiplesText)
+                : [
+                    `The multiples its exchange works out could not be read: ${multiples.failure}`,
                   ]),
               ...part("Quarterly statements", statements, [
                 "Quarters, each for the quarter alone, by its last day:",

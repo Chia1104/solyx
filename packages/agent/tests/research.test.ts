@@ -17,6 +17,7 @@ import type {
   BalanceSheet,
   CashFlow,
   Dividend,
+  ExchangeMultiples,
   FundProfile,
   MonthlyRevenue,
   QuarterStatement,
@@ -238,6 +239,10 @@ interface Filed {
   fund?: FundProfile;
   /** Why the exchange's funds cannot be read, while they cannot. */
   fundFailure?: string;
+  /** The multiples the listing's exchange works out, where it does. */
+  multiples?: ExchangeMultiples;
+  /** Why the exchange's multiples cannot be read, while they cannot. */
+  multiplesFailure?: string;
 }
 
 function setup(council?: Council) {
@@ -272,6 +277,11 @@ function setup(council?: Council) {
       if (filed.fundFailure) throw new Error(filed.fundFailure);
 
       return filed.fund ?? null;
+    },
+    multiples: async () => {
+      if (filed.multiplesFailure) throw new Error(filed.multiplesFailure);
+
+      return filed.multiples ?? null;
     },
   };
 
@@ -646,6 +656,41 @@ test("the exchange's funds failing to read is said, and the filed figures stay",
 
   expect(text).toContain(
     "Whether its exchange lists it as a fund could not be read: TWSE answered 503"
+  );
+  expect(text).toContain("Quarters, each for the quarter alone");
+});
+
+test("the exchange's multiples read beside the app's own, one it works none out for as n/a", async () => {
+  const { run, filed } = setup();
+
+  filed.multiples = {
+    asOf: "2026-09-28",
+    priceToEarnings: null,
+    dividendYield: 1.5,
+    priceToBook: 10.28,
+  };
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    [
+      "TW 2330 fundamentals as filed, from fake, as_of 2026-09-29; amounts in TWD millions",
+      "Multiples as its exchange works them out from the close of 2026-09-28: price to earnings n/a, dividend yield 1.5%, price to book 10.28.",
+      "Quarters, each for the quarter alone, by its last day:",
+    ].join("\n")
+  );
+  expect(text).toContain("Price to earnings: 13.89, the close of 1000");
+});
+
+test("the exchange's multiples failing to read is said, and the filed figures stay", async () => {
+  const { run, filed } = setup();
+
+  filed.multiplesFailure = "TPEx answered 503";
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    "The multiples its exchange works out could not be read: TPEx answered 503"
   );
   expect(text).toContain("Quarters, each for the quarter alone");
 });

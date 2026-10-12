@@ -5,10 +5,11 @@ import * as z from "zod";
 
 import { RestrictionKind } from "@solyx/core/fundamentals";
 import type {
-  FundsProvider,
-  ListedFund,
-  ListedRestriction,
-  RestrictionsProvider,
+  ExchangeListsProvider,
+  ExchangeMultiples,
+  FundProfile,
+  Listed,
+  TradingRestriction,
 } from "@solyx/core/fundamentals";
 import { Market, shiftDate } from "@solyx/core/market";
 
@@ -59,7 +60,7 @@ const twseSuspensionSchema = (kind: RestrictionKind) =>
       EndDate: rocDayOrUnsetSchema,
       Reason: textSchema,
     })
-    .transform((row): ListedRestriction => ({
+    .transform((row): Listed<TradingRestriction> => ({
       symbol: row.Code,
       kind,
       from: row.StartDate,
@@ -74,7 +75,7 @@ const twseDispositionSchema = z
     DispositionMeasures: textSchema,
     ReasonsOfDisposition: textSchema,
   })
-  .transform((row): ListedRestriction => ({
+  .transform((row): Listed<TradingRestriction> => ({
     symbol: row.Code,
     kind: RestrictionKind.Disposition,
     from: row.DispositionPeriod[0],
@@ -91,7 +92,7 @@ const twseHaltSchema = z
     TradingHaltDate: rocDaySchema,
     TradingResumptionDate: rocDayOrUnsetSchema,
   })
-  .transform((row): ListedRestriction => ({
+  .transform((row): Listed<TradingRestriction> => ({
     symbol: row.Code,
     kind: RestrictionKind.Halt,
     from: row.TradingHaltDate,
@@ -106,7 +107,7 @@ const tpexShortSaleSchema = z
     ShortSaleSuspensionEndDate: rocDayOrUnsetSchema,
     Reason: textSchema,
   })
-  .transform((row): ListedRestriction => ({
+  .transform((row): Listed<TradingRestriction> => ({
     symbol: row.SecuritiesCompanyCode,
     kind: RestrictionKind.ShortSaleSuspension,
     from: row.ShortSaleSuspensionStartDate,
@@ -122,7 +123,7 @@ const tpexDayTradingSchema = z
     DayOfReinstatingSellThenBuy: rocDayOrUnsetSchema,
     Reason: textSchema,
   })
-  .transform((row): ListedRestriction => ({
+  .transform((row): Listed<TradingRestriction> => ({
     symbol: row.SecuritiesCompanyCode,
     kind: RestrictionKind.DayTradingSuspension,
     from: row.FirstDayToSuspendSellThenBuy,
@@ -139,7 +140,7 @@ const tpexDispositionSchema = z
     DispositionPeriod: rocPeriodSchema,
     DispositionReasons: textSchema,
   })
-  .transform((row): ListedRestriction => ({
+  .transform((row): Listed<TradingRestriction> => ({
     symbol: row.SecuritiesCompanyCode,
     kind: RestrictionKind.Disposition,
     from: row.DispositionPeriod[0],
@@ -157,15 +158,15 @@ const tpexHaltRowSchema = z.object({
 /** Each halt with the resumption listed after it for its code, in the order TPEx lists them. */
 function tpexHalts(
   rows: readonly z.infer<typeof tpexHaltRowSchema>[]
-): ListedRestriction[] {
-  const halts: ListedRestriction[] = [];
-  const unresumed = new Map<string, ListedRestriction>();
+): Listed<TradingRestriction>[] {
+  const halts: Listed<TradingRestriction>[] = [];
+  const unresumed = new Map<string, Listed<TradingRestriction>>();
 
   for (const row of rows) {
     const code = row.SecuritiesCompanyCode;
 
     if (row.DateOfSuspendedTrading !== null) {
-      const halt: ListedRestriction = {
+      const halt: Listed<TradingRestriction> = {
         symbol: code,
         kind: RestrictionKind.Halt,
         from: row.DateOfSuspendedTrading,
@@ -189,7 +190,7 @@ function tpexHalts(
 }
 
 // What the exchange fills a field with when it has nothing to say.
-const NOTHING = new Set(["", "不適用", "無", "NA"]);
+const NOTHING = new Set(["", "不適用", "無", "NA", "N/A"]);
 
 const textOrNothingSchema = textSchema
   .transform((text) => (NOTHING.has(text) ? null : text))
@@ -217,7 +218,7 @@ const twseFundSchema = z
       .catch(null),
     出表日期: rocDaySchema,
   })
-  .transform((row): ListedFund => ({
+  .transform((row): Listed<FundProfile> => ({
     symbol: row.基金代號,
     name: row.基金中文名稱,
     category: row.基金類型,
@@ -228,6 +229,44 @@ const twseFundSchema = z
     listedOn: row.上市日期,
     units: row["發行單位數/轉換數"],
     asOf: row.出表日期,
+  }));
+
+// A multiple, which an exchange fills with a word for nothing where it works none out.
+const multipleSchema = z.union([
+  textSchema.regex(/^\d+(\.\d+)?$/).transform(Number),
+  textSchema.refine((text) => NOTHING.has(text)).transform(() => null),
+]);
+
+const twseMultiplesSchema = z
+  .object({
+    Code: codeSchema,
+    Date: rocDaySchema,
+    PEratio: multipleSchema,
+    DividendYield: multipleSchema,
+    PBratio: multipleSchema,
+  })
+  .transform((row): Listed<ExchangeMultiples> => ({
+    symbol: row.Code,
+    asOf: row.Date,
+    priceToEarnings: row.PEratio,
+    dividendYield: row.DividendYield,
+    priceToBook: row.PBratio,
+  }));
+
+const tpexMultiplesSchema = z
+  .object({
+    SecuritiesCompanyCode: codeSchema,
+    Date: rocDaySchema,
+    PriceEarningRatio: multipleSchema,
+    YieldRatio: multipleSchema,
+    PriceBookRatio: multipleSchema,
+  })
+  .transform((row): Listed<ExchangeMultiples> => ({
+    symbol: row.SecuritiesCompanyCode,
+    asOf: row.Date,
+    priceToEarnings: row.PriceEarningRatio,
+    dividendYield: row.YieldRatio,
+    priceToBook: row.PriceBookRatio,
   }));
 
 const listSchema = z.array(z.record(z.string(), z.unknown()));
@@ -284,14 +323,15 @@ export interface TwExchangesOptions {
 }
 
 /**
- * The restrictions Taiwan's exchanges put on their listings and the funds they list, from the open
- * data of the Taiwan Stock Exchange and the Taipei Exchange, which need no key. Each list is the
- * exchange's own of today, so one request answers for every listing and a restriction that ended
- * may be gone from it. The Taipei Exchange publishes no list of its funds, so those have no profile.
+ * The restrictions Taiwan's exchanges put on their listings, the funds they list and the multiples
+ * they work out, from the open data of the Taiwan Stock Exchange and the Taipei Exchange, which
+ * need no key. Each list is the exchange's own of today, so one request answers for every listing
+ * and a restriction that ended may be gone from it. The Taipei Exchange publishes no list of its
+ * funds, so those have no profile.
  */
 export function createTwExchanges(
   options: TwExchangesOptions = {}
-): RestrictionsProvider & FundsProvider {
+): ExchangeListsProvider {
   const exchange = (name: string, baseUrl: string, code: string): Exchange => ({
     name,
     code,
@@ -348,6 +388,17 @@ export function createTwExchanges(
       if (market !== Market.TW) return [];
 
       return list(twse, "opendata/t187ap47_L", twseFundSchema, "基金代號");
+    },
+
+    async getMultiples(market) {
+      if (market !== Market.TW) return [];
+
+      const lists = await Promise.all([
+        list(twse, "exchangeReport/BWIBBU_ALL", twseMultiplesSchema),
+        list(tpex, "tpex_mainboard_peratio_analysis", tpexMultiplesSchema),
+      ]);
+
+      return lists.flat();
     },
   };
 }
