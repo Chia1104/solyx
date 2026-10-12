@@ -263,8 +263,11 @@ const NO_LEAN = 1e-9;
 
 /**
  * How far a forecast's probabilities lean from its listing's history, in shares: what they add to
- * the bands that lie above `price` less what they add to those below it, so it is positive where
- * they lean up. A band that holds `price` leans neither way.
+ * the bands whose every price is at or above `price` less what they add to those whose every
+ * price is below it, so it is positive where they move weight towards a close at or above
+ * `price`. A band with prices on both sides leans neither way. A band holds its low and not its
+ * high, so one that starts at `price` lies above it and one that ends there below it: bands
+ * split at the last close each take a side, and a modest rise counts as a modest fall does.
  */
 export function forecastLean(
   scenarios: readonly Pick<ForecastScenario, "probability" | "low" | "high">[],
