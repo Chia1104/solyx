@@ -8,7 +8,7 @@ import type { Change } from "@solyx/core/changes";
 import { DecisionMode } from "@solyx/core/council";
 import { Market, exchangeTime, wallTime } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { getSession } from "@solyx/core/session";
+import type { Session } from "@solyx/core/session";
 
 import type { AgentSkill } from "./skills.ts";
 
@@ -137,6 +137,8 @@ export interface ContextListing {
 
 export interface TurnContext {
   now: Date;
+  /** The session each market is in, as the host tells it from the days the exchange trades. */
+  sessions: Record<Market, Session>;
   brokerMode: BrokerMode;
   /** The listing the user has open, if any. */
   focus?: ContextListing;
@@ -164,7 +166,7 @@ export function formatContext(context: TurnContext): string {
   const at = context.now;
 
   const lines = [
-    `time: Taipei ${exchangeTime(Market.TW, at)} (TW ${getSession(Market.TW, at)}), New York ${exchangeTime(Market.US, at)} (US ${getSession(Market.US, at)})`,
+    `time: Taipei ${exchangeTime(Market.TW, at)} (TW ${context.sessions[Market.TW]}), New York ${exchangeTime(Market.US, at)} (US ${context.sessions[Market.US]})`,
     `clock: ${wallTime(context.timeZone, at)} ${context.timeZone}`,
     `account: ${context.brokerMode}`,
     `language: ${context.locale}`,

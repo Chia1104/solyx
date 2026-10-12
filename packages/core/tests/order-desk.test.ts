@@ -14,7 +14,8 @@ import type { ProposalStore, TradeProposal } from "../src/order-desk.ts";
 import { OrderType, Side } from "../src/order.ts";
 import type { AccountSnapshot, OrderRequest } from "../src/order.ts";
 import { RiskViolationCode } from "../src/risk.ts";
-import { Session } from "../src/session.ts";
+import { Session, weekdays } from "../src/session.ts";
+import type { TradingDays } from "../src/session.ts";
 
 const order: OrderRequest = {
   instrument: { market: Market.TW, symbol: "2330" },
@@ -46,6 +47,7 @@ const AFTER_CLOSE = Date.parse("2026-09-29T15:00:00+08:00");
 
 function setup(store = memoryStore()) {
   const clock = { now: DURING_SESSION };
+  const tradingDays = vi.fn(async (): Promise<TradingDays> => weekdays);
   const onChange = vi.fn();
 
   const account: AccountSnapshot = {
@@ -74,11 +76,21 @@ function setup(store = memoryStore()) {
       maxOrderNotional: { TWD: 5_000_000, USD: 10_000 },
       allowedSessions: [Session.Regular],
     },
+    tradingDays,
     onChange,
     now: () => clock.now,
   });
 
-  return { desk, placeOrder, getAccount, account, clock, store, onChange };
+  return {
+    desk,
+    placeOrder,
+    getAccount,
+    account,
+    clock,
+    tradingDays,
+    store,
+    onChange,
+  };
 }
 
 function proposeFromAgent(desk: OrderDesk) {
@@ -142,6 +154,17 @@ test("risk is checked again on confirm", async () => {
 
   expect(confirmed.status).toBe(ProposalStatus.Rejected);
   expect(placeOrder).not.toHaveBeenCalled();
+});
+
+test("an order on a day the exchange does not trade is checked against a closed session", async () => {
+  const { desk, tradingDays } = setup();
+
+  // The session's hours, on a holiday.
+  tradingDays.mockResolvedValue(() => false);
+
+  expect(await desk.check(order)).toEqual([
+    { code: RiskViolationCode.SessionNotAllowed, session: Session.Closed },
+  ]);
 });
 
 test("rejected proposals cannot be confirmed", async () => {

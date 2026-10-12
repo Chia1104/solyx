@@ -8,6 +8,7 @@ import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
 import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Report } from "@solyx/core/report";
+import type { ClosuresProvider } from "@solyx/core/session";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
 import { createCalendar } from "../src/main/modules/calendar/calendar.ts";
@@ -70,6 +71,15 @@ function setup(dividends: Record<string, Dividend[]>) {
     ]),
   };
 
+  const exchange = {
+    id: "fake-exchange",
+    markets: [Market.TW],
+    getClosures: vi.fn<ClosuresProvider["getClosures"]>(async () => [
+      { market: Market.TW, date: "2026-10-09", name: "國慶日" },
+      { market: Market.TW, date: "2026-12-25", name: "行憲紀念日" },
+    ]),
+  };
+
   // 2026-10-08 12:00 in Taipei.
   const clock = { now: Date.parse("2026-10-08T04:00:00Z") };
   const held = new Map<string, Pick<Report, "symbol" | "events">>();
@@ -77,12 +87,13 @@ function setup(dividends: Record<string, Dividend[]>) {
   const calendar = createCalendar({
     fundamentals,
     macro: [macro],
+    closures: [exchange],
     reports: { report: (symbol) => held.get(symbolKey(symbol)) },
     answers: memoryAnswers(),
     now: () => new Date(clock.now),
   });
 
-  return { calendar, fundamentals, macro, clock, held };
+  return { calendar, fundamentals, macro, exchange, clock, held };
 }
 
 test("every listing's events come soonest first, within the days asked for", async () => {
@@ -245,6 +256,37 @@ test("the listings' markets' releases come within the days asked for, each marke
   await calendar.upcoming([TSMC], 30);
 
   expect(macro.releases).toHaveBeenCalledTimes(2);
+});
+
+test("the weekdays the listings' markets are closed come within the days asked for, read twice a day at most", async () => {
+  const { calendar, exchange, clock } = setup({ [symbolKey(TSMC)]: [] });
+
+  const { closures, unreadMarkets } = await calendar.upcoming([TSMC], 30);
+
+  expect(closures).toEqual([
+    { market: Market.TW, date: "2026-10-09", name: "國慶日" },
+  ]);
+  expect(unreadMarkets).toEqual([]);
+
+  clock.now += 11 * 60 * 60 * 1000;
+  await calendar.upcoming([TSMC], 30);
+
+  expect(exchange.getClosures).toHaveBeenCalledExactlyOnceWith(Market.TW);
+});
+
+test("closures that cannot be read name their market, and its releases stay", async () => {
+  const { calendar, exchange } = setup({ [symbolKey(TSMC)]: [] });
+
+  exchange.getClosures.mockRejectedValue(new Error("TWSE answered 503"));
+
+  const { closures, releases, unreadMarkets } = await calendar.upcoming(
+    [TSMC],
+    30
+  );
+
+  expect(closures).toEqual([]);
+  expect(releases.map(({ date }) => date)).toEqual(["2026-11-05"]);
+  expect(unreadMarkets).toEqual([Market.TW]);
 });
 
 test("a schedule that cannot be read names its market, read again on the next ask, and the listings' events stay", async () => {

@@ -80,7 +80,7 @@ import { ProposalSource } from "@solyx/core/order-desk";
 import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
 import { stanceValue } from "@solyx/core/sentiment";
 import { getSession, sessionsBetween, weekdays } from "@solyx/core/session";
-import type { TradingDays } from "@solyx/core/session";
+import type { MarketClosure, TradingDays } from "@solyx/core/session";
 import { errorMessage } from "@solyx/utils/error";
 
 import { rememberAddresses } from "./found-addresses.ts";
@@ -416,6 +416,9 @@ function describeEvent(event: ListingEvent): string {
 const describeResearchEvent = (event: ResearchEvent) =>
   `${eventDay(event.date, event.timing)} ${event.symbol.market} ${event.symbol.symbol} ${event.label} [${event.source}]`;
 
+const describeClosure = ({ market, date, name }: MarketClosure) =>
+  `${date} ${market} closed (${name})`;
+
 function describeRelease(release: MacroRelease): string {
   const period = release.period === null ? "" : ` for ${release.period}`;
 
@@ -519,27 +522,31 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
       ? exchangeTime(symbol.market, new Date(candle.time * 1000))
       : candleDate(symbol.market, candle.time);
 
-  const heading = (symbol: SymbolRef, interval: Interval, last: Candle) =>
-    `${symbol.market} ${symbol.symbol}, ${interval} bars, as_of ${barTime(symbol, interval, last)} (session ${getSession(symbol.market, now())}; the latest bar is still forming while its session is open)`;
+  /** The session a market is in, closed all day on a day its exchange does not trade. */
+  const sessionOf = async (market: Market) =>
+    getSession(market, now(), (await readTradingDays(ports, market)).trades);
+
+  const heading = async (symbol: SymbolRef, interval: Interval, last: Candle) =>
+    `${symbol.market} ${symbol.symbol}, ${interval} bars, as_of ${barTime(symbol, interval, last)} (session ${await sessionOf(symbol.market)}; the latest bar is still forming while its session is open)`;
 
   return [
     defineTool({
       name: AgentToolName.GetMarketStatus,
       replay: "safe",
       description:
-        "Each market's current session (pre, regular, post, closed) and its local time.",
+        "Each market's current session (pre, regular, post, closed) and its local time. A market is closed all day on a holiday its exchange has set; Taiwan's are known, the US's are not, so a US holiday reads as a trading day.",
       parameters: z.object({}),
       execute: async () => {
         const at = now();
 
-        return {
-          text: Object.values(Market)
-            .map(
-              (market) =>
-                `${market}: ${getSession(market, at)}, local time ${exchangeTime(market, at)}`
-            )
-            .join("\n"),
-        };
+        const sessions = await Promise.all(
+          Object.values(Market).map(
+            async (market) =>
+              `${market}: ${await sessionOf(market)}, local time ${exchangeTime(market, at)}`
+          )
+        );
+
+        return { text: sessions.join("\n") };
       },
     }),
 
@@ -570,7 +577,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         return {
           text: [
-            heading(symbol, interval, recent[recent.length - 1]),
+            await heading(symbol, interval, recent[recent.length - 1]),
             "time,open,high,low,close,volume",
             ...rows,
           ].join("\n"),
@@ -606,7 +613,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         return {
           text: [
-            heading(symbol, interval, candles[candles.length - 1]),
+            await heading(symbol, interval, candles[candles.length - 1]),
             `close: ${closes[closes.length - 1]} (previous ${closes.at(-2) ?? "n/a"})`,
             ...MOVING_AVERAGES.map((period) =>
               row(`MA${period}`, sma(closes, period))
@@ -748,7 +755,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetCalendar,
       replay: "safe",
-      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them, and the days the exchange gives notice shares go ex, which may come before the amount is announced and include the ex-rights day of a cash capital increase; shareholders' meetings, regular and special, and whether one elects directors; trading restrictions such as short-sale suspensions and dispositions; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; and the economic releases of the listings' markets, each on its day or by the latest day its agency set. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Filings and releases are Taiwan's only for now: a US listing has only its report's dates, no US releases are known, an earnings call is on it only once a report holds it, and holidays and market closures are not on it. Defaults to the listings the user holds and watches.`,
+      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them, and the days the exchange gives notice shares go ex, which may come before the amount is announced and include the ex-rights day of a cash capital increase; shareholders' meetings, regular and special, and whether one elects directors; trading restrictions such as short-sale suspensions and dispositions; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; the economic releases of the listings' markets, each on its day or by the latest day its agency set; and the weekdays their markets are closed, as the exchange set them for the year, with what it calls each. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Filings, releases and closures are Taiwan's only for now: a US listing has only its report's dates, no US releases or holidays are known, an earnings call is on it only once a report holds it, and a closure called on the day, as for a typhoon, is not on it. Defaults to the listings the user holds and watches.`,
       parameters: z.object({
         symbols: z
           .array(symbolRefSchema)
@@ -769,7 +776,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             symbolKey
           );
 
-        const { events, research, unread, releases, unreadMarkets } =
+        const { events, research, unread, releases, closures, unreadMarkets } =
           await ports.calendar(listings, days);
 
         const named = listings
@@ -783,7 +790,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
               ]
             : []),
           ...(unreadMarkets.length > 0
-            ? [`the release schedule of ${unreadMarkets.join(", ")}`]
+            ? [`the releases or closures of ${unreadMarkets.join(", ")}`]
             : []),
         ];
 
@@ -799,6 +806,10 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             "Economic releases of their markets:",
             ...(releases.length > 0
               ? releases.map(describeRelease)
+              : ["None."]),
+            "Weekdays their markets are closed:",
+            ...(closures.length > 0
+              ? closures.map(describeClosure)
               : ["None."]),
             ...(missing.length > 0
               ? [

@@ -14,6 +14,7 @@ import { Market } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import type { Report, ReportEvent } from "./report.ts";
 import { twFilingDeadline, twRevenueDeadline } from "./rules/tw.ts";
+import type { MarketClosure } from "./session.ts";
 
 /** What happens on a listing's calendar. */
 export const ListingEventKind = {
@@ -87,7 +88,9 @@ export interface UpcomingEvents {
   unread: SymbolRef[];
   /** The economic releases of the listings' markets, soonest first. */
   releases: MacroRelease[];
-  /** Markets whose release schedule could not be read this time, so their releases may be missing. */
+  /** The weekdays the listings' markets are closed, soonest first. */
+  closures: MarketClosure[];
+  /** Markets whose releases or closures could not be read this time, so some of theirs may be missing. */
   unreadMarkets: Market[];
 }
 

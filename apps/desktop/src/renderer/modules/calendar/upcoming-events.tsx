@@ -10,6 +10,7 @@ import type { ListingEvent, ResearchEvent } from "@solyx/core/calendar";
 import type { MacroRelease } from "@solyx/core/macro";
 import { exchangeDate, shiftDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import type { MarketClosure } from "@solyx/core/session";
 
 import { useClock } from "../../app/clock.ts";
 import { LoadError } from "../../components/load-error.tsx";
@@ -204,10 +205,35 @@ function ReleaseRow({ release }: { release: MacroRelease }) {
   );
 }
 
+/** A weekday a market is closed, with what its exchange calls the day. */
+function ClosureRow({ closure }: { closure: MarketClosure }) {
+  const { t } = useTranslation();
+
+  return (
+    <li className={ROW_CLASS}>
+      <EventDay
+        date={closure.date}
+        timing={EventTiming.Set}
+        hint={t("calendar.closed")}
+      />
+      <span className="flex min-w-0 items-baseline gap-1.5">
+        <span className="shrink-0 font-medium">
+          {t(`market.${closure.market}`)}
+        </span>
+        <span className="text-xs text-muted">{t("calendar.exchange")}</span>
+      </span>
+      <span className={WHAT_CLASS}>
+        {t("calendar.closed")}
+        <span className="ms-1.5 text-xs text-muted">{closure.name}</span>
+      </span>
+    </li>
+  );
+}
+
 /**
  * The listings' coming filings and distributions, the dates their reports hold and their markets'
- * economic releases, on an agenda that shows a week or a month of them soonest first, with the
- * listings and markets whose dates could not be read.
+ * economic releases and closures, on an agenda that shows a week or a month of them soonest
+ * first, with the listings and markets whose dates could not be read.
  */
 export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
   const { t } = useTranslation();
@@ -247,6 +273,16 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
           <ResearchRow
             key={`${symbolKey(event.symbol)}:report:${event.date}:${event.label}`}
             event={event}
+          />
+        ),
+      })),
+      ...data.closures.map((closure) => ({
+        date: closure.date,
+        timing: EventTiming.Set,
+        row: (
+          <ClosureRow
+            key={`${closure.market}:closed:${closure.date}`}
+            closure={closure}
           />
         ),
       })),

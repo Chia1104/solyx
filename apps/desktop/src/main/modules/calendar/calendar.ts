@@ -7,10 +7,11 @@ import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
 import { exchangeDate, shiftDate } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { Report } from "@solyx/core/report";
+import type { ClosuresProvider, MarketClosure } from "@solyx/core/session";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
 
-// An agency sets its schedule months ahead, so a market's is read twice a day at most.
+// An agency sets its schedule months ahead, and an exchange its closures a year ahead, so a market's are read twice a day at most.
 const SCHEDULE_FRESH_MS = 12 * 60 * 60 * 1000;
 
 export interface CalendarOptions {
@@ -25,19 +26,21 @@ export interface CalendarOptions {
   >;
   /** One per market at most; the first that covers a market answers for it. */
   macro: readonly MacroCalendarProvider[];
+  /** The sources of the days exchanges close their markets, one per market at most. */
+  closures: readonly ClosuresProvider[];
   /** Each listing's report in force, for the dates it holds. */
   reports: {
     report(symbol: SymbolRef): Pick<Report, "symbol" | "events"> | undefined;
   };
-  /** Where each market's schedule is kept between runs. */
+  /** Where each market's schedule and closures are kept between runs. */
   answers: AnswerStores;
   /** @default () => new Date() */
   now?: () => Date;
 }
 
-interface Ask {
+interface Ask<Provider> {
   market: Market;
-  provider: MacroCalendarProvider;
+  provider: Provider;
 }
 
 const readOrNone = <Answer>(read: PromiseSettledResult<Answer[]>) =>
@@ -45,18 +48,19 @@ const readOrNone = <Answer>(read: PromiseSettledResult<Answer[]>) =>
 
 /**
  * Listings' events as their fundamentals tell them, read through the fundamentals module, which
- * keeps what it reads, beside the dates their reports hold and the economic releases of their
- * markets.
+ * keeps what it reads, beside the dates their reports hold and the economic releases and
+ * closures of their markets.
  */
 export function createCalendar({
   fundamentals,
   macro,
+  closures,
   reports,
   answers,
   now = () => new Date(),
 }: CalendarOptions) {
   /** A market's releases from the day they were read on. */
-  const schedules = keepFresh<Ask, MacroRelease[]>({
+  const schedules = keepFresh<Ask<MacroCalendarProvider>, MacroRelease[]>({
     store: answers("macro-releases"),
     id: ({ market, provider }) => `${provider.id}:${market}`,
     ask: ({ market, provider }) =>
@@ -70,6 +74,34 @@ export function createCalendar({
 
     return provider ? schedules({ market, provider }) : Promise.resolve([]);
   }
+
+  const closed = keepFresh<Ask<ClosuresProvider>, MarketClosure[]>({
+    store: answers("market-closures"),
+    id: ({ market, provider }) => `${provider.id}:${market}`,
+    ask: ({ market, provider }) => provider.getClosures(market),
+    fresh: freshFor(SCHEDULE_FRESH_MS),
+    now: () => now().getTime(),
+  });
+
+  function closuresOf(market: Market): Promise<MarketClosure[]> {
+    const provider = closures.find(({ markets }) => markets.includes(market));
+
+    return provider ? closed({ market, provider }) : Promise.resolve([]);
+  }
+
+  /** What was read of each market's, soonest first, within the days asked for. */
+  const ahead = <Dated extends { market: Market; date: string }>(
+    read: PromiseSettledResult<Dated[]>[],
+    within: (market: Market, date: string) => boolean
+  ) =>
+    sortBy(
+      read.flatMap((each) =>
+        each.status === "fulfilled"
+          ? each.value.filter(({ market, date }) => within(market, date))
+          : []
+      ),
+      [({ date }) => date]
+    );
 
   return {
     /**
@@ -90,7 +122,7 @@ export function createCalendar({
         return date >= today && date <= shiftDate(today, days);
       };
 
-      const [read, scheduled] = await Promise.all([
+      const [read, scheduled, closing] = await Promise.all([
         Promise.all(
           symbols.map(async (symbol) => {
             const [
@@ -137,6 +169,7 @@ export function createCalendar({
           })
         ),
         Promise.allSettled(markets.map(schedule)),
+        Promise.allSettled(markets.map(closuresOf)),
       ]);
 
       return {
@@ -156,16 +189,12 @@ export function createCalendar({
           [({ date }) => date]
         ),
         unread: symbols.filter((_, index) => !read[index].whole),
-        releases: sortBy(
-          scheduled.flatMap((each) =>
-            each.status === "fulfilled"
-              ? each.value.filter(({ market, date }) => within(market, date))
-              : []
-          ),
-          [({ date }) => date]
-        ),
-        unreadMarkets: markets.filter(
-          (_, index) => scheduled[index].status === "rejected"
+        releases: ahead(scheduled, within),
+        closures: ahead(closing, within),
+        unreadMarkets: markets.filter((_, index) =>
+          [scheduled[index], closing[index]].some(
+            ({ status }) => status === "rejected"
+          )
         ),
       };
     },

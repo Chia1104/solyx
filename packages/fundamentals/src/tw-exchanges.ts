@@ -14,6 +14,8 @@ import type {
   TradingRestriction,
 } from "@solyx/core/fundamentals";
 import { Market, shiftDate } from "@solyx/core/market";
+import { weekdays } from "@solyx/core/session";
+import type { ClosuresProvider } from "@solyx/core/session";
 
 const TWSE_API_URL = "https://openapi.twse.com.tw/v1/";
 
@@ -344,6 +346,15 @@ const meetingSchema = z
     election: row.是否改選董監 === "是",
   }));
 
+// TWSE's days of the year, each with what it calls the day.
+const twseDaySchema = z.object({
+  Name: textSchema.min(1),
+  Date: rocDaySchema,
+});
+
+// The list also names the first and last trading days around a long holiday, which are no closures.
+const TRADING_DAY = /交易日$/;
+
 const listSchema = z.array(z.record(z.string(), z.unknown()));
 
 interface Exchange {
@@ -403,11 +414,12 @@ export interface TwExchangesOptions {
  * from the open data of the Taiwan Stock Exchange and the Taipei Exchange, which need no key. Each
  * list is the exchange's own of today, so one request answers for every listing and a restriction
  * that ended may be gone from it. The Taipei Exchange publishes no list of its funds, so those
- * have no profile.
+ * have no profile. The market's closures are the Taiwan Stock Exchange's of the year, which the
+ * Taipei Exchange keeps too.
  */
 export function createTwExchanges(
   options: TwExchangesOptions = {}
-): ExchangeListsProvider {
+): ExchangeListsProvider & ClosuresProvider {
   const exchange = (name: string, baseUrl: string, code: string): Exchange => ({
     name,
     code,
@@ -497,6 +509,24 @@ export function createTwExchanges(
       ]);
 
       return sortBy(lists.flat(), [({ date }) => date]);
+    },
+
+    async getClosures(market) {
+      if (market !== Market.TW) return [];
+
+      const days = await list(
+        twse,
+        "holidaySchedule/holidaySchedule",
+        twseDaySchema,
+        "Date"
+      );
+
+      return sortBy(
+        days
+          .filter(({ Name, Date }) => !TRADING_DAY.test(Name) && weekdays(Date))
+          .map(({ Name, Date }) => ({ market, date: Date, name: Name })),
+        [({ date }) => date]
+      );
     },
   };
 }

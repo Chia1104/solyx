@@ -120,6 +120,7 @@ function setup(vendor = fakeVendor()) {
       research: [],
       unread: [],
       releases: [],
+      closures: [],
       unreadMarkets: [],
     }),
     desk: {

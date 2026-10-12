@@ -43,7 +43,6 @@ const REGULAR_WINDOWS: Record<Market, SessionWindow> = {
 /** ISO weekday numbering, Monday 1 to Sunday 7, so Saturday opens the weekend. */
 const SATURDAY = 6;
 
-// `getSession` knows no exchange holidays, typhoon closures or US early closes.
 const SESSION_WINDOWS: Record<Market, SessionWindow[]> = {
   // Pre-open matching → regular session → after-hours fixed-price trading
   [Market.TW]: [
@@ -58,11 +57,26 @@ const SESSION_WINDOWS: Record<Market, SessionWindow[]> = {
   ],
 };
 
-export function getSession(market: Market, at: Date = new Date()): Session {
-  const { dayOfWeek, hour, minute } = exchangeClock(market, at);
-  const minutes = hour * 60 + minute;
+/** Whether a market trades on an exchange-local `YYYY-MM-DD` day. */
+export type TradingDays = (date: string) => boolean;
 
-  if (dayOfWeek >= SATURDAY) return Session.Closed;
+/** Every weekday trades: the rule for a market whose holidays are not known. */
+export const weekdays: TradingDays = (date) =>
+  Temporal.PlainDate.from(date).dayOfWeek < SATURDAY;
+
+/**
+ * The session a market is in, closed all day on a day `trades` says it does not trade. It knows
+ * no closure called on the day, as for a typhoon, and no early close.
+ */
+export function getSession(
+  market: Market,
+  at: Date = new Date(),
+  trades: TradingDays = weekdays
+): Session {
+  if (!trades(exchangeDate(market, at))) return Session.Closed;
+
+  const { hour, minute } = exchangeClock(market, at);
+  const minutes = hour * 60 + minute;
 
   return (
     SESSION_WINDOWS[market].find((w) => minutes >= w.start && minutes < w.end)
@@ -77,13 +91,6 @@ export function regularHours(market: Market, date: string) {
 
   return { open: midnight + start * 60, close: midnight + end * 60 };
 }
-
-/** Whether a market trades on an exchange-local `YYYY-MM-DD` day. */
-export type TradingDays = (date: string) => boolean;
-
-/** Every weekday trades: the rule for a market whose holidays are not known. */
-export const weekdays: TradingDays = (date) =>
-  Temporal.PlainDate.from(date).dayOfWeek < SATURDAY;
 
 /**
  * The days an exchange set from `since` on, `listed` ascending: through the last of them a day
@@ -107,6 +114,23 @@ export interface TradingCalendarProvider {
   readonly markets: readonly Market[];
   /** Every exchange-local day the market trades from `since` on, ascending. */
   tradingDays(market: Market, since: string): Promise<string[]>;
+}
+
+/** A weekday an exchange has set its market closed, with what it calls the day. */
+export interface MarketClosure {
+  market: Market;
+  /** `YYYY-MM-DD` on the exchange's calendar. */
+  date: string;
+  /** Why, in the exchange's words, such as a holiday's name. */
+  name: string;
+}
+
+/** Where the weekdays an exchange has set its market closed come from; it runs only in the main process. */
+export interface ClosuresProvider {
+  readonly id: string;
+  readonly markets: readonly Market[];
+  /** The closures the exchange lists, ascending, those of days gone by among them; none for a market it does not cover. */
+  getClosures(market: Market): Promise<MarketClosure[]>;
 }
 
 /** How many regular sessions trade between `from` and `to`, counting one already under way at either end. */

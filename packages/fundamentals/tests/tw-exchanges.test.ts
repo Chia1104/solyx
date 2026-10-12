@@ -602,6 +602,38 @@ test("reads the shareholders' meetings both exchanges list, soonest first, with 
   ]);
 });
 
+test("reads the weekdays TWSE closes the market, leaving out weekends and the trading days it names around a holiday", async () => {
+  const day = (Date: string, Name: string, Weekday: string) => ({
+    Name,
+    Date,
+    Weekday,
+    Description: "…",
+  });
+
+  const { sent, exchanges } = fakeExchanges({
+    [`${TWSE}holidaySchedule/holidaySchedule`]: [
+      day("1150211", "農曆春節前最後交易日", "三"),
+      day("1150212", "市場無交易，僅辦理結算交割作業", "四"),
+      day("1150215", "農曆除夕及春節", "日"),
+      day("1150216", "農曆除夕及春節", "一"),
+      day("1150223", "農曆春節後開始交易日", "一"),
+      day("1151009", "國慶日", "五"),
+      day("1151010", "國慶日", "六"),
+    ],
+  });
+
+  expect(await exchanges.getClosures(Market.TW)).toEqual([
+    {
+      market: Market.TW,
+      date: "2026-02-12",
+      name: "市場無交易，僅辦理結算交割作業",
+    },
+    { market: Market.TW, date: "2026-02-16", name: "農曆除夕及春節" },
+    { market: Market.TW, date: "2026-10-09", name: "國慶日" },
+  ]);
+  expect(sent).toEqual([`${TWSE}holidaySchedule/holidaySchedule`]);
+});
+
 test("outside Taiwan there is nothing to read, and it costs no request", async () => {
   const { sent, exchanges } = fakeExchanges();
 
@@ -610,5 +642,6 @@ test("outside Taiwan there is nothing to read, and it costs no request", async (
   expect(await exchanges.getMultiples(Market.US)).toEqual([]);
   expect(await exchanges.getExNotices(Market.US)).toEqual([]);
   expect(await exchanges.getMeetings(Market.US)).toEqual([]);
+  expect(await exchanges.getClosures(Market.US)).toEqual([]);
   expect(sent).toEqual([]);
 });

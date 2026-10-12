@@ -1,10 +1,12 @@
 import { errorMessage } from "@solyx/utils/error";
 
 import type { BrokerAdapter, BrokerMode } from "./broker.ts";
+import type { Market } from "./market.ts";
 import type { AccountSnapshot, OrderRequest } from "./order.ts";
 import { checkOrder } from "./risk.ts";
 import type { RiskLimits, RiskViolation } from "./risk.ts";
 import { getSession } from "./session.ts";
+import type { TradingDays } from "./session.ts";
 
 export const ProposalSource = {
   Agent: "agent",
@@ -68,6 +70,12 @@ export interface OrderDeskOptions {
   broker: BrokerAdapter;
   store: ProposalStore;
   limits: RiskLimits;
+  /**
+   * The days a market trades, so an order on a holiday is checked against a closed session. It
+   * must answer even while the exchange's days cannot be read.
+   * @default every weekday trades
+   */
+  tradingDays?: (market: Market) => Promise<TradingDays>;
   /** Called after every change to a proposal, so whoever shows them can refresh. */
   onChange?: () => void;
   now?: () => number;
@@ -216,10 +224,11 @@ export class OrderDesk {
    * feed yet, so market orders are rejected for lack of a reference price.
    */
   async check(order: OrderRequest): Promise<RiskViolation[]> {
-    const { broker, limits, now = Date.now } = this.#options;
+    const { broker, limits, tradingDays, now = Date.now } = this.#options;
+    const { market } = order.instrument;
 
     return checkOrder(order, limits, {
-      session: getSession(order.instrument.market, new Date(now())),
+      session: getSession(market, new Date(now()), await tradingDays?.(market)),
       markets: broker.markets,
       account: await broker.getAccount(),
     });

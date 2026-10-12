@@ -150,6 +150,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
       research: [],
       unread: [],
       releases: [],
+      closures: [],
       unreadMarkets: [],
     })
   );
@@ -776,6 +777,7 @@ test("the calendar lists the followed listings' events and their markets' releas
         period: "2026-10",
       },
     ],
+    closures: [{ market: Market.TW, date: "2026-10-09", name: "國慶日" }],
     unreadMarkets: [],
   });
 
@@ -802,6 +804,8 @@ test("the calendar lists the followed listings' events and their markets' releas
     "Economic releases of their markets:",
     "2026-10-08 TW trade for 2026-09",
     "by 2026-11-03 TW purchasing managers for 2026-10",
+    "Weekdays their markets are closed:",
+    "2026-10-09 TW closed (國慶日)",
     "Could not read the fundamentals of TW 6669 this time, so dates may be missing.",
   ]);
   expect(details).toEqual({
@@ -982,4 +986,19 @@ test("channels get sections, a thread is one story, and a failed source says how
     "  https://www.ptt.cc/bbs/Stock/M.1.A.1.html",
     "Sources that failed this time: fake-social (Firecrawl returned 402; 1 failed in a row, never worked yet)",
   ]);
+});
+
+test("the market status reads a market as closed all day on a day its exchange does not trade", async () => {
+  const { run, tradingDays } = setup();
+
+  // NOW is mid-session in Taipei on a weekday.
+  expect((await run(AgentToolName.GetMarketStatus, {})).text).toContain(
+    "TW: regular"
+  );
+
+  tradingDays.mockResolvedValue(() => false);
+
+  expect((await run(AgentToolName.GetMarketStatus, {})).text).toContain(
+    "TW: closed"
+  );
 });
