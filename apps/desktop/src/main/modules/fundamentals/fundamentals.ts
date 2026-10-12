@@ -47,7 +47,7 @@ interface ListAsk {
  * Every market's fundamentals from the provider that covers it, each listing's answer kept for
  * half a day, since research asks for the newest quarter far more often than one comes out, and
  * what its exchanges list of it from the source of their lists, a market's kept whole: its funds
- * for half a day, and the lists an exchange draws up each day for an hour.
+ * and shareholders' meetings for half a day, and the lists an exchange draws up each day for an hour.
  */
 export function createFundamentals({
   providers,
@@ -173,5 +173,17 @@ export function createFundamentals({
     fund: async (symbol) => (await funds(symbol)).at(0) ?? null,
 
     multiples: async (symbol) => (await multiples(symbol)).at(0) ?? null,
+
+    exNotices: listed(
+      "ex-notices",
+      (provider, market) => provider.getExNotices(market),
+      DAILY_LIST_FRESH_MS
+    ),
+
+    meetings: listed(
+      "meetings",
+      (provider, market) => provider.getMeetings(market),
+      FRESH_MS
+    ),
   };
 }

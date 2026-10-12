@@ -482,11 +482,133 @@ test("fails when a list names its multiples another way, rather than answer that
   );
 });
 
+test("reads both exchanges' notices of shares going ex, soonest first, the cash a share only once it is announced", async () => {
+  const { sent, exchanges } = fakeExchanges({
+    [`${TWSE}exchangeReport/TWT48U_ALL`]: [
+      // Noticed before its amount is announced.
+      {
+        Date: "1151021",
+        Code: "0056",
+        Name: "範例高股息",
+        Exdividend: "息",
+        StockDividendRatio: "",
+        CashDividend: "",
+      },
+      // A stock dividend and the cash go ex on one day.
+      {
+        Date: "1151006",
+        Code: "2614",
+        Name: "東森",
+        Exdividend: "權息",
+        StockDividendRatio: "0.08000000",
+        CashDividend: "0.400000",
+      },
+      // A cash capital increase goes ex no cash.
+      {
+        Date: "1151013",
+        Code: "1727",
+        Name: "中華化",
+        Exdividend: "權",
+        SubscriptionRatio: "0.10779602",
+        SubscriptionPricePerShare: "81.0000",
+        CashDividend: "0",
+      },
+    ],
+    [`${TPEX}tpex_exright_prepost`]: [
+      {
+        ExRrightsExDividendDate: "1151012",
+        SecuritiesCompanyCode: "00679B",
+        CompanyName: "範例美債20年",
+        ExRrightsExDividend: "除息",
+        StockDividendRatio: "0.00000000",
+        CashDividend: "0.32000000",
+      },
+      // TPEx says so in words where the amount is not announced.
+      {
+        ExRrightsExDividendDate: "1151105",
+        SecuritiesCompanyCode: "5523",
+        CompanyName: "豐謙",
+        ExRrightsExDividend: "除息",
+        StockDividendRatio: "0.00000000",
+        CashDividend: "尚未公告",
+      },
+      {
+        ExRrightsExDividendDate: "1151007",
+        SecuritiesCompanyCode: "6129",
+        CompanyName: "普誠",
+        ExRrightsExDividend: "除權",
+        StockDividendRatio: "0.00000000",
+        CashDividend: "0.00000000",
+      },
+    ],
+  });
+
+  const notice = (
+    symbol: string,
+    date: string,
+    exDividend: boolean,
+    exRights: boolean,
+    cash: number | null
+  ) => ({ symbol, date, exDividend, exRights, cash });
+
+  expect(await exchanges.getExNotices(Market.TW)).toEqual([
+    notice("2614", "2026-10-06", true, true, 0.4),
+    notice("6129", "2026-10-07", false, true, null),
+    notice("00679B", "2026-10-12", true, false, 0.32),
+    notice("1727", "2026-10-13", false, true, null),
+    notice("0056", "2026-10-21", true, false, null),
+    notice("5523", "2026-11-05", true, false, null),
+  ]);
+  expect(sent.toSorted()).toEqual([
+    `${TWSE}exchangeReport/TWT48U_ALL`,
+    `${TPEX}tpex_exright_prepost`,
+  ]);
+});
+
+const meeting = (fields: Record<string, string>) => ({
+  出表日期: "1151011",
+  公司代號: "1101",
+  公司名稱: "台泥",
+  公司地址: "…",
+  "股東常(臨時)會": "常會",
+  開會日期: "1150522",
+  開會地點: "…",
+  是否改選董監: "否",
+  是否採電子投票: "強制",
+  ...fields,
+});
+
+test("reads the shareholders' meetings both exchanges list, soonest first, with whether each elects directors", async () => {
+  const { sent, exchanges } = fakeExchanges({
+    [`${TWSE}opendata/t187ap41_L`]: [
+      meeting({ "股東常(臨時)會": "臨時會", 開會日期: "1151013" }),
+      meeting({ 是否改選董監: "是" }),
+    ],
+    [`${TPEX}t187ap41_O`]: [
+      meeting({ 公司代號: "1259", 開會日期: "1150622" }),
+      // A kind of meeting the exchange names another way is not read.
+      meeting({ 公司代號: "1264", "股東常(臨時)會": "說明會" }),
+    ],
+  });
+
+  expect(await exchanges.getMeetings(Market.TW)).toEqual([
+    { symbol: "1101", date: "2026-05-22", regular: true, election: true },
+    { symbol: "1259", date: "2026-06-22", regular: true, election: false },
+    { symbol: "1101", date: "2026-10-13", regular: false, election: false },
+  ]);
+  expect(sent.toSorted()).toEqual([
+    `${TWSE}opendata/t187ap41_L`,
+    `${TPEX}t187ap41_O`,
+  ]);
+});
+
 test("outside Taiwan there is nothing to read, and it costs no request", async () => {
   const { sent, exchanges } = fakeExchanges();
 
   expect(await exchanges.getRestrictions(Market.US)).toEqual([]);
   expect(await exchanges.getFunds(Market.US)).toEqual([]);
   expect(await exchanges.getMultiples(Market.US)).toEqual([]);
+  expect(await exchanges.getExNotices(Market.US)).toEqual([]);
+  expect(await exchanges.getMeetings(Market.US)).toEqual([]);
   expect(sent).toEqual([]);
 });

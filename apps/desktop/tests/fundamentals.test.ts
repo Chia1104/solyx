@@ -47,6 +47,15 @@ const MULTIPLES = {
   priceToBook: 10.28,
 };
 
+const EX_NOTICE = {
+  date: "2026-10-21",
+  exDividend: true,
+  exRights: false,
+  cash: null,
+};
+
+const MEETING = { date: "2026-11-19", regular: false, election: true };
+
 const HOUR_MS = 60 * 60 * 1000;
 
 function setup(answers = memoryAnswers()) {
@@ -82,6 +91,12 @@ function setup(answers = memoryAnswers()) {
     ]),
     getMultiples: vi.fn<ExchangeListsProvider["getMultiples"]>(async () => [
       { symbol: "2330", ...MULTIPLES },
+    ]),
+    getExNotices: vi.fn<ExchangeListsProvider["getExNotices"]>(async () => [
+      { symbol: "0050", ...EX_NOTICE },
+    ]),
+    getMeetings: vi.fn<ExchangeListsProvider["getMeetings"]>(async () => [
+      { symbol: "2330", ...MEETING },
     ]),
   };
 
@@ -231,4 +246,27 @@ test("a listing's multiples are its own among those its market's exchanges work 
   await fundamentals.multiples(TSMC);
 
   expect(lists.getMultiples).toHaveBeenCalledTimes(2);
+});
+
+test("a listing's notices of going ex and its shareholders' meetings are its own among its market's, notices read once an hour and meetings twice a day at most", async () => {
+  const { clock, lists, fundamentals } = setup();
+
+  expect(await fundamentals.exNotices(TAIWAN_50)).toEqual([EX_NOTICE]);
+  expect(await fundamentals.exNotices(TSMC)).toEqual([]);
+  expect(await fundamentals.meetings(TSMC)).toEqual([MEETING]);
+  expect(await fundamentals.meetings(TAIWAN_50)).toEqual([]);
+  expect(lists.getExNotices).toHaveBeenCalledExactlyOnceWith(Market.TW);
+  expect(lists.getMeetings).toHaveBeenCalledExactlyOnceWith(Market.TW);
+
+  clock.now += HOUR_MS;
+  await fundamentals.exNotices(TSMC);
+  await fundamentals.meetings(TSMC);
+
+  expect(lists.getExNotices).toHaveBeenCalledTimes(2);
+  expect(lists.getMeetings).toHaveBeenCalledTimes(1);
+
+  clock.now += 12 * HOUR_MS;
+  await fundamentals.meetings(TSMC);
+
+  expect(lists.getMeetings).toHaveBeenCalledTimes(2);
 });

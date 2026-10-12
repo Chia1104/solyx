@@ -44,6 +44,8 @@ const NONE: ListingFilings = {
   monthlyRevenue: [],
   dividends: [],
   restrictions: [],
+  notices: [],
+  meetings: [],
 };
 
 const brief = (filings: ListingFilings, today: string, until: string) =>
@@ -147,6 +149,66 @@ test("a distribution's ex and payment days fall on the days the company set, eac
   ]);
 });
 
+test("the exchange's notice tells of shares going ex where no distribution does, with the cash a share once it is announced", () => {
+  expect(
+    brief(
+      {
+        ...NONE,
+        dividends: [
+          dividend({ period: "114年", cash: 0.4, cashExDate: "2026-10-20" }),
+        ],
+        notices: [
+          // The distribution of that day already tells of it.
+          { date: "2026-10-20", exDividend: true, exRights: false, cash: 0.4 },
+          // A cash capital increase, which no distribution carries.
+          { date: "2026-10-22", exDividend: false, exRights: true, cash: null },
+          // Noticed before its amount is announced.
+          { date: "2026-10-27", exDividend: true, exRights: true, cash: null },
+          { date: "2026-10-29", exDividend: true, exRights: false, cash: 1.2 },
+          // Gone ex before today.
+          { date: "2026-10-06", exDividend: true, exRights: false, cash: 2 },
+        ],
+      },
+      "2026-10-08",
+      "2026-11-30"
+    )
+  ).toEqual([
+    ["2026-10-20", ListingEventKind.ExDividend, EventTiming.Set, "114年", 0.4],
+    ["2026-10-22", ListingEventKind.ExRights, EventTiming.Set, "", null],
+    ["2026-10-27", ListingEventKind.ExDividend, EventTiming.Set, "", null],
+    ["2026-10-27", ListingEventKind.ExRights, EventTiming.Set, "", null],
+    ["2026-10-29", ListingEventKind.ExDividend, EventTiming.Set, "", 1.2],
+  ]);
+});
+
+test("a shareholders' meeting comes on its day as regular or special, and again where it elects directors", () => {
+  expect(
+    brief(
+      {
+        ...NONE,
+        meetings: [
+          // Held before today.
+          { date: "2026-05-22", regular: true, election: true },
+          { date: "2026-10-13", regular: false, election: false },
+          { date: "2026-11-19", regular: true, election: true },
+        ],
+      },
+      "2026-10-08",
+      "2026-11-30"
+    )
+  ).toEqual([
+    ["2026-10-13", ListingEventKind.SpecialMeeting, EventTiming.Set, "", null],
+    ["2026-11-19", ListingEventKind.RegularMeeting, EventTiming.Set, "", null],
+    [
+      "2026-11-19",
+      ListingEventKind.DirectorElection,
+      EventTiming.Set,
+      "",
+      null,
+    ],
+  ]);
+});
+
 test("a restriction comes on its first day, or today while it is in force, with its last day", () => {
   expect(
     upcomingEvents(
@@ -198,10 +260,9 @@ test("outside Taiwan no rules set a filing deadline", () => {
     upcomingEvents(
       apple,
       {
+        ...NONE,
         statements: [quarter("2026-06-30")],
-        monthlyRevenue: [],
         dividends: [dividend({ cash: 0.26, cashExDate: "2026-11-09" })],
-        restrictions: [],
       },
       "2026-10-08",
       "2026-11-30"

@@ -16,7 +16,12 @@ const SCHEDULE_FRESH_MS = 12 * 60 * 60 * 1000;
 export interface CalendarOptions {
   fundamentals: Pick<
     Fundamentals,
-    "statements" | "monthlyRevenue" | "dividends" | "restrictions"
+    | "statements"
+    | "monthlyRevenue"
+    | "dividends"
+    | "restrictions"
+    | "exNotices"
+    | "meetings"
   >;
   /** One per market at most; the first that covers a market answers for it. */
   macro: readonly MacroCalendarProvider[];
@@ -69,8 +74,8 @@ export function createCalendar({
   return {
     /**
      * One listing or market failing to read leaves the others', and names it among the unread. A
-     * listing's filings and its restrictions come from different sources, so one of them failing
-     * leaves the events of what was read.
+     * listing's filings and what its exchange lists of it come from different sources, so one of
+     * them failing leaves the events of what was read.
      */
     async upcoming(
       symbols: readonly SymbolRef[],
@@ -88,13 +93,21 @@ export function createCalendar({
       const [read, scheduled] = await Promise.all([
         Promise.all(
           symbols.map(async (symbol) => {
-            const [statements, monthlyRevenue, dividends, restrictions] =
-              await Promise.allSettled([
-                fundamentals.statements(symbol),
-                fundamentals.monthlyRevenue(symbol),
-                fundamentals.dividends(symbol),
-                fundamentals.restrictions(symbol),
-              ]);
+            const [
+              statements,
+              monthlyRevenue,
+              dividends,
+              restrictions,
+              notices,
+              meetings,
+            ] = await Promise.allSettled([
+              fundamentals.statements(symbol),
+              fundamentals.monthlyRevenue(symbol),
+              fundamentals.dividends(symbol),
+              fundamentals.restrictions(symbol),
+              fundamentals.exNotices(symbol),
+              fundamentals.meetings(symbol),
+            ]);
 
             const today = exchangeDate(symbol.market, at);
 
@@ -104,6 +117,8 @@ export function createCalendar({
                 monthlyRevenue,
                 dividends,
                 restrictions,
+                notices,
+                meetings,
               ].every(({ status }) => status === "fulfilled"),
               events: upcomingEvents(
                 symbol,
@@ -112,6 +127,8 @@ export function createCalendar({
                   monthlyRevenue: readOrNone(monthlyRevenue),
                   dividends: readOrNone(dividends),
                   restrictions: readOrNone(restrictions),
+                  notices: readOrNone(notices),
+                  meetings: readOrNone(meetings),
                 },
                 today,
                 shiftDate(today, days)

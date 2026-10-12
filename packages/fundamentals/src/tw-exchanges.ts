@@ -5,10 +5,12 @@ import * as z from "zod";
 
 import { RestrictionKind } from "@solyx/core/fundamentals";
 import type {
+  ExNotice,
   ExchangeListsProvider,
   ExchangeMultiples,
   FundProfile,
   Listed,
+  ShareholdersMeeting,
   TradingRestriction,
 } from "@solyx/core/fundamentals";
 import { Market, shiftDate } from "@solyx/core/market";
@@ -269,6 +271,79 @@ const tpexMultiplesSchema = z
     priceToBook: row.PriceBookRatio,
   }));
 
+// What a notice says the shares go ex, which TWSE writes `息`, `權` or `權息` and TPEx `除息`, `除權` or `除權息`.
+const exKindSchema = textSchema.regex(/^除?(權|息|權息)$/);
+
+// What an exchange fills a notice's cash with until the amount is announced.
+const UNANNOUNCED = new Set(["", "尚未公告"]);
+
+const noticeCashSchema = z.union([
+  textSchema.regex(/^\d+(\.\d+)?$/).transform(Number),
+  textSchema.refine((text) => UNANNOUNCED.has(text)).transform(() => null),
+]);
+
+/** A notice of the day `code`'s shares go ex what `kind` names, with the cash a share only where they go ex cash and its amount is set. */
+function exNotice(
+  code: string,
+  date: string,
+  kind: string,
+  cash: number | null
+): Listed<ExNotice> {
+  const exDividend = kind.includes("息");
+
+  return {
+    symbol: code,
+    date,
+    exDividend,
+    exRights: kind.includes("權"),
+    cash: exDividend && cash !== null && cash > 0 ? cash : null,
+  };
+}
+
+const twseExNoticeSchema = z
+  .object({
+    Code: codeSchema,
+    Date: rocDaySchema,
+    Exdividend: exKindSchema,
+    CashDividend: noticeCashSchema,
+  })
+  .transform((row) =>
+    exNotice(row.Code, row.Date, row.Exdividend, row.CashDividend)
+  );
+
+const tpexExNoticeSchema = z
+  .object({
+    SecuritiesCompanyCode: codeSchema,
+    ExRrightsExDividendDate: rocDaySchema,
+    ExRrightsExDividend: exKindSchema,
+    CashDividend: noticeCashSchema,
+  })
+  .transform((row) =>
+    exNotice(
+      row.SecuritiesCompanyCode,
+      row.ExRrightsExDividendDate,
+      row.ExRrightsExDividend,
+      row.CashDividend
+    )
+  );
+
+// Both exchanges list their companies' shareholders' meetings under the same names.
+const MEETING_CODE = "公司代號";
+
+const meetingSchema = z
+  .object({
+    [MEETING_CODE]: codeSchema,
+    "股東常(臨時)會": textSchema.pipe(z.enum(["常會", "臨時會"])),
+    開會日期: rocDaySchema,
+    是否改選董監: textSchema.pipe(z.enum(["是", "否"])),
+  })
+  .transform((row): Listed<ShareholdersMeeting> => ({
+    symbol: row[MEETING_CODE],
+    date: row.開會日期,
+    regular: row["股東常(臨時)會"] === "常會",
+    election: row.是否改選董監 === "是",
+  }));
+
 const listSchema = z.array(z.record(z.string(), z.unknown()));
 
 interface Exchange {
@@ -323,11 +398,12 @@ export interface TwExchangesOptions {
 }
 
 /**
- * The restrictions Taiwan's exchanges put on their listings, the funds they list and the multiples
- * they work out, from the open data of the Taiwan Stock Exchange and the Taipei Exchange, which
- * need no key. Each list is the exchange's own of today, so one request answers for every listing
- * and a restriction that ended may be gone from it. The Taipei Exchange publishes no list of its
- * funds, so those have no profile.
+ * The restrictions Taiwan's exchanges put on their listings, the funds they list, the multiples
+ * they work out, their notices of shares going ex and their companies' shareholders' meetings,
+ * from the open data of the Taiwan Stock Exchange and the Taipei Exchange, which need no key. Each
+ * list is the exchange's own of today, so one request answers for every listing and a restriction
+ * that ended may be gone from it. The Taipei Exchange publishes no list of its funds, so those
+ * have no profile.
  */
 export function createTwExchanges(
   options: TwExchangesOptions = {}
@@ -399,6 +475,28 @@ export function createTwExchanges(
       ]);
 
       return lists.flat();
+    },
+
+    async getExNotices(market) {
+      if (market !== Market.TW) return [];
+
+      const lists = await Promise.all([
+        list(twse, "exchangeReport/TWT48U_ALL", twseExNoticeSchema),
+        list(tpex, "tpex_exright_prepost", tpexExNoticeSchema),
+      ]);
+
+      return sortBy(lists.flat(), [({ date }) => date]);
+    },
+
+    async getMeetings(market) {
+      if (market !== Market.TW) return [];
+
+      const lists = await Promise.all([
+        list(twse, "opendata/t187ap41_L", meetingSchema, MEETING_CODE),
+        list(tpex, "t187ap41_O", meetingSchema, MEETING_CODE),
+      ]);
+
+      return sortBy(lists.flat(), [({ date }) => date]);
     },
   };
 }

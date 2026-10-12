@@ -155,6 +155,28 @@ export interface ExchangeMultiples {
   priceToBook: number | null;
 }
 
+/** An exchange's notice of the first session a listing's shares trade without a distribution or a right. */
+export interface ExNotice {
+  /** That session's day, `YYYY-MM-DD` on the exchange's calendar. */
+  date: string;
+  /** Whether the shares go ex a cash distribution that day. */
+  exDividend: boolean;
+  /** Whether the shares go ex a right that day: a stock dividend, or subscribing to newly issued shares. */
+  exRights: boolean;
+  /** Cash per share, in the market's currency; `null` where the shares go ex none, or its amount is not announced yet. */
+  cash: number | null;
+}
+
+/** A shareholders' meeting a company has called, as its exchange lists it. */
+export interface ShareholdersMeeting {
+  /** The day it is held, `YYYY-MM-DD` on the exchange's calendar. */
+  date: string;
+  /** Whether it is the year's regular meeting, or one called apart from it. */
+  regular: boolean;
+  /** Whether it elects directors. */
+  election: boolean;
+}
+
 /** A row of an exchange's list with the listing it is about, since an exchange lists its whole market's at once. */
 export type Listed<Row> = Row & {
   /** The listing's exchange code, as a `SymbolRef` writes it. */
@@ -175,6 +197,10 @@ export interface ExchangeListsProvider {
   getFunds(market: Market): Promise<Listed<FundProfile>[]>;
   /** Every listing the exchanges work multiples out for. */
   getMultiples(market: Market): Promise<Listed<ExchangeMultiples>[]>;
+  /** The notices the exchanges hold of shares going ex, those of days just past among them. */
+  getExNotices(market: Market): Promise<Listed<ExNotice>[]>;
+  /** The shareholders' meetings the exchanges list, those already held among them. */
+  getMeetings(market: Market): Promise<Listed<ShareholdersMeeting>[]>;
 }
 
 /** A listing's fundamentals from whichever provider covers its market, oldest first; none while no provider does. */
@@ -195,6 +221,10 @@ export interface Fundamentals {
   fund(symbol: SymbolRef): Promise<FundProfile | null>;
   /** Its multiples from the last close its exchange has worked them out for; `null` for a listing no source lists any for, which a fund is. */
   multiples(symbol: SymbolRef): Promise<ExchangeMultiples | null>;
+  /** The notices its exchange holds of its shares going ex; none while no source lists its market's. */
+  exNotices(symbol: SymbolRef): Promise<ExNotice[]>;
+  /** The shareholders' meetings its exchange lists for it; none while no source lists its market's. */
+  meetings(symbol: SymbolRef): Promise<ShareholdersMeeting[]>;
 }
 
 /** A quarter with what it says against the quarters around it; `null` where a figure it needs is missing. */

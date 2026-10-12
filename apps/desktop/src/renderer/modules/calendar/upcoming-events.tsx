@@ -39,8 +39,14 @@ function EventLabel({ event }: { event: ListingEvent }) {
       return t("calendar.kinds.monthly-revenue", { month: event.subject });
     case ListingEventKind.ExDividend:
     case ListingEventKind.ExRights:
+      // The exchange's notice may tell of the day before any amount is set.
+      return event.amount === null
+        ? t(`calendar.noticed.${event.kind}`)
+        : t(`calendar.kinds.${event.kind}`, {
+            amount: format.price.format(event.amount),
+          });
     case ListingEventKind.DividendPayment:
-      return t(`calendar.kinds.${event.kind}`, {
+      return t("calendar.kinds.dividend-payment", {
         amount: format.price.format(event.amount ?? 0),
       });
     default: {

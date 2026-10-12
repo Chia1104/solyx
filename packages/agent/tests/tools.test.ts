@@ -694,6 +694,52 @@ test("the calendar lists the followed listings' events and their markets' releas
         amount: null,
         until: "2026-10-15",
       },
+      // Told of only by the exchange's notice, before any amount is set.
+      {
+        symbol: { market: Market.TW, symbol: "6669" },
+        kind: ListingEventKind.ExDividend,
+        date: "2026-10-14",
+        timing: EventTiming.Set,
+        subject: "",
+        amount: null,
+        until: null,
+      },
+      {
+        symbol: TSMC,
+        kind: ListingEventKind.ExDividend,
+        date: "2026-10-15",
+        timing: EventTiming.Set,
+        subject: "",
+        amount: 7.5,
+        until: null,
+      },
+      {
+        symbol: TSMC,
+        kind: ListingEventKind.ExRights,
+        date: "2026-10-15",
+        timing: EventTiming.Set,
+        subject: "",
+        amount: null,
+        until: null,
+      },
+      {
+        symbol: TSMC,
+        kind: ListingEventKind.SpecialMeeting,
+        date: "2026-10-20",
+        timing: EventTiming.Set,
+        subject: "",
+        amount: null,
+        until: null,
+      },
+      {
+        symbol: TSMC,
+        kind: ListingEventKind.DirectorElection,
+        date: "2026-10-20",
+        timing: EventTiming.Set,
+        subject: "",
+        amount: null,
+        until: null,
+      },
     ],
     research: [
       {
@@ -741,10 +787,15 @@ test("the calendar lists the followed listings' events and their markets' releas
   );
   expect(text.split("\n")).toEqual([
     "Calendar of TW 6669, TW 2330 over the next 30 days, each market from its own day today, as_of 2026-09-30 10:00 Taipei; the same list the app's overview shows",
-    "Listings' filings, distributions and restrictions:",
+    "Listings' filings, distributions, meetings and restrictions:",
     "2026-10-08 TW 2330 pays its dividend, 7 cash a share (115年第1季)",
     "by 2026-10-10 TW 6669 2026-09 revenue due",
     "2026-10-12 TW 6669 short sale suspension until 2026-10-15 (除息)",
+    "2026-10-14 TW 6669 goes ex-dividend by its exchange's notice, the amount not announced yet",
+    "2026-10-15 TW 2330 goes ex-dividend, 7.5 cash a share",
+    "2026-10-15 TW 2330 goes ex-rights by its exchange's notice, which may be a stock dividend or the right to subscribe to new shares",
+    "2026-10-20 TW 2330 holds a special shareholders' meeting",
+    "2026-10-20 TW 2330 elects directors at its shareholders' meeting",
     "Dates their reports hold, each as you found it, with its source:",
     "2026-10-16 TW 2330 Third-quarter earnings call [https://investor.test/calendar]",
     "around 2026-10-28 TW 2330 Export rule decision [news.test]",
@@ -756,7 +807,7 @@ test("the calendar lists the followed listings' events and their markets' releas
   expect(details).toEqual({
     symbols: [{ market: Market.TW, symbol: "6669" }, TSMC],
     days: 30,
-    events: 5,
+    events: 10,
     releases: 2,
   });
 });

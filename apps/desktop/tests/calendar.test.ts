@@ -49,6 +49,8 @@ function setup(dividends: Record<string, Dividend[]>) {
     statements: async () => [],
     monthlyRevenue: async () => [],
     restrictions: vi.fn<Fundamentals["restrictions"]>(async () => []),
+    exNotices: vi.fn<Fundamentals["exNotices"]>(async () => []),
+    meetings: vi.fn<Fundamentals["meetings"]>(async () => []),
     dividends: vi.fn(async (symbol: SymbolRef) => {
       const listed = dividends[symbolKey(symbol)];
 
@@ -189,6 +191,30 @@ test("a listing whose restrictions cannot be read keeps the events of what was r
     [ListingEventKind.ExDividend, "2026-10-20"],
   ]);
   expect(unread).toEqual([TSMC]);
+});
+
+test("what a listing's exchange lists of it joins its filings: the notices of its shares going ex and its shareholders' meetings", async () => {
+  const { calendar, fundamentals } = setup({
+    [symbolKey(TSMC)]: [cash(7, "2026-10-20")],
+  });
+
+  fundamentals.exNotices.mockResolvedValue([
+    { date: "2026-10-20", exDividend: true, exRights: false, cash: 7 },
+    { date: "2026-10-22", exDividend: false, exRights: true, cash: null },
+  ]);
+  fundamentals.meetings.mockResolvedValue([
+    { date: "2026-10-13", regular: false, election: true },
+  ]);
+
+  const { events, unread } = await calendar.upcoming([TSMC], 30);
+
+  expect(events.map(({ kind, date }) => [kind, date])).toEqual([
+    [ListingEventKind.SpecialMeeting, "2026-10-13"],
+    [ListingEventKind.DirectorElection, "2026-10-13"],
+    [ListingEventKind.ExDividend, "2026-10-20"],
+    [ListingEventKind.ExRights, "2026-10-22"],
+  ]);
+  expect(unread).toEqual([]);
 });
 
 test("the listings' markets' releases come within the days asked for, each market's schedule read twice a day at most", async () => {
