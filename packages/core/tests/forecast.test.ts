@@ -8,6 +8,7 @@ import {
   bandsBetween,
   baseRates,
   checkForecast,
+  forecastLean,
   forecastRecord,
   forecastTimeline,
   horizonMoves,
@@ -77,6 +78,7 @@ function context(patch: Partial<ForecastContext> = {}): ForecastContext {
     stance: ReportStance.Bullish,
     newerFinancials: null,
     taken: false,
+    baseRates: null,
     support: () => null,
     ...patch,
   };
@@ -243,14 +245,59 @@ describe("checkForecast", () => {
     ]);
   });
 
-  test("a neutral forecast has no plan, and a directional one needs it", () => {
+  test("a neutral forecast has no plan, and a directional one may go without", () => {
     expect(
       checkForecast(draft({ direction: ForecastDirection.Neutral }), context())
     ).toEqual([{ code: ForecastViolationCode.PlanUnexpected }]);
 
-    expect(checkForecast(draft({ plan: null }), context())).toEqual([
-      { code: ForecastViolationCode.PlanMissing },
+    expect(checkForecast(draft({ plan: null }), context())).toEqual([]);
+  });
+
+  test("a direction is the way the probabilities lean from history", () => {
+    // The draft gives the band below the anchor 20% and the one above it 30%.
+    const up = context({ baseRates: [0.25, 0.5, 0.25] });
+    const down = context({ baseRates: [0.15, 0.5, 0.35] });
+    const level = context({ baseRates: [0.2, 0.5, 0.3] });
+
+    const short = {
+      direction: ForecastDirection.Short,
+      plan: null,
+      contrary: "Stretched above its average.",
+    };
+
+    expect(checkForecast(draft(), up)).toEqual([]);
+    expect(checkForecast(draft(short), down)).toEqual([]);
+
+    expect(checkForecast(draft(), down)).toEqual([
+      { code: ForecastViolationCode.LeanOpposed, lean: expect.closeTo(-0.1) },
     ]);
+
+    expect(checkForecast(draft(short), up)).toEqual([
+      { code: ForecastViolationCode.LeanOpposed, lean: expect.closeTo(0.1) },
+    ]);
+
+    expect(checkForecast(draft(), level)).toEqual([
+      { code: ForecastViolationCode.LeanOpposed, lean: expect.closeTo(0) },
+    ]);
+
+    // Neutral says nothing of a lean, and neither does a listing with too little history.
+    expect(
+      checkForecast(
+        draft({ direction: ForecastDirection.Neutral, plan: null }),
+        down
+      )
+    ).toEqual([]);
+  });
+
+  test("a band that holds the last close leans neither way", () => {
+    const bands = [
+      { probability: 40, low: null, high: 1010 },
+      { probability: 60, low: 1010, high: null },
+    ];
+
+    // Only the upper band lies on one side of 1000, and it holds 10 points more than history.
+    expect(forecastLean(bands, 1000, [0.5, 0.5])).toBeCloseTo(0.1);
+    expect(forecastLean(bands, 1010, [0.5, 0.5])).toBeCloseTo(0.2);
   });
 
   test("plan prices sit on the listing's tick", () => {

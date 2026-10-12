@@ -618,8 +618,8 @@
       "bearish": "看空"
     },
     "direction": {
-      "long": "做多",
-      "short": "做空",
+      "long": "偏多",
+      "short": "偏空",
       "neutral": "中立"
     },
     "report": {

@@ -62,8 +62,9 @@ export const forecastDraftSchema = z.object({
   instrument: symbolRefSchema,
   /** Sessions after the anchor until it settles. */
   horizon: z.number().int().min(1).max(MAX_HORIZON),
+  /** Which way its probabilities lean from the listing's history. */
   direction: z.enum(ForecastDirection),
-  /** The trade it would take; `null` when neutral. */
+  /** The trade it would take on that lean; `null` where it takes none, as a neutral one never does. */
   plan: forecastPlanSchema.nullable(),
   scenarios: z.array(forecastScenarioSchema).min(2).max(4),
   rationale: proseSchema(2_000),
@@ -151,6 +152,8 @@ export interface ForecastContext {
   newerFinancials: string | null;
   /** Whether the listing already has a forecast anchored on this session. */
   taken: boolean;
+  /** The base rates of the draft's bands; `null` where the listing's bars hold too few moves. */
+  baseRates: number[] | null;
   /** The reading each of the draft's claims was given; `null` for one that was not read. */
   support: (claim: Claim) => ClaimSupport | null;
 }
@@ -164,7 +167,7 @@ export const ForecastViolationCode = {
   BandsBroken: "bands-broken",
   PathBroken: "path-broken",
   PathOutsideBand: "path-outside-band",
-  PlanMissing: "plan-missing",
+  LeanOpposed: "lean-opposed",
   PlanUnexpected: "plan-unexpected",
   InvalidPrice: "invalid-price",
   StopWrongSide: "stop-wrong-side",
@@ -194,7 +197,11 @@ export type ForecastViolation =
       scenario: number;
       price: number;
     }
-  | { code: typeof ForecastViolationCode.PlanMissing }
+  | {
+      code: typeof ForecastViolationCode.LeanOpposed;
+      /** How far the probabilities lean from history, in shares; positive leans up. */
+      lean: number;
+    }
   | { code: typeof ForecastViolationCode.PlanUnexpected }
   | {
       code: typeof ForecastViolationCode.InvalidPrice;
@@ -251,6 +258,30 @@ function opposes(direction: ForecastDirection, stance: ReportStance): boolean {
   );
 }
 
+// Shares that cancel leave only what floating point carries.
+const NO_LEAN = 1e-9;
+
+/**
+ * How far a forecast's probabilities lean from its listing's history, in shares: what they add to
+ * the bands that lie above `price` less what they add to those below it, so it is positive where
+ * they lean up. A band that holds `price` leans neither way.
+ */
+export function forecastLean(
+  scenarios: readonly Pick<ForecastScenario, "probability" | "low" | "high">[],
+  price: number,
+  rates: readonly number[]
+): number {
+  return sumBy(
+    scenarios.map(({ probability, low, high }, index) => ({
+      added: probability / 100 - rates[index],
+      side:
+        Number(low !== null && low >= price) -
+        Number(high !== null && high <= price),
+    })),
+    ({ added, side }) => added * side
+  );
+}
+
 /** Deterministic checks before a forecast is kept. An empty result means it may be. */
 export function checkForecast(
   draft: ForecastDraft,
@@ -290,8 +321,28 @@ export function checkForecast(
     violations.push({ code: ForecastViolationCode.ProbabilitySum, sum });
   }
 
-  if (!tilesEveryPrice(scenarios)) {
+  const tiled = tilesEveryPrice(scenarios);
+
+  if (!tiled) {
     violations.push({ code: ForecastViolationCode.BandsBroken });
+  }
+
+  // A direction is the way the numbers lean, so one they lean away from says two things at once.
+  if (
+    direction !== ForecastDirection.Neutral &&
+    context.baseRates &&
+    sum === 100 &&
+    tiled
+  ) {
+    const lean = forecastLean(
+      scenarios,
+      context.anchor.price,
+      context.baseRates
+    );
+
+    if (lean * gainSign(direction) < NO_LEAN) {
+      violations.push({ code: ForecastViolationCode.LeanOpposed, lean });
+    }
   }
 
   scenarios.forEach(({ path, ...band }, scenario) => {
@@ -318,14 +369,10 @@ export function checkForecast(
     violations.push({ code: ForecastViolationCode.ClaimUnsupported, ...weak });
   }
 
+  if (!plan) return violations;
+
   if (direction === ForecastDirection.Neutral) {
-    if (plan) violations.push({ code: ForecastViolationCode.PlanUnexpected });
-
-    return violations;
-  }
-
-  if (!plan) {
-    violations.push({ code: ForecastViolationCode.PlanMissing });
+    violations.push({ code: ForecastViolationCode.PlanUnexpected });
 
     return violations;
   }
