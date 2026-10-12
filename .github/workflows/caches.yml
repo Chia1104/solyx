@@ -1,0 +1,58 @@
+# Deletes the Actions caches no run will restore again, so they stop counting against the repository's
+# cache storage: a pull request's when it closes, and once a day the ones left behind.
+name: Caches
+
+on:
+  # Unlike `pull_request`, this gives the token write access when the pull request comes from a fork.
+  # No job here checks out or runs the pull request's code.
+  pull_request_target:
+    types: [closed]
+  schedule:
+    - cron: "17 19 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  pull-request:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      # A pull request's caches are scoped to its merge ref, which nothing reads once it closes.
+      - name: Delete the pull request's caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: gh cache delete --all --ref "$REF" --repo "$GITHUB_REPOSITORY" --succeed-on-no-caches
+
+  sweep:
+    if: github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      pull-requests: read
+    steps:
+      # GitHub evicts a cache only a week after its last use. Two kinds are dead sooner: those of a
+      # pull request that closed while a run was still saving one, and those a ref has replaced. A
+      # key ends in the hash of the lockfile it was built from, so on one ref the keys that differ
+      # only in that hash are generations of one cache, of which the one used last is kept.
+      - name: Delete the caches left behind
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          open=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number --jq 'map(.number)')
+          caches=$(gh cache list --repo "$GITHUB_REPOSITORY" --limit 1000 --json id,key,ref,lastAccessedAt)
+          stale=$(jq -r --argjson open "$open" '
+            [
+              (.[]
+                | select(.ref | test("^refs/pull/[0-9]+/merge$"))
+                | select(.ref | split("/")[2] | tonumber | IN($open[]) | not)),
+              (group_by([.ref, (.key | sub("-[0-9a-f]{64}$"; ""))])[]
+                | sort_by(.lastAccessedAt)[:-1][])
+            ] | map(.id) | unique[]
+          ' <<< "$caches")
+          echo "$stale" | xargs -r -n 1 gh cache delete --repo "$GITHUB_REPOSITORY"
