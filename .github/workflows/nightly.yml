@@ -1,51 +1,87 @@
-# Once CI passes on a push to develop, packages Solyx Nightly as its own prerelease, whose notes list
-# what was merged since the previous nightly. A newer push cancels a nightly still packaging.
+# Every half hour, packages the newest commit on develop that passed CI as Solyx Nightly, its own
+# prerelease, unless a nightly went out in the last six hours or nothing has passed CI since. Its
+# notes list what was merged since the previous nightly. A run dispatched by hand skips the wait.
 name: Nightly
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [develop]
+  schedule:
+    - cron: "8,38 * * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# A run waits for the nightly before it to publish instead of cancelling it, so it decides whether
+# one is due only after that.
 concurrency:
   group: nightly
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  version:
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+  resolve:
+    if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.nightly.outputs.sha }}
+      version: ${{ steps.nightly.outputs.version }}
+      previous: ${{ steps.nightly.outputs.previous }}
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          persist-credentials: false
-
-      # A nightly previews the next patch release, which the stable release workflow promotes it to.
-      - id: version
+      - id: nightly
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          next=$(node -p '
-            const [major, minor, patch] = require("./apps/desktop/package.json").version.split(".").map(Number);
-            `${major}.${minor}.${patch + 1}`
-          ')
-          echo "version=$next-nightly.$(date -u +%Y%m%d).$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+          latest=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 100 \
+            --json tagName,publishedAt --jq '
+              [.[] | select(.tagName | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-nightly\\."))]
+              | max_by(.publishedAt) // empty
+              | "\(.tagName) \(now - (.publishedAt | fromdateiso8601) | floor)"')
+          read -r previous age <<< "$latest"
+          if [ "$GITHUB_EVENT_NAME" = schedule ] && [ -n "$previous" ] && [ "$age" -lt $((6 * 60 * 60)) ]; then
+            echo "::notice::$previous is less than six hours old"
+            exit 0
+          fi
+
+          sha=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch develop --event push \
+            --status success --limit 1 --json headSha --jq '.[0].headSha // ""')
+          if [ -z "$sha" ]; then
+            echo "::notice::No commit on develop has passed CI"
+            exit 0
+          fi
+          if [ -n "$previous" ]; then
+            status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$previous...$sha" --jq .status)
+            if [ "$status" != ahead ]; then
+              echo "::notice::Nothing has passed CI since $previous"
+              exit 0
+            fi
+          fi
+
+          # A nightly previews the next patch release, which the stable release workflow promotes it
+          # to. The latest stable version is read from develop's head, not the commit being packaged:
+          # the commit that records a release is pushed without a CI run, so it is never that commit.
+          next=$(gh api "repos/$GITHUB_REPOSITORY/contents/apps/desktop/package.json" \
+            -H "Accept: application/vnd.github.raw+json" \
+            --jq '.version | split(".") | map(tonumber) | "\(.[0]).\(.[1]).\(.[2] + 1)"')
+          {
+            echo "sha=$sha"
+            echo "version=$next-nightly.$(date -u +%Y%m%d).$GITHUB_RUN_NUMBER"
+            echo "previous=$previous"
+          } >> "$GITHUB_OUTPUT"
 
   package:
-    needs: version
+    needs: resolve
+    if: needs.resolve.outputs.sha != ''
     uses: ./.github/workflows/package.yml
     with:
       channel: nightly
-      ref: ${{ github.event.workflow_run.head_sha }}
-      version: ${{ needs.version.outputs.version }}
+      ref: ${{ needs.resolve.outputs.sha }}
+      version: ${{ needs.resolve.outputs.version }}
 
   publish:
-    needs: [version, package]
+    needs: [resolve, package]
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -59,11 +95,10 @@ jobs:
       - name: Publish the nightly
         env:
           GH_TOKEN: ${{ github.token }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
-          VERSION: ${{ needs.version.outputs.version }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          PREVIOUS: ${{ needs.resolve.outputs.previous }}
         run: |
-          previous=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --limit 100 \
-            --json tagName --jq '[.[].tagName | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+-nightly\\."))][0] // ""')
           {
             echo "Solyx Nightly installs beside Solyx and keeps its own data, settings and keys."
             echo
@@ -74,7 +109,7 @@ jobs:
           } > notes.md
           gh release create "v$VERSION" installers/*.dmg installers/*.exe --repo "$GITHUB_REPOSITORY" --target "$SHA" \
             --prerelease --latest=false --title "Solyx Nightly $VERSION" \
-            --notes-file notes.md --generate-notes ${previous:+--notes-start-tag "$previous"}
+            --notes-file notes.md --generate-notes ${PREVIOUS:+--notes-start-tag "$PREVIOUS"}
 
       # The installers go up before the feed that names them, so no app reads a version it cannot
       # download. Only the newest nightly is kept; its release on GitHub keeps the rest.
@@ -85,7 +120,7 @@ jobs:
           AWS_DEFAULT_REGION: auto
           AWS_ENDPOINT_URL: https://${{ vars.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
           TARGET: s3://${{ vars.R2_BUCKET }}/nightly/
-          VERSION: ${{ needs.version.outputs.version }}
+          VERSION: ${{ needs.resolve.outputs.version }}
         run: |
           aws s3 cp installers/ "$TARGET" --recursive --exclude "*.yml"
           aws s3 cp installers/ "$TARGET" --recursive --exclude "*" --include "*.yml"
