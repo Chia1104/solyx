@@ -1,4 +1,5 @@
-# Checks, tests and builds every push to develop and every pull request; Nightly waits on it.
+# Checks, tests and builds every push to develop and every pull request; Nightly only packages a
+# commit on develop that passed it.
 name: CI
 
 on:
