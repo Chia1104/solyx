@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./announcements": "./src/announcements.ts",
+    "./insider-transfers": "./src/insider-transfers.ts",
     "./ptt": "./src/ptt.ts",
     "./web": "./src/web.ts"
   },
