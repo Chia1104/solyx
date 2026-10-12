@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -328,6 +328,55 @@ test("research kept before its search existed is found once the file opens", () 
   expect(store.searchForecasts("dividend", 5).map(({ id }) => id)).toEqual([
     "a",
   ]);
+});
+
+test("a forecast kept before base rates and distributions were measured reads with neither", async () => {
+  // The file as it stood before those two migrations.
+  const before = join(directory, "migrations-before");
+
+  for (const folder of await readdir(MIGRATIONS)) {
+    if (!/forecast_(base_rates|distributions)$/.test(folder)) {
+      await cp(join(MIGRATIONS, folder), join(before, folder), {
+        recursive: true,
+      });
+    }
+  }
+
+  const file = join(directory, "research.sqlite");
+
+  openResearch(file, before).close();
+
+  const { baseRates: _rates, outcome: _open, ...made } = forecast("old");
+  const { distributed: _cash, ...settled } = OUTCOME;
+  const db = new DatabaseSync(file);
+
+  db.prepare(
+    "INSERT INTO forecasts (id, market, symbol, anchor_date, forecast, outcome) VALUES (?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?)"
+  ).run(
+    "old",
+    TSMC.market,
+    TSMC.symbol,
+    "2026-09-29",
+    JSON.stringify(made),
+    JSON.stringify(settled),
+    "old-open",
+    TSMC.market,
+    TSMC.symbol,
+    "2026-09-30",
+    JSON.stringify({ ...made, id: "old-open" }),
+    null
+  );
+  db.close();
+
+  const { store } = open();
+
+  expect(store.forecast("old")).toEqual({
+    ...forecast("old", { baseRates: null }),
+    outcome: OUTCOME,
+  });
+  expect(store.forecast("old-open")).toEqual(
+    forecast("old-open", { baseRates: null })
+  );
 });
 
 test("clearing research empties its search", () => {
