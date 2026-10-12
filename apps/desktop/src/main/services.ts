@@ -251,6 +251,7 @@ export function createServices(config: ConfigFile) {
       marketData,
       fundamentals,
       auditor: () => decisions.claimAuditor(),
+      reader: () => decisions.factReader(),
       news: newsData.store,
       embedder: () => embeddings.localEmbedder(),
       diagnostics,

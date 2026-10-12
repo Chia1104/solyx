@@ -652,7 +652,8 @@
       "record-open": "{{count, number}} 筆，尚未結算",
       "mean-r": "平均 {{r}} R",
       "skill": "相對歷史基準 {{skill}}",
-      "motions": "MAGI 可決的 {{carried, number}} 個走勢中 {{held, number}} 個成真，歷史基準預期 {{expected}} 個"
+      "motions": "MAGI 可決的 {{calls, number}} 個走勢中 {{held, number}} 個成真，歷史基準預期 {{expected}} 個",
+      "evidence": "決策模型讀數偏向的一側 {{calls, number}} 次中 {{held, number}} 次成真，歷史基準預期 {{expected}} 次"
     },
     "forecast": {
       "horizon": "{{count, number}} 個交易日，自 {{date}} 的 {{price}} 起算",
@@ -668,6 +669,7 @@
       "history": "歷史 {{share}}",
       "closed": "{{date}} 收在 {{close}}",
       "distributed": "已加回期間除息 {{cash}}",
+      "evidence": "決策模型讀 {{count, number}} 則引用事實：利多 {{good}} · 中性 {{mixed}} · 利空 {{bad}}",
       "plan-result": {
         "not-entered": "未進場",
         "hit-target": "達到目標",

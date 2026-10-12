@@ -1,6 +1,7 @@
 import { TypeSafeClient } from "@typesafe-ai/sdk";
 import type { Fetch } from "@typesafe-ai/sdk";
 
+import type { FactReader } from "@solyx/core/forecast";
 import type { ClaimAuditor } from "@solyx/core/report";
 import type { SentimentScorer } from "@solyx/core/sentiment";
 
@@ -8,6 +9,7 @@ import type { CommandJudge } from "./command.ts";
 import {
   createClaimAuditor,
   createCommandJudge,
+  createFactReader,
   createScorer,
 } from "./system-one.ts";
 import type { Ask } from "./system-one.ts";
@@ -55,3 +57,8 @@ export const createTypeSafeScorer = (
 export const createTypeSafeClaimAuditor = (
   options: TypeSafeOptions
 ): ClaimAuditor => createClaimAuditor(typeSafe(options));
+
+/** Reads how a fact bears on a share price with a TypeSafe System One model, on the user's own key. */
+export const createTypeSafeFactReader = (
+  options: TypeSafeOptions
+): FactReader => createFactReader(typeSafe(options));

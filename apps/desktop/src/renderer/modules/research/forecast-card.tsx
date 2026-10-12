@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import type { Forecast, ForecastScenario } from "@solyx/core/forecast";
 import type { SymbolRef } from "@solyx/core/market";
+import { Stance } from "@solyx/core/sentiment";
 
 import { MagiScenarios } from "../agent/magi-panel.tsx";
 import { numberFormats } from "../market/number-formats.ts";
@@ -85,8 +86,8 @@ function PlanLevel({ label, value }: { label: string; value: string }) {
 /** A forecast as it was put on record, and how it came out once its horizon closed. */
 export function ForecastBody({ forecast }: { forecast: Forecast }) {
   const { t, i18n } = useTranslation();
-  const { price, signedAmount } = numberFormats(i18n.language);
-  const { anchor, plan, outcome } = forecast;
+  const { price, percent, signedAmount } = numberFormats(i18n.language);
+  const { anchor, plan, outcome, evidence } = forecast;
 
   return (
     // Pencil until it settles: a forecast is a claim about sessions that have not traded yet.
@@ -152,6 +153,22 @@ export function ForecastBody({ forecast }: { forecast: Forecast }) {
                 : ` (${t("research.forecast.r", { r: signedAmount.format(outcome.plan.r) })})`}
             </>
           ) : null}
+        </p>
+      ) : null}
+      {evidence ? (
+        <p className="text-xs text-muted tabular-nums">
+          {t("research.forecast.evidence", {
+            count: evidence.facts,
+            good: percent.format(
+              evidence.stance[Stance.Positive] +
+                evidence.stance[Stance.LeanPositive]
+            ),
+            mixed: percent.format(evidence.stance[Stance.Neutral]),
+            bad: percent.format(
+              evidence.stance[Stance.Negative] +
+                evidence.stance[Stance.LeanNegative]
+            ),
+          })}
         </p>
       ) : null}
       {forecast.motions ? (

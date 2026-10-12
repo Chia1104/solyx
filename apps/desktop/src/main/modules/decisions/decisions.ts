@@ -1,3 +1,4 @@
+import type { FactReader } from "@solyx/core/forecast";
 import type { ClaimAuditor } from "@solyx/core/report";
 import type { SentimentScorer } from "@solyx/core/sentiment";
 import {
@@ -5,6 +6,7 @@ import {
   CLOUDFLARE_DEFAULT_MODEL,
   createCloudflareClaimAuditor,
   createCloudflareCommandJudge,
+  createCloudflareFactReader,
   createCloudflareScorer,
 } from "@solyx/decisions/cloudflare";
 import type { CommandJudge } from "@solyx/decisions/command";
@@ -13,6 +15,7 @@ import {
   OPENAI_DEFAULT_MODEL,
   createOpenAIClaimAuditor,
   createOpenAICommandJudge,
+  createOpenAIFactReader,
   createOpenAIScorer,
 } from "@solyx/decisions/openai";
 import { DecisionsProvider } from "@solyx/decisions/provider";
@@ -21,6 +24,7 @@ import {
   TYPESAFE_DEFAULT_MODEL,
   createTypeSafeClaimAuditor,
   createTypeSafeCommandJudge,
+  createTypeSafeFactReader,
   createTypeSafeScorer,
 } from "@solyx/decisions/typesafe";
 
@@ -104,7 +108,12 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
 
   /** What the provider's model answers; `undefined` until the user saves what the provider needs. */
   async function model(): Promise<
-    | { scorer: SentimentScorer; judge: CommandJudge; auditor: ClaimAuditor }
+    | {
+        scorer: SentimentScorer;
+        judge: CommandJudge;
+        auditor: ClaimAuditor;
+        reader: FactReader;
+      }
     | undefined
   > {
     const { provider, typesafe, cloudflare, openai } = read();
@@ -118,6 +127,7 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
           scorer: createTypeSafeScorer({ apiKey, ...typesafe }),
           judge: createTypeSafeCommandJudge({ apiKey, ...typesafe }),
           auditor: createTypeSafeClaimAuditor({ apiKey, ...typesafe }),
+          reader: createTypeSafeFactReader({ apiKey, ...typesafe }),
         };
       case DecisionsProvider.Cloudflare: {
         const { accountId, ...endpoint } = cloudflare;
@@ -136,6 +146,11 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
             accountId,
             ...endpoint,
           }),
+          reader: createCloudflareFactReader({
+            apiKey,
+            accountId,
+            ...endpoint,
+          }),
         };
       }
 
@@ -144,6 +159,7 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
           scorer: createOpenAIScorer({ apiKey, ...openai }),
           judge: createOpenAICommandJudge({ apiKey, ...openai }),
           auditor: createOpenAIClaimAuditor({ apiKey, ...openai }),
+          reader: createOpenAIFactReader({ apiKey, ...openai }),
         };
     }
   }
@@ -159,6 +175,9 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
 
     /** Reads the agent's claims against their quotes; `undefined` until the user saves a key, and for Cloudflare an account. */
     claimAuditor: async () => (await model())?.auditor,
+
+    /** Reads how the facts a forecast rests on bear on the price; `undefined` until the user saves a key, and for Cloudflare an account. */
+    factReader: async () => (await model())?.reader,
   };
 }
 

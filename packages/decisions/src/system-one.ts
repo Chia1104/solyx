@@ -2,6 +2,7 @@ import { choice, noul, score } from "@typesafe-ai/sdk";
 import type { NoulQuestion, SystemOneRequest } from "@typesafe-ai/sdk";
 import * as z from "zod";
 
+import type { FactReader } from "@solyx/core/forecast";
 import type { ClaimAuditor } from "@solyx/core/report";
 import {
   Stance,
@@ -148,14 +149,28 @@ const CLAIM_QUESTIONS = {
   ),
 };
 
+// Asked of each fact a forecast rests on, alone; measured with `scripts/eval-facts.ts`. Each level
+// names what a fact of its kind states, since a fact is a figure or an event rather than a story.
+const FACT_QUESTIONS = {
+  stance: score(
+    "How does what `fact` states bear on the share price of the company it is about over the coming weeks? `quote` gives the source's own words or figures for it. Either may be in Chinese or English.",
+    [
+      "Clearly bad for the share price: sales, profit or cash falling hard, an outlook cut, heavy selling by large investors, or the price breaking below a level it had held",
+      "Somewhat bad: a weaker figure, debt or cash needs growing, some selling by large investors, or the price below its moving averages",
+      "Mixed or neutral: only a date, a price level, a schedule or a description, or figures that point both ways",
+      "Somewhat good: a firmer figure, some buying by large investors, or the price above its moving averages",
+      "Clearly good for the share price: sales, profit or cash rising strongly, an outlook raised, heavy buying by large investors, or the price breaking above a level that had capped it",
+    ]
+  ),
+};
+
 const noulSchema = z.object({ noul: z.number() });
 
 const claimAnswersSchema = z.object({ supported: noulSchema });
 
-const answersSchema = z.object({
-  relevance: noulSchema,
-  // A score's probabilities are keyed by the level's index.
-  stance: z.object({
+// A score's probabilities are keyed by the level's index, from clearly bad to clearly good.
+const stanceSchema = z
+  .object({
     probabilities: z.object({
       0: z.number(),
       1: z.number(),
@@ -163,7 +178,20 @@ const answersSchema = z.object({
       3: z.number(),
       4: z.number(),
     }),
-  }),
+  })
+  .transform(({ probabilities: levels }): Record<Stance, number> => ({
+    [Stance.Negative]: levels[0],
+    [Stance.LeanNegative]: levels[1],
+    [Stance.Neutral]: levels[2],
+    [Stance.LeanPositive]: levels[3],
+    [Stance.Positive]: levels[4],
+  }));
+
+const factAnswersSchema = z.object({ stance: stanceSchema });
+
+const answersSchema = z.object({
+  relevance: noulSchema,
+  stance: stanceSchema,
   kind: z.object({ probabilities: z.record(z.enum(TextKind), z.number()) }),
   topic: z.object({ probabilities: z.record(z.enum(TextTopic), z.number()) }),
   speaker: z.object({
@@ -237,6 +265,23 @@ export function createClaimAuditor(ask: Ask): ClaimAuditor {
   };
 }
 
+/** Reads how a fact bears on its company's share price with the model `ask` reaches. */
+export function createFactReader(ask: Ask): FactReader {
+  return {
+    async read(claim, { signal } = {}) {
+      const { model, answers: unread } = await ask(
+        {
+          state: { fact: claim.text, quote: claim.quote },
+          questions: FACT_QUESTIONS,
+        },
+        signal
+      );
+
+      return { model, stance: factAnswersSchema.parse(unread).stance };
+    },
+  };
+}
+
 /** Scores texts with the model `ask` reaches. */
 export function createScorer(ask: Ask): SentimentScorer {
   return {
@@ -263,18 +308,11 @@ export function createScorer(ask: Ask): SentimentScorer {
       );
 
       const answers = answersSchema.parse(unread);
-      const levels = answers.stance.probabilities;
 
       return {
         model,
         relevance: answers.relevance.noul,
-        stance: {
-          [Stance.Negative]: levels[0],
-          [Stance.LeanNegative]: levels[1],
-          [Stance.Neutral]: levels[2],
-          [Stance.LeanPositive]: levels[3],
-          [Stance.Positive]: levels[4],
-        },
+        stance: answers.stance,
         kind: answers.kind.probabilities,
         topic: answers.topic.probabilities,
         speaker: answers.speaker.probabilities,

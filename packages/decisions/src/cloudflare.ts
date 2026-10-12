@@ -1,6 +1,7 @@
 import { noul } from "@typesafe-ai/sdk";
 import * as z from "zod";
 
+import type { FactReader } from "@solyx/core/forecast";
 import type { ClaimAuditor } from "@solyx/core/report";
 import type { SentimentScorer } from "@solyx/core/sentiment";
 
@@ -9,6 +10,7 @@ import {
   COMMAND_QUESTIONS,
   createClaimAuditor,
   createCommandJudge,
+  createFactReader,
   createScorer,
 } from "./system-one.ts";
 import type { Ask } from "./system-one.ts";
@@ -93,3 +95,8 @@ export const createCloudflareScorer = (
 export const createCloudflareClaimAuditor = (
   options: CloudflareOptions
 ): ClaimAuditor => createClaimAuditor(cloudflare(options));
+
+/** Reads how a fact bears on a share price with a Clef model on Workers AI, on the user's own token. */
+export const createCloudflareFactReader = (
+  options: CloudflareOptions
+): FactReader => createFactReader(cloudflare(options));

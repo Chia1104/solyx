@@ -61,6 +61,7 @@ import type {
 import type { FalsifierCheck, ResearchDesk } from "@solyx/core/research";
 import { errorMessage } from "@solyx/utils/error";
 
+import { evidenceText } from "./evidence-text.ts";
 import {
   durableScenarioBox,
   forecastMotion,
@@ -332,6 +333,10 @@ export function forecastText(forecast: Forecast): string {
     );
   }
 
+  if (forecast.evidence) {
+    lines.push(`  its facts: ${evidenceText(forecast.evidence)}`);
+  }
+
   if (forecast.motions) {
     const carried = scenarios.filter(
       (_, index) => forecast.motions?.[index]?.carried
@@ -426,7 +431,12 @@ function recordText(scope: string, record: ForecastRecord): string {
       : []),
     ...(record.motions
       ? [
-          `  scenarios the MAGI carried as more likely than history: the close landed in ${record.motions.held} of ${record.motions.carried}, where history alone expects ${record.motions.expected.toFixed(1)}`,
+          `  scenarios the MAGI carried as more likely than history: the close landed in ${record.motions.held} of ${record.motions.calls}, where history alone expects ${record.motions.expected.toFixed(1)}`,
+        ]
+      : []),
+    ...(record.evidence
+      ? [
+          `  the side a decisions model read the facts towards: the close landed there in ${record.evidence.held} of ${record.evidence.calls}, where history alone expects ${record.evidence.expected.toFixed(1)}`,
         ]
       : []),
     `  plans: ${plans}${record.meanR === null ? "" : `; mean ${signed(record.meanR)}R of those entered`}`,

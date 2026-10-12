@@ -11,12 +11,15 @@ import {
   bandsBetween,
   baseRates,
   checkForecast,
+  readEvidence,
   forecastPassages,
   forecastRecord,
   horizonMoves,
   judgeForecast,
 } from "./forecast.ts";
 import type {
+  EvidenceReading,
+  FactReader,
   Forecast,
   ForecastAnchor,
   ForecastDraft,
@@ -109,6 +112,8 @@ export interface ResearchDeskOptions {
   fundamentals: Pick<Fundamentals, "statements" | "dividends">;
   /** Reads each claim against its quote as it is kept; none until the user sets up a decisions model. */
   auditor?: () => Promise<ClaimAuditor | undefined>;
+  /** Reads how each fact a forecast rests on bears on the price; none until the user sets up a decisions model. */
+  reader?: () => Promise<FactReader | undefined>;
   /** Embeds what the desk keeps to search it by meaning; only a model on this computer, since it is the user's own. */
   embedder?: () => Embedder | undefined;
   /** Called after a listing's research changes, so whoever shows it can refresh. */
@@ -124,6 +129,8 @@ export interface ForecastMotion {
   report: Report;
   /** The base rate of each scenario's band, which its motion is voted against. */
   baseRates: number[];
+  /** How a decisions model read the facts it rests on; `null` where none did. */
+  evidence: EvidenceReading | null;
 }
 
 /**
@@ -275,7 +282,7 @@ export class ResearchDesk {
       draft.scenarios
     );
 
-    // Reads the store afresh each time, since a vote leaves room for another forecast to be kept.
+    // Reads the store afresh each time, since it is checked again once the models have answered.
     const check = () => {
       const report = store.report(instrument);
 
@@ -297,16 +304,20 @@ export class ResearchDesk {
 
     if (!report || violations.length > 0) return { ok: false, violations };
 
-    let motions: Council[] | null = null;
+    // Read only once every check has passed, so no request is spent on a forecast that is refused.
+    const evidence = await this.#read(draft.claims);
 
     // A scenario is voted against its base rate, so a listing without them has no motion to put.
-    if (vote && rates) {
-      motions = await vote({ draft, anchor, report, baseRates: rates });
+    const motions =
+      vote && rates
+        ? await vote({ draft, anchor, report, baseRates: rates, evidence })
+        : null;
 
-      ({ report, violations } = check());
+    // The reading and the vote each wait on a model, and the report may have been revised or
+    // another forecast kept for the session meanwhile.
+    ({ report, violations } = check());
 
-      if (!report || violations.length > 0) return { ok: false, violations };
-    }
+    if (!report || violations.length > 0) return { ok: false, violations };
 
     const forecast: Forecast = {
       ...draft,
@@ -320,6 +331,7 @@ export class ResearchDesk {
       anchor,
       reportRevision: report.revision,
       motions,
+      evidence,
       outcome: null,
     };
 
@@ -636,6 +648,20 @@ export class ResearchDesk {
     );
 
     return (claim) => read.get(seen(claim)) ?? null;
+  }
+
+  /** How a decisions model reads the facts a forecast rests on, each alone; `null` where none could be read. */
+  async #read(claims: readonly Claim[]): Promise<EvidenceReading | null> {
+    const reader = await this.#options.reader?.();
+
+    if (!reader) return null;
+
+    const readings = await Promise.all(
+      // A fact the model could not be reached for is left out rather than failing the forecast.
+      claims.map((claim) => reader.read(claim).catch(() => null))
+    );
+
+    return readEvidence(readings.filter((reading) => reading !== null));
   }
 
   /** The last day of the newest quarter public for a listing; `null` when none is. */

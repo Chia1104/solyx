@@ -81,6 +81,7 @@ function forecast(id: string, patch: Partial<Forecast> = {}): Forecast {
     anchor: { date: "2026-09-29", price: 1000 },
     reportRevision: 1,
     motions: null,
+    evidence: null,
     outcome: null,
     ...patch,
   };
@@ -330,12 +331,16 @@ test("research kept before its search existed is found once the file opens", () 
   ]);
 });
 
-test("a forecast kept before base rates, distributions and a vote on each scenario reads with none of them", async () => {
-  // The file as it stood before those three migrations.
+test("a forecast kept before base rates, distributions, a vote on each scenario and a reading of its facts reads with none of them", async () => {
+  // The file as it stood before those four migrations.
   const before = join(directory, "migrations-before");
 
   for (const folder of await readdir(MIGRATIONS)) {
-    if (!/forecast_(base_rates|distributions|scenario_motions)$/.test(folder)) {
+    if (
+      !/forecast_(base_rates|distributions|scenario_motions|evidence)$/.test(
+        folder
+      )
+    ) {
       await cp(join(MIGRATIONS, folder), join(before, folder), {
         recursive: true,
       });
@@ -349,6 +354,7 @@ test("a forecast kept before base rates, distributions and a vote on each scenar
   const {
     baseRates: _rates,
     motions: _votes,
+    evidence: _read,
     outcome: _open,
     ...made
   } = forecast("old");

@@ -30,6 +30,7 @@ import type { Report } from "@solyx/core/report";
 import { ResearchDesk } from "@solyx/core/research";
 import type { FalsifierCheck, ResearchStore } from "@solyx/core/research";
 import { twFilingDeadline } from "@solyx/core/rules/tw";
+import { Stance } from "@solyx/core/sentiment";
 
 import { createResearch } from "../src/research.ts";
 import { AgentToolName } from "../src/wire.ts";
@@ -1076,4 +1077,44 @@ test("no vote is held on a forecast the checks refuse", async () => {
     "The listing has no report."
   );
   expect(motions).toEqual([]);
+});
+
+test("a forecast's facts and the record of the side they read towards are worded for the model", async () => {
+  const { run, store, bars, clock } = setup();
+
+  await run(AgentToolName.ReviseReport, REPORT);
+  bars.daily = HISTORY;
+  await run(AgentToolName.SubmitForecast, FORECAST);
+
+  const [kept] = store.forecasts();
+
+  // As a decisions model would have read the facts of one made the session before.
+  store.addForecast({
+    ...kept,
+    id: "read",
+    anchor: { ...kept.anchor, date: "2026-09-28" },
+    evidence: {
+      model: "jev-1.13.0",
+      facts: 2,
+      stance: {
+        [Stance.Negative]: 0,
+        [Stance.LeanNegative]: 0.1,
+        [Stance.Neutral]: 0.2,
+        [Stance.LeanPositive]: 0.3,
+        [Stance.Positive]: 0.4,
+      },
+    },
+  });
+
+  bars.daily = [...HISTORY, ...LATER_BARS];
+  clock.now = AFTER_HORIZON;
+
+  const { text } = await run(AgentToolName.GetResearch, { symbol: TSMC });
+
+  expect(text).toContain(
+    "its facts: A decisions model (jev-1.13.0) read each of the 2 facts alone for how it bears on the share price: good news 70%, mixed or neutral 20%, bad news 10%."
+  );
+  expect(text).toContain(
+    "the side a decisions model read the facts towards: the close landed there in 1 of 1, where history alone expects 0.5"
+  );
 });

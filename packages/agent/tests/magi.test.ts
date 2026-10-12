@@ -13,6 +13,7 @@ import { ForecastDirection } from "@solyx/core/forecast";
 import { Market } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
 import { ReportStance } from "@solyx/core/report";
+import { Stance } from "@solyx/core/sentiment";
 
 import {
   councilText,
@@ -478,6 +479,7 @@ const FORECAST_MOTION = {
     sections: {},
   },
   baseRates: [0.46, 0.54],
+  evidence: null,
 };
 
 test("a forecast's scenarios are each a numbered motion against history, without what its author gave them", () => {
@@ -494,6 +496,28 @@ test("a forecast's scenarios are each a numbered motion against history, without
   expect(motion).not.toContain("60%");
   expect(motion).not.toContain("long");
   expect(motion).not.toContain("2540");
+  expect(motion).not.toContain("decisions model");
+});
+
+test("a forecast's motions say how a decisions model read its facts, where one did", () => {
+  const motion = forecastMotion({
+    ...FORECAST_MOTION,
+    evidence: {
+      model: "jev-1.13.0",
+      facts: 3,
+      stance: {
+        [Stance.Negative]: 0.05,
+        [Stance.LeanNegative]: 0.15,
+        [Stance.Neutral]: 0.3,
+        [Stance.LeanPositive]: 0.3,
+        [Stance.Positive]: 0.2,
+      },
+    },
+  });
+
+  expect(motion).toContain(
+    "A decisions model (jev-1.13.0) read each of the 3 facts alone for how it bears on the share price: good news 50%, mixed or neutral 30%, bad news 20%. It reads words and saw no price."
+  );
 });
 
 test("the scenarios' tally names each with its history, its count and every unit's reason", () => {

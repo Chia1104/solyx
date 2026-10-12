@@ -8,12 +8,14 @@ import {
   bandsBetween,
   baseRates,
   checkForecast,
+  evidenceSide,
   forecastLean,
   forecastRecord,
   forecastTimeline,
   horizonMoves,
   judgeForecast,
   moveQuantile,
+  readEvidence,
 } from "../src/forecast.ts";
 import type {
   Forecast,
@@ -23,6 +25,7 @@ import type {
 import type { Dividend } from "../src/fundamentals.ts";
 import { Market } from "../src/market.ts";
 import { ReportStance } from "../src/report.ts";
+import { Stance } from "../src/sentiment.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 
@@ -94,6 +97,7 @@ function forecast(patch: Partial<Forecast> = {}): Forecast {
     anchor: ANCHOR,
     reportRevision: 1,
     motions: null,
+    evidence: null,
     outcome: null,
     ...patch,
   };
@@ -848,9 +852,123 @@ test("the record counts the scenarios a vote carried against what history expect
   ]);
 
   expect(record.motions).toEqual({
-    carried: 4,
+    calls: 4,
     held: 1,
     expected: expect.closeTo(1.6),
   });
   expect(forecastRecord([forecast()]).motions).toBeNull();
+});
+
+/** A reading with all of its weight on one level. */
+const stanceOn = (level: Stance) => ({
+  [Stance.Negative]: 0,
+  [Stance.LeanNegative]: 0,
+  [Stance.Neutral]: 0,
+  [Stance.LeanPositive]: 0,
+  [Stance.Positive]: 0,
+  [level]: 1,
+});
+
+const read = (level: Stance) => ({ model: "jev", stance: stanceOn(level) });
+
+test("several facts read as one are the mean of their readings, and none read is no reading", () => {
+  expect(readEvidence([])).toBeNull();
+
+  expect(
+    readEvidence([
+      read(Stance.Positive),
+      read(Stance.Positive),
+      read(Stance.Neutral),
+      read(Stance.LeanNegative),
+    ])
+  ).toEqual({
+    model: "jev",
+    facts: 4,
+    stance: {
+      [Stance.Negative]: 0,
+      [Stance.LeanNegative]: 0.25,
+      [Stance.Neutral]: 0.25,
+      [Stance.LeanPositive]: 0,
+      [Stance.Positive]: 0.5,
+    },
+  });
+});
+
+test("facts that cancel out call no side, and facts that lean call theirs", () => {
+  const evidence = (...levels: Stance[]) => {
+    const reading = readEvidence(levels.map(read));
+
+    if (!reading) throw new Error("No fact was read");
+
+    return reading;
+  };
+
+  expect(evidenceSide(evidence(Stance.Positive, Stance.Neutral))).toBe(1);
+  expect(evidenceSide(evidence(Stance.Negative, Stance.LeanNegative))).toBe(-1);
+  // A mean of 0.125 is under the line.
+  expect(
+    evidenceSide(
+      evidence(
+        Stance.LeanPositive,
+        Stance.Neutral,
+        Stance.Neutral,
+        Stance.Neutral
+      )
+    )
+  ).toBe(0);
+  expect(evidenceSide(evidence(Stance.Positive, Stance.Negative))).toBe(0);
+});
+
+test("the record counts the side the facts read towards against what history expects of its bands", () => {
+  const settled = (scenario: number) => ({
+    date: SESSIONS[2],
+    close: 1000,
+    distributed: 0,
+    scenario,
+    brier: 0.5,
+    plan: null,
+  });
+
+  const facts = (level: Stance) => readEvidence([read(level)]);
+  const baseRates = [0.2, 0.5, 0.3];
+
+  const record = forecastRecord([
+    // Read up, and the close landed in the band above the anchor.
+    forecast({
+      baseRates,
+      evidence: facts(Stance.Positive),
+      outcome: settled(2),
+    }),
+    // Read up, and it landed in the band that holds the anchor.
+    forecast({
+      id: "f-2",
+      baseRates,
+      evidence: facts(Stance.Positive),
+      outcome: settled(1),
+    }),
+    // Read down, and it landed below.
+    forecast({
+      id: "f-3",
+      baseRates,
+      evidence: facts(Stance.Negative),
+      outcome: settled(0),
+    }),
+    // Facts that lean neither way, an open forecast and one nobody read call nothing.
+    forecast({
+      id: "f-4",
+      baseRates,
+      evidence: facts(Stance.Neutral),
+      outcome: settled(2),
+    }),
+    forecast({ id: "f-5", baseRates, evidence: facts(Stance.Positive) }),
+    forecast({ id: "f-6", baseRates, outcome: settled(2) }),
+  ]);
+
+  // Two calls on the band above, which history gives 0.3, and one on the band below, 0.2.
+  expect(record.evidence).toEqual({
+    calls: 3,
+    held: 2,
+    expected: expect.closeTo(0.8),
+  });
+  expect(forecastRecord([forecast()]).evidence).toBeNull();
 });

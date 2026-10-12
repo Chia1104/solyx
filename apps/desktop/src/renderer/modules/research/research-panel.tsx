@@ -316,8 +316,15 @@ function RecordLine({ record }: { record: ForecastRecord }) {
       {record.motions
         ? ` · ${t("research.forecasts.motions", {
             held: record.motions.held,
-            carried: record.motions.carried,
+            calls: record.motions.calls,
             expected: indicator.format(record.motions.expected),
+          })}`
+        : null}
+      {record.evidence
+        ? ` · ${t("research.forecasts.evidence", {
+            held: record.evidence.held,
+            calls: record.evidence.calls,
+            expected: indicator.format(record.evidence.expected),
           })}`
         : null}
     </>

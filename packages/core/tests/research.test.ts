@@ -15,7 +15,7 @@ import {
   resolveCouncils,
 } from "../src/council.ts";
 import { ForecastDirection, ForecastViolationCode } from "../src/forecast.ts";
-import type { Forecast, ForecastDraft } from "../src/forecast.ts";
+import type { FactReader, Forecast, ForecastDraft } from "../src/forecast.ts";
 import type { Fundamentals } from "../src/fundamentals.ts";
 import { Market, symbolKey } from "../src/market.ts";
 import type { SymbolRef } from "../src/market.ts";
@@ -25,6 +25,7 @@ import { ReportStance, ReportViolationCode } from "../src/report.ts";
 import type { Report } from "../src/report.ts";
 import { FALSIFIER_FLOORS, ResearchDesk } from "../src/research.ts";
 import type { FalsifierCheck, ResearchStore } from "../src/research.ts";
+import { Stance } from "../src/sentiment.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 
@@ -275,6 +276,7 @@ test("a forecast is stamped with the newest daily bar and the report it was made
       anchor: { date: "2026-09-29", price: 1000 },
       reportRevision: 1,
       motions: null,
+      evidence: null,
       outcome: null,
     },
   });
@@ -782,7 +784,165 @@ test("a forecast's scenarios are put to a vote against their base rates, and it 
     anchor: { date: "2026-09-29", price: 1000 },
     report: expect.objectContaining({ revision: 1 }),
     baseRates: [32 / 62, 30 / 62],
+    evidence: null,
   });
+});
+
+/** A fact's reading with all of its weight on one level. */
+const readAs = (level: Stance) => ({
+  model: "jev",
+  stance: {
+    [Stance.Negative]: 0,
+    [Stance.LeanNegative]: 0,
+    [Stance.Neutral]: 0,
+    [Stance.LeanPositive]: 0,
+    [Stance.Positive]: 0,
+    [level]: 1,
+  },
+});
+
+/** A desk over the listing's history whose facts `read` reads, with a report in force. */
+async function reading(read: FactReader["read"]) {
+  const store = memoryStore();
+
+  const desk = new ResearchDesk({
+    store,
+    marketData: { candles: async () => HISTORY },
+    fundamentals: { statements: async () => [], dividends: async () => [] },
+    reader: async () => ({ read }),
+    now: () => AT_ANCHOR,
+  });
+
+  await desk.revise({
+    symbol: TSMC,
+    stance: ReportStance.Bullish,
+    thesis: "Advanced nodes stay sold out.",
+  });
+
+  return { desk, store };
+}
+
+const fact = (text: string) => ({ text, source: "Filing", quote: text });
+
+test("the facts a forecast rests on are each read alone once it passes, and it is kept and voted on with their mean", async () => {
+  const read = vi.fn<FactReader["read"]>(async ({ text }) =>
+    readAs(text === "Revenue rose." ? Stance.Positive : Stance.Neutral)
+  );
+
+  const { desk } = await reading(read);
+  const vote = vi.fn(async () => [votes(), votes()]);
+
+  const evidence = {
+    model: "jev",
+    facts: 2,
+    stance: { ...readAs(Stance.Neutral).stance, neutral: 0.5, positive: 0.5 },
+  };
+
+  expect(
+    await desk.forecast(
+      { ...draft, claims: [fact("Revenue rose."), fact("The low was 990.")] },
+      vote
+    )
+  ).toMatchObject({ ok: true, forecast: { evidence } });
+  expect(read).toHaveBeenCalledTimes(2);
+  expect(vote).toHaveBeenCalledWith(expect.objectContaining({ evidence }));
+});
+
+test("a fact the model cannot be reached for is left out, and a forecast none was read for is kept unread", async () => {
+  const claims = [fact("Revenue rose."), fact("Costs rose.")];
+  const unreachable = new Error("The model is out of reach");
+
+  const one = await reading(
+    vi
+      .fn<FactReader["read"]>()
+      .mockRejectedValueOnce(unreachable)
+      .mockResolvedValueOnce(readAs(Stance.Negative))
+  );
+
+  expect(await one.desk.forecast({ ...draft, claims })).toMatchObject({
+    ok: true,
+    forecast: { evidence: { facts: 1, stance: { negative: 1 } } },
+  });
+
+  const none = await reading(
+    vi.fn<FactReader["read"]>().mockRejectedValue(unreachable)
+  );
+
+  expect(await none.desk.forecast({ ...draft, claims })).toMatchObject({
+    ok: true,
+    forecast: { evidence: null },
+  });
+});
+
+test("a forecast is checked again once its facts are read, since the report or the session's forecast may have changed meanwhile", async () => {
+  const claims = [fact("Revenue rose.")];
+  const meanwhile = vi.fn<() => Promise<void>>();
+
+  const read: FactReader["read"] = async () => {
+    await meanwhile();
+
+    return readAs(Stance.Positive);
+  };
+
+  // The report is revised while the model reads: the forecast is kept under the revision in force.
+  const revised = await reading(read);
+
+  meanwhile.mockImplementationOnce(async () => {
+    await revised.desk.revise({ symbol: TSMC, thesis: "Margins hold." });
+  });
+
+  expect(await revised.desk.forecast({ ...draft, claims })).toMatchObject({
+    ok: true,
+    forecast: { reportRevision: 2 },
+  });
+
+  // Another conversation keeps the session's forecast while the model reads.
+  const raced = await reading(read);
+
+  const other = new ResearchDesk({
+    store: raced.store,
+    marketData: { candles: async () => HISTORY },
+    fundamentals: { statements: async () => [], dividends: async () => [] },
+    now: () => AT_ANCHOR,
+  });
+
+  meanwhile.mockImplementationOnce(async () => {
+    await other.forecast(draft);
+  });
+
+  expect(await raced.desk.forecast({ ...draft, claims })).toEqual({
+    ok: false,
+    violations: [
+      { code: ForecastViolationCode.AlreadyForecast, date: "2026-09-29" },
+    ],
+  });
+  expect(raced.store.forecasts()).toHaveLength(1);
+});
+
+test("no fact is read for a forecast the checks refuse, or for one that cites none", async () => {
+  const read = vi.fn<FactReader["read"]>(async () => readAs(Stance.Positive));
+  const { desk } = await reading(read);
+
+  expect(
+    (
+      await desk.forecast({
+        ...draft,
+        claims: [fact("Revenue rose.")],
+        scenarios: draft.scenarios.map((scenario) => ({
+          ...scenario,
+          probability: 50,
+        })),
+        direction: ForecastDirection.Short,
+      })
+    ).ok
+  ).toBe(false);
+  expect(read).not.toHaveBeenCalled();
+
+  expect(await desk.forecast(draft)).toMatchObject({
+    ok: true,
+    forecast: { evidence: null },
+  });
+  expect(read).not.toHaveBeenCalled();
 });
 
 test("a listing whose bars give its bands no base rates has no motion to put, and its forecast is kept without a vote", async () => {
