@@ -80,6 +80,7 @@ import { createWebSearch } from "./modules/web-search/web-search.ts";
 import { createWorkspace } from "./modules/workspace/workspace.ts";
 import { createScheduler } from "./scheduler.ts";
 import { appChannel } from "./shell/app-channel.ts";
+import { chromiumFetch } from "./shell/chromium-fetch.ts";
 import { paintWindow, showMainWindow } from "./shell/main-window.ts";
 import { createTrayShell } from "./shell/tray-icon.ts";
 
@@ -257,7 +258,8 @@ export function createServices(config: ConfigFile) {
 
   const calendar = createCalendar({
     fundamentals,
-    macro: [createStatGovTw()],
+    // The statistics portal's server leaves its intermediate certificate out, which Node's fetch does not make up for.
+    macro: [createStatGovTw({ fetch: chromiumFetch })],
     closures: [twExchanges],
     reports: researchData.store,
     answers: cache.answers,
