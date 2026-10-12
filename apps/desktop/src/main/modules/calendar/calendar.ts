@@ -1,9 +1,13 @@
 import { sortBy, uniq } from "es-toolkit";
 
-import { reportedEvents, upcomingEvents } from "@solyx/core/calendar";
+import {
+  RELEASED_DAYS,
+  reportedEvents,
+  upcomingEvents,
+} from "@solyx/core/calendar";
 import type { UpcomingEvents } from "@solyx/core/calendar";
 import type { Fundamentals } from "@solyx/core/fundamentals";
-import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
+import { releaseReadings } from "@solyx/core/macro";
 import { exchangeDate, shiftDate } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { Report } from "@solyx/core/report";
@@ -11,8 +15,10 @@ import type { ClosuresProvider, MarketClosure } from "@solyx/core/session";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
 
-// An agency sets its schedule months ahead, and an exchange its closures a year ahead, so a market's are read twice a day at most.
-const SCHEDULE_FRESH_MS = 12 * 60 * 60 * 1000;
+import type { Macro } from "../macro/macro.ts";
+
+// An exchange sets its closures a year ahead, so a market's are read twice a day at most.
+const CLOSURES_FRESH_MS = 12 * 60 * 60 * 1000;
 
 export interface CalendarOptions {
   fundamentals: Pick<
@@ -24,15 +30,15 @@ export interface CalendarOptions {
     | "exNotices"
     | "meetings"
   >;
-  /** One per market at most; the first that covers a market answers for it. */
-  macro: readonly MacroCalendarProvider[];
+  /** Each market's schedule of economic releases and its indicators' figures. */
+  macro: Pick<Macro, "schedule" | "series">;
   /** The sources of the days exchanges close their markets, one per market at most. */
   closures: readonly ClosuresProvider[];
   /** Each listing's report in force, for the dates it holds. */
   reports: {
     report(symbol: SymbolRef): Pick<Report, "symbol" | "events"> | undefined;
   };
-  /** Where each market's schedule and closures are kept between runs. */
+  /** Where each market's closures are kept between runs. */
   answers: AnswerStores;
   /** @default () => new Date() */
   now?: () => Date;
@@ -48,8 +54,9 @@ const readOrNone = <Answer>(read: PromiseSettledResult<Answer[]>) =>
 
 /**
  * Listings' events as their fundamentals tell them, read through the fundamentals module, which
- * keeps what it reads, beside the dates their reports hold and the economic releases and
- * closures of their markets.
+ * keeps what it reads, beside the dates their reports hold and their markets' closures and
+ * economic releases, each release with what is known of its figures and kept for
+ * `RELEASED_DAYS` once its day has come.
  */
 export function createCalendar({
   fundamentals,
@@ -59,27 +66,11 @@ export function createCalendar({
   answers,
   now = () => new Date(),
 }: CalendarOptions) {
-  /** A market's releases from the day they were read on. */
-  const schedules = keepFresh<Ask<MacroCalendarProvider>, MacroRelease[]>({
-    store: answers("macro:schedule"),
-    id: ({ market, provider }) => `${provider.id}:${market}`,
-    ask: ({ market, provider }) =>
-      provider.releases(market, exchangeDate(market, now())),
-    fresh: freshFor(SCHEDULE_FRESH_MS),
-    now: () => now().getTime(),
-  });
-
-  function schedule(market: Market): Promise<MacroRelease[]> {
-    const provider = macro.find(({ markets }) => markets.includes(market));
-
-    return provider ? schedules({ market, provider }) : Promise.resolve([]);
-  }
-
   const closed = keepFresh<Ask<ClosuresProvider>, MarketClosure[]>({
     store: answers("market-closures"),
     id: ({ market, provider }) => `${provider.id}:${market}`,
     ask: ({ market, provider }) => provider.getClosures(market),
-    fresh: freshFor(SCHEDULE_FRESH_MS),
+    fresh: freshFor(CLOSURES_FRESH_MS),
     now: () => now().getTime(),
   });
 
@@ -107,7 +98,7 @@ export function createCalendar({
     /**
      * One listing or market failing to read leaves the others', and names it among the unread. A
      * listing's filings and what its exchange lists of it come from different sources, so one of
-     * them failing leaves the events of what was read.
+     * them failing leaves the events of what was read, as figures failing leave the releases.
      */
     async upcoming(
       symbols: readonly SymbolRef[],
@@ -116,13 +107,16 @@ export function createCalendar({
       const at = now();
       const markets = uniq(symbols.map(({ market }) => market));
 
-      const within = (market: Market, date: string) => {
+      /** Whether a day falls from `back` days before a market's today through the days asked for. */
+      const within = (back: number) => (market: Market, date: string) => {
         const today = exchangeDate(market, at);
 
-        return date >= today && date <= shiftDate(today, days);
+        return (
+          date >= shiftDate(today, -back) && date <= shiftDate(today, days)
+        );
       };
 
-      const [read, scheduled, closing] = await Promise.all([
+      const [read, scheduled, closing, figures] = await Promise.all([
         Promise.all(
           symbols.map(async (symbol) => {
             const [
@@ -168,9 +162,12 @@ export function createCalendar({
             };
           })
         ),
-        Promise.allSettled(markets.map(schedule)),
+        Promise.allSettled(markets.map((market) => macro.schedule(market))),
         Promise.allSettled(markets.map(closuresOf)),
+        Promise.allSettled(markets.map((market) => macro.series(market))),
       ]);
+
+      const series = figures.flatMap(readOrNone);
 
       return {
         events: sortBy(
@@ -189,12 +186,18 @@ export function createCalendar({
           [({ date }) => date]
         ),
         unread: symbols.filter((_, index) => !read[index].whole),
-        releases: ahead(scheduled, within),
-        closures: ahead(closing, within),
+        releases: ahead(scheduled, within(RELEASED_DAYS)).map((release) => ({
+          ...release,
+          readings: releaseReadings(release, series),
+        })),
+        closures: ahead(closing, within(0)),
         unreadMarkets: markets.filter((_, index) =>
           [scheduled[index], closing[index]].some(
             ({ status }) => status === "rejected"
           )
+        ),
+        unreadFigures: markets.filter(
+          (_, index) => figures[index].status === "rejected"
         ),
       };
     },

@@ -20,7 +20,7 @@ import type { UpcomingEvents } from "@solyx/core/calendar";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
-import { MacroIndicator } from "@solyx/core/macro";
+import { MacroFigure, MacroIndicator, MacroUnit } from "@solyx/core/macro";
 import { Market } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import { NewsChannel, TimePrecision, readNews } from "@solyx/core/news";
@@ -152,6 +152,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
       releases: [],
       closures: [],
       unreadMarkets: [],
+      unreadFigures: [],
     })
   );
 
@@ -770,6 +771,64 @@ test("the calendar lists the followed listings' events and their markets' releas
         timing: EventTiming.Set,
         period: "2026-09",
         page: "https://www.mof.gov.tw/multiplehtml/384",
+        // Out, with what it brought.
+        readings: [
+          {
+            figure: MacroFigure.Exports,
+            unit: MacroUnit.UsdMillions,
+            period: "2026-09",
+            value: 52000,
+            previous: 50000,
+            yoy: 0.2683,
+          },
+          {
+            figure: MacroFigure.Imports,
+            unit: MacroUnit.UsdMillions,
+            period: "2026-09",
+            value: 38000.5,
+            previous: 36000,
+            yoy: null,
+          },
+        ],
+      },
+      {
+        market: Market.TW,
+        indicator: MacroIndicator.ConsumerPrices,
+        date: "2026-11-05",
+        time: "16:00",
+        timing: EventTiming.Set,
+        period: "2026-10",
+        page: null,
+        // Ahead, with the newest period out before it.
+        readings: [
+          {
+            figure: MacroFigure.ConsumerPrices,
+            unit: MacroUnit.Index,
+            period: "2026-09",
+            value: 102.5,
+            previous: 102,
+            yoy: 0.025,
+          },
+        ],
+      },
+      {
+        market: Market.TW,
+        indicator: MacroIndicator.BusinessSignal,
+        date: "2026-10-28",
+        time: "16:00",
+        timing: EventTiming.Set,
+        period: "2026-09",
+        page: null,
+        readings: [
+          {
+            figure: MacroFigure.BusinessSignal,
+            unit: MacroUnit.Points,
+            period: "2026-08",
+            value: 41,
+            previous: 40,
+            yoy: null,
+          },
+        ],
       },
       {
         market: Market.TW,
@@ -779,10 +838,12 @@ test("the calendar lists the followed listings' events and their markets' releas
         timing: EventTiming.Deadline,
         period: "2026-10",
         page: null,
+        readings: [],
       },
     ],
     closures: [{ market: Market.TW, date: "2026-10-09", name: "國慶日" }],
     unreadMarkets: [],
+    unreadFigures: [Market.TW],
   });
 
   const { text, details } = await run(AgentToolName.GetCalendar, { days: 30 });
@@ -805,18 +866,20 @@ test("the calendar lists the followed listings' events and their markets' releas
     "Dates their reports hold, each as you found it, with its source:",
     "2026-10-16 TW 2330 Third-quarter earnings call [https://investor.test/calendar]",
     "around 2026-10-28 TW 2330 Export rule decision [news.test]",
-    "Economic releases of their markets:",
-    "2026-10-08 16:00 TW trade for 2026-09 [https://www.mof.gov.tw/multiplehtml/384]",
+    "Economic releases of their markets, from 7 days back:",
+    "2026-10-08 16:00 TW trade for 2026-09 [https://www.mof.gov.tw/multiplehtml/384]; out: exports USD 52000 million, +26.83% on the year; imports USD 38000.5 million, n/a on the year",
+    "2026-11-05 16:00 TW consumer prices for 2026-10; last out, for 2026-09: consumer prices +2.50% on the year (index 102.5)",
+    "2026-10-28 16:00 TW business signal for 2026-09; last out, for 2026-08: business signal 41 points, 40 the period before",
     "by 2026-11-03 TW purchasing managers for 2026-10",
     "Weekdays their markets are closed:",
     "2026-10-09 TW closed (國慶日)",
-    "Could not read the fundamentals of TW 6669 this time, so dates may be missing.",
+    "Could not read the fundamentals of TW 6669; the economic figures of TW this time, so dates may be missing.",
   ]);
   expect(details).toEqual({
     symbols: [{ market: Market.TW, symbol: "6669" }, TSMC],
     days: 30,
     events: 10,
-    releases: 2,
+    releases: 4,
   });
 });
 

@@ -205,6 +205,7 @@ export const AgentToolName = {
   GetResearch: "get_research",
   GetFundamentals: "get_fundamentals",
   GetFlows: "get_flows",
+  GetMacro: "get_macro",
   ReviseReport: "revise_report",
   SubmitForecast: "submit_forecast",
   SearchHistory: "search_history",

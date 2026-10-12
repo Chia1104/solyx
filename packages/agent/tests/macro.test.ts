@@ -1,0 +1,88 @@
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { contentText } from "@earendil-works/pi-ai";
+import type {
+  ToolExecutionApi,
+  ToolRegistration,
+} from "@earendil-works/pi-durable";
+import { expect, test, vi } from "vite-plus/test";
+
+import { MacroFigure, MacroIndicator, MacroUnit } from "@solyx/core/macro";
+import type { MacroSeries } from "@solyx/core/macro";
+import { Market } from "@solyx/core/market";
+
+import { createMacroTools } from "../src/macro.ts";
+import type { MacroToolsOptions } from "../src/macro.ts";
+import { AgentToolName } from "../src/wire.ts";
+
+// 2026-10-12 10:00 in Taipei.
+const NOW = new Date("2026-10-12T02:00:00Z");
+
+const EXPORTS: MacroSeries = {
+  market: Market.TW,
+  indicator: MacroIndicator.Trade,
+  figure: MacroFigure.Exports,
+  unit: MacroUnit.UsdMillions,
+  observations: [
+    { period: "2025-09", value: 40000 },
+    { period: "2026-08", value: 50000.126 },
+    { period: "2026-09", value: 52000 },
+  ],
+};
+
+const SIGNAL: MacroSeries = {
+  market: Market.TW,
+  indicator: MacroIndicator.BusinessSignal,
+  figure: MacroFigure.BusinessSignal,
+  unit: MacroUnit.Points,
+  observations: [{ period: "2026-08", value: 41 }],
+};
+
+function setup() {
+  const series = vi.fn<MacroToolsOptions["series"]>(async (market) =>
+    market === Market.TW ? [EXPORTS, SIGNAL] : []
+  );
+
+  const [tool] = createMacroTools({ series, now: () => NOW }).tools ?? [];
+
+  const run = async (params: Parameters<ToolRegistration["execute"]>[0]) => {
+    // SAFETY: get_macro never uses its call's api.
+    const api = {} as ToolExecutionApi;
+    const result = await tool.execute(params, api, BACKGROUND_CONTEXT);
+
+    return { text: contentText(result.content ?? []), details: result.details };
+  };
+
+  return { tool, run, series };
+}
+
+test("reads each figure's periods oldest first, with the growth on the year the app computed", async () => {
+  const { tool, run, series } = setup();
+
+  expect(tool.name).toBe(AgentToolName.GetMacro);
+
+  const { text, details } = await run({});
+
+  expect(series).toHaveBeenCalledExactlyOnceWith(Market.TW);
+  expect(text.split("\n")).toEqual([
+    "TW economic figures as_of 2026-10-12 10:00, each figure's last 13 periods out",
+    "exports, of trade, in USD millions:",
+    "period,value,on the year",
+    "2025-09,40000,n/a",
+    "2026-08,50000.13,n/a",
+    "2026-09,52000,+30.00%",
+    "business signal, of business signal, in points:",
+    "period,value,on the year",
+    "2026-08,41,n/a",
+  ]);
+  expect(details).toEqual({ market: Market.TW });
+});
+
+test("a market no source covers says so, which says nothing of its economy", async () => {
+  const { run } = setup();
+
+  const { text } = await run({ market: Market.US });
+
+  expect(text).toBe(
+    "No source has US's economic figures yet. That says nothing of the economy."
+  );
+});

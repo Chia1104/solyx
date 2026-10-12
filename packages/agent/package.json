@@ -7,6 +7,7 @@
     "./analysis": "./src/analysis.ts",
     "./chatgpt-oauth": "./src/chatgpt-oauth.ts",
     "./flows": "./src/flows.ts",
+    "./macro": "./src/macro.ts",
     "./history": "./src/history.ts",
     "./mcp": "./src/mcp.ts",
     "./mcp-config": "./src/mcp-config.ts",

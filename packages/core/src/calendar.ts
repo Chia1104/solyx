@@ -9,7 +9,7 @@ import type {
   ShareholdersMeeting,
   TradingRestriction,
 } from "./fundamentals.ts";
-import type { MacroRelease } from "./macro.ts";
+import type { MacroReading, MacroRelease } from "./macro.ts";
 import { Market } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import type { Report, ReportEvent } from "./report.ts";
@@ -73,6 +73,18 @@ export interface ListingEvent {
   until: string | null;
 }
 
+/** How many days a release stays on the calendar once its day has come, so the figures it brought are read there. */
+export const RELEASED_DAYS = 7;
+
+/** A release on the calendar with what is known of its figures. */
+export interface ReleaseEvent extends MacroRelease {
+  /**
+   * Its indicator's figures, the headline one first: at its own period once that is out, or else
+   * at the newest period out before it. None for an indicator no source has figures of.
+   */
+  readings: MacroReading[];
+}
+
 /** A date a listing's report holds: what the agent found with its source, never a filing of the exchange or the company. */
 export interface ResearchEvent extends ReportEvent {
   symbol: SymbolRef;
@@ -86,12 +98,14 @@ export interface UpcomingEvents {
   research: ResearchEvent[];
   /** Listings whose fundamentals could not be read this time, so their events may be missing. */
   unread: SymbolRef[];
-  /** The economic releases of the listings' markets, soonest first. */
-  releases: MacroRelease[];
+  /** The economic releases of the listings' markets, soonest first, those of the last `RELEASED_DAYS` days among them. */
+  releases: ReleaseEvent[];
   /** The weekdays the listings' markets are closed, soonest first. */
   closures: MarketClosure[];
   /** Markets whose releases or closures could not be read this time, so some of theirs may be missing. */
   unreadMarkets: Market[];
+  /** Markets whose indicators' figures could not be read this time, so their releases come without any. */
+  unreadFigures: Market[];
 }
 
 /** What a listing's events are derived from, as `Fundamentals` serves it. */

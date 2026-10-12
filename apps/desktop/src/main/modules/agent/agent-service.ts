@@ -9,6 +9,7 @@ import { omit, sum } from "es-toolkit";
 import { createAnalysis } from "@solyx/agent/analysis";
 import { createFlowTools } from "@solyx/agent/flows";
 import { createHistory } from "@solyx/agent/history";
+import { createMacroTools } from "@solyx/agent/macro";
 import { createMagi } from "@solyx/agent/magi";
 import type { MagiPort } from "@solyx/agent/magi";
 import { mcpScriptExtension } from "@solyx/agent/mcp-script";
@@ -61,6 +62,7 @@ import type { Locale, TimeZone } from "#shared/ipc/settings.ts";
 import type { ConversationsUsage } from "#shared/ipc/storage.ts";
 
 import type { Calendar } from "../calendar/calendar.ts";
+import type { Macro } from "../macro/macro.ts";
 import { marketSessions } from "../market/trading-calendar.ts";
 import type {
   MarketDays,
@@ -108,6 +110,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   tasks: TaskPort;
   fundamentals: Fundamentals;
   flows: Flows;
+  /** Each market's indicators' figures, for the agent's own read of them. */
+  macro: Pick<Macro, "series">;
   /** What the agent reads of the rest of the app's settings. */
   setup: AgentSetupSources;
   /** A run started or ended, or one of its calls began or stopped waiting for the user. */
@@ -252,6 +256,8 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const flows = createFlowTools({ flows: options.flows });
 
+  const macro = createMacroTools({ series: options.macro.series });
+
   const themes = createThemeTools({ desk: options.themes });
 
   const tasks = createTaskTools({ tasks: options.tasks });
@@ -299,6 +305,7 @@ export function createAgentService(options: AgentServiceOptions) {
           analysis,
           research,
           flows,
+          macro,
           history,
           themes.extension(guard),
           tasks.extension(guard),
