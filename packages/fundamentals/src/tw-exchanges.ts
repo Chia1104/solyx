@@ -9,6 +9,7 @@ import type {
   ExchangeListsProvider,
   ExchangeMultiples,
   FundProfile,
+  Industry,
   Listed,
   ShareholdersMeeting,
   TradingRestriction,
@@ -346,6 +347,69 @@ const meetingSchema = z
     election: row.是否改選董監 === "是",
   }));
 
+/**
+ * What the exchanges call each industry code, as their own lists pair the two. Both exchanges
+ * class by the same codes; one they add later reads by its code alone.
+ */
+const INDUSTRIES = new Map([
+  ["01", "水泥工業"],
+  ["02", "食品工業"],
+  ["03", "塑膠工業"],
+  ["04", "紡織纖維"],
+  ["05", "電機機械"],
+  ["06", "電器電纜"],
+  ["08", "玻璃陶瓷"],
+  ["09", "造紙工業"],
+  ["10", "鋼鐵工業"],
+  ["11", "橡膠工業"],
+  ["12", "汽車工業"],
+  ["14", "建材營造"],
+  ["15", "航運業"],
+  ["16", "觀光餐旅"],
+  ["17", "金融保險業"],
+  ["18", "貿易百貨"],
+  ["20", "其他"],
+  ["21", "化學工業"],
+  ["22", "生技醫療業"],
+  ["23", "油電燃氣業"],
+  ["24", "半導體業"],
+  ["25", "電腦及週邊設備業"],
+  ["26", "光電業"],
+  ["27", "通信網路業"],
+  ["28", "電子零組件業"],
+  ["29", "電子通路業"],
+  ["30", "資訊服務業"],
+  ["31", "其他電子業"],
+  ["32", "文化創意業"],
+  ["33", "農業科技"],
+  ["35", "綠能環保"],
+  ["36", "數位雲端"],
+  ["37", "運動休閒"],
+  ["38", "居家生活"],
+  ["91", "存託憑證"],
+]);
+
+const industry = (symbol: string, code: string): Listed<Industry> => ({
+  symbol,
+  code,
+  name: INDUSTRIES.get(code) ?? code,
+});
+
+const TWSE_COMPANY_CODE = "公司代號";
+
+const twseIndustrySchema = z
+  .object({ [TWSE_COMPANY_CODE]: codeSchema, 產業別: codeSchema })
+  .transform((row) => industry(row[TWSE_COMPANY_CODE], row.產業別));
+
+const tpexIndustrySchema = z
+  .object({
+    SecuritiesCompanyCode: codeSchema,
+    SecuritiesIndustryCode: codeSchema,
+  })
+  .transform((row) =>
+    industry(row.SecuritiesCompanyCode, row.SecuritiesIndustryCode)
+  );
+
 // TWSE's days of the year, each with what it calls the day.
 const twseDaySchema = z.object({
   Name: textSchema.min(1),
@@ -410,7 +474,8 @@ export interface TwExchangesOptions {
 
 /**
  * The restrictions Taiwan's exchanges put on their listings, the funds they list, the multiples
- * they work out, their notices of shares going ex and their companies' shareholders' meetings,
+ * they work out, their notices of shares going ex, their companies' shareholders' meetings and
+ * the industry they class each company in,
  * from the open data of the Taiwan Stock Exchange and the Taipei Exchange, which need no key. Each
  * list is the exchange's own of today, so one request answers for every listing and a restriction
  * that ended may be gone from it. The Taipei Exchange publishes no list of its funds, so those
@@ -509,6 +574,22 @@ export function createTwExchanges(
       ]);
 
       return sortBy(lists.flat(), [({ date }) => date]);
+    },
+
+    async getIndustries(market) {
+      if (market !== Market.TW) return [];
+
+      const lists = await Promise.all([
+        list(
+          twse,
+          "opendata/t187ap03_L",
+          twseIndustrySchema,
+          TWSE_COMPANY_CODE
+        ),
+        list(tpex, "mopsfin_t187ap03_O", tpexIndustrySchema),
+      ]);
+
+      return lists.flat();
     },
 
     async getClosures(market) {

@@ -1,3 +1,4 @@
+import { peerStanding } from "@solyx/core/fundamentals";
 import type {
   ExchangeListsProvider,
   Fundamentals,
@@ -72,16 +73,21 @@ export function createFundamentals({
       now: () => now().getTime(),
     });
 
-    return async ({ market, symbol }: SymbolRef) => {
+    /** A market's whole list; none for a market no source lists. */
+    const all = (market: Market): Promise<Row[]> => {
       const provider = exchanges.find(({ markets }) =>
         markets.includes(market)
       );
 
-      if (!provider) return [];
+      return provider ? read({ market, provider }) : Promise.resolve([]);
+    };
 
-      return (await read({ market, provider })).flatMap(
-        ({ symbol: code, ...row }) => (code === symbol ? [row] : [])
-      );
+    return {
+      all,
+      of: async ({ market, symbol }: SymbolRef) =>
+        (await all(market)).flatMap(({ symbol: code, ...row }) =>
+          code === symbol ? [row] : []
+        ),
     };
   }
 
@@ -95,6 +101,12 @@ export function createFundamentals({
     "multiples",
     (provider, market) => provider.getMultiples(market),
     DAILY_LIST_FRESH_MS
+  );
+
+  const industries = listed(
+    "industries",
+    (provider, market) => provider.getIndustries(market),
+    FRESH_MS
   );
 
   /** `ask`'s answer per listing, kept under `scope`. */
@@ -168,22 +180,50 @@ export function createFundamentals({
       "restrictions",
       (provider, market) => provider.getRestrictions(market),
       DAILY_LIST_FRESH_MS
-    ),
+    ).of,
 
-    fund: async (symbol) => (await funds(symbol)).at(0) ?? null,
+    fund: async (symbol) => (await funds.of(symbol)).at(0) ?? null,
 
-    multiples: async (symbol) => (await multiples(symbol)).at(0) ?? null,
+    multiples: async (symbol) => (await multiples.of(symbol)).at(0) ?? null,
+
+    async peers({ market, symbol }) {
+      const [classed, worked] = await Promise.all([
+        industries.all(market),
+        multiples.all(market),
+      ]);
+
+      const own = classed.find((each) => each.symbol === symbol);
+      const ownMultiples = worked.find((each) => each.symbol === symbol);
+
+      if (!own || !ownMultiples) return null;
+
+      const others = new Set(
+        classed
+          .filter((each) => each.code === own.code && each.symbol !== symbol)
+          .map((each) => each.symbol)
+      );
+
+      return {
+        industry: { code: own.code, name: own.name },
+        listings: others.size + 1,
+        asOf: ownMultiples.asOf,
+        ...peerStanding(
+          ownMultiples,
+          worked.filter((each) => others.has(each.symbol))
+        ),
+      };
+    },
 
     exNotices: listed(
       "ex-notices",
       (provider, market) => provider.getExNotices(market),
       DAILY_LIST_FRESH_MS
-    ),
+    ).of,
 
     meetings: listed(
       "meetings",
       (provider, market) => provider.getMeetings(market),
       FRESH_MS
-    ),
+    ).of,
   };
 }

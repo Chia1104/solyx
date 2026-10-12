@@ -32,6 +32,8 @@ import type {
   ExchangeMultiples,
   FundProfile,
   Fundamentals,
+  MultipleStanding,
+  PeerStanding,
 } from "@solyx/core/fundamentals";
 import {
   BENCHMARK,
@@ -440,6 +442,28 @@ function multiplesText(multiples: ExchangeMultiples): string {
   return `Multiples as its exchange works them out from the close of ${multiples.asOf}: price to earnings ${figure(multiples.priceToEarnings)}, dividend yield ${dividendYield}, price to book ${figure(multiples.priceToBook)}.`;
 }
 
+/** One multiple against the same multiple of the industry's other listings. */
+function standingText(
+  name: string,
+  { value, peers, median: middle, above }: MultipleStanding,
+  unit = ""
+): string {
+  if (value === null || middle === null || above === null) {
+    return `${name} n/a`;
+  }
+
+  return `${name} ${figure(value)}${unit} against a median of ${figure(middle)}${unit}, above ${Math.round(above * 100)}% of the ${peers} with one`;
+}
+
+/** A listing's multiples against its industry's, as its exchanges class and work them out. */
+function peersText(peers: PeerStanding): string {
+  return `Among the ${peers.listings} listings its exchanges class as ${peers.industry.name}, itself aside: ${[
+    standingText("price to earnings", peers.priceToEarnings),
+    standingText("dividend yield", peers.dividendYield, "%"),
+    standingText("price to book", peers.priceToBook),
+  ].join("; ")}.`;
+}
+
 /** Why a listing has neither statements nor revenue on file with `source`. */
 function nothingFiledText(
   fund: FundProfile | undefined,
@@ -550,7 +574,7 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetFundamentals,
         replay: "safe",
-        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; its balance sheets at those quarters' ends, with the current ratio and liabilities against assets; its cash flows for each quarter alone, with free cash flow and the four quarters each closes; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. Beside the app's own price-to-earnings multiple, the answer gives the multiples the listing's exchange works out from its last close, price to earnings, dividend yield and price to book, each "n/a" where the exchange works none out, as it does no price to earnings for a company whose earnings add up to a loss; a fund has none. For a fund the Taiwan Stock Exchange lists, the answer opens with what it is: its kind in the exchange's words, such as a leveraged, inverse, futures or actively managed fund, the index it tracks or what it measures itself against, whether it may hold securities listed abroad, the day it listed, its manager and its units outstanding. The Taipei Exchange publishes no such list, so a fund listed there, as bond ETFs are, opens with none. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
+        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; its balance sheets at those quarters' ends, with the current ratio and liabilities against assets; its cash flows for each quarter alone, with free cash flow and the four quarters each closes; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. Beside the app's own price-to-earnings multiple, the answer gives the multiples the listing's exchange works out from its last close, price to earnings, dividend yield and price to book, each "n/a" where the exchange works none out, as it does no price to earnings for a company whose earnings add up to a loss; a fund has none. Under them it says where each stands in the listing's industry, as the exchanges class it: against the median of the industry's other listings and the share of them it is above, counting only those with that multiple. For a fund the Taiwan Stock Exchange lists, the answer opens with what it is: its kind in the exchange's words, such as a leveraged, inverse, futures or actively managed fund, the index it tracks or what it measures itself against, whether it may hold securities listed abroad, the day it listed, its manager and its units outstanding. The Taipei Exchange publishes no such list, so a fund listed there, as bond ETFs are, opens with none. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
           const listing = `${symbol.market} ${symbol.symbol}`;
@@ -571,6 +595,7 @@ export function createResearch(options: ResearchOptions): Extension {
             dividends,
             funds,
             multiples,
+            peers,
           ] = await Promise.all([
             filed(fundamentals.statements(symbol)),
             filed(fundamentals.balanceSheets(symbol)),
@@ -585,6 +610,11 @@ export function createResearch(options: ResearchOptions): Extension {
             filed(
               fundamentals
                 .multiples(symbol)
+                .then((each) => (each === null ? [] : [each]))
+            ),
+            filed(
+              fundamentals
+                .peers(symbol)
                 .then((each) => (each === null ? [] : [each]))
             ),
           ]);
@@ -633,6 +663,8 @@ export function createResearch(options: ResearchOptions): Extension {
                 : [
                     `The multiples its exchange works out could not be read: ${multiples.failure}`,
                   ]),
+              // What fails the industry's standing fails the multiples above, which already say so.
+              ...peers.rows.map(peersText),
               ...part("Quarterly statements", statements, [
                 "Quarters, each for the quarter alone, by its last day:",
                 "quarter,revenue,revenue yoy,revenue qoq,gross margin,operating margin,net margin,eps,eps yoy,trailing eps",
