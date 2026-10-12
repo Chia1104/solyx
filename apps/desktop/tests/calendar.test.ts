@@ -3,8 +3,8 @@ import { expect, test, vi } from "vite-plus/test";
 import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
 import { RestrictionKind } from "@solyx/core/fundamentals";
 import type { Dividend, Fundamentals } from "@solyx/core/fundamentals";
-import { MacroIndicator } from "@solyx/core/macro";
-import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
+import { MacroFigure, MacroIndicator, MacroUnit } from "@solyx/core/macro";
+import type { MacroRelease, MacroSeries } from "@solyx/core/macro";
 import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Report } from "@solyx/core/report";
@@ -12,6 +12,7 @@ import type { ClosuresProvider } from "@solyx/core/session";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
 import { createCalendar } from "../src/main/modules/calendar/calendar.ts";
+import type { Macro } from "../src/main/modules/macro/macro.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 
@@ -32,6 +33,19 @@ function cash(amount: number, cashExDate: string): Dividend {
 }
 
 const AAPL = { market: Market.US, symbol: "AAPL" };
+
+/** Consumer prices through September, which came out on 2026-10-07. */
+const PRICES: MacroSeries = {
+  market: Market.TW,
+  indicator: MacroIndicator.ConsumerPrices,
+  figure: MacroFigure.ConsumerPrices,
+  unit: MacroUnit.Index,
+  observations: [
+    { period: "2025-09", value: 100 },
+    { period: "2026-08", value: 102 },
+    { period: "2026-09", value: 102.5 },
+  ],
+};
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -64,13 +78,19 @@ function setup(dividends: Record<string, Dividend[]>) {
   };
 
   const macro = {
-    id: "fake",
-    markets: [Market.TW],
-    releases: vi.fn<MacroCalendarProvider["releases"]>(async () => [
-      consumerPrices("2026-10-07", "2026-09"),
-      consumerPrices("2026-11-05", "2026-10"),
-      consumerPrices("2026-12-08", "2026-11"),
-    ]),
+    schedule: vi.fn<Macro["schedule"]>(async (market) =>
+      market === Market.TW
+        ? [
+            consumerPrices("2026-09-30", "2026-08"),
+            consumerPrices("2026-10-07", "2026-09"),
+            consumerPrices("2026-11-05", "2026-10"),
+            consumerPrices("2026-12-08", "2026-11"),
+          ]
+        : []
+    ),
+    series: vi.fn<Macro["series"]>(async (market) =>
+      market === Market.TW ? [PRICES] : []
+    ),
   };
 
   const exchange = {
@@ -88,7 +108,7 @@ function setup(dividends: Record<string, Dividend[]>) {
 
   const calendar = createCalendar({
     fundamentals,
-    macro: [macro],
+    macro,
     closures: [exchange],
     reports: { report: (symbol) => held.get(symbolKey(symbol)) },
     answers: memoryAnswers(),
@@ -230,34 +250,55 @@ test("what a listing's exchange lists of it joins its filings: the notices of it
   expect(unread).toEqual([]);
 });
 
-test("the listings' markets' releases come within the days asked for, each market's schedule read twice a day at most", async () => {
-  const { calendar, macro, clock } = setup({
+test("the listings' markets' releases come from a week back through the days asked for, each with what is known of its figures", async () => {
+  const { calendar, macro } = setup({
     [symbolKey(TSMC)]: [],
     [symbolKey(FOXCONN)]: [],
     [symbolKey(AAPL)]: [],
   });
 
-  const { releases, unreadMarkets } = await calendar.upcoming(
+  const { releases, unreadMarkets, unreadFigures } = await calendar.upcoming(
     [TSMC, FOXCONN, AAPL],
     30
   );
 
-  expect(releases).toEqual([consumerPrices("2026-11-05", "2026-10")]);
+  expect(
+    releases.map(({ date, period, readings }) => [
+      date,
+      period,
+      readings.map(({ period: read, value, yoy }) => [
+        read,
+        value,
+        yoy?.toFixed(3),
+      ]),
+    ])
+  ).toEqual([
+    // Out yesterday, with the figure it brought.
+    ["2026-10-07", "2026-09", [["2026-09", 102.5, "0.025"]]],
+    // Ahead, with the newest figure out before it.
+    ["2026-11-05", "2026-10", [["2026-09", 102.5, "0.025"]]],
+  ]);
   expect(unreadMarkets).toEqual([]);
-  expect(macro.releases).toHaveBeenCalledExactlyOnceWith(
-    Market.TW,
-    "2026-10-08"
+  expect(unreadFigures).toEqual([]);
+  expect(macro.schedule.mock.calls).toEqual([[Market.TW], [Market.US]]);
+});
+
+test("figures that cannot be read name their market, and its releases stay without any", async () => {
+  const { calendar, macro } = setup({ [symbolKey(TSMC)]: [] });
+
+  macro.series.mockRejectedValue(new Error("DGBAS answered 503"));
+
+  const { releases, unreadMarkets, unreadFigures } = await calendar.upcoming(
+    [TSMC],
+    30
   );
 
-  clock.now += 11 * HOUR_MS;
-  await calendar.upcoming([TSMC], 30);
-
-  expect(macro.releases).toHaveBeenCalledTimes(1);
-
-  clock.now += 2 * HOUR_MS;
-  await calendar.upcoming([TSMC], 30);
-
-  expect(macro.releases).toHaveBeenCalledTimes(2);
+  expect(releases.map(({ date, readings }) => [date, readings])).toEqual([
+    ["2026-10-07", []],
+    ["2026-11-05", []],
+  ]);
+  expect(unreadMarkets).toEqual([]);
+  expect(unreadFigures).toEqual([Market.TW]);
 });
 
 test("the weekdays the listings' markets are closed come within the days asked for, read twice a day at most", async () => {
@@ -270,7 +311,7 @@ test("the weekdays the listings' markets are closed come within the days asked f
   ]);
   expect(unreadMarkets).toEqual([]);
 
-  clock.now += 11 * 60 * 60 * 1000;
+  clock.now += 11 * HOUR_MS;
   await calendar.upcoming([TSMC], 30);
 
   expect(exchange.getClosures).toHaveBeenCalledExactlyOnceWith(Market.TW);
@@ -287,16 +328,19 @@ test("closures that cannot be read name their market, and its releases stay", as
   );
 
   expect(closures).toEqual([]);
-  expect(releases.map(({ date }) => date)).toEqual(["2026-11-05"]);
+  expect(releases.map(({ date }) => date)).toEqual([
+    "2026-10-07",
+    "2026-11-05",
+  ]);
   expect(unreadMarkets).toEqual([Market.TW]);
 });
 
-test("a schedule that cannot be read names its market, read again on the next ask, and the listings' events stay", async () => {
+test("a schedule that cannot be read names its market, and the listings' events stay", async () => {
   const { calendar, macro } = setup({
     [symbolKey(TSMC)]: [cash(7, "2026-10-20")],
   });
 
-  macro.releases.mockRejectedValueOnce(new Error("stat.gov.tw answered 503"));
+  macro.schedule.mockRejectedValueOnce(new Error("stat.gov.tw answered 503"));
 
   const failed = await calendar.upcoming([TSMC], 30);
 
@@ -307,5 +351,4 @@ test("a schedule that cannot be read names its market, read again on the next as
   const again = await calendar.upcoming([TSMC], 30);
 
   expect(again.unreadMarkets).toEqual([]);
-  expect(macro.releases).toHaveBeenCalledTimes(2);
 });

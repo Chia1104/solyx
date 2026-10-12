@@ -249,7 +249,7 @@
   },
   "calendar": {
     "title": "接下來",
-    "description": "未來 {{days}} 天庫存與自選的重要日期：公司已訂定或交易所預告的除權息日與股利發放日、股東會、法規規定的下一期財報與月營收最晚公布日、交易所的交易限制（如暫停融券賣出與處置）、Agent 報告記下的日期（如法說會，各附來源），所屬市場的總經數據公布日，以及休市日。財報、總經與休市日期目前僅支援台股。",
+    "description": "未來 {{days}} 天庫存與自選的重要日期：公司已訂定或交易所預告的除權息日與股利發放日、股東會、法規規定的下一期財報與月營收最晚公布日、交易所的交易限制（如暫停融券賣出與處置）、Agent 報告記下的日期（如法說會，各附來源），所屬市場的總經數據公布日（附最新數值，公布後列在上方一週），以及休市日。財報、總經與休市日期目前僅支援台股。",
     "unfollowed": "加入自選或持有股票後，這裡會顯示它們接下來的除權息與財報日期、Agent 報告記下的日期，以及所屬市場的總經數據公布日。",
     "empty": "未來 {{days}} 天沒有排定的事件。",
     "unread": "無法讀取 {{symbols}} 的基本面資料，它們的日期可能缺漏。",
@@ -280,6 +280,23 @@
       "ex-dividend": "除息，金額尚未公告",
       "ex-rights": "除權"
     },
+    "released": "最近一週公布",
+    "reading": {
+      "out": "已公布：{{figure}}",
+      "last": "上期（{{period}}）：{{figure}}"
+    },
+    "figures": {
+      "consumer-prices": "年增 {{yoy}}",
+      "core-consumer-prices": "核心年增 {{yoy}}",
+      "exports": "出口 {{value}}，年增 {{yoy}}",
+      "imports": "進口 {{value}}，年增 {{yoy}}",
+      "export-orders": "{{value}}，年增 {{yoy}}",
+      "industrial-production": "年增 {{yoy}}",
+      "business-signal": "{{value}} 分",
+      "gdp-growth": "年增 {{value}}"
+    },
+    "no-figure": "—",
+    "figures-unread": "無法讀取{{markets}}的總經數據，發布列暫時不顯示數值。",
     "economy": "總經",
     "exchange": "交易所",
     "closed": "休市",
@@ -424,6 +441,7 @@
       "get_research": "讀取研究",
       "get_fundamentals": "讀取財報",
       "get_flows": "讀取籌碼",
+      "get_macro": "讀取總經數據",
       "revise_report": "修訂研究報告",
       "submit_forecast": "提出預測",
       "search_history": "搜尋過往紀錄",

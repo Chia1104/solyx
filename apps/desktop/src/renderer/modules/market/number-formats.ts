@@ -32,6 +32,13 @@ export const numberFormats = memoize((locale: string) => ({
     signDisplay: "exceptZero",
     maximumFractionDigits: 2,
   }),
+  /** A large sum in US dollars, such as a month's exports. */
+  compactUsd: new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }),
   /** A share of a whole to the hundredth of a percent, such as a holding. */
   fineShare: new Intl.NumberFormat(locale, {
     style: "percent",

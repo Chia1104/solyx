@@ -122,6 +122,7 @@ function setup(vendor = fakeVendor()) {
       releases: [],
       closures: [],
       unreadMarkets: [],
+      unreadFigures: [],
     }),
     desk: {
       check: vi.fn<OrderDesk["check"]>(async () => []),

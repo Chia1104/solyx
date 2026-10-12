@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./dgbas": "./src/dgbas.ts",
     "./stat-gov-tw": "./src/stat-gov-tw.ts"
   },
   "scripts": {

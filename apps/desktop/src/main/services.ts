@@ -20,6 +20,7 @@ import { openResearch } from "@solyx/db/research";
 import { openUserData } from "@solyx/db/user";
 import { createFinMind } from "@solyx/fundamentals/finmind";
 import { createTwExchanges } from "@solyx/fundamentals/tw-exchanges";
+import { createDgbas } from "@solyx/macro/dgbas";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 
 import { marketEvents } from "#shared/ipc/market.ts";
@@ -49,6 +50,7 @@ import { createDecisions } from "./modules/decisions/decisions.ts";
 import { createEmbeddings } from "./modules/embeddings/embeddings.ts";
 import { createFlows } from "./modules/flows/flows.ts";
 import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
+import { createMacro } from "./modules/macro/macro.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
@@ -256,10 +258,16 @@ export function createServices(config: ConfigFile) {
     () => broadcast(researchEvents.onChanged)
   );
 
+  // The statistics portal's server leaves its intermediate certificate out, which Node's fetch does not make up for.
+  const macro = createMacro({
+    calendars: [createStatGovTw({ fetch: chromiumFetch })],
+    figures: [createDgbas()],
+    answers: cache.answers,
+  });
+
   const calendar = createCalendar({
     fundamentals,
-    // The statistics portal's server leaves its intermediate certificate out, which Node's fetch does not make up for.
-    macro: [createStatGovTw({ fetch: chromiumFetch })],
+    macro,
     closures: [twExchanges],
     reports: researchData.store,
     answers: cache.answers,
@@ -347,6 +355,7 @@ export function createServices(config: ConfigFile) {
     },
     fundamentals,
     flows,
+    macro,
     setup: {
       appearance,
       marketData,

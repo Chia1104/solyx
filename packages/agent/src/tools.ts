@@ -12,9 +12,14 @@ import type {
 import { maxBy, omit, takeRight, uniq, uniqBy } from "es-toolkit";
 import * as z from "zod";
 
-import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
+import {
+  EventTiming,
+  ListingEventKind,
+  RELEASED_DAYS,
+} from "@solyx/core/calendar";
 import type {
   ListingEvent,
+  ReleaseEvent,
   ResearchEvent,
   UpcomingEvents,
 } from "@solyx/core/calendar";
@@ -53,7 +58,6 @@ import {
   yearRange,
 } from "@solyx/core/levels";
 import type { PriceRange } from "@solyx/core/levels";
-import type { MacroRelease } from "@solyx/core/macro";
 import {
   BENCHMARK,
   Market,
@@ -84,6 +88,7 @@ import type { MarketClosure, TradingDays } from "@solyx/core/session";
 import { errorMessage } from "@solyx/utils/error";
 
 import { rememberAddresses } from "./found-addresses.ts";
+import { readingText } from "./macro-text.ts";
 import { councilText, durableBallotBox, orderMotion } from "./magi.ts";
 import type { MagiPort } from "./magi.ts";
 import { promptSections } from "./prompt.ts";
@@ -419,12 +424,25 @@ const describeResearchEvent = (event: ResearchEvent) =>
 const describeClosure = ({ market, date, name }: MarketClosure) =>
   `${date} ${market} closed (${name})`;
 
-function describeRelease(release: MacroRelease): string {
+/** A release's figures: those it brought once its period is out, or else the newest out before it, said as such. */
+function releaseFigures({ period, readings }: ReleaseEvent): string {
+  const [headline] = readings;
+
+  if (!headline) return "";
+
+  const figures = readings.map(readingText).join("; ");
+
+  return headline.period === period
+    ? `; out: ${figures}`
+    : `; last out, for ${headline.period}: ${figures}`;
+}
+
+function describeRelease(release: ReleaseEvent): string {
   const time = release.time === null ? "" : ` ${release.time}`;
   const period = release.period === null ? "" : ` for ${release.period}`;
   const page = release.page === null ? "" : ` [${release.page}]`;
 
-  return `${eventDay(release.date, release.timing)}${time} ${release.market} ${release.indicator.replaceAll("-", " ")}${period}${page}`;
+  return `${eventDay(release.date, release.timing)}${time} ${release.market} ${release.indicator.replaceAll("-", " ")}${period}${page}${releaseFigures(release)}`;
 }
 
 /** A market's trading days, or every weekday and the reason they could not be read. */
@@ -757,7 +775,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetCalendar,
       replay: "safe",
-      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them, and the days the exchange gives notice shares go ex, which may come before the amount is announced and include the ex-rights day of a cash capital increase; shareholders' meetings, regular and special, and whether one elects directors; trading restrictions such as short-sale suspensions and dispositions; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; the economic releases of the listings' markets, each on its day or by the latest day its agency set, with the time it comes out on the exchange's clock and, in brackets, the page its agency publishes it on, which read_page reads once it is out; and the weekdays their markets are closed, as the exchange set them for the year, with what it calls each. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Filings, releases and closures are Taiwan's only for now: a US listing has only its report's dates, no US releases or holidays are known, an earnings call is on it only once a report holds it, and a closure called on the day, as for a typhoon, is not on it. Defaults to the listings the user holds and watches.`,
+      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them, and the days the exchange gives notice shares go ex, which may come before the amount is announced and include the ex-rights day of a cash capital increase; shareholders' meetings, regular and special, and whether one elects directors; trading restrictions such as short-sale suspensions and dispositions; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; the economic releases of the listings' markets, each on its day or by the latest day its agency set, with the time it comes out on the exchange's clock, in brackets the page its agency publishes it on, which read_page reads once it is out, and its figures as the app keeps them: after "out" what the release brought, growth on the year computed by the app, or after "last out" the newest period before it while its own is not in yet, and none for an indicator the app keeps no figures of. A release stays on the list for ${RELEASED_DAYS} days once its day has come, so those just out read here too; and the weekdays their markets are closed, as the exchange set them for the year, with what it calls each. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Filings, releases and closures are Taiwan's only for now: a US listing has only its report's dates, no US releases or holidays are known, an earnings call is on it only once a report holds it, and a closure called on the day, as for a typhoon, is not on it. Defaults to the listings the user holds and watches.`,
       parameters: z.object({
         symbols: z
           .array(symbolRefSchema)
@@ -778,8 +796,15 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             symbolKey
           );
 
-        const { events, research, unread, releases, closures, unreadMarkets } =
-          await ports.calendar(listings, days);
+        const {
+          events,
+          research,
+          unread,
+          releases,
+          closures,
+          unreadMarkets,
+          unreadFigures,
+        } = await ports.calendar(listings, days);
 
         const named = listings
           .map(({ market, symbol }) => `${market} ${symbol}`)
@@ -794,6 +819,9 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           ...(unreadMarkets.length > 0
             ? [`the releases or closures of ${unreadMarkets.join(", ")}`]
             : []),
+          ...(unreadFigures.length > 0
+            ? [`the economic figures of ${unreadFigures.join(", ")}`]
+            : []),
         ];
 
         return {
@@ -805,7 +833,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             ...(research.length > 0
               ? research.map(describeResearchEvent)
               : ["None."]),
-            "Economic releases of their markets:",
+            `Economic releases of their markets, from ${RELEASED_DAYS} days back:`,
             ...(releases.length > 0
               ? releases.map(describeRelease)
               : ["None."]),

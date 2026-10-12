@@ -1,13 +1,17 @@
 import { Button, cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { groupBy, mapValues, sortBy, uniq } from "es-toolkit";
+import { groupBy, mapValues, partition, sortBy, uniq } from "es-toolkit";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
-import type { ListingEvent, ResearchEvent } from "@solyx/core/calendar";
-import type { MacroRelease } from "@solyx/core/macro";
+import type {
+  ListingEvent,
+  ReleaseEvent,
+  ResearchEvent,
+} from "@solyx/core/calendar";
+import { MacroUnit } from "@solyx/core/macro";
 import { exchangeDate, shiftDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketClosure } from "@solyx/core/session";
@@ -75,7 +79,9 @@ function EventLabel({ event }: { event: ListingEvent }) {
 const ROW_CLASS =
   "grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 py-2 text-sm @min-[40rem]/main:grid-cols-[4.5rem_minmax(0,14rem)_minmax(0,1fr)]";
 
-const WHAT_CLASS = "col-start-2 min-w-0 truncate @min-[40rem]/main:col-start-3";
+const WHAT_PLACE = "col-start-2 min-w-0 @min-[40rem]/main:col-start-3";
+
+const WHAT_CLASS = `${WHAT_PLACE} truncate`;
 
 /** An event's day as its timing reads: the latest it may come for a deadline, about then for an expected one. */
 export function timedDay(
@@ -173,7 +179,43 @@ function ResearchRow({ event }: { event: ResearchEvent }) {
   );
 }
 
-function ReleaseRow({ release }: { release: MacroRelease }) {
+/** A release's headline figure in words: what it brought once its period is out, or else the newest out before it. */
+function ReleaseFigure({ release }: { release: ReleaseEvent }) {
+  const { t, i18n } = useTranslation();
+  const format = numberFormats(i18n.language);
+  const [reading] = release.readings;
+
+  if (!reading) return null;
+
+  const value = {
+    [MacroUnit.Index]: () => format.indicator.format(reading.value),
+    [MacroUnit.UsdMillions]: () =>
+      format.compactUsd.format(reading.value * 1e6),
+    [MacroUnit.Points]: () => format.indicator.format(reading.value),
+    [MacroUnit.Percent]: () => format.percentChange.format(reading.value / 100),
+  }[reading.unit]();
+
+  const figure = t(`calendar.figures.${reading.figure}`, {
+    value,
+    yoy:
+      reading.yoy === null
+        ? t("calendar.no-figure")
+        : format.percentChange.format(reading.yoy),
+  });
+
+  return (
+    <span className="ms-1.5 text-xs tabular-nums">
+      {reading.period === release.period
+        ? t("calendar.reading.out", { figure })
+        : t("calendar.reading.last", { period: reading.period, figure })}
+    </span>
+  );
+}
+
+const releaseKey = ({ market, indicator, date, period }: ReleaseEvent) =>
+  `${market}:${indicator}:${date}:${period}`;
+
+function ReleaseRow({ release }: { release: ReleaseEvent }) {
   const { t } = useTranslation();
 
   return (
@@ -189,9 +231,10 @@ function ReleaseRow({ release }: { release: MacroRelease }) {
         </span>
         <span className="text-xs text-muted">{t("calendar.economy")}</span>
       </span>
+      {/* A release's figure says more than a line holds in a narrow pane, so it wraps rather than cuts off. */}
       <span
         className={cn(
-          WHAT_CLASS,
+          WHAT_PLACE,
           release.timing === EventTiming.Deadline && "text-muted"
         )}>
         {release.page === null ? (
@@ -211,6 +254,7 @@ function ReleaseRow({ release }: { release: MacroRelease }) {
             .filter((part) => part !== null)
             .join(" · ")}
         </span>
+        <ReleaseFigure release={release} />
       </span>
     </li>
   );
@@ -244,7 +288,8 @@ function ClosureRow({ closure }: { closure: MarketClosure }) {
 /**
  * The listings' coming filings and distributions, the dates their reports hold and their markets'
  * economic releases and closures, on an agenda that shows a week or a month of them soonest
- * first, with the listings and markets whose dates could not be read.
+ * first, with the listings and markets whose dates could not be read. The releases whose day has
+ * come stay above it for a while, newest first, so the figures they brought are read at a glance.
  */
 export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
   const { t } = useTranslation();
@@ -264,6 +309,12 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
       exchangeDate(market)
     ),
   ].toSorted();
+
+  // A release whose day is behind every calendar in view is out, and no longer ahead on the agenda.
+  const [ahead, released] = partition(
+    data.releases,
+    ({ date }) => date >= (running.at(0) ?? today)
+  );
 
   const rows = sortBy(
     [
@@ -297,15 +348,10 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
           />
         ),
       })),
-      ...data.releases.map((release) => ({
+      ...ahead.map((release) => ({
         date: release.date,
         timing: release.timing,
-        row: (
-          <ReleaseRow
-            key={`${release.market}:${release.indicator}:${release.date}:${release.period}`}
-            release={release}
-          />
-        ),
+        row: <ReleaseRow key={releaseKey(release)} release={release} />,
       })),
     ],
     [({ date }) => date]
@@ -328,6 +374,18 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
 
   return (
     <div className="flex flex-col gap-2">
+      {released.length === 0 ? null : (
+        <section className="flex flex-col gap-1">
+          <h3 className="text-xs font-medium text-muted">
+            {t("calendar.released")}
+          </h3>
+          <ul className="divide-y divide-separator">
+            {released.toReversed().map((release) => (
+              <ReleaseRow key={releaseKey(release)} release={release} />
+            ))}
+          </ul>
+        </section>
+      )}
       {rows.length === 0 ? (
         <p className="rounded-sm pencil px-3 py-3 text-xs text-muted">
           {t("calendar.empty", { days: CALENDAR_DAYS })}
@@ -373,6 +431,15 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
         <p className="text-xs text-warning">
           {t("calendar.unread", {
             symbols: data.unread.map(({ symbol }) => symbol).join(", "),
+          })}
+        </p>
+      )}
+      {data.unreadFigures.length === 0 ? null : (
+        <p className="text-xs text-warning">
+          {t("calendar.figures-unread", {
+            markets: data.unreadFigures
+              .map((market) => t(`market.${market}`))
+              .join(", "),
           })}
         </p>
       )}
