@@ -379,7 +379,6 @@
       "skills": "Commands and skills",
       "on-screen": "On screen",
       "held": "Held",
-      "history": "history {{share}}",
       "watched": "Watched"
     },
     "copy": "Copy",
@@ -664,6 +663,7 @@
       "band-above": "{{low}} and above",
       "band-between": "{{low}} to {{high}}",
       "held": "Held",
+      "history": "history {{share}}",
       "closed": "Closed at {{close}} on {{date}}",
       "plan-result": {
         "not-entered": "Never entered",

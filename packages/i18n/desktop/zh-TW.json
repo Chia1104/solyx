@@ -379,7 +379,6 @@
       "skills": "指令與技能",
       "on-screen": "畫面上",
       "held": "持股",
-      "history": "歷史 {{share}}",
       "watched": "自選"
     },
     "copy": "複製",
@@ -664,6 +663,7 @@
       "band-above": "{{low}} 以上",
       "band-between": "{{low}} 至 {{high}}",
       "held": "成真",
+      "history": "歷史 {{share}}",
       "closed": "{{date}} 收在 {{close}}",
       "plan-result": {
         "not-entered": "未進場",
