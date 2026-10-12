@@ -262,7 +262,7 @@ interface Filed {
 }
 
 /** `read` is what the conversation read, which quotes are then held to; without it none is checked, as under a host with no transcript. */
-function setup(council?: Council, read?: string[]) {
+function setup(councils?: Council[], read?: string[]) {
   const clock = { now: AT_ANCHOR };
   const motions: string[] = [];
   const bars = { daily: [ANCHOR_BAR] };
@@ -320,12 +320,18 @@ function setup(council?: Council, read?: string[]) {
     marketData,
     read: read && (async () => conversation.read),
     magi: async () =>
-      council &&
-      (async (motion) => {
-        motions.push(motion);
+      councils && {
+        motion: async () => {
+          throw new Error(
+            "A forecast is put as its scenarios, not as one motion"
+          );
+        },
+        scenarios: async (motion) => {
+          motions.push(motion);
 
-        return council;
-      }),
+          return councils;
+        },
+      },
     now: () => new Date(clock.now),
   });
 
@@ -1001,55 +1007,70 @@ const votes = (...cast: (MagiVote | null)[]) =>
     }))
   );
 
-test("under the MAGI a carried forecast is kept with its votes, which the model is told", async () => {
-  const council = votes(MagiVote.Approve, MagiVote.Reject, MagiVote.Approve);
-  const { run, store, motions } = setup(council);
+test("under the MAGI each scenario is put to the vote, and the forecast is kept with the counts, which the model is told", async () => {
+  const councils = [
+    votes(MagiVote.Reject, MagiVote.Approve, MagiVote.Reject),
+    votes(MagiVote.Approve, MagiVote.Reject, MagiVote.Approve),
+  ];
+
+  const { run, store, motions, bars } = setup(councils);
 
   await run(AgentToolName.ReviseReport, REPORT);
+  bars.daily = HISTORY;
 
   const { text, details } = await run(AgentToolName.SubmitForecast, FORECAST);
   const [kept] = store.forecasts();
 
-  expect(kept.council).toEqual(council);
+  expect(kept.motions).toEqual(councils);
   expect(details).toEqual({ symbol: TSMC, forecastId: kept.id });
-  expect(text).toContain("The MAGI carried the motion, 2 to 1.");
-  expect(text).toContain("- BALTHASAR-2 reject: balthasar has its reason.");
-  expect(motions[0]).toContain(
-    "put on record a long forecast for TW:2330 over 2 sessions"
-  );
+  expect(text).toContain("- Down (history 52%): rejected, 1 to 2");
+  expect(text).toContain("- Up (history 48%): carried, 2 to 1");
+  expect(text).toContain("  - BALTHASAR-2 reject: balthasar has its reason.");
+  expect(text).toContain("The forecast is kept however they voted.");
+  expect(text).toContain("the MAGI carried as more likely than history: Up");
+  expect(motions[0]).toContain("1. Down (below 1000): history 52%");
+  // What the author gave each scenario is not put before the units.
+  expect(motions[0]).not.toContain("60%");
 });
 
-test("under the MAGI a rejected forecast is not kept, and its votes come back without a fault", async () => {
-  const council = votes(MagiVote.Reject, MagiVote.Reject, MagiVote.Approve);
-  const { run, store } = setup(council);
+test("under the MAGI a forecast is kept though no scenario carries, and a unit that gave no vote is named", async () => {
+  const { run, store, bars } = setup([
+    votes(MagiVote.Reject, null, MagiVote.Reject),
+    votes(MagiVote.Approve, null, MagiVote.Reject),
+  ]);
 
   await run(AgentToolName.ReviseReport, REPORT);
+  bars.daily = HISTORY;
 
-  const { text, details } = await run(AgentToolName.SubmitForecast, FORECAST);
+  const { text } = await run(AgentToolName.SubmitForecast, FORECAST);
 
-  expect(store.forecasts()).toEqual([]);
-  expect(details).toEqual({ symbol: TSMC, council });
-  expect(text).toContain("The MAGI rejected the motion, 1 to 2.");
-  expect(text).toContain("You may put one revised motion");
+  expect(store.forecasts()).toHaveLength(1);
+  expect(text).toContain("- Down (history 52%): rejected, 0 to 2");
+  expect(text).toContain("- Up (history 48%): could not decide, 1 to 1");
+  expect(text).toContain(
+    "  - BALTHASAR-2 gave no vote: balthasar has its reason."
+  );
+  expect(text).toContain("the MAGI carried as more likely than history: none");
 });
 
-test("under the MAGI a forecast the missing votes could have carried is undecided, not rejected", async () => {
-  const { run, store } = setup(votes(MagiVote.Approve, null, MagiVote.Reject));
+test("under the MAGI a listing with too little history for base rates is kept without a vote, and the model is told why", async () => {
+  const { run, store, motions } = setup([]);
 
   await run(AgentToolName.ReviseReport, REPORT);
 
   const { text } = await run(AgentToolName.SubmitForecast, FORECAST);
 
-  expect(store.forecasts()).toEqual([]);
-  expect(text).toContain("The MAGI could not decide the motion, 1 to 1.");
-  expect(text).toContain("Tell the user which units gave no vote and why");
-  expect(text).not.toContain("revised motion");
+  expect(store.forecasts()).toMatchObject([{ motions: null }]);
+  expect(text).toContain("The MAGI held no vote");
+  expect(motions).toEqual([]);
 });
 
 test("no vote is held on a forecast the checks refuse", async () => {
-  const { run, motions } = setup(
-    votes(MagiVote.Approve, MagiVote.Approve, MagiVote.Approve)
-  );
+  const { run, motions, bars } = setup([
+    votes(MagiVote.Approve, MagiVote.Approve, MagiVote.Approve),
+  ]);
+
+  bars.daily = HISTORY;
 
   await expect(run(AgentToolName.SubmitForecast, FORECAST)).rejects.toThrow(
     "The listing has no report."

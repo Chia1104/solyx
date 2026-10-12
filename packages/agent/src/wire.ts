@@ -238,11 +238,10 @@ export const reviseReportDetailsSchema = z.object({
 
 export type ReviseReportDetails = z.infer<typeof reviseReportDetailsSchema>;
 
-/** What a forecast's call left: the forecast, or the vote that rejected it. */
+/** What a forecast's call left: the forecast, unless the call was refused. */
 export const submitForecastDetailsSchema = z.object({
   symbol: symbolRefSchema,
   forecastId: z.string().optional(),
-  council: councilSchema.optional(),
 });
 
 export type SubmitForecastDetails = z.infer<typeof submitForecastDetailsSchema>;

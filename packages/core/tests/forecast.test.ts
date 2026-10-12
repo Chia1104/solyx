@@ -93,7 +93,7 @@ function forecast(patch: Partial<Forecast> = {}): Forecast {
     createdAt: 0,
     anchor: ANCHOR,
     reportRevision: 1,
-    council: null,
+    motions: null,
     outcome: null,
     ...patch,
   };
@@ -818,4 +818,39 @@ test("forecastRecord measures settled forecasts against the base rates of their 
   expect(skill?.brier).toBeCloseTo(0.28);
   expect(skill?.baseBrier).toBeCloseTo((0.26 + 0.86) / 2);
   expect(skill?.skill).toBeCloseTo(1 - 0.28 / 0.56);
+});
+
+test("the record counts the scenarios a vote carried against what history expects of them", () => {
+  const council = (carried: boolean) => ({ carried, votes: [] });
+
+  const settled = (scenario: number) => ({
+    date: SESSIONS[2],
+    close: 1000,
+    distributed: 0,
+    scenario,
+    brier: 0.5,
+    plan: null,
+  });
+
+  const voted = {
+    baseRates: [0.2, 0.5, 0.3],
+    motions: [council(false), council(true), council(true)],
+  };
+
+  const record = forecastRecord([
+    // The close landed in one of the two bands carried.
+    forecast({ ...voted, outcome: settled(2) }),
+    // And in neither of them.
+    forecast({ ...voted, id: "f-2", outcome: settled(0) }),
+    // An open forecast and one no vote was held on take no part.
+    forecast({ ...voted, id: "f-3" }),
+    forecast({ id: "f-4", baseRates: [0.2, 0.5, 0.3], outcome: settled(1) }),
+  ]);
+
+  expect(record.motions).toEqual({
+    carried: 4,
+    held: 1,
+    expected: expect.closeTo(1.6),
+  });
+  expect(forecastRecord([forecast()]).motions).toBeNull();
 });

@@ -651,7 +651,8 @@
       "record": "{{settled, number}} of {{count, number}} settled · mean Brier {{brier}}",
       "record-open": "{{count, number}} made, none settled yet",
       "mean-r": "mean {{r}} R",
-      "skill": "{{skill}} against history's base rates"
+      "skill": "{{skill}} against history's base rates",
+      "motions": "MAGI: {{held, number}} of the {{carried, number}} scenarios it carried held, {{expected}} expected of history"
     },
     "forecast": {
       "horizon": "{{count, number}}-session horizon from {{date}} at {{price}}",
@@ -682,6 +683,7 @@
     "rejected": "Rejected",
     "undecided": "Undecided",
     "tally": "{{approved, number}} to {{rejected, number}}",
+    "question": "Is each scenario more likely than its history says?",
     "personas": {
       "melchior": "The scientist",
       "balthasar": "The mother",
@@ -996,7 +998,7 @@
         "high": "High"
       },
       "decision-mode": "Decision mode",
-      "decision-mode-description": "Who decides the agent's forecasts and order proposals. With the MAGI, three units each judge one as a side of a single mind (the scientist, the mother and the woman), and two votes carry it. Every vote costs three more requests to the conversation's model, and you still confirm every order.",
+      "decision-mode-description": "Who judges the agent's forecasts and order proposals. With the MAGI, three units each judge as a side of a single mind (the scientist, the mother and the woman), and two votes carry a motion. An order is one motion, and a rejected one is not proposed. A forecast's scenarios are each a motion, that it is more likely than the listing's history says, and the forecast is kept with the votes beside it. Every vote costs three more requests to the conversation's model, and you still confirm every order.",
       "decision-modes": {
         "single": "The agent alone",
         "magi": "MAGI"

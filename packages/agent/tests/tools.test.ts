@@ -536,11 +536,14 @@ test("under the MAGI a rejected proposal is never made, and a carried one keeps 
 
   const { faux, events, runtime, ended } = agentOn({
     ...ports,
-    magi: async () => async (motion: string) => {
-      motions.push(motion);
+    magi: async () => ({
+      motion: async (motion) => {
+        motions.push(motion);
 
-      return verdicts[motions.length - 1];
-    },
+        return verdicts[motions.length - 1];
+      },
+      scenarios: vi.fn(),
+    }),
   });
 
   const { id } = await runtime.create();
@@ -601,7 +604,7 @@ test("under the MAGI an order the checks refuse goes to the desk without a vote"
 
   const { faux, runtime, ended } = agentOn({
     ...ports,
-    magi: async () => convene,
+    magi: async () => ({ motion: convene, scenarios: vi.fn() }),
   });
 
   const { id } = await runtime.create();

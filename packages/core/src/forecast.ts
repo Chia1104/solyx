@@ -137,8 +137,12 @@ export interface Forecast extends ForecastDraft {
   anchor: ForecastAnchor;
   /** The report revision it was made under. */
   reportRevision: number;
-  /** The vote that carried it; `null` when the agent decided alone. */
-  council: Council | null;
+  /**
+   * How a vote on each scenario came out, in the scenarios' order: each was put as the motion that
+   * the close is more likely to land in its band than its base rate says. `null` where none was
+   * held, as while the agent decides alone and for a forecast without base rates.
+   */
+  motions: Council[] | null;
   /** `null` until its horizon's session closes. */
   outcome: ForecastOutcome | null;
 }
@@ -174,7 +178,6 @@ export const ForecastViolationCode = {
   TargetWrongSide: "target-wrong-side",
   RewardBelowRisk: "reward-below-risk",
   ClaimUnsupported: "claim-unsupported",
-  MotionRejected: "motion-rejected",
 } as const;
 
 export type ForecastViolationCode =
@@ -220,8 +223,7 @@ export type ForecastViolation =
       claim: string;
       /** How likely its quote states it, from 0 to 1. */
       supported: number;
-    }
-  | { code: typeof ForecastViolationCode.MotionRejected; council: Council };
+    };
 
 // Prices on a tick grid differ by sums that floating point carries only nearly.
 const PRICE_EPSILON = 1e-9;
@@ -689,6 +691,20 @@ export interface ForecastRecord {
   calibration: CalibrationBucket[];
   /** How the settled forecasts that kept base rates did against them; `null` while none has. */
   skill: ForecastSkill | null;
+  /** How the scenarios a vote carried came out; `null` while no settled forecast was voted on. */
+  motions: MotionRecord | null;
+}
+
+/**
+ * The scenarios of settled forecasts that a vote carried as more likely than their history says,
+ * against that history: a vote that tells nothing has the close land in about as many as expected.
+ */
+export interface MotionRecord {
+  carried: number;
+  /** Those the close landed in. */
+  held: number;
+  /** How many history alone would have it land in: the sum of their base rates. */
+  expected: number;
 }
 
 /** Forecasts against the base rates of their own bands, which a forecast that knew only the listing's past moves would have given. */
@@ -721,6 +737,28 @@ function forecastSkill(forecasts: readonly Forecast[]): ForecastSkill | null {
     brier,
     baseBrier,
     skill: baseBrier === 0 ? null : 1 - brier / baseBrier,
+  };
+}
+
+function motionRecord(forecasts: readonly Forecast[]): MotionRecord | null {
+  const voted = forecasts.flatMap(({ motions, baseRates: rates, outcome }) =>
+    motions && rates && outcome ? [{ motions, rates, outcome }] : []
+  );
+
+  if (voted.length === 0) return null;
+
+  const carried = voted.flatMap(({ motions, rates, outcome }) =>
+    motions.flatMap(({ carried: won }, scenario) =>
+      won
+        ? [{ rate: rates[scenario], held: scenario === outcome.scenario }]
+        : []
+    )
+  );
+
+  return {
+    carried: carried.length,
+    held: carried.filter(({ held }) => held).length,
+    expected: sumBy(carried, ({ rate }) => rate),
   };
 }
 
@@ -773,6 +811,7 @@ export function forecastRecord(forecasts: readonly Forecast[]): ForecastRecord {
       };
     }),
     skill: forecastSkill(forecasts),
+    motions: motionRecord(forecasts),
   };
 }
 

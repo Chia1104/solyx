@@ -967,7 +967,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         // Kept with the call, so a call that runs again after a restart finds its proposal.
         const id = await api.memo("proposal-id", crypto.randomUUID(), context);
-        const convene = await ports.magi?.(api.conversationId);
+        const magi = await ports.magi?.(api.conversationId);
         const box = durableBallotBox(api, context);
         const made = ports.desk.list().some((each) => each.id === id);
 
@@ -975,10 +975,10 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         // under this call shows the vote it kept rather than holding another.
         let council: Council | undefined;
 
-        if (convene && made) {
-          council = await box.council();
-        } else if (convene && (await ports.desk.check(request)).length === 0) {
-          council = await convene(
+        if (magi && made) {
+          council = await box.count();
+        } else if (magi && (await ports.desk.check(request)).length === 0) {
+          council = await magi.motion(
             orderMotion(
               request,
               rationale,
