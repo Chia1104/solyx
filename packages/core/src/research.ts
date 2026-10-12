@@ -270,6 +270,12 @@ export class ResearchDesk {
     const dividends = await this.#dividends(instrument);
     const support = await this.#audit(draft.claims);
 
+    const rates = baseRates(
+      horizonMoves(instrument.market, daily, draft.horizon, dividends),
+      anchor.price,
+      draft.scenarios
+    );
+
     // Reads the store afresh each time, since a vote leaves room for another forecast to be kept.
     const check = () => {
       const report = store.report(instrument);
@@ -281,6 +287,7 @@ export class ResearchDesk {
         taken: store
           .forecasts(instrument)
           .some((forecast) => forecast.anchor.date === anchor.date),
+        baseRates: rates,
         support,
       });
 
@@ -314,11 +321,7 @@ export class ResearchDesk {
         ...claim,
         support: support(claim),
       })),
-      baseRates: baseRates(
-        horizonMoves(instrument.market, daily, draft.horizon, dividends),
-        anchor.price,
-        draft.scenarios
-      ),
+      baseRates: rates,
       id: id ?? createId(),
       createdAt: now(),
       anchor,

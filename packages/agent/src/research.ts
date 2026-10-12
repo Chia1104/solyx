@@ -129,10 +129,13 @@ const forecastParameters = forecastDraftSchema.extend({
   horizon: forecastDraftSchema.shape.horizon.describe(
     `Sessions after the newest daily bar until it settles, at most ${MAX_HORIZON}`
   ),
+  direction: forecastDraftSchema.shape.direction.describe(
+    "Which way your probabilities lean from the shares get_base_rates gave for your bands: long where they give the bands above the last close more and those below less, short for the reverse, neutral where they stay on history's"
+  ),
   plan: forecastDraftSchema.shape.plan
     .default(null)
     .describe(
-      "Entry, stop and target on the tick grid for long or short; left out when neutral"
+      "Entry, stop and target on the tick grid, only where the lean is one you would trade; a long or short may go without, and a neutral forecast takes none"
     ),
   scenarios: forecastDraftSchema.shape.scenarios.describe(
     "Bands for the horizon's close that together hold every price once: the lowest has low null, the highest has high null, and each band's high is the next band's low. A band holds its low and not its high. Probabilities are whole percents adding to 100. Each path gives expected closes by session, 1 being the next session, and ends at the horizon inside its band"
@@ -166,6 +169,15 @@ function bandText({ low, high }: Pick<ForecastScenario, "low" | "high">) {
   if (low === null) return `below ${high}`;
 
   return high === null ? `${low} and above` : `${low} to ${high}`;
+}
+
+/** A lean in points of probability, by its side. */
+function leanText(lean: number): string {
+  const size = Math.round(Math.abs(lean) * 100);
+
+  if (size === 0) return "neither way";
+
+  return `${size} ${size === 1 ? "point" : "points"} ${lean > 0 ? "up" : "down"}`;
 }
 
 /** What a quote was given for, and the quote. */
@@ -223,8 +235,8 @@ function forecastViolationText(
       return `The path of "${label(violation.scenario)}" must list sessions in rising order and end at session ${draft.horizon}, the horizon.`;
     case ForecastViolationCode.PathOutsideBand:
       return `The path of "${label(violation.scenario)}" ends at ${violation.price}, outside its own band.`;
-    case ForecastViolationCode.PlanMissing:
-      return "A long or short forecast needs a plan with entry, stop and target.";
+    case ForecastViolationCode.LeanOpposed:
+      return `The forecast is ${draft.direction}, but against the shares history gives its bands its probabilities lean ${leanText(violation.lean)}. A long gives the bands above the last close more than history and those below less, and a short the reverse: move the probabilities as far as your evidence carries them, or say neutral where it carries them no way.`;
     case ForecastViolationCode.PlanUnexpected:
       return "A neutral forecast takes no plan.";
     case ForecastViolationCode.InvalidPrice:

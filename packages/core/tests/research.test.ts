@@ -292,6 +292,36 @@ test("a forecast keeps the base rates of its bands, from the listing's own moves
   expect(result.ok && result.forecast.baseRates).toEqual([32 / 62, 30 / 62]);
 });
 
+test("a direction the probabilities lean away from history's is refused, and one without a plan is kept", async () => {
+  const { desk, cover, bars } = setup();
+
+  await cover();
+  bars.daily = HISTORY;
+
+  // History puts 52% below 1000 and 48% from it up; the draft gives them 40% and 60%.
+  expect(
+    await desk.forecast({
+      ...draft,
+      direction: ForecastDirection.Short,
+      plan: null,
+      contrary: "Stretched above its average.",
+    })
+  ).toEqual({
+    ok: false,
+    violations: [
+      {
+        code: ForecastViolationCode.LeanOpposed,
+        lean: expect.closeTo(0.23, 2),
+      },
+    ],
+  });
+
+  expect(await desk.forecast({ ...draft, plan: null })).toMatchObject({
+    ok: true,
+    forecast: { direction: ForecastDirection.Long, plan: null },
+  });
+});
+
 test("the horizon's history is the listing's moves of that length and where they land between the edges", async () => {
   const { desk, bars } = setup();
 
