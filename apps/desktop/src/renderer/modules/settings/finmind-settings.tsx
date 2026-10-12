@@ -14,7 +14,7 @@ import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { fundamentalsSettingsQuery, secretsQuery } from "./settings-query.ts";
 
-/** The FinMind token and the plan it belongs to, which sets how hard Solyx may use it and what it reads. */
+/** The FinMind token and the plan it belongs to, which sets how hard Solyx may use it. */
 export function FinMindSettings() {
   const { t } = useTranslation();
   const secrets = useQuery(secretsQuery());
@@ -60,12 +60,9 @@ export function FinMindSettings() {
           label={planLabel}
           description={
             selected
-              ? t(
-                  selected.memberDatasets
-                    ? "settings.finmind.limits.member"
-                    : "settings.finmind.limits.free",
-                  { requests: selected.requestsPerHour }
-                )
+              ? t("settings.finmind.limit", {
+                  requests: selected.requestsPerHour,
+                })
               : null
           }
           actions={

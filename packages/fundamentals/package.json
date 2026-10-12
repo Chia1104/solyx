@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./finmind": "./src/finmind.ts"
+    "./finmind": "./src/finmind.ts",
+    "./tw-exchanges": "./src/tw-exchanges.ts"
   },
   "scripts": {
     "test": "vp test"

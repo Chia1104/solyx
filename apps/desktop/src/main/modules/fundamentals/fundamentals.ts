@@ -1,11 +1,13 @@
 import type {
   Fundamentals,
   FundamentalsProvider,
+  ListedRestriction,
+  RestrictionsProvider,
 } from "@solyx/core/fundamentals";
 import { exchangeDate, symbolKey } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
-import type { AnswerStores, KeptFresh } from "@solyx/utils/fresh";
+import type { AnswerStores } from "@solyx/utils/fresh";
 
 // Five years of quarters, so a multiple three years back still has four quarters behind it.
 const STATEMENT_YEARS = 5;
@@ -18,10 +20,15 @@ const REVENUE_MONTHS = 36;
 // A quarter or a month is published once, so a listing is asked about twice a day at most.
 const FRESH_MS = 12 * 60 * 60 * 1000;
 
+// One read answers for every listing, so a market's restrictions are read once an hour at most.
+const RESTRICTIONS_FRESH_MS = 60 * 60 * 1000;
+
 export interface FundamentalsOptions {
   /** One per market at most; the first that covers a listing's market answers for it. */
   providers: readonly FundamentalsProvider[];
-  /** Where each listing's answers are kept between runs. */
+  /** The sources of the exchanges' own lists, one per market at most. */
+  restrictions: readonly RestrictionsProvider[];
+  /** Where each listing's answers, and each market's restrictions, are kept between runs. */
   answers: AnswerStores;
   /** @default () => new Date() */
   now?: () => Date;
@@ -32,22 +39,32 @@ interface Ask {
   provider: FundamentalsProvider;
 }
 
+interface ListAsk {
+  market: Market;
+  provider: RestrictionsProvider;
+}
+
 /**
  * Every market's fundamentals from the provider that covers it, each listing's answer kept for
- * half a day, since research asks for the newest quarter far more often than one comes out.
+ * half a day, since research asks for the newest quarter far more often than one comes out, and
+ * its restrictions from the source of its exchanges' lists, a market's kept whole for an hour.
  */
 export function createFundamentals({
   providers,
+  restrictions,
   answers,
   now = () => new Date(),
-}: FundamentalsOptions): Fundamentals & {
-  /** Drops every answer kept, for when what a provider may read changes, as with the user's plan. */
-  forget(): void;
-} {
-  const kept: KeptFresh<Ask, unknown>[] = [];
-
+}: FundamentalsOptions): Fundamentals {
   const covering = (market: Market) =>
     providers.find(({ markets }) => markets.includes(market));
+
+  const listed = keepFresh<ListAsk, ListedRestriction[]>({
+    store: answers("fundamentals:restrictions"),
+    id: ({ provider, market }) => `${provider.id}:${market}`,
+    ask: ({ provider, market }) => provider.getRestrictions(market),
+    fresh: freshFor(RESTRICTIONS_FRESH_MS),
+    now: () => now().getTime(),
+  });
 
   /** `ask`'s answer per listing, kept under `scope`. */
   function fresh<Answer>(
@@ -71,8 +88,6 @@ export function createFundamentals({
       now: () => now().getTime(),
     });
 
-    kept.push(read);
-
     return (symbol: SymbolRef): Promise<Answer[]> => {
       const provider = covering(symbol.market);
 
@@ -81,10 +96,6 @@ export function createFundamentals({
   }
 
   return {
-    forget() {
-      for (const read of kept) read.forget();
-    },
-
     source: (market) => covering(market)?.id,
 
     statements: fresh("statements", (provider, symbol, today) =>
@@ -122,8 +133,17 @@ export function createFundamentals({
       )
     ),
 
-    restrictions: fresh("restrictions", (provider, symbol, today) =>
-      provider.getRestrictions(symbol, today.subtract({ years: 1 }).toString())
-    ),
+    async restrictions({ market, symbol }) {
+      const provider = restrictions.find(({ markets }) =>
+        markets.includes(market)
+      );
+
+      if (!provider) return [];
+
+      return (await listed({ market, provider })).flatMap(
+        ({ symbol: code, ...restriction }) =>
+          code === symbol ? [restriction] : []
+      );
+    },
   };
 }
