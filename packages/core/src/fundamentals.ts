@@ -121,11 +121,24 @@ export interface FundamentalsProvider {
   ): Promise<MonthlyRevenue[]>;
   /** Distributions announced on or after `since` (`YYYY-MM-DD`), or dated so by the provider where none says when, oldest first, those still to go ex among them. */
   getDividends(symbol: SymbolRef, since: string): Promise<Dividend[]>;
-  /** Restrictions starting on or after `since` (`YYYY-MM-DD`), oldest first; only those the user's plan with the provider reads. */
-  getRestrictions(
-    symbol: SymbolRef,
-    since: string
-  ): Promise<TradingRestriction[]>;
+}
+
+/** A restriction with the listing it is on, as an exchange lists its whole market's at once. */
+export interface ListedRestriction extends TradingRestriction {
+  /** The listing's exchange code, as a `SymbolRef` writes it. */
+  symbol: string;
+}
+
+/** One implementation per source of the exchanges' own lists (`@solyx/fundamentals/*`); it runs only in the main process. */
+export interface RestrictionsProvider {
+  readonly id: string;
+  readonly markets: readonly Market[];
+  /**
+   * What a market's exchanges list today for all their listings, oldest first: the restrictions in
+   * force, those announced, and whichever ended ones the lists still hold. None for a market it
+   * does not cover.
+   */
+  getRestrictions(market: Market): Promise<ListedRestriction[]>;
 }
 
 /** A listing's fundamentals from whichever provider covers its market, oldest first; none while no provider does. */
@@ -140,7 +153,7 @@ export interface Fundamentals {
   monthlyRevenue(symbol: SymbolRef): Promise<MonthlyRevenue[]>;
   /** As many years of distributions as of quarters. */
   dividends(symbol: SymbolRef): Promise<Dividend[]>;
-  /** A year of restrictions, those still in force among them. */
+  /** What its exchange lists today, oldest first: the restrictions in force and those announced; none while no source lists its market's. */
   restrictions(symbol: SymbolRef): Promise<TradingRestriction[]>;
 }
 

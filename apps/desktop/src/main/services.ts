@@ -19,6 +19,7 @@ import { openNews } from "@solyx/db/news";
 import { openResearch } from "@solyx/db/research";
 import { openUserData } from "@solyx/db/user";
 import { createFinMind } from "@solyx/fundamentals/finmind";
+import { createTwExchanges } from "@solyx/fundamentals/tw-exchanges";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 
 import { marketEvents } from "#shared/ipc/market.ts";
@@ -218,23 +219,8 @@ export function createServices(config: ConfigFile) {
 
   const fundamentals = createFundamentals({
     providers: [finMind],
+    restrictions: [createTwExchanges()],
     answers: cache.answers,
-  });
-
-  // The plan and the token set which restrictions FinMind reads, so a change to either reads them again.
-  let finMindPlan = config.read().providers.finmind.plan;
-
-  config.onChange(() => {
-    const plan = config.read().providers.finmind.plan;
-
-    if (plan === finMindPlan) return;
-
-    finMindPlan = plan;
-    fundamentals.forget();
-  });
-
-  secrets.onChange((secret) => {
-    if (secret === Secret.FinMindToken) fundamentals.forget();
   });
 
   const flows = createFlows({ providers: [finMind], answers: cache.answers });

@@ -35,10 +35,13 @@ interface Ask {
   provider: MacroCalendarProvider;
 }
 
+const readOrNone = <Answer>(read: PromiseSettledResult<Answer[]>) =>
+  read.status === "fulfilled" ? read.value : [];
+
 /**
  * Listings' events as their fundamentals tell them, read through the fundamentals module, which
- * keeps each listing's answer for half a day, beside the dates their reports hold and the economic
- * releases of their markets.
+ * keeps what it reads, beside the dates their reports hold and the economic releases of their
+ * markets.
  */
 export function createCalendar({
   fundamentals,
@@ -64,7 +67,11 @@ export function createCalendar({
   }
 
   return {
-    /** One listing or market failing to read leaves the others', and names it among the unread. */
+    /**
+     * One listing or market failing to read leaves the others', and names it among the unread. A
+     * listing's filings and its restrictions come from different sources, so one of them failing
+     * leaves the events of what was read.
+     */
     async upcoming(
       symbols: readonly SymbolRef[],
       days: number
@@ -79,10 +86,10 @@ export function createCalendar({
       };
 
       const [read, scheduled] = await Promise.all([
-        Promise.allSettled(
+        Promise.all(
           symbols.map(async (symbol) => {
             const [statements, monthlyRevenue, dividends, restrictions] =
-              await Promise.all([
+              await Promise.allSettled([
                 fundamentals.statements(symbol),
                 fundamentals.monthlyRevenue(symbol),
                 fundamentals.dividends(symbol),
@@ -91,12 +98,25 @@ export function createCalendar({
 
             const today = exchangeDate(symbol.market, at);
 
-            return upcomingEvents(
-              symbol,
-              { statements, monthlyRevenue, dividends, restrictions },
-              today,
-              shiftDate(today, days)
-            );
+            return {
+              whole: [
+                statements,
+                monthlyRevenue,
+                dividends,
+                restrictions,
+              ].every(({ status }) => status === "fulfilled"),
+              events: upcomingEvents(
+                symbol,
+                {
+                  statements: readOrNone(statements),
+                  monthlyRevenue: readOrNone(monthlyRevenue),
+                  dividends: readOrNone(dividends),
+                  restrictions: readOrNone(restrictions),
+                },
+                today,
+                shiftDate(today, days)
+              ),
+            };
           })
         ),
         Promise.allSettled(markets.map(schedule)),
@@ -104,9 +124,7 @@ export function createCalendar({
 
       return {
         events: sortBy(
-          read.flatMap((each) =>
-            each.status === "fulfilled" ? each.value : []
-          ),
+          read.flatMap(({ events }) => events),
           [({ date }) => date]
         ),
         research: sortBy(
@@ -120,7 +138,7 @@ export function createCalendar({
           }),
           [({ date }) => date]
         ),
-        unread: symbols.filter((_, index) => read[index].status === "rejected"),
+        unread: symbols.filter((_, index) => !read[index].whole),
         releases: sortBy(
           scheduled.flatMap((each) =>
             each.status === "fulfilled"

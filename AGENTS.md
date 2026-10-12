@@ -18,7 +18,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - `packages/core`: the trading domain. It holds market rules, candles and indicators, the broker, market data, investor flows, news, sentiment and web search contracts, risk checks, the `OrderDesk`, and research (reports, scored forecasts and the `ResearchDesk`)
 - `packages/brokers`: one module per broker, the paper broker and Fubon
 - `packages/market-data`: one module per market data provider, and the candle cache
-- `packages/fundamentals`: one module per fundamentals and investor flows provider
+- `packages/fundamentals`: one module per provider of fundamentals, investor flows and the exchanges' own lists
 - `packages/macro`: one module per source of economic release schedules
 - `packages/news`: one module per news source
 - `packages/web-search`: one module per web search vendor, which news and the agent search and read the web through

@@ -811,7 +811,7 @@
     },
     "fundamentals": {
       "title": "Fundamentals",
-      "description": "Statements, monthly revenue, dividends and short-sale suspensions of Taiwan listings come from FinMind, which needs no token. Choose the plan your token belongs to; Solyx paces its requests to it, and a paid plan also reads dispositions, trading halts and sell-first day-trading suspensions. Requests go straight from this computer to FinMind."
+      "description": "Statements, monthly revenue and dividends of Taiwan listings come from FinMind, which needs no token. Choose the plan your token belongs to; Solyx paces its requests to it. Trading restrictions come from the open data of the Taiwan Stock Exchange and the Taipei Exchange, which needs no key. Requests go straight from this computer to each of them."
     },
     "finmind": {
       "plan": "Plan",
@@ -821,10 +821,7 @@
         "sponsor": "Sponsor",
         "sponsor-pro": "Sponsor Pro"
       },
-      "limits": {
-        "free": "Up to {{requests, number}} requests an hour with the token. Dispositions, trading halts and sell-first day-trading suspensions need a paid plan.",
-        "member": "Up to {{requests, number}} requests an hour with the token, and reads dispositions, trading halts and sell-first day-trading suspensions."
-      }
+      "limit": "Up to {{requests, number}} requests an hour with the token."
     },
     "secrets": {
       "unavailable": "This computer has no secure storage, so keys and sign-in details can't be saved. On Linux, install and unlock GNOME Keyring or KWallet, then restart Solyx.",

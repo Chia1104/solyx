@@ -176,6 +176,21 @@ test("a listing that cannot be read is named, and the others' events stay", asyn
   expect(unread).toEqual([MEDIATEK]);
 });
 
+test("a listing whose restrictions cannot be read keeps the events of what was read, and is named", async () => {
+  const { calendar, fundamentals } = setup({
+    [symbolKey(TSMC)]: [cash(7, "2026-10-20")],
+  });
+
+  fundamentals.restrictions.mockRejectedValue(new Error("TWSE answered 503"));
+
+  const { events, unread } = await calendar.upcoming([TSMC], 30);
+
+  expect(events.map(({ kind, date }) => [kind, date])).toEqual([
+    [ListingEventKind.ExDividend, "2026-10-20"],
+  ]);
+  expect(unread).toEqual([TSMC]);
+});
+
 test("the listings' markets' releases come within the days asked for, each market's schedule read twice a day at most", async () => {
   const { calendar, macro, clock } = setup({
     [symbolKey(TSMC)]: [],

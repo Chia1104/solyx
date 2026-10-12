@@ -13,7 +13,6 @@ import type {
   InvestorTrades,
   MarketMargin,
 } from "@solyx/core/flows";
-import { RestrictionKind } from "@solyx/core/fundamentals";
 import type {
   BalanceSheet,
   CashFlow,
@@ -21,9 +20,8 @@ import type {
   FundamentalsProvider,
   MonthlyRevenue,
   QuarterStatement,
-  TradingRestriction,
 } from "@solyx/core/fundamentals";
-import { Market, shiftDate } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { TW_BOARD_LOT, twFilingDeadline } from "@solyx/core/rules/tw";
 import type { TradingCalendarProvider } from "@solyx/core/session";
@@ -51,31 +49,16 @@ export const finMindPlanSchema = z.enum(FinMindPlan);
 export interface FinMindPlanLimits {
   id: FinMindPlan;
   requestsPerHour: number;
-  /** Whether it reads the datasets FinMind keeps for paying members, such as dispositions and halts. */
-  memberDatasets: boolean;
 }
 
 /** FinMind's published limits. */
 export const FINMIND_PLANS = {
-  [FinMindPlan.Free]: {
-    id: FinMindPlan.Free,
-    requestsPerHour: 600,
-    memberDatasets: false,
-  },
-  [FinMindPlan.Backer]: {
-    id: FinMindPlan.Backer,
-    requestsPerHour: 1600,
-    memberDatasets: true,
-  },
-  [FinMindPlan.Sponsor]: {
-    id: FinMindPlan.Sponsor,
-    requestsPerHour: 6000,
-    memberDatasets: true,
-  },
+  [FinMindPlan.Free]: { id: FinMindPlan.Free, requestsPerHour: 600 },
+  [FinMindPlan.Backer]: { id: FinMindPlan.Backer, requestsPerHour: 1600 },
+  [FinMindPlan.Sponsor]: { id: FinMindPlan.Sponsor, requestsPerHour: 6000 },
   [FinMindPlan.SponsorPro]: {
     id: FinMindPlan.SponsorPro,
     requestsPerHour: 20_000,
-    memberDatasets: true,
   },
 } satisfies { [Plan in FinMindPlan]: FinMindPlanLimits & { id: Plan } };
 
@@ -117,28 +100,6 @@ const dividendRowSchema = z.object({
 });
 
 const tradingDateRowSchema = z.object({ date: z.iso.date() });
-
-// A suspension of selling short or of day trading that sells first, from its first day to its last.
-const suspensionRowSchema = z.object({
-  stock_id: z.string(),
-  date: z.iso.date(),
-  end_date: z.iso.date(),
-  reason: z.string(),
-});
-
-const dispositionRowSchema = z.object({
-  stock_id: z.string(),
-  measure: z.string(),
-  period_start: z.iso.date(),
-  period_end: z.iso.date(),
-});
-
-// FinMind leaves the day trading resumes empty while none is set.
-const haltRowSchema = z.object({
-  stock_id: z.string(),
-  date: z.iso.date(),
-  resumption_date: dayOrUnsetSchema,
-});
 
 // One group's buying and selling in a session: of a listing in shares, or of the whole market in New Taiwan dollars.
 const tradesRowSchema = z.object({
@@ -235,8 +196,6 @@ const NET_INCOME_LINES = [
   "IncomeAfterTax",
 ];
 
-const maxDate = (a: string, b: string) => (a > b ? a : b);
-
 /** A statement's lines by the quarter they are filed for, oldest first, each read by its name. */
 function byQuarter(lines: readonly z.infer<typeof statementRowSchema>[]) {
   return Object.entries(groupBy(lines, (line) => line.date))
@@ -261,7 +220,7 @@ export interface FinMindOptions {
   /** The user's FinMind token, read for every request; `undefined` asks without one, under the lowest limit and as the free plan. */
   token?: () => Promise<string | undefined>;
   /**
-   * The plan the token belongs to, read for every request, which sets the limit and the datasets read.
+   * The plan the token belongs to, read for every request, which sets the limit.
    * @default () => FinMindPlan.Free
    */
   plan?: () => FinMindPlan;
@@ -270,9 +229,8 @@ export interface FinMindOptions {
 }
 
 /**
- * Taiwan listings' quarterly statements, monthly revenue, dividends and restrictions, who
- * trades them and the market, and the days the exchange trades, from FinMind on the user's token
- * and plan or none.
+ * Taiwan listings' quarterly statements, monthly revenue and dividends, who trades them and the
+ * market, and the days the exchange trades, from FinMind on the user's token and plan or none.
  */
 export function createFinMind(
   options: FinMindOptions = {}
@@ -314,19 +272,17 @@ export function createFinMind(
     return created;
   };
 
-  /** What the user's token, or none, allows. */
+  /** The user's token, or none, with the requests an hour it allows. */
   async function access() {
     const token = await options.token?.();
 
-    if (token === undefined) {
-      return {
-        token,
-        requestsPerHour: ANONYMOUS_REQUESTS,
-        memberDatasets: false,
-      };
-    }
-
-    return { token, ...FINMIND_PLANS[options.plan?.() ?? FinMindPlan.Free] };
+    return {
+      token,
+      requestsPerHour:
+        token === undefined
+          ? ANONYMOUS_REQUESTS
+          : FINMIND_PLANS[options.plan?.() ?? FinMindPlan.Free].requestsPerHour,
+    };
   }
 
   /**
@@ -546,70 +502,6 @@ export function createFinMind(
         )
         .toSorted((a, b) => a.placed.localeCompare(b.placed))
         .map(({ dividend }) => dividend);
-    },
-
-    async getRestrictions(symbol, since) {
-      if (symbol.market !== Market.TW) return [];
-
-      const own = ({ stock_id }: { stock_id: string }) =>
-        stock_id === symbol.symbol;
-
-      const suspensions = (dataset: string, kind: RestrictionKind) =>
-        rows(dataset, symbol, since, suspensionRowSchema).then((found) =>
-          found.filter(own).map((row): TradingRestriction => ({
-            kind,
-            from: row.date,
-            until: row.end_date,
-            note: row.reason || null,
-          }))
-        );
-
-      const reads = [
-        suspensions(
-          "TaiwanStockMarginShortSaleSuspension",
-          RestrictionKind.ShortSaleSuspension
-        ),
-      ];
-
-      // The rest are for paying members; each is asked by listing and checked by code, since a dataset may answer for every listing at once.
-      if ((await access()).memberDatasets) {
-        reads.push(
-          suspensions(
-            "TaiwanStockDayTradingSuspension",
-            RestrictionKind.DayTradingSuspension
-          ),
-          rows(
-            "TaiwanStockDispositionSecuritiesPeriod",
-            symbol,
-            since,
-            dispositionRowSchema
-          ).then((found) =>
-            found.filter(own).map((row): TradingRestriction => ({
-              kind: RestrictionKind.Disposition,
-              from: row.period_start,
-              until: row.period_end,
-              note: row.measure || null,
-            }))
-          ),
-          rows("TaiwanStockSuspended", symbol, since, haltRowSchema).then(
-            (found) =>
-              found.filter(own).map((row): TradingRestriction => ({
-                kind: RestrictionKind.Halt,
-                from: row.date,
-                // Halted through the day before trading resumes, which may be the day it began.
-                until:
-                  row.resumption_date === null
-                    ? null
-                    : maxDate(row.date, shiftDate(row.resumption_date, -1)),
-                note: null,
-              }))
-          )
-        );
-      }
-
-      return (await Promise.all(reads))
-        .flat()
-        .toSorted((a, b) => a.from.localeCompare(b.from));
     },
 
     async getListingFlows(symbol, since) {

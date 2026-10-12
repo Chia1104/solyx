@@ -1,12 +1,32 @@
 import { expect, test, vi } from "vite-plus/test";
 
-import type { FundamentalsProvider } from "@solyx/core/fundamentals";
+import { RestrictionKind } from "@solyx/core/fundamentals";
+import type {
+  FundamentalsProvider,
+  RestrictionsProvider,
+} from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
 import { createFundamentals } from "../src/main/modules/fundamentals/fundamentals.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
+
+const TAIWAN_50 = { market: Market.TW, symbol: "0050" };
+
+const SHORT_SALE = {
+  kind: RestrictionKind.ShortSaleSuspension,
+  from: "2026-10-05",
+  until: "2026-10-12",
+  note: "除息",
+};
+
+const DISPOSITION = {
+  kind: RestrictionKind.Disposition,
+  from: "2026-10-08",
+  until: "2026-10-15",
+  note: "第一次處置：連續三次",
+};
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -26,21 +46,31 @@ function setup(answers = memoryAnswers()) {
       async () => []
     ),
     getDividends: vi.fn<FundamentalsProvider["getDividends"]>(async () => []),
-    getRestrictions: vi.fn<FundamentalsProvider["getRestrictions"]>(
-      async () => []
+  };
+
+  const lists = {
+    id: "fake-lists",
+    markets: [Market.TW],
+    getRestrictions: vi.fn<RestrictionsProvider["getRestrictions"]>(
+      async () => [
+        { symbol: "2330", ...SHORT_SALE },
+        { symbol: "0050", ...SHORT_SALE },
+        { symbol: "2330", ...DISPOSITION },
+      ]
     ),
   };
 
   const fundamentals = createFundamentals({
     providers: [provider],
+    restrictions: [lists],
     answers,
     now: () => new Date(clock.now),
   });
 
-  return { clock, provider, fundamentals };
+  return { clock, provider, lists, fundamentals };
 }
 
-test("asks the market's provider for five years of quarters and dividends, three of balance sheets, cash flows and months, and one of restrictions", async () => {
+test("asks the market's provider for five years of quarters and dividends, and three of balance sheets, cash flows and months", async () => {
   const { provider, fundamentals } = setup();
 
   await fundamentals.statements(TSMC);
@@ -48,14 +78,12 @@ test("asks the market's provider for five years of quarters and dividends, three
   await fundamentals.cashFlows(TSMC);
   await fundamentals.monthlyRevenue(TSMC);
   await fundamentals.dividends(TSMC);
-  await fundamentals.restrictions(TSMC);
 
   expect(provider.getStatements).toHaveBeenCalledWith(TSMC, "2021-10-07");
   expect(provider.getBalanceSheets).toHaveBeenCalledWith(TSMC, "2023-10-07");
   expect(provider.getCashFlows).toHaveBeenCalledWith(TSMC, "2023-10-07");
   expect(provider.getMonthlyRevenue).toHaveBeenCalledWith(TSMC, "2023-10");
   expect(provider.getDividends).toHaveBeenCalledWith(TSMC, "2021-10-07");
-  expect(provider.getRestrictions).toHaveBeenCalledWith(TSMC, "2025-10-07");
 });
 
 test("names the provider that covers a market, and none for a market without one", () => {
@@ -93,16 +121,6 @@ test("an answer kept serves the next run over the same answers", async () => {
   expect(next.provider.getStatements).not.toHaveBeenCalled();
 });
 
-test("forgetting asks again", async () => {
-  const { provider, fundamentals } = setup();
-
-  await fundamentals.statements(TSMC);
-  fundamentals.forget();
-  await fundamentals.statements(TSMC);
-
-  expect(provider.getStatements).toHaveBeenCalledTimes(2);
-});
-
 test("asks again after a failure", async () => {
   const { provider, fundamentals } = setup();
 
@@ -123,4 +141,34 @@ test("a market no provider covers has no fundamentals", async () => {
     await fundamentals.statements({ market: Market.US, symbol: "AAPL" })
   ).toEqual([]);
   expect(provider.getStatements).not.toHaveBeenCalled();
+});
+
+test("a listing's restrictions are its own among those its market's exchanges list, read for every listing at once and once an hour at most", async () => {
+  const { clock, lists, fundamentals } = setup();
+
+  expect(await fundamentals.restrictions(TSMC)).toEqual([
+    SHORT_SALE,
+    DISPOSITION,
+  ]);
+  expect(await fundamentals.restrictions(TAIWAN_50)).toEqual([SHORT_SALE]);
+  expect(lists.getRestrictions).toHaveBeenCalledExactlyOnceWith(Market.TW);
+
+  clock.now += HOUR_MS - 1;
+  await fundamentals.restrictions(TSMC);
+
+  expect(lists.getRestrictions).toHaveBeenCalledTimes(1);
+
+  clock.now += 1;
+  await fundamentals.restrictions(TSMC);
+
+  expect(lists.getRestrictions).toHaveBeenCalledTimes(2);
+});
+
+test("a market no source lists has no restrictions", async () => {
+  const { lists, fundamentals } = setup();
+
+  expect(
+    await fundamentals.restrictions({ market: Market.US, symbol: "AAPL" })
+  ).toEqual([]);
+  expect(lists.getRestrictions).not.toHaveBeenCalled();
 });

@@ -811,7 +811,7 @@
     },
     "fundamentals": {
       "title": "財報",
-      "description": "台股的財報、月營收、股利與暫停融券賣出來自 FinMind，不需要 token。請選擇 token 所屬的方案，Solyx 會依方案調整請求速度；付費方案另外讀取處置股票、暫停交易與暫停先賣後買當沖。請求直接從這台電腦送到 FinMind。"
+      "description": "台股的財報、月營收與股利來自 FinMind，不需要 token。請選擇 token 所屬的方案，Solyx 會依方案調整請求速度。交易限制來自證交所與櫃買中心的開放資料，不需要金鑰。請求直接從這台電腦送到各個來源。"
     },
     "finmind": {
       "plan": "方案",
@@ -821,10 +821,7 @@
         "sponsor": "Sponsor",
         "sponsor-pro": "Sponsor Pro"
       },
-      "limits": {
-        "free": "填入 token 後每小時最多 {{requests, number}} 次請求。處置股票、暫停交易與暫停先賣後買當沖需要付費方案。",
-        "member": "填入 token 後每小時最多 {{requests, number}} 次請求，並讀取處置股票、暫停交易與暫停先賣後買當沖。"
-      }
+      "limit": "填入 token 後每小時最多 {{requests, number}} 次請求。"
     },
     "secrets": {
       "unavailable": "這台電腦沒有可用的安全儲存，無法儲存金鑰與登入資料。Linux 請安裝並解鎖 GNOME Keyring 或 KWallet，再重新啟動 Solyx。",

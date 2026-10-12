@@ -224,7 +224,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "2. The agent's model: a provider switched on with its API key saved, or OpenAI signed in with ChatGPT. The default model, its thinking and who decides forecasts and proposals (the agent alone, or the MAGI's three units, at three more requests each time) are on the same tab.",
       "3. Web search: a Firecrawl, Exa or Tavily key. Without one you have no web_search or read_page, and news searches only its sources that need no key.",
       "4. A decisions model (TypeSafe, Cloudflare Workers AI or OpenAI) scores news, checks the claims in research against their quotes, and judges shell commands for the auto approval mode. Without one, news goes unscored and auto asks about every command.",
-      "- Optional: a FinMind token raises its request limit, and a paid plan adds the trading restrictions only members read; fundamentals and investor flows work without one. Embeddings, experimental, group news by meaning.",
+      "- Optional: a FinMind token raises its request limit, and a paid plan raises it further; fundamentals and investor flows work without one, and trading restrictions come from the exchanges' open data, which needs no key. Embeddings, experimental, group news by meaning.",
       "",
       "## Keys, tokens and sign-ins",
       "- The user enters them on the tab, never in the conversation: the app keeps them encrypted in the computer's secret store and never shows them again, while whatever is written in a conversation is kept with it and sent to the model's provider. Where the computer has no secret store, nothing can be saved.",
