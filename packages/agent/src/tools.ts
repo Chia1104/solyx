@@ -373,6 +373,9 @@ export function eventDay(date: string, timing: EventTiming): string {
 
 const perShare = (amount: number | null) => String(amount ?? 0);
 
+/** A distribution's period in brackets, and nothing for shares going ex that only the exchange's notice tells of. */
+const ofPeriod = (subject: string) => (subject ? ` (${subject})` : "");
+
 function describeEvent(event: ListingEvent): string {
   const where = `${eventDay(event.date, event.timing)} ${event.symbol.market} ${event.symbol.symbol}`;
 
@@ -386,11 +389,21 @@ function describeEvent(event: ListingEvent): string {
     case ListingEventKind.MonthlyRevenue:
       return `${where} ${event.subject} revenue due`;
     case ListingEventKind.ExDividend:
-      return `${where} goes ex-dividend, ${perShare(event.amount)} cash a share (${event.subject})`;
+      return event.amount === null
+        ? `${where} goes ex-dividend by its exchange's notice, the amount not announced yet`
+        : `${where} goes ex-dividend, ${perShare(event.amount)} cash a share${ofPeriod(event.subject)}`;
     case ListingEventKind.ExRights:
-      return `${where} goes ex-rights, ${perShare(event.amount)} in stock a share (${event.subject})`;
+      return event.amount === null
+        ? `${where} goes ex-rights by its exchange's notice, which may be a stock dividend or the right to subscribe to new shares`
+        : `${where} goes ex-rights, ${perShare(event.amount)} in stock a share${ofPeriod(event.subject)}`;
     case ListingEventKind.DividendPayment:
-      return `${where} pays its dividend, ${perShare(event.amount)} cash a share (${event.subject})`;
+      return `${where} pays its dividend, ${perShare(event.amount)} cash a share${ofPeriod(event.subject)}`;
+    case ListingEventKind.RegularMeeting:
+      return `${where} holds its regular shareholders' meeting`;
+    case ListingEventKind.SpecialMeeting:
+      return `${where} holds a special shareholders' meeting`;
+    case ListingEventKind.DirectorElection:
+      return `${where} elects directors at its shareholders' meeting`;
     default: {
       const span = event.until === null ? "" : ` until ${event.until}`;
       const note = event.subject ? ` (${event.subject})` : "";
@@ -735,7 +748,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetCalendar,
       replay: "safe",
-      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them; trading restrictions such as short-sale suspensions and dispositions; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; and the economic releases of the listings' markets, each on its day or by the latest day its agency set. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Filings and releases are Taiwan's only for now: a US listing has only its report's dates, no US releases are known, an earnings call is on it only once a report holds it, and holidays and market closures are not on it. Defaults to the listings the user holds and watches.`,
+      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them, and the days the exchange gives notice shares go ex, which may come before the amount is announced and include the ex-rights day of a cash capital increase; shareholders' meetings, regular and special, and whether one elects directors; trading restrictions such as short-sale suspensions and dispositions; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; and the economic releases of the listings' markets, each on its day or by the latest day its agency set. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Filings and releases are Taiwan's only for now: a US listing has only its report's dates, no US releases are known, an earnings call is on it only once a report holds it, and holidays and market closures are not on it. Defaults to the listings the user holds and watches.`,
       parameters: z.object({
         symbols: z
           .array(symbolRefSchema)
@@ -777,7 +790,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         return {
           text: [
             `Calendar of ${listings.length === 0 ? "no listings" : named} over the next ${days} days, each market from its own day today, as_of ${exchangeTime(Market.TW, now())} Taipei; the same list the app's overview shows`,
-            "Listings' filings, distributions and restrictions:",
+            "Listings' filings, distributions, meetings and restrictions:",
             ...(events.length > 0 ? events.map(describeEvent) : ["None."]),
             "Dates their reports hold, each as you found it, with its source:",
             ...(research.length > 0

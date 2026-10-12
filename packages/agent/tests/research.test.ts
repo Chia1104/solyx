@@ -283,6 +283,8 @@ function setup(council?: Council) {
 
       return filed.multiples ?? null;
     },
+    exNotices: async () => [],
+    meetings: async () => [],
   };
 
   const desk = new ResearchDesk({

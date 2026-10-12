@@ -3,8 +3,10 @@ import { sortBy } from "es-toolkit";
 import { RestrictionKind } from "./fundamentals.ts";
 import type {
   Dividend,
+  ExNotice,
   MonthlyRevenue,
   QuarterStatement,
+  ShareholdersMeeting,
   TradingRestriction,
 } from "./fundamentals.ts";
 import type { MacroRelease } from "./macro.ts";
@@ -21,10 +23,16 @@ export const ListingEventKind = {
   MonthlyRevenue: "monthly-revenue",
   /** The first session the shares trade without a cash dividend. */
   ExDividend: "ex-dividend",
-  /** The first session the shares trade without a stock dividend. */
+  /** The first session the shares trade without a stock dividend, or without the right to subscribe to new shares. */
   ExRights: "ex-rights",
   /** A cash dividend is paid. */
   DividendPayment: "dividend-payment",
+  /** The year's regular shareholders' meeting is held. */
+  RegularMeeting: "regular-meeting",
+  /** A shareholders' meeting called apart from the year's regular one is held. */
+  SpecialMeeting: "special-meeting",
+  /** A shareholders' meeting elects directors. */
+  DirectorElection: "director-election",
   ...RestrictionKind,
 } as const;
 
@@ -49,9 +57,16 @@ export interface ListingEvent {
   /** `YYYY-MM-DD` on the exchange's calendar; today for a restriction already in force. */
   date: string;
   timing: EventTiming;
-  /** What it is about: a quarter's last day, a month (`YYYY-MM`), a distribution's period or a restriction's note. */
+  /**
+   * What it is about: a quarter's last day, a month (`YYYY-MM`), a distribution's period or a
+   * restriction's note; empty for a meeting, and for shares going ex that only the exchange's
+   * notice tells of.
+   */
   subject: string;
-  /** A distribution's cash or stock per share, in the market's currency; `null` for a filing or a restriction. */
+  /**
+   * A distribution's cash or stock per share, in the market's currency; `null` for a filing, a
+   * meeting or a restriction, and for shares going ex an amount the exchange's notice does not carry.
+   */
   amount: number | null;
   /** A restriction's last day; `null` for an event of one day or a restriction with no end set. */
   until: string | null;
@@ -82,6 +97,8 @@ export interface ListingFilings {
   monthlyRevenue: readonly MonthlyRevenue[];
   dividends: readonly Dividend[];
   restrictions: readonly TradingRestriction[];
+  notices: readonly ExNotice[];
+  meetings: readonly ShareholdersMeeting[];
 }
 
 function quarterEnd(periodEnd: string, quarters: number): string {
@@ -123,12 +140,21 @@ function duePeriods(
 /**
  * A listing's events from `today` through `until` (`YYYY-MM-DD` on the exchange's calendar),
  * soonest first: each quarter's statements and month's revenue not out yet, by the day they are
- * due, the days its distributions go ex and are paid, and its restrictions, those in force today
- * among them. Only Taiwan's rules set filing deadlines, so elsewhere a listing has no filings.
+ * due, the days its distributions go ex and are paid, the days its exchange gives notice its shares
+ * go ex where no distribution tells of them, its shareholders' meetings, and its restrictions,
+ * those in force today among them. Only Taiwan's rules set filing deadlines, so elsewhere a
+ * listing has no filings.
  */
 export function upcomingEvents(
   symbol: SymbolRef,
-  { statements, monthlyRevenue, dividends, restrictions }: ListingFilings,
+  {
+    statements,
+    monthlyRevenue,
+    dividends,
+    restrictions,
+    notices,
+    meetings,
+  }: ListingFilings,
   today: string,
   until: string
 ): ListingEvent[] {
@@ -200,6 +226,49 @@ export function upcomingEvents(
     )
   );
 
+  // A distribution names its period and amount, so the exchange's notice of the same day adds nothing to it.
+  const noticed = notices
+    .flatMap(({ date, exDividend, exRights, cash }) => [
+      ...(exDividend
+        ? [{ kind: ListingEventKind.ExDividend, date, amount: cash }]
+        : []),
+      ...(exRights
+        ? [{ kind: ListingEventKind.ExRights, date, amount: null }]
+        : []),
+    ])
+    .filter(
+      (notice) =>
+        !distributions.some(
+          ({ kind, date }) => kind === notice.kind && date === notice.date
+        )
+    )
+    .map(({ kind, date, amount }) => ({
+      symbol,
+      kind,
+      date,
+      timing: EventTiming.Set,
+      subject: "",
+      amount,
+      until: null,
+    }));
+
+  const held = meetings.flatMap(({ date, regular, election }) =>
+    [
+      regular
+        ? ListingEventKind.RegularMeeting
+        : ListingEventKind.SpecialMeeting,
+      ...(election ? [ListingEventKind.DirectorElection] : []),
+    ].map((kind) => ({
+      symbol,
+      kind,
+      date,
+      timing: EventTiming.Set,
+      subject: "",
+      amount: null,
+      until: null,
+    }))
+  );
+
   const limits = restrictions.flatMap((restriction): ListingEvent[] =>
     restriction.until !== null && restriction.until < today
       ? []
@@ -217,7 +286,7 @@ export function upcomingEvents(
   );
 
   return sortBy(
-    [...filings, ...distributions, ...limits].filter(
+    [...filings, ...distributions, ...noticed, ...held, ...limits].filter(
       ({ date }) => date >= today && date <= until
     ),
     [({ date }) => date]
