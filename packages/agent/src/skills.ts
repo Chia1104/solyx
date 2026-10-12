@@ -160,7 +160,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "A deep analysis leaves two things in the app: the listing's report, your view over quarters, and one forecast for the coming sessions, which is frozen once made and scored against what the price then does. Work in this order.",
       "",
       "1. Call get_research. Read the report and how old each part is, the latest forecasts with how they came out, your record, any news read as stating a falsifier, and any event marked as passed. Where a forecast missed, say what you misread; where news may have met a falsifier, read the item and say whether it did; where an event has passed, find what came of it, before going on.",
-      "2. Gather evidence, keeping the as_of time of every number: get_candles and get_indicators on 1d and 1w, following technical-read; get_news over 30 days; get_fundamentals for the filed quarters, the balance sheets and cash flows, the monthly revenue, the distributions and what the shares trade at against their earnings; get_calendar for the dates ahead; get_flows, for a Taiwan listing, for who has been buying and selling it and the market; get_themes for the standing topics that name this listing and what watching them found; web_search and read_page, when you have them, for guidance and what the numbers do not say. Compute with run_analysis.",
+      "2. Gather evidence, keeping the as_of time of every number: get_candles and get_indicators on 1d and 1w, following technical-read; get_news over 30 days; get_fundamentals for the filed quarters, the balance sheets and cash flows, the monthly revenue, the distributions and what the shares trade at against their earnings; get_calendar for the dates ahead; get_flows, for a Taiwan listing, for who has been buying and selling it and the market; get_themes for the standing topics that name this listing and what watching them found; web_search and read_page, when you have them, for guidance and what the numbers do not say. A fund has no statements: follow fund-research for what it holds, what it costs and what a unit trades at against its net asset value. Compute with run_analysis.",
       "3. Call revise_report when the listing has no report, or when what you found changes it. Send only the parts that changed; the rest stays.",
       "   - A driver or a risk has two parts. point is your reading: why it matters to the thesis, and it may infer, weigh or look ahead. text is the fact it rests on and says no more than its quote: no cause, forecast, comparison or caveat the quote does not give. quote is the source's own words or figures, and source says where. Where the user set up a decisions model, it reads text against quote and the call is refused when text says more, so put every judgement in point. Leave out what you cannot source.",
       "   - Quote in full. Give the whole sentence, or every row of a table the fact uses, and never shorten a quote with an ellipsis: what you cut is what the fact is checked against. A fact that sums up many rows, such as a range or a low, quotes every row it covers or the line where a tool worked it out; otherwise state only the rows you quote. One fact to a claim: a second fact needs its own quote.",
@@ -182,6 +182,33 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "6. Tell the user the stance and thesis in two sentences, the scenarios with their probabilities, the plan, and what would change your mind. Say the forecast is scored once its horizon closes. You may draw the scenarios' bands and paths as a view, following views.",
       "",
       "A deep analysis ends at the forecast. Propose an order only when the user asks for one, following order-proposal."
+    ),
+  },
+  {
+    name: "fund-research",
+    source: SkillSource.BuiltIn,
+    userInvocable: true,
+    description:
+      "Reading an exchange-traded fund or note: what it holds, what it costs, and what a unit trades at against its net asset value. Read before giving a view on an ETF, an ETN or another listed fund, or when the user asks for its holdings, fees, net asset value, premium or discount.",
+    body: lines(
+      "# Fund research",
+      "",
+      "A fund files no statements. The app keeps what its exchange lists of it and its distributions. What it holds, what it costs and what a unit is worth are published by its issuer, and the app keeps none of them: find them on the web, each with its date and its source, and never fill one in from memory, since holdings and fees change.",
+      "",
+      "1. Call get_fundamentals. For a fund the Taiwan Stock Exchange lists it opens with the kind of fund, the index it tracks or what it measures itself against, its manager and its units outstanding, and it lists the distributions. A fund listed on the Taipei Exchange, as bond ETFs are, opens with none of that. get_calendar has the day it next goes ex.",
+      "2. Find the issuer's own page for the fund with web_search: the fund's code and name with what you are after. Once a result shows the issuer's site, keep the next searches to it with sites, and read the page with read_page. Read the issuer's pages, not the Taiwan Stock Exchange's websites: their terms forbid programs from downloading their data, and what the exchange publishes as open data the app already reads.",
+      "3. What it holds (成分股, 持股明細, 投資組合): the names, their weights and the date of the list.",
+      "   - An index fund follows its index, so name the index, and when it is next reviewed where the page says.",
+      "   - An actively managed fund's list changes from day to day. Give its date, and never call an old list current.",
+      "   - A leveraged, inverse or futures fund holds futures and swaps, not the index's shares. It aims at a multiple of one session's move, so over more sessions its return drifts from that multiple of the index's. Say so whenever the view looks further than a session.",
+      "   - An exchange-traded note holds nothing: it is its issuer's debt, which pays an index's return. What matters is the issuer's credit and the indicative value (指標價值) it publishes in place of a net asset value.",
+      "4. What it costs (費用率): the management fee (經理費) and the custody fee (保管費) as the prospectus (公開說明書) sets them, and the total expense ratio (總費用率) for the period it names, which adds what the fund paid beyond those two. Say which figure is which and its period. The broker's commission and the transaction tax are the trade's costs, not the fund's: taiwan-market has them.",
+      "5. What a unit is worth (淨值): the issuer strikes a net asset value after each session and publishes an estimate through the session (即時預估淨值). Take the newest it gives, with its date or time and whether it is the estimate, and the close of the same day from get_candles. The premium is the price over the net asset value, less one, and a discount when that is negative; compute it with run_analysis rather than by hand.",
+      "   - Where the holdings trade abroad, an estimate made in Taipei hours rests on prices from before those markets reopen, so a gap may be the market pricing what the estimate has not seen yet.",
+      "   - A premium that holds for days can mean units cannot be created, as when a fund has reached its quota or its issuer has stopped subscriptions. Look for the issuer's notice, and say the premium can close quickly once creation resumes.",
+      "6. Say what you could not find or read. Without web_search and read_page, say these three need a web search vendor set up, which solyx-guide explains, and give only what the app's own tools have.",
+      "",
+      "A deep analysis of a fund follows deep-analysis with these in place of the statements. What it holds and what it costs belong in the report, each as a claim with the issuer's own words or figures as its quote. The premium of the day belongs in the forecast's rationale, since it goes stale within a session."
     ),
   },
   {
