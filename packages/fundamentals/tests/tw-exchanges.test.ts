@@ -400,10 +400,93 @@ test("fails when none of the funds read, rather than answer that the exchange li
   );
 });
 
+test("reads the multiples both exchanges work out, one they work none out for left empty", async () => {
+  const { sent, exchanges } = fakeExchanges({
+    [`${TWSE}exchangeReport/BWIBBU_ALL`]: [
+      {
+        Date: "1151008",
+        Code: "2330",
+        Name: "台積電",
+        PEratio: "29.56",
+        DividendYield: "0.86",
+        PBratio: "10.28",
+      },
+      // TWSE leaves a multiple it does not work out empty.
+      {
+        Date: "1151008",
+        Code: "1101",
+        Name: "台泥",
+        PEratio: "",
+        DividendYield: "",
+        PBratio: "0.83",
+      },
+    ],
+    [`${TPEX}tpex_mainboard_peratio_analysis`]: [
+      // TPEx writes N/A for one.
+      {
+        Date: "1151012",
+        SecuritiesCompanyCode: "1569",
+        CompanyName: "濱川",
+        PriceEarningRatio: "N/A",
+        DividendPerShare: "0",
+        YieldRatio: "0.00",
+        PriceBookRatio: "3.58",
+      },
+    ],
+  });
+
+  expect(await exchanges.getMultiples(Market.TW)).toEqual([
+    {
+      symbol: "2330",
+      asOf: "2026-10-08",
+      priceToEarnings: 29.56,
+      dividendYield: 0.86,
+      priceToBook: 10.28,
+    },
+    {
+      symbol: "1101",
+      asOf: "2026-10-08",
+      priceToEarnings: null,
+      dividendYield: null,
+      priceToBook: 0.83,
+    },
+    {
+      symbol: "1569",
+      asOf: "2026-10-12",
+      priceToEarnings: null,
+      dividendYield: 0,
+      priceToBook: 3.58,
+    },
+  ]);
+  expect(sent.toSorted()).toEqual([
+    `${TWSE}exchangeReport/BWIBBU_ALL`,
+    `${TPEX}tpex_mainboard_peratio_analysis`,
+  ]);
+});
+
+test("fails when a list names its multiples another way, rather than answer that none is worked out", async () => {
+  const { exchanges } = fakeExchanges({
+    [`${TWSE}exchangeReport/BWIBBU_ALL`]: [
+      {
+        Date: "1151008",
+        Code: "2330",
+        PE: "29.56",
+        Yield: "0.86",
+        PB: "10.28",
+      },
+    ],
+  });
+
+  await expect(exchanges.getMultiples(Market.TW)).rejects.toThrow(
+    "TWSE: none of the 1 rows of exchangeReport/BWIBBU_ALL read as expected"
+  );
+});
+
 test("outside Taiwan there is nothing to read, and it costs no request", async () => {
   const { sent, exchanges } = fakeExchanges();
 
   expect(await exchanges.getRestrictions(Market.US)).toEqual([]);
   expect(await exchanges.getFunds(Market.US)).toEqual([]);
+  expect(await exchanges.getMultiples(Market.US)).toEqual([]);
   expect(sent).toEqual([]);
 });

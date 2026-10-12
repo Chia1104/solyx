@@ -1,10 +1,7 @@
 import type {
+  ExchangeListsProvider,
   Fundamentals,
   FundamentalsProvider,
-  FundsProvider,
-  ListedFund,
-  ListedRestriction,
-  RestrictionsProvider,
 } from "@solyx/core/fundamentals";
 import { exchangeDate, symbolKey } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
@@ -22,17 +19,15 @@ const REVENUE_MONTHS = 36;
 // A quarter or a month is published once, so a listing is asked about twice a day at most.
 const FRESH_MS = 12 * 60 * 60 * 1000;
 
-// One read answers for every listing, so a market's restrictions are read once an hour at most.
-const RESTRICTIONS_FRESH_MS = 60 * 60 * 1000;
+// One read answers for every listing, so a list an exchange draws up each day is read once an hour at most.
+const DAILY_LIST_FRESH_MS = 60 * 60 * 1000;
 
 export interface FundamentalsOptions {
   /** One per market at most; the first that covers a listing's market answers for it. */
   providers: readonly FundamentalsProvider[];
-  /** The sources of the exchanges' own lists of restrictions, one per market at most. */
-  restrictions: readonly RestrictionsProvider[];
-  /** The sources of the exchanges' own lists of funds, one per market at most. */
-  funds: readonly FundsProvider[];
-  /** Where each listing's answers, and each market's restrictions and funds, are kept between runs. */
+  /** The sources of the exchanges' own lists, one per market at most. */
+  exchanges: readonly ExchangeListsProvider[];
+  /** Where each listing's answers, and each market's lists, are kept between runs. */
   answers: AnswerStores;
   /** @default () => new Date() */
   now?: () => Date;
@@ -43,42 +38,64 @@ interface Ask {
   provider: FundamentalsProvider;
 }
 
-interface ListAsk<Provider> {
+interface ListAsk {
   market: Market;
-  provider: Provider;
+  provider: ExchangeListsProvider;
 }
 
 /**
  * Every market's fundamentals from the provider that covers it, each listing's answer kept for
  * half a day, since research asks for the newest quarter far more often than one comes out, and
- * its restrictions and what it is as a fund from the sources of its exchanges' lists, a market's
- * kept whole, restrictions for an hour and funds for half a day.
+ * what its exchanges list of it from the source of their lists, a market's kept whole: its funds
+ * for half a day, and the lists an exchange draws up each day for an hour.
  */
 export function createFundamentals({
   providers,
-  restrictions,
-  funds,
+  exchanges,
   answers,
   now = () => new Date(),
 }: FundamentalsOptions): Fundamentals {
   const covering = (market: Market) =>
     providers.find(({ markets }) => markets.includes(market));
 
-  const listed = keepFresh<ListAsk<RestrictionsProvider>, ListedRestriction[]>({
-    store: answers("fundamentals:restrictions"),
-    id: ({ provider, market }) => `${provider.id}:${market}`,
-    ask: ({ provider, market }) => provider.getRestrictions(market),
-    fresh: freshFor(RESTRICTIONS_FRESH_MS),
-    now: () => now().getTime(),
-  });
+  /** A market's list from the source of its exchanges', kept whole under `scope`, and the rows of it that are a listing's. */
+  function listed<Row extends { symbol: string }>(
+    scope: string,
+    ask: (provider: ExchangeListsProvider, market: Market) => Promise<Row[]>,
+    freshMs: number
+  ) {
+    const read = keepFresh<ListAsk, Row[]>({
+      store: answers(`fundamentals:${scope}`),
+      id: ({ provider, market }) => `${provider.id}:${market}`,
+      ask: ({ provider, market }) => ask(provider, market),
+      fresh: freshFor(freshMs),
+      now: () => now().getTime(),
+    });
 
-  const listedFunds = keepFresh<ListAsk<FundsProvider>, ListedFund[]>({
-    store: answers("fundamentals:funds"),
-    id: ({ provider, market }) => `${provider.id}:${market}`,
-    ask: ({ provider, market }) => provider.getFunds(market),
-    fresh: freshFor(FRESH_MS),
-    now: () => now().getTime(),
-  });
+    return async ({ market, symbol }: SymbolRef) => {
+      const provider = exchanges.find(({ markets }) =>
+        markets.includes(market)
+      );
+
+      if (!provider) return [];
+
+      return (await read({ market, provider })).flatMap(
+        ({ symbol: code, ...row }) => (code === symbol ? [row] : [])
+      );
+    };
+  }
+
+  const funds = listed(
+    "funds",
+    (provider, market) => provider.getFunds(market),
+    FRESH_MS
+  );
+
+  const multiples = listed(
+    "multiples",
+    (provider, market) => provider.getMultiples(market),
+    DAILY_LIST_FRESH_MS
+  );
 
   /** `ask`'s answer per listing, kept under `scope`. */
   function fresh<Answer>(
@@ -147,29 +164,14 @@ export function createFundamentals({
       )
     ),
 
-    async restrictions({ market, symbol }) {
-      const provider = restrictions.find(({ markets }) =>
-        markets.includes(market)
-      );
+    restrictions: listed(
+      "restrictions",
+      (provider, market) => provider.getRestrictions(market),
+      DAILY_LIST_FRESH_MS
+    ),
 
-      if (!provider) return [];
+    fund: async (symbol) => (await funds(symbol)).at(0) ?? null,
 
-      return (await listed({ market, provider })).flatMap(
-        ({ symbol: code, ...restriction }) =>
-          code === symbol ? [restriction] : []
-      );
-    },
-
-    async fund({ market, symbol }) {
-      const provider = funds.find(({ markets }) => markets.includes(market));
-
-      if (!provider) return null;
-
-      const [profile = null] = (
-        await listedFunds({ market, provider })
-      ).flatMap(({ symbol: code, ...fund }) => (code === symbol ? [fund] : []));
-
-      return profile;
-    },
+    multiples: async (symbol) => (await multiples(symbol)).at(0) ?? null,
   };
 }

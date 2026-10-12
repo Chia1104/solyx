@@ -221,8 +221,7 @@ export function createServices(config: ConfigFile) {
 
   const fundamentals = createFundamentals({
     providers: [finMind],
-    restrictions: [twExchanges],
-    funds: [twExchanges],
+    exchanges: [twExchanges],
     answers: cache.answers,
   });
 

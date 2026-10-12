@@ -2,9 +2,8 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { RestrictionKind } from "@solyx/core/fundamentals";
 import type {
+  ExchangeListsProvider,
   FundamentalsProvider,
-  FundsProvider,
-  RestrictionsProvider,
 } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
 import { memoryAnswers } from "@solyx/utils/fresh";
@@ -41,6 +40,13 @@ const DISPOSITION = {
   note: "第一次處置：連續三次",
 };
 
+const MULTIPLES = {
+  asOf: "2026-10-06",
+  priceToEarnings: 29.56,
+  dividendYield: 0.86,
+  priceToBook: 10.28,
+};
+
 const HOUR_MS = 60 * 60 * 1000;
 
 function setup(answers = memoryAnswers()) {
@@ -64,22 +70,24 @@ function setup(answers = memoryAnswers()) {
   const lists = {
     id: "fake-lists",
     markets: [Market.TW],
-    getRestrictions: vi.fn<RestrictionsProvider["getRestrictions"]>(
+    getRestrictions: vi.fn<ExchangeListsProvider["getRestrictions"]>(
       async () => [
         { symbol: "2330", ...SHORT_SALE },
         { symbol: "0050", ...SHORT_SALE },
         { symbol: "2330", ...DISPOSITION },
       ]
     ),
-    getFunds: vi.fn<FundsProvider["getFunds"]>(async () => [
+    getFunds: vi.fn<ExchangeListsProvider["getFunds"]>(async () => [
       { symbol: "0050", ...INDEX_FUND },
+    ]),
+    getMultiples: vi.fn<ExchangeListsProvider["getMultiples"]>(async () => [
+      { symbol: "2330", ...MULTIPLES },
     ]),
   };
 
   const fundamentals = createFundamentals({
     providers: [provider],
-    restrictions: [lists],
-    funds: [lists],
+    exchanges: [lists],
     answers,
     now: () => new Date(clock.now),
   });
@@ -210,4 +218,17 @@ test("a market no source lists the funds of has none", async () => {
     await fundamentals.fund({ market: Market.US, symbol: "SPY" })
   ).toBeNull();
   expect(lists.getFunds).not.toHaveBeenCalled();
+});
+
+test("a listing's multiples are its own among those its market's exchanges work out, read once an hour at most, and a fund has none", async () => {
+  const { clock, lists, fundamentals } = setup();
+
+  expect(await fundamentals.multiples(TSMC)).toEqual(MULTIPLES);
+  expect(await fundamentals.multiples(TAIWAN_50)).toBeNull();
+  expect(lists.getMultiples).toHaveBeenCalledExactlyOnceWith(Market.TW);
+
+  clock.now += HOUR_MS;
+  await fundamentals.multiples(TSMC);
+
+  expect(lists.getMultiples).toHaveBeenCalledTimes(2);
 });
