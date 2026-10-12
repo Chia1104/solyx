@@ -80,7 +80,7 @@ function forecast(id: string, patch: Partial<Forecast> = {}): Forecast {
     createdAt: 1_790_000_000_000,
     anchor: { date: "2026-09-29", price: 1000 },
     reportRevision: 1,
-    council: null,
+    motions: null,
     outcome: null,
     ...patch,
   };
@@ -330,12 +330,12 @@ test("research kept before its search existed is found once the file opens", () 
   ]);
 });
 
-test("a forecast kept before base rates and distributions were measured reads with neither", async () => {
-  // The file as it stood before those two migrations.
+test("a forecast kept before base rates, distributions and a vote on each scenario reads with none of them", async () => {
+  // The file as it stood before those three migrations.
   const before = join(directory, "migrations-before");
 
   for (const folder of await readdir(MIGRATIONS)) {
-    if (!/forecast_(base_rates|distributions)$/.test(folder)) {
+    if (!/forecast_(base_rates|distributions|scenario_motions)$/.test(folder)) {
       await cp(join(MIGRATIONS, folder), join(before, folder), {
         recursive: true,
       });
@@ -346,7 +346,15 @@ test("a forecast kept before base rates and distributions were measured reads wi
 
   openResearch(file, before).close();
 
-  const { baseRates: _rates, outcome: _open, ...made } = forecast("old");
+  const {
+    baseRates: _rates,
+    motions: _votes,
+    outcome: _open,
+    ...made
+  } = forecast("old");
+
+  // The vote such a forecast kept was on the whole of it, which says nothing of any one scenario.
+  const whole = { carried: true, votes: [] };
   const { distributed: _cash, ...settled } = OUTCOME;
   const db = new DatabaseSync(file);
 
@@ -357,13 +365,13 @@ test("a forecast kept before base rates and distributions were measured reads wi
     TSMC.market,
     TSMC.symbol,
     "2026-09-29",
-    JSON.stringify(made),
+    JSON.stringify({ ...made, council: whole }),
     JSON.stringify(settled),
     "old-open",
     TSMC.market,
     TSMC.symbol,
     "2026-09-30",
-    JSON.stringify({ ...made, id: "old-open" }),
+    JSON.stringify({ ...made, council: null, id: "old-open" }),
     null
   );
   db.close();

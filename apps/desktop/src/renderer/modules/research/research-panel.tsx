@@ -313,6 +313,13 @@ function RecordLine({ record }: { record: ForecastRecord }) {
       {record.meanR === null
         ? null
         : ` · ${t("research.forecasts.mean-r", { r: signedAmount.format(record.meanR) })}`}
+      {record.motions
+        ? ` · ${t("research.forecasts.motions", {
+            held: record.motions.held,
+            carried: record.motions.carried,
+            expected: indicator.format(record.motions.expected),
+          })}`
+        : null}
     </>
   );
 }

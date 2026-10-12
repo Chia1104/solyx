@@ -19,6 +19,7 @@ import {
   createMagi,
   forecastMotion,
   orderMotion,
+  scenarioCouncilsText,
 } from "../src/magi.ts";
 import type { BallotBox } from "../src/magi.ts";
 
@@ -49,41 +50,55 @@ function setup(answer: (unit: string) => string | Error) {
   // Enough for every unit's every try.
   faux.setResponses(Array.from({ length: 9 }, () => respond));
 
-  const convene = createMagi({
+  const { motion: convene, scenarios } = createMagi({
     models,
     model: async () => faux.getModel(),
     now: () => 0,
     retryDelayMs: 0,
   });
 
-  return { convene, prompts };
+  return { convene, scenarios, prompts };
 }
 
 const ballot = (vote: MagiVote, reason: string) =>
   JSON.stringify({ vote, reason });
 
 /** A ballot box in memory, standing in for a tool call's durable memos. */
-function ballotBox(kept: UnitVote[] = [], counted?: Council) {
-  const votes = new Map(kept.map((vote) => [vote.unit, vote]));
-  let council = counted;
+function memoryBox<Ballot, Count>(
+  kept: readonly (readonly [MagiUnit, Ballot])[],
+  counted: Count | undefined
+) {
+  const ballots = new Map(kept);
+  let count = counted;
 
-  const box: BallotBox = {
-    vote: async (unit) => votes.get(unit),
-    keepVote: async (vote) => {
-      if (!votes.has(vote.unit)) votes.set(vote.unit, vote);
+  const box: BallotBox<Ballot, Count> = {
+    ballot: async (unit) => ballots.get(unit),
+    keepBallot: async (unit, ballot) => {
+      if (!ballots.has(unit)) ballots.set(unit, ballot);
 
-      return votes.get(vote.unit) ?? vote;
+      return ballots.get(unit) ?? ballot;
     },
-    council: async () => council,
-    keepCouncil: async (next) => {
-      council ??= next;
+    count: async () => count,
+    keepCount: async (next) => {
+      count ??= next;
 
-      return council;
+      return count;
     },
   };
 
-  return Object.assign(box, { votes });
+  return Object.assign(box, { ballots });
 }
+
+/** The box of a call that puts one motion. */
+const ballotBox = (kept: UnitVote[] = [], counted?: Council) =>
+  memoryBox<UnitVote, Council>(
+    kept.map((vote) => [vote.unit, vote]),
+    counted
+  );
+
+/** A unit's answer to a forecast's scenarios, a vote on each. */
+const scenarioBallot = (...votes: [MagiVote, string][]) =>
+  JSON.stringify({ votes: votes.map(([vote, reason]) => ({ vote, reason })) });
 
 const kept = (unit: MagiUnit, vote: MagiVote): UnitVote => ({
   unit,
@@ -201,7 +216,7 @@ test("a unit without a model fails the vote before any unit is asked", async () 
     })
   );
 
-  const convene = createMagi({
+  const { motion: convene } = createMagi({
     models,
     model: async (unit) => {
       if (unit === MagiUnit.Casper) throw new Error("No key for its provider");
@@ -229,10 +244,10 @@ test("each vote is kept as it is cast, but a unit that gave none is not", async 
   const council = await convene("Motion", box);
 
   // Units answer at once, so they are kept in whatever order they finish.
-  expect(new Set(box.votes.keys())).toEqual(
+  expect(new Set(box.ballots.keys())).toEqual(
     new Set([MagiUnit.Melchior, MagiUnit.Balthasar])
   );
-  expect(await box.council()).toEqual(council);
+  expect(await box.count()).toEqual(council);
 });
 
 test("a call that runs again counts the votes it kept and asks only the units still to vote", async () => {
@@ -305,59 +320,226 @@ test("the tally names each unit with its vote and reason", () => {
   );
 });
 
-test("a forecast's motion holds what it would put on record and what it rests on", () => {
-  const motion = forecastMotion({
-    draft: {
-      instrument: TSMC,
-      horizon: 8,
-      direction: ForecastDirection.Long,
-      plan: { entry: 2585, stop: 2540, target: 2680 },
-      scenarios: [
-        { label: "Down", probability: 40, low: null, high: 2585, path: [] },
-        { label: "Up", probability: 60, low: 2585, high: null, path: [] },
-      ],
-      rationale: "Holds the 20-day average.",
-      claims: [
-        {
-          text: "MA20 rises.",
-          source: "get_indicators",
-          quote: "MA20 2466.25",
-        },
-      ],
-      contrary: null,
-    },
-    anchor: { date: "2026-10-06", price: 2585 },
-    report: {
-      symbol: TSMC,
-      revision: 2,
-      revisedAt: 0,
-      financialsThrough: "2026-06-30",
-      stance: ReportStance.Bullish,
-      thesis: "Advanced nodes stay sold out.",
-      drivers: [],
-      risks: [
-        {
-          point: "Margins may have peaked.",
-          text: "Gross margin was 67.7%.",
-          source: "get_fundamentals",
-          quote: "67.7%",
-          support: null,
-        },
-      ],
-      falsifiers: [],
-      valuation: null,
-      events: [],
-      sections: {},
-    },
+test("each unit votes on every scenario in one answer, and each scenario is counted on its own", async () => {
+  const { scenarios, prompts } = setup((unit) => {
+    if (unit === "MELCHIOR-1") {
+      return scenarioBallot(
+        [MagiVote.Reject, "Nothing threatens it."],
+        [MagiVote.Approve, "Volume has dried up."],
+        [MagiVote.Reject, "No reading speaks for it."]
+      );
+    }
+
+    return unit === "BALTHASAR-2"
+      ? scenarioBallot(
+          [MagiVote.Approve, "Results fall inside the horizon."],
+          [MagiVote.Approve, "Little moves it either way."],
+          [MagiVote.Reject, "Results stand in its way."]
+        )
+      : scenarioBallot(
+          [MagiVote.Reject, "The crowd is buying."],
+          [MagiVote.Reject, "The story is moving."],
+          [MagiVote.Approve, "The mood carries it up."]
+        );
   });
 
-  expect(motion).toContain(
-    "put on record a long forecast for TW:2330 over 8 sessions from its close of 2585 on 2026-10-06"
+  const box = memoryBox<UnitVote[], Council[]>([], undefined);
+  const councils = await scenarios("Three motions", 3, box);
+
+  expect(councils.map(({ carried }) => carried)).toEqual([false, true, false]);
+  expect(councils[2].votes.map(({ unit, vote }) => [unit, vote])).toEqual([
+    [MagiUnit.Melchior, MagiVote.Reject],
+    [MagiUnit.Balthasar, MagiVote.Reject],
+    [MagiUnit.Casper, MagiVote.Approve],
+  ]);
+  expect(councils[0].votes[1].reason).toBe("Results fall inside the horizon.");
+  // One request a unit, whatever the number of scenarios.
+  expect(prompts).toHaveLength(3);
+  expect(
+    prompts.every((prompt) =>
+      prompt.includes("more likely to land in its band than the share")
+    )
+  ).toBe(true);
+  expect(await box.count()).toEqual(councils);
+  expect(box.ballots.get(MagiUnit.Casper)).toHaveLength(3);
+});
+
+test("an answer that does not vote on every scenario is shown back, and a unit that never does votes on none", async () => {
+  const { scenarios, prompts } = setup((unit) => {
+    if (unit === "CASPER-3") {
+      return scenarioBallot([MagiVote.Approve, "It runs."]);
+    }
+
+    if (unit === "BALTHASAR-2") {
+      // The correction follows its first answer in what it is sent.
+      return prompts.at(-1)?.includes("with 2 entries in the motions' order")
+        ? scenarioBallot(
+            [MagiVote.Approve, "A ruling is due."],
+            [MagiVote.Reject, "A ruling stands in its way."]
+          )
+        : ballot(MagiVote.Approve, "Yes.");
+    }
+
+    return scenarioBallot(
+      [MagiVote.Approve, "Margins fell."],
+      [MagiVote.Reject, "Nothing speaks for it."]
+    );
+  });
+
+  const box = memoryBox<UnitVote[], Council[]>([], undefined);
+  const councils = await scenarios("Two motions", 2, box);
+
+  expect(councils.map(({ carried }) => carried)).toEqual([true, false]);
+  expect(councils.map(({ votes }) => votes[2])).toEqual([
+    {
+      unit: MagiUnit.Casper,
+      vote: null,
+      reason: "It gave no vote that could be read.",
+      model: expect.any(String),
+    },
+    {
+      unit: MagiUnit.Casper,
+      vote: null,
+      reason: "It gave no vote that could be read.",
+      model: expect.any(String),
+    },
+  ]);
+  // A unit that gave none is asked again when the call runs again.
+  expect(new Set(box.ballots.keys())).toEqual(
+    new Set([MagiUnit.Melchior, MagiUnit.Balthasar])
   );
-  expect(motion).toContain("Plan: entry 2585, stop 2540, target 2680.");
-  expect(motion).toContain("- Up (2585 and above): 60%");
+});
+
+test("a call that runs again counts the scenario votes it kept", async () => {
+  const { scenarios, prompts } = setup(() =>
+    scenarioBallot([MagiVote.Reject, "No."], [MagiVote.Approve, "Yes."])
+  );
+
+  const before = (unit: MagiUnit): [MagiUnit, UnitVote[]] => [
+    unit,
+    [kept(unit, MagiVote.Approve), kept(unit, MagiVote.Reject)],
+  ];
+
+  const councils = await scenarios(
+    "Two motions",
+    2,
+    memoryBox<UnitVote[], Council[]>(
+      [before(MagiUnit.Melchior), before(MagiUnit.Balthasar)],
+      undefined
+    )
+  );
+
+  expect(prompts).toHaveLength(1);
+  expect(prompts[0]).toContain("CASPER-3");
+  expect(councils.map(({ carried }) => carried)).toEqual([true, false]);
+});
+
+const FORECAST_MOTION = {
+  draft: {
+    instrument: TSMC,
+    horizon: 8,
+    direction: ForecastDirection.Long,
+    plan: { entry: 2585, stop: 2540, target: 2680 },
+    scenarios: [
+      { label: "Down", probability: 40, low: null, high: 2585, path: [] },
+      { label: "Up", probability: 60, low: 2585, high: null, path: [] },
+    ],
+    rationale: "Holds the 20-day average.",
+    claims: [
+      {
+        text: "MA20 rises.",
+        source: "get_indicators",
+        quote: "MA20 2466.25",
+      },
+    ],
+    contrary: null,
+  },
+  anchor: { date: "2026-10-06", price: 2585 },
+  report: {
+    symbol: TSMC,
+    revision: 2,
+    revisedAt: 0,
+    financialsThrough: "2026-06-30",
+    stance: ReportStance.Bullish,
+    thesis: "Advanced nodes stay sold out.",
+    drivers: [],
+    risks: [
+      {
+        point: "Margins may have peaked.",
+        text: "Gross margin was 67.7%.",
+        source: "get_fundamentals",
+        quote: "67.7%",
+        support: null,
+      },
+    ],
+    falsifiers: [],
+    valuation: null,
+    events: [],
+    sections: {},
+  },
+  baseRates: [0.46, 0.54],
+};
+
+test("a forecast's scenarios are each a numbered motion against history, without what its author gave them", () => {
+  const motion = forecastMotion(FORECAST_MOTION);
+
+  expect(motion).toContain(
+    "A forecast for TW:2330 over 8 sessions from its close of 2585 on 2026-10-06"
+  );
+  expect(motion).toContain("1. Down (below 2585): history 46%");
+  expect(motion).toContain("2. Up (2585 and above): history 54%");
   expect(motion).toContain('- MA20 rises. [get_indicators: "MA20 2466.25"]');
   expect(motion).toContain("- Margins may have peaked.");
+  // The author's own probabilities, lean and plan would be the answer to copy.
+  expect(motion).not.toContain("60%");
+  expect(motion).not.toContain("long");
+  expect(motion).not.toContain("2540");
+});
+
+test("the scenarios' tally names each with its history, its count and every unit's reason", () => {
+  const vote = (unit: MagiUnit, cast: MagiVote | null, reason: string) => ({
+    unit,
+    vote: cast,
+    reason,
+    model: "faux",
+  });
+
+  expect(
+    scenarioCouncilsText({
+      scenarios: FORECAST_MOTION.draft.scenarios,
+      baseRates: FORECAST_MOTION.baseRates,
+      motions: [
+        {
+          carried: false,
+          votes: [
+            vote(MagiUnit.Melchior, MagiVote.Reject, "Nothing threatens it."),
+            vote(MagiUnit.Balthasar, MagiVote.Approve, "Results are due."),
+            vote(MagiUnit.Casper, null, "The model is out of reach"),
+          ],
+        },
+        {
+          carried: true,
+          votes: [
+            vote(MagiUnit.Melchior, MagiVote.Approve, "The average rises."),
+            vote(MagiUnit.Balthasar, MagiVote.Reject, "Results are due."),
+            vote(MagiUnit.Casper, MagiVote.Approve, "The mood carries it."),
+          ],
+        },
+      ],
+    })
+  ).toBe(
+    [
+      "The MAGI voted on each scenario, on whether the horizon's close is more likely to land in its band than its history's share:",
+      "- Down (history 46%): could not decide, 1 to 1",
+      "  - MELCHIOR-1 reject: Nothing threatens it.",
+      "  - BALTHASAR-2 approve: Results are due.",
+      "  - CASPER-3 gave no vote: The model is out of reach",
+      "- Up (history 54%): carried, 2 to 1",
+      "  - MELCHIOR-1 approve: The average rises.",
+      "  - BALTHASAR-2 reject: Results are due.",
+      "  - CASPER-3 approve: The mood carries it.",
+    ].join("\n")
+  );
 });
 
 test("an order's motion sets it beside what the account holds", () => {

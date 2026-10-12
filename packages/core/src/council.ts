@@ -1,3 +1,4 @@
+import { unzip } from "es-toolkit";
 import * as z from "zod";
 
 /** Who decides the agent's forecasts and order proposals before they are kept. */
@@ -60,6 +61,11 @@ export function resolveCouncil(votes: UnitVote[]): Council {
     carried:
       votes.filter(({ vote }) => vote === MagiVote.Approve).length >= MAJORITY,
   };
+}
+
+/** How several motions put at once came out, from each unit's votes on them in the motions' order. */
+export function resolveCouncils(ballots: readonly UnitVote[][]): Council[] {
+  return unzip(ballots).map(resolveCouncil);
 }
 
 /** How a vote came out. */

@@ -8,7 +8,6 @@ import { median, takeRight } from "es-toolkit";
 import * as z from "zod";
 
 import { Interval, candleDate } from "@solyx/core/candles";
-import { CouncilOutcome, councilOutcome } from "@solyx/core/council";
 import {
   ForecastViolationCode,
   MAX_HORIZON,
@@ -62,7 +61,11 @@ import type {
 import type { FalsifierCheck, ResearchDesk } from "@solyx/core/research";
 import { errorMessage } from "@solyx/utils/error";
 
-import { councilText, durableBallotBox, forecastMotion } from "./magi.ts";
+import {
+  durableScenarioBox,
+  forecastMotion,
+  scenarioCouncilsText,
+} from "./magi.ts";
 import type { MagiPort } from "./magi.ts";
 import { quoteChecker } from "./provenance.ts";
 import { defineTool, eventDay, publishedTime } from "./tools.ts";
@@ -249,8 +252,6 @@ function forecastViolationText(
       return `The target pays ${violation.reward} against ${violation.risk} risked to the stop; it must pay at least as much.`;
     case ForecastViolationCode.ClaimUnsupported:
       return unsupportedText(violation);
-    case ForecastViolationCode.MotionRejected:
-      return councilText(violation.council);
   }
 }
 
@@ -331,6 +332,16 @@ export function forecastText(forecast: Forecast): string {
     );
   }
 
+  if (forecast.motions) {
+    const carried = scenarios.filter(
+      (_, index) => forecast.motions?.[index]?.carried
+    );
+
+    lines.push(
+      `  the MAGI carried as more likely than history: ${carried.length === 0 ? "none" : carried.map(({ label }) => label).join(", ")}`
+    );
+  }
+
   if (plan) {
     lines.push(
       `  plan: entry ${plan.entry}, stop ${plan.stop}, target ${plan.target}`
@@ -352,6 +363,24 @@ export function forecastText(forecast: Forecast): string {
   );
 
   return lines.join("\n");
+}
+
+/** What the MAGI made of a forecast just kept, where decisions go to it. */
+function votedText(forecast: Forecast, asked: boolean): string[] {
+  const { motions, baseRates: rates, scenarios } = forecast;
+
+  if (!asked) return [];
+
+  if (!motions || !rates) {
+    return [
+      "The MAGI held no vote: the listing's bars hold too few moves of that length to give its bands a history to vote against.",
+    ];
+  }
+
+  return [
+    scenarioCouncilsText({ scenarios, baseRates: rates, motions }),
+    "The forecast is kept however they voted. Tell the user which scenarios carried and each unit's reason, and where the vote leans another way than your probabilities, say what the units weighed differently.",
+  ];
 }
 
 /** News a decisions model read as stating that a falsifier happened, newest first. */
@@ -393,6 +422,11 @@ function recordText(scope: string, record: ForecastRecord): string {
     ...(record.skill
       ? [
           `  against history's base rates, over ${record.skill.forecasts} settled: Brier ${record.skill.brier.toFixed(2)} against ${record.skill.baseBrier.toFixed(2)} for the base rates${record.skill.skill === null ? "" : `, skill ${percent(record.skill.skill)} (0 is no better than history alone, below it worse)`}`,
+        ]
+      : []),
+    ...(record.motions
+      ? [
+          `  scenarios the MAGI carried as more likely than history: the close landed in ${record.motions.held} of ${record.motions.carried}, where history alone expects ${record.motions.expected.toFixed(1)}`,
         ]
       : []),
     `  plans: ${plans}${record.meanR === null ? "" : `; mean ${signed(record.meanR)}R of those entered`}`,
@@ -627,10 +661,7 @@ export function createResearch(options: ResearchOptions): Extension {
               ...signalsText(symbol.market, coverage.signals),
               "",
               recordText("this listing", coverage.record),
-              recordText("every listing", overall.all),
-              ...(overall.ratified.forecasts > 0
-                ? [recordText("those the MAGI carried", overall.ratified)]
-                : []),
+              recordText("every listing", overall),
             ]
               .flat()
               .join("\n"),
@@ -966,41 +997,23 @@ export function createResearch(options: ResearchOptions): Extension {
             );
           }
 
-          const convene = await options.magi?.(api.conversationId);
+          const magi = await options.magi?.(api.conversationId);
 
           const result = await desk.forecast(
             { ...draft, id },
-            convene &&
+            magi &&
               ((motion) =>
-                convene(forecastMotion(motion), durableBallotBox(api, context)))
+                magi.scenarios(
+                  forecastMotion(motion),
+                  motion.draft.scenarios.length,
+                  durableScenarioBox(api, context)
+                ))
           );
 
           const symbol = {
             market: draft.instrument.market,
             symbol: draft.instrument.symbol,
           };
-
-          const rejected = result.ok
-            ? undefined
-            : result.violations.find(
-                (violation) =>
-                  violation.code === ForecastViolationCode.MotionRejected
-              );
-
-          // A rejection is the vote's answer rather than a fault, so it is told with its votes.
-          if (rejected) {
-            return {
-              text: `${councilText(rejected.council)}\nThe forecast was not kept. ${
-                councilOutcome(rejected.council) === CouncilOutcome.Undecided
-                  ? "Tell the user which units gave no vote and why; the same motion may be put again in a later reply if they ask, and that is not a revision."
-                  : "You may put one revised motion that answers the units' reasons; if that is rejected too, tell the user and stop."
-              }`,
-              details: {
-                symbol,
-                council: rejected.council,
-              } satisfies SubmitForecastDetails,
-            };
-          }
 
           if (!result.ok) {
             throw new Error(
@@ -1014,7 +1027,7 @@ export function createResearch(options: ResearchOptions): Extension {
 
           return {
             text: [
-              ...(forecast.council ? [councilText(forecast.council)] : []),
+              ...votedText(forecast, magi !== undefined),
               `Kept and frozen:\n${forecastText(forecast)}`,
             ].join("\n"),
             details: {

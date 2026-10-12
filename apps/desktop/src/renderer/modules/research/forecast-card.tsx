@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { Forecast, ForecastScenario } from "@solyx/core/forecast";
 import type { SymbolRef } from "@solyx/core/market";
 
-import { MagiPanel } from "../agent/magi-panel.tsx";
+import { MagiScenarios } from "../agent/magi-panel.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
 import { researchCoverageQuery } from "./research-query.ts";
@@ -154,7 +154,12 @@ export function ForecastBody({ forecast }: { forecast: Forecast }) {
           ) : null}
         </p>
       ) : null}
-      {forecast.council ? <MagiPanel council={forecast.council} /> : null}
+      {forecast.motions ? (
+        <MagiScenarios
+          scenarios={forecast.scenarios}
+          motions={forecast.motions}
+        />
+      ) : null}
     </article>
   );
 }

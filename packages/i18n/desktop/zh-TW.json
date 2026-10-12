@@ -651,7 +651,8 @@
       "record": "{{count, number}} 筆中 {{settled, number}} 筆已結算 · 平均 Brier {{brier}}",
       "record-open": "{{count, number}} 筆，尚未結算",
       "mean-r": "平均 {{r}} R",
-      "skill": "相對歷史基準 {{skill}}"
+      "skill": "相對歷史基準 {{skill}}",
+      "motions": "MAGI 可決的 {{carried, number}} 個走勢中 {{held, number}} 個成真，歷史基準預期 {{expected}} 個"
     },
     "forecast": {
       "horizon": "{{count, number}} 個交易日，自 {{date}} 的 {{price}} 起算",
@@ -682,6 +683,7 @@
     "rejected": "否決",
     "undecided": "未決",
     "tally": "{{approved, number}} 比 {{rejected, number}}",
+    "question": "各走勢是否比歷史基準更可能發生？",
     "personas": {
       "melchior": "科學家",
       "balthasar": "母親",
@@ -996,7 +998,7 @@
         "high": "高"
       },
       "decision-mode": "決策模式",
-      "decision-mode-description": "由誰決定 Agent 的預測與下單建議。選 MAGI 時，三個單元各以同一心智的一面（科學家、母親、女人）獨立判斷，兩票即通過。每次表決會多用三次對話模型的請求；每筆委託仍需你確認。",
+      "decision-mode-description": "由誰評斷 Agent 的預測與下單建議。選 MAGI 時，三個單元各以同一心智的一面（科學家、母親、女人）獨立判斷，兩票即通過。下單建議是一個議案，被否決就不會提出；預測的每個走勢各是一個議案，表決它是否比歷史基準更可能發生，預測照樣保存，表決結果並列在旁。每次表決會多用三次對話模型的請求；每筆委託仍需你確認。",
       "decision-modes": {
         "single": "Agent 自行決定",
         "magi": "MAGI"

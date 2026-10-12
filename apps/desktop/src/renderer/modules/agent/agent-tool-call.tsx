@@ -457,8 +457,6 @@ export function AgentToolCall({
       {forecast?.forecastId ? (
         <ForecastCard symbol={forecast.symbol} id={forecast.forecastId} />
       ) : null}
-      {/* A forecast the vote carried shows its votes on its card; a rejected one left only them. */}
-      {forecast?.council ? <MagiPanel council={forecast.council} /> : null}
     </div>
   );
 }

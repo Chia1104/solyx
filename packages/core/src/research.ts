@@ -8,7 +8,6 @@ import type { Council } from "./council.ts";
 import { cachedVectors, clearlyNearest, cosine } from "./embedding.ts";
 import type { Embedder, VectorCache } from "./embedding.ts";
 import {
-  ForecastViolationCode,
   bandsBetween,
   baseRates,
   checkForecast,
@@ -118,21 +117,21 @@ export interface ResearchDeskOptions {
   createId?: () => string;
 }
 
-/** A forecast that passed every check, as it is put to a vote before it is kept. */
+/** A forecast that passed every check, as its scenarios are put to a vote before it is kept. */
 export interface ForecastMotion {
   draft: ForecastDraft;
   anchor: ForecastAnchor;
   report: Report;
+  /** The base rate of each scenario's band, which its motion is voted against. */
+  baseRates: number[];
 }
 
-/** Puts a forecast to a vote; the desk keeps it only when the vote carries it. */
-export type Ratify = (motion: ForecastMotion) => Promise<Council>;
-
-/** How every listing's forecasts have come out, and those a vote carried among them. */
-export interface TrackRecord {
-  all: ForecastRecord;
-  ratified: ForecastRecord;
-}
+/**
+ * Puts each scenario of a forecast to a vote, as the motion that the close is more likely to land
+ * in its band than its base rate says, and answers with each count in the scenarios' order. The
+ * desk keeps the forecast however the vote goes, with the counts beside it.
+ */
+export type ScenarioVote = (motion: ForecastMotion) => Promise<Council[]>;
 
 export type ForecastResult =
   | { ok: true; forecast: Forecast }
@@ -239,7 +238,7 @@ export class ResearchDesk {
   async forecast(
     { id, ...draft }: ForecastDraft & { id?: string },
     /** Asked only of a forecast that passed every check, so no vote is spent on one that would be refused. */
-    ratify?: Ratify
+    vote?: ScenarioVote
   ): Promise<ForecastResult> {
     const {
       store,
@@ -298,17 +297,11 @@ export class ResearchDesk {
 
     if (!report || violations.length > 0) return { ok: false, violations };
 
-    let council: Council | null = null;
+    let motions: Council[] | null = null;
 
-    if (ratify) {
-      council = await ratify({ draft, anchor, report });
-
-      if (!council.carried) {
-        return {
-          ok: false,
-          violations: [{ code: ForecastViolationCode.MotionRejected, council }],
-        };
-      }
+    // A scenario is voted against its base rate, so a listing without them has no motion to put.
+    if (vote && rates) {
+      motions = await vote({ draft, anchor, report, baseRates: rates });
 
       ({ report, violations } = check());
 
@@ -326,7 +319,7 @@ export class ResearchDesk {
       createdAt: now(),
       anchor,
       reportRevision: report.revision,
-      council,
+      motions,
       outcome: null,
     };
 
@@ -493,7 +486,7 @@ export class ResearchDesk {
     if (stated) this.#options.onChange?.(symbol);
   }
 
-  async trackRecord(): Promise<TrackRecord> {
+  async trackRecord(): Promise<ForecastRecord> {
     const listings = Object.values(
       groupBy(this.#options.store.forecasts(), ({ instrument }) =>
         symbolKey(instrument)
@@ -508,10 +501,7 @@ export class ResearchDesk {
       )
     ).flat();
 
-    return {
-      all: forecastRecord(settled),
-      ratified: forecastRecord(settled.filter((forecast) => forecast.council)),
-    };
+    return forecastRecord(settled);
   }
 
   /**
