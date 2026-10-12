@@ -115,6 +115,12 @@ export interface ForecastOutcome {
 /** A forecast as kept: nothing but its outcome changes once it is made. */
 export interface Forecast extends ForecastDraft {
   claims: AuditedClaim[];
+  /**
+   * How often the listing's own history puts the horizon's close in each scenario's band, as
+   * shares in the scenarios' order: what probabilities that knew nothing of the listing but its
+   * past moves would be. `null` where its bars held too few such moves.
+   */
+  baseRates: number[] | null;
   id: string;
   /** Epoch ms. */
   createdAt: number;
@@ -446,10 +452,9 @@ export function judgeForecast(
     date,
     close: last.close,
     scenario,
-    brier: sumBy(
-      scenarios,
-      ({ probability }, index) =>
-        (probability / 100 - (index === scenario ? 1 : 0)) ** 2
+    brier: brierOf(
+      scenarios.map(({ probability }) => probability / 100),
+      scenario
     ),
     plan:
       direction === ForecastDirection.Neutral || !plan
@@ -457,6 +462,68 @@ export function judgeForecast(
         : replayPlan(direction, plan, anchor.price, sessions),
   };
 }
+
+// Fewer moves than a quarter's sessions say too little of how a listing moves.
+const BASE_RATE_MOVES = 60;
+
+/**
+ * How far a listing's close has moved over `horizon` sessions, each as the later close over the
+ * earlier, for every such span its daily bars hold, oldest first. A split or a capital reduction
+ * inside the bars reads as a move.
+ */
+export function horizonMoves(
+  daily: readonly Candle[],
+  horizon: number
+): number[] {
+  return daily
+    .slice(horizon)
+    .map((bar, index) => bar.close / daily[index].close);
+}
+
+/**
+ * The share of `moves` that, carried from `price`, land in each band, in the bands' order; `null`
+ * where there are too few to say.
+ */
+export function baseRates(
+  moves: readonly number[],
+  price: number,
+  bands: readonly Pick<ForecastScenario, "low" | "high">[]
+): number[] | null {
+  if (moves.length < BASE_RATE_MOVES) return null;
+
+  return bands.map(
+    (band) =>
+      moves.filter((move) => inBand(price * move, band)).length / moves.length
+  );
+}
+
+/** The bands that prices `edges`, ascending, cut every price into: below the first, between each pair, and from the last up. */
+export function bandsBetween(
+  edges: readonly number[]
+): Pick<ForecastScenario, "low" | "high">[] {
+  return [null, ...edges].map((low, index) => ({
+    low,
+    high: edges[index] ?? null,
+  }));
+}
+
+/** The move below which `share` of `moves` fall. */
+export function moveQuantile(moves: readonly number[], share: number): number {
+  const sorted = moves.toSorted((a, b) => a - b);
+  const place = (sorted.length - 1) * share;
+  const below = Math.floor(place);
+  const above = Math.min(below + 1, sorted.length - 1);
+
+  return sorted[below] + (sorted[above] - sorted[below]) * (place - below);
+}
+
+/** The squared error of `probabilities`, as shares, against the scenario that came true. */
+const brierOf = (probabilities: readonly number[], scenario: number) =>
+  sumBy(
+    probabilities.map((probability, index) => ({ probability, index })),
+    ({ probability, index }) =>
+      (probability - (index === scenario ? 1 : 0)) ** 2
+  );
 
 /** ISO weekday numbering, Monday 1 to Sunday 7, so Saturday opens the weekend. */
 const SATURDAY = 6;
@@ -521,6 +588,41 @@ export interface ForecastRecord {
   meanR: number | null;
   /** A well-calibrated record holds about as often as each bucket's probabilities say. */
   calibration: CalibrationBucket[];
+  /** How the settled forecasts that kept base rates did against them; `null` while none has. */
+  skill: ForecastSkill | null;
+}
+
+/** Forecasts against the base rates of their own bands, which a forecast that knew only the listing's past moves would have given. */
+export interface ForecastSkill {
+  forecasts: number;
+  /** Their mean Brier score, and the base rates' own over the same forecasts. */
+  brier: number;
+  baseBrier: number;
+  /**
+   * The share of the base rates' error the forecasts took away: 0 is no better than history
+   * alone, below it worse, and 1 sure and right. `null` where the base rates left no error.
+   */
+  skill: number | null;
+}
+
+function forecastSkill(forecasts: readonly Forecast[]): ForecastSkill | null {
+  const based = forecasts.flatMap(({ baseRates: rates, outcome }) =>
+    rates && outcome
+      ? [{ brier: outcome.brier, baseBrier: brierOf(rates, outcome.scenario) }]
+      : []
+  );
+
+  if (based.length === 0) return null;
+
+  const brier = meanBy(based, (each) => each.brier);
+  const baseBrier = meanBy(based, (each) => each.baseBrier);
+
+  return {
+    forecasts: based.length,
+    brier,
+    baseBrier,
+    skill: baseBrier === 0 ? null : 1 - brier / baseBrier,
+  };
 }
 
 const CALIBRATION_STEP = 20;
@@ -571,6 +673,7 @@ export function forecastRecord(forecasts: readonly Forecast[]): ForecastRecord {
         held: scenarios.filter((each) => each.held).length,
       };
     }),
+    skill: forecastSkill(forecasts),
   };
 }
 

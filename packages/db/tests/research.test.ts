@@ -76,6 +76,7 @@ function forecast(id: string, patch: Partial<Forecast> = {}): Forecast {
     rationale: "Range-bound into results.",
     claims: [],
     contrary: null,
+    baseRates: [0.45, 0.55],
     createdAt: 1_790_000_000_000,
     anchor: { date: "2026-09-29", price: 1000 },
     reportRevision: 1,

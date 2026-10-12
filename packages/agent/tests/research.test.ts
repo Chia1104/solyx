@@ -56,6 +56,19 @@ const ANCHOR_BAR = bar("2026-09-29", 1000);
 
 const LATER_BARS = [bar("2026-09-30", 1010), bar("2026-10-01", 1045)];
 
+/**
+ * Sixty-four daily bars that end on the anchor: the close swings between 1100 and 1000 every two
+ * sessions, so of its 62 moves over two sessions 32 fall and 30 rise.
+ */
+const HISTORY = Array.from({ length: 64 }, (_, index) =>
+  bar(
+    Temporal.PlainDate.from("2026-09-29")
+      .subtract({ days: 63 - index })
+      .toString(),
+    index % 4 < 2 ? 1100 : 1000
+  )
+);
+
 function quarter(periodEnd: string, revenue: number, eps: number) {
   return {
     periodEnd,
@@ -483,6 +496,69 @@ test("a refused forecast names every fix and keeps nothing", async () => {
     ].join("\n")
   );
   expect(store.forecasts()).toEqual([]);
+});
+
+test("base rates tell how the listing's own moves spread over a horizon and land in the bands", async () => {
+  const { run, bars } = setup();
+
+  bars.daily = HISTORY;
+
+  const { text } = await run(AgentToolName.GetBaseRates, {
+    symbol: TSMC,
+    horizon: 2,
+    edges: [1000],
+  });
+
+  expect(text.split("\n")).toEqual([
+    "TW 2330 over 2 sessions from 2026-09-29 at 1000: 62 moves of that length in its daily bars since 2026-07-28",
+    "Moves, each with the close it would make from 1000: 10th percentile -9.1% (909.09), 25th percentile -9.1% (909.09), 50th percentile -9.1% (909.09), 75th percentile +10.0% (1100), 90th percentile +10.0% (1100)",
+    "Base rates: below 1000 52%; 1000 and above 48%",
+  ]);
+
+  // Without edges it gives the spread alone.
+  expect(
+    (
+      await run(AgentToolName.GetBaseRates, { symbol: TSMC, horizon: 2 })
+    ).text.split("\n")
+  ).toHaveLength(2);
+
+  bars.daily = [ANCHOR_BAR];
+
+  expect(
+    (
+      await run(AgentToolName.GetBaseRates, {
+        symbol: TSMC,
+        horizon: 2,
+        edges: [1000],
+      })
+    ).text
+  ).toBe(
+    "TW 2330 has no move of 2 sessions in its daily bars since 2026-09-29."
+  );
+});
+
+test("a kept forecast shows what history alone gave its bands, and the record measures it against them", async () => {
+  const { run, clock, bars } = setup();
+
+  bars.daily = HISTORY;
+
+  await run(AgentToolName.ReviseReport, REPORT);
+
+  const kept = await run(AgentToolName.SubmitForecast, FORECAST);
+
+  expect(kept.text).toContain(
+    "  history alone: 52%, 48%, in the scenarios' order"
+  );
+
+  clock.now = AFTER_HORIZON;
+  bars.daily = [...HISTORY, ...LATER_BARS];
+
+  const { text } = await run(AgentToolName.GetResearch, { symbol: TSMC });
+
+  // The close landed in "Up", which the forecast gave 60% and history 48%.
+  expect(text).toContain(
+    "  against history's base rates, over 1 settled: Brier 0.32 against 0.53 for the base rates, skill +39.9% (0 is no better than history alone, below it worse)"
+  );
 });
 
 test("a neutral forecast needs no plan", async () => {
