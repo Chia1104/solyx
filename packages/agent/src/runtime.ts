@@ -49,7 +49,12 @@ import type {
 import { firstLine } from "./text.ts";
 import { createToolsetLoader } from "./toolset.ts";
 import type { Toolset } from "./toolset.ts";
-import { createTranscriber, replyText, userContent } from "./transcript.ts";
+import {
+  createTranscriber,
+  readTexts,
+  replyText,
+  userContent,
+} from "./transcript.ts";
 import type { Transcriber } from "./transcript.ts";
 import {
   AgentEventType,
@@ -796,6 +801,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       await conversation.commit(async (tx) => {
         (await tx.doc(ApprovalDoc, conversation.id)).mode = mode;
       }, BACKGROUND_CONTEXT);
+    },
+
+    /** Everything a conversation's tools returned and its user wrote, oldest first, what a compaction no longer shows the model among it. */
+    async read(sessionId: string): Promise<string[]> {
+      return readTexts(await history(await conversationOf(sessionId)));
     },
 
     /**

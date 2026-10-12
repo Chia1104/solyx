@@ -1,5 +1,9 @@
 import { defineExtension } from "@earendil-works/pi-durable";
-import type { Extension } from "@earendil-works/pi-durable";
+import type {
+  ConversationId,
+  Extension,
+  ToolExecutionApi,
+} from "@earendil-works/pi-durable";
 import { median, takeRight } from "es-toolkit";
 import * as z from "zod";
 
@@ -60,6 +64,7 @@ import { errorMessage } from "@solyx/utils/error";
 
 import { councilText, durableBallotBox, forecastMotion } from "./magi.ts";
 import type { MagiPort } from "./magi.ts";
+import { quoteChecker } from "./provenance.ts";
 import { defineTool, eventDay, publishedTime } from "./tools.ts";
 import type { ToolOutput } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
@@ -71,6 +76,11 @@ export interface ResearchOptions {
   marketData: Pick<MarketData, "candles">;
   /** Puts each forecast to a vote while the user has decisions go to the MAGI. */
   magi?: MagiPort;
+  /**
+   * Everything a conversation's tools returned and its user wrote, which a new quote must be the
+   * words of; without it no quote is checked.
+   */
+  read?: (conversationId: ConversationId) => Promise<string[]>;
   /** @default () => new Date() */
   now?: () => Date;
 }
@@ -157,6 +167,17 @@ function bandText({ low, high }: Pick<ForecastScenario, "low" | "high">) {
 
   return high === null ? `${low} and above` : `${low} to ${high}`;
 }
+
+/** What a quote was given for, and the quote. */
+interface Quoted {
+  /** The claim's fact or the event's label, which names it to the model. */
+  about: string;
+  quote: string;
+}
+
+/** A quote none of whose source the conversation read, by the first of its lines that is in nothing it read. */
+const unreadQuoteText = ({ about }: Quoted, line: string) =>
+  `The quote given for "${about}" is not the words of anything this conversation read: no tool returned "${line}" and the user did not write it. Copy a quote as it stands in a tool's answer or a page you read, a table's rows one to a line, and read the source first where you have not.`;
 
 /** A decisions model read the claim's quote as saying less than the claim does. */
 const unsupportedText = ({ claim }: { claim: string }) =>
@@ -522,6 +543,41 @@ export function createResearch(options: ResearchOptions): Extension {
   const { desk, fundamentals } = options;
   const now = options.now ?? (() => new Date());
 
+  /**
+   * Why each of `quoted` that is new cannot be kept: a quote the listing's report already holds
+   * was read when it was first kept, and any other must be the words of something this
+   * conversation read.
+   */
+  async function unreadQuotes(
+    api: ToolExecutionApi,
+    symbol: SymbolRef,
+    quoted: readonly Quoted[]
+  ): Promise<string[]> {
+    if (!options.read) return [];
+
+    const report = desk.report(symbol);
+
+    const kept = new Set(
+      [
+        ...(report?.drivers ?? []),
+        ...(report?.risks ?? []),
+        ...(report?.events ?? []),
+      ].map(({ quote }) => quote)
+    );
+
+    const fresh = quoted.filter(({ quote }) => !kept.has(quote));
+
+    if (fresh.length === 0) return [];
+
+    const unfound = quoteChecker(await options.read(api.conversationId));
+
+    return fresh.flatMap((each) => {
+      const line = unfound(each.quote);
+
+      return line === undefined ? [] : [unreadQuoteText(each, line)];
+    });
+  }
+
   return defineExtension({
     name: "solyx-research",
     tools: [
@@ -840,7 +896,21 @@ export function createResearch(options: ResearchOptions): Extension {
         description:
           "Keeps a new revision of a listing's report: your view over quarters, which forecasts are then made under. Send only what changed; a part you leave out stays as the last revision had it, and every revision is kept.",
         parameters: reviseParameters,
-        async execute(draft) {
+        async execute(draft, api) {
+          const unread = await unreadQuotes(api, draft.symbol, [
+            ...[...(draft.drivers ?? []), ...(draft.risks ?? [])].map(
+              ({ text, quote }) => ({ about: text, quote })
+            ),
+            ...(draft.events ?? []).map(({ label, quote }) => ({
+              about: label,
+              quote,
+            })),
+          ]);
+
+          if (unread.length > 0) {
+            throw new Error(`The report was not kept.\n${unread.join("\n")}`);
+          }
+
           const revision = await desk.revise(draft);
 
           if (!revision.ok) {
@@ -871,6 +941,18 @@ export function createResearch(options: ResearchOptions): Extension {
             crypto.randomUUID(),
             context
           );
+
+          const unread = await unreadQuotes(
+            api,
+            draft.instrument,
+            draft.claims.map(({ text, quote }) => ({ about: text, quote }))
+          );
+
+          if (unread.length > 0) {
+            throw new Error(
+              `The forecast was not kept. Fix these and submit again.\n${unread.join("\n")}`
+            );
+          }
 
           const convene = await options.magi?.(api.conversationId);
 

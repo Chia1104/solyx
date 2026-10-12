@@ -14,7 +14,12 @@ import type {
 } from "@earendil-works/pi-durable";
 import { expect, test } from "vite-plus/test";
 
-import { createTranscriber, userContent, userText } from "../src/transcript.ts";
+import {
+  createTranscriber,
+  readTexts,
+  userContent,
+  userText,
+} from "../src/transcript.ts";
 import {
   AgentEventType,
   RunEndReason,
@@ -327,4 +332,18 @@ test("a summary replays where it was placed, as the model's note holds it", () =
     summary: "## Goal\nWatch 2330",
     at: 5,
   });
+});
+
+test("what a conversation read is what its tools returned and its user wrote, never what the model said", () => {
+  expect(
+    readTexts([
+      user(1, "台積電法說說產能滿載到 2027"),
+      toolCall(2),
+      toolResult(3),
+      reply(4, "The account holds TWD 1000, which I made up a quote for."),
+    ])
+  ).toEqual([
+    expect.stringContaining("台積電法說說產能滿載到 2027"),
+    "cash: TWD 1000",
+  ]);
 });

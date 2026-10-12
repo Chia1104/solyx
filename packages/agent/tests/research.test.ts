@@ -261,7 +261,8 @@ interface Filed {
   peers?: PeerStanding;
 }
 
-function setup(council?: Council) {
+/** `read` is what the conversation read, which quotes are then held to; without it none is checked, as under a host with no transcript. */
+function setup(council?: Council, read?: string[]) {
   const clock = { now: AT_ANCHOR };
   const motions: string[] = [];
   const bars = { daily: [ANCHOR_BAR] };
@@ -311,10 +312,13 @@ function setup(council?: Council) {
     now: () => clock.now,
   });
 
+  const conversation = { read: read ?? [] };
+
   const { tools = [] } = createResearch({
     desk,
     fundamentals,
     marketData,
+    read: read && (async () => conversation.read),
     magi: async () =>
       council &&
       (async (motion) => {
@@ -339,7 +343,7 @@ function setup(council?: Council) {
     return { text: contentText(result.content ?? []), details: result.details };
   }
 
-  return { run, store, clock, bars, filed, motions };
+  return { run, store, clock, bars, filed, motions, conversation };
 }
 
 test("a listing without research says so", async () => {
@@ -582,6 +586,78 @@ test("research says how the report's stance has done against the index since it 
       "Stance against TAIEX, each stretch the report kept one, on closes as they traded:",
       "- bullish from 2026-09-29 (revision 1) and standing, 2 sessions: +4.5% against the index's +4.5%, +0.0 points",
     ].join("\n")
+  );
+});
+
+test("a new quote must be the words of something the conversation read", async () => {
+  const { run, store, conversation } = setup(undefined, [
+    "month,revenue,yoy\n2026-08,450,+50.0%",
+  ]);
+
+  await expect(run(AgentToolName.ReviseReport, REPORT)).rejects.toThrow(
+    [
+      "The report was not kept.",
+      'The quote given for "August revenue rose 53% on the year." is not the words of anything this conversation read: no tool returned "去年同月增減 53.32%" and the user did not write it.',
+    ].join("\n")
+  );
+  expect(store.report(TSMC)).toBeUndefined();
+
+  conversation.read = [
+    "month,revenue,yoy\n2026-08,450,+50.0%",
+    "營業收入 當月營收 450 去年同月增減 53.32%",
+  ];
+
+  expect((await run(AgentToolName.ReviseReport, REPORT)).text).toBe(
+    "Kept revision 1 of the TW 2330 report."
+  );
+});
+
+test("a quote the report already holds may be sent again without being read anew", async () => {
+  const { run, conversation } = setup(undefined, ["去年同月增減 53.32%"]);
+
+  await run(AgentToolName.ReviseReport, REPORT);
+
+  // A later conversation that read nothing sends the same driver beside a new thesis.
+  conversation.read = [];
+
+  expect(
+    (
+      await run(AgentToolName.ReviseReport, {
+        symbol: TSMC,
+        thesis: "Advanced nodes stay sold out into 2027.",
+        drivers: REPORT.drivers,
+      })
+    ).text
+  ).toBe("Kept revision 2 of the TW 2330 report.");
+});
+
+test("a forecast's claims are held to what the conversation read too", async () => {
+  const { run, store, conversation } = setup(undefined, [
+    "去年同月增減 53.32%",
+  ]);
+
+  await run(AgentToolName.ReviseReport, REPORT);
+
+  const claimed = {
+    ...FORECAST,
+    claims: [
+      {
+        text: "The close holds above its 20-day average.",
+        source: "get_indicators, 1d",
+        quote: "MA20 985.4",
+      },
+    ],
+  };
+
+  await expect(run(AgentToolName.SubmitForecast, claimed)).rejects.toThrow(
+    'The quote given for "The close holds above its 20-day average." is not the words of anything this conversation read: no tool returned "MA20 985.4"'
+  );
+  expect(store.forecasts()).toEqual([]);
+
+  conversation.read = ["TW 2330, 1d bars\nMA20 985.4, MA60 962.1"];
+
+  expect((await run(AgentToolName.SubmitForecast, claimed)).text).toContain(
+    "Kept and frozen:"
   );
 });
 

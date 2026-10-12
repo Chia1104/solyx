@@ -252,6 +252,7 @@ export function createAgentService(options: AgentServiceOptions) {
     fundamentals: options.fundamentals,
     marketData: options.marketData,
     magi,
+    read: (conversationId) => runtime.read(String(conversationId)),
   });
 
   const flows = createFlowTools({ flows: options.flows });
