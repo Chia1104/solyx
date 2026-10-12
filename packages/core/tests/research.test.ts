@@ -17,6 +17,7 @@ import { ForecastDirection, ForecastViolationCode } from "../src/forecast.ts";
 import type { Forecast, ForecastDraft } from "../src/forecast.ts";
 import type { Fundamentals } from "../src/fundamentals.ts";
 import { Market, symbolKey } from "../src/market.ts";
+import type { SymbolRef } from "../src/market.ts";
 import { NewsChannel, TimePrecision } from "../src/news.ts";
 import type { NewsRecord } from "../src/news.ts";
 import { ReportStance, ReportViolationCode } from "../src/report.ts";
@@ -181,7 +182,11 @@ function setup() {
   const clock = { now: AT_ANCHOR };
   const bars = { daily: [ANCHOR_BAR] };
   const onChange = vi.fn();
-  const candles = vi.fn(async () => structuredClone(bars.daily));
+
+  const candles = vi.fn<(symbol: SymbolRef) => Promise<Candle[]>>(async () =>
+    structuredClone(bars.daily)
+  );
+
   const quarters = { newest: "2026-06-30" };
 
   const statements = vi.fn(async () => [
@@ -419,11 +424,54 @@ test("coverage settles a forecast once its horizon has closed, and keeps the out
   expect(store.forecast("f-1")?.outcome?.close).toBe(1020);
   expect(onChange).toHaveBeenCalledExactlyOnceWith(TSMC);
 
-  // Nothing is left to judge, so the bars are not read again.
-  candles.mockClear();
-  await desk.coverage(TSMC);
+  // Nothing is left to judge: the outcome stays as it was kept, and nothing is told again.
+  bars.daily = [ANCHOR_BAR, LATER_BARS[0], bar("2026-10-01", 900)];
+  onChange.mockClear();
 
-  expect(candles).not.toHaveBeenCalled();
+  expect((await desk.coverage(TSMC)).forecasts[0].outcome?.close).toBe(1020);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(candles).toHaveBeenCalledWith(TSMC, Interval.OneDay);
+});
+
+test("coverage measures each stretch of one stance against the market's index", async () => {
+  const { desk, cover, clock, candles } = setup();
+
+  // The listing rose 5% over the two sessions after the report was kept, and the index 1%.
+  candles.mockImplementation(async (symbol) =>
+    symbol.symbol === TSMC.symbol
+      ? [ANCHOR_BAR, bar("2026-09-30", 1010), bar("2026-10-01", 1050)]
+      : [
+          bar("2026-09-29", 20000),
+          bar("2026-09-30", 20100),
+          bar("2026-10-01", 20200),
+        ]
+  );
+
+  await cover();
+  clock.now = AFTER_HORIZON;
+
+  const { stances } = await desk.coverage(TSMC);
+
+  expect(stances).toEqual([
+    {
+      stance: ReportStance.Bullish,
+      revision: 1,
+      from: "2026-09-29",
+      until: null,
+      sessions: 2,
+      change: 1050 / 1000 - 1,
+      benchmark: 20200 / 20000 - 1,
+    },
+  ]);
+  expect(candles).toHaveBeenCalledWith(
+    { market: Market.TW, symbol: "IX0001" },
+    Interval.OneDay
+  );
+
+  candles.mockRejectedValue(new Error("Fugle answered 503"));
+
+  // The report still reads while the bars are out of reach.
+  expect((await desk.coverage(TSMC)).stances).toEqual([]);
 });
 
 test("coverage still reads what is kept while bars are out of reach", async () => {

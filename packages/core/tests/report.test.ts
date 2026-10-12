@@ -1,6 +1,7 @@
-import { expect, test } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
 
 import { EventTiming } from "../src/calendar.ts";
+import type { Candle } from "../src/candles.ts";
 import { Market } from "../src/market.ts";
 import {
   ReportSection,
@@ -10,6 +11,7 @@ import {
   passedEvents,
   reportDraftSchema,
   reviseReport,
+  stanceSpells,
 } from "../src/report.ts";
 import type { Report, ReportEvent } from "../src/report.ts";
 
@@ -272,4 +274,110 @@ test("a day fixed in Taiwan is named in the ROC calendar too, and one only expec
     "Call, expected around 10/16"
   );
   expect(text(EventTiming.Set, Market.US)).toBe("Call, on 2026-10-16");
+});
+
+describe("stanceSpells", () => {
+  const kept = (
+    revision: number,
+    day: string,
+    stance: ReportStance
+  ): Report => ({
+    symbol: TSMC,
+    revision,
+    // Kept at 14:00 in Taipei that day.
+    revisedAt: Date.parse(`${day}T14:00:00+08:00`),
+    financialsThrough: null,
+    stance,
+    thesis: "Thesis.",
+    drivers: [],
+    risks: [],
+    falsifiers: [],
+    valuation: null,
+    events: [],
+    sections: {},
+  });
+
+  const close = (day: string, price: number): Candle => ({
+    time: Date.parse(`${day}T00:00:00+08:00`) / 1000,
+    open: price,
+    high: price,
+    low: price,
+    close: price,
+    volume: 1,
+  });
+
+  const DAILY = [
+    close("2026-09-01", 100),
+    close("2026-09-02", 104),
+    close("2026-09-03", 110),
+    close("2026-09-04", 99),
+    close("2026-09-07", 90),
+  ];
+
+  const INDEX = [
+    close("2026-09-01", 1000),
+    close("2026-09-02", 1010),
+    close("2026-09-03", 1020),
+    close("2026-09-04", 1020),
+    close("2026-09-07", 1010),
+  ];
+
+  test("a stretch runs from the day a stance was taken to the day a revision changed it, and the last one stands", () => {
+    const spells = stanceSpells(
+      [
+        kept(1, "2026-09-01", ReportStance.Bullish),
+        // The same stance again is the same stretch.
+        kept(2, "2026-09-02", ReportStance.Bullish),
+        kept(3, "2026-09-03", ReportStance.Bearish),
+      ],
+      DAILY,
+      INDEX
+    );
+
+    expect(
+      spells.map(({ stance, revision, from, until, sessions }) => [
+        stance,
+        revision,
+        from,
+        until,
+        sessions,
+      ])
+    ).toEqual([
+      [ReportStance.Bullish, 1, "2026-09-01", "2026-09-03", 2],
+      [ReportStance.Bearish, 3, "2026-09-03", null, 2],
+    ]);
+    expect(spells[0].change).toBeCloseTo(0.1);
+    expect(spells[0].benchmark).toBeCloseTo(0.02);
+    expect(spells[1].change).toBeCloseTo(90 / 110 - 1);
+    expect(spells[1].benchmark).toBeCloseTo(1010 / 1020 - 1);
+  });
+
+  test("a stance taken on a day without a session stands on the close before it", () => {
+    // Saturday 2026-09-05: the close of Friday the 4th.
+    const [spell] = stanceSpells(
+      [kept(1, "2026-09-05", ReportStance.Bullish)],
+      DAILY,
+      INDEX
+    );
+
+    expect(spell).toMatchObject({ from: "2026-09-05", sessions: 1 });
+    expect(spell.change).toBeCloseTo(90 / 99 - 1);
+  });
+
+  test("a stretch with nothing to measure it by is left out", () => {
+    // Taken before the bars begin, and taken on the newest bar's day.
+    expect(
+      stanceSpells(
+        [
+          kept(1, "2026-08-20", ReportStance.Bullish),
+          kept(2, "2026-09-07", ReportStance.Neutral),
+        ],
+        DAILY,
+        INDEX
+      )
+    ).toEqual([]);
+    expect(
+      stanceSpells([kept(1, "2026-09-01", ReportStance.Bullish)], DAILY, [])
+    ).toEqual([]);
+  });
 });
