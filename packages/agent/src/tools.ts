@@ -420,9 +420,11 @@ const describeClosure = ({ market, date, name }: MarketClosure) =>
   `${date} ${market} closed (${name})`;
 
 function describeRelease(release: MacroRelease): string {
+  const time = release.time === null ? "" : ` ${release.time}`;
   const period = release.period === null ? "" : ` for ${release.period}`;
+  const page = release.page === null ? "" : ` [${release.page}]`;
 
-  return `${eventDay(release.date, release.timing)} ${release.market} ${release.indicator.replaceAll("-", " ")}${period}`;
+  return `${eventDay(release.date, release.timing)}${time} ${release.market} ${release.indicator.replaceAll("-", " ")}${period}${page}`;
 }
 
 /** A market's trading days, or every weekday and the reason they could not be read. */
@@ -755,7 +757,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetCalendar,
       replay: "safe",
-      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them, and the days the exchange gives notice shares go ex, which may come before the amount is announced and include the ex-rights day of a cash capital increase; shareholders' meetings, regular and special, and whether one elects directors; trading restrictions such as short-sale suspensions and dispositions; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; the economic releases of the listings' markets, each on its day or by the latest day its agency set; and the weekdays their markets are closed, as the exchange set them for the year, with what it calls each. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Filings, releases and closures are Taiwan's only for now: a US listing has only its report's dates, no US releases or holidays are known, an earnings call is on it only once a report holds it, and a closure called on the day, as for a typhoon, is not on it. Defaults to the listings the user holds and watches.`,
+      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them, and the days the exchange gives notice shares go ex, which may come before the amount is announced and include the ex-rights day of a cash capital increase; shareholders' meetings, regular and special, and whether one elects directors; trading restrictions such as short-sale suspensions and dispositions; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; the economic releases of the listings' markets, each on its day or by the latest day its agency set, with the time it comes out on the exchange's clock and, in brackets, the page its agency publishes it on, which read_page reads once it is out; and the weekdays their markets are closed, as the exchange set them for the year, with what it calls each. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Filings, releases and closures are Taiwan's only for now: a US listing has only its report's dates, no US releases or holidays are known, an earnings call is on it only once a report holds it, and a closure called on the day, as for a typhoon, is not on it. Defaults to the listings the user holds and watches.`,
       parameters: z.object({
         symbols: z
           .array(symbolRefSchema)

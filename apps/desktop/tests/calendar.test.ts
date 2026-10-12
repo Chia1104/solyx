@@ -40,8 +40,10 @@ function consumerPrices(date: string, period: string): MacroRelease {
     market: Market.TW,
     indicator: MacroIndicator.ConsumerPrices,
     date,
+    time: "16:00",
     timing: EventTiming.Set,
     period,
+    page: null,
   };
 }
 

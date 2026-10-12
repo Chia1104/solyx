@@ -61,7 +61,7 @@ export function createCalendar({
 }: CalendarOptions) {
   /** A market's releases from the day they were read on. */
   const schedules = keepFresh<Ask<MacroCalendarProvider>, MacroRelease[]>({
-    store: answers("macro-releases"),
+    store: answers("macro:schedule"),
     id: ({ market, provider }) => `${provider.id}:${market}`,
     ask: ({ market, provider }) =>
       provider.releases(market, exchangeDate(market, now())),

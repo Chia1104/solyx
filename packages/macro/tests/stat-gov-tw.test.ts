@@ -8,13 +8,19 @@ import { createStatGovTw } from "../src/stat-gov-tw.ts";
 
 type Days = { date: string; time?: string; notice: string }[];
 
-/** One release as the calendar lists it, its days by month from the calendar's first. */
-const release = (id: string, name: string, months: Days[]) => ({
+/** One release as the calendar lists it, its days by month from the calendar's first, and the pages it links. */
+const release = (
+  id: string,
+  name: string,
+  months: Days[],
+  links: string[] = []
+) => ({
   ContentUrl: `https://www.stat.gov.tw/News_NoticeCalendar_Content_temp.aspx?MetaI_D=${id}&year=2026&n=3717`,
   DeptName: "Agency",
   name,
   category: "Category",
   IsControlled: true,
+  links: links.map((url, index) => ({ url, alt: `連結${index + 1}` })),
   timedatas: [
     ...months,
     ...Array.from({ length: 12 - months.length }, () => []),
@@ -47,14 +53,24 @@ function fakePortal(pages: Record<string, { status?: number; body: string }>) {
   return { sent, statGovTw: createStatGovTw({ fetch }) };
 }
 
-test("reads the followed releases of each agency from a day on, soonest first", async () => {
+test("reads the followed releases of each agency from a day on, soonest first, each with its time and its agency's page", async () => {
   const { sent, statGovTw } = fakePortal({
     "4527": {
       body: page([
-        release("166", "消費者物價指數", [
-          [{ date: "7", time: "16:00", notice: "(11509)" }],
-          [{ date: "5", time: "16:00", notice: "(11510)" }],
-        ]),
+        release(
+          "166",
+          "消費者物價指數",
+          [
+            [{ date: "7", time: "16:00", notice: "(11509)" }],
+            [{ date: "5", time: "9:30", notice: "(11510)" }],
+          ],
+          // The first page that is an https address is the release's.
+          [
+            "javascript:void(0)",
+            "https://agency.test/prices",
+            "https://agency.test/database",
+          ]
+        ),
         release("1331", "國內生產毛額概估", [
           [],
           [{ date: "30日以前", time: "16:00", notice: "(113~115Q3)" }],
@@ -84,36 +100,46 @@ test("reads the followed releases of each agency from a day on, soonest first", 
       market: Market.TW,
       indicator: MacroIndicator.ConsumerPrices,
       date: "2026-10-07",
+      time: "16:00",
       timing: EventTiming.Set,
       period: "2026-09",
+      page: "https://agency.test/prices",
     },
     {
       market: Market.TW,
       indicator: MacroIndicator.PurchasingManagers,
       date: "2026-11-03",
+      time: null,
       timing: EventTiming.Deadline,
       period: "2026-10",
+      page: null,
     },
     {
       market: Market.TW,
       indicator: MacroIndicator.ConsumerPrices,
       date: "2026-11-05",
+      time: "09:30",
       timing: EventTiming.Set,
       period: "2026-10",
+      page: "https://agency.test/prices",
     },
     {
       market: Market.TW,
       indicator: MacroIndicator.AdvanceGdp,
       date: "2026-11-30",
+      time: "16:00",
       timing: EventTiming.Deadline,
       period: "2026-Q3",
+      page: null,
     },
     {
       market: Market.TW,
       indicator: MacroIndicator.EconomicForecast,
       date: "2026-11-30",
+      time: "16:00",
       timing: EventTiming.Deadline,
       period: "2027",
+      page: null,
     },
   ]);
   expect(sent.map((url) => Object.fromEntries(url.searchParams))).toEqual(
@@ -149,15 +175,19 @@ test("months run on from the calendar's first across the year's end, and a day a
       market: Market.TW,
       indicator: MacroIndicator.Trade,
       date: "2026-12-09",
+      time: null,
       timing: EventTiming.Set,
       period: "2026-11",
+      page: null,
     },
     {
       market: Market.TW,
       indicator: MacroIndicator.Trade,
       date: "2027-01-08",
+      time: null,
       timing: EventTiming.Set,
       period: "2026-12",
+      page: null,
     },
   ]);
 });

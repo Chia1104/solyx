@@ -30,9 +30,13 @@ export interface MacroRelease {
   indicator: MacroIndicator;
   /** `YYYY-MM-DD` on the market's exchange calendar. */
   date: string;
+  /** The time of day it comes out, `HH:mm` on the exchange's clock; `null` where the schedule gives none. */
+  time: string | null;
   timing: EventTiming;
   /** The period it covers, the latest where it covers several: a month `YYYY-MM`, a quarter `YYYY-Qn` or a year `YYYY`. */
   period: string | null;
+  /** The agency's page the release comes out on, an https address; `null` where the schedule links none. */
+  page: string | null;
 }
 
 /** Where a market's schedule of economic releases comes from. */
