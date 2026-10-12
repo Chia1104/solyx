@@ -20,6 +20,7 @@ import type {
   ExchangeMultiples,
   FundProfile,
   MonthlyRevenue,
+  PeerStanding,
   QuarterStatement,
 } from "@solyx/core/fundamentals";
 import { Market, symbolKey } from "@solyx/core/market";
@@ -256,6 +257,8 @@ interface Filed {
   multiples?: ExchangeMultiples;
   /** Why the exchange's multiples cannot be read, while they cannot. */
   multiplesFailure?: string;
+  /** Where the listing's multiples stand in its industry, where its exchanges class it. */
+  peers?: PeerStanding;
 }
 
 function setup(council?: Council) {
@@ -298,6 +301,7 @@ function setup(council?: Council) {
     },
     exNotices: async () => [],
     meetings: async () => [],
+    peers: async () => filed.peers ?? null,
   };
 
   const desk = new ResearchDesk({
@@ -806,6 +810,36 @@ test("the exchange's multiples read beside the app's own, one it works none out 
     ].join("\n")
   );
   expect(text).toContain("Price to earnings: 13.89, the close of 1000");
+});
+
+test("the exchange's multiples read against the industry's, each among the listings that have it", async () => {
+  const { run, filed } = setup();
+
+  filed.multiples = {
+    asOf: "2026-09-28",
+    priceToEarnings: null,
+    dividendYield: 1.5,
+    priceToBook: 10.28,
+  };
+  filed.peers = {
+    industry: { code: "24", name: "半導體業" },
+    listings: 193,
+    asOf: "2026-09-28",
+    // The exchange works no price to earnings out for it, so that one has nowhere to stand.
+    priceToEarnings: { value: null, peers: 150, median: 24.1, above: null },
+    dividendYield: { value: 1.5, peers: 180, median: 2.126, above: 0.2 },
+    priceToBook: { value: 10.28, peers: 192, median: 3.4, above: 0.953 },
+  };
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    [
+      "Multiples as its exchange works them out from the close of 2026-09-28: price to earnings n/a, dividend yield 1.5%, price to book 10.28.",
+      "Among the 193 listings its exchanges class as 半導體業, itself aside: price to earnings n/a; dividend yield 1.5% against a median of 2.13%, above 20% of the 180 with one; price to book 10.28 against a median of 3.4, above 95% of the 192 with one.",
+      "Quarters, each for the quarter alone, by its last day:",
+    ].join("\n")
+  );
 });
 
 test("the exchange's multiples failing to read is said, and the filed figures stay", async () => {

@@ -56,6 +56,8 @@ const EX_NOTICE = {
 
 const MEETING = { date: "2026-11-19", regular: false, election: true };
 
+const CHIPS = { code: "24", name: "半導體業" };
+
 const HOUR_MS = 60 * 60 * 1000;
 
 function setup(answers = memoryAnswers()) {
@@ -91,12 +93,24 @@ function setup(answers = memoryAnswers()) {
     ]),
     getMultiples: vi.fn<ExchangeListsProvider["getMultiples"]>(async () => [
       { symbol: "2330", ...MULTIPLES },
+      // Its industry's others: one with every multiple, one at a loss, and one none are worked out for.
+      { symbol: "2303", ...MULTIPLES, priceToEarnings: 12, priceToBook: 1.5 },
+      { symbol: "2454", ...MULTIPLES, priceToEarnings: null, priceToBook: 4 },
+      // Another industry's, which is no peer.
+      { symbol: "1101", ...MULTIPLES, priceToEarnings: 99, priceToBook: 99 },
     ]),
     getExNotices: vi.fn<ExchangeListsProvider["getExNotices"]>(async () => [
       { symbol: "0050", ...EX_NOTICE },
     ]),
     getMeetings: vi.fn<ExchangeListsProvider["getMeetings"]>(async () => [
       { symbol: "2330", ...MEETING },
+    ]),
+    getIndustries: vi.fn<ExchangeListsProvider["getIndustries"]>(async () => [
+      { symbol: "2330", ...CHIPS },
+      { symbol: "2303", ...CHIPS },
+      { symbol: "2454", ...CHIPS },
+      { symbol: "3711", ...CHIPS },
+      { symbol: "1101", code: "01", name: "水泥工業" },
     ]),
   };
 
@@ -269,4 +283,25 @@ test("a listing's notices of going ex and its shareholders' meetings are its own
   await fundamentals.meetings(TSMC);
 
   expect(lists.getMeetings).toHaveBeenCalledTimes(2);
+});
+
+test("a listing's multiples stand among those of the others its exchanges class in its industry", async () => {
+  const { lists, fundamentals } = setup();
+
+  expect(await fundamentals.peers(TSMC)).toEqual({
+    industry: CHIPS,
+    // Four are classed there; three others, of which two have multiples worked out.
+    listings: 4,
+    asOf: MULTIPLES.asOf,
+    priceToEarnings: { value: 29.56, peers: 1, median: 12, above: 1 },
+    dividendYield: { value: 0.86, peers: 2, median: 0.86, above: 0 },
+    priceToBook: { value: 10.28, peers: 2, median: 2.75, above: 1 },
+  });
+  expect(lists.getIndustries).toHaveBeenCalledExactlyOnceWith(Market.TW);
+
+  // A fund is classed in no industry, and a market no source lists has none.
+  expect(await fundamentals.peers(TAIWAN_50)).toBeNull();
+  expect(
+    await fundamentals.peers({ market: Market.US, symbol: "NVDA" })
+  ).toBeNull();
 });

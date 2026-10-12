@@ -1,4 +1,4 @@
-import { sumBy } from "es-toolkit";
+import { median, sumBy } from "es-toolkit";
 
 import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
@@ -177,6 +177,38 @@ export interface ShareholdersMeeting {
   election: boolean;
 }
 
+/** The industry an exchange classes a company in. */
+export interface Industry {
+  /** The exchange's own code for it, which is what companies of one industry share. */
+  code: string;
+  /** What the exchange calls it. */
+  name: string;
+}
+
+/** Where one of a listing's multiples stands among the same multiple of its industry's other listings. */
+export interface MultipleStanding {
+  /** The listing's own; `null` where its exchange works none out. */
+  value: number | null;
+  /** How many of the others have one. */
+  peers: number;
+  /** Theirs in the middle; `null` where none has one. */
+  median: number | null;
+  /** The share of theirs the listing's is above; `null` where it has none or none of them does. */
+  above: number | null;
+}
+
+/** A listing's multiples against those of the other listings its exchanges class in its industry. */
+export interface PeerStanding {
+  industry: Industry;
+  /** How many listings the exchanges class there, itself among them. */
+  listings: number;
+  /** The session the listing's own multiples are of. */
+  asOf: string;
+  priceToEarnings: MultipleStanding;
+  dividendYield: MultipleStanding;
+  priceToBook: MultipleStanding;
+}
+
 /** A row of an exchange's list with the listing it is about, since an exchange lists its whole market's at once. */
 export type Listed<Row> = Row & {
   /** The listing's exchange code, as a `SymbolRef` writes it. */
@@ -201,6 +233,8 @@ export interface ExchangeListsProvider {
   getExNotices(market: Market): Promise<Listed<ExNotice>[]>;
   /** The shareholders' meetings the exchanges list, those already held among them. */
   getMeetings(market: Market): Promise<Listed<ShareholdersMeeting>[]>;
+  /** The industry the exchanges class each company in. */
+  getIndustries(market: Market): Promise<Listed<Industry>[]>;
 }
 
 /** A listing's fundamentals from whichever provider covers its market, oldest first; none while no provider does. */
@@ -225,6 +259,46 @@ export interface Fundamentals {
   exNotices(symbol: SymbolRef): Promise<ExNotice[]>;
   /** The shareholders' meetings its exchange lists for it; none while no source lists its market's. */
   meetings(symbol: SymbolRef): Promise<ShareholdersMeeting[]>;
+  /** Its multiples against its industry's; `null` for a listing its exchanges class in none or work no multiples out for, which a fund is. */
+  peers(symbol: SymbolRef): Promise<PeerStanding | null>;
+}
+
+function standing(
+  value: number | null,
+  others: readonly (number | null)[]
+): MultipleStanding {
+  const theirs = others.filter((each) => each !== null);
+
+  return {
+    value,
+    peers: theirs.length,
+    median: theirs.length === 0 ? null : median(theirs),
+    above:
+      value === null || theirs.length === 0
+        ? null
+        : theirs.filter((each) => each < value).length / theirs.length,
+  };
+}
+
+/** A listing's multiples against those of its industry's other listings, each multiple among the ones that have it. */
+export function peerStanding(
+  own: ExchangeMultiples,
+  others: readonly ExchangeMultiples[]
+): Pick<PeerStanding, "priceToEarnings" | "dividendYield" | "priceToBook"> {
+  return {
+    priceToEarnings: standing(
+      own.priceToEarnings,
+      others.map((each) => each.priceToEarnings)
+    ),
+    dividendYield: standing(
+      own.dividendYield,
+      others.map((each) => each.dividendYield)
+    ),
+    priceToBook: standing(
+      own.priceToBook,
+      others.map((each) => each.priceToBook)
+    ),
+  };
 }
 
 /** A quarter with what it says against the quarters around it; `null` where a figure it needs is missing. */

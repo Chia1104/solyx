@@ -634,6 +634,44 @@ test("reads the weekdays TWSE closes the market, leaving out weekends and the tr
   expect(sent).toEqual([`${TWSE}holidaySchedule/holidaySchedule`]);
 });
 
+test("reads the industry both exchanges class each company in, by the exchanges' code and their name for it", async () => {
+  const { sent, exchanges } = fakeExchanges({
+    [`${TWSE}opendata/t187ap03_L`]: [
+      {
+        出表日期: "1151011",
+        公司代號: "2330",
+        公司名稱: "範例電子",
+        產業別: "24",
+      },
+      // A code the exchanges add later reads by the code alone.
+      {
+        出表日期: "1151011",
+        公司代號: "9999",
+        公司名稱: "範例新業",
+        產業別: "39",
+      },
+    ],
+    [`${TPEX}mopsfin_t187ap03_O`]: [
+      {
+        Date: "1151011",
+        SecuritiesCompanyCode: "5483",
+        CompanyName: "範例矽晶",
+        SecuritiesIndustryCode: "24",
+      },
+    ],
+  });
+
+  expect(await exchanges.getIndustries(Market.TW)).toEqual([
+    { symbol: "2330", code: "24", name: "半導體業" },
+    { symbol: "9999", code: "39", name: "39" },
+    { symbol: "5483", code: "24", name: "半導體業" },
+  ]);
+  expect(sent.toSorted()).toEqual([
+    `${TWSE}opendata/t187ap03_L`,
+    `${TPEX}mopsfin_t187ap03_O`,
+  ]);
+});
+
 test("outside Taiwan there is nothing to read, and it costs no request", async () => {
   const { sent, exchanges } = fakeExchanges();
 
@@ -643,5 +681,6 @@ test("outside Taiwan there is nothing to read, and it costs no request", async (
   expect(await exchanges.getExNotices(Market.US)).toEqual([]);
   expect(await exchanges.getMeetings(Market.US)).toEqual([]);
   expect(await exchanges.getClosures(Market.US)).toEqual([]);
+  expect(await exchanges.getIndustries(Market.US)).toEqual([]);
   expect(sent).toEqual([]);
 });
