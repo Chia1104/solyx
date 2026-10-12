@@ -59,6 +59,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - zod is imported as `import * as z from "zod"`. Schemas are camelCase with a `Schema` suffix, sit beside the const object or type they validate, and types derive from them with `z.infer`.
 - A type assertion needs a `SAFETY:` comment; prefer narrowing, `satisfies` or a parser at the boundary so the assertion is not needed.
 - A package that reads a source over HTTP (`market-data`, `fundamentals`, `macro`, `news`, `web-search`, `embeddings`) calls it through `ky` with an injectable `fetch` and parses every response with zod. A failure's message names the source and the reason it gives.
+- Read a site's terms of use and `robots.txt` before adding it as a source, and add none that forbids programs from downloading its data. The Taiwan Stock Exchange's websites (`www.twse.com.tw`, `mis.twse.com.tw`) do, so only what it publishes as open data (`openapi.twse.com.tw`) is read; what only those sites hold, such as a fund's estimated net asset value, the agent finds on the issuer's own pages.
 - Tests use synthetic payloads shaped like a source's responses; never commit recorded market data, pages, posts or articles.
 - Oxlint, Oxfmt and Vitest come from Vite+; their lint, format and staged rules live in the root `vite.config.ts` because Vite+ ignores nested configs.
 - `vp run` executes tasks in a clean environment, so most variables set outside it do not reach the task.

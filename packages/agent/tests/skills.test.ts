@@ -52,6 +52,7 @@ test("with no folders the built-in playbooks are offered", async () => {
     "portfolio-review",
     "watchlist-upkeep",
     "deep-analysis",
+    "fund-research",
     "views",
     "solyx-guide",
   ]);
@@ -148,6 +149,7 @@ test("background skills cannot be asked for with /name, and a skill can be unles
     "portfolio-review",
     "watchlist-upkeep",
     "deep-analysis",
+    "fund-research",
     "solyx-guide",
   ]);
   expect(catalog.warnings).toEqual([]);
