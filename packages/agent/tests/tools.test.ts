@@ -21,7 +21,7 @@ import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
 import { MacroIndicator } from "@solyx/core/macro";
-import { InstrumentKind, Market } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import { NewsChannel, TimePrecision, readNews } from "@solyx/core/news";
 import type {
@@ -111,7 +111,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
   const proposal = (overrides: Partial<TradeProposal>): TradeProposal => ({
     id: "p1",
     order: {
-      instrument: { ...TSMC, kind: InstrumentKind.Stock },
+      instrument: TSMC,
       side: Side.Buy,
       quantity: 1000,
       type: OrderType.Limit,
@@ -323,7 +323,6 @@ async function getNews(
 const order = {
   market: Market.TW,
   symbol: "2330",
-  kind: InstrumentKind.Stock,
   side: Side.Buy,
   quantity: 1000,
   type: OrderType.Limit,
@@ -480,7 +479,7 @@ test("proposing goes through the desk as the agent, once per run", async () => {
   expect(desk.propose).toHaveBeenCalledWith({
     id: expect.any(String),
     order: {
-      instrument: { ...TSMC, kind: InstrumentKind.Stock },
+      instrument: TSMC,
       side: Side.Buy,
       quantity: 1000,
       type: OrderType.Limit,
@@ -659,7 +658,6 @@ test("the calendar lists the followed listings' events and their markets' releas
         instrument: {
           market: Market.TW,
           symbol: "6669",
-          kind: InstrumentKind.Stock,
         },
         quantity: 1000,
         avgPrice: 2200,

@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { instrumentKindSchema, marketSchema } from "@solyx/core/market";
+import { marketSchema } from "@solyx/core/market";
 import { sideSchema } from "@solyx/core/order";
 
 /** Rebuilt per language so field errors come out localized; trading rules stay in `checkOrder`. */
@@ -16,7 +16,6 @@ export function useOrderFormSchema() {
 
     return z.object({
       market: marketSchema,
-      kind: instrumentKindSchema,
       side: sideSchema,
       symbol: z.string().trim().min(1, { error: required }),
       quantity: z

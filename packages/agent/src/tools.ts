@@ -60,7 +60,6 @@ import {
   exchangeDate,
   exchangeMidnight,
   exchangeTime,
-  instrumentKindSchema,
   marketSchema,
   shiftDate,
   symbolKey,
@@ -267,7 +266,6 @@ const orderSchema = z.object({
   symbol: symbolRefSchema.shape.symbol.describe(
     "Exchange code, such as 2330 or AAPL"
   ),
-  kind: instrumentKindSchema,
   side: sideSchema,
   quantity: z
     .number()
@@ -283,11 +281,7 @@ const orderSchema = z.object({
 });
 
 function toOrderRequest(order: z.infer<typeof orderSchema>): OrderRequest {
-  const instrument = {
-    market: order.market,
-    symbol: order.symbol,
-    kind: order.kind,
-  };
+  const instrument = { market: order.market, symbol: order.symbol };
 
   if (order.type === OrderType.Market) {
     return {

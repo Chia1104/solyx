@@ -4,7 +4,7 @@ import { orderRequestSchema } from "../src/order.ts";
 
 test("normalizes the symbol and accepts a limit order", () => {
   const order = orderRequestSchema.parse({
-    instrument: { market: "TW", symbol: " 0050 ", kind: "etf" },
+    instrument: { market: "TW", symbol: " 0050 " },
     side: "buy",
     quantity: 1000,
     type: "limit",
@@ -16,7 +16,7 @@ test("normalizes the symbol and accepts a limit order", () => {
 
 test("rejects unknown enum values and missing limit prices", () => {
   const base = {
-    instrument: { market: "TW", symbol: "2330", kind: "stock" },
+    instrument: { market: "TW", symbol: "2330" },
     side: "buy",
     quantity: 1000,
   };

@@ -50,10 +50,6 @@
     "buy": "買進",
     "sell": "賣出"
   },
-  "kind": {
-    "stock": "股票",
-    "etf": "ETF"
-  },
   "source": {
     "agent": "Agent",
     "user": "手動"
@@ -666,7 +662,6 @@
   },
   "order-form": {
     "market": "市場",
-    "kind": "類型",
     "side": "買賣",
     "symbol": "代號",
     "symbol-placeholder": "2330",

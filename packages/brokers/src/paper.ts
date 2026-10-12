@@ -1,7 +1,7 @@
 import { BrokerMode } from "@solyx/core/broker";
 import type { BrokerAdapter } from "@solyx/core/broker";
 import { Market, currencyOf, symbolKey } from "@solyx/core/market";
-import type { Currency, Instrument } from "@solyx/core/market";
+import type { Currency, SymbolRef } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
 import type { AccountSnapshot, OrderRequest } from "@solyx/core/order";
 
@@ -25,7 +25,7 @@ export interface PaperBrokerOptions {
   cash: Partial<Record<Currency, number>>;
   ledger: PaperLedger;
   /** Only market orders need it; limit orders fill at their limit price. */
-  getLastPrice?: (instrument: Instrument) => Promise<number>;
+  getLastPrice?: (instrument: SymbolRef) => Promise<number>;
 }
 
 /**

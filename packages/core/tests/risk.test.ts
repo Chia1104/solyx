@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
-import { InstrumentKind, Market } from "../src/market.ts";
-import type { Instrument } from "../src/market.ts";
+import { Market } from "../src/market.ts";
+import type { SymbolRef } from "../src/market.ts";
 import { OrderType, Side } from "../src/order.ts";
 import type { OrderRequest } from "../src/order.ts";
 import { RiskViolationCode, checkOrder } from "../src/risk.ts";
@@ -13,10 +13,9 @@ const limits: RiskLimits = {
   allowedSessions: [Session.Regular],
 };
 
-const tsmc: Instrument = {
+const tsmc: SymbolRef = {
   market: Market.TW,
   symbol: "2330",
-  kind: InstrumentKind.Stock,
 };
 
 const open: RiskContext = {
@@ -28,10 +27,9 @@ const open: RiskContext = {
   },
 };
 
-const apple: Instrument = {
+const apple: SymbolRef = {
   market: Market.US,
   symbol: "AAPL",
-  kind: InstrumentKind.Stock,
 };
 
 function buyLimit(quantity: number, limitPrice: number): OrderRequest {
@@ -54,6 +52,24 @@ test("a sane TW limit order passes", () => {
 
 test("price off the tick grid is rejected", () => {
   expect(codes(buyLimit(1, 580.3))).toEqual([RiskViolationCode.InvalidPrice]);
+});
+
+test("a fund's price is checked on a fund's grid, told by its code", () => {
+  const price = (symbol: string, limitPrice: number): OrderRequest => ({
+    ...buyLimit(1000, limitPrice),
+    instrument: { market: Market.TW, symbol },
+  });
+
+  expect(codes(price("0050", 114.85))).toEqual([]);
+  expect(codes(price("00679B", 27.33))).toEqual([]);
+  expect(codes(price("0050", 114.83))).toEqual([
+    RiskViolationCode.InvalidPrice,
+  ]);
+  // A stock at the same prices is off its grid.
+  expect(codes(price("2317", 114.85))).toEqual([
+    RiskViolationCode.InvalidPrice,
+  ]);
+  expect(codes(price("2317", 27.33))).toEqual([RiskViolationCode.InvalidPrice]);
 });
 
 test("mixed board/odd lot quantity is rejected", () => {

@@ -21,7 +21,7 @@ import type {
   MonthlyRevenue,
   QuarterStatement,
 } from "@solyx/core/fundamentals";
-import { InstrumentKind, Market, symbolKey } from "@solyx/core/market";
+import { Market, symbolKey } from "@solyx/core/market";
 import { TimePrecision } from "@solyx/core/news";
 import { ReportSection, ReportStance } from "@solyx/core/report";
 import type { Report } from "@solyx/core/report";
@@ -150,7 +150,7 @@ const REPORT = {
 };
 
 const FORECAST = {
-  instrument: { ...TSMC, kind: InstrumentKind.Stock },
+  instrument: TSMC,
   horizon: 2,
   direction: ForecastDirection.Long,
   plan: { entry: 1000, stop: 980, target: 1040 },

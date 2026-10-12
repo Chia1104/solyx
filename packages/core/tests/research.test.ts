@@ -15,7 +15,7 @@ import {
 } from "../src/council.ts";
 import { ForecastDirection, ForecastViolationCode } from "../src/forecast.ts";
 import type { Forecast, ForecastDraft } from "../src/forecast.ts";
-import { InstrumentKind, Market, symbolKey } from "../src/market.ts";
+import { Market, symbolKey } from "../src/market.ts";
 import { NewsChannel, TimePrecision } from "../src/news.ts";
 import type { NewsRecord } from "../src/news.ts";
 import { ReportStance, ReportViolationCode } from "../src/report.ts";
@@ -23,7 +23,7 @@ import type { Report } from "../src/report.ts";
 import { FALSIFIER_FLOORS, ResearchDesk } from "../src/research.ts";
 import type { FalsifierCheck, ResearchStore } from "../src/research.ts";
 
-const TSMC = { market: Market.TW, symbol: "2330", kind: InstrumentKind.Stock };
+const TSMC = { market: Market.TW, symbol: "2330" };
 
 const AT_ANCHOR = Date.parse("2026-09-29T14:00:00+08:00");
 

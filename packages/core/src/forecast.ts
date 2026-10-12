@@ -6,7 +6,7 @@ import { sentences } from "@solyx/utils/search";
 import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import type { Council } from "./council.ts";
-import { exchangeMidnight, instrumentSchema, shiftDate } from "./market.ts";
+import { exchangeMidnight, shiftDate, symbolRefSchema } from "./market.ts";
 import {
   ReportStance,
   claimSchema,
@@ -57,7 +57,7 @@ export type ForecastScenario = z.infer<typeof forecastScenarioSchema>;
 
 /** Checks structure only; `checkForecast` owns the rules so violations read as domain messages. */
 export const forecastDraftSchema = z.object({
-  instrument: instrumentSchema,
+  instrument: symbolRefSchema,
   /** Sessions after the anchor until it settles. */
   horizon: z.number().int().min(1).max(MAX_HORIZON),
   direction: z.enum(ForecastDirection),

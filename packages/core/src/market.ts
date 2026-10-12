@@ -21,18 +21,7 @@ export const Currency = {
 
 export type Currency = (typeof Currency)[keyof typeof Currency];
 
-/** Tick rules differ between stocks and ETFs in Taiwan, so the kind travels with the symbol. */
-export const InstrumentKind = {
-  Stock: "stock",
-  ETF: "etf",
-} as const;
-
-export type InstrumentKind =
-  (typeof InstrumentKind)[keyof typeof InstrumentKind];
-
-export const instrumentKindSchema = z.enum(InstrumentKind);
-
-/** A listing as market data sees it, where the stock/ETF distinction does not matter. */
+/** A listing, by its market and the code its exchange gives it. */
 export const symbolRefSchema = z.object({
   market: marketSchema,
   /** Exchange code as the market writes it: `2330`, `0050`, `AAPL`. */
@@ -40,12 +29,6 @@ export const symbolRefSchema = z.object({
 });
 
 export type SymbolRef = z.infer<typeof symbolRefSchema>;
-
-export const instrumentSchema = symbolRefSchema.extend({
-  kind: instrumentKindSchema,
-});
-
-export type Instrument = z.infer<typeof instrumentSchema>;
 
 /** What a market's listings are measured against. */
 export interface Benchmark {

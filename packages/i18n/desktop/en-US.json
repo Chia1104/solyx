@@ -50,10 +50,6 @@
     "buy": "Buy",
     "sell": "Sell"
   },
-  "kind": {
-    "stock": "Stock",
-    "etf": "ETF"
-  },
   "source": {
     "agent": "Agent",
     "user": "Manual"
@@ -666,7 +662,6 @@
   },
   "order-form": {
     "market": "Market",
-    "kind": "Type",
     "side": "Side",
     "symbol": "Symbol",
     "symbol-placeholder": "2330",
