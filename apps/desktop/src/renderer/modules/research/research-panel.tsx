@@ -274,7 +274,12 @@ function ReportView({
 
 function RecordLine({ record }: { record: ForecastRecord }) {
   const { t, i18n } = useTranslation();
-  const { indicator, signedAmount } = numberFormats(i18n.language);
+
+  const { indicator, signedAmount, percentChange } = numberFormats(
+    i18n.language
+  );
+
+  const skill = record.skill?.skill ?? null;
 
   if (record.brier === null) {
     return t("research.forecasts.record-open", { count: record.forecasts });
@@ -287,6 +292,9 @@ function RecordLine({ record }: { record: ForecastRecord }) {
         settled: record.settled,
         brier: indicator.format(record.brier),
       })}
+      {skill === null
+        ? null
+        : ` · ${t("research.forecasts.skill", { skill: percentChange.format(skill) })}`}
       {record.meanR === null
         ? null
         : ` · ${t("research.forecasts.mean-r", { r: signedAmount.format(record.meanR) })}`}

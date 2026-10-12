@@ -5,10 +5,14 @@ import {
   ForecastDirection,
   ForecastViolationCode,
   PlanResult,
+  bandsBetween,
+  baseRates,
   checkForecast,
   forecastRecord,
   forecastTimeline,
+  horizonMoves,
   judgeForecast,
+  moveQuantile,
 } from "../src/forecast.ts";
 import type {
   Forecast,
@@ -81,6 +85,7 @@ function forecast(patch: Partial<Forecast> = {}): Forecast {
   return {
     ...draft(),
     claims: [],
+    baseRates: null,
     id: "f-1",
     createdAt: 0,
     anchor: ANCHOR,
@@ -583,5 +588,99 @@ test("forecastRecord has no means before anything settles", () => {
     settled: 0,
     brier: null,
     meanR: null,
+    skill: null,
   });
+});
+
+/** Daily bars whose closes are given, one a day from 2026-01-01. */
+const closes = (prices: number[]) =>
+  prices.map((close, index) =>
+    bar(Temporal.PlainDate.from("2026-01-01").add({ days: index }).toString(), {
+      low: close,
+      high: close,
+      close,
+    })
+  );
+
+describe("base rates", () => {
+  test("a horizon's moves are every close over the close that many sessions before", () => {
+    expect(horizonMoves(closes([100, 110, 121, 100]), 2)).toEqual([
+      1.21,
+      100 / 110,
+    ]);
+    expect(horizonMoves(closes([100, 110]), 2)).toEqual([]);
+  });
+
+  test("bands between edges hold every price once, the lowest and highest left open", () => {
+    expect(bandsBetween([950, 1050])).toEqual([
+      { low: null, high: 950 },
+      { low: 950, high: 1050 },
+      { low: 1050, high: null },
+    ]);
+    expect(bandsBetween([])).toEqual([{ low: null, high: null }]);
+  });
+
+  test("the share of moves that land in each band, carried from the anchor's price", () => {
+    // Of 100 moves, 10 fall 10%, 60 stay and 30 rise 10%.
+    const moves = [
+      ...Array.from({ length: 10 }, () => 0.9),
+      ...Array.from({ length: 60 }, () => 1),
+      ...Array.from({ length: 30 }, () => 1.1),
+    ];
+
+    expect(baseRates(moves, 1000, bandsBetween([950, 1050]))).toEqual([
+      0.1, 0.6, 0.3,
+    ]);
+    // A band holds its low and not its high.
+    expect(baseRates(moves, 1000, bandsBetween([900, 1000]))).toEqual([
+      0, 0.1, 0.9,
+    ]);
+  });
+
+  test("too few moves give no base rates", () => {
+    expect(
+      baseRates(
+        Array.from({ length: 59 }, () => 1),
+        1000,
+        bandsBetween([950])
+      )
+    ).toBeNull();
+  });
+
+  test("a quantile reads between the moves around it", () => {
+    const moves = [1.2, 0.8, 1, 0.9, 1.1];
+
+    expect(moveQuantile(moves, 0)).toBe(0.8);
+    expect(moveQuantile(moves, 0.5)).toBe(1);
+    expect(moveQuantile(moves, 1)).toBe(1.2);
+    expect(moveQuantile(moves, 0.125)).toBeCloseTo(0.85);
+  });
+});
+
+test("forecastRecord measures settled forecasts against the base rates of their own bands", () => {
+  const settled = (
+    scenario: number,
+    brier: number,
+    baseRates: number[] | null
+  ) =>
+    forecast({
+      baseRates,
+      outcome: { date: "2026-10-02", close: 1000, scenario, brier, plan: null },
+    });
+
+  const { skill } = forecastRecord([
+    // History alone gave the band that held 60%: its own Brier is 0.26.
+    settled(1, 0.13, [0.1, 0.6, 0.3]),
+    // And here 30%: 0.01 + 0.36 + 0.49.
+    settled(2, 0.43, [0.1, 0.6, 0.3]),
+    // Kept before base rates were measured, so it has no part in the skill.
+    settled(1, 1.5, null),
+    // Not settled yet.
+    forecast({ baseRates: [0.2, 0.5, 0.3] }),
+  ]);
+
+  expect(skill?.forecasts).toBe(2);
+  expect(skill?.brier).toBeCloseTo(0.28);
+  expect(skill?.baseBrier).toBeCloseTo((0.26 + 0.86) / 2);
+  expect(skill?.skill).toBeCloseTo(1 - 0.28 / 0.56);
 });

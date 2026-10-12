@@ -9,9 +9,12 @@ import { cachedVectors, clearlyNearest, cosine } from "./embedding.ts";
 import type { Embedder, VectorCache } from "./embedding.ts";
 import {
   ForecastViolationCode,
+  bandsBetween,
+  baseRates,
   checkForecast,
   forecastPassages,
   forecastRecord,
+  horizonMoves,
   judgeForecast,
 } from "./forecast.ts";
 import type {
@@ -132,6 +135,18 @@ export interface TrackRecord {
 export type ForecastResult =
   | { ok: true; forecast: Forecast }
   | { ok: false; violations: ForecastViolation[] };
+
+/** What a listing's own daily bars say of a horizon, before any view of it. */
+export interface HorizonHistory {
+  /** The newest daily bar, which a forecast made now would count from. */
+  anchor: ForecastAnchor;
+  /** The exchange-local day of the oldest bar read. */
+  since: string;
+  /** Every move the bars hold over that many sessions, as the later close over the earlier. */
+  moves: number[];
+  /** The share of those moves that, carried from the anchor's price, land in each band the edges cut; `null` where the bars hold too few. */
+  rates: number[] | null;
+}
 
 /** Everything research holds of a listing. */
 export interface Coverage {
@@ -289,6 +304,11 @@ export class ResearchDesk {
         ...claim,
         support: support(claim),
       })),
+      baseRates: baseRates(
+        horizonMoves(daily, draft.horizon),
+        anchor.price,
+        draft.scenarios
+      ),
       id: id ?? createId(),
       createdAt: now(),
       anchor,
@@ -301,6 +321,38 @@ export class ResearchDesk {
     this.#options.onChange?.(instrument);
 
     return { ok: true, forecast };
+  }
+
+  /**
+   * How the listing's close has moved over `horizon` sessions, and how often those moves land in
+   * each band `edges`, ascending prices, cut: what a forecast is measured against once kept.
+   */
+  async horizonHistory(
+    symbol: SymbolRef,
+    horizon: number,
+    edges: readonly number[]
+  ): Promise<HorizonHistory> {
+    const daily = await this.#options.marketData.candles(
+      symbol,
+      Interval.OneDay
+    );
+
+    if (daily.length === 0) {
+      throw new Error(`${symbolKey(symbol)} has no daily bars`);
+    }
+
+    const newest = daily[daily.length - 1];
+    const moves = horizonMoves(daily, horizon);
+
+    return {
+      anchor: {
+        date: candleDate(symbol.market, newest.time),
+        price: newest.close,
+      },
+      since: candleDate(symbol.market, daily[0].time),
+      moves,
+      rates: baseRates(moves, newest.close, bandsBetween(edges)),
+    };
   }
 
   async coverage(symbol: SymbolRef): Promise<Coverage> {

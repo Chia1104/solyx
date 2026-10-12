@@ -440,6 +440,7 @@
       "forget": "Forgot a memory",
       "get_research": "Read research",
       "get_fundamentals": "Read fundamentals",
+      "get_base_rates": "Read base rates",
       "get_flows": "Read investor flows",
       "get_macro": "Read economic figures",
       "revise_report": "Revised the report",
@@ -648,7 +649,8 @@
       "none": "No forecasts yet.",
       "record": "{{settled, number}} of {{count, number}} settled · mean Brier {{brier}}",
       "record-open": "{{count, number}} made, none settled yet",
-      "mean-r": "mean {{r}} R"
+      "mean-r": "mean {{r}} R",
+      "skill": "{{skill}} against history's base rates"
     },
     "forecast": {
       "horizon": "{{count, number}}-session horizon from {{date}} at {{price}}",
@@ -661,6 +663,7 @@
       "band-above": "{{low}} and above",
       "band-between": "{{low}} to {{high}}",
       "held": "Held",
+      "history": "history {{share}}",
       "closed": "Closed at {{close}} on {{date}}",
       "plan-result": {
         "not-entered": "Never entered",

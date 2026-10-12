@@ -8,7 +8,9 @@ import { CouncilOutcome, councilOutcome } from "@solyx/core/council";
 import {
   ForecastViolationCode,
   MAX_HORIZON,
+  bandsBetween,
   forecastDraftSchema,
+  moveQuantile,
 } from "@solyx/core/forecast";
 import type {
   Forecast,
@@ -62,6 +64,9 @@ export interface ResearchOptions {
 }
 
 const LISTED_FORECASTS = 5;
+
+// The spread of a horizon's moves, from its low tail to its high one.
+const BASE_RATE_QUANTILES = [0.1, 0.25, 0.5, 0.75, 0.9];
 
 const LISTED_QUARTERS = 8;
 
@@ -259,6 +264,12 @@ export function forecastText(forecast: Forecast): string {
       .join(", ")}`,
   ];
 
+  if (forecast.baseRates) {
+    lines.push(
+      `  history alone: ${forecast.baseRates.map((rate) => `${Math.round(rate * 100)}%`).join(", ")}, in the scenarios' order`
+    );
+  }
+
   if (plan) {
     lines.push(
       `  plan: entry ${plan.entry}, stop ${plan.stop}, target ${plan.target}`
@@ -318,6 +329,11 @@ function recordText(scope: string, record: ForecastRecord): string {
 
   return [
     `Record, ${scope}: ${record.forecasts} forecasts, ${record.settled} settled, mean Brier ${record.brier?.toFixed(2)} (0 is sure and right; even odds over three bands score 0.67)`,
+    ...(record.skill
+      ? [
+          `  against history's base rates, over ${record.skill.forecasts} settled: Brier ${record.skill.brier.toFixed(2)} against ${record.skill.baseBrier.toFixed(2)} for the base rates${record.skill.skill === null ? "" : `, skill ${percent(record.skill.skill)} (0 is no better than history alone, below it worse)`}`,
+        ]
+      : []),
     `  plans: ${plans}${record.meanR === null ? "" : `; mean ${signed(record.meanR)}R of those entered`}`,
     `  scenarios by the probability you gave: ${held}`,
   ].join("\n");
@@ -681,6 +697,73 @@ export function createResearch(options: ResearchOptions): Extension {
                 ...takeRight(dividends.rows, LISTED_DIVIDENDS).map(dividendRow),
                 `Cash gone ex in the year through ${today}: ${figure(trailingCash(dividends.rows, today))} per share.`,
               ]),
+            ].join("\n"),
+            details: { symbol },
+          };
+        },
+      }),
+
+      defineTool({
+        name: AgentToolName.GetBaseRates,
+        replay: "safe",
+        description: `How a listing's close has moved over a horizon in its own daily bars, before any view of it: the spread of every move of that many sessions the bars hold, and, for band edges you give, how often those moves, carried from the newest bar, land in each band. Those shares are the base rates a forecast is scored against once kept, so call it with your edges before you set the probabilities. A split or a capital reduction inside the bars reads as a move, and so does every day the shares went ex.`,
+        parameters: z.object({
+          symbol: symbolRefSchema,
+          horizon: forecastDraftSchema.shape.horizon.describe(
+            `Sessions ahead, at most ${MAX_HORIZON}`
+          ),
+          edges: z
+            .array(z.number().positive())
+            .max(3)
+            .default([])
+            .refine(
+              (edges) =>
+                edges.every(
+                  (edge, index) => index === 0 || edge > edges[index - 1]
+                ),
+              "Edges ascend, each above the one before"
+            )
+            .describe(
+              "The prices that part the bands, ascending: two edges make three bands, below the first, between them, and from the second up"
+            ),
+        }),
+        async execute({ symbol, horizon, edges }) {
+          const { anchor, since, moves, rates } = await desk.horizonHistory(
+            symbol,
+            horizon,
+            edges
+          );
+
+          const listing = `${symbol.market} ${symbol.symbol}`;
+
+          if (moves.length === 0) {
+            return {
+              text: `${listing} has no move of ${sessions(horizon)} in its daily bars since ${since}.`,
+              details: { symbol },
+            };
+          }
+
+          const spread = BASE_RATE_QUANTILES.map((share) => {
+            const move = moveQuantile(moves, share);
+
+            return `${share * 100}th percentile ${percent(move - 1)} (${figure(anchor.price * move)})`;
+          });
+
+          const bands = bandsBetween(edges);
+
+          return {
+            text: [
+              `${listing} over ${sessions(horizon)} from ${anchor.date} at ${anchor.price}: ${moves.length} moves of that length in its daily bars since ${since}`,
+              `Moves, each with the close it would make from ${anchor.price}: ${spread.join(", ")}`,
+              ...(edges.length === 0
+                ? []
+                : rates
+                  ? [
+                      `Base rates: ${bands.map((band, index) => `${bandText(band)} ${Math.round(rates[index] * 100)}%`).join("; ")}`,
+                    ]
+                  : [
+                      "Base rates: none, since the bars hold too few moves of that length to say.",
+                    ]),
             ].join("\n"),
             details: { symbol },
           };

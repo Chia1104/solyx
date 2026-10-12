@@ -85,6 +85,7 @@ const FORECAST: Forecast = {
   rationale: "CoWoS 擴產消息已反映。",
   claims: [],
   contrary: null,
+  baseRates: null,
   createdAt: 0,
   anchor: { date: "2026-09-29", price: 1000 },
   reportRevision: 2,

@@ -12,13 +12,16 @@ import { researchCoverageQuery } from "./research-query.ts";
 
 function ScenarioRow({
   scenario,
+  baseRate,
   held,
 }: {
   scenario: ForecastScenario;
+  /** How often the listing's own history puts the close in this band; `null` where it was not measured. */
+  baseRate: number | null;
   held: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const { price } = numberFormats(i18n.language);
+  const { price, percent } = numberFormats(i18n.language);
   const { low, high } = scenario;
 
   let band = t("research.forecast.band-between", {
@@ -45,7 +48,16 @@ function ScenarioRow({
           </span>
         ) : null}
       </span>
-      <span className="tabular-nums">{scenario.probability}%</span>
+      <span className="tabular-nums">
+        {scenario.probability}%
+        {baseRate === null ? null : (
+          <span className="ms-1.5 text-xs text-muted">
+            {t("research.forecast.history", {
+              share: percent.format(baseRate),
+            })}
+          </span>
+        )}
+      </span>
       <span
         aria-hidden
         className="col-span-2 h-1 rounded-full bg-surface-secondary">
@@ -117,6 +129,7 @@ export function ForecastBody({ forecast }: { forecast: Forecast }) {
           <ScenarioRow
             key={scenario.label}
             scenario={scenario}
+            baseRate={forecast.baseRates?.[index] ?? null}
             held={outcome?.scenario === index}
           />
         ))}

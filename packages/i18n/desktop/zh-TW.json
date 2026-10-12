@@ -440,6 +440,7 @@
       "forget": "遺忘記憶",
       "get_research": "讀取研究",
       "get_fundamentals": "讀取財報",
+      "get_base_rates": "讀取歷史基準",
       "get_flows": "讀取籌碼",
       "get_macro": "讀取總經數據",
       "revise_report": "修訂研究報告",
@@ -648,7 +649,8 @@
       "none": "尚無預測。",
       "record": "{{count, number}} 筆中 {{settled, number}} 筆已結算 · 平均 Brier {{brier}}",
       "record-open": "{{count, number}} 筆，尚未結算",
-      "mean-r": "平均 {{r}} R"
+      "mean-r": "平均 {{r}} R",
+      "skill": "相對歷史基準 {{skill}}"
     },
     "forecast": {
       "horizon": "{{count, number}} 個交易日，自 {{date}} 的 {{price}} 起算",
@@ -661,6 +663,7 @@
       "band-above": "{{low}} 以上",
       "band-between": "{{low}} 至 {{high}}",
       "held": "成真",
+      "history": "歷史 {{share}}",
       "closed": "{{date}} 收在 {{close}}",
       "plan-result": {
         "not-entered": "未進場",

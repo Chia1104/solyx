@@ -44,6 +44,19 @@ const ANCHOR_BAR = bar("2026-09-29", 1000);
 
 const LATER_BARS = [bar("2026-09-30", 1010), bar("2026-10-01", 1020)];
 
+/**
+ * Sixty-four daily bars that end on the anchor: the close swings between 1100 and 1000 every two
+ * sessions, so of its 62 moves over two sessions 32 fall and 30 rise.
+ */
+const HISTORY = Array.from({ length: 64 }, (_, index) =>
+  bar(
+    Temporal.PlainDate.from("2026-09-29")
+      .subtract({ days: 63 - index })
+      .toString(),
+    index % 4 < 2 ? 1100 : 1000
+  )
+);
+
 const draft: ForecastDraft = {
   instrument: TSMC,
   horizon: 2,
@@ -246,6 +259,8 @@ test("a forecast is stamped with the newest daily bar and the report it was made
     ok: true,
     forecast: {
       ...draft,
+      // One bar holds no move to measure a band against.
+      baseRates: null,
       id: "f-1",
       createdAt: AT_ANCHOR,
       anchor: { date: "2026-09-29", price: 1000 },
@@ -255,6 +270,37 @@ test("a forecast is stamped with the newest daily bar and the report it was made
     },
   });
   expect(candles).toHaveBeenCalledWith(TSMC, Interval.OneDay);
+});
+
+test("a forecast keeps the base rates of its bands, from the listing's own moves over its horizon", async () => {
+  const { desk, cover, bars } = setup();
+
+  await cover();
+  bars.daily = HISTORY;
+
+  const result = await desk.forecast(draft);
+
+  // Below 1000 and from 1000 up, carried from the anchor's 1000.
+  expect(result.ok && result.forecast.baseRates).toEqual([32 / 62, 30 / 62]);
+});
+
+test("the horizon's history is the listing's moves of that length and where they land between the edges", async () => {
+  const { desk, bars } = setup();
+
+  bars.daily = HISTORY;
+
+  const history = await desk.horizonHistory(TSMC, 2, [1000]);
+
+  expect(history.anchor).toEqual({ date: "2026-09-29", price: 1000 });
+  expect(history.since).toBe("2026-07-28");
+  expect(history.moves).toHaveLength(62);
+  expect(history.rates).toEqual([32 / 62, 30 / 62]);
+
+  bars.daily = [];
+
+  await expect(desk.horizonHistory(TSMC, 2, [1000])).rejects.toThrow(
+    "TW:2330 has no daily bars"
+  );
 });
 
 test("a refused forecast keeps nothing", async () => {
