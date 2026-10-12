@@ -511,7 +511,8 @@ test("base rates tell how the listing's own moves spread over a horizon and land
 
   expect(text.split("\n")).toEqual([
     "TW 2330 over 2 sessions from 2026-09-29 at 1000: 62 moves of that length in its daily bars since 2026-07-28",
-    "Moves, each with the close it would make from 1000: 10th percentile -9.1% (909.09), 25th percentile -9.1% (909.09), 50th percentile -9.1% (909.09), 75th percentile +10.0% (1100), 90th percentile +10.0% (1100)",
+    // The 7 that went ex on 2026-09-16 counts with the two falls that span it, the median among them.
+    "Moves, each with the close it would make from 1000: 10th percentile -9.1% (909.09), 25th percentile -9.1% (909.09), 50th percentile -8.5% (915.45), 75th percentile +10.0% (1100), 90th percentile +10.0% (1100)",
     "Base rates: below 1000 52%; 1000 and above 48%",
   ]);
 
@@ -558,6 +559,34 @@ test("a kept forecast shows what history alone gave its bands, and the record me
   // The close landed in "Up", which the forecast gave 60% and history 48%.
   expect(text).toContain(
     "  against history's base rates, over 1 settled: Brier 0.32 against 0.53 for the base rates, skill +39.9% (0 is no better than history alone, below it worse)"
+  );
+});
+
+test("an outcome says what went ex inside the horizon and was added back", async () => {
+  const { run, clock, bars, filed } = setup();
+
+  filed.dividends = [
+    {
+      period: "115年第2季",
+      announced: "2026-09-01",
+      cash: 5,
+      stock: 0,
+      cashExDate: "2026-10-01",
+      cashPaidOn: null,
+      stockExDate: null,
+    },
+  ];
+
+  await run(AgentToolName.ReviseReport, REPORT);
+  await run(AgentToolName.SubmitForecast, FORECAST);
+
+  clock.now = AFTER_HORIZON;
+  bars.daily = [ANCHOR_BAR, ...LATER_BARS];
+
+  expect(
+    (await run(AgentToolName.GetResearch, { symbol: TSMC })).text
+  ).toContain(
+    'outcome: closed 1045 on 2026-10-01, judged with the 5 that went ex added back, in "Up", Brier 0.32'
   );
 });
 

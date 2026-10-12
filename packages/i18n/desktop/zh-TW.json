@@ -665,6 +665,7 @@
       "held": "成真",
       "history": "歷史 {{share}}",
       "closed": "{{date}} 收在 {{close}}",
+      "distributed": "已加回期間除息 {{cash}}",
       "plan-result": {
         "not-entered": "未進場",
         "hit-target": "達到目標",

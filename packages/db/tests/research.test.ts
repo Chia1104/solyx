@@ -89,6 +89,7 @@ function forecast(id: string, patch: Partial<Forecast> = {}): Forecast {
 const OUTCOME: ForecastOutcome = {
   date: "2026-10-01",
   close: 1020,
+  distributed: 0,
   scenario: 1,
   brier: 0.32,
   plan: null,

@@ -19,6 +19,7 @@ import type {
   ForecastContext,
   ForecastDraft,
 } from "../src/forecast.ts";
+import type { Dividend } from "../src/fundamentals.ts";
 import { Market } from "../src/market.ts";
 import { ReportStance } from "../src/report.ts";
 
@@ -111,6 +112,16 @@ function bar(
 }
 
 /** The anchor's bar and then one bar per session. */
+const exDividend = (cashExDate: string, cash: number): Dividend => ({
+  period: "115年",
+  announced: null,
+  cash,
+  stock: 0,
+  cashExDate,
+  cashPaidOn: null,
+  stockExDate: null,
+});
+
 function daily(
   ...sessions: { low: number; high: number; close: number }[]
 ): Candle[] {
@@ -357,6 +368,32 @@ describe("judgeForecast", () => {
     expect(outcome?.brier).toBeCloseTo(0.2 ** 2 + 0.5 ** 2 + 0.7 ** 2);
   });
 
+  test("cash that went ex inside the horizon is added back before the close and the plan are judged", () => {
+    const bars = daily(
+      { low: 995, high: 1010, close: 1005 },
+      // 30 went ex on the second session: the bars fall by it with nothing lost.
+      { low: 965, high: 985, close: 980 },
+      { low: 960, high: 985, close: 975 }
+    );
+
+    const raw = judgeForecast(forecast(), bars, AFTER_HORIZON);
+
+    // As traded the low of 965 is through the stop at 980, and the close in the bear's band.
+    expect(raw).toMatchObject({ close: 975, distributed: 0, scenario: 0 });
+    expect(raw?.plan?.result).toBe(PlanResult.HitStop);
+
+    const judged = judgeForecast(forecast(), bars, AFTER_HORIZON, [
+      exDividend("2026-10-01", 30),
+      // Gone ex before the anchor and after the horizon, which change nothing.
+      exDividend("2026-09-29", 10),
+      exDividend("2026-10-05", 10),
+    ]);
+
+    // With 30 added back the close reads 1005, in the base band, and no low comes near the stop.
+    expect(judged).toMatchObject({ close: 975, distributed: 30, scenario: 1 });
+    expect(judged?.plan?.result).toBe(PlanResult.Expired);
+  });
+
   test("a plan that enters and then reaches its target pays its reward in R", () => {
     const outcome = judgeForecast(
       forecast(),
@@ -534,6 +571,7 @@ test("forecastRecord sums up what settled and how well the probabilities held", 
       outcome: {
         date: "2026-10-02",
         close: 1000,
+        distributed: 0,
         scenario,
         brier: scenario === 1 ? 0.38 : 0.78,
         plan:
@@ -604,11 +642,20 @@ const closes = (prices: number[]) =>
 
 describe("base rates", () => {
   test("a horizon's moves are every close over the close that many sessions before", () => {
-    expect(horizonMoves(closes([100, 110, 121, 100]), 2)).toEqual([
+    expect(horizonMoves(Market.TW, closes([100, 110, 121, 100]), 2)).toEqual([
       1.21,
       100 / 110,
     ]);
-    expect(horizonMoves(closes([100, 110]), 2)).toEqual([]);
+    expect(horizonMoves(Market.TW, closes([100, 110]), 2)).toEqual([]);
+  });
+
+  test("cash that went ex inside a move counts with its later close", () => {
+    // 5 went ex on the third bar's day: the moves that span it carry it, the one after does not.
+    const moves = horizonMoves(Market.TW, closes([100, 100, 95, 95, 95]), 2, [
+      exDividend("2026-01-03", 5),
+    ]);
+
+    expect(moves).toEqual([1, 1, 1]);
   });
 
   test("bands between edges hold every price once, the lowest and highest left open", () => {
@@ -665,7 +712,14 @@ test("forecastRecord measures settled forecasts against the base rates of their 
   ) =>
     forecast({
       baseRates,
-      outcome: { date: "2026-10-02", close: 1000, scenario, brier, plan: null },
+      outcome: {
+        date: "2026-10-02",
+        close: 1000,
+        distributed: 0,
+        scenario,
+        brier,
+        plan: null,
+      },
     });
 
   const { skill } = forecastRecord([
