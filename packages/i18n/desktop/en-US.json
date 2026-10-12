@@ -249,7 +249,7 @@
   },
   "calendar": {
     "title": "Coming up",
-    "description": "The next {{days}} days for what you hold and watch: the days shares go ex and dividends are paid, as each company set them or its exchange gives notice, shareholders' meetings, the latest days the rules allow for the next statements and monthly revenue, the limits the exchange puts on their trading, such as short-sale suspensions and dispositions, the dates the agent's reports hold, such as an earnings call, each as it found them with its source, and the days their markets' economic figures come out. Filings and releases are Taiwan's only for now.",
+    "description": "The next {{days}} days for what you hold and watch: the days shares go ex and dividends are paid, as each company set them or its exchange gives notice, shareholders' meetings, the latest days the rules allow for the next statements and monthly revenue, the limits the exchange puts on their trading, such as short-sale suspensions and dispositions, the dates the agent's reports hold, such as an earnings call, each as it found them with its source, the days their markets' economic figures come out, and the weekdays their markets are closed. Filings, releases and closures are Taiwan's only for now.",
     "unfollowed": "Hold or watch listings, and their coming dividends and filings show here, with the dates the agent's reports hold and their markets' economic releases.",
     "empty": "Nothing on the calendar in the next {{days}} days.",
     "unread": "Couldn't read the fundamentals of {{symbols}}, so their dates may be missing.",
@@ -281,8 +281,10 @@
       "ex-rights": "Goes ex-rights"
     },
     "economy": "Economy",
+    "exchange": "Exchange",
+    "closed": "Market closed",
     "release-deadline-hint": "The latest day the agency set; the figures may well come out earlier.",
-    "schedule-unread": "Couldn't read the economic release schedule of {{markets}}, so releases may be missing.",
+    "schedule-unread": "Couldn't read every market date of {{markets}}, so economic releases or closures may be missing.",
     "indicators": {
       "consumer-prices": "Consumer price index",
       "advance-gdp": "GDP, advance estimate",

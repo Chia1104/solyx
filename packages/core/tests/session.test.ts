@@ -22,6 +22,21 @@ describe("TW sessions (Asia/Taipei)", () => {
   });
 });
 
+test("a market is closed all day on a day its exchange does not trade", () => {
+  // Friday 2026-10-09 is a holiday in Taipei.
+  const trades = listedTradingDays("2026-10-01", ["2026-10-08", "2026-10-12"]);
+  const midSession = (date: string) => new Date(`${date}T10:00:00+08:00`);
+
+  expect(getSession(Market.TW, midSession("2026-10-08"), trades)).toBe(
+    Session.Regular
+  );
+  expect(getSession(Market.TW, midSession("2026-10-09"), trades)).toBe(
+    Session.Closed
+  );
+  // Without the exchange's days every weekday trades.
+  expect(getSession(Market.TW, midSession("2026-10-09"))).toBe(Session.Regular);
+});
+
 describe("US sessions follow New York daylight saving", () => {
   test.each([
     ["2026-09-29T13:29:00Z", Session.Pre],

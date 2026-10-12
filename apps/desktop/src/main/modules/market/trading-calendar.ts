@@ -1,9 +1,14 @@
-import { exchangeDate } from "@solyx/core/market";
-import type { Market } from "@solyx/core/market";
-import { listedTradingDays, weekdays } from "@solyx/core/session";
-import type { TradingCalendarProvider, TradingDays } from "@solyx/core/session";
+import { Market, exchangeDate } from "@solyx/core/market";
+import { getSession, listedTradingDays, weekdays } from "@solyx/core/session";
+import type {
+  Session,
+  TradingCalendarProvider,
+  TradingDays,
+} from "@solyx/core/session";
 import { keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
+
+import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 export interface TradingCalendarOptions {
   /** One per market at most; the first that covers a market answers for it. */
@@ -63,3 +68,43 @@ export function createTradingCalendar({
 }
 
 export type TradingCalendar = ReturnType<typeof createTradingCalendar>;
+
+/** The days a market trades, for what must go on while its exchange's days cannot be read. */
+export type MarketDays = (market: Market) => Promise<TradingDays>;
+
+/**
+ * Each market's trading days, or every weekday while its calendar cannot be read, so a provider
+ * out of reach never stops a session being told, an order being checked or the clock's work.
+ */
+export function createMarketDays({
+  tradingDays,
+  diagnostics,
+}: {
+  tradingDays: TradingCalendar;
+  diagnostics: Pick<Diagnostics, "recovered">;
+}): MarketDays {
+  return async (market) => {
+    try {
+      return await tradingDays(market);
+    } catch (error) {
+      diagnostics.recovered(error, "market.trading-days", {
+        "solyx.market": market,
+      });
+
+      return weekdays;
+    }
+  };
+}
+
+/** The session each market is in at `at`, closed all day on a day its exchange does not trade. */
+export async function marketSessions(
+  days: MarketDays,
+  at: Date = new Date()
+): Promise<Record<Market, Session>> {
+  const [taiwan, us] = await Promise.all([days(Market.TW), days(Market.US)]);
+
+  return {
+    [Market.TW]: getSession(Market.TW, at, taiwan),
+    [Market.US]: getSession(Market.US, at, us),
+  };
+}

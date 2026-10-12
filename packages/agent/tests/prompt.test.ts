@@ -4,12 +4,14 @@ import { BrokerMode } from "@solyx/core/broker";
 import { ChangeKind } from "@solyx/core/changes";
 import { DecisionMode } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
+import { Session } from "@solyx/core/session";
 
 import { formatContext } from "../src/prompt.ts";
 
-test("the context tells the time on each exchange and on the user's own clock", () => {
+test("the context tells the time on each exchange with the session the host says it is in, and on the user's own clock", () => {
   const context = formatContext({
     now: new Date("2026-10-07T11:27:00Z"),
+    sessions: { [Market.TW]: Session.Closed, [Market.US]: Session.Pre },
     brokerMode: BrokerMode.Paper,
     locale: "zh-TW",
     timeZone: "Europe/London",
@@ -27,6 +29,7 @@ test("the context tells the time on each exchange and on the user's own clock", 
 test("the context names the listing on screen, those the user named and the skill they asked for", () => {
   const context = formatContext({
     now: new Date("2026-10-07T11:27:00Z"),
+    sessions: { [Market.TW]: Session.Closed, [Market.US]: Session.Pre },
     brokerMode: BrokerMode.Paper,
     focus: { symbol: { market: Market.TW, symbol: "2317" }, name: "鴻海" },
     mentions: [
@@ -49,6 +52,7 @@ test("the context names the listing on screen, those the user named and the skil
 test("the context says when a scheduled task sent the message in the user's place", () => {
   const context = formatContext({
     now: new Date("2026-10-07T11:27:00Z"),
+    sessions: { [Market.TW]: Session.Closed, [Market.US]: Session.Pre },
     brokerMode: BrokerMode.Paper,
     skill: "watchlist-upkeep",
     locale: "zh-TW",

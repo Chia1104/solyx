@@ -61,7 +61,11 @@ import type { Locale, TimeZone } from "#shared/ipc/settings.ts";
 import type { ConversationsUsage } from "#shared/ipc/storage.ts";
 
 import type { Calendar } from "../calendar/calendar.ts";
-import type { TradingCalendar } from "../market/trading-calendar.ts";
+import { marketSessions } from "../market/trading-calendar.ts";
+import type {
+  MarketDays,
+  TradingCalendar,
+} from "../market/trading-calendar.ts";
 
 import { createAgentModels } from "./agent-models.ts";
 import type { AgentModelsOptions } from "./agent-models.ts";
@@ -88,6 +92,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   watchlist: WatchlistPort;
   news: NewsDesk;
   tradingDays: TradingCalendar;
+  /** The days each market trades for telling its session, which answers even while they cannot be read. */
+  marketDays: MarketDays;
   calendar: Calendar;
   /** The web search vendor the user set up; `undefined` until its key is saved. */
   web: () => Promise<(WebSearch & WebReader) | undefined>;
@@ -361,6 +367,7 @@ export function createAgentService(options: AgentServiceOptions) {
       text,
       context: formatContext({
         now,
+        sessions: await marketSessions(options.marketDays, now),
         brokerMode: options.desk.mode,
         focus: focus ?? undefined,
         mentions,

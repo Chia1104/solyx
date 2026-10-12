@@ -1,14 +1,15 @@
 import * as z from "zod";
 
 import { intervalSchema } from "@solyx/core/candles";
-import { Market, symbolRefSchema } from "@solyx/core/market";
-import { getSession } from "@solyx/core/session";
+import { symbolRefSchema } from "@solyx/core/market";
 
 import { marketChannels } from "#shared/ipc/market.ts";
 import type { MarketApi } from "#shared/ipc/market.ts";
 
 import { bindIpc } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";
+
+import { marketSessions } from "./trading-calendar.ts";
 
 const schemas = {
   sessions: z.tuple([]),
@@ -21,12 +22,9 @@ const schemas = {
   unwatchCandles: z.tuple([symbolRefSchema, intervalSchema]),
 };
 
-export function registerMarketIpc({ marketData }: Services) {
+export function registerMarketIpc({ marketData, marketDays }: Services) {
   bindIpc<MarketApi>(marketChannels, schemas, {
-    sessions: async () => ({
-      [Market.TW]: getSession(Market.TW),
-      [Market.US]: getSession(Market.US),
-    }),
+    sessions: () => marketSessions(marketDays),
     listing: (symbol) => marketData.listing(symbol),
     candles: (symbol, interval) => marketData.candles(symbol, interval),
     olderCandles: (symbol, interval, before) =>

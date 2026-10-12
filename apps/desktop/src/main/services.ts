@@ -53,7 +53,10 @@ import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
 import { createScheduleDays } from "./modules/market/schedule-days.ts";
-import { createTradingCalendar } from "./modules/market/trading-calendar.ts";
+import {
+  createMarketDays,
+  createTradingCalendar,
+} from "./modules/market/trading-calendar.ts";
 import { createMemories } from "./modules/memory/memories.ts";
 import { createNewsCollector } from "./modules/news/news-collector.ts";
 import { createNewsSources } from "./modules/news/news-sources.ts";
@@ -118,6 +121,7 @@ export function createServices(config: ConfigFile) {
     }),
     store: userData.proposals,
     limits: PAPER_LIMITS,
+    tradingDays: (market) => marketDays(market),
     onChange() {
       broadcast(proposalsEvents.onChanged);
       void tray.sync();
@@ -254,6 +258,7 @@ export function createServices(config: ConfigFile) {
   const calendar = createCalendar({
     fundamentals,
     macro: [createStatGovTw()],
+    closures: [twExchanges],
     reports: researchData.store,
     answers: cache.answers,
   });
@@ -279,7 +284,8 @@ export function createServices(config: ConfigFile) {
     );
   }
 
-  const scheduleDays = createScheduleDays({ tradingDays, diagnostics });
+  const marketDays = createMarketDays({ tradingDays, diagnostics });
+  const scheduleDays = createScheduleDays(marketDays);
 
   const themes = createThemes({
     store: userData.themes,
@@ -323,6 +329,7 @@ export function createServices(config: ConfigFile) {
     watchlist,
     news,
     tradingDays,
+    marketDays,
     calendar,
     web: () => webSearch.vendor(),
     desk,
@@ -494,6 +501,7 @@ export function createServices(config: ConfigFile) {
 
   return {
     desk,
+    marketDays,
     secrets,
     config,
     cache,

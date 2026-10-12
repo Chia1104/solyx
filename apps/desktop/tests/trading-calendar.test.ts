@@ -1,10 +1,15 @@
 import { expect, test, vi } from "vite-plus/test";
 
 import { Market } from "@solyx/core/market";
+import { Session, weekdays } from "@solyx/core/session";
 import type { TradingCalendarProvider } from "@solyx/core/session";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
-import { createTradingCalendar } from "../src/main/modules/market/trading-calendar.ts";
+import {
+  createMarketDays,
+  createTradingCalendar,
+  marketSessions,
+} from "../src/main/modules/market/trading-calendar.ts";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -71,4 +76,48 @@ test("a market no provider covers trades every weekday", async () => {
   expect(trades("2026-10-09")).toBe(true);
   expect(trades("2026-10-10")).toBe(false);
   expect(provider.tradingDays).not.toHaveBeenCalled();
+});
+
+test("a market's days come from its calendar, and a market no provider covers trades every weekday", async () => {
+  const { tradingDays } = setup();
+  const diagnostics = { recovered: vi.fn() };
+  const days = createMarketDays({ tradingDays, diagnostics });
+
+  expect((await days(Market.TW))("2026-10-09")).toBe(false);
+  expect(await days(Market.US)).toBe(weekdays);
+  expect(diagnostics.recovered).not.toHaveBeenCalled();
+});
+
+test("a market reads as closed all day on a day its exchange does not trade", async () => {
+  const { tradingDays } = setup();
+
+  const days = createMarketDays({
+    tradingDays,
+    diagnostics: { recovered: vi.fn() },
+  });
+
+  // 10:00 in Taipei on Thursday, a session, and on Friday, a holiday.
+  expect(await marketSessions(days, new Date("2026-10-08T02:00:00Z"))).toEqual({
+    [Market.TW]: Session.Regular,
+    [Market.US]: Session.Closed,
+  });
+  expect(
+    (await marketSessions(days, new Date("2026-10-09T02:00:00Z")))[Market.TW]
+  ).toBe(Session.Closed);
+});
+
+test("a calendar that cannot be read leaves every weekday a session, and says so in the log", async () => {
+  const { provider, tradingDays } = setup();
+  const diagnostics = { recovered: vi.fn() };
+  const days = createMarketDays({ tradingDays, diagnostics });
+  const failure = new Error("FinMind answered 402");
+
+  provider.tradingDays.mockRejectedValue(failure);
+
+  expect(await days(Market.TW)).toBe(weekdays);
+  expect(diagnostics.recovered).toHaveBeenCalledWith(
+    failure,
+    "market.trading-days",
+    { "solyx.market": Market.TW }
+  );
 });
