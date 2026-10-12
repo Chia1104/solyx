@@ -652,7 +652,8 @@
       "record-open": "{{count, number}} made, none settled yet",
       "mean-r": "mean {{r}} R",
       "skill": "{{skill}} against history's base rates",
-      "motions": "MAGI: {{held, number}} of the {{carried, number}} scenarios it carried held, {{expected}} expected of history"
+      "motions": "MAGI: {{held, number}} of the {{calls, number}} scenarios it carried held, {{expected}} expected of history",
+      "evidence": "decisions model: the close landed on the side it read the facts towards {{held, number}} of {{calls, number}} times, {{expected}} expected of history"
     },
     "forecast": {
       "horizon": "{{count, number}}-session horizon from {{date}} at {{price}}",
@@ -668,6 +669,7 @@
       "history": "history {{share}}",
       "closed": "Closed at {{close}} on {{date}}",
       "distributed": "judged with {{cash}} gone ex added back",
+      "evidence": "Its {{count, number}} facts as a decisions model read them: good news {{good}} · mixed {{mixed}} · bad news {{bad}}",
       "plan-result": {
         "not-entered": "Never entered",
         "hit-target": "Reached the target",

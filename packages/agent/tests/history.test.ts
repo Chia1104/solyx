@@ -90,6 +90,7 @@ const FORECAST: Forecast = {
   anchor: { date: "2026-09-29", price: 1000 },
   reportRevision: 2,
   motions: null,
+  evidence: null,
   outcome: null,
 };
 

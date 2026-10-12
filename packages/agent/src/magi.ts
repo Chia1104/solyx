@@ -27,6 +27,8 @@ import type { AccountSnapshot, OrderRequest } from "@solyx/core/order";
 import type { ForecastMotion } from "@solyx/core/research";
 import { errorMessage } from "@solyx/utils/error";
 
+import { evidenceText } from "./evidence-text.ts";
+
 export interface MagiOptions {
   models: Pick<Models, "completeSimple">;
   /** The model that answers as a unit; a rejection fails the vote before any unit is asked. */
@@ -437,6 +439,7 @@ export function forecastMotion({
   anchor,
   report,
   baseRates,
+  evidence,
 }: ForecastMotion): string {
   return [
     `A forecast for ${symbolKey(draft.instrument)} over ${draft.horizon} sessions from its close of ${anchor.price} on ${anchor.date} is being put on record, where it is frozen and scored against what the price then does. Each scenario for the close at the horizon is a motion: that the close is more likely to land in its band than its history's share.`,
@@ -456,6 +459,7 @@ export function forecastMotion({
           ),
         ]
       : []),
+    ...(evidence ? [evidenceText(evidence)] : []),
     `The report it is made under is ${report.stance}: ${report.thesis}`,
     ...(report.risks.length > 0
       ? [

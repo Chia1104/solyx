@@ -6,6 +6,7 @@ import type {
 } from "openai/resources/decisions";
 import * as z from "zod";
 
+import type { FactReader } from "@solyx/core/forecast";
 import type { ClaimAuditor } from "@solyx/core/report";
 import type { SentimentScorer } from "@solyx/core/sentiment";
 
@@ -13,6 +14,7 @@ import type { CommandJudge } from "./command.ts";
 import {
   createClaimAuditor,
   createCommandJudge,
+  createFactReader,
   createScorer,
 } from "./system-one.ts";
 import type { Ask } from "./system-one.ts";
@@ -153,3 +155,7 @@ export const createOpenAIScorer = (options: OpenAIOptions): SentimentScorer =>
 export const createOpenAIClaimAuditor = (
   options: OpenAIOptions
 ): ClaimAuditor => createClaimAuditor(openAI(options));
+
+/** Reads how a fact bears on a share price with OpenAI's decisions model, on the user's own key. */
+export const createOpenAIFactReader = (options: OpenAIOptions): FactReader =>
+  createFactReader(openAI(options));

@@ -17,6 +17,7 @@ import {
 } from "./report.ts";
 import type { AuditedClaim, Claim, ClaimSupport } from "./report.ts";
 import { isOnTick, tickSize } from "./risk.ts";
+import { Stance, stanceValue } from "./sentiment.ts";
 import { regularHours } from "./session.ts";
 
 export const ForecastDirection = {
@@ -122,6 +123,68 @@ export interface ForecastOutcome {
   plan: PlanOutcome | null;
 }
 
+/** How one fact bears on its company's share price, as a decisions model read it. */
+export interface FactReading {
+  /** The model that answered, as its provider names the version. */
+  model: string;
+  stance: Record<Stance, number>;
+}
+
+/**
+ * Reads how a fact bears on the share price of the company it is about. It sees the fact and its
+ * quote alone, never the forecast they were given for, so what it reads is the evidence and not
+ * the forecast's own answer. One implementation per decisions model (`@solyx/decisions/*`); it
+ * runs only in the main process.
+ */
+export interface FactReader {
+  read(claim: Claim, options?: { signal?: AbortSignal }): Promise<FactReading>;
+}
+
+/**
+ * How the facts a forecast rests on bear on the price: the mean of what a decisions model read of
+ * each alone. It is a reading of words, not a probability of where the close lands.
+ */
+export interface EvidenceReading {
+  model: string;
+  /** How many of the facts were read. */
+  facts: number;
+  stance: Record<Stance, number>;
+}
+
+/** Several facts' readings as one; `null` when none was read. */
+export function readEvidence(
+  readings: readonly FactReading[]
+): EvidenceReading | null {
+  if (readings.length === 0) return null;
+
+  const mean = (level: Stance) =>
+    meanBy(readings, ({ stance }) => stance[level]);
+
+  return {
+    // One decisions model answers at a time, so the newest reading names it.
+    model: readings[readings.length - 1].model,
+    facts: readings.length,
+    stance: {
+      [Stance.Negative]: mean(Stance.Negative),
+      [Stance.LeanNegative]: mean(Stance.LeanNegative),
+      [Stance.Neutral]: mean(Stance.Neutral),
+      [Stance.LeanPositive]: mean(Stance.LeanPositive),
+      [Stance.Positive]: mean(Stance.Positive),
+    },
+  };
+}
+
+// Half of what somewhat good or bad news reads as, so facts that cancel out call no side. Measured
+// per fact with `scripts/eval-facts.ts` in `@solyx/decisions`.
+export const EVIDENCE_LEAN_LINE = 0.25;
+
+/** The side of the anchor a reading calls: 1 for a rise, -1 for a fall, and 0 where its facts lean too little to say. */
+export function evidenceSide({ stance }: EvidenceReading): number {
+  const lean = stanceValue(stance);
+
+  return Math.abs(lean) < EVIDENCE_LEAN_LINE ? 0 : Math.sign(lean);
+}
+
 /** A forecast as kept: nothing but its outcome changes once it is made. */
 export interface Forecast extends ForecastDraft {
   claims: AuditedClaim[];
@@ -143,6 +206,8 @@ export interface Forecast extends ForecastDraft {
    * held, as while the agent decides alone and for a forecast without base rates.
    */
   motions: Council[] | null;
+  /** How a decisions model read the facts it rests on; `null` where none read them, or it gave none. */
+  evidence: EvidenceReading | null;
   /** `null` until its horizon's session closes. */
   outcome: ForecastOutcome | null;
 }
@@ -260,6 +325,13 @@ function opposes(direction: ForecastDirection, stance: ReportStance): boolean {
   );
 }
 
+/** Which side of `price` a band lies on: 1 above it, -1 below it, and 0 where the band holds it. */
+const bandSide = (
+  { low, high }: Pick<ForecastScenario, "low" | "high">,
+  price: number
+) =>
+  Number(low !== null && low >= price) - Number(high !== null && high <= price);
+
 // Shares that cancel leave only what floating point carries.
 const NO_LEAN = 1e-9;
 
@@ -277,11 +349,9 @@ export function forecastLean(
   rates: readonly number[]
 ): number {
   return sumBy(
-    scenarios.map(({ probability, low, high }, index) => ({
+    scenarios.map(({ probability, ...band }, index) => ({
       added: probability / 100 - rates[index],
-      side:
-        Number(low !== null && low >= price) -
-        Number(high !== null && high <= price),
+      side: bandSide(band, price),
     })),
     ({ added, side }) => added * side
   );
@@ -691,16 +761,24 @@ export interface ForecastRecord {
   calibration: CalibrationBucket[];
   /** How the settled forecasts that kept base rates did against them; `null` while none has. */
   skill: ForecastSkill | null;
-  /** How the scenarios a vote carried came out; `null` while no settled forecast was voted on. */
-  motions: MotionRecord | null;
+  /**
+   * How the scenarios a vote carried as more likely than their history came out, each a call;
+   * `null` while no settled forecast was voted on.
+   */
+  motions: CallRecord | null;
+  /**
+   * How the side a decisions model read the facts towards came out, each such forecast a call on
+   * the bands of that side; `null` while no settled forecast's facts called one.
+   */
+  evidence: CallRecord | null;
 }
 
 /**
- * The scenarios of settled forecasts that a vote carried as more likely than their history says,
- * against that history: a vote that tells nothing has the close land in about as many as expected.
+ * Calls that the close would land somewhere, against how often history alone has it land there: a
+ * caller that tells nothing has it land in about as many as expected.
  */
-export interface MotionRecord {
-  carried: number;
+export interface CallRecord {
+  calls: number;
   /** Those the close landed in. */
   held: number;
   /** How many history alone would have it land in: the sum of their base rates. */
@@ -740,26 +818,57 @@ function forecastSkill(forecasts: readonly Forecast[]): ForecastSkill | null {
   };
 }
 
-function motionRecord(forecasts: readonly Forecast[]): MotionRecord | null {
+function callRecord(
+  calls: readonly { rate: number; held: boolean }[]
+): CallRecord {
+  return {
+    calls: calls.length,
+    held: calls.filter(({ held }) => held).length,
+    expected: sumBy(calls, ({ rate }) => rate),
+  };
+}
+
+function motionRecord(forecasts: readonly Forecast[]): CallRecord | null {
   const voted = forecasts.flatMap(({ motions, baseRates: rates, outcome }) =>
     motions && rates && outcome ? [{ motions, rates, outcome }] : []
   );
 
   if (voted.length === 0) return null;
 
-  const carried = voted.flatMap(({ motions, rates, outcome }) =>
-    motions.flatMap(({ carried: won }, scenario) =>
-      won
-        ? [{ rate: rates[scenario], held: scenario === outcome.scenario }]
-        : []
+  return callRecord(
+    voted.flatMap(({ motions, rates, outcome }) =>
+      motions.flatMap(({ carried }, scenario) =>
+        carried
+          ? [{ rate: rates[scenario], held: scenario === outcome.scenario }]
+          : []
+      )
     )
   );
+}
 
-  return {
-    carried: carried.length,
-    held: carried.filter(({ held }) => held).length,
-    expected: sumBy(carried, ({ rate }) => rate),
-  };
+function evidenceRecord(forecasts: readonly Forecast[]): CallRecord | null {
+  const called = forecasts.flatMap(
+    ({ evidence, baseRates: rates, scenarios, anchor, outcome }) => {
+      if (!evidence || !rates || !outcome) return [];
+
+      const side = evidenceSide(evidence);
+      const sides = scenarios.map((band) => bandSide(band, anchor.price));
+
+      // A forecast with no band on the side its facts read towards has nowhere for the call to land.
+      if (side === 0 || !sides.includes(side)) return [];
+
+      return [
+        {
+          rate: sumBy(rates, (rate, index) =>
+            sides[index] === side ? rate : 0
+          ),
+          held: sides[outcome.scenario] === side,
+        },
+      ];
+    }
+  );
+
+  return called.length === 0 ? null : callRecord(called);
 }
 
 const CALIBRATION_STEP = 20;
@@ -812,6 +921,7 @@ export function forecastRecord(forecasts: readonly Forecast[]): ForecastRecord {
     }),
     skill: forecastSkill(forecasts),
     motions: motionRecord(forecasts),
+    evidence: evidenceRecord(forecasts),
   };
 }
 

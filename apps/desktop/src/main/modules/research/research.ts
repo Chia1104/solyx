@@ -1,4 +1,5 @@
 import type { Embedder } from "@solyx/core/embedding";
+import type { FactReader } from "@solyx/core/forecast";
 import type { Fundamentals } from "@solyx/core/fundamentals";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -31,6 +32,7 @@ export function createResearch(
     marketData: Pick<MarketData, "candles">;
     fundamentals: Pick<Fundamentals, "statements" | "dividends">;
     auditor: () => Promise<ClaimAuditor | undefined>;
+    reader: () => Promise<FactReader | undefined>;
     news: Pick<NewsStore, "list">;
     /** Only a model on this computer, since a report is the user's own. */
     embedder: () => Embedder | undefined;
