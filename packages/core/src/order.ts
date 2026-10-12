@@ -1,7 +1,7 @@
 import * as z from "zod";
 
-import { instrumentSchema } from "./market.ts";
-import type { Currency, Instrument } from "./market.ts";
+import { symbolRefSchema } from "./market.ts";
+import type { Currency, SymbolRef } from "./market.ts";
 
 export const Side = {
   Buy: "buy",
@@ -20,7 +20,7 @@ export const OrderType = {
 export type OrderType = (typeof OrderType)[keyof typeof OrderType];
 
 const orderBaseSchema = z.object({
-  instrument: instrumentSchema,
+  instrument: symbolRefSchema,
   side: sideSchema,
   /** Always in shares, including Taiwan board lots of 1,000 shares. */
   quantity: z.number(),
@@ -38,7 +38,7 @@ export const orderRequestSchema = z.discriminatedUnion("type", [
 export type OrderRequest = z.infer<typeof orderRequestSchema>;
 
 export interface Position {
-  instrument: Instrument;
+  instrument: SymbolRef;
   quantity: number;
   avgPrice: number;
 }

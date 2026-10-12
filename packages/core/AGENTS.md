@@ -5,6 +5,7 @@ The trading domain every other package builds on: market rules (tick sizes, boar
 ## Boundaries
 
 - Pure and cross-runtime: no I/O and no Node or DOM APIs, so every process imports it. Implementations of its contracts live in their own packages.
+- A listing is its market and its exchange's code and nothing more. `./rules/tw` tells the tick a Taiwan listing takes from its code, since the exchanges number funds, notes and real estate trusts apart from stocks, so no order says what kind of listing it is for.
 - Technical indicators are pure functions, one value per bar and `null` while warming up, so the charts and the agent read the same numbers.
 - `./levels` derives the prices a chart marks from its bars, daily and intraday. They are pure functions too, so the chart and the agent cite the same levels.
 - `./session` counts regular sessions on the days a market trades, which the caller hands it: the days its exchange set, and outside their span every weekday, the rule for a market whose holidays are not known. `getSession` knows no holidays.

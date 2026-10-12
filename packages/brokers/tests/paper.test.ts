@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
-import { InstrumentKind, Market } from "@solyx/core/market";
-import type { Instrument } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 
@@ -27,10 +27,9 @@ function memoryLedger(): PaperLedger {
 const paper = (cash: PaperBrokerOptions["cash"], ledger = memoryLedger()) =>
   createPaperBroker({ cash, ledger });
 
-const tsmc: Instrument = {
+const tsmc: SymbolRef = {
   market: Market.TW,
   symbol: "2330",
-  kind: InstrumentKind.Stock,
 };
 
 function limit(side: Side, quantity: number, limitPrice: number): OrderRequest {

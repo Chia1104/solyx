@@ -1,5 +1,5 @@
 import { Market, currencyOf, symbolKey } from "./market.ts";
-import type { Currency, Instrument } from "./market.ts";
+import type { Currency, SymbolRef } from "./market.ts";
 import { OrderType, Side } from "./order.ts";
 import type { AccountSnapshot, OrderRequest } from "./order.ts";
 import { isTwOddLot, isValidTwQuantity, twTickSize } from "./rules/tw.ts";
@@ -72,9 +72,9 @@ export type RiskViolation =
       held: number;
     };
 
-export function tickSize(instrument: Instrument, price: number): number {
+export function tickSize(instrument: SymbolRef, price: number): number {
   return instrument.market === Market.TW
-    ? twTickSize(price, instrument.kind)
+    ? twTickSize(price, instrument.symbol)
     : usTickSize(price);
 }
 

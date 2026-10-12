@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { InstrumentKind } from "../src/market.ts";
 import {
   isValidTwQuantity,
   twRevenueDeadline,
@@ -19,12 +18,28 @@ describe("twTickSize", () => {
     [999, 1],
     [1000, 5],
   ])("stock at %d ticks by %d", (price, tick) => {
-    expect(twTickSize(price, InstrumentKind.Stock)).toBe(tick);
+    expect(twTickSize(price, "2330")).toBe(tick);
   });
 
-  test("ETFs switch to 0.05 at 50", () => {
-    expect(twTickSize(49.99, InstrumentKind.ETF)).toBe(0.01);
-    expect(twTickSize(180, InstrumentKind.ETF)).toBe(0.05);
+  test.each([
+    ["0050", "an ETF"],
+    ["00679B", "a bond ETF"],
+    ["00631L", "a leveraged ETF"],
+    ["01001T", "a real estate trust"],
+    ["020011", "an ETN"],
+  ])("%s, %s, ticks by 0.01 below 50 and 0.05 from there", (code) => {
+    expect(twTickSize(49.99, code)).toBe(0.01);
+    expect(twTickSize(50, code)).toBe(0.05);
+    expect(twTickSize(180, code)).toBe(0.05);
+  });
+
+  test.each([
+    ["2881A", "a preferred share"],
+    ["910322", "a depositary receipt"],
+    ["1101", "a stock"],
+  ])("%s, %s, ticks as a stock", (code) => {
+    expect(twTickSize(12, code)).toBe(0.05);
+    expect(twTickSize(60, code)).toBe(0.1);
   });
 });
 

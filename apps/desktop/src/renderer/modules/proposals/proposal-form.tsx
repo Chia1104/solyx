@@ -12,7 +12,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
-import { InstrumentKind, Market } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 
@@ -24,11 +24,7 @@ import type { OrderFormValues } from "./order-form-schema.ts";
 
 function toOrderRequest(values: OrderFormValues): OrderRequest {
   return {
-    instrument: {
-      market: values.market,
-      symbol: values.symbol,
-      kind: values.kind,
-    },
+    instrument: { market: values.market, symbol: values.symbol },
     side: values.side,
     quantity: values.quantity,
     type: OrderType.Limit,
@@ -48,7 +44,6 @@ export function ProposalForm() {
     reValidateMode: "onSubmit",
     defaultValues: {
       market: Market.TW,
-      kind: InstrumentKind.Stock,
       side: Side.Buy,
       symbol: "",
       quantity: Number.NaN,
@@ -83,23 +78,6 @@ export function ProposalForm() {
             options={Object.values(Market).map((market) => ({
               id: market,
               label: t(`market.${market}`),
-            }))}
-            onChange={field.onChange}
-          />
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="kind"
-        render={({ field, fieldState }) => (
-          <OptionSelect
-            isRequired
-            label={t("order-form.kind")}
-            value={field.value}
-            errorMessage={fieldState.error?.message}
-            options={Object.values(InstrumentKind).map((kind) => ({
-              id: kind,
-              label: t(`kind.${kind}`),
             }))}
             onChange={field.onChange}
           />

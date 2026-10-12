@@ -15,10 +15,10 @@ import type {
   ForecastContext,
   ForecastDraft,
 } from "../src/forecast.ts";
-import { InstrumentKind, Market } from "../src/market.ts";
+import { Market } from "../src/market.ts";
 import { ReportStance } from "../src/report.ts";
 
-const TSMC = { market: Market.TW, symbol: "2330", kind: InstrumentKind.Stock };
+const TSMC = { market: Market.TW, symbol: "2330" };
 
 const ANCHOR = { date: "2026-09-29", price: 1000 };
 

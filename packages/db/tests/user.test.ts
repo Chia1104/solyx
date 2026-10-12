@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { InstrumentKind, Market } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
 import { TimePrecision } from "@solyx/core/news";
 import { OrderType, Side } from "@solyx/core/order";
 import {
@@ -47,7 +47,7 @@ function proposal(id: string, patch: Partial<TradeProposal> = {}) {
   return {
     id,
     order: {
-      instrument: { ...TSMC, kind: InstrumentKind.Stock },
+      instrument: TSMC,
       side: Side.Buy,
       quantity: 1000,
       type: OrderType.Limit,
@@ -302,7 +302,7 @@ describe("proposal store", () => {
       cash: { TWD: 20_000, USD: 30_000 },
       positions: [
         {
-          instrument: { ...TSMC, kind: InstrumentKind.Stock },
+          instrument: TSMC,
           quantity: 1000,
           avgPrice: 980,
         },

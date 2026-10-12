@@ -1,11 +1,16 @@
-import { InstrumentKind } from "../market.ts";
-
 /** Shares in one board lot. */
 export const TW_BOARD_LOT = 1000;
 
-/** Tick size for TWSE / TPEx stocks and ETFs. */
-export function twTickSize(price: number, kind: InstrumentKind): number {
-  if (kind === InstrumentKind.ETF) return price < 50 ? 0.01 : 0.05;
+// The exchanges number exchange-traded funds from `00`, real estate trusts' beneficiary securities
+// from `01` and exchange-traded notes from `02`, and nothing else from any of them.
+const FUND_CODE = /^0[0-2]/;
+
+/**
+ * Tick size for a TWSE or TPEx listing at `price`, told by its code: exchange-traded funds and
+ * notes and real estate trusts step finer than stocks, preferred shares and depositary receipts.
+ */
+export function twTickSize(price: number, code: string): number {
+  if (FUND_CODE.test(code)) return price < 50 ? 0.01 : 0.05;
 
   if (price < 10) return 0.01;
 

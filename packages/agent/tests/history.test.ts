@@ -11,7 +11,7 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { ForecastDirection } from "@solyx/core/forecast";
 import type { Forecast } from "@solyx/core/forecast";
-import { InstrumentKind, Market } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
 import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { NewsDesk, NewsMatch } from "@solyx/core/news";
 import { OrderType, Side } from "@solyx/core/order";
@@ -62,7 +62,7 @@ const REPORT: Report = {
 
 const FORECAST: Forecast = {
   id: "f-1",
-  instrument: { ...TSMC, kind: InstrumentKind.Stock },
+  instrument: TSMC,
   horizon: 2,
   direction: ForecastDirection.Neutral,
   plan: null,
@@ -118,7 +118,7 @@ function proposal(
   return {
     id,
     order: {
-      instrument: { market: Market.TW, symbol, kind: InstrumentKind.Stock },
+      instrument: { market: Market.TW, symbol },
       side: Side.Buy,
       quantity: 1000,
       type: OrderType.Limit,

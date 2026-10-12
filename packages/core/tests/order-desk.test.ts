@@ -3,7 +3,7 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { BrokerMode } from "../src/broker.ts";
 import type { BrokerAdapter } from "../src/broker.ts";
-import { InstrumentKind, Market } from "../src/market.ts";
+import { Market } from "../src/market.ts";
 import {
   OrderDesk,
   ProposalSource,
@@ -17,7 +17,7 @@ import { RiskViolationCode } from "../src/risk.ts";
 import { Session } from "../src/session.ts";
 
 const order: OrderRequest = {
-  instrument: { market: Market.TW, symbol: "2330", kind: InstrumentKind.Stock },
+  instrument: { market: Market.TW, symbol: "2330" },
   side: Side.Buy,
   quantity: 1000,
   type: OrderType.Limit,
@@ -241,7 +241,6 @@ test("a market the broker does not trade is rejected", async () => {
       instrument: {
         market: Market.US,
         symbol: "AAPL",
-        kind: InstrumentKind.Stock,
       },
       quantity: 10,
       limitPrice: 230,

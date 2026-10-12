@@ -9,7 +9,7 @@ import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
 import { ForecastDirection } from "@solyx/core/forecast";
 import type { Forecast, ForecastOutcome } from "@solyx/core/forecast";
-import { InstrumentKind, Market } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
 import { TimePrecision } from "@solyx/core/news";
 import { ReportStance } from "@solyx/core/report";
 import type { Report } from "@solyx/core/report";
@@ -53,7 +53,7 @@ function report(revision: number, patch: Partial<Report> = {}): Report {
 function forecast(id: string, patch: Partial<Forecast> = {}): Forecast {
   return {
     id,
-    instrument: { ...TSMC, kind: InstrumentKind.Stock },
+    instrument: TSMC,
     horizon: 2,
     direction: ForecastDirection.Neutral,
     plan: null,
@@ -168,7 +168,7 @@ test("forecasts read back as made, oldest first, for one listing or all", () => 
   const { store } = open();
 
   const mediatek = forecast("b", {
-    instrument: { ...MEDIATEK, kind: InstrumentKind.Stock },
+    instrument: MEDIATEK,
   });
 
   store.addForecast(forecast("a"));
@@ -274,7 +274,7 @@ test("a search finds forecasts by their rationale, claims and listing", () => {
   );
   store.addForecast(
     forecast("b", {
-      instrument: { ...MEDIATEK, kind: InstrumentKind.Stock },
+      instrument: MEDIATEK,
       rationale: "Results day; the range should break.",
     })
   );

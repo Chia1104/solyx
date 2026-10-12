@@ -10,7 +10,7 @@ import { BrokerMode } from "@solyx/core/broker";
 import { MagiUnit, MagiVote } from "@solyx/core/council";
 import type { Council, UnitVote } from "@solyx/core/council";
 import { ForecastDirection } from "@solyx/core/forecast";
-import { InstrumentKind, Market } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
 import { ReportStance } from "@solyx/core/report";
 
@@ -22,7 +22,7 @@ import {
 } from "../src/magi.ts";
 import type { BallotBox } from "../src/magi.ts";
 
-const TSMC = { market: Market.TW, symbol: "2330", kind: InstrumentKind.Stock };
+const TSMC = { market: Market.TW, symbol: "2330" };
 
 /** A council whose units answer as `answer` says, by the unit's own name in its instructions. */
 function setup(answer: (unit: string) => string | Error) {

@@ -77,7 +77,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "- Sessions in Taipei time: orders from 08:30, continuous trading 09:00 to 13:25 and a closing auction to 13:30, after-hours fixed-price trading 14:00 to 14:30. get_market_status gives the live state.",
       "- A board lot is 1,000 shares. One order is either whole board lots or an odd lot of 1 to 999 shares, which trades in its own book. Market orders are not accepted for odd lots.",
       "- Quantities are always in shares: 2 lots is 2000.",
-      "- Stock ticks: 0.01 below 10, 0.05 below 50, 0.1 below 100, 0.5 below 500, 1 below 1,000, then 5. ETF ticks: 0.01 below 50, then 0.05.",
+      "- Stock ticks: 0.01 below 10, 0.05 below 50, 0.1 below 100, 0.5 below 500, 1 below 1,000, then 5. ETF, ETN and REIT ticks: 0.01 below 50, then 0.05. The app tells which a listing takes from its code.",
       "- Prices move at most 10% from the previous close in a day; some ETFs have no limit.",
       "- Costs: brokers charge up to 0.1425% commission on each side, and selling pays securities transaction tax (0.3% for stocks, lower for ETFs and day trades). Include them when the edge is small.",
       "- Settlement is T+2; cash must be in the account by then.",
