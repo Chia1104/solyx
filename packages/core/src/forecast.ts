@@ -6,7 +6,9 @@ import { sentences } from "@solyx/utils/search";
 import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import type { Council } from "./council.ts";
+import type { Dividend } from "./fundamentals.ts";
 import { exchangeMidnight, shiftDate, symbolRefSchema } from "./market.ts";
+import type { Market } from "./market.ts";
 import {
   ReportStance,
   claimSchema,
@@ -103,7 +105,14 @@ export interface PlanOutcome {
 export interface ForecastOutcome {
   /** Exchange-local date, `YYYY-MM-DD`, of the horizon's session. */
   date: string;
+  /** The session's close as it traded. */
   close: number;
+  /**
+   * Cash a share that went ex after the anchor through the horizon's session, which the close and
+   * the plan's bars were judged with added back, since the price falls by it with nothing lost; 0
+   * where none did.
+   */
+  distributed: number;
   /** Index of the scenario whose band held the close. */
   scenario: number;
   /** Squared error of the probabilities against what happened: 0 when sure and right, 2 when sure and wrong. */
@@ -420,37 +429,53 @@ function replayPlan(
 /**
  * How a forecast came out, from its listing's daily bars, oldest first: `null` until its horizon's
  * session has closed, and when the bars start after its anchor, since its sessions cannot then be
- * counted.
+ * counted. The cash of `dividends` that went ex inside the horizon is added back to each bar from
+ * its ex-day on, so a price that fell by a dividend is not judged as a fall. Stock distributed and
+ * splits are not made up for.
  */
 export function judgeForecast(
   forecast: Forecast,
   daily: readonly Candle[],
-  now: Date
+  now: Date,
+  dividends: readonly Dividend[] = []
 ): ForecastOutcome | null {
   const { instrument, anchor, horizon, direction, plan, scenarios } = forecast;
   const dateOf = (bar: Candle) => candleDate(instrument.market, bar.time);
 
   if (daily.length === 0 || dateOf(daily[0]) > anchor.date) return null;
 
-  const sessions = daily
+  const traded = daily
     .filter((bar) => dateOf(bar) > anchor.date)
     .slice(0, horizon);
 
-  if (sessions.length < horizon) return null;
+  if (traded.length < horizon) return null;
 
-  const last = sessions[horizon - 1];
-  const date = dateOf(last);
+  const date = dateOf(traded[horizon - 1]);
 
   // Today's bar moves until the close.
   if (now.getTime() / 1000 < regularHours(instrument.market, date).close) {
     return null;
   }
 
+  const sessions = traded.map((bar) => {
+    const gone = cashGoneEx(dividends, anchor.date, dateOf(bar));
+
+    return {
+      ...bar,
+      open: bar.open + gone,
+      high: bar.high + gone,
+      low: bar.low + gone,
+      close: bar.close + gone,
+    };
+  });
+
+  const last = sessions[horizon - 1];
   const scenario = scenarios.findIndex((band) => inBand(last.close, band));
 
   return {
     date,
-    close: last.close,
+    close: traded[horizon - 1].close,
+    distributed: cashGoneEx(dividends, anchor.date, date),
     scenario,
     brier: brierOf(
       scenarios.map(({ probability }) => probability / 100),
@@ -466,18 +491,42 @@ export function judgeForecast(
 // Fewer moves than a quarter's sessions say too little of how a listing moves.
 const BASE_RATE_MOVES = 60;
 
+/** Cash a share that went ex after `after` through `through`, both exchange-local days. */
+const cashGoneEx = (
+  dividends: readonly Dividend[],
+  after: string,
+  through: string
+) =>
+  sumBy(
+    dividends.filter(
+      ({ cashExDate }) =>
+        cashExDate !== null && cashExDate > after && cashExDate <= through
+    ),
+    ({ cash }) => cash
+  );
+
 /**
  * How far a listing's close has moved over `horizon` sessions, each as the later close over the
- * earlier, for every such span its daily bars hold, oldest first. A split or a capital reduction
- * inside the bars reads as a move.
+ * earlier, for every such span its daily bars hold, oldest first. The cash of `dividends` that
+ * went ex inside a span counts with its later close, as a forecast is judged. A split, a capital
+ * reduction or stock distributed inside the bars reads as a move.
  */
 export function horizonMoves(
+  market: Market,
   daily: readonly Candle[],
-  horizon: number
+  horizon: number,
+  dividends: readonly Dividend[] = []
 ): number[] {
+  const dates = daily.map((bar) => candleDate(market, bar.time));
+
   return daily
     .slice(horizon)
-    .map((bar, index) => bar.close / daily[index].close);
+    .map(
+      (bar, index) =>
+        (bar.close +
+          cashGoneEx(dividends, dates[index], dates[index + horizon])) /
+        daily[index].close
+    );
 }
 
 /**

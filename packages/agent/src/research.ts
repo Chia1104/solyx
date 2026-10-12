@@ -287,7 +287,7 @@ export function forecastText(forecast: Forecast): string {
     : "";
 
   lines.push(
-    `  outcome: closed ${outcome.close} on ${outcome.date}, in "${scenarios[outcome.scenario].label}", Brier ${outcome.brier.toFixed(2)}${planned}`
+    `  outcome: closed ${outcome.close} on ${outcome.date}${outcome.distributed > 0 ? `, judged with the ${figure(outcome.distributed)} that went ex added back` : ""}, in "${scenarios[outcome.scenario].label}", Brier ${outcome.brier.toFixed(2)}${planned}`
   );
 
   return lines.join("\n");
@@ -706,7 +706,7 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetBaseRates,
         replay: "safe",
-        description: `How a listing's close has moved over a horizon in its own daily bars, before any view of it: the spread of every move of that many sessions the bars hold, and, for band edges you give, how often those moves, carried from the newest bar, land in each band. Those shares are the base rates a forecast is scored against once kept, so call it with your edges before you set the probabilities. A split or a capital reduction inside the bars reads as a move, and so does every day the shares went ex.`,
+        description: `How a listing's close has moved over a horizon in its own daily bars, before any view of it: the spread of every move of that many sessions the bars hold, and, for band edges you give, how often those moves, carried from the newest bar, land in each band. Those shares are the base rates a forecast is scored against once kept, so call it with your edges before you set the probabilities. Cash that went ex inside a move counts with its later close, as a forecast is judged; a split, a capital reduction or stock distributed inside the bars reads as a move.`,
         parameters: z.object({
           symbol: symbolRefSchema,
           horizon: forecastDraftSchema.shape.horizon.describe(
@@ -800,7 +800,7 @@ export function createResearch(options: ResearchOptions): Extension {
         // The forecast's id is kept with the call, so a call that runs again finds what it made.
         replay: "safe",
         description:
-          "Puts a forecast for a listing on record under its report. The app anchors it on the newest daily bar, freezes it, and scores it once its horizon's session closes: the probabilities against the band the close lands in, and the plan against the bars, with every tie counted against the plan. One per listing per session. It is no order and reaches no broker.",
+          "Puts a forecast for a listing on record under its report. The app anchors it on the newest daily bar, freezes it, and scores it once its horizon's session closes: the probabilities against the band the close lands in, and the plan against the bars, with every tie counted against the plan. Cash that goes ex inside the horizon is added back to the bars before they are judged, so set no band or level lower for an ex-dividend day; stock distributed and splits are not made up for. One per listing per session. It is no order and reaches no broker.",
         parameters: forecastParameters,
         async execute(draft, api, context): Promise<ToolOutput> {
           const id = await api.memo(

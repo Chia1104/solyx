@@ -15,6 +15,7 @@ import {
 } from "../src/council.ts";
 import { ForecastDirection, ForecastViolationCode } from "../src/forecast.ts";
 import type { Forecast, ForecastDraft } from "../src/forecast.ts";
+import type { Fundamentals } from "../src/fundamentals.ts";
 import { Market, symbolKey } from "../src/market.ts";
 import { NewsChannel, TimePrecision } from "../src/news.ts";
 import type { NewsRecord } from "../src/news.ts";
@@ -195,12 +196,13 @@ function setup() {
     },
   ]);
 
+  const dividends = vi.fn<Fundamentals["dividends"]>(async () => []);
   const store = memoryStore();
 
   const desk = new ResearchDesk({
     store,
     marketData: { candles },
-    fundamentals: { statements },
+    fundamentals: { statements, dividends },
     onChange,
     now: () => clock.now,
     createId: () => "f-1",
@@ -221,6 +223,7 @@ function setup() {
     candles,
     quarters,
     statements,
+    dividends,
     onChange,
     cover,
   };
@@ -343,6 +346,42 @@ test("forecasting under an id again returns the forecast already made", async ()
   expect(await desk.forecast({ ...draft, id: "run-1" })).toEqual(first);
   expect(store.forecasts()).toHaveLength(1);
   expect(candles).not.toHaveBeenCalled();
+});
+
+test("a forecast waits for the listing's distributions before it settles, and is judged with what went ex added back", async () => {
+  const { desk, store, cover, clock, bars, dividends } = setup();
+
+  await cover();
+  await desk.forecast(draft);
+
+  clock.now = AFTER_HORIZON;
+  // 40 went ex on the horizon's session, where the bars close at 980.
+  bars.daily = [ANCHOR_BAR, bar("2026-09-30", 1010), bar("2026-10-01", 980)];
+  dividends.mockRejectedValueOnce(new Error("FinMind answered 402"));
+
+  // An outcome is kept once, so one judged without the distribution could not be put right.
+  expect((await desk.coverage(TSMC)).forecasts[0].outcome).toBe(null);
+
+  dividends.mockResolvedValue([
+    {
+      period: "115年第2季",
+      announced: null,
+      cash: 40,
+      stock: 0,
+      cashExDate: "2026-10-01",
+      cashPaidOn: null,
+      stockExDate: null,
+    },
+  ]);
+
+  await desk.coverage(TSMC);
+
+  // 980 as traded, and 1020 with the 40 added back: the "Up" band.
+  expect(store.forecast("f-1")?.outcome).toMatchObject({
+    close: 980,
+    distributed: 40,
+    scenario: 1,
+  });
 });
 
 test("a listing without bars cannot anchor a forecast", async () => {
@@ -487,7 +526,7 @@ test("claims are read against their quotes as they are kept, and stay when the m
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => bars },
-    fundamentals: { statements: async () => [] },
+    fundamentals: { statements: async () => [], dividends: async () => [] },
     auditor: async () => ({ audit }),
     now: () => AT_ANCHOR,
   });
@@ -530,7 +569,7 @@ test("a report's events are read against their quotes, refused once behind the e
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => [ANCHOR_BAR] },
-    fundamentals: { statements: async () => [] },
+    fundamentals: { statements: async () => [], dividends: async () => [] },
     auditor: async () => ({ audit }),
     now: () => clock.now,
   });
@@ -704,7 +743,7 @@ function watching(audit = vi.fn()) {
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => [ANCHOR_BAR] },
-    fundamentals: { statements: async () => [] },
+    fundamentals: { statements: async () => [], dividends: async () => [] },
     auditor: async () => ({ audit }),
     onChange,
     now: () => AT_ANCHOR,
@@ -828,7 +867,7 @@ test("a search finds by meaning what shares no word with the query, beside what 
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => [ANCHOR_BAR] },
-    fundamentals: { statements: async () => [] },
+    fundamentals: { statements: async () => [], dividends: async () => [] },
     embedder: () => ({
       space: "local",
       embed: async (texts: readonly string[]) => {

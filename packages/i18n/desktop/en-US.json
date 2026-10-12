@@ -665,6 +665,7 @@
       "held": "Held",
       "history": "history {{share}}",
       "closed": "Closed at {{close}} on {{date}}",
+      "distributed": "judged with {{cash}} gone ex added back",
       "plan-result": {
         "not-entered": "Never entered",
         "hit-target": "Reached the target",
