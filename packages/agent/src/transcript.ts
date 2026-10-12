@@ -137,6 +137,24 @@ function runEndOf(message: AssistantMessage): RunEndEvent | undefined {
 
 // Results pi-durable writes for calls that never finished: stopped with their run, or cut off by
 // the app exiting while they ran.
+/**
+ * What a conversation read, oldest first as `entries` are given: every text a tool returned and
+ * every message the user wrote, which is all a quote in it can be the words of.
+ */
+export function readTexts(entries: readonly EntryRecord[]): string[] {
+  return entries.flatMap((entry) => {
+    const [stored] = entry.model ?? [];
+
+    if (ToolResultEntry.is(entry) && stored?.role === "toolResult") {
+      return [contentText(stored.content)];
+    }
+
+    return UserEntry.is(entry) && stored?.role === "user"
+      ? [contentText(stored.content)]
+      : [];
+  });
+}
+
 const UNFINISHED = new Set(["aborted", "interrupted"]);
 
 /** Whether a stored tool result stands for a call that never finished. */

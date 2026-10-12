@@ -144,6 +144,13 @@ test("a run stores every message and streams the same conversation it replays", 
     { kind: "assistant", text: "You watch 2330." },
   ]);
   expect(foldEvents(await runtime.transcript(id)).items).toEqual(live.items);
+
+  // What the conversation read is the user's message and the tool's answer, not the replies.
+  const read = await runtime.read(id);
+
+  expect(read).toHaveLength(2);
+  expect(read[0]).toContain("What do I watch?");
+  expect(read.join("\n")).not.toContain("You watch 2330.");
   expect(events.at(-1)).toEqual({
     type: AgentEventType.RunEnd,
     reason: RunEndReason.Done,

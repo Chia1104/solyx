@@ -198,6 +198,11 @@ export class ResearchDesk {
     this.#options = options;
   }
 
+  /** A listing's report in force; `undefined` while it has none. */
+  report(symbol: SymbolRef): Report | undefined {
+    return this.#options.store.report(symbol);
+  }
+
   async revise(draft: ReportDraft): Promise<Revision> {
     const { store, now = Date.now } = this.#options;
     const financialsThrough = await this.#newestQuarter(draft.symbol);
