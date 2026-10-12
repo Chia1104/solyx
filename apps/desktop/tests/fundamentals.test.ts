@@ -3,6 +3,7 @@ import { expect, test, vi } from "vite-plus/test";
 import { RestrictionKind } from "@solyx/core/fundamentals";
 import type {
   FundamentalsProvider,
+  FundsProvider,
   RestrictionsProvider,
 } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
@@ -19,6 +20,18 @@ const SHORT_SALE = {
   from: "2026-10-05",
   until: "2026-10-12",
   note: "除息",
+};
+
+const INDEX_FUND = {
+  name: "範例台灣卓越50證券投資信託基金",
+  category: "國內成分證券指數股票型基金",
+  index: "臺灣50指數",
+  benchmark: null,
+  foreignHoldings: false,
+  manager: "王小明",
+  listedOn: "2003-06-30",
+  units: 22_239_000_000,
+  asOf: "2026-10-06",
 };
 
 const DISPOSITION = {
@@ -58,11 +71,15 @@ function setup(answers = memoryAnswers()) {
         { symbol: "2330", ...DISPOSITION },
       ]
     ),
+    getFunds: vi.fn<FundsProvider["getFunds"]>(async () => [
+      { symbol: "0050", ...INDEX_FUND },
+    ]),
   };
 
   const fundamentals = createFundamentals({
     providers: [provider],
     restrictions: [lists],
+    funds: [lists],
     answers,
     now: () => new Date(clock.now),
   });
@@ -171,4 +188,26 @@ test("a market no source lists has no restrictions", async () => {
     await fundamentals.restrictions({ market: Market.US, symbol: "AAPL" })
   ).toEqual([]);
   expect(lists.getRestrictions).not.toHaveBeenCalled();
+});
+
+test("a fund is what its market's exchanges list it as, read for every fund at once and twice a day at most, and a stock is none", async () => {
+  const { clock, lists, fundamentals } = setup();
+
+  expect(await fundamentals.fund(TAIWAN_50)).toEqual(INDEX_FUND);
+  expect(await fundamentals.fund(TSMC)).toBeNull();
+  expect(lists.getFunds).toHaveBeenCalledExactlyOnceWith(Market.TW);
+
+  clock.now += 13 * HOUR_MS;
+  await fundamentals.fund(TAIWAN_50);
+
+  expect(lists.getFunds).toHaveBeenCalledTimes(2);
+});
+
+test("a market no source lists the funds of has none", async () => {
+  const { lists, fundamentals } = setup();
+
+  expect(
+    await fundamentals.fund({ market: Market.US, symbol: "SPY" })
+  ).toBeNull();
+  expect(lists.getFunds).not.toHaveBeenCalled();
 });

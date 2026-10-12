@@ -5,6 +5,8 @@ import * as z from "zod";
 
 import { RestrictionKind } from "@solyx/core/fundamentals";
 import type {
+  FundsProvider,
+  ListedFund,
   ListedRestriction,
   RestrictionsProvider,
 } from "@solyx/core/fundamentals";
@@ -186,12 +188,54 @@ function tpexHalts(
   return halts;
 }
 
+// What the exchange fills a field with when it has nothing to say.
+const NOTHING = new Set(["", "不適用", "無", "NA"]);
+
+const textOrNothingSchema = textSchema
+  .transform((text) => (NOTHING.has(text) ? null : text))
+  .catch(null);
+
+// One fund of TWSE's list. Only its code, name and kind must read; the rest is left empty where it does not.
+const twseFundSchema = z
+  .object({
+    基金代號: codeSchema,
+    基金中文名稱: textSchema.min(1),
+    基金類型: textSchema.min(1),
+    "標的指數/追蹤指數名稱": textOrNothingSchema,
+    績效指標中文名稱: textOrNothingSchema,
+    是否包含國外成分股: textSchema
+      .pipe(z.enum(["是", "否"]))
+      .transform((answer) => answer === "是")
+      .nullable()
+      .catch(null),
+    基金經理人: textOrNothingSchema,
+    上市日期: rocDaySchema.nullable().catch(null),
+    "發行單位數/轉換數": textSchema
+      .regex(/^\d+$/)
+      .transform(Number)
+      .nullable()
+      .catch(null),
+    出表日期: rocDaySchema,
+  })
+  .transform((row): ListedFund => ({
+    symbol: row.基金代號,
+    name: row.基金中文名稱,
+    category: row.基金類型,
+    index: row["標的指數/追蹤指數名稱"],
+    benchmark: row.績效指標中文名稱,
+    foreignHoldings: row.是否包含國外成分股,
+    manager: row.基金經理人,
+    listedOn: row.上市日期,
+    units: row["發行單位數/轉換數"],
+    asOf: row.出表日期,
+  }));
+
 const listSchema = z.array(z.record(z.string(), z.unknown()));
 
 interface Exchange {
   name: string;
   api: KyInstance;
-  /** The key its lists name a listing's code under. */
+  /** The key most of its lists name a listing's code under. */
   code: string;
 }
 
@@ -200,9 +244,10 @@ interface Exchange {
  * is the exchange writing the list another way, not a market with nothing listed.
  */
 async function list<Row>(
-  { name, api, code }: Exchange,
+  { name, api, code: usualCode }: Exchange,
   path: string,
-  schema: z.ZodType<Row>
+  schema: z.ZodType<Row>,
+  code = usualCode
 ): Promise<Row[]> {
   const response = await api.get(path);
   // A body that is not JSON, as a page saying the site is closed, fails as no list below.
@@ -239,13 +284,14 @@ export interface TwExchangesOptions {
 }
 
 /**
- * The restrictions Taiwan's exchanges put on their listings, from the open data of the Taiwan Stock
- * Exchange and the Taipei Exchange, which need no key. Each list is the exchange's own of today, so
- * one request answers for every listing and a restriction that ended may be gone from it.
+ * The restrictions Taiwan's exchanges put on their listings and the funds they list, from the open
+ * data of the Taiwan Stock Exchange and the Taipei Exchange, which need no key. Each list is the
+ * exchange's own of today, so one request answers for every listing and a restriction that ended
+ * may be gone from it. The Taipei Exchange publishes no list of its funds, so those have no profile.
  */
 export function createTwExchanges(
   options: TwExchangesOptions = {}
-): RestrictionsProvider {
+): RestrictionsProvider & FundsProvider {
   const exchange = (name: string, baseUrl: string, code: string): Exchange => ({
     name,
     code,
@@ -296,6 +342,12 @@ export function createTwExchanges(
       ]);
 
       return sortBy(lists.flat(), [({ from }) => from]);
+    },
+
+    async getFunds(market) {
+      if (market !== Market.TW) return [];
+
+      return list(twse, "opendata/t187ap47_L", twseFundSchema, "基金代號");
     },
   };
 }

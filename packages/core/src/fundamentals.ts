@@ -141,6 +141,41 @@ export interface RestrictionsProvider {
   getRestrictions(market: Market): Promise<ListedRestriction[]>;
 }
 
+/** What a fund is, as its exchange lists it. */
+export interface FundProfile {
+  /** Its full name. */
+  name: string;
+  /** The kind of fund in the exchange's words, such as `槓桿/反向指數股票型基金`. */
+  category: string;
+  /** The index it tracks; `null` for a fund that tracks none, as an actively managed one. */
+  index: string | null;
+  /** What an actively managed fund measures itself against; `null` where it names nothing. */
+  benchmark: string | null;
+  /** Whether it may hold securities listed abroad; `null` where the exchange does not say. */
+  foreignHoldings: boolean | null;
+  manager: string | null;
+  /** The exchange-local date it listed, `YYYY-MM-DD`; `null` where the exchange gives none. */
+  listedOn: string | null;
+  /** Units outstanding on `asOf`; `null` where the exchange gives none. */
+  units: number | null;
+  /** The exchange-local date the exchange drew its list up, `YYYY-MM-DD`. */
+  asOf: string;
+}
+
+/** A fund's profile with its code, as an exchange lists all its funds at once. */
+export interface ListedFund extends FundProfile {
+  /** The fund's exchange code, as a `SymbolRef` writes it. */
+  symbol: string;
+}
+
+/** One implementation per source of the exchanges' own lists (`@solyx/fundamentals/*`); it runs only in the main process. */
+export interface FundsProvider {
+  readonly id: string;
+  readonly markets: readonly Market[];
+  /** Every fund a market's exchanges list today; none for a market it does not cover. */
+  getFunds(market: Market): Promise<ListedFund[]>;
+}
+
 /** A listing's fundamentals from whichever provider covers its market, oldest first; none while no provider does. */
 export interface Fundamentals {
   /** The id of the provider that covers a market; `undefined` while none does, which is why its listings have nothing to read. */
@@ -155,6 +190,8 @@ export interface Fundamentals {
   dividends(symbol: SymbolRef): Promise<Dividend[]>;
   /** What its exchange lists today, oldest first: the restrictions in force and those announced; none while no source lists its market's. */
   restrictions(symbol: SymbolRef): Promise<TradingRestriction[]>;
+  /** What the listing is as a fund; `null` for one no source lists as a fund, which a stock is and a fund its exchange publishes no list of may be. */
+  fund(symbol: SymbolRef): Promise<FundProfile | null>;
 }
 
 /** A quarter with what it says against the quarters around it; `null` where a figure it needs is missing. */

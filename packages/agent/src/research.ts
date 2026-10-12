@@ -25,7 +25,11 @@ import {
   statementMetrics,
   trailingCash,
 } from "@solyx/core/fundamentals";
-import type { Dividend, Fundamentals } from "@solyx/core/fundamentals";
+import type {
+  Dividend,
+  FundProfile,
+  Fundamentals,
+} from "@solyx/core/fundamentals";
 import { currencyOf, exchangeDate, symbolRefSchema } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -359,6 +363,39 @@ async function filed<Row>(
   }
 }
 
+/** What a fund is, as its exchange lists it, a line for each thing the exchange says. */
+function fundText(fund: FundProfile): string[] {
+  return [
+    `A fund, as its exchange lists it, as_of ${fund.asOf}: ${fund.name}`,
+    `  kind: ${fund.category}`,
+    `  tracks: ${fund.index ?? "no index"}`,
+    ...(fund.benchmark === null
+      ? []
+      : [`  measures itself against: ${fund.benchmark}`]),
+    ...(fund.foreignHoldings === null
+      ? []
+      : [
+          `  may hold securities listed abroad: ${fund.foreignHoldings ? "yes" : "no"}`,
+        ]),
+    ...(fund.listedOn === null ? [] : [`  listed: ${fund.listedOn}`]),
+    ...(fund.manager === null ? [] : [`  manager: ${fund.manager}`]),
+    ...(fund.units === null ? [] : [`  units outstanding: ${fund.units}`]),
+  ];
+}
+
+/** Why a listing has neither statements nor revenue on file with `source`. */
+function nothingFiledText(
+  fund: FundProfile | undefined,
+  distributes: boolean,
+  source: string
+): string {
+  if (fund) return "A fund files neither statements nor revenue.";
+
+  return distributes
+    ? "With distributions and neither statements nor revenue, it reads as a fund such as an ETF, which files none."
+    : `With nothing on file, it is a fund that distributes nothing, a listing too new to have filed, or a code ${source} does not know.`;
+}
+
 /** Where the shares trade against their trailing earnings now, and where they have over the bars the chart keeps. */
 async function valuationText(
   symbol: SymbolRef,
@@ -455,7 +492,7 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetFundamentals,
         replay: "safe",
-        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; its balance sheets at those quarters' ends, with the current ratio and liabilities against assets; its cash flows for each quarter alone, with free cash flow and the four quarters each closes; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
+        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; its balance sheets at those quarters' ends, with the current ratio and liabilities against assets; its cash flows for each quarter alone, with free cash flow and the four quarters each closes; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. For a fund the Taiwan Stock Exchange lists, the answer opens with what it is: its kind in the exchange's words, such as a leveraged, inverse, futures or actively managed fund, the index it tracks or what it measures itself against, whether it may hold securities listed abroad, the day it listed, its manager and its units outstanding. The Taipei Exchange publishes no such list, so a fund listed there, as bond ETFs are, opens with none. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
           const listing = `${symbol.market} ${symbol.symbol}`;
@@ -468,13 +505,18 @@ export function createResearch(options: ResearchOptions): Extension {
             };
           }
 
-          const [statements, sheets, flows, monthly, dividends] =
+          const [statements, sheets, flows, monthly, dividends, funds] =
             await Promise.all([
               filed(fundamentals.statements(symbol)),
               filed(fundamentals.balanceSheets(symbol)),
               filed(fundamentals.cashFlows(symbol)),
               filed(fundamentals.monthlyRevenue(symbol)),
               filed(fundamentals.dividends(symbol)),
+              filed(
+                fundamentals
+                  .fund(symbol)
+                  .then((fund) => (fund === null ? [] : [fund]))
+              ),
             ]);
 
           const parts = [statements, sheets, flows, monthly, dividends];
@@ -511,6 +553,11 @@ export function createResearch(options: ResearchOptions): Extension {
           return {
             text: [
               `${listing} fundamentals as filed, from ${source}, as_of ${today}; amounts in ${currency} millions`,
+              ...(funds.failure === null
+                ? funds.rows.flatMap(fundText)
+                : [
+                    `Whether its exchange lists it as a fund could not be read: ${funds.failure}`,
+                  ]),
               ...part("Quarterly statements", statements, [
                 "Quarters, each for the quarter alone, by its last day:",
                 "quarter,revenue,revenue yoy,revenue qoq,gross margin,operating margin,net margin,eps,eps yoy,trailing eps",
@@ -593,9 +640,11 @@ export function createResearch(options: ResearchOptions): Extension {
               ]),
               ...(nothingFiled
                 ? [
-                    dividends.rows.length > 0
-                      ? "With distributions and neither statements nor revenue, it reads as a fund such as an ETF, which files none."
-                      : `With nothing on file, it is a fund that distributes nothing, a listing too new to have filed, or a code ${source} does not know.`,
+                    nothingFiledText(
+                      funds.rows.at(0),
+                      dividends.rows.length > 0,
+                      source
+                    ),
                   ]
                 : []),
               ...part("Distributions", dividends, [

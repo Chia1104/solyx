@@ -17,6 +17,7 @@ import type {
   BalanceSheet,
   CashFlow,
   Dividend,
+  FundProfile,
   MonthlyRevenue,
   QuarterStatement,
 } from "@solyx/core/fundamentals";
@@ -233,6 +234,10 @@ interface Filed {
   dividends: Dividend[];
   /** Why the months cannot be read, while they cannot. */
   monthsFailure?: string;
+  /** What the listing is as a fund, where its exchange lists it as one. */
+  fund?: FundProfile;
+  /** Why the exchange's funds cannot be read, while they cannot. */
+  fundFailure?: string;
 }
 
 function setup(council?: Council) {
@@ -263,6 +268,11 @@ function setup(council?: Council) {
     },
     dividends: async () => filed.dividends,
     restrictions: async () => [],
+    fund: async () => {
+      if (filed.fundFailure) throw new Error(filed.fundFailure);
+
+      return filed.fund ?? null;
+    },
   };
 
   const desk = new ResearchDesk({
@@ -561,6 +571,83 @@ test("a fund's distributions read without statements or revenue, which it files 
   expect(text).toContain("it reads as a fund such as an ETF");
   expect(text).toContain("not given,115,1,2026-07-21,2026-08-10,0,none");
   expect(text).not.toContain("Price to earnings");
+});
+
+test("a fund its exchange lists opens with what it is, and is told from a listing with nothing filed", async () => {
+  const { run, filed } = setup();
+
+  filed.quarters = [];
+  filed.sheets = [];
+  filed.flows = [];
+  filed.months = [];
+  filed.dividends = [];
+  filed.fund = {
+    name: "範例台灣50單日正向2倍基金",
+    category: "槓桿/反向指數股票型基金",
+    index: "臺灣50指數",
+    benchmark: null,
+    foreignHoldings: false,
+    manager: null,
+    listedOn: "2014-10-31",
+    units: 6_759_348_000,
+    asOf: "2026-09-28",
+  };
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    [
+      "A fund, as its exchange lists it, as_of 2026-09-28: 範例台灣50單日正向2倍基金",
+      "  kind: 槓桿/反向指數股票型基金",
+      "  tracks: 臺灣50指數",
+      "  may hold securities listed abroad: no",
+      "  listed: 2014-10-31",
+      "  units outstanding: 6759348000",
+      "No quarterly statements on file with fake.",
+    ].join("\n")
+  );
+  expect(text).toContain("A fund files neither statements nor revenue.");
+  expect(text).not.toContain("or a code fake does not know");
+});
+
+test("an actively managed fund tracks no index and names what it measures itself against", async () => {
+  const { run, filed } = setup();
+
+  filed.fund = {
+    name: "範例台股增長主動式ETF基金",
+    category: "國內成分證券主動式交易所交易基金(股票)",
+    index: null,
+    benchmark: "臺灣證券交易所發行量加權股價指數",
+    foreignHoldings: null,
+    manager: "王小明",
+    listedOn: null,
+    units: null,
+    asOf: "2026-09-28",
+  };
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    [
+      "  tracks: no index",
+      "  measures itself against: 臺灣證券交易所發行量加權股價指數",
+      "  manager: 王小明",
+      "Quarters, each for the quarter alone, by its last day:",
+    ].join("\n")
+  );
+});
+
+test("the exchange's funds failing to read is said, and the filed figures stay", async () => {
+  const { run, filed } = setup();
+
+  filed.fundFailure = "TWSE answered 503";
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    "Whether its exchange lists it as a fund could not be read: TWSE answered 503"
+  );
+  expect(text).toContain("Quarters, each for the quarter alone");
 });
 
 test("a listing with nothing on file says so of each part", async () => {

@@ -217,9 +217,12 @@ export function createServices(config: ConfigFile) {
     plan: () => config.read().providers.finmind.plan,
   });
 
+  const twExchanges = createTwExchanges();
+
   const fundamentals = createFundamentals({
     providers: [finMind],
-    restrictions: [createTwExchanges()],
+    restrictions: [twExchanges],
+    funds: [twExchanges],
     answers: cache.answers,
   });
 
