@@ -283,6 +283,7 @@
     "economy": "總經",
     "exchange": "交易所",
     "closed": "休市",
+    "release-page": "開啟主管機關的發布頁面",
     "release-deadline-hint": "主管機關訂定的最晚日期，可能提早公布。",
     "schedule-unread": "無法讀取{{markets}}的完整市場日期，總經數據公布日或休市日可能缺漏。",
     "indicators": {

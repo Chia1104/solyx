@@ -50,12 +50,31 @@ const CALENDAR_START = "var VueData = ";
 
 const CALENDAR_END = "</script>";
 
-/** One release's calendar: twelve months from the calendar's first, each with the days it comes out. */
+const pageSchema = z.url({ protocol: /^https$/ });
+
+// A time of day, which the calendar writes `16:00`.
+const timeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{1,2}:\d{2}$/)
+  .transform((time) => time.padStart(5, "0"));
+
+/**
+ * One release's calendar: twelve months from the calendar's first, each with the days it comes
+ * out, and the pages its agency publishes it on, its news first.
+ */
 const releaseSchema = z.object({
   ContentUrl: z.string(),
   timedatas: z.array(
-    z.array(z.object({ date: z.string(), notice: z.string() }))
+    z.array(
+      z.object({
+        date: z.string(),
+        time: timeSchema.nullable().catch(null),
+        notice: z.string(),
+      })
+    )
   ),
+  links: z.array(z.object({ url: z.string() })).catch([]),
 });
 
 const calendarSchema = z.object({
@@ -117,10 +136,15 @@ function followedReleases(page: string): MacroRelease[] {
 
     if (!followed) return [];
 
+    const page =
+      parsed.data.links
+        .map(({ url }) => url.trim())
+        .find((url) => pageSchema.safeParse(url).success) ?? null;
+
     return parsed.data.timedatas.flatMap((days, index) => {
       const month = first.add({ months: index });
 
-      return days.flatMap(({ date, notice }): MacroRelease[] => {
+      return days.flatMap(({ date, time, notice }): MacroRelease[] => {
         const day = RELEASE_DAY.exec(date.trim());
 
         if (!day || Number(day[1]) > month.daysInMonth) return [];
@@ -130,8 +154,10 @@ function followedReleases(page: string): MacroRelease[] {
             market: Market.TW,
             indicator: followed.indicator,
             date: month.toPlainDate({ day: Number(day[1]) }).toString(),
+            time,
             timing: day[2] ? EventTiming.Deadline : EventTiming.Set,
             period: latestPeriod(notice),
+            page,
           },
         ];
       });
@@ -144,7 +170,10 @@ export interface StatGovTwOptions {
   fetch?: typeof globalThis.fetch;
 }
 
-/** Taiwan's economic releases from the national statistics portal's calendar, which needs no key. */
+/**
+ * Taiwan's economic releases from the national statistics portal's calendar, which needs no key:
+ * each on its day and at its time, with the page its agency publishes it on.
+ */
 export function createStatGovTw(
   options: StatGovTwOptions = {}
 ): MacroCalendarProvider {

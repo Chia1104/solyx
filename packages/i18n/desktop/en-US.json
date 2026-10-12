@@ -283,6 +283,7 @@
     "economy": "Economy",
     "exchange": "Exchange",
     "closed": "Market closed",
+    "release-page": "Open the agency's page for this release",
     "release-deadline-hint": "The latest day the agency set; the figures may well come out earlier.",
     "schedule-unread": "Couldn't read every market date of {{markets}}, so economic releases or closures may be missing.",
     "indicators": {

@@ -194,12 +194,23 @@ function ReleaseRow({ release }: { release: MacroRelease }) {
           WHAT_CLASS,
           release.timing === EventTiming.Deadline && "text-muted"
         )}>
-        {t(`calendar.indicators.${release.indicator}`)}
-        {release.period === null ? null : (
-          <span className="ms-1.5 text-xs text-muted tabular-nums">
-            {release.period}
-          </span>
+        {release.page === null ? (
+          t(`calendar.indicators.${release.indicator}`)
+        ) : (
+          <a
+            href={release.page}
+            target="_blank"
+            rel="noreferrer"
+            title={t("calendar.release-page")}
+            className="hover:underline">
+            {t(`calendar.indicators.${release.indicator}`)}
+          </a>
         )}
+        <span className="ms-1.5 text-xs text-muted tabular-nums">
+          {[release.period, release.time]
+            .filter((part) => part !== null)
+            .join(" · ")}
+        </span>
       </span>
     </li>
   );
