@@ -300,9 +300,110 @@ test("an answer that is no list of rows fails under the exchange's name", async 
   );
 });
 
+/** A row of TWSE's list of funds, with the fields this module reads and some it does not. */
+const fund = (fields: Record<string, string>) => ({
+  出表日期: "1150928",
+  基金代號: "0050",
+  基金簡稱: "範例台灣50",
+  基金類型: "國內成分證券指數股票型基金",
+  基金中文名稱: "範例台灣卓越50證券投資信託基金",
+  基金英文名稱: "Example Taiwan Top 50 ETF",
+  "標的指數/追蹤指數名稱": "臺灣50指數",
+  是否設有績效指標: "不適用",
+  績效指標中文名稱: "不適用",
+  是否包含國外成分股: "否",
+  成立日期: "0920625",
+  上市日期: "0920630",
+  基金經理人: "王小明",
+  "發行單位數/轉換數": "22239000000",
+  備註: "",
+  ...fields,
+});
+
+test("reads the funds TWSE lists, a field the exchange has nothing to say in left empty", async () => {
+  const { sent, exchanges } = fakeExchanges({
+    [`${TWSE}opendata/t187ap47_L`]: [
+      fund({}),
+      // An actively managed fund tracks no index and may name a benchmark.
+      fund({
+        基金代號: "00981A",
+        基金類型: "國內成分證券主動式交易所交易基金(股票)",
+        基金中文名稱: "範例台股增長主動式ETF證券投資信託基金",
+        "標的指數/追蹤指數名稱": "不適用",
+        是否設有績效指標: "是",
+        績效指標中文名稱: "臺灣證券交易所發行量加權股價指數",
+        上市日期: "1140527",
+        "發行單位數/轉換數": "9028209000",
+      }),
+      // Fields that do not read leave the fund its code, name and kind.
+      fund({
+        基金代號: "00631L",
+        基金類型: "槓桿/反向指數股票型基金",
+        基金中文名稱: "範例台灣50單日正向2倍證券投資信託基金",
+        績效指標中文名稱: "無",
+        是否包含國外成分股: "",
+        上市日期: "",
+        基金經理人: "NA",
+        "發行單位數/轉換數": "約六十億",
+      }),
+    ],
+  });
+
+  expect(await exchanges.getFunds(Market.TW)).toEqual([
+    {
+      symbol: "0050",
+      name: "範例台灣卓越50證券投資信託基金",
+      category: "國內成分證券指數股票型基金",
+      index: "臺灣50指數",
+      benchmark: null,
+      foreignHoldings: false,
+      manager: "王小明",
+      listedOn: "2003-06-30",
+      units: 22_239_000_000,
+      asOf: "2026-09-28",
+    },
+    {
+      symbol: "00981A",
+      name: "範例台股增長主動式ETF證券投資信託基金",
+      category: "國內成分證券主動式交易所交易基金(股票)",
+      index: null,
+      benchmark: "臺灣證券交易所發行量加權股價指數",
+      foreignHoldings: false,
+      manager: "王小明",
+      listedOn: "2025-05-27",
+      units: 9_028_209_000,
+      asOf: "2026-09-28",
+    },
+    {
+      symbol: "00631L",
+      name: "範例台灣50單日正向2倍證券投資信託基金",
+      category: "槓桿/反向指數股票型基金",
+      index: "臺灣50指數",
+      benchmark: null,
+      foreignHoldings: null,
+      manager: null,
+      listedOn: null,
+      units: null,
+      asOf: "2026-09-28",
+    },
+  ]);
+  expect(sent).toEqual([`${TWSE}opendata/t187ap47_L`]);
+});
+
+test("fails when none of the funds read, rather than answer that the exchange lists none", async () => {
+  const { exchanges } = fakeExchanges({
+    [`${TWSE}opendata/t187ap47_L`]: [{ 基金代號: "0050", 名稱: "範例台灣50" }],
+  });
+
+  await expect(exchanges.getFunds(Market.TW)).rejects.toThrow(
+    "TWSE: none of the 1 rows of opendata/t187ap47_L read as expected"
+  );
+});
+
 test("outside Taiwan there is nothing to read, and it costs no request", async () => {
   const { sent, exchanges } = fakeExchanges();
 
   expect(await exchanges.getRestrictions(Market.US)).toEqual([]);
+  expect(await exchanges.getFunds(Market.US)).toEqual([]);
   expect(sent).toEqual([]);
 });
