@@ -819,7 +819,7 @@ async function reading(read: FactReader["read"]) {
     thesis: "Advanced nodes stay sold out.",
   });
 
-  return { desk };
+  return { desk, store };
 }
 
 const fact = (text: string) => ({ text, source: "Filing", quote: text });
@@ -872,6 +872,51 @@ test("a fact the model cannot be reached for is left out, and a forecast none wa
     ok: true,
     forecast: { evidence: null },
   });
+});
+
+test("a forecast is checked again once its facts are read, since the report or the session's forecast may have changed meanwhile", async () => {
+  const claims = [fact("Revenue rose.")];
+  const meanwhile = vi.fn<() => Promise<void>>();
+
+  const read: FactReader["read"] = async () => {
+    await meanwhile();
+
+    return readAs(Stance.Positive);
+  };
+
+  // The report is revised while the model reads: the forecast is kept under the revision in force.
+  const revised = await reading(read);
+
+  meanwhile.mockImplementationOnce(async () => {
+    await revised.desk.revise({ symbol: TSMC, thesis: "Margins hold." });
+  });
+
+  expect(await revised.desk.forecast({ ...draft, claims })).toMatchObject({
+    ok: true,
+    forecast: { reportRevision: 2 },
+  });
+
+  // Another conversation keeps the session's forecast while the model reads.
+  const raced = await reading(read);
+
+  const other = new ResearchDesk({
+    store: raced.store,
+    marketData: { candles: async () => HISTORY },
+    fundamentals: { statements: async () => [], dividends: async () => [] },
+    now: () => AT_ANCHOR,
+  });
+
+  meanwhile.mockImplementationOnce(async () => {
+    await other.forecast(draft);
+  });
+
+  expect(await raced.desk.forecast({ ...draft, claims })).toEqual({
+    ok: false,
+    violations: [
+      { code: ForecastViolationCode.AlreadyForecast, date: "2026-09-29" },
+    ],
+  });
+  expect(raced.store.forecasts()).toHaveLength(1);
 });
 
 test("no fact is read for a forecast the checks refuse, or for one that cites none", async () => {

@@ -325,7 +325,11 @@ function opposes(direction: ForecastDirection, stance: ReportStance): boolean {
   );
 }
 
-/** Which side of `price` a band lies on: 1 above it, -1 below it, and 0 where the band holds it. */
+/**
+ * Which side of `price` a band lies on: 1 where its every price is at or above it, -1 where its
+ * every price is below it, and 0 where it has prices on both sides. A band holds its low and not
+ * its high, so one that starts at `price` lies above it.
+ */
 const bandSide = (
   { low, high }: Pick<ForecastScenario, "low" | "high">,
   price: number

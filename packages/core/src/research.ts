@@ -282,7 +282,7 @@ export class ResearchDesk {
       draft.scenarios
     );
 
-    // Reads the store afresh each time, since a vote leaves room for another forecast to be kept.
+    // Reads the store afresh each time, since it is checked again once the models have answered.
     const check = () => {
       const report = store.report(instrument);
 
@@ -306,22 +306,18 @@ export class ResearchDesk {
 
     // Read only once every check has passed, so no request is spent on a forecast that is refused.
     const evidence = await this.#read(draft.claims);
-    let motions: Council[] | null = null;
 
     // A scenario is voted against its base rate, so a listing without them has no motion to put.
-    if (vote && rates) {
-      motions = await vote({
-        draft,
-        anchor,
-        report,
-        baseRates: rates,
-        evidence,
-      });
+    const motions =
+      vote && rates
+        ? await vote({ draft, anchor, report, baseRates: rates, evidence })
+        : null;
 
-      ({ report, violations } = check());
+    // The reading and the vote each wait on a model, and the report may have been revised or
+    // another forecast kept for the session meanwhile.
+    ({ report, violations } = check());
 
-      if (!report || violations.length > 0) return { ok: false, violations };
-    }
+    if (!report || violations.length > 0) return { ok: false, violations };
 
     const forecast: Forecast = {
       ...draft,
