@@ -488,8 +488,8 @@
       "open": "Open",
       "cancel": "Cancel"
     },
-    "view": {
-      "title": "A view the agent drew",
+    "canvas": {
+      "title": "A canvas the agent drew",
       "drawing": "Drawing…"
     },
     "approval-mode": {

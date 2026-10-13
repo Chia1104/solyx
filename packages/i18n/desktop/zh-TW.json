@@ -488,8 +488,8 @@
       "open": "開啟",
       "cancel": "取消"
     },
-    "view": {
-      "title": "Agent 繪製的內容",
+    "canvas": {
+      "title": "Agent 繪製的畫布",
       "drawing": "繪製中…"
     },
     "approval-mode": {
