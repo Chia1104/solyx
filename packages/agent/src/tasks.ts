@@ -97,11 +97,20 @@ function runState({ items, running }: AgentView): string {
     : STOPPED[last.reason];
 }
 
-/** The last reply a run wrote, which is what it meant the user to read; `undefined` when it wrote none. */
+// An `html` fence, closed or cut off, with the blank lines after it: a canvas the reply drew for the user.
+const CANVAS_FENCE =
+  /^(`{3,}|~{3,})html\b[^\n]*\n[\s\S]*?(?:^\1[ \t]*(?:\n+|$)|$(?![\s\S]))/gm;
+
+/**
+ * The last reply a run wrote, which is what it meant the user to read; `undefined` when it wrote
+ * none. Its canvases are left out: to a later run they are markup that crowds the report out.
+ */
 function closingReply({ items }: AgentView): string | undefined {
   const reply = items
     .flatMap((item) =>
-      item.kind === AgentItemKind.Assistant ? [item.text.trim()] : []
+      item.kind === AgentItemKind.Assistant
+        ? [item.text.replace(CANVAS_FENCE, "").trim()]
+        : []
     )
     .findLast((text) => text !== "");
 

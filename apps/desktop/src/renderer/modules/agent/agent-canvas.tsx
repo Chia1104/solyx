@@ -1,3 +1,5 @@
+import kit from "./agent-canvas.css?inline";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { kebabCase } from "es-toolkit";
@@ -16,7 +18,7 @@ import { AgentLinkDialog } from "./agent-link-dialog.tsx";
 // With no scripts in the sandbox and every request refused, a canvas shows only what it was written with.
 const CANVAS_POLICY = "default-src 'none'; style-src 'unsafe-inline'";
 
-/** The palette, and each market's rise and fall as the user sees them, as a canvas's custom properties. */
+/** A canvas's stylesheet: the palette and each market's rise and fall as the user sees them, as custom properties, then the kit's marks. */
 function useCanvasStyle(): string {
   const scheme = useColorScheme();
   const colors = usePaletteColors();
@@ -37,7 +39,7 @@ function useCanvasStyle(): string {
       .map(([token, value]) => `--${kebabCase(token)}: ${value};`)
       .join(" ");
 
-    return `:root { color-scheme: ${scheme}; ${properties} } body { margin: 0; color: var(--foreground); font: 14px/1.5 ${getComputedStyle(document.body).fontFamily}; }`;
+    return `:root { color-scheme: ${scheme}; ${properties} } body { margin: 0; color: var(--foreground); font: 14px/1.5 ${getComputedStyle(document.body).fontFamily}; } ${kit}`;
   }, [scheme, colors, tw, us]);
 }
 
@@ -80,11 +82,12 @@ function CanvasFrame({ html }: { html: string }) {
 
       if (!canvas) return;
 
+      const page = canvas.documentElement;
+
       observer?.disconnect();
-      observer = new ResizeObserver(() =>
-        setHeight(canvas.documentElement.scrollHeight)
-      );
-      observer.observe(canvas.documentElement);
+      // The page's own box, since its scroll height is never less than the frame it sits in.
+      observer = new ResizeObserver(() => setHeight(page.offsetHeight));
+      observer.observe(page);
       canvas.addEventListener("click", onClick);
     };
 

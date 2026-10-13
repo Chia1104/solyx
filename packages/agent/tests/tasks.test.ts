@@ -345,6 +345,62 @@ test("a task's runs read newest first, each with where it stands and the reply i
   ).toHaveLength(3);
 });
 
+test("a run's reply reads without the canvases it drew", async () => {
+  const { run, kept } = setup(
+    [conversation("5", "2026-10-07T08:30:00", "brief")],
+    {
+      "5": [
+        { type: AgentEventType.RunStart },
+        said(
+          "1",
+          [
+            "台積電站上月線。",
+            "",
+            "```html",
+            '<ol class="bars" style="--max: 3.1"><li style="--v: 3.1"><span>2330</span><b>+3.1%</b></li></ol>',
+            "```",
+            "",
+            "其餘無變化。",
+            "",
+            "```html",
+            '<ol class="shares"><li style="--v: 41">',
+          ].join("\n")
+        ),
+        { type: AgentEventType.RunEnd, reason: RunEndReason.Done },
+      ],
+    }
+  );
+
+  kept.set("brief", {
+    name: "Morning brief",
+    prompt: "/watchlist-upkeep",
+    schedule: {
+      kind: ScheduleKind.FixedTime,
+      time: "08:30",
+      tradingDaysOf: Market.TW,
+    },
+    timeZone: "Asia/Taipei",
+    locale: "zh-TW",
+    approval: ScheduleApproval.Auto,
+    enabled: true,
+    id: "brief",
+    createdAt: AT,
+    updatedAt: AT,
+    lastRun: null,
+    nextRunAt: null,
+    running: false,
+  });
+
+  const { text } = await run(AgentToolName.GetTaskRuns, { id: "brief" });
+
+  expect(text.split("\n").slice(1)).toEqual([
+    "## Run of 2026-10-07 08:30 Asia/Taipei: finished",
+    "台積電站上月線。",
+    "",
+    "其餘無變化。",
+  ]);
+});
+
 test("a scheduled run reads the runs before it without naming its task", async () => {
   const { run, save } = setup(
     [
