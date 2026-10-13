@@ -374,6 +374,55 @@ describe("paying by subscription", () => {
     });
   });
 
+  test("is the only way a provider that takes no key runs, on the models its account has", async () => {
+    const { config, secrets, models } = setup();
+
+    await models.setProviderEnabled("github-copilot", true);
+
+    expect(await providerOf(models, "github-copilot")).toMatchObject({
+      name: "GitHub Copilot",
+      auth: AgentAuth.Subscription,
+      subscription: { plan: "GitHub Copilot", signedIn: false, only: true },
+      usable: false,
+    });
+    await expect(
+      models.setAuth("github-copilot", AgentAuth.ApiKey)
+    ).rejects.toThrow("runs only on its subscription's sign-in");
+
+    // A key saved for it by hand changes nothing.
+    config.set(["agent", "auth", "github-copilot"], AgentAuth.ApiKey);
+    await secrets.save(agentKeySecret("github-copilot"), "ghu_test");
+
+    expect(await providerOf(models, "github-copilot")).toMatchObject({
+      auth: AgentAuth.Subscription,
+      usable: false,
+    });
+
+    await secrets.save(
+      agentSignInSecret("github-copilot"),
+      JSON.stringify({
+        type: "oauth",
+        access: "tid=1;exp=1;proxy-ep=proxy.individual.githubcopilot.com",
+        refresh: "ghu_test",
+        expires: Date.now() + 30 * 60_000,
+        availableModelIds: ["gpt-5.4"],
+      })
+    );
+
+    const settings = await models.settings();
+
+    expect(
+      settings.models
+        .filter((model) => model.provider === "github-copilot")
+        .map((model) => model.id)
+    ).toEqual(["gpt-5.4"]);
+
+    await models.setDefaultProvider("github-copilot");
+
+    expect((await models.settings()).model).toBe("gpt-5.4");
+    expect((await models.choice()).model.id).toBe("gpt-5.4");
+  });
+
   test("applies only to providers that offer it", async () => {
     const { config, secrets, models } = setup();
 

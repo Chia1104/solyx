@@ -193,7 +193,7 @@ export function AgentSettings() {
             </Switch>
           }
         />
-        {each.enabled && each.subscription ? (
+        {each.enabled && each.subscription && !each.subscription.only ? (
           <SettingsRow
             label={authLabel}
             description={t("settings.agent.auth-description")}
