@@ -32,7 +32,8 @@ export function SignInRow({
   needsSignIn: boolean;
   onSignIn: () => Promise<void>;
   onCancel: () => Promise<void>;
-  onSignOut: () => Promise<void>;
+  /** Left out where the sign-in leaves nothing of its own to sign out of. */
+  onSignOut?: () => Promise<void>;
   /** Refreshes what a sign-in or sign-out reaches that the settings push does not. */
   onSettled?: () => Promise<void>;
 }) {
@@ -40,7 +41,11 @@ export function SignInRow({
 
   const signIn = useMutation({ mutationFn: onSignIn, onSettled });
   const cancel = useMutation({ mutationFn: onCancel });
-  const signOut = useMutation({ mutationFn: onSignOut, onSettled });
+
+  const signOut = useMutation({
+    mutationFn: async () => onSignOut?.(),
+    onSettled,
+  });
 
   const state = signIn.isPending
     ? t("settings.sign-in.waiting")
@@ -72,7 +77,7 @@ export function SignInRow({
                 {signInLabel}
               </Button>
             ) : null}
-            {signedIn ? (
+            {signedIn && onSignOut ? (
               <Button
                 size="sm"
                 variant="tertiary"

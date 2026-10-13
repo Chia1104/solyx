@@ -5,7 +5,6 @@
   "type": "module",
   "exports": {
     "./analysis": "./src/analysis.ts",
-    "./chatgpt-oauth": "./src/chatgpt-oauth.ts",
     "./flows": "./src/flows.ts",
     "./macro": "./src/macro.ts",
     "./history": "./src/history.ts",
@@ -22,6 +21,7 @@
     "./script-runner": "./src/script-runner.ts",
     "./setup": "./src/setup.ts",
     "./shell": "./src/shell.ts",
+    "./sign-in-callback": "./src/sign-in-callback.ts",
     "./skill-source": "./src/skill-source.ts",
     "./skills": "./src/skills.ts",
     "./tasks": "./src/tasks.ts",

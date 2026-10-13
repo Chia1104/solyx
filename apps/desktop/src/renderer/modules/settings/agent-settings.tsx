@@ -10,6 +10,7 @@ import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import type { AgentProvider } from "@solyx/agent/providers";
 import { DecisionMode, MagiUnit } from "@solyx/core/council";
 
+import { SecretState } from "#shared/ipc/settings.ts";
 import type { AgentProviderSettings } from "#shared/ipc/settings.ts";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
@@ -23,6 +24,7 @@ import { ProviderMark } from "../agent/agent-provider-mark.tsx";
 
 import { AddAgentProvider } from "./add-agent-provider.tsx";
 import { ChatGPTSignIn } from "./chatgpt-sign-in.tsx";
+import { KeySignIn } from "./key-sign-in.tsx";
 import {
   PROVIDER_GRID,
   PROVIDER_PANEL,
@@ -230,6 +232,9 @@ export function AgentSettings() {
                   window.solyx.settings.deleteAgentKey(each.provider)
                 }
               />
+              {each.createsKey && each.key !== SecretState.Saved ? (
+                <KeySignIn provider={each.provider} name={name} />
+              ) : null}
               {each.endpoint ? (
                 <TextSettingRow
                   label={endpointLabel}

@@ -1,6 +1,4 @@
 import { createHash, randomBytes } from "node:crypto";
-import { createServer } from "node:http";
-import type { Server, ServerResponse } from "node:http";
 
 import type {
   LoginOptions,
@@ -8,8 +6,10 @@ import type {
   OAuthCredential,
   ProviderAuthInteraction,
 } from "@earendil-works/pi-ai";
-import { noop } from "es-toolkit";
 import * as z from "zod";
+
+import { listenForSignIn } from "./sign-in-callback.ts";
+import type { SignInPage } from "./sign-in-callback.ts";
 
 // Sign in with ChatGPT for open-source, locally hosted apps:
 // https://developers.openai.com/siwc/token-sharing-open-source/sign-in
@@ -26,8 +26,6 @@ const PLAN_SCOPE = "chatgpt.tokens.use.direct";
 
 const SCOPE = `openid profile email offline_access resource.invoke ${PLAN_SCOPE}`;
 
-const CALLBACK_HOST = "127.0.0.1";
-
 const CALLBACK_PATH = "/auth/callback";
 
 // Only the port of a loopback redirect may vary, so a busy 1455 falls back to any free port.
@@ -36,18 +34,11 @@ const PREFERRED_PORT = 1455;
 // Refreshed this long before it expires, so no request starts with a token about to lapse.
 const EXPIRY_MARGIN_MS = 3 * 60 * 1000;
 
-export const SignInOutcome = {
-  SignedIn: "signed-in",
-  Failed: "failed",
-} as const;
-
-export type SignInOutcome = (typeof SignInOutcome)[keyof typeof SignInOutcome];
-
 export interface ChatGPTOAuthOptions {
   /** Shown on OpenAI's consent screen, the same on every installation. */
   appName: string;
   /** The page the browser lands on when the sign-in returns to this computer. */
-  callbackPage(outcome: SignInOutcome, detail?: string): string;
+  callbackPage: SignInPage;
   fetch?: typeof globalThis.fetch;
 }
 
@@ -58,26 +49,7 @@ const tokenSchema = z.object({
   scope: z.string(),
 });
 
-const addressSchema = z.object({ port: z.number() });
-
 const random = () => randomBytes(32).toString("base64url");
-
-interface Callback {
-  code: string;
-  clientId: string;
-}
-
-function listen(server: Server, port: number) {
-  return new Promise<number>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(port, CALLBACK_HOST, () => {
-      server.off("error", reject);
-
-      // Port 0 asks the OS for one, so the listener reports which it got.
-      resolve(addressSchema.parse(server.address()).port);
-    });
-  });
-}
 
 /**
  * Signs in with ChatGPT so OpenAI requests run on the user's plan, replacing pi-ai's flow so the
@@ -134,71 +106,24 @@ export function chatgptOAuth(options: ChatGPTOAuthOptions): OAuthAuth {
 
     const verifier = random();
     const state = random();
-    let settle: (callback: Callback) => void = noop;
-    let fail: (error: Error) => void = noop;
 
-    const returned = new Promise<Callback>((resolve, reject) => {
-      settle = resolve;
-      fail = reject;
+    const callback = await listenForSignIn({
+      name: "ChatGPT",
+      path: CALLBACK_PATH,
+      preferredPort: PREFERRED_PORT,
+      page: options.callbackPage,
+      signal: interaction.signal,
+      accept(query) {
+        const code = query.get("code");
+        const clientId = query.get("client_id");
+
+        return query.get("state") === state && code && clientId
+          ? { code, clientId }
+          : undefined;
+      },
     });
-
-    const page = (
-      response: ServerResponse,
-      status: number,
-      outcome: SignInOutcome,
-      detail?: string
-    ) => {
-      // The listener ends with its sign-in, so a browser keeps no connection open to a port the
-      // next sign-in, or another app, listens on.
-      response.writeHead(status, {
-        "content-type": "text/html; charset=utf-8",
-        connection: "close",
-      });
-      response.end(options.callbackPage(outcome, detail));
-    };
-
-    const server = createServer((request, response) => {
-      const url = new URL(request.url ?? "/", `http://${CALLBACK_HOST}`);
-
-      if (url.pathname !== CALLBACK_PATH) {
-        response.writeHead(404).end();
-
-        return;
-      }
-
-      const error = url.searchParams.get("error");
-
-      if (error) {
-        page(response, 400, SignInOutcome.Failed, error);
-        fail(new Error(`ChatGPT sign-in failed: ${error}`));
-
-        return;
-      }
-
-      const code = url.searchParams.get("code");
-      const clientId = url.searchParams.get("client_id");
-
-      // A stray or replayed request fails on its own; the sign-in keeps waiting for the real one.
-      if (url.searchParams.get("state") !== state || !code || !clientId) {
-        page(response, 400, SignInOutcome.Failed);
-
-        return;
-      }
-
-      page(response, 200, SignInOutcome.SignedIn);
-      settle({ code, clientId });
-    });
-
-    const abort = () => fail(new Error("Sign-in cancelled"));
-
-    interaction.signal.addEventListener("abort", abort, { once: true });
 
     try {
-      const port = await listen(server, PREFERRED_PORT).catch(() =>
-        listen(server, 0)
-      );
-
-      const redirectUri = `http://${CALLBACK_HOST}:${port}${CALLBACK_PATH}`;
       const authorize = new URL(AUTHORIZE_URL);
 
       authorize.search = new URLSearchParams({
@@ -206,7 +131,7 @@ export function chatgptOAuth(options: ChatGPTOAuthOptions): OAuthAuth {
         agent_name_hint: options.appName,
         ext_agent_host_id: `urn:uuid:${deviceId.toLowerCase()}`,
         response_type: "code",
-        redirect_uri: redirectUri,
+        redirect_uri: callback.redirectUri,
         resource: RESOURCE,
         scope: SCOPE,
         state,
@@ -219,7 +144,7 @@ export function chatgptOAuth(options: ChatGPTOAuthOptions): OAuthAuth {
 
       interaction.notify({ type: "auth_url", url: authorize.toString() });
 
-      const { code, clientId } = await returned;
+      const { code, clientId } = await callback.returned;
 
       const credential = await requestToken(
         new URLSearchParams({
@@ -227,7 +152,7 @@ export function chatgptOAuth(options: ChatGPTOAuthOptions): OAuthAuth {
           client_id: clientId,
           code,
           code_verifier: verifier,
-          redirect_uri: redirectUri,
+          redirect_uri: callback.redirectUri,
           resource: RESOURCE,
         }),
         interaction.signal
@@ -235,10 +160,7 @@ export function chatgptOAuth(options: ChatGPTOAuthOptions): OAuthAuth {
 
       return { ...credential, clientId };
     } finally {
-      interaction.signal.removeEventListener("abort", abort);
-      server.close();
-      // A browser's spare connection would otherwise keep the listener, and the port, alive.
-      server.closeAllConnections();
+      callback.close();
     }
   }
 

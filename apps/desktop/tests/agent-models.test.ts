@@ -7,6 +7,7 @@ import {
   beforeEach,
   describe,
   expect,
+  onTestFinished,
   test,
   vi,
 } from "vite-plus/test";
@@ -41,14 +42,16 @@ function setup() {
 
   config.create();
 
+  const openExternal = vi.fn<(url: string) => void>();
+
   const models = createAgentModels({
     config,
     secrets,
     getDeviceId: () => "00000000-0000-4000-8000-000000000000",
-    openExternal: vi.fn(),
+    openExternal,
   });
 
-  return { config, secrets, models };
+  return { config, secrets, models, openExternal };
 }
 
 const providerOf = async (
@@ -303,6 +306,82 @@ describe("paying by subscription", () => {
     await expect(models.choice()).resolves.toBeDefined();
     await expect(models.signIn("anthropic", Locale.EnUS)).rejects.toThrow(
       "no subscription sign-in"
+    );
+  });
+});
+
+describe("a key the provider creates by sign-in", () => {
+  /** OpenRouter answers the exchange; the browser's return to this computer goes through. */
+  function stubOpenRouter() {
+    const loopback = globalThis.fetch;
+
+    vi.stubGlobal(
+      "fetch",
+      async (input: string | URL | Request, init?: RequestInit) =>
+        String(input).startsWith("https://openrouter.ai/")
+          ? Response.json({ key: "sk-or-v1-test" })
+          : loopback(input, init)
+    );
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+
+    return loopback;
+  }
+
+  test("is saved as its API key once the browser returns", async () => {
+    const { config, secrets, models, openExternal } = setup();
+    const loopback = stubOpenRouter();
+
+    config.set(["agent", "providers"], ["openrouter"]);
+
+    expect(await providerOf(models, "openrouter")).toMatchObject({
+      createsKey: true,
+      key: "missing",
+      usable: false,
+    });
+    expect(await providerOf(models, "anthropic")).toMatchObject({
+      createsKey: false,
+    });
+
+    const created = models.createKey("openrouter", Locale.EnUS);
+
+    await vi.waitFor(() => expect(openExternal).toHaveBeenCalledOnce());
+
+    const callback = new URL(
+      new URL(openExternal.mock.calls[0][0]).searchParams.get("callback_url") ??
+        ""
+    );
+
+    callback.searchParams.set("code", "code");
+
+    expect(await (await loopback(callback)).text()).toContain(
+      "Authorization sent to Solyx"
+    );
+
+    await created;
+
+    expect(await secrets.get(agentKeySecret("openrouter"))).toBe(
+      "sk-or-v1-test"
+    );
+    expect(await providerOf(models, "openrouter")).toMatchObject({
+      key: "saved",
+      usable: true,
+    });
+  });
+
+  test("saves nothing once the sign-in is cancelled", async () => {
+    const { secrets, models, openExternal } = setup();
+
+    const created = models.createKey("openrouter", Locale.EnUS);
+
+    await vi.waitFor(() => expect(openExternal).toHaveBeenCalledOnce());
+    models.cancelSignIn();
+    await created;
+
+    expect(await secrets.get(agentKeySecret("openrouter"))).toBeUndefined();
+    await expect(models.createKey("openai", Locale.EnUS)).rejects.toThrow(
+      "creates no key by sign-in"
     );
   });
 });

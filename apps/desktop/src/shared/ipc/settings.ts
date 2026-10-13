@@ -301,6 +301,8 @@ export interface AgentProviderSettings {
   subscription: { signedIn: boolean } | null;
   /** The API key saved for it, whatever it runs on now. */
   key: SecretState;
+  /** A sign-in to it in the browser creates that key, in place of one pasted in. */
+  createsKey: boolean;
   /** Its key is saved or its subscription signed in, so its models can run. */
   usable: boolean;
   /**
@@ -569,6 +571,12 @@ export interface SettingsApi {
   setAgentAuth(auth: AgentAuth): Promise<void>;
   saveAgentKey(provider: AgentProvider, value: string): Promise<void>;
   deleteAgentKey(provider: AgentProvider): Promise<void>;
+  /**
+   * Signs in to the provider in the browser, where the user has it create a key for the app, and
+   * saves that key as the provider's, resolving once it is saved or the sign-in cancelled. The
+   * page the browser lands on is written in `locale`.
+   */
+  createAgentKey(provider: AgentProvider, locale: Locale): Promise<void>;
   /** Sends the provider's requests on an API key to `endpoint`; `null` goes back to its own. */
   setAgentEndpoint(
     provider: AgentProvider,
@@ -688,6 +696,7 @@ export const settingsChannels = {
   setAgentAuth: "settings:set-agent-auth",
   saveAgentKey: "settings:save-agent-key",
   deleteAgentKey: "settings:delete-agent-key",
+  createAgentKey: "settings:create-agent-key",
   setAgentEndpoint: "settings:set-agent-endpoint",
   signInSubscription: "settings:sign-in-subscription",
   cancelSignIn: "settings:cancel-sign-in",

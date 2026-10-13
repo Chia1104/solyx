@@ -97,6 +97,7 @@ const schemas = {
     z.string().trim().min(1).max(1024),
   ]),
   deleteAgentKey: z.tuple([agentProviderSchema]),
+  createAgentKey: z.tuple([agentProviderSchema, localeSchema]),
   signInSubscription: z.tuple([agentProviderSchema, localeSchema]),
   cancelSignIn: z.tuple([]),
   signOutSubscription: z.tuple([agentProviderSchema]),

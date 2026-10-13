@@ -142,6 +142,7 @@ export function createAgentModels({
             auth,
             subscription: signedIn === undefined ? null : { signedIn },
             key,
+            createsKey: catalog.createsKey(id),
             usable,
             endpoint: endpoint(agent, id),
           };
@@ -193,6 +194,20 @@ export function createAgentModels({
     async deleteKey(provider: AgentProvider) {
       offered(provider);
       await secrets.delete(agentKeySecret(provider));
+    },
+
+    /**
+     * Saves the key the provider creates once the user signs in to it, or nothing once the
+     * sign-in is cancelled; the page is written in `locale`.
+     */
+    async createKey(provider: AgentProvider, locale: Locale) {
+      offered(provider);
+
+      const key = await catalog.createKey(provider, (outcome, detail) =>
+        signInPage(locale, SignInFlow.OpenRouter, outcome, detail)
+      );
+
+      if (key !== undefined) await secrets.save(agentKeySecret(provider), key);
     },
 
     /** Sends the provider's requests on an API key to `to`; `null` goes back to its own endpoint. */
