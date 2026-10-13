@@ -74,9 +74,24 @@ test("providers that run on more than a key are not offered", () => {
 
   expect(catalog.offers("xai")).toBe(true);
   expect(catalog.offers("amazon-bedrock")).toBe(false);
+  expect(catalog.offers("azure")).toBe(false);
   expect(catalog.offers("cloudflare-workers-ai")).toBe(false);
   expect(catalog.offers("nowhere")).toBe(false);
   expect(catalog.model("nowhere", undefined)).toBeUndefined();
+});
+
+// A provider that runs on the user's own resource, as Azure does, lists its models without one.
+test("every model offered is served from an endpoint its provider names", () => {
+  const { catalog } = setup();
+
+  for (const { id } of catalog.providers()) {
+    const unserved = catalog.models
+      .getModels(id)
+      .filter((model) => !model.baseUrl)
+      .map((model) => model.id);
+
+    expect({ id, unserved }).toEqual({ id, unserved: [] });
+  }
 });
 
 test("each default model is one its provider's catalog lists", () => {
