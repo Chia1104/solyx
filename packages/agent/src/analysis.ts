@@ -27,13 +27,20 @@ import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import type { ProposingDesk } from "@solyx/core/order-desk";
 
+import {
+  MAX_LISTINGS,
+  SOURCE_TYPES,
+  listingBudget,
+  sourceFunctions,
+} from "./analysis-sources.ts";
+import type { AnalysisSources } from "./analysis-sources.ts";
 import { scriptFunction } from "./script-runner.ts";
 import type { ScriptRunner } from "./script-runner.ts";
 import { AgentToolName, scriptArgumentsSchema } from "./wire.ts";
 import type { RunAnalysisDetails } from "./wire.ts";
 
 /** What a script may read. Nothing here changes anything, and the desk's `propose` is left out. */
-export interface AnalysisPorts {
+export interface AnalysisPorts extends AnalysisSources {
   marketData: Pick<MarketData, "candles">;
   watchlist(): SymbolRef[];
   desk: Pick<ProposingDesk, "account" | "mode">;
@@ -247,8 +254,9 @@ function dataFunctions(ports: AnalysisPorts): CodemodeTool[] {
 
 /**
  * `run_analysis`: the agent's own JavaScript, run in a QuickJS VM that can only call the functions
- * given here. A script reads market data and the account and computes; it has no network, files or
- * timers, and nothing it can call changes anything, so its calls need no approval.
+ * given here. A script reads market data, the account and the app's other sources and computes; it
+ * has no network, files or timers, and nothing it can call changes anything, so its calls need no
+ * approval.
  */
 export function createAnalysis(options: AnalysisOptions): Extension {
   const tools = dataFunctions(options);
@@ -259,7 +267,13 @@ export function createAnalysis(options: AnalysisOptions): Extension {
       "Runs JavaScript you write, to compute over market data: backtests, statistics, comparisons and screens across listings. `code` is the body of an async function, so `await` and `return` work.",
       "It can call only the functions declared below; there is no network, file, timer or module. Print with text(value) or console.log, or return a JSON value. store(key, value) and load(key) keep JSON values for this conversation's later scripts.",
       "What a script fetches stays in the script, so fetch every bar you need there and return only the result. `type Bar` is one item of what tools.candles returns.",
-      renderDeclarations({ tools, globals: indicators }),
+      `market, flows and fundamentals read the app's other sources, which count every request against limits the rest of the app shares: a script reads at most ${MAX_LISTINGS} listings through them, so screen the listings that matter rather than every one you can name.`,
+      SOURCE_TYPES,
+      renderDeclarations({
+        tools,
+        // Declared with a budget nothing is counted against.
+        globals: [...indicators, ...sourceFunctions(options, () => undefined)],
+      }),
     ].join("\n\n"),
     parameters: omit(z.toJSONSchema(scriptArgumentsSchema, { io: "input" }), [
       "$schema",
@@ -286,7 +300,7 @@ export function createAnalysis(options: AnalysisOptions): Extension {
 
       const result = await options.scripts.run(parsed.data.code, {
         tools,
-        globals: indicators,
+        globals: [...indicators, ...sourceFunctions(options, listingBudget())],
         timeoutMs: TIMEOUT_MS,
         signal: context.abortSignal,
         store: saved,

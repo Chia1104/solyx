@@ -265,6 +265,10 @@ export function createAgentService(options: AgentServiceOptions) {
     marketData: options.marketData,
     watchlist: options.watchlist.list,
     desk: options.desk,
+    quote: options.quote,
+    sectors: options.sectors,
+    flows: options.flows,
+    fundamentals: options.fundamentals,
     scripts,
   });
 

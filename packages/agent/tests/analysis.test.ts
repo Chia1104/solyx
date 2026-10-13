@@ -10,8 +10,13 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { BrokerMode } from "@solyx/core/broker";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
+import { Investor } from "@solyx/core/flows";
+import type { InvestorTrades } from "@solyx/core/flows";
 import { Market } from "@solyx/core/market";
+import { SectorGroup, TwSector } from "@solyx/core/sectors";
 
+import { MAX_LISTINGS } from "../src/analysis-sources.ts";
+import type { AnalysisSources } from "../src/analysis-sources.ts";
 import { createAnalysis } from "../src/analysis.ts";
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
@@ -36,6 +41,91 @@ const BARS: Candle[] = Array.from({ length: 30 }, (_, index) => ({
   volume: 1000,
 }));
 
+const trade = (
+  date: string,
+  investor: Investor,
+  bought: number,
+  sold: number
+): InvestorTrades => ({ date, investor, bought, sold });
+
+/** The app's other sources as a script reads them, each counting what it was asked. */
+function fakeSources() {
+  return {
+    quote: vi.fn<AnalysisSources["quote"]>(async ({ symbol }) =>
+      symbol === "9999"
+        ? null
+        : {
+            date: "2026-10-13",
+            hours: { open: 0, close: 0 },
+            line: [],
+            last: 1085,
+            previousClose: 1070,
+          }
+    ),
+    sectors: vi.fn<AnalysisSources["sectors"]>(async () => [
+      {
+        sector: TwSector.Semiconductors,
+        group: SectorGroup.Electronics,
+        symbol: "IX0028",
+        quote: {
+          date: "2026-10-13",
+          last: 1212,
+          reference: 1200,
+          tradeValue: 9e10,
+        },
+      },
+      {
+        sector: TwSector.Glass,
+        group: SectorGroup.Other,
+        symbol: "IX0022",
+        quote: null,
+      },
+    ]),
+    flows: {
+      listing: vi.fn<AnalysisSources["flows"]["listing"]>(async () => ({
+        trades: [
+          trade("2026-10-12", Investor.Foreign, 9000, 4000),
+          trade("2026-10-13", Investor.Foreign, 8000, 2000),
+        ],
+        margin: [],
+        foreign: [],
+      })),
+    },
+    fundamentals: {
+      statements: vi.fn<AnalysisSources["fundamentals"]["statements"]>(
+        async () => [
+          {
+            periodEnd: "2026-06-30",
+            knownFrom: "2026-08-14",
+            revenue: 1000,
+            grossProfit: 550,
+            operatingIncome: 450,
+            netIncome: 400,
+            eps: 15,
+          },
+        ]
+      ),
+      monthlyRevenue: vi.fn<AnalysisSources["fundamentals"]["monthlyRevenue"]>(
+        async () => [
+          { month: "2025-09", revenue: 200 },
+          { month: "2026-09", revenue: 260 },
+        ]
+      ),
+      multiples: vi.fn<AnalysisSources["fundamentals"]["multiples"]>(
+        async () => ({
+          asOf: "2026-10-12",
+          priceToEarnings: 24.5,
+          dividendYield: 1.6,
+          priceToBook: 6.1,
+        })
+      ),
+      dividends: vi.fn<AnalysisSources["fundamentals"]["dividends"]>(
+        async () => []
+      ),
+    },
+  };
+}
+
 const closers: (() => Promise<void>)[] = [];
 
 afterEach(async () => {
@@ -48,6 +138,7 @@ async function analyze(...scripts: string[]) {
   const models = createModels();
   const events: AgentWireEvent[] = [];
   const candles = vi.fn(async () => BARS);
+  const sources = fakeSources();
 
   models.setProvider(faux.provider);
 
@@ -60,6 +151,7 @@ async function analyze(...scripts: string[]) {
       mode: BrokerMode.Paper,
       account: async () => ({ cash: { TWD: 1_000_000 }, positions: [] }),
     },
+    ...sources,
     scripts: runner,
   });
 
@@ -109,7 +201,12 @@ async function analyze(...scripts: string[]) {
       : []
   );
 
-  return { results, candles };
+  return {
+    results,
+    candles,
+    sources,
+    description: analysis.tools?.[0].description,
+  };
 }
 
 test("a script reads bars and computes with the app's indicators", async () => {
@@ -156,4 +253,83 @@ test("a script reaches nothing outside its sandbox, and its failure is told to t
   });
   expect(results[1]).toMatchObject({ status: ToolCallStatus.Error });
   expect(results[1]?.output).toContain("symbol");
+});
+
+test("a script reads quotes, sectors, flows and filings, with the figures the app computes from them", async () => {
+  const { results, sources } = await analyze(`
+    const tsmc = { market: "${Market.TW}", symbol: "2330" };
+    const [quote, none, sectors, traded, quarters, months, multiples] = await Promise.all([
+      market.quote(tsmc),
+      market.quote({ market: "${Market.TW}", symbol: "9999" }),
+      market.sectors(),
+      flows.listing(tsmc),
+      fundamentals.statements(tsmc),
+      fundamentals.monthlyRevenue(tsmc),
+      fundamentals.multiples(tsmc),
+    ]);
+    const [foreign] = await flows.netBuying(traded.trades);
+    return {
+      quote: [quote.last, quote.change, Number(quote.percent.toFixed(4))],
+      none,
+      sectors: sectors.map((sector) => [sector.sector, sector.percent, sector.share]),
+      foreign: [foreign.investor, foreign.session, foreign.week, foreign.streak],
+      grossMargin: quarters[0].grossMargin,
+      yoy: months.at(-1).yoy,
+      pe: multiples.priceToEarnings,
+    };
+  `);
+
+  expect(results).toEqual([
+    {
+      status: ToolCallStatus.Ok,
+      output: `Result: ${JSON.stringify({
+        quote: [1085, 15, 0.014],
+        none: null,
+        sectors: [["semiconductors", 0.01, 1]],
+        foreign: ["foreign", 6000, 11_000, 2],
+        grossMargin: 0.55,
+        yoy: 0.3,
+        pe: 24.5,
+      })}`,
+    },
+  ]);
+  expect(sources.flows.listing).toHaveBeenCalledWith({
+    market: Market.TW,
+    symbol: "2330",
+  });
+});
+
+test("a script reads the counted sources for a limited number of listings, and the exchange's own list for any", async () => {
+  const { results, sources } = await analyze(`
+    const listings = Array.from({ length: ${MAX_LISTINGS} + 1 }, (_, index) => ({
+      market: "${Market.TW}",
+      symbol: String(1101 + index),
+    }));
+    const multiples = await Promise.all(listings.map((each) => fundamentals.multiples(each)));
+    const quotes = await Promise.all(listings.slice(0, ${MAX_LISTINGS}).map((each) => market.quote(each)));
+    text(multiples.length + " multiples, " + quotes.length + " quotes");
+    await flows.listing(listings[0]);
+    await flows.listing(listings.at(-1));
+  `);
+
+  expect(results).toEqual([
+    {
+      status: ToolCallStatus.Error,
+      output: expect.stringMatching(
+        /^51 multiples, 50 quotes\n.*at most 50 listings/s
+      ),
+    },
+  ]);
+  // A listing already read is read again; the one past the limit never reaches its source.
+  expect(sources.flows.listing).toHaveBeenCalledOnce();
+});
+
+test("the tool declares the sources' functions under their names, on types written once", async () => {
+  const { description } = await analyze();
+
+  expect(description).toContain("type ListingFlows = {");
+  expect(description).toContain(
+    "listing(symbol: SymbolRef): Promise<ListingFlows>;"
+  );
+  expect(description).toContain("declare const fundamentals: {");
 });
