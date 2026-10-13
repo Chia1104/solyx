@@ -149,7 +149,10 @@ export function readTexts(entries: readonly EntryRecord[]): string[] {
     const [stored] = entry.model ?? [];
 
     if (ToolResultEntry.is(entry) && stored?.role === "toolResult") {
-      return [contentText(stored.content)];
+      // A task's runs are the model's own earlier replies, which no quote is the words of.
+      return stored.toolName === AgentToolName.GetTaskRuns
+        ? []
+        : [contentText(stored.content)];
     }
 
     return UserEntry.is(entry) && stored?.role === "user"

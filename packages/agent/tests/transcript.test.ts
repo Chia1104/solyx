@@ -94,15 +94,20 @@ const toolCall = (id: number) =>
     })
   );
 
-const toolResult = (id: number, diagnostics: ToolDiagnostic[] = []) =>
+const toolResult = (
+  id: number,
+  diagnostics: ToolDiagnostic[] = [],
+  toolName = "get_account",
+  text = "cash: TWD 1000"
+) =>
   entry(
     id,
     ToolResultEntry.kind,
     {
       role: "toolResult",
       toolCallId: "call-1",
-      toolName: "get_account",
-      content: [{ type: "text", text: "cash: TWD 1000" }],
+      toolName,
+      content: [{ type: "text", text }],
       isError: diagnostics.length > 0,
       timestamp: 3,
     },
@@ -346,4 +351,13 @@ test("what a conversation read is what its tools returned and its user wrote, ne
     expect.stringContaining("台積電法說說產能滿載到 2027"),
     "cash: TWD 1000",
   ]);
+});
+
+test("what an earlier run replied is the model's own words, so no quote is read from it", () => {
+  expect(
+    readTexts([
+      toolResult(1, [], "get_task_runs", "法說會表示毛利率將達 60%"),
+      toolResult(2),
+    ])
+  ).toEqual(["cash: TWD 1000"]);
 });

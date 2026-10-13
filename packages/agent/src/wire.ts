@@ -215,6 +215,7 @@ export const AgentToolName = {
   GetThemes: "get_themes",
   SaveTheme: "save_theme",
   GetTasks: "get_tasks",
+  GetTaskRuns: "get_task_runs",
   SaveTask: "save_task",
   ChangeWatchlist: "change_watchlist",
   GetSetup: "get_setup",
