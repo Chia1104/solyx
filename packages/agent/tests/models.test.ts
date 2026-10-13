@@ -1,3 +1,4 @@
+import type { Credential } from "@earendil-works/pi-ai";
 import { escapeRegExp } from "es-toolkit";
 import { expect, onTestFinished, test, vi } from "vite-plus/test";
 
@@ -37,26 +38,27 @@ function setup(
   return { catalog, openExternal };
 }
 
-test("a model the provider does not list reads as its default", () => {
+test("a model the provider does not list reads as its default", async () => {
   const { catalog } = setup();
+  const options = await catalog.options("anthropic");
 
-  expect(catalog.model("anthropic", "gone")?.id).toBe(DEFAULT_MODEL.anthropic);
-  expect(catalog.model("anthropic", undefined)?.id).toBe(
+  expect((await catalog.model("anthropic", "gone"))?.id).toBe(
     DEFAULT_MODEL.anthropic
   );
-  expect(catalog.options("anthropic").map((option) => option.id)).toContain(
+  expect((await catalog.model("anthropic", undefined))?.id).toBe(
     DEFAULT_MODEL.anthropic
   );
+  expect(options.map((option) => option.id)).toContain(DEFAULT_MODEL.anthropic);
 });
 
-test("every provider offered is set up with one key, and only those with a subscription also sign in", async () => {
+test("every provider offered is set up with one key or a sign-in, and only those with a subscription sign in", async () => {
   const { catalog } = setup();
   const offered = catalog.providers();
 
   expect(offered.length).toBeGreaterThan(4);
   expect(
     offered.map(({ id }) => id).filter((id) => subscriptionOf(id) !== undefined)
-  ).toEqual(["meta", "openai", "xai"]);
+  ).toEqual(["github-copilot", "meta", "openai", "xai"]);
 
   for (const { id } of offered) {
     const auth = catalog.models.getProvider(id)?.auth;
@@ -72,7 +74,11 @@ test("every provider offered is set up with one key, and only those with a subsc
       },
     });
 
-    expect({ id, asked }).toEqual({ id, asked: ["secret"] });
+    // A provider that runs on its sign-in alone takes no key.
+    expect({ id, asked }).toEqual({
+      id,
+      asked: subscriptionOf(id)?.only ? [] : ["secret"],
+    });
     expect({ id, oauth: auth?.oauth !== undefined }).toEqual({
       id,
       oauth: subscriptionOf(id) !== undefined,
@@ -80,7 +86,7 @@ test("every provider offered is set up with one key, and only those with a subsc
   }
 });
 
-test("providers that run on more than a key are not offered", () => {
+test("providers that run on more than a key are not offered", async () => {
   const { catalog } = setup();
 
   expect(catalog.offers("xai")).toBe(true);
@@ -88,7 +94,7 @@ test("providers that run on more than a key are not offered", () => {
   expect(catalog.offers("azure")).toBe(false);
   expect(catalog.offers("cloudflare-workers-ai")).toBe(false);
   expect(catalog.offers("nowhere")).toBe(false);
-  expect(catalog.model("nowhere", undefined)).toBeUndefined();
+  await expect(catalog.model("nowhere", undefined)).resolves.toBeUndefined();
 });
 
 // A provider that runs on the user's own resource, as Azure does, lists its models without one.
@@ -105,7 +111,7 @@ test("every model offered is served from an endpoint its provider names", () => 
   }
 });
 
-test("each default model is one its provider's catalog lists", () => {
+test("each default model is one its provider's catalog lists", async () => {
   const { catalog } = setup();
 
   for (const [provider, id] of Object.entries(DEFAULT_MODEL)) {
@@ -113,11 +119,11 @@ test("each default model is one its provider's catalog lists", () => {
       provider,
       offered: true,
     });
-    expect(catalog.defaultModel(provider)).toBe(id);
+    expect(await catalog.defaultModel(provider)).toBe(id);
   }
 
   for (const { id } of catalog.providers()) {
-    expect(catalog.defaultModel(id)).toBeDefined();
+    expect(await catalog.defaultModel(id)).toBeDefined();
   }
 });
 
@@ -227,6 +233,100 @@ test("a sign-in by code shows the code, opens the provider's page and saves what
   });
 });
 
+test("GitHub Copilot signs in to github.com and offers the models its account has", async () => {
+  const asked: string[] = [];
+  let saved: Credential | undefined;
+
+  // GitHub's device flow and Copilot's token and models, shaped as their responses are.
+  vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+    const url = String(input);
+
+    asked.push(url);
+
+    if (url.endsWith("/login/device/code")) {
+      return Response.json({
+        device_code: "device",
+        user_code: "WXYZ-1234",
+        verification_uri: "https://github.com/login/device",
+        interval: 1,
+        expires_in: 900,
+      });
+    }
+
+    if (url.endsWith("/login/oauth/access_token")) {
+      return Response.json({ access_token: "ghu_test" });
+    }
+
+    if (url.endsWith("/copilot_internal/v2/token")) {
+      return Response.json({
+        token: "tid=1;exp=1;proxy-ep=proxy.individual.githubcopilot.com",
+        expires_at: Math.floor(Date.now() / 1000) + 1800,
+      });
+    }
+
+    return Response.json({
+      data: ["gpt-5.4", "gpt-5-mini"].map((id) => ({
+        id,
+        model_picker_enabled: true,
+        policy: { state: "enabled" },
+        capabilities: { supports: { tool_calls: true } },
+      })),
+    });
+  });
+  onTestFinished(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const { catalog, openExternal } = setup(undefined, {
+    ...NO_CREDENTIALS,
+    read: async () => saved,
+    async modify(_provider, change) {
+      saved = (await change(saved)) ?? saved;
+
+      return saved;
+    },
+  });
+
+  // Before a sign-in nothing says which models the account has, so all are listed.
+  expect(await catalog.defaultModel("github-copilot")).toBe(
+    DEFAULT_MODEL["github-copilot"]
+  );
+  expect(
+    catalog.models.getProvider("github-copilot")?.auth.apiKey
+  ).toBeUndefined();
+
+  const onCode = vi.fn();
+
+  await catalog.signIn("github-copilot", { page: () => "", onCode });
+
+  expect(asked.slice(0, 4)).toEqual([
+    "https://github.com/login/device/code",
+    "https://github.com/login/oauth/access_token",
+    "https://api.github.com/copilot_internal/v2/token",
+    "https://api.individual.githubcopilot.com/models",
+  ]);
+  expect(onCode).toHaveBeenCalledExactlyOnceWith({
+    code: "WXYZ-1234",
+    url: "https://github.com/login/device",
+  });
+  expect(openExternal).toHaveBeenCalledExactlyOnceWith(
+    "https://github.com/login/device"
+  );
+  expect(saved).toMatchObject({ type: "oauth", refresh: "ghu_test" });
+
+  const options = await catalog.options("github-copilot");
+
+  expect(options.map((option) => option.id)).toEqual(["gpt-5-mini", "gpt-5.4"]);
+  // The preferred default is not one the account has, so its first model stands in.
+  expect(await catalog.defaultModel("github-copilot")).toBe("gpt-5-mini");
+  expect((await catalog.model("github-copilot", "gpt-5.4"))?.id).toBe(
+    "gpt-5.4"
+  );
+  expect(
+    (await catalog.model("github-copilot", DEFAULT_MODEL["github-copilot"]))?.id
+  ).toBe("gpt-5-mini");
+});
+
 test("a page that is not https is shown with its code and never opened", async () => {
   vi.stubGlobal("fetch", async () =>
     Response.json({
@@ -276,9 +376,9 @@ test("a request goes to the endpoint set for its provider, read for every reques
     provider === "anthropic" ? endpoint : undefined
   );
 
-  const send = () =>
+  const send = async () =>
     catalog.models.complete(
-      catalog.model("anthropic", undefined)!,
+      (await catalog.model("anthropic", undefined))!,
       { messages: [{ role: "user", content: "hi", timestamp: Date.now() }] },
       { apiKey: "sk-ant-test" }
     );

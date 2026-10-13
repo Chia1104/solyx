@@ -295,7 +295,9 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       .map((each) => {
         const access = each.subscription?.signedIn
           ? "subscription signed in"
-          : `key ${stateText(each.key)}`;
+          : each.subscription?.only
+            ? "subscription not signed in"
+            : `key ${stateText(each.key)}`;
 
         const endpoint =
           each.endpoint && each.endpoint.url !== each.endpoint.default

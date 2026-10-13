@@ -22,12 +22,11 @@ const NO_AMBIENT_AUTH: AuthContext = {
   fileExists: async () => false,
 };
 
-// pi-ai's built-in providers the app does not offer: each runs on something other than one key.
+// pi-ai's built-in providers the app does not offer: each runs on something other than one key or
+// a sign-in the app keeps.
 const WITHHELD = new Set([
   // pi-ai's older route to a ChatGPT subscription; the app signs in to OpenAI itself.
   "openai-codex",
-  // Runs only on a Copilot sign-in.
-  "github-copilot",
   // Pi's own gateway, which signs in through pi.
   "radius",
   // Lists only classifiers, which the decisions model reaches on its own.
@@ -47,16 +46,27 @@ const KEY_SIGN_IN: AgentProvider = "openrouter";
 // The provider that signs in through the app's own Sign in with ChatGPT flow.
 const CHATGPT_PROVIDER: AgentProvider = "openai";
 
-// The plan a sign-in runs a provider on, by the provider's own name for it. OpenAI signs in through
-// the app's own flow and the others through pi-ai's, which is kept only where it runs on a code the
-// user enters on the provider's page and reads nothing from the environment.
-const SUBSCRIPTIONS = new Map<AgentProvider, string>([
-  [CHATGPT_PROVIDER, "ChatGPT"],
-  ["meta", "Muse"],
-  ["xai", "SuperGrok / X Premium"],
+const COPILOT_PROVIDER: AgentProvider = "github-copilot";
+
+/** The subscription a sign-in runs a provider on. */
+export interface Subscription {
+  /** The plan as the provider names it, a brand name shown as it is. */
+  plan: string;
+  /** The provider runs on nothing else, so it takes no key. */
+  only: boolean;
+}
+
+// OpenAI signs in through the app's own flow and the others through pi-ai's, which is kept only
+// where it runs on a code the user enters on the provider's page and reads nothing from the
+// environment.
+const SUBSCRIPTIONS = new Map<AgentProvider, Subscription>([
+  [COPILOT_PROVIDER, { plan: "GitHub Copilot", only: true }],
+  [CHATGPT_PROVIDER, { plan: "ChatGPT", only: false }],
+  ["meta", { plan: "Muse", only: false }],
+  ["xai", { plan: "SuperGrok / X Premium", only: false }],
 ]);
 
-/** The plan a sign-in runs the provider on, as the provider names it; `undefined` for a provider that runs on a key alone. */
+/** The subscription a sign-in runs the provider on; `undefined` for a provider that runs on a key alone. */
 export const subscriptionOf = (provider: AgentProvider) =>
   SUBSCRIPTIONS.get(provider);
 
@@ -71,6 +81,7 @@ export const DEFAULT_MODEL: Partial<Record<AgentProvider, string>> = {
   cerebras: "gpt-oss-120b",
   deepseek: "deepseek-v4-pro",
   fireworks: "accounts/fireworks/models/kimi-k3",
+  "github-copilot": "claude-fable-5.1",
   google: "gemini-3.1-pro-preview",
   groq: "openai/gpt-oss-120b",
   huggingface: "moonshotai/Kimi-K2.6",
@@ -100,7 +111,7 @@ export const DEFAULT_MODEL: Partial<Record<AgentProvider, string>> = {
   "zai-coding-cn": "glm-5.3",
 };
 
-/** A provider the app offers: it has chat models and the user sets it up by entering a key. */
+/** A provider the app may offer: it has chat models and pi-ai sets it up with a key alone. */
 function isOffered(provider: Provider): boolean {
   return (
     !WITHHELD.has(provider.id) &&
@@ -224,8 +235,9 @@ export function createModelCatalog({
     callbackPage: (outcome, detail) => landing(outcome, detail),
   });
 
-  // Every provider runs on its key, and one with a subscription also signs in: OpenAI through the
-  // app's own flow, the others through pi-ai's. No other sign-in flow of pi-ai's is ever loaded.
+  // A provider runs on its key, and one with a subscription also signs in, or only signs in:
+  // OpenAI through the app's own flow, the others through pi-ai's. No other sign-in flow of
+  // pi-ai's is ever loaded.
   const signInOf = (provider: Provider) =>
     provider.id === CHATGPT_PROVIDER
       ? chatgpt
@@ -238,11 +250,14 @@ export function createModelCatalog({
     .map((provider): Provider => {
       const oauth = signInOf(provider);
 
+      if (!oauth)
+        return { ...provider, auth: { apiKey: provider.auth.apiKey } };
+
       return {
         ...provider,
-        auth: oauth
-          ? { apiKey: provider.auth.apiKey, oauth }
-          : { apiKey: provider.auth.apiKey },
+        auth: SUBSCRIPTIONS.get(provider.id)?.only
+          ? { oauth }
+          : { apiKey: provider.auth.apiKey, oauth },
       };
     })
     .toSorted((a, b) => a.name.localeCompare(b.name));
@@ -284,15 +299,24 @@ export function createModelCatalog({
     );
   }
 
-  /** The model new conversations on the provider start on. */
-  function defaultModel(provider: AgentProvider): Model<Api> | undefined {
+  /**
+   * The provider's chat models the user may run, in its catalog's order: all of them, but for a
+   * provider whose sign-in lists the ones the account has, as GitHub Copilot's does.
+   */
+  async function available(
+    provider: AgentProvider
+  ): Promise<readonly Model<Api>[]> {
+    const listed = models.getModels(provider);
+    const filter = models.getProvider(provider)?.filterModels;
+
+    return filter ? filter(listed, await credentials.read(provider)) : listed;
+  }
+
+  /** The model new conversations on the provider start on, of those `available` gave. */
+  function defaultOf(provider: AgentProvider, listed: readonly Model<Api>[]) {
     const preferred = DEFAULT_MODEL[provider];
 
-    return (
-      (preferred === undefined
-        ? undefined
-        : models.getModel(provider, preferred)) ?? models.getModels(provider)[0]
-    );
+    return listed.find((model) => model.id === preferred) ?? listed[0];
   }
 
   return {
@@ -308,30 +332,32 @@ export function createModelCatalog({
     defaultEndpoint: (provider: AgentProvider) => endpoints.get(provider),
 
     /** The id of the model new conversations on the provider start on. */
-    defaultModel: (provider: AgentProvider) => defaultModel(provider)?.id,
+    defaultModel: async (provider: AgentProvider) =>
+      defaultOf(provider, await available(provider))?.id,
 
-    /** The provider's model `id`, or its default one when the catalog lists no such model. */
-    model(
+    /** The provider's model `id`, or its default one when the user may run no such model. */
+    async model(
       provider: AgentProvider,
       id: string | undefined
-    ): Model<Api> | undefined {
+    ): Promise<Model<Api> | undefined> {
+      const listed = await available(provider);
+
       return (
-        (id === undefined ? undefined : models.getModel(provider, id)) ??
-        defaultModel(provider)
+        listed.find((model) => model.id === id) ?? defaultOf(provider, listed)
       );
     },
 
-    /** The provider's chat models, in its catalog's order. */
-    options(provider: AgentProvider): AgentModelOption[] {
-      return models
-        .getModels(provider)
-        .map(({ id, name, reasoning, contextWindow }) => ({
-          provider,
-          id,
-          name,
-          reasoning,
-          contextWindow,
-        }));
+    /** The provider's chat models the user may run, in its catalog's order. */
+    async options(provider: AgentProvider): Promise<AgentModelOption[]> {
+      const listed = await available(provider);
+
+      return listed.map(({ id, name, reasoning, contextWindow }) => ({
+        provider,
+        id,
+        name,
+        reasoning,
+        contextWindow,
+      }));
     },
 
     /**
@@ -356,12 +382,15 @@ export function createModelCatalog({
           "oauth",
           {
             signal,
-            // No flow kept asks the user anything here; the browser, or the code entered in it,
-            // brings the sign-in back.
+            // The browser, or the code entered in it, brings the sign-in back, so no flow kept
+            // asks the user anything but GitHub's, which asks which GitHub to sign in to: a blank
+            // answer is github.com, the only one offered.
             prompt: (request) =>
-              Promise.reject(
-                new Error(`Unsupported sign-in step: ${request.type}`)
-              ),
+              provider === COPILOT_PROVIDER && request.type === "text"
+                ? Promise.resolve("")
+                : Promise.reject(
+                    new Error(`Unsupported sign-in step: ${request.type}`)
+                  ),
             notify: (event) => {
               if (event.type === "auth_url") open(event.url);
 

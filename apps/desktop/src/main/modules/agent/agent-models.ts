@@ -20,11 +20,18 @@ import { SignInFlow, signInPage } from "../settings/sign-in-page.ts";
 
 type AgentConfig = ReturnType<ConfigFile["read"]>["agent"];
 
-/** How `agent` says `provider` is paid for; a provider without a subscription runs on a key. */
+/**
+ * How `agent` says `provider` is paid for. A provider without a subscription runs on a key, and
+ * one that takes no key on its subscription, whatever `agent` says.
+ */
 function authOf(agent: AgentConfig, provider: AgentProvider): AgentAuth {
-  return subscriptionOf(provider) === undefined
-    ? AgentAuth.ApiKey
-    : (agent.auth[provider] ?? AgentAuth.ApiKey);
+  const subscription = subscriptionOf(provider);
+
+  if (subscription === undefined) return AgentAuth.ApiKey;
+
+  if (subscription.only) return AgentAuth.Subscription;
+
+  return agent.auth[provider] ?? AgentAuth.ApiKey;
 }
 
 export interface AgentModelsOptions {
@@ -95,12 +102,12 @@ export function createAgentModels({
   async function setUp(agent: AgentConfig, provider: AgentProvider) {
     const auth = authOf(agent, provider);
     const key = await secrets.state(agentKeySecret(provider));
-    const plan = subscriptionOf(provider);
+    const offers = subscriptionOf(provider);
 
     const subscription =
-      plan === undefined
+      offers === undefined
         ? null
-        : { plan, signedIn: await credentials.signedIn(provider) };
+        : { ...offers, signedIn: await credentials.signedIn(provider) };
 
     return {
       auth,
@@ -135,7 +142,7 @@ export function createAgentModels({
     async settings(): Promise<AgentSettings> {
       const agent = agentConfig();
       const { provider, model, thinking } = defaults(agent);
-      const found = catalog.model(provider, model);
+      const found = await catalog.model(provider, model);
 
       const providers = await Promise.all(
         catalog.providers().map(async ({ id, name }) => {
@@ -167,9 +174,13 @@ export function createAgentModels({
         thinking,
         decisionMode: agent.decisionMode,
         magi: agent.magi,
-        models: providers
-          .filter((each) => each.enabled)
-          .flatMap((each) => catalog.options(each.provider)),
+        models: (
+          await Promise.all(
+            providers
+              .filter((each) => each.enabled)
+              .map((each) => catalog.options(each.provider))
+          )
+        ).flat(),
         ready: providers.some((each) => each.enabled && each.usable),
       };
     },
@@ -193,7 +204,7 @@ export function createAgentModels({
 
       config.update([
         [["agent", "provider"], provider],
-        [["agent", "model"], catalog.defaultModel(provider)],
+        [["agent", "model"], await catalog.defaultModel(provider)],
       ]);
     },
 
@@ -202,10 +213,14 @@ export function createAgentModels({
       offered(provider);
 
       if (
-        auth === AgentAuth.Subscription &&
-        subscriptionOf(provider) === undefined
+        authOf({ ...agentConfig(), auth: { [provider]: auth } }, provider) !==
+        auth
       ) {
-        throw new Error(`${provider} has no subscription sign-in`);
+        throw new Error(
+          auth === AgentAuth.Subscription
+            ? `${provider} has no subscription sign-in`
+            : `${provider} runs only on its subscription's sign-in`
+        );
       }
 
       config.set(["agent", "auth", provider], auth);
@@ -273,7 +288,7 @@ export function createAgentModels({
         );
       }
 
-      const model = catalog.model(provider, id);
+      const model = await catalog.model(provider, id);
 
       if (!model) {
         throw new Error(`Pick a model for ${provider} in Settings first`);

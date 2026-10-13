@@ -6,6 +6,7 @@ import claude from "@lobehub/icons-static-svg/icons/claude-color.svg?no-inline";
 import deepseek from "@lobehub/icons-static-svg/icons/deepseek-color.svg?no-inline";
 import fireworks from "@lobehub/icons-static-svg/icons/fireworks-color.svg?no-inline";
 import gemini from "@lobehub/icons-static-svg/icons/gemini-color.svg?no-inline";
+import githubcopilot from "@lobehub/icons-static-svg/icons/githubcopilot.svg?no-inline";
 import groq from "@lobehub/icons-static-svg/icons/groq.svg?no-inline";
 import huggingface from "@lobehub/icons-static-svg/icons/huggingface-color.svg?no-inline";
 import kimi from "@lobehub/icons-static-svg/icons/kimi-color.svg?no-inline";
@@ -37,6 +38,7 @@ const MARKS: Partial<Record<AgentProvider, Logo>> = {
   cerebras: { src: cerebras, colored: true },
   deepseek: { src: deepseek, colored: true },
   fireworks: { src: fireworks, colored: true },
+  "github-copilot": { src: githubcopilot, colored: false },
   google: { src: gemini, colored: true },
   groq: { src: groq, colored: false },
   huggingface: { src: huggingface, colored: true },

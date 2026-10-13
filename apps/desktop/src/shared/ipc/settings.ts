@@ -298,13 +298,14 @@ export interface AgentProviderSettings {
   enabled: boolean;
   /** On the settings page: switched on, or something is saved for it, so a saved key can be found. */
   listed: boolean;
-  /** Always `api-key` for a provider without a subscription sign-in. */
+  /** Always `api-key` for a provider without a subscription sign-in, and `subscription` for one that takes no key. */
   auth: AgentAuth;
   /**
-   * The plan a sign-in runs it on, a brand name the page shows as it is, and whether that sign-in
-   * is saved; `null` for a provider without a subscription sign-in.
+   * The plan a sign-in runs it on, a brand name the page shows as it is, whether that sign-in is
+   * saved, and whether it runs on nothing else, so it takes no key; `null` for a provider without
+   * a subscription sign-in.
    */
-  subscription: { plan: string; signedIn: boolean } | null;
+  subscription: { plan: string; signedIn: boolean; only: boolean } | null;
   /** The API key saved for it, whatever it runs on now. */
   key: SecretState;
   /** A sign-in to it in the browser creates that key, in place of one pasted in. */
