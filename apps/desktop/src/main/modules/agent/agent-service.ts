@@ -275,7 +275,13 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const themes = createThemeTools({ desk: options.themes });
 
-  const tasks = createTaskTools({ tasks: options.tasks });
+  const tasks = createTaskTools({
+    tasks: options.tasks,
+    conversations: {
+      sessions: () => runtime.sessions(),
+      transcript: (id) => runtime.transcript(id),
+    },
+  });
 
   const watched = createWatchlistTools({
     watchlist: options.watchlist,

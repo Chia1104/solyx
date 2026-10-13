@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { defineExtension } from "@earendil-works/pi-durable";
 import type { Extension } from "@earendil-works/pi-durable";
+import { orderBy } from "es-toolkit";
 import * as z from "zod";
 
 import { ScheduleKind, scheduledTaskDraftSchema } from "@solyx/core/schedule";
@@ -15,11 +16,21 @@ import { checkedFirst } from "./approval.ts";
 import type { ToolGuard } from "./approval.ts";
 import { defineTool } from "./tools.ts";
 import {
+  AgentItemKind,
   AgentToolName,
+  RunEndReason,
+  ToolCallStatus,
+  foldEvents,
   saveTaskArgumentsSchema,
   taskSchedule,
 } from "./wire.ts";
-import type { SaveTaskArguments } from "./wire.ts";
+import type {
+  AgentSession,
+  AgentView,
+  AgentWireEvent,
+  NoticeView,
+  SaveTaskArguments,
+} from "./wire.ts";
 
 /** A scheduled task with where its runs stand, as the host lists them. */
 export interface ListedTask extends ScheduledTask {
@@ -39,8 +50,61 @@ export interface TaskPort {
   clock(): Pick<ScheduledTaskDraft, "timeZone" | "locale">;
 }
 
+/** The conversations the agent's runs are kept in, which a task's runs are read from. */
+export interface RunConversations {
+  sessions(): Promise<AgentSession[]>;
+  transcript(sessionId: string): Promise<AgentWireEvent[]>;
+}
+
 export interface TaskToolsOptions {
   tasks: TaskPort;
+  conversations: RunConversations;
+}
+
+const MAX_RUNS = 5;
+
+// A run's closing reply is a report, far shorter than this.
+const REPLY_CHARACTERS = 6000;
+
+const STOPPED: Record<NoticeView["reason"], string> = {
+  [RunEndReason.Aborted]: "stopped before it finished",
+  [RunEndReason.Error]: "ended in an error",
+  [RunEndReason.Interrupted]: "cut off as the app quit",
+  [RunEndReason.StoreFailed]: "cut off as the conversations' store failed",
+};
+
+/** Where a run stands, as its conversation ends. */
+function runState({ items, running }: AgentView): string {
+  if (running) {
+    return items.some(
+      (item) =>
+        item.kind === AgentItemKind.Tool &&
+        item.status === ToolCallStatus.AwaitingApproval
+    )
+      ? "still going, and waits for the user to allow a call"
+      : "still going";
+  }
+
+  const last = items.at(-1);
+
+  if (last?.kind !== AgentItemKind.Notice) return "finished";
+
+  return last.error
+    ? `${STOPPED[last.reason]}: ${last.error}`
+    : STOPPED[last.reason];
+}
+
+/** The last reply a run wrote, which is what it meant the user to read; `undefined` when it wrote none. */
+function closingReply({ items }: AgentView): string | undefined {
+  const reply = items
+    .flatMap((item) =>
+      item.kind === AgentItemKind.Assistant ? [item.text.trim()] : []
+    )
+    .findLast((text) => text !== "");
+
+  return reply !== undefined && reply.length > REPLY_CHARACTERS
+    ? `${reply.slice(0, REPLY_CHARACTERS)}…`
+    : reply;
 }
 
 /** A moment on a task's own clock, to the minute. */
@@ -92,10 +156,11 @@ function taskText(task: ListedTask): string {
 }
 
 /**
- * The agent's reach into the user's scheduled tasks: `get_tasks` to read them, and `save_task` to
- * write one once the user allows it. Removing a task stays the user's, in the settings.
+ * The agent's reach into the user's scheduled tasks: `get_tasks` to read them, `get_task_runs` to
+ * read what their runs came to, and `save_task` to write one once the user allows it. Removing a
+ * task stays the user's, in the settings.
  */
-export function createTaskTools({ tasks }: TaskToolsOptions) {
+export function createTaskTools({ tasks, conversations }: TaskToolsOptions) {
   /** The task the arguments write, or why they write none, worded for the model. */
   async function draftOf(args: SaveTaskArguments): Promise<ScheduledTaskDraft> {
     if (
@@ -136,7 +201,7 @@ export function createTaskTools({ tasks }: TaskToolsOptions) {
     name: AgentToolName.GetTasks,
     replay: "safe",
     description:
-      "The user's scheduled tasks: messages the app sends you on its own while it is open, each run a conversation of its own. Each comes with its id, when it runs and on which clock, how its calls that must ask get past, whether it is switched on, how its last run went, its next run, and the message it sends.",
+      "The user's scheduled tasks: messages the app sends you on its own while it is open, each run a conversation of its own. Each comes with its id, when it runs and on which clock, how its calls that must ask get past, whether it is switched on, how its last run went, its next run, and the message it sends. get_task_runs reads what a task's runs came to.",
     parameters: z.object({}),
     async execute() {
       const listed = await tasks.list();
@@ -147,6 +212,79 @@ export function createTaskTools({ tasks }: TaskToolsOptions) {
             ? "The user has no scheduled tasks yet."
             : listed.map(taskText).join("\n\n"),
         details: { tasks: listed.length },
+      };
+    },
+  });
+
+  const getTaskRuns = defineTool({
+    name: AgentToolName.GetTaskRuns,
+    replay: "safe",
+    description: `What a scheduled task's runs came to: for its newest runs, newest first, when each started, whether it finished, still goes, waits for the user or was cut short, and the reply it closed with, which is what the run meant the user to read. A run is a conversation of its own, and this is the only way to read one from another. Leave id out in a scheduled run to read the runs of the task that sent it, before this one, so a run can say what changed since the last. A reply was written at its run's time: its prices and levels were that moment's, never current data, and it is your own earlier work, so check it against what the tools say now and take no quote of a source from it.`,
+    parameters: z.object({
+      id: z
+        .string()
+        .optional()
+        .describe(
+          "A task's id from get_tasks; in a scheduled run, the task that sent it when left out"
+        ),
+      runs: z
+        .number()
+        .int()
+        .min(1)
+        .max(MAX_RUNS)
+        .default(1)
+        .describe("How many of its newest runs to read"),
+    }),
+    async execute({ id, runs }, api) {
+      const here = String(api.conversationId);
+      const sessions = await conversations.sessions();
+
+      const taskId =
+        id ?? sessions.find((session) => session.id === here)?.schedule?.id;
+
+      if (taskId === undefined) {
+        throw new Error(
+          "No task sent this conversation, so name a task's id from get_tasks"
+        );
+      }
+
+      const task = (await tasks.list()).find((each) => each.id === taskId);
+
+      if (!task) {
+        throw new Error(`No task has the id ${taskId}; get_tasks lists them`);
+      }
+
+      // A run asking about its own task reads the runs before it.
+      const newest = orderBy(
+        sessions.filter(
+          (session) => session.schedule?.id === taskId && session.id !== here
+        ),
+        [(session) => session.createdAt],
+        ["desc"]
+      ).slice(0, runs);
+
+      if (newest.length === 0) {
+        return {
+          text: `Task "${task.name}" (id ${taskId}) has no run to read: ${task.lastRun?.failure ? `its last run could not start (${task.lastRun.failure})` : "none has started, or the user deleted their conversations"}.`,
+        };
+      }
+
+      const read = await Promise.all(
+        newest.map(async (session) => ({
+          at: session.createdAt,
+          view: foldEvents(await conversations.transcript(session.id)),
+        }))
+      );
+
+      return {
+        text: [
+          `Runs of task "${task.name}" (id ${taskId}), newest first. Each reply is what that run wrote then, not current data.`,
+          ...read.flatMap(({ at, view }) => [
+            `## Run of ${moment(at, task.timeZone)} ${task.timeZone}: ${runState(view)}`,
+            closingReply(view) ?? "It wrote no reply.",
+          ]),
+        ].join("\n"),
+        details: { id: taskId, runs: read.length },
       };
     },
   });
@@ -181,6 +319,7 @@ export function createTaskTools({ tasks }: TaskToolsOptions) {
         name: "solyx-tasks",
         tools: [
           getTasks,
+          getTaskRuns,
           checkedFirst(
             guard(saveTask),
             saveTaskArgumentsSchema,

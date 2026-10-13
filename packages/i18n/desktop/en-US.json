@@ -467,6 +467,7 @@
       "get_themes": "Read your themes",
       "save_theme": "Wrote a theme",
       "get_tasks": "Read your scheduled tasks",
+      "get_task_runs": "Read task runs",
       "save_task": "Wrote a scheduled task",
       "change_watchlist": "Changed your watchlist"
     },
