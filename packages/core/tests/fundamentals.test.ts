@@ -4,6 +4,7 @@ import type { Candle } from "../src/candles.ts";
 import {
   balanceSheetMetrics,
   cashFlowMetrics,
+  cashGoneExBy,
   priceToEarnings,
   revenueTrend,
   statementMetrics,
@@ -250,4 +251,21 @@ test("trailingCash adds the cash that went ex in the year through the day, and n
   expect(trailingCash(dividends, "2026-09-16")).toBe(24);
   expect(trailingCash(dividends, "2026-09-15")).toBe(21.5);
   expect(trailingCash([], "2026-09-16")).toBe(0);
+});
+
+test("cashGoneExBy counts the cash gone ex after the first day through each, so a span takes the difference", () => {
+  const dates = ["2026-06-09", "2026-06-10", "2026-06-11", "2026-09-16"];
+
+  const cash = cashGoneExBy(dates, [
+    // Gone ex on the first day, so before any span from it starts.
+    dividend(5, "2026-06-09"),
+    dividend(6, "2026-06-11"),
+    dividend(7, "2026-09-16"),
+    dividend(7, null),
+  ]);
+
+  expect(cash).toEqual([0, 0, 6, 13]);
+  // From the third day to the fourth only the last distribution went ex.
+  expect(cash[3] - cash[2]).toBe(7);
+  expect(cashGoneExBy([], [dividend(5, "2026-06-09")])).toEqual([]);
 });

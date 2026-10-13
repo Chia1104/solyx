@@ -124,6 +124,16 @@ export function createMarketData({
     candles: (symbol: SymbolRef, interval: Interval) =>
       read(symbol, interval, lookbackRange(symbol.market, interval, now())),
 
+    /**
+     * Bars from `since` (`YYYY-MM-DD` on the exchange's calendar) on, where that reaches further
+     * back than the lookback; the candle cache keeps what a source was asked for once.
+     */
+    candlesSince(symbol: SymbolRef, interval: Interval, since: string) {
+      const { from, to } = lookbackRange(symbol.market, interval, now());
+
+      return read(symbol, interval, { from: since < from ? since : from, to });
+    },
+
     /** The page of history before the bar opening at `before`; empty once the source has nothing older. */
     olderCandles: (symbol: SymbolRef, interval: Interval, before: number) =>
       read(symbol, interval, olderRange(symbol.market, interval, before)),

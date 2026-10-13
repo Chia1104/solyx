@@ -6,7 +6,13 @@ import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
 import { omit } from "es-toolkit";
 import * as z from "zod";
 
-import { candleDate, intervalSchema, isIntraday } from "@solyx/core/candles";
+import {
+  Interval,
+  candleDate,
+  intervalSchema,
+  isIntraday,
+} from "@solyx/core/candles";
+import type { Candle } from "@solyx/core/candles";
 import {
   bollinger,
   ema,
@@ -19,8 +25,10 @@ import {
   vwap,
 } from "@solyx/core/indicators";
 import {
+  exchangeDate,
   exchangeTime,
   marketSchema,
+  shiftDate,
   symbolRefSchema,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -31,6 +39,7 @@ import {
   MAX_LISTINGS,
   SOURCE_TYPES,
   listingBudget,
+  sourceBudget,
   sourceFunctions,
 } from "./analysis-sources.ts";
 import type { AnalysisSources } from "./analysis-sources.ts";
@@ -42,15 +51,36 @@ import type { RunAnalysisDetails } from "./wire.ts";
 /** What a script may read. Nothing here changes anything, and the desk's `propose` is left out. */
 export interface AnalysisPorts extends AnalysisSources {
   marketData: Pick<MarketData, "candles">;
+  /** A listing's bars from `since` (`YYYY-MM-DD`) on, where that reaches further back than `candles`. */
+  candlesSince(
+    symbol: SymbolRef,
+    interval: Interval,
+    since: string
+  ): Promise<Candle[]>;
   watchlist(): SymbolRef[];
   desk: Pick<ProposingDesk, "account" | "mode">;
 }
 
 export interface AnalysisOptions extends AnalysisPorts {
   scripts: ScriptRunner;
+  /** @default () => new Date() */
+  now?: () => Date;
 }
 
 const TIMEOUT_MS = 30_000;
+
+/** How far back a script may ask for bars. */
+const HISTORY_YEARS = 10;
+
+// A listing's ten years of daily bars cost its source about a dozen requests, and the source
+// answers sixty a minute, which a script's deadline is well inside.
+const HISTORY_LISTINGS = 5;
+
+const historyBudget = () =>
+  listingBudget(
+    HISTORY_LISTINGS,
+    `A script reads bars from before the app's own history for at most ${HISTORY_LISTINGS} listings, since each costs its source a request for every year. Leave since out for the rest.`
+  );
 
 /** What a conversation's scripts stored for its later scripts to load. */
 const AnalysisStoreDoc = defineDoc<{ values: Record<string, JsonValue> }>({
@@ -183,16 +213,57 @@ const indicators: CodemodeTool[] = [
   }),
 ];
 
-function dataFunctions(ports: AnalysisPorts): CodemodeTool[] {
+/**
+ * The functions a script calls as `tools.<name>`. `admitHistory` is asked before a listing's bars
+ * are read from further back than the app's own history.
+ */
+function dataFunctions(
+  ports: AnalysisPorts,
+  admitHistory: (symbol: SymbolRef) => void,
+  now: () => Date
+): CodemodeTool[] {
+  /** Bars from `since` on, for the intervals whose history is cheap enough to read back. */
+  function history(symbol: SymbolRef, interval: Interval, since: string) {
+    if (isIntraday(interval)) {
+      throw new Error(
+        `since reaches back on ${Interval.OneDay}, ${Interval.OneWeek} and ${Interval.OneMonth} bars only; ${interval} bars go as far as they do without it`
+      );
+    }
+
+    const earliest = shiftDate(
+      exchangeDate(symbol.market, now()),
+      -HISTORY_YEARS * 365
+    );
+
+    if (since < earliest) {
+      throw new Error(
+        `since goes back ${HISTORY_YEARS} years at most, to ${earliest}`
+      );
+    }
+
+    admitHistory(symbol);
+
+    return ports.candlesSince(symbol, interval, since);
+  }
+
   return [
     scriptFunction({
       name: "candles",
-      description:
-        "Every OHLCV bar the app has for a listing, oldest first. The latest bar is still forming while its session is open.",
-      input: z.object({ symbol: symbolRefSchema, interval: intervalSchema }),
+      description: `Every OHLCV bar the app has for a listing, oldest first: about two years of daily bars, three of weekly and five of monthly. since reaches further back on those three intervals, up to ${HISTORY_YEARS} years, for at most ${HISTORY_LISTINGS} listings a script, since each year costs the source a request the first time. Prices are as traded, not adjusted for dividends or splits, which a long span must make up for: see fundamentals.cashGoneEx. The latest bar is still forming while its session is open.`,
+      input: z.object({
+        symbol: symbolRefSchema,
+        interval: intervalSchema,
+        since: z.iso
+          .date()
+          .optional()
+          .describe("The first day to read, YYYY-MM-DD"),
+      }),
       output: z.array(barSchema),
-      async run({ symbol, interval }) {
-        const candles = await ports.marketData.candles(symbol, interval);
+      async run({ symbol, interval, since }) {
+        const candles =
+          since === undefined
+            ? await ports.marketData.candles(symbol, interval)
+            : await history(symbol, interval, since);
 
         if (candles.length === 0) {
           throw new Error(
@@ -259,7 +330,7 @@ function dataFunctions(ports: AnalysisPorts): CodemodeTool[] {
  * approval.
  */
 export function createAnalysis(options: AnalysisOptions): Extension {
-  const tools = dataFunctions(options);
+  const now = options.now ?? (() => new Date());
 
   const tool: ToolRegistration = {
     name: AgentToolName.RunAnalysis,
@@ -269,9 +340,9 @@ export function createAnalysis(options: AnalysisOptions): Extension {
       "What a script fetches stays in the script, so fetch every bar you need there and return only the result. `type Bar` is one item of what tools.candles returns.",
       `market, flows and fundamentals read the app's other sources, which count every request against limits the rest of the app shares: a script reads at most ${MAX_LISTINGS} listings through them, so screen the listings that matter rather than every one you can name.`,
       SOURCE_TYPES,
+      // Declared with budgets nothing is counted against.
       renderDeclarations({
-        tools,
-        // Declared with a budget nothing is counted against.
+        tools: dataFunctions(options, () => undefined, now),
         globals: [...indicators, ...sourceFunctions(options, () => undefined)],
       }),
     ].join("\n\n"),
@@ -299,8 +370,8 @@ export function createAnalysis(options: AnalysisOptions): Extension {
       );
 
       const result = await options.scripts.run(parsed.data.code, {
-        tools,
-        globals: [...indicators, ...sourceFunctions(options, listingBudget())],
+        tools: dataFunctions(options, historyBudget(), now),
+        globals: [...indicators, ...sourceFunctions(options, sourceBudget())],
         timeoutMs: TIMEOUT_MS,
         signal: context.abortSignal,
         store: saved,

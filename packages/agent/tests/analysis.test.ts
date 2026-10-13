@@ -31,6 +31,9 @@ import type { AgentWireEvent } from "../src/wire.ts";
 
 const DAY = 24 * 60 * 60;
 
+// 2026-10-13 10:42 in Taipei.
+const NOW = new Date("2026-10-13T02:42:00Z");
+
 // Thirty daily bars closing at 101, 102, … 130.
 const BARS: Candle[] = Array.from({ length: 30 }, (_, index) => ({
   time: 1_750_000_000 + index * DAY,
@@ -138,6 +141,7 @@ async function analyze(...scripts: string[]) {
   const models = createModels();
   const events: AgentWireEvent[] = [];
   const candles = vi.fn(async () => BARS);
+  const candlesSince = vi.fn(async () => BARS);
   const sources = fakeSources();
 
   models.setProvider(faux.provider);
@@ -151,8 +155,10 @@ async function analyze(...scripts: string[]) {
       mode: BrokerMode.Paper,
       account: async () => ({ cash: { TWD: 1_000_000 }, positions: [] }),
     },
+    candlesSince,
     ...sources,
     scripts: runner,
+    now: () => NOW,
   });
 
   const runtime = createAgentRuntime({
@@ -204,6 +210,7 @@ async function analyze(...scripts: string[]) {
   return {
     results,
     candles,
+    candlesSince,
     sources,
     description: analysis.tools?.[0].description,
   };
@@ -332,4 +339,55 @@ test("the tool declares the sources' functions under their names, on types writt
     "listing(symbol: SymbolRef): Promise<ListingFlows>;"
   );
   expect(description).toContain("declare const fundamentals: {");
+});
+
+test("a script reads daily bars from further back and adds back the cash that went ex", async () => {
+  const { results, candles, candlesSince } = await analyze(`
+    const tsmc = { market: "${Market.TW}", symbol: "2330" };
+    const bars = await tools.candles({ symbol: tsmc, interval: "${Interval.OneDay}", since: "2018-01-02" });
+    const cash = await fundamentals.cashGoneEx(
+      [{ time: "2026-06-09" }, { time: "2026-06-10" }, { time: "2026-06-11" }],
+      [{ period: "Q1", announced: null, cash: 6, stock: 0, cashExDate: "2026-06-11", cashPaidOn: null, stockExDate: null }]
+    );
+    return { bars: bars.length, cash };
+  `);
+
+  expect(candlesSince).toHaveBeenCalledWith(
+    { market: Market.TW, symbol: "2330" },
+    Interval.OneDay,
+    "2018-01-02"
+  );
+  expect(candles).not.toHaveBeenCalled();
+  expect(results).toEqual([
+    {
+      status: ToolCallStatus.Ok,
+      output: 'Result: {"bars":30,"cash":[0,0,6]}',
+    },
+  ]);
+});
+
+test("bars from further back are refused on short intervals, past ten years and for more than a few listings", async () => {
+  const read = (symbol: string, interval: Interval, since: string) =>
+    `await tools.candles({ symbol: { market: "${Market.TW}", symbol: "${symbol}" }, interval: "${interval}", since: "${since}" });`;
+
+  const { results, candlesSince } = await analyze(
+    read("2330", Interval.FiveMinutes, "2026-01-02"),
+    read("2330", Interval.OneDay, "2016-10-13"),
+    ["2330", "2317", "2454", "2308", "2382", "2330", "2881"]
+      .map((symbol) => read(symbol, Interval.OneWeek, "2020-01-02"))
+      .join("\n")
+  );
+
+  expect(results.map((result) => result.status)).toEqual([
+    ToolCallStatus.Error,
+    ToolCallStatus.Error,
+    ToolCallStatus.Error,
+  ]);
+  expect(results[0].output).toContain("since reaches back on 1d, 1w and 1mo");
+  expect(results[1].output).toContain(
+    "since goes back 10 years at most, to 2016-10-15"
+  );
+  expect(results[2].output).toContain("for at most 5 listings");
+  // Five listings and one of them again, then the sixth is refused before its source is asked.
+  expect(candlesSince).toHaveBeenCalledTimes(6);
 });

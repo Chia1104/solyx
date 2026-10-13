@@ -9,7 +9,11 @@ import {
   netBuying,
 } from "@solyx/core/flows";
 import type { Flows } from "@solyx/core/flows";
-import { revenueTrend, statementMetrics } from "@solyx/core/fundamentals";
+import {
+  cashGoneExBy,
+  revenueTrend,
+  statementMetrics,
+} from "@solyx/core/fundamentals";
 import type { Fundamentals } from "@solyx/core/fundamentals";
 import { symbolKey, symbolRefSchema } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -37,23 +41,29 @@ export interface AnalysisSources {
 export const MAX_LISTINGS = 50;
 
 /**
- * Counts the listings a script reads from sources that count every request against a limit the
- * rest of the app shares, and refuses the one past `MAX_LISTINGS`, so a screen cannot spend the
- * hour's requests the charts and the calendar also need.
+ * Counts the listings a script reads from a source that counts every request against a limit the
+ * rest of the app shares, and refuses the one past `limit` with `refusal`, so a script cannot
+ * spend the requests the charts and the calendar also need.
  */
-export function listingBudget(): (symbol: SymbolRef) => void {
+export function listingBudget(
+  limit: number,
+  refusal: string
+): (symbol: SymbolRef) => void {
   const read = new Set<string>();
 
   return (symbol) => {
     read.add(symbolKey(symbol));
 
-    if (read.size > MAX_LISTINGS) {
-      throw new Error(
-        `A script reads the quotes, flows and filings of at most ${MAX_LISTINGS} listings, since their sources count every request against a limit the rest of the app shares. Screen fewer listings.`
-      );
-    }
+    if (read.size > limit) throw new Error(refusal);
   };
 }
+
+/** A budget for the sources below, over one script. */
+export const sourceBudget = () =>
+  listingBudget(
+    MAX_LISTINGS,
+    `A script reads the quotes, flows and filings of at most ${MAX_LISTINGS} listings, since their sources count every request against a limit the rest of the app shares. Screen fewer listings.`
+  );
 
 // Fields carry no descriptions, which would spread each type over a line a field: what a field
 // holds and its unit is said once, by the function that returns it.
@@ -309,6 +319,23 @@ export function sourceFunctions(
       input: listing,
       output: multiplesSchema.nullable(),
       run: ([symbol]) => sources.fundamentals.multiples(symbol),
+    }),
+    scriptFunction({
+      name: "fundamentals.cashGoneEx",
+      description:
+        "For each daily bar, the cash a share that went ex after the first bar through it, from fundamentals.dividends. Bars are prices as traded, so a return from bar i to a later bar j is (close[j] + cash[j] - cash[i]) / close[i], as the app judges a forecast; without it a dividend reads as a loss. Stock distributed and splits are not made up for. Reads nothing.",
+      spread: true,
+      signature: "(bars: Bar[], dividends: Dividend[]): Promise<number[]>",
+      input: z.tuple([
+        z.array(z.object({ time: z.string() })),
+        dividendsSchema,
+      ]),
+      output: z.array(z.number()),
+      run: ([bars, dividends]) =>
+        cashGoneExBy(
+          bars.map((bar) => bar.time),
+          dividends
+        ),
     }),
     scriptFunction({
       name: "fundamentals.dividends",
