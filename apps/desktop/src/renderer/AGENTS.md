@@ -16,6 +16,7 @@ The workspace's React app. It reads everything through `window.solyx`; its crash
 - A link in an agent reply into the app (`#/…`), such as a settings tab `get_setup` names or a listing's page the prompt gives the address of, opens its page through the router; an https link opens in the browser only after the user reads its address, and any other is shown as text.
 - An `html` fence in an agent reply is drawn as a view: a `srcdoc` frame sandboxed without scripts, under a policy of its own that refuses every request, and the main process stops any frame from navigating off its `srcdoc`. It is same-origin only so the renderer can size it and send its links through the agent's link dialog; it reads the app's colours as custom properties and nothing else of the app.
 - Routes fall back to `ErrorFallback` through the router's `defaultErrorComponent`, which reports the error, since a boundary keeps it from reaching Sentry. A widget that can fail on its own, such as the chart, sits in TanStack Router's `CatchBoundary` so the rest of its page stays usable.
+- The research panel draws its own figures, from what the app keeps of a listing and the quote its page already reads. A report's text is shown as plain text and never drawn as markup: a claim is checked against its quote, and a figure the agent drew into a report would pass no such check.
 
 ## Design
 
