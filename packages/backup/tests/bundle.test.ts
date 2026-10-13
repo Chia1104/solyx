@@ -107,6 +107,24 @@ test("a folder that cannot be unpacked whole is refused, not left with what did 
   ).rejects.toThrow("user.sqlite");
 });
 
+test("a folder of little but zeroes, which packs to a thousandth of its size, comes back too", async () => {
+  const sparse = join(directory, "sparse");
+  const restored = join(directory, "restored");
+
+  await mkdir(sparse);
+  await writeFile(join(sparse, "disk.img"), Buffer.alloc(32 * 1024 * 1024));
+
+  await writeBundle({
+    folder: sparse,
+    file,
+    passphrase: "correct horse",
+    origin,
+  });
+  await readBundle({ file, folder: restored, passphrase: "correct horse" });
+
+  expect((await stat(join(restored, "disk.img"))).size).toBe(32 * 1024 * 1024);
+});
+
 test("nothing of the folder can be read in the file, which only its owner may open", async () => {
   await writeBundle({ folder, file, passphrase: "correct horse", origin });
 
