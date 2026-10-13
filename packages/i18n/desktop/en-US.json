@@ -472,6 +472,7 @@
       "get_tasks": "Read your scheduled tasks",
       "get_task_runs": "Read task runs",
       "save_task": "Wrote a scheduled task",
+      "run_task": "Run scheduled task",
       "change_watchlist": "Changed your watchlist"
     },
     "tool-status": {
@@ -530,6 +531,7 @@
       "change-setting-description": "The agent wants to change this setting. It applies at once, as if you changed it in Settings.",
       "save-task-description": "The agent wants to keep this scheduled task. Once you allow it, the app sends the agent this message on its own while Solyx is open, each run in a conversation of its own that spends your model's tokens. You change, switch off or remove it in Settings.",
       "save-task-off": "Switched off",
+      "run-task-description": "The agent wants to run this scheduled task now. Once you allow it, the task runs in a conversation of its own, as it does when its time comes, and spends your model's tokens. A task that runs every so often counts its next run from this one.",
       "change-watchlist-description": "The agent wants to change your watchlist. The app collects news for every listing you watch, and tasks that wait on a change run for them.",
       "allow": "Allow",
       "deny": "Don't allow",

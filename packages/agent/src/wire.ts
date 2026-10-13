@@ -220,6 +220,7 @@ export const AgentToolName = {
   GetTasks: "get_tasks",
   GetTaskRuns: "get_task_runs",
   SaveTask: "save_task",
+  RunTask: "run_task",
   ChangeWatchlist: "change_watchlist",
   GetSetup: "get_setup",
   ChangeSetting: "change_setting",
@@ -421,6 +422,10 @@ export const rememberArgumentsSchema = z.object({
     .describe(
       "True to save a new memory the app read as one already kept, once you checked that it holds something that one does not"
     ),
+});
+
+export const runTaskArgumentsSchema = z.object({
+  id: z.string().describe("A task's id from get_tasks"),
 });
 
 export const forgetArgumentsSchema = z.object({

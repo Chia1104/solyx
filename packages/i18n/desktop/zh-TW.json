@@ -472,6 +472,7 @@
       "get_tasks": "讀取排程任務",
       "get_task_runs": "讀取排程執行結果",
       "save_task": "寫入排程任務",
+      "run_task": "執行排程任務",
       "change_watchlist": "變更自選"
     },
     "tool-status": {
@@ -530,6 +531,7 @@
       "change-setting-description": "Agent 想變更這項設定。允許後會立即生效，如同你在設定頁變更。",
       "save-task-description": "Agent 想保留這個排程任務。你允許後，Solyx 開著時 app 會自行把這則訊息傳給 Agent，每次執行都是獨立的對話，並會消耗你的模型 token。你可以在設定頁修改、關閉或移除它。",
       "save-task-off": "已關閉",
+      "run-task-description": "Agent 想現在執行這個排程任務。你允許後，它會像時間到了一樣在獨立的對話中執行，並消耗你的模型 token。每隔一段時間執行的任務，下一次會從這次重新起算。",
       "change-watchlist-description": "Agent 想變更你的自選。app 會為每一檔自選收集新聞，等待變化的排程任務也會因它們而執行。",
       "allow": "允許",
       "deny": "不允許",
