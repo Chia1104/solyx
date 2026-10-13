@@ -361,6 +361,7 @@ export function createServices(config: ConfigFile) {
     flows,
     macro,
     sectors: () => marketData.sectors(),
+    quote: (symbol) => marketData.quote(symbol),
     setup: {
       appearance,
       marketData,

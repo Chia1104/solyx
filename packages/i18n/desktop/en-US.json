@@ -440,6 +440,7 @@
       "get_watchlist": "Read your watchlist",
       "get_calendar": "Read the calendar",
       "get_account": "Read your account",
+      "get_quotes": "Read quotes",
       "list_proposals": "Read your proposals",
       "check_order": "Checked an order",
       "propose_order": "Proposed an order",

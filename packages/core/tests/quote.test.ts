@@ -2,7 +2,7 @@ import { describe, expect, test } from "vite-plus/test";
 
 import type { Candle } from "../src/candles.ts";
 import { Market } from "../src/market.ts";
-import { sessionQuote } from "../src/quote.ts";
+import { quoteChange, sessionQuote } from "../src/quote.ts";
 
 /** A five-minute bar opening at `hhmm` Taipei time on `date`. */
 function bar(date: string, hhmm: string, close: number): Candle {
@@ -69,5 +69,18 @@ describe("sessionQuote", () => {
       open: seconds("2026-07-01T09:30:00-04:00"),
       close: seconds("2026-07-01T16:00:00-04:00"),
     });
+  });
+});
+
+describe("quoteChange", () => {
+  test("measures the last price from the close before it", () => {
+    expect(quoteChange({ last: 1085, previousClose: 1070 })).toEqual({
+      change: 15,
+      percent: 15 / 1070,
+    });
+  });
+
+  test("is null without a close before", () => {
+    expect(quoteChange({ last: 1085, previousClose: null })).toBeNull();
   });
 });

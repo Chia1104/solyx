@@ -113,8 +113,8 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
     body: lines(
       "# Portfolio review",
       "",
-      "1. Read get_account and list_proposals.",
-      "2. For each position, compare its average price with the latest close from get_candles and state the open gain or loss in its currency.",
+      "1. Read get_account, get_quotes and list_proposals.",
+      "2. For each position, state its open gain or loss in its currency and what today's move made of it, as get_quotes gives them.",
       "3. Flag concentration: any position above 20% of the account's value in its currency, or several positions that move together.",
       "4. Flag positions with no invalidation the user has stated, and ask for one rather than inventing it.",
       "5. Report cash per currency and what pending proposals would use.",

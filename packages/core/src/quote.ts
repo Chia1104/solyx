@@ -40,3 +40,16 @@ export function sessionQuote(
     previousClose: start > 0 ? candles[start - 1].close : null,
   };
 }
+
+/** How far a session's last price moved from the close before it, in price and as a fraction of that close; `null` without that close. */
+export function quoteChange({
+  last,
+  previousClose,
+}: Pick<SessionQuote, "last" | "previousClose">) {
+  return previousClose === null
+    ? null
+    : {
+        change: last - previousClose,
+        percent: (last - previousClose) / previousClose,
+      };
+}
