@@ -5,7 +5,6 @@ import type {
   McpToolPolicy,
   McpTransportKind,
 } from "@solyx/agent/mcp-config";
-import { hasSubscription } from "@solyx/agent/providers";
 import type {
   AgentAuth,
   AgentProvider,
@@ -47,14 +46,12 @@ export const Secret = {
   FinMindToken: "finmind-token",
   /** Optional: what traces and logs are sent with, such as an authorization, as OTEL_EXPORTER_OTLP_HEADERS writes them. */
   OtlpHeaders: "otlp-headers",
-  /** The ChatGPT sign-in's OAuth tokens; the main process saves and refreshes them, nobody types them. */
-  OpenAIChatGPT: "openai-chatgpt",
 } as const;
 
 export type Secret = (typeof Secret)[keyof typeof Secret];
 
 /** The secrets a person types in, which the renderer may save or delete; a sign-in saves its own tokens. */
-export const enteredSecretSchema = z.enum(Secret).exclude(["OpenAIChatGPT"]);
+export const enteredSecretSchema = z.enum(Secret);
 
 export type EnteredSecret = z.infer<typeof enteredSecretSchema>;
 
@@ -80,6 +77,16 @@ export function agentKeySecret(provider: AgentProvider): AgentKeySecret {
 }
 
 /**
+ * A provider's subscription sign-in, its OAuth tokens saved under the provider's id; the main
+ * process saves and refreshes them, nobody types them.
+ */
+export type AgentSignInSecret = `${AgentProvider}-sign-in`;
+
+export function agentSignInSecret(provider: AgentProvider): AgentSignInSecret {
+  return `${provider}-sign-in`;
+}
+
+/**
  * The API key a web search vendor runs on, saved under the vendor's id, so a vendor that also
  * serves models keeps one key for both.
  */
@@ -95,14 +102,10 @@ export function webSearchKeySecret(
 export type SecretKey =
   | Secret
   | AgentKeySecret
+  | AgentSignInSecret
   | WebSearchKeySecret
   | McpSecretKey
   | McpSignInKey;
-
-/** The secret a provider's subscription sign-in is kept under; `undefined` for a provider without one. */
-export function agentSignInSecret(provider: AgentProvider): Secret | undefined {
-  return hasSubscription(provider) ? Secret.OpenAIChatGPT : undefined;
-}
 
 export const SecretState = {
   Saved: "saved",
@@ -297,8 +300,11 @@ export interface AgentProviderSettings {
   listed: boolean;
   /** Always `api-key` for a provider without a subscription sign-in. */
   auth: AgentAuth;
-  /** `null` for a provider without a subscription sign-in. */
-  subscription: { signedIn: boolean } | null;
+  /**
+   * The plan a sign-in runs it on, a brand name the page shows as it is, and whether that sign-in
+   * is saved; `null` for a provider without a subscription sign-in.
+   */
+  subscription: { plan: string; signedIn: boolean } | null;
   /** The API key saved for it, whatever it runs on now. */
   key: SecretState;
   /** A sign-in to it in the browser creates that key, in place of one pasted in. */
@@ -310,6 +316,14 @@ export interface AgentProviderSettings {
    * set. `null` for a provider whose models use several endpoints, so none can stand in for them.
    */
   endpoint: { url: string; default: string } | null;
+}
+
+/** The code a sign-in waits for the user to enter on the provider's page. */
+export interface SignInCode {
+  provider: AgentProvider;
+  code: string;
+  /** The provider's page, which the main process opened in the browser. */
+  url: string;
 }
 
 export interface AgentSettings {
@@ -568,7 +582,8 @@ export interface SettingsApi {
   setAgentDecisionMode(mode: DecisionMode): Promise<void>;
   /** `null` has the unit answer on the conversation's model. */
   setMagiModel(unit: MagiUnit, model: AgentModelRef | null): Promise<void>;
-  setAgentAuth(auth: AgentAuth): Promise<void>;
+  /** Runs the provider on its key or on its subscription's sign-in. */
+  setAgentAuth(provider: AgentProvider, auth: AgentAuth): Promise<void>;
   saveAgentKey(provider: AgentProvider, value: string): Promise<void>;
   deleteAgentKey(provider: AgentProvider): Promise<void>;
   /**
@@ -584,7 +599,8 @@ export interface SettingsApi {
   ): Promise<void>;
   /**
    * Signs in to the provider's subscription in the browser, resolving once the sign-in is saved
-   * or cancelled. The page the browser lands on is written in `locale`.
+   * or cancelled. A sign-in that runs on a code pushes it through `onSignInCode`; the page the
+   * browser lands on where one returns to this computer is written in `locale`.
    */
   signInSubscription(provider: AgentProvider, locale: Locale): Promise<void>;
   cancelSignIn(): Promise<void>;
@@ -665,6 +681,8 @@ export interface SettingsEvents {
   onAppearance(listener: (appearance: Appearance) => void): () => void;
   /** Some setting or saved secret changed, here or by hand in the config file. */
   onChanged(listener: () => void): () => void;
+  /** A sign-in under way has a code for the user to enter on the provider's page. */
+  onSignInCode(listener: (code: SignInCode) => void): () => void;
 }
 
 export const settingsChannels = {
@@ -744,4 +762,5 @@ export const settingsChannels = {
 export const settingsEvents = {
   onAppearance: "settings:appearance-changed",
   onChanged: "settings:changed",
+  onSignInCode: "settings:sign-in-code",
 } as const satisfies Record<keyof SettingsEvents, string>;

@@ -17,6 +17,7 @@ export function SignInRow({
   signInFailed,
   signedIn,
   needsSignIn,
+  code,
   onSignIn,
   onCancel,
   onSignOut,
@@ -30,6 +31,8 @@ export function SignInRow({
   signedIn: boolean;
   /** Nothing saved works, so signing in is offered. */
   needsSignIn: boolean;
+  /** What the sign-in under way has the user enter on the page the browser opened, where it runs on a code. */
+  code?: { code: string; url: string } | null;
   onSignIn: () => Promise<void>;
   onCancel: () => Promise<void>;
   /** Left out where the sign-in leaves nothing of its own to sign out of. */
@@ -90,9 +93,21 @@ export function SignInRow({
         )
       }>
       {signIn.isPending ? (
-        <p className="text-xs text-muted">
-          {t("settings.sign-in.continue-in-browser")}
-        </p>
+        code ? (
+          <div className="flex flex-col gap-1 text-xs text-muted">
+            <p>{t("settings.sign-in.enter-code")}</p>
+            <p className="font-mono text-base text-foreground select-all">
+              {code.code}
+            </p>
+            <p className="break-all">
+              {t("settings.sign-in.code-page", { url: code.url })}
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-muted">
+            {t("settings.sign-in.continue-in-browser")}
+          </p>
+        )
       ) : null}
       {signIn.error ? (
         <ErrorAlert title={signInFailed} description={signIn.error.message} />

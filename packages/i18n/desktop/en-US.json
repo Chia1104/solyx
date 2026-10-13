@@ -372,7 +372,7 @@
     },
     "model-unavailable": "{{model}} can't run: {{provider}} needs a key or sign-in, or is switched off. Pick another model, or set it up.",
     "setup-title": "Set up the agent",
-    "setup-description": "Pick a provider and save its API key, or sign in with ChatGPT, to start.",
+    "setup-description": "Pick a provider and save its API key, or sign in to its subscription, to start.",
     "open-settings": "Open settings",
     "context": {
       "detached": "Not attached: {{label}}",
@@ -925,6 +925,8 @@
       "waiting": "Waiting for your browser",
       "sign-out": "Sign out",
       "continue-in-browser": "Finish signing in in your browser; this page updates once it returns.",
+      "enter-code": "Enter this code on the page your browser opened:",
+      "code-page": "If no page opened, go to {{url}}",
       "sign-out-failed": "Couldn't sign out"
     },
     "fugle": {
@@ -962,7 +964,7 @@
     },
     "agent": {
       "title": "AI agent",
-      "description": "Switch on the providers whose models you want to use, each on your own API key, or on your ChatGPT subscription for OpenAI. Requests go straight from this computer to the provider, or to the endpoint you set for it. Every conversation can pick its own model.",
+      "description": "Switch on the providers whose models you want to use, each on your own API key, or on your subscription where the provider has one to sign in to. Requests go straight from this computer to the provider, or to the endpoint you set for it. Every conversation can pick its own model.",
       "providers-description": "Providers",
       "add-provider": "Add provider",
       "search-providers": "Search providers",
@@ -987,13 +989,13 @@
       "endpoint-invalid": "Enter an http or https URL",
       "auths": {
         "api-key": "API key",
-        "subscription": "ChatGPT subscription"
+        "subscription": "{{plan}} subscription"
       },
-      "chatgpt": {
-        "label": "ChatGPT account",
-        "hint": "Signs in through your browser, where OpenAI asks you to allow Solyx, then comes back here on its own.",
-        "sign-in": "Sign in with ChatGPT",
-        "sign-in-failed": "Couldn't sign in with ChatGPT"
+      "subscription": {
+        "label": "{{provider}} account",
+        "hint": "Signs in through your browser, on {{provider}}'s own page; this row updates once it is done.",
+        "sign-in": "Sign in with {{plan}}",
+        "sign-in-failed": "Couldn't sign in with {{plan}}"
       },
       "key-sign-in": {
         "label": "{{provider}} account",

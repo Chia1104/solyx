@@ -324,6 +324,7 @@ export function createServices(config: ConfigFile) {
     tracer: telemetry.tracer,
     getDeviceId: installationId(join(userDataDir, "installation-id")),
     openExternal,
+    showSignInCode: (code) => broadcast(settingsEvents.onSignInCode, code),
     skillFolders,
     instructionsFile,
     mcp,

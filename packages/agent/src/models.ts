@@ -7,11 +7,11 @@ import type {
   Model,
   Provider,
 } from "@earendil-works/pi-ai";
+import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 
 import { chatgptOAuth } from "./chatgpt-oauth.ts";
 import { createOpenRouterKey } from "./openrouter-key.ts";
-import { hasSubscription } from "./providers.ts";
 import type { AgentProvider } from "./providers.ts";
 import type { SignInPage } from "./sign-in-callback.ts";
 import { createSignInSlot } from "./sign-in.ts";
@@ -43,6 +43,22 @@ const WITHHELD = new Set([
 
 // The provider whose sign-in ends in a key the user owns, which the host saves as its API key.
 const KEY_SIGN_IN: AgentProvider = "openrouter";
+
+// The provider that signs in through the app's own Sign in with ChatGPT flow.
+const CHATGPT_PROVIDER: AgentProvider = "openai";
+
+// The plan a sign-in runs a provider on, by the provider's own name for it. OpenAI signs in through
+// the app's own flow and the others through pi-ai's, which is kept only where it runs on a code the
+// user enters on the provider's page and reads nothing from the environment.
+const SUBSCRIPTIONS = new Map<AgentProvider, string>([
+  [CHATGPT_PROVIDER, "ChatGPT"],
+  ["meta", "Muse"],
+  ["xai", "SuperGrok / X Premium"],
+]);
+
+/** The plan a sign-in runs the provider on, as the provider names it; `undefined` for a provider that runs on a key alone. */
+export const subscriptionOf = (provider: AgentProvider) =>
+  SUBSCRIPTIONS.get(provider);
 
 /**
  * A provider's most capable model, used until the user picks one. A provider missing here, or
@@ -150,6 +166,20 @@ function withEndpoint(
   };
 }
 
+/** The code a sign-in waits for the user to enter on the provider's page. */
+export interface SignInCode {
+  code: string;
+  /** The provider's page, which the catalog opens in the browser. */
+  url: string;
+}
+
+export interface SignInOptions {
+  /** The page the browser lands on where the sign-in returns to this computer. */
+  page: SignInPage;
+  /** Shows the user the code of a sign-in that runs on one. */
+  onCode: (code: SignInCode) => void;
+}
+
 /** A provider the user can switch on, by pi-ai's id and name for it. */
 export interface AgentProviderInfo {
   id: AgentProvider;
@@ -179,6 +209,11 @@ export function createModelCatalog({
   openExternal,
   endpoint,
 }: ModelCatalogOptions) {
+  // pi-ai loads a sign-in flow by its file, which a bundle such as the app's main process does not
+  // hold, so its flows are registered up front, all of them, as pi-ai offers no fewer. Only those
+  // of the providers kept below can run.
+  registerBunOAuthFlows();
+
   const slot = createSignInSlot();
 
   // The open sign-in's page; a sign-in is only ever open through `signIn`.
@@ -189,16 +224,27 @@ export function createModelCatalog({
     callbackPage: (outcome, detail) => landing(outcome, detail),
   });
 
-  // Every provider runs on its key alone, but OpenAI, which can also sign in through the app's own
-  // flow, so none of pi-ai's own sign-in flows is ever loaded.
+  // Every provider runs on its key, and one with a subscription also signs in: OpenAI through the
+  // app's own flow, the others through pi-ai's. No other sign-in flow of pi-ai's is ever loaded.
+  const signInOf = (provider: Provider) =>
+    provider.id === CHATGPT_PROVIDER
+      ? chatgpt
+      : SUBSCRIPTIONS.has(provider.id)
+        ? provider.auth.oauth
+        : undefined;
+
   const offered = builtinProviders()
     .filter(isOffered)
-    .map((provider): Provider => ({
-      ...provider,
-      auth: hasSubscription(provider.id)
-        ? { apiKey: provider.auth.apiKey, oauth: chatgpt }
-        : { apiKey: provider.auth.apiKey },
-    }))
+    .map((provider): Provider => {
+      const oauth = signInOf(provider);
+
+      return {
+        ...provider,
+        auth: oauth
+          ? { apiKey: provider.auth.apiKey, oauth }
+          : { apiKey: provider.auth.apiKey },
+      };
+    })
     .toSorted((a, b) => a.name.localeCompare(b.name));
 
   const ids = new Set(offered.map((provider) => provider.id));
@@ -292,10 +338,15 @@ export function createModelCatalog({
      * Signs in to the provider's subscription in the browser, resolving once the sign-in is saved
      * or quietly once it is cancelled. A sign-in still open gives way to the new one.
      */
-    async signIn(provider: AgentProvider, page: SignInPage) {
-      if (!hasSubscription(provider)) {
+    async signIn(provider: AgentProvider, { page, onCode }: SignInOptions) {
+      if (!SUBSCRIPTIONS.has(provider)) {
         throw new Error(`${provider} has no subscription sign-in`);
       }
+
+      // A provider's own page is https; nothing else a flow names is opened.
+      const open = (url: string) => {
+        if (url.startsWith("https://")) openExternal(url);
+      };
 
       await slot.run(async (signal) => {
         landing = page;
@@ -305,17 +356,18 @@ export function createModelCatalog({
           "oauth",
           {
             signal,
-            // The flow never asks the user anything; the browser brings the sign-in back.
+            // No flow kept asks the user anything here; the browser, or the code entered in it,
+            // brings the sign-in back.
             prompt: (request) =>
               Promise.reject(
                 new Error(`Unsupported sign-in step: ${request.type}`)
               ),
             notify: (event) => {
-              if (
-                event.type === "auth_url" &&
-                event.url.startsWith("https://")
-              ) {
-                openExternal(event.url);
+              if (event.type === "auth_url") open(event.url);
+
+              if (event.type === "device_code") {
+                onCode({ code: event.userCode, url: event.verificationUri });
+                open(event.verificationUri);
               }
             },
           },

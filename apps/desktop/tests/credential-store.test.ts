@@ -102,13 +102,14 @@ test("API keys are not stored as sign-ins", async () => {
   expect(await store.read("openai")).toBeUndefined();
 });
 
-test("a provider without a subscription sign-in has nothing stored", async () => {
-  const store = open(true);
+test("each provider's sign-in is kept under its own id", async () => {
+  const store = open();
 
-  expect(await store.read("anthropic")).toBeUndefined();
-  await expect(store.modify("anthropic", async () => SIGN_IN)).rejects.toThrow(
-    "no subscription sign-in"
-  );
+  await store.modify("xai", async () => SIGN_IN);
+
+  expect(await store.signedIn("xai")).toBe(true);
+  expect(await store.signedIn("openai")).toBe(false);
+  expect(await store.read("openai")).toBeUndefined();
 });
 
 test("the installation id is created once and kept", async () => {

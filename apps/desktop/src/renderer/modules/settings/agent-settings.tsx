@@ -23,7 +23,6 @@ import { AgentModelPicker } from "../agent/agent-model-picker.tsx";
 import { ProviderMark } from "../agent/agent-provider-mark.tsx";
 
 import { AddAgentProvider } from "./add-agent-provider.tsx";
-import { ChatGPTSignIn } from "./chatgpt-sign-in.tsx";
 import { KeySignIn } from "./key-sign-in.tsx";
 import {
   PROVIDER_GRID,
@@ -38,6 +37,7 @@ import {
   secretsQuery,
   settingsQueryKeys,
 } from "./settings-query.ts";
+import { SubscriptionSignIn } from "./subscription-sign-in.tsx";
 import { TextSettingRow } from "./text-setting-row.tsx";
 
 /**
@@ -203,12 +203,22 @@ export function AgentSettings() {
                 className="w-56"
                 value={each.auth}
                 isDisabled={save.isPending}
-                options={Object.values(AgentAuth).map((id) => ({
-                  id,
-                  label: t(`settings.agent.auths.${id}`),
-                }))}
+                options={[
+                  {
+                    id: AgentAuth.ApiKey,
+                    label: t("settings.agent.auths.api-key"),
+                  },
+                  {
+                    id: AgentAuth.Subscription,
+                    label: t("settings.agent.auths.subscription", {
+                      plan: each.subscription.plan,
+                    }),
+                  },
+                ]}
                 onChange={(next) =>
-                  save.mutate(() => window.solyx.settings.setAgentAuth(next))
+                  save.mutate(() =>
+                    window.solyx.settings.setAgentAuth(each.provider, next)
+                  )
                 }
               />
             }
@@ -216,7 +226,12 @@ export function AgentSettings() {
         ) : null}
         {each.enabled ? (
           each.subscription && each.auth === AgentAuth.Subscription ? (
-            <ChatGPTSignIn signedIn={each.subscription.signedIn} />
+            <SubscriptionSignIn
+              provider={each.provider}
+              name={name}
+              plan={each.subscription.plan}
+              signedIn={each.subscription.signedIn}
+            />
           ) : (
             <>
               <SecretRow

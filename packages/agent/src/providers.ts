@@ -14,13 +14,6 @@ export type AgentProvider = z.infer<typeof agentProviderSchema>;
 /** What new conversations run on until the user picks another provider. */
 export const DEFAULT_PROVIDER: AgentProvider = "anthropic";
 
-/** The one provider that can run on a subscription, OpenAI on ChatGPT, through the app's own sign-in. */
-export const SUBSCRIPTION_PROVIDER: AgentProvider = "openai";
-
-/** Whether the provider can run on the user's subscription, signed in through the app's own flow, instead of a key. */
-export const hasSubscription = (provider: AgentProvider) =>
-  provider === SUBSCRIPTION_PROVIDER;
-
 /** How the provider is paid for: per request on an API key, or on the user's subscription plan. */
 export const AgentAuth = {
   ApiKey: "api-key",

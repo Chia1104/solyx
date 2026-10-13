@@ -90,7 +90,7 @@ const schemas = {
   setAgentThinking: z.tuple([agentThinkingSchema]),
   setAgentDecisionMode: z.tuple([decisionModeSchema]),
   setMagiModel: z.tuple([z.enum(MagiUnit), agentModelRefSchema.nullable()]),
-  setAgentAuth: z.tuple([agentAuthSchema]),
+  setAgentAuth: z.tuple([agentProviderSchema, agentAuthSchema]),
   setAgentEndpoint: z.tuple([agentProviderSchema, endpointSchema.nullable()]),
   saveAgentKey: z.tuple([
     agentProviderSchema,

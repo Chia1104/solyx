@@ -47,17 +47,8 @@ export function createCredentialStore(
   // pi-ai refreshes a token inside `modify`, so read-modify-write runs one at a time.
   const mutex = new Mutex();
 
-  const signInSecretOf = (providerId: string) => {
-    const secret = agentSignInSecret(providerId);
-
-    if (!secret) throw new Error(`${providerId} has no subscription sign-in`);
-
-    return secret;
-  };
-
   async function readSignIn(providerId: string) {
-    const secret = agentSignInSecret(providerId);
-    const text = secret ? await secrets.get(secret) : undefined;
+    const text = await secrets.get(agentSignInSecret(providerId));
 
     return text === undefined ? undefined : parseSignIn(text);
   }
@@ -81,19 +72,12 @@ export function createCredentialStore(
         ? agentSignInSecret(provider)
         : agentKeySecret(provider);
 
-      if (
-        secret === undefined ||
-        (await secrets.state(secret)) !== SecretState.Saved
-      ) {
-        return undefined;
-      }
+      if ((await secrets.state(secret)) !== SecretState.Saved) return undefined;
 
       return subscription ? "oauth" : "api_key";
     },
 
     async modify(providerId, change) {
-      const secret = signInSecretOf(providerId);
-
       await mutex.acquire();
 
       try {
@@ -109,7 +93,7 @@ export function createCredentialStore(
           );
         }
 
-        await secrets.save(secret, JSON.stringify(next));
+        await secrets.save(agentSignInSecret(providerId), JSON.stringify(next));
 
         return next;
       } finally {
@@ -118,16 +102,10 @@ export function createCredentialStore(
     },
 
     async delete(providerId) {
-      await secrets.delete(signInSecretOf(providerId));
+      await secrets.delete(agentSignInSecret(providerId));
     },
 
-    async signedIn(provider) {
-      const secret = agentSignInSecret(provider);
-
-      return (
-        secret !== undefined &&
-        (await secrets.state(secret)) === SecretState.Saved
-      );
-    },
+    signedIn: async (provider) =>
+      (await secrets.state(agentSignInSecret(provider))) === SecretState.Saved,
   };
 }

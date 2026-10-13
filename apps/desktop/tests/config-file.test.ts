@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
+import { AgentThinking } from "@solyx/agent/providers";
 import {
   CLOUDFLARE_BASE_URL,
   CLOUDFLARE_DEFAULT_MODEL,
@@ -77,7 +77,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       providers: [],
       provider: "anthropic",
       thinking: AgentThinking.Medium,
-      auth: AgentAuth.ApiKey,
+      auth: {},
       endpoints: {},
       sharedSkills: [],
       shell: false,
