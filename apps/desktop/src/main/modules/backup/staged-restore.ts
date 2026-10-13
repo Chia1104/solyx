@@ -1,6 +1,7 @@
 import {
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
   renameSync,
@@ -63,8 +64,24 @@ export function stageRestore(dataDir: string, staged: StagedRestore) {
   writeFileSync(restorePaths(dataDir).pending, JSON.stringify(staged));
 }
 
-/** Moves a file or folder, copying when the two are on different volumes, where a rename cannot go. */
+/** Whether anything is at `path`, a link that points nowhere included. */
+const there = (path: string) =>
+  lstatSync(path, { throwIfNoEntry: false }) !== undefined;
+
+/**
+ * Moves a file or folder to where nothing is, unless it was moved already. Between two volumes,
+ * where a rename cannot go, it is copied under another name and renamed once whole, so what is at
+ * `to` is always all of it, and a move cut off after that has only `from` left to remove.
+ */
 function move(from: string, to: string) {
+  if (there(to)) {
+    rmSync(from, { recursive: true, force: true });
+
+    return;
+  }
+
+  if (!there(from)) return;
+
   mkdirSync(dirname(to), { recursive: true });
 
   try {
@@ -72,7 +89,11 @@ function move(from: string, to: string) {
   } catch (error) {
     if (!isErrnoError(error, "EXDEV")) throw error;
 
-    cpSync(from, to, { recursive: true, verbatimSymlinks: true });
+    const copy = `${to}.restoring`;
+
+    rmSync(copy, { recursive: true, force: true });
+    cpSync(from, copy, { recursive: true, verbatimSymlinks: true });
+    renameSync(copy, to);
     rmSync(from, { recursive: true, force: true });
   }
 }
@@ -94,8 +115,8 @@ export class RestoreFailure extends Error {
  * the restore the app is starting on, or `null` when there is none. What each place held is moved
  * to `previous` rather than deleted, a database with its log, since a log left beside the
  * database put in its place would be read into it. A pass cut off partway goes on from where it
- * stopped the next time: each move is skipped once made, and none of the backup's files goes in
- * before every place is cleared.
+ * stopped the next time: each move is skipped once made and finished where only part of it was,
+ * and none of the backup's files goes in before every place is cleared.
  */
 export function takeRestore(folders: DataFolders): StagedRestore | null {
   const paths = restorePaths(folders.dataDir);
@@ -107,22 +128,15 @@ export function takeRestore(folders: DataFolders): StagedRestore | null {
       if (!existsSync(paths.cleared)) {
         for (const { part, path } of places) {
           for (const suffix of [...SIDE_FILES, ""]) {
-            const kept = join(paths.previous, `${part}${suffix}`);
-
-            if (existsSync(`${path}${suffix}`) && !existsSync(kept)) {
-              move(`${path}${suffix}`, kept);
-            }
+            move(`${path}${suffix}`, join(paths.previous, `${part}${suffix}`));
           }
         }
 
         writeFileSync(paths.cleared, "");
       }
 
-      for (const { part, path } of places) {
-        const staged = join(paths.staged, part);
-
-        if (existsSync(staged)) move(staged, path);
-      }
+      // Every place is empty by now, so one that holds something holds the backup's.
+      for (const { part, path } of places) move(join(paths.staged, part), path);
 
       // From here the app starts on the backup; what is left only tidies up.
       renameSync(paths.pending, paths.applied);
