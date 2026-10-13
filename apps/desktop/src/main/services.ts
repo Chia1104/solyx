@@ -342,6 +342,7 @@ export function createServices(config: ConfigFile) {
     marketData,
     watchlist,
     news,
+    headlines: (symbols, since, limit) => news.headlines(symbols, since, limit),
     tradingDays,
     marketDays,
     calendar,

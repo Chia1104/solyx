@@ -437,6 +437,7 @@
       "get_candles": "Read candles",
       "get_indicators": "Read indicators",
       "get_news": "Read news",
+      "get_headlines": "Read headlines",
       "get_watchlist": "Read your watchlist",
       "get_calendar": "Read the calendar",
       "get_account": "Read your account",

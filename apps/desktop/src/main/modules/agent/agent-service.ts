@@ -8,6 +8,8 @@ import { omit, sum } from "es-toolkit";
 
 import { createAnalysis } from "@solyx/agent/analysis";
 import { createFlowTools } from "@solyx/agent/flows";
+import { createHeadlineTools } from "@solyx/agent/headlines";
+import type { HeadlineToolsOptions } from "@solyx/agent/headlines";
 import { createHistory } from "@solyx/agent/history";
 import { createMacroTools } from "@solyx/agent/macro";
 import { createMagi } from "@solyx/agent/magi";
@@ -97,6 +99,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   marketData: MarketData;
   watchlist: WatchlistPort;
   news: NewsDesk;
+  /** The heaviest headlines about some listings, as the overview ranks them from the news kept. */
+  headlines: HeadlineToolsOptions["headlines"];
   tradingDays: TradingCalendar;
   /** The days each market trades for telling its session, which answers even while they cannot be read. */
   marketDays: MarketDays;
@@ -288,6 +292,13 @@ export function createAgentService(options: AgentServiceOptions) {
     desk: options.desk,
   });
 
+  const headlines = createHeadlineTools({
+    headlines: options.headlines,
+    watchlist: options.watchlist.list,
+    desk: options.desk,
+    tradingDays: options.tradingDays,
+  });
+
   const setup = createAgentSetup({
     ...options.setup,
     config: options.config,
@@ -323,6 +334,7 @@ export function createAgentService(options: AgentServiceOptions) {
           macro,
           sectors,
           history,
+          headlines,
           themes.extension(guard),
           tasks.extension(guard),
           watched.extension(guard),
