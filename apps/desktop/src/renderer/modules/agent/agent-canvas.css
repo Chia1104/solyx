@@ -1,0 +1,397 @@
+/*
+ * The marks a canvas draws by class. Each is sized from the figures its markup gives as custom
+ * properties, so a reply states numbers and the frame places them; no mark is placed by hand.
+ * The `canvas` skill in `@solyx/agent` teaches these classes, and tests/agent-canvas.test.ts
+ * fails when the two part.
+ */
+
+:root {
+  --hatch: color-mix(in oklab, var(--muted) 40%, transparent);
+}
+
+figure {
+  margin: 0;
+}
+
+figure + figure {
+  margin-top: 20px;
+}
+
+figcaption {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bars,
+.cols,
+.shares,
+.ranges,
+.keys {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+:is(.bars, .cols, .shares, .ranges, .keys) b {
+  font-weight: 500;
+}
+
+/* Pencil for every mark, and ink for the one a reply is about. */
+:where(.bars, .cols, .ranges) > li {
+  --ink: var(--muted);
+}
+
+.key {
+  --ink: var(--accent);
+}
+
+.key > span {
+  font-weight: 600;
+}
+
+.tw {
+  --rise: var(--tw-rise);
+  --fall: var(--tw-fall);
+}
+
+.us {
+  --rise: var(--us-rise);
+  --fall: var(--us-fall);
+}
+
+/* A price move takes its market's colour from its own sign, so a reply never names a red or a green. */
+:is(.tw, .us) > li,
+li:is(.tw, .us) {
+  --ink: color-mix(
+    in srgb,
+    var(--rise) calc((sign(var(--v)) + 1) * 50%),
+    var(--fall)
+  );
+}
+
+/* Bars and ranges: a label, the mark on a shared scale, and the figure. */
+.bars,
+.ranges {
+  display: grid;
+  grid-template-columns: fit-content(42%) minmax(0, 1fr) max-content;
+  gap: 8px 12px;
+}
+
+:is(.bars, .ranges) > li {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+}
+
+:is(.bars, .ranges) > li > span {
+  grid-area: 1 / 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:is(.bars, .ranges) > li > b {
+  grid-area: 1 / 3;
+  text-align: end;
+}
+
+/*
+ * A bar runs from zero to its figure. The scale always holds zero: it ends at `--max` and starts
+ * at `--min` only where those lie past it, so no figure a reply gives can cut a bar's foot off.
+ */
+.bars > li,
+.cols > li {
+  --top: max(var(--max), 0);
+  --base: min(var(--min, 0), 0);
+  --span: calc(var(--top) - var(--base));
+}
+
+/* Kept to its own width, so a list that gives no scale draws no bar rather than a full one. */
+.bars > li::before {
+  content: "";
+  grid-area: 1 / 2;
+  justify-self: start;
+  width: calc(abs(var(--v)) / var(--span) * 100%);
+  height: 6px;
+  margin-inline-start: calc(
+    (min(var(--v), 0) - var(--base)) / var(--span) * 100%
+  );
+  border-radius: 2px;
+  background: var(--ink);
+}
+
+/* The zero every bar starts from, joined across the rows. */
+.bars > li::after {
+  content: "";
+  grid-area: 1 / 2;
+  align-self: start;
+  justify-self: start;
+  width: 1px;
+  height: calc(100% + 8px);
+  margin-inline-start: calc((0 - var(--base)) / var(--span) * 100%);
+  background: var(--border);
+}
+
+.bars > li:last-child::after {
+  height: 100%;
+}
+
+/* A range row: a band from `--a` to `--b` and a tick at `--v`, on a scale from `--lo` to `--hi`. */
+.ranges > li {
+  --span: calc(var(--hi) - var(--lo));
+  --from: calc((var(--a, var(--lo)) - var(--lo)) / var(--span) * 100%);
+  --to: calc((var(--b, var(--lo)) - var(--lo)) / var(--span) * 100%);
+}
+
+.ranges > li::before {
+  content: "";
+  grid-area: 1 / 2;
+  height: 6px;
+  border-radius: 2px;
+  background:
+    linear-gradient(
+      to right,
+      transparent var(--from),
+      color-mix(in oklab, var(--ink) 55%, transparent) var(--from) var(--to),
+      transparent var(--to)
+    ),
+    linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat;
+}
+
+/*
+ * A row that gives no `--v` leaves this width and ring invalid, which fall back to nothing, so
+ * the tick shows only where a figure places it.
+ */
+.ranges > li::after {
+  content: "";
+  grid-area: 1 / 2;
+  justify-self: start;
+  width: calc(var(--v) * 0px + 2px);
+  height: 14px;
+  margin-inline-start: clamp(
+    0%,
+    calc((var(--v) - var(--lo)) / var(--span) * 100%),
+    100%
+  );
+  translate: -1px;
+  background: var(--foreground);
+  box-shadow: 0 0 0 calc(var(--v) * 0px + 2px) var(--background);
+}
+
+/* Columns: one figure over periods, standing on zero. */
+.cols {
+  --plot: 96px;
+  --label: 18px;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  column-gap: 6px;
+}
+
+/* Room for a figure above the tallest column, and under the deepest where the scale goes below zero. */
+.cols > li {
+  position: relative;
+  display: grid;
+  grid-template-rows:
+    var(--label) var(--plot) calc(sign(var(--base)) * -1 * var(--label))
+    auto;
+  justify-items: center;
+  font-size: 11px;
+}
+
+.cols > li::before {
+  content: "";
+  grid-row: 2;
+  width: min(100%, 24px);
+  height: calc(abs(var(--v)) / var(--span) * var(--plot));
+  margin-top: calc((var(--top) - max(var(--v), 0)) / var(--span) * var(--plot));
+  border-radius: 2px;
+  background: var(--ink);
+}
+
+.cols > li::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--label) + var(--top) / var(--span) * var(--plot));
+  inset-inline: -3px;
+  height: 1px;
+  background: var(--border);
+}
+
+/* The figure sits past its column's end: above one that rises from zero, under one that falls. */
+.cols > li > b {
+  position: absolute;
+  top: calc(var(--label) + (var(--top) - var(--v)) / var(--span) * var(--plot));
+  left: 50%;
+  translate: -50% calc((min(sign(var(--v)) * 2 + 1, 1) + 1) * -50%);
+  line-height: var(--label);
+  white-space: nowrap;
+}
+
+.cols > li > span {
+  grid-row: 4;
+  margin-top: 4px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Shares: one bar split by each part's share, over the parts' names. */
+.shares {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 2px;
+}
+
+.shares > li {
+  display: contents;
+}
+
+.shares > li::before {
+  content: "";
+  flex: var(--v) 0 0;
+  height: 8px;
+  background: var(--ink);
+}
+
+.shares > li:first-child::before {
+  border-start-start-radius: 2px;
+  border-end-start-radius: 2px;
+}
+
+.shares > li:last-child::before {
+  border-start-end-radius: 2px;
+  border-end-end-radius: 2px;
+}
+
+/* Ends the bar's line, so the names start on the next. */
+.shares::after {
+  content: "";
+  flex: 0 0 100%;
+  order: 1;
+  margin-bottom: -8px;
+}
+
+.shares > li > span {
+  display: flex;
+  order: 2;
+  align-items: center;
+  gap: 6px;
+  margin-inline-end: 12px;
+  white-space: nowrap;
+}
+
+.shares > li > span::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--ink);
+}
+
+/* One ink in steps, largest part darkest: a palette has no second hue to tell parts apart by. */
+.shares > li:nth-child(1) {
+  --ink: color-mix(in oklab, var(--foreground) 82%, transparent);
+}
+
+.shares > li:nth-child(2) {
+  --ink: color-mix(in oklab, var(--foreground) 60%, transparent);
+}
+
+.shares > li:nth-child(3) {
+  --ink: color-mix(in oklab, var(--foreground) 43%, transparent);
+}
+
+.shares > li:nth-child(4) {
+  --ink: color-mix(in oklab, var(--foreground) 30%, transparent);
+}
+
+.shares > li:nth-child(5) {
+  --ink: color-mix(in oklab, var(--foreground) 20%, transparent);
+}
+
+.shares > li:nth-child(n + 6) {
+  --ink: color-mix(in oklab, var(--foreground) 12%, transparent);
+}
+
+.shares > li.key {
+  --ink: var(--accent);
+}
+
+/* What is left unbroken is hatched, as the app pencils whatever is not a figure of its own. */
+.shares > li.rest {
+  --ink: repeating-linear-gradient(
+    315deg,
+    var(--hatch) 0 1px,
+    transparent 1px 4px
+  );
+}
+
+/*
+ * A line's viewBox is its data's own box, so its points are figures as they stand. The flip puts
+ * the larger figure higher, which an svg's own y does not.
+ */
+.line {
+  display: block;
+  width: 100%;
+  height: 96px;
+  overflow: visible;
+  border-block: 1px solid var(--separator);
+  transform: scaleY(-1);
+}
+
+.line > * {
+  fill: none;
+  stroke: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* A level drawn across the plot. */
+.line > line {
+  --ink: var(--border);
+  stroke-width: 1px;
+}
+
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+}
+
+.keys > li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.keys > li::before {
+  content: "";
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink);
+}
+
+/* The subject in ink, then what it is read against. */
+.line > polyline:nth-of-type(1),
+.keys > li:nth-child(1) {
+  --ink: var(--accent);
+}
+
+.line > polyline:nth-of-type(2),
+.keys > li:nth-child(2) {
+  --ink: color-mix(in oklab, var(--foreground) 60%, transparent);
+}
+
+.line > polyline:nth-of-type(n + 3),
+.keys > li:nth-child(n + 3) {
+  --ink: color-mix(in oklab, var(--foreground) 30%, transparent);
+}

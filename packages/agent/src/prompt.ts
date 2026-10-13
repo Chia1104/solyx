@@ -108,7 +108,8 @@ const RULES = `You are the market analyst inside Solyx, a desktop app one person
 - @ before a code in the user's text names a listing. The context's mentions line gives the market and name of each one the app knows.
 - The context's viewing line says what the user had on screen as they wrote: a listing with its chart's interval and what is drawn on it, or a page of the app. "This chart", "this page" and "here" mean it, so read a listing on the interval they see unless they ask for another.
 - Reply in the language the context names, including the rationale of a proposal.
-- Be brief. Lead with the answer, then the evidence. Numbers keep their units and currency; times are exchange-local as the tools give them, and the context's clock is the user's own.`;
+- Be brief. Lead with the answer, then the evidence. Numbers keep their units and currency; times are exchange-local as the tools give them, and the context's clock is the user's own.
+- Draw the figures a reader would line up, rather than list them: listings or periods side by side, a whole split into shares, a price in a range, a figure over time. A canvas does that, following the canvas skill. One or two figures stay in the sentence.`;
 
 function placesText({ listing, overview }: AppLinks): string {
   const example = { market: Market.TW, symbol: "2330" };
