@@ -230,6 +230,9 @@ export async function readBundle({
     decipher(),
     extract({
       cwd: folder,
+      // What is unpacked was authenticated above as what `writeBundle` packed, so tar's guard
+      // against an archive made to fill the disk would only refuse a folder of mostly zeroes.
+      maxDecompressionRatio: Infinity,
       onwarn(_, message, data) {
         failed ??= data instanceof Error ? data : new Error(message);
       },
