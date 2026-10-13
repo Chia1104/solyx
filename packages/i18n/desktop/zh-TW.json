@@ -995,6 +995,12 @@
         "sign-in": "使用 ChatGPT 登入",
         "sign-in-failed": "無法使用 ChatGPT 登入"
       },
+      "key-sign-in": {
+        "label": "{{provider}} 帳號",
+        "hint": "透過瀏覽器登入，{{provider}} 會在你的帳號為 Solyx 建立一把金鑰，並存到這裡。",
+        "sign-in": "使用 {{provider}} 登入",
+        "sign-in-failed": "無法使用 {{provider}} 登入"
+      },
       "model": "模型",
       "model-description": "較大的模型推理較好，每則訊息的費用也較高。",
       "thinking": "思考",
@@ -1458,6 +1464,17 @@
       },
       "failed": {
         "title": "ChatGPT 沒有連接成功",
+        "body": "請回到 Solyx 再登入一次。"
+      }
+    },
+    "openrouter": {
+      "label": "使用 OpenRouter 登入",
+      "signed-in": {
+        "title": "已將授權交給 Solyx",
+        "body": "可以關閉這個分頁，Solyx 會存下 OpenRouter 為它建立的金鑰。"
+      },
+      "failed": {
+        "title": "OpenRouter 沒有連接成功",
         "body": "請回到 Solyx 再登入一次。"
       }
     },

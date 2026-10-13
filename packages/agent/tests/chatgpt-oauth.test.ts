@@ -4,7 +4,8 @@ import { createServer } from "node:net";
 import type { OAuthCredential } from "@earendil-works/pi-ai";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
-import { SignInOutcome, chatgptOAuth } from "../src/chatgpt-oauth.ts";
+import { chatgptOAuth } from "../src/chatgpt-oauth.ts";
+import { SignInOutcome } from "../src/sign-in-callback.ts";
 
 const DEVICE_ID = "0D0B7F4E-8C1A-4B7E-9F55-3E4A2B1C0D9E";
 

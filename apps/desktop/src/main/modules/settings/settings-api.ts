@@ -190,6 +190,9 @@ export function createSettingsApi({
 
     deleteAgentKey: (provider) => agent.models.deleteKey(provider),
 
+    createAgentKey: (provider, locale) =>
+      agent.models.createKey(provider, locale),
+
     setAgentEndpoint: (provider, endpoint) =>
       agent.models.setEndpoint(provider, endpoint),
 

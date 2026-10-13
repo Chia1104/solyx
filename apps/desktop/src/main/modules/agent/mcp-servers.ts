@@ -1,11 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
-import { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
 import { createMcpHub } from "@solyx/agent/mcp";
 import type { McpToolOptions } from "@solyx/agent/mcp";
 import { mcpToolPolicySchema, parseMcpFile } from "@solyx/agent/mcp-config";
 import type { McpToolPolicy } from "@solyx/agent/mcp-config";
+import { SignInOutcome } from "@solyx/agent/sign-in-callback";
 import { errorMessage, isErrnoError } from "@solyx/utils/error";
 import { watchFile } from "@solyx/utils/server";
 

@@ -995,6 +995,12 @@
         "sign-in": "Sign in with ChatGPT",
         "sign-in-failed": "Couldn't sign in with ChatGPT"
       },
+      "key-sign-in": {
+        "label": "{{provider}} account",
+        "hint": "Signs in through your browser, where {{provider}} creates a key for Solyx in your account, and saves it here.",
+        "sign-in": "Sign in with {{provider}}",
+        "sign-in-failed": "Couldn't sign in with {{provider}}"
+      },
       "model": "Model",
       "model-description": "Larger models reason better and cost more per message.",
       "thinking": "Thinking",
@@ -1458,6 +1464,17 @@
       },
       "failed": {
         "title": "ChatGPT was not connected",
+        "body": "Return to Solyx and try signing in again."
+      }
+    },
+    "openrouter": {
+      "label": "Sign in with OpenRouter",
+      "signed-in": {
+        "title": "Authorization sent to Solyx",
+        "body": "You can close this tab. Solyx saves the key OpenRouter created for it."
+      },
+      "failed": {
+        "title": "OpenRouter was not connected",
         "body": "Return to Solyx and try signing in again."
       }
     },

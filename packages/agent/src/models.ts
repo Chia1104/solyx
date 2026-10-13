@@ -10,9 +10,10 @@ import type {
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 
 import { chatgptOAuth } from "./chatgpt-oauth.ts";
-import type { SignInOutcome } from "./chatgpt-oauth.ts";
+import { createOpenRouterKey } from "./openrouter-key.ts";
 import { hasSubscription } from "./providers.ts";
 import type { AgentProvider } from "./providers.ts";
+import type { SignInPage } from "./sign-in-callback.ts";
 import { createSignInSlot } from "./sign-in.ts";
 
 // Keys come only from what the user saved in the app, never from the environment or files.
@@ -39,6 +40,9 @@ const WITHHELD = new Set([
   "cloudflare-ai-gateway",
   "cloudflare-workers-ai",
 ]);
+
+// The provider whose sign-in ends in a key the user owns, which the host saves as its API key.
+const KEY_SIGN_IN: AgentProvider = "openrouter";
 
 /**
  * A provider's most capable model, used until the user picks one. A provider missing here, or
@@ -102,7 +106,7 @@ export interface ProviderCredentials {
 export interface ModelCatalogOptions {
   /** pi-ai reads every request's credential here, through the catalog. */
   credentials: ProviderCredentials;
-  /** Shown on OpenAI's consent screen, the same on every installation. */
+  /** Shown on OpenAI's consent screen and on the key OpenRouter creates, the same on every installation. */
   appName: string;
   /** This installation's stable id, which Sign in with ChatGPT requires. */
   getDeviceId: () => string;
@@ -162,13 +166,11 @@ export interface AgentModelOption {
   contextWindow: number;
 }
 
-/** The page the browser lands on when a sign-in returns, written for whoever started it. */
-export type SignInPage = (outcome: SignInOutcome, detail?: string) => string;
-
 /**
- * The providers' model catalogs and their subscription sign-ins. A request on an API key carries
- * it explicitly; one on a subscription resolves and refreshes its sign-in through `credentials`.
- * OpenAI signs in through the app's own Sign in with ChatGPT flow in place of pi-ai's.
+ * The providers' model catalogs and their sign-ins. A request on an API key carries it explicitly;
+ * one on a subscription resolves and refreshes its sign-in through `credentials`. OpenAI signs in
+ * through the app's own Sign in with ChatGPT flow in place of pi-ai's, and OpenRouter through the
+ * app's own run of its flow, which ends in a key.
  */
 export function createModelCatalog({
   credentials,
@@ -320,6 +322,36 @@ export function createModelCatalog({
           { getDeviceId }
         );
       });
+    },
+
+    /** Whether a sign-in to the provider creates the key it runs on, in place of one pasted in. */
+    createsKey: (provider: AgentProvider) => provider === KEY_SIGN_IN,
+
+    /**
+     * Signs in to the provider in the browser, where the user has it create a key for the app.
+     * Resolves with the key, or with `undefined` once the sign-in is cancelled. A sign-in still
+     * open gives way to the new one.
+     */
+    async createKey(
+      provider: AgentProvider,
+      page: SignInPage
+    ): Promise<string | undefined> {
+      if (provider !== KEY_SIGN_IN) {
+        throw new Error(`${provider} creates no key by sign-in`);
+      }
+
+      let key: string | undefined;
+
+      await slot.run(async (signal) => {
+        key = await createOpenRouterKey({
+          appName,
+          callbackPage: page,
+          openExternal,
+          signal,
+        });
+      });
+
+      return key;
     },
 
     cancelSignIn() {

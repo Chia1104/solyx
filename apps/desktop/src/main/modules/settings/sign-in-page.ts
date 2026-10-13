@@ -1,6 +1,6 @@
 import { escape } from "es-toolkit";
 
-import type { SignInOutcome } from "@solyx/agent/chatgpt-oauth";
+import type { SignInOutcome } from "@solyx/agent/sign-in-callback";
 
 import type { Locale } from "#shared/ipc/settings.ts";
 
@@ -68,6 +68,7 @@ code {
 /** The sign-in the browser returns from, which picks the page's copy. */
 export const SignInFlow = {
   ChatGPT: "chatgpt",
+  OpenRouter: "openrouter",
   Mcp: "mcp",
 } as const;
 

@@ -129,6 +129,27 @@ test("signing in again replaces a sign-in still open, and cancelling ends it qui
   await expect(second).resolves.toBeUndefined();
 });
 
+test("OpenRouter's sign-in opens its page and ends quietly, with no key, once cancelled", async () => {
+  const { catalog, openExternal } = setup();
+
+  expect(catalog.createsKey("openrouter")).toBe(true);
+  expect(catalog.createsKey("openai")).toBe(false);
+
+  const key = catalog.createKey("openrouter", () => "");
+
+  await vi.waitFor(() => expect(openExternal).toHaveBeenCalledOnce());
+  expect(openExternal).toHaveBeenCalledWith(
+    expect.stringMatching(/^https:\/\/openrouter\.ai\/auth\?/)
+  );
+
+  catalog.cancelSignIn();
+
+  await expect(key).resolves.toBeUndefined();
+  await expect(catalog.createKey("openai", () => "")).rejects.toThrow(
+    "creates no key by sign-in"
+  );
+});
+
 test("only a provider with a subscription signs in", async () => {
   const { catalog } = setup();
 
