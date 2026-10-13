@@ -357,6 +357,7 @@ export function createServices(config: ConfigFile) {
     tasks: {
       list: () => schedules.list(),
       save: (id, draft) => schedules.save(id, draft),
+      run: (id) => schedules.runNow(id),
       clock: () => ({ timeZone: userTimeZone(), locale: userLocale() }),
     },
     fundamentals,

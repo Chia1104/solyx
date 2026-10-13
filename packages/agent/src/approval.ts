@@ -75,7 +75,7 @@ export type ToolGuard = (
 export function checkedFirst<Schema extends z.ZodType>(
   guarded: ToolRegistration,
   schema: Schema,
-  check: (args: z.infer<Schema>) => void | Promise<void>
+  check: (args: z.infer<Schema>, api: ToolExecutionApi) => void | Promise<void>
 ): ToolRegistration {
   return {
     ...guarded,
@@ -84,7 +84,7 @@ export function checkedFirst<Schema extends z.ZodType>(
 
       if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
 
-      await check(parsed.data);
+      await check(parsed.data, api);
 
       return guarded.execute(params, api, context);
     },

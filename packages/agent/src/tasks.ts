@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import { defineExtension } from "@earendil-works/pi-durable";
-import type { Extension } from "@earendil-works/pi-durable";
+import type { Extension, ToolExecutionApi } from "@earendil-works/pi-durable";
 import { orderBy } from "es-toolkit";
 import * as z from "zod";
 
@@ -21,6 +21,7 @@ import {
   RunEndReason,
   ToolCallStatus,
   foldEvents,
+  runTaskArgumentsSchema,
   saveTaskArgumentsSchema,
   taskSchedule,
 } from "./wire.ts";
@@ -46,6 +47,8 @@ export interface TaskPort {
   list(): Promise<ListedTask[]>;
   /** Keeps a new task under `id`, or writes the one of that id again. */
   save(id: string, draft: ScheduledTaskDraft): void;
+  /** Starts a task's run now, whatever its schedule says; a run that cannot start is kept as the task's last, with why. */
+  run(id: string): Promise<void>;
   /** The user's own clock and language, which a task takes as it is saved, as one saved in the settings does. */
   clock(): Pick<ScheduledTaskDraft, "timeZone" | "locale">;
 }
@@ -157,8 +160,8 @@ function taskText(task: ListedTask): string {
 
 /**
  * The agent's reach into the user's scheduled tasks: `get_tasks` to read them, `get_task_runs` to
- * read what their runs came to, and `save_task` to write one once the user allows it. Removing a
- * task stays the user's, in the settings.
+ * read what their runs came to, and `save_task` to write one and `run_task` to start one's run,
+ * each once the user allows it. Removing a task stays the user's, in the settings.
  */
 export function createTaskTools({ tasks, conversations }: TaskToolsOptions) {
   /** The task the arguments write, or why they write none, worded for the model. */
@@ -289,6 +292,59 @@ export function createTaskTools({ tasks, conversations }: TaskToolsOptions) {
     },
   });
 
+  /** The task a call would run, or why it runs none, worded for the model. */
+  async function runnable(id: string, api: ToolExecutionApi) {
+    const here = String(api.conversationId);
+
+    // A run that could start runs could start its own task's next, without end.
+    if (
+      (await conversations.sessions()).find((session) => session.id === here)
+        ?.schedule
+    ) {
+      throw new Error(
+        "A run a task started cannot start one: only a conversation the user is in can"
+      );
+    }
+
+    const task = (await tasks.list()).find((each) => each.id === id);
+
+    if (!task) {
+      throw new Error(`No task has the id ${id}; get_tasks lists them`);
+    }
+
+    if (task.running) {
+      throw new Error(
+        `"${task.name}" is still running, or waits for the user; get_task_runs says where it stands`
+      );
+    }
+
+    return task;
+  }
+
+  const runTask = defineTool({
+    name: AgentToolName.RunTask,
+    // A second run of the call would start a second run of the task.
+    replay: "unsafe",
+    description:
+      "Starts a scheduled task's run now, once the user allows it, whatever its schedule says and whether or not it is switched on. The run is a conversation of its own on the default model, as when its time comes, and spends the user's model budget. This conversation cannot wait for it: say it is under way, and read what it came to with get_task_runs when the user asks. A task that runs every so often counts its next run from this one. Use it when the user wants to try a task as it will really run; when they only want its work done, do it here from the message get_tasks shows, where they read the answer at once. A run a task started cannot start one.",
+    parameters: runTaskArgumentsSchema,
+    async execute({ id }, api) {
+      const { name } = await runnable(id, api);
+
+      await tasks.run(id);
+
+      const failure = (await tasks.list()).find((each) => each.id === id)
+        ?.lastRun?.failure;
+
+      return {
+        text: failure
+          ? `The run of "${name}" could not start: ${failure}`
+          : `Started a run of "${name}" now, in a conversation of its own. It is under way; get_task_runs reads what it comes to.`,
+        details: { id },
+      };
+    },
+  });
+
   const saveTask = defineTool({
     name: AgentToolName.SaveTask,
     // A new task's id is kept with the call, so a call that runs again writes the same task.
@@ -325,6 +381,13 @@ export function createTaskTools({ tasks, conversations }: TaskToolsOptions) {
             saveTaskArgumentsSchema,
             async (args) => {
               await draftOf(args);
+            }
+          ),
+          checkedFirst(
+            guard(runTask),
+            runTaskArgumentsSchema,
+            async ({ id }, api) => {
+              await runnable(id, api);
             }
           ),
         ],

@@ -88,6 +88,7 @@ const RULES = `You are the market analyst inside Solyx, a desktop app one person
 - Keep one with save_task when the user asks for something to be done on a schedule, or agrees to one you suggest, and one task to a job: write an existing one again under its id rather than keep a second. Say when it will run and what each run spends before you keep it.
 - Write its message as the user would send it, whole without this conversation: a run starts a conversation of its own and reads nothing of this one, so name the listings and what to end with. A leading /name asks for a skill.
 - Only the user removes a task. To stop one, write it again switched off.
+- run_task starts a task's run now, in a conversation of its own, once the user allows it. Use it when they want to see a task run as it will on its own; when they only want what it does, do that here, where they read your answer at once.
 
 # Scheduled runs
 - When the context has a "scheduled" line, the user set this message to be sent on its own and is not at the app. Do what it asks without asking them anything, and never wait for an answer.

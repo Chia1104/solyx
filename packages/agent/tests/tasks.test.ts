@@ -93,10 +93,24 @@ function setup(
   const asked = vi.fn();
   const api = callApi();
 
+  // The host's own run, which keeps a run it could not start as the task's last.
+  const start = vi.fn(async (id: string) => {
+    const task = kept.get(id);
+
+    if (task) {
+      kept.set(id, {
+        ...task,
+        lastRun: { at: AT, sessionId: "9", failure: null },
+        running: true,
+      });
+    }
+  });
+
   const { tools = [] } = createTaskTools({
     tasks: {
       list: async () => [...kept.values()],
       save,
+      run: start,
       clock: () => ({ timeZone: "Asia/Taipei", locale: "zh-TW" }),
     },
     conversations: {
@@ -122,7 +136,7 @@ function setup(
     return { text: contentText(result.output ?? []), details: result.details };
   }
 
-  return { run, kept, save, asked };
+  return { run, kept, save, asked, start };
 }
 
 test("a task is kept on the user's clock and runs its calls as auto unless told otherwise, and the call's second run writes the same one", async () => {
@@ -381,4 +395,78 @@ test("runs that cannot be read say why", async () => {
   expect((await run(AgentToolName.GetTaskRuns, { id: "brief" })).text).toBe(
     'Task "Morning brief" (id brief) has no run to read: none has started, or the user deleted their conversations.'
   );
+});
+
+const DRAFT: ScheduledTaskDraft = {
+  name: "Morning brief",
+  prompt: "/watchlist-upkeep",
+  schedule: { kind: ScheduleKind.Interval, everyMinutes: 60 },
+  timeZone: "Asia/Taipei",
+  locale: "zh-TW",
+  approval: ScheduleApproval.Auto,
+  enabled: true,
+};
+
+test("a task's run starts once the user allows it, and one that could not start says why", async () => {
+  // The call's own conversation is one the user started.
+  const { run, save, asked, start, kept } = setup([
+    conversation("7", "2026-10-08T07:00:00"),
+  ]);
+
+  save("brief", DRAFT);
+
+  expect(await run(AgentToolName.RunTask, { id: "brief" })).toEqual({
+    text: 'Started a run of "Morning brief" now, in a conversation of its own. It is under way; get_task_runs reads what it comes to.',
+    details: { id: "brief" },
+  });
+  expect(asked).toHaveBeenCalledWith({ id: "brief" });
+  expect(start).toHaveBeenCalledWith("brief");
+
+  // Its run still goes, so another is refused before the user is asked.
+  await expect(run(AgentToolName.RunTask, { id: "brief" })).rejects.toThrow(
+    '"Morning brief" is still running'
+  );
+  expect(asked).toHaveBeenCalledOnce();
+
+  const task = kept.get("brief");
+
+  if (!task) throw new Error("The task is gone");
+
+  kept.set("brief", { ...task, running: false });
+  start.mockImplementationOnce(async (id) => {
+    kept.set(id, {
+      ...task,
+      running: false,
+      lastRun: {
+        at: AT,
+        sessionId: null,
+        failure: "No model is set up",
+      },
+    });
+  });
+
+  expect((await run(AgentToolName.RunTask, { id: "brief" })).text).toBe(
+    'The run of "Morning brief" could not start: No model is set up'
+  );
+});
+
+test("a run a task started starts none, and a task that is not there is refused, before the user is asked", async () => {
+  const scheduled = setup([conversation("7", "2026-10-08T08:30:00", "brief")]);
+
+  scheduled.save("brief", DRAFT);
+
+  await expect(
+    scheduled.run(AgentToolName.RunTask, { id: "brief" })
+  ).rejects.toThrow("A run a task started cannot start one");
+
+  const attended = setup([conversation("7", "2026-10-08T07:00:00")]);
+
+  await expect(
+    attended.run(AgentToolName.RunTask, { id: "gone" })
+  ).rejects.toThrow("No task has the id gone");
+
+  for (const { asked, start } of [scheduled, attended]) {
+    expect(asked).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+  }
 });

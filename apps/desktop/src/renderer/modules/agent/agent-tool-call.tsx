@@ -20,6 +20,7 @@ import {
   proposeOrderDetailsSchema,
   readPageArgumentsSchema,
   rememberArgumentsSchema,
+  runTaskArgumentsSchema,
   saveTaskArgumentsSchema,
   saveThemeArgumentsSchema,
   runAnalysisDetailsSchema,
@@ -43,6 +44,7 @@ import { memoryQuery } from "../memory/memory-query.ts";
 import { ProposalItem } from "../proposals/proposal-item.tsx";
 import { proposalsQuery } from "../proposals/proposals-query.ts";
 import { ForecastCard } from "../research/forecast-card.tsx";
+import { schedulesQuery } from "../schedules/schedules-query.ts";
 import { scheduleText } from "../schedules/timing-fields.tsx";
 
 import { ActivityMark } from "./agent-activity.tsx";
@@ -235,6 +237,27 @@ function ApprovalCard({
       task.prompt,
     ].join("\n");
 
+  const run =
+    tool.toolName === AgentToolName.RunTask
+      ? runTaskArgumentsSchema.safeParse(tool.args).data
+      : undefined;
+
+  // The call names a task by its id, which the card shows as the user wrote it.
+  const tasks = useQuery({ ...schedulesQuery(), enabled: run !== undefined });
+  const due = tasks.data?.find((each) => each.id === run?.id);
+
+  const started =
+    run &&
+    (due
+      ? [
+          due.name,
+          scheduleText(t, due.schedule, due.timeZone),
+          t(`settings.schedules.approvals.${due.approval}`),
+          "",
+          due.prompt,
+        ].join("\n")
+      : run.id);
+
   const watched =
     theme &&
     [
@@ -260,6 +283,8 @@ function ApprovalCard({
     description = t("agent.approval.save-theme-description");
   } else if (scheduled !== undefined) {
     description = t("agent.approval.save-task-description");
+  } else if (started !== undefined) {
+    description = t("agent.approval.run-task-description");
   } else if (watching !== undefined) {
     description = t("agent.approval.change-watchlist-description");
   } else if (memory !== undefined) {
@@ -280,6 +305,7 @@ function ApprovalCard({
           setting ??
           watched ??
           scheduled ??
+          started ??
           watching ??
           memory ??
           JSON.stringify(tool.args, null, 2)}
