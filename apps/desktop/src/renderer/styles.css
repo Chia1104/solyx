@@ -43,6 +43,10 @@ html:not([data-palette]) body {
   --font-sans:
     -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC",
     "Microsoft JhengHei", "Noto Sans TC", system-ui, sans-serif;
+  /* The heavy Mincho the MAGI's display is set in. */
+  --font-mincho:
+    "Hiragino Mincho ProN", "Yu Mincho", "Songti TC", "PMingLiU",
+    "Noto Serif CJK TC", "Noto Serif TC", ui-serif, serif;
 }
 
 /* One corner radius for every surface, instead of HeroUI's scale up to pills; form fields keep HeroUI's own. */
