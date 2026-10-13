@@ -11,6 +11,7 @@ import { Interval, intervalSchema } from "@solyx/core/candles";
 import { symbolRefSchema } from "@solyx/core/market";
 
 import { isMarketDataReady } from "#shared/ipc/settings.ts";
+import { OverviewTab, overviewTabSchema } from "#shared/overview-tab.ts";
 import {
   SettingsSection,
   settingsSectionSchema,
@@ -26,7 +27,6 @@ import { useOnboardingStore } from "../modules/onboarding/onboarding-store.ts";
 import { marketDataQuery } from "../modules/settings/settings-query.ts";
 import { OnboardingPage } from "../pages/onboarding-page.tsx";
 import { OverviewPage } from "../pages/overview-page.tsx";
-import { OverviewTab, overviewTabSchema } from "../pages/overview-tab.ts";
 import { SettingsPage } from "../pages/settings-page.tsx";
 import { SymbolPage } from "../pages/symbol-page.tsx";
 

@@ -3,6 +3,7 @@ import type { PromptSection } from "@earendil-works/pi-durable";
 import { escape } from "es-toolkit";
 
 import type { BrokerMode } from "@solyx/core/broker";
+import { Interval } from "@solyx/core/candles";
 import { changeText } from "@solyx/core/changes";
 import type { Change } from "@solyx/core/changes";
 import { DecisionMode } from "@solyx/core/council";
@@ -12,7 +13,28 @@ import type { Session } from "@solyx/core/session";
 
 import type { AgentSkill } from "./skills.ts";
 
+/** A page of the app's overview a reply may point to, by what it shows. */
+export const AppPlace = {
+  /** Today's moves of what the user holds and watches. */
+  Moves: "moves",
+  Headlines: "headlines",
+  Calendar: "calendar",
+  /** The market's sectors and who trades it. */
+  Market: "market",
+} as const;
+
+export type AppPlace = (typeof AppPlace)[keyof typeof AppPlace];
+
+/** The addresses of the app's own pages as the host's router reads them, which a reply may link to. */
+export interface AppLinks {
+  /** A listing's page, its chart on `interval`. */
+  listing(symbol: SymbolRef, interval: Interval): string;
+  overview: Record<AppPlace, string>;
+}
+
 export interface PromptSources {
+  /** Where the host's pages are, which stay the same while the app runs. */
+  links: AppLinks;
   /** The skills the agent is offered, read for every request. */
   skills(): Promise<readonly AgentSkill[]>;
   /** The user's standing instructions from `AGENTS.md`, if any, read for every request. */
@@ -85,6 +107,19 @@ const RULES = `You are the market analyst inside Solyx, a desktop app one person
 - Reply in the language the context names, including the rationale of a proposal.
 - Be brief. Lead with the answer, then the evidence. Numbers keep their units and currency; times are exchange-local as the tools give them, and the context's clock is the user's own.`;
 
+function placesText({ listing, overview }: AppLinks): string {
+  const example = { market: Market.TW, symbol: "2330" };
+
+  return `# Places in the app
+A markdown link whose address starts with #/ opens that place in the app when the user presses it.
+- A listing's page with its chart: ${listing(example, Interval.OneDay)} is ${example.market} ${example.symbol} on daily bars. Put the listing's market and code and the interval in their places; the intervals are ${Object.values(Interval).join(", ")}.
+- Today's moves of what the user holds and watches, which get_quotes reads: ${overview[AppPlace.Moves]}
+- The headlines about them, which get_headlines reads: ${overview[AppPlace.Headlines]}
+- The dates ahead, which get_calendar reads: ${overview[AppPlace.Calendar]}
+- The market's sectors and who trades it, which get_sectors and get_flows read: ${overview[AppPlace.Market]}
+Link a listing's code to its page the first time a reply names it, on the interval the reply is about, and link the place a reply's figures show where the user may want to look. Write no other #/ address but a settings tab's from get_setup: one the app does not know opens an empty page.`;
+}
+
 function skillsText(skills: readonly AgentSkill[]): string {
   const catalog = skills
     .map(
@@ -116,6 +151,7 @@ ${instructions}
 export function promptSections(sources: PromptSources): PromptSection[] {
   return [
     section("rules", () => RULES, { tag: false }),
+    section("places", () => placesText(sources.links), { tag: false }),
     section("skills", async () => skillsText(await sources.skills()), {
       tag: false,
     }),

@@ -57,6 +57,8 @@ import {
 } from "../src/wire.ts";
 import type { AgentWireEvent } from "../src/wire.ts";
 
+import { LINKS } from "./fixtures/links.ts";
+
 /** What pi hands a tool after checking it against the JSON Schema. */
 type ToolArguments = Parameters<ToolRegistration["execute"]>[0];
 
@@ -163,6 +165,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     tradingDays,
     calendar,
     desk,
+    links: LINKS,
     skills: async () => [
       {
         name: "breakout-watch",
