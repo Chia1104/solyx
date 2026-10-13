@@ -1,3 +1,5 @@
+import * as z from "zod";
+
 import type { BarInterval, Candle, Interval } from "./candles.ts";
 import type { Market, SymbolRef } from "./market.ts";
 
@@ -18,15 +20,17 @@ export interface Listing {
 }
 
 /** A listing's or an index's trading in its newest session so far, as the exchange reports it. */
-export interface Quote {
+export const quoteSchema = z.object({
   /** The session's exchange-local date, `YYYY-MM-DD`. */
-  date: string;
-  last: number;
+  date: z.string(),
+  last: z.number(),
   /** What the session's change is measured from: the reference price, which ex-dividend days lower, or else the last close. */
-  reference: number;
+  reference: z.number(),
   /** Value traded so far, in the market's currency. */
-  tradeValue: number;
-}
+  tradeValue: z.number(),
+});
+
+export type Quote = z.infer<typeof quoteSchema>;
 
 /** One implementation per data provider (`@solyx/market-data/*`); it runs only in the main process. */
 export interface MarketDataProvider {

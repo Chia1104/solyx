@@ -457,6 +457,7 @@
       "get_base_rates": "Read base rates",
       "get_flows": "Read investor flows",
       "get_macro": "Read economic figures",
+      "get_sectors": "Read sectors",
       "revise_report": "Revised the report",
       "submit_forecast": "Made a forecast",
       "search_history": "Searched history",

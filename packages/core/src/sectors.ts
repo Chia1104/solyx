@@ -1,5 +1,7 @@
 import { sumBy } from "es-toolkit";
+import * as z from "zod";
 
+import { quoteSchema } from "./market-data.ts";
 import type { Quote } from "./market-data.ts";
 
 /** The buckets the Taiwan Stock Exchange reports its sector indices in. */
@@ -103,10 +105,16 @@ export const TW_SECTOR_INDICES: readonly SectorIndex[] = [
   ]),
 ];
 
-/** A sector index and its session so far; `null` until it has traded. */
-export interface SectorQuote extends SectorIndex {
-  quote: Quote | null;
-}
+/** A sector index and its session so far. */
+export const sectorQuoteSchema = z.object({
+  sector: z.enum(TwSector),
+  group: z.enum(SectorGroup),
+  symbol: z.string(),
+  /** `null` until the index has traded. */
+  quote: quoteSchema.nullable(),
+});
+
+export type SectorQuote = z.infer<typeof sectorQuoteSchema>;
 
 /** How a sector's index moved in its session, and the sector's part of the trading. */
 export interface SectorMove extends SectorIndex {

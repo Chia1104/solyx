@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Market } from "@solyx/core/market";
 import { SectorGroup, sectorMoves } from "@solyx/core/sectors";
+import type { SectorQuote } from "@solyx/core/sectors";
 
 import { HeatMap } from "../../components/heat-map.tsx";
 import { LoadError } from "../../components/load-error.tsx";
@@ -19,35 +20,32 @@ const FULL_COLOUR_MOVE = 0.03;
 /** Taller than a list's map, since a few sectors trade most of the value and the rest share little room. */
 const HEIGHT = 320;
 
-/** Taiwan's listed sectors, sized by value traded today and coloured by their index's move. */
-export function SectorHeatMap() {
+/** One read of Taiwan's listed sectors, sized by value traded and coloured by their index's move. */
+export function SectorMap({
+  sectors,
+  height = HEIGHT,
+}: {
+  sectors: readonly SectorQuote[];
+  height?: number;
+}) {
   const { t, i18n } = useTranslation();
-  const { data, error, refetch } = useQuery(sectorsQuery());
   const direction = useDirectionColors(Market.TW);
   const format = numberFormats(i18n.language);
 
-  if (error) return <LoadError error={error} onRetry={() => void refetch()} />;
-
-  if (data === undefined) return <LoadingState />;
-
-  if (data === null) {
-    return (
-      <p className="text-sm text-muted">{t("heat-map.sectors.unavailable")}</p>
-    );
-  }
-
-  const moves = new Map(sectorMoves(data).map((move) => [move.sector, move]));
+  const moves = new Map(
+    sectorMoves(sectors).map((move) => [move.sector, move])
+  );
 
   // Before the first trade every sector shares the room equally.
   const traded = [...moves.values()].some((move) => move.share > 0);
 
   return (
     <HeatMap
-      height={HEIGHT}
+      height={height}
       groups={Object.values(SectorGroup).map((group) => ({
         id: group,
         label: t(`sectors.groups.${group}`),
-        tiles: data
+        tiles: sectors
           .filter((sector) => sector.group === group)
           .map(({ sector }) => {
             const move = moves.get(sector);
@@ -86,4 +84,22 @@ export function SectorHeatMap() {
       }))}
     />
   );
+}
+
+/** The sectors as they trade today, which `followQuotes` keeps up with the session. */
+export function SectorHeatMap() {
+  const { t } = useTranslation();
+  const { data, error, refetch } = useQuery(sectorsQuery());
+
+  if (error) return <LoadError error={error} onRetry={() => void refetch()} />;
+
+  if (data === undefined) return <LoadingState />;
+
+  if (data === null) {
+    return (
+      <p className="text-sm text-muted">{t("heat-map.sectors.unavailable")}</p>
+    );
+  }
+
+  return <SectorMap sectors={data} />;
 }

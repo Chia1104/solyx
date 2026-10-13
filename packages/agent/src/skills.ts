@@ -82,7 +82,8 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "- Costs: brokers charge up to 0.1425% commission on each side, and selling pays securities transaction tax (0.3% for stocks, lower for ETFs and day trades). Include them when the edge is small.",
       "- Settlement is T+2; cash must be in the account by then.",
       "- Taiwan quotes rising prices in red and falling prices in green, the opposite of the US.",
-      "- get_flows says who traded after each session. Read the week and the month and the runs, not one session: foreign flows carry ETF and index arbitrage, and dealer hedging follows the warrants dealers issued. Margin purchases rising while the price falls are holders who may be forced to sell."
+      "- get_flows says who traded after each session. Read the week and the month and the runs, not one session: foreign flows carry ETF and index arbitrage, and dealer hedging follows the warrants dealers issued. Margin purchases rising while the price falls are holders who may be forced to sell.",
+      "- get_sectors gives the session by industry. Each index is weighted by market value, so a few large listings carry it, as TSMC carries semiconductors, and a sector's rise is not every listing's. Value traded shows where the session's trading went, not who bought. For a sector over days or weeks, read its index's bars with get_candles."
     ),
   },
   {

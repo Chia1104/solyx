@@ -9,11 +9,13 @@ import {
 import type { Candle } from "@solyx/core/candles";
 import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import type { Listing } from "@solyx/core/market-data";
+import type { Listing, MarketDataProvider } from "@solyx/core/market-data";
 import { sessionQuote } from "@solyx/core/quote";
 import type { SessionQuote } from "@solyx/core/quote";
 import { TW_SECTOR_INDICES } from "@solyx/core/sectors";
 import type { SectorQuote } from "@solyx/core/sectors";
+import { freshFor, keepFresh } from "@solyx/utils/fresh";
+import type { AnswerStores } from "@solyx/utils/fresh";
 
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
@@ -21,8 +23,13 @@ import { createLiveCandles } from "./live-candles.ts";
 import type { LiveSender } from "./live-candles.ts";
 import type { MarketDataSources } from "./market-data-sources.ts";
 
+/** The sectors cost a request per index, so the overview's map and the agent share a read this long. */
+const SECTORS_FRESH_MS = 60 * 1000;
+
 interface MarketDataOptions {
   sources: MarketDataSources;
+  /** Where the sectors' answer is kept between reads. */
+  answers: AnswerStores;
   diagnostics: Pick<Diagnostics, "recovered">;
   /** Where some market's bars come from changed: charts load again and watch afresh. */
   onSourcesChanged: () => void;
@@ -37,6 +44,7 @@ interface MarketDataOptions {
  */
 export function createMarketData({
   sources,
+  answers,
   diagnostics,
   onSourcesChanged,
   now = () => new Date(),
@@ -51,6 +59,23 @@ export function createMarketData({
       return provider ? provider.getCandles(request) : [];
     },
     now,
+  });
+
+  const sectorQuotes = keepFresh<MarketDataProvider, SectorQuote[]>({
+    store: answers("market:sectors"),
+    id: (provider) => provider.id,
+    ask: (provider) =>
+      Promise.all(
+        TW_SECTOR_INDICES.map(async (index) => ({
+          ...index,
+          quote: await provider.getQuote({
+            market: Market.TW,
+            symbol: index.symbol,
+          }),
+        }))
+      ),
+    fresh: freshFor(SECTORS_FRESH_MS),
+    now: () => now().getTime(),
   });
 
   async function providerOf(market: Market) {
@@ -121,20 +146,11 @@ export function createMarketData({
       );
     },
 
+    /** Every Taiwan sector index's session so far; `null` when no source covers Taiwan. */
     async sectors(): Promise<SectorQuote[] | null> {
       const provider = await sources.provider(Market.TW);
 
-      if (!provider) return null;
-
-      return Promise.all(
-        TW_SECTOR_INDICES.map(async (index) => ({
-          ...index,
-          quote: await provider.getQuote({
-            market: Market.TW,
-            symbol: index.symbol,
-          }),
-        }))
-      );
+      return provider ? sectorQuotes(provider) : null;
     },
 
     /** Kept for the session once found, since news groups a listing's stories by its names on every read. */

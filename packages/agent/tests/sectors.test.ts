@@ -1,0 +1,139 @@
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { contentText } from "@earendil-works/pi-ai";
+import type {
+  ToolExecutionApi,
+  ToolRegistration,
+} from "@earendil-works/pi-durable";
+import { expect, test, vi } from "vite-plus/test";
+
+import { Interval } from "@solyx/core/candles";
+import type { Candle } from "@solyx/core/candles";
+import { Market } from "@solyx/core/market";
+import type { MarketData } from "@solyx/core/market-data";
+import { TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
+import type { SectorQuote } from "@solyx/core/sectors";
+
+import { createSectorTools } from "../src/sectors.ts";
+import { AgentToolName } from "../src/wire.ts";
+
+// 2026-10-13 10:42 in Taipei.
+const NOW = new Date("2026-10-13T02:42:00Z");
+
+const taipei = (date: string) => Date.parse(`${date}T00:00:00+08:00`) / 1000;
+
+const bar = (date: string, close: number): Candle => ({
+  time: taipei(date),
+  open: close,
+  high: close,
+  low: close,
+  close,
+  volume: 0,
+});
+
+const TAIEX = [bar("2026-10-12", 23_000), bar("2026-10-13", 23_230)];
+
+const QUOTES: Partial<Record<TwSector, [number, number, number]>> = {
+  [TwSector.Semiconductors]: [1212, 1200, 6e11],
+  [TwSector.Finance]: [2475, 2500, 1e11],
+  [TwSector.Shipping]: [190, 200, 5e10],
+  [TwSector.ElectricMachinery]: [515, 500, 2.5e11],
+  [TwSector.Tourism]: [121.3, 121.3, 0],
+};
+
+/** Every sector index, with a session only for the ones `QUOTES` names. */
+const sectorsOf = (quotes: typeof QUOTES): SectorQuote[] =>
+  TW_SECTOR_INDICES.map((index) => {
+    const quote = quotes[index.sector];
+
+    return {
+      ...index,
+      quote: quote
+        ? {
+            date: "2026-10-13",
+            last: quote[0],
+            reference: quote[1],
+            tradeValue: quote[2],
+          }
+        : null,
+    };
+  });
+
+function setup(sectors: SectorQuote[] | null) {
+  const marketData = {
+    candles: vi.fn<MarketData["candles"]>(async () => TAIEX),
+  };
+
+  const [tool] =
+    createSectorTools({
+      sectors: async () => sectors,
+      marketData,
+      now: () => NOW,
+    }).tools ?? [];
+
+  const run = async (params: Parameters<ToolRegistration["execute"]>[0]) => {
+    // SAFETY: get_sectors never uses its call's api.
+    const api = {} as ToolExecutionApi;
+    const result = await tool.execute(params, api, BACKGROUND_CONTEXT);
+
+    return { text: contentText(result.output ?? []), details: result.details };
+  };
+
+  return { tool, run, marketData };
+}
+
+test("lists the market's index and each traded sector, largest rise first, as the app computed them", async () => {
+  const sectors = sectorsOf(QUOTES);
+  const { tool, run, marketData } = setup(sectors);
+
+  expect(tool.name).toBe(AgentToolName.GetSectors);
+
+  const { text, details } = await run({});
+
+  expect(marketData.candles).toHaveBeenCalledWith(
+    { market: Market.TW, symbol: "IX0001" },
+    Interval.OneDay
+  );
+
+  const lines = text.split("\n");
+
+  expect(lines.slice(0, 9)).toEqual([
+    "Taiwan's listed sectors as_of 2026-10-13 10:42 Taipei, session 2026-10-13; value in TWD millions, share of what all the sectors traded",
+    "TAIEX (TW IX0001) on 2026-10-13: 23230, +1.00% on the session before",
+    "2 sectors up, 2 down, 1 unchanged",
+    "Share of the trading by group: electronics 60.0%, finance 10.0%, other 30.0%",
+    "sector,group,index,last,change,percent,value,share",
+    "electric machinery,other,IX0017,515,+15.00,+3.00%,250000,25.0%",
+    "semiconductors,electronics,IX0028,1212,+12.00,+1.00%,600000,60.0%",
+    "tourism,other,IX0038,121.3,0.00,0.00%,0,0.0%",
+    "finance,finance,IX0039,2475,-25.00,-1.00%,100000,10.0%",
+  ]);
+  expect(lines[9]).toBe("shipping,other,IX0037,190,-10.00,-5.00%,50000,5.0%");
+  expect(lines[10]).toMatch(/^Not traded yet: .*glass \(IX0022\)/);
+  expect(lines).toHaveLength(11);
+  expect(details).toEqual({ sectors });
+});
+
+test("says so before any sector has traded", async () => {
+  const sectors = sectorsOf({});
+  const { run } = setup(sectors);
+
+  const { text, details } = await run({});
+
+  expect(text.split("\n")).toEqual([
+    "Taiwan's listed sectors as_of 2026-10-13 10:42 Taipei: no sector index has traded yet in this session.",
+    "TAIEX (TW IX0001) on 2026-10-13: 23230, +1.00% on the session before",
+  ]);
+  expect(details).toEqual({ sectors });
+});
+
+test("says no source covers Taiwan rather than fail", async () => {
+  const { run, marketData } = setup(null);
+
+  const { text, details } = await run({});
+
+  expect(text).toBe(
+    "No sector indices: no market data source covers Taiwan yet. get_setup says what is missing."
+  );
+  expect(details).toBeUndefined();
+  expect(marketData.candles).not.toHaveBeenCalled();
+});
