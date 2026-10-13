@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 
+import { candleDate } from "../src/candles.ts";
 import type { Candle } from "../src/candles.ts";
 import {
   ForecastDirection,
@@ -22,6 +23,7 @@ import type {
   ForecastContext,
   ForecastDraft,
 } from "../src/forecast.ts";
+import { cashGoneExBy } from "../src/fundamentals.ts";
 import type { Dividend } from "../src/fundamentals.ts";
 import { Market } from "../src/market.ts";
 import { ReportStance } from "../src/report.ts";
@@ -741,6 +743,29 @@ describe("base rates", () => {
     ]);
 
     expect(moves).toEqual([1, 1, 1]);
+  });
+
+  test("a move with its cash added back is the cash gone ex by its later bar less by its earlier", () => {
+    const bars = closes([100, 100, 95, 95, 90]);
+
+    const dividends = [
+      exDividend("2026-01-03", 5),
+      exDividend("2026-01-05", 5),
+    ];
+
+    const cash = cashGoneExBy(
+      bars.map((each) => candleDate(Market.TW, each.time)),
+      dividends
+    );
+
+    expect(horizonMoves(Market.TW, bars, 2, dividends)).toEqual(
+      bars
+        .slice(2)
+        .map(
+          (later, index) =>
+            (later.close + cash[index + 2] - cash[index]) / bars[index].close
+        )
+    );
   });
 
   test("bands between edges hold every price once, the lowest and highest left open", () => {

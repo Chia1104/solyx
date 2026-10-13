@@ -7,6 +7,7 @@ import { BrowserWindow } from "electron";
 import { omit, sum } from "es-toolkit";
 
 import { createAnalysis } from "@solyx/agent/analysis";
+import type { AnalysisPorts } from "@solyx/agent/analysis";
 import { createFlowTools } from "@solyx/agent/flows";
 import { createHeadlineTools } from "@solyx/agent/headlines";
 import type { HeadlineToolsOptions } from "@solyx/agent/headlines";
@@ -128,6 +129,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   sectors: SectorToolsOptions["sectors"];
   /** A listing's newest session, as the overview's moves read it. */
   quote: QuoteToolsOptions["quote"];
+  /** A listing's bars from a day on, for a script that needs more than the lookback. */
+  candlesSince: AnalysisPorts["candlesSince"];
   /** What the agent reads of the rest of the app's settings. */
   setup: AgentSetupSources;
   /** A run started or ended, or one of its calls began or stopped waiting for the user. */
@@ -265,6 +268,7 @@ export function createAgentService(options: AgentServiceOptions) {
     marketData: options.marketData,
     watchlist: options.watchlist.list,
     desk: options.desk,
+    candlesSince: options.candlesSince,
     quote: options.quote,
     sectors: options.sectors,
     flows: options.flows,

@@ -363,6 +363,8 @@ export function createServices(config: ConfigFile) {
     macro,
     sectors: () => marketData.sectors(),
     quote: (symbol) => marketData.quote(symbol),
+    candlesSince: (symbol, interval, since) =>
+      marketData.candlesSince(symbol, interval, since),
     setup: {
       appearance,
       marketData,

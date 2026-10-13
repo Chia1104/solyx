@@ -179,6 +179,26 @@ test("a quote reads the five-minute bars a chart of that interval reads", async 
   );
 });
 
+test("bars from a day on reach back to it where it lies before the lookback, and never read less than the lookback", async () => {
+  const { marketData, provider } = setup();
+  const lookback = lookbackRange(Market.TW, Interval.OneDay, NOW);
+
+  await marketData.candlesSince(TSMC, Interval.OneDay, "2018-01-02");
+  await marketData.candlesSince(TSMC, Interval.OneDay, "2026-09-01");
+
+  expect(vi.mocked(provider.getCandles).mock.calls).toEqual([
+    [
+      {
+        symbol: TSMC,
+        interval: Interval.OneDay,
+        from: "2018-01-02",
+        to: lookback.to,
+      },
+    ],
+    [{ symbol: TSMC, interval: Interval.OneDay, ...lookback }],
+  ]);
+});
+
 test("sectors quote each sector index once", async () => {
   const { marketData, provider } = setup();
 
