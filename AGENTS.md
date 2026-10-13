@@ -24,6 +24,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - `packages/web-search`: one module per web search vendor, which news and the agent search and read the web through
 - `packages/decisions`: decisions models, which answer typed questions with probabilities, one module per vendor
 - `packages/embeddings`: one module that speaks OpenAI's embeddings API, for OpenAI and for a model on this computer
+- `packages/backup`: one module that speaks S3's API, and the sealed bundle a backup is kept as
 - `packages/agent`: the trading agent on pi, with its runtime, tools, prompt, skills and the wire events the renderer folds into a conversation
 - `packages/db`: SQLite schemas, migrations and repositories
 - `packages/trading-chart`: domain-free React bindings for Lightweight Charts v5
@@ -42,7 +43,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 ## Trading invariants
 
 1. **One road to an order:** `OrderDesk.propose` → `checkOrder` → the user confirms in the UI → `OrderDesk.confirm` → `broker.placeOrder`. Agent tools may only call `propose`, through a `ProposingDesk`; only a user action in the renderer reaches `confirm`, and no setting changes that. The desk is the broker's only holder and builds every check's context itself (session, account, the broker's markets); others read the account through it. MCP tools, and shell commands the user may switch on for a paper account, run outside the desk, so each call waits for the user unless the user's own approval settings let it run.
-2. **Failed submissions are never retried:** `failed` is terminal, since the broker may have accepted the order anyway and a retry could duplicate it. A proposal still submitting when the app exits fails the next time the `OrderDesk` opens, for the same reason.
+2. **Failed submissions are never retried:** `failed` is terminal, since the broker may have accepted the order anyway and a retry could duplicate it. A proposal still submitting when the app exits fails the next time the `OrderDesk` opens, for the same reason, and one that waits in a backup is dismissed as the desk opens on the restored data, since the user may have confirmed it after the backup was made.
 3. **Broker SDKs stay out of the repository and the installer:** users download SDKs such as `fubon-neo` themselves, and the app loads them at runtime from a path the user chooses.
 4. **Secrets never persist in plain text:** certificates (`.pfx`), passwords and API keys never reach the repository, logs or error reports.
 5. **No relay server:** market data and LLMs use the user's own keys, and data flows straight between the provider and the user's machine. Only the user can point a model provider at another endpoint, such as their gateway, or name one that receives the app's traces and logs. The project's own hosts the app reaches are its update feed, which is sent nothing about the user, and its Sentry, which gets crash reports only once the user agrees.
@@ -58,7 +59,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - An enum is a PascalCase const object with PascalCase keys plus a same-named type, `export type Foo = (typeof Foo)[keyof typeof Foo]`; no TS `enum`, bare string-literal unions or `as const` arrays. Schemas derive from it (`z.enum(Foo)`) and untyped input narrows with `isEnumValue` from `@solyx/utils/is`.
 - zod is imported as `import * as z from "zod"`. Schemas are camelCase with a `Schema` suffix, sit beside the const object or type they validate, and types derive from them with `z.infer`.
 - A type assertion needs a `SAFETY:` comment; prefer narrowing, `satisfies` or a parser at the boundary so the assertion is not needed.
-- A package that reads a source over HTTP (`market-data`, `fundamentals`, `macro`, `news`, `web-search`, `embeddings`) calls it through `ky` with an injectable `fetch` and parses every response with zod. A failure's message names the source and the reason it gives.
+- A package that reads a source over HTTP (`market-data`, `fundamentals`, `macro`, `news`, `web-search`, `embeddings`, `backup`) calls it through `ky` with an injectable `fetch` and parses every response with zod. A failure's message names the source and the reason it gives.
 - Read a site's terms of use and `robots.txt` before adding it as a source, and add none that forbids programs from downloading its data. The Taiwan Stock Exchange's websites (`www.twse.com.tw`, `mis.twse.com.tw`) do, so only what it publishes as open data (`openapi.twse.com.tw`) is read; what only those sites hold, such as a fund's estimated net asset value, the agent finds on the issuer's own pages.
 - Tests use synthetic payloads shaped like a source's responses; never commit recorded market data, pages, posts or articles.
 - Oxlint, Oxfmt and Vitest come from Vite+; their lint, format and staged rules live in the root `vite.config.ts` because Vite+ ignores nested configs.

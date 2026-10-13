@@ -76,6 +76,12 @@ export interface OrderDeskOptions {
    * @default every weekday trades
    */
   tradingDays?: (market: Market) => Promise<TradingDays>;
+  /**
+   * The store was put back from a backup. A proposal that waits in it may have been confirmed
+   * since the backup was made, so the desk dismisses each as it opens.
+   * @default false
+   */
+  restored?: boolean;
   /** Called after every change to a proposal, so whoever shows them can refresh. */
   onChange?: () => void;
   now?: () => number;
@@ -98,15 +104,24 @@ export class OrderDesk {
   constructor(options: OrderDeskOptions) {
     this.#options = options;
 
-    // The app exited mid-submission, so the broker may hold the order: fail it, never resubmit.
+    // Nobody shows proposals before the desk exists, so these changes are told to no one.
     for (const proposal of options.store.list()) {
-      if (proposal.status !== ProposalStatus.Submitting) continue;
-
-      this.#save({
-        ...proposal,
-        status: ProposalStatus.Failed,
-        failure: { code: SubmissionFailureCode.Interrupted },
-      });
+      // The app exited mid-submission, so the broker may hold the order: fail it, never resubmit.
+      if (proposal.status === ProposalStatus.Submitting) {
+        options.store.update({
+          ...proposal,
+          status: ProposalStatus.Failed,
+          failure: { code: SubmissionFailureCode.Interrupted },
+        });
+      } else if (
+        options.restored &&
+        proposal.status === ProposalStatus.AwaitingConfirmation
+      ) {
+        options.store.update({
+          ...proposal,
+          status: ProposalStatus.Dismissed,
+        });
+      }
     }
   }
 
