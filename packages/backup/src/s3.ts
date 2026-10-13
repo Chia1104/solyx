@@ -170,6 +170,13 @@ export function createBucket(options: BucketOptions) {
       );
     },
 
+    /** Deletes the object at `key`; one already gone is no failure. */
+    async remove(key: string): Promise<void> {
+      const url = objectUrl(key);
+
+      await http.delete(url, { headers: signed("DELETE", url, EMPTY_HASH) });
+    },
+
     /** Every object whose key starts with `prefix`, in the order of their keys. */
     async list(prefix: string): Promise<BucketObject[]> {
       const objects: BucketObject[] = [];

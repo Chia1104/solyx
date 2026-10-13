@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./bundle": "./src/bundle.ts",
+    "./retention": "./src/retention.ts",
     "./s3": "./src/s3.ts"
   },
   "scripts": {

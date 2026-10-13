@@ -1422,6 +1422,22 @@
       "now": {
         "title": "備份",
         "description": "備份包含你的自選、提案與模擬帳戶、研究、記憶、新聞和對話紀錄，以及設定、技能、固定指示與 MCP 伺服器。金鑰與登入資訊不會進入備份；K 線也不包含，因為圖表會重新抓取。",
+        "automatic": "自動備份",
+        "automatic-description": "Solyx 執行期間，到了時間且內容自上次備份後有變動才會備份。每次備份後會清理這個安裝較舊的備份：保留最新 4 份，再保留最近 24 個小時、7 天與 4 週中各自的最後一份（只計有備份的時段），所以不論備份多頻繁，bucket 裡最多 39 份。",
+        "every": "頻率",
+        "every-description": "每次備份都會重新上傳全部內容，間隔越短用到的網路流量越多，但 bucket 佔用的空間不會增加。",
+        "every-options": {
+          "15m": "每 15 分鐘",
+          "1h": "每小時",
+          "6h": "每 6 小時",
+          "1d": "每天"
+        },
+        "last": "上次備份",
+        "never": "尚未備份",
+        "stored": "Bucket 內",
+        "stored-value_one": "{{count}} 份備份，{{size}}",
+        "stored-value_other": "{{count}} 份備份，{{size}}",
+        "background-failed": "上一次自動備份沒有成功",
         "not-ready": "請先設定 bucket、存取金鑰的兩個部分與密語。",
         "action": "立即備份",
         "done": "已於 {{time}} 備份 {{size}}",

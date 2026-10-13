@@ -1,6 +1,10 @@
 import * as z from "zod";
 
-import { backupChannels, backupSettingSchema } from "#shared/ipc/backup.ts";
+import {
+  backupChannels,
+  backupIntervalSchema,
+  backupSettingSchema,
+} from "#shared/ipc/backup.ts";
 import type { BackupApi } from "#shared/ipc/backup.ts";
 
 import { bindIpc } from "../../ipc/ipc-module.ts";
@@ -10,6 +14,8 @@ const schemas = {
   settings: z.tuple([]),
   // Checked against the setting it is for where it is saved.
   set: z.tuple([backupSettingSchema, z.string().trim().max(2048).nullable()]),
+  setAutomatic: z.tuple([z.boolean()]),
+  setEvery: z.tuple([backupIntervalSchema]),
   status: z.tuple([]),
   backUp: z.tuple([]),
   list: z.tuple([]),

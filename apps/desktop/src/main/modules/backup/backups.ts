@@ -1,12 +1,16 @@
-import { existsSync, rmSync } from "node:fs";
-import { cp, mkdir, mkdtemp, rm, stat } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
+import { createReadStream, existsSync, rmSync } from "node:fs";
+import { cp, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { dirname, join, relative } from "node:path";
+
+import { sumBy } from "es-toolkit";
 
 import {
   BUNDLE_EXTENSION,
   readBundle,
   writeBundle,
 } from "@solyx/backup/bundle";
+import { expiredBackups } from "@solyx/backup/retention";
 import { DEFAULT_REGION, awsEndpoint, createBucket } from "@solyx/backup/s3";
 import type { Bucket, BucketOptions } from "@solyx/backup/s3";
 import {
@@ -14,10 +18,11 @@ import {
   verifyAgentSnapshot,
   verifySnapshot,
 } from "@solyx/db/snapshot";
-import { isErrnoError } from "@solyx/utils/error";
+import { errorMessage, isErrnoError } from "@solyx/utils/error";
 
 import {
   BackupActivity,
+  BackupInterval,
   BackupSetting,
   backupBucketSchema,
   backupPrefixSchema,
@@ -26,9 +31,11 @@ import {
 import type { BackupApi, StoredBackup } from "#shared/ipc/backup.ts";
 import { Secret, SecretState } from "#shared/ipc/settings.ts";
 
+import type { ScheduledWork } from "../../scheduler.ts";
 import { endpointSchema } from "../settings/config-file.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
+import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 import {
   AGENT_DATABASE,
@@ -37,6 +44,7 @@ import {
   filePlaces,
 } from "./backup-places.ts";
 import type { DataFolders } from "./backup-places.ts";
+import { createBackupState } from "./backup-state.ts";
 import { restorePaths, stageRestore } from "./staged-restore.ts";
 import type { StagedRestore } from "./staged-restore.ts";
 
@@ -52,6 +60,22 @@ const SECRETS = [
   Secret.BackupSecretAccessKey,
   Secret.BackupPassphrase,
 ];
+
+const MINUTE_MS = 60 * 1000;
+
+const INTERVAL_MS: Record<BackupInterval, number> = {
+  [BackupInterval.QuarterHour]: 15 * MINUTE_MS,
+  [BackupInterval.Hour]: 60 * MINUTE_MS,
+  [BackupInterval.SixHours]: 6 * 60 * MINUTE_MS,
+  [BackupInterval.Day]: 24 * 60 * MINUTE_MS,
+};
+
+// Each pass only looks whether a backup is due, which costs no request.
+const PASS_EVERY_MS = MINUTE_MS;
+
+// How long a backup that failed on its own waits before it is tried again, so a bucket that
+// cannot be reached, as on a computer offline, is not asked every minute.
+const RETRY_MS = 15 * MINUTE_MS;
 
 const BUSY: Record<BackupActivity, string> = {
   [BackupActivity.BackingUp]: "A backup is being made",
@@ -106,11 +130,36 @@ export interface BackupsOptions {
   restored: StagedRestore | null;
   /** Quits the app and starts it again. */
   restart: () => void;
+  /** The user's own time zone, whose days and weeks say which backups are kept. */
+  timeZone: () => string;
+  diagnostics: Pick<Diagnostics, "recovered">;
   /** Called whenever what `status` answers changes. */
   onChange: () => void;
   /** @default the bucket over the network */
   openBucket?: (options: BucketOptions) => Bucket;
   now?: () => number;
+}
+
+/** A hash of every file under `folder` with its path, which is the same until one of them changes. */
+async function digestOf(folder: string) {
+  const hash = createHash("sha256");
+
+  const files = (
+    await readdir(folder, { recursive: true, withFileTypes: true })
+  )
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(entry.parentPath, entry.name))
+    .toSorted();
+
+  for (const file of files) {
+    hash.update(`${relative(folder, file)}\0`);
+
+    for await (const chunk of createReadStream(file).iterator()) {
+      hash.update(chunk);
+    }
+  }
+
+  return hash.digest("hex");
 }
 
 /**
@@ -128,14 +177,19 @@ export function createBackups({
   installation,
   restored,
   restart,
+  timeZone,
+  diagnostics,
   onChange,
   openBucket = createBucket,
   now = Date.now,
-}: BackupsOptions): BackupApi {
+}: BackupsOptions): BackupApi & { work: ScheduledWork } {
   const outgoing = join(folders.dataDir, "backup");
   const paths = restorePaths(folders.dataDir);
+  const state = createBackupState(join(folders.dataDir, "backup.json"));
 
   let activity: BackupActivity | null = null;
+  // Why the last backup made on its own, or the thinning after one, failed, and when it did.
+  let failure: { message: string; at: number } | null = null;
 
   // Left by a backup the app quit in the middle of.
   rmSync(outgoing, { recursive: true, force: true });
@@ -220,9 +274,161 @@ export function createBackups({
     }
   }
 
+  /** A bucket, both halves of its access key and a passphrase are all saved. */
+  async function ready() {
+    const states = await Promise.all(
+      SECRETS.map((secret) => secrets.state(secret))
+    );
+
+    return (
+      config.read().backup.bucket !== undefined &&
+      states.every((saved) => saved === SecretState.Saved)
+    );
+  }
+
+  /**
+   * Deletes this installation's backups that the retention no longer keeps, and counts the rest.
+   * It reads only the installation's own folder and only objects named as its backups are, so
+   * nothing else in the bucket is ever deleted, and it runs only after a backup went up, so the
+   * newest is always kept.
+   */
+  async function thin(bucket: Bucket, folder: string) {
+    const own = (await bucket.list(`${folder}/${installation()}/`)).flatMap(
+      ({ key, bytes }) => {
+        const made = readBackupKey(folder, key);
+
+        return made ? [{ key, bytes, createdAt: made.createdAt }] : [];
+      }
+    );
+
+    const expired = new Set(expiredBackups(own, timeZone()));
+
+    for (const { key } of expired) await bucket.remove(key);
+
+    const kept = own.filter((backup) => !expired.has(backup));
+
+    return { count: kept.length, bytes: sumBy(kept, ({ bytes }) => bytes) };
+  }
+
+  type Destination = Awaited<ReturnType<typeof destination>>;
+
+  /** A copy of every place of a backup, in a folder of its own, and where it is to go. */
+  interface Copy {
+    to: Destination;
+    /** The folder the copy and what is made from it are in. */
+    work: string;
+    content: string;
+    digest: string;
+  }
+
+  /** Runs `job` on a copy of what the app keeps now, with nothing else going on, and removes the copy after. */
+  async function withCopy<Result>(
+    job: (copy: Copy) => Promise<Result>
+  ): Promise<Result> {
+    begin(BackupActivity.BackingUp);
+
+    try {
+      const to = await destination();
+
+      await mkdir(outgoing, { recursive: true });
+
+      const work = await mkdtemp(join(outgoing, "bundle-"));
+
+      try {
+        const content = join(work, "content");
+
+        await collect(content);
+
+        return await job({
+          to,
+          work,
+          content,
+          digest: await digestOf(content),
+        });
+      } finally {
+        await rm(work, { recursive: true, force: true });
+      }
+    } finally {
+      end();
+    }
+  }
+
+  /** Seals a copy and uploads it, then thins out the older backups. */
+  async function upload({
+    to: { bucket, folder, passphrase },
+    work,
+    content,
+    digest,
+  }: Copy): Promise<StoredBackup> {
+    const file = join(work, "sealed");
+    // To the second, as its key names it, so a listing reads the same moment back.
+    const createdAt = Math.floor(now() / 1000) * 1000;
+    const key = backupKey(folder, installation(), createdAt);
+
+    await writeBundle({
+      folder: content,
+      file,
+      passphrase,
+      origin: { app, version, installation: installation(), createdAt },
+    });
+    await bucket.put(key, file);
+
+    let { stored } = state.read();
+
+    failure = null;
+
+    try {
+      stored = await thin(bucket, folder);
+    } catch (error) {
+      // The backup is up; only its older ones stay longer than they should.
+      failure = { message: errorMessage(error), at: now() };
+      diagnostics.recovered(error, "backup.thin");
+    }
+
+    state.write({ checkedAt: now(), uploadedAt: createdAt, digest, stored });
+
+    return { key, createdAt, bytes: (await stat(file)).size, own: true };
+  }
+
+  const work: ScheduledWork = {
+    everyMs: PASS_EVERY_MS,
+
+    async run() {
+      const { automatic, every } = config.read().backup;
+      const at = now();
+
+      if (!automatic || activity !== null) return;
+
+      if (at - (state.read().checkedAt ?? 0) < INTERVAL_MS[every]) return;
+
+      if (failure && at - failure.at < RETRY_MS) return;
+
+      if (!(await ready())) return;
+
+      try {
+        await withCopy(async (copy) => {
+          const last = state.read();
+
+          // Nothing changed since the last backup, so another would only be a second copy of it.
+          if (copy.digest === last.digest)
+            state.write({ ...last, checkedAt: at });
+          else await upload(copy);
+        });
+      } catch (error) {
+        // A bucket out of reach is tried again; the backup tab says why meanwhile.
+        failure = { message: errorMessage(error), at };
+        diagnostics.recovered(error, "backup.pass");
+        onChange();
+      }
+    },
+  };
+
   return {
+    work,
+
     async settings() {
-      const { endpoint, region, bucket, prefix } = config.read().backup;
+      const { endpoint, region, bucket, prefix, automatic, every } =
+        config.read().backup;
 
       return {
         endpoint: endpoint ?? null,
@@ -230,7 +436,17 @@ export function createBackups({
         bucket: bucket ?? null,
         prefix: prefix ?? null,
         defaults: { region: DEFAULT_REGION, prefix: app },
+        automatic,
+        every,
       };
+    },
+
+    async setAutomatic(automatic) {
+      config.set(["backup", "automatic"], automatic);
+    },
+
+    async setEvery(every) {
+      config.set(["backup", "every"], every);
     },
 
     async set(setting, value) {
@@ -241,53 +457,19 @@ export function createBackups({
     },
 
     async status() {
-      const states = await Promise.all(
-        SECRETS.map((secret) => secrets.state(secret))
-      );
+      const { uploadedAt, stored } = state.read();
 
       return {
-        ready:
-          config.read().backup.bucket !== undefined &&
-          states.every((state) => state === SecretState.Saved),
+        ready: await ready(),
         activity,
         restoredFrom: restored?.createdAt ?? null,
+        lastBackupAt: uploadedAt,
+        stored,
+        failure: failure?.message ?? null,
       };
     },
 
-    async backUp() {
-      begin(BackupActivity.BackingUp);
-
-      try {
-        const { bucket, folder, passphrase } = await destination();
-
-        await mkdir(outgoing, { recursive: true });
-
-        const work = await mkdtemp(join(outgoing, "bundle-"));
-
-        try {
-          const content = join(work, "content");
-          const file = join(work, "sealed");
-          // To the second, as its key names it, so a listing reads the same moment back.
-          const createdAt = Math.floor(now() / 1000) * 1000;
-          const key = backupKey(folder, installation(), createdAt);
-
-          await collect(content);
-          await writeBundle({
-            folder: content,
-            file,
-            passphrase,
-            origin: { app, version, installation: installation(), createdAt },
-          });
-          await bucket.put(key, file);
-
-          return { key, createdAt, bytes: (await stat(file)).size, own: true };
-        } finally {
-          await rm(work, { recursive: true, force: true });
-        }
-      } finally {
-        end();
-      }
-    },
+    backUp: () => withCopy(upload),
 
     async list() {
       const { bucket, folder } = await destination();

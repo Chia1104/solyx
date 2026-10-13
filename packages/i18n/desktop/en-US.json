@@ -1422,6 +1422,22 @@
       "now": {
         "title": "Back up",
         "description": "A backup holds your watchlist, proposals and paper account, research, memories, news and conversations, with your settings, skills, instructions and MCP servers. Keys and sign-ins are never part of one, and candles are left out, since charts fetch them again.",
+        "automatic": "Back up on its own",
+        "automatic-description": "While Solyx runs, makes a backup once one is due and something has changed since the last. After each backup this installation's older ones are thinned out: the newest 4 stay, then the last of each of 24 hours, 7 days and 4 weeks that hold one, so the bucket holds 39 at most however often one is made.",
+        "every": "How often",
+        "every-description": "Each backup uploads everything again, so a shorter span uses more of your connection, and no more of the bucket.",
+        "every-options": {
+          "15m": "Every 15 minutes",
+          "1h": "Every hour",
+          "6h": "Every 6 hours",
+          "1d": "Every day"
+        },
+        "last": "Last backup",
+        "never": "Never",
+        "stored": "In the bucket",
+        "stored-value_one": "{{count}} backup, {{size}}",
+        "stored-value_other": "{{count}} backups, {{size}}",
+        "background-failed": "The last backup made on its own didn't go through",
         "not-ready": "Set the bucket, both parts of its access key and a passphrase first.",
         "action": "Back up now",
         "done": "Backed up {{size}} at {{time}}",

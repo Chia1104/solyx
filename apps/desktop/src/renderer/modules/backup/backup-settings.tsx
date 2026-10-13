@@ -1,23 +1,25 @@
 import { useMemo, useState } from "react";
 
-import { Alert, AlertDialog, Button } from "@heroui/react";
+import { Alert, AlertDialog, Button, Switch } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
 import {
+  BackupInterval,
   BackupSetting,
   backupBucketSchema,
   backupPrefixSchema,
   backupRegionSchema,
 } from "#shared/ipc/backup.ts";
-import type { BackupActivity, StoredBackup } from "#shared/ipc/backup.ts";
+import type { BackupStatus, StoredBackup } from "#shared/ipc/backup.ts";
 import { Secret } from "#shared/ipc/settings.ts";
 
 import { useClock } from "../../app/clock.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
+import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 import { AppSecretRow, SecretsUnavailable } from "../settings/secret-row.tsx";
@@ -152,18 +154,20 @@ function BackupDestination() {
   );
 }
 
-interface BackupActionProps {
-  /** The bucket, its access key and the passphrase are all set. */
-  ready: boolean;
-  /** What is going on, whichever window or schedule started it. */
-  activity: BackupActivity | null;
-}
-
-/** Making a backup now. */
-function BackupNow({ ready, activity }: BackupActionProps) {
+/** When backups are made on their own, what the bucket holds of them, and making one now. */
+function BackupNow({ status }: { status: BackupStatus }) {
   const { t, i18n } = useTranslation();
   const clock = useClock();
   const queryClient = useQueryClient();
+  const settings = useQuery(backupSettingsQuery());
+
+  const automatic = useMutation({
+    mutationFn: (on: boolean) => window.solyx.backup.setAutomatic(on),
+  });
+
+  const every = useMutation({
+    mutationFn: (next: BackupInterval) => window.solyx.backup.setEvery(next),
+  });
 
   const backUp = useMutation({
     mutationFn: () => window.solyx.backup.backUp(),
@@ -171,12 +175,85 @@ function BackupNow({ ready, activity }: BackupActionProps) {
       queryClient.invalidateQueries({ queryKey: backupQueryKeys.list }),
   });
 
+  const saveFailed = automatic.error ?? every.error;
+
   return (
     <Section
       title={t("settings.backup.now.title")}
       description={t("settings.backup.now.description")}>
       <div className="flex flex-col gap-3">
-        {ready ? null : (
+        <SettingsList>
+          {settings.data ? (
+            <>
+              <SettingsRow
+                label={t("settings.backup.now.automatic")}
+                description={t("settings.backup.now.automatic-description")}
+                actions={
+                  <Switch
+                    isSelected={settings.data.automatic}
+                    isDisabled={automatic.isPending}
+                    onChange={(on) => automatic.mutate(on)}>
+                    <Switch.Content>
+                      <Switch.Control>
+                        <Switch.Thumb />
+                      </Switch.Control>
+                      <span className="sr-only">
+                        {t("settings.backup.now.automatic")}
+                      </span>
+                    </Switch.Content>
+                  </Switch>
+                }
+              />
+              <SettingsRow
+                label={t("settings.backup.now.every")}
+                description={t("settings.backup.now.every-description")}
+                actions={
+                  <OptionSelect
+                    aria-label={t("settings.backup.now.every")}
+                    className="w-44"
+                    value={settings.data.every}
+                    isDisabled={!settings.data.automatic || every.isPending}
+                    options={Object.values(BackupInterval).map((id) => ({
+                      id,
+                      label: t(`settings.backup.now.every-options.${id}`),
+                    }))}
+                    onChange={(next) => every.mutate(next)}
+                  />
+                }
+              />
+            </>
+          ) : null}
+          <SettingsRow
+            label={t("settings.backup.now.last")}
+            value={
+              status.lastBackupAt === null
+                ? t("settings.backup.now.never")
+                : clock.time(status.lastBackupAt)
+            }
+          />
+          {status.stored ? (
+            <SettingsRow
+              label={t("settings.backup.now.stored")}
+              value={t("settings.backup.now.stored-value", {
+                count: status.stored.count,
+                size: formatBytes(status.stored.bytes, i18n.language),
+              })}
+            />
+          ) : null}
+        </SettingsList>
+        {saveFailed ? (
+          <ErrorAlert
+            title={t("settings.save-failed")}
+            description={saveFailed.message}
+          />
+        ) : null}
+        {status.failure === null ? null : (
+          <ErrorAlert
+            title={t("settings.backup.now.background-failed")}
+            description={status.failure}
+          />
+        )}
+        {status.ready ? null : (
           <p className="text-sm text-muted">
             {t("settings.backup.now.not-ready")}
           </p>
@@ -185,7 +262,9 @@ function BackupNow({ ready, activity }: BackupActionProps) {
           <Button
             size="sm"
             variant="secondary"
-            isDisabled={!ready || (activity !== null && !backUp.isPending)}
+            isDisabled={
+              !status.ready || (status.activity !== null && !backUp.isPending)
+            }
             isPending={backUp.isPending}
             onPress={() => backUp.mutate()}>
             {t("settings.backup.now.action")}
@@ -273,7 +352,10 @@ function RestoreButton({
 }
 
 /** The backups in the bucket, read once the user asks, each offered to restore. */
-function BackupRestore({ ready, activity }: BackupActionProps) {
+function BackupRestore({
+  ready,
+  activity,
+}: Pick<BackupStatus, "ready" | "activity">) {
   const { t, i18n } = useTranslation();
   const clock = useClock();
   const [shown, setShown] = useState(false);
@@ -369,7 +451,7 @@ export function BackupSettings() {
         </RailedColumn>
       )}
       <BackupDestination />
-      <BackupNow ready={data.ready} activity={data.activity} />
+      <BackupNow status={data} />
       <BackupRestore ready={data.ready} activity={data.activity} />
     </>
   );
