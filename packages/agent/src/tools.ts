@@ -446,7 +446,10 @@ function describeRelease(release: ReleaseEvent): string {
 }
 
 /** A market's trading days, or every weekday and the reason they could not be read. */
-async function readTradingDays(ports: TradingToolPorts, market: Market) {
+export async function readTradingDays(
+  ports: Pick<TradingToolPorts, "tradingDays">,
+  market: Market
+) {
   try {
     return { trades: await ports.tradingDays(market), failure: null };
   } catch (error) {
@@ -454,7 +457,8 @@ async function readTradingDays(ports: TradingToolPorts, market: Market) {
   }
 }
 
-function describeStory(
+/** A story as its lead tells it: when and where it came out, how it was read, and its address. */
+export function describeStory(
   market: Market,
   { lead, records }: NewsStory,
   now: Date,

@@ -188,6 +188,7 @@ export const AgentToolName = {
   GetCandles: "get_candles",
   GetIndicators: "get_indicators",
   GetNews: "get_news",
+  GetHeadlines: "get_headlines",
   GetWatchlist: "get_watchlist",
   GetCalendar: "get_calendar",
   GetAccount: "get_account",

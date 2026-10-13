@@ -7,6 +7,7 @@
     "./analysis": "./src/analysis.ts",
     "./flows": "./src/flows.ts",
     "./macro": "./src/macro.ts",
+    "./headlines": "./src/headlines.ts",
     "./history": "./src/history.ts",
     "./mcp": "./src/mcp.ts",
     "./mcp-config": "./src/mcp-config.ts",
