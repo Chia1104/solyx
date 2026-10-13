@@ -497,6 +497,76 @@ test("a run the app's exit cut off continues when the app starts again", async (
   await second.runtime.close();
 });
 
+test("a store that fails ends the runs under way and tells the host once", async () => {
+  /** A store whose writes fail once it is broken, as a full disk would have it. */
+  class FailingStorage extends MemoryStorage {
+    broken = false;
+
+    override async commit(...args: Parameters<MemoryStorage["commit"]>) {
+      if (this.broken) throw new Error("disk full");
+
+      return super.commit(...args);
+    }
+  }
+
+  const storage = new FailingStorage();
+  const failed = vi.fn();
+  const faux = fauxProvider();
+  const models = createModels();
+  const events: AgentWireEvent[] = [];
+
+  models.setProvider(faux.provider);
+
+  const runtime = createAgentRuntime({
+    store: Promise.resolve({
+      storage,
+      deleteConversation: vi.fn(async () => undefined),
+    }),
+    models,
+    model: async () => ({
+      model: faux.getModel(),
+      thinking: AgentThinking.Off,
+    }),
+    tools: only(NO_TOOLS),
+    onEvent: (_sessionId, event) => events.push(event),
+    onStoreFailure: failed,
+  });
+
+  const { id } = await runtime.create();
+
+  // Still answering when the store fails.
+  faux.setResponses([
+    (_context, options) =>
+      new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () =>
+          reject(options.signal?.reason)
+        );
+      }),
+  ]);
+
+  await runtime.send(id, { text: "hi", context: "" });
+  await vi.waitFor(() => expect(faux.state.callCount).toBe(1));
+
+  storage.broken = true;
+
+  await expect(runtime.create()).rejects.toThrow("disk full");
+  await vi.waitFor(() => expect(failed).toHaveBeenCalledOnce());
+
+  expect(failed).toHaveBeenCalledWith(
+    expect.objectContaining({ message: "disk full" })
+  );
+  expect(events.at(-1)).toEqual({
+    type: AgentEventType.RunEnd,
+    reason: RunEndReason.StoreFailed,
+  });
+  // Nothing runs until the app starts again.
+  await expect(
+    runtime.send(id, { text: "again", context: "" })
+  ).rejects.toThrow();
+
+  await runtime.close();
+});
+
 test("a compacted conversation still shows every message once", async () => {
   const path = join(directory, "agent.sqlite");
 

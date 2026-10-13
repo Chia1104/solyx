@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { Button } from "@heroui/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useMatch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
@@ -10,7 +11,7 @@ import { SettingsSection } from "#shared/settings-section.ts";
 import { agentSettingsQuery } from "../settings/settings-query.ts";
 
 import { AgentComposer } from "./agent-composer.tsx";
-import { transcriptQuery } from "./agent-query.ts";
+import { agentStoreFailedQuery, transcriptQuery } from "./agent-query.ts";
 import { AgentThread, EmptyThread } from "./agent-thread.tsx";
 
 // Streaming replaces the transcript every frame, while the composer needs only this.
@@ -45,13 +46,43 @@ function AgentSetup() {
   );
 }
 
+/** Stands where the composer was once the store failed, since nothing is sent until a restart. */
+function AgentStoreFailed() {
+  const { t } = useTranslation();
+
+  const restart = useMutation({
+    mutationFn: () => window.solyx.agent.restart(),
+  });
+
+  return (
+    <div
+      role="alert"
+      className="flex shrink-0 flex-col items-start gap-2 border-t border-separator p-4">
+      <p className="text-sm font-medium text-danger">
+        {t("agent.store-failed.title")}
+      </p>
+      <p className="text-xs text-muted">
+        {t("agent.store-failed.description")}
+      </p>
+      <Button
+        size="sm"
+        variant="secondary"
+        isPending={restart.isPending}
+        onPress={() => restart.mutate()}>
+        {t("agent.store-failed.restart")}
+      </Button>
+    </div>
+  );
+}
+
 /**
- * The conversation on screen and the box to write in, or setup until the agent can run. The
- * composer stays mounted while its first message creates a conversation, so nothing being
- * written is lost.
+ * The conversation on screen and the box to write in, or setup until the agent can run, or a
+ * restart once its store failed. The composer stays mounted while its first message creates a
+ * conversation, so nothing being written is lost.
  */
 export function AgentChat({ sessionId }: { sessionId: string | null }) {
   const settings = useQuery(agentSettingsQuery());
+  const storeFailed = useQuery(agentStoreFailedQuery());
 
   const running = useQuery({
     ...transcriptQuery(sessionId),
@@ -72,7 +103,9 @@ export function AgentChat({ sessionId }: { sessionId: string | null }) {
           <AgentThread key={sessionId} sessionId={sessionId} />
         )}
       </div>
-      {ready ? (
+      {storeFailed.data ? (
+        <AgentStoreFailed />
+      ) : ready ? (
         <AgentComposer
           sessionId={sessionId}
           running={running.data ?? false}

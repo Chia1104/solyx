@@ -12,6 +12,7 @@ The app's backend, composed in `services.ts`. Layout, IPC, settings and secrets 
 - The memory module shares one `MemoryStore` over `memory.sqlite`, which tells every window after each write, whether the agent's, the settings page's or clearing them all. Deleting a conversation keeps what it saved, since a memory is kept for the conversations after it. The agent gets its memories from its next run on while `agent.memory` is on, which it is until the user switches it off; switched off, they stay saved.
 - `agent.decisionMode` says who judges the agent's forecasts and order proposals: the agent alone, or the MAGI, which votes an order up or down and votes on each of a forecast's scenarios. Under the MAGI each unit answers on the model `agent.magi` names for it, or else on the model of the conversation that put the motion, and each turn's context tells the agent the mode.
 - Sign-in callbacks: Sign in with ChatGPT listens on port 1455, a remote MCP server's sign-in on the port its client registration redirects to, and each takes any free port when that one is taken.
+- Once the conversations' store fails, the agent module reports it, tells every window, and answers so to any window that asks later; a window then offers a restart in place of the composer. The app restarts by quitting as it always does, so what is open closes first. Orders are not held up: the desk keeps its own database.
 
 ## Windows and the tray
 

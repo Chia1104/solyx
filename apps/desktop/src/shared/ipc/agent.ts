@@ -50,6 +50,13 @@ export interface AgentApi {
   setApprovalMode(id: string, mode: ApprovalMode): Promise<void>;
   /** Sets the model the conversation runs on from its next run; `null` parts follow the default. */
   setModel(id: string, pick: AgentModelPick): Promise<void>;
+  /**
+   * Whether the conversations' store failed, after which none of them is read or written until
+   * the app starts again.
+   */
+  storeFailed(): Promise<boolean>;
+  /** Quits the app and starts it again, which a failed store needs. */
+  restart(): Promise<void>;
 }
 
 export interface AgentUpdate {
@@ -60,6 +67,8 @@ export interface AgentUpdate {
 /** Pushes from the main process; each subscription returns a function that stops listening. */
 export interface AgentEvents {
   onEvent(listener: (update: AgentUpdate) => void): () => void;
+  /** The conversations' store failed, which `storeFailed` tells from then on. */
+  onStoreFailed(listener: () => void): () => void;
 }
 
 export const agentChannels = {
@@ -73,8 +82,11 @@ export const agentChannels = {
   approve: "agent:approve",
   setApprovalMode: "agent:set-approval-mode",
   setModel: "agent:set-model",
+  storeFailed: "agent:store-failed",
+  restart: "agent:restart",
 } as const satisfies Record<keyof AgentApi, string>;
 
 export const agentEvents = {
   onEvent: "agent:event",
+  onStoreFailed: "agent:store-failure",
 } as const satisfies Record<keyof AgentEvents, string>;

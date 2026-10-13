@@ -336,6 +336,7 @@ export function createServices(config: ConfigFile) {
       return judgement && omit(judgement, ["model"]);
     },
     conversations: openAgentStore(join(userDataDir, "agent.sqlite")),
+    diagnostics,
     marketData,
     watchlist,
     news,
@@ -550,6 +551,12 @@ export function createServices(config: ConfigFile) {
     scheduler,
     tray,
     workspace,
+
+    /** Quits the app and starts it again; quitting closes what is open first, as any quit does. */
+    restart() {
+      app.relaunch();
+      app.quit();
+    },
   };
 }
 

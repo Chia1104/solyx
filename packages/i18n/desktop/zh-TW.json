@@ -365,6 +365,11 @@
     "send": "送出",
     "stop": "停止",
     "send-failed": "無法送出訊息",
+    "store-failed": {
+      "title": "Solyx 無法存取對話",
+      "description": "讀取或儲存對話時發生錯誤，Agent 已停止。請重新啟動 Solyx：已儲存的內容都還在，被中斷的執行會接著進行。",
+      "restart": "重新啟動 Solyx"
+    },
     "model-unavailable": "無法使用 {{model}}：{{provider}} 尚未設定金鑰或登入，或已關閉。請改選其他模型，或完成設定。",
     "setup-title": "設定 Agent",
     "setup-description": "選擇服務商並儲存它的 API 金鑰，或使用 ChatGPT 登入後即可開始。",
@@ -416,7 +421,8 @@
     "notices": {
       "aborted": "已停止。",
       "error": "Agent 因錯誤而停止",
-      "interrupted": "Agent 完成前 Solyx 就關閉了。"
+      "interrupted": "Agent 完成前 Solyx 就關閉了。",
+      "store-failed": "Solyx 無法儲存這段對話，Agent 先停在這裡，重新啟動後會接著執行。"
     },
     "tools": {
       "get_market_status": "查看市場狀態",

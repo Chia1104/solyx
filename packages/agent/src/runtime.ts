@@ -102,6 +102,12 @@ export interface AgentRuntimeOptions {
   /** Where a conversation's shell commands run; without it no tool has an environment. */
   env?: HarnessOptions["env"];
   onEvent(sessionId: string, event: AgentWireEvent): void;
+  /**
+   * The store failed, so pi-durable closed it: nothing of a conversation is read or written until
+   * the app starts again, when the runs this cut off carry on. Called once, after those runs'
+   * ends went out.
+   */
+  onStoreFailure?(cause: unknown): void;
   settings?: HarnessSettings;
 }
 
@@ -316,6 +322,29 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
   // A store that fails to open fails every call that waits for it instead.
   opened.catch(noop);
+
+  // A storage error closes the Harness for good, and its streams end without a word, so the runs
+  // they showed are ended here.
+  void opened
+    .then(async ({ harness }) => {
+      const end = await harness.closed;
+
+      if (end.reason !== "failed") return;
+
+      for (const [sessionId, watch] of watchesBySession) {
+        watch.streaming = undefined;
+
+        for (const event of watch.transcriber.runEnd({
+          type: AgentEventType.RunEnd,
+          reason: RunEndReason.StoreFailed,
+        })) {
+          publish(watch, sessionId, event);
+        }
+      }
+
+      options.onStoreFailure?.(end.error);
+    })
+    .catch(noop);
 
   /** Sends an event, keeping it for `transcript`. */
   function publish(watch: Watch, sessionId: string, event: AgentWireEvent) {
