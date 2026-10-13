@@ -7,6 +7,7 @@ import type {
   Model,
   Provider,
 } from "@earendil-works/pi-ai";
+import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 
 import { chatgptOAuth } from "./chatgpt-oauth.ts";
@@ -208,6 +209,11 @@ export function createModelCatalog({
   openExternal,
   endpoint,
 }: ModelCatalogOptions) {
+  // pi-ai loads a sign-in flow by its file, which a bundle such as the app's main process does not
+  // hold, so its flows are registered up front, all of them, as pi-ai offers no fewer. Only those
+  // of the providers kept below can run.
+  registerBunOAuthFlows();
+
   const slot = createSignInSlot();
 
   // The open sign-in's page; a sign-in is only ever open through `signIn`.
