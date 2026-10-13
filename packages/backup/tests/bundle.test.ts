@@ -5,6 +5,7 @@ import {
   readdir,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -71,6 +72,57 @@ test("a folder comes back whole under its passphrase, with who made it", async (
   expect(await readFile(join(restored, "user.sqlite"))).toEqual(
     await readFile(join(folder, "user.sqlite"))
   );
+});
+
+test("a link is left out, since one that points outside the folder would not come back as it was", async () => {
+  const restored = join(directory, "restored");
+
+  await symlink(
+    join(directory, "elsewhere"),
+    join(folder, "config", "skills", "shared")
+  );
+  await symlink("config.json", join(folder, "config", "linked.json"));
+
+  await writeBundle({ folder, file, passphrase: "correct horse", origin });
+  await readBundle({ file, folder: restored, passphrase: "correct horse" });
+
+  expect(await readdir(join(restored, "config"))).toEqual([
+    "config.json",
+    "skills",
+  ]);
+  expect(await readdir(join(restored, "config", "skills"))).toEqual(["ladder"]);
+});
+
+test("a folder that cannot be unpacked whole is refused, not left with what did fit", async () => {
+  const restored = join(directory, "restored");
+
+  await writeBundle({ folder, file, passphrase: "correct horse", origin });
+
+  // A folder that holds something where a file of the bundle goes, so that file cannot be written.
+  await mkdir(join(restored, "user.sqlite"), { recursive: true });
+  await writeFile(join(restored, "user.sqlite", "in the way"), "");
+
+  await expect(
+    readBundle({ file, folder: restored, passphrase: "correct horse" })
+  ).rejects.toThrow("user.sqlite");
+});
+
+test("a folder of little but zeroes, which packs to a thousandth of its size, comes back too", async () => {
+  const sparse = join(directory, "sparse");
+  const restored = join(directory, "restored");
+
+  await mkdir(sparse);
+  await writeFile(join(sparse, "disk.img"), Buffer.alloc(32 * 1024 * 1024));
+
+  await writeBundle({
+    folder: sparse,
+    file,
+    passphrase: "correct horse",
+    origin,
+  });
+  await readBundle({ file, folder: restored, passphrase: "correct horse" });
+
+  expect((await stat(join(restored, "disk.img"))).size).toBe(32 * 1024 * 1024);
 });
 
 test("nothing of the folder can be read in the file, which only its owner may open", async () => {

@@ -1,6 +1,8 @@
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 
+import { isEqual } from "es-toolkit";
+
 import { DEFAULT_REGION, awsEndpoint } from "@solyx/backup/s3";
 import { errorMessage } from "@solyx/utils/error";
 
@@ -29,7 +31,8 @@ import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 import { fromJobFailure } from "./backup-jobs.ts";
 import type { DataFolders } from "./backup-places.ts";
-import { createBackupState } from "./backup-state.ts";
+import { NEVER, createBackupState } from "./backup-state.ts";
+import type { BackupLocation, BackupState } from "./backup-state.ts";
 import type { StagedRestore } from "./staged-restore.ts";
 
 const SETTING_SCHEMAS = {
@@ -68,9 +71,17 @@ const BUSY: Record<BackupActivity, string> = {
     "A restored backup is waiting for Solyx to restart",
 };
 
+/** Where a destination is, without the secrets that reach and seal it. */
+const locationOf = ({ endpoint, region, bucket, folder }: BackupLocation) => ({
+  endpoint,
+  region,
+  bucket,
+  folder,
+});
+
 export interface BackupsOptions {
   config: Pick<ConfigFile, "read" | "set">;
-  secrets: Pick<SecretStore, "get" | "state">;
+  secrets: Pick<SecretStore, "get" | "state" | "onChange">;
   /** What makes, lists and restores the backups: threads of their own in the app. */
   engine: BackupEngine;
   folders: DataFolders;
@@ -136,8 +147,16 @@ export function createBackups({
     onChange();
   }
 
-  /** The bucket as the user set it up, its key and the passphrase, or a refusal that says what is missing. */
-  async function destination(): Promise<BackupDestination> {
+  // A backup sealed under another passphrase is none the present one opens, so the next is made
+  // whatever it would hold. Nothing of a passphrase is kept to tell by, only that it changed.
+  secrets.onChange((secret) => {
+    if (secret !== Secret.BackupPassphrase) return;
+
+    state.write({ ...state.read(), checkedAt: null, digest: null });
+  });
+
+  /** Where backups go as the settings say now, or `null` while no bucket is named. */
+  function where(): BackupLocation | null {
     const {
       endpoint,
       region = DEFAULT_REGION,
@@ -145,25 +164,38 @@ export function createBackups({
       prefix,
     } = config.read().backup;
 
+    return bucket
+      ? {
+          endpoint: endpoint ?? awsEndpoint(region),
+          region,
+          bucket,
+          folder: prefix ?? app,
+        }
+      : null;
+  }
+
+  /** What is remembered of the backups kept at `to`: of another bucket or folder, nothing. */
+  function remembered(to: BackupLocation | null): BackupState {
+    const saved = state.read();
+
+    return isEqual(saved.location, to) ? saved : NEVER;
+  }
+
+  /** The bucket as the user set it up, its key and the passphrase, or a refusal that says what is missing. */
+  async function destination(): Promise<BackupDestination> {
+    const to = where();
+
     const [accessKeyId, secretAccessKey, passphrase] = await Promise.all(
       SECRETS.map((secret) => secrets.get(secret))
     );
 
-    if (!bucket || !accessKeyId || !secretAccessKey || !passphrase) {
+    if (!to || !accessKeyId || !secretAccessKey || !passphrase) {
       throw new Error(
         "Set the bucket, its access key and a passphrase before using backups"
       );
     }
 
-    return {
-      endpoint: endpoint ?? awsEndpoint(region),
-      region,
-      bucket,
-      accessKeyId,
-      secretAccessKey,
-      folder: prefix ?? app,
-      passphrase,
-    };
+    return { ...to, accessKeyId, secretAccessKey, passphrase };
   }
 
   /** A bucket, both halves of its access key and a passphrase are all saved. */
@@ -199,13 +231,13 @@ export function createBackups({
     }
   }
 
-  /** Remembers a backup that went up, and what became of thinning out the older ones. */
-  function keep({
-    backup,
-    digest,
-    stored,
-    thinning,
-  }: MadeBackup): StoredBackup {
+  /** Remembers a backup that went up to `to`, and what became of thinning out the older ones. */
+  async function keep(
+    to: BackupDestination,
+    { backup, digest, stored, thinning }: MadeBackup
+  ): Promise<StoredBackup> {
+    const location = locationOf(to);
+
     failure = thinning && { message: thinning.message, at: now() };
 
     if (thinning) {
@@ -213,10 +245,15 @@ export function createBackups({
     }
 
     state.write({
+      location,
       checkedAt: now(),
       uploadedAt: backup.createdAt,
-      digest,
-      stored: stored ?? state.read().stored,
+      // Not of a backup the passphrase changed under as it went up, which the new one does not open.
+      digest:
+        (await secrets.get(Secret.BackupPassphrase)) === to.passphrase
+          ? digest
+          : null,
+      stored: stored ?? remembered(location).stored,
     });
 
     return backup;
@@ -231,25 +268,35 @@ export function createBackups({
 
       if (!automatic || activity !== null) return;
 
-      if (at - (state.read().checkedAt ?? 0) < INTERVAL_MS[every]) return;
+      if (at - (remembered(where()).checkedAt ?? 0) < INTERVAL_MS[every]) {
+        return;
+      }
 
       if (failure && at - failure.at < RETRY_MS) return;
 
       if (!(await ready())) return;
 
       try {
-        const last = state.read();
+        await backingUp(async (options) => {
+          const location = locationOf(options.to);
+          const last = remembered(location);
 
-        const made = await backingUp((options) =>
-          engine.backUpIfChanged({ ...options, last: last.digest })
-        );
+          const made = await engine.backUpIfChanged({
+            ...options,
+            last: last.digest,
+          });
 
-        if (made) keep(made);
-        // Having looked counts, so the next look waits a whole span again.
-        else state.write({ ...last, checkedAt: at });
+          if (made) await keep(options.to, made);
+          // Having looked counts, so the next look waits a whole span again, unless the passphrase
+          // changed as it looked, which leaves the next pass to back up under the new one.
+          else if (remembered(location).digest === last.digest) {
+            state.write({ ...last, checkedAt: at });
+          }
+        });
       } catch (error) {
-        // A bucket out of reach is tried again; the backup tab says why meanwhile.
-        failure = { message: errorMessage(error), at };
+        // A bucket out of reach is tried again; the backup tab says why meanwhile. The wait counts
+        // from now, since an upload may go on for longer than the wait before it fails.
+        failure = { message: errorMessage(error), at: now() };
         diagnostics.recovered(error, "backup.pass");
         onChange();
       }
@@ -290,7 +337,7 @@ export function createBackups({
     },
 
     async status() {
-      const { uploadedAt, stored } = state.read();
+      const { uploadedAt, stored } = remembered(where());
 
       return {
         ready: await ready(),
@@ -302,7 +349,10 @@ export function createBackups({
       };
     },
 
-    backUp: async () => keep(await backingUp(engine.backUp)),
+    backUp: () =>
+      backingUp(async (options) =>
+        keep(options.to, await engine.backUp(options))
+      ),
 
     list: async () =>
       engine.list({ to: await destination(), installation: installation() }),

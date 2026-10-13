@@ -1,17 +1,13 @@
 import type { StoredBackup } from "#shared/ipc/backup.ts";
 
 import type { DataFolders } from "../main/modules/backup/backup-places.ts";
+import type { BackupLocation } from "../main/modules/backup/backup-state.ts";
 import type { StagedRestore } from "../main/modules/backup/staged-restore.ts";
 
 /** The bucket as the user set it up, with the key that reaches it and the passphrase that seals what goes there. */
-export interface BackupDestination {
-  endpoint: string;
-  region: string;
-  bucket: string;
+export interface BackupDestination extends BackupLocation {
   accessKeyId: string;
   secretAccessKey: string;
-  /** The folder in the bucket backups are kept under. */
-  folder: string;
   passphrase: string;
 }
 

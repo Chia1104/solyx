@@ -6,6 +6,7 @@ import {
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -95,7 +96,9 @@ afterEach(() => rm(directory, { recursive: true, force: true }));
 async function computer(
   name: string,
   shared: ReturnType<typeof memoryBucket>,
-  passphrase = "correct horse battery staple"
+  passphrase = "correct horse battery staple",
+  // The jobs run where the test stands, on the bucket in memory, as a thread runs them in the app.
+  engine = createBackupJobs(() => shared.bucket)
 ) {
   const folders = {
     dataDir: join(directory, name, "data"),
@@ -160,8 +163,7 @@ async function computer(
     timeZone: () => "Asia/Taipei",
     diagnostics,
     onChange,
-    // The jobs run where the test stands, on the bucket in memory, as a thread runs them in the app.
-    engine: createBackupJobs(() => shared.bucket),
+    engine,
     now: () => clock.now,
   });
 
@@ -329,6 +331,48 @@ test("a restore puts a backup in place as the app next starts, and keeps what wa
   expect(takeRestore(laptop.folders)).toEqual({ key, createdAt: AT });
   settleRestore(laptop.folders.dataDir);
   expect(takeRestore(laptop.folders)).toBeNull();
+});
+
+test("a setting kept through a link is backed up as what it says, and a link inside a folder left out", async () => {
+  const shared = memoryBucket();
+  const desk = await computer("desk", shared);
+  const laptop = await computer("laptop", shared);
+  const dotfiles = join(directory, "dotfiles");
+
+  await mkdir(join(dotfiles, "skills", "ladder"), { recursive: true });
+  await writeFile(join(dotfiles, "AGENTS.md"), "kept with the dotfiles");
+  await writeFile(
+    join(dotfiles, "skills", "ladder", "SKILL.md"),
+    "# 分批進場\n"
+  );
+  await symlink(
+    join(dotfiles, "SKILL.md"),
+    join(dotfiles, "skills", "ladder", "elsewhere.md")
+  );
+  await symlink(
+    join(dotfiles, "AGENTS.md"),
+    join(desk.folders.configDir, "AGENTS.md")
+  );
+  await symlink(
+    join(dotfiles, "skills"),
+    join(desk.folders.configDir, "skills")
+  );
+
+  const { key } = await desk.backups.backUp();
+
+  await laptop.backups.restore(key);
+  laptop.opened.close();
+  takeRestore(laptop.folders);
+
+  // The laptop has no such folder of dotfiles, and needs none.
+  await rm(dotfiles, { recursive: true });
+
+  expect(
+    await readFile(join(laptop.folders.configDir, "AGENTS.md"), "utf8")
+  ).toBe("kept with the dotfiles");
+  expect(
+    await readdir(join(laptop.folders.configDir, "skills", "ladder"))
+  ).toEqual(["SKILL.md"]);
 });
 
 test("a restore cut off partway goes on from where it stopped", async () => {
@@ -531,6 +575,109 @@ test("a backup is made on its own once one is due, and only when something chang
   expect(shared.objects.size).toBe(3);
 });
 
+test("a passphrase changed is backed up under at the next pass, though nothing else changed", async () => {
+  const shared = memoryBucket();
+  const desk = await computer("desk", shared);
+
+  await desk.backups.work.run();
+  desk.clock.now += HOUR;
+  await desk.backups.work.run();
+
+  expect(shared.objects.size).toBe(1);
+
+  // None of the backups so far opens under the new one.
+  await desk.secrets.save(
+    Secret.BackupPassphrase,
+    "a passphrase of another day"
+  );
+  desk.clock.now += MINUTE;
+  await desk.backups.work.run();
+
+  expect(shared.objects.size).toBe(2);
+
+  const laptop = await computer(
+    "laptop",
+    shared,
+    "a passphrase of another day"
+  );
+
+  await laptop.backups.restore(backupKey("solyx", "desk", AT + HOUR + MINUTE));
+
+  expect(laptop.restart).toHaveBeenCalledOnce();
+});
+
+test("a backup that was going up as the passphrase changed is not taken for one under the new", async () => {
+  const shared = memoryBucket();
+  const desk = await computer("desk", shared);
+  const put = shared.bucket.put.bind(shared.bucket);
+
+  vi.spyOn(shared.bucket, "put").mockImplementationOnce(async (key, file) => {
+    await put(key, file);
+    await desk.secrets.save(Secret.BackupPassphrase, "changed meanwhile");
+  });
+
+  await desk.backups.work.run();
+  desk.clock.now += HOUR;
+  await desk.backups.work.run();
+
+  expect(shared.objects.size).toBe(2);
+});
+
+test("a pass that found nothing changed as the passphrase changed leaves the next to back up", async () => {
+  const shared = memoryBucket();
+  const jobs = createBackupJobs(() => shared.bucket);
+
+  const desk = await computer("desk", shared, "correct horse", {
+    ...jobs,
+    async backUpIfChanged(options) {
+      const made = await jobs.backUpIfChanged(options);
+
+      if (!made) {
+        await desk.secrets.save(Secret.BackupPassphrase, "changed meanwhile");
+      }
+
+      return made;
+    },
+  });
+
+  await desk.backups.work.run();
+  desk.clock.now += HOUR;
+  await desk.backups.work.run();
+
+  expect(shared.objects.size).toBe(1);
+
+  desk.clock.now += MINUTE;
+  await desk.backups.work.run();
+
+  expect(shared.objects.size).toBe(2);
+});
+
+test("another bucket or folder is backed up to as if for the first time", async () => {
+  const shared = memoryBucket();
+  const desk = await computer("desk", shared);
+
+  await desk.backups.work.run();
+  await desk.backups.set(BackupSetting.Prefix, "moved");
+
+  // What was counted is the other folder's.
+  await expect(desk.backups.status()).resolves.toMatchObject({
+    lastBackupAt: null,
+    stored: null,
+  });
+
+  desk.clock.now += MINUTE;
+  await desk.backups.work.run();
+
+  expect([...shared.objects.keys()]).toEqual([
+    "solyx/desk/20261013T080000Z.solyx-backup",
+    "moved/desk/20261013T080100Z.solyx-backup",
+  ]);
+  await expect(desk.backups.status()).resolves.toMatchObject({
+    lastBackupAt: AT + MINUTE,
+    stored: { count: 1 },
+  });
+});
+
 test("nothing is made on its own while that is off, set to a longer span, or not set up", async () => {
   const shared = memoryBucket();
   const desk = await computer("desk", shared);
@@ -626,6 +773,29 @@ test("a bucket out of reach is said why and tried again later, never every minut
   await expect(desk.backups.status()).resolves.toMatchObject({
     failure: null,
   });
+});
+
+test("a backup that fails after going on a long while waits from when it failed", async () => {
+  const shared = memoryBucket();
+  const desk = await computer("desk", shared);
+
+  // An upload twenty minutes in when the connection drops.
+  const put = vi.spyOn(shared.bucket, "put").mockImplementation(async () => {
+    desk.clock.now += 20 * MINUTE;
+
+    throw new Error("r2.example: fetch failed");
+  });
+
+  await desk.backups.work.run();
+  desk.clock.now += MINUTE;
+  await desk.backups.work.run();
+
+  expect(put).toHaveBeenCalledOnce();
+
+  desk.clock.now += 14 * MINUTE;
+  await desk.backups.work.run();
+
+  expect(put).toHaveBeenCalledTimes(2);
 });
 
 test("a backup stays made when thinning out the older ones fails", async () => {

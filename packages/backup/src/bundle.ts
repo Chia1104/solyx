@@ -5,7 +5,7 @@ import {
   scrypt,
 } from "node:crypto";
 import type { ScryptOptions } from "node:crypto";
-import { createReadStream, createWriteStream } from "node:fs";
+import { Stats, createReadStream, createWriteStream } from "node:fs";
 import { mkdir, open, readdir } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
@@ -94,7 +94,9 @@ export interface WriteBundleOptions {
 /**
  * Packs a folder into one file sealed under a passphrase: a line of JSON that says how it is
  * sealed, then the folder as a gzipped tar encrypted with AES-256-GCM, then the tag that
- * authenticates both. Without the passphrase nothing but that first line can be read.
+ * authenticates both. Without the passphrase nothing but that first line can be read. Only the
+ * folder's files and folders are packed: a link is left out, since unpacking refuses one that
+ * points outside the folder.
  */
 export async function writeBundle({
   folder,
@@ -122,7 +124,16 @@ export async function writeBundle({
   cipher.setAAD(line);
 
   await pipeline(
-    create({ cwd: folder, gzip: true, portable: true }, await readdir(folder)),
+    create(
+      {
+        cwd: folder,
+        gzip: true,
+        portable: true,
+        filter: (_, entry) =>
+          entry instanceof Stats && (entry.isFile() || entry.isDirectory()),
+      },
+      await readdir(folder)
+    ),
     cipher,
     async function* (sealed: AsyncIterable<Buffer>) {
       yield line;
@@ -150,7 +161,8 @@ export interface ReadBundleOptions {
 
 /**
  * Unpacks what `writeBundle` packed and says who made it. The whole file is authenticated before
- * anything is unpacked, so a wrong passphrase or a file that was changed writes nothing.
+ * anything is unpacked, so a wrong passphrase or a file that was changed writes nothing, and a
+ * file or folder that cannot be written fails the whole of it.
  */
 export async function readBundle({
   file,
@@ -209,7 +221,25 @@ export async function readBundle({
   }
 
   await mkdir(folder, { recursive: true });
-  await pipeline(sealed(), decipher(), extract({ cwd: folder }));
+  // tar only warns of what it could not write and goes on to the rest, so the first warning is
+  // kept and thrown once it has stopped writing, when whoever asked may clear the folder away.
+  let failed: Error | undefined;
+
+  await pipeline(
+    sealed(),
+    decipher(),
+    extract({
+      cwd: folder,
+      // What is unpacked was authenticated above as what `writeBundle` packed, so tar's guard
+      // against an archive made to fill the disk would only refuse a folder of mostly zeroes.
+      maxDecompressionRatio: Infinity,
+      onwarn(_, message, data) {
+        failed ??= data instanceof Error ? data : new Error(message);
+      },
+    })
+  );
+
+  if (failed) throw failed;
 
   return header.origin;
 }
