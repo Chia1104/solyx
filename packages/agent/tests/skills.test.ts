@@ -55,7 +55,7 @@ test("with no folders the built-in playbooks are offered", async () => {
     "watchlist-upkeep",
     "deep-analysis",
     "fund-research",
-    "views",
+    "canvas",
     "solyx-guide",
   ]);
   expect(catalog.warnings).toEqual([]);

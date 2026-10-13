@@ -8,8 +8,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { Streamdown } from "streamdown";
 import type { AnimateOptions, Components } from "streamdown";
 
+import { AgentCanvas } from "./agent-canvas.tsx";
 import { AgentLinkDialog } from "./agent-link-dialog.tsx";
-import { AgentView } from "./agent-view.tsx";
 
 /** Streamdown hands a fence's body as a string, or as a `<code>` element wrapping one. */
 function codeText(children: ReactNode): string {
@@ -98,7 +98,7 @@ function holdTableRows(text: string): string {
 const components: Components = {
   code: ({ children, className }) =>
     className === "language-html" ? (
-      <AgentView html={codeText(children)} />
+      <AgentCanvas html={codeText(children)} />
     ) : (
       <pre className="my-3 overflow-x-auto rounded-sm bg-surface-secondary p-3 font-mono text-xs leading-relaxed">
         {codeText(children).replace(/\n$/, "")}

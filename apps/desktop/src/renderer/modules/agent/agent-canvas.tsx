@@ -13,11 +13,11 @@ import { useDirectionColors } from "../market/price-colors.ts";
 
 import { AgentLinkDialog } from "./agent-link-dialog.tsx";
 
-// With no scripts in the sandbox and every request refused, a view shows only what it was written with.
-const VIEW_POLICY = "default-src 'none'; style-src 'unsafe-inline'";
+// With no scripts in the sandbox and every request refused, a canvas shows only what it was written with.
+const CANVAS_POLICY = "default-src 'none'; style-src 'unsafe-inline'";
 
-/** The palette, and each market's rise and fall as the user sees them, as a view's custom properties. */
-function useViewStyle(): string {
+/** The palette, and each market's rise and fall as the user sees them, as a canvas's custom properties. */
+function useCanvasStyle(): string {
   const scheme = useColorScheme();
   const colors = usePaletteColors();
   const tw = useDirectionColors(Market.TW);
@@ -41,9 +41,9 @@ function useViewStyle(): string {
   }, [scheme, colors, tw, us]);
 }
 
-function ViewFrame({ html }: { html: string }) {
+function CanvasFrame({ html }: { html: string }) {
   const { t } = useTranslation();
-  const style = useViewStyle();
+  const style = useCanvasStyle();
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState<number>();
   const [link, setLink] = useState("");
@@ -76,16 +76,16 @@ function ViewFrame({ html }: { html: string }) {
     };
 
     const onLoad = () => {
-      const view = element.contentDocument;
+      const canvas = element.contentDocument;
 
-      if (!view) return;
+      if (!canvas) return;
 
       observer?.disconnect();
       observer = new ResizeObserver(() =>
-        setHeight(view.documentElement.scrollHeight)
+        setHeight(canvas.documentElement.scrollHeight)
       );
-      observer.observe(view.documentElement);
-      view.addEventListener("click", onClick);
+      observer.observe(canvas.documentElement);
+      canvas.addEventListener("click", onClick);
     };
 
     element.addEventListener("load", onLoad);
@@ -100,10 +100,10 @@ function ViewFrame({ html }: { html: string }) {
     <>
       <iframe
         ref={frame}
-        title={t("agent.view.title")}
-        // Without `allow-scripts`, being same-origin only lets the app measure and watch the view.
+        title={t("agent.canvas.title")}
+        // Without `allow-scripts`, being same-origin only lets the app measure and watch the canvas.
         sandbox="allow-same-origin"
-        srcDoc={`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${VIEW_POLICY}"><style>${style}</style></head><body>${html}</body></html>`}
+        srcDoc={`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CANVAS_POLICY}"><style>${style}</style></head><body>${html}</body></html>`}
         className="my-3 block w-full border-0"
         style={{ height }}
       />
@@ -116,15 +116,15 @@ function ViewFrame({ html }: { html: string }) {
   );
 }
 
-/** A view the agent wrote as an `html` fence, drawn once the fence closes. */
-export function AgentView({ html }: { html: string }) {
+/** A canvas the agent wrote as an `html` fence, drawn once the fence closes. */
+export function AgentCanvas({ html }: { html: string }) {
   const { t } = useTranslation();
 
   return useIsCodeFenceIncomplete() ? (
     <div className="my-3 flex h-32 items-center justify-center rounded-sm pencil text-xs text-muted">
-      {t("agent.view.drawing")}
+      {t("agent.canvas.drawing")}
     </div>
   ) : (
-    <ViewFrame html={html} />
+    <CanvasFrame html={html} />
   );
 }
