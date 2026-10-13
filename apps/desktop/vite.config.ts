@@ -187,7 +187,10 @@ export default defineConfig({
     },
     {
       ...nodeBundle,
-      entry: { script: "src/worker/script.ts" },
+      entry: {
+        script: "src/worker/script.ts",
+        backup: "src/worker/backup.ts",
+      },
       outDir: "dist/worker",
       format: "esm",
     },

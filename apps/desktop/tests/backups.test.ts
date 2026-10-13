@@ -34,9 +34,10 @@ import { Secret } from "#shared/ipc/settings.ts";
 
 import {
   backupKey,
-  createBackups,
+  createBackupJobs,
   readBackupKey,
-} from "../src/main/modules/backup/backups.ts";
+} from "../src/main/modules/backup/backup-jobs.ts";
+import { createBackups } from "../src/main/modules/backup/backups.ts";
 import {
   RestoreFailure,
   restorePaths,
@@ -108,7 +109,9 @@ afterEach(async () => {
 async function computer(
   name: string,
   shared: ReturnType<typeof memoryBucket>,
-  passphrase = "correct horse battery staple"
+  passphrase = "correct horse battery staple",
+  // The jobs run where the test stands, on the bucket in memory, as a thread runs them in the app.
+  engine = createBackupJobs(() => shared.bucket)
 ) {
   const folders = {
     dataDir: join(directory, name, "data"),
@@ -173,7 +176,7 @@ async function computer(
     timeZone: () => "Asia/Taipei",
     diagnostics,
     onChange,
-    openBucket: () => shared.bucket,
+    engine,
     now: () => clock.now,
   });
 
@@ -666,6 +669,35 @@ test("a backup that was going up as the passphrase changed is not taken for one 
   expect(shared.objects.size).toBe(2);
 });
 
+test("a pass that found nothing changed as the passphrase changed leaves the next to back up", async () => {
+  const shared = memoryBucket();
+  const jobs = createBackupJobs(() => shared.bucket);
+
+  const desk = await computer("desk", shared, "correct horse", {
+    ...jobs,
+    async backUpIfChanged(options) {
+      const made = await jobs.backUpIfChanged(options);
+
+      if (!made) {
+        await desk.secrets.save(Secret.BackupPassphrase, "changed meanwhile");
+      }
+
+      return made;
+    },
+  });
+
+  await desk.backups.work.run();
+  desk.clock.now += HOUR;
+  await desk.backups.work.run();
+
+  expect(shared.objects.size).toBe(1);
+
+  desk.clock.now += MINUTE;
+  await desk.backups.work.run();
+
+  expect(shared.objects.size).toBe(2);
+});
+
 test("another bucket or folder is backed up to as if for the first time", async () => {
   const shared = memoryBucket();
   const desk = await computer("desk", shared);
@@ -815,7 +847,12 @@ test("a backup that fails after going on a long while waits from when it failed"
 test("a backup stays made when thinning out the older ones fails", async () => {
   const shared = memoryBucket();
   const desk = await computer("desk", shared);
-  const refused = new Error("r2.example answered 403 AccessDenied");
+
+  // As ky throws it, with the server's answer beside the message.
+  const refused = Object.assign(
+    new Error("r2.example answered 403 AccessDenied"),
+    { name: "HTTPError", response: { status: 403 } }
+  );
 
   for (let day = 1; day <= 60; day += 1) {
     shared.objects.set(
@@ -830,12 +867,18 @@ test("a backup stays made when thinning out the older ones fails", async () => {
 
   expect(shared.objects.has(made.key)).toBe(true);
   expect(shared.objects.size).toBe(61);
+  // What kind of failure it was reaches the log, though the error itself stayed with the job.
   expect(desk.diagnostics.recovered).toHaveBeenCalledWith(
-    refused,
+    expect.objectContaining({
+      message: "r2.example answered 403 AccessDenied",
+      name: "HTTPError",
+      status: 403,
+    }),
     "backup.thin"
   );
   await expect(desk.backups.status()).resolves.toMatchObject({
     lastBackupAt: AT,
+    stored: null,
     failure: "r2.example answered 403 AccessDenied",
   });
 });

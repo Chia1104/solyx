@@ -1,32 +1,10 @@
-import { createHash } from "node:crypto";
-import { createReadStream, existsSync, rmSync } from "node:fs";
-import {
-  cp,
-  mkdir,
-  mkdtemp,
-  readdir,
-  realpath,
-  rm,
-  stat,
-} from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { rmSync } from "node:fs";
+import { join } from "node:path";
 
-import { isEqual, sumBy } from "es-toolkit";
+import { isEqual } from "es-toolkit";
 
-import {
-  BUNDLE_EXTENSION,
-  readBundle,
-  writeBundle,
-} from "@solyx/backup/bundle";
-import { expiredBackups } from "@solyx/backup/retention";
-import { DEFAULT_REGION, awsEndpoint, createBucket } from "@solyx/backup/s3";
-import type { Bucket, BucketOptions } from "@solyx/backup/s3";
-import {
-  snapshotDatabase,
-  verifyAgentSnapshot,
-  verifySnapshot,
-} from "@solyx/db/snapshot";
-import { errorMessage, isErrnoError } from "@solyx/utils/error";
+import { DEFAULT_REGION, awsEndpoint } from "@solyx/backup/s3";
+import { errorMessage } from "@solyx/utils/error";
 
 import {
   BackupActivity,
@@ -39,22 +17,22 @@ import {
 import type { BackupApi, StoredBackup } from "#shared/ipc/backup.ts";
 import { Secret, SecretState } from "#shared/ipc/settings.ts";
 
+import type {
+  BackUpOptions,
+  BackupDestination,
+  BackupEngine,
+  MadeBackup,
+} from "../../../worker/backup-protocol.ts";
 import type { ScheduledWork } from "../../scheduler.ts";
 import { endpointSchema } from "../settings/config-file.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
-import {
-  AGENT_DATABASE,
-  DRIZZLE_DATABASES,
-  databasePlace,
-  filePlaces,
-} from "./backup-places.ts";
+import { fromJobFailure } from "./backup-jobs.ts";
 import type { DataFolders } from "./backup-places.ts";
 import { NEVER, createBackupState } from "./backup-state.ts";
 import type { BackupLocation, BackupState } from "./backup-state.ts";
-import { restorePaths, stageRestore } from "./staged-restore.ts";
 import type { StagedRestore } from "./staged-restore.ts";
 
 const SETTING_SCHEMAS = {
@@ -93,41 +71,19 @@ const BUSY: Record<BackupActivity, string> = {
     "A restored backup is waiting for Solyx to restart",
 };
 
-/** A moment as a backup's object is named after it, such as `20261013T080000Z`, which sorts as time does. */
-const stamp = (at: number) =>
-  new Date(at).toISOString().replace(/[-:]|\.\d{3}/g, "");
-
-const STAMP = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/;
-
-/** The key of the backup an installation made at a moment, under the folder its bucket keeps them in. */
-export const backupKey = (folder: string, installation: string, at: number) =>
-  `${folder}/${installation}/${stamp(at)}${BUNDLE_EXTENSION}`;
-
-/** Who made the backup at `key` and when, or `undefined` for an object in the folder that is not one. */
-export function readBackupKey(folder: string, key: string) {
-  if (!key.startsWith(`${folder}/`) || !key.endsWith(BUNDLE_EXTENSION)) {
-    return undefined;
-  }
-
-  const [installation, name = "", ...deeper] = key
-    .slice(folder.length + 1, -BUNDLE_EXTENSION.length)
-    .split("/");
-
-  // Only a name written as `stamp` writes it, since a date alone would parse as a moment too.
-  if (!installation || deeper.length > 0 || !STAMP.test(name)) {
-    return undefined;
-  }
-
-  const createdAt = Date.parse(name.replace(STAMP, "$1-$2-$3T$4:$5:$6Z"));
-
-  if (Number.isNaN(createdAt)) return undefined;
-
-  return { installation, createdAt };
-}
+/** Where a destination is, without the secrets that reach and seal it. */
+const locationOf = ({ endpoint, region, bucket, folder }: BackupLocation) => ({
+  endpoint,
+  region,
+  bucket,
+  folder,
+});
 
 export interface BackupsOptions {
   config: Pick<ConfigFile, "read" | "set">;
   secrets: Pick<SecretStore, "get" | "state" | "onChange">;
+  /** What makes, lists and restores the backups: threads of their own in the app. */
+  engine: BackupEngine;
   folders: DataFolders;
   /** The folder that holds each database's migrations, by the database's name. */
   migrations: string;
@@ -144,41 +100,20 @@ export interface BackupsOptions {
   diagnostics: Pick<Diagnostics, "recovered">;
   /** Called whenever what `status` answers changes. */
   onChange: () => void;
-  /** @default the bucket over the network */
-  openBucket?: (options: BucketOptions) => Bucket;
   now?: () => number;
-}
-
-/** A hash of every file under `folder` with its path, which is the same until one of them changes. */
-async function digestOf(folder: string) {
-  const hash = createHash("sha256");
-
-  const files = (
-    await readdir(folder, { recursive: true, withFileTypes: true })
-  )
-    .filter((entry) => entry.isFile())
-    .map((entry) => join(entry.parentPath, entry.name))
-    .toSorted();
-
-  for (const file of files) {
-    hash.update(`${relative(folder, file)}\0`);
-
-    for await (const chunk of createReadStream(file).iterator()) {
-      hash.update(chunk);
-    }
-  }
-
-  return hash.digest("hex");
 }
 
 /**
  * Backups of what the app keeps, in the bucket the user set up: each one object, sealed under the
- * user's passphrase before it leaves this computer. One thing goes on at a time, and a restore
- * only stages a backup for the next start, since the databases stay open until the app quits.
+ * user's passphrase before it leaves this computer. This side only decides: it reads the settings
+ * and the secrets, keeps one thing going at a time and says when a backup is due, and hands the
+ * work to the engine. A restore only stages a backup for the next start, since the databases stay
+ * open until the app quits.
  */
 export function createBackups({
   config,
   secrets,
+  engine,
   folders,
   migrations,
   app,
@@ -189,11 +124,8 @@ export function createBackups({
   timeZone,
   diagnostics,
   onChange,
-  openBucket = createBucket,
   now = Date.now,
 }: BackupsOptions): BackupApi & { work: ScheduledWork } {
-  const outgoing = join(folders.dataDir, "backup");
-  const paths = restorePaths(folders.dataDir);
   const state = createBackupState(join(folders.dataDir, "backup.json"));
 
   let activity: BackupActivity | null = null;
@@ -201,7 +133,7 @@ export function createBackups({
   let failure: { message: string; at: number } | null = null;
 
   // Left by a backup the app quit in the middle of.
-  rmSync(outgoing, { recursive: true, force: true });
+  rmSync(join(folders.dataDir, "backup"), { recursive: true, force: true });
 
   function begin(next: BackupActivity) {
     if (activity) throw new Error(BUSY[activity]);
@@ -249,8 +181,8 @@ export function createBackups({
     return isEqual(saved.location, to) ? saved : NEVER;
   }
 
-  /** The bucket as the user set it up, the folder in it and the passphrase, or a refusal that says what is missing. */
-  async function destination() {
+  /** The bucket as the user set it up, its key and the passphrase, or a refusal that says what is missing. */
+  async function destination(): Promise<BackupDestination> {
     const to = where();
 
     const [accessKeyId, secretAccessKey, passphrase] = await Promise.all(
@@ -263,65 +195,7 @@ export function createBackups({
       );
     }
 
-    return {
-      location: to,
-      bucket: openBucket({
-        endpoint: to.endpoint,
-        region: to.region,
-        bucket: to.bucket,
-        accessKeyId,
-        secretAccessKey,
-      }),
-      folder: to.folder,
-      passphrase,
-    };
-  }
-
-  /** Copies every place of a backup into `content`, each database as it stands at one moment. */
-  async function collect(content: string) {
-    for (const name of [...DRIZZLE_DATABASES, AGENT_DATABASE]) {
-      const { part, path } = databasePlace(folders, name);
-
-      await mkdir(dirname(join(content, part)), { recursive: true });
-      await snapshotDatabase(path, join(content, part));
-    }
-
-    for (const { part, path } of filePlaces(folders)) {
-      // The user may have written no instructions or MCP servers, and no conversation a folder.
-      if (!existsSync(path)) continue;
-
-      try {
-        // What a link at the place points to, since a bundle packs no link and settings a person
-        // keeps elsewhere are the app's all the same.
-        await cp(await realpath(path), join(content, part), {
-          recursive: true,
-          verbatimSymlinks: true,
-        });
-      } catch (error) {
-        if (!isErrnoError(error, "ENOENT")) throw error;
-
-        // Something in it went as it was read, such as a file a conversation's command removed,
-        // and the part that was copied would pass for the whole of it.
-        throw new Error(
-          `${path} changed while it was being backed up, so no backup was made`,
-          { cause: error }
-        );
-      }
-    }
-  }
-
-  /** Refuses a backup unpacked into `content` that lacks a database, holds a damaged one or was made by a newer build. */
-  function verify(content: string) {
-    for (const name of [...DRIZZLE_DATABASES, AGENT_DATABASE]) {
-      const file = join(content, databasePlace(folders, name).part);
-
-      if (!existsSync(file)) {
-        throw new Error(`The backup holds no ${name} database`);
-      }
-
-      if (name === AGENT_DATABASE) verifyAgentSnapshot(file);
-      else verifySnapshot(file, join(migrations, name));
-    }
+    return { ...to, accessKeyId, secretAccessKey, passphrase };
   }
 
   /** A bucket, both halves of its access key and a passphrase are all saved. */
@@ -336,118 +210,53 @@ export function createBackups({
     );
   }
 
-  /**
-   * Deletes this installation's backups that the retention no longer keeps, and counts the rest.
-   * It reads only the installation's own folder and only objects named as its backups are, so
-   * nothing else in the bucket is ever deleted, and it runs only after a backup went up, so the
-   * newest is always kept.
-   */
-  async function thin(bucket: Bucket, folder: string) {
-    const own = (await bucket.list(`${folder}/${installation()}/`)).flatMap(
-      ({ key, bytes }) => {
-        const made = readBackupKey(folder, key);
-
-        return made ? [{ key, bytes, createdAt: made.createdAt }] : [];
-      }
-    );
-
-    const expired = new Set(expiredBackups(own, timeZone()));
-
-    for (const { key } of expired) await bucket.remove(key);
-
-    const kept = own.filter((backup) => !expired.has(backup));
-
-    return { count: kept.length, bytes: sumBy(kept, ({ bytes }) => bytes) };
-  }
-
-  type Destination = Awaited<ReturnType<typeof destination>>;
-
-  /** A copy of every place of a backup, in a folder of its own, and where it is to go. */
-  interface Copy {
-    to: Destination;
-    /** The folder the copy and what is made from it are in. */
-    work: string;
-    content: string;
-    digest: string;
-  }
-
-  /** Runs `job` on a copy of what the app keeps now, with nothing else going on, and removes the copy after. */
-  async function withCopy<Result>(
-    job: (copy: Copy) => Promise<Result>
+  /** Runs `job` on what a backup is made from and to, with nothing else going on. */
+  async function backingUp<Result>(
+    job: (options: BackUpOptions) => Promise<Result>
   ): Promise<Result> {
     begin(BackupActivity.BackingUp);
 
     try {
-      const to = await destination();
-
-      await mkdir(outgoing, { recursive: true });
-
-      const work = await mkdtemp(join(outgoing, "bundle-"));
-
-      try {
-        const content = join(work, "content");
-
-        await collect(content);
-
-        return await job({
-          to,
-          work,
-          content,
-          digest: await digestOf(content),
-        });
-      } finally {
-        await rm(work, { recursive: true, force: true });
-      }
+      return await job({
+        to: await destination(),
+        folders,
+        app,
+        version,
+        installation: installation(),
+        at: now(),
+        timeZone: timeZone(),
+      });
     } finally {
       end();
     }
   }
 
-  /** Seals a copy and uploads it, then thins out the older backups. */
-  async function upload({
-    to: { location, bucket, folder, passphrase },
-    work,
-    content,
-    digest,
-  }: Copy): Promise<StoredBackup> {
-    const file = join(work, "sealed");
-    // To the second, as its key names it, so a listing reads the same moment back.
-    const createdAt = Math.floor(now() / 1000) * 1000;
-    const key = backupKey(folder, installation(), createdAt);
+  /** Remembers a backup that went up to `to`, and what became of thinning out the older ones. */
+  async function keep(
+    to: BackupDestination,
+    { backup, digest, stored, thinning }: MadeBackup
+  ): Promise<StoredBackup> {
+    const location = locationOf(to);
 
-    await writeBundle({
-      folder: content,
-      file,
-      passphrase,
-      origin: { app, version, installation: installation(), createdAt },
-    });
-    await bucket.put(key, file);
+    failure = thinning && { message: thinning.message, at: now() };
 
-    let { stored } = remembered(location);
-
-    failure = null;
-
-    try {
-      stored = await thin(bucket, folder);
-    } catch (error) {
-      // The backup is up; only its older ones stay longer than they should.
-      failure = { message: errorMessage(error), at: now() };
-      diagnostics.recovered(error, "backup.thin");
+    if (thinning) {
+      diagnostics.recovered(fromJobFailure(thinning), "backup.thin");
     }
 
     state.write({
       location,
       checkedAt: now(),
-      uploadedAt: createdAt,
+      uploadedAt: backup.createdAt,
       // Not of a backup the passphrase changed under as it went up, which the new one does not open.
       digest:
-        (await secrets.get(Secret.BackupPassphrase)) === passphrase
+        (await secrets.get(Secret.BackupPassphrase)) === to.passphrase
           ? digest
           : null,
-      stored,
+      stored: stored ?? remembered(location).stored,
     });
 
-    return { key, createdAt, bytes: (await stat(file)).size, own: true };
+    return backup;
   }
 
   const work: ScheduledWork = {
@@ -468,13 +277,21 @@ export function createBackups({
       if (!(await ready())) return;
 
       try {
-        await withCopy(async (copy) => {
-          const last = remembered(copy.to.location);
+        await backingUp(async (options) => {
+          const location = locationOf(options.to);
+          const last = remembered(location);
 
-          // Nothing changed since the last backup, so another would only be a second copy of it.
-          if (copy.digest === last.digest)
+          const made = await engine.backUpIfChanged({
+            ...options,
+            last: last.digest,
+          });
+
+          if (made) await keep(options.to, made);
+          // Having looked counts, so the next look waits a whole span again, unless the passphrase
+          // changed as it looked, which leaves the next pass to back up under the new one.
+          else if (remembered(location).digest === last.digest) {
             state.write({ ...last, checkedAt: at });
-          else await upload(copy);
+          }
         });
       } catch (error) {
         // A bucket out of reach is tried again; the backup tab says why meanwhile. The wait counts
@@ -532,70 +349,25 @@ export function createBackups({
       };
     },
 
-    backUp: () => withCopy(upload),
+    backUp: () =>
+      backingUp(async (options) =>
+        keep(options.to, await engine.backUp(options))
+      ),
 
-    async list() {
-      const { bucket, folder } = await destination();
-      const own = installation();
-
-      return (await bucket.list(`${folder}/`))
-        .flatMap(({ key, bytes }): StoredBackup[] => {
-          const made = readBackupKey(folder, key);
-
-          return made
-            ? [
-                {
-                  key,
-                  bytes,
-                  createdAt: made.createdAt,
-                  own: made.installation === own,
-                },
-              ]
-            : [];
-        })
-        .toSorted((a, b) => b.createdAt - a.createdAt);
-    },
+    list: async () =>
+      engine.list({ to: await destination(), installation: installation() }),
 
     async restore(key) {
       begin(BackupActivity.Restoring);
 
-      // Whatever an earlier restore left but the data it replaced, which goes only once this one is staged.
-      const working = [
-        paths.download,
-        paths.staged,
-        paths.pending,
-        paths.cleared,
-      ];
-
       try {
-        const { bucket, folder, passphrase } = await destination();
-
-        if (!readBackupKey(folder, key)) {
-          throw new Error(`${key} is not a backup in ${folder}`);
-        }
-
-        for (const path of working) {
-          await rm(path, { recursive: true, force: true });
-        }
-
-        await mkdir(paths.folder, { recursive: true });
-        await bucket.get(key, paths.download);
-
-        const { createdAt } = await readBundle({
-          file: paths.download,
-          folder: paths.staged,
-          passphrase,
+        await engine.restore({
+          to: await destination(),
+          folders,
+          migrations,
+          key,
         });
-
-        await rm(paths.download, { force: true });
-        verify(paths.staged);
-        await rm(paths.previous, { recursive: true, force: true });
-        stageRestore(folders.dataDir, { key, createdAt });
       } catch (error) {
-        for (const path of working) {
-          await rm(path, { recursive: true, force: true });
-        }
-
         end();
 
         throw error;
