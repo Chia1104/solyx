@@ -11,6 +11,7 @@ export const agentQueryKeys = {
   sessions: [...all, "sessions"] as const,
   transcripts,
   transcript: (id: string | null) => [...transcripts, id] as const,
+  storeFailed: [...all, "store-failed"] as const,
 };
 
 /** Most recently active first. */
@@ -32,5 +33,16 @@ export const transcriptQuery = (id: string | null) =>
       id === null
         ? skipToken
         : async () => foldEvents(await window.solyx.agent.transcript(id)),
+    staleTime: Infinity,
+  });
+
+/**
+ * Whether the conversations' store failed. The main process pushes when it does (see
+ * `followAgentEvents`), and only a restart undoes it, so it never goes stale on its own.
+ */
+export const agentStoreFailedQuery = () =>
+  queryOptions({
+    queryKey: agentQueryKeys.storeFailed,
+    queryFn: () => window.solyx.agent.storeFailed(),
     staleTime: Infinity,
   });

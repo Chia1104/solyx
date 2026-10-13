@@ -32,9 +32,11 @@ const schemas = {
   approve: z.tuple([idSchema, idSchema, z.boolean()]),
   setApprovalMode: z.tuple([idSchema, approvalModeSchema]),
   setModel: z.tuple([idSchema, agentModelPickSchema]),
+  storeFailed: z.tuple([]),
+  restart: z.tuple([]),
 };
 
-export function registerAgentIpc({ agent }: Services) {
+export function registerAgentIpc({ agent, restart }: Services) {
   bindIpc<AgentApi>(agentChannels, schemas, {
     sessions: () => agent.sessions(),
     createSession: (setup) => agent.createSession(setup),
@@ -48,5 +50,7 @@ export function registerAgentIpc({ agent }: Services) {
       agent.approve(id, toolCallId, approved),
     setApprovalMode: (id, mode) => agent.setApprovalMode(id, mode),
     setModel: (id, pick) => agent.setModel(id, pick),
+    storeFailed: async () => agent.storeFailed(),
+    restart: async () => restart(),
   });
 }

@@ -365,6 +365,11 @@
     "send": "Send",
     "stop": "Stop",
     "send-failed": "Couldn't send the message",
+    "store-failed": {
+      "title": "Solyx can't reach your conversations",
+      "description": "Reading or saving them failed, so the agent has stopped. Restart Solyx to carry on: what was saved is kept, and a run that was cut off continues.",
+      "restart": "Restart Solyx"
+    },
     "model-unavailable": "{{model}} can't run: {{provider}} needs a key or sign-in, or is switched off. Pick another model, or set it up.",
     "setup-title": "Set up the agent",
     "setup-description": "Pick a provider and save its API key, or sign in with ChatGPT, to start.",
@@ -416,7 +421,8 @@
     "notices": {
       "aborted": "Stopped.",
       "error": "The agent stopped with an error",
-      "interrupted": "Solyx closed before the agent finished."
+      "interrupted": "Solyx closed before the agent finished.",
+      "store-failed": "Solyx could not save this conversation, so the agent stopped here. It carries on once Solyx restarts."
     },
     "tools": {
       "get_market_status": "Checked market status",

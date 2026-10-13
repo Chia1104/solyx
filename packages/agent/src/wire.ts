@@ -514,6 +514,8 @@ export const RunEndReason = {
   Error: "error",
   /** The app exited mid-run, so the transcript stops short. */
   Interrupted: "interrupted",
+  /** The conversations' store failed mid-run; the run carries on once the app starts again. */
+  StoreFailed: "store-failed",
 } as const;
 
 export type RunEndReason = (typeof RunEndReason)[keyof typeof RunEndReason];

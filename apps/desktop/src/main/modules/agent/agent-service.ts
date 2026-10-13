@@ -68,6 +68,7 @@ import type {
   MarketDays,
   TradingCalendar,
 } from "../market/trading-calendar.ts";
+import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 import { createAgentModels } from "./agent-models.ts";
 import type { AgentModelsOptions } from "./agent-models.ts";
@@ -90,6 +91,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   judgeCommand: ShellOptions["judge"];
   /** Where conversations persist, opening as the app starts. */
   conversations: Promise<AgentStore>;
+  diagnostics: Pick<Diagnostics, "report">;
   marketData: MarketData;
   watchlist: WatchlistPort;
   news: NewsDesk;
@@ -165,6 +167,9 @@ export function createAgentService(options: AgentServiceOptions) {
   const traces = createRunTraces(options.tracer);
 
   const waitingCalls = createWaitingCalls();
+
+  // Set for good: only the app starting again opens the store anew.
+  let storeFailed = false;
 
   // Every window shows the same conversations, so every window hears every run.
   const onEvent = (sessionId: string, event: AgentWireEvent) => {
@@ -326,6 +331,14 @@ export function createAgentService(options: AgentServiceOptions) {
     },
     env: shell.env,
     onEvent,
+    onStoreFailure(cause) {
+      storeFailed = true;
+      options.diagnostics.report(cause, "agent.store");
+
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send(agentEvents.onStoreFailed);
+      }
+    },
   });
 
   /** Erases the conversation, then the folder its shell commands worked in. */
@@ -436,6 +449,9 @@ export function createAgentService(options: AgentServiceOptions) {
       runtime.setApprovalMode(id, mode),
 
     setModel: (id: string, pick: AgentModelPick) => runtime.setModel(id, pick),
+
+    /** Whether the store failed, so no conversation is read or written until the app restarts. */
+    storeFailed: () => storeFailed,
 
     /** Closes the conversations, then the scripts and MCP servers their runs used, as the app quits. */
     async close() {
