@@ -721,6 +721,9 @@
   },
   "magi": {
     "title": "MAGI",
+    "motion": "Motion",
+    "resolution": "Verdict",
+    "order": "Order proposal",
     "carried": "Carried",
     "rejected": "Rejected",
     "undecided": "Undecided",
