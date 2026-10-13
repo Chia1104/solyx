@@ -89,7 +89,7 @@ export function createSetupTools({
         name: AgentToolName.GetSetup,
         replay: "safe",
         description:
-          "What the user has set up in Solyx and what is missing, by settings tab: data sources, the agent's models, web search, the decisions model, skills, memory, MCP servers and the app's version, and which settings change_setting takes. Keys, tokens and sign-ins read only as saved or missing. Read it before you explain why something does not work, how to set something up or change a setting, rather than guess.",
+          "What the user has set up in Solyx and what is missing, by settings tab: data sources, the agent's models, web search, the decisions model, skills, memory, MCP servers, what the app keeps on disk and the app's version, and which settings change_setting takes. Keys, tokens and sign-ins read only as saved or missing. Read it before you explain why something does not work, how to set something up or change a setting, rather than guess.",
         parameters: z.object({}),
         async execute() {
           const areas = await setup.read();
