@@ -20,6 +20,7 @@ import {
   mcpSecretKey,
 } from "#shared/ipc/settings.ts";
 import type { MarketDataStatus } from "#shared/ipc/settings.ts";
+import type { StorageUsage } from "#shared/ipc/storage.ts";
 
 import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
 import { createAgentSetup } from "../src/main/modules/agent/agent-setup.ts";
@@ -38,6 +39,21 @@ let home: string;
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), "solyx-setup-"));
 });
+
+const USAGE: StorageUsage = {
+  candles: {
+    bytes: 12_340_000,
+    sources: [
+      { source: "fugle", series: 40, bars: 118_000 },
+      { source: "fubon", series: 5, bars: 2000 },
+    ],
+  },
+  conversations: { bytes: 3_100_000, conversations: 1 },
+  memory: { bytes: 98_000, memories: 8 },
+  news: { bytes: 1_250_000_000, items: 1234 },
+  research: { bytes: 400, reports: 3, forecasts: 14 },
+  watchlist: { listings: 6 },
+};
 
 afterEach(() => rm(home, { recursive: true, force: true }));
 
@@ -105,6 +121,7 @@ function setup(scheduled: ScheduledTask[] = []) {
     memory: { list: () => [] },
     schedules: { list: () => scheduled },
     themes: { list: () => [] },
+    storage: { usage: async () => USAGE },
     shellOn: () => false,
     version: "0.9.0",
     home,
@@ -146,6 +163,7 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
     ["Themes", "#/settings?section=themes"],
     ["Memory", "#/settings?section=memory"],
     ["MCP servers", "#/settings?section=mcp"],
+    ["Storage", "#/settings?section=storage"],
     ["About", "#/settings?section=about"],
   ]);
 
@@ -217,6 +235,28 @@ test("Fubon names what it still needs and a failed sign-in that waits for the us
     "Taiwan's charts, quotes and news have no source: fubon still needs the certificate, the ID number."
   );
   expect(missing[1]).toMatch(/^Fubon's sign-in failed: wrong password\./);
+});
+
+test("storage reads as what each store holds, on the tab where the user clears it", async () => {
+  const { port } = setup();
+
+  expect(area(await port.read(), "Storage")).toEqual({
+    name: "Storage",
+    link: "#/settings?section=storage",
+    missing: [],
+    settings: [
+      {
+        name: "chart bars",
+        value: "12.3 MB, 45 series and 120000 bars",
+        description: "a cache, which charts fill again once it is cleared",
+      },
+      { name: "conversations", value: "3.1 MB, 1 conversation" },
+      { name: "memories", value: "98.0 kB, 8 memories" },
+      { name: "news", value: "1.3 GB, 1234 items" },
+      { name: "research", value: "400 bytes, 3 reports and 14 forecasts" },
+      { name: "watchlist", value: "6 listings" },
+    ],
+  });
 });
 
 test("an MCP server says which secrets it waits for and why it failed", async () => {

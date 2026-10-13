@@ -1,3 +1,4 @@
+import { sumBy } from "es-toolkit";
 import * as z from "zod";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
@@ -34,6 +35,7 @@ import {
   mcpSecretKey,
   timeZonePreferenceSchema,
 } from "#shared/ipc/settings.ts";
+import type { StorageApi } from "#shared/ipc/storage.ts";
 import { ColorScheme, Palette } from "#shared/palette.ts";
 import { SettingsSection, settingsLink } from "#shared/settings-section.ts";
 
@@ -68,6 +70,8 @@ export interface AgentSetupSources {
   schedules: Pick<ScheduleStore, "list">;
   /** The themes the app watches for the user. */
   themes: Pick<ThemeStore, "list">;
+  /** What the app keeps on disk, which only the user clears. */
+  storage: Pick<StorageApi, "usage">;
   version: string;
   /** Paths are shown with it as `~`. */
   home: string;
@@ -101,6 +105,25 @@ const stateText = (state: SecretState) =>
     : state;
 
 const onOff = (on: boolean) => (on ? "on" : "off");
+
+const SIZES = [
+  { unit: "GB", bytes: 1e9 },
+  { unit: "MB", bytes: 1e6 },
+  { unit: "kB", bytes: 1e3 },
+];
+
+/** How many of something a store holds, in words. */
+const counted = (count: number, one: string, many = `${one}s`) =>
+  `${count} ${count === 1 ? one : many}`;
+
+/** A size on disk in the largest unit it fills, as the storage tab shows it. */
+function size(bytes: number): string {
+  const fitting = SIZES.find((each) => bytes >= each.bytes);
+
+  return fitting
+    ? `${(bytes / fitting.bytes).toFixed(1)} ${fitting.unit}`
+    : `${bytes} bytes`;
+}
 
 /** A setting the agent may change once the user allows it. */
 interface Changeable {
@@ -625,6 +648,45 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     };
   }
 
+  /** What each store holds, as the storage tab counts it. */
+  async function storage(): Promise<SetupArea> {
+    const { candles, conversations, memory, news, research, watchlist } =
+      await options.storage.usage();
+
+    return {
+      name: "Storage",
+      link: settingsLink(SettingsSection.Storage),
+      missing: [],
+      settings: [
+        {
+          name: "chart bars",
+          value: `${size(candles.bytes)}, ${sumBy(candles.sources, ({ series }) => series)} series and ${counted(
+            sumBy(candles.sources, ({ bars }) => bars),
+            "bar"
+          )}`,
+          description: "a cache, which charts fill again once it is cleared",
+        },
+        {
+          name: "conversations",
+          value: `${size(conversations.bytes)}, ${counted(conversations.conversations, "conversation")}`,
+        },
+        {
+          name: "memories",
+          value: `${size(memory.bytes)}, ${counted(memory.memories, "memory", "memories")}`,
+        },
+        {
+          name: "news",
+          value: `${size(news.bytes)}, ${counted(news.items, "item")}`,
+        },
+        {
+          name: "research",
+          value: `${size(research.bytes)}, ${counted(research.reports, "report")} and ${counted(research.forecasts, "forecast")}`,
+        },
+        { name: "watchlist", value: counted(watchlist.listings, "listing") },
+      ],
+    };
+  }
+
   /**
    * The settings the agent may change, through the writers the settings page uses. A key, a
    * sign-in, a provider switched on, an endpoint, the shell, MCP tools, shared skills, memory and
@@ -818,12 +880,13 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
 
   return {
     async read() {
-      const [market, agentAreas, skillsArea, mcpArea, changes] =
+      const [market, agentAreas, skillsArea, mcpArea, storageArea, changes] =
         await Promise.all([
           marketData(),
           agent(),
           skills(),
           mcp(),
+          storage(),
           changeables(),
         ]);
 
@@ -836,6 +899,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         themes(),
         memory(),
         mcpArea,
+        storageArea,
         about(),
       ].map((area) => ({
         ...area,

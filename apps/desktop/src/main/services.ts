@@ -71,6 +71,7 @@ import type { ConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
+import { createStorageApi } from "./modules/storage/storage-api.ts";
 import { createTelemetry } from "./modules/telemetry/telemetry.ts";
 import { createThemes } from "./modules/themes/themes.ts";
 import { createTray } from "./modules/tray/tray.ts";
@@ -375,10 +376,21 @@ export function createServices(config: ConfigFile) {
       embeddings,
       schedules: userData.schedules,
       themes: userData.themes,
+      // Built after the agent, whose conversations it counts, and read only as a tool is called.
+      storage: { usage: () => storage.usage() },
       version: app.getVersion(),
       home,
     },
     onActivity: () => void tray.sync(),
+  });
+
+  const storage = createStorageApi({
+    cache,
+    agent,
+    memories,
+    news: newsData,
+    research,
+    watchlist,
   });
 
   /** What the user holds, then what they watch, each once; a broker that cannot be read leaves the watchlist. */
@@ -557,6 +569,7 @@ export function createServices(config: ConfigFile) {
     schedules,
     collections,
     themes,
+    storage,
     scheduler,
     tray,
     workspace,
