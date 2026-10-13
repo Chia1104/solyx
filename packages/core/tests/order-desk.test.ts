@@ -45,7 +45,7 @@ const DURING_SESSION = Date.parse("2026-09-29T10:00:00+08:00");
 
 const AFTER_CLOSE = Date.parse("2026-09-29T15:00:00+08:00");
 
-function setup(store = memoryStore()) {
+function setup(store = memoryStore(), restored = false) {
   const clock = { now: DURING_SESSION };
   const tradingDays = vi.fn(async (): Promise<TradingDays> => weekdays);
   const onChange = vi.fn();
@@ -77,6 +77,7 @@ function setup(store = memoryStore()) {
       allowedSessions: [Session.Regular],
     },
     tradingDays,
+    restored,
     onChange,
     now: () => clock.now,
   });
@@ -229,6 +230,44 @@ test("a submission cut off by an exit fails and is never resubmitted", async () 
   ]);
   await expect(reopened.desk.confirm(id)).rejects.toThrow();
   expect(reopened.placeOrder).not.toHaveBeenCalled();
+});
+
+test("what a desk settles as it opens is told to no one, since nothing shows proposals yet", async () => {
+  const { desk, placeOrder, store } = setup();
+  const { id } = await proposeFromAgent(desk);
+
+  placeOrder.mockReturnValueOnce(new Promise(noop));
+  void desk.confirm(id);
+  await vi.waitFor(() => expect(placeOrder).toHaveBeenCalledOnce());
+  await proposeFromAgent(desk);
+
+  const reopened = setup(store, true);
+
+  expect(reopened.desk.list().map(({ status }) => status)).toEqual([
+    ProposalStatus.Failed,
+    ProposalStatus.Dismissed,
+  ]);
+  expect(reopened.onChange).not.toHaveBeenCalled();
+});
+
+test("a proposal that waited in a backup is dismissed, since it may have been confirmed since", async () => {
+  const { desk, store } = setup();
+  const waiting = await proposeFromAgent(desk);
+  const placed = await proposeFromAgent(desk);
+
+  await desk.confirm(placed.id);
+
+  // Opened again without a restore, what waits still waits.
+  expect(setup(store).desk.list()).toEqual(desk.list());
+
+  const restored = setup(store, true);
+
+  expect(restored.desk.list()).toMatchObject([
+    { id: waiting.id, status: ProposalStatus.Dismissed },
+    { id: placed.id, status: ProposalStatus.Submitted },
+  ]);
+  await expect(restored.desk.confirm(waiting.id)).rejects.toThrow();
+  expect(restored.placeOrder).not.toHaveBeenCalled();
 });
 
 test("what the account cannot pay for or does not hold is rejected, never sent to fail", async () => {

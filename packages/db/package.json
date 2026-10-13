@@ -9,6 +9,7 @@
     "./memory": "./src/memory.ts",
     "./news": "./src/news.ts",
     "./research": "./src/research.ts",
+    "./snapshot": "./src/snapshot.ts",
     "./user": "./src/user.ts"
   },
   "scripts": {
