@@ -651,6 +651,9 @@
       "falsifiers": "What would change the view",
       "falsifier-stated": "News may say this happened, read as stated at {{share}}:",
       "valuation": "Fair range {{low}} to {{high}}",
+      "price-within": "Last {{price}} on {{date}}, inside it: {{low}} from its low and {{high}} from its high",
+      "price-below": "Last {{price}} on {{date}}, under it: {{low}} from its low",
+      "price-above": "Last {{price}} on {{date}}, over it: {{high}} from its high",
       "events": "Dates ahead",
       "event-passed": "Passed. The agent says what came of it when it next revises the report.",
       "written": "written {{date}}",
@@ -674,7 +677,11 @@
       "mean-r": "mean {{r}} R",
       "skill": "{{skill}} against history's base rates",
       "motions": "MAGI: {{held, number}} of the {{calls, number}} scenarios it carried held, {{expected}} expected of history",
-      "evidence": "decisions model: the close landed on the side it read the facts towards {{held, number}} of {{calls, number}} times, {{expected}} expected of history"
+      "evidence": "decisions model: the close landed on the side it read the facts towards {{held, number}} of {{calls, number}} times, {{expected}} expected of history",
+      "strip": "What each forecast gave the band that held, oldest first; the line is history's share. {{led, number}} of the {{settled, number}} settled gave it the most.",
+      "mark": "{{date}}: gave the band that held {{given}}",
+      "mark-history": "{{date}}: gave the band that held {{given}}, history {{history}}",
+      "mark-open": "{{date}}: still open"
     },
     "forecast": {
       "horizon": "{{count, number}}-session horizon from {{date}} at {{price}}",

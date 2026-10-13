@@ -651,6 +651,9 @@
       "falsifiers": "什麼會改變看法",
       "falsifier-stated": "新聞可能顯示這件事已發生（判讀為 {{share}}）：",
       "valuation": "合理區間 {{low}} 至 {{high}}",
+      "price-within": "{{date}} 最新價 {{price}} 在區間內：距下緣 {{low}}、距上緣 {{high}}",
+      "price-below": "{{date}} 最新價 {{price}} 低於區間：距下緣 {{low}}",
+      "price-above": "{{date}} 最新價 {{price}} 高於區間：距上緣 {{high}}",
       "events": "未來事件",
       "event-passed": "已過。Agent 下次修訂報告時會交代結果。",
       "written": "{{date}} 撰寫",
@@ -674,7 +677,11 @@
       "mean-r": "平均 {{r}} R",
       "skill": "相對歷史基準 {{skill}}",
       "motions": "MAGI 可決的 {{calls, number}} 個走勢中 {{held, number}} 個成真，歷史基準預期 {{expected}} 個",
-      "evidence": "決策模型讀數偏向的一側 {{calls, number}} 次中 {{held, number}} 次成真，歷史基準預期 {{expected}} 次"
+      "evidence": "決策模型讀數偏向的一側 {{calls, number}} 次中 {{held, number}} 次成真，歷史基準預期 {{expected}} 次",
+      "strip": "每次預測給成真區間的機率，由舊到新；橫線是歷史機率。已結算的 {{settled, number}} 筆中，{{led, number}} 筆給它的機率最高。",
+      "mark": "{{date}}：給成真區間 {{given}}",
+      "mark-history": "{{date}}：給成真區間 {{given}}，歷史 {{history}}",
+      "mark-open": "{{date}}：進行中"
     },
     "forecast": {
       "horizon": "{{count, number}} 個交易日，自 {{date}} 的 {{price}} 起算",

@@ -28,7 +28,9 @@ import { PublishedTime } from "../news/news-list.tsx";
 import { useDecisionsReady } from "../settings/settings-query.ts";
 
 import { ForecastBody } from "./forecast-card.tsx";
+import { ForecastStrip } from "./forecast-strip.tsx";
 import { researchCoverageQuery } from "./research-query.ts";
+import { ValuationRange } from "./valuation-range.tsx";
 
 /** Hands the agent's composer a request for a deep analysis, in a new conversation the user sends. */
 function DeepAnalysisButton({ symbol }: { symbol: SymbolRef }) {
@@ -203,7 +205,7 @@ function ReportView({
   standing: StanceSpell | undefined;
 }) {
   const { t, i18n } = useTranslation();
-  const { price, percentChange } = numberFormats(i18n.language);
+  const { percentChange } = numberFormats(i18n.language);
   const { market } = report.symbol;
   const day = (at: number) => exchangeDate(market, new Date(at));
 
@@ -257,15 +259,7 @@ function ReportView({
         </section>
       ) : null}
       {report.valuation ? (
-        <p>
-          <span className="tabular-nums">
-            {t("research.report.valuation", {
-              low: price.format(report.valuation.low),
-              high: price.format(report.valuation.high),
-            })}
-          </span>
-          <span className="text-muted"> · {report.valuation.basis}</span>
-        </p>
+        <ValuationRange symbol={report.symbol} valuation={report.valuation} />
       ) : null}
       <Events events={report.events} passed={passedEvents} />
       {Object.values(ReportSection).map((section) => {
@@ -373,6 +367,7 @@ function CoverageView({ coverage }: { coverage: Coverage }) {
             </span>
           ) : null}
         </h3>
+        <ForecastStrip forecasts={forecasts} />
         {forecasts.length === 0 ? (
           <p className="text-sm text-muted">{t("research.forecasts.none")}</p>
         ) : (
