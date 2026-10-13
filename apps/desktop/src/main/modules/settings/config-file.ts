@@ -54,7 +54,9 @@ import {
 } from "@solyx/web-search/provider";
 
 import {
+  BackupInterval,
   backupBucketSchema,
+  backupIntervalSchema,
   backupPrefixSchema,
   backupRegionSchema,
 } from "#shared/ipc/backup.ts";
@@ -343,6 +345,14 @@ const configSchema = section(
           description:
             "The folder in the bucket backups are kept under, each installation in a folder of its own beneath it; named after the app when missing, so each channel keeps its own.",
         }),
+        automatic: z.boolean().catch(true).meta({
+          description:
+            "Makes a backup on its own while Solyx runs, once the bucket, its access key and a passphrase are set, and only when something has changed since the last one. After each backup the older ones of this installation are thinned out: the newest four stay, then the last of each of 24 hours, 7 days and 4 weeks that hold one.",
+        }),
+        every: backupIntervalSchema.catch(BackupInterval.Hour).meta({
+          description:
+            "How long after one backup the next is made on its own: 15m, 1h, 6h or 1d. A shorter span only brings the newest backup closer to now, since older ones are thinned out the same.",
+        }),
       })
     ),
     crashReports: section(
@@ -498,7 +508,7 @@ type ConfigPath =
   | ["agent", "magi", MagiUnit]
   | ["agent", "mcpTools", string]
   | ["collection", CollectionJob]
-  | ["backup", BackupSetting]
+  | ["backup", BackupSetting | "automatic" | "every"]
   | ["updates", "check"]
   | ["crashReports", "send"]
   | ["otlp", "endpoint"]

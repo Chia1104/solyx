@@ -28,6 +28,19 @@ export const backupPrefixSchema = z
   .max(512)
   .regex(/^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/);
 
+/** How long after one backup the next is made on its own, while the app runs. */
+export const BackupInterval = {
+  QuarterHour: "15m",
+  Hour: "1h",
+  SixHours: "6h",
+  Day: "1d",
+} as const;
+
+export type BackupInterval =
+  (typeof BackupInterval)[keyof typeof BackupInterval];
+
+export const backupIntervalSchema = z.enum(BackupInterval);
+
 export interface BackupSettings {
   /** The S3 server's address; `null` is AWS's own for the region. */
   endpoint: string | null;
@@ -41,6 +54,9 @@ export interface BackupSettings {
     /** Named after the app, so each channel keeps its own. */
     prefix: string;
   };
+  /** Backups are made on their own while the app runs, once the destination is set up. */
+  automatic: boolean;
+  every: BackupInterval;
 }
 
 export const BackupActivity = {
@@ -69,14 +85,22 @@ export interface BackupStatus {
   activity: BackupActivity | null;
   /** When the backup was made that this computer's data was put back from as the app started. */
   restoredFrom: number | null;
+  /** When this installation last uploaded a backup. */
+  lastBackupAt: number | null;
+  /** This installation's backups in the bucket as they were last counted, after the older ones were thinned out. */
+  stored: { count: number; bytes: number } | null;
+  /** Why the last backup made on its own, or the thinning after a backup, failed; `null` once one goes through. */
+  failure: string | null;
 }
 
 export interface BackupApi {
   settings(): Promise<BackupSettings>;
   /** `null` goes back to the default. */
   set(setting: BackupSetting, value: string | null): Promise<void>;
+  setAutomatic(automatic: boolean): Promise<void>;
+  setEvery(every: BackupInterval): Promise<void>;
   status(): Promise<BackupStatus>;
-  /** Uploads a backup of what the app keeps now, sealed under the passphrase. */
+  /** Uploads a backup of what the app keeps now, sealed under the passphrase, then thins out this installation's older ones. */
   backUp(): Promise<StoredBackup>;
   /** Every backup in the folder, newest first, whichever installation made it. */
   list(): Promise<StoredBackup[]>;
@@ -95,6 +119,8 @@ export interface BackupEvents {
 export const backupChannels = {
   settings: "backup:settings",
   set: "backup:set",
+  setAutomatic: "backup:set-automatic",
+  setEvery: "backup:set-every",
   status: "backup:status",
   backUp: "backup:back-up",
   list: "backup:list",

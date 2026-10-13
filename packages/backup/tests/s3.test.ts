@@ -70,6 +70,16 @@ test("a listing follows its continuations and keeps a key of digits as text", as
   ]);
 });
 
+test("an object is deleted by its key, and one already gone is no failure", async () => {
+  server.objects.set("a/1", Buffer.from("x"));
+  server.objects.set("a/2", Buffer.from("y"));
+
+  await bucket().remove("a/1");
+  await bucket().remove("a/1");
+
+  expect([...server.objects.keys()]).toEqual(["a/2"]);
+});
+
 test("a server under a path keeps it before the bucket", async () => {
   const under = bucket({ endpoint: `${server.endpoint}/` });
 
