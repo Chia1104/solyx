@@ -11,3 +11,6 @@ export const OverviewTab = {
 export type OverviewTab = (typeof OverviewTab)[keyof typeof OverviewTab];
 
 export const overviewTabSchema = z.enum(OverviewTab);
+
+/** The tab's address in the router's hash, which the agent's replies link to. */
+export const overviewLink = (tab: OverviewTab) => `#/?tab=${tab}`;

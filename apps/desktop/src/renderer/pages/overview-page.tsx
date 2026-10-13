@@ -10,6 +10,8 @@ import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
 
+import { OverviewTab } from "#shared/overview-tab.ts";
+
 import { LoadingState } from "../components/loading-state.tsx";
 import { Section } from "../components/section.tsx";
 import { RAILED_COLUMN, Sheet } from "../components/sheet.tsx";
@@ -24,8 +26,6 @@ import { HeadlineList } from "../modules/news/headline-list.tsx";
 import { HEADLINE_DAYS } from "../modules/news/news-query.ts";
 import { ThemeList } from "../modules/themes/theme-list.tsx";
 import { watchlistQuery } from "../modules/watchlist/watchlist-query.ts";
-
-import { OverviewTab } from "./overview-tab.ts";
 
 const route = getRouteApi("/");
 

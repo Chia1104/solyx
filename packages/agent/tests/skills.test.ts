@@ -11,6 +11,8 @@ import { SkillSource } from "../src/skill-source.ts";
 import { loadInstructions, loadSkillCatalog } from "../src/skills.ts";
 import type { SkillFolders } from "../src/skills.ts";
 
+import { LINKS } from "./fixtures/links.ts";
+
 let root: string;
 
 let folders: SkillFolders;
@@ -167,6 +169,7 @@ test("standing instructions are read when present and follow the rules in the pr
 
   const prompt = async (standing: string | undefined) => {
     const sections = promptSections({
+      links: LINKS,
       skills: async () => [],
       instructions: async () => standing,
     });
@@ -205,4 +208,23 @@ test("only problems in skills the agent may use are reported", async () => {
   );
   expect(catalog.warnings).toHaveLength(2);
   expect(catalog.warnings.join("\n")).not.toContain("left-off");
+});
+
+test("the prompt names the app's own addresses, as the host builds them", async () => {
+  const [, places] = promptSections({
+    links: LINKS,
+    skills: async () => [],
+    instructions: async () => undefined,
+  });
+
+  // SAFETY: the section reads nothing from the request it renders for.
+  const text = await places.render({} as PromptInput, BACKGROUND_CONTEXT);
+
+  expect(text).toContain(
+    "#/symbol/TW/2330?interval=1d is TW 2330 on daily bars"
+  );
+  expect(text).toContain(
+    "the intervals are 1m, 5m, 15m, 30m, 1h, 1d, 1w, 1mo."
+  );
+  expect(text).toContain("which get_sectors and get_flows read: #/?tab=market");
 });

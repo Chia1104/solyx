@@ -32,6 +32,8 @@ import {
 } from "../src/wire.ts";
 import type { AgentWireEvent, ToolCallView } from "../src/wire.ts";
 
+import { LINKS } from "./fixtures/links.ts";
+
 // 2026-09-30 10:00 in Taipei.
 const NOW = new Date("2026-09-30T02:00:00Z");
 
@@ -131,6 +133,7 @@ function setup(vendor = fakeVendor()) {
       account: async () => ({ cash: {}, positions: [] }),
       mode: BrokerMode.Paper,
     },
+    links: LINKS,
     skills: async () => [],
     instructions: async () => undefined,
     now: () => NOW,

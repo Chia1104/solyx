@@ -16,7 +16,7 @@ import { createMagi } from "@solyx/agent/magi";
 import type { MagiPort } from "@solyx/agent/magi";
 import { mcpScriptExtension } from "@solyx/agent/mcp-script";
 import { createMemory } from "@solyx/agent/memory";
-import { formatContext } from "@solyx/agent/prompt";
+import { AppPlace, formatContext } from "@solyx/agent/prompt";
 import type { AgentModelPick } from "@solyx/agent/providers";
 import { createQuoteTools } from "@solyx/agent/quotes";
 import type { QuoteToolsOptions } from "@solyx/agent/quotes";
@@ -66,6 +66,8 @@ import { agentEvents } from "#shared/ipc/agent.ts";
 import type { AgentFocus, AgentUpdate } from "#shared/ipc/agent.ts";
 import type { Locale, TimeZone } from "#shared/ipc/settings.ts";
 import type { ConversationsUsage } from "#shared/ipc/storage.ts";
+import { OverviewTab, overviewLink } from "#shared/overview-tab.ts";
+import { symbolLink } from "#shared/symbol-link.ts";
 
 import type { Calendar } from "../calendar/calendar.ts";
 import type { Macro } from "../macro/macro.ts";
@@ -240,6 +242,15 @@ export function createAgentService(options: AgentServiceOptions) {
     calendar: (symbols, days) => options.calendar.upcoming(symbols, days),
     desk: options.desk,
     magi,
+    links: {
+      listing: symbolLink,
+      overview: {
+        [AppPlace.Moves]: overviewLink(OverviewTab.Today),
+        [AppPlace.Headlines]: overviewLink(OverviewTab.News),
+        [AppPlace.Calendar]: overviewLink(OverviewTab.Calendar),
+        [AppPlace.Market]: overviewLink(OverviewTab.Market),
+      },
+    },
     // A skill's folder is told only while the shell that could run its scripts is on.
     skills: async () =>
       (await skills()).skills
