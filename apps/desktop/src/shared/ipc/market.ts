@@ -1,8 +1,8 @@
 import type { Candle, Interval } from "@solyx/core/candles";
 import type { Market, SymbolRef } from "@solyx/core/market";
-import type { Listing, Quote } from "@solyx/core/market-data";
+import type { Listing } from "@solyx/core/market-data";
 import type { SessionQuote } from "@solyx/core/quote";
-import type { SectorIndex } from "@solyx/core/sectors";
+import type { SectorQuote } from "@solyx/core/sectors";
 import type { Session } from "@solyx/core/session";
 
 /** A watched symbol's forming bar in one interval; it replaces the bar with the same time. */
@@ -10,11 +10,6 @@ export interface LiveCandle {
   symbol: SymbolRef;
   interval: Interval;
   candle: Candle;
-}
-
-/** A sector index and its session so far; `null` until it has traded. */
-export interface SectorQuote extends SectorIndex {
-  quote: Quote | null;
 }
 
 export interface MarketApi {

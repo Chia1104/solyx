@@ -1,3 +1,7 @@
+import { sumBy } from "es-toolkit";
+
+import type { Quote } from "./market-data.ts";
+
 /** The buckets the Taiwan Stock Exchange reports its sector indices in. */
 export const SectorGroup = {
   Electronics: "electronics",
@@ -98,3 +102,40 @@ export const TW_SECTOR_INDICES: readonly SectorIndex[] = [
     [TwSector.HomeLiving, "IX0188"],
   ]),
 ];
+
+/** A sector index and its session so far; `null` until it has traded. */
+export interface SectorQuote extends SectorIndex {
+  quote: Quote | null;
+}
+
+/** How a sector's index moved in its session, and the sector's part of the trading. */
+export interface SectorMove extends SectorIndex {
+  quote: Quote;
+  /** Points the index moved from its reference. */
+  change: number;
+  /** That move as a fraction of the reference. */
+  percent: number;
+  /** Its part of the value every sector traded so far, from 0 to 1; 0 while none has. */
+  share: number;
+}
+
+/** The sectors that have traded, in the order given. */
+export function sectorMoves(sectors: readonly SectorQuote[]): SectorMove[] {
+  const total = sumBy(sectors, ({ quote }) => quote?.tradeValue ?? 0);
+
+  return sectors.flatMap(({ quote, ...index }) => {
+    if (!quote) return [];
+
+    const change = quote.last - quote.reference;
+
+    return [
+      {
+        ...index,
+        quote,
+        change,
+        percent: change / quote.reference,
+        share: total > 0 ? quote.tradeValue / total : 0,
+      },
+    ];
+  });
+}

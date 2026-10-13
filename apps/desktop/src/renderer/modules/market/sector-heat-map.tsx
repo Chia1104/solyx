@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { Market } from "@solyx/core/market";
-import { SectorGroup } from "@solyx/core/sectors";
+import { SectorGroup, sectorMoves } from "@solyx/core/sectors";
 
 import { HeatMap } from "../../components/heat-map.tsx";
 import { LoadError } from "../../components/load-error.tsx";
@@ -36,8 +36,10 @@ export function SectorHeatMap() {
     );
   }
 
+  const moves = new Map(sectorMoves(data).map((move) => [move.sector, move]));
+
   // Before the first trade every sector shares the room equally.
-  const traded = data.some((sector) => (sector.quote?.tradeValue ?? 0) > 0);
+  const traded = [...moves.values()].some((move) => move.share > 0);
 
   return (
     <HeatMap
@@ -47,28 +49,38 @@ export function SectorHeatMap() {
         label: t(`sectors.groups.${group}`),
         tiles: data
           .filter((sector) => sector.group === group)
-          .map(({ sector, quote }) => {
-            const change = quote ? quote.last - quote.reference : null;
-
-            const percent =
-              quote && change !== null ? change / quote.reference : null;
+          .map(({ sector }) => {
+            const move = moves.get(sector);
 
             return {
               id: sector,
               label: t(`sectors.names.${sector}`),
-              value:
-                percent === null
-                  ? "—"
-                  : format.quotePercentChange.format(percent),
-              weight: traded ? (quote?.tradeValue ?? 0) : 1,
-              color:
-                change === null
-                  ? undefined
-                  : directionOf(direction, change)?.solid,
-              strength:
-                percent === null
-                  ? 0
-                  : Math.min(Math.abs(percent) / FULL_COLOUR_MOVE, 1),
+              value: move
+                ? format.quotePercentChange.format(move.percent)
+                : "—",
+              weight: traded ? (move?.share ?? 0) : 1,
+              color: move && directionOf(direction, move.change)?.solid,
+              strength: move
+                ? Math.min(Math.abs(move.percent) / FULL_COLOUR_MOVE, 1)
+                : 0,
+              figures: move && [
+                {
+                  label: t("heat-map.sectors.figures.index"),
+                  value: format.quotePrice.format(move.quote.last),
+                },
+                {
+                  label: t("heat-map.sectors.figures.change"),
+                  value: format.quoteChange.format(move.change),
+                },
+                {
+                  label: t("heat-map.sectors.figures.value"),
+                  value: format.compactAmount.format(move.quote.tradeValue),
+                },
+                {
+                  label: t("heat-map.sectors.figures.share"),
+                  value: format.fineShare.format(move.share),
+                },
+              ],
             };
           }),
       }))}
