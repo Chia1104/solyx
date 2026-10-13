@@ -627,6 +627,18 @@
     "market-description": "外資、投信、自營商在台股的買賣超、融資融券，以及他們的台指期部位。交易所在台北時間 15:00 到 21:00 之間陸續公布當日資料。",
     "market-empty": "還沒有籌碼資料。"
   },
+  "fundamentals": {
+    "trends": {
+      "title": "財務趨勢",
+      "revenue": "季營收（{{currency}}）",
+      "eps": "每股盈餘（{{currency}}）",
+      "monthly": "月營收年增率（自結）",
+      "quarter": "{{year}} Q{{quarter}}",
+      "on-year": "年增率 {{change}}",
+      "month-revenue": "{{month}} 營收 {{revenue}}",
+      "mark": "{{period}}：{{figure}}"
+    }
+  },
   "research": {
     "title": "研究",
     "views-label": "圖表下方",

@@ -11,6 +11,8 @@ import { calendarChannels } from "#shared/ipc/calendar.ts";
 import type { CalendarApi } from "#shared/ipc/calendar.ts";
 import { flowsChannels } from "#shared/ipc/flows.ts";
 import type { FlowsApi } from "#shared/ipc/flows.ts";
+import { fundamentalsChannels } from "#shared/ipc/fundamentals.ts";
+import type { FundamentalsApi } from "#shared/ipc/fundamentals.ts";
 import { marketChannels, marketEvents } from "#shared/ipc/market.ts";
 import type { MarketApi, MarketEvents } from "#shared/ipc/market.ts";
 import { memoryChannels, memoryEvents } from "#shared/ipc/memory.ts";
@@ -96,6 +98,7 @@ const api: SolyxApi = {
   agent: bridge<AgentApi, AgentEvents>(agentChannels, agentEvents),
   calendar: bridge<CalendarApi>(calendarChannels),
   flows: bridge<FlowsApi>(flowsChannels),
+  fundamentals: bridge<FundamentalsApi>(fundamentalsChannels),
   market: bridge<MarketApi, MarketEvents>(marketChannels, marketEvents),
   memory: bridge<MemoryApi, MemoryEvents>(memoryChannels, memoryEvents),
   news: bridge<NewsApi, NewsEvents>(newsChannels, newsEvents),

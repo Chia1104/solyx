@@ -557,6 +557,7 @@ export function createServices(config: ConfigFile) {
     research,
     calendar,
     flows,
+    fundamentals,
     agent,
     telemetry,
     mcp,
