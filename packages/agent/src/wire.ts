@@ -21,6 +21,7 @@ import {
   ScheduleKind,
   scheduledTaskDraftSchema,
 } from "@solyx/core/schedule";
+import { sectorQuoteSchema } from "@solyx/core/sectors";
 import { themeDraftSchema } from "@solyx/core/theme";
 import { isEnumValue } from "@solyx/utils/is";
 
@@ -207,6 +208,7 @@ export const AgentToolName = {
   GetBaseRates: "get_base_rates",
   GetFlows: "get_flows",
   GetMacro: "get_macro",
+  GetSectors: "get_sectors",
   ReviseReport: "revise_report",
   SubmitForecast: "submit_forecast",
   SearchHistory: "search_history",
@@ -245,6 +247,13 @@ export const submitForecastDetailsSchema = z.object({
 });
 
 export type SubmitForecastDetails = z.infer<typeof submitForecastDetailsSchema>;
+
+/** The sectors a call read, so its thread maps them as the agent saw them. */
+export const getSectorsDetailsSchema = z.object({
+  sectors: z.array(sectorQuoteSchema),
+});
+
+export type GetSectorsDetails = z.infer<typeof getSectorsDetailsSchema>;
 
 /** The arguments of the tools that run a script the agent wrote. */
 export const scriptArgumentsSchema = z.object({

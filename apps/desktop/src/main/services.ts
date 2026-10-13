@@ -162,6 +162,7 @@ export function createServices(config: ConfigFile) {
       fubonLogDir: join(userDataDir, "fubon"),
       openFubonProcess,
     }),
+    answers: cache.answers,
     onSourcesChanged: () => broadcast(marketEvents.onSourcesChanged),
     diagnostics,
   });
@@ -359,6 +360,7 @@ export function createServices(config: ConfigFile) {
     fundamentals,
     flows,
     macro,
+    sectors: () => marketData.sectors(),
     setup: {
       appearance,
       marketData,

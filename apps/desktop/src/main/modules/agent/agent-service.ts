@@ -19,6 +19,8 @@ import type { AgentModelPick } from "@solyx/agent/providers";
 import { createResearch } from "@solyx/agent/research";
 import { createAgentRuntime } from "@solyx/agent/runtime";
 import { createScriptRunner } from "@solyx/agent/script-runner";
+import { createSectorTools } from "@solyx/agent/sectors";
+import type { SectorToolsOptions } from "@solyx/agent/sectors";
 import { createSetupTools } from "@solyx/agent/setup";
 import { createShell } from "@solyx/agent/shell";
 import type { ShellOptions } from "@solyx/agent/shell";
@@ -114,6 +116,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   flows: Flows;
   /** Each market's indicators' figures, for the agent's own read of them. */
   macro: Pick<Macro, "series">;
+  /** Taiwan's sector indices, as the overview's map reads them. */
+  sectors: SectorToolsOptions["sectors"];
   /** What the agent reads of the rest of the app's settings. */
   setup: AgentSetupSources;
   /** A run started or ended, or one of its calls began or stopped waiting for the user. */
@@ -264,6 +268,11 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const macro = createMacroTools({ series: options.macro.series });
 
+  const sectors = createSectorTools({
+    sectors: options.sectors,
+    marketData: options.marketData,
+  });
+
   const themes = createThemeTools({ desk: options.themes });
 
   const tasks = createTaskTools({ tasks: options.tasks });
@@ -312,6 +321,7 @@ export function createAgentService(options: AgentServiceOptions) {
           research,
           flows,
           macro,
+          sectors,
           history,
           themes.extension(guard),
           tasks.extension(guard),

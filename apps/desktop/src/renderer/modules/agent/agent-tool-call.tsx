@@ -16,6 +16,7 @@ import {
   changeSettingArgumentsSchema,
   changeWatchlistArgumentsSchema,
   forgetArgumentsSchema,
+  getSectorsDetailsSchema,
   proposeOrderDetailsSchema,
   readPageArgumentsSchema,
   rememberArgumentsSchema,
@@ -37,6 +38,7 @@ import { useClock } from "../../app/clock.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 import { ListingName } from "../market/listing-name.tsx";
+import { SectorMap } from "../market/sector-heat-map.tsx";
 import { memoryQuery } from "../memory/memory-query.ts";
 import { ProposalItem } from "../proposals/proposal-item.tsx";
 import { proposalsQuery } from "../proposals/proposals-query.ts";
@@ -45,6 +47,9 @@ import { scheduleText } from "../schedules/timing-fields.tsx";
 
 import { ActivityMark } from "./agent-activity.tsx";
 import { MagiPanel } from "./magi-panel.tsx";
+
+/** Shorter than the overview's, since the pane is narrower and the reply follows. */
+const SECTOR_MAP_HEIGHT = 240;
 
 // Only the fields a row names; the model's arguments are not trusted to hold them.
 const argumentsSchema = z.object({
@@ -417,6 +422,13 @@ export function AgentToolCall({
       ? submitForecastDetailsSchema.safeParse(tool.details).data
       : undefined;
 
+  // The sectors as the call read them, not as they trade now, so the map agrees with the reply.
+  const sectors =
+    tool.toolName === AgentToolName.GetSectors &&
+    tool.status === ToolCallStatus.Ok
+      ? getSectorsDetailsSchema.safeParse(tool.details).data?.sectors
+      : undefined;
+
   // A script's calls sit under it, in line with its name.
   return (
     <div
@@ -454,6 +466,9 @@ export function AgentToolCall({
       {proposal?.council ? <MagiPanel council={proposal.council} /> : null}
       {forecast?.forecastId ? (
         <ForecastCard symbol={forecast.symbol} id={forecast.forecastId} />
+      ) : null}
+      {sectors ? (
+        <SectorMap sectors={sectors} height={SECTOR_MAP_HEIGHT} />
       ) : null}
     </div>
   );

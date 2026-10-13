@@ -12,6 +12,7 @@ import type {
   MarketDataStream,
 } from "@solyx/core/market-data";
 import { SectorGroup, TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
+import { memoryAnswers } from "@solyx/utils/fresh";
 
 import type { LiveSender } from "../src/main/modules/market/live-candles.ts";
 import type { MarketDataSources } from "../src/main/modules/market/market-data-sources.ts";
@@ -20,6 +21,8 @@ import { createMarketData } from "../src/main/modules/market/market-data.ts";
 const TSMC = { market: Market.TW, symbol: "2330" };
 
 const NOW = new Date("2026-09-29T10:00:00+08:00");
+
+const MINUTE_MS = 60 * 1000;
 
 const taipei = (date: string) => Date.parse(`${date}T00:00:00+08:00`) / 1000;
 
@@ -79,11 +82,14 @@ function setup() {
     },
   };
 
+  const clock = { now: NOW };
+
   const marketData = createMarketData({
     sources,
+    answers: memoryAnswers(),
     diagnostics: { recovered: vi.fn() },
     onSourcesChanged,
-    now: () => NOW,
+    now: () => clock.now,
   });
 
   // The sources say the stream they would open changed, as after a new key or source.
@@ -95,7 +101,14 @@ function setup() {
     return next;
   }
 
-  return { marketData, provider, streams, onSourcesChanged, changeStream };
+  return {
+    marketData,
+    provider,
+    streams,
+    onSourcesChanged,
+    changeStream,
+    clock,
+  };
 }
 
 test("bars reach back the interval's lookback, from the market's source", async () => {
@@ -189,6 +202,22 @@ test("sectors quote each sector index once", async () => {
       tradeValue: 9e10,
     },
   });
+});
+
+test("sectors read within a minute share one read of the indices", async () => {
+  const { marketData, provider, clock } = setup();
+
+  await marketData.sectors();
+
+  clock.now = new Date(NOW.getTime() + MINUTE_MS - 1);
+  await marketData.sectors();
+
+  expect(provider.getQuote).toHaveBeenCalledTimes(TW_SECTOR_INDICES.length);
+
+  clock.now = new Date(NOW.getTime() + MINUTE_MS);
+  await marketData.sectors();
+
+  expect(provider.getQuote).toHaveBeenCalledTimes(2 * TW_SECTOR_INDICES.length);
 });
 
 test("weekly bars merge whole weeks of the source's daily bars", async () => {
