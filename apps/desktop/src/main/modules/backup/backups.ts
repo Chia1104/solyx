@@ -53,7 +53,7 @@ import {
 } from "./backup-places.ts";
 import type { DataFolders } from "./backup-places.ts";
 import { NEVER, createBackupState } from "./backup-state.ts";
-import type { BackupPlace, BackupState } from "./backup-state.ts";
+import type { BackupLocation, BackupState } from "./backup-state.ts";
 import { restorePaths, stageRestore } from "./staged-restore.ts";
 import type { StagedRestore } from "./staged-restore.ts";
 
@@ -224,7 +224,7 @@ export function createBackups({
   });
 
   /** Where backups go as the settings say now, or `null` while no bucket is named. */
-  function where(): BackupPlace | null {
+  function where(): BackupLocation | null {
     const {
       endpoint,
       region = DEFAULT_REGION,
@@ -243,10 +243,10 @@ export function createBackups({
   }
 
   /** What is remembered of the backups kept at `to`: of another bucket or folder, nothing. */
-  function remembered(to: BackupPlace | null): BackupState {
+  function remembered(to: BackupLocation | null): BackupState {
     const saved = state.read();
 
-    return isEqual(saved.place, to) ? saved : NEVER;
+    return isEqual(saved.location, to) ? saved : NEVER;
   }
 
   /** The bucket as the user set it up, the folder in it and the passphrase, or a refusal that says what is missing. */
@@ -264,7 +264,7 @@ export function createBackups({
     }
 
     return {
-      place: to,
+      location: to,
       bucket: openBucket({
         endpoint: to.endpoint,
         region: to.region,
@@ -396,7 +396,7 @@ export function createBackups({
 
   /** Seals a copy and uploads it, then thins out the older backups. */
   async function upload({
-    to: { place, bucket, folder, passphrase },
+    to: { location, bucket, folder, passphrase },
     work,
     content,
     digest,
@@ -414,7 +414,7 @@ export function createBackups({
     });
     await bucket.put(key, file);
 
-    let { stored } = remembered(place);
+    let { stored } = remembered(location);
 
     failure = null;
 
@@ -427,7 +427,7 @@ export function createBackups({
     }
 
     state.write({
-      place,
+      location,
       checkedAt: now(),
       uploadedAt: createdAt,
       // Not of a backup the passphrase changed under as it went up, which the new one does not open.
@@ -460,7 +460,7 @@ export function createBackups({
 
       try {
         await withCopy(async (copy) => {
-          const last = remembered(copy.to.place);
+          const last = remembered(copy.to.location);
 
           // Nothing changed since the last backup, so another would only be a second copy of it.
           if (copy.digest === last.digest)
