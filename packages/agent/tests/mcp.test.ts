@@ -180,13 +180,13 @@ describe("a connected server", () => {
     );
   });
 
-  test("its tools wait for a search, which loads those that match", async () => {
+  test("its tools wait for a search, and are the ones a script may call", async () => {
     const hub = setup();
 
     hub.sync(fakeServer());
     await hub.settled(10_000);
 
-    const { search, tools } = hub.extensions({
+    const { search, tools, namespaces } = hub.extensions({
       policies: {},
       guard: guardWith(async () => true),
     });
@@ -195,8 +195,15 @@ describe("a connected server", () => {
       "mcp_fake_quote",
       "mcp_fake_order",
     ]);
+    expect(tools.tools?.map((tool) => tool.callers)).toEqual([
+      ["model", "tools"],
+      ["model", "tools"],
+    ]);
+    expect(search.tools?.map((tool) => tool.name)).toEqual(["tool_search"]);
+    expect(namespaces).toEqual([
+      { name: "fake", description: "fake", prefix: "mcp_fake_" },
+    ]);
 
-    const [find] = search.tools ?? [];
     const [servers] = search.sections ?? [];
 
     // SAFETY: the list of servers reads nothing from the request it renders for.
@@ -205,26 +212,9 @@ describe("a connected server", () => {
     expect(await servers?.render(input, BACKGROUND_CONTEXT)).toContain(
       '<server name="fake" tools="2">fake</server>'
     );
-
-    const found = await call(find, { query: "latest price" });
-
-    expect(found.control).toEqual({ addTools: ["mcp_fake_quote"] });
-    expect(contentText(found.output ?? [])).toContain(
-      "mcp_fake_quote (fake): Latest price"
-    );
-
-    // Named outright, a tool comes before one that only mentions the words.
-    expect((await call(find, { query: "price order" })).control).toEqual({
-      addTools: ["mcp_fake_order", "mcp_fake_quote"],
-    });
-
-    const missing = await call(find, { query: "weather", server: "fake" });
-
-    expect(missing.control).toBeUndefined();
-    expect(contentText(missing.output ?? [])).toContain("No tools on fake");
   });
 
-  test("the user's description names the server and leads a search to it", async () => {
+  test("the user's description names the server, to the agent and to a script", async () => {
     const hub = setup();
 
     hub.sync(
@@ -235,12 +225,11 @@ describe("a connected server", () => {
     );
     await hub.settled(10_000);
 
-    const { search } = hub.extensions({
+    const { search, namespaces } = hub.extensions({
       policies: {},
       guard: guardWith(async () => true),
     });
 
-    const [find] = search.tools ?? [];
     const [servers] = search.sections ?? [];
 
     // SAFETY: the list of servers reads nothing from the request it renders for.
@@ -249,9 +238,9 @@ describe("a connected server", () => {
     expect(await servers?.render(input, BACKGROUND_CONTEXT)).toContain(
       '<server name="fake" tools="2">Taiwan broker quotes</server>'
     );
-    expect(
-      (await call(find, { query: "broker" })).control?.addTools
-    ).toHaveLength(2);
+    expect(namespaces).toMatchObject([
+      { name: "fake", description: "Taiwan broker quotes\nand more lines" },
+    ]);
   });
 
   test("a refused call never reaches the server", async () => {

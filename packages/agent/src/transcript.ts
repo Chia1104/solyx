@@ -1,4 +1,3 @@
-import type { JsonValue } from "@earendil-works/chord";
 import { contentText } from "@earendil-works/pi-ai";
 import type {
   AssistantMessage,
@@ -12,7 +11,10 @@ import {
   ToolResultEntry,
   UserEntry,
 } from "@earendil-works/pi-durable";
-import type { EntryRecord } from "@earendil-works/pi-durable";
+import type {
+  EntryRecord,
+  NestedToolExecutionResult,
+} from "@earendil-works/pi-durable";
 
 import { approvalEvents } from "./approval.ts";
 import type { ApprovalEvent, ApprovalRecord } from "./approval.ts";
@@ -21,13 +23,14 @@ import {
   AgentEventType,
   AgentToolName,
   RunEndReason,
+  ScriptCallStatus,
   ToolCallStatus,
-  nestedCallsSchema,
+  codemodeDetailsSchema,
 } from "./wire.ts";
 import type {
   AgentWireEvent,
+  CodemodeDetails,
   RunEndEvent,
-  NestedCall,
   ReplyUsage,
   ToolEndEvent,
   ToolStartEvent,
@@ -198,9 +201,51 @@ function toolEndEvent(entry: EntryRecord): ToolEndEvent | undefined {
         : undefined,
     details: result.details,
     output:
-      result.toolName === AgentToolName.Bash
+      result.toolName === AgentToolName.Bash ||
+      result.toolName === AgentToolName.Codemode
         ? contentText(result.content)
         : undefined,
+  };
+}
+
+/** The first line of why a call failed, as the thread shows it. */
+const failure = (text: string | undefined) =>
+  text ? firstLine(text, 160) : undefined;
+
+/**
+ * The end of a call a script made, which returns to its script rather than to the transcript.
+ * One stopped with its run never finished. One the app's exit cut off failed instead, since its
+ * script was told so and went on, which is how the script's result lists it.
+ */
+export function scriptCallEnd(
+  call: Pick<ToolEndEvent, "toolCallId" | "toolName">,
+  result: NestedToolExecutionResult | undefined
+): ToolEndEvent {
+  // Named one by one: `call` may be a wider object, such as pi-durable's own event.
+  const event = {
+    type: AgentEventType.ToolEnd,
+    toolCallId: call.toolCallId,
+    toolName: call.toolName,
+  };
+
+  if (
+    !result ||
+    result.diagnostics.some((diagnostic) => diagnostic.code === "aborted")
+  ) {
+    return { ...event, status: ToolCallStatus.Aborted };
+  }
+
+  if (!result.isError) return { ...event, status: ToolCallStatus.Ok };
+
+  return {
+    ...event,
+    status: ToolCallStatus.Error,
+    error: failure(
+      result.diagnostics
+        .filter((diagnostic) => diagnostic.severity === "error")
+        .map((diagnostic) => diagnostic.message)
+        .join("\n")
+    ),
   };
 }
 
@@ -214,7 +259,7 @@ function toolEndEvent(entry: EntryRecord): ToolEndEvent | undefined {
 export function createTranscriber(approvals: ApprovalRecord) {
   /** Calls whose start went out and whose result has not, with their tool's name. */
   let open = new Map<string, string>();
-  /** Calls a script made whose start went out, so a later list of them starts none again. */
+  /** Calls a script made whose start went out, so its result's list of them starts none again. */
   const started = new Set<string>();
   /** Approval events waiting for their call's start to go out, which arrives with its commit. */
   const held = new Map<string, ApprovalEvent[]>();
@@ -314,6 +359,8 @@ export function createTranscriber(approvals: ApprovalRecord) {
     open.set(toolCallId, event.toolName);
     held.delete(toolCallId);
 
+    if (event.parentToolCallId !== undefined) started.add(toolCallId);
+
     return [event, ...asked];
   }
 
@@ -324,44 +371,48 @@ export function createTranscriber(approvals: ApprovalRecord) {
   }
 
   /**
-   * Starts and ends the calls a call's script made; once the call has `ended`, those it left
-   * running end as aborted.
+   * Starts and ends the calls a script's result lists, unless a running script's events did so
+   * already. A script stopped before it ended kept no list, so its calls are not shown again.
    */
-  function nested(
+  function scriptCalls(
     parentToolCallId: string,
-    calls: readonly NestedCall[],
-    ended = false
+    calls: CodemodeDetails["calls"]
   ): AgentWireEvent[] {
     return calls.flatMap((call) => {
+      const toolCallId = `${parentToolCallId}/c${call.id}`;
       const events: AgentWireEvent[] = [];
 
-      if (!started.has(call.id)) {
-        started.add(call.id);
+      if (!started.has(toolCallId)) {
         events.push(
           ...toolStart({
             type: AgentEventType.ToolStart,
-            toolCallId: call.id,
-            toolName: call.toolName,
+            toolCallId,
+            toolName: call.name,
             args: call.args,
             parentToolCallId,
           })
         );
       }
 
-      const status =
-        ended && call.status === ToolCallStatus.Running
-          ? ToolCallStatus.Aborted
-          : call.status;
+      if (open.has(toolCallId)) {
+        const event = {
+          type: AgentEventType.ToolEnd,
+          toolCallId,
+          toolName: call.name,
+        };
 
-      if (status !== ToolCallStatus.Running && open.has(call.id)) {
         events.push(
-          ...toolEnd({
-            type: AgentEventType.ToolEnd,
-            toolCallId: call.id,
-            toolName: call.toolName,
-            status,
-            error: call.error,
-          })
+          ...toolEnd(
+            call.status === ScriptCallStatus.Ok
+              ? { ...event, status: ToolCallStatus.Ok }
+              : call.status === ScriptCallStatus.Error
+                ? {
+                    ...event,
+                    status: ToolCallStatus.Error,
+                    error: failure(call.error),
+                  }
+                : { ...event, status: ToolCallStatus.Aborted }
+          )
         );
       }
 
@@ -380,10 +431,9 @@ export function createTranscriber(approvals: ApprovalRecord) {
     }
 
     return [
-      ...nested(
+      ...scriptCalls(
         event.toolCallId,
-        nestedCallsSchema.safeParse(event.details).data?.calls ?? [],
-        true
+        codemodeDetailsSchema.safeParse(event.details).data?.calls ?? []
       ),
       ...toolEnd(event),
     ];
@@ -396,13 +446,6 @@ export function createTranscriber(approvals: ApprovalRecord) {
     toolStart,
     toolEnd,
     toolResult,
-
-    /** What a running call reported in its details, such as the calls its script made. */
-    toolUpdate: (toolCallId: string, details: JsonValue | undefined) =>
-      nested(
-        toolCallId,
-        nestedCallsSchema.safeParse(details).data?.calls ?? []
-      ),
 
     /** A question or its answer as it happens, which follows its call's start. */
     approval(event: ApprovalEvent): AgentWireEvent[] {

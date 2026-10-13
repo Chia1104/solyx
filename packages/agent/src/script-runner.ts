@@ -2,6 +2,7 @@ import type { JsonValue } from "@earendil-works/chord";
 import { CodemodeSandbox, loadQuickJSWasm } from "@earendil-works/pi-codemode";
 import type {
   CodemodeResult,
+  CodemodeSandboxOptions,
   CodemodeStoreWrites,
   CodemodeTool,
 } from "@earendil-works/pi-codemode";
@@ -91,26 +92,32 @@ function outputText(result: CodemodeResult, timeoutMs: number) {
 /**
  * Runs the agent's own JavaScript in a QuickJS VM (pi-codemode), each script on a worker thread
  * of its own with a memory limit, reaching only what its scope gives it. Nothing loads before the
- * first script runs.
+ * first script runs or the durable sandbox is asked for.
  */
 export function createScriptRunner(files?: ScriptFiles) {
   /** Sandboxes of scripts still running, which `close` stops. */
   const live = new Set<CodemodeSandbox>();
+  let durable: CodemodeSandbox | undefined;
+
+  const open = (options: CodemodeSandboxOptions) =>
+    new CodemodeSandbox({
+      ...options,
+      memoryLimitBytes: MEMORY_LIMIT_BYTES,
+      ...(files && {
+        wasm: loadQuickJSWasm(files.wasm),
+        workerUrl: files.worker,
+      }),
+    });
 
   return {
     /** Never rejects for the script's own failure, which its result tells. */
     async run(code: string, scope: ScriptScope): Promise<ScriptResult> {
       const timeoutMs = scope.timeoutMs ?? Number.POSITIVE_INFINITY;
 
-      const sandbox = new CodemodeSandbox({
+      const sandbox = open({
         tools: scope.tools,
         globals: scope.globals,
         timeoutMs,
-        memoryLimitBytes: MEMORY_LIMIT_BYTES,
-        ...(files && {
-          wasm: loadQuickJSWasm(files.wasm),
-          workerUrl: files.worker,
-        }),
       });
 
       live.add(sandbox);
@@ -134,9 +141,19 @@ export function createScriptRunner(files?: ScriptFiles) {
         : { ok: false, output };
     },
 
+    /**
+     * The one sandbox pi-durable's code mode runs its scripts in, each in a VM of its own. A
+     * script it is closed under carries on in the next sandbox once its run resumes.
+     */
+    sandbox: () => (durable ??= open({})),
+
     /** Stops scripts still running, as the app quits. */
     async close() {
-      await Promise.all([...live].map((sandbox) => sandbox.close()));
+      await Promise.all(
+        [...live, ...(durable ? [durable] : [])].map((sandbox) =>
+          sandbox.close()
+        )
+      );
     },
   };
 }

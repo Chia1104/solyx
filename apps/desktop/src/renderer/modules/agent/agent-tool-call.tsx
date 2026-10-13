@@ -22,7 +22,6 @@ import {
   saveTaskArgumentsSchema,
   saveThemeArgumentsSchema,
   runAnalysisDetailsSchema,
-  runToolScriptDetailsSchema,
   scriptArgumentsSchema,
   submitForecastDetailsSchema,
   taskSchedule,
@@ -353,15 +352,14 @@ function RanCode({ tool }: { tool: ToolCallView }) {
 
   if (
     tool.toolName === AgentToolName.RunAnalysis ||
-    tool.toolName === AgentToolName.RunToolScript
+    tool.toolName === AgentToolName.Codemode
   ) {
     const code = scriptArgumentsSchema.safeParse(tool.args).data?.code;
 
-    const output = (
+    const output =
       tool.toolName === AgentToolName.RunAnalysis
-        ? runAnalysisDetailsSchema
-        : runToolScriptDetailsSchema
-    ).safeParse(tool.details).data?.output;
+        ? runAnalysisDetailsSchema.safeParse(tool.details).data?.output
+        : tool.output;
 
     return code ? (
       <CodeCard label={t("agent.analysis.code")} code={code} output={output} />

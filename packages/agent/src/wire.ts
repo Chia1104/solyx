@@ -194,9 +194,9 @@ export const AgentToolName = {
   CheckOrder: "check_order",
   ProposeOrder: "propose_order",
   ReadSkill: "read_skill",
-  SearchTools: "search_tools",
+  ToolSearch: "tool_search",
   RunAnalysis: "run_analysis",
-  RunToolScript: "run_tool_script",
+  Codemode: "codemode",
   WebSearch: "web_search",
   ReadPage: "read_page",
   Recall: "recall",
@@ -468,28 +468,45 @@ export const ToolCallStatus = {
 export type ToolCallStatus =
   (typeof ToolCallStatus)[keyof typeof ToolCallStatus];
 
-/** A tool call a script made inside one of the agent's calls. */
-export const nestedCallSchema = z.object({
-  /** `<the call's id>/<n>`, which its approval goes by. */
-  id: z.string(),
-  toolName: z.string(),
-  args: z.json(),
-  status: z.enum(ToolCallStatus).exclude(["AwaitingApproval"]),
-  /** The first line of why it failed. */
-  error: z.string().optional(),
+/** How a call a script made ended, as pi-durable's code mode tells it. */
+export const ScriptCallStatus = {
+  Running: "running",
+  Ok: "ok",
+  Error: "error",
+  /** Still running when the script ended. */
+  Cancelled: "cancelled",
+} as const;
+
+export type ScriptCallStatus =
+  (typeof ScriptCallStatus)[keyof typeof ScriptCallStatus];
+
+/** A call's arguments from the compact JSON kept of them, or that text where it was cut short. */
+const shownArgumentsSchema = z.string().transform((text) => {
+  try {
+    return z.json().parse(JSON.parse(text));
+  } catch {
+    return text;
+  }
 });
 
-export type NestedCall = z.infer<typeof nestedCallSchema>;
-
-/** Details that list the tool calls a call made, which a transcript shows under it. */
-export const nestedCallsSchema = z.object({ calls: z.array(nestedCallSchema) });
-
-export const runToolScriptDetailsSchema = nestedCallsSchema.extend({
-  /** What the script printed and returned, or how it failed, once it ended. */
-  output: z.string().optional(),
+/**
+ * The details of a `codemode` call once it ended: the tool calls its script made, which a
+ * transcript read from storage shows under it. The shape is pi-durable's `CodemodeToolDetails`.
+ */
+export const codemodeDetailsSchema = z.object({
+  calls: z.array(
+    z.object({
+      /** The script's own number for the call, whose id is `<the script's call id>/c<id>`. */
+      id: z.number(),
+      name: z.string(),
+      args: shownArgumentsSchema,
+      status: z.enum(ScriptCallStatus),
+      error: z.string().optional(),
+    })
+  ),
 });
 
-export type RunToolScriptDetails = z.infer<typeof runToolScriptDetailsSchema>;
+export type CodemodeDetails = z.infer<typeof codemodeDetailsSchema>;
 
 export const RunEndReason = {
   Done: "done",
@@ -572,7 +589,7 @@ export type AgentWireEvent =
       error?: string;
       /** The tool's own view model, which the renderer narrows by tool name. */
       details?: unknown;
-      /** What a shell command printed, as much of it as the model was given. */
+      /** What a shell command or a script printed, as much of it as the model was given. */
       output?: string;
     }
   | { type: typeof AgentEventType.ApprovalRequest; toolCallId: string }

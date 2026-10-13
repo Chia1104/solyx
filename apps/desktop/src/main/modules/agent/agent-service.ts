@@ -318,7 +318,7 @@ export function createAgentService(options: AgentServiceOptions) {
             ? [memory.extension(guard)]
             : []),
           mcp.search,
-          mcpScriptExtension(mcp.catalog, scripts),
+          mcpScriptExtension(mcp, scripts),
           traces.extension,
         ],
         deferred: [mcp.tools],
