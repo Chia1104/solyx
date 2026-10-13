@@ -1,4 +1,5 @@
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import type { WebContents } from "electron";
@@ -45,6 +46,7 @@ import { ColorScheme } from "#shared/palette.ts";
 
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
+import { createBackupThreads } from "./modules/backup/backup-threads.ts";
 import { createBackups } from "./modules/backup/backups.ts";
 import { settleRestore, takeRestore } from "./modules/backup/staged-restore.ts";
 import { createCalendar } from "./modules/calendar/calendar.ts";
@@ -420,6 +422,10 @@ export function createServices(config: ConfigFile) {
   const backups = createBackups({
     config,
     secrets,
+    // `vp pack` builds the backups' worker next to the main bundle.
+    engine: createBackupThreads(
+      pathToFileURL(join(import.meta.dirname, "../worker/backup.mjs"))
+    ),
     folders,
     // vp pack copies the migrations next to the bundle; see vite.config.ts.
     migrations: join(import.meta.dirname, "migrations"),

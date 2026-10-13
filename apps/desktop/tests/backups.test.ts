@@ -31,9 +31,10 @@ import { Secret } from "#shared/ipc/settings.ts";
 
 import {
   backupKey,
-  createBackups,
+  createBackupJobs,
   readBackupKey,
-} from "../src/main/modules/backup/backups.ts";
+} from "../src/main/modules/backup/backup-jobs.ts";
+import { createBackups } from "../src/main/modules/backup/backups.ts";
 import {
   RestoreFailure,
   restorePaths,
@@ -159,7 +160,8 @@ async function computer(
     timeZone: () => "Asia/Taipei",
     diagnostics,
     onChange,
-    openBucket: () => shared.bucket,
+    // The jobs run where the test stands, on the bucket in memory, as a thread runs them in the app.
+    engine: createBackupJobs(() => shared.bucket),
     now: () => clock.now,
   });
 
@@ -629,7 +631,12 @@ test("a bucket out of reach is said why and tried again later, never every minut
 test("a backup stays made when thinning out the older ones fails", async () => {
   const shared = memoryBucket();
   const desk = await computer("desk", shared);
-  const refused = new Error("r2.example answered 403 AccessDenied");
+
+  // As ky throws it, with the server's answer beside the message.
+  const refused = Object.assign(
+    new Error("r2.example answered 403 AccessDenied"),
+    { name: "HTTPError", response: { status: 403 } }
+  );
 
   for (let day = 1; day <= 60; day += 1) {
     shared.objects.set(
@@ -644,12 +651,18 @@ test("a backup stays made when thinning out the older ones fails", async () => {
 
   expect(shared.objects.has(made.key)).toBe(true);
   expect(shared.objects.size).toBe(61);
+  // What kind of failure it was reaches the log, though the error itself stayed with the job.
   expect(desk.diagnostics.recovered).toHaveBeenCalledWith(
-    refused,
+    expect.objectContaining({
+      message: "r2.example answered 403 AccessDenied",
+      name: "HTTPError",
+      status: 403,
+    }),
     "backup.thin"
   );
   await expect(desk.backups.status()).resolves.toMatchObject({
     lastBackupAt: AT,
+    stored: null,
     failure: "r2.example answered 403 AccessDenied",
   });
 });

@@ -11,7 +11,7 @@ The Electron app: the main process is the backend, the preload bridges it to the
 - `main/ipc/`, `main/shell/`, `main/scheduler.ts`, `main/services.ts`: IPC infrastructure and registration; the Electron shell, such as windows and the tray's icon; the one clock for periodic work; the composition root.
 - `preload/index.ts`: the contextBridge that builds `window.solyx.<module>` from each module's channel and event maps.
 - `utility/<name>.ts`: a utility process's entry, beside the message contract the main process calls it through. Native SDKs that block or could crash run only in one.
-- `worker/<name>.ts`: a worker thread's entry, built as its own bundle since a thread starts from a file. The agent's scripts run in one.
+- `worker/<name>.ts`: a worker thread's entry, built as its own bundle since a thread starts from a file, beside the message contract the main process starts it with where it has one. The agent's scripts run in one, and each backup and restore in another.
 - `renderer/modules/<module>/`: the module's TanStack Query options (`xxxQueryKeys`, `xxxQuery()`), components, form schemas and hooks.
 - `renderer/pages/`: route components that only compose modules.
 - `renderer/components/`: module-neutral components composed from HeroUI, such as the error boundary fallback, the loading and error states every module renders, and the pane splitter, sheet, sections and symbol rows the workspace shares.
