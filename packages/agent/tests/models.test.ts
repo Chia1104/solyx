@@ -145,6 +145,17 @@ test("signing in again replaces a sign-in still open, and cancelling ends it qui
   await expect(second).resolves.toBeUndefined();
 });
 
+// The host sends this to its windows, so it holds what the page shows and nothing of the flow.
+test("a provider's subscription is told by its plan and whether it takes a key, and nothing else", () => {
+  expect(subscriptionOf("openai")).toEqual({ plan: "ChatGPT", only: false });
+  expect(subscriptionOf("github-copilot")).toEqual({
+    plan: "GitHub Copilot",
+    only: true,
+  });
+  expect(subscriptionOf("openrouter")).toBeUndefined();
+  expect(subscriptionOf("anthropic")).toBeUndefined();
+});
+
 test("OpenRouter's sign-in opens its page and ends quietly, with no key, once cancelled", async () => {
   const { catalog, openExternal } = setup();
 
