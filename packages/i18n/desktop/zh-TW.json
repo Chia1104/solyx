@@ -775,6 +775,7 @@
       "general": "一般",
       "market-data": "行情",
       "storage": "儲存空間",
+      "backup": "備份",
       "about": "關於",
       "agent": "AI Agent",
       "skills": "Skills",
@@ -954,6 +955,18 @@
       "otlp-headers": {
         "label": "OTLP headers",
         "hint": "傳送 traces 與 logs 時附帶的 header，格式同 OTEL_EXPORTER_OTLP_HEADERS，例如 Grafana Cloud 提供的授權。不需要 header 的 collector 可以留空。"
+      },
+      "backup-access-key-id": {
+        "label": "Access key ID",
+        "hint": "可讀寫這個 bucket 的存取金鑰 ID，例如 R2 API token 的。"
+      },
+      "backup-secret-access-key": {
+        "label": "Secret access key",
+        "hint": "與 Access key ID 成對的密鑰。"
+      },
+      "backup-passphrase": {
+        "label": "密語",
+        "hint": "每份備份都用它加密。Solyx 無法找回密語，沒有它就打不開任何備份，請另外保存一份。每份備份只能用建立當時的密語開啟。"
       }
     },
     "sign-in": {
@@ -1385,6 +1398,55 @@
         "confirm-body": "所有標的都會移出自選，也不再定時收集它們的新聞，無法復原。已收集的新聞與 K 線快取會保留。",
         "confirm": "清空",
         "clear-failed": "無法清空自選"
+      }
+    },
+    "backup": {
+      "destination": {
+        "title": "備份位置",
+        "description": "你自己的 bucket，任何支援 S3 API 的服務都可以，例如 Cloudflare R2、AWS、Backblaze B2 或 MinIO。每份備份離開這台電腦前都會先用你的密語加密，伺服器上只有它讀不懂的內容。",
+        "endpoint": "伺服器",
+        "endpoint-description": "服務的 S3 端點，例如 https://<account>.r2.cloudflarestorage.com。使用 AWS 時不用填。",
+        "endpoint-invalid": "請輸入 http 或 https 網址",
+        "endpoint-reset": "改用 AWS",
+        "region": "區域",
+        "region-description": "AWS 與 Backblaze B2 要填 bucket 所在的區域；Cloudflare R2 與 MinIO 用預設值即可。",
+        "region-invalid": "請輸入區域，例如 us-east-1",
+        "bucket": "Bucket",
+        "bucket-description": "你建立的 bucket，下方的存取金鑰必須能讀寫它。",
+        "bucket-invalid": "請輸入 bucket 名稱：3 到 63 個英數字、句點或連字號",
+        "bucket-reset": "移除",
+        "prefix": "資料夾",
+        "prefix-description": "備份放在 bucket 裡的哪個資料夾；每個安裝在它底下各有自己的資料夾。",
+        "prefix-invalid": "請輸入資料夾名稱：英數字、句點、連字號或底線，以斜線分隔"
+      },
+      "now": {
+        "title": "備份",
+        "description": "備份包含你的自選、提案與模擬帳戶、研究、記憶、新聞和對話紀錄，以及設定、技能、固定指示與 MCP 伺服器。金鑰與登入資訊不會進入備份；K 線也不包含，因為圖表會重新抓取。",
+        "not-ready": "請先設定 bucket、存取金鑰的兩個部分與密語。",
+        "action": "立即備份",
+        "done": "已於 {{time}} 備份 {{size}}",
+        "failed": "無法備份"
+      },
+      "restore": {
+        "title": "還原",
+        "description": "用一份備份取代 Solyx 在這台電腦上保存的內容。在另一台電腦還原時，請先設定相同的 bucket、存取金鑰與密語，還原後再重新輸入各項金鑰。",
+        "show": "顯示備份",
+        "empty": "這個資料夾還沒有備份",
+        "own": "這個安裝",
+        "other": "其他安裝",
+        "action": "還原",
+        "confirm-title": "要還原 {{time}} 的備份嗎？",
+        "confirm-body": "你的自選、提案、模擬帳戶、研究、記憶、新聞、對話紀錄、設定與技能會回到當時的內容，Solyx 會重新啟動。這台電腦目前的內容會移到 Solyx 資料夾內保留，不會刪除。備份中等待確認的提案會被取消，因為它們之後可能已經確認過。金鑰與登入資訊維持不變。",
+        "confirm": "還原並重新啟動",
+        "failed": "無法還原備份"
+      },
+      "restored": {
+        "title": "已從 {{time}} 的備份還原",
+        "body": "當時等待確認的提案已取消，因為它們之後可能已經確認過。這台電腦先前的內容保留在 Solyx 資料夾內的 restore 資料夾，直到下一次還原。"
+      },
+      "restore-stuck": {
+        "title": "Solyx 無法完成備份的還原",
+        "body": "{{reason}}\n\nSolyx 下次啟動時會再試一次。備份與目前已搬移的內容都在 {{folder}}。"
       }
     },
     "about": {

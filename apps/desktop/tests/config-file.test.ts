@@ -89,6 +89,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
     collection: DEFAULT_COLLECTION_PLANS,
     updates: { check: true },
     otlp: {},
+    backup: {},
     crashReports: { send: false },
     webSearch: { provider: WebSearchProvider.Firecrawl },
     decisions: {

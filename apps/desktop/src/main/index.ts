@@ -1,12 +1,21 @@
 import { join } from "node:path";
 
-import { app, BrowserWindow, powerMonitor } from "electron";
+import { app, BrowserWindow, dialog, powerMonitor } from "electron";
 import { kebabCase, withTimeout } from "es-toolkit";
 
+import { errorMessage } from "@solyx/utils/error";
+
+import { resolveLocale } from "#shared/ipc/settings.ts";
+import { DestinationKind } from "#shared/ipc/workspace.ts";
+import { SettingsSection } from "#shared/settings-section.ts";
+
 import { registerIpc } from "./ipc/register-ipc.ts";
+import { RestoreFailure } from "./modules/backup/staged-restore.ts";
 import { startCrashReports } from "./modules/crash-reports/crash-reports.ts";
+import { CATALOGS, fill } from "./modules/settings/catalogs.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
 import { createServices } from "./services.ts";
+import type { Services } from "./services.ts";
 import { APP_ICON, createMainWindow } from "./shell/main-window.ts";
 
 // The name picks userData and the OS secret store entry, so development never reads or
@@ -37,17 +46,55 @@ const CLOSE_TIMEOUT_MS = 3000;
 
 let quitting = false;
 
+/**
+ * The services, or nothing once a restored backup could not be put in place: the app then says
+ * so and exits rather than start on half of each, and tries again the next time it starts.
+ */
+function startServices(): Services | undefined {
+  try {
+    return createServices(config);
+  } catch (error) {
+    if (!(error instanceof RestoreFailure)) throw error;
+
+    const copy =
+      CATALOGS[
+        resolveLocale(config.read().appearance.language, app.getLocale())
+      ].settings.backup["restore-stuck"];
+
+    dialog.showErrorBox(
+      copy.title,
+      fill(copy.body, {
+        reason: errorMessage(error.cause),
+        folder: error.folder,
+      })
+    );
+    app.exit(1);
+
+    return undefined;
+  }
+}
+
 void app.whenReady().then(() => {
   if (!alone) return;
 
   // Unpackaged runs launch Electron's own app bundle, whose icon the Dock would show.
   if (!app.isPackaged) app.dock?.setIcon(APP_ICON);
 
-  const services = createServices(config);
+  const services = startServices();
+
+  if (!services) return;
 
   registerIpc(services);
   createMainWindow(services.windowColors);
   void services.tray.sync();
+
+  // The window opens where the restore was asked for, which says what became of it.
+  if (services.restored) {
+    services.workspace.open({
+      kind: DestinationKind.Settings,
+      section: SettingsSection.Backup,
+    });
+  }
 
   // The Dock follows whether a window is open.
   app.on("browser-window-created", () => void services.tray.sync());

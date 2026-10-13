@@ -1,5 +1,6 @@
 import { registerAccountIpc } from "../modules/account/account-ipc.ts";
 import { registerAgentIpc } from "../modules/agent/agent-ipc.ts";
+import { registerBackupIpc } from "../modules/backup/backup-ipc.ts";
 import { registerCalendarIpc } from "../modules/calendar/calendar-ipc.ts";
 import { registerFlowsIpc } from "../modules/flows/flows-ipc.ts";
 import { registerFundamentalsIpc } from "../modules/fundamentals/fundamentals-ipc.ts";
@@ -20,6 +21,7 @@ import type { Services } from "../services.ts";
 export function registerIpc(services: Services) {
   registerAccountIpc(services);
   registerAgentIpc(services);
+  registerBackupIpc(services);
   registerCalendarIpc(services);
   registerFlowsIpc(services);
   registerFundamentalsIpc(services);

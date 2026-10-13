@@ -33,6 +33,7 @@
     "@sentry/electron": "catalog:sentry",
     "@sentry/vite-plugin": "catalog:sentry",
     "@solyx/agent": "workspace:*",
+    "@solyx/backup": "workspace:*",
     "@solyx/brokers": "workspace:*",
     "@solyx/core": "workspace:*",
     "@solyx/db": "workspace:*",
