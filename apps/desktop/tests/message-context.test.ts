@@ -1,9 +1,19 @@
 import { expect, test, vi } from "vite-plus/test";
 
+import { AppPlace } from "@solyx/agent/prompt";
+import { Interval } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
-import { messageContext } from "../src/main/modules/agent/message-context.ts";
+import { ChartIndicator } from "#shared/chart-indicator.ts";
+import { ScreenKind } from "#shared/ipc/agent.ts";
+import { OverviewTab } from "#shared/overview-tab.ts";
+import { SettingsSection } from "#shared/settings-section.ts";
+
+import {
+  messageContext,
+  screenContext,
+} from "../src/main/modules/agent/message-context.ts";
 import type { MessageContextSources } from "../src/main/modules/agent/message-context.ts";
 
 const listing = (market: Market, symbol: string): SymbolRef => ({
@@ -65,4 +75,32 @@ test("a skill the user may not ask for is not named, and failing sources leave o
     mentions: [{ symbol: listing(Market.TW, "2330") }],
     skill: undefined,
   });
+});
+
+test("the screen reaches the context as a listing with its chart, or as the page it shows", () => {
+  expect(
+    screenContext({
+      kind: ScreenKind.Listing,
+      symbol: listing(Market.TW, "2317"),
+      name: "鴻海",
+      interval: Interval.FiveMinutes,
+      indicators: [ChartIndicator.MovingAverage, ChartIndicator.ForeignFlow],
+    })
+  ).toEqual({
+    focus: { symbol: listing(Market.TW, "2317"), name: "鴻海" },
+    chart: {
+      interval: Interval.FiveMinutes,
+      indicators: ["short MAs", "foreign net buying"],
+    },
+  });
+  expect(
+    screenContext({ kind: ScreenKind.Overview, tab: OverviewTab.News })
+  ).toEqual({ place: AppPlace.Headlines });
+  expect(
+    screenContext({
+      kind: ScreenKind.Settings,
+      section: SettingsSection.MarketData,
+    })
+  ).toEqual({ settings: "market data" });
+  expect(screenContext(null)).toEqual({});
 });

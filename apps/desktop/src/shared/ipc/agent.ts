@@ -6,16 +6,36 @@ import type {
   ApprovalMode,
   CompactionOutcome,
 } from "@solyx/agent/wire";
+import type { Interval } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
+
+import type { ChartIndicator } from "../chart-indicator.ts";
+import type { OverviewTab } from "../overview-tab.ts";
+import type { SettingsSection } from "../settings-section.ts";
 
 import type { Locale, TimeZone } from "./settings.ts";
 
-/** The listing the user has open while writing, which the agent is told about. */
-export interface AgentFocus {
-  symbol: SymbolRef;
-  /** The exchange's name for it, as the renderer already shows it. */
-  name?: string;
-}
+export const ScreenKind = {
+  Listing: "listing",
+  Overview: "overview",
+  Settings: "settings",
+} as const;
+
+export type ScreenKind = (typeof ScreenKind)[keyof typeof ScreenKind];
+
+/** What the window shows while the user writes, which the agent is told about. */
+export type AgentScreen =
+  | {
+      kind: typeof ScreenKind.Listing;
+      symbol: SymbolRef;
+      /** The exchange's name for it, as the renderer already shows it. */
+      name?: string;
+      interval: Interval;
+      /** What its chart draws with its bars on that interval. */
+      indicators: ChartIndicator[];
+    }
+  | { kind: typeof ScreenKind.Overview; tab: OverviewTab }
+  | { kind: typeof ScreenKind.Settings; section: SettingsSection };
 
 export interface AgentApi {
   /** Most recently active first. */
@@ -34,7 +54,7 @@ export interface AgentApi {
   send(
     id: string,
     text: string,
-    focus: AgentFocus | null,
+    screen: AgentScreen | null,
     locale: Locale,
     timeZone: TimeZone
   ): Promise<void>;

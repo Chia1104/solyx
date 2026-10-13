@@ -24,10 +24,12 @@ import {
 import type { Market } from "@solyx/core/market";
 import type { PriceBand } from "@solyx/trading-chart/price-bands";
 
+import { ChartIndicator } from "#shared/chart-indicator.ts";
+
 import { usePaletteColors } from "../../app/theme.ts";
 
 import { LINE_COLORS, MOVING_AVERAGE_COLORS, faded } from "./chart-palette.ts";
-import { ChartIndicator, useIndicatorStore } from "./indicator-store.ts";
+import { useIndicatorStore } from "./indicator-store.ts";
 import { numberFormats } from "./number-formats.ts";
 
 const [QUARTER_LINE, , YEAR_LINE] = MOVING_AVERAGE_PERIODS.long;

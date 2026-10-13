@@ -2,16 +2,35 @@ import * as z from "zod";
 
 import { agentModelPickSchema } from "@solyx/agent/providers";
 import { agentSessionSetupSchema, approvalModeSchema } from "@solyx/agent/wire";
+import { intervalSchema } from "@solyx/core/candles";
 import { symbolRefSchema } from "@solyx/core/market";
 
-import { agentChannels } from "#shared/ipc/agent.ts";
+import { chartIndicatorSchema } from "#shared/chart-indicator.ts";
+import { ScreenKind, agentChannels } from "#shared/ipc/agent.ts";
 import type { AgentApi } from "#shared/ipc/agent.ts";
 import { localeSchema, timeZoneSchema } from "#shared/ipc/settings.ts";
+import { overviewTabSchema } from "#shared/overview-tab.ts";
+import { settingsSectionSchema } from "#shared/settings-section.ts";
 
 import { bindIpc } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";
 
 const idSchema = z.string().min(1);
+
+const screenSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal(ScreenKind.Listing),
+    symbol: symbolRefSchema,
+    name: z.string().max(200).optional(),
+    interval: intervalSchema,
+    indicators: z.array(chartIndicatorSchema),
+  }),
+  z.object({ kind: z.literal(ScreenKind.Overview), tab: overviewTabSchema }),
+  z.object({
+    kind: z.literal(ScreenKind.Settings),
+    section: settingsSectionSchema,
+  }),
+]);
 
 const schemas = {
   sessions: z.tuple([]),
@@ -21,9 +40,7 @@ const schemas = {
   send: z.tuple([
     idSchema,
     z.string().trim().min(1).max(20_000),
-    z
-      .object({ symbol: symbolRefSchema, name: z.string().max(200).optional() })
-      .nullable(),
+    screenSchema.nullable(),
     localeSchema,
     timeZoneSchema,
   ]),
@@ -42,8 +59,8 @@ export function registerAgentIpc({ agent, restart }: Services) {
     createSession: (setup) => agent.createSession(setup),
     deleteSession: (id) => agent.deleteSession(id),
     transcript: (id) => agent.transcript(id),
-    send: (id, text, focus, locale, timeZone) =>
-      agent.send(id, text, focus, locale, timeZone),
+    send: (id, text, screen, locale, timeZone) =>
+      agent.send(id, text, screen, locale, timeZone),
     abort: (id) => agent.abort(id),
     compact: (id, instructions) => agent.compact(id, instructions),
     approve: async (id, toolCallId, approved) =>

@@ -29,6 +29,8 @@ import {
   utcTimestamp,
 } from "@solyx/trading-chart/time-format";
 
+import { ChartIndicator, DAILY_INDICATORS } from "#shared/chart-indicator.ts";
+
 import { usePaletteColors } from "../../app/theme.ts";
 
 import { ChartLegend } from "./chart-legend.tsx";
@@ -46,11 +48,7 @@ import {
   RsiPane,
   VolumeRatioPane,
 } from "./indicator-panes.tsx";
-import {
-  ChartIndicator,
-  DAILY_INDICATORS,
-  useIndicatorStore,
-} from "./indicator-store.ts";
+import { useIndicatorStore } from "./indicator-store.ts";
 import { useDirectionColors } from "./price-colors.ts";
 import { RelativeStrengthPane } from "./relative-strength-pane.tsx";
 import { useLevels } from "./use-levels.ts";

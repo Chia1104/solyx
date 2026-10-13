@@ -1,12 +1,14 @@
 import { expect, test } from "vite-plus/test";
 
 import { BrokerMode } from "@solyx/core/broker";
+import { Interval } from "@solyx/core/candles";
 import { ChangeKind } from "@solyx/core/changes";
 import { DecisionMode } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
 import { Session } from "@solyx/core/session";
 
-import { formatContext } from "../src/prompt.ts";
+import { AppPlace, formatContext } from "../src/prompt.ts";
+import type { TurnContext } from "../src/prompt.ts";
 
 test("the context tells the time on each exchange with the session the host says it is in, and on the user's own clock", () => {
   const context = formatContext({
@@ -80,4 +82,41 @@ test("the context says when a scheduled task sent the message in the user's plac
     'changed: TW 2330: the event "Earnings call" of 2026-10-06 has passed',
     'changed: theme "Outbreak": news may state the signpost "A port suspends operations."',
   ]);
+});
+
+test("the context says what the user had on screen: a listing's chart, or a page of the app", () => {
+  const viewing = (screen: Partial<TurnContext>) =>
+    formatContext({
+      now: new Date("2026-10-07T11:27:00Z"),
+      sessions: { [Market.TW]: Session.Closed, [Market.US]: Session.Pre },
+      brokerMode: BrokerMode.Paper,
+      locale: "zh-TW",
+      timeZone: "Asia/Taipei",
+      decisionMode: DecisionMode.Single,
+      ...screen,
+    })
+      .split("\n")
+      .filter((line) => line.startsWith("viewing:"));
+
+  const focus = { symbol: { market: Market.TW, symbol: "2317" }, name: "鴻海" };
+
+  expect(
+    viewing({
+      focus,
+      chart: {
+        interval: Interval.FiveMinutes,
+        indicators: ["short MAs", "KD"],
+      },
+    })
+  ).toEqual(["viewing: TW 2317 (鴻海) on a 5m chart with short MAs, KD"]);
+  expect(
+    viewing({ focus, chart: { interval: Interval.OneDay, indicators: [] } })
+  ).toEqual(["viewing: TW 2317 (鴻海) on a 1d chart"]);
+  expect(viewing({ place: AppPlace.Market })).toEqual([
+    "viewing: the overview, the market's sectors and flows",
+  ]);
+  expect(viewing({ settings: "market data" })).toEqual([
+    "viewing: the settings, market data",
+  ]);
+  expect(viewing({})).toEqual([]);
 });
