@@ -13,8 +13,7 @@ import type { Listing } from "@solyx/core/market-data";
 import { sessionQuote } from "@solyx/core/quote";
 import type { SessionQuote } from "@solyx/core/quote";
 import { TW_SECTOR_INDICES } from "@solyx/core/sectors";
-
-import type { SectorQuote } from "#shared/ipc/market.ts";
+import type { SectorQuote } from "@solyx/core/sectors";
 
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
 

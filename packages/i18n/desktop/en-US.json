@@ -87,9 +87,17 @@
     "title": "Today's moves",
     "description": "Holdings are sized by market value and watched listings share their part equally. The deeper the colour, the bigger the move; it is full at ±5%.",
     "empty": "Add listings to your watchlist or hold some, and their moves today show here.",
+    "zoom-in": "Zoom into {{group}}",
+    "zoom-out": "Show every group",
     "sectors": {
       "title": "Listed sectors",
-      "description": "Each tile is a TWSE sector index, sized by the value traded today. The colour is how far the index moved; it is full at ±3%.",
+      "description": "Each tile is a TWSE sector index, sized by the value traded today. The colour is how far the index moved; it is full at ±3%. Press a group or a tile to zoom into that group.",
+      "figures": {
+        "index": "Index",
+        "change": "Change",
+        "value": "Value traded",
+        "share": "Share of trading"
+      },
       "unavailable": "Set up a market data source in Settings to see the sectors."
     }
   },
