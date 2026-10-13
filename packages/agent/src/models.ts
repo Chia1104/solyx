@@ -2,9 +2,11 @@ import { createModels } from "@earendil-works/pi-ai";
 import type {
   Api,
   AuthContext,
+  AuthPrompt,
   Credential,
   CredentialStore,
   Model,
+  OAuthAuth,
   Provider,
 } from "@earendil-works/pi-ai";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
@@ -40,14 +42,6 @@ const WITHHELD = new Set([
   "cloudflare-workers-ai",
 ]);
 
-// The provider whose sign-in ends in a key the user owns, which the host saves as its API key.
-const KEY_SIGN_IN: AgentProvider = "openrouter";
-
-// The provider that signs in through the app's own Sign in with ChatGPT flow.
-const CHATGPT_PROVIDER: AgentProvider = "openai";
-
-const COPILOT_PROVIDER: AgentProvider = "github-copilot";
-
 /** The subscription a sign-in runs a provider on. */
 export interface Subscription {
   /** The plan as the provider names it, a brand name shown as it is. */
@@ -56,19 +50,69 @@ export interface Subscription {
   only: boolean;
 }
 
-// OpenAI signs in through the app's own flow and the others through pi-ai's, which is kept only
-// where it runs on a code the user enters on the provider's page and reads nothing from the
-// environment.
-const SUBSCRIPTIONS = new Map<AgentProvider, Subscription>([
-  [COPILOT_PROVIDER, { plan: "GitHub Copilot", only: true }],
-  [CHATGPT_PROVIDER, { plan: "ChatGPT", only: false }],
+/** What a flow the app runs itself is given, whichever provider it signs in to. */
+interface OwnFlowOptions {
+  appName: string;
+  callbackPage: SignInPage;
+}
+
+/** A sign-in that runs the provider on the user's subscription. */
+interface SubscriptionSignIn extends Subscription {
+  /** The app's own flow, where it stands in for pi-ai's. */
+  flow?: (options: OwnFlowOptions) => OAuthAuth;
+  /** What pi-ai's flow is answered where it asks the user something, by the kind of question. */
+  answers?: Partial<Record<AuthPrompt["type"], string>>;
+}
+
+/** A sign-in that ends in a key the user owns, which the host saves as the provider's API key. */
+interface KeySignIn {
+  createKey: (
+    options: OwnFlowOptions & {
+      openExternal: (url: string) => void;
+      signal: AbortSignal;
+    }
+  ) => Promise<string>;
+}
+
+// How each provider that signs in does so; one missing here runs on its key alone. A subscription
+// signs in through pi-ai's own flow unless the app has one, and pi-ai's is kept only where it runs
+// on a code the user enters on the provider's page and reads nothing from the environment.
+const SIGN_INS = new Map<AgentProvider, SubscriptionSignIn | KeySignIn>([
+  [
+    "github-copilot",
+    {
+      plan: "GitHub Copilot",
+      only: true,
+      // GitHub asks which GitHub to sign in to: blank is github.com, the only one offered.
+      answers: { text: "" },
+    },
+  ],
   ["meta", { plan: "Muse", only: false }],
+  ["openai", { plan: "ChatGPT", only: false, flow: chatgptOAuth }],
+  ["openrouter", { createKey: createOpenRouterKey }],
   ["xai", { plan: "SuperGrok / X Premium", only: false }],
 ]);
 
+function subscriptionSignIn(provider: AgentProvider) {
+  const signIn = SIGN_INS.get(provider);
+
+  return signIn && "plan" in signIn ? signIn : undefined;
+}
+
+function keySignIn(provider: AgentProvider) {
+  const signIn = SIGN_INS.get(provider);
+
+  return signIn && "createKey" in signIn ? signIn : undefined;
+}
+
 /** The subscription a sign-in runs the provider on; `undefined` for a provider that runs on a key alone. */
-export const subscriptionOf = (provider: AgentProvider) =>
-  SUBSCRIPTIONS.get(provider);
+export function subscriptionOf(
+  provider: AgentProvider
+): Subscription | undefined {
+  const signIn = subscriptionSignIn(provider);
+
+  return signIn && { plan: signIn.plan, only: signIn.only };
+}
 
 /**
  * A provider's most capable model, used until the user picks one. A provider missing here, or
@@ -230,32 +274,27 @@ export function createModelCatalog({
   // The open sign-in's page; a sign-in is only ever open through `signIn`.
   let landing: SignInPage = () => "";
 
-  const chatgpt = chatgptOAuth({
-    appName,
-    callbackPage: (outcome, detail) => landing(outcome, detail),
-  });
-
-  // A provider runs on its key, and one with a subscription also signs in, or only signs in:
-  // OpenAI through the app's own flow, the others through pi-ai's. No other sign-in flow of
-  // pi-ai's is ever loaded.
-  const signInOf = (provider: Provider) =>
-    provider.id === CHATGPT_PROVIDER
-      ? chatgpt
-      : SUBSCRIPTIONS.has(provider.id)
-        ? provider.auth.oauth
-        : undefined;
-
+  // A provider runs on its key, and one with a subscription also signs in, or only signs in,
+  // through the app's own flow where it has one and pi-ai's otherwise. Every other sign-in of
+  // pi-ai's is stripped.
   const offered = builtinProviders()
     .filter(isOffered)
     .map((provider): Provider => {
-      const oauth = signInOf(provider);
+      const signIn = subscriptionSignIn(provider.id);
+
+      const oauth = signIn?.flow
+        ? signIn.flow({
+            appName,
+            callbackPage: (outcome, detail) => landing(outcome, detail),
+          })
+        : signIn && provider.auth.oauth;
 
       if (!oauth)
         return { ...provider, auth: { apiKey: provider.auth.apiKey } };
 
       return {
         ...provider,
-        auth: SUBSCRIPTIONS.get(provider.id)?.only
+        auth: signIn?.only
           ? { oauth }
           : { apiKey: provider.auth.apiKey, oauth },
       };
@@ -365,9 +404,9 @@ export function createModelCatalog({
      * or quietly once it is cancelled. A sign-in still open gives way to the new one.
      */
     async signIn(provider: AgentProvider, { page, onCode }: SignInOptions) {
-      if (!SUBSCRIPTIONS.has(provider)) {
-        throw new Error(`${provider} has no subscription sign-in`);
-      }
+      const signIn = subscriptionSignIn(provider);
+
+      if (!signIn) throw new Error(`${provider} has no subscription sign-in`);
 
       // A provider's own page is https; nothing else a flow names is opened.
       const open = (url: string) => {
@@ -382,15 +421,17 @@ export function createModelCatalog({
           "oauth",
           {
             signal,
-            // The browser, or the code entered in it, brings the sign-in back, so no flow kept
-            // asks the user anything but GitHub's, which asks which GitHub to sign in to: a blank
-            // answer is github.com, the only one offered.
-            prompt: (request) =>
-              provider === COPILOT_PROVIDER && request.type === "text"
-                ? Promise.resolve("")
-                : Promise.reject(
-                    new Error(`Unsupported sign-in step: ${request.type}`)
-                  ),
+            // The browser, or the code entered in it, brings the sign-in back, so the user is
+            // asked nothing here: a question the provider's sign-in has no answer for ends it.
+            async prompt(request) {
+              const answer = signIn.answers?.[request.type];
+
+              if (answer === undefined) {
+                throw new Error(`Unsupported sign-in step: ${request.type}`);
+              }
+
+              return answer;
+            },
             notify: (event) => {
               if (event.type === "auth_url") open(event.url);
 
@@ -406,7 +447,7 @@ export function createModelCatalog({
     },
 
     /** Whether a sign-in to the provider creates the key it runs on, in place of one pasted in. */
-    createsKey: (provider: AgentProvider) => provider === KEY_SIGN_IN,
+    createsKey: (provider: AgentProvider) => keySignIn(provider) !== undefined,
 
     /**
      * Signs in to the provider in the browser, where the user has it create a key for the app.
@@ -417,14 +458,14 @@ export function createModelCatalog({
       provider: AgentProvider,
       page: SignInPage
     ): Promise<string | undefined> {
-      if (provider !== KEY_SIGN_IN) {
-        throw new Error(`${provider} creates no key by sign-in`);
-      }
+      const signIn = keySignIn(provider);
+
+      if (!signIn) throw new Error(`${provider} creates no key by sign-in`);
 
       let key: string | undefined;
 
       await slot.run(async (signal) => {
-        key = await createOpenRouterKey({
+        key = await signIn.createKey({
           appName,
           callbackPage: page,
           openExternal,
