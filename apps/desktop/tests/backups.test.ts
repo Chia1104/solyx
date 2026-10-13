@@ -572,6 +572,80 @@ test("a backup is made on its own once one is due, and only when something chang
   expect(shared.objects.size).toBe(3);
 });
 
+test("a passphrase changed is backed up under at the next pass, though nothing else changed", async () => {
+  const shared = memoryBucket();
+  const desk = await computer("desk", shared);
+
+  await desk.backups.work.run();
+  desk.clock.now += HOUR;
+  await desk.backups.work.run();
+
+  expect(shared.objects.size).toBe(1);
+
+  // None of the backups so far opens under the new one.
+  await desk.secrets.save(
+    Secret.BackupPassphrase,
+    "a passphrase of another day"
+  );
+  desk.clock.now += MINUTE;
+  await desk.backups.work.run();
+
+  expect(shared.objects.size).toBe(2);
+
+  const laptop = await computer(
+    "laptop",
+    shared,
+    "a passphrase of another day"
+  );
+
+  await laptop.backups.restore(backupKey("solyx", "desk", AT + HOUR + MINUTE));
+
+  expect(laptop.restart).toHaveBeenCalledOnce();
+});
+
+test("a backup that was going up as the passphrase changed is not taken for one under the new", async () => {
+  const shared = memoryBucket();
+  const desk = await computer("desk", shared);
+  const put = shared.bucket.put.bind(shared.bucket);
+
+  vi.spyOn(shared.bucket, "put").mockImplementationOnce(async (key, file) => {
+    await put(key, file);
+    await desk.secrets.save(Secret.BackupPassphrase, "changed meanwhile");
+  });
+
+  await desk.backups.work.run();
+  desk.clock.now += HOUR;
+  await desk.backups.work.run();
+
+  expect(shared.objects.size).toBe(2);
+});
+
+test("another bucket or folder is backed up to as if for the first time", async () => {
+  const shared = memoryBucket();
+  const desk = await computer("desk", shared);
+
+  await desk.backups.work.run();
+  await desk.backups.set(BackupSetting.Prefix, "moved");
+
+  // What was counted is the other folder's.
+  await expect(desk.backups.status()).resolves.toMatchObject({
+    lastBackupAt: null,
+    stored: null,
+  });
+
+  desk.clock.now += MINUTE;
+  await desk.backups.work.run();
+
+  expect([...shared.objects.keys()]).toEqual([
+    "solyx/desk/20261013T080000Z.solyx-backup",
+    "moved/desk/20261013T080100Z.solyx-backup",
+  ]);
+  await expect(desk.backups.status()).resolves.toMatchObject({
+    lastBackupAt: AT + MINUTE,
+    stored: { count: 1 },
+  });
+});
+
 test("nothing is made on its own while that is off, set to a longer span, or not set up", async () => {
   const shared = memoryBucket();
   const desk = await computer("desk", shared);
@@ -667,6 +741,29 @@ test("a bucket out of reach is said why and tried again later, never every minut
   await expect(desk.backups.status()).resolves.toMatchObject({
     failure: null,
   });
+});
+
+test("a backup that fails after going on a long while waits from when it failed", async () => {
+  const shared = memoryBucket();
+  const desk = await computer("desk", shared);
+
+  // An upload twenty minutes in when the connection drops.
+  const put = vi.spyOn(shared.bucket, "put").mockImplementation(async () => {
+    desk.clock.now += 20 * MINUTE;
+
+    throw new Error("r2.example: fetch failed");
+  });
+
+  await desk.backups.work.run();
+  desk.clock.now += MINUTE;
+  await desk.backups.work.run();
+
+  expect(put).toHaveBeenCalledOnce();
+
+  desk.clock.now += 14 * MINUTE;
+  await desk.backups.work.run();
+
+  expect(put).toHaveBeenCalledTimes(2);
 });
 
 test("a backup stays made when thinning out the older ones fails", async () => {

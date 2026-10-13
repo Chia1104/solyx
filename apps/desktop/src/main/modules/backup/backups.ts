@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
-import { sumBy } from "es-toolkit";
+import { isEqual, sumBy } from "es-toolkit";
 
 import {
   BUNDLE_EXTENSION,
@@ -52,7 +52,8 @@ import {
   filePlaces,
 } from "./backup-places.ts";
 import type { DataFolders } from "./backup-places.ts";
-import { createBackupState } from "./backup-state.ts";
+import { NEVER, createBackupState } from "./backup-state.ts";
+import type { BackupPlace, BackupState } from "./backup-state.ts";
 import { restorePaths, stageRestore } from "./staged-restore.ts";
 import type { StagedRestore } from "./staged-restore.ts";
 
@@ -126,7 +127,7 @@ export function readBackupKey(folder: string, key: string) {
 
 export interface BackupsOptions {
   config: Pick<ConfigFile, "read" | "set">;
-  secrets: Pick<SecretStore, "get" | "state">;
+  secrets: Pick<SecretStore, "get" | "state" | "onChange">;
   folders: DataFolders;
   /** The folder that holds each database's migrations, by the database's name. */
   migrations: string;
@@ -214,8 +215,16 @@ export function createBackups({
     onChange();
   }
 
-  /** The bucket as the user set it up, the folder in it and the passphrase, or a refusal that says what is missing. */
-  async function destination() {
+  // A backup sealed under another passphrase is none the present one opens, so the next is made
+  // whatever it would hold. Nothing of a passphrase is kept to tell by, only that it changed.
+  secrets.onChange((secret) => {
+    if (secret !== Secret.BackupPassphrase) return;
+
+    state.write({ ...state.read(), checkedAt: null, digest: null });
+  });
+
+  /** Where backups go as the settings say now, or `null` while no bucket is named. */
+  function where(): BackupPlace | null {
     const {
       endpoint,
       region = DEFAULT_REGION,
@@ -223,25 +232,47 @@ export function createBackups({
       prefix,
     } = config.read().backup;
 
+    return bucket
+      ? {
+          endpoint: endpoint ?? awsEndpoint(region),
+          region,
+          bucket,
+          folder: prefix ?? app,
+        }
+      : null;
+  }
+
+  /** What is remembered of the backups kept at `to`: of another bucket or folder, nothing. */
+  function remembered(to: BackupPlace | null): BackupState {
+    const saved = state.read();
+
+    return isEqual(saved.place, to) ? saved : NEVER;
+  }
+
+  /** The bucket as the user set it up, the folder in it and the passphrase, or a refusal that says what is missing. */
+  async function destination() {
+    const to = where();
+
     const [accessKeyId, secretAccessKey, passphrase] = await Promise.all(
       SECRETS.map((secret) => secrets.get(secret))
     );
 
-    if (!bucket || !accessKeyId || !secretAccessKey || !passphrase) {
+    if (!to || !accessKeyId || !secretAccessKey || !passphrase) {
       throw new Error(
         "Set the bucket, its access key and a passphrase before using backups"
       );
     }
 
     return {
+      place: to,
       bucket: openBucket({
-        endpoint: endpoint ?? awsEndpoint(region),
-        region,
-        bucket,
+        endpoint: to.endpoint,
+        region: to.region,
+        bucket: to.bucket,
         accessKeyId,
         secretAccessKey,
       }),
-      folder: prefix ?? app,
+      folder: to.folder,
       passphrase,
     };
   }
@@ -365,7 +396,7 @@ export function createBackups({
 
   /** Seals a copy and uploads it, then thins out the older backups. */
   async function upload({
-    to: { bucket, folder, passphrase },
+    to: { place, bucket, folder, passphrase },
     work,
     content,
     digest,
@@ -383,7 +414,7 @@ export function createBackups({
     });
     await bucket.put(key, file);
 
-    let { stored } = state.read();
+    let { stored } = remembered(place);
 
     failure = null;
 
@@ -395,7 +426,17 @@ export function createBackups({
       diagnostics.recovered(error, "backup.thin");
     }
 
-    state.write({ checkedAt: now(), uploadedAt: createdAt, digest, stored });
+    state.write({
+      place,
+      checkedAt: now(),
+      uploadedAt: createdAt,
+      // Not of a backup the passphrase changed under as it went up, which the new one does not open.
+      digest:
+        (await secrets.get(Secret.BackupPassphrase)) === passphrase
+          ? digest
+          : null,
+      stored,
+    });
 
     return { key, createdAt, bytes: (await stat(file)).size, own: true };
   }
@@ -409,7 +450,9 @@ export function createBackups({
 
       if (!automatic || activity !== null) return;
 
-      if (at - (state.read().checkedAt ?? 0) < INTERVAL_MS[every]) return;
+      if (at - (remembered(where()).checkedAt ?? 0) < INTERVAL_MS[every]) {
+        return;
+      }
 
       if (failure && at - failure.at < RETRY_MS) return;
 
@@ -417,7 +460,7 @@ export function createBackups({
 
       try {
         await withCopy(async (copy) => {
-          const last = state.read();
+          const last = remembered(copy.to.place);
 
           // Nothing changed since the last backup, so another would only be a second copy of it.
           if (copy.digest === last.digest)
@@ -425,8 +468,9 @@ export function createBackups({
           else await upload(copy);
         });
       } catch (error) {
-        // A bucket out of reach is tried again; the backup tab says why meanwhile.
-        failure = { message: errorMessage(error), at };
+        // A bucket out of reach is tried again; the backup tab says why meanwhile. The wait counts
+        // from now, since an upload may go on for longer than the wait before it fails.
+        failure = { message: errorMessage(error), at: now() };
         diagnostics.recovered(error, "backup.pass");
         onChange();
       }
@@ -467,7 +511,7 @@ export function createBackups({
     },
 
     async status() {
-      const { uploadedAt, stored } = state.read();
+      const { uploadedAt, stored } = remembered(where());
 
       return {
         ready: await ready(),

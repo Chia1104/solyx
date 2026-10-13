@@ -3,7 +3,20 @@ import { dirname } from "node:path";
 
 import * as z from "zod";
 
+const placeSchema = z.object({
+  endpoint: z.string(),
+  region: z.string(),
+  bucket: z.string(),
+  /** The folder in the bucket backups are kept under. */
+  folder: z.string(),
+});
+
+/** Where backups are kept, by what the settings name of it and no secret. */
+export type BackupPlace = z.infer<typeof placeSchema>;
+
 const stateSchema = z.object({
+  /** Where the backups remembered here are kept, since another bucket or folder holds none of them. */
+  place: placeSchema.nullable(),
   /** When a backup was last made or found unneeded, which the next one made on its own counts from. */
   checkedAt: z.number().nullable(),
   /** When this installation last uploaded a backup. */
@@ -16,7 +29,9 @@ const stateSchema = z.object({
 
 export type BackupState = z.infer<typeof stateSchema>;
 
-const NEVER: BackupState = {
+/** What is remembered where no backup was made yet. */
+export const NEVER: BackupState = {
+  place: null,
   checkedAt: null,
   uploadedAt: null,
   digest: null,
