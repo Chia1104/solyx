@@ -17,6 +17,7 @@
     "./models": "./src/models.ts",
     "./prompt": "./src/prompt.ts",
     "./providers": "./src/providers.ts",
+    "./quotes": "./src/quotes.ts",
     "./research": "./src/research.ts",
     "./runtime": "./src/runtime.ts",
     "./script-runner": "./src/script-runner.ts",

@@ -18,6 +18,8 @@ import { mcpScriptExtension } from "@solyx/agent/mcp-script";
 import { createMemory } from "@solyx/agent/memory";
 import { formatContext } from "@solyx/agent/prompt";
 import type { AgentModelPick } from "@solyx/agent/providers";
+import { createQuoteTools } from "@solyx/agent/quotes";
+import type { QuoteToolsOptions } from "@solyx/agent/quotes";
 import { createResearch } from "@solyx/agent/research";
 import { createAgentRuntime } from "@solyx/agent/runtime";
 import { createScriptRunner } from "@solyx/agent/script-runner";
@@ -122,6 +124,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   macro: Pick<Macro, "series">;
   /** Taiwan's sector indices, as the overview's map reads them. */
   sectors: SectorToolsOptions["sectors"];
+  /** A listing's newest session, as the overview's moves read it. */
+  quote: QuoteToolsOptions["quote"];
   /** What the agent reads of the rest of the app's settings. */
   setup: AgentSetupSources;
   /** A run started or ended, or one of its calls began or stopped waiting for the user. */
@@ -253,6 +257,13 @@ export function createAgentService(options: AgentServiceOptions) {
     scripts,
   });
 
+  const quotes = createQuoteTools({
+    quote: options.quote,
+    marketData: options.marketData,
+    watchlist: options.watchlist.list,
+    desk: options.desk,
+  });
+
   const web = createWebTools({ vendor: options.web });
 
   const memory = createMemory({
@@ -335,6 +346,7 @@ export function createAgentService(options: AgentServiceOptions) {
         offered: [
           trading,
           analysis,
+          quotes,
           research,
           flows,
           macro,

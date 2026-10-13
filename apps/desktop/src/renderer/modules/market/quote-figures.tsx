@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
-import type { SessionQuote } from "@solyx/core/quote";
+import { quoteChange } from "@solyx/core/quote";
 
 import { highlight } from "../../components/highlight.ts";
 import { Sparkline } from "../../components/sparkline.tsx";
@@ -13,18 +13,6 @@ import { numberFormats } from "./number-formats.ts";
 import { useDirectionColors } from "./price-colors.ts";
 import type { DirectionColors } from "./price-colors.ts";
 import { quoteQuery } from "./quote-query.ts";
-
-/** How far the last price moved from the close before, or `null` without that close. */
-export function quoteChange(quote: SessionQuote) {
-  const { last, previousClose } = quote;
-
-  return previousClose === null
-    ? null
-    : {
-        change: last - previousClose,
-        percent: (last - previousClose) / previousClose,
-      };
-}
 
 /** The colours of a move in its direction, or `undefined` for none. */
 export function directionOf(direction: DirectionColors, change: number) {

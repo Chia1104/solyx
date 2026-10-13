@@ -4,13 +4,14 @@ import { useTranslation } from "react-i18next";
 
 import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import { quoteChange } from "@solyx/core/quote";
 
 import { HeatMap } from "../../components/heat-map.tsx";
 
 import { useListingNames } from "./listing-name.tsx";
 import { numberFormats } from "./number-formats.ts";
 import { useDirectionColors } from "./price-colors.ts";
-import { directionOf, quoteChange } from "./quote-figures.tsx";
+import { directionOf } from "./quote-figures.tsx";
 import { quoteQuery } from "./quote-query.ts";
 
 /** A move this large in either direction takes the full colour. */

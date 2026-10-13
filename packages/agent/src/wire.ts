@@ -192,6 +192,7 @@ export const AgentToolName = {
   GetWatchlist: "get_watchlist",
   GetCalendar: "get_calendar",
   GetAccount: "get_account",
+  GetQuotes: "get_quotes",
   ListProposals: "list_proposals",
   CheckOrder: "check_order",
   ProposeOrder: "propose_order",

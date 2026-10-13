@@ -47,3 +47,30 @@ export interface AccountSnapshot {
   cash: Partial<Record<Currency, number>>;
   positions: Position[];
 }
+
+/** A position marked at a price. */
+export interface PositionValue {
+  /** What it is worth at that price. */
+  value: number;
+  /** What it cost, at its average price. */
+  cost: number;
+  /** Its worth less its cost. */
+  gain: number;
+  /** The gain as a fraction of the cost; `null` for a position that cost nothing. */
+  gainPercent: number | null;
+}
+
+export function positionValue(
+  { quantity, avgPrice }: Pick<Position, "quantity" | "avgPrice">,
+  price: number
+): PositionValue {
+  const value = quantity * price;
+  const cost = quantity * avgPrice;
+
+  return {
+    value,
+    cost,
+    gain: value - cost,
+    gainPercent: cost === 0 ? null : (value - cost) / cost,
+  };
+}
