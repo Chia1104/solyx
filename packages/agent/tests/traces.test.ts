@@ -55,7 +55,7 @@ function setup() {
               description: "The watchlist",
               parameters: { type: "object", properties: {} },
               execute: async () => ({
-                content: [{ type: "text", text: "TW 2330" }],
+                output: [{ type: "text", text: "TW 2330" }],
                 isError: true,
               }),
             },

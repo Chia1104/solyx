@@ -70,7 +70,7 @@ function setup(watched: SymbolRef[] = [TSMC]) {
       BACKGROUND_CONTEXT
     );
 
-    return { text: contentText(result.content ?? []), details: result.details };
+    return { text: contentText(result.output ?? []), details: result.details };
   }
 
   return { run, list, asked };

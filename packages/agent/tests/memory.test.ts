@@ -211,7 +211,7 @@ function direct(store: MemoryStore, embedder?: Embedder) {
 
     const result = await tool.execute(params, api, BACKGROUND_CONTEXT);
 
-    return contentText(result.content ?? []);
+    return contentText(result.output ?? []);
   }
 
   async function index() {

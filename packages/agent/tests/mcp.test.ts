@@ -175,7 +175,7 @@ describe("a connected server", () => {
     // Without a saved policy the tool asks.
     expect(allow).toHaveBeenCalledOnce();
     // The entry's own env and the user's home arrive; nothing else of the app's does.
-    expect(contentText(result?.content ?? [])).toBe(
+    expect(contentText(result?.output ?? [])).toBe(
       `quote {"symbol":"2330"} key=s3cret app=none home=${process.platform === "win32" ? "none" : "set"}`
     );
   });
@@ -209,7 +209,7 @@ describe("a connected server", () => {
     const found = await call(find, { query: "latest price" });
 
     expect(found.control).toEqual({ addTools: ["mcp_fake_quote"] });
-    expect(contentText(found.content ?? [])).toContain(
+    expect(contentText(found.output ?? [])).toContain(
       "mcp_fake_quote (fake): Latest price"
     );
 
@@ -221,7 +221,7 @@ describe("a connected server", () => {
     const missing = await call(find, { query: "weather", server: "fake" });
 
     expect(missing.control).toBeUndefined();
-    expect(contentText(missing.content ?? [])).toContain("No tools on fake");
+    expect(contentText(missing.output ?? [])).toContain("No tools on fake");
   });
 
   test("the user's description names the server and leads a search to it", async () => {
@@ -382,7 +382,7 @@ describe("a remote server that asks to sign in", () => {
     });
 
     const callWhoami = async (id: string) =>
-      contentText((await call(whoami, {}, id)).content ?? []);
+      contentText((await call(whoami, {}, id)).output ?? []);
 
     const saved = () => JSON.parse(setup.signIns.get("remote") ?? "{}");
 
