@@ -183,7 +183,7 @@ function scriptTool(
       const details: RunToolScriptDetails = { calls, output: result.output };
 
       return {
-        content: [{ type: "text", text: result.output }],
+        output: [{ type: "text", text: result.output }],
         details,
         isError: !result.ok,
       };

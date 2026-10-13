@@ -65,7 +65,7 @@ function setup() {
       BACKGROUND_CONTEXT
     );
 
-    return contentText(result.content ?? []);
+    return contentText(result.output ?? []);
   };
 
   return { port, asked, getSetup, changeSetting, run };

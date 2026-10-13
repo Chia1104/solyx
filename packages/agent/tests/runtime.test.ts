@@ -92,7 +92,7 @@ function setup({
             parameters: { type: "object", properties: {} },
             replay: "safe",
             execute: async () => ({
-              content: [{ type: "text", text: watchlist() }],
+              output: [{ type: "text", text: watchlist() }],
               details: { count: 1 },
             }),
           },
@@ -192,7 +192,7 @@ test("an MCP tool is offered once a search loads it, and stays loaded", async ()
           name: "search",
           tools: [
             tool("search_tools", async () => ({
-              content: [{ type: "text", text: "Loaded quote" }],
+              output: [{ type: "text", text: "Loaded quote" }],
               control: { addTools: ["quote"] },
             })),
           ],
@@ -203,7 +203,7 @@ test("an MCP tool is offered once a search loads it, and stays loaded", async ()
           name: "quotes",
           tools: [
             tool("quote", async () => ({
-              content: [{ type: "text", text: quote() }],
+              output: [{ type: "text", text: quote() }],
             })),
           ],
         }),
@@ -614,7 +614,7 @@ function approvalSetup(store = memoryStore()) {
               parameters: { type: "object", properties: {} },
               replay: "safe",
               execute: async () => ({
-                content: [{ type: "text", text: "Loaded place_order" }],
+                output: [{ type: "text", text: "Loaded place_order" }],
                 control: { addTools: ["place_order"] },
               }),
             },
@@ -631,7 +631,7 @@ function approvalSetup(store = memoryStore()) {
               parameters: { type: "object", properties: {} },
               replay: "unsafe",
               execute: async () => ({
-                content: [{ type: "text", text: placed() }],
+                output: [{ type: "text", text: placed() }],
               }),
             }),
           ],

@@ -265,7 +265,7 @@ function searchTool(catalog: McpCatalog): ToolRegistration {
 
       if (found.length === 0) {
         return {
-          content: [
+          output: [
             {
               type: "text",
               text: `No tools${server ? ` on ${server}` : ""} match "${query}". Try other words.`,
@@ -286,7 +286,7 @@ function searchTool(catalog: McpCatalog): ToolRegistration {
       }
 
       return {
-        content: [
+        output: [
           {
             type: "text",
             text: `Loaded for your next step:\n${lines.join("\n")}`,
@@ -809,7 +809,7 @@ export function createMcpHub(options: McpHubOptions) {
           // Guarding a call that sends nothing asks the question before the real call is sent,
           // whether the agent or a script makes it.
           const approval = asks
-            ? guard({ ...declared, execute: async () => ({ content: [] }) })
+            ? guard({ ...declared, execute: async () => ({ output: [] }) })
             : undefined;
 
           const call: McpCatalogTool["call"] = async (args, api, context) => {
@@ -856,7 +856,7 @@ export function createMcpHub(options: McpHubOptions) {
 
                 // MCP reports a tool's own failure in the result rather than as an error.
                 return {
-                  content: toLlmContent(result),
+                  output: toLlmContent(result),
                   details: { server, tool: tool.name },
                   isError: result.isError === true,
                 };

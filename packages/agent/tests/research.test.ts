@@ -347,7 +347,7 @@ function setup(councils?: Council[], read?: string[]) {
 
     const result = await tool.execute(params, api, BACKGROUND_CONTEXT);
 
-    return { text: contentText(result.content ?? []), details: result.details };
+    return { text: contentText(result.output ?? []), details: result.details };
   }
 
   return { run, store, clock, bars, filed, motions, conversation };

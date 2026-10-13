@@ -187,7 +187,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     const api = {} as ToolExecutionApi;
     const result = await tool.execute(params, api, BACKGROUND_CONTEXT);
 
-    return { text: contentText(result.content ?? []), details: result.details };
+    return { text: contentText(result.output ?? []), details: result.details };
   };
 
   return { run, desk, ports, marketData, news, tradingDays, calendar };

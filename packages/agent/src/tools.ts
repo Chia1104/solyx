@@ -160,7 +160,7 @@ export function defineTool<Parameters extends z.ZodObject>(
 
       const { text, details } = await spec.execute(parsed.data, api, context);
 
-      return { content: [{ type: "text", text }], details };
+      return { output: [{ type: "text", text }], details };
     },
   };
 }

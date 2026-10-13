@@ -309,7 +309,7 @@ export function createAnalysis(options: AnalysisOptions): Extension {
       const details: RunAnalysisDetails = { output: result.output };
 
       return {
-        content: [{ type: "text", text: result.output }],
+        output: [{ type: "text", text: result.output }],
         details,
         isError: !result.ok,
       };
