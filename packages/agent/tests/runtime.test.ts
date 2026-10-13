@@ -191,7 +191,7 @@ test("an MCP tool is offered once a search loads it, and stays loaded", async ()
         defineExtension({
           name: "search",
           tools: [
-            tool("search_tools", async () => ({
+            tool("tool_search", async () => ({
               output: [{ type: "text", text: "Loaded quote" }],
               control: { addTools: ["quote"] },
             })),
@@ -225,7 +225,7 @@ test("an MCP tool is offered once a search loads it, and stays loaded", async ()
 
   faux.setResponses([
     answer(
-      fauxAssistantMessage(fauxToolCall("search_tools", {}), {
+      fauxAssistantMessage(fauxToolCall("tool_search", {}), {
         stopReason: "toolUse",
       })
     ),
@@ -252,10 +252,10 @@ test("an MCP tool is offered once a search loads it, and stays loaded", async ()
 
   expect(quote).toHaveBeenCalledOnce();
   expect(offered).toEqual([
-    ["search_tools"],
-    ["search_tools", "quote"],
-    ["search_tools", "quote"],
-    ["search_tools", "quote"],
+    ["tool_search"],
+    ["tool_search", "quote"],
+    ["tool_search", "quote"],
+    ["tool_search", "quote"],
   ]);
 
   await runtime.close();
@@ -586,7 +586,7 @@ test("a compacted conversation still shows every message once", async () => {
   await third.runtime.close();
 });
 
-/** A run that loads an MCP tool the user must allow, as `search_tools` would, and calls it. */
+/** A run that loads an MCP tool the user must allow, as `tool_search` would, and calls it. */
 function approvalSetup(store = memoryStore()) {
   const faux = fauxProvider();
   const models = createModels();
@@ -609,7 +609,7 @@ function approvalSetup(store = memoryStore()) {
           name: "search",
           tools: [
             {
-              name: "search_tools",
+              name: "tool_search",
               description: "Finds tools",
               parameters: { type: "object", properties: {} },
               replay: "safe",
@@ -642,7 +642,7 @@ function approvalSetup(store = memoryStore()) {
   });
 
   faux.setResponses([
-    fauxAssistantMessage(fauxToolCall("search_tools", {}), {
+    fauxAssistantMessage(fauxToolCall("tool_search", {}), {
       stopReason: "toolUse",
     }),
     fauxAssistantMessage(fauxToolCall("place_order", {}), {

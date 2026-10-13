@@ -53,6 +53,7 @@ import {
   createTranscriber,
   readTexts,
   replyText,
+  scriptCallEnd,
   userContent,
 } from "./transcript.ts";
 import type { Transcriber } from "./transcript.ts";
@@ -62,7 +63,6 @@ import {
   CompactionOutcome,
   DeltaChannel,
   RunEndReason,
-  ToolCallStatus,
 } from "./wire.ts";
 import type {
   AgentSession,
@@ -539,23 +539,17 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
               toolCallId: event.toolCallId,
               toolName: event.toolName,
               args: event.args,
+              parentToolCallId: event.parentToolCallId,
             })
             .forEach(emit);
           break;
 
-        case "tool_execution_update":
-          transcriber.toolUpdate(event.toolCallId, event.details).forEach(emit);
-          break;
-
+        // A call the model made ends with its stored result, one a script made with what its
+        // script was handed, and one that never finished with neither.
         case "tool_execution_end":
           (event.entry
             ? transcriber.toolResult(event.entry)
-            : transcriber.toolEnd({
-                type: AgentEventType.ToolEnd,
-                toolCallId: event.toolCallId,
-                toolName: event.toolName,
-                status: ToolCallStatus.Aborted,
-              })
+            : transcriber.toolEnd(scriptCallEnd(event, event.result))
           ).forEach(emit);
           break;
 
@@ -641,7 +635,14 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       watchesBySession.set(sessionId, created);
       // The context a commit leaves goes out before its events, so a run's end stays its last.
       stream.start(async (events) => {
-        if (events.some((event) => CONTEXT_CHANGES.has(event.type))) {
+        // A script's call returns to its script, so it leaves the context as it was.
+        if (
+          events.some(
+            (event) =>
+              CONTEXT_CHANGES.has(event.type) &&
+              !("parentToolCallId" in event && event.parentToolCallId)
+          )
+        ) {
           const tokens = await contextTokens(conversation);
 
           if (tokens !== created.context) {
