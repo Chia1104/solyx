@@ -194,6 +194,9 @@ export function createBackups({
     }
 
     for (const { part, path } of filePlaces(folders)) {
+      // The user may have written no instructions or MCP servers, and no conversation a folder.
+      if (!existsSync(path)) continue;
+
       try {
         // What a link at the place points to, since a bundle packs no link and settings a person
         // keeps elsewhere are the app's all the same.
@@ -202,8 +205,14 @@ export function createBackups({
           verbatimSymlinks: true,
         });
       } catch (error) {
-        // The user may have written no instructions or MCP servers, and no conversation a folder.
         if (!isErrnoError(error, "ENOENT")) throw error;
+
+        // Something in it went as it was read, such as a file a conversation's command removed,
+        // and the part that was copied would pass for the whole of it.
+        throw new Error(
+          `${path} changed while it was being backed up, so no backup was made`,
+          { cause: error }
+        );
       }
     }
   }

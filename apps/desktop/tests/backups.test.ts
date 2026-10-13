@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
+import type * as NodeFsPromises from "node:fs/promises";
 import {
   copyFile,
+  cp,
   mkdir,
   mkdtemp,
   readFile,
@@ -42,6 +44,14 @@ import { createSecretStore } from "../src/main/modules/settings/secret-store.ts"
 
 import { fakeCipher } from "./fake-cipher.ts";
 
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const fs = await importOriginal<typeof NodeFsPromises>();
+
+  return { ...fs, cp: vi.fn(fs.cp) };
+});
+
+const fs = await vi.importActual<typeof NodeFsPromises>("node:fs/promises");
+
 const MIGRATIONS = fileURLToPath(
   new URL("../../../packages/db/migrations", import.meta.url)
 );
@@ -82,7 +92,10 @@ beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "solyx-backups-"));
 });
 
-afterEach(() => rm(directory, { recursive: true, force: true }));
+afterEach(async () => {
+  vi.mocked(cp).mockImplementation(fs.cp);
+  await rm(directory, { recursive: true, force: true });
+});
 
 /** A computer with the app's databases and files on it, set up to back up to `shared`. */
 async function computer(
@@ -356,6 +369,39 @@ test("a setting kept through a link is backed up as what it says, and a link ins
   expect(
     await readdir(join(laptop.folders.configDir, "skills", "ladder"))
   ).toEqual(["SKILL.md"]);
+});
+
+test("a folder that changes as it is copied makes no backup, and is named", async () => {
+  const shared = memoryBucket();
+  const desk = await computer("desk", shared);
+
+  await mkdir(join(desk.folders.workspaces, "conversation-1"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(desk.folders.workspaces, "conversation-1", "notes.txt"),
+    "kept by a shell command"
+  );
+
+  // A command removes a file between the folder being listed and the file being read.
+  vi.mocked(cp).mockImplementation(async (from, to, options) => {
+    await fs.cp(from, to, options);
+
+    if (String(from).endsWith("agent-workspaces")) {
+      throw Object.assign(
+        new Error("ENOENT: no such file or directory, copyfile 'scratch.tmp'"),
+        { code: "ENOENT" }
+      );
+    }
+  });
+
+  await expect(desk.backups.backUp()).rejects.toThrow(
+    `${desk.folders.workspaces} changed while it was being backed up`
+  );
+  expect(shared.objects.size).toBe(0);
+  await expect(desk.backups.status()).resolves.toMatchObject({
+    activity: null,
+  });
 });
 
 test("a restore cut off partway goes on from where it stopped", async () => {
