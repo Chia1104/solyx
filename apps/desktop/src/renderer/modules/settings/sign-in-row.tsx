@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 import { SettingsRow } from "./settings-list.tsx";
+import { SignInCode } from "./sign-in-code.tsx";
 
 /**
  * An account signed in through the browser, which comes back to this computer on its own. The
@@ -94,15 +95,7 @@ export function SignInRow({
       }>
       {signIn.isPending ? (
         code ? (
-          <div className="flex flex-col gap-1 text-xs text-muted">
-            <p>{t("settings.sign-in.enter-code")}</p>
-            <p className="font-mono text-base text-foreground select-all">
-              {code.code}
-            </p>
-            <p className="break-all">
-              {t("settings.sign-in.code-page", { url: code.url })}
-            </p>
-          </div>
+          <SignInCode code={code.code} url={code.url} />
         ) : (
           <p className="text-xs text-muted">
             {t("settings.sign-in.continue-in-browser")}
