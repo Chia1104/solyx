@@ -627,6 +627,18 @@
     "market-description": "What foreign investors, investment trusts and dealers bought and sold across Taiwan's market, its margin and their TAIEX futures positions. The exchanges publish a session's figures between 15:00 and 21:00 Taipei.",
     "market-empty": "No flows reported yet."
   },
+  "fundamentals": {
+    "trends": {
+      "title": "Filed figures",
+      "revenue": "Quarterly revenue, {{currency}}",
+      "eps": "EPS, {{currency}}",
+      "monthly": "Monthly revenue on the year, unaudited",
+      "quarter": "{{year}} Q{{quarter}}",
+      "on-year": "{{change}} on the year",
+      "month-revenue": "{{revenue}} in {{month}}",
+      "mark": "{{period}}: {{figure}}"
+    }
+  },
   "research": {
     "title": "Research",
     "views-label": "Under the chart",

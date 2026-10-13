@@ -23,6 +23,7 @@ import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { useAgentStore } from "../agent/agent-store.ts";
 import { timedDay } from "../calendar/upcoming-events.tsx";
+import { FinancialTrends } from "../fundamentals/financial-trends.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 import { PublishedTime } from "../news/news-list.tsx";
 import { useDecisionsReady } from "../settings/settings-query.ts";
@@ -261,6 +262,7 @@ function ReportView({
       {report.valuation ? (
         <ValuationRange symbol={report.symbol} valuation={report.valuation} />
       ) : null}
+      <FinancialTrends symbol={report.symbol} />
       <Events events={report.events} passed={passedEvents} />
       {Object.values(ReportSection).map((section) => {
         const part = report.sections[section];
@@ -325,7 +327,13 @@ function RecordLine({ record }: { record: ForecastRecord }) {
   );
 }
 
-function CoverageView({ coverage }: { coverage: Coverage }) {
+function CoverageView({
+  symbol,
+  coverage,
+}: {
+  symbol: SymbolRef;
+  coverage: Coverage;
+}) {
   const { t } = useTranslation();
 
   const {
@@ -338,9 +346,13 @@ function CoverageView({ coverage }: { coverage: Coverage }) {
     stances,
   } = coverage;
 
+  // A listing's filings are the app's to show whether or not the agent has written of it.
   if (!report && forecasts.length === 0) {
     return (
-      <p className="px-6 py-4 text-sm text-muted">{t("research.empty")}</p>
+      <div className="flex flex-col gap-4 px-6 py-4 text-sm">
+        <p className="text-muted">{t("research.empty")}</p>
+        <FinancialTrends symbol={symbol} />
+      </div>
     );
   }
 
@@ -356,7 +368,10 @@ function CoverageView({ coverage }: { coverage: Coverage }) {
           standing={stances.findLast(({ until }) => until === null)}
         />
       ) : (
-        <p className="text-sm text-muted">{t("research.report.none")}</p>
+        <div className="flex flex-col gap-4 text-sm">
+          <p className="text-muted">{t("research.report.none")}</p>
+          <FinancialTrends symbol={symbol} />
+        </div>
       )}
       <section className="flex flex-col gap-3">
         <h3 className="flex flex-wrap items-baseline gap-x-2 text-sm font-medium">
@@ -407,7 +422,7 @@ export function ResearchPanel({
       </div>
     );
   } else if (data) {
-    body = <CoverageView coverage={data} />;
+    body = <CoverageView symbol={symbol} coverage={data} />;
   }
 
   return (
