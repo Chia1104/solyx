@@ -119,6 +119,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   localEmbedder: () => Embedder | undefined;
   research: ResearchDesk;
   themes: ThemeDesk;
+  /** Searches a theme now, as the themes tab's own button does. */
+  searchTheme: (id: string) => Promise<void>;
   /** The scheduled tasks, which run through this service and so are built after it. */
   tasks: TaskPort;
   fundamentals: Fundamentals;
@@ -307,7 +309,10 @@ export function createAgentService(options: AgentServiceOptions) {
     marketData: options.marketData,
   });
 
-  const themes = createThemeTools({ desk: options.themes });
+  const themes = createThemeTools({
+    desk: options.themes,
+    search: options.searchTheme,
+  });
 
   const tasks = createTaskTools({
     tasks: options.tasks,

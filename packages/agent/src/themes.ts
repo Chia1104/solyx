@@ -16,7 +16,17 @@ import { AgentToolName, saveThemeArgumentsSchema } from "./wire.ts";
 
 export interface ThemeToolsOptions {
   desk: ThemeDesk;
+  /** Searches a theme's queries for news now and has the desk take what they find; rejects while no web search is set up. */
+  search(id: string): Promise<void>;
+  /** @default Date.now */
+  now?: () => number;
 }
+
+// A search reaches back past the one before it, so one made sooner finds the same items again
+// and spends the user's searches for nothing.
+const SEARCH_SPAN_MS = 60 * 60 * 1000;
+
+const MINUTE_MS = 60 * 1000;
 
 // The items listed under a theme: enough to see where it stands without crowding the answer.
 const LISTED_ITEMS = 5;
@@ -66,12 +76,33 @@ function watchText({
   ].join("\n");
 }
 
+/** The addresses of the items a theme's answer shows. */
+const shownAddresses = ({ developments, latest }: ThemeWatch) =>
+  compact([
+    ...developments.map(({ item }) => item.url),
+    ...latest.slice(0, LISTED_ITEMS).map((item) => item.url),
+  ]);
+
 /**
  * The agent's reach into the user's themes: `get_themes` to read them with what watching them has
- * found, and `save_theme` to write one once the user allows it. Removing a theme stays the
- * user's, in the settings.
+ * found, `search_theme` to search one now, and `save_theme` to write one once the user allows it.
+ * Removing a theme stays the user's, in the settings.
  */
-export function createThemeTools({ desk }: ThemeToolsOptions) {
+export function createThemeTools({
+  desk,
+  search,
+  now = Date.now,
+}: ThemeToolsOptions) {
+  function watched(id: string): ThemeWatch {
+    const watch = desk.list().find(({ theme }) => theme.id === id);
+
+    if (!watch) {
+      throw new Error(`No theme has the id ${id}; get_themes lists them`);
+    }
+
+    return watch;
+  }
+
   const getThemes = defineTool({
     name: AgentToolName.GetThemes,
     replay: "safe",
@@ -81,16 +112,7 @@ export function createThemeTools({ desk }: ThemeToolsOptions) {
     async execute(_params, api, context) {
       const themes = desk.list();
 
-      await rememberAddresses(
-        api,
-        compact(
-          themes.flatMap(({ developments, latest }) => [
-            ...developments.map(({ item }) => item.url),
-            ...latest.slice(0, LISTED_ITEMS).map((item) => item.url),
-          ])
-        ),
-        context
-      );
+      await rememberAddresses(api, themes.flatMap(shownAddresses), context);
 
       return {
         text:
@@ -99,6 +121,39 @@ export function createThemeTools({ desk }: ThemeToolsOptions) {
             : themes.map(watchText).join("\n\n"),
         details: { themes: themes.length },
       };
+    },
+  });
+
+  const searchTheme = defineTool({
+    name: AgentToolName.SearchTheme,
+    replay: "safe",
+    description:
+      "Searches one theme's queries for news now, where the app would wait for its own search, and reads what it finds against the theme's signposts; it answers with the theme as get_themes gives it. Use it after keeping a theme, so its first search does not wait, or when the user asks what is new on one. It costs the user's web search a search for each of the theme's queries, and their decisions model a read of each new item, so a theme is searched at most once an hour: asked sooner, it answers with what the last search found.",
+    parameters: z.object({
+      id: z.string().describe("A theme's id from get_themes"),
+    }),
+    async execute({ id }, api, context) {
+      const { collectedAt } = watched(id);
+      const sinceLast = collectedAt === null ? null : now() - collectedAt;
+      let said: string;
+
+      if (sinceLast !== null && sinceLast < SEARCH_SPAN_MS) {
+        said = `Searched ${Math.floor(sinceLast / MINUTE_MS)} minutes ago, and a theme is searched at most once an hour, so this is what that search found.`;
+      } else {
+        await search(id);
+
+        // A search no query of which was answered is not counted as made.
+        said =
+          watched(id).collectedAt === collectedAt
+            ? "The search could not be made: the web search answered none of the theme's queries. This is the theme as it stood."
+            : "Searched now.";
+      }
+
+      const watch = watched(id);
+
+      await rememberAddresses(api, shownAddresses(watch), context);
+
+      return { text: [said, watchText(watch)].join("\n"), details: { id } };
     },
   });
 
@@ -130,6 +185,7 @@ export function createThemeTools({ desk }: ThemeToolsOptions) {
         name: "solyx-themes",
         tools: [
           getThemes,
+          searchTheme,
           checkedFirst(guard(saveTheme), saveThemeArgumentsSchema, ({ id }) => {
             if (
               id !== undefined &&

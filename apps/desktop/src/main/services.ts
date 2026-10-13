@@ -352,6 +352,7 @@ export function createServices(config: ConfigFile) {
     localEmbedder: () => embeddings.localEmbedder(),
     research: research.desk,
     themes: themes.desk,
+    searchTheme: (id) => themes.check(id),
     // The tasks run through the agent, so they are built after it and reached only as a tool is called.
     tasks: {
       list: () => schedules.list(),

@@ -468,6 +468,7 @@
       "bash": "Ran a command",
       "get_themes": "Read your themes",
       "save_theme": "Wrote a theme",
+      "search_theme": "Search theme",
       "get_tasks": "Read your scheduled tasks",
       "get_task_runs": "Read task runs",
       "save_task": "Wrote a scheduled task",
