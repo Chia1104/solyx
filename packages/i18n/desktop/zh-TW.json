@@ -468,6 +468,7 @@
       "bash": "執行指令",
       "get_themes": "讀取主題",
       "save_theme": "寫入主題",
+      "search_theme": "搜尋主題",
       "get_tasks": "讀取排程任務",
       "get_task_runs": "讀取排程執行結果",
       "save_task": "寫入排程任務",

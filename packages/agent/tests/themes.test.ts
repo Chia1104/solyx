@@ -78,19 +78,42 @@ function callApi(): ToolExecutionApi {
 
 function setup() {
   const store = memoryStore();
+  const clock = { now: AT };
 
   const desk = new ThemeDesk({
     store,
     auditor: async () => ({
       audit: async () => ({ model: "jev", supported: 0.9 }),
     }),
-    now: () => AT,
+    now: () => clock.now,
   });
 
   const asked = vi.fn();
   const api = callApi();
 
-  const { tools = [] } = createThemeTools({ desk }).extension((tool) => ({
+  // The host's search, as its themes module makes it: what it finds goes to the desk.
+  const search = vi.fn(async (id: string) => {
+    await desk.take(id, [
+      {
+        id: `found-${clock.now}`,
+        url: null,
+        title: "Ports close on both sides",
+        snippet: "",
+        site: "news.test",
+        published: {
+          at: new Date(clock.now),
+          precision: TimePrecision.Minute,
+        },
+        foundAt: clock.now,
+      },
+    ]);
+  });
+
+  const { tools = [] } = createThemeTools({
+    desk,
+    search,
+    now: () => clock.now,
+  }).extension((tool) => ({
     ...tool,
     async execute(params, toolApi, context) {
       asked(params);
@@ -109,7 +132,7 @@ function setup() {
     return { text: contentText(result.output ?? []), details: result.details };
   }
 
-  return { run, desk, asked };
+  return { run, desk, asked, search, clock };
 }
 
 test("themes read with why they matter, what they could reach and what watching them found", async () => {
@@ -189,4 +212,57 @@ test("a theme is written again under its id, and an id no theme has is refused b
     run(AgentToolName.SaveTheme, { ...OUTBREAK, id: "gone" })
   ).rejects.toThrow("No theme has the id gone");
   expect(asked).not.toHaveBeenCalled();
+});
+
+test("a theme is searched now, and asked again within the hour answers with what that search found", async () => {
+  const { run, desk, search, clock } = setup();
+
+  desk.save(OUTBREAK, "outbreak");
+
+  const first = await run(AgentToolName.SearchTheme, { id: "outbreak" });
+
+  expect(search).toHaveBeenCalledWith("outbreak");
+  expect(first.text.split("\n").slice(0, 2)).toEqual([
+    "Searched now.",
+    "## Outbreak near the border (id outbreak)",
+  ]);
+  expect(first.text).toContain(
+    "- 2026-10-10 news.test: Ports close on both sides"
+  );
+  expect(first.details).toEqual({ id: "outbreak" });
+
+  clock.now = AT + 59 * 60 * 1000;
+
+  const soon = await run(AgentToolName.SearchTheme, { id: "outbreak" });
+
+  expect(soon.text.split("\n")[0]).toBe(
+    "Searched 59 minutes ago, and a theme is searched at most once an hour, so this is what that search found."
+  );
+  expect(search).toHaveBeenCalledOnce();
+
+  clock.now = AT + 60 * 60 * 1000;
+
+  expect(
+    (await run(AgentToolName.SearchTheme, { id: "outbreak" })).text
+  ).toMatch(/^Searched now\./);
+  expect(search).toHaveBeenCalledTimes(2);
+});
+
+test("a search nothing answered says so, and a theme that is not there is refused", async () => {
+  const { run, desk, search } = setup();
+
+  desk.save(OUTBREAK, "outbreak");
+  search.mockResolvedValueOnce(undefined);
+
+  expect(
+    (await run(AgentToolName.SearchTheme, { id: "outbreak" })).text.split("\n")
+  ).toEqual(
+    expect.arrayContaining([
+      "The search could not be made: the web search answered none of the theme's queries. This is the theme as it stood.",
+      "Not searched yet.",
+    ])
+  );
+  await expect(run(AgentToolName.SearchTheme, { id: "gone" })).rejects.toThrow(
+    "No theme has the id gone"
+  );
 });
