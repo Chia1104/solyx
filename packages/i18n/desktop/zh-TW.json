@@ -926,6 +926,8 @@
       "sign-out": "登出",
       "continue-in-browser": "請在瀏覽器完成登入，完成後這裡會自動更新。",
       "enter-code": "請在瀏覽器開啟的頁面輸入這組代碼：",
+      "copy-code": "複製代碼",
+      "code-copied": "已複製",
       "code-page": "如果沒有開啟頁面，請前往 {{url}}",
       "sign-out-failed": "無法登出"
     },

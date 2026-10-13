@@ -926,6 +926,8 @@
       "sign-out": "Sign out",
       "continue-in-browser": "Finish signing in in your browser; this page updates once it returns.",
       "enter-code": "Enter this code on the page your browser opened:",
+      "copy-code": "Copy code",
+      "code-copied": "Copied",
       "code-page": "If no page opened, go to {{url}}",
       "sign-out-failed": "Couldn't sign out"
     },
