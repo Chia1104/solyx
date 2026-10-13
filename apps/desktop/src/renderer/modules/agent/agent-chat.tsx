@@ -4,10 +4,13 @@ import { Link, useMatch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { AgentView } from "@solyx/agent/wire";
-import type { SymbolRef } from "@solyx/core/market";
 
+import { offeredIndicators } from "#shared/chart-indicator.ts";
+import { ScreenKind } from "#shared/ipc/agent.ts";
+import type { AgentScreen } from "#shared/ipc/agent.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
 
+import { useIndicatorStore } from "../market/indicator-store.ts";
 import { agentSettingsQuery } from "../settings/settings-query.ts";
 
 import { AgentComposer } from "./agent-composer.tsx";
@@ -17,15 +20,35 @@ import { AgentThread, EmptyThread } from "./agent-thread.tsx";
 // Streaming replaces the transcript every frame, while the composer needs only this.
 const isRunning = (view: AgentView) => view.running;
 
-/** The listing on screen, which the agent is told about with each message. */
-function useFocus(): SymbolRef | null {
-  const match = useMatch({
+/** What the window shows, which the agent is told about with each message. */
+function useScreen(): AgentScreen | null {
+  const listing = useMatch({
     from: "/symbol/$market/$symbol",
     shouldThrow: false,
   });
 
-  return match
-    ? { market: match.params.market, symbol: match.params.symbol }
+  const overview = useMatch({ from: "/", shouldThrow: false });
+  const settings = useMatch({ from: "/settings", shouldThrow: false });
+  const enabled = useIndicatorStore((state) => state.enabled);
+
+  if (listing) {
+    const { market, symbol } = listing.params;
+    const { interval } = listing.search;
+    const offered = offeredIndicators(market, interval);
+
+    return {
+      kind: ScreenKind.Listing,
+      symbol: { market, symbol },
+      interval,
+      // An indicator the chart cannot draw on this interval stays switched on but is not shown.
+      indicators: enabled.filter((indicator) => offered.includes(indicator)),
+    };
+  }
+
+  if (overview) return { kind: ScreenKind.Overview, tab: overview.search.tab };
+
+  return settings
+    ? { kind: ScreenKind.Settings, section: settings.search.section }
     : null;
 }
 
@@ -89,7 +112,7 @@ export function AgentChat({ sessionId }: { sessionId: string | null }) {
     select: isRunning,
   });
 
-  const focus = useFocus();
+  const screen = useScreen();
 
   // Until the settings load, assume they are ready rather than flash the setup notice.
   const ready = settings.data?.ready ?? true;
@@ -109,7 +132,7 @@ export function AgentChat({ sessionId }: { sessionId: string | null }) {
         <AgentComposer
           sessionId={sessionId}
           running={running.data ?? false}
-          focus={focus}
+          screen={screen}
         />
       ) : (
         <AgentSetup />

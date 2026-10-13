@@ -12,6 +12,8 @@ import { TW_BOARD_LOT } from "@solyx/core/rules/tw";
 import { Series } from "@solyx/trading-chart/series";
 import { utcTimestamp } from "@solyx/trading-chart/time-format";
 
+import { ChartIndicator, FLOW_INDICATORS } from "#shared/chart-indicator.ts";
+
 import { LINE_COLORS } from "../market/chart-palette.ts";
 import {
   LOWER_PANE_STRETCH,
@@ -19,11 +21,7 @@ import {
   toHistogram,
   toLine,
 } from "../market/chart-series.ts";
-import {
-  ChartIndicator,
-  FLOW_INDICATORS,
-  useIndicatorStore,
-} from "../market/indicator-store.ts";
+import { useIndicatorStore } from "../market/indicator-store.ts";
 
 import { listingFlowsQuery } from "./flows-query.ts";
 

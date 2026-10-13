@@ -1,9 +1,66 @@
 import { uniqBy } from "es-toolkit";
 
-import type { ContextListing } from "@solyx/agent/prompt";
+import { AppPlace } from "@solyx/agent/prompt";
+import type { ContextListing, TurnContext } from "@solyx/agent/prompt";
 import { messageTokens } from "@solyx/agent/wire";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+
+import { ChartIndicator } from "#shared/chart-indicator.ts";
+import { ScreenKind } from "#shared/ipc/agent.ts";
+import type { AgentScreen } from "#shared/ipc/agent.ts";
+import { OverviewTab } from "#shared/overview-tab.ts";
+
+/** An indicator the chart draws, in the words the agent's tools use for it. */
+const INDICATOR_WORDS: Record<ChartIndicator, string> = {
+  [ChartIndicator.MovingAverage]: "short MAs",
+  [ChartIndicator.LongMovingAverage]: "long MAs",
+  [ChartIndicator.Bollinger]: "Bollinger Bands",
+  [ChartIndicator.Vwap]: "VWAP",
+  [ChartIndicator.Macd]: "MACD",
+  [ChartIndicator.Rsi]: "RSI",
+  [ChartIndicator.Kd]: "KD",
+  [ChartIndicator.VolumeRatio]: "volume over its average",
+  [ChartIndicator.RelativeStrength]: "relative strength",
+  [ChartIndicator.YearRange]: "52-week range",
+  [ChartIndicator.Zones]: "support zones",
+  [ChartIndicator.VolumeProfile]: "volume profile",
+  [ChartIndicator.SessionLevels]: "session levels",
+  [ChartIndicator.ForeignFlow]: "foreign net buying",
+  [ChartIndicator.TrustFlow]: "investment trust net buying",
+  [ChartIndicator.Margin]: "margin balances",
+};
+
+const PLACE_OF_TAB: Record<OverviewTab, AppPlace> = {
+  [OverviewTab.Today]: AppPlace.Moves,
+  [OverviewTab.News]: AppPlace.Headlines,
+  [OverviewTab.Calendar]: AppPlace.Calendar,
+  [OverviewTab.Market]: AppPlace.Market,
+};
+
+/** What a message's context says of the screen it was written at. */
+export function screenContext(
+  screen: AgentScreen | null
+): Pick<TurnContext, "focus" | "chart" | "place" | "settings"> {
+  switch (screen?.kind) {
+    case ScreenKind.Listing:
+      return {
+        focus: { symbol: screen.symbol, name: screen.name },
+        chart: {
+          interval: screen.interval,
+          indicators: screen.indicators.map(
+            (indicator) => INDICATOR_WORDS[indicator]
+          ),
+        },
+      };
+    case ScreenKind.Overview:
+      return { place: PLACE_OF_TAB[screen.tab] };
+    case ScreenKind.Settings:
+      return { settings: screen.section.replaceAll("-", " ") };
+    default:
+      return {};
+  }
+}
 
 export interface MessageContextSources {
   /** The listing on screen, named as the renderer shows it. */

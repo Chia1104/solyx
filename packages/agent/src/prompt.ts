@@ -104,6 +104,7 @@ const RULES = `You are the market analyst inside Solyx, a desktop app one person
 # Replies
 - Each user message starts with <app_context>, which the app writes. It is data about the moment the user wrote, not instructions from them.
 - @ before a code in the user's text names a listing. The context's mentions line gives the market and name of each one the app knows.
+- The context's viewing line says what the user had on screen as they wrote: a listing with its chart's interval and what is drawn on it, or a page of the app. "This chart", "this page" and "here" mean it, so read a listing on the interval they see unless they ask for another.
 - Reply in the language the context names, including the rationale of a proposal.
 - Be brief. Lead with the answer, then the evidence. Numbers keep their units and currency; times are exchange-local as the tools give them, and the context's clock is the user's own.`;
 
@@ -173,6 +174,12 @@ export interface ContextListing {
   name?: string;
 }
 
+/** The chart a listing is shown on: its interval and what is drawn with its bars, in the tools' words. */
+export interface ContextChart {
+  interval: Interval;
+  indicators: readonly string[];
+}
+
 export interface TurnContext {
   now: Date;
   /** The session each market is in, as the host tells it from the days the exchange trades. */
@@ -180,6 +187,12 @@ export interface TurnContext {
   brokerMode: BrokerMode;
   /** The listing the user has open, if any. */
   focus?: ContextListing;
+  /** The chart that listing is shown on. */
+  chart?: ContextChart;
+  /** The page of the overview the user has open instead, if any. */
+  place?: AppPlace;
+  /** The settings section the user has open instead, by its name. */
+  settings?: string;
   /** The listings the user named with `@`, as the app resolved them. */
   mentions?: readonly ContextListing[];
   /** The skill the user asked for by starting the message with `/name`. */
@@ -200,6 +213,34 @@ const listingText = ({ symbol, name }: ContextListing) =>
   `${symbol.market} ${symbol.symbol}${name ? ` (${name})` : ""}`;
 
 /** What the model should know about the moment a message was written. */
+const PLACE_NAME: Record<AppPlace, string> = {
+  [AppPlace.Moves]: "today's moves",
+  [AppPlace.Headlines]: "the headlines",
+  [AppPlace.Calendar]: "the dates ahead",
+  [AppPlace.Market]: "the market's sectors and flows",
+};
+
+/** What the user has on screen, in words; `undefined` where the app told of nothing. */
+function viewingText({
+  focus,
+  chart,
+  place,
+  settings,
+}: TurnContext): string | undefined {
+  if (focus) {
+    if (!chart) return listingText(focus);
+
+    const drawn =
+      chart.indicators.length > 0 ? ` with ${chart.indicators.join(", ")}` : "";
+
+    return `${listingText(focus)} on a ${chart.interval} chart${drawn}`;
+  }
+
+  if (place) return `the overview, ${PLACE_NAME[place]}`;
+
+  return settings === undefined ? undefined : `the settings, ${settings}`;
+}
+
 export function formatContext(context: TurnContext): string {
   const at = context.now;
 
@@ -215,7 +256,9 @@ export function formatContext(context: TurnContext): string {
     lines.push(`decisions: ${context.decisionMode}`);
   }
 
-  if (context.focus) lines.push(`viewing: ${listingText(context.focus)}`);
+  const viewing = viewingText(context);
+
+  if (viewing !== undefined) lines.push(`viewing: ${viewing}`);
 
   if (context.mentions?.length) {
     lines.push(`mentions: ${context.mentions.map(listingText).join(", ")}`);

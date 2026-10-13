@@ -63,7 +63,7 @@ import type { AgentStore } from "@solyx/db/agent";
 import { isErrnoError } from "@solyx/utils/error";
 
 import { agentEvents } from "#shared/ipc/agent.ts";
-import type { AgentFocus, AgentUpdate } from "#shared/ipc/agent.ts";
+import type { AgentScreen, AgentUpdate } from "#shared/ipc/agent.ts";
 import type { Locale, TimeZone } from "#shared/ipc/settings.ts";
 import type { ConversationsUsage } from "#shared/ipc/storage.ts";
 import { OverviewTab, overviewLink } from "#shared/overview-tab.ts";
@@ -83,7 +83,7 @@ import type { AgentModelsOptions } from "./agent-models.ts";
 import { createAgentSetup } from "./agent-setup.ts";
 import type { AgentSetupSources } from "./agent-setup.ts";
 import type { McpServers } from "./mcp-servers.ts";
-import { messageContext } from "./message-context.ts";
+import { messageContext, screenContext } from "./message-context.ts";
 import { loginShellPath } from "./shell-path.ts";
 import { createWaitingCalls } from "./waiting-calls.ts";
 
@@ -405,13 +405,14 @@ export function createAgentService(options: AgentServiceOptions) {
     id: string,
     text: string,
     {
-      focus,
+      screen,
       locale,
       timeZone,
       scheduled,
       changes,
     }: {
-      focus: AgentFocus | null;
+      /** What the window showed as the message was written; `null` for one nobody was at the app for. */
+      screen: AgentScreen | null;
       locale: string;
       timeZone: string;
       scheduled?: string;
@@ -420,9 +421,10 @@ export function createAgentService(options: AgentServiceOptions) {
     }
   ) {
     const now = new Date();
+    const shown = screenContext(screen);
 
     const { mentions, skill } = await messageContext(text, {
-      focus,
+      focus: shown.focus ?? null,
       watchlist: options.watchlist.list,
       holdings: async () =>
         (await options.desk.account()).positions.map(
@@ -441,7 +443,7 @@ export function createAgentService(options: AgentServiceOptions) {
         now,
         sessions: await marketSessions(options.marketDays, now),
         brokerMode: options.desk.mode,
-        focus: focus ?? undefined,
+        ...shown,
         mentions,
         skill,
         locale,
@@ -514,10 +516,10 @@ export function createAgentService(options: AgentServiceOptions) {
     send: (
       id: string,
       text: string,
-      focus: AgentFocus | null,
+      screen: AgentScreen | null,
       locale: Locale,
       timeZone: TimeZone
-    ) => send(id, text, { focus, locale, timeZone }),
+    ) => send(id, text, { screen, locale, timeZone }),
 
     /** Whether a run is going in the conversation; one since deleted has none. */
     busy: (id: string) => runtime.busy(id),
@@ -556,7 +558,7 @@ export function createAgentService(options: AgentServiceOptions) {
 
       try {
         await send(session.id, prompt, {
-          focus: null,
+          screen: null,
           locale,
           timeZone,
           scheduled: name,

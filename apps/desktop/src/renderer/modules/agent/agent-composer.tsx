@@ -34,6 +34,8 @@ import type { AgentView } from "@solyx/agent/wire";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
+import { ScreenKind } from "#shared/ipc/agent.ts";
+import type { AgentScreen } from "#shared/ipc/agent.ts";
 import type { AgentSettings } from "#shared/ipc/settings.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
 
@@ -163,13 +165,16 @@ function ModelUnavailable({
 export function AgentComposer({
   sessionId,
   running,
-  focus,
+  screen,
 }: {
   sessionId: string | null;
   running: boolean;
-  /** The listing on screen. */
-  focus: SymbolRef | null;
+  /** What the window shows. */
+  screen: AgentScreen | null;
 }) {
+  // The listing on screen, which the user may detach from the message.
+  const focus = screen?.kind === ScreenKind.Listing ? screen.symbol : null;
+
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const select = useAgentStore((state) => state.select);
@@ -356,14 +361,16 @@ export function AgentComposer({
       await window.solyx.agent.send(
         id,
         message,
-        attachedFocus && {
-          symbol: attachedFocus,
-          // The attachment above the input has already asked for it.
-          name: listingName(
-            queryClient.getQueryData(listingQuery(attachedFocus).queryKey),
-            locale
-          ),
-        },
+        screen?.kind === ScreenKind.Listing
+          ? attachedFocus && {
+              ...screen,
+              // The attachment above the input has already asked for it.
+              name: listingName(
+                queryClient.getQueryData(listingQuery(attachedFocus).queryKey),
+                locale
+              ),
+            }
+          : screen,
         locale,
         currentTimeZone()
       );
