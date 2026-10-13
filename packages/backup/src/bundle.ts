@@ -221,8 +221,22 @@ export async function readBundle({
   }
 
   await mkdir(folder, { recursive: true });
-  // Strict, since tar would otherwise only warn of what it could not write and go on to the rest.
-  await pipeline(sealed(), decipher(), extract({ cwd: folder, strict: true }));
+  // tar only warns of what it could not write and goes on to the rest, so the first warning is
+  // kept and thrown once it has stopped writing, when whoever asked may clear the folder away.
+  let failed: Error | undefined;
+
+  await pipeline(
+    sealed(),
+    decipher(),
+    extract({
+      cwd: folder,
+      onwarn(_, message, data) {
+        failed ??= data instanceof Error ? data : new Error(message);
+      },
+    })
+  );
+
+  if (failed) throw failed;
 
   return header.origin;
 }
