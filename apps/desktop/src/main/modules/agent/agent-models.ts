@@ -1,16 +1,16 @@
 import { uniq } from "es-toolkit";
 
-import { createModelCatalog } from "@solyx/agent/models";
-import {
-  AgentAuth,
-  DEFAULT_PROVIDER,
-  hasSubscription,
-} from "@solyx/agent/providers";
+import { createModelCatalog, subscriptionOf } from "@solyx/agent/models";
+import { AgentAuth, DEFAULT_PROVIDER } from "@solyx/agent/providers";
 import type { AgentModelPick, AgentProvider } from "@solyx/agent/providers";
 import type { AgentModelChoice } from "@solyx/agent/runtime";
 
 import { SecretState, agentKeySecret } from "#shared/ipc/settings.ts";
-import type { AgentSettings, Locale } from "#shared/ipc/settings.ts";
+import type {
+  AgentSettings,
+  Locale,
+  SignInCode,
+} from "#shared/ipc/settings.ts";
 
 import { PRODUCT_NAME } from "../../product.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
@@ -22,7 +22,9 @@ type AgentConfig = ReturnType<ConfigFile["read"]>["agent"];
 
 /** How `agent` says `provider` is paid for; a provider without a subscription runs on a key. */
 function authOf(agent: AgentConfig, provider: AgentProvider): AgentAuth {
-  return hasSubscription(provider) ? agent.auth : AgentAuth.ApiKey;
+  return subscriptionOf(provider) === undefined
+    ? AgentAuth.ApiKey
+    : (agent.auth[provider] ?? AgentAuth.ApiKey);
 }
 
 export interface AgentModelsOptions {
@@ -32,6 +34,8 @@ export interface AgentModelsOptions {
   getDeviceId: () => string;
   /** Opens a sign-in page in the system browser. */
   openExternal: (url: string) => void;
+  /** Shows the user the code a sign-in waits for them to enter on the provider's page. */
+  showSignInCode: (code: SignInCode) => void;
 }
 
 /**
@@ -44,6 +48,7 @@ export function createAgentModels({
   secrets,
   getDeviceId,
   openExternal,
+  showSignInCode,
 }: AgentModelsOptions) {
   const agentConfig = () => config.read().agent;
 
@@ -59,7 +64,8 @@ export function createAgentModels({
     appName: PRODUCT_NAME,
     getDeviceId,
     openExternal,
-    // pi-ai tells a ChatGPT sign-in by OpenAI's own endpoint, so a subscription keeps it.
+    // A sign-in's tokens go only to the provider's own endpoint, which is also how pi-ai tells a
+    // ChatGPT sign-in.
     endpoint(provider) {
       const agent = agentConfig();
 
@@ -89,18 +95,20 @@ export function createAgentModels({
   async function setUp(agent: AgentConfig, provider: AgentProvider) {
     const auth = authOf(agent, provider);
     const key = await secrets.state(agentKeySecret(provider));
+    const plan = subscriptionOf(provider);
 
-    const signedIn = hasSubscription(provider)
-      ? await credentials.signedIn(provider)
-      : undefined;
+    const subscription =
+      plan === undefined
+        ? null
+        : { plan, signedIn: await credentials.signedIn(provider) };
 
     return {
       auth,
       key,
-      signedIn,
+      subscription,
       usable:
         auth === AgentAuth.Subscription
-          ? signedIn === true
+          ? subscription?.signedIn === true
           : key === SecretState.Saved,
     };
   }
@@ -131,16 +139,19 @@ export function createAgentModels({
 
       const providers = await Promise.all(
         catalog.providers().map(async ({ id, name }) => {
-          const { auth, key, signedIn, usable } = await setUp(agent, id);
+          const { auth, key, subscription, usable } = await setUp(agent, id);
           const on = enabled(agent, id);
 
           return {
             provider: id,
             name,
             enabled: on,
-            listed: on || key !== SecretState.Missing || signedIn === true,
+            listed:
+              on ||
+              key !== SecretState.Missing ||
+              subscription?.signedIn === true,
             auth,
-            subscription: signedIn === undefined ? null : { signedIn },
+            subscription,
             key,
             createsKey: catalog.createsKey(id),
             usable,
@@ -184,6 +195,20 @@ export function createAgentModels({
         [["agent", "provider"], provider],
         [["agent", "model"], catalog.defaultModel(provider)],
       ]);
+    },
+
+    /** Runs the provider on its key, or on the sign-in of the subscription it has. */
+    async setAuth(provider: AgentProvider, auth: AgentAuth) {
+      offered(provider);
+
+      if (
+        auth === AgentAuth.Subscription &&
+        subscriptionOf(provider) === undefined
+      ) {
+        throw new Error(`${provider} has no subscription sign-in`);
+      }
+
+      config.set(["agent", "auth", provider], auth);
     },
 
     async saveKey(provider: AgentProvider, value: string) {
@@ -267,11 +292,16 @@ export function createAgentModels({
       return { model, thinking: pick.thinking ?? start.thinking };
     },
 
-    /** Resolves once the sign-in is saved, or quietly once it is cancelled; the page is written in `locale`. */
+    /**
+     * Resolves once the sign-in is saved, or quietly once it is cancelled. Only Sign in with
+     * ChatGPT returns to this computer, on a page written in `locale`; the others run on a code.
+     */
     signIn: (provider: AgentProvider, locale: Locale) =>
-      catalog.signIn(provider, (outcome, detail) =>
-        signInPage(locale, SignInFlow.ChatGPT, outcome, detail)
-      ),
+      catalog.signIn(provider, {
+        page: (outcome, detail) =>
+          signInPage(locale, SignInFlow.ChatGPT, outcome, detail),
+        onCode: (code) => showSignInCode({ provider, ...code }),
+      }),
 
     cancelSignIn: () => catalog.cancelSignIn(),
 

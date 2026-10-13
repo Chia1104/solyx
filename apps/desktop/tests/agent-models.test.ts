@@ -16,7 +16,13 @@ import { DEFAULT_MODEL } from "@solyx/agent/models";
 import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import type { AgentProvider } from "@solyx/agent/providers";
 
-import { Locale, Secret, agentKeySecret } from "#shared/ipc/settings.ts";
+import {
+  Locale,
+  Secret,
+  agentKeySecret,
+  agentSignInSecret,
+} from "#shared/ipc/settings.ts";
+import type { SignInCode } from "#shared/ipc/settings.ts";
 
 import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
@@ -43,15 +49,17 @@ function setup() {
   config.create();
 
   const openExternal = vi.fn<(url: string) => void>();
+  const showSignInCode = vi.fn<(code: SignInCode) => void>();
 
   const models = createAgentModels({
     config,
     secrets,
     getDeviceId: () => "00000000-0000-4000-8000-000000000000",
     openExternal,
+    showSignInCode,
   });
 
-  return { config, secrets, models, openExternal };
+  return { config, secrets, models, openExternal, showSignInCode };
 }
 
 const providerOf = async (
@@ -143,7 +151,7 @@ describe("the providers offered", () => {
       name: "xAI",
       enabled: false,
       key: "missing",
-      subscription: null,
+      auth: AgentAuth.ApiKey,
     });
 
     config.set(["agent", "providers"], ["xai"]);
@@ -225,18 +233,18 @@ describe("paying by subscription", () => {
 
     config.set(["agent", "provider"], "openai");
     config.set(["agent", "model"], "gpt-6.1-sol");
-    config.set(["agent", "auth"], AgentAuth.Subscription);
+    config.set(["agent", "auth", "openai"], AgentAuth.Subscription);
 
     expect(await models.settings()).toMatchObject({ ready: false });
     expect(await providerOf(models, "openai")).toMatchObject({
       auth: AgentAuth.Subscription,
-      subscription: { signedIn: false },
+      subscription: { plan: "ChatGPT", signedIn: false },
       usable: false,
     });
     await expect(models.choice()).rejects.toThrow("Sign in to openai");
 
     await secrets.save(
-      Secret.OpenAIChatGPT,
+      agentSignInSecret("openai"),
       JSON.stringify({
         type: "oauth",
         access: "access",
@@ -247,7 +255,7 @@ describe("paying by subscription", () => {
 
     expect(await models.settings()).toMatchObject({ ready: true });
     expect(await providerOf(models, "openai")).toMatchObject({
-      subscription: { signedIn: true },
+      subscription: { plan: "ChatGPT", signedIn: true },
       usable: true,
     });
 
@@ -264,9 +272,9 @@ describe("paying by subscription", () => {
 
     expect((await models.choice()).model.baseUrl).toBe(gateway);
 
-    config.set(["agent", "auth"], AgentAuth.Subscription);
+    config.set(["agent", "auth", "openai"], AgentAuth.Subscription);
     await secrets.save(
-      Secret.OpenAIChatGPT,
+      agentSignInSecret("openai"),
       JSON.stringify({
         type: "oauth",
         access: "access",
@@ -284,17 +292,93 @@ describe("paying by subscription", () => {
     const { config, secrets, models } = setup();
 
     config.set(["agent", "provider"], "openai");
-    config.set(["agent", "auth"], AgentAuth.Subscription);
+    config.set(["agent", "auth", "openai"], AgentAuth.Subscription);
     await secrets.save(agentKeySecret("openai"), "sk-test");
 
     expect((await models.settings()).ready).toBe(false);
+  });
+
+  test("is picked provider by provider", async () => {
+    const { secrets, models } = setup();
+
+    await models.setProviderEnabled("xai", true);
+    await models.setAuth("openai", AgentAuth.Subscription);
+    await secrets.save(agentKeySecret("xai"), "xai-test");
+
+    expect(await providerOf(models, "openai")).toMatchObject({
+      auth: AgentAuth.Subscription,
+      usable: false,
+    });
+    expect(await providerOf(models, "xai")).toMatchObject({
+      auth: AgentAuth.ApiKey,
+      subscription: { plan: "SuperGrok / X Premium", signedIn: false },
+      usable: true,
+    });
+
+    await models.setAuth("xai", AgentAuth.Subscription);
+
+    expect(await providerOf(models, "xai")).toMatchObject({ usable: false });
+    await expect(
+      models.setAuth("anthropic", AgentAuth.Subscription)
+    ).rejects.toThrow("no subscription sign-in");
+  });
+
+  test("a sign-in by code shows its code and is saved under the provider's id", async () => {
+    const { secrets, models, openExternal, showSignInCode } = setup();
+    const page = "https://accounts.x.ai/oauth2/device?user_code=WXYZ-1234";
+
+    // xAI's device flow, shaped as its responses are.
+    vi.stubGlobal("fetch", async (input: string | URL | Request) =>
+      String(input).endsWith("/device/code")
+        ? Response.json({
+            device_code: "device",
+            user_code: "WXYZ-1234",
+            verification_uri: "https://accounts.x.ai/oauth2/device",
+            verification_uri_complete: page,
+            interval: 1,
+            expires_in: 600,
+          })
+        : Response.json({
+            access_token: "access",
+            refresh_token: "refresh",
+            expires_in: 3600,
+          })
+    );
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+
+    await models.setProviderEnabled("xai", true);
+    await models.setAuth("xai", AgentAuth.Subscription);
+    await models.signIn("xai", Locale.EnUS);
+
+    expect(showSignInCode).toHaveBeenCalledExactlyOnceWith({
+      provider: "xai",
+      code: "WXYZ-1234",
+      url: page,
+    });
+    expect(openExternal).toHaveBeenCalledExactlyOnceWith(page);
+    expect(
+      JSON.parse((await secrets.get(agentSignInSecret("xai"))) ?? "")
+    ).toMatchObject({ type: "oauth", access: "access", refresh: "refresh" });
+    expect(await providerOf(models, "xai")).toMatchObject({
+      subscription: { plan: "SuperGrok / X Premium", signedIn: true },
+      usable: true,
+    });
+
+    await models.signOut("xai");
+
+    expect(await providerOf(models, "xai")).toMatchObject({
+      subscription: { signedIn: false },
+      usable: false,
+    });
   });
 
   test("applies only to providers that offer it", async () => {
     const { config, secrets, models } = setup();
 
     config.set(["agent", "provider"], "anthropic");
-    config.set(["agent", "auth"], AgentAuth.Subscription);
+    config.set(["agent", "auth", "anthropic"], AgentAuth.Subscription);
     await secrets.save(agentKeySecret("anthropic"), "sk-ant-test");
 
     expect(await models.settings()).toMatchObject({ ready: true });

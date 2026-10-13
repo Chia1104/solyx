@@ -5,7 +5,6 @@ import { isPlainObject } from "es-toolkit";
 import * as z from "zod";
 
 import {
-  AgentAuth,
   DEFAULT_PROVIDER,
   AgentThinking,
   agentAuthSchema,
@@ -231,10 +230,14 @@ const configSchema = section(
         thinking: agentThinkingSchema.catch(AgentThinking.Medium).meta({
           description: "How long the model thinks before it answers.",
         }),
-        auth: agentAuthSchema.catch(AgentAuth.ApiKey).meta({
-          description:
-            "How the provider is paid for; a subscription applies to OpenAI, signed in with ChatGPT.",
-        }),
+        // By provider id; an entry that is not a way to pay reads as an API key.
+        auth: z
+          .record(z.string(), agentAuthSchema.optional().catch(undefined))
+          .catch({})
+          .meta({
+            description:
+              "How a provider is paid for, by provider: on its API key unless set to subscription, which runs a provider that has one, such as OpenAI on ChatGPT, on the sign-in saved for it.",
+          }),
         // By provider id; an entry that is not an endpoint reads as the provider's own.
         endpoints: z
           .record(z.string(), endpointSchema.optional().catch(undefined))
@@ -457,14 +460,13 @@ type ConfigPath =
         | "provider"
         | "model"
         | "thinking"
-        | "auth"
         | "sharedSkills"
         | "shell"
         | "decisionMode"
         | "memory"
       ),
     ]
-  | ["agent", "endpoints", AgentProvider]
+  | ["agent", "auth" | "endpoints", AgentProvider]
   | ["agent", "magi", MagiUnit]
   | ["agent", "mcpTools", string]
   | ["collection", CollectionJob]

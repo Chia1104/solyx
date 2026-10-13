@@ -182,9 +182,7 @@ export function createSettingsApi({
       config.set(["agent", "magi", unit], model);
     },
 
-    async setAgentAuth(auth) {
-      config.set(["agent", "auth"], auth);
-    },
+    setAgentAuth: (provider, auth) => agent.models.setAuth(provider, auth),
 
     saveAgentKey: (provider, value) => agent.models.saveKey(provider, value),
 

@@ -1,8 +1,12 @@
 import { escapeRegExp } from "es-toolkit";
 import { expect, onTestFinished, test, vi } from "vite-plus/test";
 
-import { DEFAULT_MODEL, createModelCatalog } from "../src/models.ts";
-import type { ProviderCredentials } from "../src/models.ts";
+import {
+  DEFAULT_MODEL,
+  createModelCatalog,
+  subscriptionOf,
+} from "../src/models.ts";
+import type { ProviderCredentials, SignInOptions } from "../src/models.ts";
 import type { AgentProvider } from "../src/providers.ts";
 
 // No credential is ever saved here; sign-ins are cancelled before they return.
@@ -13,13 +17,17 @@ const NO_CREDENTIALS: ProviderCredentials = {
   delete: async () => undefined,
 };
 
+// A sign-in that returns to no page and shows no code.
+const QUIET: SignInOptions = { page: () => "", onCode: () => undefined };
+
 function setup(
-  endpoint: (provider: AgentProvider) => string | undefined = () => undefined
+  endpoint: (provider: AgentProvider) => string | undefined = () => undefined,
+  credentials: ProviderCredentials = NO_CREDENTIALS
 ) {
   const openExternal = vi.fn();
 
   const catalog = createModelCatalog({
-    credentials: NO_CREDENTIALS,
+    credentials,
     appName: "Solyx",
     getDeviceId: () => "00000000-0000-4000-8000-000000000000",
     openExternal,
@@ -41,11 +49,14 @@ test("a model the provider does not list reads as its default", () => {
   );
 });
 
-test("every provider offered is set up with one key, and only OpenAI also signs in", async () => {
+test("every provider offered is set up with one key, and only those with a subscription also sign in", async () => {
   const { catalog } = setup();
   const offered = catalog.providers();
 
   expect(offered.length).toBeGreaterThan(4);
+  expect(
+    offered.map(({ id }) => id).filter((id) => subscriptionOf(id) !== undefined)
+  ).toEqual(["meta", "openai", "xai"]);
 
   for (const { id } of offered) {
     const auth = catalog.models.getProvider(id)?.auth;
@@ -64,7 +75,7 @@ test("every provider offered is set up with one key, and only OpenAI also signs 
     expect({ id, asked }).toEqual({ id, asked: ["secret"] });
     expect({ id, oauth: auth?.oauth !== undefined }).toEqual({
       id,
-      oauth: id === "openai",
+      oauth: subscriptionOf(id) !== undefined,
     });
   }
 });
@@ -112,14 +123,13 @@ test("each default model is one its provider's catalog lists", () => {
 
 test("signing in again replaces a sign-in still open, and cancelling ends it quietly", async () => {
   const { catalog, openExternal } = setup();
-  const page = () => "";
 
-  const first = catalog.signIn("openai", page);
+  const first = catalog.signIn("openai", QUIET);
 
   await vi.waitFor(() => expect(openExternal).toHaveBeenCalledOnce());
 
   // Its browser page was closed, so the user starts over.
-  const second = catalog.signIn("openai", page);
+  const second = catalog.signIn("openai", QUIET);
 
   await expect(first).resolves.toBeUndefined();
   await vi.waitFor(() => expect(openExternal).toHaveBeenCalledTimes(2));
@@ -153,9 +163,97 @@ test("OpenRouter's sign-in opens its page and ends quietly, with no key, once ca
 test("only a provider with a subscription signs in", async () => {
   const { catalog } = setup();
 
-  await expect(catalog.signIn("anthropic", () => "")).rejects.toThrow(
+  await expect(catalog.signIn("anthropic", QUIET)).rejects.toThrow(
     "no subscription sign-in"
   );
+});
+
+test("a sign-in by code shows the code, opens the provider's page and saves what it grants", async () => {
+  const page = "https://accounts.x.ai/oauth2/device?user_code=WXYZ-1234";
+  const asked: string[] = [];
+  let saved: unknown;
+
+  // xAI's device flow, shaped as its responses are.
+  vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+    const url = String(input);
+
+    asked.push(url);
+
+    return url.endsWith("/device/code")
+      ? Response.json({
+          device_code: "device",
+          user_code: "WXYZ-1234",
+          verification_uri: "https://accounts.x.ai/oauth2/device",
+          verification_uri_complete: page,
+          interval: 1,
+          expires_in: 600,
+        })
+      : Response.json({
+          access_token: "access",
+          refresh_token: "refresh",
+          expires_in: 3600,
+        });
+  });
+  onTestFinished(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const { catalog, openExternal } = setup(undefined, {
+    ...NO_CREDENTIALS,
+    async modify(_provider, change) {
+      saved = await change(undefined);
+
+      return undefined;
+    },
+  });
+
+  const onCode = vi.fn();
+
+  await catalog.signIn("xai", { page: () => "", onCode });
+
+  expect(onCode).toHaveBeenCalledExactlyOnceWith({
+    code: "WXYZ-1234",
+    url: page,
+  });
+  expect(openExternal).toHaveBeenCalledExactlyOnceWith(page);
+  expect(asked).toEqual([
+    "https://auth.x.ai/oauth2/device/code",
+    "https://auth.x.ai/oauth2/token",
+  ]);
+  expect(saved).toMatchObject({
+    type: "oauth",
+    access: "access",
+    refresh: "refresh",
+  });
+});
+
+test("a page that is not https is shown with its code and never opened", async () => {
+  vi.stubGlobal("fetch", async () =>
+    Response.json({
+      device_code: "device",
+      user_code: "WXYZ-1234",
+      verification_uri: "http://auth.meta.example/device",
+      interval: 1,
+      expires_in: 600,
+    })
+  );
+  onTestFinished(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const { catalog, openExternal } = setup();
+  const onCode = vi.fn();
+  const signedIn = catalog.signIn("meta", { page: () => "", onCode });
+
+  await vi.waitFor(() => expect(onCode).toHaveBeenCalledOnce());
+  catalog.cancelSignIn();
+  await signedIn;
+
+  expect(onCode).toHaveBeenCalledWith({
+    code: "WXYZ-1234",
+    url: "http://auth.meta.example/device",
+  });
+  expect(openExternal).not.toHaveBeenCalled();
 });
 
 test("a request goes to the endpoint set for its provider, read for every request", async () => {

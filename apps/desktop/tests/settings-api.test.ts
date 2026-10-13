@@ -104,6 +104,7 @@ function setup() {
         secrets,
         getDeviceId: () => "00000000-0000-4000-8000-000000000000",
         openExternal: vi.fn(),
+        showSignInCode: vi.fn(),
       }),
       skills: async () => ({ skills: [], warnings: [] }),
       instructions: async () => undefined,
