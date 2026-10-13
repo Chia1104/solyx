@@ -6,6 +6,7 @@ import {
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -327,6 +328,48 @@ test("a restore puts a backup in place as the app next starts, and keeps what wa
   expect(takeRestore(laptop.folders)).toEqual({ key, createdAt: AT });
   settleRestore(laptop.folders.dataDir);
   expect(takeRestore(laptop.folders)).toBeNull();
+});
+
+test("a setting kept through a link is backed up as what it says, and a link inside a folder left out", async () => {
+  const shared = memoryBucket();
+  const desk = await computer("desk", shared);
+  const laptop = await computer("laptop", shared);
+  const dotfiles = join(directory, "dotfiles");
+
+  await mkdir(join(dotfiles, "skills", "ladder"), { recursive: true });
+  await writeFile(join(dotfiles, "AGENTS.md"), "kept with the dotfiles");
+  await writeFile(
+    join(dotfiles, "skills", "ladder", "SKILL.md"),
+    "# 分批進場\n"
+  );
+  await symlink(
+    join(dotfiles, "SKILL.md"),
+    join(dotfiles, "skills", "ladder", "elsewhere.md")
+  );
+  await symlink(
+    join(dotfiles, "AGENTS.md"),
+    join(desk.folders.configDir, "AGENTS.md")
+  );
+  await symlink(
+    join(dotfiles, "skills"),
+    join(desk.folders.configDir, "skills")
+  );
+
+  const { key } = await desk.backups.backUp();
+
+  await laptop.backups.restore(key);
+  laptop.opened.close();
+  takeRestore(laptop.folders);
+
+  // The laptop has no such folder of dotfiles, and needs none.
+  await rm(dotfiles, { recursive: true });
+
+  expect(
+    await readFile(join(laptop.folders.configDir, "AGENTS.md"), "utf8")
+  ).toBe("kept with the dotfiles");
+  expect(
+    await readdir(join(laptop.folders.configDir, "skills", "ladder"))
+  ).toEqual(["SKILL.md"]);
 });
 
 test("a restore cut off partway goes on from where it stopped", async () => {

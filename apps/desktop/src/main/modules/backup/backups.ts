@@ -1,6 +1,14 @@
 import { createHash } from "node:crypto";
 import { createReadStream, existsSync, rmSync } from "node:fs";
-import { cp, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  realpath,
+  rm,
+  stat,
+} from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
 import { sumBy } from "es-toolkit";
@@ -249,7 +257,9 @@ export function createBackups({
 
     for (const { part, path } of filePlaces(folders)) {
       try {
-        await cp(path, join(content, part), {
+        // What a link at the place points to, since a bundle packs no link and settings a person
+        // keeps elsewhere are the app's all the same.
+        await cp(await realpath(path), join(content, part), {
           recursive: true,
           verbatimSymlinks: true,
         });
