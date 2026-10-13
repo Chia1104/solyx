@@ -35,7 +35,7 @@ const WITHHELD = new Set([
   "amazon-bedrock",
   "google-vertex",
   // Need an account, gateway or resource beside the key.
-  "azure-openai-responses",
+  "azure",
   "cloudflare-ai-gateway",
   "cloudflare-workers-ai",
 ]);
