@@ -11,6 +11,7 @@ export const SettingsSection = {
   Memory: "memory",
   Mcp: "mcp",
   Storage: "storage",
+  Backup: "backup",
   About: "about",
 } as const;
 

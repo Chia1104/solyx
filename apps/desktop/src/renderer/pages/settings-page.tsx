@@ -7,6 +7,7 @@ import { SettingsSection } from "#shared/settings-section.ts";
 
 import { Section } from "../components/section.tsx";
 import { Sheet } from "../components/sheet.tsx";
+import { BackupSettings } from "../modules/backup/backup-settings.tsx";
 import { MemorySettings } from "../modules/memory/memory-settings.tsx";
 import { SetupGuideLink } from "../modules/onboarding/setup-guide-link.tsx";
 import { ScheduleSettings } from "../modules/schedules/schedule-settings.tsx";
@@ -65,6 +66,7 @@ export function SettingsPage() {
     [SettingsSection.Memory]: <MemorySettings />,
     [SettingsSection.Mcp]: <McpSettings server={server} />,
     [SettingsSection.Storage]: <StorageSettings />,
+    [SettingsSection.Backup]: <BackupSettings />,
     [SettingsSection.About]: (
       <>
         <AboutSettings />

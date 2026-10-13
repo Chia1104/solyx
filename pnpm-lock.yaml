@@ -451,6 +451,9 @@ importers:
       '@solyx/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@solyx/backup':
+        specifier: workspace:*
+        version: link:../../packages/backup
       '@solyx/brokers':
         specifier: workspace:*
         version: link:../../packages/brokers

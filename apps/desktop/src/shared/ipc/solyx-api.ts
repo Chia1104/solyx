@@ -1,5 +1,6 @@
 import type { AccountApi } from "./account.ts";
 import type { AgentApi, AgentEvents } from "./agent.ts";
+import type { BackupApi, BackupEvents } from "./backup.ts";
 import type { CalendarApi } from "./calendar.ts";
 import type { FlowsApi } from "./flows.ts";
 import type { FundamentalsApi } from "./fundamentals.ts";
@@ -20,6 +21,7 @@ import type { WorkspaceApi, WorkspaceEvents } from "./workspace.ts";
 export interface SolyxApi {
   account: AccountApi;
   agent: AgentApi & AgentEvents;
+  backup: BackupApi & BackupEvents;
   calendar: CalendarApi;
   flows: FlowsApi;
   fundamentals: FundamentalsApi;

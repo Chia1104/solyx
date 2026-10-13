@@ -13,6 +13,7 @@ import {
   agentThinkingSchema,
 } from "@solyx/agent/providers";
 import type { AgentModelRef, AgentProvider } from "@solyx/agent/providers";
+import { DEFAULT_REGION } from "@solyx/backup/s3";
 import {
   DecisionMode,
   MagiUnit,
@@ -52,6 +53,12 @@ import {
   webSearchProviderSchema,
 } from "@solyx/web-search/provider";
 
+import {
+  backupBucketSchema,
+  backupPrefixSchema,
+  backupRegionSchema,
+} from "#shared/ipc/backup.ts";
+import type { BackupSetting } from "#shared/ipc/backup.ts";
 import {
   LanguagePreference,
   MarketDataSource,
@@ -317,6 +324,27 @@ const configSchema = section(
         }),
       })
     ),
+    backup: section(
+      z.looseObject({
+        endpoint: endpointSchema.optional().catch(undefined).meta({
+          description:
+            "The S3 server backups are uploaded to, such as https://<account>.r2.cloudflarestorage.com for Cloudflare R2, a Backblaze B2 or MinIO address, or nothing for AWS itself in the region below. Solyx reaches the bucket in the path, as https://server/bucket/…, signed with the access key saved in the app.",
+        }),
+        region: backupRegionSchema.optional().catch(undefined).meta({
+          description:
+            "The region requests are signed for. AWS and Backblaze B2 need the bucket's own; Cloudflare R2 and MinIO take the default.",
+          default: DEFAULT_REGION,
+        }),
+        bucket: backupBucketSchema.optional().catch(undefined).meta({
+          description:
+            "The bucket backups go to, which you make first. Each backup is one object holding the databases of what you made (watchlist, proposals, the paper account, research, memories, news and conversations), this file, mcp.json, AGENTS.md, skills and the conversations' folders, sealed under the passphrase saved in the app, so the server cannot read it. Keys and sign-ins are never part of one.",
+        }),
+        prefix: backupPrefixSchema.optional().catch(undefined).meta({
+          description:
+            "The folder in the bucket backups are kept under, each installation in a folder of its own beneath it; named after the app when missing, so each channel keeps its own.",
+        }),
+      })
+    ),
     crashReports: section(
       z.looseObject({
         send: z.boolean().catch(false).meta({
@@ -470,6 +498,7 @@ type ConfigPath =
   | ["agent", "magi", MagiUnit]
   | ["agent", "mcpTools", string]
   | ["collection", CollectionJob]
+  | ["backup", BackupSetting]
   | ["updates", "check"]
   | ["crashReports", "send"]
   | ["otlp", "endpoint"]

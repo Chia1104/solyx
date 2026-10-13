@@ -2,7 +2,7 @@ import { dirname, join } from "node:path";
 
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import type { WebContents } from "electron";
-import { omit, uniqBy } from "es-toolkit";
+import { kebabCase, omit, uniqBy } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
 import { changesSince } from "@solyx/core/changes";
@@ -23,6 +23,7 @@ import { createTwExchanges } from "@solyx/fundamentals/tw-exchanges";
 import { createDgbas } from "@solyx/macro/dgbas";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 
+import { backupEvents } from "#shared/ipc/backup.ts";
 import { marketEvents } from "#shared/ipc/market.ts";
 import { memoryEvents } from "#shared/ipc/memory.ts";
 import { newsEvents } from "#shared/ipc/news.ts";
@@ -44,6 +45,8 @@ import { ColorScheme } from "#shared/palette.ts";
 
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
+import { createBackups } from "./modules/backup/backups.ts";
+import { settleRestore, takeRestore } from "./modules/backup/staged-restore.ts";
 import { createCalendar } from "./modules/calendar/calendar.ts";
 import { reportError } from "./modules/crash-reports/crash-reports.ts";
 import { createDecisions } from "./modules/decisions/decisions.ts";
@@ -108,6 +111,15 @@ export function createServices(config: ConfigFile) {
   const home = app.getPath("home");
   const configDir = dirname(config.file);
 
+  const folders = {
+    dataDir: userDataDir,
+    configDir,
+    workspaces: join(userDataDir, "agent-workspaces"),
+  };
+
+  // Before anything opens a file, since a backup the user had restored takes their place here.
+  const restored = takeRestore(folders);
+
   const userData = openUserData(
     join(userDataDir, "user.sqlite"),
     join(import.meta.dirname, "migrations", "user")
@@ -126,11 +138,15 @@ export function createServices(config: ConfigFile) {
     store: userData.proposals,
     limits: PAPER_LIMITS,
     tradingDays: (market) => marketDays(market),
+    restored: restored !== null,
     onChange() {
       broadcast(proposalsEvents.onChanged);
       void tray.sync();
     },
   });
+
+  // The desk has dismissed what waited in the backup, so the restore needs nothing more.
+  settleRestore(userDataDir);
 
   const secrets = createSecretStore(
     join(userDataDir, "secrets.json"),
@@ -320,17 +336,19 @@ export function createServices(config: ConfigFile) {
       new Intl.DateTimeFormat().resolvedOptions().timeZone
     );
 
+  const deviceId = installationId(join(userDataDir, "installation-id"));
+
   const agent = createAgentService({
     config,
     secrets,
     tracer: telemetry.tracer,
-    getDeviceId: installationId(join(userDataDir, "installation-id")),
+    getDeviceId: deviceId,
     openExternal,
     showSignInCode: (code) => broadcast(settingsEvents.onSignInCode, code),
     skillFolders,
     instructionsFile,
     mcp,
-    workspaces: join(userDataDir, "agent-workspaces"),
+    workspaces: folders.workspaces,
     async judgeCommand(input, signal) {
       const judgement = await (
         await decisions.commandJudge()
@@ -391,6 +409,26 @@ export function createServices(config: ConfigFile) {
     news: newsData,
     research,
     watchlist,
+  });
+
+  /** Quits the app and starts it again; quitting closes what is open first, as any quit does. */
+  function restart() {
+    app.relaunch();
+    app.quit();
+  }
+
+  const backups = createBackups({
+    config,
+    secrets,
+    folders,
+    // vp pack copies the migrations next to the bundle; see vite.config.ts.
+    migrations: join(import.meta.dirname, "migrations"),
+    app: kebabCase(app.getName()),
+    version: app.getVersion(),
+    installation: deviceId,
+    restored,
+    restart,
+    onChange: () => broadcast(backupEvents.onChanged),
   });
 
   /** What the user holds, then what they watch, each once; a broker that cannot be read leaves the watchlist. */
@@ -529,6 +567,9 @@ export function createServices(config: ConfigFile) {
   // A collection's plan lives in the config file, so whoever shows the plans hears of every edit.
   config.onChange(() => broadcast(schedulesEvents.onChanged));
   secrets.onChange(() => broadcast(settingsEvents.onChanged));
+  // Where backups go is settings and secrets both.
+  config.onChange(() => broadcast(backupEvents.onChanged));
+  secrets.onChange(() => broadcast(backupEvents.onChanged));
   // Its switches and its menu's language and clock all live in the config file.
   config.onChange(() => void tray.sync());
   config.watch();
@@ -559,6 +600,9 @@ export function createServices(config: ConfigFile) {
     flows,
     fundamentals,
     agent,
+    backups,
+    /** The backup the app started on, when it was restored as it started. */
+    restored,
     telemetry,
     mcp,
     decisions,
@@ -575,11 +619,7 @@ export function createServices(config: ConfigFile) {
     tray,
     workspace,
 
-    /** Quits the app and starts it again; quitting closes what is open first, as any quit does. */
-    restart() {
-      app.relaunch();
-      app.quit();
-    },
+    restart,
   };
 }
 

@@ -46,6 +46,11 @@ export const Secret = {
   FinMindToken: "finmind-token",
   /** Optional: what traces and logs are sent with, such as an authorization, as OTEL_EXPORTER_OTLP_HEADERS writes them. */
   OtlpHeaders: "otlp-headers",
+  /** The id of the access key that may read and write the bucket backups go to. */
+  BackupAccessKeyId: "backup-access-key-id",
+  BackupSecretAccessKey: "backup-secret-access-key",
+  /** What every backup is sealed under; a backup cannot be opened without it. */
+  BackupPassphrase: "backup-passphrase",
 } as const;
 
 export type Secret = (typeof Secret)[keyof typeof Secret];

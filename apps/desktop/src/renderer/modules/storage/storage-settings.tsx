@@ -23,27 +23,8 @@ import { newsQueryKeys } from "../news/news-query.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 import { watchlistQueryKeys } from "../watchlist/watchlist-query.ts";
 
+import { formatBytes } from "./format-bytes.ts";
 import { storageQueryKeys, storageUsageQuery } from "./storage-query.ts";
-
-// Decimal units, as the OS file managers count sizes.
-const BYTE_UNITS = [
-  { unit: "gigabyte", bytes: 1e9 },
-  { unit: "megabyte", bytes: 1e6 },
-  { unit: "kilobyte", bytes: 1e3 },
-];
-
-function formatBytes(bytes: number, locale: string) {
-  const { unit, bytes: size } = BYTE_UNITS.find(
-    (candidate) => bytes >= candidate.bytes
-  ) ?? { unit: "byte", bytes: 1 };
-
-  return new Intl.NumberFormat(locale, {
-    style: "unit",
-    unit,
-    unitDisplay: "short",
-    maximumFractionDigits: 1,
-  }).format(bytes / size);
-}
 
 /** What the rest of the workspace shows of each kind, read again once it is cleared. */
 const SHOWN_ELSEWHERE: Record<StoredData, QueryKey | null> = {

@@ -775,6 +775,7 @@
       "general": "General",
       "market-data": "Market data",
       "storage": "Storage",
+      "backup": "Backup",
       "about": "About",
       "agent": "AI agent",
       "skills": "Skills",
@@ -954,6 +955,18 @@
       "otlp-headers": {
         "label": "OTLP headers",
         "hint": "What traces and logs are sent with, as OTEL_EXPORTER_OTLP_HEADERS writes them, such as the authorization Grafana Cloud shows. A collector that needs none goes without."
+      },
+      "backup-access-key-id": {
+        "label": "Access key ID",
+        "hint": "The ID of an access key that may read and write the bucket, such as an R2 API token's."
+      },
+      "backup-secret-access-key": {
+        "label": "Secret access key",
+        "hint": "The secret that goes with the access key ID."
+      },
+      "backup-passphrase": {
+        "label": "Passphrase",
+        "hint": "Seals every backup. Solyx cannot recover it, and no backup opens without it, so keep it somewhere else too. A backup opens only under the passphrase it was made with."
       }
     },
     "sign-in": {
@@ -1385,6 +1398,55 @@
         "confirm-body": "Every listing leaves the watchlist, and their news stops being collected on a schedule. This can't be undone. Their news and cached candles stay.",
         "confirm": "Clear",
         "clear-failed": "Couldn't clear the watchlist"
+      }
+    },
+    "backup": {
+      "destination": {
+        "title": "Where backups go",
+        "description": "A bucket of your own on any server that speaks S3's API, such as Cloudflare R2, AWS, Backblaze B2 or MinIO. Solyx seals each backup under your passphrase before it leaves this computer, so the server only holds what it cannot read.",
+        "endpoint": "Server",
+        "endpoint-description": "The server's S3 endpoint, such as https://<account>.r2.cloudflarestorage.com. AWS needs none.",
+        "endpoint-invalid": "Enter an http or https address",
+        "endpoint-reset": "Use AWS",
+        "region": "Region",
+        "region-description": "AWS and Backblaze B2 need the bucket's own region. Cloudflare R2 and MinIO take the default.",
+        "region-invalid": "Enter a region such as us-east-1",
+        "bucket": "Bucket",
+        "bucket-description": "A bucket you made, which the access key below may read and write.",
+        "bucket-invalid": "Enter the bucket's name: 3 to 63 letters, digits, dots and hyphens",
+        "bucket-reset": "Remove",
+        "prefix": "Folder",
+        "prefix-description": "Where in the bucket backups are kept, each installation in a folder of its own beneath it.",
+        "prefix-invalid": "Enter folder names of letters, digits, dots, hyphens and underscores, with a slash between them"
+      },
+      "now": {
+        "title": "Back up",
+        "description": "A backup holds your watchlist, proposals and paper account, research, memories, news and conversations, with your settings, skills, instructions and MCP servers. Keys and sign-ins are never part of one, and candles are left out, since charts fetch them again.",
+        "not-ready": "Set the bucket, both parts of its access key and a passphrase first.",
+        "action": "Back up now",
+        "done": "Backed up {{size}} at {{time}}",
+        "failed": "Couldn't back up"
+      },
+      "restore": {
+        "title": "Restore",
+        "description": "Puts a backup in place of what Solyx keeps on this computer. On another computer, set the same bucket, access key and passphrase first, then enter your keys again afterwards.",
+        "show": "Show backups",
+        "empty": "No backups in this folder yet",
+        "own": "This installation",
+        "other": "Another installation",
+        "action": "Restore",
+        "confirm-title": "Restore the backup from {{time}}?",
+        "confirm-body": "Your watchlist, proposals, paper account, research, memories, news, conversations, settings and skills go back to what they were then, and Solyx restarts. What this computer holds now is moved to a folder in Solyx's data rather than deleted. Proposals that were waiting to be confirmed in the backup are dismissed, since they may have been confirmed since. Keys and sign-ins stay as they are.",
+        "confirm": "Restore and restart",
+        "failed": "Couldn't restore the backup"
+      },
+      "restored": {
+        "title": "Restored from the backup of {{time}}",
+        "body": "Proposals that were waiting to be confirmed then were dismissed, since they may have been confirmed since. What this computer held before is in the restore folder of Solyx's data until the next restore."
+      },
+      "restore-stuck": {
+        "title": "Solyx couldn't finish restoring your backup",
+        "body": "{{reason}}\n\nSolyx tries again the next time it starts. The backup and what was moved so far are in {{folder}}."
       }
     },
     "about": {

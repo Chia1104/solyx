@@ -2,6 +2,7 @@ import {
   BotIcon,
   Brain01Icon,
   ChartCandlestickIcon,
+  CloudUploadIcon,
   Clock01Icon,
   Database01Icon,
   Globe02Icon,
@@ -28,6 +29,7 @@ const SECTION_ICON: Record<SettingsSection, IconSvgElement> = {
   [SettingsSection.Memory]: Brain01Icon,
   [SettingsSection.Mcp]: McpServerIcon,
   [SettingsSection.Storage]: Database01Icon,
+  [SettingsSection.Backup]: CloudUploadIcon,
   [SettingsSection.About]: InformationCircleIcon,
 };
 
