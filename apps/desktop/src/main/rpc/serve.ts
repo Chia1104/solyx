@@ -1,57 +1,16 @@
-import { ValidationError } from "@orpc/contract";
-import { ORPCError } from "@orpc/server";
-import type {
-  Context,
-  ErrorMap,
-  ProcedureClientInterceptor,
-  Schema,
-} from "@orpc/server";
 import { RPCHandler } from "@orpc/server/message-port";
 import { ipcMain } from "electron";
-import * as z from "zod";
-
-import { errorMessage } from "@solyx/utils/error";
 
 import { RPC_CONNECT } from "#shared/rpc/connect.ts";
 
 import type { Services } from "../services.ts";
 
+import { keepMessages } from "./messages.ts";
 import { router } from "./router.ts";
-
-/**
- * Tells a window of a failure. The renderer shows the main process's own message, which oRPC would
- * replace with "Internal server error", and input that does not parse in words, since the issues'
- * JSON is unreadable there.
- */
-export const forWindow: ProcedureClientInterceptor<
-  Context,
-  Schema<unknown>,
-  ErrorMap
-> = async ({ next, path }) => {
-  try {
-    return await next();
-  } catch (error) {
-    if (!(error instanceof ORPCError)) {
-      throw new ORPCError("INTERNAL_SERVER_ERROR", {
-        message: errorMessage(error),
-        cause: error,
-      });
-    }
-
-    if (error.cause instanceof ValidationError) {
-      throw new ORPCError("BAD_REQUEST", {
-        message: `Invalid input for ${path.join(".")}: ${z.prettifyError(error.cause)}`,
-        cause: error.cause,
-      });
-    }
-
-    throw error;
-  }
-};
 
 /** Serves the router on a window's ports; built once, since each port keeps its own calls. */
 export const rpcHandler = new RPCHandler(router, {
-  clientInterceptors: [forWindow],
+  clientInterceptors: [keepMessages],
 });
 
 /**

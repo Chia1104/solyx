@@ -1,12 +1,18 @@
+import { MessageChannel } from "node:worker_threads";
+
+import { implement } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/message-port";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { connectFubon } from "../src/main/modules/market/fubon-client.ts";
-import type { FubonChild } from "../src/main/modules/market/fubon-client.ts";
-import { FubonMethod } from "../src/utility/fubon-protocol.ts";
 import type {
-  FubonReply,
-  FubonRequest,
-} from "../src/utility/fubon-protocol.ts";
+  FubonAccount,
+  FubonRealtime,
+  FubonSessionOptions,
+} from "@solyx/brokers/fubon";
+
+import { connectFubon } from "../src/main/modules/market/fubon-client.ts";
+import { keepMessages } from "../src/main/rpc/messages.ts";
+import { fubonContract } from "../src/utility/fubon.contract.ts";
 
 const OPTIONS = {
   sdkDir: "/sdk",
@@ -29,87 +35,107 @@ const REALTIME = {
   streamBaseUrl: "wss://stream.example.test/marketdata",
 };
 
-/** A utility process the test answers for, as the Fubon SDK would. */
-function fakeChild() {
-  const requests: FubonRequest[] = [];
-  const replies: ((reply: FubonReply) => void)[] = [];
+/** What the test's Fubon SDK does for each call, as the utility process would serve it. */
+interface FakeSdk {
+  open(options: FubonSessionOptions): Promise<FubonAccount[]>;
+  realtime(): Promise<FubonRealtime>;
+  close(): Promise<void>;
+}
+
+const never = () => new Promise<never>(() => undefined);
+
+/** A utility process serving `sdk` over a channel, as `utility/fubon.ts` does. */
+function fakeChild(sdk: Partial<FakeSdk> = {}) {
+  const { port1, port2 } = new MessageChannel();
+  const fubon = implement(fubonContract);
+  const opened: FubonSessionOptions[] = [];
   const exits: ((code: number) => void)[] = [];
   const kill = vi.fn();
 
-  const child: FubonChild = {
-    postMessage: (request) => requests.push(request),
-    on(event: "message" | "exit", listener: never) {
-      if (event === "message") replies.push(listener);
-      else exits.push(listener);
+  const handler = new RPCHandler(
+    fubon.router({
+      open: fubon.open.handler(({ input }) => {
+        opened.push(input);
+
+        return sdk.open ? sdk.open(input) : Promise.resolve(ACCOUNTS);
+      }),
+      realtime: fubon.realtime.handler(() =>
+        sdk.realtime ? sdk.realtime() : Promise.resolve(REALTIME)
+      ),
+      close: fubon.close.handler(() =>
+        sdk.close ? sdk.close() : Promise.resolve()
+      ),
+    }),
+    { clientInterceptors: [keepMessages] }
+  );
+
+  handler.upgrade(port2);
+  port2.start();
+  port1.start();
+
+  const child = {
+    on(_event: "exit", listener: (code: number) => void) {
+      exits.push(listener);
     },
     kill,
-  };
-
-  const reply = (message: FubonReply) => {
-    for (const listener of replies) listener(message);
   };
 
   const exit = (code: number) => {
     for (const listener of exits) listener(code);
   };
 
-  /** Answers the sign-in, which `connectFubon` waits for. */
-  async function signIn(answerTimeoutMs?: number) {
-    const opened = connectFubon(child, OPTIONS, answerTimeoutMs);
+  const connect = (answerTimeoutMs?: number) =>
+    connectFubon(child, port1, OPTIONS, answerTimeoutMs);
 
-    await vi.waitFor(() => expect(requests).toHaveLength(1));
-    reply({ id: requests[0].id, answer: ACCOUNTS });
-
-    return opened;
-  }
-
-  return { child, requests, reply, exit, kill, signIn };
+  return { connect, opened, exit, kill };
 }
 
 beforeEach(() => {
-  vi.useFakeTimers();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 });
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
-test("a session signs in with the options, then answers each call by its id", async () => {
-  const { requests, reply, kill, signIn } = fakeChild();
-  const session = await signIn();
+test("a session signs in with the options, then answers each call", async () => {
+  const tokens = ["first", "second"];
 
-  expect(requests[0]).toEqual({
-    id: 0,
-    method: FubonMethod.Open,
-    options: OPTIONS,
+  const { connect, opened, kill } = fakeChild({
+    realtime: async () => ({ ...REALTIME, sdkToken: tokens.shift() ?? "" }),
   });
+
+  const session = await connect();
+
+  expect(opened).toEqual([OPTIONS]);
   expect(session.accounts).toEqual(ACCOUNTS);
 
-  const first = session.realtime();
-  const second = session.realtime();
+  const [first, second] = await Promise.all([
+    session.realtime(),
+    session.realtime(),
+  ]);
 
-  // Answered out of order, each reaches its own call.
-  reply({ id: requests[2].id, answer: { ...REALTIME, sdkToken: "second" } });
-  reply({ id: requests[1].id, answer: REALTIME });
-
-  expect(await first).toEqual(REALTIME);
-  expect((await second).sdkToken).toBe("second");
+  expect([first.sdkToken, second.sdkToken].toSorted()).toEqual([
+    "first",
+    "second",
+  ]);
   expect(kill).not.toHaveBeenCalled();
 });
 
-test("a failed sign-in ends the process", async () => {
-  const { child, requests, reply, kill } = fakeChild();
-  const opened = connectFubon(child, OPTIONS);
+test("a failed sign-in ends the process and tells Fubon's reason", async () => {
+  const { connect, kill } = fakeChild({
+    open: async () => {
+      throw new Error("Fubon login failed: API key rejected");
+    },
+  });
 
-  reply({ id: requests[0].id, error: "Fubon login failed: API key rejected" });
-
-  await expect(opened).rejects.toThrow("API key rejected");
+  await expect(connect()).rejects.toThrow("API key rejected");
   expect(kill).toHaveBeenCalled();
 });
 
 test("a call Fubon does not answer in time ends the process, failing it and every later call", async () => {
-  const { kill, signIn } = fakeChild();
-  const session = await signIn(1000);
+  const { connect, kill } = fakeChild({ realtime: never });
+  const session = await connect(1000);
   const stalled = session.realtime();
 
   vi.advanceTimersByTime(1000);
@@ -120,8 +146,8 @@ test("a call Fubon does not answer in time ends the process, failing it and ever
 });
 
 test("a process that exits fails every call still waiting", async () => {
-  const { exit, signIn } = fakeChild();
-  const session = await signIn();
+  const { connect, exit } = fakeChild({ realtime: never });
+  const session = await connect();
   const waiting = session.realtime();
 
   exit(1);
@@ -130,12 +156,21 @@ test("a process that exits fails every call still waiting", async () => {
 });
 
 test("closing signs out, and ends the process even when signing out stalls", async () => {
-  const { requests, kill, signIn } = fakeChild();
-  const session = await signIn(1000);
+  let signingOut = false;
+
+  const { connect, kill } = fakeChild({
+    close: () => {
+      signingOut = true;
+
+      return never();
+    },
+  });
+
+  const session = await connect(1000);
 
   session.close();
 
-  expect(requests.at(-1)?.method).toBe(FubonMethod.Close);
+  await vi.waitFor(() => expect(signingOut).toBe(true));
   expect(kill).not.toHaveBeenCalled();
 
   await vi.advanceTimersByTimeAsync(1000);

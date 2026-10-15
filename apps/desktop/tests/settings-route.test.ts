@@ -34,7 +34,7 @@ import { createSecretStore } from "../src/main/modules/settings/secret-store.ts"
 import { settingsRouter } from "../src/main/modules/settings/settings.route.ts";
 import type { SettingsContext } from "../src/main/modules/settings/settings.route.ts";
 import { createWebSearch } from "../src/main/modules/web-search/web-search.ts";
-import { forWindow } from "../src/main/rpc/serve.ts";
+import { keepMessages } from "../src/main/rpc/messages.ts";
 import type { WindowEvents } from "../src/main/rpc/window-events.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
@@ -137,7 +137,7 @@ function setup() {
   // As a window calls them, failures told as the main process words them.
   const api = createRouterClient(settingsRouter, {
     context,
-    interceptors: [forWindow],
+    interceptors: [keepMessages],
   });
 
   return { api, config, secrets, mcp, shell };
