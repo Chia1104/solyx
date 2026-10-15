@@ -606,6 +606,13 @@
       "cash": "Cash {{before}} → {{after}} {{currency}}",
       "shares": "Shares {{before, number}} → {{after, number}}"
     },
+    "basis": {
+      "report": "Made under report revision {{revision, number}} ({{stance}}, revised {{date}})",
+      "forecast": "{{direction}} forecast over {{count, number}} sessions, made {{date}}",
+      "no-forecast": "no forecast under it",
+      "none": "Made with no report on this listing",
+      "open": "Open research"
+    },
     "confirm": "Confirm and submit",
     "dismiss": "Dismiss",
     "propose-failed": "Couldn't create the proposal",

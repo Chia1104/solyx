@@ -133,6 +133,7 @@ export function createServices(config: ConfigFile) {
     limits: PAPER_LIMITS,
     tradingDays: (market) => marketDays(market),
     restored: restored !== null,
+    basis: (symbol) => research.desk.basis(symbol),
     onChange() {
       void windowEvents.publish("proposals:changed", {});
       void windowEvents.publish("inbox:changed", {});

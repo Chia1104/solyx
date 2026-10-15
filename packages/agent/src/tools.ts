@@ -81,7 +81,11 @@ import type { NewsDesk, NewsStory, Published } from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 import { ProposalSource } from "@solyx/core/order-desk";
-import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
+import type {
+  ProposalBasis,
+  ProposingDesk,
+  TradeProposal,
+} from "@solyx/core/order-desk";
 import { stanceValue } from "@solyx/core/sentiment";
 import { getSession, sessionsBetween, weekdays } from "@solyx/core/session";
 import type { MarketClosure, TradingDays } from "@solyx/core/session";
@@ -500,6 +504,18 @@ export function describeStory(
   return lines.join("\n");
 }
 
+/** The research a proposal was made under, as the desk kept it. */
+function basisText(market: Market, { report, forecast }: ProposalBasis) {
+  if (!report) return "made with no report on the listing";
+
+  const day = (at: number) => exchangeDate(market, new Date(at));
+  const made = `made under report revision ${report.revision} (${report.stance}, revised ${day(report.revisedAt)})`;
+
+  return forecast
+    ? `${made} and its forecast ${forecast.id} (${forecast.direction} over ${forecast.horizon} sessions, made ${day(forecast.createdAt)})`
+    : `${made}, with no forecast under it`;
+}
+
 export function describeProposal(proposal: TradeProposal): string {
   const { order } = proposal;
   const price = order.type === OrderType.Limit ? order.limitPrice : "market";
@@ -518,6 +534,9 @@ export function describeProposal(proposal: TradeProposal): string {
 
   if (proposal.failure)
     parts.push(`failure ${JSON.stringify(proposal.failure)}`);
+
+  if (proposal.basis)
+    parts.push(basisText(order.instrument.market, proposal.basis));
 
   return parts.join(" | ");
 }

@@ -606,6 +606,13 @@
       "cash": "現金 {{before}} → {{after}} {{currency}}",
       "shares": "持股 {{before, number}} → {{after, number}} 股"
     },
+    "basis": {
+      "report": "依據第 {{revision, number}} 版報告（{{stance}}，{{date}} 修訂）",
+      "forecast": "{{direction}}預測，{{count, number}} 個交易日，{{date}} 提出",
+      "no-forecast": "這版報告下尚無預測",
+      "none": "提出時這檔沒有研究報告",
+      "open": "看研究"
+    },
     "confirm": "確認送出",
     "dismiss": "取消",
     "propose-failed": "無法建立提案",

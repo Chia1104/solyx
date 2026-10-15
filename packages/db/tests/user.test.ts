@@ -16,6 +16,7 @@ import {
   SubmissionFailureCode,
 } from "@solyx/core/order-desk";
 import type { TradeProposal } from "@solyx/core/order-desk";
+import { ReportStance } from "@solyx/core/report";
 import { RiskViolationCode } from "@solyx/core/risk";
 import { ScheduleApproval, ScheduleKind } from "@solyx/core/schedule";
 import type { ScheduledTask } from "@solyx/core/schedule";
@@ -55,6 +56,7 @@ function proposal(id: string, patch: Partial<TradeProposal> = {}) {
     },
     source: ProposalSource.Agent,
     rationale: "breakout",
+    basis: null,
     createdAt: 1_700_000_000_000,
     status: ProposalStatus.AwaitingConfirmation,
     violations: [],
@@ -267,6 +269,14 @@ describe("proposal store", () => {
     const rejected = proposal("a", {
       status: ProposalStatus.Rejected,
       violations: [{ code: RiskViolationCode.OddLotMarketOrder }],
+      basis: {
+        report: {
+          revision: 2,
+          revisedAt: 1_699_000_000_000,
+          stance: ReportStance.Bullish,
+        },
+        forecast: null,
+      },
     });
 
     store.add(rejected);

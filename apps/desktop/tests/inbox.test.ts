@@ -32,6 +32,7 @@ const proposal = (
   },
   source: ProposalSource.Agent,
   rationale: "",
+  basis: null,
   createdAt: 0,
   status,
   violations: [],

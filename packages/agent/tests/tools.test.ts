@@ -20,6 +20,7 @@ import type { UpcomingEvents } from "@solyx/core/calendar";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
+import { ForecastDirection } from "@solyx/core/forecast";
 import { MacroFigure, MacroIndicator, MacroUnit } from "@solyx/core/macro";
 import { Market } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -32,7 +33,12 @@ import type {
 } from "@solyx/core/news";
 import { OrderType, Side } from "@solyx/core/order";
 import { ProposalSource, ProposalStatus } from "@solyx/core/order-desk";
-import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
+import type {
+  OrderDesk,
+  ProposalBasis,
+  TradeProposal,
+} from "@solyx/core/order-desk";
+import { ReportStance } from "@solyx/core/report";
 import { RiskViolationCode } from "@solyx/core/risk";
 import {
   Stance,
@@ -46,7 +52,7 @@ import { listedTradingDays, weekdays } from "@solyx/core/session";
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
 import { SkillSource } from "../src/skill-source.ts";
-import { createTradingExtension } from "../src/tools.ts";
+import { createTradingExtension, describeProposal } from "../src/tools.ts";
 import type { TradingToolPorts } from "../src/tools.ts";
 import {
   AgentEventType,
@@ -121,6 +127,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     },
     source: ProposalSource.Agent,
     rationale: "breakout",
+    basis: null,
     createdAt: NOW.getTime(),
     status: ProposalStatus.AwaitingConfirmation,
     violations: [],
@@ -453,6 +460,54 @@ test("checking reports each violation", async () => {
   });
 
   expect(text).toContain("invalid-price");
+});
+
+test("a proposal names the research it was made under, as the desk kept it", () => {
+  const made = (basis: ProposalBasis | null): TradeProposal => ({
+    id: "p1",
+    order: {
+      instrument: TSMC,
+      side: Side.Buy,
+      quantity: 1000,
+      type: OrderType.Limit,
+      limitPrice: 1000,
+    },
+    source: ProposalSource.User,
+    rationale: "",
+    basis,
+    createdAt: NOW.getTime(),
+    status: ProposalStatus.AwaitingConfirmation,
+    violations: [],
+  });
+
+  const report = {
+    revision: 3,
+    revisedAt: Date.parse("2026-09-28T09:00:00+08:00"),
+    stance: ReportStance.Bullish,
+  };
+
+  expect(
+    describeProposal(
+      made({
+        report,
+        forecast: {
+          id: "f-1",
+          createdAt: Date.parse("2026-09-29T14:00:00+08:00"),
+          direction: ForecastDirection.Long,
+          horizon: 5,
+        },
+      })
+    )
+  ).toMatch(
+    / \| made under report revision 3 \(bullish, revised 2026-09-28\) and its forecast f-1 \(long over 5 sessions, made 2026-09-29\)$/
+  );
+  expect(describeProposal(made({ report, forecast: null }))).toMatch(
+    /revised 2026-09-28\), with no forecast under it$/
+  );
+  expect(describeProposal(made({ report: null, forecast: null }))).toMatch(
+    / \| made with no report on the listing$/
+  );
+  expect(describeProposal(made(null))).not.toContain("made ");
 });
 
 test("proposing goes through the desk as the agent, once per run", async () => {
