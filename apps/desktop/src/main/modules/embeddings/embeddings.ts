@@ -6,8 +6,8 @@ import {
   EmbeddingsProvider,
 } from "@solyx/embeddings/provider";
 
-import { Secret } from "#shared/ipc/settings.ts";
-import type { EmbeddingsSettings } from "#shared/ipc/settings.ts";
+import { Secret } from "#shared/settings.ts";
+import type { EmbeddingsSettings } from "#shared/settings.ts";
 
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";

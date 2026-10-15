@@ -2,6 +2,7 @@ import { Switch } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Section } from "../../components/section.tsx";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
@@ -13,7 +14,7 @@ export function CrashReportRow() {
   const { data: settings } = useQuery(crashReportSettingsQuery());
 
   const toggle = useMutation({
-    mutationFn: (send: boolean) => window.solyx.settings.setCrashReports(send),
+    mutationFn: (send: boolean) => client.settings.setCrashReports(send),
   });
 
   if (!settings) return null;

@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { Secret } from "#shared/ipc/settings.ts";
+import { Secret } from "#shared/settings.ts";
 
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
 import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";

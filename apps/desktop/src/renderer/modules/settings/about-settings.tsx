@@ -3,8 +3,9 @@ import { detectPlatform } from "@tanstack/react-hotkeys";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { AppLocation } from "#shared/ipc/settings.ts";
+import { AppLocation } from "#shared/settings.ts";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -24,8 +25,7 @@ export function AboutSettings() {
   const { data, error, refetch } = useQuery(aboutQuery());
 
   const reveal = useMutation({
-    mutationFn: (location: AppLocation) =>
-      window.solyx.settings.reveal(location),
+    mutationFn: (location: AppLocation) => client.settings.reveal(location),
   });
 
   if (error) {

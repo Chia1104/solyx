@@ -9,8 +9,8 @@ import { SignInOutcome } from "@solyx/agent/sign-in-callback";
 import { errorMessage, isErrnoError } from "@solyx/utils/error";
 import { watchFile } from "@solyx/utils/server";
 
-import { mcpSecretKey, mcpSignInKey } from "#shared/ipc/settings.ts";
-import type { Locale } from "#shared/ipc/settings.ts";
+import { mcpSecretKey, mcpSignInKey } from "#shared/settings.ts";
+import type { Locale } from "#shared/settings.ts";
 
 import { PRODUCT_NAME } from "../../product.ts";
 import type { ConfigFile } from "../settings/config-file.ts";

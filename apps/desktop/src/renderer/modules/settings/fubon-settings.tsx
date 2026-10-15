@@ -7,9 +7,10 @@ import {
   FubonSessionState,
   Secret,
   isMarketDataReady,
-} from "#shared/ipc/settings.ts";
-import type { MarketDataStatus } from "#shared/ipc/settings.ts";
+} from "#shared/settings.ts";
+import type { MarketDataStatus } from "#shared/settings.ts";
 
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -17,7 +18,7 @@ import { LoadingState } from "../../components/loading-state.tsx";
 import { PlanLimits } from "./plan-limits.tsx";
 import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import { secretsQuery, settingsQueryKeys } from "./settings-query.ts";
+import { secretsQuery } from "./settings-query.ts";
 
 const FUBON_SECRETS = [
   Secret.FubonPersonalId,
@@ -39,18 +40,17 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
   // A chosen file joins the read its settings push started; a sign-in changes no setting.
   const refresh = () =>
     queryClient.invalidateQueries(
-      { queryKey: settingsQueryKeys.marketData },
+      { queryKey: orpc.settings.marketData.key() },
       { cancelRefetch: false }
     );
 
   const choose = useMutation({
-    mutationFn: (file: FubonFile) =>
-      window.solyx.settings.chooseFubonFile(file),
+    mutationFn: (file: FubonFile) => client.settings.chooseFubonFile(file),
     onSettled: refresh,
   });
 
   const signIn = useMutation({
-    mutationFn: () => window.solyx.settings.signInFubon(),
+    mutationFn: () => client.settings.signInFubon(),
     onSettled: refresh,
   });
 

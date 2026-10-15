@@ -7,7 +7,7 @@ import {
   isDecisionsReady,
   isMarketDataReady,
   isWebSearchReady,
-} from "#shared/ipc/settings.ts";
+} from "#shared/settings.ts";
 
 import { orpc } from "../../app/rpc.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";

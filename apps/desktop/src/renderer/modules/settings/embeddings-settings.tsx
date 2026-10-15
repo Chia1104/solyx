@@ -5,8 +5,9 @@ import { useTranslation } from "react-i18next";
 import { EmbeddingsProvider } from "@solyx/embeddings/provider";
 import { isEnumValue } from "@solyx/utils/is";
 
-import { Secret } from "#shared/ipc/settings.ts";
+import { Secret } from "#shared/settings.ts";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -65,9 +66,7 @@ export function EmbeddingsSettings() {
                 isSelected={enabled}
                 isDisabled={save.isPending}
                 onChange={(next) =>
-                  save.mutate(() =>
-                    window.solyx.settings.setEmbeddingsEnabled(next)
-                  )
+                  save.mutate(() => client.settings.setEmbeddingsEnabled(next))
                 }>
                 <Switch.Content>
                   <Switch.Control>
@@ -97,7 +96,7 @@ export function EmbeddingsSettings() {
                   if (!isEnumValue(EmbeddingsProvider, next)) return;
 
                   save.mutate(() =>
-                    window.solyx.settings.setEmbeddingsProvider(next)
+                    client.settings.setEmbeddingsProvider(next)
                   );
                 }}
               />

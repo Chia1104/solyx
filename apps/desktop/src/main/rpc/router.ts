@@ -9,6 +9,7 @@ import { newsRouter } from "../modules/news/news.route.ts";
 import { proposalsRouter } from "../modules/proposals/proposals.route.ts";
 import { researchRouter } from "../modules/research/research.route.ts";
 import { schedulesRouter } from "../modules/schedules/schedules.route.ts";
+import { settingsRouter } from "../modules/settings/settings.route.ts";
 import { storageRouter } from "../modules/storage/storage.route.ts";
 import { themesRouter } from "../modules/themes/themes.route.ts";
 import { updatesRouter } from "../modules/updates/updates.route.ts";
@@ -29,6 +30,7 @@ export const router = contractOS.router({
   proposals: proposalsRouter,
   research: researchRouter,
   schedules: schedulesRouter,
+  settings: settingsRouter,
   storage: storageRouter,
   themes: themesRouter,
   updates: updatesRouter,

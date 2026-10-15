@@ -6,8 +6,8 @@ import * as z from "zod";
 
 import { isErrnoError } from "@solyx/utils/error";
 
-import { Secret, SecretState } from "#shared/ipc/settings.ts";
-import type { SecretKey } from "#shared/ipc/settings.ts";
+import { Secret, SecretState } from "#shared/settings.ts";
+import type { SecretKey } from "#shared/settings.ts";
 
 interface Decrypted {
   plainText: string;

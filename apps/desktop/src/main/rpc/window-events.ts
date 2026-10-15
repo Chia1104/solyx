@@ -1,6 +1,7 @@
 import type { SymbolRef } from "@solyx/core/market";
 
 import type { Change } from "#shared/rpc/changes.ts";
+import type { Appearance, SignInCode } from "#shared/settings.ts";
 
 /**
  * What the main process tells every window of, by event, through the services' `windowEvents`.
@@ -13,10 +14,13 @@ export type WindowEvents = Record<
   | "proposals:changed"
   | "research:changed"
   | "schedules:changed"
+  | "settings:changed"
   | "themes:changed"
   | "updates:changed"
   | "watchlist:changed"
   | "workspace:changed",
   Change
 > &
-  Record<"news:changed", SymbolRef>;
+  Record<"news:changed", SymbolRef> &
+  Record<"settings:appearance", Appearance> &
+  Record<"settings:sign-in-code", SignInCode>;

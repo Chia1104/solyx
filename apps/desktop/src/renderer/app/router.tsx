@@ -10,12 +10,12 @@ import * as z from "zod";
 import { Interval, intervalSchema } from "@solyx/core/candles";
 import { symbolRefSchema } from "@solyx/core/market";
 
-import { isMarketDataReady } from "#shared/ipc/settings.ts";
 import { OverviewTab, overviewTabSchema } from "#shared/overview-tab.ts";
 import {
   SettingsSection,
   settingsSectionSchema,
 } from "#shared/settings-section.ts";
+import { isMarketDataReady } from "#shared/settings.ts";
 
 import { ErrorFallback } from "../components/error-fallback.tsx";
 import { NotFound } from "../components/not-found.tsx";

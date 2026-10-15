@@ -15,9 +15,10 @@ import { useTranslation } from "react-i18next";
 import {
   TimeZonePreference,
   timeZonePreferenceSchema,
-} from "#shared/ipc/settings.ts";
+} from "#shared/settings.ts";
 
 import { systemTimeZone } from "../../app/clock.ts";
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 import { appearanceQuery } from "./settings-query.ts";
@@ -46,7 +47,7 @@ export function TimeZoneSelect() {
   // The main process pushes the saved appearance, which the query takes.
   const save = useMutation({
     mutationFn: (timeZone: TimeZonePreference) =>
-      window.solyx.settings.setTimeZone(timeZone),
+      client.settings.setTimeZone(timeZone),
   });
 
   const options = useMemo<TimeZoneOption[]>(() => {

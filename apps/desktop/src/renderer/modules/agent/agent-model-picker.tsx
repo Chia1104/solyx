@@ -20,7 +20,7 @@ import type {
   AgentThinking,
 } from "@solyx/agent/providers";
 
-import type { AgentSettings } from "#shared/ipc/settings.ts";
+import type { AgentSettings } from "#shared/settings.ts";
 
 import { Icon } from "../../components/icon.tsx";
 import { isModelReady } from "../settings/settings-query.ts";

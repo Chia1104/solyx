@@ -10,9 +10,10 @@ import * as z from "zod";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 import { isEnumValue } from "@solyx/utils/is";
 
-import { DECISIONS_SECRETS, SecretState } from "#shared/ipc/settings.ts";
-import type { DecisionsProviderSettings } from "#shared/ipc/settings.ts";
+import { DECISIONS_SECRETS, SecretState } from "#shared/settings.ts";
+import type { DecisionsProviderSettings } from "#shared/settings.ts";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -52,7 +53,7 @@ export function DecisionsSettings() {
 
   const setProvider = useMutation({
     mutationFn: (provider: DecisionsProvider) =>
-      window.solyx.settings.setDecisionsProvider(provider),
+      client.settings.setDecisionsProvider(provider),
   });
 
   // Rebuilt per language so field errors come out localized.
@@ -154,7 +155,7 @@ export function DecisionsSettings() {
             value={each.accountId ?? ""}
             isDefault={each.accountId === null}
             schema={schemas.accountId}
-            onSave={(next) => window.solyx.settings.setDecisionsAccountId(next)}
+            onSave={(next) => client.settings.setDecisionsAccountId(next)}
           />
         )}
         <TextSettingRow
@@ -166,7 +167,10 @@ export function DecisionsSettings() {
           isDefault={each.model === each.defaults.model}
           schema={schemas.model}
           onSave={(next) =>
-            window.solyx.settings.setDecisionsModel(each.provider, next)
+            client.settings.setDecisionsModel({
+              provider: each.provider,
+              model: next,
+            })
           }
         />
         <TextSettingRow
@@ -176,7 +180,10 @@ export function DecisionsSettings() {
           isDefault={each.baseURL === each.defaults.baseURL}
           schema={schemas.baseURL}
           onSave={(next) =>
-            window.solyx.settings.setDecisionsBaseURL(each.provider, next)
+            client.settings.setDecisionsBaseURL({
+              provider: each.provider,
+              baseURL: next,
+            })
           }
         />
       </SettingsList>

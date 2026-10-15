@@ -197,8 +197,7 @@ export function MemorySettings() {
   const [filter, setFilter] = useState("");
 
   const enable = useMutation({
-    mutationFn: (enabled: boolean) =>
-      window.solyx.settings.setMemoryEnabled(enabled),
+    mutationFn: (enabled: boolean) => client.settings.setMemoryEnabled(enabled),
   });
 
   const error = memories.error ?? settings.error;

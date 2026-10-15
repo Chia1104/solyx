@@ -5,8 +5,8 @@ import { kebabCase, withTimeout } from "es-toolkit";
 
 import { errorMessage } from "@solyx/utils/error";
 
-import { resolveLocale } from "#shared/ipc/settings.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import { resolveLocale } from "#shared/settings.ts";
 import { DestinationKind } from "#shared/workspace.ts";
 
 import { registerIpc } from "./ipc/register-ipc.ts";

@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 
-import { settingsQueryKeys } from "../settings/settings-query.ts";
+import { orpc } from "../../app/rpc.ts";
 
 const all = ["market"] as const;
 
@@ -23,7 +23,7 @@ export function followMarketDataChanges(queryClient: QueryClient) {
   window.solyx.market.onSourcesChanged(() => {
     void queryClient.invalidateQueries({ queryKey: marketQueryKeys.all });
     void queryClient.invalidateQueries({
-      queryKey: settingsQueryKeys.marketData,
+      queryKey: orpc.settings.marketData.key(),
     });
   });
 }

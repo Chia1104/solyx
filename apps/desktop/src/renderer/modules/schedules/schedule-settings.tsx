@@ -27,8 +27,8 @@ import {
 import type { ScheduledTaskDraft } from "@solyx/core/schedule";
 import { isEnumValue } from "@solyx/utils/is";
 
-import { Locale } from "#shared/ipc/settings.ts";
 import type { ScheduledTaskView, TaskDraft } from "#shared/schedules.ts";
+import { Locale } from "#shared/settings.ts";
 
 import { currentTimeZone, useClock } from "../../app/clock.ts";
 import { currentLocale } from "../../app/i18n.ts";

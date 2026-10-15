@@ -6,8 +6,9 @@ import { useTranslation } from "react-i18next";
 
 import { isEnumValue } from "@solyx/utils/is";
 
-import { PriceColors } from "#shared/ipc/settings.ts";
+import { PriceColors } from "#shared/settings.ts";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 import { appearanceQuery } from "./settings-query.ts";
@@ -21,7 +22,7 @@ export function PriceColorsSelect() {
   // The main process pushes the saved appearance, which the query takes.
   const save = useMutation({
     mutationFn: (priceColors: PriceColors) =>
-      window.solyx.settings.setPriceColors(priceColors),
+      client.settings.setPriceColors(priceColors),
   });
 
   return (

@@ -2,7 +2,7 @@ import { escape } from "es-toolkit";
 
 import type { SignInOutcome } from "@solyx/agent/sign-in-callback";
 
-import type { Locale } from "#shared/ipc/settings.ts";
+import type { Locale } from "#shared/settings.ts";
 
 import { PRODUCT_NAME } from "../../product.ts";
 

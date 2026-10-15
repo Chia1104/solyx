@@ -1,49 +1,23 @@
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { hashKey, useQuery } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
 import type { AgentModelRef } from "@solyx/agent/providers";
 
-import { isDecisionsReady } from "#shared/ipc/settings.ts";
-import type { AgentSettings, MarketDataStatus } from "#shared/ipc/settings.ts";
+import { isDecisionsReady } from "#shared/settings.ts";
+import type { AgentSettings, MarketDataStatus } from "#shared/settings.ts";
 
-const all = ["settings"] as const;
-
-export const settingsQueryKeys = {
-  all,
-  // Outside `all`: the appearance arrives whole on a push of its own, so another setting's push
-  // never reads it again over a palette being previewed.
-  appearance: ["appearance"] as const,
-  about: [...all, "about"] as const,
-  secrets: [...all, "secrets"] as const,
-  marketData: [...all, "market-data"] as const,
-  agent: [...all, "agent"] as const,
-  fundamentals: [...all, "fundamentals"] as const,
-  webSearch: [...all, "web-search"] as const,
-  decisions: [...all, "decisions"] as const,
-  embeddings: [...all, "embeddings"] as const,
-  agentSkills: [...all, "agent-skills"] as const,
-  memory: [...all, "memory"] as const,
-  tray: [...all, "tray"] as const,
-  updates: [...all, "updates"] as const,
-  crashReports: [...all, "crash-reports"] as const,
-  otlp: [...all, "otlp"] as const,
-  mcp: [...all, "mcp"] as const,
-};
+import { client, forEachEvent, orpc } from "../../app/rpc.ts";
 
 /** Which secrets are saved; their values never leave the main process. Never stale, as below. */
 export const secretsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.secrets,
-    queryFn: () => window.solyx.settings.secrets(),
+  orpc.settings.secrets.queryOptions({
     staleTime: Infinity,
   });
 
 /** Always stale, since a Fubon sign-in can change it without any setting changing. */
 export const marketDataQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.marketData,
-    queryFn: () => window.solyx.settings.marketData(),
+  orpc.settings.marketData.queryOptions({
     staleTime: 0,
   });
 
@@ -76,97 +50,73 @@ export function isModelReady(settings: AgentSettings, model: AgentModelRef) {
 
 /** Never stale, since the main process pushes every change, hand edits to the config file included. */
 export const appearanceQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.appearance,
-    queryFn: () => window.solyx.settings.appearance(),
+  orpc.settings.appearance.queryOptions({
     staleTime: Infinity,
   });
 
 /** Versions and paths do not change while the app runs. */
 export const aboutQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.about,
-    queryFn: () => window.solyx.settings.about(),
+  orpc.settings.about.queryOptions({
     staleTime: Infinity,
   });
 
 /** Never stale, as below. */
 export const agentSettingsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.agent,
-    queryFn: () => window.solyx.settings.agent(),
+  orpc.settings.agent.queryOptions({
     staleTime: Infinity,
   });
 
 /** Never stale, as below. */
 export const memorySettingsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.memory,
-    queryFn: () => window.solyx.settings.memory(),
+  orpc.settings.memory.queryOptions({
     staleTime: Infinity,
   });
 
 /** Never stale, as below. */
 export const traySettingsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.tray,
-    queryFn: () => window.solyx.settings.tray(),
+  orpc.settings.tray.queryOptions({
     staleTime: Infinity,
   });
 
 /** Never stale, as below. */
 export const updateSettingsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.updates,
-    queryFn: () => window.solyx.settings.updates(),
+  orpc.settings.updates.queryOptions({
     staleTime: Infinity,
   });
 
 /** Never stale, as below. */
 export const otlpSettingsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.otlp,
-    queryFn: () => window.solyx.settings.otlp(),
+  orpc.settings.otlp.queryOptions({
     staleTime: Infinity,
   });
 
 /** Never stale, as below. */
 export const crashReportSettingsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.crashReports,
-    queryFn: () => window.solyx.settings.crashReports(),
+  orpc.settings.crashReports.queryOptions({
     staleTime: Infinity,
   });
 
 /** Never stale, as below. */
 export const fundamentalsSettingsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.fundamentals,
-    queryFn: () => window.solyx.settings.fundamentals(),
+  orpc.settings.fundamentals.queryOptions({
     staleTime: Infinity,
   });
 
 /** Never stale, as below. */
 export const webSearchSettingsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.webSearch,
-    queryFn: () => window.solyx.settings.webSearch(),
+  orpc.settings.webSearch.queryOptions({
     staleTime: Infinity,
   });
 
 /** Never stale, as below. */
 export const decisionsSettingsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.decisions,
-    queryFn: () => window.solyx.settings.decisions(),
+  orpc.settings.decisions.queryOptions({
     staleTime: Infinity,
   });
 
 /** Never stale, as below. */
 export const embeddingsSettingsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.embeddings,
-    queryFn: () => window.solyx.settings.embeddings(),
+  orpc.settings.embeddings.queryOptions({
     staleTime: Infinity,
   });
 
@@ -186,17 +136,13 @@ export function useDecisionsReady() {
 
 /** Always stale, since skills and instructions are files the user edits outside the app. */
 export const agentSkillsQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.agentSkills,
-    queryFn: () => window.solyx.settings.agentSkills(),
+  orpc.settings.agentSkills.queryOptions({
     staleTime: 0,
   });
 
 /** Polled while a server is still connecting, since connecting happens in the main process. */
 export const mcpQuery = () =>
-  queryOptions({
-    queryKey: settingsQueryKeys.mcp,
-    queryFn: () => window.solyx.settings.mcp(),
+  orpc.settings.mcp.queryOptions({
     staleTime: 0,
     refetchInterval: (query) =>
       query.state.data?.servers.some(
@@ -208,10 +154,17 @@ export const mcpQuery = () =>
 
 /**
  * Refetches the settings whenever one, or a saved secret, changes: on this page, in another window
- * or by hand in the config file. Queries that read only those never go stale on their own.
+ * or by hand in the config file. Queries that read only those never go stale on their own. The
+ * appearance arrives whole on a stream of its own, so another setting's change never reads it
+ * again over a palette being previewed.
  */
 export function followSettingsChanges(queryClient: QueryClient) {
-  window.solyx.settings.onChanged(() => {
-    void queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all });
+  const appearance = hashKey(orpc.settings.appearance.queryKey());
+
+  void forEachEvent(client.settings.changes(), () => {
+    void queryClient.invalidateQueries({
+      queryKey: orpc.settings.key(),
+      predicate: (query) => query.queryHash !== appearance,
+    });
   });
 }

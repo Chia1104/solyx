@@ -28,8 +28,7 @@ export function UpdateRows() {
   const { data: settings } = useQuery(updateSettingsQuery());
 
   const toggle = useMutation({
-    mutationFn: (enabled: boolean) =>
-      window.solyx.settings.setUpdateChecks(enabled),
+    mutationFn: (enabled: boolean) => client.settings.setUpdateChecks(enabled),
   });
 
   const check = useMutation({

@@ -2,6 +2,7 @@ import { Switch } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Section } from "../../components/section.tsx";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
@@ -13,12 +14,11 @@ export function TraySettings() {
   const { data } = useQuery(traySettingsQuery());
 
   const show = useMutation({
-    mutationFn: (shown: boolean) => window.solyx.settings.setTrayShown(shown),
+    mutationFn: (shown: boolean) => client.settings.setTrayShown(shown),
   });
 
   const hideDock = useMutation({
-    mutationFn: (hidden: boolean) =>
-      window.solyx.settings.setDockHidden(hidden),
+    mutationFn: (hidden: boolean) => client.settings.setDockHidden(hidden),
   });
 
   if (!data) return null;

@@ -5,12 +5,8 @@ import { AgentAuth, DEFAULT_PROVIDER } from "@solyx/agent/providers";
 import type { AgentModelPick, AgentProvider } from "@solyx/agent/providers";
 import type { AgentModelChoice } from "@solyx/agent/runtime";
 
-import { SecretState, agentKeySecret } from "#shared/ipc/settings.ts";
-import type {
-  AgentSettings,
-  Locale,
-  SignInCode,
-} from "#shared/ipc/settings.ts";
+import { SecretState, agentKeySecret } from "#shared/settings.ts";
+import type { AgentSettings, Locale, SignInCode } from "#shared/settings.ts";
 
 import { PRODUCT_NAME } from "../../product.ts";
 import type { ConfigFile } from "../settings/config-file.ts";

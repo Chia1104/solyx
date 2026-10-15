@@ -8,7 +8,7 @@ import { Market } from "@solyx/core/market";
 import { WebSearchKind } from "@solyx/core/web-search";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
-import { webSearchKeySecret } from "#shared/ipc/settings.ts";
+import { webSearchKeySecret } from "#shared/settings.ts";
 
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
 import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";

@@ -6,8 +6,9 @@ import { useTranslation } from "react-i18next";
 
 import { isEnumValue } from "@solyx/utils/is";
 
-import { Theme } from "#shared/ipc/settings.ts";
+import { Theme } from "#shared/settings.ts";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 import { appearanceQuery } from "./settings-query.ts";
@@ -20,7 +21,7 @@ export function ThemeSelect() {
 
   // The main process pushes the saved appearance, which the query takes.
   const save = useMutation({
-    mutationFn: (theme: Theme) => window.solyx.settings.setTheme(theme),
+    mutationFn: (theme: Theme) => client.settings.setTheme(theme),
   });
 
   return (

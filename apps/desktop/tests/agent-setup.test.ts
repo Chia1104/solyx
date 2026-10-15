@@ -18,8 +18,8 @@ import {
   MarketDataSource,
   Secret,
   mcpSecretKey,
-} from "#shared/ipc/settings.ts";
-import type { MarketDataStatus } from "#shared/ipc/settings.ts";
+} from "#shared/settings.ts";
+import type { MarketDataStatus } from "#shared/settings.ts";
 import type { StorageUsage } from "#shared/storage.ts";
 
 import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";

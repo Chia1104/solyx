@@ -9,7 +9,7 @@ import {
   SecretState,
   agentKeySecret,
   agentSignInSecret,
-} from "#shared/ipc/settings.ts";
+} from "#shared/settings.ts";
 
 import type { SecretStore } from "./secret-store.ts";
 

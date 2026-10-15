@@ -5,8 +5,9 @@ import { useTranslation } from "react-i18next";
 import { Market } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
 
-import { MarketDataSource } from "#shared/ipc/settings.ts";
+import { MarketDataSource } from "#shared/settings.ts";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 /** Where Taiwan charts come from; charts switch as soon as another source is picked. */
@@ -21,7 +22,7 @@ export function MarketDataSourceSelect({
 
   const save = useMutation({
     mutationFn: (next: MarketDataSource) =>
-      window.solyx.settings.setMarketDataSource(Market.TW, next),
+      client.settings.setMarketDataSource({ market: Market.TW, source: next }),
   });
 
   return (

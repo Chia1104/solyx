@@ -3,8 +3,9 @@ import { useTranslation } from "react-i18next";
 
 import type { FinMindPlan } from "@solyx/fundamentals/finmind";
 
-import { Secret } from "#shared/ipc/settings.ts";
+import { Secret } from "#shared/settings.ts";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -21,8 +22,7 @@ export function FinMindSettings() {
   const settings = useQuery(fundamentalsSettingsQuery());
 
   const save = useMutation({
-    mutationFn: (plan: FinMindPlan) =>
-      window.solyx.settings.setFinMindPlan(plan),
+    mutationFn: (plan: FinMindPlan) => client.settings.setFinMindPlan(plan),
   });
 
   const failed = secrets.error ?? settings.error;

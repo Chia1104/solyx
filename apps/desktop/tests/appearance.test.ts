@@ -6,13 +6,13 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { FuglePlan } from "@solyx/market-data/fugle";
 
-import { PriceColors, Theme } from "#shared/ipc/settings.ts";
 import {
   ColorScheme,
   PALETTES,
   Palette,
   PaletteToken,
 } from "#shared/palette.ts";
+import { PriceColors, Theme } from "#shared/settings.ts";
 
 import { createAppearance } from "../src/main/modules/settings/appearance.ts";
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";

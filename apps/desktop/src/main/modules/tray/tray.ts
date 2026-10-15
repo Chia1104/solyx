@@ -2,8 +2,8 @@ import type { BrokerMode } from "@solyx/core/broker";
 
 import { clock } from "#shared/clock.ts";
 import type { Approval } from "#shared/inbox.ts";
-import type { Locale, TimeZone } from "#shared/ipc/settings.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import type { Locale, TimeZone } from "#shared/settings.ts";
 import { UpdateStatus } from "#shared/updates.ts";
 import type { UpdateState } from "#shared/updates.ts";
 import { DestinationKind } from "#shared/workspace.ts";

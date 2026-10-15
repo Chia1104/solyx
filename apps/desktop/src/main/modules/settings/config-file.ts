@@ -62,6 +62,14 @@ import {
 } from "#shared/backup.ts";
 import type { BackupSetting } from "#shared/backup.ts";
 import {
+  ColorScheme,
+  Palette,
+  customPalettesSchema,
+  hasPalette,
+} from "#shared/palette.ts";
+import type { CustomPalette, PaletteToken } from "#shared/palette.ts";
+import {
+  endpointSchema,
   LanguagePreference,
   MarketDataSource,
   PriceColors,
@@ -72,15 +80,8 @@ import {
   priceColorsSchema,
   themeSchema,
   timeZonePreferenceSchema,
-} from "#shared/ipc/settings.ts";
-import type { FubonFile } from "#shared/ipc/settings.ts";
-import {
-  ColorScheme,
-  Palette,
-  customPalettesSchema,
-  hasPalette,
-} from "#shared/palette.ts";
-import type { CustomPalette, PaletteToken } from "#shared/palette.ts";
+} from "#shared/settings.ts";
+import type { FubonFile } from "#shared/settings.ts";
 
 // Text that is empty or of the wrong shape reads as missing.
 const unitModelSchema = agentModelRefSchema.nullable().catch(null);
@@ -88,9 +89,6 @@ const unitModelSchema = agentModelRefSchema.nullable().catch(null);
 const textSchema = z.string().trim().min(1).optional().catch(undefined);
 
 const paletteIdSchema = z.string().min(1).catch(Palette.Blueprint);
-
-/** An http(s) endpoint, which a proxy on this computer may serve without TLS. */
-export const endpointSchema = z.url({ protocol: /^https?$/ }).max(2048);
 
 const HOUR_MINUTES = 60;
 

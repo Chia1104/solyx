@@ -3,9 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import type { FuglePlan } from "@solyx/market-data/fugle";
 
-import { Secret } from "#shared/ipc/settings.ts";
-import type { MarketDataStatus } from "#shared/ipc/settings.ts";
+import { Secret } from "#shared/settings.ts";
+import type { MarketDataStatus } from "#shared/settings.ts";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -22,7 +23,7 @@ export function FugleSettings({ status }: { status: MarketDataStatus }) {
   const secrets = useQuery(secretsQuery());
 
   const save = useMutation({
-    mutationFn: (plan: FuglePlan) => window.solyx.settings.setFuglePlan(plan),
+    mutationFn: (plan: FuglePlan) => client.settings.setFuglePlan(plan),
   });
 
   if (secrets.error) {

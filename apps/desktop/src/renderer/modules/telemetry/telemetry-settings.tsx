@@ -4,8 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { Secret } from "#shared/ipc/settings.ts";
+import { Secret } from "#shared/settings.ts";
 
+import { client } from "../../app/rpc.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
@@ -62,7 +63,7 @@ export function TelemetrySettings() {
               isDefault={settings.data.endpoint === null}
               resetLabel={t("settings.telemetry.stop")}
               schema={endpointSchema}
-              onSave={(next) => window.solyx.settings.setOtlpEndpoint(next)}
+              onSave={(next) => client.settings.setOtlpEndpoint(next)}
             />
             <AppSecretRow
               secret={Secret.OtlpHeaders}

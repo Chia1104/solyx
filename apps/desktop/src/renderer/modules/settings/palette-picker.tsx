@@ -12,14 +12,15 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ToggleButton } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
-import type { Appearance } from "#shared/ipc/settings.ts";
 import {
   ColorScheme,
   Palette,
   isCustomPalette,
   resolvePalette,
 } from "#shared/palette.ts";
+import type { Appearance } from "#shared/settings.ts";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 
@@ -70,15 +71,15 @@ export function PalettePicker({ editable = true }: { editable?: boolean }) {
   // The main process pushes the saved appearance, which the query takes.
   const save = useMutation({
     mutationFn: ({ scheme, palette }: PaletteChoice) =>
-      window.solyx.settings.setPalette(scheme, palette),
+      client.settings.setPalette({ scheme, palette }),
   });
 
   const copy = useMutation({
     mutationFn: (palette: string) =>
-      window.solyx.settings.copyPalette(
+      client.settings.copyPalette({
         palette,
-        t("settings.palette-copy-name", { name: paletteName(palette) })
-      ),
+        name: t("settings.palette-copy-name", { name: paletteName(palette) }),
+      }),
     onSuccess: setEditing,
   });
 

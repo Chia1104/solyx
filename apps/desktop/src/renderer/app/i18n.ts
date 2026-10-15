@@ -10,8 +10,8 @@ import {
   Locale,
   localeSchema,
   resolveLocale,
-} from "#shared/ipc/settings.ts";
-import type { Appearance } from "#shared/ipc/settings.ts";
+} from "#shared/settings.ts";
+import type { Appearance } from "#shared/settings.ts";
 
 import { appearanceQuery } from "../modules/settings/settings-query.ts";
 

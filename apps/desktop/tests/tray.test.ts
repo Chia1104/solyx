@@ -6,8 +6,8 @@ import enUS from "@solyx/i18n/desktop/en-US.json" with { type: "json" };
 import zhTW from "@solyx/i18n/desktop/zh-TW.json" with { type: "json" };
 
 import { clock } from "#shared/clock.ts";
-import { Locale } from "#shared/ipc/settings.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import { Locale } from "#shared/settings.ts";
 import { UpdateStatus } from "#shared/updates.ts";
 import { DestinationKind } from "#shared/workspace.ts";
 import type { Destination } from "#shared/workspace.ts";
