@@ -1287,7 +1287,7 @@
       },
       "every": "How often",
       "at-most": "At most",
-      "on-change-description": "Runs once news may say that something a report names as changing its view has happened, or that a theme's signpost has, or once the day of a report's event has gone by, for what you hold and watch. Looked at every half hour.",
+      "on-change-description": "Runs once news may say that something a report names as changing its view has happened, or that a theme's signpost has, or once the day of a report's event has gone by, among the listings and themes set below. Looked at every half hour.",
       "every-minutes_one": "Every {{count}} minute",
       "every-minutes_other": "Every {{count}} minutes",
       "every-hours_one": "Every {{count}} hour",
@@ -1307,6 +1307,38 @@
       "on-change-minutes_other": "When something changed, at most every {{count}} minutes",
       "on-change-hours_one": "When something changed, at most every {{count}} hour",
       "on-change-hours_other": "When something changed, at most every {{count}} hours",
+      "scope": {
+        "kinds": "Runs for",
+        "kind-names": {
+          "falsifier-met": "News may say what would change a report's view happened",
+          "event-passed": "A date a report holds has gone by",
+          "signpost-met": "News may say one of a theme's signposts happened"
+        },
+        "kind-short": {
+          "falsifier-met": "what would change the view",
+          "event-passed": "dates gone by",
+          "signpost-met": "theme signposts"
+        },
+        "separator": ", ",
+        "listings": "Listings",
+        "every-listing": "Every listing you hold and watch",
+        "named-listings": "Listings you pick",
+        "no-listings": "You hold and watch no listings yet.",
+        "themes": "Themes",
+        "every-theme": "Every theme",
+        "named-themes": "Themes you pick",
+        "named": "themes {{themes}}",
+        "no-themes": "There are no themes yet.",
+        "kinds-required": "Pick at least one kind of change",
+        "listings-required": "Pick at least one listing",
+        "themes-required": "Pick at least one theme",
+        "ran-for": "Its last run was for:",
+        "changes": {
+          "falsifier-met": "{{listing}}: news may say “{{falsifier}}” happened",
+          "event-passed": "{{listing}}: “{{label}}” of {{date}} has gone by",
+          "signpost-met": "Theme “{{theme}}”: news may say “{{signpost}}” happened"
+        }
+      },
       "approval": "Calls that must ask",
       "approvals": {
         "ask": "Wait for me",

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { McpServerState, McpTransportKind } from "@solyx/agent/mcp-config";
 import type { SetupArea } from "@solyx/agent/setup";
+import { EVERY_CHANGE } from "@solyx/core/changes";
 import { Market } from "@solyx/core/market";
 import { ScheduleApproval, ScheduleKind } from "@solyx/core/schedule";
 import type { ScheduledTask } from "@solyx/core/schedule";
@@ -420,7 +421,11 @@ test("the scheduled tasks the user wrote read with when each runs and how its ca
     ...hourly,
     id: "upkeep",
     name: "Upkeep",
-    schedule: { kind: ScheduleKind.OnChange, atMostEveryMinutes: 120 },
+    schedule: {
+      kind: ScheduleKind.OnChange,
+      atMostEveryMinutes: 120,
+      scope: EVERY_CHANGE,
+    },
   };
 
   expect(

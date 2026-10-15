@@ -1,6 +1,7 @@
 import { uniqBy } from "es-toolkit";
+import * as z from "zod";
 
-import { exchangeDate } from "./market.ts";
+import { exchangeDate, symbolKey, symbolRefSchema } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { CLAIM_SUPPORT_LINE } from "./report.ts";
 import type { Report } from "./report.ts";
@@ -35,6 +36,41 @@ export type Change =
     }
   | { kind: typeof ChangeKind.SignpostMet; theme: string; signpost: string };
 
+/** The kinds a listing's report makes, as against a theme's. */
+const OF_LISTINGS: readonly ChangeKind[] = [
+  ChangeKind.FalsifierMet,
+  ChangeKind.EventPassed,
+];
+
+// As many as a task would reasonably name; more is every one.
+const SCOPE_LIMIT = 50;
+
+/** Which changes a task that waits on one runs for. */
+export const changeScopeSchema = z.object({
+  kinds: z.array(z.enum(ChangeKind)).min(1),
+  /** The listings whose reports it watches; `null` for every listing the user holds and watches. */
+  listings: z.array(symbolRefSchema).min(1).max(SCOPE_LIMIT).nullable(),
+  /** The themes whose signposts it watches, by id; `null` for every theme. */
+  themes: z.array(z.string().min(1)).min(1).max(SCOPE_LIMIT).nullable(),
+});
+
+export type ChangeScope = z.infer<typeof changeScopeSchema>;
+
+/** Every kind, of every listing the user follows and every theme. */
+export const EVERY_CHANGE: ChangeScope = {
+  kinds: Object.values(ChangeKind),
+  listings: null,
+  themes: null,
+};
+
+/** Whether the scope runs for a change to a listing's report. */
+export const watchesListings = ({ kinds }: Pick<ChangeScope, "kinds">) =>
+  kinds.some((kind) => OF_LISTINGS.includes(kind));
+
+/** Whether the scope runs for a change to a theme. */
+export const watchesThemes = ({ kinds }: Pick<ChangeScope, "kinds">) =>
+  kinds.includes(ChangeKind.SignpostMet);
+
 /** What the app keeps that can change on its own. */
 export interface Watched {
   /** Each listing's report in force with every reading of its falsifiers. */
@@ -43,17 +79,25 @@ export interface Watched {
 }
 
 /**
- * What changed after `since` as of `now`, both epoch ms, read from what the app already keeps, so
- * telling costs no request: a falsifier or a signpost that news was read as stating since then,
- * each once however many items state it, and an event whose day went by since the day of `since`
- * on its exchange.
+ * What changed within `scope` after `since` as of `now`, both epoch ms, read from what the app
+ * already keeps, so telling costs no request: a falsifier or a signpost that news was read as
+ * stating since then, each once however many items state it, and an event whose day went by since
+ * the day of `since` on its exchange.
  */
 export function changesSince(
   since: number,
   now: number,
-  { reports, themes }: Watched
+  { reports, themes }: Watched,
+  scope: ChangeScope
 ): Change[] {
-  const researched = reports.flatMap(({ report, checks }): Change[] => {
+  const named = scope.listings?.map(symbolKey);
+
+  const scoped = reports.filter(
+    ({ report }) =>
+      named === undefined || named.includes(symbolKey(report.symbol))
+  );
+
+  const researched = scoped.flatMap(({ report, checks }): Change[] => {
     const { symbol } = report;
     const { market } = symbol;
     const today = exchangeDate(market, new Date(now));
@@ -85,18 +129,22 @@ export function changesSince(
     ];
   });
 
-  const watched = themes.flatMap(({ theme, developments }): Change[] =>
-    uniqBy(
-      developments.filter(({ checkedAt }) => checkedAt > since),
-      ({ signpost }) => signpost
-    ).map(({ signpost }) => ({
-      kind: ChangeKind.SignpostMet,
-      theme: theme.title,
-      signpost,
-    }))
-  );
+  const watched = themes
+    .filter(({ theme }) => scope.themes?.includes(theme.id) ?? true)
+    .flatMap(({ theme, developments }): Change[] =>
+      uniqBy(
+        developments.filter(({ checkedAt }) => checkedAt > since),
+        ({ signpost }) => signpost
+      ).map(({ signpost }) => ({
+        kind: ChangeKind.SignpostMet,
+        theme: theme.title,
+        signpost,
+      }))
+    );
 
-  return [...researched, ...watched];
+  return [...researched, ...watched].filter(({ kind }) =>
+    scope.kinds.includes(kind)
+  );
 }
 
 const listing = ({ market, symbol }: SymbolRef) => `${market} ${symbol}`;

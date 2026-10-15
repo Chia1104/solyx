@@ -3,7 +3,7 @@ import { expect, test, vi } from "vite-plus/test";
 import type { AgentSession } from "@solyx/agent/wire";
 import { ApprovalMode } from "@solyx/agent/wire";
 import { ChangeKind } from "@solyx/core/changes";
-import type { Change } from "@solyx/core/changes";
+import type { Change, ChangeScope } from "@solyx/core/changes";
 import { Market } from "@solyx/core/market";
 import { ScheduleApproval, ScheduleKind } from "@solyx/core/schedule";
 import type {
@@ -79,7 +79,11 @@ function setup() {
 
   const diagnostics = { recovered: vi.fn() };
   const onChange = vi.fn();
-  const changes = vi.fn(async (_since: number): Promise<Change[]> => []);
+
+  const changes = vi.fn(
+    async (_since: number, _scope: ChangeScope): Promise<Change[]> => []
+  );
+
   let ids = 0;
 
   const schedules = createSchedules({
@@ -130,6 +134,7 @@ test("a task runs once its time comes, in a conversation its last run names", as
     at: clock.now,
     sessionId: "1",
     failure: null,
+    changes: [],
   });
   expect(onChange).toHaveBeenCalledOnce();
 
@@ -179,6 +184,7 @@ test("a run that could not start is kept as failed and waits for its next time",
     at: clock.now,
     sessionId: null,
     failure: "No model is set up",
+    changes: [],
   });
   expect(diagnostics.recovered).toHaveBeenCalledWith(failure, "schedules.run", {
     "solyx.schedule": "task-1",
@@ -240,8 +246,14 @@ test("a task saved under an id its writer names is kept once, and saved again ke
   expect(onChange).toHaveBeenCalledTimes(3);
 });
 
-test("a task that waits on a change runs on the slower pass, once something changed since it last ran, and is told what", async () => {
-  const { schedules, clock, changes, runScheduled } = setup();
+test("a task that waits on a change runs on the slower pass, once something changed within its scope since it last ran, is told what and keeps it", async () => {
+  const { schedules, store, clock, changes, runScheduled } = setup();
+
+  const scope: ChangeScope = {
+    kinds: [ChangeKind.EventPassed],
+    listings: [{ market: Market.TW, symbol: "2330" }],
+    themes: null,
+  };
 
   const passed: Change = {
     kind: ChangeKind.EventPassed,
@@ -252,14 +264,18 @@ test("a task that waits on a change runs on the slower pass, once something chan
 
   schedules.create({
     ...BRIEF,
-    schedule: { kind: ScheduleKind.OnChange, atMostEveryMinutes: 60 },
+    schedule: {
+      kind: ScheduleKind.OnChange,
+      atMostEveryMinutes: 60,
+      scope,
+    },
   });
 
   clock.now = START + 2 * 60 * MINUTE_MS;
   await schedules.work.run();
   await schedules.changeWork.run();
 
-  expect(changes).toHaveBeenCalledExactlyOnceWith(START);
+  expect(changes).toHaveBeenCalledExactlyOnceWith(START, scope);
   expect(runScheduled).not.toHaveBeenCalled();
   expect(await schedules.list()).toMatchObject([{ nextRunAt: null }]);
 
@@ -275,11 +291,12 @@ test("a task that waits on a change runs on the slower pass, once something chan
     expect.objectContaining({ id: "task-1" }),
     [passed]
   );
+  expect(store.get("task-1")?.lastRun?.changes).toEqual([passed]);
 
   // Within its shortest span nothing runs, whatever changed; after it, the changes count from the last run.
   clock.now += 30 * MINUTE_MS;
   await schedules.changeWork.run();
 
   expect(runScheduled).toHaveBeenCalledOnce();
-  expect(changes).toHaveBeenLastCalledWith(START + 2 * 60 * MINUTE_MS);
+  expect(changes).toHaveBeenLastCalledWith(START + 2 * 60 * MINUTE_MS, scope);
 });

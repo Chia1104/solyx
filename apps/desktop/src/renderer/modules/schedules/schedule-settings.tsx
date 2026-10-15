@@ -43,11 +43,17 @@ import { RailedColumn } from "../../components/sheet.tsx";
 import { useAgentStore } from "../agent/agent-store.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 
+import {
+  ChangeScopeFields,
+  changeLine,
+  useScopeText,
+} from "./change-scope-fields.tsx";
 import { CollectionList } from "./collection-settings.tsx";
 import { schedulesQuery } from "./schedules-query.ts";
 import {
   NEW_TIMING,
   TimingFields,
+  checkScope,
   scheduleOf,
   scheduleText,
   timingFieldSchemas,
@@ -69,15 +75,17 @@ function useTaskFormSchema() {
         .min(1, { error: t("settings.schedules.required") })
         .max(max, { error: t("settings.schedules.too-long", { count: max }) });
 
-    return z.object({
-      name: text(SCHEDULE_NAME_LENGTH),
-      prompt: text(SCHEDULE_PROMPT_LENGTH).refine(
-        (value) => !holdsSecret(value),
-        { error: t("settings.schedules.secret") }
-      ),
-      approval: z.enum(ScheduleApproval),
-      ...timingFieldSchemas(t),
-    });
+    return z
+      .object({
+        name: text(SCHEDULE_NAME_LENGTH),
+        prompt: text(SCHEDULE_PROMPT_LENGTH).refine(
+          (value) => !holdsSecret(value),
+          { error: t("settings.schedules.secret") }
+        ),
+        approval: z.enum(ScheduleApproval),
+        ...timingFieldSchemas(t),
+      })
+      .superRefine(checkScope(t));
   }, [t]);
 }
 
@@ -130,13 +138,16 @@ function TaskEditor({
 }) {
   const { t } = useTranslation();
 
+  const opened = task ? formOf(task) : NEW_TASK;
+
   const form = useForm({
     resolver: zodResolver(useTaskFormSchema()),
     reValidateMode: "onSubmit",
-    defaultValues: task ? formOf(task) : NEW_TASK,
+    defaultValues: opened,
   });
 
   const approval = useWatch({ control: form.control, name: "approval" });
+  const kind = useWatch({ control: form.control, name: "kind" });
 
   const save = useMutation({
     mutationFn: (values: TaskForm) =>
@@ -192,6 +203,9 @@ function TaskEditor({
           kinds={Object.values(ScheduleKind)}
           intervals={INTERVALS}
         />
+        {kind === ScheduleKind.OnChange ? (
+          <ChangeScopeFields kept={opened} />
+        ) : null}
       </FormProvider>
       <Controller
         control={form.control}
@@ -289,6 +303,7 @@ function LastRun({ task }: { task: ScheduledTaskView }) {
 function TaskRow({ task }: { task: ScheduledTaskView }) {
   const { t } = useTranslation();
   const clock = useClock();
+  const scopeText = useScopeText();
   const [editing, setEditing] = useState(false);
 
   const enable = useMutation({
@@ -318,6 +333,9 @@ function TaskRow({ task }: { task: ScheduledTaskView }) {
       description={
         <span className="flex flex-wrap items-center gap-x-2">
           <span>{scheduleText(t, task.schedule, task.timeZone)}</span>
+          {task.schedule.kind === ScheduleKind.OnChange ? (
+            <span>· {scopeText(task.schedule.scope)}</span>
+          ) : null}
           {task.enabled && task.schedule.kind === ScheduleKind.OnChange ? (
             <span>· {t("settings.schedules.waits")}</span>
           ) : null}
@@ -372,9 +390,23 @@ function TaskRow({ task }: { task: ScheduledTaskView }) {
       {editing ? (
         <TaskEditor task={task} onDone={() => setEditing(false)} />
       ) : (
-        <p className="line-clamp-2 text-xs whitespace-pre-wrap text-muted">
-          {task.prompt}
-        </p>
+        <>
+          <p className="line-clamp-2 text-xs whitespace-pre-wrap text-muted">
+            {task.prompt}
+          </p>
+          {task.lastRun && task.lastRun.changes.length > 0 ? (
+            <div className="text-xs text-muted">
+              <p>{t("settings.schedules.scope.ran-for")}</p>
+              <ul className="list-disc pl-4">
+                {task.lastRun.changes.map((change) => {
+                  const line = changeLine(t, change);
+
+                  return <li key={line}>{line}</li>;
+                })}
+              </ul>
+            </div>
+          ) : null}
+        </>
       )}
       {error ? (
         <ErrorAlert

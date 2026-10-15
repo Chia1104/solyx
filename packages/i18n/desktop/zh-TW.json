@@ -1287,7 +1287,7 @@
       },
       "every": "頻率",
       "at-most": "最多",
-      "on-change-description": "當新聞可能顯示報告列出的「什麼會改變看法」已發生、主題的觀察訊號已發生，或報告記下的事件日期已過時才執行，範圍是你的庫存與自選。每半小時檢查一次。",
+      "on-change-description": "當新聞可能顯示報告列出的「什麼會改變看法」已發生、主題的觀察訊號已發生，或報告記下的事件日期已過時才執行，範圍在下面設定。每半小時檢查一次。",
       "every-minutes_one": "每 {{count}} 分鐘",
       "every-minutes_other": "每 {{count}} 分鐘",
       "every-hours_one": "每 {{count}} 小時",
@@ -1307,6 +1307,38 @@
       "on-change-minutes_other": "有變化時，最多每 {{count}} 分鐘一次",
       "on-change-hours_one": "有變化時，最多每 {{count}} 小時一次",
       "on-change-hours_other": "有變化時，最多每 {{count}} 小時一次",
+      "scope": {
+        "kinds": "在這些變化時執行",
+        "kind-names": {
+          "falsifier-met": "新聞可能顯示報告「什麼會改變看法」已發生",
+          "event-passed": "報告記下的事件日期已過",
+          "signpost-met": "新聞可能顯示主題的觀察訊號已發生"
+        },
+        "kind-short": {
+          "falsifier-met": "改變看法的條件",
+          "event-passed": "事件日期已過",
+          "signpost-met": "主題觀察訊號"
+        },
+        "separator": "、",
+        "listings": "個股",
+        "every-listing": "全部庫存與自選",
+        "named-listings": "指定個股",
+        "no-listings": "庫存與自選裡還沒有個股。",
+        "themes": "主題",
+        "every-theme": "全部主題",
+        "named-themes": "指定主題",
+        "named": "主題：{{themes}}",
+        "no-themes": "還沒有主題。",
+        "kinds-required": "至少選一種變化",
+        "listings-required": "至少選一檔個股",
+        "themes-required": "至少選一個主題",
+        "ran-for": "上次因為這些變化執行：",
+        "changes": {
+          "falsifier-met": "{{listing}}：新聞可能顯示「{{falsifier}}」已發生",
+          "event-passed": "{{listing}}：{{date}} 的「{{label}}」已過",
+          "signpost-met": "主題「{{theme}}」：新聞可能顯示「{{signpost}}」已發生"
+        }
+      },
       "approval": "需要詢問的呼叫",
       "approvals": {
         "ask": "等我回答",

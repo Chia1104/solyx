@@ -2,6 +2,8 @@ import * as z from "zod";
 
 import { isTimeZone } from "@solyx/utils/is";
 
+import { changeScopeSchema } from "./changes.ts";
+import type { Change } from "./changes.ts";
 import { exchangeDate, marketSchema } from "./market.ts";
 import { holdsSecret } from "./memory.ts";
 import type { TradingDays } from "./session.ts";
@@ -48,6 +50,7 @@ const onChangeSchema = z.object({
     .int()
     .min(MIN_INTERVAL_MINUTES)
     .max(MAX_INTERVAL_MINUTES),
+  scope: changeScopeSchema,
 });
 
 export const scheduleSchema = z.discriminatedUnion("kind", [
@@ -110,6 +113,8 @@ export interface ScheduledRun {
   sessionId: string | null;
   /** Why it could not start; `null` when it did. */
   failure: string | null;
+  /** What changed since the run before, which it was started for; none where the clock alone times it. */
+  changes: Change[];
 }
 
 /** A message the agent is sent on its own while the app runs, each time in a conversation of its own. */
