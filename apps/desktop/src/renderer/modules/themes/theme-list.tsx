@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { symbolKey } from "@solyx/core/market";
 import type { Development, ThemeWatch } from "@solyx/core/theme";
 
+import { isWebSearchReady } from "#shared/ipc/settings.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
 
 import { useClock } from "../../app/clock.ts";
@@ -12,6 +13,10 @@ import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { ListingName } from "../market/listing-name.tsx";
 import { numberFormats } from "../market/number-formats.ts";
+import {
+  useDecisionsReady,
+  webSearchSettingsQuery,
+} from "../settings/settings-query.ts";
 
 import { themesQuery } from "./themes-query.ts";
 
@@ -51,7 +56,7 @@ function DevelopmentRow({ development }: { development: Development }) {
 function ThemeRow({ watch }: { watch: ThemeWatch }) {
   const { t } = useTranslation();
   const clock = useClock();
-  const { theme, developments, collectedAt, quietSince } = watch;
+  const { theme, developments, collectedAt, quietSince, unread } = watch;
 
   return (
     <li className="flex flex-col gap-1.5 py-3">
@@ -95,8 +100,37 @@ function ThemeRow({ watch }: { watch: ThemeWatch }) {
         {collectedAt === null
           ? t("themes.not-searched")
           : t("themes.searched", { time: clock.time(collectedAt) })}
+        {unread > 0 ? ` ${t("themes.unread", { count: unread })}` : null}
       </span>
     </li>
+  );
+}
+
+/** What keeps themes from being searched or read, since a theme left unsearched or unread looks quiet. */
+function WatchGaps() {
+  const { t } = useTranslation();
+  const webSearch = useQuery(webSearchSettingsQuery());
+  const audited = useDecisionsReady();
+
+  // Assumed set up until the settings load, rather than flash a gap.
+  const searched =
+    webSearch.data === undefined || isWebSearchReady(webSearch.data);
+
+  if (searched && audited) return null;
+
+  return (
+    <p className="rounded-sm border border-dashed border-separator px-3 py-2 text-xs text-muted">
+      {[
+        ...(searched ? [] : [t("themes.no-web-search")]),
+        ...(audited ? [] : [t("themes.no-decisions")]),
+      ].join(" ")}{" "}
+      <Link
+        to="/settings"
+        search={{ section: SettingsSection.Agent }}
+        className="text-foreground underline">
+        {t("themes.settings")}
+      </Link>
+    </p>
   );
 }
 
@@ -119,11 +153,14 @@ export function ThemeList() {
           {t("themes.empty")}
         </p>
       ) : (
-        <ul className="divide-y divide-separator">
-          {data.map((watch) => (
-            <ThemeRow key={watch.theme.id} watch={watch} />
-          ))}
-        </ul>
+        <>
+          <WatchGaps />
+          <ul className="divide-y divide-separator">
+            {data.map((watch) => (
+              <ThemeRow key={watch.theme.id} watch={watch} />
+            ))}
+          </ul>
+        </>
       )}
       <Link
         to="/settings"

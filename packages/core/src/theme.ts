@@ -117,6 +117,11 @@ export interface ThemeWatch {
   collectedAt: number | null;
   /** Epoch ms of its newest development, or of when it was last written while it has none. */
   quietSince: number;
+  /**
+   * Of `latest`, the items not yet read against every signpost, of which its quiet says nothing:
+   * all of them while no decisions model is set up.
+   */
+  unread: number;
 }
 
 // The items shown for a theme, and read against its signposts: what a few days of searches find.
@@ -131,6 +136,9 @@ export interface ThemeDeskOptions {
   now?: () => number;
   createId?: () => string;
 }
+
+const readingKey = (signpost: string, itemId: string) =>
+  JSON.stringify([signpost, itemId]);
 
 /** When an item was published, or found where its source gave no time. */
 const datedAt = ({ published, foundAt }: ThemeItem) =>
@@ -156,9 +164,13 @@ export class ThemeDesk {
       .map((theme) => {
         const latest = store.items(theme.id, WATCHED_ITEMS);
         const items = new Map(latest.map((item) => [item.id, item]));
+        const readings = store.readings(theme.id);
 
-        const developments = store
-          .readings(theme.id)
+        const read = new Set(
+          readings.map(({ signpost, itemId }) => readingKey(signpost, itemId))
+        );
+
+        const developments = readings
           .flatMap(
             ({ signpost, itemId, support, checkedAt }): Development[] => {
               const item = items.get(itemId);
@@ -181,6 +193,11 @@ export class ThemeDesk {
           quietSince: developments[0]
             ? datedAt(developments[0].item)
             : theme.updatedAt,
+          unread: latest.filter(({ id }) =>
+            theme.signposts.some(
+              (signpost) => !read.has(readingKey(signpost, id))
+            )
+          ).length,
         };
       })
       .toSorted(
@@ -243,12 +260,12 @@ export class ThemeDesk {
       const read = new Set(
         store
           .readings(themeId)
-          .map(({ signpost, itemId }) => JSON.stringify([signpost, itemId]))
+          .map(({ signpost, itemId }) => readingKey(signpost, itemId))
       );
 
       for (const item of store.items(themeId, WATCHED_ITEMS)) {
         for (const signpost of theme.signposts) {
-          if (read.has(JSON.stringify([signpost, item.id]))) continue;
+          if (read.has(readingKey(signpost, item.id))) continue;
 
           const support = await auditor
             .audit({

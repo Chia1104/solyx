@@ -43,6 +43,7 @@ function watchText({
   latest,
   collectedAt,
   quietSince,
+  unread,
 }: ThemeWatch): string {
   const listings = theme.listings.map(
     ({ symbol, exposure }) => `- ${symbol.market} ${symbol.symbol}: ${exposure}`
@@ -67,6 +68,11 @@ function watchText({
           ),
         ]
       : [`No signpost read as stated; quiet since ${day(quietSince)}.`]),
+    ...(unread > 0
+      ? [
+          `${unread} of the items found last are not yet read against every signpost, so its quiet says nothing of them: a decisions model reads them once one is set up, or at the next search where it could not read them.`,
+        ]
+      : []),
     ...(latest.length > 0
       ? [
           "Found last:",
