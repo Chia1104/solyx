@@ -33,7 +33,7 @@ import type { ScheduledTaskView, TaskDraft } from "#shared/schedules.ts";
 import { currentTimeZone, useClock } from "../../app/clock.ts";
 import { currentLocale } from "../../app/i18n.ts";
 import { Pane, useLayoutStore } from "../../app/layout-store.ts";
-import { client } from "../../app/rpc.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -149,10 +149,9 @@ function TaskEditor({
     onSuccess: onDone,
   });
 
-  const remove = useMutation({
-    mutationFn: (id: string) => client.schedules.remove(id),
-    onSuccess: onDone,
-  });
+  const remove = useMutation(
+    orpc.schedules.remove.mutationOptions({ onSuccess: onDone })
+  );
 
   const submit = form.handleSubmit((values) => save.mutate(values));
   const pending = save.isPending || remove.isPending;
