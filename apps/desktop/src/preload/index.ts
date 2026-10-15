@@ -15,6 +15,8 @@ import { flowsChannels } from "#shared/ipc/flows.ts";
 import type { FlowsApi } from "#shared/ipc/flows.ts";
 import { fundamentalsChannels } from "#shared/ipc/fundamentals.ts";
 import type { FundamentalsApi } from "#shared/ipc/fundamentals.ts";
+import { inboxChannels, inboxEvents } from "#shared/ipc/inbox.ts";
+import type { InboxApi, InboxEvents } from "#shared/ipc/inbox.ts";
 import { marketChannels, marketEvents } from "#shared/ipc/market.ts";
 import type { MarketApi, MarketEvents } from "#shared/ipc/market.ts";
 import { memoryChannels, memoryEvents } from "#shared/ipc/memory.ts";
@@ -102,6 +104,7 @@ const api: SolyxApi = {
   calendar: bridge<CalendarApi>(calendarChannels),
   flows: bridge<FlowsApi>(flowsChannels),
   fundamentals: bridge<FundamentalsApi>(fundamentalsChannels),
+  inbox: bridge<InboxApi, InboxEvents>(inboxChannels, inboxEvents),
   market: bridge<MarketApi, MarketEvents>(marketChannels, marketEvents),
   memory: bridge<MemoryApi, MemoryEvents>(memoryChannels, memoryEvents),
   news: bridge<NewsApi, NewsEvents>(newsChannels, newsEvents),

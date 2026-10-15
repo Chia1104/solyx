@@ -706,6 +706,67 @@ test("a report's events are read against their quotes, refused once behind the e
   expect((await desk.coverage(TSMC)).passedEvents).toEqual([kept]);
 });
 
+test("a report's backlog holds the news read as stating a falsifier and the events gone by, until a revision takes them in", async () => {
+  const { desk, store, clock } = setup();
+
+  expect(desk.backlog(TSMC)).toBeNull();
+
+  await desk.revise({
+    symbol: TSMC,
+    stance: ReportStance.Bullish,
+    thesis: "Advanced nodes stay sold out.",
+    falsifiers: ["Gross margin falls below 53%"],
+    events: [
+      {
+        date: "2026-10-16",
+        label: "Third-quarter earnings call",
+        timing: EventTiming.Set,
+        source: "Investor relations calendar",
+        quote: "3Q26 Earnings Conference: October 16, 2026",
+      },
+    ],
+  });
+
+  const read = (supported: number, revision = 1): FalsifierCheck => ({
+    falsifier: "Gross margin falls below 53%",
+    revision,
+    source: "news",
+    item: {
+      id: `margins-${supported}-${revision}`,
+      title: "Margins fell",
+      url: null,
+      site: "news.test",
+      published: null,
+    },
+    support: { model: "jev", supported },
+    checkedAt: AT_ANCHOR,
+  });
+
+  store.addFalsifierCheck(TSMC, read(0.9));
+  store.addFalsifierCheck(TSMC, read(0.1));
+
+  expect(desk.backlog(TSMC)).toMatchObject({
+    report: { revision: 1 },
+    signals: [read(0.9)],
+    passedEvents: [],
+  });
+
+  clock.now = Date.parse("2026-10-17T09:00:00+08:00");
+
+  expect(desk.backlog(TSMC)).toMatchObject({
+    signals: [read(0.9)],
+    passedEvents: [{ label: "Third-quarter earnings call" }],
+  });
+
+  await desk.revise({ symbol: TSMC, events: [] });
+
+  expect(desk.backlog(TSMC)).toMatchObject({
+    report: { revision: 2 },
+    signals: [],
+    passedEvents: [],
+  });
+});
+
 const votes = (...cast: (MagiVote | null)[]) =>
   resolveCouncil(
     Object.values(MagiUnit).map((unit, index) => ({

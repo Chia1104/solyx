@@ -4,6 +4,7 @@ import type { BackupApi, BackupEvents } from "./backup.ts";
 import type { CalendarApi } from "./calendar.ts";
 import type { FlowsApi } from "./flows.ts";
 import type { FundamentalsApi } from "./fundamentals.ts";
+import type { InboxApi, InboxEvents } from "./inbox.ts";
 import type { MarketApi, MarketEvents } from "./market.ts";
 import type { MemoryApi, MemoryEvents } from "./memory.ts";
 import type { NewsApi, NewsEvents } from "./news.ts";
@@ -25,6 +26,7 @@ export interface SolyxApi {
   calendar: CalendarApi;
   flows: FlowsApi;
   fundamentals: FundamentalsApi;
+  inbox: InboxApi & InboxEvents;
   market: MarketApi & MarketEvents;
   memory: MemoryApi & MemoryEvents;
   news: NewsApi & NewsEvents;

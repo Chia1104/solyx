@@ -25,6 +25,8 @@ import { createDgbas } from "@solyx/macro/dgbas";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 
 import { backupEvents } from "#shared/ipc/backup.ts";
+import { inboxEvents } from "#shared/ipc/inbox.ts";
+import type { Approval } from "#shared/ipc/inbox.ts";
 import { marketEvents } from "#shared/ipc/market.ts";
 import { memoryEvents } from "#shared/ipc/memory.ts";
 import { newsEvents } from "#shared/ipc/news.ts";
@@ -55,6 +57,7 @@ import { createDecisions } from "./modules/decisions/decisions.ts";
 import { createEmbeddings } from "./modules/embeddings/embeddings.ts";
 import { createFlows } from "./modules/flows/flows.ts";
 import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
+import { createInbox } from "./modules/inbox/inbox.ts";
 import { createMacro } from "./modules/macro/macro.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
@@ -129,7 +132,10 @@ export function createServices(config: ConfigFile) {
 
   const watchlist = createWatchlist({
     store: userData.watchlist,
-    onChange: () => broadcast(watchlistEvents.onChanged),
+    onChange() {
+      broadcast(watchlistEvents.onChanged);
+      broadcast(inboxEvents.onChanged);
+    },
   });
 
   const desk = new OrderDesk({
@@ -143,6 +149,7 @@ export function createServices(config: ConfigFile) {
     restored: restored !== null,
     onChange() {
       broadcast(proposalsEvents.onChanged);
+      broadcast(inboxEvents.onChanged);
       void tray.sync();
     },
   });
@@ -276,7 +283,10 @@ export function createServices(config: ConfigFile) {
       embedder: () => embeddings.localEmbedder(),
       diagnostics,
     },
-    () => broadcast(researchEvents.onChanged)
+    () => {
+      broadcast(researchEvents.onChanged);
+      broadcast(inboxEvents.onChanged);
+    }
   );
 
   // The statistics portal's server leaves its intermediate certificate out, which Node's fetch does not make up for.
@@ -401,7 +411,10 @@ export function createServices(config: ConfigFile) {
       version: app.getVersion(),
       home,
     },
-    onActivity: () => void tray.sync(),
+    onActivity() {
+      broadcast(inboxEvents.onChanged);
+      void tray.sync();
+    },
   });
 
   const storage = createStorageApi({
@@ -452,6 +465,13 @@ export function createServices(config: ConfigFile) {
 
     return uniqBy([...held, ...watchlist.list()], symbolKey);
   }
+
+  const inbox = createInbox({
+    desk,
+    approvals,
+    followed: followedListings,
+    research: research.desk,
+  });
 
   const newsCollector = createNewsCollector({
     diagnostics,
@@ -518,15 +538,21 @@ export function createServices(config: ConfigFile) {
     onDestination: () => broadcast(workspaceEvents.onDestination),
   });
 
-  /** What the tray's menu lists of the desk, the agent, the scheduled tasks and updates. */
-  async function trayState(): Promise<TrayState> {
+  /** The conversations with a call waiting for the user to allow it. */
+  async function approvals(): Promise<Approval[]> {
     const asked = new Set(agent.waiting());
 
     // Conversations are read only for the titles of those that ask.
-    const [sessions, tasks] = await Promise.all([
-      asked.size > 0 ? agent.sessions() : [],
-      schedules.list(),
-    ]);
+    const sessions = asked.size > 0 ? await agent.sessions() : [];
+
+    return sessions
+      .filter((session) => asked.has(session.id))
+      .map(({ id, title }) => ({ sessionId: id, title }));
+  }
+
+  /** What the tray's menu lists of the desk, the agent, the scheduled tasks and updates. */
+  async function trayState(): Promise<TrayState> {
+    const [asked, tasks] = await Promise.all([approvals(), schedules.list()]);
 
     return {
       mode: desk.mode,
@@ -535,9 +561,7 @@ export function createServices(config: ConfigFile) {
         .filter(
           (proposal) => proposal.status === ProposalStatus.AwaitingConfirmation
         ).length,
-      approvals: sessions
-        .filter((session) => asked.has(session.id))
-        .map(({ id, title }) => ({ sessionId: id, title })),
+      approvals: asked,
       tasks: tasks
         .filter((task) => task.enabled || task.running)
         .map(({ name, running, nextRunAt, lastRun }) => ({
@@ -627,6 +651,7 @@ export function createServices(config: ConfigFile) {
     scheduler,
     tray,
     workspace,
+    inbox,
 
     restart,
   };
