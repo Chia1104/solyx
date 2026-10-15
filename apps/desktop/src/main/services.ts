@@ -592,6 +592,7 @@ export function createServices(config: ConfigFile) {
   scheduler.register("Scheduled tasks", schedules.work);
   scheduler.register("Change watch", schedules.changeWork);
   scheduler.register("Theme watch", themes.work);
+  scheduler.register("Exchange days", research.work);
   scheduler.register("Backup", backups.work);
 
   nativeTheme.themeSource = appearance.read().theme;
