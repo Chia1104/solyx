@@ -320,6 +320,7 @@ export function createAgentService(options: AgentServiceOptions) {
       sessions: () => runtime.sessions(),
       transcript: (id) => runtime.transcript(id),
     },
+    themes: options.themes,
   });
 
   const watched = createWatchlistTools({

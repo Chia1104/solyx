@@ -6,7 +6,7 @@ import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import { kebabCase, omit, uniqBy } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
-import { changesSince } from "@solyx/core/changes";
+import { changesSince, watchesListings } from "@solyx/core/changes";
 import { Currency, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderDesk, ProposalStatus } from "@solyx/core/order-desk";
@@ -495,27 +495,35 @@ export function createServices(config: ConfigFile) {
     store: userData.schedules,
     agent,
     days: scheduleDays,
-    async changes(since) {
-      const followed = await followedListings();
+    async changes(since, scope) {
+      // The account is read only for a scope that names no listings of its own.
+      const listings = watchesListings(scope)
+        ? (scope.listings ?? (await followedListings()))
+        : [];
 
-      return changesSince(since, Date.now(), {
-        reports: followed.flatMap((symbol) => {
-          const report = researchData.store.report(symbol);
+      return changesSince(
+        since,
+        Date.now(),
+        {
+          reports: listings.flatMap((symbol) => {
+            const report = researchData.store.report(symbol);
 
-          return report
-            ? [
-                {
-                  report,
-                  checks: researchData.store.falsifierChecks(
-                    symbol,
-                    report.revision
-                  ),
-                },
-              ]
-            : [];
-        }),
-        themes: themes.desk.list(),
-      });
+            return report
+              ? [
+                  {
+                    report,
+                    checks: researchData.store.falsifierChecks(
+                      symbol,
+                      report.revision
+                    ),
+                  },
+                ]
+              : [];
+          }),
+          themes: themes.desk.list(),
+        },
+        scope
+      );
     },
     diagnostics,
     onChange() {

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
+import { ChangeKind, EVERY_CHANGE } from "@solyx/core/changes";
 import { Market } from "@solyx/core/market";
 import { TimePrecision } from "@solyx/core/news";
 import { OrderType, Side } from "@solyx/core/order";
@@ -376,7 +377,18 @@ describe("schedule store", () => {
     const ran = {
       ...brief,
       enabled: false,
-      lastRun: { at: 1_790_000_100_000, sessionId: "7", failure: null },
+      lastRun: {
+        at: 1_790_000_100_000,
+        sessionId: "7",
+        failure: null,
+        changes: [
+          {
+            kind: ChangeKind.FalsifierMet,
+            symbol: TSMC,
+            falsifier: "Monthly revenue falls year on year.",
+          },
+        ],
+      },
     };
 
     schedules.save(ran);
@@ -384,6 +396,56 @@ describe("schedule store", () => {
     expect(schedules.list()).toStrictEqual([ran, hourly]);
     expect(schedules.get("brief")).toStrictEqual(ran);
     expect(schedules.get("gone")).toBeUndefined();
+  });
+
+  test("a task kept before scopes and changes were kept runs for every change, and its run says it ran for none", async () => {
+    // The file as it stood before that migration.
+    const before = join(directory, "migrations-before");
+
+    for (const folder of await readdir(MIGRATIONS)) {
+      if (!folder.endsWith("_change_scope")) {
+        await cp(join(MIGRATIONS, folder), join(before, folder), {
+          recursive: true,
+        });
+      }
+    }
+
+    const file = join(directory, "user.sqlite");
+
+    openUserData(file, before).close();
+
+    const db = new DatabaseSync(file);
+
+    const insert = db.prepare(
+      "INSERT INTO scheduled_tasks (id, name, prompt, schedule, time_zone, locale, approval, enabled, created_at, updated_at, last_run) VALUES (?, 'Upkeep', '/watchlist-upkeep', ?, 'Asia/Taipei', 'zh-TW', 'auto', 1, 0, 0, ?)"
+    );
+
+    insert.run(
+      "upkeep",
+      JSON.stringify({ kind: ScheduleKind.OnChange, atMostEveryMinutes: 60 }),
+      JSON.stringify({ at: 1, sessionId: "7", failure: null })
+    );
+    insert.run(
+      "hourly",
+      JSON.stringify({ kind: ScheduleKind.Interval, everyMinutes: 60 }),
+      null
+    );
+    db.close();
+
+    const { schedules } = open();
+
+    expect(schedules.get("upkeep")).toMatchObject({
+      schedule: {
+        kind: ScheduleKind.OnChange,
+        atMostEveryMinutes: 60,
+        scope: EVERY_CHANGE,
+      },
+      lastRun: { at: 1, sessionId: "7", failure: null, changes: [] },
+    });
+    expect(schedules.get("hourly")).toMatchObject({
+      schedule: { kind: ScheduleKind.Interval, everyMinutes: 60 },
+      lastRun: null,
+    });
   });
 
   test("a removed task is gone, and the rest outlive the connection", () => {
