@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from "react";
+
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { memoize } from "es-toolkit";
 import { useTranslation } from "react-i18next";
@@ -25,15 +27,48 @@ export const currentTimeZone = (): TimeZone =>
     systemTimeZone()
   );
 
+// The user's day is looked at this often, since a clock tells a time of today without its date.
+const DAY_CHECK_MS = 60 * 1000;
+
+const dayListeners = new Set<() => void>();
+
+let dayTimer: ReturnType<typeof setInterval> | undefined;
+
+/** One timer for the window, however many components tell times, kept only while one does. */
+function subscribeToDay(listener: () => void) {
+  dayListeners.add(listener);
+
+  dayTimer ??= setInterval(() => {
+    for (const each of dayListeners) each();
+  }, DAY_CHECK_MS);
+
+  return () => {
+    dayListeners.delete(listener);
+
+    if (dayListeners.size === 0) {
+      clearInterval(dayTimer);
+      dayTimer = undefined;
+    }
+  };
+}
+
+/** The day on the user's own clock. */
+const userDay = () => Temporal.Now.plainDateISO(currentTimeZone()).toString();
+
 // Built once per language and zone, since a conversation reads one for every message.
 const sharedClock = memoize(
   ([locale, timeZone]: [string, TimeZone]) => clock(locale, timeZone),
   { getCacheKey: ([locale, timeZone]) => `${locale} ${timeZone}` }
 );
 
-/** The clock the app's language and the user's time zone give. */
+/**
+ * The clock the app's language and the user's time zone give. Its component renders again as the
+ * user's day turns, so a time told as today's gains its date.
+ */
 export function useClock(): Clock {
   const { i18n } = useTranslation();
+
+  useSyncExternalStore(subscribeToDay, userDay);
 
   const { data: preference } = useSuspenseQuery({
     ...appearanceQuery(),
