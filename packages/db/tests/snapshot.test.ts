@@ -77,6 +77,24 @@ test("a snapshot this build made, or an older one, passes and is left as one fil
   expect(await readdir(folder)).toEqual(["user.sqlite"]);
 });
 
+test("a snapshot made on another system passes, though its migrations' files ended lines otherwise", async () => {
+  const live = openUserData(join(directory, "user.sqlite"), MIGRATIONS);
+  const file = join(directory, "copy.sqlite");
+
+  await snapshotDatabase(join(directory, "user.sqlite"), file);
+  live.close();
+
+  // Git checks the files out with CRLF on Windows, so its build hashes each migration otherwise.
+  const elsewhere = new DatabaseSync(file);
+
+  elsewhere.exec(
+    "UPDATE __drizzle_migrations SET hash = 'hashed-with-other-line-endings'"
+  );
+  elsewhere.close();
+
+  expect(() => verifySnapshot(file, MIGRATIONS)).not.toThrow();
+});
+
 test("a snapshot a newer build made is refused, since opening it would not notice", async () => {
   const live = openUserData(join(directory, "user.sqlite"), MIGRATIONS);
   const file = join(directory, "copy.sqlite");
