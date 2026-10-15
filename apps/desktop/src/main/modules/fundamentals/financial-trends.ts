@@ -4,7 +4,7 @@ import { revenueTrend, statementMetrics } from "@solyx/core/fundamentals";
 import type { Fundamentals } from "@solyx/core/fundamentals";
 import type { SymbolRef } from "@solyx/core/market";
 
-import type { FinancialTrends } from "#shared/ipc/fundamentals.ts";
+import type { FinancialTrends } from "#shared/fundamentals.ts";
 
 // Two years of quarters and one of months, so each newest period shows beside the year before it.
 const QUARTERS = 8;

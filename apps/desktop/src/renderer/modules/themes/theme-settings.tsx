@@ -32,6 +32,7 @@ import type { ThemeDraft, ThemeWatch } from "@solyx/core/theme";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { useClock } from "../../app/clock.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -162,15 +163,14 @@ function ThemeEditor({
   const save = useMutation({
     mutationFn: (values: ThemeForm) =>
       watch
-        ? window.solyx.themes.update(watch.theme.id, draftOf(values))
-        : window.solyx.themes.create(draftOf(values)),
+        ? client.themes.update({ id: watch.theme.id, draft: draftOf(values) })
+        : client.themes.create(draftOf(values)),
     onSuccess: onDone,
   });
 
-  const remove = useMutation({
-    mutationFn: (id: string) => window.solyx.themes.remove(id),
-    onSuccess: onDone,
-  });
+  const remove = useMutation(
+    orpc.themes.remove.mutationOptions({ onSuccess: onDone })
+  );
 
   const submit = form.handleSubmit((values) => save.mutate(values));
   const pending = save.isPending || remove.isPending;
@@ -285,7 +285,7 @@ function ThemeSettingsRow({ watch }: { watch: ThemeWatch }) {
   const { theme, developments, latest, collectedAt } = watch;
 
   const check = useMutation({
-    mutationFn: () => window.solyx.themes.check(theme.id),
+    mutationFn: () => client.themes.check(theme.id),
   });
 
   return (

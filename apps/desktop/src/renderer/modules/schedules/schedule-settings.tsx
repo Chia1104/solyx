@@ -25,12 +25,15 @@ import {
   ScheduleKind,
 } from "@solyx/core/schedule";
 import type { ScheduledTaskDraft } from "@solyx/core/schedule";
+import { isEnumValue } from "@solyx/utils/is";
 
-import type { ScheduledTaskView } from "#shared/ipc/schedules.ts";
+import { Locale } from "#shared/ipc/settings.ts";
+import type { ScheduledTaskView, TaskDraft } from "#shared/schedules.ts";
 
 import { currentTimeZone, useClock } from "../../app/clock.ts";
 import { currentLocale } from "../../app/i18n.ts";
 import { Pane, useLayoutStore } from "../../app/layout-store.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -104,7 +107,7 @@ const formOf = ({
  * The task a form describes, on the clock and in the language the app shows now: a task saved
  * again follows them, so its time of day reads as the user sees it.
  */
-function draftOf(form: TaskForm, enabled: boolean): ScheduledTaskDraft {
+function draftOf(form: TaskForm, enabled: boolean): TaskDraft {
   return {
     name: form.name,
     prompt: form.prompt,
@@ -138,15 +141,17 @@ function TaskEditor({
   const save = useMutation({
     mutationFn: (values: TaskForm) =>
       task
-        ? window.solyx.schedules.update(task.id, draftOf(values, task.enabled))
-        : window.solyx.schedules.create(draftOf(values, true)),
+        ? client.schedules.update({
+            id: task.id,
+            draft: draftOf(values, task.enabled),
+          })
+        : client.schedules.create(draftOf(values, true)),
     onSuccess: onDone,
   });
 
-  const remove = useMutation({
-    mutationFn: (id: string) => window.solyx.schedules.remove(id),
-    onSuccess: onDone,
-  });
+  const remove = useMutation(
+    orpc.schedules.remove.mutationOptions({ onSuccess: onDone })
+  );
 
   const submit = form.handleSubmit((values) => save.mutate(values));
   const pending = save.isPending || remove.isPending;
@@ -288,11 +293,21 @@ function TaskRow({ task }: { task: ScheduledTaskView }) {
 
   const enable = useMutation({
     mutationFn: (enabled: boolean) =>
-      window.solyx.schedules.update(task.id, { ...task, enabled }),
+      client.schedules.update({
+        id: task.id,
+        // A task keeps the language it was saved in, unless the app no longer speaks it.
+        draft: {
+          ...task,
+          enabled,
+          locale: isEnumValue(Locale, task.locale)
+            ? task.locale
+            : currentLocale(),
+        },
+      }),
   });
 
   const run = useMutation({
-    mutationFn: () => window.solyx.schedules.runNow(task.id),
+    mutationFn: () => client.schedules.runNow(task.id),
   });
 
   const error = enable.error ?? run.error;

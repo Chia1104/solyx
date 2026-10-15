@@ -12,7 +12,7 @@ import { OrderType } from "@solyx/core/order";
 import type { TradeProposal } from "@solyx/core/order-desk";
 import type { ReportBacklog } from "@solyx/core/research";
 
-import { DestinationKind } from "#shared/ipc/workspace.ts";
+import { DestinationKind } from "#shared/workspace.ts";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";

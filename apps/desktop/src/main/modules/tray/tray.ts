@@ -1,13 +1,13 @@
 import type { BrokerMode } from "@solyx/core/broker";
 
 import { clock } from "#shared/clock.ts";
+import type { Approval } from "#shared/inbox.ts";
 import type { Locale, TimeZone } from "#shared/ipc/settings.ts";
-import { UpdateStatus } from "#shared/ipc/updates.ts";
-import type { UpdateState } from "#shared/ipc/updates.ts";
-import { DestinationKind } from "#shared/ipc/workspace.ts";
-import type { Destination } from "#shared/ipc/workspace.ts";
-import type { Approval } from "#shared/rpc/inbox.contract.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import { UpdateStatus } from "#shared/updates.ts";
+import type { UpdateState } from "#shared/updates.ts";
+import { DestinationKind } from "#shared/workspace.ts";
+import type { Destination } from "#shared/workspace.ts";
 
 import { CATALOGS, fill, plural } from "../settings/catalogs.ts";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";

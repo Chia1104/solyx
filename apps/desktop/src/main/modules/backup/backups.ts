@@ -13,8 +13,12 @@ import {
   backupBucketSchema,
   backupPrefixSchema,
   backupRegionSchema,
-} from "#shared/ipc/backup.ts";
-import type { BackupApi, StoredBackup } from "#shared/ipc/backup.ts";
+} from "#shared/backup.ts";
+import type {
+  BackupSettings,
+  BackupStatus,
+  StoredBackup,
+} from "#shared/backup.ts";
 import { Secret, SecretState } from "#shared/ipc/settings.ts";
 
 import type {
@@ -103,6 +107,19 @@ export interface BackupsOptions {
   now?: () => number;
 }
 
+/** What the backup tab asks of the module, as `backupContract` documents it, and its scheduled pass. */
+export interface Backups {
+  settings(): Promise<BackupSettings>;
+  set(setting: BackupSetting, value: string | null): Promise<void>;
+  setAutomatic(automatic: boolean): Promise<void>;
+  setEvery(every: BackupInterval): Promise<void>;
+  status(): Promise<BackupStatus>;
+  backUp(): Promise<StoredBackup>;
+  list(): Promise<StoredBackup[]>;
+  restore(key: string): Promise<void>;
+  work: ScheduledWork;
+}
+
 /**
  * Backups of what the app keeps, in the bucket the user set up: each one object, sealed under the
  * user's passphrase before it leaves this computer. This side only decides: it reads the settings
@@ -125,7 +142,7 @@ export function createBackups({
   diagnostics,
   onChange,
   now = Date.now,
-}: BackupsOptions): BackupApi & { work: ScheduledWork } {
+}: BackupsOptions): Backups {
   const state = createBackupState(join(folders.dataDir, "backup.json"));
 
   let activity: BackupActivity | null = null;
@@ -379,5 +396,3 @@ export function createBackups({
     },
   };
 }
-
-export type Backups = ReturnType<typeof createBackups>;

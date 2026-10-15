@@ -25,12 +25,8 @@ import { createTwExchanges } from "@solyx/fundamentals/tw-exchanges";
 import { createDgbas } from "@solyx/macro/dgbas";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 
-import { backupEvents } from "#shared/ipc/backup.ts";
+import type { Approval } from "#shared/inbox.ts";
 import { marketEvents } from "#shared/ipc/market.ts";
-import { memoryEvents } from "#shared/ipc/memory.ts";
-import { newsEvents } from "#shared/ipc/news.ts";
-import { researchEvents } from "#shared/ipc/research.ts";
-import { schedulesEvents } from "#shared/ipc/schedules.ts";
 import {
   AppLocation,
   Secret,
@@ -38,12 +34,7 @@ import {
   resolveTimeZone,
   settingsEvents,
 } from "#shared/ipc/settings.ts";
-import { themesEvents } from "#shared/ipc/themes.ts";
-import { updatesEvents } from "#shared/ipc/updates.ts";
-import { watchlistEvents } from "#shared/ipc/watchlist.ts";
-import { workspaceEvents } from "#shared/ipc/workspace.ts";
 import { ColorScheme } from "#shared/palette.ts";
-import type { Approval } from "#shared/rpc/inbox.contract.ts";
 
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
@@ -137,7 +128,7 @@ export function createServices(config: ConfigFile) {
   const watchlist = createWatchlist({
     store: userData.watchlist,
     onChange() {
-      broadcast(watchlistEvents.onChanged);
+      void windowEvents.publish("watchlist:changed", {});
       void windowEvents.publish("inbox:changed", {});
     },
   });
@@ -232,7 +223,7 @@ export function createServices(config: ConfigFile) {
       join(userDataDir, "memory.sqlite"),
       join(import.meta.dirname, "migrations", "memory")
     ),
-    () => broadcast(memoryEvents.onChanged)
+    () => void windowEvents.publish("memory:changed", {})
   );
 
   const news = createNews({
@@ -244,7 +235,7 @@ export function createServices(config: ConfigFile) {
     localEmbedder: () => embeddings.localEmbedder(),
     marketData,
     onChange(symbol) {
-      broadcast(newsEvents.onChanged, symbol);
+      void windowEvents.publish("news:changed", symbol);
       void research.watch(symbol);
     },
   });
@@ -289,7 +280,7 @@ export function createServices(config: ConfigFile) {
       sessions: () => marketSessions(marketDays),
     },
     () => {
-      broadcast(researchEvents.onChanged);
+      void windowEvents.publish("research:changed", {});
       void windowEvents.publish("inbox:changed", {});
     }
   );
@@ -340,7 +331,7 @@ export function createServices(config: ConfigFile) {
     plan: () => config.read().collection[CollectionJob.Themes],
     days: scheduleDays,
     diagnostics,
-    onChange: () => broadcast(themesEvents.onChanged),
+    onChange: () => void windowEvents.publish("themes:changed", {}),
   });
 
   // What the main process writes itself is in the language and on the clock the windows show.
@@ -454,7 +445,7 @@ export function createServices(config: ConfigFile) {
     restart,
     timeZone: userTimeZone,
     diagnostics,
-    onChange: () => broadcast(backupEvents.onChanged),
+    onChange: () => void windowEvents.publish("backup:changed", {}),
   });
 
   /** What the user holds, then what they watch, each once; a broker that cannot be read leaves the watchlist. */
@@ -498,7 +489,7 @@ export function createServices(config: ConfigFile) {
     updater: createAppUpdater(),
     checkEnabled: () => config.read().updates.check,
     onChange() {
-      broadcast(updatesEvents.onChanged);
+      void windowEvents.publish("updates:changed", {});
       void tray.sync();
     },
   });
@@ -531,7 +522,7 @@ export function createServices(config: ConfigFile) {
     },
     diagnostics,
     onChange() {
-      broadcast(schedulesEvents.onChanged);
+      void windowEvents.publish("schedules:changed", {});
       void tray.sync();
     },
   });
@@ -540,7 +531,7 @@ export function createServices(config: ConfigFile) {
 
   const workspace = createWorkspace({
     showWindow,
-    onDestination: () => broadcast(workspaceEvents.onDestination),
+    onDestination: () => void windowEvents.publish("workspace:changed", {}),
   });
 
   /** The conversations with a call waiting for the user to allow it. */
@@ -604,11 +595,11 @@ export function createServices(config: ConfigFile) {
 
   config.onChange(() => broadcast(settingsEvents.onChanged));
   // A collection's plan lives in the config file, so whoever shows the plans hears of every edit.
-  config.onChange(() => broadcast(schedulesEvents.onChanged));
+  config.onChange(() => void windowEvents.publish("schedules:changed", {}));
   secrets.onChange(() => broadcast(settingsEvents.onChanged));
   // Where backups go is settings and secrets both.
-  config.onChange(() => broadcast(backupEvents.onChanged));
-  secrets.onChange(() => broadcast(backupEvents.onChanged));
+  config.onChange(() => void windowEvents.publish("backup:changed", {}));
+  secrets.onChange(() => void windowEvents.publish("backup:changed", {}));
   // Its switches and its menu's language and clock all live in the config file.
   config.onChange(() => void tray.sync());
   config.watch();

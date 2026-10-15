@@ -1,10 +1,7 @@
 import { CollectionJob } from "@solyx/core/schedule";
 import type { CollectionPlan } from "@solyx/core/schedule";
 
-import type {
-  CollectionStatus,
-  CollectionView,
-} from "#shared/ipc/schedules.ts";
+import type { CollectionStatus, CollectionView } from "#shared/schedules.ts";
 
 import type { ConfigFile } from "../settings/config-file.ts";
 

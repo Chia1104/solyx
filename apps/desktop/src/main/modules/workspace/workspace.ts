@@ -1,4 +1,4 @@
-import type { Destination } from "#shared/ipc/workspace.ts";
+import type { Destination } from "#shared/workspace.ts";
 
 export interface WorkspaceOptions {
   /** Brings the app's window to the front, opening one when none is. */

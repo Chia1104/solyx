@@ -59,8 +59,8 @@ import {
   backupIntervalSchema,
   backupPrefixSchema,
   backupRegionSchema,
-} from "#shared/ipc/backup.ts";
-import type { BackupSetting } from "#shared/ipc/backup.ts";
+} from "#shared/backup.ts";
+import type { BackupSetting } from "#shared/backup.ts";
 import {
   LanguagePreference,
   MarketDataSource,

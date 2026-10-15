@@ -29,7 +29,7 @@ import {
 } from "@solyx/db/snapshot";
 import { errorMessage, isErrnoError } from "@solyx/utils/error";
 
-import type { StoredBackup } from "#shared/ipc/backup.ts";
+import type { StoredBackup } from "#shared/backup.ts";
 
 import type {
   BackUpOptions,

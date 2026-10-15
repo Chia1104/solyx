@@ -134,7 +134,7 @@ test("a window's proposal reaches the desk as the user's", async () => {
 test("a window is told the main process's own message for a failure", async () => {
   const { client, close } = connect({ desk: paperDesk() });
 
-  await expect(client.proposals.confirm({ id: "p1" })).rejects.toMatchObject({
+  await expect(client.proposals.confirm("p1")).rejects.toMatchObject({
     code: "INTERNAL_SERVER_ERROR",
     message: "Proposal p1 not found",
   });
@@ -147,17 +147,15 @@ test("input that does not parse is refused in words before the desk is reached",
 
   // What a window that sends a number for the id is typed against.
   const misbehaving = {
-    proposals: { confirm: oc.input(z.object({ id: z.number() })) },
+    proposals: { confirm: oc.input(z.number()) },
   };
 
   const client: RouterContractClient<typeof misbehaving> =
     createORPCClient(link);
 
-  await expect(client.proposals.confirm({ id: 7 })).rejects.toMatchObject({
+  await expect(client.proposals.confirm(7)).rejects.toMatchObject({
     code: "BAD_REQUEST",
-    message: expect.stringMatching(
-      /^Invalid input for proposals\.confirm: .*id/s
-    ),
+    message: expect.stringMatching(/^Invalid input for proposals\.confirm: /),
   });
 
   close();

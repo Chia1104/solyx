@@ -29,7 +29,7 @@ import {
   BackupActivity,
   BackupInterval,
   BackupSetting,
-} from "#shared/ipc/backup.ts";
+} from "#shared/backup.ts";
 import { Secret } from "#shared/ipc/settings.ts";
 
 import {

@@ -35,7 +35,6 @@ import {
   mcpSecretKey,
   timeZonePreferenceSchema,
 } from "#shared/ipc/settings.ts";
-import type { StorageApi } from "#shared/ipc/storage.ts";
 import { ColorScheme, Palette } from "#shared/palette.ts";
 import { SettingsSection, settingsLink } from "#shared/settings-section.ts";
 
@@ -46,6 +45,7 @@ import type { AppearanceSettings } from "../settings/appearance.ts";
 import { entryDescription } from "../settings/config-file.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
+import type { StorageApi } from "../storage/storage-api.ts";
 import type { WebSearchModule } from "../web-search/web-search.ts";
 
 import type { AgentModels } from "./agent-models.ts";

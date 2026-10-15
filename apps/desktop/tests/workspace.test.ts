@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vite-plus/test";
 
-import { DestinationKind } from "#shared/ipc/workspace.ts";
-import type { Destination } from "#shared/ipc/workspace.ts";
+import { DestinationKind } from "#shared/workspace.ts";
+import type { Destination } from "#shared/workspace.ts";
 
 import { createWorkspace } from "../src/main/modules/workspace/workspace.ts";
 

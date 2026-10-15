@@ -13,7 +13,7 @@ import type {
 } from "@solyx/core/schedule";
 import { errorMessage } from "@solyx/utils/error";
 
-import type { ScheduledTaskView } from "#shared/ipc/schedules.ts";
+import type { ScheduledTaskView } from "#shared/schedules.ts";
 
 import type { ScheduledWork } from "../../scheduler.ts";
 import type { AgentService } from "../agent/agent-service.ts";

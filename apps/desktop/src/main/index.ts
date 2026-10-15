@@ -6,8 +6,8 @@ import { kebabCase, withTimeout } from "es-toolkit";
 import { errorMessage } from "@solyx/utils/error";
 
 import { resolveLocale } from "#shared/ipc/settings.ts";
-import { DestinationKind } from "#shared/ipc/workspace.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import { DestinationKind } from "#shared/workspace.ts";
 
 import { registerIpc } from "./ipc/register-ipc.ts";
 import { RestoreFailure } from "./modules/backup/staged-restore.ts";

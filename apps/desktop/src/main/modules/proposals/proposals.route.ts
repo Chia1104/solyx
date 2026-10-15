@@ -9,10 +9,10 @@ export const proposalsRouter = contractOS.proposals.router({
   ),
   // The single road to broker.placeOrder. Never hand confirm to an agent as a tool.
   confirm: contractOS.proposals.confirm.handler(({ context, input }) =>
-    context.desk.confirm(input.id)
+    context.desk.confirm(input)
   ),
   dismiss: contractOS.proposals.dismiss.handler(({ context, input }) =>
-    context.desk.dismiss(input.id)
+    context.desk.dismiss(input)
   ),
   changes: contractOS.proposals.changes.handler(({ context, signal }) =>
     context.windowEvents.subscribe("proposals:changed", { signal })

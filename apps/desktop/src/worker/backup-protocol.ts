@@ -1,4 +1,4 @@
-import type { StoredBackup } from "#shared/ipc/backup.ts";
+import type { StoredBackup } from "#shared/backup.ts";
 
 import type { DataFolders } from "../main/modules/backup/backup-places.ts";
 import type { BackupLocation } from "../main/modules/backup/backup-state.ts";

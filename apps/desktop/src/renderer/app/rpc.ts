@@ -18,3 +18,11 @@ export const client: RouterContractClient<typeof routerContract> =
   createORPCClient(new RPCLink({ port: clientPort }));
 
 export const orpc = createTanstackQueryUtils(client);
+
+/** Calls `onEvent` with each event a stream yields, for as long as the window stays open. */
+export async function forEachEvent<T>(
+  stream: Promise<AsyncIterable<T>>,
+  onEvent: (event: T) => void
+) {
+  for await (const event of await stream) onEvent(event);
+}

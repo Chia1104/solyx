@@ -35,26 +35,3 @@ export type UpdateState =
       url: string;
     }
   | { status: typeof UpdateStatus.Failed; error: string };
-
-export interface UpdatesApi {
-  state(): Promise<UpdateState>;
-  /** Checks now, whether or not scheduled checks are on. */
-  check(): Promise<void>;
-  /** Quits and installs the downloaded update, which restarts the app. */
-  install(): Promise<void>;
-}
-
-/** Pushes from the main process; each subscription returns a function that stops listening. */
-export interface UpdatesEvents {
-  onChanged(listener: () => void): () => void;
-}
-
-export const updatesChannels = {
-  state: "updates:state",
-  check: "updates:check",
-  install: "updates:install",
-} as const satisfies Record<keyof UpdatesApi, string>;
-
-export const updatesEvents = {
-  onChanged: "updates:changed",
-} as const satisfies Record<keyof UpdatesEvents, string>;

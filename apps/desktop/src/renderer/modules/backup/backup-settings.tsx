@@ -11,11 +11,12 @@ import {
   backupBucketSchema,
   backupPrefixSchema,
   backupRegionSchema,
-} from "#shared/ipc/backup.ts";
-import type { BackupStatus, StoredBackup } from "#shared/ipc/backup.ts";
+} from "#shared/backup.ts";
+import type { BackupStatus, StoredBackup } from "#shared/backup.ts";
 import { Secret } from "#shared/ipc/settings.ts";
 
 import { useClock } from "../../app/clock.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -29,7 +30,6 @@ import { TextSettingRow } from "../settings/text-setting-row.tsx";
 import { formatBytes } from "../storage/format-bytes.ts";
 
 import {
-  backupQueryKeys,
   backupSettingsQuery,
   backupStatusQuery,
   storedBackupsQuery,
@@ -101,7 +101,10 @@ function BackupDestination() {
               resetLabel={t("settings.backup.destination.endpoint-reset")}
               schema={schemas.endpoint}
               onSave={(next) =>
-                window.solyx.backup.set(BackupSetting.Endpoint, next)
+                client.backup.set({
+                  setting: BackupSetting.Endpoint,
+                  value: next,
+                })
               }
             />
             <TextSettingRow
@@ -111,7 +114,10 @@ function BackupDestination() {
               isDefault={settings.data.region === null}
               schema={schemas.region}
               onSave={(next) =>
-                window.solyx.backup.set(BackupSetting.Region, next)
+                client.backup.set({
+                  setting: BackupSetting.Region,
+                  value: next,
+                })
               }
             />
             <TextSettingRow
@@ -122,7 +128,10 @@ function BackupDestination() {
               resetLabel={t("settings.backup.destination.bucket-reset")}
               schema={schemas.bucket}
               onSave={(next) =>
-                window.solyx.backup.set(BackupSetting.Bucket, next)
+                client.backup.set({
+                  setting: BackupSetting.Bucket,
+                  value: next,
+                })
               }
             />
             <TextSettingRow
@@ -132,7 +141,10 @@ function BackupDestination() {
               isDefault={settings.data.prefix === null}
               schema={schemas.prefix}
               onSave={(next) =>
-                window.solyx.backup.set(BackupSetting.Prefix, next)
+                client.backup.set({
+                  setting: BackupSetting.Prefix,
+                  value: next,
+                })
               }
             />
             {[
@@ -161,18 +173,14 @@ function BackupNow({ status }: { status: BackupStatus }) {
   const queryClient = useQueryClient();
   const settings = useQuery(backupSettingsQuery());
 
-  const automatic = useMutation({
-    mutationFn: (on: boolean) => window.solyx.backup.setAutomatic(on),
-  });
+  const automatic = useMutation(orpc.backup.setAutomatic.mutationOptions());
 
-  const every = useMutation({
-    mutationFn: (next: BackupInterval) => window.solyx.backup.setEvery(next),
-  });
+  const every = useMutation(orpc.backup.setEvery.mutationOptions());
 
   const backUp = useMutation({
-    mutationFn: () => window.solyx.backup.backUp(),
+    mutationFn: () => client.backup.backUp(),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: backupQueryKeys.list }),
+      queryClient.invalidateQueries({ queryKey: orpc.backup.list.key() }),
   });
 
   const saveFailed = automatic.error ?? every.error;
@@ -302,7 +310,7 @@ function RestoreButton({
   const [confirming, setConfirming] = useState(false);
 
   const restore = useMutation({
-    mutationFn: () => window.solyx.backup.restore(backup.key),
+    mutationFn: () => client.backup.restore(backup.key),
   });
 
   return (

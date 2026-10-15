@@ -1,8 +1,8 @@
 import type { Cache } from "@solyx/db/cache";
 import type { NewsData } from "@solyx/db/news";
 
-import { StoredData } from "#shared/ipc/storage.ts";
-import type { StorageApi } from "#shared/ipc/storage.ts";
+import { StoredData } from "#shared/storage.ts";
+import type { StorageUsage } from "#shared/storage.ts";
 
 import type { AgentService } from "../agent/agent-service.ts";
 import type { Memories } from "../memory/memories.ts";
@@ -18,7 +18,13 @@ export interface StorageApiOptions {
   watchlist: Pick<Watchlist, "list" | "clear">;
 }
 
-/** The storage page's side of the main process, one method per `StorageApi` channel. */
+/** The storage page's side of the main process, one method per procedure of `storageContract`. */
+export interface StorageApi {
+  usage(): Promise<StorageUsage>;
+  clear(data: StoredData): Promise<void>;
+}
+
+/** Measures and clears what the app keeps, each kind as a whole. */
 export function createStorageApi({
   cache,
   agent,

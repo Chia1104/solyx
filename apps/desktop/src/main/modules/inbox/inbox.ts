@@ -3,7 +3,7 @@ import { ProposalStatus } from "@solyx/core/order-desk";
 import type { OrderDesk } from "@solyx/core/order-desk";
 import type { ResearchDesk } from "@solyx/core/research";
 
-import type { Approval, Inbox } from "#shared/rpc/inbox.contract.ts";
+import type { Approval, Inbox } from "#shared/inbox.ts";
 
 export interface InboxOptions {
   desk: Pick<OrderDesk, "list">;
