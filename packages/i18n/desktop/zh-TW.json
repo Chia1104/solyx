@@ -584,6 +584,11 @@
     "form-description": "提案會先在這裡經過風控檢查，確認送出時會再檢查一次。",
     "summary": "{{side}} {{quantity, number}} 股 @ {{price}}",
     "market-price": "市價",
+    "impact": {
+      "notional": "約 {{amount}} {{currency}}（未含手續費與稅）",
+      "cash": "現金 {{before}} → {{after}} {{currency}}",
+      "shares": "持股 {{before, number}} → {{after, number}} 股"
+    },
     "confirm": "確認送出",
     "dismiss": "取消",
     "propose-failed": "無法建立提案",
