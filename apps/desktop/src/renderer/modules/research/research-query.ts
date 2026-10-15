@@ -24,12 +24,18 @@ export const researchCoverageQuery = (symbol: SymbolRef) =>
   });
 
 /**
- * Refetches research whenever the agent revises a report, a forecast is made or settled, or it is
- * cleared, and the calendar with it, which shows the dates reports hold.
+ * Refetches research whenever the agent revises a report, its falsifiers are read against the
+ * news, a forecast is made or settled, or it is cleared, and the calendar with it, which shows the
+ * dates reports hold; and research alone whenever a setting changes, since its coverage tells what
+ * settings keep the falsifiers from being read.
  */
 export function followResearchChanges(queryClient: QueryClient) {
   window.solyx.research.onChanged(() => {
     void queryClient.invalidateQueries({ queryKey: researchQueryKeys.all });
     void queryClient.invalidateQueries({ queryKey: calendarQueryKeys.all });
+  });
+
+  window.solyx.settings.onChanged(() => {
+    void queryClient.invalidateQueries({ queryKey: researchQueryKeys.all });
   });
 }

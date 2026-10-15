@@ -1,5 +1,6 @@
 import {
   integer,
+  primaryKey,
   real,
   sqliteTable,
   text,
@@ -80,6 +81,22 @@ export const falsifierChecks = sqliteTable(
       table.itemKey
     ),
   ]
+);
+
+/** The newest pass over each listing's falsifiers, whichever revision it read. */
+export const falsifierPasses = sqliteTable(
+  "falsifier_passes",
+  {
+    market: text().$type<Market>().notNull(),
+    symbol: text().notNull(),
+    revision: integer().notNull(),
+    /** Unix milliseconds. */
+    at: integer().notNull(),
+    items: integer().notNull(),
+    unread: integer().notNull(),
+    failure: text(),
+  },
+  (table) => [primaryKey({ columns: [table.market, table.symbol] })]
 );
 
 /**

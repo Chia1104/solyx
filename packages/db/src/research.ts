@@ -13,6 +13,7 @@ import { databaseBytes } from "./database-file.ts";
 import { anyTerm, indexedTerms } from "./full-text.ts";
 import {
   falsifierChecks,
+  falsifierPasses,
   forecasts,
   passageVectors,
   reports,
@@ -228,6 +229,31 @@ function researchStore(db: NodeSQLiteDatabase): ResearchStore {
         .run();
     },
 
+    falsifierPass({ market, symbol }) {
+      const row = db
+        .select()
+        .from(falsifierPasses)
+        .where(
+          and(
+            eq(falsifierPasses.market, market),
+            eq(falsifierPasses.symbol, symbol)
+          )
+        )
+        .get();
+
+      return row && omit(row, ["market", "symbol"]);
+    },
+
+    setFalsifierPass({ market, symbol }, pass) {
+      db.insert(falsifierPasses)
+        .values({ market, symbol, ...pass })
+        .onConflictDoUpdate({
+          target: [falsifierPasses.market, falsifierPasses.symbol],
+          set: pass,
+        })
+        .run();
+    },
+
     reports: (symbol) =>
       db
         .select({ report: reports.report })
@@ -366,6 +392,7 @@ export function openResearch(path: string, migrationsFolder: string) {
         tx.delete(reports).run();
         tx.delete(forecasts).run();
         tx.delete(falsifierChecks).run();
+        tx.delete(falsifierPasses).run();
         tx.delete(passageVectors).run();
         tx.run(
           sql`INSERT INTO report_terms (report_terms) VALUES ('delete-all')`

@@ -94,6 +94,7 @@ const theme = (checkedAt: number[]): ThemeWatch => ({
   latest: [],
   collectedAt: null,
   quietSince: 0,
+  unread: 0,
 });
 
 test("a falsifier read as stated since then is told once, however many items state it", () => {
