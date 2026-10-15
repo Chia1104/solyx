@@ -8,7 +8,7 @@ export interface ResearchApi {
 
 /** Pushes from the main process; each subscription returns a function that stops listening. */
 export interface ResearchEvents {
-  /** A report was revised, its falsifiers read against the news, a forecast made or settled, or all of it cleared. */
+  /** A report was revised, its falsifiers read against the news, a forecast made or settled, an exchange's day turned or its regular session opened or closed, or all of it cleared. */
   onChanged(listener: () => void): () => void;
 }
 

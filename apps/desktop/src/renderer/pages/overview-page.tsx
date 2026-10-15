@@ -20,6 +20,7 @@ import { AccountSummary } from "../modules/account/account-summary.tsx";
 import { CALENDAR_DAYS } from "../modules/calendar/calendar-query.ts";
 import { UpcomingEvents } from "../modules/calendar/upcoming-events.tsx";
 import { MarketFlows } from "../modules/flows/market-flows.tsx";
+import { InboxSection } from "../modules/inbox/inbox-section.tsx";
 import { QuoteHeatMap } from "../modules/market/quote-heat-map.tsx";
 import { SectorHeatMap } from "../modules/market/sector-heat-map.tsx";
 import { HeadlineList } from "../modules/news/headline-list.tsx";
@@ -141,6 +142,7 @@ export function OverviewPage() {
   const panels: Record<OverviewTab, ReactNode> = {
     [OverviewTab.Today]: (
       <>
+        <InboxSection />
         <TodaysMoves />
         <AccountSummary />
       </>

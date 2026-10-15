@@ -584,6 +584,18 @@
       "action": "開啟設定導覽"
     }
   },
+  "inbox": {
+    "title": "待處理",
+    "description": "等你處理的事：待確認的提案、等你允許的動作，以及被新聞或日期追過的研究。處理後就會從這裡消失，研究則在 Agent 修訂報告後消失。",
+    "empty": "目前沒有等你處理的事。",
+    "proposal": "待確認：{{summary}}",
+    "approval": "有動作等你允許",
+    "falsifier": "新聞可能顯示已發生：{{falsifier}}",
+    "event": "「{{label}}」（{{date}}）已過",
+    "open-proposals": "前往提案",
+    "open-conversation": "前往對話",
+    "open-research": "查看研究"
+  },
   "proposals": {
     "form-title": "建立下單提案",
     "form-description": "提案會先在這裡經過風控檢查，確認送出時會再檢查一次。",

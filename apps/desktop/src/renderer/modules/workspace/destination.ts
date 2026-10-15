@@ -5,7 +5,8 @@ import { Pane, useLayoutStore } from "../../app/layout-store.ts";
 import { router } from "../../app/router.tsx";
 import { AgentTab, useAgentStore } from "../agent/agent-store.ts";
 
-function show(destination: Destination) {
+/** Shows a place in the workspace, as one the main process asks for. */
+export function showDestination(destination: Destination) {
   switch (destination.kind) {
     case DestinationKind.Proposals:
       useLayoutStore.getState().show(Pane.Agent);
@@ -29,7 +30,7 @@ export function followDestinations() {
   const take = async () => {
     const destination = await window.solyx.workspace.takeDestination();
 
-    if (destination) show(destination);
+    if (destination) showDestination(destination);
   };
 
   window.solyx.workspace.onDestination(() => void take());

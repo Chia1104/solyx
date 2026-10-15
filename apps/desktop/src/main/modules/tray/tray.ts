@@ -1,6 +1,7 @@
 import type { BrokerMode } from "@solyx/core/broker";
 
 import { clock } from "#shared/clock.ts";
+import type { Approval } from "#shared/ipc/inbox.ts";
 import type { Locale, TimeZone } from "#shared/ipc/settings.ts";
 import { UpdateStatus } from "#shared/ipc/updates.ts";
 import type { UpdateState } from "#shared/ipc/updates.ts";
@@ -53,7 +54,7 @@ export interface TrayState {
   /** Proposals waiting for the user to confirm them. */
   proposals: number;
   /** Conversations with a call waiting for the user to allow it. */
-  approvals: { sessionId: string; title: string }[];
+  approvals: Approval[];
   tasks: TrayTask[];
   update: UpdateState;
 }

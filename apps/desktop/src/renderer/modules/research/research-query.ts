@@ -13,20 +13,21 @@ export const researchQueryKeys = {
     [...all, "coverage", symbol.market, symbol.symbol] as const,
 };
 
-// A forecast settles as its horizon's session closes, which nothing pushes until it is read.
-const SETTLES_WITHIN_MS = 5 * 60 * 1000;
-
+/**
+ * Never stale: the main process says when research changes, and as a market's regular session
+ * closes, after which reading a listing's coverage settles the forecasts whose horizon ended.
+ */
 export const researchCoverageQuery = (symbol: SymbolRef) =>
   queryOptions({
     queryKey: researchQueryKeys.coverage(symbol),
     queryFn: () => window.solyx.research.coverage(symbol),
-    staleTime: SETTLES_WITHIN_MS,
+    staleTime: Infinity,
   });
 
 /**
  * Refetches research whenever the agent revises a report, its falsifiers are read against the
- * news, a forecast is made or settled, or it is cleared, and the calendar with it, which shows the
- * dates reports hold; and research alone whenever a setting changes, since its coverage tells what
+ * news, a forecast is made or settled, an exchange's day turns or its session opens or closes, or
+ * it is cleared, and the calendar with it, which shows the dates reports hold; and research alone whenever a setting changes, since its coverage tells what
  * settings keep the falsifiers from being read.
  */
 export function followResearchChanges(queryClient: QueryClient) {

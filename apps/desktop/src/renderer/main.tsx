@@ -15,6 +15,7 @@ import { router } from "./app/router.tsx";
 import { followAppearance } from "./app/theme.ts";
 import { followAgentEvents } from "./modules/agent/agent-events.ts";
 import { followBackupChanges } from "./modules/backup/backup-query.ts";
+import { followInboxChanges } from "./modules/inbox/inbox-query.ts";
 import { followMarketDataChanges } from "./modules/market/market-sessions-query.ts";
 import { followQuotes } from "./modules/market/quote-query.ts";
 import { followMemoryChanges } from "./modules/memory/memory-query.ts";
@@ -33,6 +34,7 @@ import { followDestinations } from "./modules/workspace/destination.ts";
 for (const follow of [
   followAgentEvents,
   followBackupChanges,
+  followInboxChanges,
   followMarketDataChanges,
   followMemoryChanges,
   followNewsChanges,

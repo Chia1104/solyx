@@ -215,6 +215,15 @@ export interface Coverage {
   stances: StanceSpell[];
 }
 
+/** What a listing's report in force has yet to take in, which its next revision does. */
+export interface ReportBacklog {
+  report: Report;
+  /** News read as stating one of its falsifiers, newest first. */
+  signals: FalsifierCheck[];
+  /** Its events whose day has passed on its exchange. */
+  passedEvents: Audited<ReportEvent>[];
+}
+
 /** A report revision a search found. */
 export interface ReportMatch {
   report: Report;
@@ -441,35 +450,52 @@ export class ResearchDesk {
   }
 
   async coverage(symbol: SymbolRef): Promise<Coverage> {
-    const { store, now = Date.now } = this.#options;
+    const { store } = this.#options;
     const forecasts = await this.#settle(symbol, store.forecasts(symbol));
-    const report = store.report(symbol) ?? null;
+    const backlog = this.backlog(symbol);
+    const report = backlog?.report ?? null;
 
     return {
       report,
       newerFinancials: report
         ? newerFinancials(report, await this.#newestQuarter(symbol))
         : null,
-      passedEvents: report
-        ? passedEvents(report, exchangeDate(symbol.market, new Date(now())))
-        : [],
+      passedEvents: backlog?.passedEvents ?? [],
       forecasts,
       record: forecastRecord(forecasts),
       stances: await this.#stances(symbol),
-      signals: report
-        ? store
-            .falsifierChecks(symbol, report.revision)
-            .filter(({ support }) => support.supported >= CLAIM_SUPPORT_LINE)
-            .toSorted(
-              (a, b) =>
-                (b.item.published?.at.getTime() ?? b.checkedAt) -
-                (a.item.published?.at.getTime() ?? a.checkedAt)
-            )
-        : [],
+      signals: backlog?.signals ?? [],
       watch:
         report && report.falsifiers.length > 0
           ? await this.#falsifierWatch(report)
           : null,
+    };
+  }
+
+  /**
+   * What the listing's report in force has yet to take in, read from the store alone, so telling
+   * costs no request; `null` while it has no report.
+   */
+  backlog(symbol: SymbolRef): ReportBacklog | null {
+    const { store, now = Date.now } = this.#options;
+    const report = store.report(symbol);
+
+    if (!report) return null;
+
+    return {
+      report,
+      signals: store
+        .falsifierChecks(symbol, report.revision)
+        .filter(({ support }) => support.supported >= CLAIM_SUPPORT_LINE)
+        .toSorted(
+          (a, b) =>
+            (b.item.published?.at.getTime() ?? b.checkedAt) -
+            (a.item.published?.at.getTime() ?? a.checkedAt)
+        ),
+      passedEvents: passedEvents(
+        report,
+        exchangeDate(symbol.market, new Date(now()))
+      ),
     };
   }
 
