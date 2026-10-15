@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
-import { client, orpc } from "../../app/rpc.ts";
+import { orpc } from "../../app/rpc.ts";
 import { usePaletteColors } from "../../app/theme.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { highlight } from "../../components/highlight.ts";
@@ -77,26 +77,24 @@ export function Watchlist() {
     return () => cancelAnimationFrame(frame);
   }, [data, accent]);
 
-  const remove = useMutation({
-    mutationFn: (symbol: SymbolRef) => client.watchlist.remove(symbol),
-  });
+  const remove = useMutation(orpc.watchlist.remove.mutationOptions());
 
   // The row lands where it was dropped at once; the main process's order replaces it once saved,
   // and a move that failed pushes nothing, so the list is read again either way.
-  const move = useMutation({
-    mutationFn: ({ symbol, index }: { symbol: SymbolRef; index: number }) =>
-      client.watchlist.move({ symbol, index }),
-    onMutate: async ({ symbol, index }) => {
-      await queryClient.cancelQueries({ queryKey: orpc.watchlist.key() });
+  const move = useMutation(
+    orpc.watchlist.move.mutationOptions({
+      onMutate: async ({ symbol, index }) => {
+        await queryClient.cancelQueries({ queryKey: orpc.watchlist.key() });
 
-      queryClient.setQueryData(
-        watchlistQuery().queryKey,
-        (current) => current && moved(current, symbol, index)
-      );
-    },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: orpc.watchlist.key() }),
-  });
+        queryClient.setQueryData(
+          watchlistQuery().queryKey,
+          (current) => current && moved(current, symbol, index)
+        );
+      },
+      onSettled: () =>
+        queryClient.invalidateQueries({ queryKey: orpc.watchlist.key() }),
+    })
+  );
 
   const { dragAndDropHooks } = useDragAndDrop<{ symbol: SymbolRef }>({
     getItems: (_keys, items) =>

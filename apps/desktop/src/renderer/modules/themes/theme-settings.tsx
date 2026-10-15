@@ -32,7 +32,7 @@ import type { ThemeDraft, ThemeWatch } from "@solyx/core/theme";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { useClock } from "../../app/clock.ts";
-import { client } from "../../app/rpc.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -168,10 +168,9 @@ function ThemeEditor({
     onSuccess: onDone,
   });
 
-  const remove = useMutation({
-    mutationFn: (id: string) => client.themes.remove(id),
-    onSuccess: onDone,
-  });
+  const remove = useMutation(
+    orpc.themes.remove.mutationOptions({ onSuccess: onDone })
+  );
 
   const submit = form.handleSubmit((values) => save.mutate(values));
   const pending = save.isPending || remove.isPending;

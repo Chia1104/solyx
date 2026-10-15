@@ -3,7 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import type { SymbolRef } from "@solyx/core/market";
 
-import { client, forEachEvent, orpc, symbolInput } from "../../app/rpc.ts";
+import { client, forEachEvent, orpc } from "../../app/rpc.ts";
 
 /** The window the symbol page shows. */
 export const NEWS_DAYS = 7;
@@ -16,7 +16,7 @@ const HEADLINE_COUNT = 8;
 /** Never stale: the main process says when what is stored about the listing changes. */
 export const newsReadingQuery = (symbol: SymbolRef) =>
   orpc.news.reading.queryOptions({
-    input: { symbol: symbolInput(symbol), days: NEWS_DAYS },
+    input: { symbol: symbol, days: NEWS_DAYS },
     staleTime: Infinity,
   });
 
@@ -29,13 +29,13 @@ export function useNewsReading(symbol: SymbolRef) {
 
 /** Goes stale on its own too, since saving or deleting a key changes which sources cover a market. */
 export const newsCoverageQuery = (symbol: SymbolRef) =>
-  orpc.news.coverage.queryOptions({ input: symbolInput(symbol) });
+  orpc.news.coverage.queryOptions({ input: symbol });
 
 /** Never stale: the main process says when what is stored about any listing changes. */
 export const newsHeadlinesQuery = (symbols: SymbolRef[]) =>
   orpc.news.headlines.queryOptions({
     input: {
-      symbols: symbols.map(symbolInput),
+      symbols: symbols,
       days: HEADLINE_DAYS,
       limit: HEADLINE_COUNT,
     },
@@ -50,7 +50,7 @@ export function followNewsChanges(queryClient: QueryClient) {
   void forEachEvent(client.news.changes(), (symbol) => {
     void queryClient.invalidateQueries({
       queryKey: orpc.news.reading.key({
-        input: { symbol: symbolInput(symbol) },
+        input: { symbol: symbol },
       }),
     });
     void queryClient.invalidateQueries({ queryKey: orpc.news.coverage.key() });
