@@ -1,0 +1,12 @@
+{
+  "title": "Docs",
+  "pages": [
+    "index",
+    "install",
+    "keys",
+    "---Using Solyx---",
+    "orders",
+    "agent",
+    "research"
+  ]
+}

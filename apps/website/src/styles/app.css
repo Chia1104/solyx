@@ -1,0 +1,140 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@import "@fontsource-variable/archivo/wdth.css";
+
+/*
+ * The site is drawn on the app's drafting sheet: what the agent drafts is pencil (graphite
+ * hatching, dashed rules) and what the user signs is ink. The colours are the app's Blueprint
+ * palette, vellum by day and blueprint by night, and Fumadocs' tokens are mapped onto them.
+ */
+:root {
+  --paper: #f3f5f8;
+  --sheet: #fcfdfe;
+  --sheet-2: #edeff4;
+  --sheet-3: #e7eaf0;
+  --text: #23272f;
+  --muted: #646c7b;
+  --graphite: #7a8394;
+  --rule: #d2d7df;
+  --ink: #2b45d4;
+  --ink-deep: #2239b8;
+  --ink-light: #4159dc;
+  --ink-text: #fcfdfe;
+  --rise: #c72c37;
+  --fall: #0b7643;
+  --candle-rise: #e5484d;
+  --candle-fall: #30a46c;
+  --grid: color-mix(in oklab, var(--graphite) 13%, transparent);
+  --hatch: color-mix(in oklab, var(--graphite) 45%, transparent);
+
+  --color-fd-background: var(--paper);
+  --color-fd-foreground: var(--text);
+  --color-fd-muted: var(--sheet-2);
+  --color-fd-muted-foreground: var(--muted);
+  --color-fd-popover: var(--sheet);
+  --color-fd-popover-foreground: var(--text);
+  --color-fd-card: var(--sheet);
+  --color-fd-card-foreground: var(--text);
+  --color-fd-border: var(--rule);
+  --color-fd-primary: var(--ink);
+  --color-fd-primary-foreground: var(--ink-text);
+  --color-fd-secondary: var(--sheet-2);
+  --color-fd-secondary-foreground: var(--text);
+  --color-fd-accent: var(--sheet-3);
+  --color-fd-accent-foreground: var(--text);
+  --color-fd-ring: var(--ink);
+}
+
+.dark {
+  --paper: #0f141c;
+  --sheet: #161c27;
+  --sheet-2: #1b222e;
+  --sheet-3: #212937;
+  --text: #e4e8ef;
+  --muted: #8a94a6;
+  --graphite: #8a94a6;
+  --rule: #2b3545;
+  --ink: #8097ff;
+  --ink-deep: #6d86f7;
+  --ink-light: #93a7ff;
+  --ink-text: #0f141c;
+  --rise: #ef6567;
+  --fall: #43c07a;
+  --grid: color-mix(in oklab, var(--graphite) 10%, transparent);
+  --hatch: color-mix(in oklab, var(--graphite) 40%, transparent);
+}
+
+@theme {
+  --font-sans:
+    "Archivo Variable", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC",
+    system-ui, sans-serif;
+  /* The heavy Mincho the app sets its MAGI display in. */
+  --font-mincho:
+    "Hiragino Mincho ProN", "Yu Mincho", "Songti TC", "PMingLiU",
+    "Noto Serif CJK TC", "Noto Serif TC", ui-serif, serif;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-sheet: var(--sheet);
+  --color-sheet-2: var(--sheet-2);
+  --color-sheet-3: var(--sheet-3);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-graphite: var(--graphite);
+  --color-rule: var(--rule);
+  --color-ink: var(--ink);
+  --color-ink-text: var(--ink-text);
+  --color-rise: var(--rise);
+  --color-fall: var(--fall);
+  --color-hatch: var(--hatch);
+}
+
+/* Pencil hatching, as the app draws it: 1px strokes on an 8px repeat. `--hatch-color` recolours it. */
+@utility hatch {
+  background-image: repeating-linear-gradient(
+    315deg,
+    var(--hatch-color, var(--hatch)) 0 1px,
+    transparent 0 50%
+  );
+  background-size: 8px 8px;
+}
+
+/* A pencilled box: hatching inside a dashed outline. */
+@utility pencil {
+  @apply border-graphite/60 border border-dashed hatch;
+}
+
+/* The drafting sheet's grid, one cell every 48px. */
+@utility drafting-grid {
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Lettering filled with pencil hatching inside a pencil outline. */
+@utility pencil-text {
+  color: transparent;
+  -webkit-text-stroke: 0.035em var(--graphite);
+  background-image: repeating-linear-gradient(
+    315deg,
+    var(--graphite) 0 1.5px,
+    transparent 0 6px
+  );
+  background-clip: text;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+body {
+  font-variant-numeric: tabular-nums;
+}

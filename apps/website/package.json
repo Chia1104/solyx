@@ -1,0 +1,40 @@
+{
+  "name": "@solyx/website",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
+    "test": "vp test"
+  },
+  "devDependencies": {
+    "@fontsource-variable/archivo": "catalog:website",
+    "@solyx/core": "workspace:*",
+    "@solyx/i18n": "workspace:*",
+    "@solyx/trading-chart": "workspace:*",
+    "@tailwindcss/vite": "catalog:tailwindcss",
+    "@tanstack/react-router": "catalog:tanstack",
+    "@tanstack/react-start": "catalog:tanstack",
+    "@tanstack/start-static-server-functions": "catalog:tanstack",
+    "@types/mdx": "catalog:docs",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:react",
+    "@types/react-dom": "catalog:react",
+    "@vitejs/plugin-react": "catalog:react",
+    "fumadocs-core": "catalog:docs",
+    "fumadocs-mdx": "catalog:docs",
+    "fumadocs-ui": "catalog:docs",
+    "lightweight-charts": "catalog:charts",
+    "lucide-react": "catalog:docs",
+    "react": "catalog:react",
+    "react-dom": "catalog:react",
+    "shaders": "catalog:website",
+    "tailwindcss": "catalog:tailwindcss",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "zod": "catalog:"
+  }
+}
