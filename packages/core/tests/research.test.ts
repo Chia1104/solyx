@@ -1205,6 +1205,66 @@ test("a pass is kept however it went: over no news, with items the model could n
   expect(onChange).toHaveBeenCalledExactlyOnceWith(TSMC);
 });
 
+test("an item near several falsifiers that could not be read counts once", async () => {
+  const audit = vi.fn<ClaimAuditor["audit"]>(async () => {
+    throw new Error("Jev: busy");
+  });
+
+  const { desk } = watching({ audit });
+
+  await desk.revise({
+    ...falsifiable,
+    falsifiers: ["Gross margin falls below 53%", "Capex is cut"],
+  });
+  await desk.watch(TSMC, () => [nearby("margins fell", 10)]);
+
+  expect(audit).toHaveBeenCalledTimes(2);
+  expect((await desk.coverage(TSMC)).watch?.pass).toMatchObject({
+    items: 1,
+    unread: 1,
+  });
+});
+
+test("a listing's passes run one at a time, so the one kept last reads the revision in force", async () => {
+  const answers: (() => void)[] = [];
+
+  const audit = vi.fn<ClaimAuditor["audit"]>(
+    () =>
+      new Promise((resolve) =>
+        answers.push(() => resolve({ model: "jev", supported: 0.1 }))
+      )
+  );
+
+  const { desk } = watching({ audit });
+  const records = () => [nearby("margins fell", 10)];
+
+  await desk.revise(falsifiable);
+
+  const first = desk.watch(TSMC, records);
+
+  await vi.waitFor(() => expect(answers).toHaveLength(1));
+  await desk.revise({ ...falsifiable, falsifiers: ["Capex is cut"] });
+
+  const second = desk.watch(TSMC, records);
+
+  // The second pass waits for the first rather than read beside it.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(answers).toHaveLength(1);
+
+  answers[0]();
+  await vi.waitFor(() => expect(answers).toHaveLength(2));
+  answers[1]();
+  await Promise.all([first, second]);
+
+  expect(audit.mock.calls.map(([claim]) => claim.text)).toEqual([
+    "Gross margin falls below 53%",
+    "Capex is cut",
+  ]);
+  expect((await desk.coverage(TSMC)).watch?.pass).toMatchObject({
+    revision: 2,
+  });
+});
+
 test("a search finds by meaning what shares no word with the query, beside what does, and goes on by words while vectors are out of reach", async () => {
   const { store, cover, desk: plain } = setup();
 
