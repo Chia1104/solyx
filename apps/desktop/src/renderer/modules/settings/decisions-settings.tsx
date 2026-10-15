@@ -13,7 +13,7 @@ import { isEnumValue } from "@solyx/utils/is";
 import { DECISIONS_SECRETS, SecretState } from "#shared/settings.ts";
 import type { DecisionsProviderSettings } from "#shared/settings.ts";
 
-import { client } from "../../app/rpc.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -51,10 +51,9 @@ export function DecisionsSettings() {
   const settings = useQuery(decisionsSettingsQuery());
   const secrets = useQuery(secretsQuery());
 
-  const setProvider = useMutation({
-    mutationFn: (provider: DecisionsProvider) =>
-      client.settings.setDecisionsProvider(provider),
-  });
+  const setProvider = useMutation(
+    orpc.settings.setDecisionsProvider.mutationOptions()
+  );
 
   // Rebuilt per language so field errors come out localized.
   const schemas = useMemo(

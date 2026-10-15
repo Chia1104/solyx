@@ -173,13 +173,9 @@ function BackupNow({ status }: { status: BackupStatus }) {
   const queryClient = useQueryClient();
   const settings = useQuery(backupSettingsQuery());
 
-  const automatic = useMutation({
-    mutationFn: (on: boolean) => client.backup.setAutomatic(on),
-  });
+  const automatic = useMutation(orpc.backup.setAutomatic.mutationOptions());
 
-  const every = useMutation({
-    mutationFn: (next: BackupInterval) => client.backup.setEvery(next),
-  });
+  const every = useMutation(orpc.backup.setEvery.mutationOptions());
 
   const backUp = useMutation({
     mutationFn: () => client.backup.backUp(),

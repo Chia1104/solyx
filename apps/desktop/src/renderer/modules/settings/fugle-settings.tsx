@@ -1,12 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import type { FuglePlan } from "@solyx/market-data/fugle";
-
 import { Secret } from "#shared/settings.ts";
 import type { MarketDataStatus } from "#shared/settings.ts";
 
-import { client } from "../../app/rpc.ts";
+import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -22,9 +20,7 @@ export function FugleSettings({ status }: { status: MarketDataStatus }) {
   const { t } = useTranslation();
   const secrets = useQuery(secretsQuery());
 
-  const save = useMutation({
-    mutationFn: (plan: FuglePlan) => client.settings.setFuglePlan(plan),
-  });
+  const save = useMutation(orpc.settings.setFuglePlan.mutationOptions());
 
   if (secrets.error) {
     return (

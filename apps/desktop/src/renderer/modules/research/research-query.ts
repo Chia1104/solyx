@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import type { SymbolRef } from "@solyx/core/market";
 
-import { client, forEachEvent, orpc, symbolInput } from "../../app/rpc.ts";
+import { client, forEachEvent, orpc } from "../../app/rpc.ts";
 
 /**
  * Never stale: the main process says when research changes, and as a market's regular session
@@ -10,7 +10,7 @@ import { client, forEachEvent, orpc, symbolInput } from "../../app/rpc.ts";
  */
 export const researchCoverageQuery = (symbol: SymbolRef) =>
   orpc.research.coverage.queryOptions({
-    input: symbolInput(symbol),
+    input: symbol,
     staleTime: Infinity,
   });
 

@@ -5,7 +5,7 @@ import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { Session } from "@solyx/core/session";
 
-import { orpc, symbolInput } from "../../app/rpc.ts";
+import { orpc } from "../../app/rpc.ts";
 
 import { marketSessionsQuery } from "./market-sessions-query.ts";
 
@@ -25,7 +25,7 @@ const marketQuotes = (market: Market) =>
 /** Never stale on its own: `followQuotes` refreshes it, so a listing shown twice costs one request. */
 export const quoteQuery = (symbol: SymbolRef) =>
   orpc.market.quote.queryOptions({
-    input: symbolInput(symbol),
+    input: symbol,
     staleTime: Infinity,
   });
 

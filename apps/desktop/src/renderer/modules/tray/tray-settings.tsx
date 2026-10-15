@@ -2,7 +2,7 @@ import { Switch } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { client } from "../../app/rpc.ts";
+import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Section } from "../../components/section.tsx";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
@@ -13,13 +13,9 @@ export function TraySettings() {
   const { t } = useTranslation();
   const { data } = useQuery(traySettingsQuery());
 
-  const show = useMutation({
-    mutationFn: (shown: boolean) => client.settings.setTrayShown(shown),
-  });
+  const show = useMutation(orpc.settings.setTrayShown.mutationOptions());
 
-  const hideDock = useMutation({
-    mutationFn: (hidden: boolean) => client.settings.setDockHidden(hidden),
-  });
+  const hideDock = useMutation(orpc.settings.setDockHidden.mutationOptions());
 
   if (!data) return null;
 

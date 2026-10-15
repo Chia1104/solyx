@@ -16,7 +16,7 @@ import { isEnumValue } from "@solyx/utils/is";
 import { AppLocation } from "#shared/settings.ts";
 import type { AgentSkillInfo } from "#shared/settings.ts";
 
-import { client } from "../../app/rpc.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { FilterField, matchesFilter } from "../../components/filter-field.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -100,9 +100,7 @@ export function AgentSkills() {
       client.settings.setSharedSkill({ name, enabled: offered }),
   });
 
-  const shell = useMutation({
-    mutationFn: (enabled: boolean) => client.settings.setAgentShell(enabled),
-  });
+  const shell = useMutation(orpc.settings.setAgentShell.mutationOptions());
 
   const reveal = useMutation({
     mutationFn: () => client.settings.reveal(AppLocation.Skills),
