@@ -8,7 +8,7 @@ import { isEnumValue } from "@solyx/utils/is";
 
 import { PriceColors } from "#shared/settings.ts";
 
-import { client } from "../../app/rpc.ts";
+import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 import { appearanceQuery } from "./settings-query.ts";
@@ -20,10 +20,7 @@ export function PriceColorsSelect() {
   const { data } = useQuery(appearanceQuery());
 
   // The main process pushes the saved appearance, which the query takes.
-  const save = useMutation({
-    mutationFn: (priceColors: PriceColors) =>
-      client.settings.setPriceColors(priceColors),
-  });
+  const save = useMutation(orpc.settings.setPriceColors.mutationOptions());
 
   return (
     <div className="flex flex-col gap-2">

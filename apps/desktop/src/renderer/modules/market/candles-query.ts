@@ -7,7 +7,7 @@ import type { SymbolRef } from "@solyx/core/market";
 
 import type { CandleSet } from "#shared/market.ts";
 
-import { orpc, symbolInput } from "../../app/rpc.ts";
+import { orpc } from "../../app/rpc.ts";
 
 /** The pages joined oldest first: the first page is the lookback window, each next one older. */
 function joinPages({ pages }: InfiniteData<CandleSet>): CandleSet {
@@ -33,7 +33,7 @@ export const candlesQuery = (
 ) =>
   orpc.market.candles.infiniteOptions({
     input: (before: number | undefined) => ({
-      symbol: symbolInput(symbol),
+      symbol,
       interval,
       before,
     }),

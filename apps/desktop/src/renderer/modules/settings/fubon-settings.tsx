@@ -44,10 +44,9 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
       { cancelRefetch: false }
     );
 
-  const choose = useMutation({
-    mutationFn: (file: FubonFile) => client.settings.chooseFubonFile(file),
-    onSettled: refresh,
-  });
+  const choose = useMutation(
+    orpc.settings.chooseFubonFile.mutationOptions({ onSettled: refresh })
+  );
 
   const signIn = useMutation({
     mutationFn: () => client.settings.signInFubon(),

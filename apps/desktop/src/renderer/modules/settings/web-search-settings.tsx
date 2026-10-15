@@ -12,7 +12,7 @@ import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import { SecretState } from "#shared/settings.ts";
 
-import { client } from "../../app/rpc.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -50,10 +50,9 @@ export function WebSearchSettings() {
   const settings = useQuery(webSearchSettingsQuery());
   const secrets = useQuery(secretsQuery());
 
-  const setProvider = useMutation({
-    mutationFn: (provider: WebSearchProvider) =>
-      client.settings.setWebSearchProvider(provider),
-  });
+  const setProvider = useMutation(
+    orpc.settings.setWebSearchProvider.mutationOptions()
+  );
 
   const error = settings.error ?? secrets.error;
 

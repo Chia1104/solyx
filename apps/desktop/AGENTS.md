@@ -13,7 +13,7 @@ The Electron app: the main process is the backend, the preload bridges it to the
 - `preload/index.ts`: forwards the port a window posts to the main process, and carries Sentry's bridge; it exposes nothing to the page.
 - `utility/<name>.ts`: a utility process's entry, beside `<name>.contract.ts`, the oRPC contract it serves on the port the main process hands it as it starts. Native SDKs that block or could crash run only in one.
 - `worker/<name>.ts`: a worker thread's entry, built as its own bundle since a thread starts from a file, beside the message contract the main process starts it with where it has one. The agent's scripts run in one, and each backup and restore in another.
-- `renderer/modules/<module>/`: the module's TanStack Query options, built from `orpc.<module>.<procedure>` and keyed by `orpc.<module>.key()` components, form schemas and hooks. An input is its query's key, so a listing in one passes through `symbolInput`, which keeps only what names it.
+- `renderer/modules/<module>/`: the module's TanStack Query options, built from `orpc.<module>.<procedure>` and keyed by `orpc.<module>.key()`, components, form schemas and hooks.
 - `renderer/pages/`: route components that only compose modules.
 - `renderer/components/`: module-neutral components composed from HeroUI, such as the error boundary fallback, the loading and error states every module renders, and the pane splitter, sheet, sections and symbol rows the workspace shares.
 - `renderer/app/`: router, root layout, i18n, query client, theme and zod setup, and `rpc.ts`, the window's channel to the main process with its `client` and `orpc`, the client's TanStack Query utilities.

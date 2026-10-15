@@ -24,7 +24,7 @@ import {
 import type { Memory, MemoryChange } from "@solyx/core/memory";
 
 import { useClock } from "../../app/clock.ts";
-import { client } from "../../app/rpc.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { FilterField, matchesFilter } from "../../components/filter-field.tsx";
 import { LoadError } from "../../components/load-error.tsx";
@@ -196,9 +196,7 @@ export function MemorySettings() {
   const settings = useQuery(memorySettingsQuery());
   const [filter, setFilter] = useState("");
 
-  const enable = useMutation({
-    mutationFn: (enabled: boolean) => client.settings.setMemoryEnabled(enabled),
-  });
+  const enable = useMutation(orpc.settings.setMemoryEnabled.mutationOptions());
 
   const error = memories.error ?? settings.error;
 

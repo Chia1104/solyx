@@ -309,19 +309,19 @@ export function AgentComposer({
     return created.id;
   }
 
-  const setModel = useMutation({
-    mutationFn: ({ id, pick }: { id: string; pick: AgentModelPick }) =>
-      client.agent.setModel({ id, pick }),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
-  });
+  const setModel = useMutation(
+    orpc.agent.setModel.mutationOptions({
+      onSettled: () =>
+        queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
+    })
+  );
 
-  const setApprovalMode = useMutation({
-    mutationFn: ({ id, mode }: { id: string; mode: ApprovalMode }) =>
-      client.agent.setApprovalMode({ id, mode }),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
-  });
+  const setApprovalMode = useMutation(
+    orpc.agent.setApprovalMode.mutationOptions({
+      onSettled: () =>
+        queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
+    })
+  );
 
   async function pickModel(next: AgentModelPick) {
     setUnstarted({ pick: next });
@@ -384,9 +384,7 @@ export function AgentComposer({
       queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
   });
 
-  const abort = useMutation({
-    mutationFn: (id: string) => client.agent.abort(id),
-  });
+  const abort = useMutation(orpc.agent.abort.mutationOptions());
 
   const submit = form.handleSubmit(({ text }) => {
     const command = messageCommand(text);
