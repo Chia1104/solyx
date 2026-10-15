@@ -24,6 +24,7 @@ import {
 import type { Memory, MemoryChange } from "@solyx/core/memory";
 
 import { useClock } from "../../app/clock.ts";
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { FilterField, matchesFilter } from "../../components/filter-field.tsx";
 import { LoadError } from "../../components/load-error.tsx";
@@ -73,12 +74,12 @@ function MemoryRow({ memory }: { memory: Memory }) {
 
   const save = useMutation({
     mutationFn: (change: MemoryChange) =>
-      window.solyx.memory.update(memory.id, change),
+      client.memory.update({ id: memory.id, change }),
     onSuccess: () => setEditing(false),
   });
 
   const forget = useMutation({
-    mutationFn: () => window.solyx.memory.forget(memory.id),
+    mutationFn: () => client.memory.forget(memory.id),
   });
 
   const submit = form.handleSubmit((change) => save.mutate(change));

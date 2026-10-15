@@ -5,37 +5,11 @@ import type { IpcRendererEvent } from "electron";
 
 import { agentChannels, agentEvents } from "#shared/ipc/agent.ts";
 import type { AgentApi, AgentEvents } from "#shared/ipc/agent.ts";
-import { backupChannels, backupEvents } from "#shared/ipc/backup.ts";
-import type { BackupApi, BackupEvents } from "#shared/ipc/backup.ts";
-import { calendarChannels } from "#shared/ipc/calendar.ts";
-import type { CalendarApi } from "#shared/ipc/calendar.ts";
-import { flowsChannels } from "#shared/ipc/flows.ts";
-import type { FlowsApi } from "#shared/ipc/flows.ts";
-import { fundamentalsChannels } from "#shared/ipc/fundamentals.ts";
-import type { FundamentalsApi } from "#shared/ipc/fundamentals.ts";
 import { marketChannels, marketEvents } from "#shared/ipc/market.ts";
 import type { MarketApi, MarketEvents } from "#shared/ipc/market.ts";
-import { memoryChannels, memoryEvents } from "#shared/ipc/memory.ts";
-import type { MemoryApi, MemoryEvents } from "#shared/ipc/memory.ts";
-import { newsChannels, newsEvents } from "#shared/ipc/news.ts";
-import type { NewsApi, NewsEvents } from "#shared/ipc/news.ts";
-import { researchChannels, researchEvents } from "#shared/ipc/research.ts";
-import type { ResearchApi, ResearchEvents } from "#shared/ipc/research.ts";
-import { schedulesChannels, schedulesEvents } from "#shared/ipc/schedules.ts";
-import type { SchedulesApi, SchedulesEvents } from "#shared/ipc/schedules.ts";
 import { settingsChannels, settingsEvents } from "#shared/ipc/settings.ts";
 import type { SettingsApi, SettingsEvents } from "#shared/ipc/settings.ts";
 import type { SolyxApi } from "#shared/ipc/solyx-api.ts";
-import { storageChannels } from "#shared/ipc/storage.ts";
-import type { StorageApi } from "#shared/ipc/storage.ts";
-import { themesChannels, themesEvents } from "#shared/ipc/themes.ts";
-import type { ThemesApi, ThemesEvents } from "#shared/ipc/themes.ts";
-import { updatesChannels, updatesEvents } from "#shared/ipc/updates.ts";
-import type { UpdatesApi, UpdatesEvents } from "#shared/ipc/updates.ts";
-import { watchlistChannels, watchlistEvents } from "#shared/ipc/watchlist.ts";
-import type { WatchlistApi, WatchlistEvents } from "#shared/ipc/watchlist.ts";
-import { workspaceChannels, workspaceEvents } from "#shared/ipc/workspace.ts";
-import type { WorkspaceApi, WorkspaceEvents } from "#shared/ipc/workspace.ts";
 import { RPC_CONNECT } from "#shared/rpc/connect.ts";
 
 // Electron prefixes a failed handler's error with its channel; the renderer shows the main
@@ -94,35 +68,10 @@ function bridge<Api, Events = Record<never, never>>(
 
 const api: SolyxApi = {
   agent: bridge<AgentApi, AgentEvents>(agentChannels, agentEvents),
-  backup: bridge<BackupApi, BackupEvents>(backupChannels, backupEvents),
-  calendar: bridge<CalendarApi>(calendarChannels),
-  flows: bridge<FlowsApi>(flowsChannels),
-  fundamentals: bridge<FundamentalsApi>(fundamentalsChannels),
   market: bridge<MarketApi, MarketEvents>(marketChannels, marketEvents),
-  memory: bridge<MemoryApi, MemoryEvents>(memoryChannels, memoryEvents),
-  news: bridge<NewsApi, NewsEvents>(newsChannels, newsEvents),
-  research: bridge<ResearchApi, ResearchEvents>(
-    researchChannels,
-    researchEvents
-  ),
-  schedules: bridge<SchedulesApi, SchedulesEvents>(
-    schedulesChannels,
-    schedulesEvents
-  ),
   settings: bridge<SettingsApi, SettingsEvents>(
     settingsChannels,
     settingsEvents
-  ),
-  storage: bridge<StorageApi>(storageChannels),
-  themes: bridge<ThemesApi, ThemesEvents>(themesChannels, themesEvents),
-  updates: bridge<UpdatesApi, UpdatesEvents>(updatesChannels, updatesEvents),
-  watchlist: bridge<WatchlistApi, WatchlistEvents>(
-    watchlistChannels,
-    watchlistEvents
-  ),
-  workspace: bridge<WorkspaceApi, WorkspaceEvents>(
-    workspaceChannels,
-    workspaceEvents
   ),
 };
 

@@ -66,8 +66,8 @@ import { isErrnoError } from "@solyx/utils/error";
 import { agentEvents } from "#shared/ipc/agent.ts";
 import type { AgentScreen, AgentUpdate } from "#shared/ipc/agent.ts";
 import type { Locale, TimeZone } from "#shared/ipc/settings.ts";
-import type { ConversationsUsage } from "#shared/ipc/storage.ts";
 import { OverviewTab, overviewLink } from "#shared/overview-tab.ts";
+import type { ConversationsUsage } from "#shared/storage.ts";
 import { symbolLink } from "#shared/symbol-link.ts";
 
 import type { Calendar } from "../calendar/calendar.ts";

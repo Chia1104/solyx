@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
 
+import { client } from "../../app/rpc.ts";
+
 import { watchlistQuery } from "./watchlist-query.ts";
 
 /** Adds the open listing to the watchlist or takes it off. */
@@ -16,9 +18,7 @@ export function WatchToggle({ symbol }: { symbol: SymbolRef }) {
 
   const update = useMutation({
     mutationFn: () =>
-      watched
-        ? window.solyx.watchlist.remove(symbol)
-        : window.solyx.watchlist.add(symbol),
+      watched ? client.watchlist.remove(symbol) : client.watchlist.add(symbol),
   });
 
   return (

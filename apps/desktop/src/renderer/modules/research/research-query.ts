@@ -1,26 +1,16 @@
-import { queryOptions } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 
 import type { SymbolRef } from "@solyx/core/market";
 
-import { calendarQueryKeys } from "../calendar/calendar-query.ts";
-
-const all = ["research"] as const;
-
-export const researchQueryKeys = {
-  all,
-  coverage: (symbol: SymbolRef) =>
-    [...all, "coverage", symbol.market, symbol.symbol] as const,
-};
+import { client, forEachEvent, orpc, symbolInput } from "../../app/rpc.ts";
 
 /**
  * Never stale: the main process says when research changes, and as a market's regular session
  * closes, after which reading a listing's coverage settles the forecasts whose horizon ended.
  */
 export const researchCoverageQuery = (symbol: SymbolRef) =>
-  queryOptions({
-    queryKey: researchQueryKeys.coverage(symbol),
-    queryFn: () => window.solyx.research.coverage(symbol),
+  orpc.research.coverage.queryOptions({
+    input: symbolInput(symbol),
     staleTime: Infinity,
   });
 
@@ -31,12 +21,12 @@ export const researchCoverageQuery = (symbol: SymbolRef) =>
  * settings keep the falsifiers from being read.
  */
 export function followResearchChanges(queryClient: QueryClient) {
-  window.solyx.research.onChanged(() => {
-    void queryClient.invalidateQueries({ queryKey: researchQueryKeys.all });
-    void queryClient.invalidateQueries({ queryKey: calendarQueryKeys.all });
+  window.solyx.settings.onChanged(() => {
+    void queryClient.invalidateQueries({ queryKey: orpc.research.key() });
   });
 
-  window.solyx.settings.onChanged(() => {
-    void queryClient.invalidateQueries({ queryKey: researchQueryKeys.all });
+  void forEachEvent(client.research.changes(), () => {
+    void queryClient.invalidateQueries({ queryKey: orpc.research.key() });
+    void queryClient.invalidateQueries({ queryKey: orpc.calendar.key() });
   });
 }

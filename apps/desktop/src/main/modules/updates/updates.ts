@@ -1,7 +1,7 @@
 import { errorMessage } from "@solyx/utils/error";
 
-import { UpdateStatus } from "#shared/ipc/updates.ts";
-import type { UpdateState } from "#shared/ipc/updates.ts";
+import { UpdateStatus } from "#shared/updates.ts";
+import type { UpdateState } from "#shared/updates.ts";
 
 const RELEASES_URL = "https://github.com/Chia1104/solyx/releases/tag";
 

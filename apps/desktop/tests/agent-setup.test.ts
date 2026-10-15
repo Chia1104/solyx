@@ -20,7 +20,7 @@ import {
   mcpSecretKey,
 } from "#shared/ipc/settings.ts";
 import type { MarketDataStatus } from "#shared/ipc/settings.ts";
-import type { StorageUsage } from "#shared/ipc/storage.ts";
+import type { StorageUsage } from "#shared/storage.ts";
 
 import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
 import { createAgentSetup } from "../src/main/modules/agent/agent-setup.ts";

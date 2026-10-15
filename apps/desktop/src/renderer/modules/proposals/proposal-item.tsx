@@ -161,7 +161,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
             size="sm"
             isPending={confirm.isPending}
             isDisabled={dismiss.isPending}
-            onPress={() => confirm.mutate({ id: proposal.id })}>
+            onPress={() => confirm.mutate(proposal.id)}>
             {t("proposals.confirm")}
           </Button>
           <Button
@@ -169,7 +169,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
             variant="tertiary"
             isPending={dismiss.isPending}
             isDisabled={confirm.isPending}
-            onPress={() => dismiss.mutate({ id: proposal.id })}>
+            onPress={() => dismiss.mutate(proposal.id)}>
             {t("proposals.dismiss")}
           </Button>
         </div>

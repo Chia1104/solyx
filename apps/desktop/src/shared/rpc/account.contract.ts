@@ -1,11 +1,6 @@
 import { oc, type } from "@orpc/contract";
 
-import type { BrokerMode } from "@solyx/core/broker";
-import type { AccountSnapshot } from "@solyx/core/order";
-
-export interface AccountSummary extends AccountSnapshot {
-  brokerMode: BrokerMode;
-}
+import type { AccountSummary } from "../account.ts";
 
 export const accountContract = {
   summary: oc.output(type<AccountSummary>()),

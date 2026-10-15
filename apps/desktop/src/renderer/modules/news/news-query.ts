@@ -1,8 +1,9 @@
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 
-import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+
+import { client, forEachEvent, orpc, symbolInput } from "../../app/rpc.ts";
 
 /** The window the symbol page shows. */
 export const NEWS_DAYS = 7;
@@ -12,27 +13,10 @@ export const HEADLINE_DAYS = 7;
 
 const HEADLINE_COUNT = 8;
 
-const all = ["news"] as const;
-
-const coverage = [...all, "coverage"] as const;
-
-const headlines = [...all, "headlines"] as const;
-
-export const newsQueryKeys = {
-  all,
-  reading: (symbol: SymbolRef) =>
-    [...all, "reading", symbol.market, symbol.symbol] as const,
-  coverage: (symbol: SymbolRef) =>
-    [...coverage, symbol.market, symbol.symbol] as const,
-  headlines: (symbols: SymbolRef[]) =>
-    [...headlines, symbols.map(symbolKey)] as const,
-};
-
 /** Never stale: the main process says when what is stored about the listing changes. */
 export const newsReadingQuery = (symbol: SymbolRef) =>
-  queryOptions({
-    queryKey: newsQueryKeys.reading(symbol),
-    queryFn: () => window.solyx.news.reading(symbol, NEWS_DAYS),
+  orpc.news.reading.queryOptions({
+    input: { symbol: symbolInput(symbol), days: NEWS_DAYS },
     staleTime: Infinity,
   });
 
@@ -45,17 +29,16 @@ export function useNewsReading(symbol: SymbolRef) {
 
 /** Goes stale on its own too, since saving or deleting a key changes which sources cover a market. */
 export const newsCoverageQuery = (symbol: SymbolRef) =>
-  queryOptions({
-    queryKey: newsQueryKeys.coverage(symbol),
-    queryFn: () => window.solyx.news.coverage(symbol),
-  });
+  orpc.news.coverage.queryOptions({ input: symbolInput(symbol) });
 
 /** Never stale: the main process says when what is stored about any listing changes. */
 export const newsHeadlinesQuery = (symbols: SymbolRef[]) =>
-  queryOptions({
-    queryKey: newsQueryKeys.headlines(symbols),
-    queryFn: () =>
-      window.solyx.news.headlines(symbols, HEADLINE_DAYS, HEADLINE_COUNT),
+  orpc.news.headlines.queryOptions({
+    input: {
+      symbols: symbols.map(symbolInput),
+      days: HEADLINE_DAYS,
+      limit: HEADLINE_COUNT,
+    },
     staleTime: Infinity,
   });
 
@@ -64,11 +47,13 @@ export const newsHeadlinesQuery = (symbols: SymbolRef[]) =>
  * listing's coverage and the headlines, since sources are shared and headlines span listings.
  */
 export function followNewsChanges(queryClient: QueryClient) {
-  window.solyx.news.onChanged((symbol) => {
+  void forEachEvent(client.news.changes(), (symbol) => {
     void queryClient.invalidateQueries({
-      queryKey: newsQueryKeys.reading(symbol),
+      queryKey: orpc.news.reading.key({
+        input: { symbol: symbolInput(symbol) },
+      }),
     });
-    void queryClient.invalidateQueries({ queryKey: coverage });
-    void queryClient.invalidateQueries({ queryKey: headlines });
+    void queryClient.invalidateQueries({ queryKey: orpc.news.coverage.key() });
+    void queryClient.invalidateQueries({ queryKey: orpc.news.headlines.key() });
   });
 }

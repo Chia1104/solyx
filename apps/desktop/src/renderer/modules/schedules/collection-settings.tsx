@@ -11,9 +11,10 @@ import * as z from "zod";
 import { ScheduleKind, collectionScheduleSchema } from "@solyx/core/schedule";
 import type { CollectionJob, CollectionPlan } from "@solyx/core/schedule";
 
-import type { CollectionView } from "#shared/ipc/schedules.ts";
+import type { CollectionView } from "#shared/schedules.ts";
 
 import { currentTimeZone, useClock } from "../../app/clock.ts";
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -59,10 +60,13 @@ function CollectionEditor({
 
   const save = useMutation({
     mutationFn: (values: TimingForm) =>
-      window.solyx.schedules.setCollection(job, {
-        enabled: plan.enabled,
-        schedule: collectionScheduleSchema.parse(scheduleOf(values)),
-        timeZone: currentTimeZone(),
+      client.schedules.setCollection({
+        job,
+        plan: {
+          enabled: plan.enabled,
+          schedule: collectionScheduleSchema.parse(scheduleOf(values)),
+          timeZone: currentTimeZone(),
+        },
       }),
     onSuccess: onDone,
   });
@@ -116,14 +120,17 @@ function CollectionRow({ view }: { view: CollectionView }) {
 
   const enable = useMutation({
     mutationFn: (enabled: boolean) =>
-      window.solyx.schedules.setCollection(job, {
-        ...plan,
-        enabled,
-      } satisfies CollectionPlan),
+      client.schedules.setCollection({
+        job,
+        plan: {
+          ...plan,
+          enabled,
+        } satisfies CollectionPlan,
+      }),
   });
 
   const collect = useMutation({
-    mutationFn: () => window.solyx.schedules.collectNow(job),
+    mutationFn: () => client.schedules.collectNow(job),
   });
 
   const error = enable.error ?? collect.error;

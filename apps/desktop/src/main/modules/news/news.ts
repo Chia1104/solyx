@@ -19,7 +19,7 @@ import type { SentimentScorer } from "@solyx/core/sentiment";
 import { errorMessage } from "@solyx/utils/error";
 import { fuseRankings } from "@solyx/utils/search";
 
-import type { NewsCoverage } from "#shared/ipc/news.ts";
+import type { NewsCoverage } from "#shared/news.ts";
 
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
 

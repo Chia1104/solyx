@@ -1,33 +1,17 @@
-import { queryOptions } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 
 import { AgentEventType } from "@solyx/agent/wire";
 
+import { client, forEachEvent, orpc } from "../../app/rpc.ts";
 import { agentQueryKeys } from "../agent/agent-query.ts";
-
-const all = ["schedules"] as const;
-
-export const schedulesQueryKeys = {
-  all,
-  tasks: [...all, "tasks"] as const,
-  collections: [...all, "collections"] as const,
-};
 
 /** Never stale: the main process says when a task changes or runs, and the agent when a run ends. */
 export const schedulesQuery = () =>
-  queryOptions({
-    queryKey: schedulesQueryKeys.tasks,
-    queryFn: () => window.solyx.schedules.list(),
-    staleTime: Infinity,
-  });
+  orpc.schedules.list.queryOptions({ staleTime: Infinity });
 
 /** Never stale: the main process says when a plan changes, and news and themes when something is collected. */
 export const collectionsQuery = () =>
-  queryOptions({
-    queryKey: schedulesQueryKeys.collections,
-    queryFn: () => window.solyx.schedules.collections(),
-    staleTime: Infinity,
-  });
+  orpc.schedules.collections.queryOptions({ staleTime: Infinity });
 
 /**
  * Refetches the scheduled tasks and the collections' plans whenever one is saved, removed or run,
@@ -37,22 +21,22 @@ export const collectionsQuery = () =>
 export function followScheduleChanges(queryClient: QueryClient) {
   const collected = () =>
     void queryClient.invalidateQueries({
-      queryKey: schedulesQueryKeys.collections,
+      queryKey: orpc.schedules.collections.key(),
     });
 
-  window.solyx.schedules.onChanged(() => {
-    void queryClient.invalidateQueries({ queryKey: schedulesQueryKeys.all });
+  void forEachEvent(client.schedules.changes(), () => {
+    void queryClient.invalidateQueries({ queryKey: orpc.schedules.key() });
     void queryClient.invalidateQueries({ queryKey: agentQueryKeys.sessions });
   });
 
   window.solyx.agent.onEvent(({ event }) => {
     if (event.type === AgentEventType.RunEnd) {
       void queryClient.invalidateQueries({
-        queryKey: schedulesQueryKeys.tasks,
+        queryKey: orpc.schedules.list.key(),
       });
     }
   });
 
-  window.solyx.news.onChanged(collected);
-  window.solyx.themes.onChanged(collected);
+  void forEachEvent(client.news.changes(), collected);
+  void forEachEvent(client.themes.changes(), collected);
 }

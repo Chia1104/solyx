@@ -3,7 +3,7 @@ import type { SymbolRef } from "@solyx/core/market";
 import { collectionDue, nextCollection } from "@solyx/core/schedule";
 import type { CollectionPlan } from "@solyx/core/schedule";
 
-import type { CollectionStatus } from "#shared/ipc/schedules.ts";
+import type { CollectionStatus } from "#shared/schedules.ts";
 
 import type { ScheduledWork } from "../../scheduler.ts";
 import type { ScheduleDays } from "../market/schedule-days.ts";

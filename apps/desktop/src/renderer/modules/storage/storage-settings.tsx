@@ -9,8 +9,9 @@ import { useTranslation } from "react-i18next";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { MarketDataSource } from "#shared/ipc/settings.ts";
-import { StoredData } from "#shared/ipc/storage.ts";
+import { StoredData } from "#shared/storage.ts";
 
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -19,12 +20,10 @@ import { RailedColumn } from "../../components/sheet.tsx";
 import { agentQueryKeys } from "../agent/agent-query.ts";
 import { useAgentStore } from "../agent/agent-store.ts";
 import { candlesQueryKeys } from "../market/candles-query.ts";
-import { newsQueryKeys } from "../news/news-query.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
-import { watchlistQueryKeys } from "../watchlist/watchlist-query.ts";
 
 import { formatBytes } from "./format-bytes.ts";
-import { storageQueryKeys, storageUsageQuery } from "./storage-query.ts";
+import { storageUsageQuery } from "./storage-query.ts";
 
 /** What the rest of the workspace shows of each kind, read again once it is cleared. */
 const SHOWN_ELSEWHERE: Record<StoredData, QueryKey | null> = {
@@ -32,9 +31,9 @@ const SHOWN_ELSEWHERE: Record<StoredData, QueryKey | null> = {
   [StoredData.Conversations]: agentQueryKeys.sessions,
   // Memory and research push their own clearing.
   [StoredData.Memory]: null,
-  [StoredData.News]: newsQueryKeys.all,
+  [StoredData.News]: orpc.news.key(),
   [StoredData.Research]: null,
-  [StoredData.Watchlist]: watchlistQueryKeys.all,
+  [StoredData.Watchlist]: orpc.watchlist.key(),
 };
 
 /** Clearing one kind of data after a confirmation. */
@@ -51,7 +50,7 @@ function ClearButton({
   const [confirming, setConfirming] = useState(false);
 
   const clear = useMutation({
-    mutationFn: () => window.solyx.storage.clear(data),
+    mutationFn: () => client.storage.clear(data),
     onSuccess: () => setConfirming(false),
     onSettled: () => {
       // The conversation on screen may be gone, even when clearing stopped partway.
@@ -63,7 +62,7 @@ function ClearButton({
       const shown = SHOWN_ELSEWHERE[data];
 
       return Promise.all([
-        queryClient.invalidateQueries({ queryKey: storageQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: orpc.storage.key() }),
         shown && queryClient.invalidateQueries({ queryKey: shown }),
       ]);
     },

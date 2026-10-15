@@ -7,10 +7,10 @@ import zhTW from "@solyx/i18n/desktop/zh-TW.json" with { type: "json" };
 
 import { clock } from "#shared/clock.ts";
 import { Locale } from "#shared/ipc/settings.ts";
-import { UpdateStatus } from "#shared/ipc/updates.ts";
-import { DestinationKind } from "#shared/ipc/workspace.ts";
-import type { Destination } from "#shared/ipc/workspace.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import { UpdateStatus } from "#shared/updates.ts";
+import { DestinationKind } from "#shared/workspace.ts";
+import type { Destination } from "#shared/workspace.ts";
 
 import { createTray } from "../src/main/modules/tray/tray.ts";
 import type {

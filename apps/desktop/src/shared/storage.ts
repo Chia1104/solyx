@@ -66,17 +66,3 @@ export interface StorageUsage {
   research: ResearchUsage;
   watchlist: WatchlistUsage;
 }
-
-export interface StorageApi {
-  usage(): Promise<StorageUsage>;
-  /**
-   * Deletes everything of one kind and gives the space back to the disk. Charts fetch candles
-   * again as they need them; the rest is gone for good, and conversations still running stop.
-   */
-  clear(data: StoredData): Promise<void>;
-}
-
-export const storageChannels = {
-  usage: "storage:usage",
-  clear: "storage:clear",
-} as const satisfies Record<keyof StorageApi, string>;
