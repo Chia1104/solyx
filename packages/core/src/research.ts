@@ -1,5 +1,6 @@
-import { groupBy, keyBy, pick, uniqBy } from "es-toolkit";
+import { Mutex, groupBy, keyBy, pick, uniqBy } from "es-toolkit";
 
+import { errorMessage } from "@solyx/utils/error";
 import { fuseRankings } from "@solyx/utils/search";
 
 import { Interval, candleDate } from "./candles.ts";
@@ -74,6 +75,10 @@ export interface ResearchStore extends VectorCache {
   /** Every news item a revision's falsifiers were read against. */
   falsifierChecks(symbol: SymbolRef, revision: number): FalsifierCheck[];
   addFalsifierCheck(symbol: SymbolRef, check: FalsifierCheck): void;
+  /** The newest pass over a listing's falsifiers, whichever revision it read. */
+  falsifierPass(symbol: SymbolRef): FalsifierPass | undefined;
+  /** Keeps the pass in place of the listing's last. */
+  setFalsifierPass(symbol: SymbolRef, pass: FalsifierPass): void;
   /** Every revision of one listing's report, or of every listing's, oldest first. */
   reports(symbol?: SymbolRef): Report[];
 }
@@ -89,6 +94,39 @@ export interface FalsifierCheck {
   support: ClaimSupport;
   /** Epoch ms. */
   checkedAt: number;
+}
+
+/** What keeps a report's falsifiers from being read against the news. */
+export const WatchGap = {
+  /** No model on this computer embeds the news and the falsifiers. */
+  NoLocalEmbedder: "no-local-embedder",
+  /** `FALSIFIER_FLOORS` holds no floor for the space the model embeds in. */
+  Unmeasured: "unmeasured",
+  /** No decisions model reads an item against a falsifier. */
+  NoAuditor: "no-auditor",
+} as const;
+
+export type WatchGap = (typeof WatchGap)[keyof typeof WatchGap];
+
+/** One reading of a revision's falsifiers against the news within reach. */
+export interface FalsifierPass {
+  revision: number;
+  /** Epoch ms. */
+  at: number;
+  /** The news items within reach the falsifiers were compared with. */
+  items: number;
+  /** Items near a falsifier that the decisions model could not read, which the next pass reads again. */
+  unread: number;
+  /** Why the pass failed, which leaves both counts at none; `null` when it went through. */
+  failure: string | null;
+}
+
+/** Whether the news is read against a report's falsifiers, so a quiet report can be told from an unread one. */
+export interface FalsifierWatch {
+  /** What keeps them from being read now; empty while nothing does. */
+  gaps: WatchGap[];
+  /** The newest pass over the revision in force; `null` before its first. */
+  pass: FalsifierPass | null;
 }
 
 /**
@@ -114,7 +152,10 @@ export interface ResearchDeskOptions {
   auditor?: () => Promise<ClaimAuditor | undefined>;
   /** Reads how each fact a forecast rests on bears on the price; none until the user sets up a decisions model. */
   reader?: () => Promise<FactReader | undefined>;
-  /** Embeds what the desk keeps to search it by meaning; only a model on this computer, since it is the user's own. */
+  /**
+   * Embeds what the desk keeps to search it by meaning, and the falsifiers it reads against the
+   * news; only a model on this computer, since it is the user's own.
+   */
   embedder?: () => Embedder | undefined;
   /** Called after a listing's research changes, so whoever shows it can refresh. */
   onChange?: (symbol: SymbolRef) => void;
@@ -168,6 +209,8 @@ export interface Coverage {
   record: ForecastRecord;
   /** News the report's falsifiers were read as stated by, newest first. */
   signals: FalsifierCheck[];
+  /** Whether the news is read against the report's falsifiers; `null` while it has none. */
+  watch: FalsifierWatch | null;
   /** Each stretch the report kept one stance, oldest first, against its market's index; none while the bars cannot be read. */
   stances: StanceSpell[];
 }
@@ -185,6 +228,21 @@ export interface ResearchMatches {
   forecasts: Forecast[];
 }
 
+/** What keeps falsifiers from being read with this embedder and auditor. */
+function watchGaps(
+  embedder: Embedder | undefined,
+  auditor: ClaimAuditor | undefined
+): WatchGap[] {
+  return [
+    ...(embedder === undefined
+      ? [WatchGap.NoLocalEmbedder]
+      : FALSIFIER_FLOORS.has(embedder.space)
+        ? []
+        : [WatchGap.Unmeasured]),
+    ...(auditor === undefined ? [WatchGap.NoAuditor] : []),
+  ];
+}
+
 /** The quarter that makes a report stale: one newer than the newest it was revised with. */
 function newerFinancials(report: Report, newest: string | null) {
   return newest !== null && report.financialsThrough !== newest ? newest : null;
@@ -199,6 +257,9 @@ function newerFinancials(report: Report, newest: string | null) {
  */
 export class ResearchDesk {
   readonly #options: ResearchDeskOptions;
+
+  /** One per listing, so its passes run one at a time. */
+  readonly #passes = new Map<string, Mutex>();
 
   constructor(options: ResearchDeskOptions) {
     this.#options = options;
@@ -405,29 +466,108 @@ export class ResearchDesk {
                 (a.item.published?.at.getTime() ?? a.checkedAt)
             )
         : [],
+      watch:
+        report && report.falsifiers.length > 0
+          ? await this.#falsifierWatch(report)
+          : null,
+    };
+  }
+
+  async #falsifierWatch(report: Report): Promise<FalsifierWatch> {
+    const pass = this.#options.store.falsifierPass(report.symbol);
+
+    return {
+      gaps: watchGaps(
+        this.#options.embedder?.(),
+        await this.#options.auditor?.()
+      ),
+      pass: pass?.revision === report.revision ? pass : null,
     };
   }
 
   /**
-   * Reads each of a listing's falsifiers against the news `records` lie nearest to it, once per
-   * falsifier and item, and tells `onChange` when one reads as stated. `records` carry vectors in
-   * `embedder`'s space; without an auditor, or on a space with no floor, nothing is read.
+   * Reads each of a listing's falsifiers against the items nearest it of those `news` lists in the
+   * embedder's space, once per falsifier and item, and keeps the pass, failed or not, telling
+   * `onChange`. Nothing is read while a `WatchGap` keeps it from being read. A listing's passes run
+   * one at a time, so one never reads again what the one before it read, and the newest is the one
+   * kept last.
    */
   async watch(
     symbol: SymbolRef,
-    records: readonly NewsRecord[],
-    embedder: Embedder
+    news: (space: string) => readonly NewsRecord[]
+  ): Promise<void> {
+    const key = symbolKey(symbol);
+    const passes = this.#passes.get(key) ?? new Mutex();
+
+    this.#passes.set(key, passes);
+    await passes.acquire();
+
+    try {
+      await this.#watch(symbol, news);
+    } finally {
+      passes.release();
+    }
+  }
+
+  async #watch(
+    symbol: SymbolRef,
+    news: (space: string) => readonly NewsRecord[]
   ): Promise<void> {
     const { store, now = Date.now } = this.#options;
     const report = store.report(symbol);
-    const floor = FALSIFIER_FLOORS.get(embedder.space);
 
-    if (!report || report.falsifiers.length === 0 || floor === undefined) {
-      return;
+    if (!report || report.falsifiers.length === 0) return;
+
+    const embedder = this.#options.embedder?.();
+    const auditor = await this.#options.auditor?.();
+    const floor = embedder && FALSIFIER_FLOORS.get(embedder.space);
+
+    if (!embedder || !auditor || floor === undefined) return;
+
+    const at = now();
+
+    try {
+      const counts = await this.#readFalsifiers(report, news, {
+        embedder,
+        auditor,
+        floor,
+      });
+
+      store.setFalsifierPass(symbol, {
+        revision: report.revision,
+        at,
+        ...counts,
+        failure: null,
+      });
+    } catch (error) {
+      store.setFalsifierPass(symbol, {
+        revision: report.revision,
+        at,
+        items: 0,
+        unread: 0,
+        failure: errorMessage(error),
+      });
+
+      throw error;
+    } finally {
+      this.#options.onChange?.(symbol);
     }
+  }
+
+  async #readFalsifiers(
+    report: Report,
+    news: (space: string) => readonly NewsRecord[],
+    {
+      embedder,
+      auditor,
+      floor,
+    }: { embedder: Embedder; auditor: ClaimAuditor; floor: number }
+  ): Promise<Pick<FalsifierPass, "items" | "unread">> {
+    const { store, now = Date.now } = this.#options;
+    const { symbol } = report;
 
     const embedded = uniqBy(
-      records.flatMap((record) =>
+      news(embedder.space).flatMap((record) =>
         record.embedding?.space === embedder.space
           ? [{ record, values: record.embedding.values }]
           : []
@@ -435,9 +575,7 @@ export class ResearchDesk {
       ({ record }) => `${record.source}:${record.item.id}`
     );
 
-    const auditor = await this.#options.auditor?.();
-
-    if (!auditor || embedded.length === 0) return;
+    if (embedded.length === 0) return { items: 0, unread: 0 };
 
     const vectors = await cachedVectors(embedder, store, report.falsifiers);
 
@@ -467,7 +605,8 @@ export class ResearchDesk {
         .map(({ record }) => ({ falsifier, record }));
     });
 
-    let stated = false;
+    // An item near several falsifiers counts once, as the news it is.
+    const unread = new Set<string>();
 
     for (const { falsifier, record } of due) {
       const { item } = record;
@@ -478,10 +617,12 @@ export class ResearchDesk {
           source: (item.url ?? item.site).slice(0, 300),
           quote: storyText(item),
         })
-        // An item the model could not read is read again with the next collection.
         .catch(() => null);
 
-      if (!support) continue;
+      if (!support) {
+        unread.add(`${record.source}:${item.id}`);
+        continue;
+      }
 
       store.addFalsifierCheck(symbol, {
         falsifier,
@@ -491,11 +632,9 @@ export class ResearchDesk {
         support,
         checkedAt: now(),
       });
-
-      stated ||= support.supported >= CLAIM_SUPPORT_LINE;
     }
 
-    if (stated) this.#options.onChange?.(symbol);
+    return { items: embedded.length, unread: unread.size };
   }
 
   async trackRecord(): Promise<ForecastRecord> {

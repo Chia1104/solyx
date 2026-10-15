@@ -350,7 +350,12 @@
     "quiet-since": "自 {{date}} 起無進展",
     "read-as-stated": "判讀為已發生 {{share}}",
     "not-searched": "尚未搜尋。",
-    "searched": "上次搜尋 {{time}}。"
+    "searched": "上次搜尋 {{time}}。",
+    "no-web-search": "儲存網路搜尋廠商的金鑰之前，主題不會被搜尋。",
+    "no-decisions": "設定 decisions model 之前，搜尋到的新聞不會對照觀察訊號判讀。",
+    "settings": "前往設定",
+    "unread_one": "{{count, number}} 則找到的新聞尚未對照所有觀察訊號判讀。",
+    "unread_other": "{{count, number}} 則找到的新聞尚未對照所有觀察訊號判讀。"
   },
   "agent": {
     "title": "Agent",
@@ -678,6 +683,22 @@
       "stale": "這份報告修訂後，截至 {{date}} 的新一季財報已公布。Agent 會先修訂報告才能再提出預測。",
       "quote-read": "引文支撐這項主張的可能性：{{share}}（{{model}}）",
       "quote-unread": "引文未經查核"
+    },
+    "watch": {
+      "off": "新聞沒有與這些條件比對，所以這裡沒有訊號，不代表新聞沒提到。",
+      "gaps": {
+        "no-local-embedder": "需要開啟「依語意合併新聞」，並以這台電腦產生向量。",
+        "unmeasured": "這台電腦的模型還沒量測比對門檻；{{models}} 已量測。",
+        "no-auditor": "需要設定 decisions model。"
+      },
+      "settings": "前往設定",
+      "pending": "尚未與新聞比對；下次收集這檔的新聞時會比對。",
+      "failed": "{{time}} 與新聞比對失敗：{{failure}}。下次收集時會再試。",
+      "read_one": "上次比對 {{time}}：一週內 {{count, number}} 則新聞。",
+      "read_other": "上次比對 {{time}}：一週內 {{count, number}} 則新聞。",
+      "quiet": "沒有新聞被判讀為已發生。",
+      "unread_one": "{{count, number}} 則相近的新聞未能判讀，下次收集時重讀。",
+      "unread_other": "{{count, number}} 則相近的新聞未能判讀，下次收集時重讀。"
     },
     "sections": {
       "business": "業務",

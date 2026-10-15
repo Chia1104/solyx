@@ -27,8 +27,12 @@ import { Market, symbolKey } from "@solyx/core/market";
 import { TimePrecision } from "@solyx/core/news";
 import { ReportSection, ReportStance } from "@solyx/core/report";
 import type { Report } from "@solyx/core/report";
-import { ResearchDesk } from "@solyx/core/research";
-import type { FalsifierCheck, ResearchStore } from "@solyx/core/research";
+import { FALSIFIER_FLOORS, ResearchDesk } from "@solyx/core/research";
+import type {
+  FalsifierCheck,
+  FalsifierPass,
+  ResearchStore,
+} from "@solyx/core/research";
 import { twFilingDeadline } from "@solyx/core/rules/tw";
 import { Stance } from "@solyx/core/sentiment";
 
@@ -194,6 +198,7 @@ function fakeStore(): ResearchStore {
   const reports: Report[] = [];
   const forecasts = new Map<string, Forecast>();
   const checks: FalsifierCheck[] = [];
+  let pass: FalsifierPass | undefined;
 
   return {
     report: (symbol) =>
@@ -218,6 +223,10 @@ function fakeStore(): ResearchStore {
     falsifierChecks: (_symbol, revision) =>
       checks.filter((check) => check.revision === revision),
     addFalsifierCheck: (_symbol, check) => void checks.push(check),
+    falsifierPass: () => pass,
+    setFalsifierPass(_symbol, kept) {
+      pass = kept;
+    },
     reports: () => reports,
     passageVectors: () => new Map(),
     savePassageVectors: () => undefined,
@@ -263,7 +272,7 @@ interface Filed {
 }
 
 /** `read` is what the conversation read, which quotes are then held to; without it none is checked, as under a host with no transcript. */
-function setup(councils?: Council[], read?: string[]) {
+function setup(councils?: Council[], read?: string[], watched = false) {
   const clock = { now: AT_ANCHOR };
   const motions: string[] = [];
   const bars = { daily: [ANCHOR_BAR] };
@@ -310,6 +319,17 @@ function setup(councils?: Council[], read?: string[]) {
     store,
     marketData,
     fundamentals,
+    // A decisions model and a model on this computer, so the falsifiers are read against the news.
+    ...(watched && {
+      auditor: async () => ({
+        audit: async () => ({ model: "jev", supported: 1 }),
+      }),
+      embedder: () => ({
+        space: [...FALSIFIER_FLOORS.keys()][0],
+        embed: async (texts: readonly string[]) =>
+          texts.map(() => Float32Array.of(1, 0)),
+      }),
+    }),
     now: () => clock.now,
   });
 
@@ -452,6 +472,53 @@ test("news a decisions model read as stating a falsifier is listed with the repo
     '- "Gross margin falls below 53%": 2026-10-01 10:00 news.test: Gross margin slides to 52% (read as stated, 0.90) https://news.test/margin'
   );
   expect(text).not.toContain("Capex rises");
+});
+
+test("the report says whether the news is read against its falsifiers", async () => {
+  const unwatched = setup();
+
+  await unwatched.run(AgentToolName.ReviseReport, REPORT);
+
+  expect(
+    (await unwatched.run(AgentToolName.GetResearch, { symbol: TSMC })).text
+  ).toContain(
+    "News is not read against the falsifiers while no model on this computer embeds news (in Settings, grouping news by meaning, with vectors from this computer) and no decisions model is set up, so no signal says nothing of the news."
+  );
+
+  const { run, store } = setup(undefined, undefined, true);
+
+  const read = async () =>
+    (await run(AgentToolName.GetResearch, { symbol: TSMC })).text;
+
+  await run(AgentToolName.ReviseReport, REPORT);
+
+  expect(await read()).toContain(
+    "The falsifiers have not been read against the news since this revision; the listing's next news collection reads them."
+  );
+
+  store.setFalsifierPass(TSMC, {
+    revision: 1,
+    at: AT_ANCHOR,
+    items: 12,
+    unread: 2,
+    failure: null,
+  });
+
+  expect(await read()).toContain(
+    "The falsifiers were last read against 12 news items of the week before 2026-09-29 14:00. No item has read as stating one. 2 near one could not be read and wait for the next collection."
+  );
+
+  store.setFalsifierPass(TSMC, {
+    revision: 1,
+    at: AT_ANCHOR,
+    items: 0,
+    unread: 0,
+    failure: "Ollama: not running",
+  });
+
+  expect(await read()).toContain(
+    "Reading the falsifiers against the news failed at 2026-09-29 14:00: Ollama: not running. The next news collection tries again."
+  );
 });
 
 test("a refused revision tells the model what is missing", async () => {

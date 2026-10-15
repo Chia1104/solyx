@@ -18,8 +18,8 @@ const WATCHED_MS = 7 * DAY_MS;
 
 /**
  * The agent's research as the main process shares it: the one `ResearchDesk` over the research
- * database, which tells `onChange` after every revision, forecast and settlement, and after
- * clearing it all, so every window reads it again.
+ * database, which tells `onChange` after every revision, reading of falsifiers against the news,
+ * forecast and settlement, and after clearing it all, so every window reads it again.
  */
 export function createResearch(
   data: ResearchData,
@@ -55,14 +55,10 @@ export function createResearch(
      * logged, and the items are read again with the next collection.
      */
     async watch(symbol: SymbolRef) {
-      const local = embedder();
-
-      if (!local) return;
-
       const since = new Date(Date.now() - WATCHED_MS);
 
       try {
-        await desk.watch(symbol, news.list(symbol, since, local.space), local);
+        await desk.watch(symbol, (space) => news.list(symbol, since, space));
       } catch (error) {
         diagnostics.recovered(error, "research.watch", {
           "solyx.listing": symbolKey(symbol),
