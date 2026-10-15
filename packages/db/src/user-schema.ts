@@ -14,6 +14,7 @@ import type {
   Position,
 } from "@solyx/core/order";
 import type {
+  ProposalBasis,
   ProposalSource,
   ProposalStatus,
   SubmissionFailure,
@@ -54,6 +55,7 @@ export const proposals = sqliteTable("proposals", {
   violations: text({ mode: "json" }).$type<RiskViolation[]>().notNull(),
   brokerOrderId: text("broker_order_id"),
   failure: text({ mode: "json" }).$type<SubmissionFailure>(),
+  basis: text({ mode: "json" }).$type<ProposalBasis>(),
 });
 
 /** The paper account, in one row: what it holds and how many orders it filled. */

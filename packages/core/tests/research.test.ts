@@ -292,6 +292,41 @@ test("a forecast is stamped with the newest daily bar and the report it was made
   expect(candles).toHaveBeenCalledWith(TSMC, Interval.OneDay);
 });
 
+test("a proposal's basis is the report in force and the newest forecast made under it", async () => {
+  const { desk, cover, clock } = setup();
+
+  expect(desk.basis(TSMC)).toEqual({ report: null, forecast: null });
+
+  await cover();
+
+  expect(desk.basis(TSMC)).toEqual({
+    report: { revision: 1, revisedAt: AT_ANCHOR, stance: ReportStance.Bullish },
+    forecast: null,
+  });
+
+  await desk.forecast(draft);
+
+  expect(desk.basis(TSMC).forecast).toEqual({
+    id: "f-1",
+    createdAt: AT_ANCHOR,
+    direction: draft.direction,
+    horizon: draft.horizon,
+  });
+
+  clock.now += 60_000;
+  await desk.revise({ symbol: TSMC, stance: ReportStance.Neutral });
+
+  // The forecast was made under a view no longer in force.
+  expect(desk.basis(TSMC)).toEqual({
+    report: {
+      revision: 2,
+      revisedAt: AT_ANCHOR + 60_000,
+      stance: ReportStance.Neutral,
+    },
+    forecast: null,
+  });
+});
+
 test("a forecast keeps the base rates of its bands, from the listing's own moves over its horizon", async () => {
   const { desk, cover, bars } = setup();
 

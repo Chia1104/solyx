@@ -34,6 +34,7 @@ import { BENCHMARK, exchangeDate, symbolKey } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { storyText } from "./news.ts";
 import type { NewsItem, NewsRecord } from "./news.ts";
+import type { ProposalBasis } from "./order-desk.ts";
 import {
   CLAIM_SUPPORT_LINE,
   eventClaim,
@@ -262,7 +263,8 @@ function newerFinancials(report: Report, newest: string | null) {
  * forecasts made under it, each frozen once made and scored against what the price then did. The
  * desk stamps what a forecast is measured from itself, its anchor and its report revision, so a
  * forecast cannot choose them, and a report with the newest quarter public when it was revised, so
- * a forecast is refused once a newer one is out. Nothing here reaches an order.
+ * a forecast is refused once a newer one is out. Nothing here decides an order: a proposal only
+ * keeps what `basis` reads of its listing.
  */
 export class ResearchDesk {
   readonly #options: ResearchDeskOptions;
@@ -277,6 +279,25 @@ export class ResearchDesk {
   /** A listing's report in force; `undefined` while it has none. */
   report(symbol: SymbolRef): Report | undefined {
     return this.#options.store.report(symbol);
+  }
+
+  /** What a proposal for the listing is kept with: its report in force and the newest forecast made under it, read from the store alone. */
+  basis(symbol: SymbolRef): ProposalBasis {
+    const { store } = this.#options;
+    const report = store.report(symbol);
+
+    const forecast = report
+      ? store
+          .forecasts(symbol)
+          .findLast(({ reportRevision }) => reportRevision === report.revision)
+      : undefined;
+
+    return {
+      report: report ? pick(report, ["revision", "revisedAt", "stance"]) : null,
+      forecast: forecast
+        ? pick(forecast, ["id", "createdAt", "direction", "horizon"])
+        : null,
+    };
   }
 
   async revise(draft: ReportDraft): Promise<Revision> {

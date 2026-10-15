@@ -1,16 +1,21 @@
 import { Alert, Button, Chip, cn } from "@heroui/react";
 import type { ChipProps } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { Interval } from "@solyx/core/candles";
+import { exchangeDate } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import { OrderType, orderImpact } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 import { ProposalStatus, SubmissionFailureCode } from "@solyx/core/order-desk";
-import type { TradeProposal } from "@solyx/core/order-desk";
+import type { ProposalBasis, TradeProposal } from "@solyx/core/order-desk";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { ListingName } from "../market/listing-name.tsx";
+import { LowerView } from "../market/lower-view.ts";
 import { numberFormats } from "../market/number-formats.ts";
 
 import { violationMessage } from "./violation-message.ts";
@@ -65,6 +70,47 @@ function OrderImpactLines({ order }: { order: OrderRequest }) {
           after: shares.after,
         })}
       </span>
+    </p>
+  );
+}
+
+/** The research the proposal was made under, as the desk kept it, and the way to the listing's research now. */
+function BasisLine({
+  symbol,
+  basis: { report, forecast },
+}: {
+  symbol: SymbolRef;
+  basis: ProposalBasis;
+}) {
+  const { t } = useTranslation();
+  const day = (at: number) => exchangeDate(symbol.market, new Date(at));
+
+  if (!report) {
+    return <p className="text-xs text-muted">{t("proposals.basis.none")}</p>;
+  }
+
+  return (
+    <p className="text-xs text-muted tabular-nums">
+      {t("proposals.basis.report", {
+        revision: report.revision,
+        stance: t(`research.stance.${report.stance}`),
+        date: day(report.revisedAt),
+      })}
+      {" · "}
+      {forecast
+        ? t("proposals.basis.forecast", {
+            direction: t(`research.direction.${forecast.direction}`),
+            count: forecast.horizon,
+            date: day(forecast.createdAt),
+          })
+        : t("proposals.basis.no-forecast")}{" "}
+      <Link
+        to="/symbol/$market/$symbol"
+        params={symbol}
+        search={{ interval: Interval.OneDay, view: LowerView.Research }}
+        className="text-foreground underline">
+        {t("proposals.basis.open")}
+      </Link>
     </p>
   );
 }
@@ -124,6 +170,9 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
       {proposal.rationale && (
         <p className="text-sm text-muted">{proposal.rationale}</p>
       )}
+      {proposal.basis ? (
+        <BasisLine symbol={order.instrument} basis={proposal.basis} />
+      ) : null}
       {proposal.violations.length > 0 ? (
         <Alert status="danger">
           <Alert.Indicator />

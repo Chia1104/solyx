@@ -1,8 +1,10 @@
 import { errorMessage } from "@solyx/utils/error";
 
 import type { BrokerAdapter, BrokerMode } from "./broker.ts";
-import type { Market } from "./market.ts";
+import type { Forecast } from "./forecast.ts";
+import type { Market, SymbolRef } from "./market.ts";
 import type { AccountSnapshot, OrderRequest } from "./order.ts";
+import type { Report } from "./report.ts";
 import { checkOrder } from "./risk.ts";
 import type { RiskLimits, RiskViolation } from "./risk.ts";
 import { getSession } from "./session.ts";
@@ -39,12 +41,22 @@ export type SubmissionFailure =
   | { code: typeof SubmissionFailureCode.Error; message: string }
   | { code: typeof SubmissionFailureCode.Interrupted };
 
+/** What research held of a listing as a proposal for it was made, kept as it stood then. */
+export interface ProposalBasis {
+  /** The report in force; `null` while the listing had none. */
+  report: Pick<Report, "revision" | "revisedAt" | "stance"> | null;
+  /** The newest forecast made under that report; `null` while it had none. */
+  forecast: Pick<Forecast, "id" | "createdAt" | "direction" | "horizon"> | null;
+}
+
 export interface TradeProposal {
   id: string;
   order: OrderRequest;
   source: ProposalSource;
   /** Why this trade: the agent's argument or the user's note. Kept for the review log. */
   rationale: string;
+  /** The research it was made under; `null` where the desk had none to read. */
+  basis: ProposalBasis | null;
   createdAt: number;
   status: ProposalStatus;
   violations: RiskViolation[];
@@ -82,6 +94,12 @@ export interface OrderDeskOptions {
    * @default false
    */
   restored?: boolean;
+  /**
+   * What research holds of a listing, which the desk keeps with each proposal for it, so neither
+   * the agent nor the user picks what a proposal is reviewed against.
+   * @default none is read, and proposals keep no basis
+   */
+  basis?: (symbol: SymbolRef) => ProposalBasis;
   /** Called after every change to a proposal, so whoever shows them can refresh. */
   onChange?: () => void;
   now?: () => number;
@@ -152,6 +170,7 @@ export class OrderDesk {
   }): Promise<TradeProposal> {
     const {
       store,
+      basis,
       now = Date.now,
       createId = () => crypto.randomUUID(),
     } = this.#options;
@@ -165,6 +184,7 @@ export class OrderDesk {
     const proposal: TradeProposal = {
       id: id ?? createId(),
       ...input,
+      basis: basis?.(input.order.instrument) ?? null,
       createdAt: now(),
       status:
         violations.length > 0
