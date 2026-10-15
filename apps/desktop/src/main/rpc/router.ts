@@ -1,9 +1,11 @@
 import { accountRouter } from "../modules/account/account.route.ts";
+import { agentRouter } from "../modules/agent/agent.route.ts";
 import { backupRouter } from "../modules/backup/backup.route.ts";
 import { calendarRouter } from "../modules/calendar/calendar.route.ts";
 import { flowsRouter } from "../modules/flows/flows.route.ts";
 import { fundamentalsRouter } from "../modules/fundamentals/fundamentals.route.ts";
 import { inboxRouter } from "../modules/inbox/inbox.route.ts";
+import { marketRouter } from "../modules/market/market.route.ts";
 import { memoryRouter } from "../modules/memory/memory.route.ts";
 import { newsRouter } from "../modules/news/news.route.ts";
 import { proposalsRouter } from "../modules/proposals/proposals.route.ts";
@@ -20,11 +22,13 @@ import { contractOS } from "./context.ts";
 
 export const router = contractOS.router({
   account: accountRouter,
+  agent: agentRouter,
   backup: backupRouter,
   calendar: calendarRouter,
   flows: flowsRouter,
   fundamentals: fundamentalsRouter,
   inbox: inboxRouter,
+  market: marketRouter,
   memory: memoryRouter,
   news: newsRouter,
   proposals: proposalsRouter,

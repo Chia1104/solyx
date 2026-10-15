@@ -1,18 +1,10 @@
-import { queryOptions } from "@tanstack/react-query";
-
 import type { SymbolRef } from "@solyx/core/market";
 
-import { marketQueryKeys } from "./market-sessions-query.ts";
-
-export const listingQueryKeys = {
-  of: (symbol: SymbolRef) =>
-    [...marketQueryKeys.all, "listing", symbol.market, symbol.symbol] as const,
-};
+import { orpc } from "../../app/rpc.ts";
 
 /** Names rarely change, so each listing is looked up once per session. */
 export const listingQuery = (symbol: SymbolRef) =>
-  queryOptions({
-    queryKey: listingQueryKeys.of(symbol),
-    queryFn: () => window.solyx.market.listing(symbol),
+  orpc.market.listing.queryOptions({
+    input: symbol,
     staleTime: Infinity,
   });

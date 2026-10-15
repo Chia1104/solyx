@@ -3,7 +3,6 @@ import { pathToFileURL } from "node:url";
 
 import { MemoryPublisher } from "@orpc/publisher/memory";
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
-import type { WebContents } from "electron";
 import { kebabCase, omit, uniqBy } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
@@ -26,7 +25,6 @@ import { createDgbas } from "@solyx/macro/dgbas";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 
 import type { Approval } from "#shared/inbox.ts";
-import { marketEvents } from "#shared/ipc/market.ts";
 import { ColorScheme } from "#shared/palette.ts";
 import {
   AppLocation,
@@ -94,13 +92,6 @@ const PAPER_LIMITS: RiskLimits = {
   maxOrderNotional: PAPER_CASH,
   allowedSessions: Object.values(Session),
 };
-
-/** Pushes to every window, since each may show what changed. */
-function broadcast(...push: Parameters<WebContents["send"]>) {
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(...push);
-  }
-}
 
 /** Composition root. A live broker is only ever wired here after the user explicitly turns it on. */
 export function createServices(config: ConfigFile) {
@@ -184,7 +175,8 @@ export function createServices(config: ConfigFile) {
       openFubonProcess,
     }),
     answers: cache.answers,
-    onSourcesChanged: () => broadcast(marketEvents.onSourcesChanged),
+    onSourcesChanged: () =>
+      void windowEvents.publish("market:sources-changed", {}),
     diagnostics,
   });
 
@@ -413,6 +405,8 @@ export function createServices(config: ConfigFile) {
       void windowEvents.publish("inbox:changed", {});
       void tray.sync();
     },
+    onUpdate: (update) => void windowEvents.publish("agent:update", update),
+    onStoreFailed: () => void windowEvents.publish("agent:store-failed", {}),
   });
 
   const storage = createStorageApi({

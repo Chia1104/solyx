@@ -16,11 +16,11 @@ import type {
   MinuteListener,
 } from "@solyx/core/market-data";
 
-import { marketEvents } from "#shared/ipc/market.ts";
-import type { LiveCandle } from "#shared/ipc/market.ts";
-
 import { createLiveCandles } from "../src/main/modules/market/live-candles.ts";
-import type { LiveSender } from "../src/main/modules/market/live-candles.ts";
+import type {
+  LiveCandle,
+  LiveSender,
+} from "../src/main/modules/market/live-candles.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 
@@ -65,30 +65,18 @@ function fakeStream() {
   return { stream, listeners, listener, isClosed: () => closed };
 }
 
-let nextSenderId = 1;
-
 function fakeSender() {
   const received: LiveCandle[][] = [];
-  const onDestroyed: (() => void)[] = [];
 
   const sender: LiveSender = {
-    id: nextSenderId++,
-    send(channel, updates) {
-      expect(channel).toBe(marketEvents.onLiveCandles);
+    send(updates) {
       received.push(updates);
     },
-    once(_event, listener) {
-      onDestroyed.push(listener);
-    },
-  };
-
-  const destroy = () => {
-    for (const listener of onDestroyed) listener();
   };
 
   const bars = () => received.flat().map((update) => update.candle);
 
-  return { sender, received, bars, destroy };
+  return { sender, received, bars };
 }
 
 function setup(today = "2026-09-29") {
@@ -232,29 +220,54 @@ describe("createLiveCandles", () => {
     });
   });
 
-  test("watches are counted, so a remount's late unwatch keeps the new watch", async () => {
+  test("a symbol stays live until its last watch ends", async () => {
     const { live, stream } = setup();
-    const window = fakeSender();
+    const first = fakeSender();
+    const second = fakeSender();
 
-    await live.watch(window.sender, TSMC, Interval.OneMinute);
-    await live.watch(window.sender, TSMC, Interval.OneMinute);
-    live.unwatch(window.sender, TSMC, Interval.OneMinute);
+    await live.watch(first.sender, TSMC, Interval.OneMinute);
+    await live.watch(second.sender, TSMC, Interval.OneDay);
+    live.unwatch(first.sender, TSMC);
 
     expect(stream().listeners.has("2330")).toBe(true);
 
-    live.unwatch(window.sender, TSMC, Interval.OneMinute);
+    live.unwatch(second.sender, TSMC);
 
     expect(stream().listeners.has("2330")).toBe(false);
   });
 
-  test("a closed window releases its watches", async () => {
+  test("following yields an empty batch once covered, then the bars, and lets go as it stops", async () => {
     const { live, stream } = setup();
-    const window = fakeSender();
+    const following = live.follow(TSMC, Interval.OneMinute);
 
-    await live.watch(window.sender, TSMC, Interval.OneMinute);
-    window.destroy();
+    await expect(following.next()).resolves.toEqual({
+      done: false,
+      value: [],
+    });
+
+    stream()
+      .listener()
+      .onSession([minute("09:00", 10)]);
+    vi.advanceTimersByTime(250);
+
+    await expect(following.next()).resolves.toEqual({
+      done: false,
+      value: [minute("09:00", 10)],
+    });
+
+    await following.return(undefined);
 
     expect(stream().listeners.has("2330")).toBe(false);
+  });
+
+  test("following a symbol no stream takes ends at once", async () => {
+    const { live } = setup();
+
+    await expect(
+      live
+        .follow({ market: Market.US, symbol: "AAPL" }, Interval.OneMinute)
+        .next()
+    ).resolves.toEqual({ done: true, value: undefined });
   });
 
   test("symbols the stream cannot take are not live", async () => {

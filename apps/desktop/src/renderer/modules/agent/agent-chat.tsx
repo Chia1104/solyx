@@ -5,11 +5,12 @@ import { useTranslation } from "react-i18next";
 
 import type { AgentView } from "@solyx/agent/wire";
 
+import { ScreenKind } from "#shared/agent.ts";
+import type { AgentScreen } from "#shared/agent.ts";
 import { offeredIndicators } from "#shared/chart-indicator.ts";
-import { ScreenKind } from "#shared/ipc/agent.ts";
-import type { AgentScreen } from "#shared/ipc/agent.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
 
+import { client } from "../../app/rpc.ts";
 import { useIndicatorStore } from "../market/indicator-store.ts";
 import { agentSettingsQuery } from "../settings/settings-query.ts";
 
@@ -74,7 +75,7 @@ function AgentStoreFailed() {
   const { t } = useTranslation();
 
   const restart = useMutation({
-    mutationFn: () => window.solyx.agent.restart(),
+    mutationFn: () => client.agent.restart(),
   });
 
   return (

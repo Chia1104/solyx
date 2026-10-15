@@ -6,9 +6,9 @@ import { messageTokens } from "@solyx/agent/wire";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
+import { ScreenKind } from "#shared/agent.ts";
+import type { AgentScreen } from "#shared/agent.ts";
 import { ChartIndicator } from "#shared/chart-indicator.ts";
-import { ScreenKind } from "#shared/ipc/agent.ts";
-import type { AgentScreen } from "#shared/ipc/agent.ts";
 import { OverviewTab } from "#shared/overview-tab.ts";
 
 /** An indicator the chart draws, in the words the agent's tools use for it. */
