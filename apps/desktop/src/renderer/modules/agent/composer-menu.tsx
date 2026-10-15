@@ -1,4 +1,4 @@
-import { ListBox } from "@heroui/react";
+import { ListBox, ListLayout, Virtualizer } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
 import { AgentCommand } from "@solyx/agent/wire";
@@ -78,34 +78,39 @@ export function ComposerMenu({
 }) {
   return (
     <div className="absolute inset-x-2 bottom-full z-10 mb-1 overflow-hidden rounded-sm border border-border bg-overlay shadow-md">
-      <ListBox
-        aria-label={label}
-        items={suggestions}
-        className="max-h-72 overflow-y-auto p-1"
-        onAction={(key) => {
-          const picked = suggestions.find((each) => each.id === key);
+      {/* `@` offers every listing held and watched, which has no limit. */}
+      <Virtualizer
+        layout={ListLayout}
+        layoutOptions={{ estimatedRowSize: 36, padding: 4 }}>
+        <ListBox
+          aria-label={label}
+          items={suggestions}
+          className="max-h-72 overflow-y-auto"
+          onAction={(key) => {
+            const picked = suggestions.find((each) => each.id === key);
 
-          if (picked) onPick(picked);
-        }}>
-        {(suggestion) => (
-          <ListBox.Item
-            id={suggestion.id}
-            textValue={suggestion.keywords}
-            className="flex items-center gap-2 text-sm data-focused:bg-default">
-            <span className="shrink-0 font-medium tabular-nums">
-              {suggestion.label}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-muted">
-              {suggestion.detail}
-            </span>
-            {suggestion.tag ? (
-              <span className="shrink-0 text-xs text-muted">
-                {suggestion.tag}
+            if (picked) onPick(picked);
+          }}>
+          {(suggestion) => (
+            <ListBox.Item
+              id={suggestion.id}
+              textValue={suggestion.keywords}
+              className="flex items-center gap-2 text-sm data-focused:bg-default">
+              <span className="shrink-0 font-medium tabular-nums">
+                {suggestion.label}
               </span>
-            ) : null}
-          </ListBox.Item>
-        )}
-      </ListBox>
+              <span className="min-w-0 flex-1 truncate text-muted">
+                {suggestion.detail}
+              </span>
+              {suggestion.tag ? (
+                <span className="shrink-0 text-xs text-muted">
+                  {suggestion.tag}
+                </span>
+              ) : null}
+            </ListBox.Item>
+          )}
+        </ListBox>
+      </Virtualizer>
     </div>
   );
 }

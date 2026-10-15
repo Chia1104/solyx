@@ -1,9 +1,10 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 
-import { cn } from "@heroui/react";
+import { ListLayout, Virtualizer, cn } from "@heroui/react";
 import { NewsIcon } from "@hugeicons/core-free-icons";
 import { uniq } from "es-toolkit";
+import { GridList, GridListItem } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
 import { exchangeTime } from "@solyx/core/market";
@@ -65,9 +66,10 @@ function StoryRow({
 
   return (
     // One line where the main view is wide; narrower, the byline drops under the title.
-    <li
+    <GridListItem
+      textValue={item.title}
       className={cn(
-        "grid items-start gap-x-3 gap-y-0.5 px-6 py-2",
+        "grid items-start gap-x-3 gap-y-0.5 border-b border-separator px-6 py-2 outline-none data-focus-visible:bg-default",
         scored
           ? "grid-cols-[minmax(0,1fr)_auto] @min-[48rem]/main:grid-cols-[6rem_2.5rem_minmax(0,1fr)_auto_5rem]"
           : "grid-cols-[minmax(0,1fr)] @min-[48rem]/main:grid-cols-[6rem_2.5rem_minmax(0,1fr)_auto]"
@@ -116,7 +118,7 @@ function StoryRow({
           <span>{item.site}</span>
         </span>
       </div>
-    </li>
+    </GridListItem>
   );
 }
 
@@ -146,17 +148,22 @@ export function NewsList({
 
   const scored = scoring || stories.some((story) => storyScore(story) !== null);
 
+  // A listing gathers hundreds of stories over the window: only the rows in view are rendered.
   let body = (
-    <ul className="divide-y divide-separator">
-      {stories.map((story) => (
-        <StoryRow
-          key={`${story.records[0].source}:${story.records[0].item.id}`}
-          market={symbol.market}
-          story={story}
-          scored={scored}
-        />
-      ))}
-    </ul>
+    <Virtualizer layout={ListLayout} layoutOptions={{ estimatedRowSize: 56 }}>
+      <GridList
+        aria-label={t("news.title")}
+        items={stories.map((story) => ({
+          id: `${story.records[0].source}:${story.records[0].item.id}`,
+          story,
+        }))}
+        dependencies={[symbol.market, scored]}
+        className="outline-none">
+        {({ story }) => (
+          <StoryRow market={symbol.market} story={story} scored={scored} />
+        )}
+      </GridList>
+    </Virtualizer>
   );
 
   if (error) {

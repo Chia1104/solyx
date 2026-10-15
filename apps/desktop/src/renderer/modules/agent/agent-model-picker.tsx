@@ -4,9 +4,12 @@ import type { ComponentProps } from "react";
 import {
   Button,
   ListBox,
+  ListLayout,
   Popover,
+  ScrollShadow,
   SearchField,
   Tooltip,
+  Virtualizer,
   cn,
 } from "@heroui/react";
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
@@ -195,7 +198,11 @@ export function AgentModelPicker({
         className="w-80 max-w-[calc(100vw-1.5rem)] p-0">
         <Popover.Dialog aria-label={label} className="flex flex-col p-0">
           <div className="flex min-h-0">
-            <div className="flex max-h-68 w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border py-2">
+            {/* Each mark keeps its size and the rail scrolls, however many providers are on. */}
+            <ScrollShadow
+              hideScrollBar
+              size={24}
+              className="flex max-h-68 w-12 shrink-0 flex-col items-center gap-1 border-r border-border py-2">
               {providers.map((provider) => (
                 <Tooltip key={provider} delay={300}>
                   <Button
@@ -205,7 +212,7 @@ export function AgentModelPicker({
                     aria-label={nameOf(provider)}
                     aria-pressed={provider === active}
                     className={cn(
-                      "size-9",
+                      "size-9 shrink-0",
                       provider === active
                         ? "bg-surface-secondary text-foreground"
                         : "text-muted"
@@ -218,7 +225,7 @@ export function AgentModelPicker({
                   </Tooltip.Content>
                 </Tooltip>
               ))}
-            </div>
+            </ScrollShadow>
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="px-1 py-1.5">
                 <SearchField
@@ -236,79 +243,84 @@ export function AgentModelPicker({
                   </SearchField.Group>
                 </SearchField>
               </div>
-              <ListBox
-                // Focuses the model in force as the picker opens, which scrolls it into view.
-                autoFocus
-                aria-label={label}
-                selectionMode="single"
-                disallowEmptySelection
-                className="max-h-56 overflow-y-auto px-1 pb-1"
-                selectedKeys={[pick.model ? keyOf(pick.model) : DEFAULT_KEY]}
-                renderEmptyState={() => (
-                  <p className="px-2 py-4 text-center text-xs text-muted">
-                    {t("agent.model-picker.empty")}
-                  </p>
-                )}
-                onSelectionChange={(keys) => {
-                  if (keys === "all") return;
+              {/* A provider such as OpenRouter offers hundreds of models: only the rows in view are rendered. */}
+              <Virtualizer
+                layout={ListLayout}
+                layoutOptions={{ estimatedRowSize: 40, padding: 4 }}>
+                <ListBox
+                  // Focuses the model in force as the picker opens, which scrolls it into view.
+                  autoFocus
+                  aria-label={label}
+                  selectionMode="single"
+                  disallowEmptySelection
+                  className="max-h-56 overflow-y-auto"
+                  selectedKeys={[pick.model ? keyOf(pick.model) : DEFAULT_KEY]}
+                  renderEmptyState={() => (
+                    <p className="px-2 py-4 text-center text-xs text-muted">
+                      {t("agent.model-picker.empty")}
+                    </p>
+                  )}
+                  onSelectionChange={(keys) => {
+                    if (keys === "all") return;
 
-                  const [key] = keys;
+                    const [key] = keys;
 
-                  if (key === DEFAULT_KEY) {
-                    if (pick.model) change({ ...pick, model: null });
+                    if (key === DEFAULT_KEY) {
+                      if (pick.model) change({ ...pick, model: null });
 
-                    return;
-                  }
+                      return;
+                    }
 
-                  const next = settings.models.find(
-                    (model) => keyOf(model) === key
-                  );
+                    const next = settings.models.find(
+                      (model) => keyOf(model) === key
+                    );
 
-                  if (next && (!pick.model || keyOf(pick.model) !== key)) {
-                    change({
-                      ...pick,
-                      model: { provider: next.provider, id: next.id },
-                    });
-                  }
-                }}>
-                {needle === "" ? (
-                  <ListBox.Item
-                    id={DEFAULT_KEY}
-                    textValue={defaultLabel}
-                    isDisabled={!defaultRuns}
-                    className="text-xs">
-                    <span className="truncate text-muted">
-                      {defaultRuns
-                        ? defaultLabel
-                        : `${defaultLabel} · ${t("agent.model-picker.needs-setup")}`}
-                    </span>
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                ) : null}
-                {visible.map((model) => (
-                  <ListBox.Item
-                    key={keyOf(model)}
-                    id={keyOf(model)}
-                    textValue={model.name}
-                    isDisabled={!usable.has(model.provider)}
-                    className="text-xs">
-                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span className="truncate">{model.name}</span>
-                      <span className="flex items-center gap-1 text-[10px] text-muted">
-                        <ProviderMark
-                          provider={model.provider}
-                          className="size-3"
-                        />
-                        {nameOf(model.provider)}
-                        {usable.has(model.provider)
-                          ? null
-                          : ` · ${t("agent.model-picker.needs-setup")}`}
+                    if (next && (!pick.model || keyOf(pick.model) !== key)) {
+                      change({
+                        ...pick,
+                        model: { provider: next.provider, id: next.id },
+                      });
+                    }
+                  }}>
+                  {needle === "" ? (
+                    <ListBox.Item
+                      id={DEFAULT_KEY}
+                      textValue={defaultLabel}
+                      isDisabled={!defaultRuns}
+                      className="text-xs">
+                      <span className="truncate text-muted">
+                        {defaultRuns
+                          ? defaultLabel
+                          : `${defaultLabel} · ${t("agent.model-picker.needs-setup")}`}
                       </span>
-                    </span>
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                ))}
-              </ListBox>
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ) : null}
+                  {visible.map((model) => (
+                    <ListBox.Item
+                      key={keyOf(model)}
+                      id={keyOf(model)}
+                      textValue={model.name}
+                      isDisabled={!usable.has(model.provider)}
+                      className="text-xs">
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="truncate">{model.name}</span>
+                        <span className="flex items-center gap-1 text-[10px] text-muted">
+                          <ProviderMark
+                            provider={model.provider}
+                            className="size-3"
+                          />
+                          {nameOf(model.provider)}
+                          {usable.has(model.provider)
+                            ? null
+                            : ` · ${t("agent.model-picker.needs-setup")}`}
+                        </span>
+                      </span>
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Virtualizer>
             </div>
           </div>
           {reasoning ? (
