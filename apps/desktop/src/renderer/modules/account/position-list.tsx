@@ -5,6 +5,7 @@ import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Position } from "@solyx/core/order";
 
+import { orpc } from "../../app/rpc.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { SymbolRow } from "../../components/symbol-row.tsx";
@@ -17,8 +18,6 @@ import {
   directionOf,
 } from "../market/quote-figures.tsx";
 import { quoteQuery } from "../market/quote-query.ts";
-
-import { accountQuery } from "./account-query.ts";
 
 /** A holding's gain at its listing's last price, in the colour of a move that size. */
 function PositionGain({
@@ -48,7 +47,10 @@ function PositionGain({
 /** Held listings with their session's line, last price and gain, each opening its chart. */
 export function PositionList() {
   const { t } = useTranslation();
-  const { data, error, refetch } = useQuery(accountQuery());
+
+  const { data, error, refetch } = useQuery(
+    orpc.account.summary.queryOptions()
+  );
 
   if (error) {
     return (

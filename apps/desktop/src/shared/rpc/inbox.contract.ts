@@ -1,5 +1,9 @@
+import { oc, type } from "@orpc/contract";
+
 import type { TradeProposal } from "@solyx/core/order-desk";
 import type { ReportBacklog } from "@solyx/core/research";
+
+import { changesContract } from "./changes.ts";
 
 /** A conversation with a call waiting for the user to allow it. */
 export interface Approval {
@@ -20,20 +24,8 @@ export interface Inbox {
   reports: ReportBacklog[];
 }
 
-export interface InboxApi {
-  list(): Promise<Inbox>;
-}
-
-/** Pushes from the main process; each subscription returns a function that stops listening. */
-export interface InboxEvents {
+export const inboxContract = {
+  list: oc.output(type<Inbox>()),
   /** A proposal, a call waiting, research or the listings followed changed. */
-  onChanged(listener: () => void): () => void;
-}
-
-export const inboxChannels = {
-  list: "inbox:list",
-} as const satisfies Record<keyof InboxApi, string>;
-
-export const inboxEvents = {
-  onChanged: "inbox:changed",
-} as const satisfies Record<keyof InboxEvents, string>;
+  changes: changesContract,
+};

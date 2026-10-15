@@ -9,7 +9,7 @@ import {
   isWebSearchReady,
 } from "#shared/ipc/settings.ts";
 
-import { accountQuery } from "../account/account-query.ts";
+import { orpc } from "../../app/rpc.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 import {
   agentSettingsQuery,
@@ -27,7 +27,7 @@ export function SetupSummary() {
   const { data: webSearch } = useQuery(webSearchSettingsQuery());
   const { data: decisions } = useQuery(decisionsSettingsQuery());
   const { data: secrets } = useQuery(secretsQuery());
-  const { data: account } = useQuery(accountQuery());
+  const { data: account } = useQuery(orpc.account.summary.queryOptions());
 
   const readiness = (ready: boolean) =>
     ready ? t("onboarding.done.ready") : t("onboarding.done.incomplete");

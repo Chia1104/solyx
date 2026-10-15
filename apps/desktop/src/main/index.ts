@@ -14,6 +14,7 @@ import { RestoreFailure } from "./modules/backup/staged-restore.ts";
 import { startCrashReports } from "./modules/crash-reports/crash-reports.ts";
 import { CATALOGS, fill } from "./modules/settings/catalogs.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
+import { serveRpc } from "./rpc/serve.ts";
 import { createServices } from "./services.ts";
 import type { Services } from "./services.ts";
 import { APP_ICON, createMainWindow } from "./shell/main-window.ts";
@@ -85,6 +86,7 @@ void app.whenReady().then(() => {
   if (!services) return;
 
   registerIpc(services);
+  serveRpc(services);
   createMainWindow(services.windowColors);
   void services.tray.sync();
 

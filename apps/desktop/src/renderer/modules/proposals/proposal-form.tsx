@@ -16,6 +16,7 @@ import { Market } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 
+import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 
@@ -52,13 +53,16 @@ export function ProposalForm() {
     },
   });
 
-  const propose = useMutation({
-    mutationFn: (values: OrderFormValues) =>
-      window.solyx.proposals.propose(toOrderRequest(values), values.rationale),
-    onSuccess: () => form.reset(),
-  });
+  const propose = useMutation(
+    orpc.proposals.propose.mutationOptions({ onSuccess: () => form.reset() })
+  );
 
-  const submit = form.handleSubmit((values) => propose.mutate(values));
+  const submit = form.handleSubmit((values) =>
+    propose.mutate({
+      order: toOrderRequest(values),
+      rationale: values.rationale,
+    })
+  );
 
   return (
     // Validation runs through the schema, so native browser messages never appear.

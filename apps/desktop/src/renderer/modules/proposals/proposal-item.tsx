@@ -8,8 +8,8 @@ import type { OrderRequest } from "@solyx/core/order";
 import { ProposalStatus, SubmissionFailureCode } from "@solyx/core/order-desk";
 import type { TradeProposal } from "@solyx/core/order-desk";
 
+import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { accountQuery } from "../account/account-query.ts";
 import { ListingName } from "../market/listing-name.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
@@ -38,7 +38,7 @@ const STATUS_RULE: Record<ProposalStatus, string> = {
 function OrderImpactLines({ order }: { order: OrderRequest }) {
   const { t, i18n } = useTranslation();
   const { amount } = numberFormats(i18n.language);
-  const account = useQuery(accountQuery());
+  const account = useQuery(orpc.account.summary.queryOptions());
   const impact = account.data && orderImpact(order, account.data);
 
   if (!impact) return null;
@@ -72,13 +72,9 @@ function OrderImpactLines({ order }: { order: OrderRequest }) {
 export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   const { t } = useTranslation();
 
-  const confirm = useMutation({
-    mutationFn: () => window.solyx.proposals.confirm(proposal.id),
-  });
+  const confirm = useMutation(orpc.proposals.confirm.mutationOptions());
 
-  const dismiss = useMutation({
-    mutationFn: () => window.solyx.proposals.dismiss(proposal.id),
-  });
+  const dismiss = useMutation(orpc.proposals.dismiss.mutationOptions());
 
   const { order } = proposal;
   const actionError = confirm.error ?? dismiss.error;
@@ -165,7 +161,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
             size="sm"
             isPending={confirm.isPending}
             isDisabled={dismiss.isPending}
-            onPress={() => confirm.mutate()}>
+            onPress={() => confirm.mutate({ id: proposal.id })}>
             {t("proposals.confirm")}
           </Button>
           <Button
@@ -173,7 +169,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
             variant="tertiary"
             isPending={dismiss.isPending}
             isDisabled={confirm.isPending}
-            onPress={() => dismiss.mutate()}>
+            onPress={() => dismiss.mutate({ id: proposal.id })}>
             {t("proposals.dismiss")}
           </Button>
         </div>
