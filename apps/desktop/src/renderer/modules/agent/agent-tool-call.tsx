@@ -36,6 +36,7 @@ import { scheduleSchema } from "@solyx/core/schedule";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { useClock } from "../../app/clock.ts";
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 import { ListingName } from "../market/listing-name.tsx";
@@ -163,7 +164,11 @@ function ApprovalCard({
 
   const answer = useMutation({
     mutationFn: (approved: boolean) =>
-      window.solyx.agent.approve(sessionId, tool.toolCallId, approved),
+      client.agent.approve({
+        id: sessionId,
+        toolCallId: tool.toolCallId,
+        approved,
+      }),
   });
 
   // Forgetting names a memory by its id, which the card shows by its description.

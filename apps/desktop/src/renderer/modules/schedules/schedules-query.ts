@@ -1,9 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { AgentEventType } from "@solyx/agent/wire";
-
 import { client, forEachEvent, orpc } from "../../app/rpc.ts";
-import { agentQueryKeys } from "../agent/agent-query.ts";
 
 /** Never stale: the main process says when a task changes or runs, and the agent when a run ends. */
 export const schedulesQuery = () =>
@@ -15,8 +12,9 @@ export const collectionsQuery = () =>
 
 /**
  * Refetches the scheduled tasks and the collections' plans whenever one is saved, removed or run,
- * and the conversations with them, since a run starts one of its own; the tasks again as any run
- * ends, which frees its task; and the collections as news or a theme's search brings something in.
+ * and the conversations with them, since a run starts one of its own; and the collections as news
+ * or a theme's search brings something in. A run ending frees its task, which `followAgentEvents`
+ * reads again.
  */
 export function followScheduleChanges(queryClient: QueryClient) {
   const collected = () =>
@@ -26,15 +24,9 @@ export function followScheduleChanges(queryClient: QueryClient) {
 
   void forEachEvent(client.schedules.changes(), () => {
     void queryClient.invalidateQueries({ queryKey: orpc.schedules.key() });
-    void queryClient.invalidateQueries({ queryKey: agentQueryKeys.sessions });
-  });
-
-  window.solyx.agent.onEvent(({ event }) => {
-    if (event.type === AgentEventType.RunEnd) {
-      void queryClient.invalidateQueries({
-        queryKey: orpc.schedules.list.key(),
-      });
-    }
+    void queryClient.invalidateQueries({
+      queryKey: orpc.agent.sessions.key(),
+    });
   });
 
   void forEachEvent(client.news.changes(), collected);

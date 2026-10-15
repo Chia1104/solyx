@@ -1,3 +1,4 @@
+import { MemoryPublisher } from "@orpc/publisher/memory";
 import { noop, throttle } from "es-toolkit";
 
 import {
@@ -13,24 +14,23 @@ import { exchangeDate, shiftDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { CandleRequest, MarketDataStream } from "@solyx/core/market-data";
 
-import { marketEvents } from "#shared/ipc/market.ts";
-import type { LiveCandle } from "#shared/ipc/market.ts";
-
 // A busy symbol pushes several times a second; windows hear about it at most four times.
 const FLUSH_MS = 250;
 
-/** The part of `WebContents` the hub uses, so tests can stand in for windows. */
+/** A watched symbol's forming bar in one interval; it replaces the bar with the same time. */
+export interface LiveCandle {
+  symbol: SymbolRef;
+  interval: Interval;
+  candle: Candle;
+}
+
+/** Where one watch's bars go: a window's stream of them, or a test. */
 export interface LiveSender {
-  readonly id: number;
-  send(channel: string, updates: LiveCandle[]): void;
-  once(event: "destroyed", listener: () => void): void;
+  send(updates: LiveCandle[]): void;
 }
 
 interface Watch {
-  sender: LiveSender;
   interval: Interval;
-  /** Renderers can remount before an unwatch lands, so watches are counted. */
-  count: number;
   /** Due the whole session on the next flush, as after it starts or its period loads. */
   fresh: boolean;
   /** The current week's or month's closed daily bars, for the date they were loaded. */
@@ -45,7 +45,7 @@ interface LiveSymbol {
   minutes: Map<number, Candle>;
   /** Minute times changed since the last flush. */
   touched: Set<number>;
-  watches: Map<string, Watch>;
+  watches: Map<LiveSender, Watch>;
 }
 
 interface LiveCandlesOptions {
@@ -57,9 +57,6 @@ interface LiveCandlesOptions {
   now?: () => Date;
 }
 
-const watchKey = (sender: LiveSender, interval: Interval) =>
-  `${sender.id}:${interval}`;
-
 /**
  * Keeps today's minute bars for every watched symbol and pushes each window the bars of the
  * intervals it watches. Only today's session is pushed: earlier sessions come from history.
@@ -67,7 +64,6 @@ const watchKey = (sender: LiveSender, interval: Interval) =>
 export function createLiveCandles(options: LiveCandlesOptions) {
   const now = options.now ?? (() => new Date());
   const live = new Map<string, LiveSymbol>();
-  const trackedSenders = new Set<number>();
   let stream: MarketDataStream | undefined;
   let opening: Promise<MarketDataStream | undefined> | undefined;
 
@@ -192,7 +188,7 @@ export function createLiveCandles(options: LiveCandlesOptions) {
         continue;
       }
 
-      for (const watch of state.watches.values()) {
+      for (const [sender, watch] of state.watches) {
         const updates = barsFor(state, watch, minutes, touched, today).map(
           (candle) => ({
             symbol: state.symbol,
@@ -201,15 +197,12 @@ export function createLiveCandles(options: LiveCandlesOptions) {
           })
         );
 
-        outbox.set(watch.sender, [
-          ...(outbox.get(watch.sender) ?? []),
-          ...updates,
-        ]);
+        outbox.set(sender, [...(outbox.get(sender) ?? []), ...updates]);
       }
     }
 
     for (const [sender, updates] of outbox) {
-      if (updates.length > 0) sender.send(marketEvents.onLiveCandles, updates);
+      if (updates.length > 0) sender.send(updates);
     }
   }, FLUSH_MS);
 
@@ -248,87 +241,91 @@ export function createLiveCandles(options: LiveCandlesOptions) {
     live.delete(symbolKey(state.symbol));
   }
 
-  function track(sender: LiveSender) {
-    if (trackedSenders.has(sender.id)) return;
+  async function watch(
+    sender: LiveSender,
+    symbol: SymbolRef,
+    interval: Interval
+  ): Promise<boolean> {
+    const opened = await ensureStream();
 
-    trackedSenders.add(sender.id);
-    sender.once("destroyed", () => {
-      trackedSenders.delete(sender.id);
+    if (!opened) return false;
 
-      for (const state of [...live.values()]) {
-        for (const [key, watch] of state.watches) {
-          if (watch.sender.id === sender.id) state.watches.delete(key);
-        }
+    let state = live.get(symbolKey(symbol));
 
-        release(state);
-      }
-    });
+    if (!state) {
+      const created: LiveSymbol = {
+        symbol,
+        stop: noop,
+        minutes: new Map(),
+        touched: new Set(),
+        watches: new Map(),
+      };
+
+      const stop = listen(created, opened);
+
+      if (!stop) return false;
+
+      created.stop = stop;
+      live.set(symbolKey(symbol), created);
+      state = created;
+    }
+
+    // A symbol that was already live sends only this watch its whole session.
+    const added: Watch = { interval, fresh: true };
+
+    state.watches.set(sender, added);
+    loadPeriod(state, added, exchangeDate(symbol.market, now()));
+
+    if (state.minutes.size > 0) flush();
+
+    return true;
+  }
+
+  function unwatch(sender: LiveSender, symbol: SymbolRef) {
+    const state = live.get(symbolKey(symbol));
+
+    if (!state?.watches.delete(sender)) return;
+
+    release(state);
   }
 
   return {
-    async watch(
-      sender: LiveSender,
+    watch,
+    unwatch,
+
+    /**
+     * Today's bars of `symbol` in `interval` as they change, a batch for each push: an empty one
+     * first once a live stream covers the symbol, and none, with the end at once, when none does.
+     * Watches until `signal` aborts or the caller stops reading.
+     */
+    async *follow(
       symbol: SymbolRef,
-      interval: Interval
-    ): Promise<boolean> {
-      const opened = await ensureStream();
+      interval: Interval,
+      signal?: AbortSignal
+    ): AsyncGenerator<Candle[]> {
+      const batches = new MemoryPublisher<{
+        bars: { updates: LiveCandle[] };
+      }>();
 
-      if (!opened) return false;
+      const sender: LiveSender = {
+        send: (updates) => void batches.publish("bars", { updates }),
+      };
 
-      let state = live.get(symbolKey(symbol));
+      // Read from before the watch, whose first flush may come at once.
+      const pushed = batches.subscribe("bars", { signal });
 
-      if (!state) {
-        const created: LiveSymbol = {
-          symbol,
-          stop: noop,
-          minutes: new Map(),
-          touched: new Set(),
-          watches: new Map(),
-        };
+      try {
+        if (!(await watch(sender, symbol, interval))) return;
 
-        const stop = listen(created, opened);
+        yield [];
 
-        if (!stop) return false;
-
-        created.stop = stop;
-        live.set(symbolKey(symbol), created);
-        state = created;
+        for await (const { updates } of pushed) {
+          yield updates.map((update) => update.candle);
+        }
+      } finally {
+        unwatch(sender, symbol);
+        await pushed.return();
       }
-
-      const key = watchKey(sender, interval);
-      const existing = state.watches.get(key);
-
-      // A symbol that was already live sends only this watch its whole session.
-      if (existing) {
-        existing.count += 1;
-        existing.fresh = true;
-      } else {
-        const watch: Watch = { sender, interval, count: 1, fresh: true };
-
-        state.watches.set(key, watch);
-        loadPeriod(state, watch, exchangeDate(symbol.market, now()));
-      }
-
-      track(sender);
-
-      if (state.minutes.size > 0) flush();
-
-      return true;
-    },
-
-    unwatch(sender: LiveSender, symbol: SymbolRef, interval: Interval) {
-      const state = live.get(symbolKey(symbol));
-      const key = watchKey(sender, interval);
-      const watch = state?.watches.get(key);
-
-      if (!state || !watch) return;
-
-      watch.count -= 1;
-
-      if (watch.count > 0) return;
-
-      state.watches.delete(key);
-      release(state);
     },
 
     /**

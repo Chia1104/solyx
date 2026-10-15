@@ -2,24 +2,21 @@ import { queryOptions, skipToken } from "@tanstack/react-query";
 
 import { foldEvents } from "@solyx/agent/wire";
 
-const all = ["agent"] as const;
+import { client, orpc } from "../../app/rpc.ts";
 
-const transcripts = [...all, "transcript"] as const;
+const transcripts = ["agent", "transcript"] as const;
 
+/**
+ * The conversations' folded views, under keys of their own, since the cache holds what the
+ * thread shows rather than what `agent.transcript` answers.
+ */
 export const agentQueryKeys = {
-  all,
-  sessions: [...all, "sessions"] as const,
   transcripts,
   transcript: (id: string | null) => [...transcripts, id] as const,
-  storeFailed: [...all, "store-failed"] as const,
 };
 
 /** Most recently active first. */
-export const agentSessionsQuery = () =>
-  queryOptions({
-    queryKey: agentQueryKeys.sessions,
-    queryFn: () => window.solyx.agent.sessions(),
-  });
+export const agentSessionsQuery = () => orpc.agent.sessions.queryOptions();
 
 /**
  * A conversation folded into what the thread shows. Fetched once; after that, live events fold
@@ -32,17 +29,13 @@ export const transcriptQuery = (id: string | null) =>
     queryFn:
       id === null
         ? skipToken
-        : async () => foldEvents(await window.solyx.agent.transcript(id)),
+        : async () => foldEvents(await client.agent.transcript(id)),
     staleTime: Infinity,
   });
 
 /**
- * Whether the conversations' store failed. The main process pushes when it does (see
+ * Whether the conversations' store failed. The main process says when it does (see
  * `followAgentEvents`), and only a restart undoes it, so it never goes stale on its own.
  */
 export const agentStoreFailedQuery = () =>
-  queryOptions({
-    queryKey: agentQueryKeys.storeFailed,
-    queryFn: () => window.solyx.agent.storeFailed(),
-    staleTime: Infinity,
-  });
+  orpc.agent.storeFailed.queryOptions({ staleTime: Infinity });

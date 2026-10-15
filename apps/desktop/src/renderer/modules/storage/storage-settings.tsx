@@ -19,7 +19,6 @@ import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 import { agentQueryKeys } from "../agent/agent-query.ts";
 import { useAgentStore } from "../agent/agent-store.ts";
-import { candlesQueryKeys } from "../market/candles-query.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 
 import { formatBytes } from "./format-bytes.ts";
@@ -27,8 +26,8 @@ import { storageUsageQuery } from "./storage-query.ts";
 
 /** What the rest of the workspace shows of each kind, read again once it is cleared. */
 const SHOWN_ELSEWHERE: Record<StoredData, QueryKey | null> = {
-  [StoredData.Candles]: candlesQueryKeys.all,
-  [StoredData.Conversations]: agentQueryKeys.sessions,
+  [StoredData.Candles]: orpc.market.candles.key(),
+  [StoredData.Conversations]: orpc.agent.sessions.key(),
   // Memory and research push their own clearing.
   [StoredData.Memory]: null,
   [StoredData.News]: orpc.news.key(),

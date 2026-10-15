@@ -1,78 +1,11 @@
 // Sentry's bridge, which hands the renderer's reports to the main process; it sends nothing itself.
 import "@sentry/electron/preload";
-import { contextBridge, ipcRenderer } from "electron";
-import type { IpcRendererEvent } from "electron";
+import { ipcRenderer } from "electron";
 
-import { agentChannels, agentEvents } from "#shared/ipc/agent.ts";
-import type { AgentApi, AgentEvents } from "#shared/ipc/agent.ts";
-import { marketChannels, marketEvents } from "#shared/ipc/market.ts";
-import type { MarketApi, MarketEvents } from "#shared/ipc/market.ts";
-import type { SolyxApi } from "#shared/ipc/solyx-api.ts";
 import { RPC_CONNECT } from "#shared/rpc/connect.ts";
 
-// Electron prefixes a failed handler's error with its channel; the renderer shows the main
-// process's own message.
-const REMOTE_ERROR_PREFIX =
-  /^Error invoking remote method '[^']+': (?:\w*Error: )?/;
-
-const invoke: typeof ipcRenderer.invoke = async (channel, ...args) => {
-  try {
-    return await ipcRenderer.invoke(channel, ...args);
-  } catch (error) {
-    throw error instanceof Error
-      ? new Error(error.message.replace(REMOTE_ERROR_PREFIX, ""))
-      : error;
-  }
-};
-
-/** Hands each push on `channel` to `listener` until the returned function is called. */
-function subscribe<Payload>(
-  channel: string,
-  listener: (payload: Payload) => void
-): () => void {
-  const forward = (_event: IpcRendererEvent, payload: Payload) =>
-    listener(payload);
-
-  ipcRenderer.on(channel, forward);
-
-  return () => {
-    ipcRenderer.removeListener(channel, forward);
-  };
-}
-
-/**
- * A module's half of `window.solyx`: for each channel a function that invokes it with the caller's
- * arguments, and for each event one that subscribes to it.
- */
-function bridge<Api, Events = Record<never, never>>(
-  channels: Record<keyof Api, string>,
-  events?: Record<keyof Events, string>
-): Api & Events {
-  const module = Object.fromEntries([
-    ...Object.entries<string>(channels).map(([name, channel]) => [
-      name,
-      invoke.bind(undefined, channel),
-    ]),
-    ...Object.entries<string>(events ?? {}).map(([name, channel]) => [
-      name,
-      subscribe.bind(undefined, channel),
-    ]),
-  ]);
-
-  // SAFETY: each method passes its arguments through to the handler bound to its channel, and each
-  // event subscribes to its own; the channel maps `satisfies` the keys of their contracts.
-  return module as Api & Events;
-}
-
-const api: SolyxApi = {
-  agent: bridge<AgentApi, AgentEvents>(agentChannels, agentEvents),
-  market: bridge<MarketApi, MarketEvents>(marketChannels, marketEvents),
-};
-
-contextBridge.exposeInMainWorld("solyx", api);
-
 // The window keeps one end of its channel and posts the other here, which goes on to the main
-// process; the preload never holds a port itself.
+// process; the preload never holds a port itself and exposes nothing to the page.
 window.addEventListener("message", (event) => {
   if (event.data === RPC_CONNECT) {
     ipcRenderer.postMessage(RPC_CONNECT, null, [...event.ports]);

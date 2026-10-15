@@ -4,14 +4,16 @@ import { groupBy } from "es-toolkit";
 import { AgentEventType, applyEvent } from "@solyx/agent/wire";
 import type { AgentView } from "@solyx/agent/wire";
 
-import type { AgentUpdate } from "#shared/ipc/agent.ts";
+import type { AgentUpdate } from "#shared/agent.ts";
+
+import { client, forEachEvent, orpc } from "../../app/rpc.ts";
 
 import { agentQueryKeys } from "./agent-query.ts";
 
 /**
  * Folds the main process's agent events into each open conversation's cached view, and reads
  * again whether the store failed once it says so. Deltas arrive many times a second, so events
- * are applied once per frame.
+ * are applied once per frame, and this is the window's one stream of them.
  */
 export function followAgentEvents(queryClient: QueryClient) {
   let pending: AgentUpdate[] = [];
@@ -40,21 +42,29 @@ export function followAgentEvents(queryClient: QueryClient) {
       // A run renames and reorders conversations as it starts.
       if (events.some((event) => event.type === AgentEventType.RunStart)) {
         void queryClient.invalidateQueries({
-          queryKey: agentQueryKeys.sessions,
+          queryKey: orpc.agent.sessions.key(),
+        });
+      }
+
+      // A run ending frees the scheduled task that started it.
+      if (events.some((event) => event.type === AgentEventType.RunEnd)) {
+        void queryClient.invalidateQueries({
+          queryKey: orpc.schedules.list.key(),
         });
       }
     }
   }
 
-  window.solyx.agent.onEvent((update) => {
+  void forEachEvent(client.agent.events(), (update) => {
     pending.push(update);
     frame ??= requestAnimationFrame(flush);
   });
 
-  window.solyx.agent.onStoreFailed(
+  void forEachEvent(
+    client.agent.storeFailures(),
     () =>
       void queryClient.invalidateQueries({
-        queryKey: agentQueryKeys.storeFailed,
+        queryKey: orpc.agent.storeFailed.key(),
       })
   );
 }

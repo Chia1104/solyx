@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import type { AgentSession } from "@solyx/agent/wire";
 
 import { useClock } from "../../app/clock.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 
@@ -36,7 +37,7 @@ function DeleteSessionDialog({
   const select = useAgentStore((state) => state.select);
 
   const remove = useMutation({
-    mutationFn: (id: string) => window.solyx.agent.deleteSession(id),
+    mutationFn: (id: string) => client.agent.deleteSession(id),
     onSuccess: (_result, id) => {
       queryClient.removeQueries({ queryKey: agentQueryKeys.transcript(id) });
 
@@ -45,7 +46,7 @@ function DeleteSessionDialog({
       onClose();
     },
     onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: agentQueryKeys.sessions }),
+      queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
   });
 
   const close = () => {
