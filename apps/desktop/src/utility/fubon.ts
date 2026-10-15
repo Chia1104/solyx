@@ -1,13 +1,12 @@
+import { implement } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/message-port";
+
 import { openFubonSession } from "@solyx/brokers/fubon";
 import type { FubonSession } from "@solyx/brokers/fubon";
-import { errorMessage } from "@solyx/utils/error";
 
-import { FubonMethod } from "./fubon-protocol.ts";
-import type {
-  FubonAnswers,
-  FubonReply,
-  FubonRequest,
-} from "./fubon-protocol.ts";
+import { keepMessages } from "../main/rpc/messages.ts";
+
+import { fubonContract } from "./fubon.contract.ts";
 
 let session: FubonSession | undefined;
 
@@ -17,36 +16,27 @@ function signedIn(): FubonSession {
   return session;
 }
 
-function answer(request: FubonRequest): FubonAnswers[FubonMethod] {
-  switch (request.method) {
-    case FubonMethod.Open:
-      session = openFubonSession(request.options);
+const fubon = implement(fubonContract);
+
+// Every SDK call blocks until Fubon answers, so the process answers one call at a time, in order.
+const handler = new RPCHandler(
+  fubon.router({
+    open: fubon.open.handler(({ input }) => {
+      session = openFubonSession(input);
 
       return session.accounts;
-
-    case FubonMethod.Realtime:
-      return signedIn().realtime();
-
-    case FubonMethod.Close:
+    }),
+    realtime: fubon.realtime.handler(() => signedIn().realtime()),
+    close: fubon.close.handler(() => {
       session?.close();
       session = undefined;
+    }),
+  }),
+  { clientInterceptors: [keepMessages] }
+);
 
-      return null;
-  }
-}
-
-// Every SDK call blocks until Fubon answers, so requests are answered one at a time, in order.
-process.parentPort.on("message", ({ data }) => {
-  // SAFETY: only the main process posts here, and it posts nothing but FubonRequests.
-  const request = data as FubonRequest;
-
-  let reply: FubonReply;
-
-  try {
-    reply = { id: request.id, answer: answer(request) };
-  } catch (error) {
-    reply = { id: request.id, error: errorMessage(error) };
-  }
-
-  process.parentPort.postMessage(reply);
+// The main process hands over one end of a channel as the process starts and calls through it.
+process.parentPort.once("message", ({ ports: [port] }) => {
+  handler.upgrade(port);
+  port.start();
 });

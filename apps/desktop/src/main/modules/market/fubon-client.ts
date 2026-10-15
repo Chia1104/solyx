@@ -1,16 +1,15 @@
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/message-port";
+import type { SupportedMessagePort } from "@orpc/client/message-port";
+import type { RouterContractClient } from "@orpc/contract";
+
 import type {
   FubonAccount,
   FubonRealtime,
   FubonSessionOptions,
 } from "@solyx/brokers/fubon";
 
-import { FubonMethod } from "../../../utility/fubon-protocol.ts";
-import type {
-  FubonAnswers,
-  FubonCall,
-  FubonReply,
-  FubonRequest,
-} from "../../../utility/fubon-protocol.ts";
+import type { fubonContract } from "../../../utility/fubon.contract.ts";
 
 // Long enough for Fubon to answer a sign-in; past it the process is ended, so a stalled SDK
 // fails the chart waiting on it instead of holding it.
@@ -25,103 +24,76 @@ export interface FubonProcess {
   close(): void;
 }
 
-/** The part of Electron's `UtilityProcess` the session talks through, so tests stand in for it. */
+/** The part of Electron's `UtilityProcess` the session needs besides its port, so tests stand in for it. */
 export interface FubonChild {
-  postMessage(request: FubonRequest): void;
-  on(event: "message", listener: (reply: FubonReply) => void): void;
   on(event: "exit", listener: (code: number) => void): void;
   kill(): void;
 }
 
-interface PendingCall {
-  resolve(answer: FubonAnswers[FubonMethod]): void;
-  reject(reason: Error): void;
-  timer: NodeJS.Timeout;
-}
-
 /**
- * Signs in to Fubon through `child` and holds the session it keeps. A call Fubon does not answer
- * in time ends the process, and an ended process fails every call still waiting and every later
- * one, so nothing signs in again behind the user's back.
+ * Signs in to Fubon through `child`, calling it over `port`, and holds the session it keeps. A
+ * call Fubon does not answer in time ends the process, and an ended process fails every call
+ * still waiting and every later one, so nothing signs in again behind the user's back.
  */
 export async function connectFubon(
   child: FubonChild,
+  port: SupportedMessagePort,
   options: FubonSessionOptions,
   answerTimeoutMs = ANSWER_TIMEOUT_MS
 ): Promise<FubonProcess> {
-  const pending = new Map<number, PendingCall>();
+  const fubon: RouterContractClient<typeof fubonContract> = createORPCClient(
+    new RPCLink({ port })
+  );
 
-  let nextId = 0;
+  // Aborts every call still waiting once the process is ended.
+  const ending = new AbortController();
 
   let stopped: Error | undefined;
 
   function stop(reason: Error) {
     stopped ??= reason;
-
-    for (const call of pending.values()) {
-      clearTimeout(call.timer);
-      call.reject(stopped);
-    }
-
-    pending.clear();
+    ending.abort(stopped);
     child.kill();
   }
-
-  child.on("message", (reply) => {
-    const call = pending.get(reply.id);
-
-    if (!call) return;
-
-    pending.delete(reply.id);
-    clearTimeout(call.timer);
-
-    if ("error" in reply) call.reject(new Error(reply.error));
-    else call.resolve(reply.answer);
-  });
 
   child.on("exit", (code) =>
     stop(new Error(`The Fubon SDK exited with code ${code}`))
   );
 
-  function call<Method extends FubonMethod>(
-    request: Extract<FubonCall, { method: Method }>
-  ): Promise<FubonAnswers[Method]> {
-    if (stopped) return Promise.reject(stopped);
+  async function call<T>(send: (signal: AbortSignal) => Promise<T>) {
+    if (stopped) throw stopped;
 
-    const id = nextId++;
+    const timer = setTimeout(
+      () =>
+        stop(
+          new Error(
+            `Fubon did not answer within ${answerTimeoutMs / 1000} seconds`
+          )
+        ),
+      answerTimeoutMs
+    );
 
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () =>
-          stop(
-            new Error(
-              `Fubon did not answer within ${answerTimeoutMs / 1000} seconds`
-            )
-          ),
-        answerTimeoutMs
-      );
-
-      // SAFETY: the Fubon process answers each call with its own method's answer.
-      pending.set(id, {
-        resolve: resolve as PendingCall["resolve"],
-        reject,
-        timer,
-      });
-      child.postMessage({ ...request, id } satisfies FubonRequest);
-    });
+    try {
+      return await send(ending.signal);
+    } catch (error) {
+      // A call the process ended under fails with why it ended.
+      throw stopped ?? error;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   try {
-    const accounts = await call({ method: FubonMethod.Open, options });
+    const accounts = await call((signal) => fubon.open(options, { signal }));
 
     return {
       accounts,
 
-      realtime: () => call({ method: FubonMethod.Realtime }),
+      realtime: () => call((signal) => fubon.realtime(undefined, { signal })),
 
       close() {
         // The process ends even when signing out fails or stalls.
-        void call({ method: FubonMethod.Close })
+        void call((signal) => fubon.close(undefined, { signal }))
           .catch(() => undefined)
           .finally(() => child.kill());
       },

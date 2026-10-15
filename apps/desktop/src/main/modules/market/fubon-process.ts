@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { utilityProcess } from "electron";
+import { MessageChannelMain, utilityProcess } from "electron";
 
 import type { FubonSessionOptions } from "@solyx/brokers/fubon";
 
@@ -17,8 +17,15 @@ const FUBON_ENTRY = join(import.meta.dirname, "../utility/fubon.mjs");
 export function openFubonProcess(
   options: FubonSessionOptions
 ): Promise<FubonProcess> {
-  return connectFubon(
-    utilityProcess.fork(FUBON_ENTRY, [], { serviceName: "Fubon SDK" }),
-    options
-  );
+  const child = utilityProcess.fork(FUBON_ENTRY, [], {
+    serviceName: "Fubon SDK",
+  });
+
+  const { port1, port2 } = new MessageChannelMain();
+
+  // The process serves its session on the other end, which it takes as it starts.
+  child.postMessage(null, [port2]);
+  port1.start();
+
+  return connectFubon(child, port1, options);
 }
