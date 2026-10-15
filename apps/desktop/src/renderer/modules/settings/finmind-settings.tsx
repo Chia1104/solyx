@@ -1,11 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import type { FinMindPlan } from "@solyx/fundamentals/finmind";
-
 import { Secret } from "#shared/settings.ts";
 
-import { client } from "../../app/rpc.ts";
+import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -21,9 +19,7 @@ export function FinMindSettings() {
   const secrets = useQuery(secretsQuery());
   const settings = useQuery(fundamentalsSettingsQuery());
 
-  const save = useMutation({
-    mutationFn: (plan: FinMindPlan) => client.settings.setFinMindPlan(plan),
-  });
+  const save = useMutation(orpc.settings.setFinMindPlan.mutationOptions());
 
   const failed = secrets.error ?? settings.error;
 

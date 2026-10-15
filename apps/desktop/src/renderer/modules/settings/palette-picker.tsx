@@ -20,7 +20,7 @@ import {
 } from "#shared/palette.ts";
 import type { Appearance } from "#shared/settings.ts";
 
-import { client } from "../../app/rpc.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 
@@ -50,11 +50,6 @@ function swatchStyle(
   };
 }
 
-interface PaletteChoice {
-  scheme: ColorScheme;
-  palette: string;
-}
-
 /**
  * The palette picked for each scheme, unfolding into a card per palette, built-in ones first, with
  * a swatch per scheme; picking a swatch sets that scheme's palette. While `editable`, any palette
@@ -69,10 +64,7 @@ export function PalettePicker({ editable = true }: { editable?: boolean }) {
   const [editing, setEditing] = useState<string | null>(null);
 
   // The main process pushes the saved appearance, which the query takes.
-  const save = useMutation({
-    mutationFn: ({ scheme, palette }: PaletteChoice) =>
-      client.settings.setPalette({ scheme, palette }),
-  });
+  const save = useMutation(orpc.settings.setPalette.mutationOptions());
 
   const copy = useMutation({
     mutationFn: (palette: string) =>

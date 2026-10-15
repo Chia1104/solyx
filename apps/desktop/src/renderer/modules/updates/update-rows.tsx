@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { UpdateStatus } from "#shared/updates.ts";
 import type { UpdateState } from "#shared/updates.ts";
 
-import { client } from "../../app/rpc.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { SettingsRow } from "../settings/settings-list.tsx";
 import { updateSettingsQuery } from "../settings/settings-query.ts";
@@ -27,9 +27,7 @@ export function UpdateRows() {
   const { data: state } = useQuery(updateStateQuery());
   const { data: settings } = useQuery(updateSettingsQuery());
 
-  const toggle = useMutation({
-    mutationFn: (enabled: boolean) => client.settings.setUpdateChecks(enabled),
-  });
+  const toggle = useMutation(orpc.settings.setUpdateChecks.mutationOptions());
 
   const check = useMutation({
     mutationFn: () => client.updates.check(),

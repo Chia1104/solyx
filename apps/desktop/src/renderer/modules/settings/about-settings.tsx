@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { AppLocation } from "#shared/settings.ts";
 
-import { client } from "../../app/rpc.ts";
+import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -24,9 +24,7 @@ export function AboutSettings() {
   const { t } = useTranslation();
   const { data, error, refetch } = useQuery(aboutQuery());
 
-  const reveal = useMutation({
-    mutationFn: (location: AppLocation) => client.settings.reveal(location),
-  });
+  const reveal = useMutation(orpc.settings.reveal.mutationOptions());
 
   if (error) {
     return (
