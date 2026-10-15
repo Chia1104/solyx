@@ -350,7 +350,12 @@
     "quiet-since": "quiet since {{date}}",
     "read-as-stated": "read as stated, {{share}}",
     "not-searched": "Not searched yet.",
-    "searched": "Last searched {{time}}."
+    "searched": "Last searched {{time}}.",
+    "no-web-search": "Themes are not searched until a web search vendor's key is saved.",
+    "no-decisions": "What their searches find is not read against their signposts until a decisions model is set up.",
+    "settings": "Settings",
+    "unread_one": "{{count, number}} item found is not read against every signpost yet.",
+    "unread_other": "{{count, number}} items found are not read against every signpost yet."
   },
   "agent": {
     "title": "Agent",
@@ -690,6 +695,22 @@
       "stale": "A newer quarter, ending {{date}}, came out after this report was revised. The agent revises it before its next forecast.",
       "quote-read": "Quote read as stating it: {{share}} likely ({{model}})",
       "quote-unread": "Quote not checked"
+    },
+    "watch": {
+      "off": "News is not read against these, so no signal here says nothing of the news.",
+      "gaps": {
+        "no-local-embedder": "It takes grouping news by meaning, with vectors from this computer.",
+        "unmeasured": "The model on this computer has no floor measured for it; {{models}} has one.",
+        "no-auditor": "It takes a decisions model."
+      },
+      "settings": "Settings",
+      "pending": "Not read against the news yet; the listing's next news collection reads them.",
+      "failed": "Reading them against the news failed {{time}}: {{failure}}. The next collection tries again.",
+      "read_one": "Last read {{time}}, against {{count, number}} news item of the week before.",
+      "read_other": "Last read {{time}}, against {{count, number}} news items of the week before.",
+      "quiet": "None has read as stating one.",
+      "unread_one": "{{count, number}} item near one could not be read; the next collection reads it again.",
+      "unread_other": "{{count, number}} items near one could not be read; the next collection reads them again."
     },
     "sections": {
       "business": "Business",

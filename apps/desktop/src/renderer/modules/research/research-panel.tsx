@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { Button, Chip } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { ForecastRecord } from "@solyx/core/forecast";
@@ -16,8 +17,16 @@ import type {
   ReportEvent,
   StanceSpell,
 } from "@solyx/core/report";
-import type { Coverage, FalsifierCheck } from "@solyx/core/research";
+import { FALSIFIER_FLOORS } from "@solyx/core/research";
+import type {
+  Coverage,
+  FalsifierCheck,
+  FalsifierWatch,
+} from "@solyx/core/research";
 
+import { SettingsSection } from "#shared/settings-section.ts";
+
+import { useClock } from "../../app/clock.ts";
 import { Pane, useLayoutStore } from "../../app/layout-store.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -145,6 +154,62 @@ function Falsifier({
   );
 }
 
+/** Whether the news is read against the falsifiers, so a quiet report is not taken for an unread one. */
+function WatchStatus({
+  watch: { gaps, pass },
+  quiet,
+}: {
+  watch: FalsifierWatch;
+  /** No item has read as stating a falsifier. */
+  quiet: boolean;
+}) {
+  const { t } = useTranslation();
+  const clock = useClock();
+
+  if (gaps.length > 0) {
+    return (
+      <p className="rounded-sm border border-dashed border-separator px-3 py-2 text-xs text-muted">
+        {[
+          t("research.watch.off"),
+          ...gaps.map((gap) =>
+            t(`research.watch.gaps.${gap}`, {
+              models: [...FALSIFIER_FLOORS.keys()].join(", "),
+            })
+          ),
+        ].join(" ")}{" "}
+        <Link
+          to="/settings"
+          search={{ section: SettingsSection.Agent }}
+          className="text-foreground underline">
+          {t("research.watch.settings")}
+        </Link>
+      </p>
+    );
+  }
+
+  let status = t("research.watch.pending");
+
+  if (pass?.failure != null) {
+    status = t("research.watch.failed", {
+      time: clock.time(pass.at),
+      failure: pass.failure,
+    });
+  } else if (pass) {
+    status = [
+      t("research.watch.read", {
+        count: pass.items,
+        time: clock.time(pass.at),
+      }),
+      ...(quiet ? [t("research.watch.quiet")] : []),
+      ...(pass.unread > 0
+        ? [t("research.watch.unread", { count: pass.unread })]
+        : []),
+    ].join(" ");
+  }
+
+  return <p className="text-xs text-muted tabular-nums">{status}</p>;
+}
+
 /**
  * The dates a report holds, each over the source's own words for it; one whose day has passed
  * waits for the revision that says what came of it.
@@ -195,6 +260,7 @@ function ReportView({
   newerFinancials,
   passedEvents,
   signals,
+  watch,
   standing,
 }: {
   report: Report;
@@ -202,6 +268,7 @@ function ReportView({
   newerFinancials: string | null;
   passedEvents: Audited<ReportEvent>[];
   signals: FalsifierCheck[];
+  watch: FalsifierWatch | null;
   /** The stretch the report's stance has stood, against its market's index; `undefined` while it cannot be measured. */
   standing: StanceSpell | undefined;
 }) {
@@ -257,6 +324,9 @@ function ReportView({
               />
             ))}
           </ul>
+          {watch ? (
+            <WatchStatus watch={watch} quiet={signals.length === 0} />
+          ) : null}
         </section>
       ) : null}
       {report.valuation ? (
@@ -343,6 +413,7 @@ function CoverageView({
     forecasts,
     record,
     signals,
+    watch,
     stances,
   } = coverage;
 
@@ -365,6 +436,7 @@ function CoverageView({
           newerFinancials={newerFinancials}
           passedEvents={passedEvents}
           signals={signals}
+          watch={watch}
           standing={stances.findLast(({ until }) => until === null)}
         />
       ) : (

@@ -17,6 +17,7 @@ import type { FalsifierCheck } from "@solyx/core/research";
 
 import {
   falsifierChecks,
+  falsifierPasses,
   forecasts,
   passageVectors,
   reports,
@@ -119,35 +120,38 @@ function open() {
 }
 
 // A schema change committed without `db:generate` fails here.
-test.each([reports, forecasts, falsifierChecks, passageVectors])(
-  "migrations build the table the schema describes",
-  (table) => {
-    open().close();
-    opened = [];
+test.each([
+  reports,
+  forecasts,
+  falsifierChecks,
+  falsifierPasses,
+  passageVectors,
+])("migrations build the table the schema describes", (table) => {
+  open().close();
+  opened = [];
 
-    const db = new DatabaseSync(join(directory, "research.sqlite"));
-    const config = getTableConfig(table);
+  const db = new DatabaseSync(join(directory, "research.sqlite"));
+  const config = getTableConfig(table);
 
-    const columns = db
-      .prepare(`SELECT name, type, "notnull" FROM pragma_table_info(?)`)
-      .all(config.name)
-      .map((column) => [
-        column.name,
-        String(column.type).toLowerCase(),
-        column.notnull === 1,
-      ]);
+  const columns = db
+    .prepare(`SELECT name, type, "notnull" FROM pragma_table_info(?)`)
+    .all(config.name)
+    .map((column) => [
+      column.name,
+      String(column.type).toLowerCase(),
+      column.notnull === 1,
+    ]);
 
-    db.close();
+  db.close();
 
-    expect(columns).toEqual(
-      config.columns.map((column) => [
-        column.name,
-        column.getSQLType(),
-        column.notNull && !column.primary,
-      ])
-    );
-  }
-);
+  expect(columns).toEqual(
+    config.columns.map((column) => [
+      column.name,
+      column.getSQLType(),
+      column.notNull && !column.primary,
+    ])
+  );
+});
 
 test("a listing's newest revision is its report, across opens", () => {
   const first = open();
@@ -455,6 +459,40 @@ test("a falsifier is read against an item once per revision, and clearing forget
   research.clear();
 
   expect(store.falsifierChecks(TSMC, 1)).toEqual([]);
+});
+
+test("a listing keeps its newest falsifier pass, and clearing forgets it", () => {
+  const research = open();
+  const { store } = research;
+
+  const pass = {
+    revision: 1,
+    at: 1_790_000_000_000,
+    items: 12,
+    unread: 2,
+    failure: null,
+  };
+
+  const failed = {
+    revision: 2,
+    at: 1_790_000_100_000,
+    items: 0,
+    unread: 0,
+    failure: "Ollama: not running",
+  };
+
+  expect(store.falsifierPass(TSMC)).toBeUndefined();
+
+  store.setFalsifierPass(TSMC, pass);
+  store.setFalsifierPass(MEDIATEK, pass);
+  store.setFalsifierPass(TSMC, failed);
+
+  expect(store.falsifierPass(TSMC)).toEqual(failed);
+  expect(store.falsifierPass(MEDIATEK)).toEqual(pass);
+
+  research.clear();
+
+  expect(store.falsifierPass(TSMC)).toBeUndefined();
 });
 
 test("every revision reads back oldest first, for one listing or all", () => {

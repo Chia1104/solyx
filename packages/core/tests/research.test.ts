@@ -1,5 +1,6 @@
 import { uniqBy } from "es-toolkit";
 import { expect, test, vi } from "vite-plus/test";
+import type { Mock } from "vite-plus/test";
 
 import { createSearchIndex } from "@solyx/utils/search";
 
@@ -22,9 +23,13 @@ import type { SymbolRef } from "../src/market.ts";
 import { NewsChannel, TimePrecision } from "../src/news.ts";
 import type { NewsRecord } from "../src/news.ts";
 import { ReportStance, ReportViolationCode } from "../src/report.ts";
-import type { Report } from "../src/report.ts";
-import { FALSIFIER_FLOORS, ResearchDesk } from "../src/research.ts";
-import type { FalsifierCheck, ResearchStore } from "../src/research.ts";
+import type { ClaimAuditor, Report } from "../src/report.ts";
+import { FALSIFIER_FLOORS, ResearchDesk, WatchGap } from "../src/research.ts";
+import type {
+  FalsifierCheck,
+  FalsifierPass,
+  ResearchStore,
+} from "../src/research.ts";
 import { Stance } from "../src/sentiment.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
@@ -92,6 +97,7 @@ function memoryStore(): ResearchStore {
   const reports: Report[] = [];
   const forecasts = new Map<string, Forecast>();
   const checks: { symbol: string; check: FalsifierCheck }[] = [];
+  const passes = new Map<string, FalsifierPass>();
   const passages = new Map<string, Float32Array>();
 
   return {
@@ -154,6 +160,9 @@ function memoryStore(): ResearchStore {
         symbol: symbolKey(symbol),
         check: structuredClone(check),
       }),
+    falsifierPass: (symbol) => structuredClone(passes.get(symbolKey(symbol))),
+    setFalsifierPass: (symbol, pass) =>
+      void passes.set(symbolKey(symbol), structuredClone(pass)),
     reports: (symbol) =>
       reports
         .filter(
@@ -1059,44 +1068,57 @@ function nearby(id: string, degrees: number, space = LOCAL_SPACE): NewsRecord {
   };
 }
 
-function watching(audit = vi.fn()) {
-  const store = memoryStore();
+// Every falsifier's vector is [1, 0].
+const localEmbedder = (space = LOCAL_SPACE) => ({
+  space,
+  embed: vi.fn(async (texts: readonly string[]) =>
+    texts.map(() => Float32Array.of(1, 0))
+  ),
+});
+
+function watching({
+  audit = vi.fn<ClaimAuditor["audit"]>(),
+  store = memoryStore(),
+  embedder = localEmbedder(),
+  audited = true,
+}: {
+  audit?: Mock<ClaimAuditor["audit"]>;
+  store?: ResearchStore;
+  /** `null` for none. */
+  embedder?: ReturnType<typeof localEmbedder> | null;
+  audited?: boolean;
+} = {}) {
   const onChange = vi.fn();
 
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => [ANCHOR_BAR] },
     fundamentals: { statements: async () => [], dividends: async () => [] },
-    auditor: async () => ({ audit }),
+    auditor: async () => (audited ? { audit } : undefined),
+    embedder: () => embedder ?? undefined,
     onChange,
     now: () => AT_ANCHOR,
   });
 
-  // Every falsifier's vector is [1, 0].
-  const embedder = {
-    space: LOCAL_SPACE,
-    embed: vi.fn(async (texts: readonly string[]) =>
-      texts.map(() => Float32Array.of(1, 0))
-    ),
-  };
-
   return { store, desk, onChange, audit, embedder };
 }
 
+const falsifiable = {
+  symbol: TSMC,
+  stance: ReportStance.Bullish,
+  thesis: "Advanced nodes stay sold out.",
+  falsifiers: ["Gross margin falls below 53%"],
+};
+
 test("each falsifier is read against the news nearest it once, and an item that states it is a signal", async () => {
-  const audit = vi.fn(async ({ quote }: { quote: string }) => ({
+  const audit = vi.fn<ClaimAuditor["audit"]>(async ({ quote }) => ({
     model: "jev",
     supported: quote === "margins fell" ? 0.9 : 0.1,
   }));
 
-  const { desk, onChange, embedder } = watching(audit);
+  const { desk, onChange } = watching({ audit });
 
-  await desk.revise({
-    symbol: TSMC,
-    stance: ReportStance.Bullish,
-    thesis: "Advanced nodes stay sold out.",
-    falsifiers: ["Gross margin falls below 53%"],
-  });
+  await desk.revise(falsifiable);
   onChange.mockClear();
 
   const records = [
@@ -1108,7 +1130,7 @@ test("each falsifier is read against the news nearest it once, and an item that 
     nearby("unrelated", 70),
   ];
 
-  await desk.watch(TSMC, records, embedder);
+  await desk.watch(TSMC, () => records);
 
   expect(audit.mock.calls.map(([claim]) => claim.quote)).toEqual([
     "margins fell",
@@ -1121,7 +1143,10 @@ test("each falsifier is read against the news nearest it once, and an item that 
     quote: "margins fell",
   });
   expect(onChange).toHaveBeenCalledExactlyOnceWith(TSMC);
-  expect((await desk.coverage(TSMC)).signals).toEqual([
+
+  const coverage = await desk.coverage(TSMC);
+
+  expect(coverage.signals).toEqual([
     {
       falsifier: "Gross margin falls below 53%",
       revision: 1,
@@ -1140,39 +1165,165 @@ test("each falsifier is read against the news nearest it once, and an item that 
       checkedAt: AT_ANCHOR,
     },
   ]);
+  expect(coverage.watch).toEqual({
+    gaps: [],
+    pass: { revision: 1, at: AT_ANCHOR, items: 5, unread: 0, failure: null },
+  });
 
   audit.mockClear();
-  onChange.mockClear();
-  await desk.watch(TSMC, records, embedder);
+  await desk.watch(TSMC, () => records);
 
   expect(audit).not.toHaveBeenCalled();
-  expect(onChange).not.toHaveBeenCalled();
 });
 
-test("nothing is watched without falsifiers, an auditor, vectors in the embedder's space or a floor for it", async () => {
-  const { desk, audit, embedder } = watching();
+test("nothing is read while a gap keeps it, and coverage names each gap", async () => {
+  const store = memoryStore();
+  const { desk, audit, embedder } = watching({ store });
 
-  await desk.watch(TSMC, [nearby("margins fell", 0)], embedder);
+  await desk.watch(TSMC, () => [nearby("margins fell", 0)]);
+  expect((await desk.coverage(TSMC)).watch).toBeNull();
 
-  await desk.revise({
-    symbol: TSMC,
-    stance: ReportStance.Bullish,
-    thesis: "Advanced nodes stay sold out.",
-    falsifiers: ["Gross margin falls below 53%"],
+  await desk.revise({ ...falsifiable, falsifiers: [] });
+  expect((await desk.coverage(TSMC)).watch).toBeNull();
+
+  await desk.revise(falsifiable);
+  expect((await desk.coverage(TSMC)).watch).toEqual({ gaps: [], pass: null });
+
+  const unmeasured = watching({
+    store,
+    audit,
+    embedder: localEmbedder("another-space"),
   });
 
-  await desk.watch(
-    TSMC,
-    [nearby("margins fell", 0, "another-space")],
-    embedder
-  );
-  await desk.watch(TSMC, [nearby("margins fell", 0, "another-space")], {
-    ...embedder,
-    space: "another-space",
+  await unmeasured.desk.watch(TSMC, () => [
+    nearby("margins fell", 0, "another-space"),
+  ]);
+  expect((await unmeasured.desk.coverage(TSMC)).watch).toEqual({
+    gaps: [WatchGap.Unmeasured],
+    pass: null,
+  });
+
+  const bare = watching({ store, audit, embedder: null, audited: false });
+
+  await bare.desk.watch(TSMC, () => [nearby("margins fell", 0)]);
+  expect((await bare.desk.coverage(TSMC)).watch).toEqual({
+    gaps: [WatchGap.NoLocalEmbedder, WatchGap.NoAuditor],
+    pass: null,
   });
 
   expect(audit).not.toHaveBeenCalled();
-  expect(embedder.embed).not.toHaveBeenCalled();
+  expect(embedder?.embed).not.toHaveBeenCalled();
+});
+
+test("a pass is kept however it went: over no news, with items the model could not read, or failed", async () => {
+  const audit = vi.fn<ClaimAuditor["audit"]>(async ({ quote }) => {
+    if (quote === "capex rose") throw new Error("Jev: busy");
+
+    return { model: "jev", supported: 0.1 };
+  });
+
+  const { desk, onChange, embedder } = watching({ audit });
+  const passOf = async () => (await desk.coverage(TSMC)).watch?.pass;
+
+  await desk.revise(falsifiable);
+
+  await desk.watch(TSMC, () => [nearby("margins fell", 0, "another-space")]);
+  expect(await passOf()).toMatchObject({ items: 0, unread: 0, failure: null });
+  expect(embedder?.embed).not.toHaveBeenCalled();
+
+  await desk.watch(TSMC, () => [
+    nearby("margins fell", 10),
+    nearby("capex rose", 20),
+  ]);
+  expect(await passOf()).toMatchObject({ items: 2, unread: 1, failure: null });
+
+  // An item the model could not read is read again with the next pass.
+  audit.mockClear();
+  await desk.watch(TSMC, () => [
+    nearby("margins fell", 10),
+    nearby("capex rose", 20),
+  ]);
+  expect(audit.mock.calls.map(([claim]) => claim.quote)).toEqual([
+    "capex rose",
+  ]);
+
+  await desk.revise({ ...falsifiable, falsifiers: ["Capex is cut"] });
+  expect(await passOf()).toBeNull();
+
+  embedder?.embed.mockRejectedValueOnce(new Error("Ollama: not running"));
+  onChange.mockClear();
+
+  await expect(
+    desk.watch(TSMC, () => [nearby("margins fell", 10)])
+  ).rejects.toThrow("Ollama: not running");
+  expect(await passOf()).toEqual({
+    revision: 2,
+    at: AT_ANCHOR,
+    items: 0,
+    unread: 0,
+    failure: "Ollama: not running",
+  });
+  expect(onChange).toHaveBeenCalledExactlyOnceWith(TSMC);
+});
+
+test("an item near several falsifiers that could not be read counts once", async () => {
+  const audit = vi.fn<ClaimAuditor["audit"]>(async () => {
+    throw new Error("Jev: busy");
+  });
+
+  const { desk } = watching({ audit });
+
+  await desk.revise({
+    ...falsifiable,
+    falsifiers: ["Gross margin falls below 53%", "Capex is cut"],
+  });
+  await desk.watch(TSMC, () => [nearby("margins fell", 10)]);
+
+  expect(audit).toHaveBeenCalledTimes(2);
+  expect((await desk.coverage(TSMC)).watch?.pass).toMatchObject({
+    items: 1,
+    unread: 1,
+  });
+});
+
+test("a listing's passes run one at a time, so the one kept last reads the revision in force", async () => {
+  const answers: (() => void)[] = [];
+
+  const audit = vi.fn<ClaimAuditor["audit"]>(
+    () =>
+      new Promise((resolve) =>
+        answers.push(() => resolve({ model: "jev", supported: 0.1 }))
+      )
+  );
+
+  const { desk } = watching({ audit });
+  const records = () => [nearby("margins fell", 10)];
+
+  await desk.revise(falsifiable);
+
+  const first = desk.watch(TSMC, records);
+
+  await vi.waitFor(() => expect(answers).toHaveLength(1));
+  await desk.revise({ ...falsifiable, falsifiers: ["Capex is cut"] });
+
+  const second = desk.watch(TSMC, records);
+
+  // The second pass waits for the first rather than read beside it.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(answers).toHaveLength(1);
+
+  answers[0]();
+  await vi.waitFor(() => expect(answers).toHaveLength(2));
+  answers[1]();
+  await Promise.all([first, second]);
+
+  expect(audit.mock.calls.map(([claim]) => claim.text)).toEqual([
+    "Gross margin falls below 53%",
+    "Capex is cut",
+  ]);
+  expect((await desk.coverage(TSMC)).watch?.pass).toMatchObject({
+    revision: 2,
+  });
 });
 
 test("a search finds by meaning what shares no word with the query, beside what does, and goes on by words while vectors are out of reach", async () => {

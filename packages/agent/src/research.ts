@@ -46,6 +46,7 @@ import {
 } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
+import { TimePrecision } from "@solyx/core/news";
 import {
   ReportViolationCode,
   claimSchema,
@@ -58,7 +59,12 @@ import type {
   ReportViolation,
   StanceSpell,
 } from "@solyx/core/report";
-import type { FalsifierCheck, ResearchDesk } from "@solyx/core/research";
+import { WatchGap } from "@solyx/core/research";
+import type {
+  FalsifierCheck,
+  FalsifierWatch,
+  ResearchDesk,
+} from "@solyx/core/research";
 import { errorMessage } from "@solyx/utils/error";
 
 import { evidenceText } from "./evidence-text.ts";
@@ -405,6 +411,64 @@ function signalsText(
   ];
 }
 
+const WATCH_GAP_TEXT = {
+  [WatchGap.NoLocalEmbedder]:
+    "no model on this computer embeds news (in Settings, grouping news by meaning, with vectors from this computer)",
+  [WatchGap.Unmeasured]:
+    "the model on this computer has no floor measured for reading news against a falsifier",
+  [WatchGap.NoAuditor]: "no decisions model is set up",
+} as const satisfies Record<WatchGap, string>;
+
+/** Whether the news is read against the falsifiers, so no signal is not taken for quiet news. */
+function watchText(
+  market: Market,
+  watch: FalsifierWatch | null,
+  quiet: boolean
+): string[] {
+  if (!watch) return [];
+
+  const { gaps, pass } = watch;
+
+  if (gaps.length > 0) {
+    return [
+      "",
+      `News is not read against the falsifiers while ${gaps.map((gap) => WATCH_GAP_TEXT[gap]).join(" and ")}, so no signal says nothing of the news.`,
+    ];
+  }
+
+  if (!pass) {
+    return [
+      "",
+      "The falsifiers have not been read against the news since this revision; the listing's next news collection reads them.",
+    ];
+  }
+
+  const at = publishedTime(market, {
+    at: new Date(pass.at),
+    precision: TimePrecision.Minute,
+  });
+
+  if (pass.failure !== null) {
+    return [
+      "",
+      `Reading the falsifiers against the news failed at ${at}: ${pass.failure}. The next news collection tries again.`,
+    ];
+  }
+
+  return [
+    "",
+    [
+      `The falsifiers were last read against ${pass.items} news items of the week before ${at}.`,
+      ...(quiet ? ["No item has read as stating one."] : []),
+      ...(pass.unread > 0
+        ? [
+            `${pass.unread} near one could not be read and wait for the next collection.`,
+          ]
+        : []),
+    ].join(" "),
+  ];
+}
+
 function recordText(scope: string, record: ForecastRecord): string {
   if (record.settled === 0) {
     return `Record, ${scope}: ${record.forecasts} forecasts, none settled yet.`;
@@ -640,7 +704,7 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetResearch,
         replay: "safe",
-        description: `What the app holds of a listing's research: its report with when each part was written and which of its events have passed, how each stretch it kept one stance did against the market's index, its last ${LISTED_FORECASTS} forecasts with how those past their horizon came out, news a decisions model read as stating that one of its falsifiers happened, and how your forecasts have held, for this listing and for every listing. A report is what you thought when you wrote it, never current data.`,
+        description: `What the app holds of a listing's research: its report with when each part was written and which of its events have passed, how each stretch it kept one stance did against the market's index, its last ${LISTED_FORECASTS} forecasts with how those past their horizon came out, news a decisions model read as stating that one of its falsifiers happened and whether the news is read against them at all, and how your forecasts have held, for this listing and for every listing. A report is what you thought when you wrote it, never current data.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
           const [coverage, overall] = await Promise.all([
@@ -669,6 +733,11 @@ export function createResearch(options: ResearchOptions): Extension {
                 ? ["Forecasts, newest first:", ...forecasts.map(forecastText)]
                 : ["No forecasts yet."],
               ...signalsText(symbol.market, coverage.signals),
+              ...watchText(
+                symbol.market,
+                coverage.watch,
+                coverage.signals.length === 0
+              ),
               "",
               recordText("this listing", coverage.record),
               recordText("every listing", overall),
