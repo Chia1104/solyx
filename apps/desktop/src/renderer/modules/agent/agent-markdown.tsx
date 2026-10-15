@@ -133,8 +133,8 @@ const components: Components = {
   thead: ({ children }) => <thead className={table.header()}>{children}</thead>,
   tbody: ({ children }) => <tbody className={table.body()}>{children}</tbody>,
   tr: ({ children }) => <tr className={table.row()}>{children}</tr>,
-  // `style` carries the alignment a delimiter row sets. A column keeps its width in a narrow
-  // pane, and a wide table scrolls sideways, faded at the edge that has more.
+  // `style` carries the alignment a delimiter row sets. A reply's cells hold prose, so its columns
+  // keep more width than the app's figures do; a wide table fades at the edge that has more.
   th: ({ children, style }) => (
     <th className={table.column({ className: "min-w-32" })} style={style}>
       {children}

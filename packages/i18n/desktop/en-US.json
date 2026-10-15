@@ -227,7 +227,7 @@
       "voices": "Press {{press}} / Crowd {{crowd}}",
       "stories_one": "{{count}} story",
       "stories_other": "{{count}} stories",
-      "hint": "News and posts collected over the last {{days}} days, scored by the decisions model; 50 is neutral. Press covers what companies, outlets and regulators publish, crowd what investors post: the decisions model tells who wrote each, and where it is unsure the channel does. Pages of data count as no news. Items that tell one story count once: reprints and replies, and outlets or posts that reword one headline within a day.",
+      "hint": "News and posts from the last {{days}} days, scored by the decisions model; 50 is neutral. Press is what companies, outlets and regulators publish, crowd what investors post. A story told many times counts once.",
       "off": "Sentiment off",
       "unscored": "Set up a decisions model to score sentiment"
     },
@@ -250,15 +250,15 @@
     "empty": "Nothing collected in the last 7 days. News is collected at the interval set in Settings, or when you ask the agent.",
     "headlines": {
       "title": "Headlines",
-      "description": "The stories that weigh most about what you hold and watch over the last {{days}} days, weighed by where they come from (filings first, then news, then forums and social posts), how much they bear on the listing, how widely they were told and how recent they are.",
+      "description": "The stories that weigh most about what you hold and watch over the last {{days}} days, by source, relevance, reach and recency.",
       "unfollowed": "Hold or watch listings, and the stories that weigh most about them show here.",
       "empty": "Nothing collected about what you hold and watch in the last {{days}} days. News is collected at the interval set in Settings, or when you ask the agent."
     }
   },
   "calendar": {
     "title": "Coming up",
-    "description": "The next {{days}} days for what you hold and watch: the days shares go ex and dividends are paid, as each company set them or its exchange gives notice, shareholders' meetings, the latest days the rules allow for the next statements and monthly revenue, the limits the exchange puts on their trading, such as short-sale suspensions and dispositions, the dates the agent's reports hold, such as an earnings call, each as it found them with its source, the days their markets' economic figures come out, each with its newest figure and listed for a week once it is out, and the weekdays their markets are closed. Filings, releases and closures are Taiwan's only for now.",
-    "unfollowed": "Hold or watch listings, and their coming dividends and filings show here, with the dates the agent's reports hold and their markets' economic releases.",
+    "description": "Dates over the next {{days}} days for what you hold and watch: dividends, shareholders' meetings, filing deadlines, trading restrictions, dates the agent's reports hold, economic releases and market holidays. Filings, releases and holidays are Taiwan's only for now.",
+    "unfollowed": "Hold or watch listings to see their dividends, filings and report dates here, with their markets' economic releases.",
     "empty": "Nothing on the calendar in the next {{days}} days.",
     "unread": "Couldn't read the fundamentals of {{symbols}}, so their dates may be missing.",
     "by": "by {{date}}",
@@ -342,7 +342,7 @@
   },
   "themes": {
     "title": "Themes",
-    "description": "Topics in the world you have the app watch because they could reach what you hold over quarters, though they move no price now. Each is searched for news once a day and stays quiet until an item reads as stating one of its signposts.",
+    "description": "Events in the world that could reach what you hold over time. Each is searched once a day and stays quiet until news matches one of its signposts.",
     "empty": "No themes yet. Ask the agent to follow a topic, or write one in Settings.",
     "manage": "Manage themes",
     "developments_one": "{{count}} signpost may have been met",
@@ -532,11 +532,11 @@
       "read-page-description": "Your web search vendor will fetch this address. One you didn't expect could be a page the agent read trying to send your data out, so check it before you allow it.",
       "remember-description": "The agent wants to keep this for later conversations, and reads it in every one. Check it says what you mean.",
       "forget-description": "The agent wants to forget this memory, so later conversations won't know it.",
-      "save-theme-description": "The agent wants the app to watch this theme. Once you allow it, the app searches its queries for news once a day on your web search key and reads what it finds against its signposts.",
+      "save-theme-description": "The agent wants the app to watch this theme. Once you allow it, the app searches it once a day on your web search key and reads what it finds against its signposts.",
       "change-setting-description": "The agent wants to change this setting. It applies at once, as if you changed it in Settings.",
-      "save-task-description": "The agent wants to keep this scheduled task. Once you allow it, the app sends the agent this message on its own while Solyx is open, each run in a conversation of its own that spends your model's tokens. You change, switch off or remove it in Settings.",
+      "save-task-description": "The agent wants to keep this scheduled task. Once you allow it, Solyx sends this message on its own while it's open, each run in a conversation of its own that spends your model's tokens. You can change or remove it in Settings.",
       "save-task-off": "Switched off",
-      "run-task-description": "The agent wants to run this scheduled task now. Once you allow it, the task runs in a conversation of its own, as it does when its time comes, and spends your model's tokens. A task that runs every so often counts its next run from this one.",
+      "run-task-description": "The agent wants to run this scheduled task now, in a conversation of its own that spends your model's tokens. A repeating task counts its next run from this one.",
       "change-watchlist-description": "The agent wants to change your watchlist. The app collects news for every listing you watch, and tasks that wait on a change run for them.",
       "allow": "Allow",
       "deny": "Don't allow",
@@ -586,7 +586,7 @@
   },
   "inbox": {
     "title": "To handle",
-    "description": "What waits for you: proposals to confirm, calls to allow, and research the news or the calendar has overtaken. Each leaves once it is handled, research once the agent revises its report.",
+    "description": "Proposals to confirm, calls to allow, and research the news or the calendar has overtaken. Each leaves once it's handled.",
     "empty": "Nothing waits for you.",
     "proposal": "Waiting for you to confirm: {{summary}}",
     "approval": "A call waits for you to allow it",
@@ -835,9 +835,9 @@
     "save": "Save",
     "use-default": "Use default",
     "language": "Language",
-    "language-description": "Applies to the whole app and is kept on this computer. System follows your computer's language, or English when the app has no translation for it.",
+    "language-description": "System follows your computer's language, or English when there's no translation for it.",
     "time-zone": "Time zone",
-    "time-zone-description": "The times of the app's own events, such as messages and memories, read on this clock; charts and market hours stay on each exchange's. System follows your computer's time zone.",
+    "time-zone-description": "For the app's own times, such as messages and memories. Charts and market hours keep each exchange's.",
     "theme": "Theme",
     "theme-description": "System follows your computer's light or dark appearance.",
     "themes": {
@@ -918,8 +918,8 @@
     "market-data": {
       "title": "Market data",
       "source-title": "Taiwan market data",
-      "description": "Keys and sign-in details are encrypted by your operating system (the Keychain on macOS, DPAPI on Windows), used only on this computer and never shown again.",
-      "source-description": "Charts and live bars for Taiwan listings come from here. Set up the source you pick below.",
+      "description": "Keys and sign-ins are encrypted by your operating system and never shown again.",
+      "source-description": "Where charts and live bars for Taiwan listings come from.",
       "sources": {
         "fugle": "Fugle",
         "fubon": "Fubon Neo"
@@ -932,7 +932,7 @@
     },
     "fundamentals": {
       "title": "Fundamentals",
-      "description": "Statements, monthly revenue and dividends of Taiwan listings come from FinMind, which needs no token. Choose the plan your token belongs to; Solyx paces its requests to it. Trading restrictions come from the open data of the Taiwan Stock Exchange and the Taipei Exchange, which needs no key. Requests go straight from this computer to each of them."
+      "description": "Statements, monthly revenue and dividends of Taiwan listings come from FinMind, which works without a token. Trading restrictions come from the exchanges' open data."
     },
     "finmind": {
       "plan": "Plan",
@@ -991,7 +991,7 @@
       },
       "embeddings-api-key": {
         "label": "API key",
-        "hint": "An API key from the OpenAI platform, kept apart from the agent's and the decisions model's; signing in with ChatGPT doesn't cover embeddings."
+        "hint": "An API key from the OpenAI platform; signing in with ChatGPT doesn't cover embeddings."
       },
       "finmind-token": {
         "label": "FinMind token",
@@ -999,7 +999,7 @@
       },
       "otlp-headers": {
         "label": "OTLP headers",
-        "hint": "What traces and logs are sent with, as OTEL_EXPORTER_OTLP_HEADERS writes them, such as the authorization Grafana Cloud shows. A collector that needs none goes without."
+        "hint": "In the format of OTEL_EXPORTER_OTLP_HEADERS, such as the authorization Grafana Cloud shows. Leave it empty if your collector needs none."
       },
       "backup-access-key-id": {
         "label": "Access key ID",
@@ -1011,7 +1011,7 @@
       },
       "backup-passphrase": {
         "label": "Passphrase",
-        "hint": "Seals every backup. Solyx cannot recover it, and no backup opens without it, so keep it somewhere else too. A backup opens only under the passphrase it was made with."
+        "hint": "Encrypts each backup, which opens only with the passphrase it was made with. Solyx can't recover it, so keep a copy elsewhere."
       }
     },
     "sign-in": {
@@ -1027,7 +1027,7 @@
       "sign-out-failed": "Couldn't sign out"
     },
     "fugle": {
-      "description": "Market data with your own Fugle API key. Choose the plan the key belongs to; Solyx paces its requests and live symbols to that plan.",
+      "description": "Market data on your own Fugle API key. Pick the plan the key belongs to, and Solyx paces its requests to it.",
       "plan": "Plan",
       "plans": {
         "basic": "Basic (free)",
@@ -1061,12 +1061,12 @@
     },
     "agent": {
       "title": "AI agent",
-      "description": "Switch on the providers whose models you want to use, each on your own API key, or on your subscription where the provider has one to sign in to. Requests go straight from this computer to the provider, or to the endpoint you set for it. Every conversation can pick its own model.",
+      "description": "Switch on the providers you want, each on your own API key or subscription. Every conversation can pick its own model.",
       "providers-description": "Providers",
       "add-provider": "Add provider",
       "search-providers": "Search providers",
       "no-provider-found": "No provider matches",
-      "default-description": "Default model: what a conversation runs on until you pick another for it",
+      "default-description": "Default model: what a conversation runs on until you pick another",
       "default-provider": "Provider",
       "provider-is-default": "The default model's provider, so it stays on",
       "provider-default": "Default",
@@ -1111,7 +1111,7 @@
         "high": "High"
       },
       "decision-mode": "Decision mode",
-      "decision-mode-description": "Who judges the agent's forecasts and order proposals. With the MAGI, three units each judge as a side of a single mind (the scientist, the mother and the woman), and two votes carry a motion. An order is one motion, and a rejected one is not proposed. A forecast's scenarios are each a motion, that it is more likely than the listing's history says, and the forecast is kept with the votes beside it. Every vote costs three more requests to the conversation's model, and you still confirm every order.",
+      "decision-mode-description": "Who judges the agent's forecasts and order proposals. The MAGI are three units that vote, and two votes carry: an order they reject isn't proposed, and a forecast keeps their votes. Each vote costs three more requests, and you still confirm every order.",
       "decision-modes": {
         "single": "The agent alone",
         "magi": "MAGI"
@@ -1132,7 +1132,7 @@
     },
     "web-search": {
       "title": "Web search",
-      "description": "Finds news articles and social posts for the news sources, and lets the agent search the web and read pages, on your own key. Requests go straight from this computer to the vendor.",
+      "description": "Finds news and posts for the news sources, and lets the agent search the web and read pages, on your own key.",
       "providers-description": "Vendors",
       "provider-states": {
         "ready": "Ready",
@@ -1150,16 +1150,16 @@
       "key-hints": {
         "firecrawl": "A key from your Firecrawl dashboard. Firecrawl searches Google.",
         "exa": "A key from your Exa dashboard. Exa searches its own index.",
-        "tavily": "A key from your Tavily dashboard. Tavily searches its own index; its news searches cannot favor a market's country."
+        "tavily": "A key from your Tavily dashboard. Tavily's news searches can't favor a market's country."
       }
     },
     "news": {
       "title": "News",
-      "description": "The agent reads Taiwan companies' material announcements and PTT's Stock board on its own. Once web search is set up, it also searches news articles and samples posts on Threads in Taiwan and X in the US; each search uses the vendor's credits. Requests go straight from this computer to each source."
+      "description": "The agent reads Taiwan companies' material announcements and PTT's Stock board. With web search set up, it also searches news and posts on Threads in Taiwan and X in the US, using the vendor's credits."
     },
     "decisions": {
       "title": "Decisions model",
-      "description": "Answers typed questions with probabilities instead of written text, on your own key: it scores news and posts, checks the quotes the agent's research rests on, and judges shell commands in conversations set to Allow for me. These stay off until it is set up. Requests go straight from this computer to the provider.",
+      "description": "Answers typed questions with probabilities, on your own key: it scores news and posts, checks the quotes in the agent's research, and judges shell commands in conversations set to Allow for me. These stay off until it is set up.",
       "providers-description": "Providers",
       "provider-states": {
         "ready": "Ready",
@@ -1175,12 +1175,12 @@
         "openai": "OpenAI"
       },
       "account-id": "Account ID",
-      "account-id-description": "The Cloudflare account whose Workers AI runs the model, shown on the account's overview page.",
+      "account-id-description": "The Cloudflare account that runs Workers AI, shown on its overview page.",
       "account-id-required": "Enter an account ID",
       "model": "Model",
       "model-descriptions": {
-        "typesafe": "The model's id. The questions are measured against the default, so another version may judge texts differently.",
-        "cloudflare": "The model's id: clef, or the faster clef-flash. The questions are measured against the default, so the other may judge texts differently.",
+        "typesafe": "The model's id. The questions were evaluated on the default, so another version may judge differently.",
+        "cloudflare": "The model's id: clef, or the faster clef-flash. The questions were evaluated on the default.",
         "openai": "The model's id; gpt-6-luna is the only decisions model OpenAI offers so far."
       },
       "model-required": "Enter a model id",
@@ -1190,7 +1190,7 @@
     },
     "embeddings": {
       "title": "Group news by meaning (experimental)",
-      "description": "Two outlets often word one event too differently for their titles to match. With this on, Solyx also turns each item's title and the start of its snippet into a vector, and counts items two sites published on one day as one story when their vectors read alike.",
+      "description": "Groups stories from different outlets about one event, even when their titles are worded differently.",
       "enabled": "Group by meaning",
       "enabled-description": "Off, stories are told apart by their titles alone.",
       "provider": "Vectors from",
@@ -1200,15 +1200,15 @@
       },
       "provider-descriptions": {
         "local": "A model Ollama runs on this computer; nothing leaves it. Pull the model in Ollama first.",
-        "openai": "OpenAI's model, on its own key below; each item's title and the start of its snippet are sent to OpenAI."
+        "openai": "OpenAI's model, on the key below. Titles and the start of snippets are sent to OpenAI."
       },
       "model": "Model",
       "measured": "Measured: Solyx knows how alike this model reads one story.",
-      "unmeasured": "Not measured: its vectors are kept, but join no stories until a line is measured for this model."
+      "unmeasured": "Not measured: vectors are kept but don't group stories until a threshold is measured for this model."
     },
     "skills": {
       "title": "Skills",
-      "description": "Playbooks the agent reads when a task calls for one. Folders with a SKILL.md in {{skills}} are your own and come ahead of the built-ins. Skills in {{shared}}, shared with other agents, are offered only once you switch them on.",
+      "description": "Playbooks the agent reads when a task calls for one. Your own go in {{skills}} and come ahead of the built-ins; those in {{shared}} are offered once you switch them on.",
       "open-folder": "Open skills folder",
       "sources": {
         "solyx": "Yours",
@@ -1229,14 +1229,14 @@
       "instructions-missing": "Not written",
       "warnings-title": "Some skill files don't follow the Agent Skills format",
       "shell": "Shell",
-      "shell-description": "Lets the agent run commands on this computer, which a skill needs to run its scripts. Every command waits for you to allow it unless you set a conversation to not ask. Commands are not sandboxed: one you allow can read and change your files and reach the network. Only works with a paper account.",
+      "shell-description": "Lets the agent run commands on this computer, which skills need for their scripts. Each one waits for you unless a conversation is set not to ask. Commands aren't sandboxed, so one you allow can read and change your files and reach the network. Paper accounts only.",
       "shell-label": "Let the agent use the shell"
     },
     "memory": {
       "title": "Memory",
-      "description-text": "What the agent keeps across conversations and reads in each one, as it learns who you are and how you trade. It asks before it saves or rewrites a memory where a conversation asks first, and does so on its own where you let the conversation allow for you. Deleting a conversation keeps what it saved.",
+      "description-text": "What the agent remembers about you and how you trade, read in every conversation. Deleting a conversation keeps what it saved.",
       "enabled": "Use memory",
-      "enabled-description": "The agent reads its memories in every conversation and saves what it learns about you. Switched off, they stay saved but go unused.",
+      "enabled-description": "Off, memories stay saved but go unused.",
       "empty": "No memories yet. The agent saves one as it learns about you.",
       "filter": "Filter memories",
       "no-matches": "No memory matches “{{query}}”.",
@@ -1256,14 +1256,14 @@
     "schedules": {
       "collections": {
         "title": "What the app collects",
-        "description": "Work the app does on its own while it is open, with no model and no conversation. What it collects is what the overview shows and what the agent's tasks then read.",
+        "description": "Work the app does on its own while it's open, without a model. The overview shows what it collects, and the agent's tasks read it.",
         "news": {
           "title": "News of what you hold and watch",
-          "description": "Each listing is collected when its time comes, unless the agent collected it since. With web search set up, every collection uses the vendor's credits; exchange announcements only reach back a day, so longer spans miss some."
+          "description": "Each listing is collected when its time comes, unless the agent already did. With web search set up, each collection uses the vendor's credits; announcements only reach back a day, so longer spans miss some."
         },
         "themes": {
           "title": "News for your themes",
-          "description": "Each theme's queries are searched through your web search vendor, one search a query, and a decisions model reads what they find against the theme's signposts. Nothing is searched until that vendor's key is saved."
+          "description": "Searches each theme's queries through your web search vendor, and a decisions model reads what they find against its signposts. Nothing is searched until the vendor's key is saved."
         },
         "collect-now": "Collect now",
         "last": "Last collected {{time}}.",
@@ -1273,7 +1273,7 @@
         "collect-failed": "Couldn't collect"
       },
       "title": "Scheduled tasks",
-      "description-text": "Messages the agent is sent on its own while Solyx is open, each in a conversation of its own, so you read there what it did. A run nobody watches can read, research and revise its reports. An order it proposes still waits for you to confirm it, and each run spends your model's tokens. The agent may write a task once you allow it; only you remove one.",
+      "description-text": "Messages sent to the agent while Solyx is open, each run in a conversation of its own. An order it proposes still waits for you, and each run spends your model's tokens.",
       "empty": "No scheduled tasks yet.",
       "add": "Add a task",
       "name": "Name",
@@ -1287,7 +1287,7 @@
       },
       "every": "How often",
       "at-most": "At most",
-      "on-change-description": "Runs once news may say that something a report names as changing its view has happened, or that a theme's signpost has, or once the day of a report's event has gone by, among the listings and themes set below. Looked at every half hour.",
+      "on-change-description": "Runs when news suggests something a report or theme below watches for has happened, or a report's event date has passed. Checked every half hour.",
       "every-minutes_one": "Every {{count}} minute",
       "every-minutes_other": "Every {{count}} minutes",
       "every-hours_one": "Every {{count}} hour",
@@ -1346,7 +1346,7 @@
       },
       "approval-descriptions": {
         "ask": "The run rests at the first such call until you answer it in its conversation.",
-        "auto": "Pages the run's own searches found are read, shell commands a decisions model judges harmless run, and the agent saves what it learns about you to memory. Everything else waits for you. No task can run every call unasked."
+        "auto": "Reads pages the run found, runs shell commands judged harmless and saves to memory; everything else waits for you."
       },
       "required": "Fill this in",
       "too-long": "Keep it within {{count}} characters",
@@ -1365,7 +1365,7 @@
     },
     "mcp": {
       "title": "MCP servers",
-      "description": "Servers listed in {{path}}, in the mcpServers format Claude, Cursor and pi use. Write keys as secret:NAME and save them here, where your system encrypts them. Each call waits for you to allow it, unless you let a read-only tool run on its own.",
+      "description": "Servers listed in {{path}}, in the mcpServers format Claude, Cursor and pi use. Write keys as secret:NAME and save them here. Each call asks first unless you let a read-only tool run on its own.",
       "open-file": "Open mcp.json",
       "empty": "No servers yet. Add one to mcp.json and it connects here.",
       "file-error": "mcp.json couldn't be read",
@@ -1398,7 +1398,7 @@
       "set-label": "When the agent uses any of these {{count}} tools",
       "sign-in": {
         "label": "Account",
-        "hint": "Signs in through your browser, where the server asks you to allow Solyx. Solyx keeps the grant encrypted and never shows it.",
+        "hint": "Signs in through your browser, where the server asks you to allow Solyx.",
         "sign-in": "Sign in",
         "sign-in-failed": "Couldn't sign in"
       },
@@ -1415,7 +1415,7 @@
       "size": "On disk",
       "candles": {
         "title": "Candle cache",
-        "description": "Closed sessions are kept on this computer so charts don't download them again. After clearing, charts fetch them from your market data source when needed, which uses your plan's request budget.",
+        "description": "Closed sessions kept on this computer so charts don't download them again. Once cleared, charts fetch them as needed, using your plan's requests.",
         "bars": "{{count, number}} bars",
         "series": "{{count, number}} symbol and interval pairs",
         "empty": "Nothing cached yet",
@@ -1431,7 +1431,7 @@
         "count": "Conversations",
         "clear": "Delete all conversations",
         "confirm-title": "Delete every conversation?",
-        "confirm-body": "Their messages and the files their shell commands left are deleted from this computer, and any still running stops. This can't be undone. The orders they suggested stay in proposals.",
+        "confirm-body": "Their messages and the files their shell commands left are deleted, and any still running stops. This can't be undone. Orders they suggested stay in proposals.",
         "confirm": "Delete all",
         "clear-failed": "Couldn't delete the conversations"
       },
@@ -1447,11 +1447,11 @@
       },
       "news": {
         "title": "News",
-        "description": "Stories news sources found for your listings, and the decisions model's scores. Sources reach back only a few days, so older stories can't be collected again.",
+        "description": "Stories collected for your listings, with their scores. Sources only reach back a few days, so older stories can't be collected again.",
         "count": "Stories",
         "clear": "Clear news",
         "confirm-title": "Clear all news?",
-        "confirm-body": "Stories and their scores are deleted from this computer, and older ones can't be collected again. Watched listings collect recent news at their next refresh.",
+        "confirm-body": "Stories and their scores are deleted, and older ones can't be collected again. Watched listings collect recent news at their next refresh.",
         "confirm": "Clear",
         "clear-failed": "Couldn't clear the news"
       },
@@ -1462,7 +1462,7 @@
         "forecasts": "Forecasts",
         "clear": "Delete all research",
         "confirm-title": "Delete all research?",
-        "confirm-body": "Every report and forecast is deleted from this computer, along with the record of how the forecasts came out. This can't be undone. Your conversations stay.",
+        "confirm-body": "Every report and forecast is deleted, with how the forecasts came out. This can't be undone. Your conversations stay.",
         "confirm": "Delete all",
         "clear-failed": "Couldn't delete the research"
       },
@@ -1480,7 +1480,7 @@
     "backup": {
       "destination": {
         "title": "Where backups go",
-        "description": "A bucket of your own on any server that speaks S3's API, such as Cloudflare R2, AWS, Backblaze B2 or MinIO. Solyx seals each backup under your passphrase before it leaves this computer, so the server only holds what it cannot read.",
+        "description": "A bucket of your own on any S3-compatible service, such as Cloudflare R2, AWS, Backblaze B2 or MinIO. Backups are encrypted with your passphrase before they leave this computer.",
         "endpoint": "Server",
         "endpoint-description": "The server's S3 endpoint, such as https://<account>.r2.cloudflarestorage.com. AWS needs none.",
         "endpoint-invalid": "Enter an http or https address",
@@ -1493,16 +1493,16 @@
         "bucket-invalid": "Enter the bucket's name: 3 to 63 letters, digits, dots and hyphens",
         "bucket-reset": "Remove",
         "prefix": "Folder",
-        "prefix-description": "Where in the bucket backups are kept, each installation in a folder of its own beneath it.",
+        "prefix-description": "The folder in the bucket that backups go into.",
         "prefix-invalid": "Enter folder names of letters, digits, dots, hyphens and underscores, with a slash between them"
       },
       "now": {
         "title": "Back up",
-        "description": "A backup holds your watchlist, proposals and paper account, research, memories, news and conversations, with your settings, skills, instructions and MCP servers. Keys and sign-ins are never part of one, and candles are left out, since charts fetch them again.",
+        "description": "Holds everything Solyx keeps, with your settings and skills, except keys, sign-ins and cached candles.",
         "automatic": "Back up on its own",
-        "automatic-description": "While Solyx runs, makes a backup once one is due and something has changed since the last. After each backup this installation's older ones are thinned out: the newest 4 stay, then the last of each of 24 hours, 7 days and 4 weeks that hold one, so the bucket holds 39 at most however often one is made.",
+        "automatic-description": "While Solyx runs, backs up once one is due and something has changed. Older backups are thinned out, so the bucket holds 39 at most.",
         "every": "How often",
-        "every-description": "Each backup uploads everything again, so a shorter span uses more of your connection, and no more of the bucket.",
+        "every-description": "Each backup uploads everything again, so a shorter span uses more bandwidth but no more of the bucket.",
         "every-options": {
           "15m": "Every 15 minutes",
           "1h": "Every hour",
@@ -1522,20 +1522,20 @@
       },
       "restore": {
         "title": "Restore",
-        "description": "Puts a backup in place of what Solyx keeps on this computer. On another computer, set the same bucket, access key and passphrase first, then enter your keys again afterwards.",
+        "description": "Replaces what Solyx keeps on this computer with a backup. On another computer, set the same bucket, access key and passphrase first, and enter your keys again after.",
         "show": "Show backups",
         "empty": "No backups in this folder yet",
         "own": "This installation",
         "other": "Another installation",
         "action": "Restore",
         "confirm-title": "Restore the backup from {{time}}?",
-        "confirm-body": "Your watchlist, proposals, paper account, research, memories, news, conversations, settings and skills go back to what they were then, and Solyx restarts. What this computer holds now is moved to a folder in Solyx's data rather than deleted. Proposals that were waiting to be confirmed in the backup are dismissed, since they may have been confirmed since. Keys and sign-ins stay as they are.",
+        "confirm-body": "Your data, settings and skills go back to the backup, and Solyx restarts. What's here now is moved aside, not deleted. Proposals waiting in the backup are dismissed. Keys and sign-ins stay as they are.",
         "confirm": "Restore and restart",
         "failed": "Couldn't restore the backup"
       },
       "restored": {
         "title": "Restored from the backup of {{time}}",
-        "body": "Proposals that were waiting to be confirmed then were dismissed, since they may have been confirmed since. What this computer held before is in the restore folder of Solyx's data until the next restore."
+        "body": "Proposals that were waiting then were dismissed. What this computer held before is in the restore folder of Solyx's data until the next restore."
       },
       "restore-stuck": {
         "title": "Solyx couldn't finish restoring your backup",
@@ -1559,15 +1559,15 @@
     },
     "telemetry": {
       "title": "OpenTelemetry",
-      "description": "Sends traces and logs to an OpenTelemetry endpoint you choose, such as Grafana Cloud's. Each agent run is a trace of its model requests and tool calls, and each pass of scheduled work is one too; each failure the app recovers from or did not expect is a log. They hold models, token counts, timings and what failed, never what a conversation says or the message a provider sent. Nothing is sent until an endpoint is set.",
+      "description": "Sends traces and logs to an OpenTelemetry endpoint you choose, such as Grafana Cloud's. They hold models, token counts, timings and failures, never what a conversation says. Nothing is sent until an endpoint is set.",
       "endpoint": "OTLP endpoint",
-      "endpoint-description": "As OTEL_EXPORTER_OTLP_ENDPOINT names it; traces go to its /v1/traces and logs to its /v1/logs over HTTP.",
+      "endpoint-description": "As OTEL_EXPORTER_OTLP_ENDPOINT names it; traces go to /v1/traces and logs to /v1/logs.",
       "endpoint-invalid": "Enter an http or https address",
       "stop": "Stop sending"
     },
     "theme-watch": {
       "title": "Themes",
-      "description-text": "Topics in the world the app watches for you: an outbreak, a conflict, a rule in the making. Each theme's queries are searched for news once a day through your web search vendor, and a decisions model reads what they find against its signposts, so a theme stays quiet until something reads as having happened. The agent may write a theme once you allow it; only you remove one.",
+      "description-text": "Events in the world the app watches for you, such as an outbreak, a conflict or a rule in the making. Each is searched once a day and stays quiet until news matches one of its signposts.",
       "add": "Add a theme",
       "name": "What is watched",
       "thesis": "Why it may matter",
@@ -1597,7 +1597,7 @@
       "title": "Background",
       "show-menu-bar": "Keep Solyx in the menu bar",
       "show-system-tray": "Keep Solyx in the system tray",
-      "show-description": "Solyx stays open there after its last window closes, so scheduled tasks and collections go on.",
+      "show-description": "Solyx keeps running there after its last window closes, so scheduled work goes on.",
       "hide-dock": "Leave the Dock while no window is open",
       "hide-dock-description": "The icon in the menu bar opens Solyx again."
     }
@@ -1637,7 +1637,7 @@
   },
   "crash-reports": {
     "title": "Help improve Solyx",
-    "description": "When Solyx crashes or hits an error it didn't expect, it can send its maintainer a report through Sentry so the bug gets fixed. Nothing is sent until you switch this on, and you can change it any time under Settings → About.",
+    "description": "When Solyx crashes or hits an error it didn't expect, it can send a report through Sentry so the bug gets fixed. Nothing is sent until you switch this on, and you can change it in Settings → About.",
     "send": "Send crash reports",
     "send-description": "What went wrong and where in the code, with the versions of Solyx, Electron and your operating system. Reports leave out your keys, conversations, holdings and orders.",
     "unavailable": "This build doesn't send reports"

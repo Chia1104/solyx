@@ -13,8 +13,9 @@ import { ErrorAlert } from "../../components/error-alert.tsx";
 import { SettingsRow } from "./settings-list.tsx";
 
 /**
- * A setting typed as text, such as a model id or a URL. Editing opens a field below the row with
- * the current value, and a value other than the default can go back to it.
+ * A setting typed as text, such as a model id or a URL. The value sits below the row, since a long
+ * one would crowd the description beside it, and editing turns it into a field there; a value
+ * other than the default can go back to it.
  */
 export function TextSettingRow({
   label,
@@ -69,7 +70,6 @@ export function TextSettingRow({
     <SettingsRow
       label={label}
       description={description}
-      value={editing ? null : value}
       actions={
         editing ? null : (
           <>
@@ -122,7 +122,11 @@ export function TextSettingRow({
             {t("common.cancel")}
           </Button>
         </Form>
-      ) : null}
+      ) : value === "" ? null : (
+        <p className="truncate text-sm text-muted" title={value}>
+          {value}
+        </p>
+      )}
       {save.error ? (
         <ErrorAlert
           title={t("settings.save-failed")}

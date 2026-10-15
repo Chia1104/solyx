@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { CloseButton } from "@heroui/react";
+import { CloseButton, ListLayout, Virtualizer } from "@heroui/react";
 import { DragDropVerticalIcon } from "@hugeicons/core-free-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -156,44 +156,47 @@ export function Watchlist() {
 
   return (
     <>
-      <GridList
-        ref={list}
-        aria-label={t("watchlist.title")}
-        items={data.map((symbol) => ({ id: symbolKey(symbol), symbol }))}
-        dragAndDropHooks={dragAndDropHooks}
-        className="outline-none">
-        {({ symbol }) => (
-          <GridListItem
-            textValue={symbol.symbol}
-            className="group relative outline-none data-[dragging]:opacity-40 data-[focus-visible]:bg-default">
-            <Button
-              slot="drag"
-              className="absolute inset-y-0 left-0 flex w-4 cursor-grab items-center justify-center text-muted opacity-0 outline-none group-hover:opacity-100 data-[focus-visible]:text-accent data-[focus-visible]:opacity-100">
-              <Icon icon={DragDropVerticalIcon} className="size-3" />
-            </Button>
-            <SymbolRow
-              symbol={symbol}
-              name={<ListingName symbol={symbol} />}
-              price={
-                // The remove button takes the price's place while the row is hovered.
-                <span className="transition-opacity group-hover:opacity-0 group-has-[button:focus-visible]:opacity-0 motion-reduce:transition-none">
-                  <QuotePrice symbol={symbol} />
-                </span>
-              }
-              chart={<QuoteLine symbol={symbol} className="size-full" />}
-              detail={<QuoteChange symbol={symbol} />}
-            />
-            <CloseButton
-              aria-label={t("watchlist.remove-symbol", {
-                symbol: symbol.symbol,
-              })}
-              isDisabled={remove.isPending}
-              className="absolute top-1 right-2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none"
-              onPress={() => remove.mutate(symbol)}
-            />
-          </GridListItem>
-        )}
-      </GridList>
+      {/* The watchlist has no limit, and each row draws a chart: only the rows in view are rendered. */}
+      <Virtualizer layout={ListLayout} layoutOptions={{ estimatedRowSize: 68 }}>
+        <GridList
+          ref={list}
+          aria-label={t("watchlist.title")}
+          items={data.map((symbol) => ({ id: symbolKey(symbol), symbol }))}
+          dragAndDropHooks={dragAndDropHooks}
+          className="outline-none">
+          {({ symbol }) => (
+            <GridListItem
+              textValue={symbol.symbol}
+              className="group relative outline-none data-[dragging]:opacity-40 data-[focus-visible]:bg-default">
+              <Button
+                slot="drag"
+                className="absolute inset-y-0 left-0 flex w-4 cursor-grab items-center justify-center text-muted opacity-0 outline-none group-hover:opacity-100 data-[focus-visible]:text-accent data-[focus-visible]:opacity-100">
+                <Icon icon={DragDropVerticalIcon} className="size-3" />
+              </Button>
+              <SymbolRow
+                symbol={symbol}
+                name={<ListingName symbol={symbol} />}
+                price={
+                  // The remove button takes the price's place while the row is hovered.
+                  <span className="transition-opacity group-hover:opacity-0 group-has-[button:focus-visible]:opacity-0 motion-reduce:transition-none">
+                    <QuotePrice symbol={symbol} />
+                  </span>
+                }
+                chart={<QuoteLine symbol={symbol} className="size-full" />}
+                detail={<QuoteChange symbol={symbol} />}
+              />
+              <CloseButton
+                aria-label={t("watchlist.remove-symbol", {
+                  symbol: symbol.symbol,
+                })}
+                isDisabled={remove.isPending}
+                className="absolute top-1 right-2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none"
+                onPress={() => remove.mutate(symbol)}
+              />
+            </GridListItem>
+          )}
+        </GridList>
+      </Virtualizer>
       {actionError ? (
         <div className="px-4 pt-2">
           <ErrorAlert
