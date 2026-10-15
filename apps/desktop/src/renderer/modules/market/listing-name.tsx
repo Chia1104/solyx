@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Listing } from "@solyx/core/market-data";
 
-import { Locale } from "#shared/ipc/settings.ts";
+import { Locale } from "#shared/settings.ts";
 
 import { useMarketSources } from "../settings/settings-query.ts";
 

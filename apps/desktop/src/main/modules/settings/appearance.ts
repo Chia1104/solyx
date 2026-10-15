@@ -2,13 +2,6 @@ import { isEqual } from "es-toolkit";
 
 import { isEnumValue } from "@solyx/utils/is";
 
-import type {
-  Appearance,
-  LanguagePreference,
-  PriceColors,
-  Theme,
-  TimeZonePreference,
-} from "#shared/ipc/settings.ts";
 import {
   ColorScheme,
   Palette,
@@ -21,6 +14,13 @@ import type {
   PaletteColors,
   PaletteToken,
 } from "#shared/palette.ts";
+import type {
+  Appearance,
+  LanguagePreference,
+  PriceColors,
+  Theme,
+  TimeZonePreference,
+} from "#shared/settings.ts";
 
 import type { ConfigEntry, ConfigFile } from "./config-file.ts";
 

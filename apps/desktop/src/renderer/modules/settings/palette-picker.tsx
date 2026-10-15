@@ -12,14 +12,15 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ToggleButton } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
-import type { Appearance } from "#shared/ipc/settings.ts";
 import {
   ColorScheme,
   Palette,
   isCustomPalette,
   resolvePalette,
 } from "#shared/palette.ts";
+import type { Appearance } from "#shared/settings.ts";
 
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 
@@ -49,11 +50,6 @@ function swatchStyle(
   };
 }
 
-interface PaletteChoice {
-  scheme: ColorScheme;
-  palette: string;
-}
-
 /**
  * The palette picked for each scheme, unfolding into a card per palette, built-in ones first, with
  * a swatch per scheme; picking a swatch sets that scheme's palette. While `editable`, any palette
@@ -68,17 +64,14 @@ export function PalettePicker({ editable = true }: { editable?: boolean }) {
   const [editing, setEditing] = useState<string | null>(null);
 
   // The main process pushes the saved appearance, which the query takes.
-  const save = useMutation({
-    mutationFn: ({ scheme, palette }: PaletteChoice) =>
-      window.solyx.settings.setPalette(scheme, palette),
-  });
+  const save = useMutation(orpc.settings.setPalette.mutationOptions());
 
   const copy = useMutation({
     mutationFn: (palette: string) =>
-      window.solyx.settings.copyPalette(
+      client.settings.copyPalette({
         palette,
-        t("settings.palette-copy-name", { name: paletteName(palette) })
-      ),
+        name: t("settings.palette-copy-name", { name: paletteName(palette) }),
+      }),
     onSuccess: setEditing,
   });
 

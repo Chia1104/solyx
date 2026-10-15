@@ -21,8 +21,8 @@ import {
   Secret,
   agentKeySecret,
   agentSignInSecret,
-} from "#shared/ipc/settings.ts";
-import type { SignInCode } from "#shared/ipc/settings.ts";
+} from "#shared/settings.ts";
+import type { SignInCode } from "#shared/settings.ts";
 
 import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";

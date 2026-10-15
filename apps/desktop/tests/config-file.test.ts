@@ -23,14 +23,14 @@ import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
+import { Palette } from "#shared/palette.ts";
 import {
   LanguagePreference,
   MarketDataSource,
   PriceColors,
   Theme,
   TimeZonePreference,
-} from "#shared/ipc/settings.ts";
-import { Palette } from "#shared/palette.ts";
+} from "#shared/settings.ts";
 
 import {
   DEFAULT_COLLECTION_PLANS,

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
 import { EmbeddingsProvider } from "@solyx/embeddings/provider";
 
-import { Secret } from "#shared/ipc/settings.ts";
+import { Secret } from "#shared/settings.ts";
 
 import { createEmbeddings } from "../src/main/modules/embeddings/embeddings.ts";
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";

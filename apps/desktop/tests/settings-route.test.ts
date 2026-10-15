@@ -2,6 +2,9 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { MemoryPublisher } from "@orpc/publisher/memory";
+import { createRouterClient } from "@orpc/server";
+import type { WebContents } from "electron";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import {
@@ -21,15 +24,18 @@ import {
   agentKeySecret,
   mcpSecretKey,
   webSearchKeySecret,
-} from "#shared/ipc/settings.ts";
+} from "#shared/settings.ts";
 
 import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
 import type { McpServers } from "../src/main/modules/agent/mcp-servers.ts";
 import { createAppearance } from "../src/main/modules/settings/appearance.ts";
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
 import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
-import { createSettingsApi } from "../src/main/modules/settings/settings-api.ts";
+import { settingsRouter } from "../src/main/modules/settings/settings.route.ts";
+import type { SettingsContext } from "../src/main/modules/settings/settings.route.ts";
 import { createWebSearch } from "../src/main/modules/web-search/web-search.ts";
+import { forWindow } from "../src/main/rpc/serve.ts";
+import type { WindowEvents } from "../src/main/rpc/window-events.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 
@@ -90,7 +96,7 @@ function setup() {
     shared: join(home, ".agents", "skills"),
   };
 
-  const api = createSettingsApi({
+  const context: SettingsContext = {
     config,
     secrets,
     appearance: createAppearance({ config, onChange: vi.fn() }),
@@ -122,7 +128,16 @@ function setup() {
     },
     skillFolders,
     instructionsFile: join(configDir, "AGENTS.md"),
-    shell,
+    settingsShell: shell,
+    windowEvents: new MemoryPublisher<WindowEvents>(),
+    // SAFETY: no procedure a test calls opens a dialog, the only use of the asking window.
+    sender: {} as WebContents,
+  };
+
+  // As a window calls them, failures told as the main process words them.
+  const api = createRouterClient(settingsRouter, {
+    context,
+    interceptors: [forWindow],
   });
 
   return { api, config, secrets, mcp, shell };
@@ -140,7 +155,10 @@ test("a web search vendor's key is saved under its id, and the vendor in use is 
     },
   });
 
-  await api.saveWebSearchKey(WebSearchProvider.Exa, "exa-key");
+  await api.saveWebSearchKey({
+    provider: WebSearchProvider.Exa,
+    value: "exa-key",
+  });
   await api.setWebSearchProvider(WebSearchProvider.Exa);
 
   expect(await secrets.get(webSearchKeySecret(WebSearchProvider.Exa))).toBe(
@@ -182,12 +200,12 @@ test("switching the agent's provider starts from its default model, in one save"
 test("a provider is switched on once, and off again", async () => {
   const { api, config } = setup();
 
-  await api.setAgentProviderEnabled("google", true);
-  await api.setAgentProviderEnabled("google", true);
+  await api.setAgentProviderEnabled({ provider: "google", enabled: true });
+  await api.setAgentProviderEnabled({ provider: "google", enabled: true });
 
   expect(config.read().agent.providers).toEqual(["google"]);
 
-  await api.setAgentProviderEnabled("google", false);
+  await api.setAgentProviderEnabled({ provider: "google", enabled: false });
 
   expect(config.read().agent.providers).toEqual([]);
 });
@@ -202,14 +220,14 @@ test("a provider's endpoint is set and goes back to its own, except for one whos
 
   const own = (await endpointOf("openai"))?.default;
 
-  await api.setAgentEndpoint("openai", gateway);
+  await api.setAgentEndpoint({ provider: "openai", endpoint: gateway });
 
   expect(await endpointOf("openai")).toEqual({
     url: gateway,
     default: own,
   });
 
-  await api.setAgentEndpoint("openai", null);
+  await api.setAgentEndpoint({ provider: "openai", endpoint: null });
 
   expect(config.read().agent.endpoints).toEqual({});
   expect(await endpointOf("openai")).toEqual({
@@ -218,15 +236,15 @@ test("a provider's endpoint is set and goes back to its own, except for one whos
   });
 
   expect(await endpointOf("openrouter")).toBeNull();
-  await expect(api.setAgentEndpoint("openrouter", gateway)).rejects.toThrow(
-    "several endpoints"
-  );
+  await expect(
+    api.setAgentEndpoint({ provider: "openrouter", endpoint: gateway })
+  ).rejects.toThrow("several endpoints");
 });
 
 test("a provider's key is saved under its id, and a provider the app does not offer is refused", async () => {
   const { api, secrets } = setup();
 
-  await api.saveAgentKey("deepseek", "sk-deepseek");
+  await api.saveAgentKey({ provider: "deepseek", value: "sk-deepseek" });
 
   expect(await secrets.get(agentKeySecret("deepseek"))).toBe("sk-deepseek");
 
@@ -234,11 +252,11 @@ test("a provider's key is saved under its id, and a provider the app does not of
 
   expect(await secrets.get(agentKeySecret("deepseek"))).toBeUndefined();
 
-  await expect(api.saveAgentKey("amazon-bedrock", "key")).rejects.toThrow(
-    "not a provider the app offers"
-  );
   await expect(
-    api.setAgentProviderEnabled("amazon-bedrock", true)
+    api.saveAgentKey({ provider: "amazon-bedrock", value: "key" })
+  ).rejects.toThrow("not a provider the app offers");
+  await expect(
+    api.setAgentProviderEnabled({ provider: "amazon-bedrock", enabled: true })
   ).rejects.toThrow("not a provider the app offers");
   await expect(api.setAgentProvider("nowhere")).rejects.toThrow(
     "not a provider the app offers"
@@ -248,12 +266,12 @@ test("a provider's key is saved under its id, and a provider the app does not of
 test("a shared skill is switched on once, and off again", async () => {
   const { api, config } = setup();
 
-  await api.setSharedSkill("breakout-watch", true);
-  await api.setSharedSkill("breakout-watch", true);
+  await api.setSharedSkill({ name: "breakout-watch", enabled: true });
+  await api.setSharedSkill({ name: "breakout-watch", enabled: true });
 
   expect(config.read().agent.sharedSkills).toEqual(["breakout-watch"]);
 
-  await api.setSharedSkill("breakout-watch", false);
+  await api.setSharedSkill({ name: "breakout-watch", enabled: false });
 
   expect(config.read().agent.sharedSkills).toEqual([]);
 });
@@ -280,12 +298,15 @@ test("traces and logs go nowhere until an endpoint is set, and their headers mus
     "https://otlp-gateway.example.net/otlp"
   );
 
-  await expect(api.saveSecret(Secret.OtlpHeaders, "glc_token")).rejects.toThrow(
-    /key=value/
-  );
+  await expect(
+    api.saveSecret({ secret: Secret.OtlpHeaders, value: "glc_token" })
+  ).rejects.toThrow(/key=value/);
   expect(await secrets.get(Secret.OtlpHeaders)).toBeUndefined();
 
-  await api.saveSecret(Secret.OtlpHeaders, "Authorization=Basic%20abc");
+  await api.saveSecret({
+    secret: Secret.OtlpHeaders,
+    value: "Authorization=Basic%20abc",
+  });
 
   expect(await secrets.get(Secret.OtlpHeaders)).toBe(
     "Authorization=Basic%20abc"
@@ -370,7 +391,11 @@ test("MCP servers show each tool under the policy in force, which secrets are sa
 test("a changed MCP secret reconnects its server", async () => {
   const { api, secrets, mcp } = setup();
 
-  await api.saveMcpSecret("broker", "BROKER_TOKEN", "token");
+  await api.saveMcpSecret({
+    server: "broker",
+    name: "BROKER_TOKEN",
+    value: "token",
+  });
 
   expect(await secrets.get(mcpSecretKey("BROKER_TOKEN"))).toBe("token");
   expect(mcp.reconnect).toHaveBeenCalledWith("broker");

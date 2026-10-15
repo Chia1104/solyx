@@ -36,8 +36,8 @@ import type { SymbolRef } from "@solyx/core/market";
 
 import { ScreenKind } from "#shared/ipc/agent.ts";
 import type { AgentScreen } from "#shared/ipc/agent.ts";
-import type { AgentSettings } from "#shared/ipc/settings.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import type { AgentSettings } from "#shared/settings.ts";
 
 import { currentTimeZone } from "../../app/clock.ts";
 import { currentLocale } from "../../app/i18n.ts";

@@ -9,6 +9,7 @@ import { newsContract } from "./news.contract.ts";
 import { proposalsContract } from "./proposals.contract.ts";
 import { researchContract } from "./research.contract.ts";
 import { schedulesContract } from "./schedules.contract.ts";
+import { settingsContract } from "./settings.contract.ts";
 import { storageContract } from "./storage.contract.ts";
 import { themesContract } from "./themes.contract.ts";
 import { updatesContract } from "./updates.contract.ts";
@@ -28,6 +29,7 @@ export const routerContract = {
   proposals: proposalsContract,
   research: researchContract,
   schedules: schedulesContract,
+  settings: settingsContract,
   storage: storageContract,
   themes: themesContract,
   updates: updatesContract,

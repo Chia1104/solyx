@@ -6,8 +6,9 @@ import { useTranslation } from "react-i18next";
 
 import { isEnumValue } from "@solyx/utils/is";
 
-import { Theme } from "#shared/ipc/settings.ts";
+import { Theme } from "#shared/settings.ts";
 
+import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 import { appearanceQuery } from "./settings-query.ts";
@@ -19,9 +20,7 @@ export function ThemeSelect() {
   const { data } = useQuery(appearanceQuery());
 
   // The main process pushes the saved appearance, which the query takes.
-  const save = useMutation({
-    mutationFn: (theme: Theme) => window.solyx.settings.setTheme(theme),
-  });
+  const save = useMutation(orpc.settings.setTheme.mutationOptions());
 
   return (
     <div className="flex flex-col gap-2">

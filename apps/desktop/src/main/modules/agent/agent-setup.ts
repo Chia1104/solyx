@@ -19,6 +19,8 @@ import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
+import { ColorScheme, Palette } from "#shared/palette.ts";
+import { SettingsSection, settingsLink } from "#shared/settings-section.ts";
 import {
   DECISIONS_SECRETS,
   FubonFile,
@@ -34,9 +36,7 @@ import {
   isWebSearchReady,
   mcpSecretKey,
   timeZonePreferenceSchema,
-} from "#shared/ipc/settings.ts";
-import { ColorScheme, Palette } from "#shared/palette.ts";
-import { SettingsSection, settingsLink } from "#shared/settings-section.ts";
+} from "#shared/settings.ts";
 
 import type { Decisions } from "../decisions/decisions.ts";
 import type { Embeddings } from "../embeddings/embeddings.ts";

@@ -19,7 +19,7 @@ import type {
   BackupStatus,
   StoredBackup,
 } from "#shared/backup.ts";
-import { Secret, SecretState } from "#shared/ipc/settings.ts";
+import { Secret, SecretState, endpointSchema } from "#shared/settings.ts";
 
 import type {
   BackUpOptions,
@@ -28,7 +28,6 @@ import type {
   MadeBackup,
 } from "../../../worker/backup-protocol.ts";
 import type { ScheduledWork } from "../../scheduler.ts";
-import { endpointSchema } from "../settings/config-file.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";

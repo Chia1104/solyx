@@ -7,7 +7,7 @@ import type {
   ScheduledTask,
 } from "@solyx/core/schedule";
 
-import { localeSchema } from "./ipc/settings.ts";
+import { localeSchema } from "./settings.ts";
 
 /** A task as a window saves it, answering in one of the app's own languages, as a message the user sends does. */
 export const taskDraftSchema = scheduledTaskDraftSchema.extend({

@@ -6,8 +6,8 @@ import { useTranslation } from "react-i18next";
 
 import { clock } from "#shared/clock.ts";
 import type { Clock } from "#shared/clock.ts";
-import { TimeZonePreference, resolveTimeZone } from "#shared/ipc/settings.ts";
-import type { Appearance, TimeZone } from "#shared/ipc/settings.ts";
+import { TimeZonePreference, resolveTimeZone } from "#shared/settings.ts";
+import type { Appearance, TimeZone } from "#shared/settings.ts";
 
 import { appearanceQuery } from "../modules/settings/settings-query.ts";
 

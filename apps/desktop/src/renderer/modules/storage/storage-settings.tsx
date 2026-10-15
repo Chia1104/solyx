@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 
 import { isEnumValue } from "@solyx/utils/is";
 
-import { MarketDataSource } from "#shared/ipc/settings.ts";
+import { MarketDataSource } from "#shared/settings.ts";
 import { StoredData } from "#shared/storage.ts";
 
 import { client, orpc } from "../../app/rpc.ts";

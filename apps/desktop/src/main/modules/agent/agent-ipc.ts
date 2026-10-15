@@ -8,9 +8,9 @@ import { symbolRefSchema } from "@solyx/core/market";
 import { chartIndicatorSchema } from "#shared/chart-indicator.ts";
 import { ScreenKind, agentChannels } from "#shared/ipc/agent.ts";
 import type { AgentApi } from "#shared/ipc/agent.ts";
-import { localeSchema, timeZoneSchema } from "#shared/ipc/settings.ts";
 import { overviewTabSchema } from "#shared/overview-tab.ts";
 import { settingsSectionSchema } from "#shared/settings-section.ts";
+import { localeSchema, timeZoneSchema } from "#shared/settings.ts";
 
 import { bindIpc } from "../../ipc/ipc-module.ts";
 import type { Services } from "../../services.ts";

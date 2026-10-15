@@ -7,8 +7,6 @@ import { agentChannels, agentEvents } from "#shared/ipc/agent.ts";
 import type { AgentApi, AgentEvents } from "#shared/ipc/agent.ts";
 import { marketChannels, marketEvents } from "#shared/ipc/market.ts";
 import type { MarketApi, MarketEvents } from "#shared/ipc/market.ts";
-import { settingsChannels, settingsEvents } from "#shared/ipc/settings.ts";
-import type { SettingsApi, SettingsEvents } from "#shared/ipc/settings.ts";
 import type { SolyxApi } from "#shared/ipc/solyx-api.ts";
 import { RPC_CONNECT } from "#shared/rpc/connect.ts";
 
@@ -69,10 +67,6 @@ function bridge<Api, Events = Record<never, never>>(
 const api: SolyxApi = {
   agent: bridge<AgentApi, AgentEvents>(agentChannels, agentEvents),
   market: bridge<MarketApi, MarketEvents>(marketChannels, marketEvents),
-  settings: bridge<SettingsApi, SettingsEvents>(
-    settingsChannels,
-    settingsEvents
-  ),
 };
 
 contextBridge.exposeInMainWorld("solyx", api);

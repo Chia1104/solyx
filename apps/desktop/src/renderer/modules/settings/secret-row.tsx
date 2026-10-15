@@ -16,9 +16,10 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { SecretState } from "#shared/ipc/settings.ts";
-import type { EnteredSecret } from "#shared/ipc/settings.ts";
+import { SecretState } from "#shared/settings.ts";
+import type { EnteredSecret } from "#shared/settings.ts";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 import { SettingsRow } from "./settings-list.tsx";
@@ -223,8 +224,8 @@ export function AppSecretRow({
       description={t(`settings.secrets.${secret}.hint`)}
       state={state}
       available={available}
-      onSave={(value) => window.solyx.settings.saveSecret(secret, value)}
-      onRemove={() => window.solyx.settings.deleteSecret(secret)}
+      onSave={(value) => client.settings.saveSecret({ secret, value })}
+      onRemove={() => client.settings.deleteSecret(secret)}
     />
   );
 }

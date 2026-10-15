@@ -8,7 +8,7 @@ import {
   isDecisionsReady,
   isMarketDataReady,
   isWebSearchReady,
-} from "#shared/ipc/settings.ts";
+} from "#shared/settings.ts";
 
 import { Section } from "../components/section.tsx";
 import { CrashReportSection } from "../modules/crash-reports/crash-report-row.tsx";

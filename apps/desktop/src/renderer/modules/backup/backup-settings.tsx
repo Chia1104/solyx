@@ -13,7 +13,7 @@ import {
   backupRegionSchema,
 } from "#shared/backup.ts";
 import type { BackupStatus, StoredBackup } from "#shared/backup.ts";
-import { Secret } from "#shared/ipc/settings.ts";
+import { Secret } from "#shared/settings.ts";
 
 import { useClock } from "../../app/clock.ts";
 import { client, orpc } from "../../app/rpc.ts";

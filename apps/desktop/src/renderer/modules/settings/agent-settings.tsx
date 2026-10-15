@@ -10,9 +10,10 @@ import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import type { AgentProvider } from "@solyx/agent/providers";
 import { DecisionMode, MagiUnit } from "@solyx/core/council";
 
-import { SecretState } from "#shared/ipc/settings.ts";
-import type { AgentProviderSettings } from "#shared/ipc/settings.ts";
+import { SecretState } from "#shared/settings.ts";
+import type { AgentProviderSettings } from "#shared/settings.ts";
 
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -32,11 +33,7 @@ import {
 } from "./provider-tile.tsx";
 import { SecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import {
-  agentSettingsQuery,
-  secretsQuery,
-  settingsQueryKeys,
-} from "./settings-query.ts";
+import { agentSettingsQuery, secretsQuery } from "./settings-query.ts";
 import { SubscriptionSignIn } from "./subscription-sign-in.tsx";
 import { TextSettingRow } from "./text-setting-row.tsx";
 
@@ -176,10 +173,10 @@ export function AgentSettings() {
               isDisabled={save.isPending || isDefault}
               onChange={(enabled) =>
                 save.mutate(() =>
-                  window.solyx.settings.setAgentProviderEnabled(
-                    each.provider,
-                    enabled
-                  )
+                  client.settings.setAgentProviderEnabled({
+                    provider: each.provider,
+                    enabled,
+                  })
                 )
               }>
               <Switch.Content>
@@ -217,7 +214,10 @@ export function AgentSettings() {
                 ]}
                 onChange={(next) =>
                   save.mutate(() =>
-                    window.solyx.settings.setAgentAuth(each.provider, next)
+                    client.settings.setAgentAuth({
+                      provider: each.provider,
+                      auth: next,
+                    })
                   )
                 }
               />
@@ -241,11 +241,12 @@ export function AgentSettings() {
                 state={each.key}
                 available={available}
                 onSave={(value) =>
-                  window.solyx.settings.saveAgentKey(each.provider, value)
+                  client.settings.saveAgentKey({
+                    provider: each.provider,
+                    value,
+                  })
                 }
-                onRemove={() =>
-                  window.solyx.settings.deleteAgentKey(each.provider)
-                }
+                onRemove={() => client.settings.deleteAgentKey(each.provider)}
               />
               {each.createsKey && each.key !== SecretState.Saved ? (
                 <KeySignIn provider={each.provider} name={name} />
@@ -258,7 +259,10 @@ export function AgentSettings() {
                   isDefault={each.endpoint.url === each.endpoint.default}
                   schema={endpointSchema}
                   onSave={(next) =>
-                    window.solyx.settings.setAgentEndpoint(each.provider, next)
+                    client.settings.setAgentEndpoint({
+                      provider: each.provider,
+                      endpoint: next,
+                    })
                   }
                 />
               ) : null}
@@ -286,7 +290,10 @@ export function AgentSettings() {
               onAdd={(added) => {
                 setOpened(added);
                 save.mutate(() =>
-                  window.solyx.settings.setAgentProviderEnabled(added, true)
+                  client.settings.setAgentProviderEnabled({
+                    provider: added,
+                    enabled: true,
+                  })
                 );
               }}
             />
@@ -340,9 +347,7 @@ export function AgentSettings() {
                       label: each.name,
                     }))}
                   onChange={(next) =>
-                    save.mutate(() =>
-                      window.solyx.settings.setAgentProvider(next)
-                    )
+                    save.mutate(() => client.settings.setAgentProvider(next))
                   }
                 />
               }
@@ -361,7 +366,7 @@ export function AgentSettings() {
                     label: option.name,
                   }))}
                   onChange={(next) =>
-                    save.mutate(() => window.solyx.settings.setAgentModel(next))
+                    save.mutate(() => client.settings.setAgentModel(next))
                   }
                 />
               }
@@ -380,9 +385,7 @@ export function AgentSettings() {
                     label: t(`settings.agent.thinkings.${id}`),
                   }))}
                   onChange={(next) =>
-                    save.mutate(() =>
-                      window.solyx.settings.setAgentThinking(next)
-                    )
+                    save.mutate(() => client.settings.setAgentThinking(next))
                   }
                 />
               }
@@ -402,7 +405,7 @@ export function AgentSettings() {
                   }))}
                   onChange={(next) =>
                     save.mutate(() =>
-                      window.solyx.settings.setAgentDecisionMode(next)
+                      client.settings.setAgentDecisionMode(next)
                     )
                   }
                 />
@@ -428,13 +431,13 @@ export function AgentSettings() {
                           onChange={(next) =>
                             // Settles on the refetched settings, so the picker never shows the old model.
                             save.mutateAsync(async () => {
-                              await window.solyx.settings.setMagiModel(
+                              await client.settings.setMagiModel({
                                 unit,
-                                next.model
-                              );
+                                model: next.model,
+                              });
                               // Joins the read the settings push started.
                               await queryClient.invalidateQueries(
-                                { queryKey: settingsQueryKeys.agent },
+                                { queryKey: orpc.settings.agent.key() },
                                 { cancelRefetch: false }
                               );
                             })

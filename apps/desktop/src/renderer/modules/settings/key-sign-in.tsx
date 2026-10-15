@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { AgentProvider } from "@solyx/agent/providers";
 
 import { currentLocale } from "../../app/i18n.ts";
+import { client } from "../../app/rpc.ts";
 
 import { SignInRow } from "./sign-in-row.tsx";
 
@@ -30,9 +31,9 @@ export function KeySignIn({
       signedIn={false}
       needsSignIn
       onSignIn={() =>
-        window.solyx.settings.createAgentKey(provider, currentLocale())
+        client.settings.createAgentKey({ provider, locale: currentLocale() })
       }
-      onCancel={() => window.solyx.settings.cancelSignIn()}
+      onCancel={() => client.settings.cancelSignIn()}
     />
   );
 }

@@ -27,14 +27,13 @@ import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 
 import type { Approval } from "#shared/inbox.ts";
 import { marketEvents } from "#shared/ipc/market.ts";
+import { ColorScheme } from "#shared/palette.ts";
 import {
   AppLocation,
   Secret,
   resolveLocale,
   resolveTimeZone,
-  settingsEvents,
-} from "#shared/ipc/settings.ts";
-import { ColorScheme } from "#shared/palette.ts";
+} from "#shared/settings.ts";
 
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
@@ -85,6 +84,7 @@ import { createScheduler } from "./scheduler.ts";
 import { appChannel } from "./shell/app-channel.ts";
 import { chromiumFetch } from "./shell/chromium-fetch.ts";
 import { paintWindow, showMainWindow } from "./shell/main-window.ts";
+import { settingsShell } from "./shell/settings-shell.ts";
 import { createTrayShell } from "./shell/tray-icon.ts";
 
 const PAPER_CASH = { [Currency.TWD]: 1_000_000, [Currency.USD]: 30_000 };
@@ -309,8 +309,9 @@ export function createServices(config: ConfigFile) {
 
       for (const window of BrowserWindow.getAllWindows()) {
         paintWindow(window, windowColors());
-        window.webContents.send(settingsEvents.onAppearance, next);
       }
+
+      void windowEvents.publish("settings:appearance", next);
     },
   });
 
@@ -352,7 +353,8 @@ export function createServices(config: ConfigFile) {
     tracer: telemetry.tracer,
     getDeviceId: deviceId,
     openExternal,
-    showSignInCode: (code) => broadcast(settingsEvents.onSignInCode, code),
+    showSignInCode: (code) =>
+      void windowEvents.publish("settings:sign-in-code", code),
     skillFolders,
     instructionsFile,
     mcp,
@@ -593,10 +595,10 @@ export function createServices(config: ConfigFile) {
 
   nativeTheme.themeSource = appearance.read().theme;
 
-  config.onChange(() => broadcast(settingsEvents.onChanged));
+  config.onChange(() => void windowEvents.publish("settings:changed", {}));
   // A collection's plan lives in the config file, so whoever shows the plans hears of every edit.
   config.onChange(() => void windowEvents.publish("schedules:changed", {}));
-  secrets.onChange(() => broadcast(settingsEvents.onChanged));
+  secrets.onChange(() => void windowEvents.publish("settings:changed", {}));
   // Where backups go is settings and secrets both.
   config.onChange(() => void windowEvents.publish("backup:changed", {}));
   secrets.onChange(() => void windowEvents.publish("backup:changed", {}));
@@ -650,6 +652,7 @@ export function createServices(config: ConfigFile) {
     workspace,
     inbox,
     windowEvents,
+    settingsShell,
 
     restart,
   };

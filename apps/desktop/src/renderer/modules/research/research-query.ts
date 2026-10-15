@@ -21,7 +21,7 @@ export const researchCoverageQuery = (symbol: SymbolRef) =>
  * settings keep the falsifiers from being read.
  */
 export function followResearchChanges(queryClient: QueryClient) {
-  window.solyx.settings.onChanged(() => {
+  void forEachEvent(client.settings.changes(), () => {
     void queryClient.invalidateQueries({ queryKey: orpc.research.key() });
   });
 

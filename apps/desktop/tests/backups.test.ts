@@ -30,7 +30,7 @@ import {
   BackupInterval,
   BackupSetting,
 } from "#shared/backup.ts";
-import { Secret } from "#shared/ipc/settings.ts";
+import { Secret } from "#shared/settings.ts";
 
 import {
   backupKey,

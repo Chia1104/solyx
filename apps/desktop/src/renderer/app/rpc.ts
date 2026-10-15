@@ -19,10 +19,18 @@ export const client: RouterContractClient<typeof routerContract> =
 
 export const orpc = createTanstackQueryUtils(client);
 
-/** Calls `onEvent` with each event a stream yields, for as long as the window stays open. */
+/**
+ * Calls `onEvent` with each event a stream yields, for as long as the window stays open or until
+ * `signal`, the one the stream was opened with, aborts it, which ends it quietly.
+ */
 export async function forEachEvent<T>(
   stream: Promise<AsyncIterable<T>>,
-  onEvent: (event: T) => void
+  onEvent: (event: T) => void,
+  signal?: AbortSignal
 ) {
-  for await (const event of await stream) onEvent(event);
+  try {
+    for await (const event of await stream) onEvent(event);
+  } catch (error) {
+    if (!signal?.aborted) throw error;
+  }
 }

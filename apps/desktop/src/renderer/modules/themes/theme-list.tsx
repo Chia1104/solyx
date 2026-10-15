@@ -5,8 +5,8 @@ import { useTranslation } from "react-i18next";
 import { symbolKey } from "@solyx/core/market";
 import type { Development, ThemeWatch } from "@solyx/core/theme";
 
-import { isWebSearchReady } from "#shared/ipc/settings.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import { isWebSearchReady } from "#shared/settings.ts";
 
 import { useClock } from "../../app/clock.ts";
 import { LoadError } from "../../components/load-error.tsx";

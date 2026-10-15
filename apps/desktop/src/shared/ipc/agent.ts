@@ -12,8 +12,7 @@ import type { SymbolRef } from "@solyx/core/market";
 import type { ChartIndicator } from "../chart-indicator.ts";
 import type { OverviewTab } from "../overview-tab.ts";
 import type { SettingsSection } from "../settings-section.ts";
-
-import type { Locale, TimeZone } from "./settings.ts";
+import type { Locale, TimeZone } from "../settings.ts";
 
 export const ScreenKind = {
   Listing: "listing",
