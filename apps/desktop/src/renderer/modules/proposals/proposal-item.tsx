@@ -1,14 +1,17 @@
 import { Alert, Button, Chip, cn } from "@heroui/react";
 import type { ChipProps } from "@heroui/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { OrderType } from "@solyx/core/order";
+import { OrderType, orderImpact } from "@solyx/core/order";
+import type { OrderRequest } from "@solyx/core/order";
 import { ProposalStatus, SubmissionFailureCode } from "@solyx/core/order-desk";
 import type { TradeProposal } from "@solyx/core/order-desk";
 
 import { ErrorAlert } from "../../components/error-alert.tsx";
+import { accountQuery } from "../account/account-query.ts";
 import { ListingName } from "../market/listing-name.tsx";
+import { numberFormats } from "../market/number-formats.ts";
 
 import { violationMessage } from "./violation-message.ts";
 
@@ -30,6 +33,41 @@ const STATUS_RULE: Record<ProposalStatus, string> = {
   [ProposalStatus.Dismissed]: "bg-separator",
   [ProposalStatus.Failed]: "bg-danger",
 };
+
+/** What the order would spend and leave the account holding, filled whole at its limit price. */
+function OrderImpactLines({ order }: { order: OrderRequest }) {
+  const { t, i18n } = useTranslation();
+  const { amount } = numberFormats(i18n.language);
+  const account = useQuery(accountQuery());
+  const impact = account.data && orderImpact(order, account.data);
+
+  if (!impact) return null;
+
+  const { currency, notional, cash, shares } = impact;
+
+  return (
+    <p className="flex flex-col text-xs text-muted tabular-nums">
+      <span>
+        {t("proposals.impact.notional", {
+          amount: amount.format(notional),
+          currency,
+        })}
+      </span>
+      <span>
+        {t("proposals.impact.cash", {
+          before: amount.format(cash.before),
+          after: amount.format(cash.after),
+          currency,
+        })}
+        {" · "}
+        {t("proposals.impact.shares", {
+          before: shares.before,
+          after: shares.after,
+        })}
+      </span>
+    </p>
+  );
+}
 
 export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   const { t } = useTranslation();
@@ -84,6 +122,9 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
               : t("proposals.market-price"),
         })}
       </p>
+      {proposal.status === ProposalStatus.AwaitingConfirmation ? (
+        <OrderImpactLines order={order} />
+      ) : null}
       {proposal.rationale && (
         <p className="text-sm text-muted">{proposal.rationale}</p>
       )}

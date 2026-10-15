@@ -44,6 +44,8 @@ export const numberFormats = memoize((locale: string) => ({
     style: "percent",
     maximumFractionDigits: 2,
   }),
+  /** A sum of money, such as what an order spends. */
+  amount: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }),
   /** A signed sum of money, such as a holding's gain. */
   signedAmount: new Intl.NumberFormat(locale, {
     signDisplay: "exceptZero",

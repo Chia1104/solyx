@@ -584,6 +584,11 @@
     "form-description": "Proposals pass the risk checks here and again when you confirm them.",
     "summary": "{{side}} {{quantity, number}} shares @ {{price}}",
     "market-price": "market",
+    "impact": {
+      "notional": "About {{amount}} {{currency}}, before fees and taxes",
+      "cash": "Cash {{before}} → {{after}} {{currency}}",
+      "shares": "Shares {{before, number}} → {{after, number}}"
+    },
     "confirm": "Confirm and submit",
     "dismiss": "Dismiss",
     "propose-failed": "Couldn't create the proposal",
