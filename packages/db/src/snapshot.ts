@@ -66,19 +66,22 @@ const newer = (file: string) =>
 /**
  * Refuses a snapshot of one of the app's own databases that is damaged, or that holds a migration
  * this build does not have, which opening it would not notice. One a build before this made is
- * brought up to date when it is opened.
+ * brought up to date when it is opened. Migrations are told apart by name, as drizzle tells which
+ * to run, since a hash covers the file's line endings, which differ by the system that built it.
  */
 export function verifySnapshot(file: string, migrationsFolder: string) {
   const known = new Set(
-    readMigrationFiles({ migrationsFolder }).map(({ hash }) => hash)
+    readMigrationFiles({ migrationsFolder }).map(({ name }) => name)
   );
 
   inspect(file, (db) => {
-    const applied = db.all<{ hash: string }>(
-      sql`SELECT hash FROM __drizzle_migrations`
+    const applied = db.all<{ name: string | null }>(
+      sql`SELECT name FROM __drizzle_migrations`
     );
 
-    if (applied.some(({ hash }) => !known.has(hash))) throw newer(file);
+    if (applied.some(({ name }) => name === null || !known.has(name))) {
+      throw newer(file);
+    }
   });
 }
 
