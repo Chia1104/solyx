@@ -1,4 +1,4 @@
-import { groupBy, keyBy, pick, uniqBy } from "es-toolkit";
+import { Mutex, groupBy, keyBy, pick, uniqBy } from "es-toolkit";
 
 import { errorMessage } from "@solyx/utils/error";
 import { fuseRankings } from "@solyx/utils/search";
@@ -258,6 +258,9 @@ function newerFinancials(report: Report, newest: string | null) {
 export class ResearchDesk {
   readonly #options: ResearchDeskOptions;
 
+  /** One per listing, so its passes run one at a time. */
+  readonly #passes = new Map<string, Mutex>();
+
   constructor(options: ResearchDeskOptions) {
     this.#options = options;
   }
@@ -485,9 +488,28 @@ export class ResearchDesk {
   /**
    * Reads each of a listing's falsifiers against the items nearest it of those `news` lists in the
    * embedder's space, once per falsifier and item, and keeps the pass, failed or not, telling
-   * `onChange`. Nothing is read while a `WatchGap` keeps it from being read.
+   * `onChange`. Nothing is read while a `WatchGap` keeps it from being read. A listing's passes run
+   * one at a time, so one never reads again what the one before it read, and the newest is the one
+   * kept last.
    */
   async watch(
+    symbol: SymbolRef,
+    news: (space: string) => readonly NewsRecord[]
+  ): Promise<void> {
+    const key = symbolKey(symbol);
+    const passes = this.#passes.get(key) ?? new Mutex();
+
+    this.#passes.set(key, passes);
+    await passes.acquire();
+
+    try {
+      await this.#watch(symbol, news);
+    } finally {
+      passes.release();
+    }
+  }
+
+  async #watch(
     symbol: SymbolRef,
     news: (space: string) => readonly NewsRecord[]
   ): Promise<void> {
@@ -583,7 +605,8 @@ export class ResearchDesk {
         .map(({ record }) => ({ falsifier, record }));
     });
 
-    let unread = 0;
+    // An item near several falsifiers counts once, as the news it is.
+    const unread = new Set<string>();
 
     for (const { falsifier, record } of due) {
       const { item } = record;
@@ -597,7 +620,7 @@ export class ResearchDesk {
         .catch(() => null);
 
       if (!support) {
-        unread += 1;
+        unread.add(`${record.source}:${item.id}`);
         continue;
       }
 
@@ -611,7 +634,7 @@ export class ResearchDesk {
       });
     }
 
-    return { items: embedded.length, unread };
+    return { items: embedded.length, unread: unread.size };
   }
 
   async trackRecord(): Promise<ForecastRecord> {
