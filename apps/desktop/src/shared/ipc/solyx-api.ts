@@ -1,14 +1,11 @@
-import type { AccountApi } from "./account.ts";
 import type { AgentApi, AgentEvents } from "./agent.ts";
 import type { BackupApi, BackupEvents } from "./backup.ts";
 import type { CalendarApi } from "./calendar.ts";
 import type { FlowsApi } from "./flows.ts";
 import type { FundamentalsApi } from "./fundamentals.ts";
-import type { InboxApi, InboxEvents } from "./inbox.ts";
 import type { MarketApi, MarketEvents } from "./market.ts";
 import type { MemoryApi, MemoryEvents } from "./memory.ts";
 import type { NewsApi, NewsEvents } from "./news.ts";
-import type { ProposalsApi, ProposalsEvents } from "./proposals.ts";
 import type { ResearchApi, ResearchEvents } from "./research.ts";
 import type { SchedulesApi, SchedulesEvents } from "./schedules.ts";
 import type { SettingsApi, SettingsEvents } from "./settings.ts";
@@ -20,17 +17,14 @@ import type { WorkspaceApi, WorkspaceEvents } from "./workspace.ts";
 
 /** Everything the renderer can ask of the main process, exposed as `window.solyx`, one key per module. */
 export interface SolyxApi {
-  account: AccountApi;
   agent: AgentApi & AgentEvents;
   backup: BackupApi & BackupEvents;
   calendar: CalendarApi;
   flows: FlowsApi;
   fundamentals: FundamentalsApi;
-  inbox: InboxApi & InboxEvents;
   market: MarketApi & MarketEvents;
   memory: MemoryApi & MemoryEvents;
   news: NewsApi & NewsEvents;
-  proposals: ProposalsApi & ProposalsEvents;
   research: ResearchApi & ResearchEvents;
   schedules: SchedulesApi & SchedulesEvents;
   settings: SettingsApi & SettingsEvents;

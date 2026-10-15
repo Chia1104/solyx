@@ -17,7 +17,6 @@
   },
   "include": [
     "src/main",
-    "src/preload",
     "src/shared",
     "src/utility",
     "src/worker",

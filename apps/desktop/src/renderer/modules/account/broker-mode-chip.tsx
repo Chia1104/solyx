@@ -4,12 +4,12 @@ import { useTranslation } from "react-i18next";
 
 import { BrokerMode } from "@solyx/core/broker";
 
-import { accountQuery } from "./account-query.ts";
+import { orpc } from "../../app/rpc.ts";
 
 /** Paper trading is drawn in pencil and live trading in ink, like the band under the title bar. */
 export function BrokerModeChip() {
   const { t } = useTranslation();
-  const { data } = useQuery(accountQuery());
+  const { data } = useQuery(orpc.account.summary.queryOptions());
 
   if (!data) return null;
 
@@ -28,7 +28,7 @@ export function BrokerModeChip() {
 
 /** The strip under the title bar: hatching while trades are paper, a solid ink line once they are real. */
 export function BrokerModeRule() {
-  const { data } = useQuery(accountQuery());
+  const { data } = useQuery(orpc.account.summary.queryOptions());
 
   const live = data?.brokerMode === BrokerMode.Live;
 

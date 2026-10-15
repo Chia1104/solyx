@@ -6,7 +6,7 @@ import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
 
-import { accountQuery } from "../account/account-query.ts";
+import { orpc } from "../../app/rpc.ts";
 import { useListingNames } from "../market/listing-name.tsx";
 import { agentSkillsQuery } from "../settings/settings-query.ts";
 import { watchlistQuery } from "../watchlist/watchlist-query.ts";
@@ -35,7 +35,7 @@ export function useMentionableListings(
   focus: SymbolRef | null
 ): MentionableListing[] {
   const watchlist = useQuery(watchlistQuery());
-  const account = useQuery(accountQuery());
+  const account = useQuery(orpc.account.summary.queryOptions());
 
   const listings = uniqBy(
     [

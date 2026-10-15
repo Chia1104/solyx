@@ -12,10 +12,10 @@ import { isEnumValue } from "@solyx/utils/is";
 
 import { OverviewTab } from "#shared/overview-tab.ts";
 
+import { orpc } from "../app/rpc.ts";
 import { LoadingState } from "../components/loading-state.tsx";
 import { Section } from "../components/section.tsx";
 import { RAILED_COLUMN, Sheet } from "../components/sheet.tsx";
-import { accountQuery } from "../modules/account/account-query.ts";
 import { AccountSummary } from "../modules/account/account-summary.tsx";
 import { CALENDAR_DAYS } from "../modules/calendar/calendar-query.ts";
 import { UpcomingEvents } from "../modules/calendar/upcoming-events.tsx";
@@ -33,7 +33,7 @@ const route = getRouteApi("/");
 /** Today's moves of what the user holds and watches; a listing held and watched shows as held. */
 function TodaysMoves() {
   const { t } = useTranslation();
-  const account = useQuery(accountQuery());
+  const account = useQuery(orpc.account.summary.queryOptions());
   const watchlist = useQuery(watchlistQuery());
 
   const positions = account.data?.positions ?? [];
@@ -98,7 +98,7 @@ function FollowedSection({
   /** What it shows of the listings once there are some. */
   children: (symbols: SymbolRef[]) => ReactNode;
 }) {
-  const account = useQuery(accountQuery());
+  const account = useQuery(orpc.account.summary.queryOptions());
   const watchlist = useQuery(watchlistQuery());
 
   const symbols = uniqBy(

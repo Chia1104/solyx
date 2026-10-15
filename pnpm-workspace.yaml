@@ -57,6 +57,12 @@ catalogs:
   markdown:
     "@streamdown/cjk": 1.0.4
     streamdown: 2.7.0
+  orpc:
+    "@orpc/client": 2.0.0-beta.43
+    "@orpc/contract": 2.0.0-beta.43
+    "@orpc/publisher": 2.0.0-beta.43
+    "@orpc/server": 2.0.0-beta.43
+    "@orpc/tanstack-query": 2.0.0-beta.43
   otel:
     "@opentelemetry/api": 1.9.1
     "@opentelemetry/api-logs": 0.223.0

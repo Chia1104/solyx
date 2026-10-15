@@ -1,6 +1,7 @@
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { MemoryPublisher } from "@orpc/publisher/memory";
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import type { WebContents } from "electron";
 import { kebabCase, omit, uniqBy } from "es-toolkit";
@@ -25,12 +26,9 @@ import { createDgbas } from "@solyx/macro/dgbas";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 
 import { backupEvents } from "#shared/ipc/backup.ts";
-import { inboxEvents } from "#shared/ipc/inbox.ts";
-import type { Approval } from "#shared/ipc/inbox.ts";
 import { marketEvents } from "#shared/ipc/market.ts";
 import { memoryEvents } from "#shared/ipc/memory.ts";
 import { newsEvents } from "#shared/ipc/news.ts";
-import { proposalsEvents } from "#shared/ipc/proposals.ts";
 import { researchEvents } from "#shared/ipc/research.ts";
 import { schedulesEvents } from "#shared/ipc/schedules.ts";
 import {
@@ -45,6 +43,7 @@ import { updatesEvents } from "#shared/ipc/updates.ts";
 import { watchlistEvents } from "#shared/ipc/watchlist.ts";
 import { workspaceEvents } from "#shared/ipc/workspace.ts";
 import { ColorScheme } from "#shared/palette.ts";
+import type { Approval } from "#shared/rpc/inbox.contract.ts";
 
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
@@ -90,6 +89,7 @@ import { createUpdates } from "./modules/updates/updates.ts";
 import { createWatchlist } from "./modules/watchlist/watchlist.ts";
 import { createWebSearch } from "./modules/web-search/web-search.ts";
 import { createWorkspace } from "./modules/workspace/workspace.ts";
+import type { WindowEvents } from "./rpc/window-events.ts";
 import { createScheduler } from "./scheduler.ts";
 import { appChannel } from "./shell/app-channel.ts";
 import { chromiumFetch } from "./shell/chromium-fetch.ts";
@@ -126,6 +126,9 @@ export function createServices(config: ConfigFile) {
   // Before anything opens a file, since a backup the user had restored takes their place here.
   const restored = takeRestore(folders);
 
+  // Each window streams what it follows from here for as long as its page stays open.
+  const windowEvents = new MemoryPublisher<WindowEvents>();
+
   const userData = openUserData(
     join(userDataDir, "user.sqlite"),
     join(import.meta.dirname, "migrations", "user")
@@ -135,7 +138,7 @@ export function createServices(config: ConfigFile) {
     store: userData.watchlist,
     onChange() {
       broadcast(watchlistEvents.onChanged);
-      broadcast(inboxEvents.onChanged);
+      void windowEvents.publish("inbox:changed", {});
     },
   });
 
@@ -149,8 +152,8 @@ export function createServices(config: ConfigFile) {
     tradingDays: (market) => marketDays(market),
     restored: restored !== null,
     onChange() {
-      broadcast(proposalsEvents.onChanged);
-      broadcast(inboxEvents.onChanged);
+      void windowEvents.publish("proposals:changed", {});
+      void windowEvents.publish("inbox:changed", {});
       void tray.sync();
     },
   });
@@ -287,7 +290,7 @@ export function createServices(config: ConfigFile) {
     },
     () => {
       broadcast(researchEvents.onChanged);
-      broadcast(inboxEvents.onChanged);
+      void windowEvents.publish("inbox:changed", {});
     }
   );
 
@@ -414,7 +417,7 @@ export function createServices(config: ConfigFile) {
       home,
     },
     onActivity() {
-      broadcast(inboxEvents.onChanged);
+      void windowEvents.publish("inbox:changed", {});
       void tray.sync();
     },
   });
@@ -655,6 +658,7 @@ export function createServices(config: ConfigFile) {
     tray,
     workspace,
     inbox,
+    windowEvents,
 
     restart,
   };

@@ -47,7 +47,7 @@ for (const follow of [
   followUpdateChanges,
   followWatchlistChanges,
 ]) {
-  follow(queryClient);
+  void follow(queryClient);
 }
 
 await followAppearance();
