@@ -7,6 +7,7 @@ import type { MarketData } from "@solyx/core/market-data";
 import type { NewsStore } from "@solyx/core/news";
 import type { ClaimAuditor } from "@solyx/core/report";
 import { ResearchDesk } from "@solyx/core/research";
+import { Session } from "@solyx/core/session";
 import type { ResearchData } from "@solyx/db/research";
 
 import type { ScheduledWork } from "../../scheduler.ts";
@@ -17,20 +18,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // The news a report's falsifiers are watched against: what a collection reaches back for.
 const WATCHED_MS = 7 * DAY_MS;
 
-// Often enough that a report's event reads as passed within a minute of its exchange's day turning.
-const DAY_CHECK_MS = 60 * 1000;
-
-/** Each market's day on its exchange's calendar at `at`. */
-const exchangeDays = (at: number) =>
-  Object.values(Market)
-    .map((market) => exchangeDate(market, new Date(at)))
-    .join(" ");
+// Often enough that a report's event reads as passed, and a forecast as settled, within a minute
+// of its exchange's day turning or its session closing.
+const CLOCK_CHECK_MS = 60 * 1000;
 
 /**
  * The agent's research as the main process shares it: the one `ResearchDesk` over the research
  * database, which tells `onChange` after every revision, reading of falsifiers against the news,
- * forecast and settlement, as an exchange's day turns and after clearing it all, so every window
- * reads it again.
+ * forecast and settlement, as an exchange's day turns or its regular session ends, and after
+ * clearing it all, so every window reads it again.
  */
 export function createResearch(
   data: ResearchData,
@@ -38,6 +34,7 @@ export function createResearch(
     news,
     embedder,
     diagnostics,
+    sessions,
     ...sources
   }: {
     marketData: Pick<MarketData, "candles">;
@@ -48,6 +45,8 @@ export function createResearch(
     /** Only a model on this computer, since a report is the user's own. */
     embedder: () => Embedder | undefined;
     diagnostics: Pick<Diagnostics, "recovered">;
+    /** The session each market is in now. */
+    sessions: () => Promise<Record<Market, Session>>;
     /** @default Date.now */
     now?: () => number;
   },
@@ -62,21 +61,37 @@ export function createResearch(
     onChange,
   });
 
-  let days = exchangeDays(now());
+  /** Each market's day on its exchange's calendar, and whether its regular session is open. */
+  async function exchangeClock() {
+    const open = await sessions();
+
+    return Object.values(Market)
+      .map(
+        (market) =>
+          `${exchangeDate(market, new Date(now()))}:${open[market] === Session.Regular}`
+      )
+      .join(" ");
+  }
+
+  let clock: string | undefined;
 
   return {
     desk,
 
-    /** Tells `onChange` as an exchange's day turns, which passes a report's events and is told by nothing else. */
+    /**
+     * Tells `onChange` as an exchange's day turns, which passes a report's events, and as its
+     * regular session opens or closes, after which a forecast reads as settled; nothing else
+     * tells of either.
+     */
     work: {
-      everyMs: DAY_CHECK_MS,
+      everyMs: CLOCK_CHECK_MS,
       async run() {
-        const today = exchangeDays(now());
+        const read = await exchangeClock();
+        const changed = clock !== undefined && read !== clock;
 
-        if (today === days) return;
+        clock = read;
 
-        days = today;
-        onChange();
+        if (changed) onChange();
       },
     } satisfies ScheduledWork,
 

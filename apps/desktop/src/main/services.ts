@@ -66,6 +66,7 @@ import { createScheduleDays } from "./modules/market/schedule-days.ts";
 import {
   createMarketDays,
   createTradingCalendar,
+  marketSessions,
 } from "./modules/market/trading-calendar.ts";
 import { createMemories } from "./modules/memory/memories.ts";
 import { createNewsCollector } from "./modules/news/news-collector.ts";
@@ -282,6 +283,7 @@ export function createServices(config: ConfigFile) {
       news: newsData.store,
       embedder: () => embeddings.localEmbedder(),
       diagnostics,
+      sessions: () => marketSessions(marketDays),
     },
     () => {
       broadcast(researchEvents.onChanged);
@@ -592,7 +594,7 @@ export function createServices(config: ConfigFile) {
   scheduler.register("Scheduled tasks", schedules.work);
   scheduler.register("Change watch", schedules.changeWork);
   scheduler.register("Theme watch", themes.work);
-  scheduler.register("Exchange days", research.work);
+  scheduler.register("Exchange clock", research.work);
   scheduler.register("Backup", backups.work);
 
   nativeTheme.themeSource = appearance.read().theme;
