@@ -882,7 +882,8 @@ test("a story's retellings leave out its lead, also where it was copied apart fr
       record("2026-10-02T02:00:00Z", null),
       { ...record("2026-10-02T02:00:00Z", null), source: "reprints" },
     ],
-    UNNAMED
+    UNNAMED,
+    NOW
   ).stories;
 
   expect(retellings(story).map(({ source }) => source)).toEqual(["reprints"]);
