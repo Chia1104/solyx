@@ -115,8 +115,9 @@ export interface SourceHealth {
 /** Keeps what sources found per listing, so history outlives each source's window. */
 export interface NewsStore {
   /**
-   * Stores what a source found for a listing. An item stored before keeps its score and the first
-   * publication time it was given, and takes the latest title, snippet and votes.
+   * Stores what a source found for a listing. An item stored before keeps the first publication
+   * time it was given and takes the latest title, snippet and votes; it keeps its scores and vector
+   * unless its title or snippet changed beyond spacing, so that what it now says is read again.
    */
   save(
     symbol: SymbolRef,
@@ -124,14 +125,17 @@ export interface NewsStore {
     items: readonly NewsItem[],
     foundAt: Date
   ): void;
-  /** Stores the decisions model's reading of a record's item for the listing. */
+  /** Stores the decisions model's reading of a record's item for the listing, unless its text has changed since. */
   saveScore(symbol: SymbolRef, record: NewsRecord, score: SentimentScore): void;
   /**
    * A listing's records published since `since`, or found since then when undated, newest first,
    * each with its item's vector in `space` where it has one.
    */
   list(symbol: SymbolRef, since: Date, space?: string): NewsRecord[];
-  /** Keeps each item's vector in `space`, dropping every vector of another space. */
+  /**
+   * Keeps each item's vector in `space`, dropping every vector of another space; an item whose
+   * text has changed since its record was read keeps none.
+   */
   saveEmbeddings(
     space: string,
     vectors: readonly {

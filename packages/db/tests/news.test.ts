@@ -199,6 +199,66 @@ test("an item found again keeps its score and first time, and takes the latest v
   ]);
 });
 
+test.each([
+  ["title", { title: "corrected title" }],
+  ["snippet", { snippet: "a corrected snippet" }],
+])(
+  "an item found again with a new %s loses its scores and vector, and a reading of the old text is not kept",
+  (_, change) => {
+    const news = open();
+    const since = new Date("2026-09-26T00:00:00Z");
+    const first = item("a", "2026-10-02T00:00:00Z");
+
+    news.store.save(TSMC, NEWS, [first], FOUND);
+    news.store.save(FOXCONN, NEWS, [first], FOUND);
+
+    const [record] = news.store.list(TSMC, since);
+
+    news.store.saveScore(TSMC, record, SCORE);
+    news.store.saveScore(FOXCONN, record, SCORE);
+    news.store.saveEmbeddings("small", [
+      { record, values: Float32Array.of(1) },
+    ]);
+
+    const later = new Date("2026-10-04T00:00:00Z");
+
+    // The same text found again, however it is spaced, keeps what was read of it.
+    news.store.save(TSMC, NEWS, [first], later);
+    news.store.save(
+      TSMC,
+      NEWS,
+      [{ ...first, snippet: `  ${first.snippet.replace(" ", "\n ")} ` }],
+      later
+    );
+
+    expect(news.store.list(TSMC, since, "small")[0]).toMatchObject({
+      item: { snippet: first.snippet },
+      score: SCORE,
+      embedding: { space: "small" },
+    });
+
+    news.store.save(TSMC, NEWS, [{ ...first, ...change }], later);
+
+    for (const symbol of [TSMC, FOXCONN]) {
+      const [changed] = news.store.list(symbol, since, "small");
+
+      expect(changed).toMatchObject({ item: change, score: null });
+      expect(changed.embedding).toBeUndefined();
+    }
+
+    // A model that read the old text answers after the change.
+    news.store.saveScore(TSMC, record, SCORE);
+    news.store.saveEmbeddings("small", [
+      { record, values: Float32Array.of(1) },
+    ]);
+
+    const [after] = news.store.list(TSMC, since, "small");
+
+    expect(after.score).toBeNull();
+    expect(after.embedding).toBeUndefined();
+  }
+);
+
 test("one item found for two listings is scored for each on its own", () => {
   const { store } = open();
   const since = new Date("2026-09-26T00:00:00Z");
