@@ -5,6 +5,7 @@ import { calendarContract } from "./calendar.contract.ts";
 import { flowsContract } from "./flows.contract.ts";
 import { fundamentalsContract } from "./fundamentals.contract.ts";
 import { inboxContract } from "./inbox.contract.ts";
+import { macroContract } from "./macro.contract.ts";
 import { marketContract } from "./market.contract.ts";
 import { memoryContract } from "./memory.contract.ts";
 import { newsContract } from "./news.contract.ts";
@@ -27,6 +28,7 @@ export const routerContract = {
   flows: flowsContract,
   fundamentals: fundamentalsContract,
   inbox: inboxContract,
+  macro: macroContract,
   market: marketContract,
   memory: memoryContract,
   news: newsContract,

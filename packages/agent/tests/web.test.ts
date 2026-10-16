@@ -124,8 +124,8 @@ function setup(vendor = fakeVendor()) {
       releases: [],
       closures: [],
       unreadMarkets: [],
-      unreadFigures: [],
     }),
+    figures: async () => [],
     desk: {
       check: vi.fn<OrderDesk["check"]>(async () => []),
       propose: vi.fn<OrderDesk["propose"]>(),

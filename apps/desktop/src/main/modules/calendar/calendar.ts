@@ -7,7 +7,6 @@ import {
 } from "@solyx/core/calendar";
 import type { UpcomingEvents } from "@solyx/core/calendar";
 import type { Fundamentals } from "@solyx/core/fundamentals";
-import { releaseReadings } from "@solyx/core/macro";
 import { exchangeDate, shiftDate } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { Report } from "@solyx/core/report";
@@ -30,8 +29,8 @@ export interface CalendarOptions {
     | "exNotices"
     | "meetings"
   >;
-  /** Each market's schedule of economic releases and its indicators' figures. */
-  macro: Pick<Macro, "schedule" | "series">;
+  /** Each market's schedule of economic releases. */
+  macro: Pick<Macro, "schedule">;
   /** The sources of the days exchanges close their markets, one per market at most. */
   closures: readonly ClosuresProvider[];
   /** Each listing's report in force, for the dates it holds. */
@@ -55,8 +54,7 @@ const readOrNone = <Answer>(read: PromiseSettledResult<Answer[]>) =>
 /**
  * Listings' events as their fundamentals tell them, read through the fundamentals module, which
  * keeps what it reads, beside the dates their reports hold and their markets' closures and
- * economic releases, each release with what is known of its figures and kept for
- * `RELEASED_DAYS` once its day has come.
+ * economic releases, each release kept for `RELEASED_DAYS` once its day has come.
  */
 export function createCalendar({
   fundamentals,
@@ -98,7 +96,7 @@ export function createCalendar({
     /**
      * One listing or market failing to read leaves the others', and names it among the unread. A
      * listing's filings and what its exchange lists of it come from different sources, so one of
-     * them failing leaves the events of what was read, as figures failing leave the releases.
+     * them failing leaves the events of what was read.
      */
     async upcoming(
       symbols: readonly SymbolRef[],
@@ -116,7 +114,7 @@ export function createCalendar({
         );
       };
 
-      const [read, scheduled, closing, figures] = await Promise.all([
+      const [read, scheduled, closing] = await Promise.all([
         Promise.all(
           symbols.map(async (symbol) => {
             const [
@@ -164,10 +162,7 @@ export function createCalendar({
         ),
         Promise.allSettled(markets.map((market) => macro.schedule(market))),
         Promise.allSettled(markets.map(closuresOf)),
-        Promise.allSettled(markets.map((market) => macro.series(market))),
       ]);
-
-      const series = figures.flatMap(readOrNone);
 
       return {
         events: sortBy(
@@ -186,18 +181,12 @@ export function createCalendar({
           [({ date }) => date]
         ),
         unread: symbols.filter((_, index) => !read[index].whole),
-        releases: ahead(scheduled, within(RELEASED_DAYS)).map((release) => ({
-          ...release,
-          readings: releaseReadings(release, series),
-        })),
+        releases: ahead(scheduled, within(RELEASED_DAYS)),
         closures: ahead(closing, within(0)),
         unreadMarkets: markets.filter((_, index) =>
           [scheduled[index], closing[index]].some(
             ({ status }) => status === "rejected"
           )
-        ),
-        unreadFigures: markets.filter(
-          (_, index) => figures[index].status === "rejected"
         ),
       };
     },

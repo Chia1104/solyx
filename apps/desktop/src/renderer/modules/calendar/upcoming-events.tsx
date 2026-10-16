@@ -1,5 +1,5 @@
 import { Button, cn } from "@heroui/react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { groupBy, mapValues, partition, sortBy, uniq } from "es-toolkit";
 import type { TFunction } from "i18next";
@@ -11,7 +11,8 @@ import type {
   ReleaseEvent,
   ResearchEvent,
 } from "@solyx/core/calendar";
-import { MacroUnit } from "@solyx/core/macro";
+import { MacroUnit, releaseReadings } from "@solyx/core/macro";
+import type { MacroRelease } from "@solyx/core/macro";
 import { exchangeDate, shiftDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketClosure } from "@solyx/core/session";
@@ -19,6 +20,7 @@ import type { MarketClosure } from "@solyx/core/session";
 import { useClock } from "../../app/clock.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
+import { macroSeriesQuery } from "../macro/macro-query.ts";
 import { ListingName } from "../market/listing-name.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
@@ -179,11 +181,28 @@ function ResearchRow({ event }: { event: ResearchEvent }) {
   );
 }
 
-/** A release's headline figure in words: what it brought once its period is out, or else the newest out before it. */
-function ReleaseFigure({ release }: { release: ReleaseEvent }) {
+/**
+ * A release's headline figure in words: what it brought once its period is out, or else the newest
+ * out before it, while its market's figures are still being read.
+ */
+function ReleaseFigure({
+  release,
+  pending,
+}: {
+  release: ReleaseEvent;
+  pending: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
   const [reading] = release.readings;
+
+  if (pending) {
+    return (
+      <span className="ms-1.5 text-xs text-muted">
+        {t("calendar.reading.pending")}
+      </span>
+    );
+  }
 
   if (!reading) return null;
 
@@ -212,10 +231,16 @@ function ReleaseFigure({ release }: { release: ReleaseEvent }) {
   );
 }
 
-const releaseKey = ({ market, indicator, date, period }: ReleaseEvent) =>
+const releaseKey = ({ market, indicator, date, period }: MacroRelease) =>
   `${market}:${indicator}:${date}:${period}`;
 
-function ReleaseRow({ release }: { release: ReleaseEvent }) {
+function ReleaseRow({
+  release,
+  pending,
+}: {
+  release: ReleaseEvent;
+  pending: boolean;
+}) {
   const { t } = useTranslation();
 
   return (
@@ -254,7 +279,7 @@ function ReleaseRow({ release }: { release: ReleaseEvent }) {
             .filter((part) => part !== null)
             .join(" · ")}
         </span>
-        <ReleaseFigure release={release} />
+        <ReleaseFigure release={release} pending={pending} />
       </span>
     </li>
   );
@@ -290,11 +315,17 @@ function ClosureRow({ closure }: { closure: MarketClosure }) {
  * economic releases and closures, on an agenda that shows a week or a month of them soonest
  * first, with the listings and markets whose dates could not be read. The releases whose day has
  * come stay above it for a while, newest first, so the figures they brought are read at a glance.
+ * Each market's figures are read apart from the dates, which show while they are still coming.
  */
 export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
   const { t } = useTranslation();
   const clock = useClock();
   const { data, error, refetch } = useQuery(upcomingEventsQuery(symbols));
+  const markets = uniq(symbols.map(({ market }) => market));
+
+  const figures = useQueries({
+    queries: markets.map((market) => macroSeriesQuery(market)),
+  });
 
   if (error) return <LoadError error={error} onRetry={() => void refetch()} />;
 
@@ -305,14 +336,23 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
   // An event's day is its exchange's, so the agenda opens on the earliest day still running on any.
   const running = [
     today,
-    ...uniq(symbols.map(({ market }) => market)).map((market) =>
-      exchangeDate(market)
-    ),
+    ...markets.map((market) => exchangeDate(market)),
   ].toSorted();
+
+  const series = figures.flatMap(({ data: read }) => read ?? []);
+
+  const pending = new Set(
+    markets.filter((_, index) => figures[index]?.isPending)
+  );
+
+  const unreadFigures = markets.filter((_, index) => figures[index]?.isError);
 
   // A release whose day is behind every calendar in view is out, and no longer ahead on the agenda.
   const [ahead, released] = partition(
-    data.releases,
+    data.releases.map((release): ReleaseEvent => ({
+      ...release,
+      readings: releaseReadings(release, series),
+    })),
     ({ date }) => date >= (running.at(0) ?? today)
   );
 
@@ -351,7 +391,13 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
       ...ahead.map((release) => ({
         date: release.date,
         timing: release.timing,
-        row: <ReleaseRow key={releaseKey(release)} release={release} />,
+        row: (
+          <ReleaseRow
+            key={releaseKey(release)}
+            release={release}
+            pending={pending.has(release.market)}
+          />
+        ),
       })),
     ],
     [({ date }) => date]
@@ -381,7 +427,11 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
           </h3>
           <ul className="divide-y divide-separator">
             {released.toReversed().map((release) => (
-              <ReleaseRow key={releaseKey(release)} release={release} />
+              <ReleaseRow
+                key={releaseKey(release)}
+                release={release}
+                pending={pending.has(release.market)}
+              />
             ))}
           </ul>
         </section>
@@ -434,10 +484,10 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
           })}
         </p>
       )}
-      {data.unreadFigures.length === 0 ? null : (
+      {unreadFigures.length === 0 ? null : (
         <p className="text-xs text-warning">
           {t("calendar.figures-unread", {
-            markets: data.unreadFigures
+            markets: unreadFigures
               .map((market) => t(`market.${market}`))
               .join(", "),
           })}

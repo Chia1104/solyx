@@ -5,6 +5,7 @@ import { calendarRouter } from "../modules/calendar/calendar.route.ts";
 import { flowsRouter } from "../modules/flows/flows.route.ts";
 import { fundamentalsRouter } from "../modules/fundamentals/fundamentals.route.ts";
 import { inboxRouter } from "../modules/inbox/inbox.route.ts";
+import { macroRouter } from "../modules/macro/macro.route.ts";
 import { marketRouter } from "../modules/market/market.route.ts";
 import { memoryRouter } from "../modules/memory/memory.route.ts";
 import { newsRouter } from "../modules/news/news.route.ts";
@@ -28,6 +29,7 @@ export const router = contractOS.router({
   flows: flowsRouter,
   fundamentals: fundamentalsRouter,
   inbox: inboxRouter,
+  macro: macroRouter,
   market: marketRouter,
   memory: memoryRouter,
   news: newsRouter,

@@ -293,7 +293,8 @@
     "released": "Out in the last week",
     "reading": {
       "out": "Out: {{figure}}",
-      "last": "Last, {{period}}: {{figure}}"
+      "last": "Last, {{period}}: {{figure}}",
+      "pending": "Reading figures…"
     },
     "figures": {
       "consumer-prices": "{{yoy}} on the year",

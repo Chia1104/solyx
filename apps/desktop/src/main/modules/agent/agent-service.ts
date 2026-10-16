@@ -245,6 +245,7 @@ export function createAgentService(options: AgentServiceOptions) {
     news: options.news,
     tradingDays: options.tradingDays,
     calendar: (symbols, days) => options.calendar.upcoming(symbols, days),
+    figures: options.macro.series,
     desk: options.desk,
     magi,
     links: {

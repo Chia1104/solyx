@@ -293,7 +293,8 @@
     "released": "最近一週公布",
     "reading": {
       "out": "已公布：{{figure}}",
-      "last": "上期（{{period}}）：{{figure}}"
+      "last": "上期（{{period}}）：{{figure}}",
+      "pending": "讀取數值中…"
     },
     "figures": {
       "consumer-prices": "年增 {{yoy}}",

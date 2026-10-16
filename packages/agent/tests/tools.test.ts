@@ -161,9 +161,10 @@ function setup(candles: Candle[] = dailyBars(80)) {
       releases: [],
       closures: [],
       unreadMarkets: [],
-      unreadFigures: [],
     })
   );
+
+  const figures = vi.fn<TradingToolPorts["figures"]>(async () => []);
 
   const ports = {
     marketData,
@@ -171,6 +172,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     news,
     tradingDays,
     calendar,
+    figures,
     desk,
     links: LINKS,
     skills: async () => [
@@ -200,7 +202,16 @@ function setup(candles: Candle[] = dailyBars(80)) {
     return { text: contentText(result.output ?? []), details: result.details };
   };
 
-  return { run, desk, ports, marketData, news, tradingDays, calendar };
+  return {
+    run,
+    desk,
+    ports,
+    marketData,
+    news,
+    tradingDays,
+    calendar,
+    figures,
+  };
 }
 
 function newsItem(title: string, hoursAgo: number | null): NewsItem {
@@ -712,7 +723,7 @@ test("the prompt carries the skills and the user's instructions", async () => {
 });
 
 test("the calendar lists the followed listings' events and their markets' releases, deadlines marked", async () => {
-  const { run, desk, calendar } = setup();
+  const { run, desk, calendar, figures } = setup();
 
   desk.account.mockResolvedValue({
     cash: { TWD: 1_000_000 },
@@ -832,25 +843,6 @@ test("the calendar lists the followed listings' events and their markets' releas
         timing: EventTiming.Set,
         period: "2026-09",
         page: "https://www.mof.gov.tw/multiplehtml/384",
-        // Out, with what it brought.
-        readings: [
-          {
-            figure: MacroFigure.Exports,
-            unit: MacroUnit.UsdMillions,
-            period: "2026-09",
-            value: 52000,
-            previous: 50000,
-            yoy: 0.2683,
-          },
-          {
-            figure: MacroFigure.Imports,
-            unit: MacroUnit.UsdMillions,
-            period: "2026-09",
-            value: 38000.5,
-            previous: 36000,
-            yoy: null,
-          },
-        ],
       },
       {
         market: Market.TW,
@@ -860,17 +852,6 @@ test("the calendar lists the followed listings' events and their markets' releas
         timing: EventTiming.Set,
         period: "2026-10",
         page: null,
-        // Ahead, with the newest period out before it.
-        readings: [
-          {
-            figure: MacroFigure.ConsumerPrices,
-            unit: MacroUnit.Index,
-            period: "2026-09",
-            value: 102.5,
-            previous: 102,
-            yoy: 0.025,
-          },
-        ],
       },
       {
         market: Market.TW,
@@ -880,16 +861,6 @@ test("the calendar lists the followed listings' events and their markets' releas
         timing: EventTiming.Set,
         period: "2026-09",
         page: null,
-        readings: [
-          {
-            figure: MacroFigure.BusinessSignal,
-            unit: MacroUnit.Points,
-            period: "2026-08",
-            value: 41,
-            previous: 40,
-            yoy: null,
-          },
-        ],
       },
       {
         market: Market.TW,
@@ -899,13 +870,56 @@ test("the calendar lists the followed listings' events and their markets' releas
         timing: EventTiming.Deadline,
         period: "2026-10",
         page: null,
-        readings: [],
       },
     ],
     closures: [{ market: Market.TW, date: "2026-10-09", name: "國慶日" }],
     unreadMarkets: [],
-    unreadFigures: [Market.TW],
   });
+
+  figures.mockResolvedValue([
+    {
+      market: Market.TW,
+      indicator: MacroIndicator.Trade,
+      figure: MacroFigure.Exports,
+      unit: MacroUnit.UsdMillions,
+      observations: [
+        { period: "2025-09", value: 41000 },
+        { period: "2026-08", value: 50000 },
+        { period: "2026-09", value: 52000 },
+      ],
+    },
+    {
+      market: Market.TW,
+      indicator: MacroIndicator.Trade,
+      figure: MacroFigure.Imports,
+      unit: MacroUnit.UsdMillions,
+      observations: [
+        { period: "2026-08", value: 36000 },
+        { period: "2026-09", value: 38000.5 },
+      ],
+    },
+    {
+      market: Market.TW,
+      indicator: MacroIndicator.ConsumerPrices,
+      figure: MacroFigure.ConsumerPrices,
+      unit: MacroUnit.Index,
+      observations: [
+        { period: "2025-09", value: 100 },
+        { period: "2026-08", value: 102 },
+        { period: "2026-09", value: 102.5 },
+      ],
+    },
+    {
+      market: Market.TW,
+      indicator: MacroIndicator.BusinessSignal,
+      figure: MacroFigure.BusinessSignal,
+      unit: MacroUnit.Points,
+      observations: [
+        { period: "2026-07", value: 40 },
+        { period: "2026-08", value: 41 },
+      ],
+    },
+  ]);
 
   const { text, details } = await run(AgentToolName.GetCalendar, { days: 30 });
 
@@ -913,6 +927,7 @@ test("the calendar lists the followed listings' events and their markets' releas
     [{ market: Market.TW, symbol: "6669" }, TSMC],
     30
   );
+  expect(figures).toHaveBeenCalledWith(Market.TW);
   expect(text.split("\n")).toEqual([
     "Calendar of TW 6669, TW 2330 over the next 30 days, each market from its own day today, as_of 2026-09-30 10:00 Taipei; the same list the app's overview shows",
     "Listings' filings, distributions, meetings and restrictions:",
@@ -934,7 +949,7 @@ test("the calendar lists the followed listings' events and their markets' releas
     "by 2026-11-03 TW purchasing managers for 2026-10",
     "Weekdays their markets are closed:",
     "2026-10-09 TW closed (國慶日)",
-    "Could not read the fundamentals of TW 6669; the economic figures of TW this time, so dates may be missing.",
+    "Could not read the fundamentals of TW 6669 this time, so dates may be missing.",
   ]);
   expect(details).toEqual({
     symbols: [{ market: Market.TW, symbol: "6669" }, TSMC],
@@ -942,6 +957,37 @@ test("the calendar lists the followed listings' events and their markets' releas
     events: 10,
     releases: 4,
   });
+});
+
+test("the calendar names a market whose figures cannot be read, and lists its releases without any", async () => {
+  const { run, calendar, figures } = setup();
+
+  calendar.mockResolvedValue({
+    events: [],
+    research: [],
+    unread: [],
+    releases: [
+      {
+        market: Market.TW,
+        indicator: MacroIndicator.ConsumerPrices,
+        date: "2026-11-05",
+        time: "16:00",
+        timing: EventTiming.Set,
+        period: "2026-10",
+        page: null,
+      },
+    ],
+    closures: [],
+    unreadMarkets: [],
+  });
+  figures.mockRejectedValue(new Error("DGBAS: Request timed out"));
+
+  const { text } = await run(AgentToolName.GetCalendar, { days: 30 });
+
+  expect(text).toContain("2026-11-05 16:00 TW consumer prices for 2026-10\n");
+  expect(text).toContain(
+    "Could not read the economic figures of TW this time, so dates may be missing."
+  );
 });
 
 test("skills are read by name", async () => {
