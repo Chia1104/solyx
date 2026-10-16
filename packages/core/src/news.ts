@@ -780,6 +780,11 @@ function storyWeight(story: NewsStory, now: Date): number {
 
 const recordKey = ({ source, item }: NewsRecord) => `${source}:${item.id}`;
 
+/** A story's records besides its lead, told apart by source and item rather than as objects, which a copy makes anew. */
+export function retellings({ lead, records }: NewsStory): NewsRecord[] {
+  return records.filter((record) => recordKey(record) !== recordKey(lead));
+}
+
 /** A listing and what is stored about it. */
 export interface ListingNews {
   subject: NewsSubject;

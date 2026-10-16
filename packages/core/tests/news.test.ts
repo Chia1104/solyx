@@ -9,6 +9,7 @@ import {
   isAboutListing,
   rankHeadlines,
   readNews,
+  retellings,
   storyText,
 } from "../src/news.ts";
 import type {
@@ -798,4 +799,17 @@ test("stories two listings' searches found through different outlets make one he
       new Date("2026-10-02T06:00:00Z")
     )
   ).toHaveLength(2);
+});
+
+test("a story's retellings leave out its lead, also where it was copied apart from its records", () => {
+  const [story] = readNews(
+    [
+      record("2026-10-02T02:00:00Z", null),
+      { ...record("2026-10-02T02:00:00Z", null), source: "reprints" },
+    ],
+    UNNAMED
+  ).stories;
+
+  expect(retellings(story).map(({ source }) => source)).toEqual(["reprints"]);
+  expect(retellings({ ...story, lead: { ...story.lead } })).toHaveLength(1);
 });
