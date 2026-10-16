@@ -256,7 +256,7 @@ test("storage reads as what each store holds, on the tab where the user clears i
       {
         name: "news",
         value:
-          "1.3 GB, 1234 items; announcements and articles are kept 90 days from when they came out, forum and social posts 30",
+          "1.3 GB, 1234 items; announcements and articles kept 90 days, forum and social posts 30 days, from when each came out; the user sets how long here",
       },
       { name: "research", value: "400 bytes, 3 reports and 14 forecasts" },
       { name: "watchlist", value: "6 listings" },

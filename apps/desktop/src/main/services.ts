@@ -590,7 +590,10 @@ export function createServices(config: ConfigFile) {
   const scheduler = createScheduler({ telemetry });
 
   scheduler.register("News collection", newsCollector.work);
-  scheduler.register("News retention", createNewsRetention({ news: newsData }));
+  scheduler.register(
+    "News retention",
+    createNewsRetention({ news: newsData, config, diagnostics })
+  );
   scheduler.register("Update check", updates);
   scheduler.register("Scheduled tasks", schedules.work);
   scheduler.register("Change watch", schedules.changeWork);
