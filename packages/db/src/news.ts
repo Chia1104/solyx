@@ -178,6 +178,14 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
     save(symbol, source, items, foundAt) {
       db.transaction((tx) => {
         for (const item of items) {
+          const known = tx
+            .select({ title: newsItems.title })
+            .from(newsItems)
+            .where(
+              and(eq(newsItems.source, source.id), eq(newsItems.key, item.id))
+            )
+            .get();
+
           const stored = tx
             .insert(newsItems)
             .values({
@@ -208,6 +216,24 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
             .returning({ id: newsItems.id })
             .get();
 
+          // A reading of the old title says nothing of the new one.
+          if (known && known.title !== item.title) {
+            tx.update(listingNews)
+              .set({
+                model: null,
+                relevance: null,
+                stance: null,
+                kind: null,
+                topic: null,
+                speaker: null,
+              })
+              .where(eq(listingNews.itemId, stored.id))
+              .run();
+            tx.delete(itemEmbeddings)
+              .where(eq(itemEmbeddings.itemId, stored.id))
+              .run();
+          }
+
           tx.run(sql`DELETE FROM news_terms WHERE rowid = ${stored.id}`);
           tx.run(
             sql`INSERT INTO news_terms (rowid, terms) VALUES (${stored.id}, ${itemTerms(item)})`
@@ -233,7 +259,8 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
         .where(
           and(
             eq(newsItems.source, record.source),
-            eq(newsItems.key, record.item.id)
+            eq(newsItems.key, record.item.id),
+            eq(newsItems.title, record.item.title)
           )
         );
 
@@ -280,7 +307,8 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
             .where(
               and(
                 eq(newsItems.source, record.source),
-                eq(newsItems.key, record.item.id)
+                eq(newsItems.key, record.item.id),
+                eq(newsItems.title, record.item.title)
               )
             )
             .get();
