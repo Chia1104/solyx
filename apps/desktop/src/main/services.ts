@@ -637,6 +637,7 @@ export function createServices(config: ConfigFile) {
     memories,
     research,
     calendar,
+    macro,
     flows,
     fundamentals,
     agent,

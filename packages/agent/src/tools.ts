@@ -58,6 +58,8 @@ import {
   yearRange,
 } from "@solyx/core/levels";
 import type { PriceRange } from "@solyx/core/levels";
+import { releaseReadings } from "@solyx/core/macro";
+import type { MacroSeries } from "@solyx/core/macro";
 import {
   BENCHMARK,
   Market,
@@ -119,6 +121,8 @@ export interface TradingToolPorts extends PromptSources {
     symbols: readonly SymbolRef[],
     days: number
   ): Promise<UpcomingEvents>;
+  /** A market's indicators' figures, as the host keeps them; none for a market no source covers. */
+  figures(market: Market): Promise<MacroSeries[]>;
   desk: ProposingDesk;
   /** Puts each order proposal to a vote while the user has decisions go to the MAGI. */
   magi?: MagiPort;
@@ -836,15 +840,23 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             symbolKey
           );
 
-        const {
-          events,
-          research,
-          unread,
-          releases,
-          closures,
-          unreadMarkets,
-          unreadFigures,
-        } = await ports.calendar(listings, days);
+        const markets = uniq(listings.map(({ market }) => market));
+
+        const [
+          { events, research, unread, releases, closures, unreadMarkets },
+          figures,
+        ] = await Promise.all([
+          ports.calendar(listings, days),
+          Promise.allSettled(markets.map((market) => ports.figures(market))),
+        ]);
+
+        const series = figures.flatMap((read) =>
+          read.status === "fulfilled" ? read.value : []
+        );
+
+        const unreadFigures = markets.filter(
+          (_, index) => figures[index]?.status === "rejected"
+        );
 
         const named = listings
           .map(({ market, symbol }) => `${market} ${symbol}`)
@@ -875,7 +887,12 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
               : ["None."]),
             `Economic releases of their markets, from ${RELEASED_DAYS} days back:`,
             ...(releases.length > 0
-              ? releases.map(describeRelease)
+              ? releases.map((release) =>
+                  describeRelease({
+                    ...release,
+                    readings: releaseReadings(release, series),
+                  })
+                )
               : ["None."]),
             "Weekdays their markets are closed:",
             ...(closures.length > 0
