@@ -20,6 +20,7 @@ import {
   decisionModeSchema,
 } from "@solyx/core/council";
 import type { Market } from "@solyx/core/market";
+import { NewsVoice } from "@solyx/core/news";
 import {
   CollectionJob,
   ScheduleKind,
@@ -61,6 +62,7 @@ import {
   backupRegionSchema,
 } from "#shared/backup.ts";
 import type { BackupSetting } from "#shared/backup.ts";
+import { NewsRetention, newsRetentionSchema } from "#shared/news.ts";
 import {
   ColorScheme,
   Palette,
@@ -308,6 +310,26 @@ const configSchema = section(
           }),
       })
     ),
+    news: section(
+      z.looseObject({
+        kept: section(
+          z.looseObject({
+            [NewsVoice.Press]: newsRetentionSchema
+              .catch(NewsRetention.Quarter)
+              .meta({
+                description:
+                  "How long companies' announcements and news articles are kept from when they came out: 30d, 90d, 180d, 365d or forever. Older ones are deleted once a day, and at once when this is shortened; sources reach back only days, so they cannot be collected again.",
+              }),
+            [NewsVoice.Crowd]: newsRetentionSchema
+              .catch(NewsRetention.Month)
+              .meta({
+                description:
+                  "How long forum and social posts are kept from when they were posted, as press news is.",
+              }),
+          })
+        ),
+      })
+    ),
     updates: section(
       z.looseObject({
         check: z.boolean().catch(true).meta({
@@ -507,6 +529,7 @@ type ConfigPath =
   | ["agent", "mcpTools", string]
   | ["collection", CollectionJob]
   | ["backup", BackupSetting | "automatic" | "every"]
+  | ["news", "kept", NewsVoice]
   | ["updates", "check"]
   | ["crashReports", "send"]
   | ["otlp", "endpoint"]

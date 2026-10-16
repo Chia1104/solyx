@@ -6,8 +6,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { NewsVoice } from "@solyx/core/news";
 import { isEnumValue } from "@solyx/utils/is";
 
+import { NewsRetention, RETENTION_DAYS } from "#shared/news.ts";
 import { MarketDataSource } from "#shared/settings.ts";
 import { StoredData } from "#shared/storage.ts";
 
@@ -15,11 +17,13 @@ import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
+import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 import { agentQueryKeys } from "../agent/agent-query.ts";
 import { useAgentStore } from "../agent/agent-store.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
+import { newsRetentionQuery } from "../settings/settings-query.ts";
 
 import { formatBytes } from "./format-bytes.ts";
 import { storageUsageQuery } from "./storage-query.ts";
@@ -108,6 +112,107 @@ function ClearButton({
   );
 }
 
+// Forever keeps more than any number of days.
+const keptDays = (retention: NewsRetention) =>
+  RETENTION_DAYS[retention] ?? Infinity;
+
+/** How long one voice's news is kept, asking first when a shorter time would delete some. */
+function RetentionRow({
+  voice,
+  retention,
+}: {
+  voice: NewsVoice;
+  retention: NewsRetention;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [shorter, setShorter] = useState<NewsRetention | null>(null);
+
+  const keep = useMutation(
+    orpc.settings.setNewsRetention.mutationOptions({
+      onSuccess: () => setShorter(null),
+      // What a shorter time deleted leaves the counts above.
+      onSettled: () =>
+        queryClient.invalidateQueries({ queryKey: orpc.storage.key() }),
+    })
+  );
+
+  const label = t(`settings.storage.news.kept.${voice}`);
+
+  return (
+    <SettingsRow
+      label={label}
+      description={t(`settings.storage.news.kept-description.${voice}`)}
+      actions={
+        <OptionSelect
+          aria-label={label}
+          className="w-32"
+          value={retention}
+          isDisabled={keep.isPending}
+          options={Object.values(NewsRetention).map((id) => ({
+            id,
+            label: t(`settings.storage.news.retention.${id}`),
+          }))}
+          onChange={(next) => {
+            if (keptDays(next) < keptDays(retention)) setShorter(next);
+            else keep.mutate({ voice, retention: next });
+          }}
+        />
+      }>
+      {keep.error && shorter === null ? (
+        <ErrorAlert
+          title={t("settings.storage.news.keep-failed")}
+          description={keep.error.message}
+        />
+      ) : null}
+      <AlertDialog
+        isOpen={shorter !== null}
+        onOpenChange={(open) => {
+          if (!open) setShorter(null);
+        }}>
+        <AlertDialog.Backdrop>
+          <AlertDialog.Container>
+            <AlertDialog.Dialog className="sm:max-w-100">
+              <AlertDialog.Header>
+                <AlertDialog.Heading>
+                  {t("settings.storage.news.shorten-title")}
+                </AlertDialog.Heading>
+              </AlertDialog.Header>
+              <AlertDialog.Body className="flex flex-col gap-3">
+                <p>
+                  {t("settings.storage.news.shorten-body", {
+                    kind: t(`settings.storage.news.kinds.${voice}`),
+                    days: shorter === null ? null : RETENTION_DAYS[shorter],
+                  })}
+                </p>
+                {keep.error ? (
+                  <ErrorAlert
+                    title={t("settings.storage.news.keep-failed")}
+                    description={keep.error.message}
+                  />
+                ) : null}
+              </AlertDialog.Body>
+              <AlertDialog.Footer>
+                <Button slot="close" variant="tertiary">
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  variant="danger"
+                  isPending={keep.isPending}
+                  onPress={() => {
+                    if (shorter) keep.mutate({ voice, retention: shorter });
+                  }}>
+                  {t("settings.storage.news.shorten")}
+                </Button>
+              </AlertDialog.Footer>
+            </AlertDialog.Dialog>
+          </AlertDialog.Container>
+        </AlertDialog.Backdrop>
+      </AlertDialog>
+    </SettingsRow>
+  );
+}
+
 /** One kind of data: what it holds, then clearing it, which waits while it holds nothing. */
 function StorageSection({
   data,
@@ -138,6 +243,7 @@ function StorageSection({
 export function StorageSettings() {
   const { t, i18n } = useTranslation();
   const { data, error, refetch } = useQuery(storageUsageQuery());
+  const { data: retention } = useQuery(newsRetentionQuery());
 
   if (error) {
     return (
@@ -212,6 +318,15 @@ export function StorageSettings() {
           label={t("settings.storage.news.count")}
           value={count(news.items)}
         />
+        {retention
+          ? Object.values(NewsVoice).map((voice) => (
+              <RetentionRow
+                key={voice}
+                voice={voice}
+                retention={retention[voice]}
+              />
+            ))
+          : null}
       </StorageSection>
       <StorageSection
         data={StoredData.Research}

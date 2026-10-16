@@ -57,6 +57,7 @@ import {
 } from "./modules/market/trading-calendar.ts";
 import { createMemories } from "./modules/memory/memories.ts";
 import { createNewsCollector } from "./modules/news/news-collector.ts";
+import { createNewsRetention } from "./modules/news/news-retention.ts";
 import { createNewsSources } from "./modules/news/news-sources.ts";
 import { createNews } from "./modules/news/news.ts";
 import { createResearch } from "./modules/research/research.ts";
@@ -589,6 +590,10 @@ export function createServices(config: ConfigFile) {
   const scheduler = createScheduler({ telemetry });
 
   scheduler.register("News collection", newsCollector.work);
+  scheduler.register(
+    "News retention",
+    createNewsRetention({ news: newsData, config, diagnostics })
+  );
   scheduler.register("Update check", updates);
   scheduler.register("Scheduled tasks", schedules.work);
   scheduler.register("Change watch", schedules.changeWork);

@@ -13,12 +13,15 @@ import {
 } from "@solyx/agent/providers";
 import { MagiUnit, decisionModeSchema } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
+import { NewsVoice } from "@solyx/core/news";
 import { decisionsProviderSchema } from "@solyx/decisions/provider";
 import { embeddingsProviderSchema } from "@solyx/embeddings/provider";
 import { finMindPlanSchema } from "@solyx/fundamentals/finmind";
 import { fuglePlanSchema } from "@solyx/market-data/fugle";
 import { webSearchProviderSchema } from "@solyx/web-search/provider";
 
+import { newsRetentionSchema } from "../news.ts";
+import type { NewsRetentionSettings } from "../news.ts";
 import {
   colorSchemeSchema,
   hexColorSchema,
@@ -234,6 +237,13 @@ export const settingsContract = {
   /** Puts the icon in the tray or takes it away, at once. */
   setTrayShown: oc.input(z.boolean()).output(type<void>()),
   setDockHidden: oc.input(z.boolean()).output(type<void>()),
+  newsRetention: oc.output(type<NewsRetentionSettings>()),
+  /** Keeps a voice's news this long; a shorter time deletes what is older at once. */
+  setNewsRetention: oc
+    .input(
+      z.object({ voice: z.enum(NewsVoice), retention: newsRetentionSchema })
+    )
+    .output(type<void>()),
   updates: oc.output(type<UpdateSettings>()),
   setUpdateChecks: oc.input(z.boolean()).output(type<void>()),
   otlp: oc.output(type<OtlpSettings>()),

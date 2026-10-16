@@ -10,6 +10,7 @@ import type { SettingChange } from "@solyx/agent/wire";
 import { DecisionMode } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
 import type { MemoryStore } from "@solyx/core/memory";
+import { NewsVoice } from "@solyx/core/news";
 import { CollectionJob, ScheduleKind } from "@solyx/core/schedule";
 import type { Schedule, ScheduleStore } from "@solyx/core/schedule";
 import type { ThemeStore } from "@solyx/core/theme";
@@ -19,6 +20,7 @@ import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
+import { RETENTION_DAYS } from "#shared/news.ts";
 import { ColorScheme, Palette } from "#shared/palette.ts";
 import { SettingsSection, settingsLink } from "#shared/settings-section.ts";
 import {
@@ -653,6 +655,14 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     const { candles, conversations, memory, news, research, watchlist } =
       await options.storage.usage();
 
+    const retention = config.read().news.kept;
+
+    const kept = (voice: NewsVoice) => {
+      const days = RETENTION_DAYS[retention[voice]];
+
+      return days === null ? "for good" : `${days} days`;
+    };
+
     return {
       name: "Storage",
       link: settingsLink(SettingsSection.Storage),
@@ -676,7 +686,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         },
         {
           name: "news",
-          value: `${size(news.bytes)}, ${counted(news.items, "item")}`,
+          value: `${size(news.bytes)}, ${counted(news.items, "item")}; announcements and articles kept ${kept(NewsVoice.Press)}, forum and social posts ${kept(NewsVoice.Crowd)}, from when each came out; the user sets how long here`,
         },
         {
           name: "research",

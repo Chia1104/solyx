@@ -87,6 +87,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       mcpTools: {},
     },
     collection: DEFAULT_COLLECTION_PLANS,
+    news: { kept: { press: "90d", crowd: "30d" } },
     updates: { check: true },
     otlp: {},
     backup: { automatic: true, every: "1h" },
