@@ -60,6 +60,9 @@ function toItem(item: ItemRow): NewsItem {
   };
 }
 
+/** Text as a reader sees it, whatever its spacing. */
+const spaced = (text: string) => text.replace(/\s+/g, " ").trim();
+
 /** What `news_terms` holds of an item: the words of its title and snippet. */
 function itemTerms(item: Pick<NewsItem, "title" | "snippet">) {
   return indexedTerms([item.title, item.snippet]);
@@ -179,12 +182,18 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
       db.transaction((tx) => {
         for (const item of items) {
           const known = tx
-            .select({ title: newsItems.title })
+            .select({ title: newsItems.title, snippet: newsItems.snippet })
             .from(newsItems)
             .where(
               and(eq(newsItems.source, source.id), eq(newsItems.key, item.id))
             )
             .get();
+
+          // A snippet respaced says nothing new, so the one stored stays and so does its reading.
+          const snippet =
+            known && spaced(known.snippet) === spaced(item.snippet)
+              ? known.snippet
+              : item.snippet;
 
           const stored = tx
             .insert(newsItems)
@@ -194,7 +203,7 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
               key: item.id,
               url: item.url,
               title: item.title,
-              snippet: item.snippet,
+              snippet,
               site: item.site,
               publishedAt: item.published?.at.getTime() ?? null,
               publishedPrecision: item.published?.precision ?? null,
@@ -216,8 +225,11 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
             .returning({ id: newsItems.id })
             .get();
 
-          // A reading of the old title says nothing of the new one.
-          if (known && known.title !== item.title) {
+          // A reading of the old text says nothing of the new.
+          if (
+            known &&
+            (known.title !== item.title || known.snippet !== snippet)
+          ) {
             tx.update(listingNews)
               .set({
                 model: null,
@@ -260,7 +272,8 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
           and(
             eq(newsItems.source, record.source),
             eq(newsItems.key, record.item.id),
-            eq(newsItems.title, record.item.title)
+            eq(newsItems.title, record.item.title),
+            eq(newsItems.snippet, record.item.snippet)
           )
         );
 
@@ -308,7 +321,8 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
               and(
                 eq(newsItems.source, record.source),
                 eq(newsItems.key, record.item.id),
-                eq(newsItems.title, record.item.title)
+                eq(newsItems.title, record.item.title),
+                eq(newsItems.snippet, record.item.snippet)
               )
             )
             .get();

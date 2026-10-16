@@ -117,7 +117,7 @@ export interface NewsStore {
   /**
    * Stores what a source found for a listing. An item stored before keeps the first publication
    * time it was given and takes the latest title, snippet and votes; it keeps its scores and vector
-   * unless its title changed, so that what it now says is read again.
+   * unless its title or snippet changed beyond spacing, so that what it now says is read again.
    */
   save(
     symbol: SymbolRef,
@@ -125,7 +125,7 @@ export interface NewsStore {
     items: readonly NewsItem[],
     foundAt: Date
   ): void;
-  /** Stores the decisions model's reading of a record's item for the listing, unless its title has changed since. */
+  /** Stores the decisions model's reading of a record's item for the listing, unless its text has changed since. */
   saveScore(symbol: SymbolRef, record: NewsRecord, score: SentimentScore): void;
   /**
    * A listing's records published since `since`, or found since then when undated, newest first,
@@ -134,7 +134,7 @@ export interface NewsStore {
   list(symbol: SymbolRef, since: Date, space?: string): NewsRecord[];
   /**
    * Keeps each item's vector in `space`, dropping every vector of another space; an item whose
-   * title has changed since its record was read keeps none.
+   * text has changed since its record was read keeps none.
    */
   saveEmbeddings(
     space: string,
