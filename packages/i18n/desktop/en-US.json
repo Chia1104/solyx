@@ -227,7 +227,9 @@
       "voices": "Press {{press}} / Crowd {{crowd}}",
       "stories_one": "{{count}} story",
       "stories_other": "{{count}} stories",
-      "hint": "News and posts from the last {{days}} days, scored by the decisions model; 50 is neutral. Press is what companies, outlets and regulators publish, crowd what investors post. A story told many times counts once.",
+      "hint": "News and posts from the last {{days}} days, scored by the decisions model; 50 is neutral. Newer stories weigh more, and a score resting on too little recent news shows —. Press is what companies, outlets and regulators publish, crowd what investors post. A story told many times counts once.",
+      "stale": "Too little recent news",
+      "latest": "Newest story {{time}}",
       "off": "Sentiment off",
       "unscored": "Set up a decisions model to score sentiment"
     },

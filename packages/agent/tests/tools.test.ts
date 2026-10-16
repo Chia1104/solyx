@@ -103,7 +103,7 @@ function collection(
   overrides: Partial<NewsCollection> = {}
 ): NewsCollection {
   return {
-    ...readNews(records, { symbol: TSMC, listing: null }),
+    ...readNews(records, { symbol: TSMC, listing: null }, NOW),
     failures: [],
     scored: true,
     ...overrides,
@@ -977,7 +977,7 @@ test("news reads newest first, leaving out stories that only name the listing", 
   );
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 3 days, as_of 2026-09-30 10:00, scored by jev-1.13.0",
-    "Sentiment 80/100 with 50 neutral: press (announcements, articles) 80/100, crowd (forum, social) unscored",
+    "Sentiment, 50 neutral: overall 80/100; press (announcements, articles) 80/100; crowd (forum, social) unscored",
     "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-29 +0.60 (n=1), 2026-09-30 +0.60 (n=1)",
     "## article: 2 of 3",
     "- ~2026-09-30 05:00 (1 session since) news.test: 外資買超",
@@ -990,6 +990,20 @@ test("news reads newest first, leaving out stories that only name the listing", 
     `  ${newsItem("法說前瞻", 30).url}`,
   ]);
   expect(details).toEqual({ symbol: TSMC, stories: 3 });
+});
+
+test("a sentiment resting on too little recent news reads as stale, with its newest story", async () => {
+  const { ports, news } = setup();
+
+  news.collect.mockResolvedValue(
+    collection([newsRecord(newsItem("法說前瞻", 72), sentiment(0.9, 0.6))])
+  );
+
+  const { text } = await getNews(ports, { symbol: TSMC });
+
+  expect(text.split("\n")[1]).toBe(
+    "Sentiment, 50 neutral: overall 80/100 stale, newest 2026-09-27 10:00; press (announcements, articles) 80/100 stale, newest 2026-09-27 10:00; crowd (forum, social) unscored"
+  );
 });
 
 test("without a decisions model, news is listed unscored", async () => {
@@ -1015,7 +1029,7 @@ test("without a decisions model, news is listed unscored", async () => {
 
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",
-    "Sentiment unscored with 50 neutral: press (announcements, articles) unscored, crowd (forum, social) unscored",
+    "Sentiment, 50 neutral: overall unscored; press (announcements, articles) unscored; crowd (forum, social) unscored",
     "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-28 unscored (n=1), 2026-09-30 unscored (n=1)",
     "## article: 2 of 2",
     "- undated news.test: 無日期",
@@ -1107,7 +1121,7 @@ test("channels get sections, a thread is one story, and a failed source says how
 
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",
-    "Sentiment unscored with 50 neutral: press (announcements, articles) unscored, crowd (forum, social) unscored",
+    "Sentiment, 50 neutral: overall unscored; press (announcements, articles) unscored; crowd (forum, social) unscored",
     "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-30 unscored (n=1)",
     "## forum: 1 of 1",
     "- 2026-09-30 08:00 (1 session since) ptt.cc, votes +61, also told by 1 more (ptt.cc): [新聞] 台積電擬赴美設第二園區",

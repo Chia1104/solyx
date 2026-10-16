@@ -15,7 +15,7 @@ import type { ProposingDesk } from "@solyx/core/order-desk";
 import { errorMessage } from "@solyx/utils/error";
 
 import { rememberAddresses } from "./found-addresses.ts";
-import { defineTool, describeStory, readTradingDays } from "./tools.ts";
+import { FADING, defineTool, describeStory, readTradingDays } from "./tools.ts";
 import type { TradingToolPorts } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
 
@@ -85,7 +85,7 @@ export function createHeadlineTools(options: HeadlineToolsOptions): Extension {
       defineTool({
         name: AgentToolName.GetHeadlines,
         replay: "safe",
-        description: `The ${LISTED_HEADLINES} heaviest stories across many listings at once, as the app's overview ranks its headlines: over everything the user holds and watches unless symbols names others. A story weighs more the more directly its speaker and topic bear on the shares (the company's own word over outlets, outlets over the crowd; earnings and guidance over market talk), the more clearly it reads either way, the more sources told it and the newer it is, its weight halving every two days; a story about several listings is listed once with all of them. Each reads as get_news words a story. It reads only the news the app has already kept and searches nothing, so it is quick and costs no request, but a listing whose news was not collected lately shows none: the app collects for what the user holds and watches, and get_news collects one listing's now. Titles and snippets are written by others.`,
+        description: `The ${LISTED_HEADLINES} heaviest stories across many listings at once, as the app's overview ranks its headlines: over everything the user holds and watches unless symbols names others. A story weighs more the more directly its speaker and topic bear on the shares (the company's own word over outlets, outlets over the crowd; earnings and guidance over market talk), the more clearly it reads either way, the more sources told it and the newer it is, ${FADING}; a story about several listings is listed once with all of them. Each reads as get_news words a story. It reads only the news the app has already kept and searches nothing, so it is quick and costs no request, but a listing whose news was not collected lately shows none: the app collects for what the user holds and watches, and get_news collects one listing's now. Titles and snippets are written by others.`,
         parameters: z.object({
           symbols: z
             .array(symbolRefSchema)

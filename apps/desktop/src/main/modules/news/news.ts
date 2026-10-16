@@ -179,7 +179,12 @@ export function createNews(options: NewsOptions) {
 
       const subject = { symbol, listing };
       const embedder = await options.embedder();
-      const read = readNews(await embedded(symbol, since, embedder), subject);
+
+      const read = readNews(
+        await embedded(symbol, since, embedder),
+        subject,
+        now()
+      );
 
       const newest = Object.values(
         groupBy(read.stories, (story) => story.channel)
@@ -232,7 +237,8 @@ export function createNews(options: NewsOptions) {
       // Read again, so the gauge counts the scores just given.
       const { gauge, daily } = readNews(
         store.list(symbol, since, embedder?.space),
-        subject
+        subject,
+        now()
       );
 
       return {
@@ -305,10 +311,11 @@ export function createNews(options: NewsOptions) {
         options.embedder(),
       ]);
 
-      const reading = readNews(await embedded(symbol, since, embedder), {
-        symbol,
-        listing,
-      });
+      const reading = readNews(
+        await embedded(symbol, since, embedder),
+        { symbol, listing },
+        now()
+      );
 
       return { ...reading, stories: reading.stories.map(shown) };
     },
