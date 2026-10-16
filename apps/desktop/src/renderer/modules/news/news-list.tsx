@@ -13,6 +13,7 @@ import {
   NewsChannel,
   TimePrecision,
   isAboutListing,
+  retellings,
   storyScore,
 } from "@solyx/core/news";
 import type { NewsStory, Published } from "@solyx/core/news";
@@ -62,7 +63,7 @@ function StoryRow({
   const { lead } = story;
   const { item } = lead;
   const score = storyScore(story);
-  const others = story.records.filter((record) => record !== lead);
+  const others = retellings(story);
 
   return (
     // One line where the main view is wide; narrower, the byline drops under the title.

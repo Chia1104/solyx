@@ -69,8 +69,16 @@ const HEADLINES: Headline[] = [
 ];
 
 function setup(overrides: Partial<HeadlineToolsOptions> = {}) {
-  const headlines = vi.fn<HeadlineToolsOptions["headlines"]>(
-    async () => HEADLINES
+  // The host copies a story's lead apart from its records, so the lead is none of them as an object.
+  const headlines = vi.fn<HeadlineToolsOptions["headlines"]>(async () =>
+    HEADLINES.map((each) => ({
+      ...each,
+      story: {
+        ...each.story,
+        lead: { ...each.story.lead },
+        records: each.story.records.map((record) => ({ ...record })),
+      },
+    }))
   );
 
   const options: HeadlineToolsOptions = {

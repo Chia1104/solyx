@@ -76,6 +76,7 @@ import {
   NewsVoice,
   TimePrecision,
   isAboutListing,
+  retellings,
 } from "@solyx/core/news";
 import type { NewsDesk, NewsStory, Published } from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
@@ -464,11 +465,11 @@ export async function readTradingDays(
 /** A story as its lead tells it: when and where it came out, how it was read, and its address. */
 export function describeStory(
   market: Market,
-  { lead, records }: NewsStory,
+  story: NewsStory,
   now: Date,
   trades: TradingDays
 ): string {
-  const { item, score } = lead;
+  const { item, score } = story.lead;
 
   const time = item.published
     ? `${publishedTime(market, item.published)} (${sessionsSince(market, item.published, now, trades)})`
@@ -476,7 +477,7 @@ export function describeStory(
 
   const votes = item.votes === null ? "" : `, votes ${signed(item.votes, 0)}`;
 
-  const others = records.filter((record) => record !== lead);
+  const others = retellings(story);
 
   const alike =
     others.length === 0
