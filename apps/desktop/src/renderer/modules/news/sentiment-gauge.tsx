@@ -43,7 +43,9 @@ export function GaugeBar({
   );
 }
 
-const shown = (reading: SentimentReading) => reading.score ?? "—";
+/** A reading's score, or a dash while nothing is scored or too little of it is recent. */
+const shown = (reading: SentimentReading) =>
+  reading.recent ? (reading.score ?? "—") : "—";
 
 /** When the listing's news was collected, and which of its sources fail, with why on hover. */
 function Coverage({
@@ -125,6 +127,7 @@ export function SentimentGauge({
   if (!gauge) return null;
 
   const { overall, voices } = gauge;
+  const stale = overall.score !== null && !overall.recent;
 
   return (
     <div className="flex shrink-0 items-center gap-3 text-xs text-muted tabular-nums">
@@ -133,7 +136,15 @@ export function SentimentGauge({
           className="flex items-center gap-2"
           title={t("news.gauge.hint", { days: NEWS_DAYS })}>
           <span>{t("news.gauge.overall", { score: shown(overall) })}</span>
-          <GaugeBar score={overall.score} />
+          <GaugeBar score={overall.recent ? overall.score : null} />
+          {stale && overall.latest ? (
+            <span
+              title={t("news.gauge.latest", {
+                time: exchangeTime(symbol.market, overall.latest).slice(5),
+              })}>
+              {t("news.gauge.stale")}
+            </span>
+          ) : null}
           <span className="hidden @min-[52rem]/main:inline">
             {t("news.gauge.voices", {
               press: shown(voices[NewsVoice.Press]),

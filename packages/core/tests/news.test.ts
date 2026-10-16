@@ -149,7 +149,8 @@ test("each day's stance weighs items by relevance and leaves promotions out", ()
       // Undated, so it counts on the day it was found: 2026-10-03 in Taipei.
       record("undated", null, null),
     ],
-    UNNAMED
+    UNNAMED,
+    NOW
   );
 
   expect(days).toEqual([
@@ -166,6 +167,8 @@ test("the gauge reads 0 to 100 overall and for the press and the crowd apart", (
     channel: NewsChannel.Forum,
   });
 
+  const now = new Date("2026-10-02T05:00:00Z");
+
   expect(
     readNews(
       [
@@ -174,23 +177,90 @@ test("the gauge reads 0 to 100 overall and for the press and the crowd apart", (
         forum("2026-10-02T04:00:00Z", scored(1, 0)),
         forum("2026-10-02T05:00:00Z", null),
       ],
-      UNNAMED
+      UNNAMED,
+      now
     ).gauge
   ).toEqual({
-    overall: { score: 75, stories: 3 },
+    overall: { score: 75, stories: 3, recent: true, latest: now },
     voices: {
-      [NewsVoice.Press]: { score: 100, stories: 1 },
-      [NewsVoice.Crowd]: { score: 50, stories: 2 },
+      [NewsVoice.Press]: {
+        score: 100,
+        stories: 1,
+        recent: true,
+        latest: new Date("2026-10-02T02:00:00Z"),
+      },
+      [NewsVoice.Crowd]: { score: 50, stories: 2, recent: true, latest: now },
     },
   });
 
-  expect(readNews([], UNNAMED).gauge).toEqual({
-    overall: { score: null, stories: 0 },
-    voices: {
-      [NewsVoice.Press]: { score: null, stories: 0 },
-      [NewsVoice.Crowd]: { score: null, stories: 0 },
-    },
+  const empty = { score: null, stories: 0, recent: false, latest: null };
+
+  expect(readNews([], UNNAMED, NOW).gauge).toEqual({
+    overall: empty,
+    voices: { [NewsVoice.Press]: empty, [NewsVoice.Crowd]: empty },
   });
+});
+
+function leaning(value: -1 | 1): SentimentScore {
+  return {
+    ...SCORE,
+    relevance: 1,
+    stance: {
+      ...SCORE.stance,
+      [Stance.Neutral]: 0,
+      [value > 0 ? Stance.Positive : Stance.Negative]: 1,
+    },
+  };
+}
+
+test("the gauge leans to the newest stories, and the crowd's fade sooner than the press's", () => {
+  const forum = (hour: string, score: SentimentScore): NewsRecord => ({
+    ...record(hour, score),
+    source: "ptt",
+    channel: NewsChannel.Forum,
+  });
+
+  // Two days old, the press's half-life, against one out now.
+  expect(
+    readNews(
+      [
+        record("2026-10-01T05:00:00Z", leaning(1)),
+        record("2026-10-03T05:00:00Z", leaning(-1)),
+      ],
+      UNNAMED,
+      NOW
+    ).gauge.overall.score
+  ).toBe(33);
+
+  // As old as each other, the post weighs half what the article does.
+  expect(
+    readNews(
+      [
+        record("2026-10-01T05:00:00Z", leaning(1)),
+        forum("2026-10-01T05:00:00Z", leaning(-1)),
+      ],
+      UNNAMED,
+      NOW
+    ).gauge.overall.score
+  ).toBe(67);
+});
+
+test("a reading resting on too little recent news says so, and each day keeps its own stance", () => {
+  const { gauge, daily } = readNews(
+    [record("2026-09-30T05:00:00Z", leaning(1))],
+    UNNAMED,
+    NOW
+  );
+
+  expect(gauge.overall).toEqual({
+    score: 100,
+    stories: 1,
+    recent: false,
+    latest: new Date("2026-09-30T05:00:00Z"),
+  });
+  expect(daily).toEqual([
+    { date: "2026-09-30", stance: 1, weight: 1, stories: 1 },
+  ]);
 });
 
 function told(
@@ -226,7 +296,7 @@ function told(
 }
 
 const storyTitles = (records: NewsRecord[]) =>
-  readNews(records, UNNAMED).stories.map((story) =>
+  readNews(records, UNNAMED, NOW).stories.map((story) =>
     story.records.map(({ item }) => `${item.site} ${item.title}`)
   );
 
@@ -279,7 +349,8 @@ test("titles that differ, are short, lie days apart or sit in other channels sta
           channel: NewsChannel.Forum,
         }),
       ],
-      UNNAMED
+      UNNAMED,
+      NOW
     ).stories
   ).toHaveLength(8);
 });
@@ -295,7 +366,8 @@ test("a story is led by its earliest scored record and weighed once", () => {
         score: scored(1, 0),
       }),
     ],
-    UNNAMED
+    UNNAMED,
+    NOW
   ).stories;
 
   expect(stories).toHaveLength(1);
@@ -311,9 +383,10 @@ test("a story is led by its earliest scored record and weighed once", () => {
           score: scored(1, 0),
         }),
       ],
-      UNNAMED
+      UNNAMED,
+      NOW
     ).gauge.overall
-  ).toEqual({ score: 75, stories: 2 });
+  ).toMatchObject({ score: 75, stories: 2 });
 });
 
 const NAMED: NewsSubject = {
@@ -322,7 +395,7 @@ const NAMED: NewsSubject = {
 };
 
 const storyTitlesOf = (records: NewsRecord[], subject: NewsSubject) =>
-  readNews(records, subject).stories.map((story) =>
+  readNews(records, subject, NOW).stories.map((story) =>
     story.records.map(({ item }) => item.title)
   );
 
@@ -360,7 +433,8 @@ test("a filing and an article retelling it the same day are one story, led by th
       }),
       told("台積電董事會決議發放現金股利 每股5元", "2026-10-02T09:30:00Z"),
     ],
-    NAMED
+    NAMED,
+    NOW
   ).stories;
 
   expect(others).toEqual([]);
@@ -576,10 +650,11 @@ test("who speaks decides a story's voice where the model is sure, and its channe
         score: scored(1, 1),
       }),
     ],
-    UNNAMED
+    UNNAMED,
+    NOW
   );
 
-  expect(gauge.voices).toEqual({
+  expect(gauge.voices).toMatchObject({
     [NewsVoice.Press]: { score: 100, stories: 1 },
     [NewsVoice.Crowd]: { score: 50, stories: 1 },
   });
@@ -596,7 +671,7 @@ test("a page of data is no news about the listing", () => {
     }),
   ];
 
-  const { stories, gauge } = readNews(records, UNNAMED);
+  const { stories, gauge } = readNews(records, UNNAMED, NOW);
 
   expect(stories.filter(isAboutListing)).toHaveLength(1);
   expect(gauge.overall.stories).toBe(1);

@@ -72,13 +72,19 @@ import {
 import type { Benchmark, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import {
+  HALF_LIFE_MS,
   NewsChannel,
   NewsVoice,
   TimePrecision,
   isAboutListing,
   retellings,
 } from "@solyx/core/news";
-import type { NewsDesk, NewsStory, Published } from "@solyx/core/news";
+import type {
+  NewsDesk,
+  NewsStory,
+  Published,
+  SentimentReading,
+} from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 import { ProposalSource } from "@solyx/core/order-desk";
@@ -192,7 +198,12 @@ const NEWS_ITEMS = 10;
 // Announcements run long; the scorer reads them whole.
 export const SNIPPET_LENGTH = 280;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+
+const DAY_MS = 24 * HOUR_MS;
+
+/** How a story fades from the sentiment and the headlines, as the descriptions word it. */
+export const FADING = `a story weighing half as much every ${HALF_LIFE_MS[NewsVoice.Press] / HOUR_MS} hours for the press and every ${HALF_LIFE_MS[NewsVoice.Crowd] / HOUR_MS} for the crowd`;
 
 const MOVING_AVERAGES = [
   ...MOVING_AVERAGE_PERIODS.short,
@@ -690,7 +701,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetNews,
       replay: "safe",
-      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items that tell one story are listed once with how many more told it: an article's reprints and a thread's replies, and, once the exchange's names for the listing are known, outlets or posts that reword one headline within a day. Times are the exchange's local time: ~ marks a search engine's estimate, within about an hour, and a date alone means only the day is known. Each dated story also says how many regular sessions have traded since it came out, the one under way included, or for a date alone after that day, so a story out after the close, over a weekend or on a holiday shows none yet; Taiwan's holidays are those its exchange set, while in the US every weekday counts as a session, since its holidays are not known. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is, its topic and who speaks in it (the company, an outlet, an investor, a page of data or someone else, whatever channel it came through), and stories that only name the listing in passing or are pages of data are left out. Titles and snippets are written by others.`,
+      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items that tell one story are listed once with how many more told it: an article's reprints and a thread's replies, and, once the exchange's names for the listing are known, outlets or posts that reword one headline within a day. Times are the exchange's local time: ~ marks a search engine's estimate, within about an hour, and a date alone means only the day is known. Each dated story also says how many regular sessions have traded since it came out, the one under way included, or for a date alone after that day, so a story out after the close, over a weekend or on a holiday shows none yet; Taiwan's holidays are those its exchange set, while in the US every weekday counts as a session, since its holidays are not known. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is, its topic and who speaks in it (the company, an outlet, an investor, a page of data or someone else, whatever channel it came through), and stories that only name the listing in passing or are pages of data are left out. The sentiment leans to the newest stories, ${FADING}, and a reading resting on too little recent news is marked stale with its newest story's time, since it does not tell how the listing reads now; each day's stance is that day's alone. Titles and snippets are written by others.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         days: z.number().int().min(1).max(30).default(7),
@@ -705,8 +716,13 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             readTradingDays(ports, symbol.market),
           ]);
 
-        const score = ({ score: value }: { score: number | null }) =>
-          value === null ? "unscored" : `${value}/100`;
+        const score = ({ score: value, recent, latest }: SentimentReading) => {
+          if (value === null) return "unscored";
+
+          return recent || latest === null
+            ? `${value}/100`
+            : `${value}/100 stale, newest ${exchangeTime(symbol.market, latest)}`;
+        };
 
         const stances = daily.map(
           ({ date, stance, stories: count }) =>
@@ -758,7 +774,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         return {
           text: [
             `${symbol.market} ${symbol.symbol} news and posts over the last ${days} days, as_of ${exchangeTime(symbol.market, at)}${scoring}`,
-            `Sentiment ${score(gauge.overall)} with 50 neutral: press (announcements, articles) ${score(gauge.voices[NewsVoice.Press])}, crowd (forum, social) ${score(gauge.voices[NewsVoice.Crowd])}`,
+            `Sentiment, 50 neutral: overall ${score(gauge.overall)}; press (announcements, articles) ${score(gauge.voices[NewsVoice.Press])}; crowd (forum, social) ${score(gauge.voices[NewsVoice.Crowd])}`,
             ...(stances.length > 0
               ? [
                   `Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): ${stances.join(", ")}`,
