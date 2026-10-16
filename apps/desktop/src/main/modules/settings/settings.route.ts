@@ -349,6 +349,15 @@ export const settingsRouter = settings.router({
     context.config.set(["tray", "hideDock"], input);
   }),
 
+  newsRetention: settings.newsRetention.handler(
+    ({ context }) => context.config.read().news.kept
+  ),
+  setNewsRetention: settings.setNewsRetention.handler(
+    ({ context, input: { voice, retention } }) => {
+      context.config.set(["news", "kept", voice], retention);
+    }
+  ),
+
   updates: settings.updates.handler(({ context }) => ({
     check: context.config.read().updates.check,
   })),

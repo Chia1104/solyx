@@ -411,26 +411,37 @@ test("pruning deletes each channel's items from before its day, with their score
       [NewsChannel.Social]: crowd,
     })
   ).toBe(3);
+  // A channel with no day is kept whole.
+  news.store.save(TSMC, PTT, [item("ancient", "2026-06-01T00:00:00Z")], FOUND);
+
+  expect(
+    news.prune({
+      [NewsChannel.Announcement]: press,
+      [NewsChannel.Article]: press,
+      [NewsChannel.Forum]: null,
+      [NewsChannel.Social]: null,
+    })
+  ).toBe(0);
+  expect(news.usage().items).toBe(3);
 
   const ids = (symbol: typeof TSMC) =>
     news.store.list(symbol, new Date(0)).map(({ item: { id } }) => id);
 
-  expect(ids(TSMC)).toEqual(["recent", "undated"]);
+  expect(ids(TSMC)).toEqual(["recent", "undated", "ancient"]);
   expect(ids(FOXCONN)).toEqual(["undated"]);
   expect(
     news.store
       .search("snippet", 10)
       .map(({ item: { id } }) => id)
       .toSorted()
-  ).toEqual(["recent", "undated"]);
-  expect(news.usage().items).toBe(2);
+  ).toEqual(["ancient", "recent", "undated"]);
 
   const db = new DatabaseSync(join(directory, "news.sqlite"));
 
   const rows = (table: string) =>
     db.prepare(`SELECT count(*) AS n FROM ${table}`).get()?.n;
 
-  expect([rows("listing_news"), rows("item_embeddings")]).toEqual([3, 0]);
+  expect([rows("listing_news"), rows("item_embeddings")]).toEqual([4, 0]);
   db.close();
 });
 

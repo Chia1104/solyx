@@ -1451,8 +1451,29 @@
         "title": "News",
         "description": "Stories collected for your listings, with their scores. Sources only reach back a few days, so older stories can't be collected again.",
         "count": "Stories",
-        "kept": "Kept for",
-        "kept-days": "Press {{press}} days, crowd {{crowd}} days",
+        "kept": {
+          "press": "Keep press news",
+          "crowd": "Keep crowd posts"
+        },
+        "kept-description": {
+          "press": "Companies' announcements and news articles",
+          "crowd": "PTT and social posts"
+        },
+        "retention": {
+          "30d": "30 days",
+          "90d": "90 days",
+          "180d": "180 days",
+          "365d": "1 year",
+          "forever": "Forever"
+        },
+        "kinds": {
+          "press": "announcements and articles",
+          "crowd": "posts"
+        },
+        "shorten-title": "Keep news for less time?",
+        "shorten-body": "Stored {{kind}} older than {{days}} days are deleted now. Sources only reach back a few days, so they can't be collected again.",
+        "shorten": "Delete older ones",
+        "keep-failed": "Couldn't change how long news is kept",
         "clear": "Clear news",
         "confirm-title": "Clear all news?",
         "confirm-body": "Stories and their scores are deleted, and older ones can't be collected again. Watched listings collect recent news at their next refresh.",

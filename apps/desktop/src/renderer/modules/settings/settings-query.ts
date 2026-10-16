@@ -78,6 +78,12 @@ export const traySettingsQuery = () =>
     staleTime: Infinity,
   });
 
+/** How long each voice's news is kept. Never stale, as below. */
+export const newsRetentionQuery = () =>
+  orpc.settings.newsRetention.queryOptions({
+    staleTime: Infinity,
+  });
+
 /** Never stale, as below. */
 export const updateSettingsQuery = () =>
   orpc.settings.updates.queryOptions({

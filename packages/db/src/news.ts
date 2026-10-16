@@ -487,14 +487,19 @@ export function openNews(path: string, migrationsFolder: string) {
 
     /**
      * Deletes each channel's items that came out before its day in `before`, or were found before
-     * it for every listing when undated, with their scores and vectors; how many it deleted.
+     * it for every listing when undated, with their scores and vectors, and keeps a channel whose
+     * day is `null` whole; how many it deleted.
      */
-    prune(before: Record<NewsChannel, Date>): number {
+    prune(before: Record<NewsChannel, Date | null>): number {
       return db.transaction((tx) => {
         let pruned = 0;
 
         for (const channel of Object.values(NewsChannel)) {
-          const at = before[channel].getTime();
+          const day = before[channel];
+
+          if (day === null) continue;
+
+          const at = day.getTime();
 
           const gone = tx
             .delete(newsItems)
