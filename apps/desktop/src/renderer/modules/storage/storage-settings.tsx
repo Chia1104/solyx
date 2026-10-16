@@ -6,8 +6,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { NewsVoice } from "@solyx/core/news";
 import { isEnumValue } from "@solyx/utils/is";
 
+import { NEWS_KEPT_DAYS } from "#shared/news.ts";
 import { MarketDataSource } from "#shared/settings.ts";
 import { StoredData } from "#shared/storage.ts";
 
@@ -211,6 +213,13 @@ export function StorageSettings() {
         <SettingsRow
           label={t("settings.storage.news.count")}
           value={count(news.items)}
+        />
+        <SettingsRow
+          label={t("settings.storage.news.kept")}
+          value={t("settings.storage.news.kept-days", {
+            press: NEWS_KEPT_DAYS[NewsVoice.Press],
+            crowd: NEWS_KEPT_DAYS[NewsVoice.Crowd],
+          })}
         />
       </StorageSection>
       <StorageSection

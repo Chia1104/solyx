@@ -253,7 +253,11 @@ test("storage reads as what each store holds, on the tab where the user clears i
       },
       { name: "conversations", value: "3.1 MB, 1 conversation" },
       { name: "memories", value: "98.0 kB, 8 memories" },
-      { name: "news", value: "1.3 GB, 1234 items" },
+      {
+        name: "news",
+        value:
+          "1.3 GB, 1234 items; announcements and articles are kept 90 days from when they came out, forum and social posts 30",
+      },
       { name: "research", value: "400 bytes, 3 reports and 14 forecasts" },
       { name: "watchlist", value: "6 listings" },
     ],

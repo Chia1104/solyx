@@ -1,9 +1,24 @@
-import { and, asc, count, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  ne,
+  notExists,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { groupBy, keyBy } from "es-toolkit";
 
 import { clearlyNearest, cosine } from "@solyx/core/embedding";
 import type { SymbolRef } from "@solyx/core/market";
+import { NewsChannel } from "@solyx/core/news";
 import type {
   NewsItem,
   NewsMatch,
@@ -440,6 +455,55 @@ export function openNews(path: string, migrationsFolder: string) {
         bytes: databaseBytes(path),
         items: db.select({ items: count() }).from(newsItems).get()?.items ?? 0,
       };
+    },
+
+    /**
+     * Deletes each channel's items that came out before its day in `before`, or were found before
+     * it for every listing when undated, with their scores and vectors; how many it deleted.
+     */
+    prune(before: Record<NewsChannel, Date>): number {
+      return db.transaction((tx) => {
+        let pruned = 0;
+
+        for (const channel of Object.values(NewsChannel)) {
+          const at = before[channel].getTime();
+
+          const gone = tx
+            .delete(newsItems)
+            .where(
+              and(
+                eq(newsItems.channel, channel),
+                or(
+                  lt(newsItems.publishedAt, at),
+                  and(
+                    isNull(newsItems.publishedAt),
+                    notExists(
+                      tx
+                        .select({ id: listingNews.itemId })
+                        .from(listingNews)
+                        .where(
+                          and(
+                            eq(listingNews.itemId, newsItems.id),
+                            gte(listingNews.foundAt, at)
+                          )
+                        )
+                    )
+                  )
+                )
+              )
+            )
+            .returning({ id: newsItems.id })
+            .all();
+
+          for (const { id } of gone) {
+            tx.run(sql`DELETE FROM news_terms WHERE rowid = ${id}`);
+          }
+
+          pruned += gone.length;
+        }
+
+        return pruned;
+      });
     },
 
     /**

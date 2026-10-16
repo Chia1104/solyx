@@ -1451,6 +1451,8 @@
         "title": "News",
         "description": "Stories collected for your listings, with their scores. Sources only reach back a few days, so older stories can't be collected again.",
         "count": "Stories",
+        "kept": "Kept for",
+        "kept-days": "Press {{press}} days, crowd {{crowd}} days",
         "clear": "Clear news",
         "confirm-title": "Clear all news?",
         "confirm-body": "Stories and their scores are deleted, and older ones can't be collected again. Watched listings collect recent news at their next refresh.",

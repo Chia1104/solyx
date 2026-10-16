@@ -10,6 +10,7 @@ import type { SettingChange } from "@solyx/agent/wire";
 import { DecisionMode } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
 import type { MemoryStore } from "@solyx/core/memory";
+import { NewsVoice } from "@solyx/core/news";
 import { CollectionJob, ScheduleKind } from "@solyx/core/schedule";
 import type { Schedule, ScheduleStore } from "@solyx/core/schedule";
 import type { ThemeStore } from "@solyx/core/theme";
@@ -19,6 +20,7 @@ import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
+import { NEWS_KEPT_DAYS } from "#shared/news.ts";
 import { ColorScheme, Palette } from "#shared/palette.ts";
 import { SettingsSection, settingsLink } from "#shared/settings-section.ts";
 import {
@@ -676,7 +678,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         },
         {
           name: "news",
-          value: `${size(news.bytes)}, ${counted(news.items, "item")}`,
+          value: `${size(news.bytes)}, ${counted(news.items, "item")}; announcements and articles are kept ${NEWS_KEPT_DAYS[NewsVoice.Press]} days from when they came out, forum and social posts ${NEWS_KEPT_DAYS[NewsVoice.Crowd]}`,
         },
         {
           name: "research",
