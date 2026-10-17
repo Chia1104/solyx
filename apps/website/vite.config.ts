@@ -34,6 +34,14 @@ export default defineConfig({
     fumadocsMdx(),
     // Tests run in Node; the plugin would move them into the Workers runtime, which they do not need.
     !process.env.VITEST && voidPlugin(),
+    // Void refuses a Worker that carries an image, and every page's assets reach the client build
+    // anyway, since each is prerendered and hydrated. The Cloudflare plugin turns emitting on for the
+    // Worker, and only a hook after it turns that off.
+    {
+      name: "solyx:server-emits-no-assets",
+      configEnvironment: (name) =>
+        name === "ssr" ? { build: { emitAssets: false } } : undefined,
+    },
     tailwindcss(),
     tanstackStart({
       prerender: { enabled: true, crawlLinks: true, failOnError: true },
