@@ -126,7 +126,7 @@ export const DEFAULT_MODEL: Partial<Record<AgentProvider, string>> = {
   deepseek: "deepseek-v4-pro",
   fireworks: "accounts/fireworks/models/kimi-k3",
   "github-copilot": "claude-fable-5.1",
-  google: "gemini-3.1-pro-preview",
+  google: "gemini-4-argon",
   groq: "openai/gpt-oss-120b",
   huggingface: "moonshotai/Kimi-K2.6",
   "kimi-coding": "kimi-for-coding",
