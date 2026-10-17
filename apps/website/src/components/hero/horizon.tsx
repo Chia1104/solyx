@@ -26,13 +26,17 @@ export interface HorizonProps {
 
 const RISE_MS = 1800;
 
+/** How far around the pointer the dots take ink, in pixels. */
+const PEN_RADIUS = 110;
+
 function easeOutQuint(t: number): number {
   return 1 - (1 - t) ** 5;
 }
 
 /**
  * The app icon's emblem drawn on the GPU: an inked sun rises through the horizon with a halftone
- * halo that grows with it, the way a draft becomes an order once the user signs it.
+ * halo that grows with it, the way a draft becomes an order once the user signs it. The pointer
+ * inks the dots it passes over.
  */
 export function Horizon({
   width,
@@ -104,6 +108,32 @@ export function Horizon({
           inputMax: 1,
           outputMin: 0,
           outputMax: 0.7,
+        }}
+      />
+
+      {/* The pointer is a pen: the dots under it take ink, trailing a little as it moves. */}
+      <RadialGradient
+        id="pen"
+        visible={false}
+        center={{ type: "mouse-position", smoothing: 0.18, momentum: 0.12 }}
+        radius={PEN_RADIUS / height}
+        stops={[
+          { color: "#000000", position: 0 },
+          { color: "#00000000", position: 1 },
+        ]}
+      />
+      <DotGrid
+        color={colors.primary}
+        density={Math.round(height / DOT_PITCH)}
+        opacity={0.85}
+        dotSize={{
+          type: "map",
+          source: "pen",
+          channel: "alpha",
+          inputMin: 0,
+          inputMax: 1,
+          outputMin: 0,
+          outputMax: 0.6,
         }}
       />
 
