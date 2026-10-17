@@ -1,13 +1,13 @@
 import { Suspense, use } from "react";
 
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { DocsLayout } from "fumadocs-ui/layouts/docs";
+import { DocsLayout } from "fumadocs-ui/layouts/spacious";
 import {
   DocsBody,
   DocsDescription,
   DocsPage,
   DocsTitle,
-} from "fumadocs-ui/layouts/docs/page";
+} from "fumadocs-ui/layouts/spacious/page";
 import { useTranslation } from "react-i18next";
 
 import { useMDXComponents } from "../../../components/mdx.tsx";
