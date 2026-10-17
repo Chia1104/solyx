@@ -69,11 +69,14 @@ Every key is yours and is saved encrypted on your computer. Market data and a mo
 | Taiwan quotes and candles                         | Fugle, or Fubon                                         | A Fugle API key, or Fubon's SDK and login |
 | Fundamentals, dividends and investor flows        | FinMind                                                 | Nothing; a token raises the limit         |
 | Exchange lists, filings and insider transfers     | TWSE's and TPEx's open data                             | Nothing                                   |
+| Funds' net asset values and costs                 | SITCA's open data                                       | Nothing                                   |
 | Economic releases and their figures               | Taiwan's statistics portal and DGBAS                    | Nothing                                   |
 | The agent's model                                 | A model provider of your choice                         | An API key, or a ChatGPT sign-in          |
 | Web search and news outlets                       | Firecrawl, Exa or Tavily                                | An API key                                |
 | Reading claims, news and commands (decisions)     | TypeSafe, Cloudflare Workers AI or OpenAI               | An API key                                |
 | Search by meaning and grouping stories (embedder) | OpenAI, or a model on your computer (Ollama, LM Studio) | An API key, or nothing                    |
+
+SITCA's data is used under the [Open Government Data License, version 1.0](https://data.gov.tw/license), as the Securities Investment Trust & Consulting Association of the R.O.C. releases it on Taiwan's government open data platform.
 
 ## Principles
 

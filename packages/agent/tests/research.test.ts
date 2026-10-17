@@ -18,8 +18,10 @@ import type {
   CashFlow,
   Dividend,
   ExchangeMultiples,
+  FundCosts,
   FundProfile,
   MonthlyRevenue,
+  NetAssetValue,
   PeerStanding,
   QuarterStatement,
 } from "@solyx/core/fundamentals";
@@ -263,6 +265,12 @@ interface Filed {
   fund?: FundProfile;
   /** Why the exchange's funds cannot be read, while they cannot. */
   fundFailure?: string;
+  /** Its newest net asset value, where its issuer reports one. */
+  nav?: NetAssetValue;
+  /** What it paid out of its assets over the newest month, where its issuer reports them. */
+  costs?: FundCosts;
+  /** Why what funds report cannot be read, while it cannot. */
+  reportsFailure?: string;
   /** The multiples the listing's exchange works out, where it does. */
   multiples?: ExchangeMultiples;
   /** Why the exchange's multiples cannot be read, while they cannot. */
@@ -304,6 +312,16 @@ function setup(councils?: Council[], read?: string[], watched = false) {
       if (filed.fundFailure) throw new Error(filed.fundFailure);
 
       return filed.fund ?? null;
+    },
+    netAssetValue: async () => {
+      if (filed.reportsFailure) throw new Error(filed.reportsFailure);
+
+      return filed.nav ?? null;
+    },
+    fundCosts: async () => {
+      if (filed.reportsFailure) throw new Error(filed.reportsFailure);
+
+      return filed.costs ?? null;
     },
     multiples: async () => {
       if (filed.multiplesFailure) throw new Error(filed.multiplesFailure);
@@ -898,6 +916,80 @@ test("a fund its exchange lists opens with what it is, and is told from a listin
   );
   expect(text).toContain("A fund files neither statements nor revenue.");
   expect(text).not.toContain("or a code fake does not know");
+});
+
+const FUND_COSTS: FundCosts = {
+  month: "2026-08",
+  management: 0.00564,
+  custody: 0.00222,
+  guarantee: 0,
+  commission: 0.00055,
+  tax: 0.00144,
+  other: 0.00396,
+  total: 0.01382,
+};
+
+test("a fund its issuer reports on gives its net asset value, its close that session against it, and what it paid over a month", async () => {
+  const { run, filed } = setup();
+
+  filed.quarters = [];
+  filed.sheets = [];
+  filed.flows = [];
+  filed.months = [];
+  filed.dividends = [];
+  // A fund the Taipei Exchange lists, which publishes no list of its funds.
+  filed.nav = { date: "2026-09-29", value: 990 };
+  filed.costs = FUND_COSTS;
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    [
+      "TW 2330 fundamentals as filed, from fake, as_of 2026-09-29; amounts in TWD millions",
+      "Net asset value as its issuer struck it for 2026-09-29: 990 TWD a unit. Its close that session, 1000, stood at a premium of 1.01% to it.",
+      "What it paid out of its assets, in percent of its net assets:",
+      "period,management,custody,guarantee,commission,tax,other,total",
+      "2026-08,0.00564,0.00222,0,0.00055,0.00144,0.00396,0.01382",
+      "a year at that pace,0.068,0.027,0,0.007,0.017,0.048,0.166",
+    ].join("\n")
+  );
+  expect(text).toContain("A fund files neither statements nor revenue.");
+});
+
+test("a fund's value below its close is a discount, and one of a session with no bar stands alone", async () => {
+  const { run, filed, bars } = setup();
+
+  filed.nav = { date: "2026-09-29", value: 1010 };
+
+  expect(
+    (await run(AgentToolName.GetFundamentals, { symbol: TSMC })).text
+  ).toContain(
+    "Its close that session, 1000, stood at a discount of 0.99% to it."
+  );
+
+  bars.daily = [];
+
+  expect(
+    (await run(AgentToolName.GetFundamentals, { symbol: TSMC })).text
+  ).toContain(
+    "Net asset value as its issuer struck it for 2026-09-29: 1010 TWD a unit. No close of that session to set it against."
+  );
+});
+
+test("what funds report failing to read is said, and the filed figures stay", async () => {
+  const { run, filed } = setup();
+
+  filed.reportsFailure = "SITCA answered 503";
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    "Its net asset value could not be read: SITCA answered 503"
+  );
+  expect(text).toContain(
+    "What it paid out of its assets could not be read: SITCA answered 503"
+  );
+  expect(text).toContain("Quarters, each for the quarter alone");
 });
 
 test("an actively managed fund tracks no index and names what it measures itself against", async () => {

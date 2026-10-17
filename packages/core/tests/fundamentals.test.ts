@@ -5,6 +5,7 @@ import {
   balanceSheetMetrics,
   cashFlowMetrics,
   cashGoneExBy,
+  premium,
   priceToEarnings,
   revenueTrend,
   statementMetrics,
@@ -268,4 +269,12 @@ test("cashGoneExBy counts the cash gone ex after the first day through each, so 
   // From the third day to the fourth only the last distribution went ex.
   expect(cash[3] - cash[2]).toBe(7);
   expect(cashGoneExBy([], [dividend(5, "2026-06-09")])).toEqual([]);
+});
+
+test("premium is the price over the net asset value less one, and a discount below it", () => {
+  const nav = { date: "2026-10-16", value: 50 };
+
+  expect(premium(51, nav)).toBeCloseTo(0.02);
+  expect(premium(49.5, nav)).toBeCloseTo(-0.01);
+  expect(premium(50, nav)).toBe(0);
 });
