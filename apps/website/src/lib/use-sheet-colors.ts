@@ -5,15 +5,14 @@ import { useSyncExternalStore } from "react";
  * the hero's canvas and the demo's chart.
  */
 export interface SheetColors {
-  paper: string;
-  sheet: string;
-  text: string;
-  muted: string;
+  card: string;
+  foreground: string;
+  mutedForeground: string;
+  border: string;
+  primary: string;
+  primaryDeep: string;
+  primaryLight: string;
   graphite: string;
-  rule: string;
-  ink: string;
-  inkDeep: string;
-  inkLight: string;
   candleRise: string;
   candleFall: string;
 }
@@ -26,15 +25,14 @@ function read(): SheetColors {
   const value = (property: string) => style.getPropertyValue(property).trim();
 
   const colors: SheetColors = {
-    paper: value("--paper"),
-    sheet: value("--sheet"),
-    text: value("--text"),
-    muted: value("--muted"),
+    card: value("--card"),
+    foreground: value("--foreground"),
+    mutedForeground: value("--muted-foreground"),
+    border: value("--border"),
+    primary: value("--primary"),
+    primaryDeep: value("--primary-deep"),
+    primaryLight: value("--primary-light"),
     graphite: value("--graphite"),
-    rule: value("--rule"),
-    ink: value("--ink"),
-    inkDeep: value("--ink-deep"),
-    inkLight: value("--ink-light"),
     candleRise: value("--candle-rise"),
     candleFall: value("--candle-fall"),
   };

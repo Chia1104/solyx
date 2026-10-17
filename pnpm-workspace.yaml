@@ -107,7 +107,11 @@ catalogs:
     tar: 7.5.22
     yaml: 2.9.1
   website:
+    "@base-ui/react": 1.9.0
     "@fontsource-variable/archivo": 5.3.0
+    class-variance-authority: 0.7.1
+    cn: 0.4.0
+    shadcn: 4.22.0
     shaders: 4.0.4
     void: 1.1.11
 

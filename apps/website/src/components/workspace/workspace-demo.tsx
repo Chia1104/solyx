@@ -99,37 +99,37 @@ export function WorkspaceDemo() {
   const rising = session.change > 0;
 
   return (
-    <div className="border-rule bg-sheet overflow-hidden rounded-lg border shadow-[0_24px_60px_-30px_rgb(15_20_28/0.35)]">
-      <div className="border-rule bg-sheet-2 flex items-center gap-3 border-b px-4 py-2.5 text-xs">
+    <div className="bg-card overflow-hidden rounded-lg border border-border shadow-[0_24px_60px_-30px_rgb(15_20_28/0.35)]">
+      <div className="flex items-center gap-3 border-b border-border bg-muted px-4 py-2.5 text-xs">
         <span aria-hidden="true" className="flex gap-1.5">
           <span className="size-3 rounded-full bg-[#ff5f57]" />
           <span className="size-3 rounded-full bg-[#febc2e]" />
           <span className="size-3 rounded-full bg-[#28c840]" />
         </span>
         <span className="font-semibold">Solyx</span>
-        <span className="ml-auto text-muted">TW closed</span>
+        <span className="text-muted-foreground ml-auto">TW closed</span>
         <span className="rounded-sm pencil px-2 py-0.5 font-medium">
           Paper trading
         </span>
       </div>
 
       <div className="grid grid-cols-1 lg:h-[42rem] lg:grid-cols-[13rem_minmax(0,1fr)_22rem]">
-        <div className="border-rule border-b lg:min-h-0 lg:overflow-y-auto lg:border-r lg:border-b-0">
+        <div className="border-b border-border lg:min-h-0 lg:overflow-y-auto lg:border-r lg:border-b-0">
           <Watchlist listings={listings} selected={code} onSelect={select} />
         </div>
 
-        <div className="border-rule flex min-w-0 flex-col border-b lg:min-h-0 lg:border-r lg:border-b-0">
+        <div className="flex min-w-0 flex-col border-b border-border lg:min-h-0 lg:border-r lg:border-b-0">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 pt-3">
             <h3 className="font-semibold">
               {listing.code} {listing.name}
             </h3>
-            <span className="text-xs text-muted">TW</span>
+            <span className="text-muted-foreground text-xs">TW</span>
             <span className="text-lg font-semibold">{price(listing.last)}</span>
             <span className={`text-sm ${rising ? "text-rise" : "text-fall"}`}>
               {rising ? "+" : ""}
               {price(session.change)} {percent(session.ratio)}
             </span>
-            <span className="ml-auto text-xs text-muted">
+            <span className="text-muted-foreground ml-auto text-xs">
               Daily, made-up prices
             </span>
           </div>

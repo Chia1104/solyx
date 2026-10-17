@@ -45,8 +45,8 @@ export function StillHorizon({
           />
         </pattern>
       </defs>
-      <path d={`${arc}Z`} fill="var(--ink)" />
-      <path d={`${below}Z`} fill="var(--sheet)" />
+      <path d={`${arc}Z`} fill="var(--primary)" />
+      <path d={`${below}Z`} fill="var(--card)" />
       <path d={`${below}Z`} fill="url(#still-hatch)" />
       <path
         d={below}

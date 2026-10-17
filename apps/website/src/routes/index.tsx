@@ -23,7 +23,7 @@ function Home() {
             <h2 className="text-3xl font-[640] tracking-[-0.015em] [font-stretch:112%]">
               Take a proposal from pencil to ink
             </h2>
-            <p className="mt-3 text-lg leading-relaxed text-muted">
+            <p className="text-muted-foreground mt-3 text-lg leading-relaxed">
               This workspace runs in your browser on made-up prices. Pick a
               listing, ask the agent, and confirm its order yourself.
             </p>

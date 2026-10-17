@@ -30,7 +30,7 @@ export function OrderRoad() {
       <h2 className="text-3xl font-[640] tracking-[-0.015em] [font-stretch:112%]">
         One road to an order
       </h2>
-      <p className="mt-3 max-w-2xl text-lg leading-relaxed text-muted">
+      <p className="text-muted-foreground mt-3 max-w-2xl text-lg leading-relaxed">
         Every order takes these five steps. No setting, mode or extension adds
         another way to the broker.
       </p>
@@ -47,7 +47,7 @@ export function OrderRoad() {
                 <span
                   aria-hidden="true"
                   className={`absolute top-3 bottom-[-2rem] left-3 w-0 border-l-2 md:right-0 md:bottom-auto md:left-3 md:h-0 md:w-auto md:border-t-2 md:border-l-0 ${
-                    inked ? "border-ink" : "border-graphite border-dashed"
+                    inked ? "border-primary" : "border-graphite border-dashed"
                   }`}
                 />
               )}
@@ -55,13 +55,13 @@ export function OrderRoad() {
                 aria-hidden="true"
                 className={`absolute top-0 left-0 size-6.5 rounded-full border-2 ${
                   inked
-                    ? "border-ink bg-ink"
-                    : "border-graphite bg-paper border-dashed"
+                    ? "border-primary bg-primary"
+                    : "border-graphite border-dashed bg-background"
                 }`}
               />
-              <p className="text-sm text-muted">{index + 1}</p>
+              <p className="text-muted-foreground text-sm">{index + 1}</p>
               <h3 className="mt-1 font-semibold">{step.title}</h3>
-              <p className="mt-1 text-sm leading-relaxed text-muted">
+              <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                 {step.detail}
               </p>
             </li>
