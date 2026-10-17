@@ -34,6 +34,14 @@ export default defineConfig({
     fumadocsMdx(),
     // Tests run in Node; the plugin would move them into the Workers runtime, which they do not need.
     !process.env.VITEST && voidPlugin(),
+    // Void refuses a Worker that carries an image, and every page's assets reach the client build
+    // anyway, since each is prerendered and hydrated. The Cloudflare plugin turns emitting on for the
+    // Worker, and only a hook after it turns that off.
+    {
+      name: "solyx:server-emits-no-assets",
+      configEnvironment: (name) =>
+        name === "ssr" ? { build: { emitAssets: false } } : undefined,
+    },
     tailwindcss(),
     tanstackStart({
       prerender: { enabled: true, crawlLinks: true, failOnError: true },
@@ -52,17 +60,24 @@ export default defineConfig({
   },
   run: {
     tasks: {
-      // The prerender runs on Miniflare, which keeps its local state under .void, and the Cloudflare
-      // plugin points Wrangler at the build from .wrangler; neither is a source of the build.
+      // The prerender runs on Miniflare, which keeps its local state under .void and caches request
+      // metadata under node_modules/.mf, and the Cloudflare plugin points Wrangler at the build from
+      // .wrangler; none is a source of the build.
       build: {
         command: "vp build",
         cache: {
-          input: [{ auto: true }, "!.void/**", "!.wrangler/**"],
-          output: [{ auto: true }, "!.void/**"],
+          input: [
+            { auto: true },
+            "!.void/**",
+            "!.wrangler/**",
+            "!node_modules/.mf/**",
+          ],
+          output: [{ auto: true }, "!.void/**", "!node_modules/.mf/**"],
         },
       },
       // Void builds the site itself before it uploads, and a deploy is never replayed from a cache.
-      deploy: { command: "void deploy", cache: false },
+      // A fresh checkout, as in CI, has no saved target, so the platform is named.
+      deploy: { command: "void deploy --platform cloudflare", cache: false },
     },
   },
 });

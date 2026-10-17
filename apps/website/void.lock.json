@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "source": {
+    "routes": [
+      {
+        "pattern": "usesolyx.trade",
+        "custom_domain": true
+      }
+    ],
+    "assets": {
+      "html_handling": "drop-trailing-slash"
+    }
+  },
+  "resolved": {
+    "routes": [
+      {
+        "pattern": "usesolyx.trade",
+        "custom_domain": true
+      }
+    ],
+    "assets": {
+      "html_handling": "drop-trailing-slash"
+    },
+    "account_id": "e122b389415d5086264cfa081ccdb0e8",
+    "name": "solyx-website"
+  },
+  "text": "{\n  \"routes\": [\n    {\n      \"pattern\": \"usesolyx.trade\",\n      \"custom_domain\": true\n    }\n  ],\n  \"assets\": {\n    \"html_handling\": \"drop-trailing-slash\"\n  },\n  \"account_id\": \"e122b389415d5086264cfa081ccdb0e8\",\n  \"name\": \"solyx-website\"\n}\n"
+}

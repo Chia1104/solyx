@@ -1,9 +1,6 @@
 import { Suspense, use } from "react";
 
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { createServerFn } from "@tanstack/react-start";
-import { staticFunctionMiddleware } from "@tanstack/start-static-server-functions";
-import { useFumadocsLoader } from "fumadocs-core/source/client";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import {
   DocsBody,
@@ -19,23 +16,9 @@ import { Locale, localeOf, translators, useLocale } from "../../../lib/i18n.ts";
 import { baseOptions } from "../../../lib/layout.tsx";
 import { docs, source } from "../../../lib/source.ts";
 
-// Static: the build writes each page's result to a file, which client-side navigation reads.
-const loadPage = createServerFn({ method: "GET" })
-  .validator((input: { slugs: string[]; locale: Locale }) => input)
-  .middleware([staticFunctionMiddleware])
-  .handler(async ({ data: { slugs, locale } }) => {
-    const page = source.getPage(slugs, locale);
-
-    if (!page) throw notFound();
-
-    return {
-      path: page.path,
-      title: page.data.title,
-      description: page.data.description,
-      pageTree: await source.serializePageTree(source.getPageTree(locale)),
-    };
-  });
-
+// The loader runs in the browser on client-side navigation, so it reads the source there rather
+// than through a server function: the Worker answers no navigation, and the prerender runs on
+// workerd, where a static server function cannot write its results to files.
 export const Route = createFileRoute("/{-$lang}/docs/$")({
   component: Page,
   loader: async ({ params }) => {
@@ -43,12 +26,20 @@ export const Route = createFileRoute("/{-$lang}/docs/$")({
 
     if (!locale) throw notFound();
 
-    const slugs = params._splat?.split("/").filter(Boolean) ?? [];
-    const data = await loadPage({ data: { slugs, locale } });
+    const page = source.getPage(
+      params._splat?.split("/").filter(Boolean) ?? [],
+      locale
+    );
 
-    await docs.getPage(data.path)?.preload();
+    if (!page) throw notFound();
 
-    return data;
+    await docs.getPage(page.path)?.preload();
+
+    return {
+      path: page.path,
+      title: page.data.title,
+      description: page.data.description,
+    };
   },
   head: ({ loaderData, params }) => {
     const { t } = translators[localeOf(params.lang) ?? Locale.EnUS];
@@ -84,14 +75,14 @@ function Content({ path }: { path: string }) {
 }
 
 function Page() {
-  const { path, pageTree } = useFumadocsLoader(Route.useLoaderData());
+  const { path } = Route.useLoaderData();
   const locale = useLocale();
   const { t } = useTranslation();
 
   return (
     <>
       <PencilBanner id="docs-in-progress">{t("banner.docs")}</PencilBanner>
-      <DocsLayout {...baseOptions(locale)} tree={pageTree}>
+      <DocsLayout {...baseOptions(locale)} tree={source.getPageTree(locale)}>
         <Suspense>
           <Content path={path} />
         </Suspense>

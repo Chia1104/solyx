@@ -24,7 +24,6 @@
     "@tailwindcss/vite": "catalog:tailwindcss",
     "@tanstack/react-router": "catalog:tanstack",
     "@tanstack/react-start": "catalog:tanstack",
-    "@tanstack/start-static-server-functions": "catalog:tanstack",
     "@types/mdx": "catalog:docs",
     "@types/node": "catalog:",
     "@types/react": "catalog:react",
