@@ -20,7 +20,11 @@ import { voidPlugin } from "void";
 import websiteEnUS from "@solyx/i18n/website/en-US.json";
 import websiteZhTW from "@solyx/i18n/website/zh-TW.json";
 
-import { latestReleases, readReleases } from "./src/lib/releases.ts";
+import {
+  latestReleases,
+  readReleases,
+  releaseNotes,
+} from "./src/lib/releases.ts";
 import { socialCardPath } from "./src/lib/social-card.ts";
 
 const docsUrl = createGetUrl("/docs");
@@ -35,6 +39,8 @@ const pages = [
   { path: "/zh-TW" },
   { path: "/download" },
   { path: "/zh-TW/download" },
+  { path: "/changelog" },
+  { path: "/zh-TW/changelog" },
 ];
 
 // The landing page's card carries the hero's two lines, since the site's name is already its footer.
@@ -47,6 +53,11 @@ const cards: { path: string; title: string; description?: string }[] = [
     path: `${prefix}/download`,
     title: copy.download.title,
     description: copy.download.lede,
+  },
+  {
+    path: `${prefix}/changelog`,
+    title: copy.changelog.title,
+    description: copy.changelog.lede,
   },
 ]);
 
@@ -67,6 +78,8 @@ for await (const file of glob("**/*.mdx", { cwd: docsDir })) {
 
 const LATEST_RELEASES = "virtual:latest-releases";
 
+const RELEASE_NOTES = "virtual:release-notes";
+
 let releases: ReturnType<typeof readReleases> | undefined;
 
 // GitHub's releases are read once per build, so the pages prerender with them and the browser never
@@ -74,13 +87,17 @@ let releases: ReturnType<typeof readReleases> | undefined;
 const releaseData = {
   name: "solyx:releases",
   resolveId: (id) =>
-    id === LATEST_RELEASES ? `\0${LATEST_RELEASES}` : undefined,
+    id === LATEST_RELEASES || id === RELEASE_NOTES ? `\0${id}` : undefined,
   async load(id) {
-    if (id !== `\0${LATEST_RELEASES}`) return undefined;
+    if (id !== `\0${LATEST_RELEASES}` && id !== `\0${RELEASE_NOTES}`) {
+      return undefined;
+    }
 
     releases ??= readReleases(process.env.GITHUB_TOKEN);
 
-    return `export default ${JSON.stringify(latestReleases(await releases))};`;
+    const all = await releases;
+
+    return `export default ${JSON.stringify(id === `\0${LATEST_RELEASES}` ? latestReleases(all) : releaseNotes(all))};`;
   },
 } satisfies Plugin;
 

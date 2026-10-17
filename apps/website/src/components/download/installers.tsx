@@ -1,9 +1,11 @@
 import apple from "@lobehub/icons-static-svg/icons/apple.svg?url";
 import microsoft from "@lobehub/icons-static-svg/icons/microsoft.svg?url";
+import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
 import { DownloadIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { langParam, useLocale } from "../../lib/i18n.ts";
 import { useVisitorPlatform } from "../../lib/platform.ts";
 import { Platform } from "../../lib/releases.ts";
 import type { Release } from "../../lib/releases.ts";
@@ -85,6 +87,7 @@ export function QuickDownload({ release }: { release: Release }) {
 /** A channel's newest release, an installer for each system, the visitor's own marked. */
 export function ChannelInstallers({ release }: { release: Release }) {
   const { t } = useTranslation();
+  const locale = useLocale();
   const platform = useVisitorPlatform();
 
   return (
@@ -97,6 +100,18 @@ export function ChannelInstallers({ release }: { release: Release }) {
           <p className="text-muted-foreground text-sm tabular-nums">
             {release.version} ·{" "}
             {t("download.released", { date: release.publishedAt.slice(0, 10) })}
+            {release.changes.length > 0 && (
+              <>
+                {" · "}
+                <Link
+                  to="/{-$lang}/changelog"
+                  params={{ lang: langParam(locale) }}
+                  hash={release.version}
+                  className="text-primary hover:underline">
+                  {t("download.whats-new")}
+                </Link>
+              </>
+            )}
           </p>
         </div>
         <p className="text-muted-foreground mt-2 max-w-[40em] text-pretty">

@@ -7,7 +7,7 @@
   "nav": {
     "docs": "Docs",
     "download": "Download",
-    "releases": "Releases",
+    "changelog": "Changelog",
     "github": "GitHub",
     "footer": "Footer"
   },
@@ -244,6 +244,7 @@
     "elsewhere": "Solyx runs on macOS and Windows. Open this page on your computer to download it.",
     "your-system": "Your system",
     "released": "Released {{date}}",
+    "whats-new": "What's new",
     "file": "{{type}} · {{size}} MB",
     "channel": {
       "stable": {
@@ -268,6 +269,17 @@
     "first-launch": "Neither installer is signed by a paid certificate yet, so your system warns you before the first launch.",
     "install-guide": "Read the install guide",
     "all-releases": "Every release on GitHub"
+  },
+  "changelog": {
+    "title": "Changelog",
+    "lede": "What changed in each release, from the pull requests merged into it.",
+    "kind": {
+      "feat": "New",
+      "fix": "Fixes",
+      "other": "Other changes"
+    },
+    "on-github": "Release on GitHub",
+    "pull-request": "Pull request {{number}}"
   },
   "footer": {
     "disclaimer": "Solyx is not investment advice. You alone are responsible for any gains or losses from trades made with it. It is provided as is, without warranty of any kind.",

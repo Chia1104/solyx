@@ -7,7 +7,7 @@
   "nav": {
     "docs": "文件",
     "download": "下載",
-    "releases": "版本",
+    "changelog": "更新紀錄",
     "github": "GitHub",
     "footer": "頁尾"
   },
@@ -244,6 +244,7 @@
     "elsewhere": "Solyx 支援 macOS 與 Windows。請在電腦上開啟這個頁面下載。",
     "your-system": "你的系統",
     "released": "發布於 {{date}}",
+    "whats-new": "更新內容",
     "file": "{{type}} · {{size}} MB",
     "channel": {
       "stable": {
@@ -268,6 +269,17 @@
     "first-launch": "兩個安裝程式都還沒有付費憑證的簽章，所以第一次啟動前系統會跳出警告。",
     "install-guide": "閱讀安裝說明",
     "all-releases": "GitHub 上的所有版本"
+  },
+  "changelog": {
+    "title": "更新紀錄",
+    "lede": "每個版本的變更，取自合併進該版本的 pull request，並沿用它們的英文標題。",
+    "kind": {
+      "feat": "新功能",
+      "fix": "修正",
+      "other": "其他變更"
+    },
+    "on-github": "GitHub 上的版本",
+    "pull-request": "Pull request {{number}}"
   },
   "footer": {
     "disclaimer": "Solyx 不構成投資建議。使用它交易所產生的任何損益，皆由你自行承擔。本軟體依現狀提供，不附任何形式的保證。",

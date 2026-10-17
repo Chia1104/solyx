@@ -32,6 +32,11 @@ export function baseOptions(locale: Locale): BaseLayoutProps {
         url: localePath(locale, "/download"),
         active: "url",
       },
+      {
+        text: t("nav.changelog"),
+        url: localePath(locale, "/changelog"),
+        active: "url",
+      },
     ],
   };
 }
