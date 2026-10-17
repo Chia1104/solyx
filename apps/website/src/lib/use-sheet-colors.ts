@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 
 /**
  * The sheet's colours, read from the stylesheet's custom properties for what paints outside CSS:
- * the hero's canvas and the demo's chart.
+ * the canvases and the demo's chart.
  */
 export interface SheetColors {
   card: string;
@@ -10,6 +10,7 @@ export interface SheetColors {
   mutedForeground: string;
   border: string;
   primary: string;
+  primaryForeground: string;
   primaryDeep: string;
   primaryLight: string;
   graphite: string;
@@ -30,6 +31,7 @@ function read(): SheetColors {
     mutedForeground: value("--muted-foreground"),
     border: value("--border"),
     primary: value("--primary"),
+    primaryForeground: value("--primary-foreground"),
     primaryDeep: value("--primary-deep"),
     primaryLight: value("--primary-light"),
     graphite: value("--graphite"),

@@ -13,6 +13,7 @@ import {
 } from "fumadocs-ui/layouts/docs/page";
 
 import { useMDXComponents } from "../../components/mdx.tsx";
+import { PencilBanner } from "../../components/pencil-banner.tsx";
 import { baseOptions } from "../../lib/layout.tsx";
 import { docs, source } from "../../lib/source.ts";
 
@@ -76,10 +77,16 @@ function Page() {
   const { path, pageTree } = useFumadocsLoader(Route.useLoaderData());
 
   return (
-    <DocsLayout {...baseOptions()} tree={pageTree}>
-      <Suspense>
-        <Content path={path} />
-      </Suspense>
-    </DocsLayout>
+    <>
+      <PencilBanner id="docs-in-progress">
+        These docs are still being written, so some of what Solyx does is not
+        covered yet.
+      </PencilBanner>
+      <DocsLayout {...baseOptions()} tree={pageTree}>
+        <Suspense>
+          <Content path={path} />
+        </Suspense>
+      </DocsLayout>
+    </>
   );
 }

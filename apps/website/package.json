@@ -15,6 +15,7 @@
   "devDependencies": {
     "@base-ui/react": "catalog:website",
     "@fontsource-variable/archivo": "catalog:website",
+    "@lobehub/icons-static-svg": "catalog:icons",
     "@solyx/core": "workspace:*",
     "@solyx/i18n": "workspace:*",
     "@solyx/trading-chart": "workspace:*",

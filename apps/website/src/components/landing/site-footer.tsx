@@ -5,7 +5,7 @@ import { Logo } from "../logo.tsx";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border">
+    <footer className="border-graphite/45 border-t border-dashed">
       <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 md:grid-cols-[1fr_auto]">
         <div className="max-w-xl">
           <p className="flex items-center gap-2 font-semibold">
