@@ -467,7 +467,7 @@ const configSchema = section(
           z.looseObject({
             model: textSchema.meta({
               description:
-                "The model Ollama runs, pulled first with `ollama pull`.",
+                "The model Ollama runs, which the embeddings settings download into it, as `ollama pull` does.",
               default: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.Local].model,
             }),
             baseURL: endpointSchema.optional().catch(undefined).meta({

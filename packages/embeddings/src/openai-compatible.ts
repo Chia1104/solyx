@@ -1,9 +1,10 @@
 import { chunk } from "es-toolkit";
-import ky, { isHTTPError } from "ky";
 import * as z from "zod";
 
 import type { Embedder } from "@solyx/core/embedding";
 import { MINUTE_MS } from "@solyx/utils/date";
+
+import { serverHttp } from "./server.ts";
 
 // Texts per request: well under every server's limit, and a collection's news fits in a few.
 const BATCH = 64;
@@ -19,14 +20,6 @@ const responseSchema = z.object({
     })
   ),
 });
-
-// OpenAI says what went wrong in `error.message`, Ollama in `error`.
-const failureSchema = z.union([
-  z
-    .object({ error: z.object({ message: z.string() }) })
-    .transform(({ error }) => error.message),
-  z.object({ error: z.string() }).transform(({ error }) => error),
-]);
 
 interface EmbeddingsRequest {
   model: string;
@@ -58,28 +51,10 @@ export function createOpenAICompatibleEmbedder(
   const { baseURL, apiKey, model, dimensions } = options;
   const host = new URL(baseURL).host;
 
-  const http = ky.create({
-    prefix: baseURL,
+  const http = serverHttp(baseURL, {
     timeout: TIMEOUT_MS,
     headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
     fetch: options.fetch,
-    hooks: {
-      beforeError: [
-        ({ error }) => {
-          if (!isHTTPError(error)) {
-            error.message = `${host}: ${error.message}`;
-
-            return error;
-          }
-
-          const reason = failureSchema.safeParse(error.data).data;
-
-          error.message = `${host} answered ${error.response.status}${reason ? `: ${reason}` : ""}`;
-
-          return error;
-        },
-      ],
-    },
   });
 
   async function embedBatch(texts: string[], signal?: AbortSignal) {

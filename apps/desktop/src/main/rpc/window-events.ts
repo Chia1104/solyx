@@ -11,6 +11,7 @@ import type { Appearance, SignInCode } from "#shared/settings.ts";
 export type WindowEvents = Record<
   | "agent:store-failed"
   | "backup:changed"
+  | "embeddings:changed"
   | "inbox:changed"
   | "market:sources-changed"
   | "memory:changed"

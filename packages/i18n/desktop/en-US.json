@@ -1202,12 +1202,32 @@
         "openai": "OpenAI"
       },
       "provider-descriptions": {
-        "local": "A model Ollama runs on this computer; nothing leaves it. Pull the model in Ollama first.",
+        "local": "A model Ollama runs on this computer; nothing leaves it.",
         "openai": "OpenAI's model, on the key below. Titles and the start of snippets are sent to OpenAI."
       },
       "model": "Model",
       "measured": "Measured: Solyx knows how alike this model reads one story.",
-      "unmeasured": "Not measured: vectors are kept but don't group stories until a threshold is measured for this model."
+      "unmeasured": "Not measured: vectors are kept but don't group stories until a threshold is measured for this model.",
+      "local-model": {
+        "title": "Model in Ollama",
+        "status": {
+          "checking": "Checking…",
+          "failed": "Couldn't check",
+          "unreachable": "Ollama isn't running",
+          "missing": "Not downloaded",
+          "pulling": "Downloading…",
+          "ready": "Ready"
+        },
+        "unreachable": "Nothing answers at {{host}}. Open Ollama, or install it first; Solyx finds it on its own.",
+        "get-ollama": "Get Ollama",
+        "missing": "Download {{model}} into Ollama, or run {{command}} in a terminal.",
+        "pull": "Download",
+        "pull-failed": "Download failed",
+        "pulling": "Keeps going if you leave this page.",
+        "pulling-model": "Downloading {{model}}",
+        "starting": "Starting…",
+        "progress": "{{completed}} of {{total}}"
+      }
     },
     "skills": {
       "title": "Skills",
