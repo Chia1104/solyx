@@ -14,6 +14,8 @@ import {
   createTypeSafeScorer,
 } from "../src/typesafe.ts";
 
+import { readSent } from "./fixtures/sent.ts";
+
 const BASE_URL = "https://decisions.test";
 
 const TSMC = {
@@ -119,11 +121,6 @@ const sentSchema = z.object({
   }),
 });
 
-/** The body the scorer sent. */
-async function sent(request: Request) {
-  return sentSchema.parse(await request.json());
-}
-
 afterEach(() => {
   vi.unstubAllEnvs();
 });
@@ -164,7 +161,7 @@ test("asks about the listing and maps the answers onto the scale", async () => {
   expect(request.url).toBe(`${BASE_URL}/v1/systemone`);
   expect(request.headers.get("Authorization")).toBe("Bearer test-key");
 
-  const body = await sent(request);
+  const body = await readSent(request, sentSchema);
 
   expect(body.model).toBe(TYPESAFE_DEFAULT_MODEL);
   expect(body.state).toEqual({
@@ -212,7 +209,7 @@ test("never takes the key, endpoint or model from the environment", async () => 
 
   expect(request.url).toBe(`${BASE_URL}/v1/systemone`);
   expect(request.headers.get("Authorization")).toBe("Bearer test-key");
-  expect((await sent(request)).model).toBe("jev-preview");
+  expect((await readSent(request, sentSchema)).model).toBe("jev-preview");
 });
 
 test("cuts long texts to what the model reads", async () => {
@@ -227,7 +224,7 @@ test("cuts long texts to what the model reads", async () => {
 
   await scorer.score({ ...TSMC, listing: null, text: "漲".repeat(20_000) });
 
-  const { state } = await sent(requests[0]);
+  const { state } = await readSent(requests[0], sentSchema);
 
   expect(state.text).toHaveLength(12_000);
   expect(state.listing).toEqual({

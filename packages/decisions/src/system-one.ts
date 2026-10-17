@@ -1,5 +1,10 @@
 import { choice, noul, score } from "@typesafe-ai/sdk";
-import type { NoulQuestion, SystemOneRequest } from "@typesafe-ai/sdk";
+import type {
+  ChoiceQuestion,
+  NoulQuestion,
+  ScoreQuestion,
+  SystemOneRequest,
+} from "@typesafe-ai/sdk";
 import * as z from "zod";
 
 import type { FactReader } from "@solyx/core/forecast";
@@ -18,12 +23,15 @@ import type {
 
 import type { CommandJudge, CommandJudgement } from "./command.ts";
 
+/** A kind of question every vendor's model answers; System One's `box` has no counterpart elsewhere. */
+export type SharedQuestion = NoulQuestion | ScoreQuestion | ChoiceQuestion;
+
 /**
  * Sends a state and its questions, in TypeSafe's System One format, to a vendor's model. The
  * answers come back unread; the scorer and the judge check them against what they asked.
  */
 export type Ask = (
-  request: SystemOneRequest,
+  request: SystemOneRequest<Record<string, SharedQuestion>>,
   signal: AbortSignal | undefined
 ) => Promise<{ model: string; answers: unknown }>;
 

@@ -6,6 +6,8 @@ import {
   createTypeSafeClaimAuditor,
 } from "../src/typesafe.ts";
 
+import { readSent } from "./fixtures/sent.ts";
+
 const BASE_URL = "https://decisions.test";
 
 const CLAIM = {
@@ -48,7 +50,7 @@ test("asks whether the quote states the claim and reads the likelihood", async (
     supported: 0.96,
   });
 
-  const sent = sentSchema.parse(await requests[0].json());
+  const sent = await readSent(requests[0], sentSchema);
 
   // The model reads the claim and its quote alone; where the quote came from is not its to judge.
   expect(sent.state).toEqual({ claim: CLAIM.text, quote: CLAIM.quote });
