@@ -163,6 +163,8 @@ export const settingsContract = {
   createAgentKey: oc
     .input(z.object({ provider: agentProviderSchema, locale: localeSchema }))
     .output(type<void>()),
+  /** Has each server the user runs and switched on, such as Ollama, list the models it holds again. */
+  listAgentServerModels: oc.output(type<void>()),
   /** Sends the provider's requests on an API key to `endpoint`; `null` goes back to its own. */
   setAgentEndpoint: oc
     .input(

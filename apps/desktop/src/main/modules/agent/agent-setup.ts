@@ -299,11 +299,16 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     const providerText = models.providers
       .filter((each) => each.listed)
       .map((each) => {
-        const access = each.subscription?.signedIn
-          ? "subscription signed in"
-          : each.subscription?.only
-            ? "subscription not signed in"
-            : `key ${stateText(each.key)}`;
+        const access = each.server
+          ? each.usable
+            ? "its server lists models that can run the agent"
+            : (each.server.failure ??
+              "its server lists no model that can run the agent")
+          : each.subscription?.signedIn
+            ? "subscription signed in"
+            : each.subscription?.only
+              ? "subscription not signed in"
+              : `key ${stateText(each.key)}`;
 
         const endpoint =
           each.endpoint && each.endpoint.url !== each.endpoint.default
@@ -360,11 +365,11 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
           ...(models.ready
             ? []
             : [
-                "No provider switched on has a key saved or a subscription signed in, so the agent cannot run.",
+                "No provider switched on has a key saved, a subscription signed in or a server listing a model, so the agent cannot run.",
               ]),
           ...(models.ready && !defaultUsable
             ? [
-                `The default model's provider, ${models.provider}, has no key saved or subscription signed in, so a conversation on it cannot run.`,
+                `The default model's provider, ${models.provider}, has no key saved, subscription signed in or model listed, so a conversation on it cannot run.`,
               ]
             : []),
         ],

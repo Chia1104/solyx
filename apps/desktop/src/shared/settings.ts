@@ -327,6 +327,11 @@ export interface AgentProviderSettings {
    * set. `null` for a provider whose models use several endpoints, so none can stand in for them.
    */
   endpoint: { url: string; default: string } | null;
+  /**
+   * A server the user runs, which takes no key unless a proxy in front of it checks one and lists
+   * the models it holds, with why it failed to when last asked; `null` for every other provider.
+   */
+  server: { failure: string | null } | null;
 }
 
 /** The code a sign-in waits for the user to enter on the provider's page. */

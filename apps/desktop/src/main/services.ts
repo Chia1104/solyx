@@ -353,6 +353,8 @@ export function createServices(config: ConfigFile) {
     openExternal,
     showSignInCode: (code) =>
       void windowEvents.publish("settings:sign-in-code", code),
+    modelsFile: join(userDataDir, "agent-models.json"),
+    onModelsListed: () => void windowEvents.publish("settings:changed", {}),
     skillFolders,
     instructionsFile,
     mcp,

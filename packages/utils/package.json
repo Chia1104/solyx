@@ -13,6 +13,7 @@
     "./rate-limit": "./src/rate-limit.ts",
     "./search": "./src/search.ts",
     "./server": "./src/server.ts",
+    "./stream": "./src/stream.ts",
     "./text": "./src/text.ts"
   },
   "scripts": {

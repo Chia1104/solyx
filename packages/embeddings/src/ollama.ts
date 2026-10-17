@@ -4,6 +4,7 @@ import * as z from "zod";
 
 import { MINUTE_MS } from "@solyx/utils/date";
 import { parseJson } from "@solyx/utils/json";
+import { lines } from "@solyx/utils/stream";
 
 import { serverHttp } from "./server.ts";
 
@@ -41,23 +42,6 @@ export interface OllamaOptions {
 // Ollama runs a model named without a tag as its `latest`.
 const tagged = (model: string) =>
   model.split("/").at(-1)?.includes(":") ? model : `${model}:latest`;
-
-/** Each line of newline-delimited text. */
-async function* lines(body: ReadableStream<Uint8Array>) {
-  const decoder = new TextDecoder();
-  let rest = "";
-
-  for await (const bytes of body) {
-    const parts = `${rest}${decoder.decode(bytes, { stream: true })}`.split(
-      "\n"
-    );
-
-    rest = parts.pop() ?? "";
-    yield* parts;
-  }
-
-  yield `${rest}${decoder.decode()}`;
-}
 
 /** The models an Ollama server holds, and downloading one from its library. */
 export function createOllama({ baseURL, apiKey, fetch }: OllamaOptions) {

@@ -20,6 +20,7 @@ import { MINUTE_MS } from "@solyx/utils/date";
 import {
   Locale,
   Secret,
+  SecretState,
   agentKeySecret,
   agentSignInSecret,
 } from "#shared/settings.ts";
@@ -39,7 +40,7 @@ beforeEach(async () => {
 
 afterEach(() => rm(directory, { recursive: true, force: true }));
 
-function setup() {
+function setup(fetch?: typeof globalThis.fetch) {
   const config = createConfigFile(join(directory, "config.json"));
 
   const secrets = createSecretStore(
@@ -51,6 +52,7 @@ function setup() {
 
   const openExternal = vi.fn<(url: string) => void>();
   const showSignInCode = vi.fn<(code: SignInCode) => void>();
+  const onModelsListed = vi.fn();
 
   const models = createAgentModels({
     config,
@@ -58,9 +60,19 @@ function setup() {
     getDeviceId: () => "00000000-0000-4000-8000-000000000000",
     openExternal,
     showSignInCode,
+    modelsFile: join(directory, "agent-models.json"),
+    onModelsListed,
+    fetch,
   });
 
-  return { config, secrets, models, openExternal, showSignInCode };
+  return {
+    config,
+    secrets,
+    models,
+    openExternal,
+    showSignInCode,
+    onModelsListed,
+  };
 }
 
 const providerOf = async (
@@ -517,5 +529,117 @@ describe("a key the provider creates by sign-in", () => {
     await expect(models.createKey("openai", Locale.EnUS)).rejects.toThrow(
       "creates no key by sign-in"
     );
+  });
+});
+
+describe("Ollama, a server the user runs", () => {
+  /** Ollama holding one model that can run the agent, or not answering at all. */
+  function fakeOllama() {
+    const asked: { url: string; authorization: string | null }[] = [];
+    let answering = true;
+
+    const fetch = async (input: string | URL | Request, init?: RequestInit) => {
+      const request = new Request(input, init);
+
+      asked.push({
+        url: request.url,
+        authorization: request.headers.get("authorization"),
+      });
+
+      if (!answering) throw new TypeError("fetch failed");
+
+      return Response.json({
+        models: [
+          {
+            name: "qwen3.8:9b",
+            capabilities: ["completion", "tools", "thinking"],
+            details: { context_length: 262_144 },
+          },
+        ],
+      });
+    };
+
+    return {
+      fetch,
+      asked,
+      stop() {
+        answering = false;
+      },
+    };
+  }
+
+  test("is asked nothing until switched on, then runs on no key once it lists a model", async () => {
+    const ollama = fakeOllama();
+    const { config, secrets, models, onModelsListed } = setup(ollama.fetch);
+
+    config.set(["agent", "provider"], "anthropic");
+    await secrets.save(agentKeySecret("anthropic"), "sk-ant-test");
+
+    await models.listServerModels();
+
+    expect(ollama.asked).toEqual([]);
+    expect(await providerOf(models, "ollama")).toMatchObject({
+      enabled: false,
+      key: SecretState.Missing,
+      usable: false,
+      endpoint: {
+        url: "http://127.0.0.1:11434",
+        default: "http://127.0.0.1:11434",
+      },
+      server: { failure: null },
+    });
+
+    await models.setProviderEnabled("ollama", true);
+
+    expect(ollama.asked).toEqual([
+      { url: "http://127.0.0.1:11434/api/tags", authorization: null },
+    ]);
+    expect(onModelsListed).toHaveBeenCalled();
+    expect(await providerOf(models, "ollama")).toMatchObject({
+      enabled: true,
+      usable: true,
+    });
+    expect(
+      await models.choice({
+        model: { provider: "ollama", id: "qwen3.8:9b" },
+        thinking: null,
+      })
+    ).toMatchObject({ model: { provider: "ollama", id: "qwen3.8:9b" } });
+  });
+
+  test("lists again where its endpoint and key move it, and keeps why it could not", async () => {
+    const ollama = fakeOllama();
+    const { models } = setup(ollama.fetch);
+
+    await models.setProviderEnabled("ollama", true);
+    await models.setEndpoint("ollama", "https://models.example.com/ollama");
+    await models.saveKey("ollama", "proxy-token");
+
+    expect(ollama.asked.at(-1)).toEqual({
+      url: "https://models.example.com/ollama/api/tags",
+      authorization: "Bearer proxy-token",
+    });
+
+    ollama.stop();
+    await models.listServerModels();
+
+    expect(await providerOf(models, "ollama")).toMatchObject({
+      usable: true,
+      server: { failure: "models.example.com: fetch failed" },
+    });
+  });
+
+  test("a conversation on it says what model to pull while it holds none", async () => {
+    const { models } = setup(async () => Response.json({ models: [] }));
+
+    await models.setProviderEnabled("ollama", true);
+
+    expect(await providerOf(models, "ollama")).toMatchObject({ usable: false });
+    await expect(
+      models.choice({
+        model: { provider: "ollama", id: "qwen3.8:9b" },
+        thinking: null,
+      })
+    ).rejects.toThrow("ollama holds no model that can run the agent");
   });
 });

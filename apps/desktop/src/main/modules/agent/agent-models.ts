@@ -1,6 +1,10 @@
 import { uniq } from "es-toolkit";
 
-import { createModelCatalog, subscriptionOf } from "@solyx/agent/models";
+import {
+  createModelCatalog,
+  fileModelsStore,
+  subscriptionOf,
+} from "@solyx/agent/models";
 import { AgentAuth, DEFAULT_PROVIDER } from "@solyx/agent/providers";
 import type { AgentModelPick, AgentProvider } from "@solyx/agent/providers";
 import type { AgentModelChoice } from "@solyx/agent/runtime";
@@ -39,6 +43,12 @@ export interface AgentModelsOptions {
   openExternal: (url: string) => void;
   /** Shows the user the code a sign-in waits for them to enter on the provider's page. */
   showSignInCode: (code: SignInCode) => void;
+  /** Where the models a server the user runs listed last are kept for the next start. */
+  modelsFile: string;
+  /** Told once a server the user runs has listed its models again. */
+  onModelsListed: () => void;
+  /** @default globalThis.fetch */
+  fetch?: typeof globalThis.fetch;
 }
 
 /**
@@ -52,6 +62,9 @@ export function createAgentModels({
   getDeviceId,
   openExternal,
   showSignInCode,
+  modelsFile,
+  onModelsListed,
+  fetch,
 }: AgentModelsOptions) {
   const agentConfig = () => config.read().agent;
 
@@ -76,6 +89,8 @@ export function createAgentModels({
         ? agent.endpoints[provider]
         : undefined;
     },
+    modelsStore: fileModelsStore(modelsFile),
+    fetch,
   });
 
   /** The model new conversations start on; a provider the app no longer offers reads as the default one. */
@@ -109,8 +124,10 @@ export function createAgentModels({
       auth,
       key,
       subscription,
-      usable:
-        auth === AgentAuth.Subscription
+      // A server the user runs takes no key, so it runs once it lists a model that can.
+      usable: catalog.servedByUser(provider)
+        ? (await catalog.options(provider)).length > 0
+        : auth === AgentAuth.Subscription
           ? subscription?.signedIn === true
           : key === SecretState.Saved,
     };
@@ -130,6 +147,28 @@ export function createAgentModels({
     if (!catalog.offers(provider)) {
       throw new Error(`${provider} is not a provider the app offers`);
     }
+  }
+
+  /**
+   * Has each server the user runs and switched on list its models again, and tells windows; no
+   * server they left off is asked anything.
+   */
+  async function listServerModels() {
+    const agent = agentConfig();
+
+    await catalog.refresh(
+      catalog
+        .providers()
+        .map(({ id }) => id)
+        .filter((id) => catalog.servedByUser(id) && enabled(agent, id))
+    );
+
+    onModelsListed();
+  }
+
+  /** Lists the server's models again after what reaches it changed. */
+  async function relisted(provider: AgentProvider) {
+    if (catalog.servedByUser(provider)) await listServerModels();
   }
 
   return {
@@ -159,6 +198,9 @@ export function createAgentModels({
             createsKey: catalog.createsKey(id),
             usable,
             endpoint: endpoint(agent, id),
+            server: catalog.servedByUser(id)
+              ? { failure: catalog.listingFailure(id) }
+              : null,
           };
         })
       );
@@ -192,6 +234,8 @@ export function createAgentModels({
           ? uniq([...current, provider])
           : current.filter((each) => each !== provider)
       );
+
+      if (on) await relisted(provider);
     },
 
     /** A model id means nothing to another provider, so switching starts from its default. */
@@ -225,11 +269,13 @@ export function createAgentModels({
     async saveKey(provider: AgentProvider, value: string) {
       offered(provider);
       await secrets.save(agentKeySecret(provider), value);
+      await relisted(provider);
     },
 
     async deleteKey(provider: AgentProvider) {
       offered(provider);
       await secrets.delete(agentKeySecret(provider));
+      await relisted(provider);
     },
 
     /**
@@ -258,6 +304,7 @@ export function createAgentModels({
 
       // Removing the entry reads as the provider's own endpoint.
       config.set(["agent", "endpoints", provider], to ?? undefined);
+      await relisted(provider);
     },
 
     /** The conversation's own model, or the default one where `pick` names none. */
@@ -287,7 +334,11 @@ export function createAgentModels({
       const model = await catalog.model(provider, id);
 
       if (!model) {
-        throw new Error(`Pick a model for ${provider} in Settings first`);
+        throw new Error(
+          catalog.servedByUser(provider)
+            ? `${provider} holds no model that can run the agent: one that calls tools and holds 48K tokens or more; pull one, then list its models again in Settings`
+            : `Pick a model for ${provider} in Settings first`
+        );
       }
 
       const { auth, usable } = await setUp(agent, provider);
@@ -313,6 +364,11 @@ export function createAgentModels({
           signInPage(locale, SignInFlow.ChatGPT, outcome, detail),
         onCode: (code) => showSignInCode({ provider, ...code }),
       }),
+
+    /** Restores the models each server the user runs listed last, without asking it, as the app starts. */
+    restoreServerModels: () => catalog.restore(),
+
+    listServerModels,
 
     cancelSignIn: () => catalog.cancelSignIn(),
 
