@@ -334,6 +334,14 @@ export interface AgentProviderSettings {
   server: { failure: string | null } | null;
 }
 
+/** What a server the user runs lists of the models that can run the agent. */
+export interface AgentServerModels {
+  /** How many of the models it holds can run the agent. */
+  models: number;
+  /** Why it failed to list them when last asked; `null` once it answered. */
+  failure: string | null;
+}
+
 /** The code a sign-in waits for the user to enter on the provider's page. */
 export interface SignInCode {
   provider: AgentProvider;

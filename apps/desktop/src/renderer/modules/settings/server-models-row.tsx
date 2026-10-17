@@ -1,53 +1,47 @@
-import { useEffect } from "react";
-
 import { Button } from "@heroui/react";
-import { useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { orpc } from "../../app/rpc.ts";
+import type { AgentProvider } from "@solyx/agent/providers";
+
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 import { SettingsRow } from "./settings-list.tsx";
+import { agentServerModelsQuery } from "./settings-query.ts";
 
-/**
- * How many models a server the user runs holds that can run the agent, listed again as the row
- * opens, since a model pulled in a terminal tells the app nothing, and whenever the user asks.
- */
+/** How many models a server the user runs holds that can run the agent, asked again on request. */
 export function ServerModelsRow({
+  provider,
   name,
-  count,
-  failure,
 }: {
+  provider: AgentProvider;
   name: string;
-  count: number;
-  /** Why the server failed to list them when last asked. */
-  failure: string | null;
 }) {
   const { t } = useTranslation();
 
-  const list = useMutation(
-    orpc.settings.listAgentServerModels.mutationOptions()
+  const { data, error, isFetching, refetch } = useQuery(
+    agentServerModelsQuery(provider)
   );
 
-  const { mutate } = list;
-
-  useEffect(() => mutate(), [mutate]);
+  const failure = data?.failure ?? error?.message;
 
   return (
     <SettingsRow
       label={t("settings.agent.server-models")}
       description={t("settings.agent.server-models-description")}
       value={
-        count > 0
-          ? t("settings.agent.server-models-count", { count })
-          : t("settings.agent.server-models-none")
+        data === undefined
+          ? t("settings.agent.server-models-checking")
+          : data.models > 0
+            ? t("settings.agent.server-models-count", { count: data.models })
+            : t("settings.agent.server-models-none")
       }
       actions={
         <Button
           size="sm"
           variant="secondary"
-          isPending={list.isPending}
-          onPress={() => mutate()}>
+          isPending={isFetching}
+          onPress={() => void refetch()}>
           {t("settings.agent.list-models")}
         </Button>
       }>

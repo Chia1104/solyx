@@ -594,11 +594,19 @@ describe("Ollama, a server the user runs", () => {
     expect(ollama.asked).toEqual([
       { url: "http://127.0.0.1:11434/api/tags", authorization: null },
     ]);
-    expect(onModelsListed).toHaveBeenCalled();
+    expect(onModelsListed).toHaveBeenCalledOnce();
     expect(await providerOf(models, "ollama")).toMatchObject({
       enabled: true,
       usable: true,
     });
+
+    // Asking again finds the same models, so windows are not told to read it all again.
+    expect(await models.serverModels("ollama")).toEqual({
+      models: 1,
+      failure: null,
+    });
+    expect(ollama.asked).toHaveLength(2);
+    expect(onModelsListed).toHaveBeenCalledOnce();
     expect(
       await models.choice({
         model: { provider: "ollama", id: "qwen3.8:9b" },
@@ -621,8 +629,11 @@ describe("Ollama, a server the user runs", () => {
     });
 
     ollama.stop();
-    await models.listServerModels();
 
+    expect(await models.serverModels("ollama")).toEqual({
+      models: 1,
+      failure: "models.example.com: fetch failed",
+    });
     expect(await providerOf(models, "ollama")).toMatchObject({
       usable: true,
       server: { failure: "models.example.com: fetch failed" },

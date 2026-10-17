@@ -2,7 +2,7 @@ import { hashKey, useQuery } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
-import type { AgentModelRef } from "@solyx/agent/providers";
+import type { AgentModelRef, AgentProvider } from "@solyx/agent/providers";
 
 import { isDecisionsReady } from "#shared/settings.ts";
 import type { AgentSettings, MarketDataStatus } from "#shared/settings.ts";
@@ -65,6 +65,13 @@ export const agentSettingsQuery = () =>
   orpc.settings.agent.queryOptions({
     staleTime: Infinity,
   });
+
+/**
+ * Asked again as its row opens, as the window regains focus once stale and on any settings change,
+ * since a model pulled in a terminal tells the app nothing.
+ */
+export const agentServerModelsQuery = (provider: AgentProvider) =>
+  orpc.settings.agentServerModels.queryOptions({ input: provider });
 
 /** Never stale, as below. */
 export const memorySettingsQuery = () =>

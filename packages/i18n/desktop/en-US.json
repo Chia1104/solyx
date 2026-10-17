@@ -1096,6 +1096,7 @@
       "server-key-hint": "Only if a proxy in front of {{provider}} checks a bearer token.",
       "server-models": "Models",
       "server-models-description": "Ones that call tools and hold 48K tokens or more. Pull one with ollama pull.",
+      "server-models-checking": "Checking…",
       "server-models-count_one": "{{count}} model",
       "server-models-count_other": "{{count}} models",
       "server-models-none": "None",

@@ -199,8 +199,8 @@ export const settingsRouter = settings.router({
   createAgentKey: settings.createAgentKey.handler(({ context, input }) =>
     context.agent.models.createKey(input.provider, input.locale)
   ),
-  listAgentServerModels: settings.listAgentServerModels.handler(({ context }) =>
-    context.agent.models.listServerModels()
+  agentServerModels: settings.agentServerModels.handler(({ context, input }) =>
+    context.agent.models.serverModels(input)
   ),
   setAgentEndpoint: settings.setAgentEndpoint.handler(({ context, input }) =>
     context.agent.models.setEndpoint(input.provider, input.endpoint)

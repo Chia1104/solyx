@@ -272,14 +272,7 @@ export function AgentSettings() {
                 }
                 onRemove={() => client.settings.deleteAgentKey(each.provider)}
               />
-              <ServerModelsRow
-                name={name}
-                count={
-                  models.filter((option) => option.provider === each.provider)
-                    .length
-                }
-                failure={each.server.failure}
-              />
+              <ServerModelsRow provider={each.provider} name={name} />
             </>
           ) : each.subscription && each.auth === AgentAuth.Subscription ? (
             <SubscriptionSignIn

@@ -1096,6 +1096,7 @@
       "server-key-hint": "只有 {{provider}} 架在會檢查 bearer token 的代理後面時才需要。",
       "server-models": "可用模型",
       "server-models-description": "需要支援工具、context 至少 48K 的模型，可用 ollama pull 下載。",
+      "server-models-checking": "檢查中…",
       "server-models-count_one": "{{count}} 個",
       "server-models-count_other": "{{count}} 個",
       "server-models-none": "沒有",

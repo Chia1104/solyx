@@ -10,7 +10,12 @@ import type { AgentModelPick, AgentProvider } from "@solyx/agent/providers";
 import type { AgentModelChoice } from "@solyx/agent/runtime";
 
 import { SecretState, agentKeySecret } from "#shared/settings.ts";
-import type { AgentSettings, Locale, SignInCode } from "#shared/settings.ts";
+import type {
+  AgentServerModels,
+  AgentSettings,
+  Locale,
+  SignInCode,
+} from "#shared/settings.ts";
 
 import { PRODUCT_NAME } from "../../product.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
@@ -149,26 +154,42 @@ export function createAgentModels({
     }
   }
 
-  /**
-   * Has each server the user runs and switched on list its models again, and tells windows; no
-   * server they left off is asked anything.
-   */
-  async function listServerModels() {
+  /** The servers the user runs among `providers` that are switched on; no other is asked anything. */
+  function switchedOnServers(providers: readonly AgentProvider[]) {
     const agent = agentConfig();
 
-    await catalog.refresh(
-      catalog
-        .providers()
-        .map(({ id }) => id)
-        .filter((id) => catalog.servedByUser(id) && enabled(agent, id))
+    return providers.filter(
+      (id) => catalog.servedByUser(id) && enabled(agent, id)
     );
-
-    onModelsListed();
   }
 
-  /** Lists the server's models again after what reaches it changed. */
-  async function relisted(provider: AgentProvider) {
-    if (catalog.servedByUser(provider)) await listServerModels();
+  /** What `servers` list, and why each failed to, to tell whether listing again changed it. */
+  async function listings(servers: readonly AgentProvider[]) {
+    return JSON.stringify(
+      await Promise.all(
+        servers.map(async (server) => [
+          await catalog.options(server),
+          catalog.listingFailure(server),
+        ])
+      )
+    );
+  }
+
+  /**
+   * Has each of `providers` that is a server the user switched on list its models again, and tells
+   * windows only when that changed what it lists, since a window reading it asks again.
+   */
+  async function listServerModels(
+    providers: readonly AgentProvider[] = catalog
+      .providers()
+      .map(({ id }) => id)
+  ) {
+    const servers = switchedOnServers(providers);
+    const before = await listings(servers);
+
+    await catalog.refresh(servers);
+
+    if ((await listings(servers)) !== before) onModelsListed();
   }
 
   return {
@@ -235,7 +256,7 @@ export function createAgentModels({
           : current.filter((each) => each !== provider)
       );
 
-      if (on) await relisted(provider);
+      if (on) await listServerModels([provider]);
     },
 
     /** A model id means nothing to another provider, so switching starts from its default. */
@@ -269,13 +290,13 @@ export function createAgentModels({
     async saveKey(provider: AgentProvider, value: string) {
       offered(provider);
       await secrets.save(agentKeySecret(provider), value);
-      await relisted(provider);
+      await listServerModels([provider]);
     },
 
     async deleteKey(provider: AgentProvider) {
       offered(provider);
       await secrets.delete(agentKeySecret(provider));
-      await relisted(provider);
+      await listServerModels([provider]);
     },
 
     /**
@@ -304,7 +325,7 @@ export function createAgentModels({
 
       // Removing the entry reads as the provider's own endpoint.
       config.set(["agent", "endpoints", provider], to ?? undefined);
-      await relisted(provider);
+      await listServerModels([provider]);
     },
 
     /** The conversation's own model, or the default one where `pick` names none. */
@@ -369,6 +390,20 @@ export function createAgentModels({
     restoreServerModels: () => catalog.restore(),
 
     listServerModels,
+
+    /**
+     * What the server the user runs lists of the models that can run the agent, asked again while
+     * it is switched on.
+     */
+    async serverModels(provider: AgentProvider): Promise<AgentServerModels> {
+      offered(provider);
+      await listServerModels([provider]);
+
+      return {
+        models: (await catalog.options(provider)).length,
+        failure: catalog.listingFailure(provider),
+      };
+    },
 
     cancelSignIn: () => catalog.cancelSignIn(),
 
