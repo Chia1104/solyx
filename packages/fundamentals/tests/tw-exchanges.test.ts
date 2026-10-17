@@ -320,10 +320,27 @@ const fund = (fields: Record<string, string>) => ({
   ...fields,
 });
 
+/** A row of TWSE's list of the last session's trading; one that did not trade is on it with no volume. */
+const listing = (code: string, volume = "1000") => ({
+  Date: "1151016",
+  Code: code,
+  Name: `範例${code}`,
+  TradeVolume: volume,
+  ClosingPrice: volume === "" ? "" : "100.00",
+});
+
 test("reads the funds TWSE lists, a field the exchange has nothing to say in left empty", async () => {
   const { sent, exchanges } = fakeExchanges({
+    [`${TWSE}exchangeReport/STOCK_DAY_ALL`]: [
+      listing("0050"),
+      listing("00981A"),
+      listing("00631L", ""),
+      listing("2330"),
+    ],
     [`${TWSE}opendata/t187ap47_L`]: [
       fund({}),
+      // Delisted, which the list of funds still holds.
+      fund({ 基金代號: "0054", 基金中文名稱: "範例台商50證券投資信託基金" }),
       // An actively managed fund tracks no index and may name a benchmark.
       fund({
         基金代號: "00981A",
@@ -387,7 +404,20 @@ test("reads the funds TWSE lists, a field the exchange has nothing to say in lef
       asOf: "2026-09-28",
     },
   ]);
-  expect(sent).toEqual([`${TWSE}opendata/t187ap47_L`]);
+  expect(sent.toSorted()).toEqual([
+    `${TWSE}exchangeReport/STOCK_DAY_ALL`,
+    `${TWSE}opendata/t187ap47_L`,
+  ]);
+});
+
+test("fails when TWSE's list of the last session's trading holds nothing, rather than answer that it lists no fund", async () => {
+  const { exchanges } = fakeExchanges({
+    [`${TWSE}opendata/t187ap47_L`]: [fund({})],
+  });
+
+  await expect(exchanges.getFunds(Market.TW)).rejects.toThrow(
+    "TWSE: exchangeReport/STOCK_DAY_ALL listed nothing"
+  );
 });
 
 test("fails when none of the funds read, rather than answer that the exchange lists none", async () => {
