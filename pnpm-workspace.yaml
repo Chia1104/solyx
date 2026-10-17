@@ -26,10 +26,10 @@ catalogs:
   docs:
     "@fumadocs/language": 0.2.15
     "@types/mdx": 2.0.14
-    fumadocs-core: 16.17.1
+    fumadocs-core: 16.17.5
     fumadocs-mdx: 15.4.7
     # The examples' default build of Fumadocs' UI, on Base UI; the plain npm package is its Radix build.
-    fumadocs-ui: npm:@fumadocs/base-ui@16.17.1
+    fumadocs-ui: npm:@fumadocs/base-ui@16.17.5
     lucide-react: 1.55.0
     takumi-js: 2.16.3
   drizzle:
