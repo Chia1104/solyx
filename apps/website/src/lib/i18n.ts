@@ -1,5 +1,5 @@
 import { zhTW } from "@fumadocs/language/zh-tw";
-import { useParams } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { defineI18n } from "fumadocs-core/i18n";
 import { uiTranslations } from "fumadocs-ui/i18n";
 import i18next from "i18next";
@@ -79,11 +79,16 @@ export function localePath(locale: Locale, path: string): string {
   return path === "/" ? `/${locale}` : `/${locale}${path}`;
 }
 
-/** The locale of the page on screen. */
+/**
+ * The locale of the page on screen, read from the path's first segment rather than a route's
+ * params, so an address no route matches still speaks the language it asked for.
+ */
 export function useLocale(): Locale {
-  const { lang } = useParams({ strict: false });
+  const segment = useLocation({
+    select: (location) => location.pathname.split("/")[1],
+  });
 
-  return localeOf(lang) ?? Locale.EnUS;
+  return isEnumValue(Locale, segment) ? segment : Locale.EnUS;
 }
 
 declare module "i18next" {
