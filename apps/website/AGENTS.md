@@ -4,7 +4,7 @@ The project's website: the landing page and the docs, on TanStack Start and Fuma
 
 ## Boundaries
 
-- Every page is prerendered: `vp build` writes each one into `dist/client`, so a route that needs a server per request does not belong here. A docs page reads its data through a server function under `staticFunctionMiddleware`, whose results the build writes to files, and search downloads the index `/api/search` exports and runs in the browser.
+- Every page is prerendered: `vp build` writes each one into `dist/client`, so a route that needs a server per request does not belong here. A loader reads what it needs where it runs, in the browser on client-side navigation, never through a server function: the Worker answers no navigation, and the prerender runs on workerd, where `staticFunctionMiddleware` cannot write its results to files. Search downloads the index `/api/search` exports and runs in the browser.
 - Void deploys the site: `voidPlugin()` builds it for the Workers runtime, Cloudflare serves the prerendered files, and the Worker answers only what no file matches. The Worker's settings, including its one domain `usesolyx.trade`, live in `void.config.ts`; `void.lock.json`, which pins the account and the Worker, is committed beside it.
 - The site follows `develop`, not the latest release: every push to `develop` that changes what the site is built from deploys it (`.github/workflows/website.yml`). A page about a feature goes live when it merges, so it lands with that feature's code.
 - The crawler only follows links, so `vite.config.ts` lists every docs page for the prerender itself.
