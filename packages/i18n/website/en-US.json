@@ -1,0 +1,243 @@
+{
+  "meta": {
+    "title": "Solyx",
+    "description": "A desktop app for trading Taiwan and US stocks. An agent analyzes the market and proposes trades; nothing reaches your broker until you confirm it.",
+    "page-title": "{{title}} | Solyx"
+  },
+  "nav": {
+    "docs": "Docs",
+    "download": "Download",
+    "releases": "Releases",
+    "github": "GitHub",
+    "footer": "Footer"
+  },
+  "banner": {
+    "app": "Solyx is still in development. Builds are nightly and trade on a paper account.",
+    "docs": "These docs are still being written, so some of what Solyx does is not covered yet."
+  },
+  "hero": {
+    "pencil": "The agent drafts in pencil.",
+    "ink": "You sign in ink.",
+    "lede": "Solyx is a desktop app for trading Taiwan and US stocks. An agent reads the market and proposes orders, and nothing reaches your broker until you confirm it.",
+    "download": "Download for macOS or Windows",
+    "docs": "Read the docs",
+    "note": "Free and open source. Nightly builds trade on a paper account."
+  },
+  "demo": {
+    "title": "Take a proposal from pencil to ink",
+    "lede": "This workspace runs in your browser on made-up prices. Pick a listing, ask the agent, and confirm its order yourself.",
+    "market-closed": "TW closed",
+    "paper-trading": "Paper trading",
+    "market": "TW",
+    "daily": "Daily, made-up prices",
+    "no-proposals": "Nothing waits for you. Proposals the agent drafts show up here.",
+    "composer": "The demo answers the questions above",
+    "done": "Done",
+    "running": "Running",
+    "paper": "Paper",
+    "ask": {
+      "forecast": "Where could {{code}} close in ten sessions?",
+      "proposal": "Draft a buy of one lot of {{code}} near support"
+    },
+    "reply": {
+      "forecast": "{{code}} closed at {{last}}, between the month's low at {{support}} and the fortnight's high at {{resistance}}. I put most weight on it staying in that range; history lands there a little less often.",
+      "at-support": "I drafted a limit buy at the month's low, {{limit}}. It passed the risk checks; MAGI carried it two to one. It waits for you.",
+      "at-limit": "The month's low, {{support}}, is below the next session's limit, so I drafted a limit buy at {{limit}}. It passed the risk checks; MAGI carried it two to one. It waits for you."
+    },
+    "forecast": {
+      "header": "Forecast, {{sessions}} sessions from {{from}}",
+      "open": "Open",
+      "history": "history {{share}}",
+      "below": "Loses support, below {{price}}",
+      "range": "Holds the range",
+      "above": "Clears {{price}}"
+    },
+    "proposal": {
+      "title": "Order proposal",
+      "order": "Buy {{quantity}} shares @ {{price}}",
+      "terms": "{{listing}}, limit order, paper account",
+      "check-lot": "One board lot of {{quantity}} shares",
+      "check-tick": "{{price}} is on the {{tick}} tick",
+      "check-limits": "Inside the next session's limits, {{low}} to {{high}}",
+      "check-cash": "Paper cash covers {{amount}} TWD",
+      "submitting": "Running the risk checks again",
+      "submitted": "The checks passed again, and the order went to the paper account.",
+      "line-proposed": "Buy, proposed",
+      "line-submitted": "Buy, submitted"
+    },
+    "magi": {
+      "dip": "A limit below the close fills only on a dip.",
+      "paper": "One lot on paper puts no real money at risk.",
+      "flows": "Foreign investors sold five sessions running."
+    }
+  },
+  "legend": {
+    "pencil-title": "Pencil is a draft",
+    "pencil-body": "Hatching and dashed outlines mark what is not real yet: a proposal waiting for you, a forecast, the paper account. Nothing drawn in pencil has reached a broker.",
+    "ink-title": "Ink is what you signed",
+    "ink-body": "An order turns to ink once you confirm it. Confirm is the only button Solyx fills with ink, and no setting lets the agent press it.",
+    "drafts-label": "Drafts",
+    "signed": "Buy 1,000 2454 @ 4,520",
+    "submitted": "Submitted",
+    "status": {
+      "awaiting": "Awaiting confirmation",
+      "dismissed": "Dismissed",
+      "draft": "Draft"
+    },
+    "drafts": {
+      "sell-0050": "Sell 2,000 0050 @ 112.00",
+      "research-0050": "Research report: 0050 dividend",
+      "buy-2881": "Buy 1,000 2881 @ 159.5",
+      "forecast-2330": "Forecast: 2330 above 2,500 by Friday",
+      "sell-2308": "Sell 1,000 2308 @ 1,790",
+      "forecast-2454": "Forecast: 2454 below 4,400 by month end",
+      "buy-2454": "Buy 1,000 2454 @ 4,520",
+      "buy-0050": "Buy 2,000 0050 @ 111.50",
+      "research-2308": "Research report: 2308 monthly revenue",
+      "forecast-6669": "Forecast: 6669 holds 2,100 for ten sessions"
+    }
+  },
+  "road": {
+    "title": "One road to an order",
+    "lede": "Every order takes these five steps. No setting, mode or extension adds another way to the broker.",
+    "steps": {
+      "propose": {
+        "title": "The agent proposes",
+        "detail": "Its tools can draft a proposal and nothing more."
+      },
+      "check": {
+        "title": "Risk checks run",
+        "detail": "Lot size, tick, the day's limits, cash and the session."
+      },
+      "confirm": {
+        "title": "You confirm",
+        "detail": "Only your click in the app gets past this step."
+      },
+      "recheck": {
+        "title": "The checks run again",
+        "detail": "The market may have moved since the draft."
+      },
+      "broker": {
+        "title": "The broker gets the order",
+        "detail": "A paper account until you switch a live broker on."
+      }
+    },
+    "failed": "A failed submission is never retried, since the broker may have taken the order anyway. Solyx marks it failed and leaves the next move to you."
+  },
+  "sources": {
+    "title": "Runs on your keys",
+    "lede": "Market data and a model are enough to start. Every key is saved encrypted on your computer, and data flows straight between each provider and you, with no Solyx server between.",
+    "more": "Decisions models and embedders add more.",
+    "more-link": "See every source",
+    "nothing": "Nothing to bring",
+    "uses": "What it's for",
+    "notes": "Worth knowing",
+    "providers": "Providers",
+    "providers-label": "Model providers",
+    "providers-more": "and {{count}} more",
+    "items": {
+      "quotes": {
+        "purpose": "Taiwan quotes and candles",
+        "source": "Fugle, or Fubon",
+        "bring": {
+          "fugle": "A Fugle API key",
+          "fubon": "or Fubon's SDK and login"
+        },
+        "uses": {
+          "quotes": "Quotes, daily and intraday candles, and a live stream of one-minute bars.",
+          "sectors": "Taiwan's sector indices, from the same provider."
+        },
+        "notes": {
+          "fugle": "Fugle takes an API key and your plan. Basic allows 60 intraday requests a minute and 5 streamed listings, Developer 600 and 300, Advanced 2,000 and 2,000.",
+          "fubon": "For Fubon, download its fubon-neo SDK yourself and point Solyx at the folder, then sign in with your ID number, a Fubon API key and the certificate you export from Fubon's site. The SDK never ships with Solyx.",
+          "sign-in": "A failed Fubon sign-in is not tried again on its own, since repeated failures can lock the account.",
+          "cache": "Closed sessions are cached on your computer, so a chart never downloads them twice."
+        }
+      },
+      "finmind": {
+        "purpose": "Fundamentals, dividends and investor flows",
+        "source": "FinMind",
+        "bring": {
+          "token": "An optional token"
+        },
+        "uses": {
+          "statements": "Income statements, balance sheets, cash flows, monthly revenue and dividends.",
+          "listing": "Each listing's institutional buying and selling, margin and short balances, and foreign holdings.",
+          "market": "The market's institutional and margin totals, futures positions and trading calendar."
+        },
+        "notes": {
+          "limit": "Without a token you get 300 requests an hour. A free token raises it to 600, and FinMind's paid plans go further.",
+          "cache": "A listing's fundamentals are kept for half a day, and its flows until FinMind's next update at 15:00, 18:00 or 21:00 Taipei time."
+        }
+      },
+      "exchanges": {
+        "purpose": "Exchange lists, filings and insider transfers",
+        "source": "TWSE's and TPEx's open data",
+        "uses": {
+          "filings": "Material information and the insider share transfers declared in advance.",
+          "restrictions": "Trading restrictions: short-sale and day-trading suspensions, disposition lists and halts.",
+          "lists": "The exchanges' P/E and other multiples, ex-dividend notices, shareholders' meetings and each company's industry.",
+          "funds": "TWSE's list of listed funds and the year's market closures."
+        },
+        "notes": {
+          "feeds": "One request per list, never a crawl. Each list holds only its latest day, so Solyx builds the history as it collects.",
+          "open-data": "Only what the exchanges publish as open data is read, since TWSE's own sites forbid programs from downloading theirs."
+        }
+      },
+      "macro": {
+        "purpose": "Economic releases and their figures",
+        "source": "Taiwan's statistics portal and DGBAS",
+        "uses": {
+          "calendar": "The release calendar for the next twelve months: CPI, GDP, the economic forecast, trade, industrial production, export orders, the business signal and PMI.",
+          "figures": "The figures for CPI, advance GDP, trade, export orders, industrial production and the business signal."
+        },
+        "notes": {
+          "schedule": "The calendar is read at most twice a day, and the figures, covering the last 26 months, at most once an hour.",
+          "session": "The portal is read in a private session that keeps no cookies."
+        }
+      },
+      "model": {
+        "purpose": "The agent's model",
+        "source": "A model provider of your choice",
+        "bring": {
+          "key": "An API key",
+          "sign-in": "or a sign-in"
+        },
+        "uses": {
+          "runs": "Every reply and tool call the agent makes, on the model you pick for all conversations or for one."
+        },
+        "notes": {
+          "pay": "Pay per request with an API key, or sign in to a plan you already have: ChatGPT for OpenAI, GitHub Copilot, SuperGrok or X Premium for xAI, and Muse for Meta.",
+          "openrouter": "OpenRouter's sign-in creates a key that is yours. Ollama runs models on your own computer and needs no key.",
+          "gateway": "You can send a provider's requests to your own gateway; a sign-in only ever goes to the provider itself.",
+          "keychain": "Keys and sign-ins are encrypted with your system's keychain, and a backup never holds them."
+        }
+      },
+      "web": {
+        "purpose": "Web search and news outlets",
+        "source": "Firecrawl, Exa or Tavily",
+        "bring": {
+          "key": "An API key"
+        },
+        "uses": {
+          "search": "The agent's web searches and the pages it reads.",
+          "news": "News on the listings you hold and watch: outlets' articles, and posts from Threads for Taiwan and X for the US."
+        },
+        "notes": {
+          "vendor": "Pick one vendor. Firecrawl searches Google, while Exa and Tavily search their own indexes.",
+          "approval": "A search runs on its own. Reading a page asks you first, unless the page came from the conversation's own search.",
+          "schedule": "News is collected every three days by default, so a free tier covers about ten listings. Without a key, filings, insider transfers and PTT's Stock board still come in."
+        }
+      }
+    }
+  },
+  "closing": {
+    "title": "Start on a paper account",
+    "lede": "Solyx is free and open source. It trades on paper until you switch a live broker on yourself.",
+    "github": "View on GitHub"
+  },
+  "footer": {
+    "disclaimer": "Solyx is not investment advice. You alone are responsible for any gains or losses from trades made with it. It is provided as is, without warranty of any kind.",
+    "copyright": "Copyright 2026 Chia1104. Free software under the GNU AGPL, version 3 or later."
+  }
+}

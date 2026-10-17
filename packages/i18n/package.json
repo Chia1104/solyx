@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./desktop/*.json": "./desktop/*.json"
+    "./desktop/*.json": "./desktop/*.json",
+    "./website/*.json": "./website/*.json"
   },
   "scripts": {
     "test": "vp test"

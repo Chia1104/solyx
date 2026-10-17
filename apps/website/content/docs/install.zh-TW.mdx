@@ -1,0 +1,40 @@
+---
+title: 安裝
+description: macOS 與 Windows 的每晚建置版，以及第一次啟動時會遇到的事。
+---
+
+macOS（`.dmg`）與 Windows（`.exe`）的每晚建置版都放在 [releases 頁面](https://github.com/Chia1104/solyx/releases)。每晚建置版取自最新一個通過檢查的 commit，最多每六小時建置一次。
+
+## 第一次啟動
+
+Solyx 還沒有付費的簽章憑證。macOS App 使用 ad-hoc 簽章，Windows 安裝程式沒有簽章，所以第一次啟動前系統會跳出警告。
+
+- **macOS**：先開啟一次 App，再到「系統設定」的「隱私權與安全性」允許它。
+- **Windows**：在 SmartScreen 提示中選「其他資訊」，再選「仍要執行」。
+
+每晚建置版會以 Solyx Nightly 的名稱安裝，並保有自己的資料，所以不會動到正式版的設定、金鑰或資料庫。
+
+## 更新
+
+Solyx 在啟動一分鐘後、之後每六小時，以及你要求時，都會檢查它所屬頻道的更新。
+
+- **Windows** 會下載更新，並在 Solyx 重新啟動或結束時安裝。
+- **macOS** 會告訴你有新版本，並連到它的發布頁面，因為原地安裝需要 Developer ID 簽章。
+
+## Solyx 把東西放在哪裡
+
+- **設定**存在 `~/.solyx/config.json`。你可以手動編輯；Solyx 會在不重新啟動的情況下套用存檔的變更，且絕不會覆寫有語法錯誤的檔案。
+- **金鑰與登入**用系統的機密儲存區加密保存，絕不會出現在設定檔、日誌或備份裡。
+- **你給 Agent 的指示**放在設定檔旁邊：`skills/`、`AGENTS.md` 與 `mcp.json`。
+
+## 自己建置
+
+Solyx 需要 [Vite+](https://viteplus.dev/)（`vp`）與 Node.js 26 以上版本。
+
+```bash
+vp install           # 安裝相依套件
+vp run dev:desktop   # 以開發模式啟動桌面 App
+vp run ready         # 檢查、測試並建置
+```
+
+開發版會以 Solyx Dev 的名稱執行，並有自己的設定與金鑰。

@@ -1,33 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "cn";
+import { useTranslation } from "react-i18next";
+
+import type websiteEnUS from "@solyx/i18n/website/en-US.json";
 
 import { prefersReducedMotion, useInView } from "../../lib/motion.ts";
 
 import { SheetHead, SheetRow } from "./sheet.tsx";
 
+// In the order an order takes them; the catalog holds each step's words.
 const STEPS = [
-  {
-    title: "The agent proposes",
-    detail: "Its tools can draft a proposal and nothing more.",
-  },
-  {
-    title: "Risk checks run",
-    detail: "Lot size, tick, the day's limits, cash and the session.",
-  },
-  {
-    title: "You confirm",
-    detail: "Only your click in the app gets past this step.",
-  },
-  {
-    title: "The checks run again",
-    detail: "The market may have moved since the draft.",
-  },
-  {
-    title: "The broker gets the order",
-    detail: "A paper account until you switch a live broker on.",
-  },
-];
+  "propose",
+  "check",
+  "confirm",
+  "recheck",
+  "broker",
+] satisfies (keyof (typeof websiteEnUS)["road"]["steps"])[];
 
 // The road is pencil up to the confirmation and ink from it on.
 const CONFIRM = 2;
@@ -59,6 +48,7 @@ function roadAt(tick: number) {
 }
 
 export function OrderRoad() {
+  const { t } = useTranslation();
   const roadRef = useRef<HTMLOListElement>(null);
   const inView = useInView(roadRef);
   const [tick, setTick] = useState(FIRST_TICK);
@@ -79,9 +69,8 @@ export function OrderRoad() {
   return (
     <>
       <SheetRow>
-        <SheetHead id="order-road" title="One road to an order">
-          Every order takes these five steps. No setting, mode or extension adds
-          another way to the broker.
+        <SheetHead id="order-road" title={t("road.title")}>
+          {t("road.lede")}
         </SheetHead>
       </SheetRow>
 
@@ -95,7 +84,7 @@ export function OrderRoad() {
 
             return (
               <li
-                key={step.title}
+                key={step}
                 data-filled={index < filled}
                 className="group relative bg-background px-6 pt-8 pb-9 md:px-5">
                 {/* Each step fills from the left in turn: pencil until the confirmation, ink after it. */}
@@ -109,9 +98,11 @@ export function OrderRoad() {
                     clearing && "opacity-0"
                   )}
                 />
-                <h3 className="relative font-semibold">{step.title}</h3>
+                <h3 className="relative font-semibold">
+                  {t(`road.steps.${step}.title`)}
+                </h3>
                 <p className="text-muted-foreground relative mt-1.5 text-[0.9375rem] leading-relaxed">
-                  {step.detail}
+                  {t(`road.steps.${step}.detail`)}
                 </p>
               </li>
             );
@@ -121,9 +112,7 @@ export function OrderRoad() {
 
       <SheetRow>
         <p className="max-w-[46em] px-6 py-7 leading-relaxed md:px-10">
-          A failed submission is never retried, since the broker may have taken
-          the order anyway. Solyx marks it failed and leaves the next move to
-          you.
+          {t("road.failed")}
         </p>
       </SheetRow>
     </>

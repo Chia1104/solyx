@@ -3,7 +3,8 @@ import { createFromSource } from "fumadocs-core/search/server";
 
 import { source } from "../../lib/source.ts";
 
-const server = createFromSource(source, { language: "english" });
+// Fumadocs' default tokenizer segments every language, Chinese included, so no locale needs options.
+const server = createFromSource(source);
 
 // Prerendered into a file at build time; the browser downloads it and searches it locally.
 export const Route = createFileRoute("/api/search")({

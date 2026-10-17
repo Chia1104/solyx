@@ -14,6 +14,7 @@ import type {
   DeepPartial,
   LineSeriesPartialOptions,
 } from "lightweight-charts";
+import { useTranslation } from "react-i18next";
 
 import type { Candle } from "@solyx/core/candles";
 import { sma } from "@solyx/core/indicators";
@@ -106,6 +107,7 @@ export function PriceChart({
   className,
 }: PriceChartProps) {
   const colors = useSheetColors();
+  const { t } = useTranslation();
 
   const bars = useMemo(
     () =>
@@ -176,11 +178,15 @@ export function PriceChart({
               lineWidth: limit.signed ? 2 : 1,
               lineStyle: limit.signed ? LineStyle.Solid : LineStyle.Dashed,
               axisLabelVisible: true,
-              title: limit.signed ? "Buy, submitted" : "Buy, proposed",
+              title: t(
+                limit.signed
+                  ? "demo.proposal.line-submitted"
+                  : "demo.proposal.line-proposed"
+              ),
             },
           ]
         : [],
-    [colors, limit]
+    [colors, limit, t]
   );
 
   if (!options || !candleOptions) return <div className={className} />;

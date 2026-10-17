@@ -1,0 +1,243 @@
+{
+  "meta": {
+    "title": "Solyx",
+    "description": "交易台股與美股的桌面 App。Agent 分析市場、提出交易建議，在你確認之前，任何委託都不會送到券商。",
+    "page-title": "{{title}} | Solyx"
+  },
+  "nav": {
+    "docs": "文件",
+    "download": "下載",
+    "releases": "版本",
+    "github": "GitHub",
+    "footer": "頁尾"
+  },
+  "banner": {
+    "app": "Solyx 仍在開發中。目前只有每晚建置版，下單都送到模擬帳戶。",
+    "docs": "文件仍在撰寫中，Solyx 有些功能還沒寫進來。"
+  },
+  "hero": {
+    "pencil": "Agent 用鉛筆起草。",
+    "ink": "你用墨水簽名。",
+    "lede": "Solyx 是交易台股與美股的桌面 App。Agent 解讀市場、提出委託建議，在你確認之前，任何委託都不會送到券商。",
+    "download": "下載 macOS 或 Windows 版",
+    "docs": "閱讀文件",
+    "note": "免費且開源。每晚建置版都在模擬帳戶上交易。"
+  },
+  "demo": {
+    "title": "把提案從鉛筆變成墨水",
+    "lede": "這個工作區在你的瀏覽器裡執行，價格都是虛構的。挑一檔股票、問問 Agent，再親手確認它提出的委託。",
+    "market-closed": "台股休市",
+    "paper-trading": "模擬交易",
+    "market": "台股",
+    "daily": "日線，虛構價格",
+    "no-proposals": "目前沒有等你確認的提案。Agent 起草的提案會出現在這裡。",
+    "composer": "這個示範只回答上面的問題",
+    "done": "完成",
+    "running": "執行中",
+    "paper": "模擬",
+    "ask": {
+      "forecast": "{{code}} 十個交易日後可能收在哪裡？",
+      "proposal": "在支撐附近幫我起草買進一張 {{code}}"
+    },
+    "reply": {
+      "forecast": "{{code}} 收在 {{last}}，介於本月低點 {{support}} 與兩週高點 {{resistance}} 之間。我把最大的權重放在它留在這個區間；歷史上落在這裡的比例略低一些。",
+      "at-support": "我在本月低點 {{limit}} 起草了一筆限價買單。它通過了風控檢查，MAGI 以二比一可決，正在等你確認。",
+      "at-limit": "本月低點 {{support}} 低於下一個交易日的跌停價，所以我在 {{limit}} 起草了一筆限價買單。它通過了風控檢查，MAGI 以二比一可決，正在等你確認。"
+    },
+    "forecast": {
+      "header": "預測：{{sessions}} 個交易日，起點 {{from}}",
+      "open": "進行中",
+      "history": "歷史 {{share}}",
+      "below": "跌破支撐，低於 {{price}}",
+      "range": "守在區間內",
+      "above": "突破 {{price}}"
+    },
+    "proposal": {
+      "title": "下單提案",
+      "order": "買進 {{quantity}} 股 @ {{price}}",
+      "terms": "{{listing}}，限價單，模擬帳戶",
+      "check-lot": "一張整股，共 {{quantity}} 股",
+      "check-tick": "{{price}} 符合 {{tick}} 元的跳動單位",
+      "check-limits": "在下一個交易日的漲跌幅內，{{low}} 至 {{high}}",
+      "check-cash": "模擬帳戶的現金足以支付 {{amount}} 元",
+      "submitting": "正在再跑一次風控檢查",
+      "submitted": "再次通過檢查，委託已送到模擬帳戶。",
+      "line-proposed": "買進，提案中",
+      "line-submitted": "買進，已送出"
+    },
+    "magi": {
+      "dip": "限價低於收盤價，只有回檔時才會成交。",
+      "paper": "模擬帳戶上的一張，不會動到真實資金。",
+      "flows": "外資已連續五個交易日賣超。"
+    }
+  },
+  "legend": {
+    "pencil-title": "鉛筆是草稿",
+    "pencil-body": "斜線和虛線框標示還不是真的東西：等你確認的提案、預測、模擬帳戶。用鉛筆畫的，都還沒送到券商。",
+    "ink-title": "墨水是你簽下的",
+    "ink-body": "你確認之後，委託才會變成墨水。確認是 Solyx 唯一用墨水填滿的按鈕，沒有任何設定能讓 Agent 替你按下。",
+    "drafts-label": "草稿",
+    "signed": "買進 1,000 股 2454 @ 4,520",
+    "submitted": "已送出",
+    "status": {
+      "awaiting": "待確認",
+      "dismissed": "已取消",
+      "draft": "草稿"
+    },
+    "drafts": {
+      "sell-0050": "賣出 2,000 股 0050 @ 112.00",
+      "research-0050": "研究報告：0050 配息",
+      "buy-2881": "買進 1,000 股 2881 @ 159.5",
+      "forecast-2330": "預測：2330 週五前站上 2,500",
+      "sell-2308": "賣出 1,000 股 2308 @ 1,790",
+      "forecast-2454": "預測：2454 月底前跌破 4,400",
+      "buy-2454": "買進 1,000 股 2454 @ 4,520",
+      "buy-0050": "買進 2,000 股 0050 @ 111.50",
+      "research-2308": "研究報告：2308 月營收",
+      "forecast-6669": "預測：6669 十個交易日守住 2,100"
+    }
+  },
+  "road": {
+    "title": "下單只有一條路",
+    "lede": "每筆委託都走這五個步驟。沒有任何設定、模式或擴充能多開一條通往券商的路。",
+    "steps": {
+      "propose": {
+        "title": "Agent 提出",
+        "detail": "它的工具只能起草提案，別的都做不到。"
+      },
+      "check": {
+        "title": "跑風控檢查",
+        "detail": "交易單位、跳動單位、當日漲跌幅、現金與交易時段。"
+      },
+      "confirm": {
+        "title": "你確認",
+        "detail": "只有你在 App 裡按下，才能通過這一步。"
+      },
+      "recheck": {
+        "title": "再檢查一次",
+        "detail": "從起草到現在，市場可能已經變了。"
+      },
+      "broker": {
+        "title": "券商收到委託",
+        "detail": "在你開啟真實券商之前，都是模擬帳戶。"
+      }
+    },
+    "failed": "送單失敗的委託絕不會重送，因為券商可能其實已經收到了。Solyx 會把它標成失敗，下一步交給你決定。"
+  },
+  "sources": {
+    "title": "用你自己的金鑰運作",
+    "lede": "有行情來源和一個模型就能開始。每把金鑰都加密存在你的電腦上，資料直接在各服務商和你之間往返，中間沒有 Solyx 的伺服器。",
+    "more": "決策模型與嵌入模型還能再加上更多來源。",
+    "more-link": "看所有來源",
+    "nothing": "不需要準備",
+    "uses": "用來做什麼",
+    "notes": "值得知道",
+    "providers": "服務商",
+    "providers-label": "模型服務商",
+    "providers-more": "還有 {{count}} 家",
+    "items": {
+      "quotes": {
+        "purpose": "台股報價與 K 線",
+        "source": "富果，或富邦",
+        "bring": {
+          "fugle": "富果 API 金鑰",
+          "fubon": "或富邦的 SDK 與登入"
+        },
+        "uses": {
+          "quotes": "報價、日線與盤中 K 線，以及一分鐘 K 線的即時串流。",
+          "sectors": "台股的類股指數，也來自同一個來源。"
+        },
+        "notes": {
+          "fugle": "富果需要 API 金鑰並選擇你的方案。Basic 方案每分鐘 60 次盤中請求、可串流 5 檔；Developer 方案 600 次與 300 檔；Advanced 方案 2,000 次與 2,000 檔。",
+          "fubon": "使用富邦時，請自行下載 fubon-neo SDK，讓 Solyx 指向它所在的資料夾，再用身分證字號、富邦 API 金鑰與從富邦網站匯出的憑證登入。Solyx 不會附帶這個 SDK。",
+          "sign-in": "富邦登入失敗時不會自動重試，因為連續失敗可能會鎖住帳號。",
+          "cache": "已收盤的交易日會快取在你的電腦上，圖表不會重複下載。"
+        }
+      },
+      "finmind": {
+        "purpose": "財報、股利與籌碼",
+        "source": "FinMind",
+        "bring": {
+          "token": "選用的 token"
+        },
+        "uses": {
+          "statements": "損益表、資產負債表、現金流量表、月營收與股利。",
+          "listing": "個股的三大法人買賣超、融資融券餘額與外資持股。",
+          "market": "大盤的法人與信用交易合計、期貨未平倉與交易日曆。"
+        },
+        "notes": {
+          "limit": "沒有 token 時每小時 300 次；免費 token 提高到 600 次，FinMind 的付費方案還能更多。",
+          "cache": "個股財報保留半天，籌碼則保留到 FinMind 下次更新，也就是台北時間 15:00、18:00 或 21:00。"
+        }
+      },
+      "exchanges": {
+        "purpose": "交易所清單、重大訊息與內部人轉讓",
+        "source": "證交所與櫃買中心的開放資料",
+        "uses": {
+          "filings": "重大訊息，以及事先申報的內部人持股轉讓。",
+          "restrictions": "交易限制：暫停融券賣出與當沖、處置股票與停止交易。",
+          "lists": "交易所算出的本益比等倍數、除權息預告、股東會與各公司的產業別。",
+          "funds": "證交所的上市基金清單與全年休市日。"
+        },
+        "notes": {
+          "feeds": "每份清單只請求一次，從不爬網站。每份清單只有最新一天，所以歷史由 Solyx 自己逐日收集。",
+          "open-data": "只讀取交易所以開放資料發布的內容，因為證交所自己的網站禁止程式下載。"
+        }
+      },
+      "macro": {
+        "purpose": "經濟數據發布與數值",
+        "source": "中華民國統計資訊網與主計總處",
+        "uses": {
+          "calendar": "未來十二個月的發布行事曆：CPI、GDP、經濟預測、貿易、工業生產、外銷訂單、景氣燈號與 PMI。",
+          "figures": "CPI、GDP 概估、貿易、外銷訂單、工業生產與景氣燈號的數值。"
+        },
+        "notes": {
+          "schedule": "行事曆每天最多讀兩次；數值涵蓋最近 26 個月，每小時最多讀一次。",
+          "session": "統計資訊網是在不保留 cookie 的私密工作階段中讀取。"
+        }
+      },
+      "model": {
+        "purpose": "Agent 的模型",
+        "source": "你選擇的模型服務商",
+        "bring": {
+          "key": "API 金鑰",
+          "sign-in": "或登入"
+        },
+        "uses": {
+          "runs": "Agent 的每一則回覆與每一次工具呼叫，都在你選的模型上執行，可以所有對話共用，也可以單一對話另外選。"
+        },
+        "notes": {
+          "pay": "用 API 金鑰按請求付費，或登入你已經有的方案：OpenAI 用 ChatGPT、GitHub Copilot、xAI 用 SuperGrok 或 X Premium、Meta 用 Muse。",
+          "openrouter": "OpenRouter 的登入會建立一把屬於你的金鑰。Ollama 在你自己的電腦上跑模型，不需要金鑰。",
+          "gateway": "你可以把服務商的請求送到自己的閘道；登入只會送到服務商本身。",
+          "keychain": "金鑰與登入都用系統的鑰匙圈加密，備份裡也絕不會包含它們。"
+        }
+      },
+      "web": {
+        "purpose": "網路搜尋與新聞來源",
+        "source": "Firecrawl、Exa 或 Tavily",
+        "bring": {
+          "key": "API 金鑰"
+        },
+        "uses": {
+          "search": "Agent 的網路搜尋，以及它讀取的網頁。",
+          "news": "你持有與自選股票的新聞：媒體報導，以及台股的 Threads、美股的 X 貼文。"
+        },
+        "notes": {
+          "vendor": "選一家服務商即可。Firecrawl 搜尋 Google，Exa 與 Tavily 則搜尋自己的索引。",
+          "approval": "搜尋會直接執行。讀取網頁前會先問你，除非這個網頁是這段對話自己搜尋到的。",
+          "schedule": "新聞預設每三天收集一次，所以免費額度大約涵蓋十檔股票。沒有金鑰時，重大訊息、內部人轉讓與 PTT 股票版仍會照常收進來。"
+        }
+      }
+    }
+  },
+  "closing": {
+    "title": "從模擬帳戶開始",
+    "lede": "Solyx 免費且開源。在你自己開啟真實券商之前，它都只在模擬帳戶上交易。",
+    "github": "在 GitHub 上查看"
+  },
+  "footer": {
+    "disclaimer": "Solyx 不構成投資建議。使用它交易所產生的任何損益，皆由你自行承擔。本軟體依現狀提供，不附任何形式的保證。",
+    "copyright": "Copyright 2026 Chia1104。以 GNU AGPL 第 3 版或更新版本授權的自由軟體。"
+  }
+}

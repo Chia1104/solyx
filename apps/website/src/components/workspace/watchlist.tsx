@@ -1,5 +1,6 @@
 import { Toggle } from "@base-ui/react/toggle";
 import { ToggleGroup } from "@base-ui/react/toggle-group";
+import { useTranslation } from "react-i18next";
 
 import type { Candle } from "@solyx/core/candles";
 
@@ -35,10 +36,13 @@ export interface WatchlistProps {
  * always pressed, since the chart shows one listing.
  */
 export function Watchlist({ listings, selected, onSelect }: WatchlistProps) {
+  const { t } = useTranslation();
+  const { t: app } = useTranslation("desktop");
+
   return (
     <section aria-labelledby="watchlist-title" className="flex flex-col">
       <h3 id="watchlist-title" className="px-4 pt-3 pb-2 text-sm font-semibold">
-        Watchlist
+        {app("watchlist.title")}
       </h3>
       <ToggleGroup
         aria-labelledby="watchlist-title"
@@ -74,7 +78,9 @@ export function Watchlist({ listings, selected, onSelect }: WatchlistProps) {
                   vectorEffect="non-scaling-stroke"
                 />
               </svg>
-              <span className="text-muted-foreground text-xs">TW</span>
+              <span className="text-muted-foreground text-xs">
+                {t("demo.market")}
+              </span>
               <span className={`text-xs ${rising ? "text-rise" : "text-fall"}`}>
                 {percent(ratio)}
               </span>
