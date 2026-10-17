@@ -1,18 +1,26 @@
 import { createModels } from "@earendil-works/pi-ai";
 import type {
+  AnyModel,
   Api,
   AuthContext,
   AuthPrompt,
   Credential,
   CredentialStore,
   Model,
+  ModelsStore,
+  ModelsStoreEntry,
   OAuthAuth,
   Provider,
 } from "@earendil-works/pi-ai";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
+import { isPlainObject } from "es-toolkit";
+import * as z from "zod";
+
+import { readJsonSync, writeFileAtomicSync } from "@solyx/utils/server";
 
 import { chatgptOAuth } from "./chatgpt-oauth.ts";
+import { OLLAMA, OLLAMA_ENDPOINT, createOllamaProvider } from "./ollama.ts";
 import { createOpenRouterKey } from "./openrouter-key.ts";
 import type { AgentProvider } from "./providers.ts";
 import type { SignInPage } from "./sign-in-callback.ts";
@@ -164,6 +172,42 @@ function isOffered(provider: Provider): boolean {
   );
 }
 
+const storedSchema = z.record(
+  z.string(),
+  z.object({
+    // SAFETY: only this store writes the file, each model as pi-ai handed it over.
+    models: z.array(z.custom<AnyModel>(isPlainObject)),
+    lastModified: z.number().optional(),
+    checkedAt: z.number().optional(),
+    etag: z.string().optional(),
+  })
+);
+
+/**
+ * The models each server the user runs listed last, kept in `file` so a conversation finds its
+ * model as the app starts, before the server is asked again or while it is not running.
+ */
+export function fileModelsStore(file: string): ModelsStore {
+  const entries = () => readJsonSync(file, storedSchema) ?? {};
+
+  return {
+    read: async (provider) => entries()[provider],
+
+    async write(provider, entry: ModelsStoreEntry) {
+      writeFileAtomicSync(
+        file,
+        JSON.stringify({ ...entries(), [provider]: entry })
+      );
+    },
+
+    async delete(provider) {
+      const { [provider]: _gone, ...rest } = entries();
+
+      writeFileAtomicSync(file, JSON.stringify(rest));
+    },
+  };
+}
+
 /** What the host saved for each provider; the catalog asks only about the providers it offers. */
 export interface ProviderCredentials {
   /** The provider's API key, or its sign-in while the user runs on a subscription. */
@@ -188,6 +232,10 @@ export interface ModelCatalogOptions {
    * `undefined` keeps its own. Applies only to a provider whose models share one endpoint.
    */
   endpoint: (provider: AgentProvider) => string | undefined;
+  /** Where the models a server the user runs listed last are kept. */
+  modelsStore: ModelsStore;
+  /** @default globalThis.fetch */
+  fetch?: typeof globalThis.fetch;
 }
 
 /** The one endpoint every model of the provider is served from, or `undefined` when they use several. */
@@ -263,6 +311,8 @@ export function createModelCatalog({
   getDeviceId,
   openExternal,
   endpoint,
+  modelsStore,
+  fetch,
 }: ModelCatalogOptions) {
   // pi-ai loads a sign-in flow by its file, which a bundle such as the app's main process does not
   // hold, so its flows are registered up front, all of them, as pi-ai offers no fewer. Only those
@@ -274,9 +324,11 @@ export function createModelCatalog({
   // The open sign-in's page; a sign-in is only ever open through `signIn`.
   let landing: SignInPage = () => "";
 
+  const ollamaEndpoint = () => endpoint(OLLAMA) ?? OLLAMA_ENDPOINT;
+
   // A provider runs on its key, and one with a subscription also signs in, or only signs in,
   // through the app's own flow where it has one and pi-ai's otherwise. Every other sign-in of
-  // pi-ai's is stripped.
+  // pi-ai's is stripped. Ollama is the app's own, a server the user runs.
   const offered = builtinProviders()
     .filter(isOffered)
     .map((provider): Provider => {
@@ -299,6 +351,7 @@ export function createModelCatalog({
           : { apiKey: provider.auth.apiKey, oauth },
       };
     })
+    .concat(createOllamaProvider({ endpoint: ollamaEndpoint, fetch }))
     .toSorted((a, b) => a.name.localeCompare(b.name));
 
   const ids = new Set(offered.map((provider) => provider.id));
@@ -324,19 +377,34 @@ export function createModelCatalog({
       delete: (id) => credentials.delete(id),
     },
     authContext: NO_AMBIENT_AUTH,
+    modelsStore,
   });
 
+  // Ollama lists no models until its server is asked, but always serves them from one endpoint.
   const endpoints = new Map(
-    offered.map((provider) => [provider.id, sharedEndpoint(provider)])
+    offered.map((provider) => [
+      provider.id,
+      provider.id === OLLAMA ? OLLAMA_ENDPOINT : sharedEndpoint(provider),
+    ])
   );
 
+  // Ollama's models are kept as the server listed them, so its own endpoint is applied too:
+  // otherwise going back to it would leave them on the host set before.
   for (const provider of offered) {
     models.setProvider(
       endpoints.get(provider.id) === undefined
         ? provider
-        : withEndpoint(provider, () => endpoint(provider.id))
+        : withEndpoint(
+            provider,
+            provider.id === OLLAMA
+              ? ollamaEndpoint
+              : () => endpoint(provider.id)
+          )
     );
   }
+
+  // Why each server the user runs failed to list its models when last asked.
+  const failures = new Map<AgentProvider, Error>();
 
   /**
    * The provider's chat models the user may run, in its catalog's order: all of them, but for a
@@ -366,6 +434,38 @@ export function createModelCatalog({
       offered.map(({ id, name }) => ({ id, name })),
 
     offers: (provider: AgentProvider) => ids.has(provider),
+
+    /**
+     * Whether the provider is a server the user runs: it lists the models it holds, and takes a
+     * key only where a proxy in front of it checks one.
+     */
+    servedByUser: (provider: AgentProvider) => provider === OLLAMA,
+
+    /** Restores the models each server the user runs listed last, without asking it, as the app starts. */
+    async restore() {
+      await models.refresh({ allowNetwork: false });
+    },
+
+    /** Has each of `providers` that is a server the user runs list its models again; one that fails keeps its last list. */
+    async refresh(providers: readonly AgentProvider[]) {
+      const servers = providers.filter((provider) => provider === OLLAMA);
+
+      const { errors } = await models.refresh({
+        providers: servers,
+        force: true,
+      });
+
+      for (const server of servers) {
+        const error = errors.get(server);
+
+        if (error) failures.set(server, error);
+        else failures.delete(server);
+      }
+    },
+
+    /** Why the server failed to list its models when last asked; `null` once it answered. */
+    listingFailure: (provider: AgentProvider) =>
+      failures.get(provider)?.message ?? null,
 
     /** The provider's own endpoint, which `endpoint` may replace; `undefined` when its models use several. */
     defaultEndpoint: (provider: AgentProvider) => endpoints.get(provider),

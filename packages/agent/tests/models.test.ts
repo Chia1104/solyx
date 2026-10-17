@@ -1,3 +1,8 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { InMemoryModelsStore } from "@earendil-works/pi-ai";
 import type { Credential } from "@earendil-works/pi-ai";
 import { escapeRegExp } from "es-toolkit";
 import { expect, onTestFinished, test, vi } from "vite-plus/test";
@@ -5,6 +10,7 @@ import { expect, onTestFinished, test, vi } from "vite-plus/test";
 import {
   DEFAULT_MODEL,
   createModelCatalog,
+  fileModelsStore,
   subscriptionOf,
 } from "../src/models.ts";
 import type { ProviderCredentials, SignInOptions } from "../src/models.ts";
@@ -23,7 +29,11 @@ const QUIET: SignInOptions = { page: () => "", onCode: () => undefined };
 
 function setup(
   endpoint: (provider: AgentProvider) => string | undefined = () => undefined,
-  credentials: ProviderCredentials = NO_CREDENTIALS
+  credentials: ProviderCredentials = NO_CREDENTIALS,
+  {
+    modelsStore = new InMemoryModelsStore(),
+    fetch,
+  }: { modelsStore?: InMemoryModelsStore; fetch?: typeof globalThis.fetch } = {}
 ) {
   const openExternal = vi.fn();
 
@@ -33,6 +43,8 @@ function setup(
     getDeviceId: () => "00000000-0000-4000-8000-000000000000",
     openExternal,
     endpoint,
+    modelsStore,
+    fetch,
   });
 
   return { catalog, openExternal };
@@ -122,9 +134,80 @@ test("each default model is one its provider's catalog lists", async () => {
     expect(await catalog.defaultModel(provider)).toBe(id);
   }
 
+  // A server the user runs lists its models only once it is asked.
   for (const { id } of catalog.providers()) {
+    if (catalog.servedByUser(id)) continue;
+
     expect(await catalog.defaultModel(id)).toBeDefined();
   }
+});
+
+test("Ollama lists the models its server holds there, keeps them for the next start and keeps them when it stops answering", async () => {
+  const asked: string[] = [];
+  let answering = true;
+
+  const fetch = async (input: string | URL | Request) => {
+    const { url } = new Request(input);
+
+    asked.push(url);
+
+    if (!answering) throw new TypeError("fetch failed");
+
+    return Response.json({
+      models: [
+        {
+          name: "qwen3.8:9b",
+          capabilities: ["completion", "tools", "thinking"],
+          details: { context_length: 262_144 },
+        },
+      ],
+    });
+  };
+
+  const modelsStore = new InMemoryModelsStore();
+
+  const endpoint = (provider: AgentProvider) =>
+    provider === "ollama" ? "http://192.168.1.20:11434" : undefined;
+
+  const { catalog } = setup(endpoint, NO_CREDENTIALS, { modelsStore, fetch });
+
+  expect(catalog.offers("ollama")).toBe(true);
+  expect(catalog.servedByUser("ollama")).toBe(true);
+  expect(catalog.servedByUser("anthropic")).toBe(false);
+  expect(catalog.defaultEndpoint("ollama")).toBe("http://127.0.0.1:11434");
+  expect(await catalog.options("ollama")).toEqual([]);
+
+  await catalog.refresh(["anthropic", "ollama"]);
+
+  expect(asked).toEqual(["http://192.168.1.20:11434/api/tags"]);
+  expect(await catalog.options("ollama")).toEqual([
+    {
+      provider: "ollama",
+      id: "qwen3.8:9b",
+      name: "qwen3.8:9b",
+      reasoning: true,
+      contextWindow: 65_536,
+    },
+  ]);
+  expect((await catalog.model("ollama", undefined))?.baseUrl).toBe(
+    "http://192.168.1.20:11434"
+  );
+
+  // The next start restores what was listed without asking the server.
+  const restarted = setup(endpoint, NO_CREDENTIALS, { modelsStore, fetch });
+
+  await restarted.catalog.restore();
+
+  expect(asked).toHaveLength(1);
+  expect(await restarted.catalog.defaultModel("ollama")).toBe("qwen3.8:9b");
+
+  answering = false;
+  await restarted.catalog.refresh(["ollama"]);
+
+  expect(restarted.catalog.listingFailure("ollama")).toBe(
+    "192.168.1.20:11434: fetch failed"
+  );
+  expect(await restarted.catalog.defaultModel("ollama")).toBe("qwen3.8:9b");
 });
 
 test("signing in again replaces a sign-in still open, and cancelling ends it quietly", async () => {
@@ -413,4 +496,92 @@ test("a provider whose models use several endpoints keeps its own", () => {
   expect(
     catalog.models.getModels("openrouter").map((model) => model.baseUrl)
   ).not.toContain("https://gateway.example");
+});
+
+test("the models kept for the next start live in one file, each provider's apart, and a file that does not parse holds none", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "solyx-models-"));
+
+  onTestFinished(() => rm(folder, { recursive: true, force: true }));
+
+  const file = join(folder, "agent-models.json");
+  const store = fileModelsStore(file);
+
+  const listed = {
+    id: "qwen3.8:9b",
+    name: "qwen3.8:9b",
+    api: "ollama-chat",
+    provider: "ollama",
+    baseUrl: "http://127.0.0.1:11434",
+    reasoning: true,
+    input: ["text" as const],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 65_536,
+    maxTokens: 16_384,
+  };
+
+  await store.write("ollama", { models: [listed], checkedAt: 1 });
+  await store.write("other", { models: [] });
+
+  expect(await store.read("ollama")).toEqual({
+    models: [listed],
+    checkedAt: 1,
+  });
+
+  await store.delete("other");
+
+  expect(await store.read("other")).toBeUndefined();
+  expect(await store.read("ollama")).toBeDefined();
+
+  await writeFile(file, "{ not json");
+
+  expect(await store.read("ollama")).toBeUndefined();
+});
+
+test("Ollama's models go back to this computer once its endpoint is set back, though the host set before listed them", async () => {
+  let host: string | undefined = "http://192.168.1.20:11434";
+
+  const fetch = async (input: string | URL | Request) => {
+    const { url } = new Request(input);
+
+    // Only the remote host answers, so going back keeps the list it gave.
+    if (!url.startsWith("http://192.168.1.20"))
+      throw new TypeError("fetch failed");
+
+    return Response.json({
+      models: [
+        {
+          name: "qwen3.8:9b",
+          capabilities: ["completion", "tools"],
+          details: { context_length: 262_144 },
+        },
+      ],
+    });
+  };
+
+  const modelsStore = new InMemoryModelsStore();
+
+  const endpoint = (provider: AgentProvider) =>
+    provider === "ollama" ? host : undefined;
+
+  const { catalog } = setup(endpoint, NO_CREDENTIALS, { modelsStore, fetch });
+
+  await catalog.refresh(["ollama"]);
+  host = undefined;
+  await catalog.refresh(["ollama"]);
+
+  expect(catalog.listingFailure("ollama")).toBe(
+    "127.0.0.1:11434: fetch failed"
+  );
+  expect((await catalog.model("ollama", "qwen3.8:9b"))?.baseUrl).toBe(
+    "http://127.0.0.1:11434"
+  );
+
+  // The next start reads the kept list on this computer's endpoint too.
+  const restarted = setup(endpoint, NO_CREDENTIALS, { modelsStore, fetch });
+
+  await restarted.catalog.restore();
+
+  expect((await restarted.catalog.model("ollama", "qwen3.8:9b"))?.baseUrl).toBe(
+    "http://127.0.0.1:11434"
+  );
 });

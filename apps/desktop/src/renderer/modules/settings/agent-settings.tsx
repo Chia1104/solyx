@@ -32,6 +32,7 @@ import {
   TileTone,
 } from "./provider-tile.tsx";
 import { SecretRow, SecretsUnavailable } from "./secret-row.tsx";
+import { ServerModelsRow } from "./server-models-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { agentSettingsQuery, secretsQuery } from "./settings-query.ts";
 import { SubscriptionSignIn } from "./subscription-sign-in.tsx";
@@ -49,15 +50,19 @@ function ProviderTab({
   isDefault: boolean;
 }) {
   const { t } = useTranslation();
-  const { provider, name, enabled, usable, auth } = settings;
+  const { provider, name, enabled, usable, auth, server } = settings;
 
   const state = !enabled
     ? t("settings.agent.provider-states.off")
     : usable
       ? t("settings.agent.provider-states.ready")
-      : auth === AgentAuth.Subscription
-        ? t("settings.agent.provider-states.needs-sign-in")
-        : t("settings.agent.provider-states.needs-key");
+      : server
+        ? server.failure
+          ? t("settings.agent.provider-states.unreachable")
+          : t("settings.agent.provider-states.no-models")
+        : auth === AgentAuth.Subscription
+          ? t("settings.agent.provider-states.needs-sign-in")
+          : t("settings.agent.provider-states.needs-key");
 
   return (
     <ProviderTile
@@ -225,7 +230,51 @@ export function AgentSettings() {
           />
         ) : null}
         {each.enabled ? (
-          each.subscription && each.auth === AgentAuth.Subscription ? (
+          each.server ? (
+            <>
+              {each.endpoint ? (
+                <TextSettingRow
+                  label={endpointLabel}
+                  description={t("settings.agent.server-endpoint-description", {
+                    provider: name,
+                  })}
+                  value={each.endpoint.url}
+                  isDefault={each.endpoint.url === each.endpoint.default}
+                  schema={endpointSchema}
+                  onSave={(next) =>
+                    client.settings.setAgentEndpoint({
+                      provider: each.provider,
+                      endpoint: next,
+                    })
+                  }
+                />
+              ) : null}
+              <SecretRow
+                label={
+                  <>
+                    {keyLabel}{" "}
+                    <span className="font-normal text-muted">
+                      {t("settings.secrets.optional")}
+                    </span>
+                  </>
+                }
+                fieldLabel={keyLabel}
+                description={t("settings.agent.server-key-hint", {
+                  provider: name,
+                })}
+                state={each.key}
+                available={available}
+                onSave={(value) =>
+                  client.settings.saveAgentKey({
+                    provider: each.provider,
+                    value,
+                  })
+                }
+                onRemove={() => client.settings.deleteAgentKey(each.provider)}
+              />
+              <ServerModelsRow provider={each.provider} name={name} />
+            </>
+          ) : each.subscription && each.auth === AgentAuth.Subscription ? (
             <SubscriptionSignIn
               provider={each.provider}
               name={name}

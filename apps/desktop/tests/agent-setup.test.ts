@@ -106,6 +106,8 @@ function setup(scheduled: ScheduledTask[] = []) {
     getDeviceId: () => "00000000-0000-4000-8000-000000000000",
     openExternal: vi.fn(),
     showSignInCode: vi.fn(),
+    modelsFile: join(home, "data", "agent-models.json"),
+    onModelsListed: vi.fn(),
   });
 
   const port = createAgentSetup({
@@ -178,7 +180,7 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
     "Taiwan's charts, quotes and news have no source: fugle still needs a Fugle API key.",
   ]);
   expect(area(areas, "Agent models").missing).toEqual([
-    "No provider switched on has a key saved or a subscription signed in, so the agent cannot run.",
+    "No provider switched on has a key saved, a subscription signed in or a server listing a model, so the agent cannot run.",
   ]);
   expect(area(areas, "Web search").missing).toHaveLength(1);
   expect(area(areas, "Decisions model").missing).toHaveLength(1);

@@ -15,6 +15,7 @@ import minimax from "@lobehub/icons-static-svg/icons/minimax-color.svg?no-inline
 import mistral from "@lobehub/icons-static-svg/icons/mistral-color.svg?no-inline";
 import moonshot from "@lobehub/icons-static-svg/icons/moonshot.svg?no-inline";
 import nvidia from "@lobehub/icons-static-svg/icons/nvidia-color.svg?no-inline";
+import ollama from "@lobehub/icons-static-svg/icons/ollama.svg?no-inline";
 import openai from "@lobehub/icons-static-svg/icons/openai.svg?no-inline";
 import opencode from "@lobehub/icons-static-svg/icons/opencode.svg?no-inline";
 import openrouter from "@lobehub/icons-static-svg/icons/openrouter.svg?no-inline";
@@ -50,6 +51,7 @@ const MARKS: Partial<Record<AgentProvider, Logo>> = {
   moonshotai: { src: moonshot, colored: false },
   "moonshotai-cn": { src: moonshot, colored: false },
   nvidia: { src: nvidia, colored: true },
+  ollama: { src: ollama, colored: false },
   openai: { src: openai, colored: false },
   opencode: { src: opencode, colored: false },
   "opencode-go": { src: opencode, colored: false },

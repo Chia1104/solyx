@@ -40,6 +40,7 @@ import {
   timeZonePreferenceSchema,
 } from "../settings.ts";
 import type {
+  AgentServerModels,
   AgentSettings,
   AgentSkills,
   AppInfo,
@@ -163,6 +164,10 @@ export const settingsContract = {
   createAgentKey: oc
     .input(z.object({ provider: agentProviderSchema, locale: localeSchema }))
     .output(type<void>()),
+  /** What a server the user runs, such as Ollama, lists of the models that can run the agent, asked again while it is switched on. */
+  agentServerModels: oc
+    .input(agentProviderSchema)
+    .output(type<AgentServerModels>()),
   /** Sends the provider's requests on an API key to `endpoint`; `null` goes back to its own. */
   setAgentEndpoint: oc
     .input(

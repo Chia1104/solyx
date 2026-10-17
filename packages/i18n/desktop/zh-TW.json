@@ -1081,7 +1081,9 @@
         "off": "未啟用",
         "ready": "可以使用",
         "needs-key": "需要 API 金鑰",
-        "needs-sign-in": "需要登入"
+        "needs-sign-in": "需要登入",
+        "no-models": "沒有可用模型",
+        "unreachable": "沒有回應"
       },
       "enable-provider": "使用 {{provider}} 的模型",
       "key-label": "{{provider}} API 金鑰",
@@ -1090,6 +1092,16 @@
       "auth-description": "訂閱會用你方案內的額度執行 Agent，不按每次請求計費。",
       "endpoint": "API 端點",
       "endpoint-description": "只在使用支援這個供應商原生 API 的閘道時更改，你的金鑰也會送到那裡。",
+      "server-endpoint-description": "{{provider}} 的位址。指向另一台主機時，對話內容會送到那台主機。",
+      "server-key-hint": "只有 {{provider}} 架在會檢查 bearer token 的代理後面時才需要。",
+      "server-models": "可用模型",
+      "server-models-description": "需要支援工具、context 至少 48K 的模型，可用 ollama pull 下載。",
+      "server-models-checking": "檢查中…",
+      "server-models-count_one": "{{count}} 個",
+      "server-models-count_other": "{{count}} 個",
+      "server-models-none": "沒有",
+      "server-unreachable": "連不到 {{provider}}",
+      "list-models": "重新整理",
       "endpoint-invalid": "請輸入 http 或 https 網址",
       "auths": {
         "api-key": "API 金鑰",

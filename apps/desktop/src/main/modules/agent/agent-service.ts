@@ -473,7 +473,15 @@ export function createAgentService(options: AgentServiceOptions) {
     skills,
     instructions,
 
-    resume: () => runtime.resume(),
+    /**
+     * Carries on the runs the app's exit cut off, once the models a server the user runs listed
+     * last are back, and has that server list them again meanwhile.
+     */
+    async resume() {
+      await models.restoreServerModels();
+      void models.listServerModels();
+      await runtime.resume();
+    },
 
     sessions: () => runtime.sessions(),
 
