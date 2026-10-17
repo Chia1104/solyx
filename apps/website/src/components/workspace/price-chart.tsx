@@ -61,12 +61,12 @@ function chartOptions(colors: SheetColors): DeepPartial<ChartOptions> {
   return {
     layout: {
       background: { type: ColorType.Solid, color: "transparent" },
-      textColor: colors.muted,
+      textColor: colors.mutedForeground,
       fontFamily: "Archivo Variable, system-ui, sans-serif",
     },
     grid: {
-      vertLines: { color: `${colors.rule}66` },
-      horzLines: { color: `${colors.rule}66` },
+      vertLines: { color: `${colors.border}66` },
+      horzLines: { color: `${colors.border}66` },
     },
     crosshair: { mode: CrosshairMode.Normal },
     rightPriceScale: { borderVisible: false },
@@ -93,7 +93,7 @@ function forecastBands(forecast: Forecast, colors: SheetColors): PriceBand[] {
     color: `${colors.graphite}${index % 2 === 0 ? "26" : "40"}`,
     width: 0.13,
     label: `${Math.round(scenario.probability * 100)}%`,
-    labelColor: colors.text,
+    labelColor: colors.foreground,
   }));
 }
 
@@ -172,7 +172,7 @@ export function PriceChart({
         ? [
             {
               price: limit.price,
-              color: limit.signed ? colors.ink : colors.graphite,
+              color: limit.signed ? colors.primary : colors.graphite,
               lineWidth: limit.signed ? 2 : 1,
               lineStyle: limit.signed ? LineStyle.Solid : LineStyle.Dashed,
               axisLabelVisible: true,

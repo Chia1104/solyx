@@ -114,10 +114,10 @@ export function Horizon({
       <Circle id="disc" visible={false} center={center} radius={radius} />
 
       <Group boundingBox={sea} maskSource="disc">
-        <SolidColor color={colors.sheet} />
+        <SolidColor color={colors.card} />
         <Stripes
           colorA={colors.graphite}
-          colorB={colors.sheet}
+          colorB={colors.card}
           angle={-45}
           density={Math.round(height / 11)}
           balance={0.14}
@@ -128,10 +128,10 @@ export function Horizon({
 
       <Group boundingBox={sky} maskSource="disc">
         <FlowingGradient
-          colorA={colors.ink}
-          colorB={colors.inkDeep}
-          colorC={colors.ink}
-          colorD={colors.inkLight}
+          colorA={colors.primary}
+          colorB={colors.primaryDeep}
+          colorC={colors.primary}
+          colorD={colors.primaryLight}
           speed={still ? 0 : 0.25}
           distortion={0.25}
         />

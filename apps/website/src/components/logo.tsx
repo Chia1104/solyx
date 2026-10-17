@@ -2,7 +2,7 @@
 export function Logo({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 18 18" aria-hidden="true" className={className}>
-      <path d="M3 9A6 6 0 0 1 15 9Z" fill="var(--ink)" />
+      <path d="M3 9A6 6 0 0 1 15 9Z" fill="var(--primary)" />
       <line
         x1="1.75"
         y1="9"

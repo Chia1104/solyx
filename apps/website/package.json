@@ -3,12 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#components/*": "./src/components/*.tsx",
+    "#lib/*": "./src/lib/*.ts"
+  },
   "scripts": {
     "dev": "vp dev",
     "preview": "vp preview",
     "test": "vp test"
   },
   "devDependencies": {
+    "@base-ui/react": "catalog:website",
     "@fontsource-variable/archivo": "catalog:website",
     "@solyx/core": "workspace:*",
     "@solyx/i18n": "workspace:*",
@@ -22,6 +27,8 @@
     "@types/react": "catalog:react",
     "@types/react-dom": "catalog:react",
     "@vitejs/plugin-react": "catalog:react",
+    "class-variance-authority": "catalog:website",
+    "cn": "catalog:website",
     "fumadocs-core": "catalog:docs",
     "fumadocs-mdx": "catalog:docs",
     "fumadocs-ui": "catalog:docs",
@@ -29,6 +36,7 @@
     "lucide-react": "catalog:docs",
     "react": "catalog:react",
     "react-dom": "catalog:react",
+    "shadcn": "catalog:website",
     "shaders": "catalog:website",
     "tailwindcss": "catalog:tailwindcss",
     "typescript": "catalog:",

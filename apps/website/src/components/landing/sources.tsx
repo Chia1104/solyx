@@ -35,12 +35,12 @@ const SOURCES = [
 
 export function Sources() {
   return (
-    <section className="border-rule bg-sheet border-t">
+    <section className="bg-card border-t border-border">
       <div className="mx-auto max-w-6xl px-6 py-24">
         <h2 className="text-3xl font-[640] tracking-[-0.015em] [font-stretch:112%]">
           Runs on your keys
         </h2>
-        <p className="mt-3 max-w-2xl text-lg leading-relaxed text-muted">
+        <p className="text-muted-foreground mt-3 max-w-2xl text-lg leading-relaxed">
           Market data and a model are enough to start. Every key is saved
           encrypted on your computer, and data flows straight between each
           provider and you, with no Solyx server between.
@@ -49,7 +49,7 @@ export function Sources() {
         <div className="mt-10 overflow-x-auto">
           <table className="w-full min-w-[40rem] border-collapse text-left">
             <thead>
-              <tr className="border-text border-b text-sm">
+              <tr className="border-b border-foreground text-sm">
                 <th scope="col" className="py-3 pr-6 font-semibold">
                   For
                 </th>
@@ -63,22 +63,22 @@ export function Sources() {
             </thead>
             <tbody>
               {SOURCES.map(({ purpose, source, bring }) => (
-                <tr key={purpose} className="border-rule border-b">
+                <tr key={purpose} className="border-b border-border">
                   <td className="py-3 pr-6">{purpose}</td>
-                  <td className="py-3 pr-6 text-muted">{source}</td>
-                  <td className="py-3 text-muted">{bring}</td>
+                  <td className="text-muted-foreground py-3 pr-6">{source}</td>
+                  <td className="text-muted-foreground py-3">{bring}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        <p className="mt-6 text-muted">
+        <p className="text-muted-foreground mt-6">
           Decisions models and embedders add more.{" "}
           <Link
             to="/docs/$"
             params={{ _splat: "keys" }}
-            className="text-ink underline underline-offset-4">
+            className="text-primary underline underline-offset-4">
             See every source
           </Link>
         </p>

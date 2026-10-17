@@ -9,6 +9,10 @@ import {
   status as statuses,
 } from "@solyx/i18n/desktop/en-US.json";
 
+import { Badge } from "../ui/badge.tsx";
+import { Button } from "../ui/button.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs.tsx";
+
 import { price } from "./format.ts";
 import type { Listing } from "./listings.ts";
 import { Ask, Vote, prompts } from "./script.ts";
@@ -79,141 +83,144 @@ export function AgentPane({
       className="flex h-[36rem] min-h-0 flex-col lg:h-auto">
       <header className="flex items-center justify-between px-4 pt-3">
         <h3 className="text-sm font-semibold">{agent.title}</h3>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onClick={onReset}
           aria-label={agent["new-chat"]}
-          className="hover:bg-sheet-2 hover:text-text focus-visible:outline-ink grid size-7 place-items-center rounded-md text-muted focus-visible:outline-2">
-          <Plus className="size-4" />
-        </button>
+          className="text-muted-foreground">
+          <Plus />
+        </Button>
       </header>
 
-      <div
-        role="tablist"
-        className="border-rule mx-4 mt-2 grid grid-cols-2 border-b text-sm">
-        {[Tab.Chat, Tab.Proposals].map((name) => (
-          <button
-            key={name}
-            type="button"
-            role="tab"
-            aria-selected={tab === name}
-            onClick={() => setTab(name)}
-            className="aria-selected:border-ink aria-selected:text-text focus-visible:outline-ink -mb-px border-b-2 border-transparent py-2 text-muted focus-visible:outline-2">
-            {agent.tabs[name]}
-            {name === Tab.Proposals && waiting && (
-              <span className="bg-sheet-3 text-text ml-1.5 rounded-sm px-1.5 text-xs">
-                1
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      <div
-        ref={messagesRef}
-        className="min-h-0 flex-1 overflow-y-auto scroll-smooth px-4 py-4 motion-reduce:scroll-auto"
-        aria-live="polite">
-        {tab === Tab.Proposals ? (
-          proposal ? (
-            <ProposalCard
-              listing={listing}
-              proposal={proposal}
-              status={status}
-              onConfirm={onConfirm}
-              onDismiss={onDismiss}
-            />
-          ) : (
-            <p className="text-sm text-muted">
-              Nothing waits for you. Proposals the agent drafts show up here.
-            </p>
-          )
-        ) : turn ? (
-          // Keyed by the question, so the empty state's nodes are not reused and a new question's messages enter.
-          <div key={turn.prompt} className="flex flex-col gap-4 text-sm">
-            <p
-              className={`bg-sheet-3 ml-8 self-end rounded-md px-3 py-2 ${ENTER}`}>
-              {turn.prompt}
-            </p>
-            <ul className="flex flex-col gap-1.5">
-              {turn.steps.map((step, index) =>
-                index > stepsDone ? null : (
-                  <li
-                    key={step.label}
-                    className={`flex items-center gap-2 ${ENTER}`}>
-                    {index < stepsDone ? (
-                      <Check
-                        aria-label="Done"
-                        className="size-3.5 text-muted"
-                      />
-                    ) : (
-                      <LoaderCircle
-                        aria-label="Running"
-                        className="size-3.5 animate-spin text-muted motion-reduce:animate-none"
-                      />
-                    )}
-                    <span>{step.label}</span>
-                    <span className="text-muted">{step.detail}</span>
-                  </li>
-                )
+      <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 gap-0">
+        <TabsList
+          variant="line"
+          className="mx-4 mt-2 grid h-auto w-auto grid-cols-2 rounded-none border-b border-border p-0">
+          {[Tab.Chat, Tab.Proposals].map((name) => (
+            <TabsTrigger
+              key={name}
+              value={name}
+              className="after:bg-primary h-auto rounded-none py-2 group-data-horizontal/tabs:after:-bottom-px">
+              {agent.tabs[name]}
+              {name === Tab.Proposals && waiting && (
+                <Badge variant="secondary">1</Badge>
               )}
-            </ul>
-            {replied && (
-              <>
-                <p className={`leading-relaxed ${ENTER}`}>{turn.reply}</p>
-                {turn.forecast && (
-                  <div className={`${ENTER} delay-60`}>
-                    <ForecastCard forecast={turn.forecast} />
-                  </div>
-                )}
-                {turn.proposal && (
-                  <div className={`${ENTER} delay-120`}>
-                    <ProposalCard
-                      listing={listing}
-                      proposal={turn.proposal}
-                      status={status}
-                      onConfirm={onConfirm}
-                      onDismiss={onDismiss}
-                    />
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="flex h-full flex-col justify-end gap-1 pb-2">
-            <p className="font-medium">{agent["empty-title"]}</p>
-            <p className="text-sm leading-relaxed text-muted">
-              {agent["empty-description"]}
-            </p>
-          </div>
-        )}
-      </div>
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      <div className="border-rule flex flex-col gap-2 border-t p-3">
+        <div
+          ref={messagesRef}
+          className="min-h-0 flex-1 overflow-y-auto scroll-smooth px-4 py-4 motion-reduce:scroll-auto"
+          aria-live="polite">
+          <TabsContent value={Tab.Proposals}>
+            {proposal ? (
+              <ProposalCard
+                listing={listing}
+                proposal={proposal}
+                status={status}
+                onConfirm={onConfirm}
+                onDismiss={onDismiss}
+              />
+            ) : (
+              <p className="text-muted-foreground">
+                Nothing waits for you. Proposals the agent drafts show up here.
+              </p>
+            )}
+          </TabsContent>
+          <TabsContent value={Tab.Chat} className="h-full">
+            {turn ? (
+              // Keyed by the question, so the empty state's nodes are not reused and a new question's messages enter.
+              <div key={turn.prompt} className="flex flex-col gap-4 text-sm">
+                <p
+                  className={`ml-8 self-end rounded-md bg-accent px-3 py-2 ${ENTER}`}>
+                  {turn.prompt}
+                </p>
+                <ul className="flex flex-col gap-1.5">
+                  {turn.steps.map((step, index) =>
+                    index > stepsDone ? null : (
+                      <li
+                        key={step.label}
+                        className={`flex items-center gap-2 ${ENTER}`}>
+                        {index < stepsDone ? (
+                          <Check
+                            aria-label="Done"
+                            className="text-muted-foreground size-3.5"
+                          />
+                        ) : (
+                          <LoaderCircle
+                            aria-label="Running"
+                            className="text-muted-foreground size-3.5 animate-spin motion-reduce:animate-none"
+                          />
+                        )}
+                        <span>{step.label}</span>
+                        <span className="text-muted-foreground">
+                          {step.detail}
+                        </span>
+                      </li>
+                    )
+                  )}
+                </ul>
+                {replied && (
+                  <>
+                    <p className={`leading-relaxed ${ENTER}`}>{turn.reply}</p>
+                    {turn.forecast && (
+                      <div className={`${ENTER} delay-60`}>
+                        <ForecastCard forecast={turn.forecast} />
+                      </div>
+                    )}
+                    {turn.proposal && (
+                      <div className={`${ENTER} delay-120`}>
+                        <ProposalCard
+                          listing={listing}
+                          proposal={turn.proposal}
+                          status={status}
+                          onConfirm={onConfirm}
+                          onDismiss={onDismiss}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="flex h-full flex-col justify-end gap-1 pb-2">
+                <p className="font-medium">{agent["empty-title"]}</p>
+                <p className="text-muted-foreground leading-relaxed">
+                  {agent["empty-description"]}
+                </p>
+              </div>
+            )}
+          </TabsContent>
+        </div>
+      </Tabs>
+
+      <div className="flex flex-col gap-2 border-t border-border p-3">
         {(!turn || replied) && (
           <div className="flex flex-col gap-1.5">
             {[Ask.Forecast, Ask.Proposal].map((ask) => (
-              <button
+              <Button
                 key={ask}
-                type="button"
+                variant="outline"
                 onClick={() => {
                   setTab(Tab.Chat);
                   onAsk(ask);
                 }}
-                className="border-rule bg-sheet hover:bg-sheet-2 focus-visible:outline-ink flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm focus-visible:outline-2">
+                className="h-auto justify-between px-3 py-2 text-left font-normal whitespace-normal">
                 {questions[ask]}
                 <SendHorizontal
                   aria-hidden="true"
-                  className="size-4 shrink-0 text-muted"
+                  className="text-muted-foreground"
                 />
-              </button>
+              </Button>
             ))}
           </div>
         )}
-        <div className="border-rule bg-sheet-2 flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-muted">
-          <span className="bg-sheet-3 text-text rounded-sm px-1.5 py-0.5 text-xs">
+        <div className="text-muted-foreground flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm">
+          <Badge variant="secondary" className="bg-accent">
             {listing.code} {listing.name}
-          </span>
+          </Badge>
           <span className="truncate">The demo answers the questions above</span>
         </div>
       </div>
@@ -224,7 +231,7 @@ export function AgentPane({
 function ForecastCard({ forecast }: { forecast: Forecast }) {
   return (
     <article className="rounded-md pencil p-3 [--hatch-color:color-mix(in_oklab,var(--graphite)_18%,transparent)]">
-      <header className="flex justify-between gap-2 text-xs text-muted">
+      <header className="text-muted-foreground flex justify-between gap-2 text-xs">
         <span>
           Forecast, {forecast.sessions} sessions from {price(forecast.from)}
         </span>
@@ -239,19 +246,19 @@ function ForecastCard({ forecast }: { forecast: Forecast }) {
                 <span className="font-medium">
                   {Math.round(scenario.probability * 100)}%
                 </span>{" "}
-                <span className="text-xs text-muted">
+                <span className="text-muted-foreground text-xs">
                   history {Math.round(scenario.history * 100)}%
                 </span>
               </span>
             </div>
-            <div className="bg-sheet-3 relative mt-1 h-1.5 rounded-full">
+            <div className="relative mt-1 h-1.5 rounded-full bg-accent">
               <div
                 className="bg-graphite h-full rounded-full"
                 style={{ width: `${scenario.probability * 100}%` }}
               />
               <div
                 aria-hidden="true"
-                className="bg-text absolute -top-0.5 h-2.5 w-0.5"
+                className="absolute -top-0.5 h-2.5 w-0.5 bg-foreground"
                 style={{ left: `${scenario.history * 100}%` }}
               />
             </div>
@@ -295,22 +302,22 @@ function ProposalCard({
       {/* Signing lays ink over the pencil, its solid outline covering the dashed one; the hatching gives way at the same edge. */}
       <div
         aria-hidden="true"
-        className="border-ink bg-ink/8 absolute -inset-px rounded-md border motion-safe:transition-[clip-path] motion-safe:duration-600 motion-safe:ease-in-out motion-safe:[clip-path:inset(0_100%_0_0_round_var(--radius-md))] motion-safe:group-data-[status=submitted]:[clip-path:inset(0_0_0_0_round_var(--radius-md))] motion-reduce:opacity-0 motion-reduce:transition-opacity motion-reduce:duration-200 motion-reduce:ease-out motion-reduce:group-data-[status=submitted]:opacity-100"
+        className="border-primary bg-primary/8 absolute -inset-px rounded-md border motion-safe:transition-[clip-path] motion-safe:duration-600 motion-safe:ease-in-out motion-safe:[clip-path:inset(0_100%_0_0_round_var(--radius-md))] motion-safe:group-data-[status=submitted]:[clip-path:inset(0_0_0_0_round_var(--radius-md))] motion-reduce:opacity-0 motion-reduce:transition-opacity motion-reduce:duration-200 motion-reduce:ease-out motion-reduce:group-data-[status=submitted]:opacity-100"
       />
 
       <div className="relative">
         <header className="flex justify-between gap-2 text-xs">
-          <span className="text-muted">Order proposal</span>
+          <span className="text-muted-foreground">Order proposal</span>
           <span
             key={status}
-            className={`transition-[opacity,filter] duration-200 ease-out starting:opacity-0 starting:blur-[2px] ${signed ? "text-ink" : "text-muted"}`}>
+            className={`transition-[opacity,filter] duration-200 ease-out starting:opacity-0 starting:blur-[2px] ${signed ? "text-primary" : "text-muted-foreground"}`}>
             {statuses[status]}
           </span>
         </header>
         <p className="mt-2 text-base font-semibold">
           Buy {price(proposal.quantity)} shares @ {price(proposal.price)}
         </p>
-        <p className="text-xs text-muted">
+        <p className="text-muted-foreground text-xs">
           {listing.code} {listing.name}, limit order, paper account
         </p>
 
@@ -319,7 +326,7 @@ function ProposalCard({
             <li key={check} className="flex items-start gap-2">
               <Check
                 aria-hidden="true"
-                className="mt-0.5 size-3.5 shrink-0 text-muted"
+                className="text-muted-foreground mt-0.5 size-3.5 shrink-0"
               />
               {check}
             </li>
@@ -349,14 +356,14 @@ function ProposalCard({
                   <span
                     className={
                       vote.vote === Vote.Approves
-                        ? "bg-text text-paper rounded-sm px-1"
+                        ? "rounded-sm bg-foreground px-1 text-background"
                         : "border-graphite/60 rounded-sm border px-1"
                     }>
                     {vote.vote === Vote.Approves
                       ? magi.votes.approve
                       : magi.votes.reject}
                   </span>{" "}
-                  <span className="text-muted">{vote.reason}</span>
+                  <span className="text-muted-foreground">{vote.reason}</span>
                 </span>
               </li>
             ))}
@@ -365,22 +372,16 @@ function ProposalCard({
 
         {status === ProposalStatus.AwaitingConfirmation && (
           <div className="mt-4 flex gap-2">
-            <button
-              type="button"
-              onClick={onConfirm}
-              className="bg-ink text-ink-text focus-visible:outline-ink h-8 rounded-md px-3 font-medium transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.97] motion-reduce:transition-none">
+            <Button size="sm" onClick={onConfirm}>
               {proposals.confirm}
-            </button>
-            <button
-              type="button"
-              onClick={onDismiss}
-              className="border-rule bg-sheet hover:bg-sheet-2 focus-visible:outline-ink h-8 rounded-md border px-3 font-medium focus-visible:outline-2">
+            </Button>
+            <Button variant="outline" size="sm" onClick={onDismiss}>
               {proposals.dismiss}
-            </button>
+            </Button>
           </div>
         )}
         {status === ProposalStatus.Submitting && (
-          <p className="mt-4 flex items-center gap-2 text-xs text-muted transition-opacity duration-200 ease-out starting:opacity-0">
+          <p className="text-muted-foreground mt-4 flex items-center gap-2 text-xs transition-opacity duration-200 ease-out starting:opacity-0">
             <LoaderCircle
               aria-hidden="true"
               className="size-3.5 animate-spin motion-reduce:animate-none"
@@ -389,7 +390,7 @@ function ProposalCard({
           </p>
         )}
         {signed && (
-          <p className="text-ink mt-4 text-xs transition-opacity duration-200 ease-out starting:opacity-0">
+          <p className="text-primary mt-4 text-xs transition-opacity duration-200 ease-out starting:opacity-0">
             The checks passed again, and the order went to the paper account.
           </p>
         )}
