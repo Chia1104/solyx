@@ -77,7 +77,7 @@ export function Hero() {
       <ClientOnly>
         <div
           aria-hidden="true"
-          className="absolute inset-0 transition-opacity duration-500 data-[canvas=pending]:opacity-0"
+          className="absolute inset-0 transition-opacity duration-500 ease-out data-[canvas=pending]:opacity-0"
           data-canvas={canvas}>
           <Suspense>
             <Horizon
