@@ -12,6 +12,7 @@ import type {
   MarketDataStream,
 } from "@solyx/core/market-data";
 import { SectorGroup, TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
+import { MINUTE_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
 import type { MarketDataSources } from "../src/main/modules/market/market-data-sources.ts";
@@ -20,8 +21,6 @@ import { createMarketData } from "../src/main/modules/market/market-data.ts";
 const TSMC = { market: Market.TW, symbol: "2330" };
 
 const NOW = new Date("2026-09-29T10:00:00+08:00");
-
-const MINUTE_MS = 60 * 1000;
 
 const taipei = (date: string) => Date.parse(`${date}T00:00:00+08:00`) / 1000;
 

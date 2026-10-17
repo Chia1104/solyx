@@ -336,10 +336,7 @@ export function createServices(config: ConfigFile) {
     resolveLocale(appearance.read().language, app.getLocale());
 
   const userTimeZone = () =>
-    resolveTimeZone(
-      appearance.read().timeZone,
-      new Intl.DateTimeFormat().resolvedOptions().timeZone
-    );
+    resolveTimeZone(appearance.read().timeZone, Temporal.Now.timeZoneId());
 
   const deviceId = installationId(join(userDataDir, "installation-id"));
 

@@ -7,6 +7,7 @@ import type {
   FundamentalsProvider,
 } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
+import { HOUR_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
 import { createFundamentals } from "../src/main/modules/fundamentals/fundamentals.ts";
@@ -71,8 +72,6 @@ const EX_NOTICE = {
 const MEETING = { date: "2026-11-19", regular: false, election: true };
 
 const CHIPS = { code: "24", name: "半導體業" };
-
-const HOUR_MS = 60 * 60 * 1000;
 
 function setup(answers = memoryAnswers()) {
   // 2026-10-07 10:00 in Taipei.

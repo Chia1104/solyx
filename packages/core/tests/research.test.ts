@@ -2,6 +2,7 @@ import { uniqBy } from "es-toolkit";
 import { expect, test, vi } from "vite-plus/test";
 import type { Mock } from "vite-plus/test";
 
+import { MINUTE_MS } from "@solyx/utils/date";
 import { createSearchIndex } from "@solyx/utils/search";
 
 import { EventTiming } from "../src/calendar.ts";
@@ -313,14 +314,14 @@ test("a proposal's basis is the report in force and the newest forecast made und
     horizon: draft.horizon,
   });
 
-  clock.now += 60_000;
+  clock.now += MINUTE_MS;
   await desk.revise({ symbol: TSMC, stance: ReportStance.Neutral });
 
   // The forecast was made under a view no longer in force.
   expect(desk.basis(TSMC)).toEqual({
     report: {
       revision: 2,
-      revisedAt: AT_ANCHOR + 60_000,
+      revisedAt: AT_ANCHOR + MINUTE_MS,
       stance: ReportStance.Neutral,
     },
     forecast: null,

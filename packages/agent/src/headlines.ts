@@ -12,6 +12,7 @@ import {
 import type { SymbolRef } from "@solyx/core/market";
 import type { Headline } from "@solyx/core/news";
 import type { ProposingDesk } from "@solyx/core/order-desk";
+import { DAY_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 
 import { rememberAddresses } from "./found-addresses.ts";
@@ -39,8 +40,6 @@ const LISTED_HEADLINES = 15;
 const DEFAULT_DAYS = 7;
 
 const MAX_SYMBOLS = 50;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const code = ({ market, symbol }: SymbolRef) => `${market} ${symbol}`;
 

@@ -16,16 +16,13 @@ import type {
   SourceHealth,
 } from "@solyx/core/news";
 import type { SentimentScorer } from "@solyx/core/sentiment";
+import { HOUR_MS, DAY_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 import { fuseRankings } from "@solyx/utils/search";
 
 import type { NewsCoverage } from "#shared/news.ts";
 
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
-
-const HOUR_MS = 60 * 60 * 1000;
-
-const DAY_MS = 24 * HOUR_MS;
 
 // A listing's first refresh reaches back a week; later ones overlap the last collection by a day.
 const FIRST_LOOKBACK_MS = 7 * DAY_MS;

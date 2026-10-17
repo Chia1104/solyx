@@ -14,6 +14,7 @@ import { sessionQuote } from "@solyx/core/quote";
 import type { SessionQuote } from "@solyx/core/quote";
 import { TW_SECTOR_INDICES } from "@solyx/core/sectors";
 import type { SectorQuote } from "@solyx/core/sectors";
+import { MINUTE_MS } from "@solyx/utils/date";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
 
@@ -23,7 +24,7 @@ import { createLiveCandles } from "./live-candles.ts";
 import type { MarketDataSources } from "./market-data-sources.ts";
 
 /** The sectors cost a request per index, so the overview's map and the agent share a read this long. */
-const SECTORS_FRESH_MS = 60 * 1000;
+const SECTORS_FRESH_MS = MINUTE_MS;
 
 interface MarketDataOptions {
   sources: MarketDataSources;

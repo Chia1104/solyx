@@ -5,6 +5,7 @@ import * as z from "zod";
 import { Market, exchangeMidnight } from "@solyx/core/market";
 import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { NewsQuery, NewsSource } from "@solyx/core/news";
+import { twRocDaySchema } from "@solyx/core/rules/tw";
 
 // Each lists the previous day's material information, for listed and OTC companies.
 const TWSE_FEED = "https://openapi.twse.com.tw/v1/opendata/t187ap04_L";
@@ -34,18 +35,11 @@ type AnnouncementRow = z.infer<typeof twseRowSchema>;
 
 const feedSchema = z.array(z.record(z.string(), z.unknown()));
 
-/** When it was announced, from the ROC date (`1151002`) and time (`70003`) on Taipei's clock. */
-function announcedAt(date: string, time: string): Date {
-  const [year, month, day] = [
-    date.slice(0, -4),
-    date.slice(-4, -2),
-    date.slice(-2),
-  ];
+/** When it was announced, from the ROC date (`1151002`) and time (`70003`) on Taipei's clock; `null` for a date that does not read. */
+function announcedAt(date: string, time: string): Date | null {
+  const day = twRocDaySchema.safeParse(date);
 
-  const midnight = exchangeMidnight(
-    Market.TW,
-    `${Number(year) + 1911}-${month}-${day}`
-  );
+  if (!day.success) return null;
 
   const clock = time.padStart(6, "0");
 
@@ -54,7 +48,7 @@ function announcedAt(date: string, time: string): Date {
     Number(clock.slice(2, 4)) * 60 +
     Number(clock.slice(4));
 
-  return new Date((midnight + seconds) * 1000);
+  return new Date((exchangeMidnight(Market.TW, day.data) + seconds) * 1000);
 }
 
 export interface AnnouncementsOptions {
@@ -98,20 +92,24 @@ export function createAnnouncements(
       const items = feeds
         .flat()
         .filter((row) => row.code.trim() === symbol.symbol)
-        .map((row) => ({
-          // An announcement has no address; its company, time and subject tell it apart.
-          id: `${row.code}:${row.發言日期}:${row.發言時間}:${row.主旨}`,
-          url: null,
-          title: row.主旨.replace(/\s+/g, " ").trim(),
-          snippet: row.說明.replace(/\r\n/g, "\n").trim(),
-          site: "mops.twse.com.tw",
-          published: {
-            at: announcedAt(row.發言日期, row.發言時間),
-            precision: TimePrecision.Minute,
-          },
-          votes: null,
-        }))
-        .filter((item) => item.published.at >= since);
+        .flatMap((row) => {
+          const at = announcedAt(row.發言日期, row.發言時間);
+
+          return at === null || at < since
+            ? []
+            : [
+                {
+                  // An announcement has no address; its company, time and subject tell it apart.
+                  id: `${row.code}:${row.發言日期}:${row.發言時間}:${row.主旨}`,
+                  url: null,
+                  title: row.主旨.replace(/\s+/g, " ").trim(),
+                  snippet: row.說明.replace(/\r\n/g, "\n").trim(),
+                  site: "mops.twse.com.tw",
+                  published: { at, precision: TimePrecision.Minute },
+                  votes: null,
+                },
+              ];
+        });
 
       return orderBy(
         items,

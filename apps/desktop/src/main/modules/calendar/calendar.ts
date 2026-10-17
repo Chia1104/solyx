@@ -7,17 +7,18 @@ import {
 } from "@solyx/core/calendar";
 import type { UpcomingEvents } from "@solyx/core/calendar";
 import type { Fundamentals } from "@solyx/core/fundamentals";
-import { exchangeDate, shiftDate } from "@solyx/core/market";
+import { exchangeDate } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { Report } from "@solyx/core/report";
 import type { ClosuresProvider, MarketClosure } from "@solyx/core/session";
+import { shiftDate, HOUR_MS } from "@solyx/utils/date";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
 
 import type { Macro } from "../macro/macro.ts";
 
 // An exchange sets its closures a year ahead, so a market's are read twice a day at most.
-const CLOSURES_FRESH_MS = 12 * 60 * 60 * 1000;
+const CLOSURES_FRESH_MS = 12 * HOUR_MS;
 
 export interface CalendarOptions {
   fundamentals: Pick<

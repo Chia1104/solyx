@@ -12,6 +12,7 @@
     "test": "vp test"
   },
   "dependencies": {
+    "@solyx/utils": "workspace:*",
     "es-toolkit": "catalog:",
     "fast-xml-parser": "catalog:utils",
     "ky": "catalog:",

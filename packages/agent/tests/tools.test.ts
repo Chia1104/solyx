@@ -48,6 +48,7 @@ import {
 } from "@solyx/core/sentiment";
 import type { SentimentScore } from "@solyx/core/sentiment";
 import { listedTradingDays, weekdays } from "@solyx/core/session";
+import { HOUR_MS } from "@solyx/utils/date";
 
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
@@ -226,7 +227,7 @@ function newsItem(title: string, hoursAgo: number | null): NewsItem {
       hoursAgo === null
         ? null
         : {
-            at: new Date(NOW.getTime() - hoursAgo * 60 * 60 * 1000),
+            at: new Date(NOW.getTime() - hoursAgo * HOUR_MS),
             precision: TimePrecision.Hour,
           },
     votes: null,

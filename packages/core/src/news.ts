@@ -1,5 +1,7 @@
 import { groupBy, maxBy, sumBy } from "es-toolkit";
 
+import { DAY_MS } from "@solyx/utils/date";
+
 import { cosine } from "./embedding.ts";
 import type { Embedding } from "./embedding.ts";
 import type { Listing } from "./market-data.ts";
@@ -179,8 +181,6 @@ export interface NewsStory {
   /** Every record that tells it, the lead among them, earliest first. */
   records: NewsRecord[];
 }
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 // An event is told up front; what follows, such as an announcement's boilerplate, only dilutes it.
 const STORY_SNIPPET = 500;

@@ -1,11 +1,12 @@
 import { candleDate, isIntraday } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
-import { exchangeDate, shiftDate } from "@solyx/core/market";
+import { exchangeDate } from "@solyx/core/market";
 import type {
   CandleRequest,
   MarketDataProvider,
 } from "@solyx/core/market-data";
 import type { CandleStore } from "@solyx/db/cache";
+import { shiftDate } from "@solyx/utils/date";
 
 export interface CandleCacheOptions {
   /** @default () => new Date() */

@@ -1,5 +1,7 @@
 import { sortBy } from "es-toolkit";
 
+import { shiftMonth } from "@solyx/utils/date";
+
 import { RestrictionKind } from "./fundamentals.ts";
 import type {
   Dividend,
@@ -128,9 +130,6 @@ function quarterEnd(periodEnd: string, quarters: number): string {
   return month.toPlainDate({ day: month.daysInMonth }).toString();
 }
 
-const nextMonth = (month: string, months: number) =>
-  Temporal.PlainYearMonth.from(month).add({ months }).toString();
-
 /**
  * The periods after the newest one out, each with the day it is due by, until one is due after
  * `until`; none before the first period is out, since a listing that files none, such as an ETF,
@@ -196,7 +195,7 @@ export function upcomingEvents(
           })),
           ...duePeriods(
             monthlyRevenue.at(-1)?.month,
-            nextMonth,
+            shiftMonth,
             twRevenueDeadline,
             until
           ).map(({ period, due }) => ({

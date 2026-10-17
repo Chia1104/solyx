@@ -1,6 +1,8 @@
 import { noop } from "es-toolkit";
 import { expect, test, vi } from "vite-plus/test";
 
+import { MINUTE_MS } from "@solyx/utils/date";
+
 import { BrokerMode } from "../src/broker.ts";
 import type { BrokerAdapter } from "../src/broker.ts";
 import { ForecastDirection } from "../src/forecast.ts";
@@ -143,7 +145,7 @@ test("a proposal keeps what research held of its listing as it was made, whoever
   const held: ProposalBasis = {
     report: {
       revision: 3,
-      revisedAt: DURING_SESSION - 60_000,
+      revisedAt: DURING_SESSION - MINUTE_MS,
       stance: ReportStance.Bullish,
     },
     forecast: {

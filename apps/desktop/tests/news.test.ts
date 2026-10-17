@@ -20,6 +20,7 @@ import {
 import type { SentimentScore, SentimentScorer } from "@solyx/core/sentiment";
 import { openNews } from "@solyx/db/news";
 import type { NewsData } from "@solyx/db/news";
+import { HOUR_MS } from "@solyx/utils/date";
 
 import { createNews } from "../src/main/modules/news/news.ts";
 
@@ -38,8 +39,6 @@ const APPLE = { market: Market.US, symbol: "AAPL" };
 const NOW = new Date("2026-10-03T05:00:00Z");
 
 const SINCE = new Date("2026-09-26T00:00:00Z");
-
-const HOUR_MS = 60 * 60 * 1000;
 
 const SCORE: SentimentScore = {
   model: "jev-1.13.0",

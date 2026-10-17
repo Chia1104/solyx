@@ -8,7 +8,7 @@ import * as z from "zod";
 
 import {
   Interval,
-  candleDate,
+  barTime,
   intervalSchema,
   isIntraday,
 } from "@solyx/core/candles";
@@ -26,14 +26,13 @@ import {
 } from "@solyx/core/indicators";
 import {
   exchangeDate,
-  exchangeTime,
   marketSchema,
-  shiftDate,
   symbolRefSchema,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import type { ProposingDesk } from "@solyx/core/order-desk";
+import { shiftDate } from "@solyx/utils/date";
 
 import {
   MAX_LISTINGS,
@@ -273,9 +272,7 @@ function dataFunctions(
 
         return candles.map((candle) => ({
           ...candle,
-          time: isIntraday(interval)
-            ? exchangeTime(symbol.market, new Date(candle.time * 1000))
-            : candleDate(symbol.market, candle.time),
+          time: barTime(symbol.market, interval, candle.time),
           epoch: candle.time,
         }));
       },

@@ -2,13 +2,12 @@ import { expect, test, vi } from "vite-plus/test";
 
 import type { FlowsProvider } from "@solyx/core/flows";
 import { Market } from "@solyx/core/market";
+import { HOUR_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
 import { createFlows } from "../src/main/modules/flows/flows.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
-
-const HOUR_MS = 60 * 60 * 1000;
 
 function setup(answers = memoryAnswers()) {
   // 2026-10-07 10:00 in Taipei.

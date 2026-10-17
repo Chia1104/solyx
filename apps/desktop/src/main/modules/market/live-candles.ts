@@ -10,9 +10,10 @@ import {
   periodStart,
 } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
-import { exchangeDate, shiftDate, symbolKey } from "@solyx/core/market";
+import { exchangeDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { CandleRequest, MarketDataStream } from "@solyx/core/market-data";
+import { shiftDate } from "@solyx/utils/date";
 
 // A busy symbol pushes several times a second; windows hear about it at most four times.
 const FLUSH_MS = 250;

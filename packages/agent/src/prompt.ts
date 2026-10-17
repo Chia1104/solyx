@@ -7,9 +7,10 @@ import { Interval } from "@solyx/core/candles";
 import { changeText } from "@solyx/core/changes";
 import type { Change } from "@solyx/core/changes";
 import { DecisionMode } from "@solyx/core/council";
-import { Market, exchangeTime, wallTime } from "@solyx/core/market";
+import { Market, exchangeTime } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Session } from "@solyx/core/session";
+import { wallTime } from "@solyx/utils/date";
 
 import type { AgentSkill } from "./skills.ts";
 

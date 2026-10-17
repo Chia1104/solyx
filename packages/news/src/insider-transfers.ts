@@ -5,6 +5,7 @@ import * as z from "zod";
 import { Market, exchangeMidnight } from "@solyx/core/market";
 import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { NewsItem, NewsQuery, NewsSource } from "@solyx/core/news";
+import { twRocDaySchema } from "@solyx/core/rules/tw";
 
 // Each lists the transfers declared the day before, for listed and OTC companies.
 const TWSE_FEED = "https://openapi.twse.com.tw/v1/opendata/t187ap12_L";
@@ -13,15 +14,6 @@ const TPEX_FEED = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap12_O";
 
 // The exchanges pad some values with spaces.
 const textSchema = z.string().trim();
-
-// A day in the Republic of China calendar, written `1151008`.
-const rocDaySchema = textSchema
-  .regex(/^\d{7}$/)
-  .transform(
-    (day) =>
-      `${Number(day.slice(0, 3)) + 1911}-${day.slice(3, 5)}-${day.slice(5)}`
-  )
-  .pipe(z.iso.date());
 
 const sharesSchema = textSchema.regex(/^\d+$/).transform(Number);
 
@@ -42,7 +34,7 @@ const transferFields = {
 const twseRowSchema = z
   .object({
     公司代號: textSchema,
-    出表日期: rocDaySchema,
+    出表日期: twRocDaySchema,
     申報人身分: textSchema,
     ...transferFields,
   })
@@ -56,7 +48,7 @@ const twseRowSchema = z
 const tpexRowSchema = z
   .object({
     SecuritiesCompanyCode: textSchema,
-    Date: rocDaySchema,
+    Date: twRocDaySchema,
     申請人身分: textSchema,
     ...transferFields,
   })

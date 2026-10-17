@@ -7,6 +7,7 @@ import * as z from "zod";
 
 import { Market, exchangeDate } from "@solyx/core/market";
 import type { ThemeDesk, ThemeItem, ThemeWatch } from "@solyx/core/theme";
+import { MINUTE_MS, HOUR_MS } from "@solyx/utils/date";
 
 import { checkedFirst } from "./approval.ts";
 import type { ToolGuard } from "./approval.ts";
@@ -24,9 +25,7 @@ export interface ThemeToolsOptions {
 
 // A search reaches back past the one before it, so one made sooner finds the same items again
 // and spends the user's searches for nothing.
-const SEARCH_SPAN_MS = 60 * 60 * 1000;
-
-const MINUTE_MS = 60 * 1000;
+const SEARCH_SPAN_MS = HOUR_MS;
 
 // The items listed under a theme: enough to see where it stands without crowding the answer.
 const LISTED_ITEMS = 5;

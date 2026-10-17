@@ -6,14 +6,12 @@ import { EventTiming } from "@solyx/core/calendar";
 import { MacroIndicator } from "@solyx/core/macro";
 import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
 import { Market } from "@solyx/core/market";
+import { TW_ROC_YEAR_OFFSET } from "@solyx/core/rules/tw";
 
 const STAT_GOV_TW_URL = "https://www.stat.gov.tw/";
 
 /** The calendar page's own node, which every agency's calendar is asked for through. */
 const CALENDAR_NODE = "3717";
-
-/** The Republic of China calendar counts its years from 1912. */
-const ROC_YEAR_OFFSET = 1911;
 
 /** The releases followed, each by its agency's code and the id the portal gives the release. */
 const RELEASES: { agency: string; id: string; indicator: MacroIndicator }[] = [
@@ -99,7 +97,7 @@ function latestPeriod(notice: string): string | null {
   if (!last) return null;
 
   const [, rocYear, month, quarter] = last;
-  const year = Number(rocYear) + ROC_YEAR_OFFSET;
+  const year = Number(rocYear) + TW_ROC_YEAR_OFFSET;
 
   if (month !== undefined) return `${year}-${month}`;
 
@@ -122,7 +120,7 @@ function followedReleases(page: string): MacroRelease[] {
   const calendar = calendarSchema.parse(JSON.parse(json));
 
   const first = Temporal.PlainYearMonth.from({
-    year: calendar.year + ROC_YEAR_OFFSET,
+    year: calendar.year + TW_ROC_YEAR_OFFSET,
     month: calendar.month,
   });
 

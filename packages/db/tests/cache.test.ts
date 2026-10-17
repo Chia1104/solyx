@@ -8,7 +8,8 @@ import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { Interval } from "@solyx/core/candles";
-import { Market, shiftDate } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
+import { shiftDate, DAY_MS } from "@solyx/utils/date";
 
 import { candleSeries, candles, keptAnswers } from "../src/cache-schema.ts";
 import { openCache } from "../src/cache.ts";
@@ -271,8 +272,6 @@ describe("cache usage", () => {
 });
 
 describe("kept answers", () => {
-  const DAY_MS = 24 * 60 * 60 * 1000;
-
   test("an answer outlives the connection under its scope and key", () => {
     const cache = open();
     const askedAt = Date.now();

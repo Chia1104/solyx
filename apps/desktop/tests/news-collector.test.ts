@@ -5,14 +5,13 @@ import type { SymbolRef } from "@solyx/core/market";
 import { ScheduleKind } from "@solyx/core/schedule";
 import type { CollectionPlan } from "@solyx/core/schedule";
 import { weekdays } from "@solyx/core/session";
+import { HOUR_MS, DAY_MS } from "@solyx/utils/date";
 
 import { createNewsCollector } from "../src/main/modules/news/news-collector.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 
 const FOXCONN = { market: Market.TW, symbol: "2317" };
-
-const HOUR_MS = 60 * 60 * 1000;
 
 const taipei = (time: string) => Date.parse(`${time}+08:00`);
 
@@ -73,13 +72,11 @@ test("each listing held or watched is collected in turn once its span has passed
   });
 
   // The agent collected one of them a day later, which counts from then.
-  collected.set(symbolKey(TSMC), new Date(START + 24 * HOUR_MS));
+  collected.set(symbolKey(TSMC), new Date(START + DAY_MS));
   clock.now = START + 72 * HOUR_MS;
   await collector.work.run();
 
-  expect(collected.get(symbolKey(TSMC))).toEqual(
-    new Date(START + 24 * HOUR_MS)
-  );
+  expect(collected.get(symbolKey(TSMC))).toEqual(new Date(START + DAY_MS));
   expect(collected.get(symbolKey(FOXCONN))).toEqual(
     new Date(START + 72 * HOUR_MS)
   );

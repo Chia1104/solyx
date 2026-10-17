@@ -26,7 +26,7 @@ import type {
 import {
   Interval,
   alignedCloses,
-  candleDate,
+  barTime,
   intervalSchema,
   isIntraday,
 } from "@solyx/core/candles";
@@ -67,7 +67,6 @@ import {
   exchangeMidnight,
   exchangeTime,
   marketSchema,
-  shiftDate,
   symbolKey,
   symbolRefSchema,
 } from "@solyx/core/market";
@@ -98,6 +97,7 @@ import type {
 import { stanceValue } from "@solyx/core/sentiment";
 import { getSession, sessionsBetween, weekdays } from "@solyx/core/session";
 import type { MarketClosure, TradingDays } from "@solyx/core/session";
+import { shiftDate, wallTime, HOUR_MS, DAY_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 
 import { rememberAddresses } from "./found-addresses.ts";
@@ -201,10 +201,6 @@ const NEWS_ITEMS = 10;
 
 // Announcements run long; the scorer reads them whole.
 export const SNIPPET_LENGTH = 280;
-
-const HOUR_MS = 60 * 60 * 1000;
-
-const DAY_MS = 24 * HOUR_MS;
 
 /** How a story fades from the sentiment and the headlines, as the descriptions word it. */
 export const FADING = `a story weighing half as much every ${HALF_LIFE_MS[NewsVoice.Press] / HOUR_MS} hours for the press and every ${HALF_LIFE_MS[NewsVoice.Crowd] / HOUR_MS} for the crowd`;
@@ -353,7 +349,7 @@ export const publishedTime = (
 
   const time = market
     ? exchangeTime(market, published.at)
-    : `${published.at.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+    : `${wallTime("UTC", published.at)} UTC`;
 
   return PRECISE_TO[published.precision](time);
 };
@@ -576,17 +572,12 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     return candles;
   }
 
-  const barTime = (symbol: SymbolRef, interval: Interval, candle: Candle) =>
-    isIntraday(interval)
-      ? exchangeTime(symbol.market, new Date(candle.time * 1000))
-      : candleDate(symbol.market, candle.time);
-
   /** The session a market is in, closed all day on a day its exchange does not trade. */
   const sessionOf = async (market: Market) =>
     getSession(market, now(), (await readTradingDays(ports, market)).trades);
 
   const heading = async (symbol: SymbolRef, interval: Interval, last: Candle) =>
-    `${symbol.market} ${symbol.symbol}, ${interval} bars, as_of ${barTime(symbol, interval, last)} (session ${await sessionOf(symbol.market)}; the latest bar is still forming while its session is open)`;
+    `${symbol.market} ${symbol.symbol}, ${interval} bars, as_of ${barTime(symbol.market, interval, last.time)} (session ${await sessionOf(symbol.market)}; the latest bar is still forming while its session is open)`;
 
   return [
     defineTool({
@@ -625,7 +616,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         const rows = recent.map((candle) =>
           [
-            barTime(symbol, interval, candle),
+            barTime(symbol.market, interval, candle.time),
             candle.open,
             candle.high,
             candle.low,

@@ -1,3 +1,5 @@
+import * as z from "zod";
+
 /** Shares in one board lot. */
 export const TW_BOARD_LOT = 1000;
 
@@ -60,6 +62,21 @@ export function twRevenueDeadline(month: string): string {
     .toPlainDate({ day: 10 })
     .toString();
 }
+
+/** The Republic of China calendar counts its years from 1912. */
+export const TW_ROC_YEAR_OFFSET = 1911;
+
+/** A day as the exchanges write it in the Republic of China calendar, `1151012` or `115/10/12`, read as `YYYY-MM-DD`. */
+export const twRocDaySchema = z
+  .string()
+  .trim()
+  .regex(/^\d{2,3}\/?\d{2}\/?\d{2}$/)
+  .transform((day) => {
+    const digits = day.replaceAll("/", "");
+
+    return `${Number(digits.slice(0, -4)) + TW_ROC_YEAR_OFFSET}-${digits.slice(-4, -2)}-${digits.slice(-2)}`;
+  })
+  .pipe(z.iso.date());
 
 /** A date, `YYYY-MM-DD`, as Taiwan's filings write it, in the Republic of China calendar: `民國 115 年 10 月 16 日`. */
 export function twRocDate(date: string): string {

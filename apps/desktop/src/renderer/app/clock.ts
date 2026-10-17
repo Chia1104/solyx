@@ -4,6 +4,8 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { memoize } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
+import { MINUTE_MS } from "@solyx/utils/date";
+
 import { clock } from "#shared/clock.ts";
 import type { Clock } from "#shared/clock.ts";
 import { TimeZonePreference, resolveTimeZone } from "#shared/settings.ts";
@@ -13,10 +15,6 @@ import { appearanceQuery } from "../modules/settings/settings-query.ts";
 
 import { queryClient } from "./query-client.ts";
 
-/** The computer's time zone. */
-export const systemTimeZone = (): TimeZone =>
-  new Intl.DateTimeFormat().resolvedOptions().timeZone;
-
 const selectTimeZone = (appearance: Appearance) => appearance.timeZone;
 
 /** The time zone the app shows its own events in, for code outside React; components use `useClock`. */
@@ -24,11 +22,11 @@ export const currentTimeZone = (): TimeZone =>
   resolveTimeZone(
     queryClient.getQueryData(appearanceQuery().queryKey)?.timeZone ??
       TimeZonePreference.System,
-    systemTimeZone()
+    Temporal.Now.timeZoneId()
   );
 
 // The user's day is looked at this often, since a clock tells a time of today without its date.
-const DAY_CHECK_MS = 60 * 1000;
+const DAY_CHECK_MS = MINUTE_MS;
 
 const dayListeners = new Set<() => void>();
 
@@ -77,6 +75,6 @@ export function useClock(): Clock {
 
   return sharedClock([
     i18n.language,
-    resolveTimeZone(preference, systemTimeZone()),
+    resolveTimeZone(preference, Temporal.Now.timeZoneId()),
   ]);
 }

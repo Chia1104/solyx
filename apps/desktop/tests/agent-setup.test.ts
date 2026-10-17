@@ -12,6 +12,7 @@ import { ScheduleApproval, ScheduleKind } from "@solyx/core/schedule";
 import type { ScheduledTask } from "@solyx/core/schedule";
 import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FUGLE_PLANS, FuglePlan } from "@solyx/market-data/fugle";
+import { DAY_MINUTES } from "@solyx/utils/date";
 
 import {
   FubonFile,
@@ -346,12 +347,12 @@ test("a change goes through the writers the settings page uses", async () => {
   expect(saved.embeddings.enabled).toBe(true);
   expect(saved.collection.news).toMatchObject({
     enabled: true,
-    schedule: { kind: ScheduleKind.Interval, everyMinutes: 24 * 60 },
+    schedule: { kind: ScheduleKind.Interval, everyMinutes: DAY_MINUTES },
   });
   // Switching off keeps when it would run.
   expect(saved.collection.themes).toMatchObject({
     enabled: false,
-    schedule: { kind: ScheduleKind.Interval, everyMinutes: 24 * 60 },
+    schedule: { kind: ScheduleKind.Interval, everyMinutes: DAY_MINUTES },
   });
 });
 

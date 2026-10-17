@@ -9,18 +9,17 @@ import type { ClaimAuditor } from "@solyx/core/report";
 import { ResearchDesk } from "@solyx/core/research";
 import { Session } from "@solyx/core/session";
 import type { ResearchData } from "@solyx/db/research";
+import { DAY_MS, MINUTE_MS } from "@solyx/utils/date";
 
 import type { ScheduledWork } from "../../scheduler.ts";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 // The news a report's falsifiers are watched against: what a collection reaches back for.
 const WATCHED_MS = 7 * DAY_MS;
 
 // Often enough that a report's event reads as passed, and a forecast as settled, within a minute
 // of its exchange's day turning or its session closing.
-const CLOCK_CHECK_MS = 60 * 1000;
+const CLOCK_CHECK_MS = MINUTE_MS;
 
 /**
  * The agent's research as the main process shares it: the one `ResearchDesk` over the research

@@ -7,6 +7,8 @@ import { XMLParser } from "fast-xml-parser";
 import ky, { isHTTPError } from "ky";
 import * as z from "zod";
 
+import { HOUR_MS } from "@solyx/utils/date";
+
 import { awsEncode, sha256Hex, signRequest } from "./sigv4.ts";
 
 /** The region a server that has none signs with, AWS's first, which R2 and MinIO take for their own. */
@@ -18,7 +20,7 @@ export const awsEndpoint = (region: string) =>
 
 // An upload or a download of a whole backup, which a slow line may take long over; a line gone
 // quiet is given up on rather than waited for.
-const TRANSFER_TIMEOUT_MS = 60 * 60 * 1000;
+const TRANSFER_TIMEOUT_MS = HOUR_MS;
 
 const EMPTY_HASH = sha256Hex("");
 

@@ -4,6 +4,7 @@ import { isEqual } from "es-toolkit";
 import { isIntraday } from "@solyx/core/candles";
 import type { Interval } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
+import { MINUTE_MS } from "@solyx/utils/date";
 
 import type { CandleSet } from "#shared/market.ts";
 
@@ -45,5 +46,5 @@ export const candlesQuery = (
       previous && isEqual(previous.pages[0]?.symbol, symbol)
         ? previous
         : undefined,
-    refetchInterval: isIntraday(interval) && !live ? 60 * 1000 : false,
+    refetchInterval: isIntraday(interval) && !live ? MINUTE_MS : false,
   });

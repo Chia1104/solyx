@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { NewsChannel, NewsVoice } from "@solyx/core/news";
 import type { NewsData } from "@solyx/db/news";
+import { DAY_MS } from "@solyx/utils/date";
 
 import { createNewsRetention } from "../src/main/modules/news/news-retention.ts";
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
@@ -54,7 +55,7 @@ test("a pass drops the press's news after 90 days and the crowd's after 30 until
     [NewsChannel.Forum]: crowd,
     [NewsChannel.Social]: crowd,
   });
-  expect(work.everyMs).toBe(24 * 60 * 60 * 1000);
+  expect(work.everyMs).toBe(DAY_MS);
 });
 
 test("a changed retention prunes at once, and news kept forever is never pruned", () => {

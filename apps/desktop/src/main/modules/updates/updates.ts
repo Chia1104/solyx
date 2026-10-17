@@ -1,3 +1,4 @@
+import { HOUR_MS, MINUTE_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 
 import { UpdateStatus } from "#shared/updates.ts";
@@ -5,12 +6,10 @@ import type { UpdateState } from "#shared/updates.ts";
 
 const RELEASES_URL = "https://github.com/Chia1104/solyx/releases/tag";
 
-const HOUR_MS = 60 * 60 * 1000;
-
 const CHECK_EVERY_MS = 6 * HOUR_MS;
 
 // Short enough that switching checks on is followed by one soon after.
-const PASS_EVERY_MS = 30 * 60 * 1000;
+const PASS_EVERY_MS = 30 * MINUTE_MS;
 
 /** The update feed of the channel the app was built for. */
 export interface Updater {

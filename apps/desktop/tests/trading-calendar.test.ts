@@ -3,6 +3,7 @@ import { expect, test, vi } from "vite-plus/test";
 import { Market } from "@solyx/core/market";
 import { Session, weekdays } from "@solyx/core/session";
 import type { TradingCalendarProvider } from "@solyx/core/session";
+import { HOUR_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
 import {
@@ -10,8 +11,6 @@ import {
   createTradingCalendar,
   marketSessions,
 } from "../src/main/modules/market/trading-calendar.ts";
-
-const HOUR_MS = 60 * 60 * 1000;
 
 function setup() {
   // 2026-10-07 10:00 in Taipei.
