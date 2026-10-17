@@ -10,6 +10,7 @@ import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillFolders } from "@solyx/agent/skills";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 import { FINMIND_PLANS } from "@solyx/fundamentals/finmind";
+import { tildify } from "@solyx/utils/text";
 
 import { settingsContract } from "#shared/rpc/settings.contract.ts";
 import {
@@ -79,9 +80,6 @@ export interface SettingsContext {
   windowEvents: Pick<MemoryPublisher<WindowEvents>, "subscribe">;
   sender: WebContents;
 }
-
-/** A path as the settings page shows it, with the home folder as `~`. */
-const tildify = (home: string, path: string) => path.replace(home, "~");
 
 const settings = implement(settingsContract).$context<SettingsContext>();
 
@@ -306,12 +304,12 @@ export const settingsRouter = settings.router({
           switchable: source === SkillSource.Shared,
         })
       ),
-      warnings: catalog.warnings.map((warning) => tildify(home, warning)),
+      warnings: catalog.warnings.map((warning) => tildify(warning, home)),
       instructions: instructions ? { characters: instructions.length } : null,
       paths: {
-        skills: tildify(home, skillFolders.solyx),
-        shared: tildify(home, skillFolders.shared),
-        instructions: tildify(home, instructionsFile),
+        skills: tildify(skillFolders.solyx, home),
+        shared: tildify(skillFolders.shared, home),
+        instructions: tildify(instructionsFile, home),
       },
       shell: config.read().agent.shell,
     };
@@ -391,12 +389,12 @@ export const settingsRouter = settings.router({
     const policies = mcp.policies();
 
     return {
-      path: tildify(home, mcp.file),
+      path: tildify(mcp.file, home),
       error,
       servers: servers.map((server) => ({
         name: server.name,
         kind: server.kind,
-        target: tildify(home, server.target),
+        target: tildify(server.target, home),
         state: server.state,
         error: server.error,
         tools: server.tools.map((tool) => ({
@@ -449,7 +447,7 @@ export const settingsRouter = settings.router({
   about: settings.about.handler(({ context }) => ({
     ...context.settingsShell.about(),
     locations: mapValues(context.locations, (path) =>
-      tildify(context.home, path)
+      tildify(path, context.home)
     ),
   })),
   reveal: settings.reveal.handler(async ({ context, input }) => {

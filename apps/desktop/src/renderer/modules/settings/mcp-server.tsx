@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
 import type { McpToolPolicy } from "@solyx/agent/mcp-config";
+import { matchesFilter } from "@solyx/utils/search";
 
 import { SettingsSection } from "#shared/settings-section.ts";
 import { SecretState } from "#shared/settings.ts";
@@ -16,7 +17,7 @@ import type { McpServerSetting, McpToolSetting } from "#shared/settings.ts";
 
 import { currentLocale } from "../../app/i18n.ts";
 import { client, orpc } from "../../app/rpc.ts";
-import { FilterField, matchesFilter } from "../../components/filter-field.tsx";
+import { FilterField } from "../../components/filter-field.tsx";
 import { Section } from "../../components/section.tsx";
 
 import { PolicyTally, PolicyToggle } from "./mcp-policy.tsx";

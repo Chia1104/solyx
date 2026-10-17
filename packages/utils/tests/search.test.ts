@@ -1,6 +1,11 @@
 import { expect, test } from "vite-plus/test";
 
-import { createSearchIndex, fuseRankings, searchTerms } from "../src/search.ts";
+import {
+  createSearchIndex,
+  fuseRankings,
+  matchesFilter,
+  searchTerms,
+} from "../src/search.ts";
 
 const search = (texts: string[], query: string) =>
   createSearchIndex(texts, (text) => [text])(query);
@@ -80,4 +85,10 @@ test("fused rankings lift what several rank high, and keep the first ranking's o
   ).toEqual(["c", "a", "b", "d"]);
   expect(fuseRankings([["a", "b"], []], id)).toEqual(["a", "b"]);
   expect(fuseRankings([["x"], ["y"]], id)).toEqual(["x", "y"]);
+});
+
+test("a filter matches any of the texts, ignoring case and the spaces around it", () => {
+  expect(matchesFilter(" open", "GPT-5", "OpenAI")).toBe(true);
+  expect(matchesFilter("anthropic", "GPT-5", undefined)).toBe(false);
+  expect(matchesFilter("  ", "anything")).toBe(true);
 });

@@ -25,6 +25,7 @@ import type {
   NewsRecord,
   NewsStore,
 } from "@solyx/core/news";
+import { normalizeSpace } from "@solyx/utils/text";
 
 import { connect } from "./connection.ts";
 import { databaseBytes } from "./database-file.ts";
@@ -61,8 +62,6 @@ function toItem(item: ItemRow): NewsItem {
 }
 
 /** Text as a reader sees it, whatever its spacing. */
-const spaced = (text: string) => text.replace(/\s+/g, " ").trim();
-
 /** What `news_terms` holds of an item: the words of its title and snippet. */
 function itemTerms(item: Pick<NewsItem, "title" | "snippet">) {
   return indexedTerms([item.title, item.snippet]);
@@ -191,7 +190,8 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
 
           // A snippet respaced says nothing new, so the one stored stays and so does its reading.
           const snippet =
-            known && spaced(known.snippet) === spaced(item.snippet)
+            known &&
+            normalizeSpace(known.snippet) === normalizeSpace(item.snippet)
               ? known.snippet
               : item.snippet;
 

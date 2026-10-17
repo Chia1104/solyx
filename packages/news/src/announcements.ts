@@ -6,6 +6,7 @@ import { Market, exchangeMidnight } from "@solyx/core/market";
 import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { NewsQuery, NewsSource } from "@solyx/core/news";
 import { twRocDaySchema } from "@solyx/core/rules/tw";
+import { normalizeSpace } from "@solyx/utils/text";
 
 // Each lists the previous day's material information, for listed and OTC companies.
 const TWSE_FEED = "https://openapi.twse.com.tw/v1/opendata/t187ap04_L";
@@ -102,7 +103,7 @@ export function createAnnouncements(
                   // An announcement has no address; its company, time and subject tell it apart.
                   id: `${row.code}:${row.發言日期}:${row.發言時間}:${row.主旨}`,
                   url: null,
-                  title: row.主旨.replace(/\s+/g, " ").trim(),
+                  title: normalizeSpace(row.主旨),
                   snippet: row.說明.replace(/\r\n/g, "\n").trim(),
                   site: "mops.twse.com.tw",
                   published: { at, precision: TimePrecision.Minute },

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Button } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { uniq } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import { Interval } from "@solyx/core/candles";
@@ -91,7 +92,7 @@ function ReportRow({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const falsifiers = [...new Set(signals.map(({ falsifier }) => falsifier))];
+  const falsifiers = uniq(signals.map(({ falsifier }) => falsifier));
 
   return (
     <InboxRow

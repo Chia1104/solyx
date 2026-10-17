@@ -1,10 +1,7 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
-
 import { Mutex, omit, zipObject } from "es-toolkit";
 import * as z from "zod";
 
-import { isErrnoError } from "@solyx/utils/error";
+import { readJson, writeFileAtomic } from "@solyx/utils/server";
 
 import { Secret, SecretState } from "#shared/settings.ts";
 import type { SecretKey } from "#shared/settings.ts";
@@ -28,15 +25,6 @@ const secretFileSchema = z.record(z.string(), z.base64());
 
 type SecretFile = z.infer<typeof secretFileSchema>;
 
-function parseSecretFile(text: string): SecretFile {
-  try {
-    return secretFileSchema.parse(JSON.parse(text));
-  } catch {
-    // Nothing in a file that no longer parses can be decrypted, so the next save replaces it.
-    return {};
-  }
-}
-
 /** Saved secrets as one file of ciphertext; values are decrypted only in the main process, on demand. */
 export function createSecretStore(file: string, cipher: SecretCipher) {
   // A save reads, changes and rewrites the file, so saves run one at a time.
@@ -47,28 +35,17 @@ export function createSecretStore(file: string, cipher: SecretCipher) {
     for (const listener of listeners) listener(secret);
   }
 
-  async function read(): Promise<SecretFile> {
-    try {
-      return parseSecretFile(await readFile(file, "utf8"));
-    } catch (error) {
-      if (isErrnoError(error, "ENOENT")) return {};
-
-      throw error;
-    }
-  }
+  // Nothing in a file that no longer parses can be decrypted, so the next save replaces it.
+  const read = async (): Promise<SecretFile> =>
+    (await readJson(file, secretFileSchema)) ?? {};
 
   async function update(change: (entries: SecretFile) => SecretFile) {
     await mutex.acquire();
 
     try {
-      const temporary = `${file}.tmp`;
-
-      await mkdir(dirname(file), { recursive: true });
-      // Written aside and renamed into place, so a crash mid-write keeps the previous file.
-      await writeFile(temporary, JSON.stringify(change(await read())), {
+      await writeFileAtomic(file, JSON.stringify(change(await read())), {
         mode: 0o600,
       });
-      await rename(temporary, file);
     } finally {
       mutex.release();
     }

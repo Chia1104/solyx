@@ -1,4 +1,5 @@
 import type { BrokerMode } from "@solyx/core/broker";
+import { truncate } from "@solyx/utils/text";
 
 import { clock } from "#shared/clock.ts";
 import type { Approval } from "#shared/inbox.ts";
@@ -78,11 +79,8 @@ export interface TrayOptions {
 /** How many tasks yet to run the menu lists, soonest first. */
 const UPCOMING_TASKS = 3;
 
-/** A conversation's title or a task's name in the menu, which has no room for a long one. */
-const NAME_LENGTH = 40;
-
-const short = (name: string) =>
-  name.length > NAME_LENGTH ? `${name.slice(0, NAME_LENGTH - 1)}…` : name;
+/** The most of a conversation's title or a task's name the menu shows, which has no room for a long one. */
+const NAME_LENGTH = 39;
 
 /**
  * The app's icon in the menu bar or the system tray, where the app stays open once its last
@@ -136,7 +134,7 @@ export function createTray({
             : []),
           ...approvals.map(({ sessionId, title }) => ({
             label: fill(copy.approval, {
-              title: short(title || catalog.agent.untitled),
+              title: truncate(title || catalog.agent.untitled, NAME_LENGTH),
             }),
             select: () =>
               open({ kind: DestinationKind.Conversation, sessionId }),
@@ -165,7 +163,9 @@ export function createTray({
         groups.push([
           { label: copy.tasks },
           ...running.map(({ name, sessionId }) => ({
-            label: fill(copy["task-running"], { name: short(name) }),
+            label: fill(copy["task-running"], {
+              name: truncate(name, NAME_LENGTH),
+            }),
             select: () =>
               open(
                 sessionId === null
@@ -178,7 +178,7 @@ export function createTray({
           })),
           ...upcoming.map(({ name, nextRunAt }) => ({
             label: fill(copy["task-next"], {
-              name: short(name),
+              name: truncate(name, NAME_LENGTH),
               time: time(nextRunAt),
             }),
             select: () =>

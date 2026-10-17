@@ -1,3 +1,4 @@
+import { zipObject } from "es-toolkit";
 import ky, { isHTTPError } from "ky";
 import type { KyInstance } from "ky";
 import * as z from "zod";
@@ -103,9 +104,7 @@ async function rows<Row>(
 
     if (fields.length !== names.length) return [];
 
-    const parsed = schema.safeParse(
-      Object.fromEntries(names.map((name, index) => [name, fields[index]]))
-    );
+    const parsed = schema.safeParse(zipObject(names, fields));
 
     return parsed.success ? [parsed.data] : [];
   });

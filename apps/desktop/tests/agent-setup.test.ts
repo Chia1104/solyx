@@ -253,7 +253,7 @@ test("storage reads as what each store holds, on the tab where the user clears i
         description: "a cache, which charts fill again once it is cleared",
       },
       { name: "conversations", value: "3.1 MB, 1 conversation" },
-      { name: "memories", value: "98.0 kB, 8 memories" },
+      { name: "memories", value: "98 kB, 8 memories" },
       {
         name: "news",
         value:

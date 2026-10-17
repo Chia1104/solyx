@@ -10,6 +10,7 @@ import type {
   WebSearchQuery,
 } from "@solyx/core/web-search";
 import { shiftDate } from "@solyx/utils/date";
+import { normalizeSpace } from "@solyx/utils/text";
 
 import { calendarDate, onDay, site, vendorHttp, within } from "./vendor.ts";
 
@@ -124,7 +125,7 @@ export function createExa(options: ExaOptions): WebSearch & WebReader {
           {
             url,
             title,
-            snippet: body.replace(/\s+/g, " ").trim(),
+            snippet: normalizeSpace(body),
             site: site(url),
             published: published(publishedDate, market),
           },

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { Checkbox, CheckboxGroup, FieldError, Label } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
-import { uniqBy } from "es-toolkit";
+import { uniqBy, uniq } from "es-toolkit";
 import type { TFunction } from "i18next";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -78,7 +78,7 @@ export function ChangeScopeFields({
     themes.data?.map(({ theme }) => [theme.id, theme.title]) ?? []
   );
 
-  const themeIds = [...new Set([...kept.themes, ...titles.keys()])];
+  const themeIds = uniq([...kept.themes, ...titles.keys()]);
 
   return (
     <div className="flex flex-col gap-3">

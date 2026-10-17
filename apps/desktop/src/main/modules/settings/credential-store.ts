@@ -1,9 +1,10 @@
-import type { ApiKeyCredential, OAuthCredential } from "@earendil-works/pi-ai";
+import type { ApiKeyCredential } from "@earendil-works/pi-ai";
 import { Mutex } from "es-toolkit";
 import * as z from "zod";
 
 import type { ProviderCredentials } from "@solyx/agent/models";
 import type { AgentProvider } from "@solyx/agent/providers";
+import { parseJson } from "@solyx/utils/json";
 
 import {
   SecretState,
@@ -20,14 +21,6 @@ const oauthCredentialSchema = z.looseObject({
   refresh: z.string(),
   expires: z.number(),
 });
-
-function parseSignIn(text: string): OAuthCredential | undefined {
-  try {
-    return oauthCredentialSchema.safeParse(JSON.parse(text)).data;
-  } catch {
-    return undefined;
-  }
-}
 
 export interface AgentCredentials extends ProviderCredentials {
   /** Whether the provider's subscription sign-in is saved, whatever it runs on now. */
@@ -50,7 +43,9 @@ export function createCredentialStore(
   async function readSignIn(providerId: string) {
     const text = await secrets.get(agentSignInSecret(providerId));
 
-    return text === undefined ? undefined : parseSignIn(text);
+    return text === undefined
+      ? undefined
+      : parseJson(text, oauthCredentialSchema);
   }
 
   async function readKey(

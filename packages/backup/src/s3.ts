@@ -3,6 +3,7 @@ import { createReadStream, createWriteStream, openAsBlob } from "node:fs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
+import { trimEnd } from "es-toolkit";
 import { XMLParser } from "fast-xml-parser";
 import ky, { isHTTPError } from "ky";
 import * as z from "zod";
@@ -102,7 +103,7 @@ export interface BucketObject {
 export function createBucket(options: BucketOptions) {
   const { bucket, now = () => new Date() } = options;
   const endpoint = new URL(options.endpoint);
-  const root = `${endpoint.origin}${endpoint.pathname.replace(/\/+$/, "")}/${awsEncode(bucket)}`;
+  const root = `${endpoint.origin}${trimEnd(endpoint.pathname, "/")}/${awsEncode(bucket)}`;
 
   const signingKey = {
     accessKeyId: options.accessKeyId,

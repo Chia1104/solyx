@@ -22,11 +22,12 @@ import {
   holdsSecret,
 } from "@solyx/core/memory";
 import type { Memory, MemoryChange } from "@solyx/core/memory";
+import { matchesFilter } from "@solyx/utils/search";
 
 import { useClock } from "../../app/clock.ts";
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { FilterField, matchesFilter } from "../../components/filter-field.tsx";
+import { FilterField } from "../../components/filter-field.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";

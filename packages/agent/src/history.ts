@@ -9,6 +9,7 @@ import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
 import { reportPassages } from "@solyx/core/report";
 import type { ReportMatch, ResearchDesk } from "@solyx/core/research";
 import { createSearchIndex } from "@solyx/utils/search";
+import { normalizeSpace, truncate } from "@solyx/utils/text";
 
 import { rememberAddresses } from "./found-addresses.ts";
 import { forecastText } from "./research.ts";
@@ -48,11 +49,8 @@ const PASSAGE_LENGTH = 300;
 
 const RATIONALE_LENGTH = 600;
 
-const clip = (text: string, length: number) => {
-  const flat = text.replace(/\s+/g, " ").trim();
-
-  return flat.length > length ? `${flat.slice(0, length)}…` : flat;
-};
+const clip = (text: string, length: number) =>
+  truncate(normalizeSpace(text), length);
 
 function reportText({ report, newest }: ReportMatch, query: string): string {
   const { market, symbol } = report.symbol;

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { isPlainObject } from "es-toolkit";
@@ -48,8 +48,12 @@ import {
 import { FinMindPlan, finMindPlanSchema } from "@solyx/fundamentals/finmind";
 import { FuglePlan, fuglePlanSchema } from "@solyx/market-data/fugle";
 import { HOUR_MINUTES } from "@solyx/utils/date";
-import { isErrnoError } from "@solyx/utils/error";
-import { watchFile } from "@solyx/utils/server";
+import { parseJson } from "@solyx/utils/json";
+import {
+  readTextIfExistsSync,
+  watchFile,
+  writeFileAtomicSync,
+} from "@solyx/utils/server";
 import {
   WebSearchProvider,
   webSearchProviderSchema,
@@ -629,24 +633,8 @@ const TEMPLATE = serialize({
   },
 });
 
-function readText(file: string): string | undefined {
-  try {
-    return readFileSync(file, "utf8");
-  } catch (error) {
-    if (isErrnoError(error, "ENOENT")) return undefined;
-
-    throw error;
-  }
-}
-
 /** The file's entries, or `undefined` while it has syntax errors; a file that is not an object holds none. */
-function parseSaved(text: string): Saved | undefined {
-  try {
-    return savedSchema.catch({}).parse(JSON.parse(text));
-  } catch {
-    return undefined;
-  }
-}
+const parseSaved = (text: string) => parseJson(text, savedSchema.catch({}));
 
 /**
  * Writes `value` at `path` in `saved`, or removes the entry for `undefined`. An entry where an
@@ -695,18 +683,12 @@ export function createConfigFile(file: string) {
     for (const listener of listeners) listener();
   }
 
-  function write(path: string, text: string) {
-    const temporary = `${path}.tmp`;
-
-    mkdirSync(dirname(path), { recursive: true });
-    // Written aside and renamed into place, so a crash mid-write keeps the previous file.
-    writeFileSync(temporary, text, { mode: 0o600 });
-    renameSync(temporary, path);
-  }
+  const write = (path: string, text: string) =>
+    writeFileAtomicSync(path, text, { mode: 0o600 });
 
   /** Saves every entry in one write, so the file never holds only some of them. */
   function update(entries: readonly ConfigEntry[]) {
-    const saved = parseSaved(readText(file) ?? TEMPLATE);
+    const saved = parseSaved(readTextIfExistsSync(file) ?? TEMPLATE);
 
     if (saved === undefined) {
       throw new Error(`Fix the syntax errors in ${file} before saving`);
@@ -728,9 +710,10 @@ export function createConfigFile(file: string) {
      * something to edit.
      */
     create() {
-      if (readText(schemaFile) !== JSON_SCHEMA) write(schemaFile, JSON_SCHEMA);
+      if (readTextIfExistsSync(schemaFile) !== JSON_SCHEMA)
+        write(schemaFile, JSON_SCHEMA);
 
-      if (readText(file) !== undefined) return;
+      if (readTextIfExistsSync(file) !== undefined) return;
 
       write(file, TEMPLATE);
       announced = TEMPLATE;
@@ -738,7 +721,7 @@ export function createConfigFile(file: string) {
 
     /** The saved settings, with the default for every entry that is missing or no longer parses. */
     read(): Config {
-      const text = readText(file);
+      const text = readTextIfExistsSync(file);
 
       return configSchema.parse(
         text === undefined ? undefined : parseSaved(text)
@@ -766,10 +749,10 @@ export function createConfigFile(file: string) {
     /** Reports edits made outside the app to `onChange` shortly after they land, until the returned function stops. */
     watch(): () => void {
       mkdirSync(dirname(file), { recursive: true });
-      announced ??= readText(file);
+      announced ??= readTextIfExistsSync(file);
 
       return watchFile(file, () => {
-        const text = readText(file);
+        const text = readTextIfExistsSync(file);
 
         if (text !== announced) announce(text);
       });
