@@ -20,6 +20,7 @@ import { openNews } from "@solyx/db/news";
 import { openResearch } from "@solyx/db/research";
 import { openUserData } from "@solyx/db/user";
 import { createFinMind } from "@solyx/fundamentals/finmind";
+import { createSitca } from "@solyx/fundamentals/sitca";
 import { createTwExchanges } from "@solyx/fundamentals/tw-exchanges";
 import { createDgbas } from "@solyx/macro/dgbas";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
@@ -245,6 +246,7 @@ export function createServices(config: ConfigFile) {
   const fundamentals = createFundamentals({
     providers: [finMind],
     exchanges: [twExchanges],
+    fundReports: [createSitca()],
     answers: cache.answers,
   });
 

@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./finmind": "./src/finmind.ts",
+    "./sitca": "./src/sitca.ts",
     "./tw-exchanges": "./src/tw-exchanges.ts"
   },
   "scripts": {

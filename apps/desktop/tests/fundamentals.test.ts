@@ -3,6 +3,7 @@ import { expect, test, vi } from "vite-plus/test";
 import { RestrictionKind } from "@solyx/core/fundamentals";
 import type {
   ExchangeListsProvider,
+  FundReportsProvider,
   FundamentalsProvider,
 } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
@@ -31,6 +32,19 @@ const INDEX_FUND = {
   listedOn: "2003-06-30",
   units: 22_239_000_000,
   asOf: "2026-10-06",
+};
+
+const NET_ASSET_VALUE = { date: "2026-10-06", value: 108.62 };
+
+const FUND_COSTS = {
+  month: "2026-09",
+  management: 0.00564,
+  custody: 0.00222,
+  guarantee: 0,
+  commission: 0.00055,
+  tax: 0.00144,
+  other: 0.00396,
+  total: 0.01382,
 };
 
 const DISPOSITION = {
@@ -114,14 +128,26 @@ function setup(answers = memoryAnswers()) {
     ]),
   };
 
+  const reports = {
+    id: "fake-reports",
+    markets: [Market.TW],
+    getNetAssetValues: vi.fn<FundReportsProvider["getNetAssetValues"]>(
+      async () => [{ symbol: "0050", ...NET_ASSET_VALUE }]
+    ),
+    getCosts: vi.fn<FundReportsProvider["getCosts"]>(async () => [
+      { symbol: "0050", ...FUND_COSTS },
+    ]),
+  };
+
   const fundamentals = createFundamentals({
     providers: [provider],
     exchanges: [lists],
+    fundReports: [reports],
     answers,
     now: () => new Date(clock.now),
   });
 
-  return { clock, provider, lists, fundamentals };
+  return { clock, provider, lists, reports, fundamentals };
 }
 
 test("asks the market's provider for five years of quarters and dividends, and three of balance sheets, cash flows and months", async () => {
@@ -247,6 +273,47 @@ test("a market no source lists the funds of has none", async () => {
     await fundamentals.fund({ market: Market.US, symbol: "SPY" })
   ).toBeNull();
   expect(lists.getFunds).not.toHaveBeenCalled();
+});
+
+test("a fund's net asset value is its own among its market's, read for every fund at once and once an hour at most, and a stock has none", async () => {
+  const { clock, reports, fundamentals } = setup();
+
+  expect(await fundamentals.netAssetValue(TAIWAN_50)).toEqual(NET_ASSET_VALUE);
+  expect(await fundamentals.netAssetValue(TSMC)).toBeNull();
+  expect(reports.getNetAssetValues).toHaveBeenCalledExactlyOnceWith(Market.TW);
+
+  clock.now += HOUR_MS;
+  await fundamentals.netAssetValue(TAIWAN_50);
+
+  expect(reports.getNetAssetValues).toHaveBeenCalledTimes(2);
+});
+
+test("a fund's costs are its own among its market's, read for every fund at once and twice a day at most, and a stock has none", async () => {
+  const { clock, reports, fundamentals } = setup();
+
+  expect(await fundamentals.fundCosts(TAIWAN_50)).toEqual(FUND_COSTS);
+  expect(await fundamentals.fundCosts(TSMC)).toBeNull();
+  expect(reports.getCosts).toHaveBeenCalledExactlyOnceWith(Market.TW);
+
+  clock.now += HOUR_MS;
+  await fundamentals.fundCosts(TAIWAN_50);
+
+  expect(reports.getCosts).toHaveBeenCalledOnce();
+
+  clock.now += 12 * HOUR_MS;
+  await fundamentals.fundCosts(TAIWAN_50);
+
+  expect(reports.getCosts).toHaveBeenCalledTimes(2);
+});
+
+test("a market no source of what funds report covers has no net asset values or costs", async () => {
+  const { reports, fundamentals } = setup();
+  const spy = { market: Market.US, symbol: "SPY" };
+
+  expect(await fundamentals.netAssetValue(spy)).toBeNull();
+  expect(await fundamentals.fundCosts(spy)).toBeNull();
+  expect(reports.getNetAssetValues).not.toHaveBeenCalled();
+  expect(reports.getCosts).not.toHaveBeenCalled();
 });
 
 test("a listing's multiples are its own among those its market's exchanges work out, read once an hour at most, and a fund has none", async () => {

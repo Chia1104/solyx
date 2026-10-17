@@ -25,6 +25,7 @@ import type {
 import {
   balanceSheetMetrics,
   cashFlowMetrics,
+  premium,
   priceToEarnings,
   revenueTrend,
   statementMetrics,
@@ -33,9 +34,11 @@ import {
 import type {
   Dividend,
   ExchangeMultiples,
+  FundCosts,
   FundProfile,
   Fundamentals,
   MultipleStanding,
+  NetAssetValue,
   PeerStanding,
 } from "@solyx/core/fundamentals";
 import {
@@ -573,6 +576,58 @@ function fundText(fund: FundProfile): string[] {
   ];
 }
 
+/** A fund's net asset value, and where its close of the same session stood against it. */
+async function netAssetValueText(
+  symbol: SymbolRef,
+  nav: NetAssetValue,
+  { marketData }: ResearchOptions
+): Promise<string> {
+  const value = `Net asset value as its issuer struck it for ${nav.date}: ${nav.value} ${currencyOf(symbol.market)} a unit.`;
+  const unpriced = `${value} No close of that session to set it against.`;
+  let daily;
+
+  try {
+    daily = await marketData.candles(symbol, Interval.OneDay);
+  } catch {
+    // The value still reads while bars are out of reach.
+    return unpriced;
+  }
+
+  const bar = daily.find(
+    ({ time }) => candleDate(symbol.market, time) === nav.date
+  );
+
+  if (!bar) return unpriced;
+
+  const gap = premium(bar.close, nav);
+
+  return `${value} Its close that session, ${bar.close}, stood at a ${gap < 0 ? "discount" : "premium"} of ${(Math.abs(gap) * 100).toFixed(2)}% to it.`;
+}
+
+/** What a fund paid out of its assets over a month, and at that month's pace over a year. */
+function fundCostsText(costs: FundCosts): string[] {
+  const parts = [
+    costs.management,
+    costs.custody,
+    costs.guarantee,
+    costs.commission,
+    costs.tax,
+    costs.other,
+    costs.total,
+  ];
+
+  return [
+    "What it paid out of its assets, in percent of its net assets:",
+    "period,management,custody,guarantee,commission,tax,other,total",
+    [costs.month, ...parts.map((part) => Number(part.toFixed(5)))].join(","),
+    [
+      "a year at that pace",
+      ...parts.map((part) => Number((part * 12).toFixed(3))),
+    ].join(","),
+    "  Commission and tax are paid on the fund's own trades, so they run high in a month it rebalances.",
+  ];
+}
+
 /** A listing's multiples as its exchange works them out, which are not the app's own beside its statements. */
 function multiplesText(multiples: ExchangeMultiples): string {
   const dividendYield =
@@ -607,7 +662,7 @@ function peersText(peers: PeerStanding): string {
 
 /** Why a listing has neither statements nor revenue on file with `source`. */
 function nothingFiledText(
-  fund: FundProfile | undefined,
+  fund: boolean,
   distributes: boolean,
   source: string
 ): string {
@@ -752,7 +807,7 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetFundamentals,
         replay: "safe",
-        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; its balance sheets at those quarters' ends, with the current ratio and liabilities against assets; its cash flows for each quarter alone, with free cash flow and the four quarters each closes; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. Beside the app's own price-to-earnings multiple, the answer gives the multiples the listing's exchange works out from its last close, price to earnings, dividend yield and price to book, each "n/a" where the exchange works none out, as it does no price to earnings for a company whose earnings add up to a loss; a fund has none. Under them it says where each stands in the listing's industry, as the exchanges class it: against the median of the industry's other listings and the share of them it is above, counting only those with that multiple. For a fund the Taiwan Stock Exchange lists, the answer opens with what it is: its kind in the exchange's words, such as a leveraged, inverse, futures or actively managed fund, the index it tracks or what it measures itself against, whether it may hold securities listed abroad, the day it listed, its manager and its units outstanding. The Taipei Exchange publishes no such list, so a fund listed there, as bond ETFs are, opens with none. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
+        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; its balance sheets at those quarters' ends, with the current ratio and liabilities against assets; its cash flows for each quarter alone, with free cash flow and the four quarters each closes; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. Beside the app's own price-to-earnings multiple, the answer gives the multiples the listing's exchange works out from its last close, price to earnings, dividend yield and price to book, each "n/a" where the exchange works none out, as it does no price to earnings for a company whose earnings add up to a loss; a fund has none. Under them it says where each stands in the listing's industry, as the exchanges class it: against the median of the industry's other listings and the share of them it is above, counting only those with that multiple. For a fund the Taiwan Stock Exchange lists, the answer opens with what it is: its kind in the exchange's words, such as a leveraged, inverse, futures or actively managed fund, the index it tracks or what it measures itself against, whether it may hold securities listed abroad, the day it listed, its manager and its units outstanding. The Taipei Exchange publishes no such list, so a fund listed there, as bond ETFs are, opens with none. For a fund listed on either exchange, it then gives the newest net asset value its issuer struck, with the close of that session as a premium or a discount to it, and what the fund paid out of its assets over the newest month its issuer reported: management, custody, a guarantee, commission and tax on its own trades and the rest, each in percent of its net assets, and that month's pace over a year. A futures fund, or one listed abroad and offered here, has neither. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
           const listing = `${symbol.market} ${symbol.symbol}`;
@@ -772,6 +827,8 @@ export function createResearch(options: ResearchOptions): Extension {
             monthly,
             dividends,
             funds,
+            navs,
+            costs,
             multiples,
             peers,
           ] = await Promise.all([
@@ -784,6 +841,16 @@ export function createResearch(options: ResearchOptions): Extension {
               fundamentals
                 .fund(symbol)
                 .then((fund) => (fund === null ? [] : [fund]))
+            ),
+            filed(
+              fundamentals
+                .netAssetValue(symbol)
+                .then((nav) => (nav === null ? [] : [nav]))
+            ),
+            filed(
+              fundamentals
+                .fundCosts(symbol)
+                .then((paid) => (paid === null ? [] : [paid]))
             ),
             filed(
               fundamentals
@@ -835,6 +902,18 @@ export function createResearch(options: ResearchOptions): Extension {
                 ? funds.rows.flatMap(fundText)
                 : [
                     `Whether its exchange lists it as a fund could not be read: ${funds.failure}`,
+                  ]),
+              ...(navs.failure === null
+                ? await Promise.all(
+                    navs.rows.map((nav) =>
+                      netAssetValueText(symbol, nav, options)
+                    )
+                  )
+                : [`Its net asset value could not be read: ${navs.failure}`]),
+              ...(costs.failure === null
+                ? costs.rows.flatMap(fundCostsText)
+                : [
+                    `What it paid out of its assets could not be read: ${costs.failure}`,
                   ]),
               ...(multiples.failure === null
                 ? multiples.rows.map(multiplesText)
@@ -926,7 +1005,7 @@ export function createResearch(options: ResearchOptions): Extension {
               ...(nothingFiled
                 ? [
                     nothingFiledText(
-                      funds.rows.at(0),
+                      [funds, navs, costs].some(({ rows }) => rows.length > 0),
                       dividends.rows.length > 0,
                       source
                     ),

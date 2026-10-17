@@ -144,6 +144,31 @@ export interface FundProfile {
   asOf: string;
 }
 
+/** What a unit of a fund was worth as a session closed, as its issuer struck it. */
+export interface NetAssetValue {
+  /** The session it was struck for, `YYYY-MM-DD` on the exchange's calendar. */
+  date: string;
+  /** In the market's currency. */
+  value: number;
+}
+
+/** What a fund paid out of its assets over a month, each in percent of its net assets over that month. */
+export interface FundCosts {
+  /** `YYYY-MM`. */
+  month: string;
+  management: number;
+  custody: number;
+  /** What a guaranteed fund pays for its guarantee. */
+  guarantee: number;
+  /** Paid to brokers for the fund's own trades. */
+  commission: number;
+  /** Paid on the fund's own trades. */
+  tax: number;
+  other: number;
+  /** As the source adds them up. */
+  total: number;
+}
+
 /** Where a listing's price stands against its earnings, dividends and book value, as its exchange works them out from a session's close. */
 export interface ExchangeMultiples {
   /** The session whose close they are of, `YYYY-MM-DD` on the exchange's calendar. */
@@ -237,6 +262,20 @@ export interface ExchangeListsProvider {
   getIndustries(market: Market): Promise<Listed<Industry>[]>;
 }
 
+/**
+ * One implementation per source of what listed funds report of themselves
+ * (`@solyx/fundamentals/*`); it runs only in the main process. Each list is a market's whole as
+ * the source holds it now, and empty for a market the source does not cover.
+ */
+export interface FundReportsProvider {
+  readonly id: string;
+  readonly markets: readonly Market[];
+  /** The newest net asset value of every listed fund the source has one for. */
+  getNetAssetValues(market: Market): Promise<Listed<NetAssetValue>[]>;
+  /** What every listed fund the source has them for paid over the newest month it has. */
+  getCosts(market: Market): Promise<Listed<FundCosts>[]>;
+}
+
 /** A listing's fundamentals from whichever provider covers its market, oldest first; none while no provider does. */
 export interface Fundamentals {
   /** The id of the provider that covers a market; `undefined` while none does, which is why its listings have nothing to read. */
@@ -253,6 +292,10 @@ export interface Fundamentals {
   restrictions(symbol: SymbolRef): Promise<TradingRestriction[]>;
   /** What the listing is as a fund; `null` for one no source lists as a fund, which a stock is and a fund its exchange publishes no list of may be. */
   fund(symbol: SymbolRef): Promise<FundProfile | null>;
+  /** Its newest net asset value; `null` for a listing no source has one for, which a stock is. */
+  netAssetValue(symbol: SymbolRef): Promise<NetAssetValue | null>;
+  /** What it paid out of its assets over the newest month a source has; `null` for a listing no source has them for, which a stock is. */
+  fundCosts(symbol: SymbolRef): Promise<FundCosts | null>;
   /** Its multiples from the last close its exchange has worked them out for; `null` for a listing no source lists any for, which a fund is. */
   multiples(symbol: SymbolRef): Promise<ExchangeMultiples | null>;
   /** The notices its exchange holds of its shares going ex; none while no source lists its market's. */
@@ -299,6 +342,11 @@ export function peerStanding(
       others.map((each) => each.priceToBook)
     ),
   };
+}
+
+/** How far a price stands above a fund's net asset value, as a share of it; below it is a discount, and negative. */
+export function premium(price: number, nav: NetAssetValue): number {
+  return price / nav.value - 1;
 }
 
 /** A quarter with what it says against the quarters around it; `null` where a figure it needs is missing. */
