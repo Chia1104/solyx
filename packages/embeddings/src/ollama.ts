@@ -30,8 +30,10 @@ export interface PullProgress {
 }
 
 export interface OllamaOptions {
-  /** Its OpenAI-compatible API, such as `http://127.0.0.1:11434/v1`; its own API is at that host's root. */
+  /** Its OpenAI-compatible API, such as `http://127.0.0.1:11434/v1`; its own API is beside that `/v1`. */
   baseURL: string;
+  /** For a server behind a proxy that checks a bearer token; Ollama itself takes none. */
+  apiKey?: string;
   /** @default globalThis.fetch */
   fetch?: typeof globalThis.fetch;
 }
@@ -57,11 +59,17 @@ async function* lines(body: ReadableStream<Uint8Array>) {
   yield `${rest}${decoder.decode()}`;
 }
 
-/** The models Ollama on this computer holds, and downloading one from its library. */
-export function createOllama({ baseURL, fetch }: OllamaOptions) {
-  const { host, origin } = new URL(baseURL);
-  const openAI = serverHttp(baseURL, { retry: 0, fetch });
-  const own = serverHttp(origin, { timeout: PULL_TIMEOUT_MS, fetch });
+/** The models an Ollama server holds, and downloading one from its library. */
+export function createOllama({ baseURL, apiKey, fetch }: OllamaOptions) {
+  const { host } = new URL(baseURL);
+  const openAI = serverHttp(baseURL, { apiKey, retry: 0, fetch });
+
+  // A proxy may serve Ollama under a path of its own, which its own API shares.
+  const own = serverHttp(baseURL.replace(/\/v1\/?$/, ""), {
+    apiKey,
+    timeout: PULL_TIMEOUT_MS,
+    fetch,
+  });
 
   return {
     /**

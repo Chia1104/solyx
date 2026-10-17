@@ -494,7 +494,7 @@ export interface NewsDesk {
   ): Promise<NewsCollection>;
   /**
    * Searches what is stored without asking any source: by words, as `NewsStore.search` does, and by
-   * meaning where a model on this computer embeds the query.
+   * meaning where Ollama embeds the query.
    */
   search(
     query: string,

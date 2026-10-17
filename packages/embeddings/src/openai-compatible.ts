@@ -52,8 +52,8 @@ export function createOpenAICompatibleEmbedder(
   const host = new URL(baseURL).host;
 
   const http = serverHttp(baseURL, {
+    apiKey,
     timeout: TIMEOUT_MS,
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
     fetch: options.fetch,
   });
 

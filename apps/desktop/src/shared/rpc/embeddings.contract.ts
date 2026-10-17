@@ -5,7 +5,7 @@ import type { LocalModelState } from "../embeddings.ts";
 import { changesContract } from "./changes.ts";
 
 export const embeddingsContract = {
-  /** What the server on this computer has of the model the local settings name, whichever provider is picked. */
+  /** What Ollama has of the model the local settings name, whichever provider is picked. */
   localModel: oc.output(type<LocalModelState>()),
   /** Has Ollama download that model, unless it already is; how far it has come reaches `localModel`. */
   pullLocalModel: oc.output(type<void>()),

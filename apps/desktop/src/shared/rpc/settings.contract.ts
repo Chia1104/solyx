@@ -223,6 +223,8 @@ export const settingsContract = {
   setEmbeddingsProvider: oc
     .input(embeddingsProviderSchema)
     .output(type<void>()),
+  /** Points Ollama's embeddings at a host of the user's own; `null` goes back to this computer's. */
+  setOllamaBaseURL: oc.input(endpointSchema.nullable()).output(type<void>()),
   agentSkills: oc.output(type<AgentSkills>()),
   /** Offers a skill from ~/.agents/skills to the agent, or stops offering it. */
   setSharedSkill: oc

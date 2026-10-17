@@ -104,6 +104,7 @@ test("news groups by titles alone until the user switches embeddings on", async 
     provider: EmbeddingsProvider.Local,
     space: "qwen3-embedding:0.6b",
     measured: true,
+    ollamaBaseURL: "http://127.0.0.1:11434/v1",
   });
   expect(await embeddings.embedder()).toBeUndefined();
 
@@ -234,4 +235,48 @@ test("the model the local settings name is looked for even while OpenAI's are pi
     model: "qwen3-embedding:0.6b",
     host: "127.0.0.1:11434",
   });
+});
+
+test("Ollama on a host of the user's own is reached there, on the key saved for its proxy", async () => {
+  const sent: { url: string; authorization: string | null }[] = [];
+
+  const { config, secrets, embeddings } = setup(async (input, init) => {
+    const request = new Request(input, init);
+
+    sent.push({
+      url: request.url,
+      authorization: request.headers.get("authorization"),
+    });
+
+    return Response.json({
+      data: request.url.endsWith("/embeddings")
+        ? [{ index: 0, embedding: [1, 0] }]
+        : [],
+    });
+  });
+
+  config.set(["embeddings", "enabled"], true);
+  config.set(
+    ["embeddings", EmbeddingsProvider.Local, "baseURL"],
+    "https://models.example.com/ollama/v1"
+  );
+  await secrets.save(Secret.OllamaEmbeddingsApiKey, "proxy-token");
+
+  expect(embeddings.settings().ollamaBaseURL).toBe(
+    "https://models.example.com/ollama/v1"
+  );
+  expect(await embeddings.localModel()).toMatchObject({
+    status: LocalModelStatus.Missing,
+  });
+  expect(await embeddings.localEmbedder()?.embed(["台積電"])).toHaveLength(1);
+  expect(sent).toEqual([
+    {
+      url: "https://models.example.com/ollama/v1/models",
+      authorization: "Bearer proxy-token",
+    },
+    {
+      url: "https://models.example.com/ollama/v1/embeddings",
+      authorization: "Bearer proxy-token",
+    },
+  ]);
 });

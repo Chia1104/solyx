@@ -414,9 +414,9 @@ function signalsText(
 
 const WATCH_GAP_TEXT = {
   [WatchGap.NoLocalEmbedder]:
-    "no model on this computer embeds news (in Settings, grouping news by meaning, with vectors from this computer)",
+    "no Ollama model embeds news (in Settings, grouping news by meaning, with vectors from Ollama)",
   [WatchGap.Unmeasured]:
-    "the model on this computer has no floor measured for reading news against a falsifier",
+    "the Ollama model has no floor measured for reading news against a falsifier",
   [WatchGap.NoAuditor]: "no decisions model is set up",
 } as const satisfies Record<WatchGap, string>;
 

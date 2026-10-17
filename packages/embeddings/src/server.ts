@@ -10,16 +10,25 @@ const failureSchema = z.union([
   z.object({ error: z.string() }).transform(({ error }) => error),
 ]);
 
+export interface ServerOptions extends Omit<
+  Options,
+  "prefix" | "hooks" | "headers"
+> {
+  /** Sent as a bearer token; `undefined` for a server that takes none. */
+  apiKey?: string;
+}
+
 /** Requests under `prefix`, whose failures name the server's host and the reason it gives. */
 export function serverHttp(
   prefix: string,
-  options: Omit<Options, "prefix" | "hooks">
+  { apiKey, ...options }: ServerOptions
 ): KyInstance {
   const host = new URL(prefix).host;
 
   return ky.create({
     ...options,
     prefix,
+    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
     hooks: {
       beforeError: [
         ({ error }) => {

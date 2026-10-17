@@ -709,8 +709,8 @@
     "watch": {
       "off": "News is not read against these, so no signal here says nothing of the news.",
       "gaps": {
-        "no-local-embedder": "It takes grouping news by meaning, with vectors from this computer.",
-        "unmeasured": "The model on this computer has no floor measured for it; {{models}} has one.",
+        "no-local-embedder": "It takes grouping news by meaning, with vectors from Ollama.",
+        "unmeasured": "The Ollama model has no floor measured for it; {{models}} has one.",
         "no-auditor": "It takes a decisions model."
       },
       "settings": "Settings",
@@ -996,6 +996,10 @@
         "label": "API key",
         "hint": "An API key from the OpenAI platform; signing in with ChatGPT doesn't cover embeddings."
       },
+      "ollama-embeddings-api-key": {
+        "label": "API key",
+        "hint": "Only if your Ollama sits behind a proxy that checks a bearer token."
+      },
       "finmind-token": {
         "label": "FinMind token",
         "hint": "FinMind answers without one, up to 300 requests an hour; a free account's token raises that to 600."
@@ -1198,16 +1202,20 @@
       "enabled-description": "Off, stories are told apart by their titles alone.",
       "provider": "Vectors from",
       "providers": {
-        "local": "This computer (Ollama)",
+        "local": "Ollama",
         "openai": "OpenAI"
       },
       "provider-descriptions": {
         "local": "A model Ollama runs on this computer; nothing leaves it.",
+        "local-host": "Ollama on {{host}}. News, your reports, memories and searches are sent there.",
         "openai": "OpenAI's model, on the key below. Titles and the start of snippets are sent to OpenAI."
       },
       "model": "Model",
       "measured": "Measured: Solyx knows how alike this model reads one story.",
       "unmeasured": "Not measured: vectors are kept but don't group stories until a threshold is measured for this model.",
+      "base-url": "Endpoint",
+      "base-url-description": "Where Ollama listens. Change it to use Ollama on another machine.",
+      "base-url-invalid": "Enter an http or https URL",
       "local-model": {
         "title": "Model in Ollama",
         "status": {

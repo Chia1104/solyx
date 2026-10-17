@@ -25,7 +25,7 @@ import {
 
 export interface MemoryOptions {
   store: MemoryStore;
-  /** Embeds memories to search them and tell one said again; only a model on this computer, since they are the user's own. */
+  /** Embeds memories to search them and tell one said again; only Ollama, which the user runs, never OpenAI's, since they are the user's own. */
   embedder?: () => Embedder | undefined;
   /** @default () => new Date() */
   now?: () => Date;

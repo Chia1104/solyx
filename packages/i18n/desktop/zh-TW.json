@@ -709,8 +709,8 @@
     "watch": {
       "off": "新聞沒有與這些條件比對，所以這裡沒有訊號，不代表新聞沒提到。",
       "gaps": {
-        "no-local-embedder": "需要開啟「依語意合併新聞」，並以這台電腦產生向量。",
-        "unmeasured": "這台電腦的模型還沒量測比對門檻；{{models}} 已量測。",
+        "no-local-embedder": "需要開啟「依語意合併新聞」，並以 Ollama 產生向量。",
+        "unmeasured": "Ollama 的模型還沒量測比對門檻；{{models}} 已量測。",
         "no-auditor": "需要設定 decisions model。"
       },
       "settings": "前往設定",
@@ -996,6 +996,10 @@
         "label": "API 金鑰",
         "hint": "OpenAI 平台的 API 金鑰；用 ChatGPT 登入無法使用 embeddings。"
       },
+      "ollama-embeddings-api-key": {
+        "label": "API 金鑰",
+        "hint": "只有 Ollama 架在會檢查 bearer token 的代理後面時才需要。"
+      },
       "finmind-token": {
         "label": "FinMind token",
         "hint": "不填也能用，每小時 300 次請求；免費註冊的 token 可提高到 600 次。"
@@ -1198,16 +1202,20 @@
       "enabled-description": "關閉時只靠標題判斷是不是同一個故事。",
       "provider": "向量來源",
       "providers": {
-        "local": "這台電腦（Ollama）",
+        "local": "Ollama",
         "openai": "OpenAI"
       },
       "provider-descriptions": {
         "local": "用這台電腦上的 Ollama 執行模型，資料不會離開這台電腦。",
+        "local-host": "用 {{host}} 上的 Ollama；新聞、你的報告、記憶和搜尋內容都會送到那台主機。",
         "openai": "使用 OpenAI 的模型與下方的金鑰；新聞標題與摘要開頭會送到 OpenAI。"
       },
       "model": "模型",
       "measured": "已量測：Solyx 知道這個模型怎樣算是同一個故事。",
       "unmeasured": "尚未量測：向量會保存，但量出這個模型的門檻前不會用來合併新聞。",
+      "base-url": "端點",
+      "base-url-description": "Ollama 的位址。要用另一台主機上的 Ollama 時再更改。",
+      "base-url-invalid": "請輸入 http 或 https 網址",
       "local-model": {
         "title": "Ollama 模型",
         "status": {

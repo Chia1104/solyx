@@ -500,7 +500,7 @@ test("the report says whether the news is read against its falsifiers", async ()
   expect(
     (await unwatched.run(AgentToolName.GetResearch, { symbol: TSMC })).text
   ).toContain(
-    "News is not read against the falsifiers while no model on this computer embeds news (in Settings, grouping news by meaning, with vectors from this computer) and no decisions model is set up, so no signal says nothing of the news."
+    "News is not read against the falsifiers while no Ollama model embeds news (in Settings, grouping news by meaning, with vectors from Ollama) and no decisions model is set up, so no signal says nothing of the news."
   );
 
   const { run, store } = setup(undefined, undefined, true);

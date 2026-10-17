@@ -613,8 +613,9 @@ export function createServices(config: ConfigFile) {
   secrets.onChange(() => void windowEvents.publish("settings:changed", {}));
   // Where backups go is settings and secrets both.
   config.onChange(() => void windowEvents.publish("backup:changed", {}));
-  // The model on this computer is named in the config file.
+  // Ollama's model and address are in the config file, and a key for a host of the user's own a secret.
   config.onChange(() => void windowEvents.publish("embeddings:changed", {}));
+  secrets.onChange(() => void windowEvents.publish("embeddings:changed", {}));
   secrets.onChange(() => void windowEvents.publish("backup:changed", {}));
   // Its switches and its menu's language and clock all live in the config file.
   config.onChange(() => void tray.sync());
