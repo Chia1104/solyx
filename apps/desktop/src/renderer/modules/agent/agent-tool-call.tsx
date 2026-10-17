@@ -30,7 +30,12 @@ import {
 } from "@solyx/agent/wire";
 import type { ToolCallView } from "@solyx/agent/wire";
 import { intervalSchema } from "@solyx/core/candles";
-import { marketSchema, symbolKey, symbolRefSchema } from "@solyx/core/market";
+import {
+  marketSchema,
+  symbolKey,
+  symbolRefSchema,
+  symbolLabel,
+} from "@solyx/core/market";
 import type { Memory } from "@solyx/core/memory";
 import { ScheduleKind, scheduleSchema } from "@solyx/core/schedule";
 import { isEnumValue } from "@solyx/utils/is";
@@ -277,8 +282,7 @@ function ApprovalCard({
       ...theme.signposts.map((signpost) => `· ${signpost}`),
       theme.queries.join(" / "),
       ...theme.listings.map(
-        ({ symbol, exposure }) =>
-          `${symbol.market} ${symbol.symbol}: ${exposure}`
+        ({ symbol, exposure }) => `${symbolLabel(symbol)}: ${exposure}`
       ),
     ].join("\n");
 

@@ -21,10 +21,12 @@ import {
   currencyOf,
   exchangeTime,
   symbolRefSchema,
+  symbolLabel,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { TW_BOARD_LOT } from "@solyx/core/rules/tw";
+import { TW_BOARD_LOT, twLots } from "@solyx/core/rules/tw";
 
+import { millions, named, percent, signedFigure } from "./figures.ts";
 import { defineTool } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
 
@@ -33,21 +35,14 @@ export interface FlowToolsOptions {
   now?: () => Date;
 }
 
-const signed = (value: number) => `${value > 0 ? "+" : ""}${value}`;
-
+/** A part of a whole in percent; `n/a` for a whole of nothing. */
 const share = (part: number, whole: number) =>
-  whole === 0 ? "n/a" : `${((part / whole) * 100).toFixed(1)}%`;
-
-const lots = (shares: number) => Math.round(shares / TW_BOARD_LOT);
-
-const millions = (amount: number) => Math.round(amount / 1e6);
-
-const named = (investor: Investor) => investor.replaceAll("-", " ");
+  percent(whole === 0 ? null : part / whole);
 
 /** How far a balance moved over a session, a week and a month of sessions, in the unit `scale` gives. */
 function changes(trend: BalanceTrend, scale: (value: number) => number) {
   const moved = (value: number | null) =>
-    value === null ? "n/a" : signed(scale(value));
+    value === null ? "n/a" : signedFigure(scale(value));
 
   return `change ${moved(trend.session)} over a session, ${moved(trend.week)} over a week, ${moved(trend.month)} over a month`;
 }
@@ -67,9 +62,9 @@ function netBuyingText(
     ...netBuying(trades).map(({ investor, session, week, month, streak }) =>
       [
         named(investor),
-        signed(scale(session)),
-        signed(scale(week)),
-        signed(scale(month)),
+        signedFigure(scale(session)),
+        signedFigure(scale(week)),
+        signedFigure(scale(month)),
         streak > 0
           ? `bought ${streak}`
           : streak < 0
@@ -98,12 +93,12 @@ function listingText(symbol: SymbolRef, flows: ListingFlows): string[] {
   const limit = flows.foreign.at(-1)?.limit;
 
   return [
-    `${symbol.market} ${symbol.symbol} in lots of ${TW_BOARD_LOT} shares:`,
-    ...netBuyingText(flows.trades, lots),
+    `${symbolLabel(symbol)} in lots of ${TW_BOARD_LOT} shares:`,
+    ...netBuyingText(flows.trades, twLots),
     ...(margin && short && newestMargin
       ? [
-          `Margin purchases on ${margin.date}: ${lots(margin.value)} lots, ${share(newestMargin.margin, newestMargin.marginLimit)} of the limit; ${changes(margin, lots)}`,
-          `Short sales on ${short.date}: ${lots(short.value)} lots, ${share(newestMargin.short, newestMargin.margin)} of margin purchases; ${changes(short, lots)}`,
+          `Margin purchases on ${margin.date}: ${twLots(margin.value)} lots, ${share(newestMargin.margin, newestMargin.marginLimit)} of the limit; ${changes(margin, twLots)}`,
+          `Short sales on ${short.date}: ${twLots(short.value)} lots, ${share(newestMargin.short, newestMargin.margin)} of margin purchases; ${changes(short, twLots)}`,
         ]
       : ["Margin: none reported."]),
     ...(foreign && limit !== undefined
@@ -139,7 +134,7 @@ function marketText(market: Market, flows: MarketFlows): string[] {
     ...(lending && newestMargin
       ? [
           `Margin lending on ${lending.date}: ${currency} ${millions(lending.value)} million; ${changes(lending, millions)}`,
-          `Short sales on ${newestMargin.date}: ${lots(newestMargin.short)} lots, ${share(newestMargin.short, newestMargin.margin)} of the ${lots(newestMargin.margin)} lots bought on margin`,
+          `Short sales on ${newestMargin.date}: ${twLots(newestMargin.short)} lots, ${share(newestMargin.short, newestMargin.margin)} of the ${twLots(newestMargin.margin)} lots bought on margin`,
         ]
       : ["Margin: none reported."]),
     ...(positions.length > 0
@@ -149,9 +144,9 @@ function marketText(market: Market, flows: MarketFlows): string[] {
           ...positions.map(({ investor, trend }) =>
             [
               named(investor),
-              signed(trend.value),
+              signedFigure(trend.value),
               ...[trend.session, trend.week, trend.month].map((value) =>
-                value === null ? "n/a" : signed(value)
+                value === null ? "n/a" : signedFigure(value)
               ),
             ].join(",")
           ),

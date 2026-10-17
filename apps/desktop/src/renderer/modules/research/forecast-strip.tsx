@@ -2,6 +2,7 @@ import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
 import type { Forecast } from "@solyx/core/forecast";
+import { cssPercent } from "@solyx/utils/format";
 
 import { numberFormats } from "../market/number-formats.ts";
 
@@ -10,8 +11,6 @@ import type { ForecastMark } from "./research-figures.ts";
 
 // As many as stay apart in the narrowest column the panel gives the forecasts.
 const MARKS = 24;
-
-const share = (value: number) => `${value * 100}%`;
 
 // A mark narrows before the strip outgrows its column.
 const SLOT = "h-full max-w-3 min-w-1 flex-1";
@@ -53,12 +52,12 @@ function Mark({ mark }: { mark: ForecastMark }) {
           "absolute inset-x-0 bottom-0 min-h-px rounded-t-[2px]",
           settled.led ? "bg-accent" : "bg-muted"
         )}
-        style={{ height: share(settled.given) }}
+        style={{ height: cssPercent(settled.given) }}
       />
       {settled.history === null ? null : (
         <i
           className="absolute -inset-x-px h-px bg-foreground"
-          style={{ bottom: share(settled.history) }}
+          style={{ bottom: cssPercent(settled.history) }}
         />
       )}
     </li>

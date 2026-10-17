@@ -8,6 +8,10 @@ export const normalizeSpace = (text: string) =>
 export const truncate = (text: string, max: number) =>
   text.length > max ? `${text.slice(0, max)}…` : text;
 
+/** `count` with its noun, plural unless it is one: `1 session`, `3 sessions`. */
+export const counted = (count: number, one: string, many = `${one}s`) =>
+  `${count} ${count === 1 ? one : many}`;
+
 /** The first line of `text`, truncated to `max` characters. */
 export const firstLine = (text: string, max: number) =>
   truncate(text.trim().split("\n")[0] ?? "", max);

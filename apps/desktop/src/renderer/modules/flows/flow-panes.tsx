@@ -8,7 +8,7 @@ import { candleDate } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { Investor, balanceByBar, netBuyingByBar } from "@solyx/core/flows";
 import type { SymbolRef } from "@solyx/core/market";
-import { TW_BOARD_LOT } from "@solyx/core/rules/tw";
+import { twLots } from "@solyx/core/rules/tw";
 import { Series } from "@solyx/trading-chart/series";
 import { utcTimestamp } from "@solyx/trading-chart/time-format";
 
@@ -26,7 +26,7 @@ import { useIndicatorStore } from "../market/indicator-store.ts";
 import { listingFlowsQuery } from "./flows-query.ts";
 
 const lots = (shares: number | null) =>
-  shares === null ? null : Math.round(shares / TW_BOARD_LOT);
+  shares === null ? null : twLots(shares);
 
 /**
  * A Taiwan listing's flows under its chart, in lots and bar by bar: each enabled group's net

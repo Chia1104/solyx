@@ -676,7 +676,7 @@ test("research says how the report's stance has done against the index since it 
   ).toContain(
     [
       "Stance against TAIEX, each stretch the report kept one, on closes as they traded:",
-      "- bullish from 2026-09-29 (revision 1) and standing, 2 sessions: +4.5% against the index's +4.5%, +0.0 points",
+      "- bullish from 2026-09-29 (revision 1) and standing, 2 sessions: +4.5% against the index's +4.5%, 0.0 points",
     ].join("\n")
   );
 });

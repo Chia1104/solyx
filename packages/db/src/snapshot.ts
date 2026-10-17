@@ -1,4 +1,3 @@
-import { rmSync } from "node:fs";
 import { basename } from "node:path";
 import { DatabaseSync, backup } from "node:sqlite";
 
@@ -8,16 +7,11 @@ import { readMigrationFiles } from "drizzle-orm/migrator";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 
+import { removeSideFiles } from "./database-file.ts";
+
 // Every page in one step, so the copy is the database as it stood at one moment: a copy made in
 // several starts over whenever the connection that has the database open writes between two.
 const EVERY_PAGE = 2 ** 31 - 1;
-
-// A database in WAL mode gets these beside it as soon as it is read.
-const SIDE_FILES = ["-wal", "-shm"];
-
-function removeSideFiles(file: string) {
-  for (const suffix of SIDE_FILES) rmSync(`${file}${suffix}`, { force: true });
-}
 
 /**
  * Copies a database as it stands at one moment into one file, its write-ahead log folded in,

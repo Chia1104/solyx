@@ -3,7 +3,12 @@ import type { Extension } from "@earendil-works/pi-durable";
 import { uniqBy } from "es-toolkit";
 import * as z from "zod";
 
-import { exchangeDate, symbolKey, symbolRefSchema } from "@solyx/core/market";
+import {
+  exchangeDate,
+  symbolKey,
+  symbolRefSchema,
+  symbolLabel,
+} from "@solyx/core/market";
 import type { NewsDesk, NewsMatch } from "@solyx/core/news";
 import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
 import { reportPassages } from "@solyx/core/report";
@@ -73,9 +78,7 @@ function reportText({ report, newest }: ReportMatch, query: string): string {
 }
 
 function newsText({ channel, item, listings }: NewsMatch): string {
-  const found = listings
-    .map((listing) => `${listing.market} ${listing.symbol}`)
-    .join(", ");
+  const found = listings.map((listing) => `${symbolLabel(listing)}`).join(", ");
 
   const lines = [
     `- ${publishedTime(listings[0]?.market ?? null, item.published)} ${item.site} (${channel}, found for ${found}): ${item.title}`,

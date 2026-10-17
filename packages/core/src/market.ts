@@ -50,6 +50,10 @@ export const BENCHMARK: Record<Market, Benchmark> = {
   },
 };
 
+/** A listing as text written for a person or a model reads it, `TW 2330`. */
+export const symbolLabel = ({ market, symbol }: SymbolRef) =>
+  `${market} ${symbol}`;
+
 /** Identifies a listing across markets, as `TW:2330`. */
 export function symbolKey({ market, symbol }: SymbolRef): string {
   return `${market}:${symbol}`;

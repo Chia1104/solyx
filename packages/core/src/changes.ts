@@ -1,7 +1,12 @@
 import { uniqBy } from "es-toolkit";
 import * as z from "zod";
 
-import { exchangeDate, symbolKey, symbolRefSchema } from "./market.ts";
+import {
+  exchangeDate,
+  symbolKey,
+  symbolRefSchema,
+  symbolLabel,
+} from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { CLAIM_SUPPORT_LINE } from "./report.ts";
 import type { Report } from "./report.ts";
@@ -147,15 +152,13 @@ export function changesSince(
   );
 }
 
-const listing = ({ market, symbol }: SymbolRef) => `${market} ${symbol}`;
-
 /** A change in a line, worded for the model. */
 export function changeText(change: Change): string {
   switch (change.kind) {
     case ChangeKind.FalsifierMet:
-      return `${listing(change.symbol)}: news may state the falsifier "${change.falsifier}"`;
+      return `${symbolLabel(change.symbol)}: news may state the falsifier "${change.falsifier}"`;
     case ChangeKind.EventPassed:
-      return `${listing(change.symbol)}: the event "${change.label}" of ${change.date} has passed`;
+      return `${symbolLabel(change.symbol)}: the event "${change.label}" of ${change.date} has passed`;
     case ChangeKind.SignpostMet:
       return `theme "${change.theme}": news may state the signpost "${change.signpost}"`;
   }

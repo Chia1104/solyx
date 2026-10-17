@@ -20,7 +20,7 @@ import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { HOUR_MINUTES } from "@solyx/utils/date";
 import { formatBytes } from "@solyx/utils/format";
-import { tildify } from "@solyx/utils/text";
+import { tildify, counted } from "@solyx/utils/text";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import { RETENTION_DAYS } from "#shared/news.ts";
@@ -110,10 +110,6 @@ const stateText = (state: SecretState) =>
     : state;
 
 const onOff = (on: boolean) => (on ? "on" : "off");
-
-/** How many of something a store holds, in words. */
-const counted = (count: number, one: string, many = `${one}s`) =>
-  `${count} ${count === 1 ? one : many}`;
 
 /** A setting the agent may change once the user allows it. */
 interface Changeable {

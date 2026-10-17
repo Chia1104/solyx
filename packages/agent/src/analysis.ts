@@ -28,6 +28,7 @@ import {
   exchangeDate,
   marketSchema,
   symbolRefSchema,
+  symbolLabel,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -265,9 +266,7 @@ function dataFunctions(
             : await history(symbol, interval, since);
 
         if (candles.length === 0) {
-          throw new Error(
-            `No ${interval} bars for ${symbol.market} ${symbol.symbol}`
-          );
+          throw new Error(`No ${interval} bars for ${symbolLabel(symbol)}`);
         }
 
         return candles.map((candle) => ({
