@@ -26,3 +26,10 @@ export type LocalModelState =
       total: number;
     }
   | { status: typeof LocalModelStatus.Ready; model: string };
+
+// Hosts that name this computer itself.
+const LOOPBACK = /^(?:localhost|127(?:\.\d{1,3}){3}|\[::1\])$/;
+
+/** Whether `url` reaches a server on this computer, so what is sent there stays on it. */
+export const onThisComputer = (url: string) =>
+  LOOPBACK.test(new URL(url).hostname);

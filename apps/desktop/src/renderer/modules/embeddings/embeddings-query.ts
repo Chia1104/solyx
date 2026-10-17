@@ -17,7 +17,7 @@ export const localModelQuery = () =>
         : false,
   });
 
-/** Refetches the model on this computer whenever a pull moves on or the settings naming it change. */
+/** Refetches Ollama's model whenever a pull moves on or the settings naming it change. */
 export function followEmbeddingsChanges(queryClient: QueryClient) {
   void forEachEvent(client.embeddings.changes(), () => {
     void queryClient.invalidateQueries({ queryKey: orpc.embeddings.key() });

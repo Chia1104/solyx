@@ -21,19 +21,28 @@ function streamed(pieces: string[]) {
 }
 
 function fakeOllama(
-  answer: (request: Request) => Response | Promise<Response>
+  answer: (request: Request) => Response | Promise<Response>,
+  options: { baseURL?: string; apiKey?: string } = {}
 ) {
-  const sent: { url: string; body: string }[] = [];
+  const sent: { url: string; body: string; authorization: string | null }[] =
+    [];
 
   const fetch = async (input: string | URL | Request, init?: RequestInit) => {
     const request = new Request(input, init);
 
-    sent.push({ url: request.url, body: await request.clone().text() });
+    sent.push({
+      url: request.url,
+      body: await request.clone().text(),
+      authorization: request.headers.get("authorization"),
+    });
 
     return answer(request);
   };
 
-  return { sent, ollama: createOllama({ baseURL: BASE_URL, fetch }) };
+  return {
+    sent,
+    ollama: createOllama({ baseURL: BASE_URL, fetch, ...options }),
+  };
 }
 
 const listing = (...ids: string[]) =>
@@ -91,6 +100,7 @@ test("a pull asks Ollama's own API and counts every layer's bytes until it is wr
     {
       url: "http://127.0.0.1:11434/api/pull",
       body: JSON.stringify({ model: "qwen3-embedding:0.6b" }),
+      authorization: null,
     },
   ]);
   expect(progress).toEqual([
@@ -131,4 +141,22 @@ test("a pull cut off before Ollama writes the model fails", async () => {
   await expect(ollama.pull("qwen3-embedding:0.6b", noop)).rejects.toThrow(
     "127.0.0.1:11434 stopped before qwen3-embedding:0.6b was written"
   );
+});
+
+test("an Ollama behind a proxy is reached under the proxy's path, with its key", async () => {
+  const { sent, ollama } = fakeOllama(
+    (request) =>
+      request.url.endsWith("/models")
+        ? listing()
+        : streamed(['{"status":"success"}\n']),
+    { baseURL: "https://models.example.com/ollama/v1/", apiKey: "proxy-token" }
+  );
+
+  expect(await ollama.has("qwen3-embedding:0.6b")).toBe(false);
+  await ollama.pull("qwen3-embedding:0.6b", noop);
+
+  expect(sent.map(({ url, authorization }) => [url, authorization])).toEqual([
+    ["https://models.example.com/ollama/v1/models", "Bearer proxy-token"],
+    ["https://models.example.com/ollama/api/pull", "Bearer proxy-token"],
+  ]);
 });

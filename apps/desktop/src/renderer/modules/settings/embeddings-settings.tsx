@@ -1,10 +1,17 @@
+import { useMemo } from "react";
+
 import { Switch } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import * as z from "zod";
 
-import { EmbeddingsProvider } from "@solyx/embeddings/provider";
+import {
+  EMBEDDINGS_DEFAULTS,
+  EmbeddingsProvider,
+} from "@solyx/embeddings/provider";
 import { isEnumValue } from "@solyx/utils/is";
 
+import { onThisComputer } from "#shared/embeddings.ts";
 import { Secret } from "#shared/settings.ts";
 
 import { client } from "../../app/rpc.ts";
@@ -19,6 +26,7 @@ import { LocalModelRow } from "../embeddings/local-model-row.tsx";
 import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { embeddingsSettingsQuery, secretsQuery } from "./settings-query.ts";
+import { TextSettingRow } from "./text-setting-row.tsx";
 
 /** Experimental: news grouping that also joins items whose vectors read alike. */
 export function EmbeddingsSettings() {
@@ -29,6 +37,21 @@ export function EmbeddingsSettings() {
   const save = useMutation({
     mutationFn: (change: () => Promise<void>) => change(),
   });
+
+  // Rebuilt per language so the field's error comes out localized.
+  const baseURLSchema = useMemo(
+    () =>
+      z
+        .string()
+        .trim()
+        .pipe(
+          z.url({
+            protocol: /^https?$/,
+            error: t("settings.embeddings.base-url-invalid"),
+          })
+        ),
+    [t]
+  );
 
   const error = settings.error ?? secrets.error;
 
@@ -48,7 +71,7 @@ export function EmbeddingsSettings() {
 
   if (!settings.data || !secrets.data) return <LoadingState />;
 
-  const { enabled, provider, space, measured } = settings.data;
+  const { enabled, provider, space, measured, ollamaBaseURL } = settings.data;
   const { available, states } = secrets.data;
   const enabledLabel = t("settings.embeddings.enabled");
   const providerLabel = t("settings.embeddings.provider");
@@ -80,9 +103,14 @@ export function EmbeddingsSettings() {
           />
           <SettingsRow
             label={providerLabel}
-            description={t(
-              `settings.embeddings.provider-descriptions.${provider}`
-            )}
+            description={
+              provider === EmbeddingsProvider.Local &&
+              !onThisComputer(ollamaBaseURL)
+                ? t("settings.embeddings.provider-descriptions.local-host", {
+                    host: new URL(ollamaBaseURL).host,
+                  })
+                : t(`settings.embeddings.provider-descriptions.${provider}`)
+            }
             actions={
               <OptionSelect
                 aria-label={providerLabel}
@@ -112,7 +140,30 @@ export function EmbeddingsSettings() {
             }
             value={space}
           />
-          {provider === EmbeddingsProvider.Local ? <LocalModelRow /> : null}
+          {provider === EmbeddingsProvider.Local ? (
+            <>
+              <TextSettingRow
+                label={t("settings.embeddings.base-url")}
+                description={t("settings.embeddings.base-url-description")}
+                value={ollamaBaseURL}
+                isDefault={
+                  ollamaBaseURL ===
+                  EMBEDDINGS_DEFAULTS[EmbeddingsProvider.Local].baseURL
+                }
+                schema={baseURLSchema}
+                onSave={(next) => client.settings.setOllamaBaseURL(next)}
+              />
+              {available ? (
+                <AppSecretRow
+                  secret={Secret.OllamaEmbeddingsApiKey}
+                  state={states[Secret.OllamaEmbeddingsApiKey]}
+                  available={available}
+                  optional
+                />
+              ) : null}
+              <LocalModelRow />
+            </>
+          ) : null}
           {provider === EmbeddingsProvider.OpenAI ? (
             available ? (
               <AppSecretRow

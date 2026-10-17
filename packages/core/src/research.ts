@@ -99,7 +99,7 @@ export interface FalsifierCheck {
 
 /** What keeps a report's falsifiers from being read against the news. */
 export const WatchGap = {
-  /** No model on this computer embeds the news and the falsifiers. */
+  /** No Ollama model embeds the news and the falsifiers. */
   NoLocalEmbedder: "no-local-embedder",
   /** `FALSIFIER_FLOORS` holds no floor for the space the model embeds in. */
   Unmeasured: "unmeasured",
@@ -155,7 +155,7 @@ export interface ResearchDeskOptions {
   reader?: () => Promise<FactReader | undefined>;
   /**
    * Embeds what the desk keeps to search it by meaning, and the falsifiers it reads against the
-   * news; only a model on this computer, since it is the user's own.
+   * news; only Ollama, which the user runs, never OpenAI's, since it is the user's own.
    */
   embedder?: () => Embedder | undefined;
   /** Called after a listing's research changes, so whoever shows it can refresh. */

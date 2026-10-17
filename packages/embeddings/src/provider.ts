@@ -1,6 +1,6 @@
 import * as z from "zod";
 
-/** Where the app's embeddings come from: a model on this computer through Ollama, or OpenAI's. */
+/** Where the app's embeddings come from: Ollama, on this computer or a host the user runs, or OpenAI's. */
 export const EmbeddingsProvider = {
   Local: "local",
   OpenAI: "openai",

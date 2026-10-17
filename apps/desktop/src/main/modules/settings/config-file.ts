@@ -461,7 +461,7 @@ const configSchema = section(
           .catch(EmbeddingsProvider.Local)
           .meta({
             description:
-              "Where vectors come from: a model on this computer through Ollama, which sends nothing off it, or OpenAI's, on the key saved in the app for it, which is sent each item's title and the start of its snippet. Only a model a line was measured on joins stories.",
+              "Where vectors come from: Ollama, which sends nothing off this computer unless `local.baseURL` names another host, or OpenAI's, on the key saved in the app for it, which is sent each item's title and the start of its snippet. Only a model a line was measured on joins stories.",
           }),
         local: section(
           z.looseObject({
@@ -472,7 +472,7 @@ const configSchema = section(
             }),
             baseURL: endpointSchema.optional().catch(undefined).meta({
               description:
-                "Where Ollama, or another server that speaks OpenAI's embeddings API, listens.",
+                "Where Ollama, or another server that speaks OpenAI's embeddings API, listens: this computer unless you run it on another host, which then receives news, your reports, memories and searches. A key for a proxy in front of it is saved in the app.",
               default: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.Local].baseURL,
             }),
           })
@@ -540,6 +540,7 @@ type ConfigPath =
   | ["decisions", "provider"]
   | ["decisions", DecisionsProvider, "model" | "baseURL"]
   | ["decisions", typeof DecisionsProvider.Cloudflare, "accountId"]
+  | ["embeddings", typeof EmbeddingsProvider.Local, "baseURL"]
   | ["embeddings", "enabled" | "provider"];
 
 /** `undefined` removes the entry. */

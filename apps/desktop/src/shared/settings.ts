@@ -45,6 +45,8 @@ export const Secret = {
   OpenAIDecisionsApiKey: "openai-decisions-api-key",
   /** OpenAI's embeddings, kept apart from the agent's and the decisions model's OpenAI keys. */
   EmbeddingsApiKey: "embeddings-api-key",
+  /** Optional: for the user's own Ollama behind a proxy that checks a bearer token. */
+  OllamaEmbeddingsApiKey: "ollama-embeddings-api-key",
   /** Optional: FinMind answers without one under a lower limit. */
   FinMindToken: "finmind-token",
   /** Optional: what traces and logs are sent with, such as an authorization, as OTEL_EXPORTER_OTLP_HEADERS writes them. */
@@ -451,6 +453,8 @@ export interface EmbeddingsSettings {
   provider: EmbeddingsProvider;
   /** The model and vector length the provider's settings pick. */
   space: string;
+  /** Where Ollama listens: this computer's unless the user set a host of their own. */
+  ollamaBaseURL: string;
   /** A line was measured on `space`, without which its vectors join nothing. */
   measured: boolean;
 }

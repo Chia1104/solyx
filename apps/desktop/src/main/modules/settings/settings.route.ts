@@ -9,6 +9,7 @@ import { effectivePolicy, mcpToolKey } from "@solyx/agent/mcp-config";
 import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillFolders } from "@solyx/agent/skills";
 import { DecisionsProvider } from "@solyx/decisions/provider";
+import { EmbeddingsProvider } from "@solyx/embeddings/provider";
 import { FINMIND_PLANS } from "@solyx/fundamentals/finmind";
 import { tildify } from "@solyx/utils/text";
 
@@ -279,6 +280,12 @@ export const settingsRouter = settings.router({
       context.config.set(["embeddings", "enabled"], input);
     }
   ),
+  setOllamaBaseURL: settings.setOllamaBaseURL.handler(({ context, input }) => {
+    context.config.set(
+      ["embeddings", EmbeddingsProvider.Local, "baseURL"],
+      input ?? undefined
+    );
+  }),
   setEmbeddingsProvider: settings.setEmbeddingsProvider.handler(
     ({ context, input }) => {
       context.config.set(["embeddings", "provider"], input);

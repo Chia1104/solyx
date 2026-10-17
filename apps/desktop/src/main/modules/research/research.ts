@@ -41,7 +41,7 @@ export function createResearch(
     auditor: () => Promise<ClaimAuditor | undefined>;
     reader: () => Promise<FactReader | undefined>;
     news: Pick<NewsStore, "list">;
-    /** Only a model on this computer, since a report is the user's own. */
+    /** Only Ollama, which the user runs, since a report is the user's own. */
     embedder: () => Embedder | undefined;
     diagnostics: Pick<Diagnostics, "recovered">;
     /** The session each market is in now. */

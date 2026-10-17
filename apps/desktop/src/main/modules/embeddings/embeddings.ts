@@ -5,6 +5,7 @@ import { STORY_LINES } from "@solyx/core/news";
 import { createOllama } from "@solyx/embeddings/ollama";
 import type { PullProgress } from "@solyx/embeddings/ollama";
 import { createOpenAICompatibleEmbedder } from "@solyx/embeddings/openai-compatible";
+import type { OpenAICompatibleOptions } from "@solyx/embeddings/openai-compatible";
 import {
   EMBEDDINGS_DEFAULTS,
   EmbeddingsProvider,
@@ -27,7 +28,7 @@ export interface EmbeddingsOptions {
   config: ConfigFile;
   secrets: SecretStore;
   diagnostics: Pick<Diagnostics, "recovered">;
-  /** Told as a pull of the model on this computer starts, moves on and ends. */
+  /** Told as a pull of Ollama's model starts, moves on and ends. */
   onChange: () => void;
   /** @default globalThis.fetch */
   fetch?: typeof globalThis.fetch;
@@ -35,7 +36,7 @@ export interface EmbeddingsOptions {
 
 /**
  * The embedder the config file and the saved key pick, read afresh for every collection and read,
- * so a changed setting applies without a restart, and the model on this computer it runs.
+ * so a changed setting applies without a restart, and the model Ollama runs for it.
  */
 export function createEmbeddings({
   config,
@@ -72,13 +73,33 @@ export function createEmbeddings({
     return { baseURL, model, key: `${baseURL} ${model}` };
   }
 
+  const ollamaKey = () => secrets.get(Secret.OllamaEmbeddingsApiKey);
+
+  /** Ollama's embedder, on the key the user saved for a host of their own, read as it embeds. */
+  function ollamaEmbedder(options: OpenAICompatibleOptions): Embedder {
+    return {
+      space: createOpenAICompatibleEmbedder(options).space,
+      async embed(texts, embedOptions) {
+        const apiKey = await ollamaKey();
+
+        return createOpenAICompatibleEmbedder({
+          ...options,
+          apiKey,
+          fetch,
+        }).embed(texts, embedOptions);
+      },
+    };
+  }
+
   async function pull({ baseURL, model, key }: ReturnType<typeof local>) {
     pulls.set(key, { completed: 0, total: 0 });
     failures.delete(key);
     onChange();
 
     try {
-      await createOllama({ baseURL, fetch }).pull(model, (progress) => {
+      const apiKey = await ollamaKey();
+
+      await createOllama({ baseURL, apiKey, fetch }).pull(model, (progress) => {
         pulls.set(key, progress);
         progressed();
       });
@@ -98,9 +119,8 @@ export function createEmbeddings({
 
       if (!enabled) return undefined;
 
-      if (provider === EmbeddingsProvider.Local) {
-        return createOpenAICompatibleEmbedder(endpoint);
-      }
+      if (provider === EmbeddingsProvider.Local)
+        return ollamaEmbedder(endpoint);
 
       const apiKey = await secrets.get(Secret.EmbeddingsApiKey);
 
@@ -111,13 +131,13 @@ export function createEmbeddings({
 
     /**
      * The embedder for the user's own text, such as reports, memories and what the agent searches
-     * for: only a model on this computer, so that text never leaves it.
+     * for: only Ollama, which the user runs on this computer or a host of their own, never OpenAI's.
      */
     localEmbedder(): Embedder | undefined {
       const { enabled, provider, endpoint } = read();
 
       return enabled && provider === EmbeddingsProvider.Local
-        ? createOpenAICompatibleEmbedder(endpoint)
+        ? ollamaEmbedder(endpoint)
         : undefined;
     },
 
@@ -130,17 +150,22 @@ export function createEmbeddings({
         provider,
         space,
         measured: STORY_LINES.has(space),
+        ollamaBaseURL: local().baseURL,
       };
     },
 
-    /** What the server on this computer has of the model the local settings name, whichever provider is picked. */
+    /** What Ollama has of the model the local settings name, whichever provider is picked. */
     async localModel(): Promise<LocalModelState> {
       const { baseURL, model, key } = local();
       const pull = pulls.get(key);
 
       if (pull) return { status: LocalModelStatus.Pulling, model, ...pull };
 
-      const has = await createOllama({ baseURL, fetch }).has(model);
+      const has = await createOllama({
+        baseURL,
+        apiKey: await ollamaKey(),
+        fetch,
+      }).has(model);
 
       if (has === null) {
         return {
