@@ -1,12 +1,8 @@
 import { expect, test } from "vite-plus/test";
 
+import { DAY_MS, HOUR_MS, MINUTE_MS } from "@solyx/utils/date";
+
 import { DEFAULT_RETENTION, expiredBackups } from "../src/retention.ts";
-
-const MINUTE = 60 * 1000;
-
-const HOUR = 60 * MINUTE;
-
-const DAY = 24 * HOUR;
 
 const TAIPEI = "Asia/Taipei";
 
@@ -35,11 +31,11 @@ const local = (at: number) =>
     .toString();
 
 test("backups thin out with age: every hour of a day, then a day of each week, then a week of each month", () => {
-  const kept = keptOf(every(HOUR, 60 * DAY));
+  const kept = keptOf(every(HOUR_MS, 60 * DAY_MS));
 
   // The last 24 hours whole, which hold the newest four too.
   expect(kept.slice(0, 24)).toEqual(
-    Array.from({ length: 24 }, (_, index) => NOW - index * HOUR)
+    Array.from({ length: 24 }, (_, index) => NOW - index * HOUR_MS)
   );
 
   // Those reach into yesterday, whose last backup is among them. Then the last backup of each
@@ -56,8 +52,8 @@ test("backups thin out with age: every hour of a day, then a day of each week, t
 });
 
 test("making backups more often keeps no more of them", () => {
-  const hourly = keptOf(every(HOUR, 60 * DAY));
-  const quarterHourly = keptOf(every(15 * MINUTE, 60 * DAY));
+  const hourly = keptOf(every(HOUR_MS, 60 * DAY_MS));
+  const quarterHourly = keptOf(every(15 * MINUTE_MS, 60 * DAY_MS));
 
   const most =
     DEFAULT_RETENTION.newest +
@@ -70,15 +66,15 @@ test("making backups more often keeps no more of them", () => {
   // Only the newest few are closer together.
   expect(quarterHourly.slice(0, 4)).toEqual([
     NOW,
-    NOW - 15 * MINUTE,
-    NOW - 30 * MINUTE,
-    NOW - 45 * MINUTE,
+    NOW - 15 * MINUTE_MS,
+    NOW - 30 * MINUTE_MS,
+    NOW - 45 * MINUTE_MS,
   ]);
 });
 
 test("a computer left off for months loses nothing to age when it makes a new backup", () => {
-  const before = every(DAY, 6 * DAY).map(({ createdAt }) => ({
-    createdAt: createdAt - 90 * DAY,
+  const before = every(DAY_MS, 6 * DAY_MS).map(({ createdAt }) => ({
+    createdAt: createdAt - 90 * DAY_MS,
   }));
 
   expect(expiredBackups([{ createdAt: NOW }, ...before], TAIPEI)).toEqual([]);
@@ -101,5 +97,5 @@ test("a day is the user's own, not the world's", () => {
 
 test("nothing is deleted while there are fewer backups than are kept", () => {
   expect(expiredBackups([], TAIPEI)).toEqual([]);
-  expect(expiredBackups(every(HOUR, 3 * HOUR), TAIPEI)).toEqual([]);
+  expect(expiredBackups(every(HOUR_MS, 3 * HOUR_MS), TAIPEI)).toEqual([]);
 });

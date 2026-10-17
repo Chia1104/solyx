@@ -8,6 +8,8 @@ import type {
 } from "@earendil-works/pi-ai";
 import * as z from "zod";
 
+import { MINUTE_MS } from "@solyx/utils/date";
+
 import { listenForSignIn } from "./sign-in-callback.ts";
 import type { SignInPage } from "./sign-in-callback.ts";
 
@@ -32,7 +34,7 @@ const CALLBACK_PATH = "/auth/callback";
 const PREFERRED_PORT = 1455;
 
 // Refreshed this long before it expires, so no request starts with a token about to lapse.
-const EXPIRY_MARGIN_MS = 3 * 60 * 1000;
+const EXPIRY_MARGIN_MS = 3 * MINUTE_MS;
 
 export interface ChatGPTOAuthOptions {
   /** Shown on OpenAI's consent screen, the same on every installation. */

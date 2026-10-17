@@ -3,12 +3,13 @@ import ky, { isHTTPError } from "ky";
 import * as z from "zod";
 
 import type { Embedder } from "@solyx/core/embedding";
+import { MINUTE_MS } from "@solyx/utils/date";
 
 // Texts per request: well under every server's limit, and a collection's news fits in a few.
 const BATCH = 64;
 
 // A local server loads its model on the first request, which takes longer than ky's default allows.
-const TIMEOUT_MS = 60_000;
+const TIMEOUT_MS = MINUTE_MS;
 
 const responseSchema = z.object({
   data: z.array(

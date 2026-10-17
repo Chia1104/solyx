@@ -11,6 +11,7 @@ import type {
   ScheduledTask,
   ScheduledTaskDraft,
 } from "@solyx/core/schedule";
+import { MINUTE_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 
 import type { ScheduledTaskView } from "#shared/schedules.ts";
@@ -21,11 +22,11 @@ import type { ScheduleDays } from "../market/schedule-days.ts";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 // Each pass only looks for tasks that are due, so it follows the scheduler's own tick.
-const PASS_EVERY_MS = 60 * 1000;
+const PASS_EVERY_MS = MINUTE_MS;
 
 // Telling what changed reads the account, which a live broker answers over the network, so tasks
 // that wait on a change are looked at only this often, as news collection reads it.
-const CHANGE_PASS_EVERY_MS = 30 * 60 * 1000;
+const CHANGE_PASS_EVERY_MS = 30 * MINUTE_MS;
 
 export interface SchedulesOptions {
   store: ScheduleStore;

@@ -1,6 +1,6 @@
-import { contractOS } from "../../rpc/context.ts";
+import { DAY_MS } from "@solyx/utils/date";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+import { contractOS } from "../../rpc/context.ts";
 
 const daysAgo = (days: number) => new Date(Date.now() - days * DAY_MS);
 

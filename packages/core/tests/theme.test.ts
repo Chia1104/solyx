@@ -1,5 +1,7 @@
 import { expect, test, vi } from "vite-plus/test";
 
+import { DAY_MS } from "@solyx/utils/date";
+
 import { Market } from "../src/market.ts";
 import { TimePrecision } from "../src/news.ts";
 import { ThemeDesk, themeDraftSchema } from "../src/theme.ts";
@@ -12,8 +14,6 @@ import type {
 } from "../src/theme.ts";
 
 const AT = Date.parse("2026-10-10T09:00:00+08:00");
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const OUTBREAK: ThemeDraft = {
   title: "Outbreak near the border",

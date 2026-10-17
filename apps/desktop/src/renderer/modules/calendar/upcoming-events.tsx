@@ -13,9 +13,10 @@ import type {
 } from "@solyx/core/calendar";
 import { MacroUnit, releaseReadings } from "@solyx/core/macro";
 import type { MacroRelease } from "@solyx/core/macro";
-import { exchangeDate, shiftDate, symbolKey } from "@solyx/core/market";
+import { exchangeDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketClosure } from "@solyx/core/session";
+import { shiftDate } from "@solyx/utils/date";
 
 import { useClock } from "../../app/clock.ts";
 import { LoadError } from "../../components/load-error.tsx";

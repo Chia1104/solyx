@@ -24,6 +24,7 @@ import { openMemory } from "@solyx/db/memory";
 import { openNews } from "@solyx/db/news";
 import { openResearch } from "@solyx/db/research";
 import { openUserData } from "@solyx/db/user";
+import { DAY_MS, HOUR_MS, MINUTE_MS } from "@solyx/utils/date";
 
 import {
   BackupActivity,
@@ -234,7 +235,7 @@ test("every installation's backups are listed newest first, and others' things l
   const laptop = await computer("laptop", shared);
 
   await desk.backups.backUp();
-  laptop.clock.now = AT + 60 * 60 * 1000 + 3;
+  laptop.clock.now = AT + HOUR_MS + 3;
   await laptop.backups.backUp();
   shared.objects.set("solyx/desk/notes.txt", Buffer.from("not a backup"));
   shared.objects.set(
@@ -245,7 +246,7 @@ test("every installation's backups are listed newest first, and others' things l
   await expect(laptop.backups.list()).resolves.toMatchObject([
     {
       key: "solyx/laptop/20261013T090000Z.solyx-backup",
-      createdAt: AT + 60 * 60 * 1000,
+      createdAt: AT + HOUR_MS,
       own: true,
     },
     {
@@ -571,10 +572,6 @@ test("where backups go is saved checked, and read with its defaults", async () =
   });
 });
 
-const MINUTE = 60 * 1000;
-
-const HOUR = 60 * MINUTE;
-
 test("a backup is made on its own once one is due, and only when something changed", async () => {
   const shared = memoryBucket();
   const desk = await computer("desk", shared);
@@ -586,29 +583,29 @@ test("a backup is made on its own once one is due, and only when something chang
 
   // Not due again yet, whatever changed meanwhile.
   desk.opened.watchlist.add(FOXCONN);
-  desk.clock.now += 59 * MINUTE;
+  desk.clock.now += 59 * MINUTE_MS;
   await desk.backups.work.run();
 
   expect(shared.objects.size).toBe(1);
 
-  desk.clock.now += MINUTE;
+  desk.clock.now += MINUTE_MS;
   await desk.backups.work.run();
 
   expect(shared.objects.size).toBe(2);
 
   // Due again with nothing changed, so another would only be a second copy of the last.
-  desk.clock.now += HOUR;
+  desk.clock.now += HOUR_MS;
   await desk.backups.work.run();
 
   expect(shared.objects.size).toBe(2);
   await expect(desk.backups.status()).resolves.toMatchObject({
-    lastBackupAt: AT + HOUR,
+    lastBackupAt: AT + HOUR_MS,
     stored: { count: 2 },
   });
 
   // Having looked counts, so the next look waits a whole span again.
   desk.opened.watchlist.remove(FOXCONN);
-  desk.clock.now += 59 * MINUTE;
+  desk.clock.now += 59 * MINUTE_MS;
   await desk.backups.work.run();
 
   expect(shared.objects.size).toBe(2);
@@ -626,7 +623,7 @@ test("a passphrase changed is backed up under at the next pass, though nothing e
   const desk = await computer("desk", shared);
 
   await desk.backups.work.run();
-  desk.clock.now += HOUR;
+  desk.clock.now += HOUR_MS;
   await desk.backups.work.run();
 
   expect(shared.objects.size).toBe(1);
@@ -636,7 +633,7 @@ test("a passphrase changed is backed up under at the next pass, though nothing e
     Secret.BackupPassphrase,
     "a passphrase of another day"
   );
-  desk.clock.now += MINUTE;
+  desk.clock.now += MINUTE_MS;
   await desk.backups.work.run();
 
   expect(shared.objects.size).toBe(2);
@@ -647,7 +644,9 @@ test("a passphrase changed is backed up under at the next pass, though nothing e
     "a passphrase of another day"
   );
 
-  await laptop.backups.restore(backupKey("solyx", "desk", AT + HOUR + MINUTE));
+  await laptop.backups.restore(
+    backupKey("solyx", "desk", AT + HOUR_MS + MINUTE_MS)
+  );
 
   expect(laptop.restart).toHaveBeenCalledOnce();
 });
@@ -663,7 +662,7 @@ test("a backup that was going up as the passphrase changed is not taken for one 
   });
 
   await desk.backups.work.run();
-  desk.clock.now += HOUR;
+  desk.clock.now += HOUR_MS;
   await desk.backups.work.run();
 
   expect(shared.objects.size).toBe(2);
@@ -687,12 +686,12 @@ test("a pass that found nothing changed as the passphrase changed leaves the nex
   });
 
   await desk.backups.work.run();
-  desk.clock.now += HOUR;
+  desk.clock.now += HOUR_MS;
   await desk.backups.work.run();
 
   expect(shared.objects.size).toBe(1);
 
-  desk.clock.now += MINUTE;
+  desk.clock.now += MINUTE_MS;
   await desk.backups.work.run();
 
   expect(shared.objects.size).toBe(2);
@@ -711,7 +710,7 @@ test("another bucket or folder is backed up to as if for the first time", async 
     stored: null,
   });
 
-  desk.clock.now += MINUTE;
+  desk.clock.now += MINUTE_MS;
   await desk.backups.work.run();
 
   expect([...shared.objects.keys()]).toEqual([
@@ -719,7 +718,7 @@ test("another bucket or folder is backed up to as if for the first time", async 
     "moved/desk/20261013T080100Z.solyx-backup",
   ]);
   await expect(desk.backups.status()).resolves.toMatchObject({
-    lastBackupAt: AT + MINUTE,
+    lastBackupAt: AT + MINUTE_MS,
     stored: { count: 1 },
   });
 });
@@ -737,12 +736,12 @@ test("nothing is made on its own while that is off, set to a longer span, or not
   await desk.backups.setEvery(BackupInterval.Day);
   await desk.backups.work.run();
   desk.opened.watchlist.add(TSMC);
-  desk.clock.now += 23 * HOUR;
+  desk.clock.now += 23 * HOUR_MS;
   await desk.backups.work.run();
 
   expect(shared.objects.size).toBe(1);
 
-  desk.clock.now += HOUR;
+  desk.clock.now += HOUR_MS;
   await desk.secrets.delete(Secret.BackupPassphrase);
   await desk.backups.work.run();
 
@@ -753,13 +752,12 @@ test("nothing is made on its own while that is off, set to a longer span, or not
 test("after a backup the installation's older ones thin out, and nothing else in the bucket goes", async () => {
   const shared = memoryBucket();
   const desk = await computer("desk", shared);
-  const DAY = 24 * HOUR;
 
   // A backup a day over two months, the laptop's among them, and a file someone else put there.
   for (let day = 1; day <= 60; day += 1) {
     for (const installation of ["desk", "laptop"]) {
       shared.objects.set(
-        backupKey("solyx", installation, AT - day * DAY),
+        backupKey("solyx", installation, AT - day * DAY_MS),
         Buffer.alloc(10)
       );
     }
@@ -806,13 +804,13 @@ test("a bucket out of reach is said why and tried again later, never every minut
     failure: "r2.example: fetch failed",
   });
 
-  desk.clock.now += 14 * MINUTE;
+  desk.clock.now += 14 * MINUTE_MS;
   await desk.backups.work.run();
 
   expect(put).toHaveBeenCalledOnce();
 
   put.mockRestore();
-  desk.clock.now += MINUTE;
+  desk.clock.now += MINUTE_MS;
   await desk.backups.work.run();
 
   expect(shared.objects.size).toBe(1);
@@ -827,18 +825,18 @@ test("a backup that fails after going on a long while waits from when it failed"
 
   // An upload twenty minutes in when the connection drops.
   const put = vi.spyOn(shared.bucket, "put").mockImplementation(async () => {
-    desk.clock.now += 20 * MINUTE;
+    desk.clock.now += 20 * MINUTE_MS;
 
     throw new Error("r2.example: fetch failed");
   });
 
   await desk.backups.work.run();
-  desk.clock.now += MINUTE;
+  desk.clock.now += MINUTE_MS;
   await desk.backups.work.run();
 
   expect(put).toHaveBeenCalledOnce();
 
-  desk.clock.now += 14 * MINUTE;
+  desk.clock.now += 14 * MINUTE_MS;
   await desk.backups.work.run();
 
   expect(put).toHaveBeenCalledTimes(2);
@@ -856,7 +854,7 @@ test("a backup stays made when thinning out the older ones fails", async () => {
 
   for (let day = 1; day <= 60; day += 1) {
     shared.objects.set(
-      backupKey("solyx", "desk", AT - day * 24 * HOUR),
+      backupKey("solyx", "desk", AT - day * 24 * HOUR_MS),
       Buffer.alloc(10)
     );
   }

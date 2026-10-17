@@ -1,5 +1,6 @@
 import * as z from "zod";
 
+import { MINUTE_MS, HOUR_MS, DAY_MINUTES } from "@solyx/utils/date";
 import { isTimeZone } from "@solyx/utils/is";
 
 import { changeScopeSchema } from "./changes.ts";
@@ -23,7 +24,7 @@ export type ScheduleKind = (typeof ScheduleKind)[keyof typeof ScheduleKind];
 /** No shorter, so a task cannot spend the user's model budget by the minute. */
 export const MIN_INTERVAL_MINUTES = 30;
 
-const MAX_INTERVAL_MINUTES = 7 * 24 * 60;
+const MAX_INTERVAL_MINUTES = 7 * DAY_MINUTES;
 
 const intervalSchema = z.object({
   kind: z.literal(ScheduleKind.Interval),
@@ -137,13 +138,11 @@ export interface ScheduleStore {
   remove(id: string): void;
 }
 
-const MINUTE_MS = 60 * 1000;
-
 /**
  * How late a fixed time still runs. A desktop app is often closed at the time, so the run is made
  * up for as it opens, but one half a day late says little about that morning.
  */
-export const FIXED_TIME_GRACE_MS = 12 * 60 * MINUTE_MS;
+export const FIXED_TIME_GRACE_MS = 12 * HOUR_MS;
 
 // Far enough to step over an exchange's longest closure.
 const SEARCHED_DAYS = 31;

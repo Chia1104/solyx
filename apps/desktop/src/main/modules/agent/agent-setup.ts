@@ -18,6 +18,7 @@ import { DecisionsProvider } from "@solyx/decisions/provider";
 import { EmbeddingsProvider } from "@solyx/embeddings/provider";
 import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
+import { HOUR_MINUTES } from "@solyx/utils/date";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import { RETENTION_DAYS } from "#shared/news.ts";
@@ -163,8 +164,6 @@ function choice<T extends string>(
 /** A setting that is on or off, as true or false. */
 const flag = (save: (on: boolean) => void) =>
   choice(["true", "false"], (value) => save(value === "true"));
-
-const HOUR_MINUTES = 60;
 
 // A span between collections as the agent may set it, in whole hours, up to a week.
 const hoursSchema = z

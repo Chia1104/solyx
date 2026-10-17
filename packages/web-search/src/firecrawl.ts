@@ -10,6 +10,7 @@ import type {
   WebSearch,
   WebSearchQuery,
 } from "@solyx/core/web-search";
+import { MINUTE_MS, HOUR_MS, DAY_MS } from "@solyx/utils/date";
 
 import { calendarDate, onDay, site, vendorHttp, within } from "./vendor.ts";
 
@@ -55,9 +56,9 @@ const AGE_PATTERN = /^(\d+)\s+(minute|hour|day|week)s?\s+ago$/i;
 
 // An age is as exact as its unit; weeks are rare within the days a search covers.
 const AGE_UNITS = new Map([
-  ["minute", { ms: 60_000, precision: TimePrecision.Minute }],
-  ["hour", { ms: 3_600_000, precision: TimePrecision.Hour }],
-  ["day", { ms: 86_400_000, precision: TimePrecision.Day }],
+  ["minute", { ms: MINUTE_MS, precision: TimePrecision.Minute }],
+  ["hour", { ms: HOUR_MS, precision: TimePrecision.Hour }],
+  ["day", { ms: DAY_MS, precision: TimePrecision.Day }],
   ["week", { ms: 604_800_000, precision: TimePrecision.Day }],
 ]);
 

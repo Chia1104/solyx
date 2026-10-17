@@ -5,6 +5,7 @@ import * as z from "zod";
 import { exchangeTime, marketSchema } from "@solyx/core/market";
 import { WebSearchKind, webSearchKindSchema } from "@solyx/core/web-search";
 import type { WebReader, WebSearch } from "@solyx/core/web-search";
+import { wallTime, DAY_MS } from "@solyx/utils/date";
 
 import type { AutoCheck, ToolGuard } from "./approval.ts";
 import { isFoundAddress, rememberAddresses } from "./found-addresses.ts";
@@ -17,8 +18,6 @@ export interface WebToolsOptions {
   /** @default () => new Date() */
   now?: () => Date;
 }
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const SNIPPET_LENGTH = 280;
 
@@ -100,7 +99,7 @@ export function createWebTools(options: WebToolsOptions) {
 
       const asOf = market
         ? exchangeTime(market, at)
-        : `${at.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+        : `${wallTime("UTC", at)} UTC`;
 
       return {
         text: [

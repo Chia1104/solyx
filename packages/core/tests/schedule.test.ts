@@ -1,5 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
+import { HOUR_MS } from "@solyx/utils/date";
+
 import { EVERY_CHANGE } from "../src/changes.ts";
 import { Market } from "../src/market.ts";
 import {
@@ -15,8 +17,6 @@ import {
 } from "../src/schedule.ts";
 import type { Schedule, Timed } from "../src/schedule.ts";
 import { weekdays } from "../src/session.ts";
-
-const HOUR_MS = 60 * 60 * 1000;
 
 const taipei = (time: string) => Date.parse(`${time}+08:00`);
 

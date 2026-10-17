@@ -665,6 +665,9 @@ importers:
 
   packages/backup:
     dependencies:
+      '@solyx/utils':
+        specifier: workspace:*
+        version: link:../utils
       es-toolkit:
         specifier: 'catalog:'
         version: 1.52.0
@@ -995,6 +998,9 @@ importers:
       '@solyx/core':
         specifier: workspace:*
         version: link:../core
+      '@solyx/utils':
+        specifier: workspace:*
+        version: link:../utils
       es-toolkit:
         specifier: 'catalog:'
         version: 1.52.0

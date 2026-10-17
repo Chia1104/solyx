@@ -1,3 +1,5 @@
+import { HOUR_MS } from "@solyx/utils/date";
+
 /** How many backups each rule keeps; one backup may be kept by several. */
 export interface RetentionPolicy {
   /** The newest ones, whenever they were made. */
@@ -20,8 +22,6 @@ export const DEFAULT_RETENTION: RetentionPolicy = {
   days: 7,
   weeks: 4,
 };
-
-const HOUR_MS = 60 * 60 * 1000;
 
 /**
  * The backups to delete, so that those kept thin out with age: the newest few, then the last of

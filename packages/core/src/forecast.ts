@@ -1,13 +1,14 @@
 import { countBy, meanBy, range, sortBy, sumBy } from "es-toolkit";
 import * as z from "zod";
 
+import { shiftDate } from "@solyx/utils/date";
 import { sentences } from "@solyx/utils/search";
 
 import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import type { Council } from "./council.ts";
 import type { Dividend } from "./fundamentals.ts";
-import { exchangeMidnight, shiftDate, symbolRefSchema } from "./market.ts";
+import { exchangeMidnight, symbolRefSchema } from "./market.ts";
 import type { Market } from "./market.ts";
 import {
   ReportStance,

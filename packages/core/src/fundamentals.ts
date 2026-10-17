@@ -1,5 +1,7 @@
 import { median, sumBy } from "es-toolkit";
 
+import { shiftMonth } from "@solyx/utils/date";
+
 import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import type { Market, SymbolRef } from "./market.ts";
@@ -401,10 +403,6 @@ function growth(
 
 const share = (part: number | null, whole: number) =>
   part === null || whole === 0 ? null : part / whole;
-
-/** `YYYY-MM` moved by whole months. */
-const shiftMonth = (month: string, months: number) =>
-  Temporal.PlainYearMonth.from(month).add({ months }).toString();
 
 const monthOf = ({ periodEnd }: { periodEnd: string }) => periodEnd.slice(0, 7);
 

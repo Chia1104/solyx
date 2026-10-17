@@ -4,6 +4,7 @@ import { expect, test, vi } from "vite-plus/test";
 import { BrokerMode } from "@solyx/core/broker";
 import enUS from "@solyx/i18n/desktop/en-US.json" with { type: "json" };
 import zhTW from "@solyx/i18n/desktop/zh-TW.json" with { type: "json" };
+import { HOUR_MS } from "@solyx/utils/date";
 
 import { clock } from "#shared/clock.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
@@ -20,8 +21,6 @@ import type {
 } from "../src/main/modules/tray/tray.ts";
 
 const TIME_ZONE = "Asia/Taipei";
-
-const HOUR_MS = 60 * 60 * 1000;
 
 const idle = (): TrayState => ({
   mode: BrokerMode.Paper,

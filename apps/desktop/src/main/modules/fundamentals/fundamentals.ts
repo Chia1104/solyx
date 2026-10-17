@@ -7,6 +7,7 @@ import type {
 } from "@solyx/core/fundamentals";
 import { exchangeDate, symbolKey } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
+import { HOUR_MS } from "@solyx/utils/date";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
 
@@ -19,10 +20,10 @@ const SHEET_YEARS = 3;
 const REVENUE_MONTHS = 36;
 
 // A quarter or a month is published once, so a listing is asked about twice a day at most.
-const FRESH_MS = 12 * 60 * 60 * 1000;
+const FRESH_MS = 12 * HOUR_MS;
 
 // One read answers for every listing, so a list an exchange draws up each day is read once an hour at most.
-const DAILY_LIST_FRESH_MS = 60 * 60 * 1000;
+const DAILY_LIST_FRESH_MS = HOUR_MS;
 
 export interface FundamentalsOptions {
   /** One per market at most; the first that covers a listing's market answers for it. */

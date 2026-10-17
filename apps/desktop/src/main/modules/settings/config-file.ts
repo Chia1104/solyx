@@ -47,6 +47,7 @@ import {
 } from "@solyx/embeddings/provider";
 import { FinMindPlan, finMindPlanSchema } from "@solyx/fundamentals/finmind";
 import { FuglePlan, fuglePlanSchema } from "@solyx/market-data/fugle";
+import { HOUR_MINUTES } from "@solyx/utils/date";
 import { isErrnoError } from "@solyx/utils/error";
 import { watchFile } from "@solyx/utils/server";
 import {
@@ -92,8 +93,6 @@ const textSchema = z.string().trim().min(1).optional().catch(undefined);
 
 const paletteIdSchema = z.string().min(1).catch(Palette.Blueprint);
 
-const HOUR_MINUTES = 60;
-
 /**
  * When each of the app's own collections runs until the user says otherwise, on this computer's
  * clock: news every three days, so a web search vendor's free tier covers a watchlist of about ten
@@ -103,12 +102,12 @@ export const DEFAULT_COLLECTION_PLANS: Record<CollectionJob, CollectionPlan> = {
   [CollectionJob.News]: {
     enabled: true,
     schedule: { kind: ScheduleKind.Interval, everyMinutes: 72 * HOUR_MINUTES },
-    timeZone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
+    timeZone: Temporal.Now.timeZoneId(),
   },
   [CollectionJob.Themes]: {
     enabled: true,
     schedule: { kind: ScheduleKind.Interval, everyMinutes: 24 * HOUR_MINUTES },
-    timeZone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
+    timeZone: Temporal.Now.timeZoneId(),
   },
 };
 

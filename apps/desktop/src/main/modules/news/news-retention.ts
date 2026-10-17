@@ -2,14 +2,13 @@ import { isEqual, mapValues } from "es-toolkit";
 
 import { CHANNEL_VOICE } from "@solyx/core/news";
 import type { NewsData } from "@solyx/db/news";
+import { DAY_MS } from "@solyx/utils/date";
 
 import { RETENTION_DAYS } from "#shared/news.ts";
 
 import type { ScheduledWork } from "../../scheduler.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface NewsRetentionOptions {
   news: Pick<NewsData, "prune">;

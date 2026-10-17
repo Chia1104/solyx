@@ -17,7 +17,6 @@ import {
   timeZonePreferenceSchema,
 } from "#shared/settings.ts";
 
-import { systemTimeZone } from "../../app/clock.ts";
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
@@ -58,7 +57,7 @@ export function TimeZoneSelect() {
     return [
       {
         id: TimeZonePreference.System,
-        label: t("time-zone.system", { zone: systemTimeZone() }),
+        label: t("time-zone.system", { zone: Temporal.Now.timeZoneId() }),
       },
       ...zones.map((zone) => ({ id: zone, label: zoneLabel(zone, now) })),
     ];

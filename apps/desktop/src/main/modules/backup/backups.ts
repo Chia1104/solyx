@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { isEqual } from "es-toolkit";
 
 import { DEFAULT_REGION, awsEndpoint } from "@solyx/backup/s3";
+import { MINUTE_MS, HOUR_MS, DAY_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 
 import {
@@ -51,13 +52,11 @@ const SECRETS = [
   Secret.BackupPassphrase,
 ];
 
-const MINUTE_MS = 60 * 1000;
-
 const INTERVAL_MS: Record<BackupInterval, number> = {
   [BackupInterval.QuarterHour]: 15 * MINUTE_MS,
-  [BackupInterval.Hour]: 60 * MINUTE_MS,
-  [BackupInterval.SixHours]: 6 * 60 * MINUTE_MS,
-  [BackupInterval.Day]: 24 * 60 * MINUTE_MS,
+  [BackupInterval.Hour]: HOUR_MS,
+  [BackupInterval.SixHours]: 6 * HOUR_MS,
+  [BackupInterval.Day]: DAY_MS,
 };
 
 // Each pass only looks whether a backup is due, which costs no request.

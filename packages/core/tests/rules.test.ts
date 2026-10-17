@@ -3,6 +3,7 @@ import { describe, expect, test } from "vite-plus/test";
 import {
   isValidTwQuantity,
   twRevenueDeadline,
+  twRocDaySchema,
   twTickSize,
 } from "../src/rules/tw.ts";
 import { usTickSize } from "../src/rules/us.ts";
@@ -61,4 +62,18 @@ test("usTickSize allows sub-penny only below $1", () => {
 test("a month's revenue is due by the tenth of the next, December's in the next year", () => {
   expect(twRevenueDeadline("2026-09")).toBe("2026-10-10");
   expect(twRevenueDeadline("2026-12")).toBe("2027-01-10");
+});
+
+describe("twRocDaySchema", () => {
+  test.each([
+    ["1151012", "2026-10-12"],
+    ["115/10/12", "2026-10-12"],
+    [" 991231 ", "2010-12-31"],
+  ])("reads %s as %s", (written, day) => {
+    expect(twRocDaySchema.parse(written)).toBe(day);
+  });
+
+  test.each(["1150230", "115-10-12", "11510"])("refuses %s", (written) => {
+    expect(twRocDaySchema.safeParse(written).success).toBe(false);
+  });
 });

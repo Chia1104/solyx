@@ -8,9 +8,10 @@ import type { Market } from "@solyx/core/market";
 import { TimePrecision } from "@solyx/core/news";
 import type { Published } from "@solyx/core/news";
 import type { WebResult, WebSearchQuery } from "@solyx/core/web-search";
+import { MINUTE_MS } from "@solyx/utils/date";
 
 // Vendors search and render pages on their side, which takes longer than ky's default allows.
-const VENDOR_TIMEOUT_MS = 60_000;
+const VENDOR_TIMEOUT_MS = MINUTE_MS;
 
 // Vendors say what went wrong in `error`, some in `message`, Tavily in `detail.error`.
 const failureSchema = z.union([

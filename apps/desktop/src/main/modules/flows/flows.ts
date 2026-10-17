@@ -9,10 +9,10 @@ import {
   MARKET_TIME_ZONE,
   exchangeClock,
   exchangeDate,
-  shiftDate,
   symbolKey,
 } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
+import { shiftDate, DAY_MS } from "@solyx/utils/date";
 import { keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
 
@@ -24,8 +24,6 @@ const LOOKBACK_DAYS = 365;
 const PUBLISHED = ["15:30", "18:30", "21:30"].map((time) =>
   Temporal.PlainTime.from(time)
 );
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Whether an answer asked for at `askedAt` still serves at `now`: no session's figures came out between. */
 function unpublishedSince(

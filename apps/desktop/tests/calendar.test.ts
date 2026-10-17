@@ -9,6 +9,7 @@ import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Report } from "@solyx/core/report";
 import type { ClosuresProvider } from "@solyx/core/session";
+import { HOUR_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
 import { createCalendar } from "../src/main/modules/calendar/calendar.ts";
@@ -33,8 +34,6 @@ function cash(amount: number, cashExDate: string): Dividend {
 }
 
 const AAPL = { market: Market.US, symbol: "AAPL" };
-
-const HOUR_MS = 60 * 60 * 1000;
 
 function consumerPrices(date: string, period: string): MacroRelease {
   return {

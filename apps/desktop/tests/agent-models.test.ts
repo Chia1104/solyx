@@ -15,6 +15,7 @@ import {
 import { DEFAULT_MODEL } from "@solyx/agent/models";
 import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import type { AgentProvider } from "@solyx/agent/providers";
+import { MINUTE_MS } from "@solyx/utils/date";
 
 import {
   Locale,
@@ -249,7 +250,7 @@ describe("paying by subscription", () => {
         type: "oauth",
         access: "access",
         refresh: "refresh",
-        expires: Date.now() + 60_000,
+        expires: Date.now() + MINUTE_MS,
       })
     );
 
@@ -279,7 +280,7 @@ describe("paying by subscription", () => {
         type: "oauth",
         access: "access",
         refresh: "refresh",
-        expires: Date.now() + 60_000,
+        expires: Date.now() + MINUTE_MS,
       })
     );
 
@@ -404,7 +405,7 @@ describe("paying by subscription", () => {
         type: "oauth",
         access: "tid=1;exp=1;proxy-ep=proxy.individual.githubcopilot.com",
         refresh: "ghu_test",
-        expires: Date.now() + 30 * 60_000,
+        expires: Date.now() + 30 * MINUTE_MS,
         availableModelIds: ["gpt-5.4"],
       })
     );

@@ -1,6 +1,6 @@
 import * as z from "zod";
 
-import { Market, shiftDate } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
 import type { Published } from "@solyx/core/news";
 import { WebSearchKind } from "@solyx/core/web-search";
 import type {
@@ -9,6 +9,7 @@ import type {
   WebSearch,
   WebSearchQuery,
 } from "@solyx/core/web-search";
+import { shiftDate } from "@solyx/utils/date";
 
 import { calendarDate, onDay, site, vendorHttp, within } from "./vendor.ts";
 

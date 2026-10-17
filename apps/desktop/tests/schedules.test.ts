@@ -12,6 +12,7 @@ import type {
   ScheduledTaskDraft,
 } from "@solyx/core/schedule";
 import { weekdays } from "@solyx/core/session";
+import { MINUTE_MS, HOUR_MS } from "@solyx/utils/date";
 
 import { createSchedules } from "../src/main/modules/schedules/schedules.ts";
 
@@ -19,8 +20,6 @@ const taipei = (time: string) => Date.parse(`${time}+08:00`);
 
 // 2026-10-08 is a Thursday.
 const START = taipei("2026-10-08T07:00:00");
-
-const MINUTE_MS = 60 * 1000;
 
 const BRIEF: ScheduledTaskDraft = {
   name: "Morning brief",
@@ -271,7 +270,7 @@ test("a task that waits on a change runs on the slower pass, once something chan
     },
   });
 
-  clock.now = START + 2 * 60 * MINUTE_MS;
+  clock.now = START + 2 * HOUR_MS;
   await schedules.work.run();
   await schedules.changeWork.run();
 
@@ -298,5 +297,5 @@ test("a task that waits on a change runs on the slower pass, once something chan
   await schedules.changeWork.run();
 
   expect(runScheduled).toHaveBeenCalledOnce();
-  expect(changes).toHaveBeenLastCalledWith(START + 2 * 60 * MINUTE_MS, scope);
+  expect(changes).toHaveBeenLastCalledWith(START + 2 * HOUR_MS, scope);
 });

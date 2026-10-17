@@ -19,6 +19,7 @@ import type {
   ScheduledTaskDraft,
 } from "@solyx/core/schedule";
 import type { ThemeDesk } from "@solyx/core/theme";
+import { wallTime } from "@solyx/utils/date";
 
 import { checkedFirst } from "./approval.ts";
 import type { ToolGuard } from "./approval.ts";
@@ -129,14 +130,6 @@ function closingReply({ items }: AgentView): string | undefined {
     : reply;
 }
 
-/** A moment on a task's own clock, to the minute. */
-const moment = (at: number, timeZone: string) =>
-  Temporal.Instant.fromEpochMilliseconds(at)
-    .toZonedDateTimeISO(timeZone)
-    .toPlainDateTime()
-    .toString({ smallestUnit: "minute" })
-    .replace("T", " ");
-
 const KIND_TEXT: Record<ChangeKind, string> = {
   [ChangeKind.FalsifierMet]: "news may state a report's falsifier",
   [ChangeKind.EventPassed]: "a report's event passed",
@@ -177,7 +170,7 @@ function whenText(schedule: Schedule, timeZone: string): string {
 function lastRunText({ lastRun, running, timeZone }: ListedTask): string {
   if (lastRun === null) return "Never ran.";
 
-  const at = moment(lastRun.at, timeZone);
+  const at = wallTime(timeZone, new Date(lastRun.at));
 
   const head =
     lastRun.failure !== null
@@ -204,7 +197,7 @@ function taskText(task: ListedTask): string {
     lastRunText(task),
     ...(nextRunAt === null
       ? []
-      : [`Next run ${moment(nextRunAt, timeZone)} ${timeZone}.`]),
+      : [`Next run ${wallTime(timeZone, new Date(nextRunAt))} ${timeZone}.`]),
     "Sends:",
     task.prompt,
   ].join("\n");
@@ -349,7 +342,7 @@ export function createTaskTools({
         text: [
           `Runs of task "${task.name}" (id ${taskId}), newest first. Each reply is what that run wrote then, not current data.`,
           ...read.flatMap(({ at, view }) => [
-            `## Run of ${moment(at, task.timeZone)} ${task.timeZone}: ${runState(view)}`,
+            `## Run of ${wallTime(task.timeZone, new Date(at))} ${task.timeZone}: ${runState(view)}`,
             closingReply(view) ?? "It wrote no reply.",
           ]),
         ].join("\n"),

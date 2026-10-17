@@ -1,5 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
+import { MINUTE_MS } from "@solyx/utils/date";
+
 import { EventTiming } from "../src/calendar.ts";
 import {
   ChangeKind,
@@ -106,7 +108,7 @@ test("a falsifier read as stated since then is told once, however many items sta
   const changes = (checks: FalsifierCheck[]) =>
     changesSince(
       SINCE,
-      SINCE + 60_000,
+      SINCE + MINUTE_MS,
       {
         reports: [{ report: { ...REPORT, events: [] }, checks }],
         themes: [],
@@ -159,7 +161,7 @@ test("a signpost read as stated since then is told once, by its theme", () => {
   expect(
     changesSince(
       SINCE,
-      SINCE + 60_000,
+      SINCE + MINUTE_MS,
       {
         reports: [],
         themes: [theme([SINCE - 1, SINCE + 1, SINCE + 2])],
@@ -172,7 +174,7 @@ test("a signpost read as stated since then is told once, by its theme", () => {
   expect(
     changesSince(
       SINCE,
-      SINCE + 60_000,
+      SINCE + MINUTE_MS,
       {
         reports: [],
         themes: [theme([SINCE])],

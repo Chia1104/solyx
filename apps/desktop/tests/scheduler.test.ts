@@ -3,9 +3,9 @@ import type { Span } from "@opentelemetry/api";
 import { noop } from "es-toolkit";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
-import { createScheduler } from "../src/main/scheduler.ts";
+import { MINUTE_MS } from "@solyx/utils/date";
 
-const MINUTE_MS = 60 * 1000;
+import { createScheduler } from "../src/main/scheduler.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();

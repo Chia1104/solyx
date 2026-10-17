@@ -4,16 +4,17 @@ import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { Session } from "@solyx/core/session";
+import { MINUTE_MS } from "@solyx/utils/date";
 
 import { orpc } from "../../app/rpc.ts";
 
 import { marketSessionsQuery } from "./market-sessions-query.ts";
 
 /** Every listing's quote costs a request of the plan's budget, so they refresh at this pace. */
-const QUOTE_REFRESH_MS = 2 * 60 * 1000;
+const QUOTE_REFRESH_MS = 2 * MINUTE_MS;
 
 /** The sectors cost a request per index. */
-const SECTORS_REFRESH_MS = 5 * 60 * 1000;
+const SECTORS_REFRESH_MS = 5 * MINUTE_MS;
 
 /** Sessions change with the clock rather than with any write. */
 const SESSIONS_REFRESH_MS = 5 * 1000;

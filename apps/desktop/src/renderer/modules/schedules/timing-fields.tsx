@@ -17,13 +17,10 @@ import {
 import { Market, marketSchema, symbolRefSchema } from "@solyx/core/market";
 import { ScheduleKind } from "@solyx/core/schedule";
 import type { Schedule } from "@solyx/core/schedule";
+import { HOUR_MINUTES, DAY_MINUTES } from "@solyx/utils/date";
 
 import { useClock } from "../../app/clock.ts";
 import { OptionSelect } from "../../components/option-select.tsx";
-
-const HOUR_MINUTES = 60;
-
-const DAY_MINUTES = 24 * HOUR_MINUTES;
 
 const EVERY_DAY = "every-day";
 

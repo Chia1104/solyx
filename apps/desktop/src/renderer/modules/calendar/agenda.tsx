@@ -8,7 +8,7 @@ import { getDayOfWeek, parseDate } from "@internationalized/date";
 import { range } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
-import { shiftDate } from "@solyx/core/market";
+import { shiftDate } from "@solyx/utils/date";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { AgendaView, useLayoutStore } from "../../app/layout-store.ts";

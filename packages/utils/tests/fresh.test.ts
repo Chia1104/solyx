@@ -1,9 +1,8 @@
 import { noop } from "es-toolkit";
 import { expect, test, vi } from "vite-plus/test";
 
+import { HOUR_MS } from "../src/date.ts";
 import { freshFor, keepFresh, memoryAnswers } from "../src/fresh.ts";
-
-const HOUR_MS = 60 * 60 * 1000;
 
 function setup() {
   const clock = { now: 0 };
