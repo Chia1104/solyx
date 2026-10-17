@@ -94,6 +94,7 @@
   --animate-fade-in: fade-in 200ms var(--ease-out) both;
   --animate-pencil-in: pencil-in 700ms var(--ease-out) both;
   --animate-ink-in: ink-in 900ms var(--ease-in-out) 300ms both;
+  --animate-drift: drift 40s linear infinite;
 
   @keyframes fade-in {
     from {
@@ -108,6 +109,13 @@
     }
     to {
       clip-path: inset(-4px);
+    }
+  }
+
+  /* Two copies side by side slide one copy's width to the right, so the loop has no seam. */
+  @keyframes drift {
+    from {
+      transform: translateX(-50%);
     }
   }
 
