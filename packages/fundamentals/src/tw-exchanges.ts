@@ -236,6 +236,11 @@ const twseFundSchema = z
     asOf: row.出表日期,
   }));
 
+// A listing on TWSE's list of the last session's trading, which holds those that did not trade too.
+const twseListingSchema = z
+  .object({ Code: codeSchema })
+  .transform((row) => row.Code);
+
 // A multiple, which an exchange fills with a word for nothing where it works none out.
 const multipleSchema = z.union([
   textSchema.regex(/^\d+(\.\d+)?$/).transform(Number),
@@ -540,7 +545,20 @@ export function createTwExchanges(
     async getFunds(market) {
       if (market !== Market.TW) return [];
 
-      return list(twse, "opendata/t187ap47_L", twseFundSchema, "基金代號");
+      const [funds, listings] = await Promise.all([
+        list(twse, "opendata/t187ap47_L", twseFundSchema, "基金代號"),
+        list(twse, "exchangeReport/STOCK_DAY_ALL", twseListingSchema),
+      ]);
+
+      // Leaving out every fund would read as the exchange listing none.
+      if (listings.length === 0) {
+        throw new Error("TWSE: exchangeReport/STOCK_DAY_ALL listed nothing");
+      }
+
+      // TWSE's list of funds keeps those it has delisted.
+      const listed = new Set(listings);
+
+      return funds.filter(({ symbol }) => listed.has(symbol));
     },
 
     async getMultiples(market) {
