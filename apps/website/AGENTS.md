@@ -15,7 +15,7 @@ The project's website: the landing page and the docs, on TanStack Start and Fuma
 
 - `src/styles/app.css` sets the app's Blueprint palette as shadcn's tokens (`--background`, `--primary`, `--muted-foreground`, …). Fumadocs reads them through its `shadcn.css` preset, so the docs and the landing page share one theme. Tokens shadcn has no name for (`--graphite`, `--hatch`, `--stipple`, `--rise`, `--fall`, the candles, the ink's gradient ends) sit beside them.
 - Interactive pieces are shadcn's Base UI components in `src/components/ui`, added with the shadcn CLI (`components.json`, style `base-vega`) and edited in place. Where no shadcn component fits, use the Base UI primitive directly, as the watchlist does with `ToggleGroup`. A link styled as a button stays a link and takes `buttonVariants`.
-- Motion uses the theme's `ease-out` and `ease-in-out`, which `app.css` redefines as strong curves. Reveals travel left to right, the way a pen moves. Under reduced motion, only fades remain.
+- Motion uses the theme's `ease-out` and `ease-in-out`, which `app.css` redefines as strong curves. Reveals travel left to right, the way a pen moves. Under reduced motion, only fades remain. A loop runs only while its section is on screen (`useInView`). Under reduced motion, and before scripts run, it shows its finished state.
 
 ## Landing page
 

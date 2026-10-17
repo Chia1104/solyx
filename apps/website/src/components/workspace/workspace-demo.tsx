@@ -4,6 +4,8 @@ import { ClientOnly } from "@tanstack/react-router";
 
 import { twTickSize } from "@solyx/core/rules/tw";
 
+import { prefersReducedMotion } from "../../lib/motion.ts";
+
 import { AgentPane, ProposalStatus } from "./agent-pane.tsx";
 import { percent, price } from "./format.ts";
 import { LISTINGS, candlesFor, sessionChange } from "./listings.ts";
@@ -15,10 +17,6 @@ import { Watchlist } from "./watchlist.tsx";
 const STEP_MS = 650;
 
 const SUBMIT_MS = 900;
-
-function reducedMotion(): boolean {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
 
 /** The app's workspace on made-up prices: a watchlist, a daily chart and the agent. */
 export function WorkspaceDemo() {
@@ -46,7 +44,7 @@ export function WorkspaceDemo() {
   useEffect(() => {
     if (!turn || stepsDone >= turn.steps.length) return;
 
-    if (reducedMotion()) {
+    if (prefersReducedMotion()) {
       setStepsDone(turn.steps.length);
 
       return;

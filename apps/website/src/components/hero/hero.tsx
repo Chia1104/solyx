@@ -67,7 +67,7 @@ export function Hero() {
     <section className="relative p-2">
       <div
         ref={panelRef}
-        className="relative isolate overflow-hidden rounded-2xl border-b-2 border-foreground bg-muted">
+        className="relative isolate overflow-hidden rounded-2xl bg-muted">
         <div
           aria-hidden="true"
           className="stipple absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black_45%,transparent_95%),radial-gradient(circle_at_50%_100%,transparent_calc(var(--sun)*1.6),black_calc(var(--sun)*2.6))] [mask-composite:intersect]"
@@ -88,6 +88,12 @@ export function Hero() {
         </ClientOnly>
 
         {canvas === Canvas.Unavailable && <StillHorizon {...frame} />}
+
+        {/* The horizon, ruled in pencil and fading out before the panel's rounded corners. */}
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-0.5 bg-[linear-gradient(90deg,transparent,var(--graphite)_22%,var(--graphite)_78%,transparent)]"
+        />
 
         <div className="relative mx-auto max-w-5xl px-6 pt-20 pb-[calc(var(--sun)*2.3+2rem)] text-center md:pt-28">
           <h1 className="text-[clamp(2.4rem,6.4vw,4.75rem)] leading-[0.98] font-[540] tracking-[-0.028em] text-balance [font-stretch:112%]">

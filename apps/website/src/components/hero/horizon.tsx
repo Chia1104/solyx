@@ -8,6 +8,7 @@ import {
   Shader,
 } from "shaders/react";
 
+import { prefersReducedMotion } from "../../lib/motion.ts";
 import { useSheetColors } from "../../lib/use-sheet-colors.ts";
 
 import { DOT_PITCH, HALO_REACH } from "./sun.ts";
@@ -27,10 +28,6 @@ const RISE_MS = 1800;
 
 function easeOutQuint(t: number): number {
   return 1 - (1 - t) ** 5;
-}
-
-function prefersReducedMotion(): boolean {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /**
