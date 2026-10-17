@@ -6,6 +6,7 @@ import { parse } from "yaml";
 import * as z from "zod";
 
 import { errorMessage, isErrnoError } from "@solyx/utils/error";
+import { readTextIfExists } from "@solyx/utils/server";
 
 import { SkillSource } from "./skill-source.ts";
 
@@ -535,18 +536,6 @@ export async function loadSkillCatalog(
  * The user's standing instructions from `AGENTS.md` in the app's config folder, or `undefined`
  * while there is none. Sent whole with every request; the settings page shows how long it is.
  */
-export async function loadInstructions(
-  file: string
-): Promise<string | undefined> {
-  let text: string;
-
-  try {
-    text = (await readFile(file, "utf8")).trim();
-  } catch (error) {
-    if (isErrnoError(error, "ENOENT")) return undefined;
-
-    throw error;
-  }
-
-  return text || undefined;
+export async function loadInstructions(file: string) {
+  return (await readTextIfExists(file))?.trim() || undefined;
 }

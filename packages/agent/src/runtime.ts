@@ -39,6 +39,8 @@ import type {
 import { maxBy, noop } from "es-toolkit";
 import * as z from "zod";
 
+import { firstLine } from "@solyx/utils/text";
+
 import { ApprovalDoc, createApprovalGate } from "./approval.ts";
 import type { ToolGuard } from "./approval.ts";
 import type {
@@ -46,7 +48,6 @@ import type {
   AgentModelRef,
   AgentThinking,
 } from "./providers.ts";
-import { firstLine } from "./text.ts";
 import { createToolsetLoader } from "./toolset.ts";
 import type { Toolset } from "./toolset.ts";
 import {

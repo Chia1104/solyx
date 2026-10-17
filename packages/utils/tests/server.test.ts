@@ -1,10 +1,27 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import * as z from "zod";
 
-import { watchFile } from "../src/server.ts";
+import {
+  pkceChallenge,
+  readJson,
+  readJsonSync,
+  readTextIfExists,
+  readTextIfExistsSync,
+  watchFile,
+  writeFileAtomic,
+  writeFileAtomicSync,
+} from "../src/server.ts";
 
 let directory: string;
 
@@ -59,4 +76,36 @@ test("stopping drops a change still waiting to be reported", async () => {
   vi.runAllTimers();
 
   expect(onChange).not.toHaveBeenCalled();
+});
+
+test("a file that is not there reads as nothing", async () => {
+  expect(await readTextIfExists(file)).toBeUndefined();
+  expect(readTextIfExistsSync(file)).toBeUndefined();
+  expect(await readJson(file, z.object({}))).toBeUndefined();
+});
+
+test("a JSON file reads through its schema, and as nothing where it does not match", async () => {
+  await writeFile(file, '{"count": 1}');
+
+  expect(await readJson(file, z.object({ count: z.number() }))).toEqual({
+    count: 1,
+  });
+  expect(readJsonSync(file, z.object({ count: z.string() }))).toBeUndefined();
+});
+
+test("a file is written into place in a folder made for it, leaving nothing beside it", async () => {
+  const nested = join(directory, "settings", "secrets.json");
+
+  await writeFileAtomic(nested, "first", { mode: 0o600 });
+  writeFileAtomicSync(nested, "second", { mode: 0o600 });
+
+  expect(await readFile(nested, "utf8")).toBe("second");
+  expect((await stat(nested)).mode & 0o777).toBe(0o600);
+  expect(await readdir(join(directory, "settings"))).toEqual(["secrets.json"]);
+});
+
+test("the PKCE challenge is the one RFC 7636 works out for its example verifier", () => {
+  expect(pkceChallenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")).toBe(
+    "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+  );
 });

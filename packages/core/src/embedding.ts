@@ -1,3 +1,5 @@
+import { meanBy, uniq } from "es-toolkit";
+
 /**
  * Turns texts into vectors whose cosine tells how alike they read. One implementation per kind of
  * endpoint (`@solyx/embeddings/*`); it runs only in the main process.
@@ -41,7 +43,7 @@ export async function cachedVectors(
   cache: VectorCache,
   texts: readonly string[]
 ): Promise<Map<string, Float32Array>> {
-  const unique = [...new Set(texts)];
+  const unique = uniq(texts);
   const kept = cache.passageVectors(embedder.space, unique);
   const missing = unique.filter((text) => !kept.has(text));
 
@@ -90,8 +92,7 @@ export function clearlyNearest<T>(
 ): T[] {
   if (scored.length === 0) return [];
 
-  const mean =
-    scored.reduce((sum, { similarity }) => sum + similarity, 0) / scored.length;
+  const mean = meanBy(scored, ({ similarity }) => similarity);
 
   return scored
     .filter(({ similarity }) => similarity >= mean + STANDOUT)

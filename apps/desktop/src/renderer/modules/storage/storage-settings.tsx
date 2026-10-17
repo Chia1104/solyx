@@ -7,6 +7,7 @@ import type { QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { NewsVoice } from "@solyx/core/news";
+import { formatBytes } from "@solyx/utils/format";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { NewsRetention, RETENTION_DAYS } from "#shared/news.ts";
@@ -25,7 +26,6 @@ import { useAgentStore } from "../agent/agent-store.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 import { newsRetentionQuery } from "../settings/settings-query.ts";
 
-import { formatBytes } from "./format-bytes.ts";
 import { storageUsageQuery } from "./storage-query.ts";
 
 /** What the rest of the workspace shows of each kind, read again once it is cleared. */

@@ -5,6 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
+import { formatBytes } from "@solyx/utils/format";
+
 import {
   BackupInterval,
   BackupSetting,
@@ -27,7 +29,6 @@ import { AppSecretRow, SecretsUnavailable } from "../settings/secret-row.tsx";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 import { secretsQuery } from "../settings/settings-query.ts";
 import { TextSettingRow } from "../settings/text-setting-row.tsx";
-import { formatBytes } from "../storage/format-bytes.ts";
 
 import {
   backupSettingsQuery,

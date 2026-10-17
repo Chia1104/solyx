@@ -19,6 +19,8 @@ import { EmbeddingsProvider } from "@solyx/embeddings/provider";
 import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { HOUR_MINUTES } from "@solyx/utils/date";
+import { formatBytes } from "@solyx/utils/format";
+import { tildify } from "@solyx/utils/text";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import { RETENTION_DAYS } from "#shared/news.ts";
@@ -109,24 +111,9 @@ const stateText = (state: SecretState) =>
 
 const onOff = (on: boolean) => (on ? "on" : "off");
 
-const SIZES = [
-  { unit: "GB", bytes: 1e9 },
-  { unit: "MB", bytes: 1e6 },
-  { unit: "kB", bytes: 1e3 },
-];
-
 /** How many of something a store holds, in words. */
 const counted = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`;
-
-/** A size on disk in the largest unit it fills, as the storage tab shows it. */
-function size(bytes: number): string {
-  const fitting = SIZES.find((each) => bytes >= each.bytes);
-
-  return fitting
-    ? `${(bytes / fitting.bytes).toFixed(1)} ${fitting.unit}`
-    : `${bytes} bytes`;
-}
 
 /** A setting the agent may change once the user allows it. */
 interface Changeable {
@@ -181,7 +168,6 @@ const hoursSchema = z
 /** The settings page's tabs as the agent reads them, with what keeps each from working. */
 export function createAgentSetup(options: AgentSetupOptions): SetupPort {
   const { config, secrets } = options;
-  const tildify = (path: string) => path.replace(options.home, "~");
 
   function appearance(): SetupArea {
     const { theme, palette, palettes, priceColors, language, timeZone } =
@@ -485,7 +471,9 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     return {
       name: "Skills",
       link: settingsLink(SettingsSection.Skills),
-      missing: catalog.warnings.map(tildify),
+      missing: catalog.warnings.map((warning) =>
+        tildify(warning, options.home)
+      ),
       settings: [
         {
           name: "the user's own skills",
@@ -638,13 +626,19 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       settings: [
         { name: "version", value: options.version },
         entry(["updates", "check"], String(config.read().updates.check)),
-        { name: "config file", value: tildify(options.files.config) },
-        { name: "skills folder", value: tildify(options.files.skills) },
+        {
+          name: "config file",
+          value: tildify(options.files.config, options.home),
+        },
+        {
+          name: "skills folder",
+          value: tildify(options.files.skills, options.home),
+        },
         {
           name: "standing instructions",
-          value: tildify(options.files.instructions),
+          value: tildify(options.files.instructions, options.home),
         },
-        { name: "mcp.json", value: tildify(options.mcp.file) },
+        { name: "mcp.json", value: tildify(options.mcp.file, options.home) },
       ],
     };
   }
@@ -669,7 +663,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       settings: [
         {
           name: "chart bars",
-          value: `${size(candles.bytes)}, ${sumBy(candles.sources, ({ series }) => series)} series and ${counted(
+          value: `${formatBytes(candles.bytes, "en-US")}, ${sumBy(candles.sources, ({ series }) => series)} series and ${counted(
             sumBy(candles.sources, ({ bars }) => bars),
             "bar"
           )}`,
@@ -677,19 +671,19 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         },
         {
           name: "conversations",
-          value: `${size(conversations.bytes)}, ${counted(conversations.conversations, "conversation")}`,
+          value: `${formatBytes(conversations.bytes, "en-US")}, ${counted(conversations.conversations, "conversation")}`,
         },
         {
           name: "memories",
-          value: `${size(memory.bytes)}, ${counted(memory.memories, "memory", "memories")}`,
+          value: `${formatBytes(memory.bytes, "en-US")}, ${counted(memory.memories, "memory", "memories")}`,
         },
         {
           name: "news",
-          value: `${size(news.bytes)}, ${counted(news.items, "item")}; announcements and articles kept ${kept(NewsVoice.Press)}, forum and social posts ${kept(NewsVoice.Crowd)}, from when each came out; the user sets how long here`,
+          value: `${formatBytes(news.bytes, "en-US")}, ${counted(news.items, "item")}; announcements and articles kept ${kept(NewsVoice.Press)}, forum and social posts ${kept(NewsVoice.Crowd)}, from when each came out; the user sets how long here`,
         },
         {
           name: "research",
-          value: `${size(research.bytes)}, ${counted(research.reports, "report")} and ${counted(research.forecasts, "forecast")}`,
+          value: `${formatBytes(research.bytes, "en-US")}, ${counted(research.reports, "report")} and ${counted(research.forecasts, "forecast")}`,
         },
         { name: "watchlist", value: counted(watchlist.listings, "listing") },
       ],

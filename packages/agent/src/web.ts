@@ -6,6 +6,7 @@ import { exchangeTime, marketSchema } from "@solyx/core/market";
 import { WebSearchKind, webSearchKindSchema } from "@solyx/core/web-search";
 import type { WebReader, WebSearch } from "@solyx/core/web-search";
 import { wallTime, DAY_MS } from "@solyx/utils/date";
+import { normalizeSpace, truncate } from "@solyx/utils/text";
 
 import type { AutoCheck, ToolGuard } from "./approval.ts";
 import { isFoundAddress, rememberAddresses } from "./found-addresses.ts";
@@ -83,12 +84,7 @@ export function createWebTools(options: WebToolsOptions) {
       );
 
       const lines = results.map(({ url, title, snippet, site, published }) => {
-        const text = snippet.replace(/\s+/g, " ").trim();
-
-        const shown =
-          text.length > SNIPPET_LENGTH
-            ? `${text.slice(0, SNIPPET_LENGTH)}…`
-            : text;
+        const shown = truncate(normalizeSpace(snippet), SNIPPET_LENGTH);
 
         return [
           `- ${publishedTime(market ?? null, published)} ${site}: ${title}`,

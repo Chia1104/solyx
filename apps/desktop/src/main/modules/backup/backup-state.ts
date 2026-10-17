@@ -1,7 +1,6 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-
 import * as z from "zod";
+
+import { readJsonSync, writeFileAtomicSync } from "@solyx/utils/server";
 
 const locationSchema = z.object({
   endpoint: z.string(),
@@ -45,21 +44,10 @@ export const NEVER: BackupState = {
 export function createBackupState(file: string) {
   return {
     /** A file that is missing or no longer parses reads as never having backed up. */
-    read(): BackupState {
-      try {
-        return stateSchema.parse(JSON.parse(readFileSync(file, "utf8")));
-      } catch {
-        return NEVER;
-      }
-    },
+    read: (): BackupState => readJsonSync(file, stateSchema) ?? NEVER,
 
     write(state: BackupState) {
-      const temporary = `${file}.tmp`;
-
-      mkdirSync(dirname(file), { recursive: true });
-      // Written aside and renamed into place, so a crash mid-write keeps the previous file.
-      writeFileSync(temporary, JSON.stringify(state));
-      renameSync(temporary, file);
+      writeFileAtomicSync(file, JSON.stringify(state));
     },
   };
 }

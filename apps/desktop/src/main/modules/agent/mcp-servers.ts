@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { createMcpHub } from "@solyx/agent/mcp";
@@ -7,7 +7,7 @@ import { mcpToolPolicySchema, parseMcpFile } from "@solyx/agent/mcp-config";
 import type { McpToolPolicy } from "@solyx/agent/mcp-config";
 import { SignInOutcome } from "@solyx/agent/sign-in-callback";
 import { errorMessage, isErrnoError } from "@solyx/utils/error";
-import { watchFile } from "@solyx/utils/server";
+import { readTextIfExists, watchFile } from "@solyx/utils/server";
 
 import { mcpSecretKey, mcpSignInKey } from "#shared/settings.ts";
 import type { Locale } from "#shared/settings.ts";
@@ -64,19 +64,13 @@ export function createMcpServers({
   let stopWatching: (() => void) | undefined;
 
   async function load() {
-    let text: string;
+    const text = await readTextIfExists(file);
 
-    try {
-      text = await readFile(file, "utf8");
-    } catch (error) {
-      if (isErrnoError(error, "ENOENT")) {
-        fileError = undefined;
-        hub.sync([]);
+    if (text === undefined) {
+      fileError = undefined;
+      hub.sync([]);
 
-        return;
-      }
-
-      throw error;
+      return;
     }
 
     try {

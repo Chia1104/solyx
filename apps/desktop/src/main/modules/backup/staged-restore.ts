@@ -3,7 +3,6 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -13,6 +12,7 @@ import { dirname, join } from "node:path";
 import * as z from "zod";
 
 import { isErrnoError } from "@solyx/utils/error";
+import { readJsonSync } from "@solyx/utils/server";
 
 import { backupPlaces } from "./backup-places.ts";
 import type { DataFolders } from "./backup-places.ts";
@@ -51,13 +51,7 @@ export function restorePaths(dataDir: string) {
   };
 }
 
-function readMarker(file: string): StagedRestore | null {
-  try {
-    return stagedSchema.parse(JSON.parse(readFileSync(file, "utf8")));
-  } catch {
-    return null;
-  }
-}
+const readMarker = (file: string) => readJsonSync(file, stagedSchema) ?? null;
 
 /** Marks an unpacked and checked backup as the one the app starts on next. */
 export function stageRestore(dataDir: string, staged: StagedRestore) {

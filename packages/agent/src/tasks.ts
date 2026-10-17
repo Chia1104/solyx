@@ -20,6 +20,7 @@ import type {
 } from "@solyx/core/schedule";
 import type { ThemeDesk } from "@solyx/core/theme";
 import { wallTime } from "@solyx/utils/date";
+import { truncate } from "@solyx/utils/text";
 
 import { checkedFirst } from "./approval.ts";
 import type { ToolGuard } from "./approval.ts";
@@ -125,9 +126,7 @@ function closingReply({ items }: AgentView): string | undefined {
     )
     .findLast((text) => text !== "");
 
-  return reply !== undefined && reply.length > REPLY_CHARACTERS
-    ? `${reply.slice(0, REPLY_CHARACTERS)}…`
-    : reply;
+  return reply === undefined ? undefined : truncate(reply, REPLY_CHARACTERS);
 }
 
 const KIND_TEXT: Record<ChangeKind, string> = {

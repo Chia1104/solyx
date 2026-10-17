@@ -26,6 +26,7 @@ import { OrderType } from "@solyx/core/order";
 import type { AccountSnapshot, OrderRequest } from "@solyx/core/order";
 import type { ForecastMotion } from "@solyx/core/research";
 import { errorMessage } from "@solyx/utils/error";
+import { parseJson } from "@solyx/utils/json";
 
 import { evidenceText } from "./evidence-text.ts";
 
@@ -186,15 +187,8 @@ const scenarioBallotSchema = z.object({
 const JSON_OBJECT = /\{[\s\S]*\}/;
 
 /** The JSON object an answer holds, as `schema` reads it; `undefined` for an answer that holds none. */
-function readAnswer<Answer>(
-  text: string,
-  schema: z.ZodType<Answer>
-): Answer | undefined {
-  try {
-    return schema.safeParse(JSON.parse(JSON_OBJECT.exec(text)?.[0] ?? "")).data;
-  } catch {
-    return undefined;
-  }
+function readAnswer<Answer>(text: string, schema: z.ZodType<Answer>) {
+  return parseJson(JSON_OBJECT.exec(text)?.[0] ?? "", schema);
 }
 
 /** A unit and the model that answers as it. */

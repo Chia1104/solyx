@@ -99,6 +99,7 @@ import { getSession, sessionsBetween, weekdays } from "@solyx/core/session";
 import type { MarketClosure, TradingDays } from "@solyx/core/session";
 import { shiftDate, wallTime, HOUR_MS, DAY_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
+import { normalizeSpace, truncate } from "@solyx/utils/text";
 
 import { rememberAddresses } from "./found-addresses.ts";
 import { readingText } from "./macro-text.ts";
@@ -503,13 +504,9 @@ export function describeStory(
     );
   }
 
-  const snippet = item.snippet.replace(/\s+/g, " ").trim();
+  const snippet = normalizeSpace(item.snippet);
 
-  if (snippet) {
-    lines.push(
-      `  ${snippet.length > SNIPPET_LENGTH ? `${snippet.slice(0, SNIPPET_LENGTH)}…` : snippet}`
-    );
-  }
+  if (snippet) lines.push(`  ${truncate(snippet, SNIPPET_LENGTH)}`);
 
   if (item.url) lines.push(`  ${item.url}`);
 

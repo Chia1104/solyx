@@ -22,6 +22,7 @@ import type {
   AgentProvider,
   AgentThinking,
 } from "@solyx/agent/providers";
+import { matchesFilter } from "@solyx/utils/search";
 
 import type { AgentSettings } from "#shared/settings.ts";
 
@@ -130,13 +131,8 @@ export function AgentModelPicker({
     providers.find((provider) => provider === (rail ?? chosen.provider)) ??
     providers[0];
 
-  const needle = query.trim().toLowerCase();
-
-  const visible = (active ? (byProvider[active] ?? []) : []).filter(
-    (model) =>
-      needle === "" ||
-      model.name.toLowerCase().includes(needle) ||
-      model.id.toLowerCase().includes(needle)
+  const visible = (active ? (byProvider[active] ?? []) : []).filter((model) =>
+    matchesFilter(query, model.name, model.id)
   );
 
   const defaultLabel =
@@ -282,7 +278,7 @@ export function AgentModelPicker({
                       });
                     }
                   }}>
-                  {needle === "" ? (
+                  {query.trim() === "" ? (
                     <ListBox.Item
                       id={DEFAULT_KEY}
                       textValue={defaultLabel}

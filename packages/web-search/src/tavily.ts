@@ -10,6 +10,7 @@ import type {
   WebSearchQuery,
 } from "@solyx/core/web-search";
 import { shiftDate } from "@solyx/utils/date";
+import { normalizeSpace } from "@solyx/utils/text";
 
 import { calendarDate, onDay, site, vendorHttp, within } from "./vendor.ts";
 
@@ -106,10 +107,9 @@ export function createTavily(options: TavilyOptions): WebSearch & WebReader {
           {
             url,
             title,
-            snippet: (raw_content ?? "")
-              .replace(/\s+/g, " ")
+            snippet: normalizeSpace(raw_content ?? "")
               .slice(0, SNIPPET_CHARACTERS)
-              .trim(),
+              .trimEnd(),
             site: site(url),
             published: published(published_date, market),
           },

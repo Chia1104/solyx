@@ -34,6 +34,8 @@ import { delay, escape, isEqual, noop, once } from "es-toolkit";
 import * as z from "zod";
 
 import { errorMessage } from "@solyx/utils/error";
+import { parseJson } from "@solyx/utils/json";
+import { firstLine } from "@solyx/utils/text";
 
 import type { ToolGuard } from "./approval.ts";
 import {
@@ -47,7 +49,6 @@ import {
 import type { McpServerConfig, McpServerEntry } from "./mcp-config.ts";
 import { inheritedEnv } from "./process-env.ts";
 import { createSignInSlot } from "./sign-in.ts";
-import { firstLine } from "./text.ts";
 
 export interface McpToolInfo {
   name: string;
@@ -227,13 +228,7 @@ export function createMcpHub(options: McpHubOptions) {
   async function readSignIn(server: string): Promise<SavedSignIn | undefined> {
     const text = await options.signIns.read(server);
 
-    if (text === undefined) return undefined;
-
-    try {
-      return savedSignInSchema.safeParse(JSON.parse(text)).data;
-    } catch {
-      return undefined;
-    }
+    return text === undefined ? undefined : parseJson(text, savedSignInSchema);
   }
 
   const writeSignIn = (server: string, state: McpOAuthState) =>

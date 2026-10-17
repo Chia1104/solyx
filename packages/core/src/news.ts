@@ -1,6 +1,7 @@
 import { groupBy, maxBy, sumBy } from "es-toolkit";
 
 import { DAY_MS } from "@solyx/utils/date";
+import { normalizeSpace } from "@solyx/utils/text";
 
 import { cosine } from "./embedding.ts";
 import type { Embedding } from "./embedding.ts";
@@ -190,7 +191,7 @@ export function storyText({
   title,
   snippet,
 }: Pick<NewsItem, "title" | "snippet">): string {
-  const lead = snippet.replace(/\s+/g, " ").trim().slice(0, STORY_SNIPPET);
+  const lead = normalizeSpace(snippet).slice(0, STORY_SNIPPET);
 
   return lead ? `${title.trim()}\n${lead}` : title.trim();
 }

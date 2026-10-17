@@ -1,6 +1,6 @@
-import { createHash, randomBytes } from "node:crypto";
-
 import * as z from "zod";
+
+import { pkceChallenge, randomToken } from "@solyx/utils/server";
 
 import { listenForSignIn } from "./sign-in-callback.ts";
 import type { SignInPage } from "./sign-in-callback.ts";
@@ -25,8 +25,6 @@ export interface OpenRouterKeyOptions {
 
 const keySchema = z.object({ key: z.string().min(1) });
 
-const random = () => randomBytes(32).toString("base64url");
-
 /**
  * Signs in to OpenRouter in the browser, where the user has it create a key for the app, and
  * resolves with that key. The browser returns to a loopback listener that is open only while the
@@ -36,12 +34,12 @@ export async function createOpenRouterKey(
   options: OpenRouterKeyOptions
 ): Promise<string> {
   const fetch = options.fetch ?? globalThis.fetch;
-  const verifier = random();
+  const verifier = randomToken();
 
   const callback = await listenForSignIn({
     name: "OpenRouter",
     // Only OpenRouter's redirect knows the path, so no other request passes for the sign-in's own.
-    path: `/auth/callback/${random()}`,
+    path: `/auth/callback/${randomToken()}`,
     page: options.callbackPage,
     signal: options.signal,
     accept: (query) => query.get("code") || undefined,
@@ -52,7 +50,7 @@ export async function createOpenRouterKey(
 
     authorize.search = new URLSearchParams({
       callback_url: callback.redirectUri,
-      code_challenge: createHash("sha256").update(verifier).digest("base64url"),
+      code_challenge: pkceChallenge(verifier),
       code_challenge_method: "S256",
       key_label: options.appName,
     }).toString();

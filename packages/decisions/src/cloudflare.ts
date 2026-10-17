@@ -1,4 +1,5 @@
 import { noul } from "@typesafe-ai/sdk";
+import { trimEnd } from "es-toolkit";
 import * as z from "zod";
 
 import type { FactReader } from "@solyx/core/forecast";
@@ -50,7 +51,7 @@ export interface CloudflareOptions {
 function cloudflare(options: CloudflareOptions): Ask {
   const { fetch = globalThis.fetch } = options;
 
-  const url = `${options.baseURL.replace(/\/+$/, "")}/accounts/${encodeURIComponent(options.accountId)}/ai/run/@cf/cloudflare/${encodeURIComponent(options.model)}`;
+  const url = `${trimEnd(options.baseURL, "/")}/accounts/${encodeURIComponent(options.accountId)}/ai/run/@cf/cloudflare/${encodeURIComponent(options.model)}`;
 
   return async (request, signal) => {
     const response = await fetch(url, {

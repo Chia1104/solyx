@@ -14,7 +14,8 @@ export function formatBytes(bytes: number, locale: string) {
   return new Intl.NumberFormat(locale, {
     style: "unit",
     unit,
-    unitDisplay: "short",
+    // The short form of a byte takes no plural in English, so bytes are spelled out.
+    unitDisplay: unit === "byte" ? "long" : "short",
     maximumFractionDigits: 1,
   }).format(bytes / size);
 }

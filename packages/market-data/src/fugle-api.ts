@@ -16,6 +16,7 @@ import type {
 } from "@solyx/core/market-data";
 import { TW_BOARD_LOT } from "@solyx/core/rules/tw";
 import { shiftDate, MINUTE_MS } from "@solyx/utils/date";
+import { parseJson } from "@solyx/utils/json";
 import { createRateLimiter } from "@solyx/utils/rate-limit";
 
 const API_VERSION = "v1.0";
@@ -390,20 +391,10 @@ export function createFugleApiStream(
   function receive(text: string) {
     watchSilence();
 
-    let json;
-
-    try {
-      json = JSON.parse(text);
-    } catch {
-      return;
-    }
+    const message = parseJson(text, streamMessageSchema);
 
     // Heartbeats, pongs and other events only prove the connection is alive.
-    const parsed = streamMessageSchema.safeParse(json);
-
-    if (!parsed.success) return;
-
-    const message = parsed.data;
+    if (message === undefined) return;
 
     switch (message.event) {
       case "authenticated":

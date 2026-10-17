@@ -12,12 +12,13 @@ import { partition } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import { isEnumValue } from "@solyx/utils/is";
+import { matchesFilter } from "@solyx/utils/search";
 
 import { AppLocation } from "#shared/settings.ts";
 import type { AgentSkillInfo } from "#shared/settings.ts";
 
 import { client, orpc } from "../../app/rpc.ts";
-import { FilterField, matchesFilter } from "../../components/filter-field.tsx";
+import { FilterField } from "../../components/filter-field.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
