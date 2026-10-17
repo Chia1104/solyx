@@ -13,6 +13,7 @@ import { PencilBanner } from "../../components/pencil-banner.tsx";
 import { WorkspaceDemo } from "../../components/workspace/workspace-demo.tsx";
 import { Locale, localeOf, translators, useLocale } from "../../lib/i18n.ts";
 import { baseOptions } from "../../lib/layout.tsx";
+import { socialCardMeta } from "../../lib/social-card.ts";
 
 export const Route = createFileRoute("/{-$lang}/")({
   beforeLoad: ({ params }) => {
@@ -27,6 +28,7 @@ export const Route = createFileRoute("/{-$lang}/")({
         { name: "description", content: t("meta.description") },
         { property: "og:title", content: t("meta.title") },
         { property: "og:description", content: t("meta.description") },
+        socialCardMeta(params.lang ? `/${params.lang}` : "/"),
       ],
     };
   },

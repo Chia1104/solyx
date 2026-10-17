@@ -14,6 +14,7 @@ import { useMDXComponents } from "../../../components/mdx.tsx";
 import { PencilBanner } from "../../../components/pencil-banner.tsx";
 import { Locale, localeOf, translators, useLocale } from "../../../lib/i18n.ts";
 import { baseOptions } from "../../../lib/layout.tsx";
+import { socialCardMeta } from "../../../lib/social-card.ts";
 import { docs, source } from "../../../lib/source.ts";
 
 // The loader runs in the browser on client-side navigation, so it reads the source there rather
@@ -37,6 +38,7 @@ export const Route = createFileRoute("/{-$lang}/docs/$")({
 
     return {
       path: page.path,
+      url: page.url,
       title: page.data.title,
       description: page.data.description,
     };
@@ -49,6 +51,7 @@ export const Route = createFileRoute("/{-$lang}/docs/$")({
         ? [
             { title: t("meta.page-title", { title: loaderData.title }) },
             { name: "description", content: loaderData.description ?? "" },
+            socialCardMeta(loaderData.url),
           ]
         : [],
     };

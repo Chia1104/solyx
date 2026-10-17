@@ -15,6 +15,7 @@
   "devDependencies": {
     "@base-ui/react": "catalog:website",
     "@fontsource-variable/archivo": "catalog:website",
+    "@fontsource-variable/noto-sans-tc": "catalog:website",
     "@fumadocs/language": "catalog:docs",
     "@lobehub/icons-static-svg": "catalog:icons",
     "@solyx/core": "workspace:*",
@@ -43,6 +44,7 @@
     "shadcn": "catalog:website",
     "shaders": "catalog:website",
     "tailwindcss": "catalog:tailwindcss",
+    "takumi-js": "catalog:docs",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",
