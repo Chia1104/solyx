@@ -13,9 +13,9 @@
   },
   "dependencies": {
     "es-toolkit": "catalog:",
-    "fast-xml-parser": "catalog:backup",
+    "fast-xml-parser": "catalog:utils",
     "ky": "catalog:",
-    "tar": "catalog:backup",
+    "tar": "catalog:utils",
     "zod": "catalog:"
   },
   "devDependencies": {

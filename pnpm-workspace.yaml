@@ -16,33 +16,21 @@ catalog:
   zod: 4.6.6
 
 catalogs:
-  agent:
-    "@earendil-works/chord": 1.2.0
-    "@earendil-works/pi-ai": 1.2.0
-    "@earendil-works/pi-codemode": 1.2.0
-    "@earendil-works/pi-durable": 1.2.0
-    "@earendil-works/pi-mcp": 1.2.0
-    yaml: 2.9.1
-  backup:
-    fast-xml-parser: 5.11.2
-    tar: 7.5.22
+  ai:
+    "@typesafe-ai/sdk": 0.6.0
+    openai: 7.32.0
   charts:
     "@types/d3-hierarchy": 3.1.7
     d3-hierarchy: 3.1.2
     lightweight-charts: 5.2.1
-  chiastack:
-    "@chiastack/oxlint": ^1.1.0
-  decisions:
-    "@typesafe-ai/sdk": 0.6.0
-    openai: 7.32.0
-  electron:
-    electron: ^44.7.0
-    electron-builder: 26.17.0
-    electron-updater: 6.8.10
   drizzle:
     # 1.0.0-rc.5 ships only as commit builds; drizzle-kit must match drizzle-orm exactly.
     drizzle-kit: 1.0.0-rc.5-5935859
     drizzle-orm: 1.0.0-rc.5-5935859
+  electron:
+    electron: ^44.7.0
+    electron-builder: 26.17.0
+    electron-updater: 6.8.10
   forms:
     "@hookform/resolvers": ^5.9.1
     react-hook-form: ^7.90.0
@@ -54,6 +42,14 @@ catalogs:
   i18n:
     i18next: 26.4.3
     react-i18next: 17.0.16
+  icons:
+    "@hugeicons/core-free-icons": 4.3.5
+    "@hugeicons/react": 1.1.10
+    "@lobehub/icons-static-svg": 1.95.1
+  lint:
+    "@chiastack/oxlint": ^1.1.0
+    # Pinned to the oxlint bundled by vite-plus; upgrade both together.
+    "@oxlint/plugins": 1.87.0
   markdown:
     "@streamdown/cjk": 1.0.4
     streamdown: 2.7.0
@@ -72,15 +68,19 @@ catalogs:
     "@opentelemetry/sdk-logs": 0.223.0
     "@opentelemetry/sdk-trace-base": 2.12.0
     "@opentelemetry/semantic-conventions": 1.43.0
-  oxc:
-    # Pinned to the oxlint bundled by vite-plus; upgrade both together.
-    "@oxlint/plugins": 1.87.0
+  pi:
+    "@earendil-works/chord": 1.2.0
+    "@earendil-works/pi-ai": 1.2.0
+    "@earendil-works/pi-codemode": 1.2.0
+    "@earendil-works/pi-durable": 1.2.0
+    "@earendil-works/pi-mcp": 1.2.0
   react:
     "@types/react": ^19.3.0
     "@types/react-dom": ^19.3.0
     "@vitejs/plugin-react": ^6.1.2
     react: ^19.3.0
     react-dom: ^19.3.0
+    zustand: 5.0.15
   sentry:
     "@sentry/electron": 8.1.0
     "@sentry/vite-plugin": 5.4.1
@@ -92,11 +92,10 @@ catalogs:
     "@tanstack/react-query": 5.104.2
     "@tanstack/react-query-devtools": 5.104.2
     "@tanstack/react-router": 1.170.42
-  ui:
-    "@hugeicons/core-free-icons": 4.3.5
-    "@hugeicons/react": 1.1.10
-    "@lobehub/icons-static-svg": 1.95.1
-    zustand: 5.0.15
+  utils:
+    fast-xml-parser: 5.11.2
+    tar: 7.5.22
+    yaml: 2.9.1
 
 # esbuild (through drizzle-kit) and sentry-cli (through Sentry's Vite plugin) run from their platform
 # packages; their install scripts only verify them, or download one when it is missing.

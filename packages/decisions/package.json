@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@solyx/core": "workspace:*",
-    "@typesafe-ai/sdk": "catalog:decisions",
-    "openai": "catalog:decisions",
+    "@typesafe-ai/sdk": "catalog:ai",
+    "openai": "catalog:ai",
     "zod": "catalog:"
   },
   "devDependencies": {

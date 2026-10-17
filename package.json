@@ -10,8 +10,8 @@
     "dev": "vp run @solyx/desktop#dev"
   },
   "devDependencies": {
-    "@chiastack/oxlint": "catalog:chiastack",
-    "@oxlint/plugins": "catalog:oxc",
+    "@chiastack/oxlint": "catalog:lint",
+    "@oxlint/plugins": "catalog:lint",
     "@types/node": "catalog:",
     "vite-plus": "catalog:"
   },

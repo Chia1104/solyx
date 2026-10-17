@@ -13,15 +13,15 @@
     "test": "vp test"
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "catalog:agent",
-    "@earendil-works/pi-codemode": "catalog:agent",
+    "@earendil-works/pi-ai": "catalog:pi",
+    "@earendil-works/pi-codemode": "catalog:pi",
     "@heroui/react": "catalog:heroui-v3",
     "@heroui/styles": "catalog:heroui-v3",
     "@hookform/resolvers": "catalog:forms",
-    "@hugeicons/core-free-icons": "catalog:ui",
-    "@hugeicons/react": "catalog:ui",
+    "@hugeicons/core-free-icons": "catalog:icons",
+    "@hugeicons/react": "catalog:icons",
     "@internationalized/date": "catalog:heroui-v3",
-    "@lobehub/icons-static-svg": "catalog:ui",
+    "@lobehub/icons-static-svg": "catalog:icons",
     "@opentelemetry/api": "catalog:otel",
     "@opentelemetry/api-logs": "catalog:otel",
     "@opentelemetry/exporter-logs-otlp-http": "catalog:otel",
@@ -81,7 +81,7 @@
     "vite": "catalog:",
     "vite-plus": "catalog:",
     "zod": "catalog:",
-    "zustand": "catalog:ui"
+    "zustand": "catalog:react"
   },
   "productName": "Solyx"
 }
