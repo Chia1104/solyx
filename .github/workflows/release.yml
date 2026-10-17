@@ -102,6 +102,12 @@ jobs:
           aws s3 cp installers/ "$TARGET" --recursive --exclude "*.yml"
           aws s3 cp installers/ "$TARGET" --recursive --exclude "*" --include "*.yml"
 
+  # The download page is built from the releases, so the site redeploys to offer this one.
+  website:
+    needs: publish
+    uses: ./.github/workflows/website.yml
+    secrets: inherit
+
   finalize:
     needs: [resolve, publish]
     runs-on: ubuntu-latest

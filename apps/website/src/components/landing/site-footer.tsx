@@ -33,6 +33,12 @@ export function SiteFooter() {
             className="hover:text-primary">
             {t("nav.docs")}
           </Link>
+          <Link
+            to="/{-$lang}/download"
+            params={{ lang: langParam(locale) }}
+            className="hover:text-primary">
+            {t("nav.download")}
+          </Link>
           <a href={RELEASES_URL} className="hover:text-primary">
             {t("nav.releases")}
           </a>

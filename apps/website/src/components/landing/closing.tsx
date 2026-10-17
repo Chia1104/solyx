@@ -1,7 +1,9 @@
+import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
 import { useTranslation } from "react-i18next";
 
-import { GITHUB_URL, RELEASES_URL } from "../../lib/links.ts";
+import { langParam, useLocale } from "../../lib/i18n.ts";
+import { GITHUB_URL } from "../../lib/links.ts";
 import { Logo } from "../logo.tsx";
 import { buttonVariants } from "../ui/button.tsx";
 
@@ -11,6 +13,7 @@ const PILL = "h-12 rounded-full px-6 text-base";
 
 export function Closing() {
   const { t } = useTranslation();
+  const locale = useLocale();
 
   return (
     <SheetRow className="px-6 pt-24 pb-28 text-center">
@@ -22,14 +25,15 @@ export function Closing() {
         {t("closing.lede")}
       </p>
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-        <a
-          href={RELEASES_URL}
+        <Link
+          to="/{-$lang}/download"
+          params={{ lang: langParam(locale) }}
           className={cn(
             buttonVariants({ variant: "foreground", size: "lg" }),
             PILL
           )}>
           {t("hero.download")}
-        </a>
+        </Link>
         <a
           href={GITHUB_URL}
           className={cn(

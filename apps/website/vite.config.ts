@@ -20,6 +20,7 @@ import { voidPlugin } from "void";
 import websiteEnUS from "@solyx/i18n/website/en-US.json";
 import websiteZhTW from "@solyx/i18n/website/zh-TW.json";
 
+import { latestReleases, readReleases } from "./src/lib/releases.ts";
 import { socialCardPath } from "./src/lib/social-card.ts";
 
 const docsUrl = createGetUrl("/docs");
@@ -29,17 +30,25 @@ const docsDir = join(import.meta.dirname, "content/docs");
 // The crawler only follows links, and the language switcher is a button, so every page in every
 // locale is listed for the prerender as well. A translated page is `name.<locale>.mdx`, whose URL
 // takes the locale's prefix; English takes none.
-const pages = [{ path: "/api/search" }, { path: "/zh-TW" }];
+const pages = [
+  { path: "/api/search" },
+  { path: "/zh-TW" },
+  { path: "/download" },
+  { path: "/zh-TW/download" },
+];
 
 // The landing page's card carries the hero's two lines, since the site's name is already its footer.
 const cards: { path: string; title: string; description?: string }[] = [
-  { path: "/", copy: websiteEnUS },
-  { path: "/zh-TW", copy: websiteZhTW },
-].map(({ path, copy }) => ({
-  path,
-  title: copy.hero.pencil,
-  description: copy.hero.ink,
-}));
+  { prefix: "", copy: websiteEnUS },
+  { prefix: "/zh-TW", copy: websiteZhTW },
+].flatMap(({ prefix, copy }) => [
+  { path: prefix || "/", title: copy.hero.pencil, description: copy.hero.ink },
+  {
+    path: `${prefix}/download`,
+    title: copy.download.title,
+    description: copy.download.lede,
+  },
+]);
 
 for await (const file of glob("**/*.mdx", { cwd: docsDir })) {
   const [, name, locale] =
@@ -55,6 +64,25 @@ for await (const file of glob("**/*.mdx", { cwd: docsDir })) {
   pages.push({ path });
   cards.push({ path, title, description });
 }
+
+const LATEST_RELEASES = "virtual:latest-releases";
+
+let releases: ReturnType<typeof readReleases> | undefined;
+
+// GitHub's releases are read once per build, so the pages prerender with them and the browser never
+// asks GitHub; publishing a release redeploys the site.
+const releaseData = {
+  name: "solyx:releases",
+  resolveId: (id) =>
+    id === LATEST_RELEASES ? `\0${LATEST_RELEASES}` : undefined,
+  async load(id) {
+    if (id !== `\0${LATEST_RELEASES}`) return undefined;
+
+    releases ??= readReleases(process.env.GITHUB_TOKEN);
+
+    return `export default ${JSON.stringify(latestReleases(await releases))};`;
+  },
+} satisfies Plugin;
 
 const require = createRequire(import.meta.url);
 
@@ -132,6 +160,7 @@ export default defineConfig({
       pages,
     }),
     react(),
+    releaseData,
     socialCards,
   ],
   environments: {

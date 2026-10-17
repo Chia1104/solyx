@@ -723,6 +723,9 @@ importers:
       cn:
         specifier: catalog:website
         version: 0.4.0
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.52.0
       fumadocs-core:
         specifier: catalog:docs
         version: 16.17.5(@mdx-js/mdx@3.1.1(supports-color@7.2.0))(@tanstack/react-router@1.170.44(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.55.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(zod@4.6.7)

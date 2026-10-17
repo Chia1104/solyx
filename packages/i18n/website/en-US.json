@@ -236,6 +236,39 @@
     "lede": "Solyx is free and open source. It trades on paper until you switch a live broker on yourself.",
     "github": "View on GitHub"
   },
+  "download": {
+    "title": "Download Solyx",
+    "lede": "Free and open source, for Macs with Apple silicon and 64-bit Windows.",
+    "for": "Download for {{system}}",
+    "detail": "{{channel}} {{version}} · {{size}} MB",
+    "elsewhere": "Solyx runs on macOS and Windows. Open this page on your computer to download it.",
+    "your-system": "Your system",
+    "released": "Released {{date}}",
+    "file": "{{type}} · {{size}} MB",
+    "channel": {
+      "stable": {
+        "name": "Solyx",
+        "lede": "The current release."
+      },
+      "nightly": {
+        "name": "Solyx Nightly",
+        "lede": "Built from the newest commit that passed its checks, at most once every six hours. It installs beside Solyx and keeps its own data, settings and keys."
+      }
+    },
+    "system": {
+      "macos": {
+        "name": "macOS",
+        "requirement": "Apple silicon"
+      },
+      "windows": {
+        "name": "Windows",
+        "requirement": "64-bit"
+      }
+    },
+    "first-launch": "Neither installer is signed by a paid certificate yet, so your system warns you before the first launch.",
+    "install-guide": "Read the install guide",
+    "all-releases": "Every release on GitHub"
+  },
   "footer": {
     "disclaimer": "Solyx is not investment advice. You alone are responsible for any gains or losses from trades made with it. It is provided as is, without warranty of any kind.",
     "copyright": "Copyright 2026 Chia1104. Free software under the GNU AGPL, version 3 or later."

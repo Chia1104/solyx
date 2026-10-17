@@ -1,5 +1,6 @@
 # Deploys the website to Cloudflare through Void whenever a push to develop changes what it is built
-# from, so usesolyx.trade always shows develop's site.
+# from, and once Nightly or Release publishes a release, which the download page is built from, so
+# usesolyx.trade always shows develop's site and the newest release.
 name: Website
 
 on:
@@ -15,20 +16,20 @@ on:
       - pnpm-workspace.yaml
       - .github/workflows/website.yml
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
-# Cancelling a deploy halfway can leave its version staged beside the live one, which stops the next
-# deploy until it is cleared in Cloudflare, so a newer push waits instead and then deploys the latest
-# commit.
-concurrency:
-  group: website
-  cancel-in-progress: false
-
 jobs:
   deploy:
     if: github.ref == 'refs/heads/develop'
+    # Cancelling a deploy halfway can leave its version staged beside the live one, which stops the
+    # next deploy until it is cleared in Cloudflare, so a newer run waits instead and then deploys
+    # the latest commit. The group is the job's, so it holds when Nightly or Release calls this too.
+    concurrency:
+      group: website
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
@@ -46,6 +47,8 @@ jobs:
 
       # The account and the Worker come from void.lock.json; the token needs Workers Scripts: Edit,
       # and Workers Routes: Edit on usesolyx.trade for the custom domain.
+      # The build reads the releases from GitHub's API, which limits callers without a token.
       - run: vp run @solyx/website#deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
