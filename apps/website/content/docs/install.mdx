@@ -1,0 +1,40 @@
+---
+title: Install
+description: Nightly builds for macOS and Windows, and what to expect on first launch.
+---
+
+Nightly builds for macOS (`.dmg`) and Windows (`.exe`) are on the [releases page](https://github.com/Chia1104/solyx/releases). A nightly is built from the newest commit that passed its checks, at most once every six hours.
+
+## First launch
+
+Solyx has no paid signing certificates yet. The macOS app is ad-hoc signed and the Windows installer unsigned, so the system warns you before the first launch.
+
+- **macOS:** open the app once, then allow it under System Settings, Privacy & Security.
+- **Windows:** in the SmartScreen prompt, choose More info, then Run anyway.
+
+A nightly installs as Solyx Nightly and keeps its own data, so it never touches a stable install's settings, keys or databases.
+
+## Updates
+
+Solyx checks its channel for updates a minute after it starts, every six hours after that, and whenever you ask.
+
+- **Windows** downloads the update and installs it when Solyx restarts or quits.
+- **macOS** tells you a newer version is out and links to its release, since installing in place needs a Developer ID signature.
+
+## Where Solyx keeps things
+
+- **Settings** live in `~/.solyx/config.json`. You may edit it by hand; Solyx applies saved changes without a restart and never overwrites a file with syntax errors.
+- **Keys and sign-ins** are saved encrypted with your system's secret store, and never in the config file, a log or a backup.
+- **Your instructions for the agent** sit beside the config: `skills/`, `AGENTS.md` and `mcp.json`.
+
+## Build it yourself
+
+Solyx needs [Vite+](https://viteplus.dev/) (`vp`) and Node.js 26 or later.
+
+```bash
+vp install     # install dependencies
+vp run dev     # start the desktop app in development mode
+vp run ready   # check, test and build
+```
+
+A development build runs as Solyx Dev, with its own settings and keys.

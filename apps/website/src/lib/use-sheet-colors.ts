@@ -1,0 +1,64 @@
+import { useSyncExternalStore } from "react";
+
+/**
+ * The sheet's colours, read from the stylesheet's custom properties for what paints outside CSS:
+ * the hero's canvas and the demo's chart.
+ */
+export interface SheetColors {
+  paper: string;
+  sheet: string;
+  text: string;
+  muted: string;
+  graphite: string;
+  rule: string;
+  ink: string;
+  inkDeep: string;
+  inkLight: string;
+  candleRise: string;
+  candleFall: string;
+}
+
+let cached: { key: string; colors: SheetColors } | null = null;
+
+// useSyncExternalStore compares snapshots by identity, so an unchanged theme returns the same object.
+function read(): SheetColors {
+  const style = getComputedStyle(document.documentElement);
+  const value = (property: string) => style.getPropertyValue(property).trim();
+
+  const colors: SheetColors = {
+    paper: value("--paper"),
+    sheet: value("--sheet"),
+    text: value("--text"),
+    muted: value("--muted"),
+    graphite: value("--graphite"),
+    rule: value("--rule"),
+    ink: value("--ink"),
+    inkDeep: value("--ink-deep"),
+    inkLight: value("--ink-light"),
+    candleRise: value("--candle-rise"),
+    candleFall: value("--candle-fall"),
+  };
+
+  const key = Object.values(colors).join();
+
+  if (cached?.key !== key) cached = { key, colors };
+
+  return cached.colors;
+}
+
+// The theme switches by a class on the root element, which swaps the custom properties.
+function subscribe(onChange: () => void): () => void {
+  const observer = new MutationObserver(onChange);
+
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class", "style"],
+  });
+
+  return () => observer.disconnect();
+}
+
+/** The sheet's colours for the current theme; `null` while rendering on the server. */
+export function useSheetColors(): SheetColors | null {
+  return useSyncExternalStore(subscribe, read, () => null);
+}

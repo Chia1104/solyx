@@ -9,6 +9,10 @@ lerna-debug.log*
 
 node_modules
 dist
+.tanstack
+.void
+.void-wrangler.jsonc
+.wrangler
 release
 dist-ssr
 *.local

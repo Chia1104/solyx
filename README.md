@@ -100,9 +100,11 @@ Nightly builds for macOS (`.dmg`) and Windows (`.exe`) are on the [releases page
 Requires [Vite+](https://viteplus.dev/) (`vp`) and Node.js 26 or later.
 
 ```bash
-vp install     # install dependencies
-vp run dev     # start the desktop app in development mode
-vp run ready   # check, test and build
+vp install                 # install dependencies
+vp run dev:desktop         # start the desktop app in development mode
+vp run dev:website         # start the website in development mode
+vp run deploy:website      # build the website and deploy it with Void
+vp run ready               # check, test and build
 ```
 
 Architecture and repository rules live in [`AGENTS.md`](./AGENTS.md).

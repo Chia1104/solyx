@@ -32,6 +32,7 @@ export default defineConfig({
       "coverage",
       ".vscode",
       ".idea",
+      "**/routeTree.gen.ts",
     ],
     sortImports: {
       groups: [
@@ -81,6 +82,7 @@ export default defineConfig({
     ignorePatterns: [
       ...agentAndVendorPaths,
       "**/*.d.ts",
+      "**/routeTree.gen.ts",
       "dist/**",
       "build/**",
       "node_modules/**",
@@ -134,7 +136,11 @@ export default defineConfig({
         rules: { "no-console": "off" },
       },
       {
-        files: ["apps/desktop/src/renderer/**", "packages/trading-chart/**"],
+        files: [
+          "apps/desktop/src/renderer/**",
+          "apps/website/src/**",
+          "packages/trading-chart/**",
+        ],
         plugins: react.plugins,
         rules: react.rules,
       },
