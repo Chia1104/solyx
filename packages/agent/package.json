@@ -40,16 +40,16 @@
     "test": "vp test"
   },
   "dependencies": {
-    "@earendil-works/chord": "catalog:agent",
-    "@earendil-works/pi-ai": "catalog:agent",
-    "@earendil-works/pi-codemode": "catalog:agent",
-    "@earendil-works/pi-durable": "catalog:agent",
-    "@earendil-works/pi-mcp": "catalog:agent",
+    "@earendil-works/chord": "catalog:pi",
+    "@earendil-works/pi-ai": "catalog:pi",
+    "@earendil-works/pi-codemode": "catalog:pi",
+    "@earendil-works/pi-durable": "catalog:pi",
+    "@earendil-works/pi-mcp": "catalog:pi",
     "@opentelemetry/api": "catalog:otel",
     "@solyx/core": "workspace:*",
     "@solyx/utils": "workspace:*",
     "es-toolkit": "catalog:",
-    "yaml": "catalog:agent",
+    "yaml": "catalog:utils",
     "zod": "catalog:"
   },
   "devDependencies": {
