@@ -1,4 +1,3 @@
-import type { Question } from "@typesafe-ai/sdk";
 import OpenAI from "openai";
 import type {
   Decision,
@@ -17,7 +16,7 @@ import {
   createFactReader,
   createScorer,
 } from "./system-one.ts";
-import type { Ask } from "./system-one.ts";
+import type { Ask, SharedQuestion } from "./system-one.ts";
 
 /** OpenAI serves Luna, its only decisions model, under one unversioned id. */
 export const OPENAI_DEFAULT_MODEL = "gpt-6-luna";
@@ -42,7 +41,7 @@ const criterionSchema = z.string().optional();
 // levels are labelled by their index, as System One numbers them.
 function question(
   name: string,
-  asked: Question
+  asked: SharedQuestion
 ): DecisionCreateParams["questions"][number] {
   const instructions = instructionsSchema.parse(asked.instructions);
 
