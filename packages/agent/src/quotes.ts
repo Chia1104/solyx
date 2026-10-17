@@ -9,6 +9,7 @@ import {
   exchangeTime,
   symbolKey,
   symbolRefSchema,
+  symbolLabel,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -19,6 +20,7 @@ import { quoteChange } from "@solyx/core/quote";
 import type { SessionQuote } from "@solyx/core/quote";
 import { errorMessage } from "@solyx/utils/error";
 
+import { figure, percentChange, signedFigure } from "./figures.ts";
 import { defineTool } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
 
@@ -34,17 +36,8 @@ export interface QuoteToolsOptions {
 
 const MAX_SYMBOLS = 50;
 
-/** A price or a sum without the digits arithmetic leaves behind. */
-const figure = (value: number) => String(Number(value.toFixed(4)));
-
-const signed = (value: number) => `${value > 0 ? "+" : ""}${figure(value)}`;
-
-const percent = (fraction: number | null) =>
-  fraction === null
-    ? "n/a"
-    : `${fraction > 0 ? "+" : ""}${(fraction * 100).toFixed(2)}%`;
-
-const code = ({ market, symbol }: SymbolRef) => `${market} ${symbol}`;
+/** Places a price or a sum keeps, past which arithmetic leaves only noise. */
+const PRICE_DIGITS = 4;
 
 interface Quoted {
   symbol: SymbolRef;
@@ -61,12 +54,12 @@ interface Held extends Quoted {
 }
 
 const quoteCells = ({ symbol, name, quote, moved }: Quoted) => [
-  code(symbol),
+  symbolLabel(symbol),
   name,
   quote.date,
-  figure(quote.last),
-  moved ? signed(moved.change) : "n/a",
-  percent(moved?.percent ?? null),
+  figure(quote.last, PRICE_DIGITS),
+  moved ? signedFigure(moved.change, PRICE_DIGITS) : "n/a",
+  percentChange(moved?.percent ?? null),
 ];
 
 /** What the positions quoted in one currency add up to. */
@@ -74,7 +67,10 @@ function totalText(currency: string, held: readonly Held[]): string {
   const value = sumBy(held, ({ worth }) => worth.value);
   const cost = sumBy(held, ({ worth }) => worth.cost);
 
-  return `Held in ${currency}: worth ${figure(value)} against a cost of ${figure(cost)}, gain ${signed(value - cost)} (${percent(cost === 0 ? null : (value - cost) / cost)}), today ${signed(sumBy(held, ({ today }) => today ?? 0))}`;
+  return `Held in ${currency}: worth ${figure(value, PRICE_DIGITS)} against a cost of ${figure(cost, PRICE_DIGITS)}, gain ${signedFigure(value - cost, PRICE_DIGITS)} (${percentChange(cost === 0 ? null : (value - cost) / cost)}), today ${signedFigure(
+    sumBy(held, ({ today }) => today ?? 0),
+    PRICE_DIGITS
+  )}`;
 }
 
 /**
@@ -219,11 +215,13 @@ export function createQuoteTools(options: QuoteToolsOptions): Extension {
                       [
                         ...quoteCells(row),
                         row.position.quantity,
-                        figure(row.position.avgPrice),
-                        figure(row.worth.value),
-                        signed(row.worth.gain),
-                        percent(row.worth.gainPercent),
-                        row.today === null ? "n/a" : signed(row.today),
+                        figure(row.position.avgPrice, PRICE_DIGITS),
+                        figure(row.worth.value, PRICE_DIGITS),
+                        signedFigure(row.worth.gain, PRICE_DIGITS),
+                        percentChange(row.worth.gainPercent),
+                        row.today === null
+                          ? "n/a"
+                          : signedFigure(row.today, PRICE_DIGITS),
                       ].join(",")
                     ),
                     ...Object.entries(
@@ -243,7 +241,7 @@ export function createQuoteTools(options: QuoteToolsOptions): Extension {
                     `No quote: ${missing
                       .map(
                         ({ symbol, failure }) =>
-                          `${code(symbol)} (${failure ?? "no source covers its market or has bars for it"})`
+                          `${symbolLabel(symbol)} (${failure ?? "no source covers its market or has bars for it"})`
                       )
                       .join(
                         "; "

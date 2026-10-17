@@ -5,7 +5,7 @@ import type { Extension } from "@earendil-works/pi-durable";
 import { compact } from "es-toolkit";
 import * as z from "zod";
 
-import { Market, exchangeDate } from "@solyx/core/market";
+import { Market, exchangeDate, symbolLabel } from "@solyx/core/market";
 import type { ThemeDesk, ThemeItem, ThemeWatch } from "@solyx/core/theme";
 import { MINUTE_MS, HOUR_MS } from "@solyx/utils/date";
 
@@ -45,7 +45,7 @@ function watchText({
   unread,
 }: ThemeWatch): string {
   const listings = theme.listings.map(
-    ({ symbol, exposure }) => `- ${symbol.market} ${symbol.symbol}: ${exposure}`
+    ({ symbol, exposure }) => `- ${symbolLabel(symbol)}: ${exposure}`
   );
 
   return [

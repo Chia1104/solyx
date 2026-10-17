@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Investor, balanceTrend } from "@solyx/core/flows";
 import type { ListingFlows } from "@solyx/core/flows";
 import type { SymbolRef } from "@solyx/core/market";
-import { TW_BOARD_LOT } from "@solyx/core/rules/tw";
+import { twLots } from "@solyx/core/rules/tw";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -16,16 +16,14 @@ import { NetBuyingTable, TrendTable } from "./flow-tables.tsx";
 import type { TrendRow } from "./flow-tables.tsx";
 import { listingFlowsQuery } from "./flows-query.ts";
 
-const lots = (shares: number) => Math.round(shares / TW_BOARD_LOT);
-
 function ListingFlowsView({ flows }: { flows: ListingFlows }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
 
   const signedLots = (shares: number) =>
-    format.signedAmount.format(lots(shares));
+    format.signedAmount.format(twLots(shares));
 
-  const plainLots = (shares: number) => format.indicator.format(lots(shares));
+  const plainLots = (shares: number) => format.indicator.format(twLots(shares));
 
   const newestMargin = flows.margin.at(-1);
   const holding = flows.foreign.at(-1);

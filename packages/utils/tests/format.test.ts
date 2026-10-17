@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { formatBytes } from "../src/format.ts";
+import { cssPercent, formatBytes } from "../src/format.ts";
 
 test.each([
   [400, "400 bytes"],
@@ -14,4 +14,8 @@ test.each([
 
 test("a size reads in the locale's own way", () => {
   expect(formatBytes(3_100_000, "zh-TW")).toBe("3.1 MB");
+});
+
+test("a fraction of a box reads as a CSS percentage", () => {
+  expect(cssPercent(0.25)).toBe("25%");
 });

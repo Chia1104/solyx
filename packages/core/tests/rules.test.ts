@@ -3,6 +3,7 @@ import { describe, expect, test } from "vite-plus/test";
 import {
   isValidTwQuantity,
   twRevenueDeadline,
+  twLots,
   twRocDaySchema,
   twTickSize,
 } from "../src/rules/tw.ts";
@@ -76,4 +77,9 @@ describe("twRocDaySchema", () => {
   test.each(["1150230", "115-10-12", "11510"])("refuses %s", (written) => {
     expect(twRocDaySchema.safeParse(written).success).toBe(false);
   });
+});
+
+test("shares count in whole board lots, rounded", () => {
+  expect(twLots(12_400)).toBe(12);
+  expect(twLots(-2_600)).toBe(-3);
 });

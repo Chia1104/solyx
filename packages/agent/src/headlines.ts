@@ -8,6 +8,7 @@ import {
   exchangeTime,
   symbolKey,
   symbolRefSchema,
+  symbolLabel,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Headline } from "@solyx/core/news";
@@ -40,8 +41,6 @@ const LISTED_HEADLINES = 15;
 const DEFAULT_DAYS = 7;
 
 const MAX_SYMBOLS = 50;
-
-const code = ({ market, symbol }: SymbolRef) => `${market} ${symbol}`;
 
 /**
  * `get_headlines`: the heaviest stories across many listings, ranked as the host's overview ranks
@@ -118,7 +117,7 @@ export function createHeadlineTools(options: HeadlineToolsOptions): Extension {
             };
           }
 
-          const about = `${symbols ? "the listings asked for" : "what the user holds and watches"} (${listings.map(code).join(", ")})`;
+          const about = `${symbols ? "the listings asked for" : "what the user holds and watches"} (${listings.map(symbolLabel).join(", ")})`;
 
           const headlines = await options.headlines(
             listings,
@@ -161,7 +160,7 @@ export function createHeadlineTools(options: HeadlineToolsOptions): Extension {
             text: [
               `The ${headlines.length} heaviest headlines about ${about} over the last ${days} days, heaviest first, as_of ${exchangeTime(Market.TW, at)} Taipei, from the news the app has kept; nothing was searched for`,
               ...told.flatMap(({ story, about, market, calendar }) => [
-                `About ${about.map(code).join(", ")}:`,
+                `About ${about.map(symbolLabel).join(", ")}:`,
                 describeStory(market, story, at, calendar.trades),
               ]),
               ...uniqBy(told, ({ market }) => market).flatMap(

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Investor, balanceTrend } from "@solyx/core/flows";
 import type { Market } from "@solyx/core/market";
-import { TW_BOARD_LOT } from "@solyx/core/rules/tw";
+import { twLots } from "@solyx/core/rules/tw";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -12,8 +12,6 @@ import { numberFormats } from "../market/number-formats.ts";
 import { NetBuyingTable, TrendTable } from "./flow-tables.tsx";
 import type { TrendRow } from "./flow-tables.tsx";
 import { marketFlowsQuery } from "./flows-query.ts";
-
-const lots = (shares: number) => Math.round(shares / TW_BOARD_LOT);
 
 /** Who traded a whole market after each session: net buying, margin, and positions in its index future. */
 export function MarketFlows({ market }: { market: Market }) {
@@ -63,8 +61,8 @@ export function MarketFlows({ market }: { market: Market }) {
             })
           : undefined,
       trend: short,
-      value: (shares) => format.indicator.format(lots(shares)),
-      change: (shares) => format.signedAmount.format(lots(shares)),
+      value: (shares) => format.indicator.format(twLots(shares)),
+      change: (shares) => format.signedAmount.format(twLots(shares)),
     });
   }
 

@@ -16,7 +16,7 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { Market } from "@solyx/core/market";
+import { Market, symbolLabel } from "@solyx/core/market";
 import { holdsSecret } from "@solyx/core/memory";
 import {
   THEME_EXPOSURE_LENGTH,
@@ -129,9 +129,7 @@ const formOf = (theme: ThemeDraft): ThemeForm => ({
   queries: theme.queries.join("\n"),
   signposts: theme.signposts.join("\n"),
   listings: theme.listings
-    .map(
-      ({ symbol, exposure }) => `${symbol.market} ${symbol.symbol}: ${exposure}`
-    )
+    .map(({ symbol, exposure }) => `${symbolLabel(symbol)}: ${exposure}`)
     .join("\n"),
 });
 

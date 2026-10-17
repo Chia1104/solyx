@@ -69,6 +69,7 @@ import {
   marketSchema,
   symbolKey,
   symbolRefSchema,
+  symbolLabel,
 } from "@solyx/core/market";
 import type { Benchmark, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -99,8 +100,9 @@ import { getSession, sessionsBetween, weekdays } from "@solyx/core/session";
 import type { MarketClosure, TradingDays } from "@solyx/core/session";
 import { shiftDate, wallTime, HOUR_MS, DAY_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
-import { normalizeSpace, truncate } from "@solyx/utils/text";
+import { normalizeSpace, truncate, counted } from "@solyx/utils/text";
 
+import { figure, signed } from "./figures.ts";
 import { rememberAddresses } from "./found-addresses.ts";
 import { readingText } from "./macro-text.ts";
 import { councilText, durableBallotBox, orderMotion } from "./magi.ts";
@@ -218,7 +220,7 @@ const ZONE_NAMES: Record<ZoneKind, string> = {
 };
 
 const priceRange = ({ low, high }: PriceRange) =>
-  `${Number(low.toFixed(2))}-${Number(high.toFixed(2))}`;
+  `${figure(low)}-${figure(high)}`;
 
 /** The levels an intraday chart marks, as `get_indicators` reports them. */
 function sessionLevels(
@@ -331,9 +333,6 @@ function toOrderRequest(order: z.infer<typeof orderSchema>): OrderRequest {
 const likeliest = (probabilities: Record<string, number>) =>
   maxBy(Object.entries(probabilities), ([, probability]) => probability)?.[0];
 
-const signed = (value: number, digits: number) =>
-  `${value >= 0 ? "+" : ""}${value.toFixed(digits)}`;
-
 /** Shows a time no more exactly than its source tells it. */
 const PRECISE_TO: Record<TimePrecision, (time: string) => string> = {
   [TimePrecision.Minute]: (time) => time,
@@ -378,7 +377,7 @@ function sessionsSince(
 
   if (sessions === 0) return `no session ${since}`;
 
-  return `${sessions} session${sessions === 1 ? "" : "s"} ${since}`;
+  return `${counted(sessions, "session")} ${since}`;
 }
 
 /** An event's day, which a deadline shows as the latest it may come and an expected one as about then. */
@@ -399,7 +398,7 @@ const perShare = (amount: number | null) => String(amount ?? 0);
 const ofPeriod = (subject: string) => (subject ? ` (${subject})` : "");
 
 function describeEvent(event: ListingEvent): string {
-  const where = `${eventDay(event.date, event.timing)} ${event.symbol.market} ${event.symbol.symbol}`;
+  const where = `${eventDay(event.date, event.timing)} ${symbolLabel(event.symbol)}`;
 
   switch (event.kind) {
     case ListingEventKind.QuarterlyReport: {
@@ -436,7 +435,7 @@ function describeEvent(event: ListingEvent): string {
 }
 
 const describeResearchEvent = (event: ResearchEvent) =>
-  `${eventDay(event.date, event.timing)} ${event.symbol.market} ${event.symbol.symbol} ${event.label} [${event.source}]`;
+  `${eventDay(event.date, event.timing)} ${symbolLabel(event.symbol)} ${event.label} [${event.source}]`;
 
 const describeClosure = ({ market, date, name }: MarketClosure) =>
   `${date} ${market} closed (${name})`;
@@ -532,7 +531,7 @@ export function describeProposal(proposal: TradeProposal): string {
   const parts = [
     proposal.id,
     exchangeTime(order.instrument.market, new Date(proposal.createdAt)),
-    `${order.instrument.market} ${order.instrument.symbol}`,
+    `${symbolLabel(order.instrument)}`,
     `${order.side} ${order.quantity} @ ${price}`,
     proposal.status,
   ];
@@ -562,7 +561,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
     if (candles.length === 0) {
       throw new Error(
-        `No ${interval} bars for ${symbol.market} ${symbol.symbol}: the source does not list it or has no sessions in range`
+        `No ${interval} bars for ${symbolLabel(symbol)}: the source does not list it or has no sessions in range`
       );
     }
 
@@ -574,7 +573,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     getSession(market, now(), (await readTradingDays(ports, market)).trades);
 
   const heading = async (symbol: SymbolRef, interval: Interval, last: Candle) =>
-    `${symbol.market} ${symbol.symbol}, ${interval} bars, as_of ${barTime(symbol.market, interval, last.time)} (session ${await sessionOf(symbol.market)}; the latest bar is still forming while its session is open)`;
+    `${symbolLabel(symbol)}, ${interval} bars, as_of ${barTime(symbol.market, interval, last.time)} (session ${await sessionOf(symbol.market)}; the latest bar is still forming while its session is open)`;
 
   return [
     defineTool({
@@ -765,7 +764,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         return {
           text: [
-            `${symbol.market} ${symbol.symbol} news and posts over the last ${days} days, as_of ${exchangeTime(symbol.market, at)}${scoring}`,
+            `${symbolLabel(symbol)} news and posts over the last ${days} days, as_of ${exchangeTime(symbol.market, at)}${scoring}`,
             `Sentiment, 50 neutral: overall ${score(gauge.overall)}; press (announcements, articles) ${score(gauge.voices[NewsVoice.Press])}; crowd (forum, social) ${score(gauge.voices[NewsVoice.Crowd])}`,
             ...(stances.length > 0
               ? [
@@ -799,7 +798,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           text:
             listings.length === 0
               ? "The watchlist is empty."
-              : listings.map((ref) => `${ref.market} ${ref.symbol}`).join("\n"),
+              : listings.map((ref) => `${symbolLabel(ref)}`).join("\n"),
         };
       },
     }),
@@ -917,7 +916,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         const positions = account.positions.map(
           (position) =>
-            `${position.instrument.market} ${position.instrument.symbol}: ${position.quantity} shares @ ${position.avgPrice}`
+            `${symbolLabel(position.instrument)}: ${position.quantity} shares @ ${position.avgPrice}`
         );
 
         return {

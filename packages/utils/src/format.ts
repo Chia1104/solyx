@@ -19,3 +19,6 @@ export function formatBytes(bytes: number, locale: string) {
     maximumFractionDigits: 1,
   }).format(bytes / size);
 }
+
+/** A fraction of a box as a CSS length, such as `width` or `left`. */
+export const cssPercent = (fraction: number) => `${fraction * 100}%`;

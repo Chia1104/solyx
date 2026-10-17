@@ -3,6 +3,9 @@ import * as z from "zod";
 /** Shares in one board lot. */
 export const TW_BOARD_LOT = 1000;
 
+/** Shares in whole board lots, the unit Taiwan's market counts trading in. */
+export const twLots = (shares: number) => Math.round(shares / TW_BOARD_LOT);
+
 // The exchanges number exchange-traded funds from `00`, real estate trusts' beneficiary securities
 // from `01` and exchange-traded notes from `02`, and nothing else from any of them.
 const FUND_CODE = /^0[0-2]/;

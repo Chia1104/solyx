@@ -1,6 +1,12 @@
 import { expect, test } from "vite-plus/test";
 
-import { firstLine, normalizeSpace, tildify, truncate } from "../src/text.ts";
+import {
+  counted,
+  firstLine,
+  normalizeSpace,
+  tildify,
+  truncate,
+} from "../src/text.ts";
 
 test("whitespace runs become one space, with none at either end", () => {
   expect(normalizeSpace("  TSMC\n\traises   its outlook ")).toBe(
@@ -32,4 +38,10 @@ test.each([
 
 test("a Windows home folder is written ~ too", () => {
   expect(tildify("C:\\Users\\a\\.solyx", "C:\\Users\\a")).toBe("~\\.solyx");
+});
+
+test("a count takes its noun's plural unless it is one", () => {
+  expect(counted(1, "session")).toBe("1 session");
+  expect(counted(3, "session")).toBe("3 sessions");
+  expect(counted(2, "memory", "memories")).toBe("2 memories");
 });

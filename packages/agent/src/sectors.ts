@@ -9,6 +9,7 @@ import {
   Market,
   currencyOf,
   exchangeTime,
+  symbolLabel,
 } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import {
@@ -18,6 +19,7 @@ import {
 } from "@solyx/core/sectors";
 import type { SectorQuote } from "@solyx/core/sectors";
 
+import { millions, named, percent, percentChange, signed } from "./figures.ts";
 import { defineTool } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
 import type { GetSectorsDetails } from "./wire.ts";
@@ -31,16 +33,6 @@ export interface SectorToolsOptions {
 }
 
 const MARKET = Market.TW;
-
-const named = (sector: string) => sector.replaceAll("-", " ");
-
-const signed = (value: number) => `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
-
-const percent = (fraction: number) => `${signed(fraction * 100)}%`;
-
-const share = (part: number) => `${(part * 100).toFixed(1)}%`;
-
-const millions = (amount: number) => Math.round(amount / 1e6);
 
 /**
  * `get_sectors`: Taiwan's market by sector, as the host's market data reads the exchange's sector
@@ -56,11 +48,11 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
     const bars = await options.marketData.candles(symbol, Interval.OneDay);
     const last = bars.at(-1);
     const before = bars.at(-2);
-    const heading = `${name} (${symbol.market} ${symbol.symbol})`;
+    const heading = `${name} (${symbolLabel(symbol)})`;
 
     if (!last || !before) return `${heading}: no bars to measure it from`;
 
-    return `${heading} on ${candleDate(MARKET, last.time)}: ${last.close}, ${percent(last.close / before.close - 1)} on the session before`;
+    return `${heading} on ${candleDate(MARKET, last.time)}: ${last.close}, ${percentChange(last.close / before.close - 1)} on the session before`;
   }
 
   return defineExtension({
@@ -111,7 +103,7 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
               `Share of the trading by group: ${Object.values(SectorGroup)
                 .map(
                   (group) =>
-                    `${group} ${share(
+                    `${group} ${percent(
                       sumBy(
                         moves.filter((move) => move.group === group),
                         (move) => move.share
@@ -127,9 +119,9 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
                   move.symbol,
                   move.quote.last,
                   signed(move.change),
-                  percent(move.percent),
+                  percentChange(move.percent),
                   millions(move.quote.tradeValue),
-                  share(move.share),
+                  percent(move.share),
                 ].join(",")
               ),
               ...(untraded.length > 0

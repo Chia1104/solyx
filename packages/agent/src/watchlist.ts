@@ -3,7 +3,7 @@ import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
 import { uniqBy } from "es-toolkit";
 import * as z from "zod";
 
-import { symbolKey } from "@solyx/core/market";
+import { symbolKey, symbolLabel } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 
@@ -28,9 +28,8 @@ export interface WatchlistToolsOptions {
 
 type WatchlistChange = z.infer<typeof changeWatchlistArgumentsSchema>;
 
-const code = ({ market, symbol }: SymbolRef) => `${market} ${symbol}`;
-
-const codes = (listings: readonly SymbolRef[]) => listings.map(code).join(", ");
+const codes = (listings: readonly SymbolRef[]) =>
+  listings.map(symbolLabel).join(", ");
 
 /**
  * `change_watchlist`: the agent's way to add listings to the user's watchlist and take them off,
@@ -71,11 +70,11 @@ export function createWatchlistTools({
 
         if (!listing) {
           throw new Error(
-            `No market data source lists ${code(symbol)}, so it cannot be told from a mistyped code. Check the code and its market.`
+            `No market data source lists ${symbolLabel(symbol)}, so it cannot be told from a mistyped code. Check the code and its market.`
           );
         }
 
-        return `${code(symbol)} ${listing.name}`;
+        return `${symbolLabel(symbol)} ${listing.name}`;
       })
     );
   }
