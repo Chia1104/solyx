@@ -9,7 +9,6 @@ import { langParam, useLocale } from "../../lib/i18n.ts";
 import { useVisitorPlatform } from "../../lib/platform.ts";
 import { Platform } from "../../lib/releases.ts";
 import type { Release } from "../../lib/releases.ts";
-import { SheetRow } from "../landing/sheet.tsx";
 import { Badge } from "../ui/badge.tsx";
 import { buttonVariants } from "../ui/button.tsx";
 
@@ -91,79 +90,99 @@ export function ChannelInstallers({ release }: { release: Release }) {
   const platform = useVisitorPlatform();
 
   return (
-    <SheetRow className="px-6 py-14 md:px-10">
-      <div className="mx-auto max-w-3xl">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-          <h2 className="text-2xl font-[470] tracking-[-0.02em] [font-stretch:108%]">
-            {t(`download.channel.${release.channel}.name`)}
-          </h2>
-          <p className="text-muted-foreground text-sm tabular-nums">
-            {release.version} ·{" "}
-            {t("download.released", { date: release.publishedAt.slice(0, 10) })}
-            {release.changes.length > 0 && (
-              <>
-                {" · "}
-                <Link
-                  to="/{-$lang}/changelog"
-                  params={{ lang: langParam(locale) }}
-                  hash={release.version}
-                  className="text-primary hover:underline">
-                  {t("download.whats-new")}
-                </Link>
-              </>
-            )}
-          </p>
-        </div>
-        <p className="text-muted-foreground mt-2 max-w-[40em] text-pretty">
-          {t(`download.channel.${release.channel}.lede`)}
+    <div>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+        <h2 className="text-2xl font-[470] tracking-[-0.02em] [font-stretch:108%]">
+          {t(`download.channel.${release.channel}.name`)}
+        </h2>
+        <p className="text-muted-foreground text-sm tabular-nums">
+          {release.version} ·{" "}
+          {t("download.released", { date: release.publishedAt.slice(0, 10) })}
+          {release.changes.length > 0 && (
+            <>
+              {" · "}
+              <Link
+                to="/{-$lang}/changelog"
+                params={{ lang: langParam(locale) }}
+                hash={release.version}
+                className="text-primary hover:underline">
+                {t("download.whats-new")}
+              </Link>
+            </>
+          )}
         </p>
-        <ul className="mt-8 grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2">
-          {release.installers.map((installer) => {
-            const visitors = installer.platform === platform;
-
-            return (
-              <li
-                key={installer.name}
-                className="flex flex-col gap-6 bg-background p-6">
-                <div className="flex items-center gap-3">
-                  <SystemLogo
-                    platform={installer.platform}
-                    className="size-7"
-                  />
-                  <div>
-                    <p className="font-semibold">
-                      {t(`download.system.${installer.platform}.name`)}
-                    </p>
-                    <p className="text-muted-foreground text-sm">
-                      {t(`download.system.${installer.platform}.requirement`)}
-                    </p>
-                  </div>
-                  {visitors && (
-                    <Badge variant="outline" className="ml-auto">
-                      {t("download.your-system")}
-                    </Badge>
-                  )}
-                </div>
-                <a
-                  href={installer.url}
-                  className={cn(
-                    buttonVariants({
-                      variant: visitors ? "foreground" : "outline",
-                      size: "lg",
-                    }),
-                    "rounded-full"
-                  )}>
-                  <DownloadIcon />
-                  {t("download.file", {
-                    type: installer.name.slice(installer.name.lastIndexOf(".")),
-                    size: megabytes(installer.size),
-                  })}
-                </a>
-              </li>
-            );
-          })}
-        </ul>
       </div>
-    </SheetRow>
+      <p className="text-muted-foreground mt-2 max-w-[40em] text-pretty">
+        {t(`download.channel.${release.channel}.lede`)}
+      </p>
+      <ul className="mt-8 grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2">
+        {release.installers.map((installer) => {
+          const visitors = installer.platform === platform;
+
+          return (
+            <li
+              key={installer.name}
+              className="flex flex-col gap-6 bg-background p-6">
+              <div className="flex items-center gap-3">
+                <SystemLogo platform={installer.platform} className="size-7" />
+                <div>
+                  <p className="font-semibold">
+                    {t(`download.system.${installer.platform}.name`)}
+                  </p>
+                  <p className="text-muted-foreground text-sm">
+                    {t(`download.system.${installer.platform}.requirement`)}
+                  </p>
+                </div>
+                {visitors && (
+                  <Badge variant="outline" className="ml-auto">
+                    {t("download.your-system")}
+                  </Badge>
+                )}
+              </div>
+              <a
+                href={installer.url}
+                className={cn(
+                  buttonVariants({
+                    variant: visitors ? "foreground" : "outline",
+                    size: "lg",
+                  }),
+                  "rounded-full"
+                )}>
+                <DownloadIcon />
+                {t("download.file", {
+                  type: installer.name.slice(installer.name.lastIndexOf(".")),
+                  size: megabytes(installer.size),
+                })}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** Where a channel's installers go before its first release: pencilled in, as unfinished things are. */
+export function ComingSoon({ onShowNightly }: { onShowNightly: () => void }) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="border-graphite/45 rounded-lg border border-dashed hatch px-6 py-14 text-center [--hatch-color:color-mix(in_oklab,var(--graphite)_16%,transparent)]">
+      <p className="text-2xl font-[470] tracking-[-0.02em] [font-stretch:108%]">
+        {t("download.coming-soon.title")}
+      </p>
+      <p className="text-muted-foreground mx-auto mt-3 max-w-[32em] text-base text-pretty">
+        {t("download.coming-soon.lede")}
+      </p>
+      <button
+        type="button"
+        onClick={onShowNightly}
+        className={cn(
+          buttonVariants({ variant: "outline", size: "lg" }),
+          "mt-6 rounded-full px-5"
+        )}>
+        {t("download.coming-soon.action")}
+      </button>
+    </div>
   );
 }

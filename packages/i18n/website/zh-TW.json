@@ -248,13 +248,20 @@
     "file": "{{type}} · {{size}} MB",
     "channel": {
       "stable": {
+        "tab": "正式版",
         "name": "Solyx",
         "lede": "目前的正式版。"
       },
       "nightly": {
+        "tab": "每晚建置版",
         "name": "Solyx Nightly",
         "lede": "每晚建置版取自最新一個通過檢查的 commit，最多每六小時建置一次。它與 Solyx 分開安裝，資料、設定與金鑰各自獨立。"
       }
+    },
+    "coming-soon": {
+      "title": "即將推出",
+      "lede": "Solyx 還沒有正式版。在那之前，可以先試用 Solyx Nightly，它在模擬帳戶上交易。",
+      "action": "取得每晚建置版"
     },
     "system": {
       "macos": {

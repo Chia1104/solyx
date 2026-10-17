@@ -248,13 +248,20 @@
     "file": "{{type}} · {{size}} MB",
     "channel": {
       "stable": {
+        "tab": "Stable",
         "name": "Solyx",
         "lede": "The current release."
       },
       "nightly": {
+        "tab": "Nightly",
         "name": "Solyx Nightly",
         "lede": "Built from the newest commit that passed its checks, at most once every six hours. It installs beside Solyx and keeps its own data, settings and keys."
       }
+    },
+    "coming-soon": {
+      "title": "Coming soon",
+      "lede": "Solyx has no stable release yet. Until then, Solyx Nightly is the one to try; it trades on a paper account.",
+      "action": "Get Solyx Nightly"
     },
     "system": {
       "macos": {

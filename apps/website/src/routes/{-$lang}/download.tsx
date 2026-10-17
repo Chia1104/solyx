@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 import { HomeLayout } from "fumadocs-ui/layouts/home";
 import { useTranslation } from "react-i18next";
@@ -5,10 +7,17 @@ import latest from "virtual:latest-releases";
 
 import {
   ChannelInstallers,
+  ComingSoon,
   QuickDownload,
 } from "../../components/download/installers.tsx";
 import { Sheet, SheetRow } from "../../components/landing/sheet.tsx";
 import { SiteFooter } from "../../components/landing/site-footer.tsx";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../../components/ui/tabs.tsx";
 import {
   Locale,
   langParam,
@@ -43,15 +52,15 @@ export const Route = createFileRoute("/{-$lang}/download")({
   component: Download,
 });
 
-// Stable leads once a stable release exists; until then the nightly is the only download.
-const releases = [latest[Channel.Stable], latest[Channel.Nightly]].filter(
-  (release) => release !== undefined
-);
+const CHANNELS = [Channel.Stable, Channel.Nightly];
+
+// Stable leads once it has a release; until then the nightly does.
+const lead = latest[Channel.Stable] ?? latest[Channel.Nightly];
 
 function Download() {
   const { t } = useTranslation();
   const locale = useLocale();
-  const [lead] = releases;
+  const [channel, setChannel] = useState(lead?.channel ?? Channel.Nightly);
 
   return (
     <HomeLayout {...baseOptions(locale)}>
@@ -68,9 +77,38 @@ function Download() {
             </p>
             {lead && <QuickDownload release={lead} />}
           </SheetRow>
-          {releases.map((release) => (
-            <ChannelInstallers key={release.channel} release={release} />
-          ))}
+          <SheetRow className="px-6 py-14 md:px-10">
+            <Tabs
+              value={channel}
+              onValueChange={setChannel}
+              className="mx-auto max-w-3xl gap-8">
+              <TabsList className="mx-auto">
+                {CHANNELS.map((option) => (
+                  <TabsTrigger key={option} value={option} className="px-4">
+                    {t(`download.channel.${option}.tab`)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {CHANNELS.map((option) => {
+                const release = latest[option];
+
+                return (
+                  <TabsContent
+                    key={option}
+                    value={option}
+                    className="text-base">
+                    {release ? (
+                      <ChannelInstallers release={release} />
+                    ) : (
+                      <ComingSoon
+                        onShowNightly={() => setChannel(Channel.Nightly)}
+                      />
+                    )}
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
+          </SheetRow>
           <SheetRow className="px-6 py-12 text-center">
             <p className="text-muted-foreground mx-auto max-w-[36em] text-pretty">
               {t("download.first-launch")}
