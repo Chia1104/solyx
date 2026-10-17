@@ -24,6 +24,7 @@ catalogs:
     d3-hierarchy: 3.1.2
     lightweight-charts: 5.2.1
   docs:
+    "@fumadocs/language": 0.2.15
     "@types/mdx": 2.0.14
     fumadocs-core: 16.17.1
     fumadocs-mdx: 15.4.7
@@ -154,3 +155,4 @@ minimumReleaseAgeExclude:
   - '@earendil-works/pi-telemetry@1.2.0'
   - '@earendil-works/pi-codemode@1.2.0'
   - openai@7.30.0
+  - '@fumadocs/language@0.2.15'

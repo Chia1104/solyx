@@ -2,7 +2,9 @@ import { Suspense, lazy, useLayoutEffect, useRef, useState } from "react";
 
 import { ClientOnly, Link } from "@tanstack/react-router";
 import { cn } from "cn";
+import { useTranslation } from "react-i18next";
 
+import { langParam, useLocale } from "../../lib/i18n.ts";
 import { RELEASES_URL } from "../../lib/links.ts";
 import { buttonVariants } from "../ui/button.tsx";
 
@@ -28,13 +30,13 @@ interface Frame {
   sun: number;
 }
 
-const HEADLINE_INK = "You sign in ink.";
-
 /**
  * The panel's lower edge is the horizon: the sun is inked above it and pencilled below it, as the
  * app icon draws it. The page sets the sun's size as `--sun`, which the panel leaves room for.
  */
 export function Hero() {
+  const { t } = useTranslation();
+  const locale = useLocale();
   const panelRef = useRef<HTMLDivElement>(null);
   const halfRef = useRef<SVGSVGElement>(null);
 
@@ -97,23 +99,19 @@ export function Hero() {
 
         <div className="relative mx-auto max-w-5xl px-6 pt-20 pb-[calc(var(--sun)*2.3+2rem)] text-center md:pt-28">
           <h1 className="text-[clamp(2.4rem,6.4vw,4.75rem)] leading-[0.98] font-[540] tracking-[-0.028em] text-balance [font-stretch:112%]">
-            <span className="pencil-text block">
-              The agent drafts in pencil.
-            </span>
+            <span className="pencil-text block">{t("hero.pencil")}</span>
             {/* The ink copy wipes over the pencilled one; only the pencilled one is read out. */}
             <span className="relative mx-auto block w-fit">
-              <span className="pencil-text">{HEADLINE_INK}</span>
+              <span className="pencil-text">{t("hero.ink")}</span>
               <span
                 aria-hidden="true"
                 className="text-primary animate-ink-in motion-reduce:animate-fade-in absolute inset-0">
-                {HEADLINE_INK}
+                {t("hero.ink")}
               </span>
             </span>
           </h1>
           <p className="mx-auto mt-7 max-w-[34em] text-lg leading-relaxed text-pretty">
-            Solyx is a desktop app for trading Taiwan and US stocks. An agent
-            reads the market and proposes orders, and nothing reaches your
-            broker until you confirm it.
+            {t("hero.lede")}
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <a
@@ -122,21 +120,19 @@ export function Hero() {
                 buttonVariants({ variant: "foreground", size: "lg" }),
                 "h-12 rounded-full px-6 text-base"
               )}>
-              Download for macOS or Windows
+              {t("hero.download")}
             </a>
             <Link
-              to="/docs/$"
-              params={{ _splat: "" }}
+              to="/{-$lang}/docs/$"
+              params={{ lang: langParam(locale), _splat: "" }}
               className={cn(
                 buttonVariants({ variant: "outline", size: "lg" }),
                 "h-12 rounded-full px-6 text-base"
               )}>
-              Read the docs
+              {t("hero.docs")}
             </Link>
           </div>
-          <p className="text-muted-foreground mt-4 text-sm">
-            Free and open source. Nightly builds trade on a paper account.
-          </p>
+          <p className="text-muted-foreground mt-4 text-sm">{t("hero.note")}</p>
         </div>
       </div>
 

@@ -11,13 +11,20 @@ import { voidPlugin } from "void";
 
 const docsUrl = createGetUrl("/docs");
 
-// The crawler only follows links, so every docs page is listed for the prerender as well.
-const docsPages: { path: string }[] = [];
+// The crawler only follows links, and the language switcher is a button, so every page in every
+// locale is listed for the prerender as well. A translated page is `name.<locale>.mdx`, whose URL
+// takes the locale's prefix; English takes none.
+const pages = [{ path: "/api/search" }, { path: "/zh-TW" }];
 
 for await (const file of glob("**/*.mdx", {
   cwd: join(import.meta.dirname, "content/docs"),
 })) {
-  docsPages.push({ path: docsUrl(getSlugs(file)) });
+  const [, name, locale] =
+    /^(.+?)(?:\.([a-z]{2}-[A-Z]{2}))?\.mdx$/.exec(file) ?? [];
+
+  const url = docsUrl(getSlugs(`${name}.mdx`));
+
+  pages.push({ path: locale ? `/${locale}${url}` : url });
 }
 
 export default defineConfig({
@@ -30,7 +37,7 @@ export default defineConfig({
     tailwindcss(),
     tanstackStart({
       prerender: { enabled: true, crawlLinks: true, failOnError: true },
-      pages: [{ path: "/api/search" }, ...docsPages],
+      pages,
     }),
     react(),
   ],

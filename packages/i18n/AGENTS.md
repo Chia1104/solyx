@@ -1,6 +1,6 @@
 # `@solyx/i18n`
 
-Static translation catalogs, one folder per consumer (`desktop/`), one JSON file per locale. `en-US` is the source locale.
+Static translation catalogs, one folder per consumer (`desktop/`, `website/`), one JSON file per locale. `en-US` is the source locale.
 
 ## Boundaries
 

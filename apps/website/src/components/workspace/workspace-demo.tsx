@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { ClientOnly } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 import { twTickSize } from "@solyx/core/rules/tw";
 
@@ -20,6 +21,8 @@ const SUBMIT_MS = 900;
 
 /** The app's workspace on made-up prices: a watchlist, a daily chart and the agent. */
 export function WorkspaceDemo() {
+  const { t } = useTranslation();
+
   const listings = useMemo(
     () =>
       LISTINGS.map((listing) => ({ listing, candles: candlesFor(listing) })),
@@ -105,9 +108,11 @@ export function WorkspaceDemo() {
           <span className="size-3 rounded-full bg-[#28c840]" />
         </span>
         <span className="font-semibold">Solyx</span>
-        <span className="text-muted-foreground ml-auto">TW closed</span>
+        <span className="text-muted-foreground ml-auto">
+          {t("demo.market-closed")}
+        </span>
         <span className="rounded-sm pencil px-2 py-0.5 font-medium">
-          Paper trading
+          {t("demo.paper-trading")}
         </span>
       </div>
 
@@ -121,14 +126,16 @@ export function WorkspaceDemo() {
             <h3 className="font-semibold">
               {listing.code} {listing.name}
             </h3>
-            <span className="text-muted-foreground text-xs">TW</span>
+            <span className="text-muted-foreground text-xs">
+              {t("demo.market")}
+            </span>
             <span className="text-lg font-semibold">{price(listing.last)}</span>
             <span className={`text-sm ${rising ? "text-rise" : "text-fall"}`}>
               {rising ? "+" : ""}
               {price(session.change)} {percent(session.ratio)}
             </span>
             <span className="text-muted-foreground ml-auto text-xs">
-              Daily, made-up prices
+              {t("demo.daily")}
             </span>
           </div>
           <ClientOnly fallback={<div className="h-80 lg:h-auto lg:flex-1" />}>

@@ -203,6 +203,9 @@ catalogs:
       specifier: 4.6.7
       version: 4.6.7
   docs:
+    '@fumadocs/language':
+      specifier: 0.2.15
+      version: 0.2.15
     '@types/mdx':
       specifier: 2.0.14
       version: 2.0.14
@@ -666,6 +669,9 @@ importers:
       '@fontsource-variable/archivo':
         specifier: catalog:website
         version: 5.3.0
+      '@fumadocs/language':
+        specifier: catalog:docs
+        version: 0.2.15(@fumadocs/base-ui@16.17.1(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.17.1(@mdx-js/mdx@3.1.1(supports-color@7.2.0))(@tanstack/react-router@1.170.44(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.55.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(tailwindcss@4.3.3))(fumadocs-core@16.17.1(@mdx-js/mdx@3.1.1(supports-color@7.2.0))(@tanstack/react-router@1.170.44(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.55.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(zod@4.6.7))
       '@lobehub/icons-static-svg':
         specifier: catalog:icons
         version: 1.95.1
@@ -678,6 +684,9 @@ importers:
       '@solyx/trading-chart':
         specifier: workspace:*
         version: link:../../packages/trading-chart
+      '@solyx/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@tailwindcss/vite':
         specifier: catalog:tailwindcss
         version: 4.3.3(@voidzero-dev/vite-plus-core@1.3.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))
@@ -720,6 +729,9 @@ importers:
       fumadocs-ui:
         specifier: catalog:docs
         version: '@fumadocs/base-ui@16.17.1(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.17.1(@mdx-js/mdx@3.1.1(supports-color@7.2.0))(@tanstack/react-router@1.170.44(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.55.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(tailwindcss@4.3.3)'
+      i18next:
+        specifier: catalog:i18n
+        version: 26.4.7(typescript@7.0.2)
       lightweight-charts:
         specifier: catalog:charts
         version: 5.2.1
@@ -732,6 +744,9 @@ importers:
       react-dom:
         specifier: catalog:react
         version: 19.3.1(react@19.3.1)
+      react-i18next:
+        specifier: catalog:i18n
+        version: 17.0.19(i18next@26.4.7(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@7.0.2)
       shadcn:
         specifier: catalog:website
         version: 4.22.0(supports-color@7.2.0)
@@ -2215,6 +2230,26 @@ packages:
       next:
         optional: true
       takumi-js:
+        optional: true
+
+  '@fumadocs/language@0.2.15':
+    resolution: {integrity: sha512-iQnPOx2ROuGYlv097Esauq+4JRDoCzRC3KqeHHcpS4Ae6vuHEZ+aBjNTr69iFHr385VXC184LIDR4RWg4NqNZA==}
+    peerDependencies:
+      '@fumadocs/asyncapi': '*'
+      '@fumadocs/story': '*'
+      fumadocs-core: '*'
+      fumadocs-openapi: '*'
+      fumadocs-ui: '*'
+    peerDependenciesMeta:
+      '@fumadocs/asyncapi':
+        optional: true
+      '@fumadocs/story':
+        optional: true
+      fumadocs-core:
+        optional: true
+      fumadocs-openapi:
+        optional: true
+      fumadocs-ui:
         optional: true
 
   '@fumadocs/tailwind@0.1.3':
@@ -9807,6 +9842,11 @@ snapshots:
       - date-fns
       - supports-color
       - tailwindcss
+
+  '@fumadocs/language@0.2.15(@fumadocs/base-ui@16.17.1(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.17.1(@mdx-js/mdx@3.1.1(supports-color@7.2.0))(@tanstack/react-router@1.170.44(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.55.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(tailwindcss@4.3.3))(fumadocs-core@16.17.1(@mdx-js/mdx@3.1.1(supports-color@7.2.0))(@tanstack/react-router@1.170.44(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.55.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(zod@4.6.7))':
+    optionalDependencies:
+      fumadocs-core: 16.17.1(@mdx-js/mdx@3.1.1(supports-color@7.2.0))(@tanstack/react-router@1.170.44(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.55.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(zod@4.6.7)
+      fumadocs-ui: '@fumadocs/base-ui@16.17.1(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.17.1(@mdx-js/mdx@3.1.1(supports-color@7.2.0))(@tanstack/react-router@1.170.44(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.55.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(tailwindcss@4.3.3)'
 
   '@fumadocs/tailwind@0.1.3(tailwindcss@4.3.3)':
     optionalDependencies:

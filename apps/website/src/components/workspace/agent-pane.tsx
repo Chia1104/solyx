@@ -1,13 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Check, LoaderCircle, Plus, SendHorizontal } from "lucide-react";
-
-import {
-  agent,
-  magi,
-  proposals,
-  status as statuses,
-} from "@solyx/i18n/desktop/en-US.json";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "../ui/badge.tsx";
 import { Button } from "../ui/button.tsx";
@@ -15,8 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs.tsx";
 
 import { price } from "./format.ts";
 import type { Listing } from "./listings.ts";
-import { Ask, Vote, prompts } from "./script.ts";
-import type { Forecast, Proposal, Turn } from "./script.ts";
+import { Ask, Band, Vote } from "./script.ts";
+import type { Forecast, Proposal, Scenario, Turn } from "./script.ts";
 
 // New messages rise into place; reduced motion keeps only the fade.
 const ENTER =
@@ -64,6 +58,8 @@ export function AgentPane({
   onDismiss,
   onReset,
 }: AgentPaneProps) {
+  const { t } = useTranslation();
+  const { t: app } = useTranslation("desktop");
   const [tab, setTab] = useState<Tab>(Tab.Chat);
   const messagesRef = useRef<HTMLDivElement>(null);
 
@@ -75,19 +71,18 @@ export function AgentPane({
   }, [turn, stepsDone, replied, status, tab]);
   const proposal = replied ? turn?.proposal : undefined;
   const waiting = proposal && status === ProposalStatus.AwaitingConfirmation;
-  const questions = prompts(listing);
 
   return (
     <section
-      aria-label="Agent"
+      aria-label={app("agent.title")}
       className="flex h-[36rem] min-h-0 flex-col lg:h-auto">
       <header className="flex items-center justify-between px-4 pt-3">
-        <h3 className="text-sm font-semibold">{agent.title}</h3>
+        <h3 className="text-sm font-semibold">{app("agent.title")}</h3>
         <Button
           variant="ghost"
           size="icon-sm"
           onClick={onReset}
-          aria-label={agent["new-chat"]}
+          aria-label={app("agent.new-chat")}
           className="text-muted-foreground">
           <Plus />
         </Button>
@@ -102,7 +97,7 @@ export function AgentPane({
               key={name}
               value={name}
               className="after:bg-primary h-auto rounded-none py-2 group-data-horizontal/tabs:after:-bottom-px">
-              {agent.tabs[name]}
+              {app(`agent.tabs.${name}`)}
               {name === Tab.Proposals && waiting && (
                 <Badge variant="secondary">1</Badge>
               )}
@@ -124,39 +119,39 @@ export function AgentPane({
                 onDismiss={onDismiss}
               />
             ) : (
-              <p className="text-muted-foreground">
-                Nothing waits for you. Proposals the agent drafts show up here.
-              </p>
+              <p className="text-muted-foreground">{t("demo.no-proposals")}</p>
             )}
           </TabsContent>
           <TabsContent value={Tab.Chat} className="h-full">
             {turn ? (
               // Keyed by the question, so the empty state's nodes are not reused and a new question's messages enter.
-              <div key={turn.prompt} className="flex flex-col gap-4 text-sm">
+              <div key={turn.ask} className="flex flex-col gap-4 text-sm">
                 <p
                   className={`ml-8 self-end rounded-md bg-accent px-3 py-2 ${ENTER}`}>
-                  {turn.prompt}
+                  {t(`demo.ask.${turn.ask}`, { code: listing.code })}
                 </p>
                 <ul className="flex flex-col gap-1.5">
                   {turn.steps.map((step, index) =>
                     index > stepsDone ? null : (
                       <li
-                        key={step.label}
+                        key={step.tool}
                         className={`flex items-center gap-2 ${ENTER}`}>
                         {index < stepsDone ? (
                           <Check
-                            aria-label="Done"
+                            aria-label={t("demo.done")}
                             className="text-muted-foreground size-3.5"
                           />
                         ) : (
                           <LoaderCircle
-                            aria-label="Running"
+                            aria-label={t("demo.running")}
                             className="text-muted-foreground size-3.5 animate-spin motion-reduce:animate-none"
                           />
                         )}
-                        <span>{step.label}</span>
+                        <span>{app(`agent.tools.${step.tool}`)}</span>
                         <span className="text-muted-foreground">
-                          {step.detail}
+                          {step.account
+                            ? t("demo.paper")
+                            : `${listing.code} ${listing.name}`}
                         </span>
                       </li>
                     )
@@ -164,7 +159,9 @@ export function AgentPane({
                 </ul>
                 {replied && (
                   <>
-                    <p className={`leading-relaxed ${ENTER}`}>{turn.reply}</p>
+                    <p className={`leading-relaxed ${ENTER}`}>
+                      <Reply turn={turn} listing={listing} />
+                    </p>
                     {turn.forecast && (
                       <div className={`${ENTER} delay-60`}>
                         <ForecastCard forecast={turn.forecast} />
@@ -186,9 +183,9 @@ export function AgentPane({
               </div>
             ) : (
               <div className="flex h-full flex-col justify-end gap-1 pb-2">
-                <p className="font-medium">{agent["empty-title"]}</p>
+                <p className="font-medium">{app("agent.empty-title")}</p>
                 <p className="text-muted-foreground leading-relaxed">
-                  {agent["empty-description"]}
+                  {app("agent.empty-description")}
                 </p>
               </div>
             )}
@@ -208,7 +205,7 @@ export function AgentPane({
                   onAsk(ask);
                 }}
                 className="h-auto justify-between px-3 py-2 text-left font-normal whitespace-normal">
-                {questions[ask]}
+                {t(`demo.ask.${ask}`, { code: listing.code })}
                 <SendHorizontal
                   aria-hidden="true"
                   className="text-muted-foreground"
@@ -221,33 +218,70 @@ export function AgentPane({
           <Badge variant="secondary" className="bg-accent">
             {listing.code} {listing.name}
           </Badge>
-          <span className="truncate">The demo answers the questions above</span>
+          <span className="truncate">{t("demo.composer")}</span>
         </div>
       </div>
     </section>
   );
 }
 
+/** The agent's answer, worded from the turn's levels and what it drafted. */
+function Reply({ turn, listing }: { turn: Turn; listing: Listing }) {
+  const { t } = useTranslation();
+
+  if (turn.ask === Ask.Forecast) {
+    return t("demo.reply.forecast", {
+      code: listing.code,
+      last: price(listing.last),
+      support: price(turn.support),
+      resistance: price(turn.resistance),
+    });
+  }
+
+  const limit = turn.proposal?.price ?? turn.support;
+
+  return limit === turn.support
+    ? t("demo.reply.at-support", { limit: price(limit) })
+    : t("demo.reply.at-limit", {
+        support: price(turn.support),
+        limit: price(limit),
+      });
+}
+
 function ForecastCard({ forecast }: { forecast: Forecast }) {
+  const { t } = useTranslation();
+
+  const label = (scenario: Scenario) =>
+    scenario.band === Band.Below
+      ? t("demo.forecast.below", { price: price(scenario.high ?? 0) })
+      : scenario.band === Band.Above
+        ? t("demo.forecast.above", { price: price(scenario.low ?? 0) })
+        : t("demo.forecast.range");
+
   return (
     <article className="rounded-md pencil p-3 [--hatch-color:color-mix(in_oklab,var(--graphite)_18%,transparent)]">
       <header className="text-muted-foreground flex justify-between gap-2 text-xs">
         <span>
-          Forecast, {forecast.sessions} sessions from {price(forecast.from)}
+          {t("demo.forecast.header", {
+            sessions: forecast.sessions,
+            from: price(forecast.from),
+          })}
         </span>
-        <span>Open</span>
+        <span>{t("demo.forecast.open")}</span>
       </header>
       <ul className="mt-3 flex flex-col gap-3">
         {forecast.scenarios.map((scenario) => (
-          <li key={scenario.label}>
+          <li key={scenario.band}>
             <div className="flex items-baseline justify-between gap-2">
-              <span>{scenario.label}</span>
+              <span>{label(scenario)}</span>
               <span className="shrink-0">
                 <span className="font-medium">
                   {Math.round(scenario.probability * 100)}%
                 </span>{" "}
                 <span className="text-muted-foreground text-xs">
-                  history {Math.round(scenario.history * 100)}%
+                  {t("demo.forecast.history", {
+                    share: `${Math.round(scenario.history * 100)}%`,
+                  })}
                 </span>
               </span>
             </div>
@@ -285,6 +319,9 @@ function ProposalCard({
   onConfirm,
   onDismiss,
 }: ProposalCardProps) {
+  const { t } = useTranslation();
+  const { t: app } = useTranslation("desktop");
+
   const approvals = proposal.votes.filter(
     (vote) => vote.vote === Vote.Approves
   ).length;
@@ -307,22 +344,44 @@ function ProposalCard({
 
       <div className="relative">
         <header className="flex justify-between gap-2 text-xs">
-          <span className="text-muted-foreground">Order proposal</span>
+          <span className="text-muted-foreground">
+            {t("demo.proposal.title")}
+          </span>
           <span
             key={status}
             className={`transition-[opacity,filter] duration-200 ease-out starting:opacity-0 starting:blur-[2px] ${signed ? "text-primary" : "text-muted-foreground"}`}>
-            {statuses[status]}
+            {app(`status.${status}`)}
           </span>
         </header>
         <p className="mt-2 text-base font-semibold">
-          Buy {price(proposal.quantity)} shares @ {price(proposal.price)}
+          {t("demo.proposal.order", {
+            quantity: price(proposal.quantity),
+            price: price(proposal.price),
+          })}
         </p>
         <p className="text-muted-foreground text-xs">
-          {listing.code} {listing.name}, limit order, paper account
+          {t("demo.proposal.terms", {
+            listing: `${listing.code} ${listing.name}`,
+          })}
         </p>
 
         <ul className="mt-3 flex flex-col gap-1">
-          {proposal.checks.map((check) => (
+          {[
+            t("demo.proposal.check-lot", {
+              quantity: price(proposal.quantity),
+            }),
+            t("demo.proposal.check-tick", {
+              price: price(proposal.price),
+              tick: price(proposal.tick),
+            }),
+            t("demo.proposal.check-limits", {
+              low: price(proposal.bandLow),
+              high: price(proposal.bandHigh),
+            }),
+            t("demo.proposal.check-cash", {
+              amount: price(proposal.price * proposal.quantity),
+            }),
+          ].map((check) => (
             <li key={check} className="flex items-start gap-2">
               <Check
                 aria-hidden="true"
@@ -337,13 +396,11 @@ function ProposalCard({
           <p className="flex items-baseline justify-between">
             <span className="font-mincho text-base font-bold">MAGI</span>
             <span className="text-xs">
-              {magi.carried},{" "}
-              {magi.tally
-                .replace("{{approved, number}}", String(approvals))
-                .replace(
-                  "{{rejected, number}}",
-                  String(proposal.votes.length - approvals)
-                )}
+              {app("magi.carried")},{" "}
+              {app("magi.tally", {
+                approved: approvals,
+                rejected: proposal.votes.length - approvals,
+              })}
             </span>
           </p>
           <ul className="mt-2 flex flex-col gap-1.5">
@@ -360,10 +417,12 @@ function ProposalCard({
                         : "border-graphite/60 rounded-sm border px-1"
                     }>
                     {vote.vote === Vote.Approves
-                      ? magi.votes.approve
-                      : magi.votes.reject}
+                      ? app("magi.votes.approve")
+                      : app("magi.votes.reject")}
                   </span>{" "}
-                  <span className="text-muted-foreground">{vote.reason}</span>
+                  <span className="text-muted-foreground">
+                    {t(`demo.magi.${vote.reason}`)}
+                  </span>
                 </span>
               </li>
             ))}
@@ -373,10 +432,10 @@ function ProposalCard({
         {status === ProposalStatus.AwaitingConfirmation && (
           <div className="mt-4 flex gap-2">
             <Button size="sm" onClick={onConfirm}>
-              {proposals.confirm}
+              {app("proposals.confirm")}
             </Button>
             <Button variant="outline" size="sm" onClick={onDismiss}>
-              {proposals.dismiss}
+              {app("proposals.dismiss")}
             </Button>
           </div>
         )}
@@ -386,12 +445,12 @@ function ProposalCard({
               aria-hidden="true"
               className="size-3.5 animate-spin motion-reduce:animate-none"
             />
-            Running the risk checks again
+            {t("demo.proposal.submitting")}
           </p>
         )}
         {signed && (
           <p className="text-primary mt-4 text-xs transition-opacity duration-200 ease-out starting:opacity-0">
-            The checks passed again, and the order went to the paper account.
+            {t("demo.proposal.submitted")}
           </p>
         )}
       </div>

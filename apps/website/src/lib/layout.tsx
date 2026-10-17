@@ -2,12 +2,17 @@ import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 
 import { Logo } from "../components/logo.tsx";
 
+import { localePath, translators } from "./i18n.ts";
+import type { Locale } from "./i18n.ts";
 import { GITHUB_URL, RELEASES_URL } from "./links.ts";
 
-/** The header the home page and the docs share. */
-export function baseOptions(): BaseLayoutProps {
+/** The header the home page and the docs share; Fumadocs adds the language switcher. */
+export function baseOptions(locale: Locale): BaseLayoutProps {
+  const { t } = translators[locale];
+
   return {
     nav: {
+      url: localePath(locale, "/"),
       title: (
         <>
           <Logo className="size-6" />
@@ -17,8 +22,12 @@ export function baseOptions(): BaseLayoutProps {
     },
     githubUrl: GITHUB_URL,
     links: [
-      { text: "Docs", url: "/docs", active: "nested-url" },
-      { text: "Download", url: RELEASES_URL, external: true },
+      {
+        text: t("nav.docs"),
+        url: localePath(locale, "/docs"),
+        active: "nested-url",
+      },
+      { text: t("nav.download"), url: RELEASES_URL, external: true },
     ],
   };
 }

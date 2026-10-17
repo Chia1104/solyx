@@ -9,7 +9,9 @@ The project's website: the landing page and the docs, on TanStack Start and Fuma
 - The crawler only follows links, so `vite.config.ts` lists every docs page for the prerender itself.
 - Docs are MDX in `content/docs`, ordered by its `meta.json`. They describe what the app does today, taken from its code and the root README, and change with the code they describe.
 - The site sends nothing about its visitors: no analytics, fonts self-hosted through Fontsource, and the Shaders canvas runs with `disableTelemetry`.
-- The site is English only, so its copy lives in its routes and MDX. The demo workspace is the exception: it shows the app, so its labels come from the desktop's English catalog in `@solyx/i18n`.
+- The site speaks the app's locales, `en-US` and `zh-TW` (`src/lib/i18n.ts`). English keeps the site's own paths, and every other locale is the first segment of the path (`/zh-TW/docs/...`), through TanStack Router's optional `{-$lang}` segment and Fumadocs' `hideLocale: "default-locale"`. Each locale is prerendered on its own, so every page in every locale is listed in `vite.config.ts`.
+- Copy lives in `@solyx/i18n`'s `website/` catalogs and reaches components through `react-i18next`, with one i18next instance per locale, so pages prerendered side by side never share a language. The demo workspace shows the app, so its labels come from the app's own `desktop/` catalogs. Its script returns data, not sentences, and the agent pane words it.
+- A docs page in another locale is `name.<locale>.mdx` beside the English one, with its links written to its own locale's paths. Search finds only pages in the language on screen.
 
 ## Theme and components
 
