@@ -1,31 +1,115 @@
-import { glob } from "node:fs/promises";
-import { join } from "node:path";
+import { glob, readFile, readdir } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+
+import { createElement } from "react";
 
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
+import { frontmatter } from "fumadocs-core/content/md/frontmatter";
 import { createGetUrl, getSlugs } from "fumadocs-core/source";
+import { pageSchema } from "fumadocs-core/source/schema";
 import { fumadocsMdx } from "fumadocs-mdx/vite";
+import { generateOGImage } from "fumadocs-ui/og/takumi";
+import { Renderer } from "takumi-js/node";
+import type { Plugin } from "vite-plus";
 import { defineConfig } from "vite-plus";
 import { voidPlugin } from "void";
 
+import websiteEnUS from "@solyx/i18n/website/en-US.json";
+import websiteZhTW from "@solyx/i18n/website/zh-TW.json";
+
+import { socialCardPath } from "./src/lib/social-card.ts";
+
 const docsUrl = createGetUrl("/docs");
+
+const docsDir = join(import.meta.dirname, "content/docs");
 
 // The crawler only follows links, and the language switcher is a button, so every page in every
 // locale is listed for the prerender as well. A translated page is `name.<locale>.mdx`, whose URL
 // takes the locale's prefix; English takes none.
 const pages = [{ path: "/api/search" }, { path: "/zh-TW" }];
 
-for await (const file of glob("**/*.mdx", {
-  cwd: join(import.meta.dirname, "content/docs"),
-})) {
+// The landing page's card carries the hero's two lines, since the site's name is already its footer.
+const cards: { path: string; title: string; description?: string }[] = [
+  { path: "/", copy: websiteEnUS },
+  { path: "/zh-TW", copy: websiteZhTW },
+].map(({ path, copy }) => ({
+  path,
+  title: copy.hero.pencil,
+  description: copy.hero.ink,
+}));
+
+for await (const file of glob("**/*.mdx", { cwd: docsDir })) {
   const [, name, locale] =
     /^(.+?)(?:\.([a-z]{2}-[A-Z]{2}))?\.mdx$/.exec(file) ?? [];
 
   const url = docsUrl(getSlugs(`${name}.mdx`));
+  const path = locale ? `/${locale}${url}` : url;
 
-  pages.push({ path: locale ? `/${locale}${url}` : url });
+  const { title, description } = pageSchema.parse(
+    frontmatter(await readFile(join(docsDir, file), "utf8")).data
+  );
+
+  pages.push({ path });
+  cards.push({ path, title, description });
 }
+
+const require = createRequire(import.meta.url);
+
+// TanStack Start's prerender writes a response as text, which breaks an image, and a card drawn in
+// the Worker would run past Workers Free's CPU time, so the client build draws every card in Node,
+// into files Cloudflare serves.
+const socialCards = {
+  name: "solyx:social-cards",
+  apply: "build",
+  applyToEnvironment: (environment) => environment.name === "client",
+  async generateBundle() {
+    const renderer = new Renderer();
+
+    // Fontsource splits a family into files by script; the renderer joins those of one name.
+    for (const [name, pkg] of [
+      ["Archivo", "@fontsource-variable/archivo"],
+      ["Noto Sans TC", "@fontsource-variable/noto-sans-tc"],
+    ]) {
+      const files = join(dirname(require.resolve(pkg)), "files");
+
+      for (const file of await readdir(files)) {
+        if (file.endsWith("-wght-normal.woff2")) {
+          await renderer.registerFont({
+            name,
+            data: await readFile(join(files, file)),
+          });
+        }
+      }
+    }
+
+    const icon = createElement("img", {
+      src: `data:image/png;base64,${(await readFile(join(import.meta.dirname, "public/icon.png"))).toString("base64")}`,
+      width: 56,
+      height: 56,
+    });
+
+    for (const card of cards) {
+      const image = generateOGImage({
+        ...card,
+        site: "Solyx",
+        icon,
+        renderer,
+        primaryColor: "rgba(128, 151, 255, 0.35)",
+        primaryTextColor: "#8097ff",
+        css: "div { font-family: Archivo, 'Noto Sans TC'; }",
+      });
+
+      this.emitFile({
+        type: "asset",
+        fileName: socialCardPath(card.path).slice(1),
+        source: new Uint8Array(await image.arrayBuffer()),
+      });
+    }
+  },
+} satisfies Plugin;
 
 export default defineConfig({
   // Fumadocs reads its content from the root, which the prerender's preview server does not pass on.
@@ -48,6 +132,7 @@ export default defineConfig({
       pages,
     }),
     react(),
+    socialCards,
   ],
   environments: {
     // The Workers runtime bundles server dependencies ahead of time; found on the first request
