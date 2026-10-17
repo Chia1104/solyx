@@ -31,7 +31,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - `packages/utils`: cross-runtime, domain-neutral utilities
 - `packages/i18n`: translation catalogs, with `en-US` as the source locale
 - `apps/desktop`: the Electron app
-- `apps/website`: the landing page and docs, prerendered into static files
+- `apps/website`: the landing page and docs, prerendered and deployed to Cloudflare Workers through Void
 - `tools/oxlint/anti-slop`: vendored anti-slop Oxlint plugin; its source and local deviations are recorded in `UPSTREAM.md`
 
 ## Runtime boundaries

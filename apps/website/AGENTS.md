@@ -1,10 +1,11 @@
 # `@solyx/website`
 
-The project's website: the landing page and the docs, on TanStack Start and Fumadocs, prerendered into static files.
+The project's website: the landing page and the docs, on TanStack Start and Fumadocs, prerendered and deployed to Cloudflare Workers through Void.
 
 ## Boundaries
 
-- Static only: `vp build` prerenders every page into `dist/client`, which any static host serves, so a route that needs a server per request does not belong here. A docs page reads its data through a server function under `staticFunctionMiddleware`, whose results the build writes to files, and search downloads the index `/api/search` exports and runs in the browser.
+- Every page is prerendered: `vp build` writes each one into `dist/client`, so a route that needs a server per request does not belong here. A docs page reads its data through a server function under `staticFunctionMiddleware`, whose results the build writes to files, and search downloads the index `/api/search` exports and runs in the browser.
+- Void deploys the site: `voidPlugin()` builds it for the Workers runtime, Cloudflare serves the prerendered files, and the Worker answers only what no file matches. The Worker's settings live in `void.config.ts`; `void.lock.json`, once a deploy writes it, is committed beside it.
 - The crawler only follows links, so `vite.config.ts` lists every docs page for the prerender itself.
 - Docs are MDX in `content/docs`, ordered by its `meta.json`. They describe what the app does today, taken from its code and the root README, and change with the code they describe.
 - The site sends nothing about its visitors: no analytics, fonts self-hosted through Fontsource, and the Shaders canvas runs with `disableTelemetry`.

@@ -109,17 +109,21 @@ catalogs:
   website:
     "@fontsource-variable/archivo": 5.3.0
     shaders: 4.0.4
+    void: 1.1.11
 
-# esbuild (through drizzle-kit) and sentry-cli (through Sentry's Vite plugin) run from their platform
-# packages; their install scripts only verify them, or download one when it is missing.
-# pi-ai's Google SDK and protobufjs only print notices from theirs. electron-winstaller's picks 7-Zip
-# for electron-builder's Squirrel.Windows target, which Solyx does not build.
+# esbuild (through drizzle-kit), sentry-cli (through Sentry's Vite plugin) and workerd (through Void)
+# run from their platform packages; their install scripts only verify them, or download one when it
+# is missing. pi-ai's Google SDK and protobufjs only print notices from theirs. electron-winstaller's
+# picks 7-Zip for electron-builder's Squirrel.Windows target, which Solyx does not build. Void loads
+# better-sqlite3 only for a local database, which the website does not have.
 allowBuilds:
   "@google/genai": false
   "@sentry/cli": false
+  better-sqlite3: false
   electron-winstaller: false
   esbuild: false
   protobufjs: false
+  workerd: false
 
 overrides:
   vite@*: "catalog:"

@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vp dev",
-    "build": "vp build",
     "preview": "vp preview",
     "test": "vp test"
   },
@@ -35,6 +34,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",
+    "void": "catalog:website",
     "zod": "catalog:"
   }
 }
