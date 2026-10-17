@@ -18,6 +18,15 @@ export const Platform = {
 
 export type Platform = (typeof Platform)[keyof typeof Platform];
 
+/** What a pull request did, by the type its Conventional Commits title opens with. */
+export const ChangeKind = {
+  Feature: "feat",
+  Fix: "fix",
+  Other: "other",
+} as const;
+
+export type ChangeKind = (typeof ChangeKind)[keyof typeof ChangeKind];
+
 const INSTALLER_TYPES = {
   [Platform.MacOS]: ".dmg",
   [Platform.Windows]: ".exe",
@@ -30,6 +39,7 @@ const GitHubReleaseSchema = z.object({
   draft: z.boolean(),
   prerelease: z.boolean(),
   published_at: z.iso.datetime().nullable(),
+  body: z.string().nullable(),
   assets: z.array(
     z.object({
       name: z.string(),
@@ -38,6 +48,28 @@ const GitHubReleaseSchema = z.object({
     })
   ),
 });
+
+// GitHub writes each merged pull request into the notes as `* <title> by @<author> in <its URL>`.
+const PULL_REQUEST_LINE = /^\* (.+) by @\S+ in \S+\/pull\/(\d+)\r?$/gm;
+
+const CONVENTIONAL_TITLE = /^(\w+)(?:\(([^)]+)\))?!?: (.+)$/;
+
+/** The pull requests GitHub's generated notes list, each read from its title. */
+function changesIn(notes: string) {
+  return [...notes.matchAll(PULL_REQUEST_LINE)].map(([, title, number]) => {
+    const [, type, scope, summary] = CONVENTIONAL_TITLE.exec(title) ?? [];
+
+    return {
+      kind:
+        type === ChangeKind.Feature || type === ChangeKind.Fix
+          ? type
+          : ChangeKind.Other,
+      scope,
+      summary: summary ?? title,
+      pullRequest: Number(number),
+    };
+  });
+}
 
 function toRelease(
   release: z.infer<typeof GitHubReleaseSchema>,
@@ -64,6 +96,7 @@ function toRelease(
           ]
         : [];
     }),
+    changes: changesIn(release.body ?? ""),
   };
 }
 
@@ -119,4 +152,9 @@ export function latestReleases(releases: Release[]) {
       (release) => release.channel === Channel.Nightly
     ),
   };
+}
+
+/** The releases that merged a pull request, for the changelog. */
+export function releaseNotes(releases: Release[]) {
+  return releases.filter((release) => release.changes.length > 0);
 }

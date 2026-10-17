@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { langParam, useLocale } from "../../lib/i18n.ts";
-import { GITHUB_URL, RELEASES_URL } from "../../lib/links.ts";
+import { GITHUB_URL } from "../../lib/links.ts";
 import { Logo } from "../logo.tsx";
 
 export function SiteFooter() {
@@ -39,9 +39,12 @@ export function SiteFooter() {
             className="hover:text-primary">
             {t("nav.download")}
           </Link>
-          <a href={RELEASES_URL} className="hover:text-primary">
-            {t("nav.releases")}
-          </a>
+          <Link
+            to="/{-$lang}/changelog"
+            params={{ lang: langParam(locale) }}
+            className="hover:text-primary">
+            {t("nav.changelog")}
+          </Link>
           <a href={GITHUB_URL} className="hover:text-primary">
             {t("nav.github")}
           </a>

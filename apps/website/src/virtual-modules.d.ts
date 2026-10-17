@@ -6,3 +6,12 @@ declare module "virtual:latest-releases" {
 
   export default latest;
 }
+
+declare module "virtual:release-notes" {
+  import type { Release } from "#lib/releases";
+
+  /** Every release that merged a pull request, newest first, as GitHub listed them at build time. */
+  const releases: Release[];
+
+  export default releases;
+}
