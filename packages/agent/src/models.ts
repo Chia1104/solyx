@@ -388,11 +388,18 @@ export function createModelCatalog({
     ])
   );
 
+  // Ollama's models are kept as the server listed them, so its own endpoint is applied too:
+  // otherwise going back to it would leave them on the host set before.
   for (const provider of offered) {
     models.setProvider(
       endpoints.get(provider.id) === undefined
         ? provider
-        : withEndpoint(provider, () => endpoint(provider.id))
+        : withEndpoint(
+            provider,
+            provider.id === OLLAMA
+              ? ollamaEndpoint
+              : () => endpoint(provider.id)
+          )
     );
   }
 

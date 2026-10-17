@@ -536,3 +536,52 @@ test("the models kept for the next start live in one file, each provider's apart
 
   expect(await store.read("ollama")).toBeUndefined();
 });
+
+test("Ollama's models go back to this computer once its endpoint is set back, though the host set before listed them", async () => {
+  let host: string | undefined = "http://192.168.1.20:11434";
+
+  const fetch = async (input: string | URL | Request) => {
+    const { url } = new Request(input);
+
+    // Only the remote host answers, so going back keeps the list it gave.
+    if (!url.startsWith("http://192.168.1.20"))
+      throw new TypeError("fetch failed");
+
+    return Response.json({
+      models: [
+        {
+          name: "qwen3.8:9b",
+          capabilities: ["completion", "tools"],
+          details: { context_length: 262_144 },
+        },
+      ],
+    });
+  };
+
+  const modelsStore = new InMemoryModelsStore();
+
+  const endpoint = (provider: AgentProvider) =>
+    provider === "ollama" ? host : undefined;
+
+  const { catalog } = setup(endpoint, NO_CREDENTIALS, { modelsStore, fetch });
+
+  await catalog.refresh(["ollama"]);
+  host = undefined;
+  await catalog.refresh(["ollama"]);
+
+  expect(catalog.listingFailure("ollama")).toBe(
+    "127.0.0.1:11434: fetch failed"
+  );
+  expect((await catalog.model("ollama", "qwen3.8:9b"))?.baseUrl).toBe(
+    "http://127.0.0.1:11434"
+  );
+
+  // The next start reads the kept list on this computer's endpoint too.
+  const restarted = setup(endpoint, NO_CREDENTIALS, { modelsStore, fetch });
+
+  await restarted.catalog.restore();
+
+  expect((await restarted.catalog.model("ollama", "qwen3.8:9b"))?.baseUrl).toBe(
+    "http://127.0.0.1:11434"
+  );
+});
