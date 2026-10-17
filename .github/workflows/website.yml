@@ -1,0 +1,51 @@
+# Deploys the website to Cloudflare through Void whenever a push to develop changes what it is built
+# from, so usesolyx.trade always shows develop's site.
+name: Website
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - apps/website/**
+      - packages/core/**
+      - packages/i18n/**
+      - packages/trading-chart/**
+      - packages/utils/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .github/workflows/website.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancelling a deploy halfway can leave its version staged beside the live one, which stops the next
+# deploy until it is cleared in Cloudflare, so a newer push waits instead and then deploys the latest
+# commit.
+concurrency:
+  group: website
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: website
+      url: https://usesolyx.trade
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: "26"
+          cache: true
+
+      # The account and the Worker come from void.lock.json; the token needs Workers Scripts: Edit,
+      # and Workers Routes: Edit on usesolyx.trade for the custom domain.
+      - run: vp run @solyx/website#deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
