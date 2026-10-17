@@ -1,3 +1,4 @@
+import { Heading } from "fumadocs-ui/components/heading";
 import { useTranslation } from "react-i18next";
 
 import { GITHUB_URL } from "../../lib/links.ts";
@@ -8,28 +9,25 @@ import { Badge } from "../ui/badge.tsx";
 
 const KINDS = [ChangeKind.Feature, ChangeKind.Fix, ChangeKind.Other];
 
-/** One release's merged pull requests, new features first. Its version is its anchor. */
+/** One release's merged pull requests, new features first. Its version heading is its anchor. */
 export function ReleaseNotes({ release }: { release: Release }) {
   const { t } = useTranslation();
 
   return (
-    <SheetRow
-      id={release.version}
-      className="scroll-mt-16 px-6 py-12 md:px-10 md:py-14">
+    <SheetRow className="px-6 py-12 md:px-10 md:py-14">
       <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-[15rem_1fr] md:gap-10">
         <div className="md:sticky md:top-20 md:self-start">
-          <h2 className="font-semibold break-all tabular-nums">
-            <a href={`#${release.version}`} className="hover:text-primary">
-              {release.version}
-            </a>
-          </h2>
+          <Heading
+            as="h2"
+            id={release.version}
+            className="scroll-mt-30 font-semibold break-all tabular-nums">
+            {release.version}
+          </Heading>
           <p className="text-muted-foreground mt-1 text-sm tabular-nums">
             {release.publishedAt.slice(0, 10)} ·{" "}
             {t(`download.channel.${release.channel}.name`)}
           </p>
-          <a
-            href={release.url}
-            className="text-primary mt-2 inline-block text-sm hover:underline">
+          <a href={release.url} className="link mt-2 inline-block text-sm">
             {t("changelog.on-github")}
           </a>
         </div>
@@ -65,7 +63,7 @@ export function ReleaseNotes({ release }: { release: Release }) {
                           aria-label={t("changelog.pull-request", {
                             number: change.pullRequest,
                           })}
-                          className="text-muted-foreground hover:text-primary shrink-0 text-sm tabular-nums">
+                          className="text-muted-foreground shrink-0 text-sm tabular-nums transition-colors hover:text-accent-foreground">
                           #{change.pullRequest}
                         </a>
                       </li>

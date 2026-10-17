@@ -97,6 +97,7 @@
   --animate-pencil-in: pencil-in 700ms var(--ease-out) both;
   --animate-ink-in: ink-in 900ms var(--ease-in-out) 300ms both;
   --animate-drift: drift 40s linear infinite;
+  --animate-sheen: sheen 1s var(--ease-in-out) 450ms both;
 
   @keyframes fade-in {
     from {
@@ -118,6 +119,16 @@
   @keyframes drift {
     from {
       transform: translateX(-50%);
+    }
+  }
+
+  /* A highlight passing once over what just filled, the way a pen moves. */
+  @keyframes sheen {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100%);
     }
   }
 
@@ -194,6 +205,47 @@
     transparent 1.2px
   );
   background-size: 7px 7px;
+}
+
+/*
+ * A soft shade of the surface behind lettering laid over a drawing, so the lettering stays legible.
+ * `--scrim-color` is the surface beneath it.
+ */
+@utility scrim {
+  position: relative;
+  isolation: isolate;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -2rem 0;
+    z-index: -1;
+    background-image: radial-gradient(
+      closest-side,
+      color-mix(
+          in oklab,
+          var(--scrim-color, var(--background)) 85%,
+          transparent
+        )
+        35%,
+      transparent
+    );
+  }
+}
+
+/* A text link as Fumadocs draws one in the docs, so links read the same on every page. */
+@utility link {
+  color: var(--foreground);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--primary);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3.5px;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 80%;
+  }
 }
 
 /* Lettering filled with pencil hatching inside a pencil outline. */

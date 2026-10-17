@@ -135,6 +135,7 @@
     "providers": "服務商",
     "providers-label": "模型服務商",
     "providers-more": "還有 {{count}} 家",
+    "vendors-label": "網路搜尋服務商",
     "items": {
       "quotes": {
         "purpose": "台股報價與 K 線",

@@ -105,7 +105,7 @@ export function ChannelInstallers({ release }: { release: Release }) {
                 to="/{-$lang}/changelog"
                 params={{ lang: langParam(locale) }}
                 hash={release.version}
-                className="text-primary hover:underline">
+                className="link">
                 {t("download.whats-new")}
               </Link>
             </>

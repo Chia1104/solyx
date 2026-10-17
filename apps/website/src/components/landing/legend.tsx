@@ -155,7 +155,7 @@ export function Legend() {
                 animationDuration: `${seconds}s`,
                 animationDelay: `${delay}s`,
               }}
-              className="animate-drift flex w-max group-hover:[animation-play-state:paused] group-data-[paused=true]:[animation-play-state:paused] motion-reduce:animate-none">
+              className="animate-drift flex w-max group-data-[paused=true]:[animation-play-state:paused] motion-reduce:animate-none">
               {[false, true].map((copy) => (
                 <ul
                   key={String(copy)}

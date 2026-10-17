@@ -27,7 +27,7 @@ export interface HorizonProps {
 const RISE_MS = 1800;
 
 /** How far around the pointer the dots take ink, in pixels. */
-const PEN_RADIUS = 110;
+const PEN_RADIUS = 220;
 
 function easeOutQuint(t: number): number {
   return 1 - (1 - t) ** 5;

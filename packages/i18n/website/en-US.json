@@ -135,6 +135,7 @@
     "providers": "Providers",
     "providers-label": "Model providers",
     "providers-more": "and {{count}} more",
+    "vendors-label": "Web search vendors",
     "items": {
       "quotes": {
         "purpose": "Taiwan quotes and candles",
