@@ -14,6 +14,10 @@ import type { Listing } from "./listings.ts";
 import { Ask, Vote, prompts } from "./script.ts";
 import type { Forecast, Proposal, Turn } from "./script.ts";
 
+// New messages rise into place; reduced motion keeps only the fade.
+const ENTER =
+  "transition-[opacity,translate] duration-200 ease-out starting:opacity-0 starting:translate-y-1.5 motion-reduce:starting:translate-y-0";
+
 /** A proposal's status, named as the app names them. */
 export const ProposalStatus = {
   AwaitingConfirmation: "awaiting-confirmation",
@@ -107,7 +111,7 @@ export function AgentPane({
 
       <div
         ref={messagesRef}
-        className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
+        className="min-h-0 flex-1 overflow-y-auto scroll-smooth px-4 py-4 motion-reduce:scroll-auto"
         aria-live="polite">
         {tab === Tab.Proposals ? (
           proposal ? (
@@ -124,14 +128,18 @@ export function AgentPane({
             </p>
           )
         ) : turn ? (
-          <div className="flex flex-col gap-4 text-sm">
-            <p className="bg-sheet-3 ml-8 self-end rounded-md px-3 py-2">
+          // Keyed by the question, so the empty state's nodes are not reused and a new question's messages enter.
+          <div key={turn.prompt} className="flex flex-col gap-4 text-sm">
+            <p
+              className={`bg-sheet-3 ml-8 self-end rounded-md px-3 py-2 ${ENTER}`}>
               {turn.prompt}
             </p>
             <ul className="flex flex-col gap-1.5">
               {turn.steps.map((step, index) =>
                 index > stepsDone ? null : (
-                  <li key={step.label} className="flex items-center gap-2">
+                  <li
+                    key={step.label}
+                    className={`flex items-center gap-2 ${ENTER}`}>
                     {index < stepsDone ? (
                       <Check
                         aria-label="Done"
@@ -151,16 +159,22 @@ export function AgentPane({
             </ul>
             {replied && (
               <>
-                <p className="leading-relaxed">{turn.reply}</p>
-                {turn.forecast && <ForecastCard forecast={turn.forecast} />}
+                <p className={`leading-relaxed ${ENTER}`}>{turn.reply}</p>
+                {turn.forecast && (
+                  <div className={`${ENTER} delay-60`}>
+                    <ForecastCard forecast={turn.forecast} />
+                  </div>
+                )}
                 {turn.proposal && (
-                  <ProposalCard
-                    listing={listing}
-                    proposal={turn.proposal}
-                    status={status}
-                    onConfirm={onConfirm}
-                    onDismiss={onDismiss}
-                  />
+                  <div className={`${ENTER} delay-120`}>
+                    <ProposalCard
+                      listing={listing}
+                      proposal={turn.proposal}
+                      status={status}
+                      onConfirm={onConfirm}
+                      onDismiss={onDismiss}
+                    />
+                  </div>
                 )}
               </>
             )}
@@ -273,20 +287,23 @@ function ProposalCard({
   return (
     <article
       data-status={status}
-      className="group border-graphite/70 data-[status=submitted]:border-ink relative rounded-md border border-dashed p-3 transition-colors duration-500 data-[status=dismissed]:opacity-60 data-[status=submitted]:border-solid">
+      className="group border-graphite/70 relative rounded-md border border-dashed p-3 transition-opacity duration-200 ease-out data-[status=dismissed]:opacity-60">
       <div
         aria-hidden="true"
-        className="absolute inset-0 rounded-md hatch opacity-100 transition-opacity duration-700 [--hatch-color:color-mix(in_oklab,var(--graphite)_20%,transparent)] group-data-[status=submitted]:opacity-0"
+        className="absolute inset-0 rounded-md hatch [--hatch-color:color-mix(in_oklab,var(--graphite)_20%,transparent)] motion-safe:transition-[clip-path] motion-safe:duration-600 motion-safe:ease-in-out motion-safe:[clip-path:inset(0_0_0_0)] motion-safe:group-data-[status=submitted]:[clip-path:inset(0_0_0_100%)] motion-reduce:transition-opacity motion-reduce:duration-200 motion-reduce:ease-out motion-reduce:group-data-[status=submitted]:opacity-0"
       />
+      {/* Signing lays ink over the pencil, its solid outline covering the dashed one; the hatching gives way at the same edge. */}
       <div
         aria-hidden="true"
-        className="bg-ink/8 absolute inset-0 rounded-md opacity-0 transition-opacity duration-700 group-data-[status=submitted]:opacity-100"
+        className="border-ink bg-ink/8 absolute -inset-px rounded-md border motion-safe:transition-[clip-path] motion-safe:duration-600 motion-safe:ease-in-out motion-safe:[clip-path:inset(0_100%_0_0_round_var(--radius-md))] motion-safe:group-data-[status=submitted]:[clip-path:inset(0_0_0_0_round_var(--radius-md))] motion-reduce:opacity-0 motion-reduce:transition-opacity motion-reduce:duration-200 motion-reduce:ease-out motion-reduce:group-data-[status=submitted]:opacity-100"
       />
 
       <div className="relative">
         <header className="flex justify-between gap-2 text-xs">
           <span className="text-muted">Order proposal</span>
-          <span className={signed ? "text-ink" : "text-muted"}>
+          <span
+            key={status}
+            className={`transition-[opacity,filter] duration-200 ease-out starting:opacity-0 starting:blur-[2px] ${signed ? "text-ink" : "text-muted"}`}>
             {statuses[status]}
           </span>
         </header>
@@ -363,7 +380,7 @@ function ProposalCard({
           </div>
         )}
         {status === ProposalStatus.Submitting && (
-          <p className="mt-4 flex items-center gap-2 text-xs text-muted">
+          <p className="mt-4 flex items-center gap-2 text-xs text-muted transition-opacity duration-200 ease-out starting:opacity-0">
             <LoaderCircle
               aria-hidden="true"
               className="size-3.5 animate-spin motion-reduce:animate-none"
@@ -372,7 +389,7 @@ function ProposalCard({
           </p>
         )}
         {signed && (
-          <p className="text-ink mt-4 text-xs">
+          <p className="text-ink mt-4 text-xs transition-opacity duration-200 ease-out starting:opacity-0">
             The checks passed again, and the order went to the paper account.
           </p>
         )}
