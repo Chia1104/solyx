@@ -99,7 +99,7 @@ export function WorkspaceDemo() {
   const rising = session.change > 0;
 
   return (
-    <div className="bg-card overflow-hidden rounded-lg border border-border shadow-[0_24px_60px_-30px_rgb(15_20_28/0.35)]">
+    <div className="bg-card overflow-hidden rounded-lg border border-border">
       <div className="flex items-center gap-3 border-b border-border bg-muted px-4 py-2.5 text-xs">
         <span aria-hidden="true" className="flex gap-1.5">
           <span className="size-3 rounded-full bg-[#ff5f57]" />

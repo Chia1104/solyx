@@ -1,25 +1,18 @@
-import type { Sun } from "./horizon.tsx";
+import { DOT_PITCH, HALO_REACH } from "./sun.ts";
 
 export interface StillHorizonProps {
   width: number;
   height: number;
-  horizon: number;
-  sun: Sun;
+  /** The sun's radius in pixels. */
+  sun: number;
 }
 
-/** The emblem drawn in SVG, for browsers that cannot run the canvas. */
-export function StillHorizon({
-  width,
-  height,
-  horizon,
-  sun,
-}: StillHorizonProps) {
-  if (width === 0) return null;
+/** The risen sun and its halo drawn in SVG, for browsers that cannot run the canvas. */
+export function StillHorizon({ width, height, sun }: StillHorizonProps) {
+  if (width === 0 || sun === 0) return null;
 
-  const left = sun.x - sun.radius;
-  const right = sun.x + sun.radius;
-  const arc = `M${left} ${horizon}A${sun.radius} ${sun.radius} 0 0 1 ${right} ${horizon}`;
-  const below = `M${left} ${horizon}A${sun.radius} ${sun.radius} 0 0 0 ${right} ${horizon}`;
+  const left = width / 2 - sun;
+  const right = width / 2 + sun;
 
   return (
     <svg
@@ -30,30 +23,39 @@ export function StillHorizon({
       viewBox={`0 0 ${width} ${height}`}>
       <defs>
         <pattern
-          id="still-hatch"
-          width="11"
-          height="11"
-          patternUnits="userSpaceOnUse"
-          patternTransform="rotate(45)">
-          <line
-            x1="0"
-            y1="0"
-            x2="0"
-            y2="11"
-            stroke="var(--graphite)"
-            strokeWidth="1.5"
+          id="still-dots"
+          width={DOT_PITCH}
+          height={DOT_PITCH}
+          patternUnits="userSpaceOnUse">
+          <circle
+            cx={DOT_PITCH / 2}
+            cy={DOT_PITCH / 2}
+            r={DOT_PITCH / 4}
+            fill="var(--primary)"
           />
         </pattern>
+        <radialGradient
+          id="still-fade"
+          cx={width / 2}
+          cy={height}
+          r={sun * HALO_REACH}
+          gradientUnits="userSpaceOnUse">
+          <stop offset={1 / HALO_REACH} stopColor="white" />
+          <stop offset="1" stopColor="white" stopOpacity="0" />
+        </radialGradient>
+        <mask id="still-halo">
+          <rect width={width} height={height} fill="url(#still-fade)" />
+        </mask>
       </defs>
-      <path d={`${arc}Z`} fill="var(--primary)" />
-      <path d={`${below}Z`} fill="var(--card)" />
-      <path d={`${below}Z`} fill="url(#still-hatch)" />
+      <rect
+        width={width}
+        height={height}
+        fill="url(#still-dots)"
+        mask="url(#still-halo)"
+      />
       <path
-        d={below}
-        fill="none"
-        stroke="var(--graphite)"
-        strokeWidth="2"
-        strokeDasharray="14 9"
+        d={`M${left} ${height}A${sun} ${sun} 0 0 1 ${right} ${height}Z`}
+        fill="var(--primary)"
       />
     </svg>
   );

@@ -1,79 +1,85 @@
 import { Link } from "@tanstack/react-router";
 
+import { Badge } from "../ui/badge.tsx";
+
+import { SheetHead, SheetRow } from "./sheet.tsx";
+
 const SOURCES = [
   {
     purpose: "Taiwan quotes and candles",
     source: "Fugle, or Fubon",
-    bring: "A Fugle API key, or Fubon's SDK and login",
+    bring: ["A Fugle API key", "or Fubon's SDK and login"],
   },
   {
     purpose: "Fundamentals, dividends and investor flows",
     source: "FinMind",
-    bring: "Nothing; a token raises the limit",
+    bring: ["An optional token"],
   },
   {
     purpose: "Exchange lists, filings and insider transfers",
     source: "TWSE's and TPEx's open data",
-    bring: "Nothing",
+    bring: [],
   },
   {
     purpose: "Economic releases and their figures",
     source: "Taiwan's statistics portal and DGBAS",
-    bring: "Nothing",
+    bring: [],
   },
   {
     purpose: "The agent's model",
     source: "A model provider of your choice",
-    bring: "An API key, or a ChatGPT sign-in",
+    bring: ["An API key", "or a ChatGPT sign-in"],
   },
   {
     purpose: "Web search and news outlets",
     source: "Firecrawl, Exa or Tavily",
-    bring: "An API key",
+    bring: ["An API key"],
   },
 ];
 
 export function Sources() {
   return (
-    <section className="bg-card border-t border-border">
-      <div className="mx-auto max-w-6xl px-6 py-24">
-        <h2 className="text-3xl font-[640] tracking-[-0.015em] [font-stretch:112%]">
-          Runs on your keys
-        </h2>
-        <p className="text-muted-foreground mt-3 max-w-2xl text-lg leading-relaxed">
+    <>
+      <SheetRow>
+        <SheetHead id="sources" title="Runs on your keys">
           Market data and a model are enough to start. Every key is saved
           encrypted on your computer, and data flows straight between each
           provider and you, with no Solyx server between.
-        </p>
+        </SheetHead>
+      </SheetRow>
 
-        <div className="mt-10 overflow-x-auto">
-          <table className="w-full min-w-[40rem] border-collapse text-left">
-            <thead>
-              <tr className="border-b border-foreground text-sm">
-                <th scope="col" className="py-3 pr-6 font-semibold">
-                  For
-                </th>
-                <th scope="col" className="py-3 pr-6 font-semibold">
-                  Source
-                </th>
-                <th scope="col" className="py-3 font-semibold">
-                  You bring
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {SOURCES.map(({ purpose, source, bring }) => (
-                <tr key={purpose} className="border-b border-border">
-                  <td className="py-3 pr-6">{purpose}</td>
-                  <td className="text-muted-foreground py-3 pr-6">{source}</td>
-                  <td className="text-muted-foreground py-3">{bring}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <SheetRow>
+        <ul
+          aria-labelledby="sources"
+          className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
+          {SOURCES.map(({ purpose, source, bring }) => (
+            <li
+              key={purpose}
+              className="flex min-h-48 flex-col bg-background px-6 pt-7 pb-8 md:px-7">
+              <h3 className="font-semibold">{purpose}</h3>
+              <p className="text-muted-foreground mt-1.5 text-[0.9375rem]">
+                {source}
+              </p>
+              <p className="mt-auto flex flex-wrap gap-1.5 pt-5">
+                {bring.length > 0 ? (
+                  bring.map((thing) => (
+                    <Badge key={thing} variant="outline" className="h-6 px-2.5">
+                      {thing}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-muted-foreground text-sm">
+                    Nothing to bring
+                  </span>
+                )}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </SheetRow>
 
-        <p className="text-muted-foreground mt-6">
+      <SheetRow>
+        <p className="text-muted-foreground px-6 py-7 md:px-10">
           Decisions models and embedders add more.{" "}
           <Link
             to="/docs/$"
@@ -82,7 +88,7 @@ export function Sources() {
             See every source
           </Link>
         </p>
-      </div>
-    </section>
+      </SheetRow>
+    </>
   );
 }

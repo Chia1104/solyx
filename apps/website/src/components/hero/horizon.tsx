@@ -2,29 +2,21 @@ import { useEffect, useState } from "react";
 
 import {
   Circle,
+  DotGrid,
   FlowingGradient,
-  Group,
-  Paper,
+  RadialGradient,
   Shader,
-  SolidColor,
-  Stripes,
 } from "shaders/react";
 
 import { useSheetColors } from "../../lib/use-sheet-colors.ts";
 
-export interface Sun {
-  /** Center, in pixels from the hero's left edge. */
-  x: number;
-  /** Radius in pixels. */
-  radius: number;
-}
+import { DOT_PITCH, HALO_REACH } from "./sun.ts";
 
 export interface HorizonProps {
   width: number;
   height: number;
-  /** The horizon's distance from the hero's top, in pixels. */
-  horizon: number;
-  sun: Sun;
+  /** The sun's radius in pixels; it rises through the canvas's bottom edge, the horizon. */
+  sun: number;
   /** Called once the canvas first draws. */
   onReady: () => void;
   /** Called when this browser cannot run the canvas, which then stays empty. */
@@ -42,13 +34,12 @@ function prefersReducedMotion(): boolean {
 }
 
 /**
- * The app icon's emblem drawn on the GPU: a disc rises through the horizon, hatched in pencil
- * below it and inked above it, the way a draft becomes an order once the user signs it.
+ * The app icon's emblem drawn on the GPU: an inked sun rises through the horizon with a halftone
+ * halo that grows with it, the way a draft becomes an order once the user signs it.
  */
 export function Horizon({
   width,
   height,
-  horizon,
   sun,
   onReady,
   onUnavailable,
@@ -80,27 +71,9 @@ export function Horizon({
     return () => cancelAnimationFrame(frame);
   }, [ready]);
 
-  if (!colors || width === 0 || height === 0) return null;
+  if (!colors || width === 0 || height === 0 || sun === 0) return null;
 
-  const centerY = horizon + sun.radius * (1 - rise);
-  const center = { x: sun.x / width, y: centerY / height };
-  // A radius of one spans the canvas height edge to edge.
-  const radius = (2 * sun.radius) / height;
-  const above = horizon / height;
-
-  const sky = {
-    x: { unit: "uv", value: 0 },
-    y: { unit: "uv", value: 0 },
-    width: { unit: "uv", value: 1 },
-    height: { unit: "uv", value: above },
-    rotation: 0,
-  } as const;
-
-  const sea = {
-    ...sky,
-    y: { unit: "uv", value: above },
-    height: { unit: "uv", value: 1 - above },
-  } as const;
+  const center = { x: 0.5, y: (height + sun * (1 - rise)) / height };
 
   return (
     <Shader
@@ -111,31 +84,47 @@ export function Horizon({
         onReady();
       }}
       onUnavailable={onUnavailable}>
-      <Circle id="disc" visible={false} center={center} radius={radius} />
+      {/* Opaque at the sun's edge and clear at the halo's reach; it sizes the dots, which shrink outward. */}
+      <RadialGradient
+        id="halo"
+        visible={false}
+        center={center}
+        radius={((sun * HALO_REACH) / height) * rise}
+        stops={[
+          { color: "#000000", position: 0 },
+          { color: "#000000", position: 1 / HALO_REACH },
+          { color: "#00000000", position: 1 },
+        ]}
+      />
+      <DotGrid
+        color={colors.primary}
+        density={Math.round(height / DOT_PITCH)}
+        dotSize={{
+          type: "map",
+          source: "halo",
+          channel: "alpha",
+          inputMin: 0,
+          inputMax: 1,
+          outputMin: 0,
+          outputMax: 0.7,
+        }}
+      />
 
-      <Group boundingBox={sea} maskSource="disc">
-        <SolidColor color={colors.card} />
-        <Stripes
-          colorA={colors.graphite}
-          colorB={colors.card}
-          angle={-45}
-          density={Math.round(height / 11)}
-          balance={0.14}
-          speed={still ? 0 : 0.015}
-        />
-        <Paper roughness={0.2} grainScale={1.4} displacement={0.35} />
-      </Group>
-
-      <Group boundingBox={sky} maskSource="disc">
-        <FlowingGradient
-          colorA={colors.primary}
-          colorB={colors.primaryDeep}
-          colorC={colors.primary}
-          colorD={colors.primaryLight}
-          speed={still ? 0 : 0.25}
-          distortion={0.25}
-        />
-      </Group>
+      <Circle
+        id="disc"
+        visible={false}
+        center={center}
+        radius={(2 * sun) / height}
+      />
+      <FlowingGradient
+        maskSource="disc"
+        colorA={colors.primary}
+        colorB={colors.primaryDeep}
+        colorC={colors.primary}
+        colorD={colors.primaryLight}
+        speed={still ? 0 : 0.25}
+        distortion={0.25}
+      />
     </Shader>
   );
 }

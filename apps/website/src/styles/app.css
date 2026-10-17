@@ -15,7 +15,7 @@
 :root {
   --radius: 0.5rem;
 
-  --background: #f3f5f8;
+  --background: #fcfdfe;
   --foreground: #23272f;
   --card: #fcfdfe;
   --card-foreground: var(--foreground);
@@ -49,7 +49,7 @@
   /* Pencil: the dashed rules and hatching of what is only drafted. */
   --graphite: #7a8394;
   --hatch: color-mix(in oklab, var(--graphite) 45%, transparent);
-  --grid: color-mix(in oklab, var(--graphite) 13%, transparent);
+  --stipple: color-mix(in oklab, var(--graphite) 35%, transparent);
   /* Prices in Taiwan's convention, red for up. */
   --rise: #c72c37;
   --fall: #0b7643;
@@ -74,7 +74,7 @@
   --primary-light: #93a7ff;
   --graphite: #8a94a6;
   --hatch: color-mix(in oklab, var(--graphite) 40%, transparent);
-  --grid: color-mix(in oklab, var(--graphite) 10%, transparent);
+  --stipple: color-mix(in oklab, var(--graphite) 40%, transparent);
   --rise: #ef6567;
   --fall: #43c07a;
 }
@@ -90,6 +90,36 @@
   /* Tailwind's own curves are too weak for deliberate motion. */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --animate-fade-in: fade-in 200ms var(--ease-out) both;
+  --animate-pencil-in: pencil-in 700ms var(--ease-out) both;
+  --animate-ink-in: ink-in 900ms var(--ease-in-out) 300ms both;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* The outline's stroke spills a few pixels past the box, so the clip stops short of it. */
+  @keyframes pencil-in {
+    from {
+      clip-path: inset(-4px 100% -4px -4px);
+    }
+    to {
+      clip-path: inset(-4px);
+    }
+  }
+
+  /* Negative insets keep descenders and overhangs, which spill past the tight line box, unclipped. */
+  @keyframes ink-in {
+    from {
+      clip-path: inset(-0.2em 100% -0.2em -0.1em);
+    }
+    to {
+      clip-path: inset(-0.2em -0.1em -0.2em -0.1em);
+    }
+  }
 }
 
 @theme inline {
@@ -146,12 +176,14 @@
   @apply border-graphite/60 border border-dashed hatch;
 }
 
-/* The drafting sheet's grid, one cell every 48px. */
-@utility drafting-grid {
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 48px 48px;
+/* Pencil stippling: one graphite dot every 7px. */
+@utility stipple {
+  background-image: radial-gradient(
+    circle,
+    var(--stipple) 0.9px,
+    transparent 1.2px
+  );
+  background-size: 7px 7px;
 }
 
 /* Lettering filled with pencil hatching inside a pencil outline. */
