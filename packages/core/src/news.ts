@@ -1,5 +1,8 @@
 import { groupBy, maxBy, sumBy } from "es-toolkit";
 
+import { DAY_MS } from "@solyx/utils/date";
+import { normalizeSpace } from "@solyx/utils/text";
+
 import { cosine } from "./embedding.ts";
 import type { Embedding } from "./embedding.ts";
 import type { Listing } from "./market-data.ts";
@@ -115,8 +118,9 @@ export interface SourceHealth {
 /** Keeps what sources found per listing, so history outlives each source's window. */
 export interface NewsStore {
   /**
-   * Stores what a source found for a listing. An item stored before keeps its score and the first
-   * publication time it was given, and takes the latest title, snippet and votes.
+   * Stores what a source found for a listing. An item stored before keeps the first publication
+   * time it was given and takes the latest title, snippet and votes; it keeps its scores and vector
+   * unless its title or snippet changed beyond spacing, so that what it now says is read again.
    */
   save(
     symbol: SymbolRef,
@@ -124,14 +128,17 @@ export interface NewsStore {
     items: readonly NewsItem[],
     foundAt: Date
   ): void;
-  /** Stores the decisions model's reading of a record's item for the listing. */
+  /** Stores the decisions model's reading of a record's item for the listing, unless its text has changed since. */
   saveScore(symbol: SymbolRef, record: NewsRecord, score: SentimentScore): void;
   /**
    * A listing's records published since `since`, or found since then when undated, newest first,
    * each with its item's vector in `space` where it has one.
    */
   list(symbol: SymbolRef, since: Date, space?: string): NewsRecord[];
-  /** Keeps each item's vector in `space`, dropping every vector of another space. */
+  /**
+   * Keeps each item's vector in `space`, dropping every vector of another space; an item whose
+   * text has changed since its record was read keeps none.
+   */
   saveEmbeddings(
     space: string,
     vectors: readonly {
@@ -176,8 +183,6 @@ export interface NewsStory {
   records: NewsRecord[];
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 // An event is told up front; what follows, such as an announcement's boilerplate, only dilutes it.
 const STORY_SNIPPET = 500;
 
@@ -186,7 +191,7 @@ export function storyText({
   title,
   snippet,
 }: Pick<NewsItem, "title" | "snippet">): string {
-  const lead = snippet.replace(/\s+/g, " ").trim().slice(0, STORY_SNIPPET);
+  const lead = normalizeSpace(snippet).slice(0, STORY_SNIPPET);
 
   return lead ? `${title.trim()}\n${lead}` : title.trim();
 }
@@ -489,7 +494,7 @@ export interface NewsDesk {
   ): Promise<NewsCollection>;
   /**
    * Searches what is stored without asking any source: by words, as `NewsStore.search` does, and by
-   * meaning where a model on this computer embeds the query.
+   * meaning where Ollama embeds the query.
    */
   search(
     query: string,
@@ -575,6 +580,31 @@ export function isAboutListing(story: NewsStory): boolean {
   );
 }
 
+/** How long a story takes to weigh half as much now, by its voice: what investors say moves on sooner. */
+export const HALF_LIFE_MS: Record<NewsVoice, number> = {
+  [NewsVoice.Press]: 2 * DAY_MS,
+  [NewsVoice.Crowd]: DAY_MS,
+};
+
+/** The share of its weight a story keeps at `now`; none for a page of data, which carries no voice. */
+function freshness(story: NewsStory, now: Date): number {
+  const voice = storyVoice(story);
+
+  if (voice === null) return 0;
+
+  const age = Math.max(0, now.getTime() - datedAt(story.lead).getTime());
+
+  return 0.5 ** (age / HALF_LIFE_MS[voice]);
+}
+
+/**
+ * The faded weight below which a gauge's reading does not tell how the listing reads now: half a
+ * wholly relevant story out just now, so one story about the listing keeps a reading recent on its
+ * own for about its voice's half-life. On collected news, quiet listings fall below it while busy
+ * ones rest on more than ten times it.
+ */
+export const RECENT_WEIGHT_LINE = 0.5;
+
 /** A stance from −1 to 1 on the gauge's scale, 0 to 100 with 50 neutral. */
 const gaugeScore = (stance: number) => Math.round((stance + 1) * 50);
 
@@ -592,19 +622,27 @@ interface Weighed {
 
 /**
  * The stories' stance, each scored one weighed by how surely it is about the listing and is not
- * a promotion. Expects stories about the listing only.
+ * a promotion, times the share `fade` leaves it. Expects stories about the listing only.
  */
-function weigh(stories: readonly NewsStory[]): Weighed {
-  const weighed = stories.flatMap(({ lead: { score } }) =>
-    score
+function weigh(
+  stories: readonly NewsStory[],
+  fade: (story: NewsStory) => number = () => 1
+): Weighed {
+  const weighed = stories.flatMap((story) => {
+    const { score } = story.lead;
+
+    return score
       ? [
           {
             stance: stanceValue(score.stance),
-            weight: score.relevance * (1 - score.kind[TextKind.Promotion]),
+            weight:
+              score.relevance *
+              (1 - score.kind[TextKind.Promotion]) *
+              fade(story),
           },
         ]
-      : []
-  );
+      : [];
+  });
 
   const weight = sumBy(weighed, (entry) => entry.weight);
 
@@ -648,10 +686,17 @@ function dailySentiment(
 }
 
 export interface SentimentReading {
-  /** 0 to 100 with 50 neutral, from the weighted stance; `null` when nothing is scored. */
+  /**
+   * 0 to 100 with 50 neutral, from the weighted stance, each story fading by its voice's
+   * `HALF_LIFE_MS`; `null` when nothing is scored.
+   */
   score: number | null;
   /** Stories about the listing, scored or not. */
   stories: number;
+  /** Whether the score rests on enough recent stories to tell how the listing reads now (`RECENT_WEIGHT_LINE`). */
+  recent: boolean;
+  /** When the newest of the stories came out, or was found when undated; `null` without any. */
+  latest: Date | null;
 }
 
 export interface SentimentGauge {
@@ -659,25 +704,38 @@ export interface SentimentGauge {
   voices: Record<NewsVoice, SentimentReading>;
 }
 
-function reading(stories: readonly NewsStory[]): SentimentReading {
-  const { stance, stories: count } = weigh(stories);
+function reading(stories: readonly NewsStory[], now: Date): SentimentReading {
+  const {
+    stance,
+    weight,
+    stories: count,
+  } = weigh(stories, (story) => freshness(story, now));
+
+  const newest = maxBy(stories, (story) => datedAt(story.lead).getTime());
 
   return {
     score: stance === null ? null : gaugeScore(stance),
     stories: count,
+    recent: weight >= RECENT_WEIGHT_LINE,
+    latest: newest ? datedAt(newest.lead) : null,
   };
 }
 
-/** How the stories about a listing read on a 0-to-100 scale, overall and in each voice. */
-function sentimentGauge(about: readonly NewsStory[]): SentimentGauge {
+/** How the stories about a listing read at `now` on a 0-to-100 scale, overall and in each voice. */
+function sentimentGauge(
+  about: readonly NewsStory[],
+  now: Date
+): SentimentGauge {
   return {
-    overall: reading(about),
+    overall: reading(about, now),
     voices: {
       [NewsVoice.Press]: reading(
-        about.filter((story) => storyVoice(story) === NewsVoice.Press)
+        about.filter((story) => storyVoice(story) === NewsVoice.Press),
+        now
       ),
       [NewsVoice.Crowd]: reading(
-        about.filter((story) => storyVoice(story) === NewsVoice.Crowd)
+        about.filter((story) => storyVoice(story) === NewsVoice.Crowd),
+        now
       ),
     },
   };
@@ -687,27 +745,28 @@ function sentimentGauge(about: readonly NewsStory[]): SentimentGauge {
 export interface NewsReading {
   /** Newest first. */
   stories: NewsStory[];
-  /** Over the stories about the listing. */
+  /** Over the stories about the listing, as they read at the time asked for. */
   gauge: SentimentGauge;
-  /** Oldest first, over the stories about the listing. */
+  /** Oldest first, over the stories about the listing, each day as it read then. */
   daily: SentimentDay[];
 }
 
 /**
  * Groups a listing's records into stories once, by its names when they are known, and reads the
- * gauge and each day's stance from the stories about it, so every view of the listing counts the
- * same stories.
+ * gauge at `now` and each day's stance from the stories about it, so every view of the listing
+ * counts the same stories.
  */
 export function readNews(
   records: readonly NewsRecord[],
-  subject: NewsSubject
+  subject: NewsSubject,
+  now: Date
 ): NewsReading {
   const stories = newsStories(records, subject);
   const about = stories.filter(isAboutListing);
 
   return {
     stories,
-    gauge: sentimentGauge(about),
+    gauge: sentimentGauge(about, now),
     daily: dailySentiment(subject.symbol.market, about),
   };
 }
@@ -747,8 +806,6 @@ const TOPIC_WEIGHT: Record<TextTopic, number> = {
 // An unscored story reads as a relevant, neutral story about the business would.
 const UNSCORED_READING = TOPIC_WEIGHT[TextTopic.Business] / 2;
 
-const HEADLINE_HALF_LIFE_MS = 2 * DAY_MS;
-
 /** How much a story's reading says it bears on the share price, from 0 to 1. */
 function storyReading({ lead: { score } }: NewsStory): number {
   if (!score) return UNSCORED_READING;
@@ -768,17 +825,20 @@ function storyReading({ lead: { score } }: NewsStory): number {
 
 /** A story's weight at `now`: who speaks in it and its reading, how often it was told and how recent it is. */
 function storyWeight(story: NewsStory, now: Date): number {
-  const age = Math.max(0, now.getTime() - datedAt(story.lead).getTime());
-
   return (
     SPEAKER_WEIGHT[storySpeaker(story)] *
     storyReading(story) *
     Math.log2(1 + story.records.length) *
-    0.5 ** (age / HEADLINE_HALF_LIFE_MS)
+    freshness(story, now)
   );
 }
 
 const recordKey = ({ source, item }: NewsRecord) => `${source}:${item.id}`;
+
+/** A story's records besides its lead, told apart by source and item rather than as objects, which a copy makes anew. */
+export function retellings({ lead, records }: NewsStory): NewsRecord[] {
+  return records.filter((record) => recordKey(record) !== recordKey(lead));
+}
 
 /** A listing and what is stored about it. */
 export interface ListingNews {

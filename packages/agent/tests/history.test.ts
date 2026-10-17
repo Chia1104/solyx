@@ -128,6 +128,7 @@ function proposal(
     },
     source: ProposalSource.Agent,
     rationale,
+    basis: null,
     createdAt: Date.parse("2026-09-02T10:00:00+08:00"),
     status: ProposalStatus.Dismissed,
     violations: [],

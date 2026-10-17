@@ -26,7 +26,7 @@ import type {
 import {
   Interval,
   alignedCloses,
-  candleDate,
+  barTime,
   intervalSchema,
   isIntraday,
 } from "@solyx/core/candles";
@@ -58,6 +58,8 @@ import {
   yearRange,
 } from "@solyx/core/levels";
 import type { PriceRange } from "@solyx/core/levels";
+import { releaseReadings } from "@solyx/core/macro";
+import type { MacroSeries } from "@solyx/core/macro";
 import {
   BENCHMARK,
   Market,
@@ -65,28 +67,42 @@ import {
   exchangeMidnight,
   exchangeTime,
   marketSchema,
-  shiftDate,
   symbolKey,
   symbolRefSchema,
+  symbolLabel,
 } from "@solyx/core/market";
 import type { Benchmark, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import {
+  HALF_LIFE_MS,
   NewsChannel,
   NewsVoice,
   TimePrecision,
   isAboutListing,
+  retellings,
 } from "@solyx/core/news";
-import type { NewsDesk, NewsStory, Published } from "@solyx/core/news";
+import type {
+  NewsDesk,
+  NewsStory,
+  Published,
+  SentimentReading,
+} from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 import { ProposalSource } from "@solyx/core/order-desk";
-import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
+import type {
+  ProposalBasis,
+  ProposingDesk,
+  TradeProposal,
+} from "@solyx/core/order-desk";
 import { stanceValue } from "@solyx/core/sentiment";
 import { getSession, sessionsBetween, weekdays } from "@solyx/core/session";
 import type { MarketClosure, TradingDays } from "@solyx/core/session";
+import { shiftDate, wallTime, HOUR_MS, DAY_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
+import { normalizeSpace, truncate, counted } from "@solyx/utils/text";
 
+import { figure, signed } from "./figures.ts";
 import { rememberAddresses } from "./found-addresses.ts";
 import { readingText } from "./macro-text.ts";
 import { councilText, durableBallotBox, orderMotion } from "./magi.ts";
@@ -108,6 +124,8 @@ export interface TradingToolPorts extends PromptSources {
     symbols: readonly SymbolRef[],
     days: number
   ): Promise<UpcomingEvents>;
+  /** A market's indicators' figures, as the host keeps them; none for a market no source covers. */
+  figures(market: Market): Promise<MacroSeries[]>;
   desk: ProposingDesk;
   /** Puts each order proposal to a vote while the user has decisions go to the MAGI. */
   magi?: MagiPort;
@@ -187,7 +205,8 @@ const NEWS_ITEMS = 10;
 // Announcements run long; the scorer reads them whole.
 export const SNIPPET_LENGTH = 280;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+/** How a story fades from the sentiment and the headlines, as the descriptions word it. */
+export const FADING = `a story weighing half as much every ${HALF_LIFE_MS[NewsVoice.Press] / HOUR_MS} hours for the press and every ${HALF_LIFE_MS[NewsVoice.Crowd] / HOUR_MS} for the crowd`;
 
 const MOVING_AVERAGES = [
   ...MOVING_AVERAGE_PERIODS.short,
@@ -201,7 +220,7 @@ const ZONE_NAMES: Record<ZoneKind, string> = {
 };
 
 const priceRange = ({ low, high }: PriceRange) =>
-  `${Number(low.toFixed(2))}-${Number(high.toFixed(2))}`;
+  `${figure(low)}-${figure(high)}`;
 
 /** The levels an intraday chart marks, as `get_indicators` reports them. */
 function sessionLevels(
@@ -314,9 +333,6 @@ function toOrderRequest(order: z.infer<typeof orderSchema>): OrderRequest {
 const likeliest = (probabilities: Record<string, number>) =>
   maxBy(Object.entries(probabilities), ([, probability]) => probability)?.[0];
 
-const signed = (value: number, digits: number) =>
-  `${value >= 0 ? "+" : ""}${value.toFixed(digits)}`;
-
 /** Shows a time no more exactly than its source tells it. */
 const PRECISE_TO: Record<TimePrecision, (time: string) => string> = {
   [TimePrecision.Minute]: (time) => time,
@@ -333,7 +349,7 @@ export const publishedTime = (
 
   const time = market
     ? exchangeTime(market, published.at)
-    : `${published.at.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+    : `${wallTime("UTC", published.at)} UTC`;
 
   return PRECISE_TO[published.precision](time);
 };
@@ -361,7 +377,7 @@ function sessionsSince(
 
   if (sessions === 0) return `no session ${since}`;
 
-  return `${sessions} session${sessions === 1 ? "" : "s"} ${since}`;
+  return `${counted(sessions, "session")} ${since}`;
 }
 
 /** An event's day, which a deadline shows as the latest it may come and an expected one as about then. */
@@ -382,7 +398,7 @@ const perShare = (amount: number | null) => String(amount ?? 0);
 const ofPeriod = (subject: string) => (subject ? ` (${subject})` : "");
 
 function describeEvent(event: ListingEvent): string {
-  const where = `${eventDay(event.date, event.timing)} ${event.symbol.market} ${event.symbol.symbol}`;
+  const where = `${eventDay(event.date, event.timing)} ${symbolLabel(event.symbol)}`;
 
   switch (event.kind) {
     case ListingEventKind.QuarterlyReport: {
@@ -419,7 +435,7 @@ function describeEvent(event: ListingEvent): string {
 }
 
 const describeResearchEvent = (event: ResearchEvent) =>
-  `${eventDay(event.date, event.timing)} ${event.symbol.market} ${event.symbol.symbol} ${event.label} [${event.source}]`;
+  `${eventDay(event.date, event.timing)} ${symbolLabel(event.symbol)} ${event.label} [${event.source}]`;
 
 const describeClosure = ({ market, date, name }: MarketClosure) =>
   `${date} ${market} closed (${name})`;
@@ -460,11 +476,11 @@ export async function readTradingDays(
 /** A story as its lead tells it: when and where it came out, how it was read, and its address. */
 export function describeStory(
   market: Market,
-  { lead, records }: NewsStory,
+  story: NewsStory,
   now: Date,
   trades: TradingDays
 ): string {
-  const { item, score } = lead;
+  const { item, score } = story.lead;
 
   const time = item.published
     ? `${publishedTime(market, item.published)} (${sessionsSince(market, item.published, now, trades)})`
@@ -472,7 +488,7 @@ export function describeStory(
 
   const votes = item.votes === null ? "" : `, votes ${signed(item.votes, 0)}`;
 
-  const others = records.filter((record) => record !== lead);
+  const others = retellings(story);
 
   const alike =
     others.length === 0
@@ -487,17 +503,25 @@ export function describeStory(
     );
   }
 
-  const snippet = item.snippet.replace(/\s+/g, " ").trim();
+  const snippet = normalizeSpace(item.snippet);
 
-  if (snippet) {
-    lines.push(
-      `  ${snippet.length > SNIPPET_LENGTH ? `${snippet.slice(0, SNIPPET_LENGTH)}…` : snippet}`
-    );
-  }
+  if (snippet) lines.push(`  ${truncate(snippet, SNIPPET_LENGTH)}`);
 
   if (item.url) lines.push(`  ${item.url}`);
 
   return lines.join("\n");
+}
+
+/** The research a proposal was made under, as the desk kept it. */
+function basisText(market: Market, { report, forecast }: ProposalBasis) {
+  if (!report) return "made with no report on the listing";
+
+  const day = (at: number) => exchangeDate(market, new Date(at));
+  const made = `made under report revision ${report.revision} (${report.stance}, revised ${day(report.revisedAt)})`;
+
+  return forecast
+    ? `${made} and its forecast ${forecast.id} (${forecast.direction} over ${forecast.horizon} sessions, made ${day(forecast.createdAt)})`
+    : `${made}, with no forecast under it`;
 }
 
 export function describeProposal(proposal: TradeProposal): string {
@@ -507,7 +531,7 @@ export function describeProposal(proposal: TradeProposal): string {
   const parts = [
     proposal.id,
     exchangeTime(order.instrument.market, new Date(proposal.createdAt)),
-    `${order.instrument.market} ${order.instrument.symbol}`,
+    `${symbolLabel(order.instrument)}`,
     `${order.side} ${order.quantity} @ ${price}`,
     proposal.status,
   ];
@@ -518,6 +542,9 @@ export function describeProposal(proposal: TradeProposal): string {
 
   if (proposal.failure)
     parts.push(`failure ${JSON.stringify(proposal.failure)}`);
+
+  if (proposal.basis)
+    parts.push(basisText(order.instrument.market, proposal.basis));
 
   return parts.join(" | ");
 }
@@ -534,24 +561,19 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
     if (candles.length === 0) {
       throw new Error(
-        `No ${interval} bars for ${symbol.market} ${symbol.symbol}: the source does not list it or has no sessions in range`
+        `No ${interval} bars for ${symbolLabel(symbol)}: the source does not list it or has no sessions in range`
       );
     }
 
     return candles;
   }
 
-  const barTime = (symbol: SymbolRef, interval: Interval, candle: Candle) =>
-    isIntraday(interval)
-      ? exchangeTime(symbol.market, new Date(candle.time * 1000))
-      : candleDate(symbol.market, candle.time);
-
   /** The session a market is in, closed all day on a day its exchange does not trade. */
   const sessionOf = async (market: Market) =>
     getSession(market, now(), (await readTradingDays(ports, market)).trades);
 
   const heading = async (symbol: SymbolRef, interval: Interval, last: Candle) =>
-    `${symbol.market} ${symbol.symbol}, ${interval} bars, as_of ${barTime(symbol, interval, last)} (session ${await sessionOf(symbol.market)}; the latest bar is still forming while its session is open)`;
+    `${symbolLabel(symbol)}, ${interval} bars, as_of ${barTime(symbol.market, interval, last.time)} (session ${await sessionOf(symbol.market)}; the latest bar is still forming while its session is open)`;
 
   return [
     defineTool({
@@ -590,7 +612,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         const rows = recent.map((candle) =>
           [
-            barTime(symbol, interval, candle),
+            barTime(symbol.market, interval, candle.time),
             candle.open,
             candle.high,
             candle.low,
@@ -670,7 +692,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetNews,
       replay: "safe",
-      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items that tell one story are listed once with how many more told it: an article's reprints and a thread's replies, and, once the exchange's names for the listing are known, outlets or posts that reword one headline within a day. Times are the exchange's local time: ~ marks a search engine's estimate, within about an hour, and a date alone means only the day is known. Each dated story also says how many regular sessions have traded since it came out, the one under way included, or for a date alone after that day, so a story out after the close, over a weekend or on a holiday shows none yet; Taiwan's holidays are those its exchange set, while in the US every weekday counts as a session, since its holidays are not known. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is, its topic and who speaks in it (the company, an outlet, an investor, a page of data or someone else, whatever channel it came through), and stories that only name the listing in passing or are pages of data are left out. Titles and snippets are written by others.`,
+      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items that tell one story are listed once with how many more told it: an article's reprints and a thread's replies, and, once the exchange's names for the listing are known, outlets or posts that reword one headline within a day. Times are the exchange's local time: ~ marks a search engine's estimate, within about an hour, and a date alone means only the day is known. Each dated story also says how many regular sessions have traded since it came out, the one under way included, or for a date alone after that day, so a story out after the close, over a weekend or on a holiday shows none yet; Taiwan's holidays are those its exchange set, while in the US every weekday counts as a session, since its holidays are not known. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is, its topic and who speaks in it (the company, an outlet, an investor, a page of data or someone else, whatever channel it came through), and stories that only name the listing in passing or are pages of data are left out. The sentiment leans to the newest stories, ${FADING}, and a reading resting on too little recent news is marked stale with its newest story's time, since it does not tell how the listing reads now; each day's stance is that day's alone. Titles and snippets are written by others.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         days: z.number().int().min(1).max(30).default(7),
@@ -685,8 +707,13 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             readTradingDays(ports, symbol.market),
           ]);
 
-        const score = ({ score: value }: { score: number | null }) =>
-          value === null ? "unscored" : `${value}/100`;
+        const score = ({ score: value, recent, latest }: SentimentReading) => {
+          if (value === null) return "unscored";
+
+          return recent || latest === null
+            ? `${value}/100`
+            : `${value}/100 stale, newest ${exchangeTime(symbol.market, latest)}`;
+        };
 
         const stances = daily.map(
           ({ date, stance, stories: count }) =>
@@ -737,8 +764,8 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         return {
           text: [
-            `${symbol.market} ${symbol.symbol} news and posts over the last ${days} days, as_of ${exchangeTime(symbol.market, at)}${scoring}`,
-            `Sentiment ${score(gauge.overall)} with 50 neutral: press (announcements, articles) ${score(gauge.voices[NewsVoice.Press])}, crowd (forum, social) ${score(gauge.voices[NewsVoice.Crowd])}`,
+            `${symbolLabel(symbol)} news and posts over the last ${days} days, as_of ${exchangeTime(symbol.market, at)}${scoring}`,
+            `Sentiment, 50 neutral: overall ${score(gauge.overall)}; press (announcements, articles) ${score(gauge.voices[NewsVoice.Press])}; crowd (forum, social) ${score(gauge.voices[NewsVoice.Crowd])}`,
             ...(stances.length > 0
               ? [
                   `Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): ${stances.join(", ")}`,
@@ -771,7 +798,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           text:
             listings.length === 0
               ? "The watchlist is empty."
-              : listings.map((ref) => `${ref.market} ${ref.symbol}`).join("\n"),
+              : listings.map((ref) => `${symbolLabel(ref)}`).join("\n"),
         };
       },
     }),
@@ -800,15 +827,23 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             symbolKey
           );
 
-        const {
-          events,
-          research,
-          unread,
-          releases,
-          closures,
-          unreadMarkets,
-          unreadFigures,
-        } = await ports.calendar(listings, days);
+        const markets = uniq(listings.map(({ market }) => market));
+
+        const [
+          { events, research, unread, releases, closures, unreadMarkets },
+          figures,
+        ] = await Promise.all([
+          ports.calendar(listings, days),
+          Promise.allSettled(markets.map((market) => ports.figures(market))),
+        ]);
+
+        const series = figures.flatMap((read) =>
+          read.status === "fulfilled" ? read.value : []
+        );
+
+        const unreadFigures = markets.filter(
+          (_, index) => figures[index]?.status === "rejected"
+        );
 
         const named = listings
           .map(({ market, symbol }) => `${market} ${symbol}`)
@@ -839,7 +874,12 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
               : ["None."]),
             `Economic releases of their markets, from ${RELEASED_DAYS} days back:`,
             ...(releases.length > 0
-              ? releases.map(describeRelease)
+              ? releases.map((release) =>
+                  describeRelease({
+                    ...release,
+                    readings: releaseReadings(release, series),
+                  })
+                )
               : ["None."]),
             "Weekdays their markets are closed:",
             ...(closures.length > 0
@@ -876,7 +916,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
 
         const positions = account.positions.map(
           (position) =>
-            `${position.instrument.market} ${position.instrument.symbol}: ${position.quantity} shares @ ${position.avgPrice}`
+            `${symbolLabel(position.instrument)}: ${position.quantity} shares @ ${position.avgPrice}`
         );
 
         return {

@@ -5,16 +5,13 @@ import { ThemeDesk } from "@solyx/core/theme";
 import type { Theme, ThemeDraft, ThemeStore } from "@solyx/core/theme";
 import { WebSearchKind } from "@solyx/core/web-search";
 import type { WebSearch } from "@solyx/core/web-search";
+import { HOUR_MS, DAY_MS } from "@solyx/utils/date";
 
-import type { CollectionStatus } from "#shared/ipc/schedules.ts";
+import type { CollectionStatus } from "#shared/schedules.ts";
 
 import type { ScheduledWork } from "../../scheduler.ts";
 import type { ScheduleDays } from "../market/schedule-days.ts";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
-
-const HOUR_MS = 60 * 60 * 1000;
-
-const DAY_MS = 24 * HOUR_MS;
 
 // Often enough that a theme written today, or a time of day, is followed within the half hour.
 const PASS_EVERY_MS = HOUR_MS / 2;

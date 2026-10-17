@@ -12,6 +12,7 @@ import type { SymbolRef } from "@solyx/core/market";
 import { MEMORY_LINES, MemoryKind, memoryText } from "@solyx/core/memory";
 import type { Memory, MemoryStore } from "@solyx/core/memory";
 import { fuseRankings } from "@solyx/utils/search";
+import { normalizeSpace } from "@solyx/utils/text";
 
 import { checkedFirst } from "./approval.ts";
 import type { AutoCheck, ToolGuard } from "./approval.ts";
@@ -24,7 +25,7 @@ import {
 
 export interface MemoryOptions {
   store: MemoryStore;
-  /** Embeds memories to search them and tell one said again; only a model on this computer, since they are the user's own. */
+  /** Embeds memories to search them and tell one said again; only Ollama, which the user runs, never OpenAI's, since they are the user's own. */
   embedder?: () => Embedder | undefined;
   /** @default () => new Date() */
   now?: () => Date;
@@ -72,7 +73,7 @@ function indexText(memories: readonly Memory[]) {
   let length = 0;
 
   for (const memory of [...standing, ...notes]) {
-    const description = memory.description.replace(/\s+/g, " ");
+    const description = normalizeSpace(memory.description);
     const line = `  <memory ${attributes(memory)}>${escape(description)}</memory>`;
 
     if (length + line.length > INDEX_CHARACTERS) break;

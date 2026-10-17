@@ -193,6 +193,11 @@ html[data-pane-resizing="horizontal"] {
     @apply h-5 px-1.5 text-xs;
   }
 
+  /* A header stays on one line and a column keeps its width; a table wider than its pane scrolls sideways. */
+  .table__column {
+    @apply min-w-24 whitespace-nowrap;
+  }
+
   /* Radios stay round under the unified radius. */
   .radio__control,
   .radio__indicator:empty::before {

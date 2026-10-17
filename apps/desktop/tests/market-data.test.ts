@@ -12,17 +12,15 @@ import type {
   MarketDataStream,
 } from "@solyx/core/market-data";
 import { SectorGroup, TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
+import { MINUTE_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
-import type { LiveSender } from "../src/main/modules/market/live-candles.ts";
 import type { MarketDataSources } from "../src/main/modules/market/market-data-sources.ts";
 import { createMarketData } from "../src/main/modules/market/market-data.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 
 const NOW = new Date("2026-09-29T10:00:00+08:00");
-
-const MINUTE_MS = 60 * 1000;
 
 const taipei = (date: string) => Date.parse(`${date}T00:00:00+08:00`) / 1000;
 
@@ -48,12 +46,6 @@ function fakeStream(room = Infinity) {
 
   return { stream, watched, isClosed: () => closed };
 }
-
-const sender: LiveSender = {
-  id: 1,
-  send: () => undefined,
-  once: () => undefined,
-};
 
 function setup() {
   const provider: MarketDataProvider = {
@@ -302,23 +294,33 @@ test("a market without a source is reported, not guessed", async () => {
 test("a stream change reopens the stream, keeps watched symbols live and tells windows", async () => {
   const { marketData, streams, onSourcesChanged, changeStream } = setup();
 
-  expect(await marketData.watch(sender, TSMC, Interval.OneMinute)).toBe(true);
+  const following = marketData.liveCandles(TSMC, Interval.OneMinute);
+
+  await expect(following.next()).resolves.toEqual({ done: false, value: [] });
 
   const next = changeStream();
 
   expect(onSourcesChanged).toHaveBeenCalledTimes(1);
   await vi.waitFor(() => expect(next.watched.has("2330")).toBe(true));
   expect(streams[0].isClosed()).toBe(true);
+
+  await following.return(undefined);
 });
 
 test("a symbol the new stream refuses stops being live, which watching again tells", async () => {
   const { marketData, changeStream } = setup();
 
-  await marketData.watch(sender, TSMC, Interval.OneMinute);
+  const following = marketData.liveCandles(TSMC, Interval.OneMinute);
+
+  await following.next();
 
   const next = changeStream(fakeStream(0));
 
-  // Windows watch again once told, as the renderer does.
-  expect(await marketData.watch(sender, TSMC, Interval.OneMinute)).toBe(false);
+  // Windows follow again once told, as the renderer does; no live stream covers it now.
+  await expect(
+    marketData.liveCandles(TSMC, Interval.OneMinute).next()
+  ).resolves.toEqual({ done: true, value: undefined });
   expect(next.watched.size).toBe(0);
+
+  await following.return(undefined);
 });

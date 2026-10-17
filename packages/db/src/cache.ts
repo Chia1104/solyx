@@ -14,6 +14,7 @@ import { chunk } from "es-toolkit";
 
 import type { Candle, Interval } from "@solyx/core/candles";
 import type { Market } from "@solyx/core/market";
+import { DAY_MS } from "@solyx/utils/date";
 import type { AnswerStore, AnswerStores } from "@solyx/utils/fresh";
 
 import { candleSeries, candles, keptAnswers } from "./cache-schema.ts";
@@ -24,7 +25,7 @@ import { databaseBytes, removeDatabase } from "./database-file.ts";
 const INSERT_BATCH = 1000;
 
 // Every reader's answers go stale within a day, so one this old is never read again.
-const ANSWER_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const ANSWER_RETENTION_MS = 7 * DAY_MS;
 
 export interface CandleSeriesKey {
   /** The provider's `id`, so providers never mix bars. */

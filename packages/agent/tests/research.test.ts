@@ -18,8 +18,10 @@ import type {
   CashFlow,
   Dividend,
   ExchangeMultiples,
+  FundCosts,
   FundProfile,
   MonthlyRevenue,
+  NetAssetValue,
   PeerStanding,
   QuarterStatement,
 } from "@solyx/core/fundamentals";
@@ -27,8 +29,12 @@ import { Market, symbolKey } from "@solyx/core/market";
 import { TimePrecision } from "@solyx/core/news";
 import { ReportSection, ReportStance } from "@solyx/core/report";
 import type { Report } from "@solyx/core/report";
-import { ResearchDesk } from "@solyx/core/research";
-import type { FalsifierCheck, ResearchStore } from "@solyx/core/research";
+import { FALSIFIER_FLOORS, ResearchDesk } from "@solyx/core/research";
+import type {
+  FalsifierCheck,
+  FalsifierPass,
+  ResearchStore,
+} from "@solyx/core/research";
 import { twFilingDeadline } from "@solyx/core/rules/tw";
 import { Stance } from "@solyx/core/sentiment";
 
@@ -194,6 +200,7 @@ function fakeStore(): ResearchStore {
   const reports: Report[] = [];
   const forecasts = new Map<string, Forecast>();
   const checks: FalsifierCheck[] = [];
+  let pass: FalsifierPass | undefined;
 
   return {
     report: (symbol) =>
@@ -218,6 +225,10 @@ function fakeStore(): ResearchStore {
     falsifierChecks: (_symbol, revision) =>
       checks.filter((check) => check.revision === revision),
     addFalsifierCheck: (_symbol, check) => void checks.push(check),
+    falsifierPass: () => pass,
+    setFalsifierPass(_symbol, kept) {
+      pass = kept;
+    },
     reports: () => reports,
     passageVectors: () => new Map(),
     savePassageVectors: () => undefined,
@@ -254,6 +265,12 @@ interface Filed {
   fund?: FundProfile;
   /** Why the exchange's funds cannot be read, while they cannot. */
   fundFailure?: string;
+  /** Its newest net asset value, where its issuer reports one. */
+  nav?: NetAssetValue;
+  /** What it paid out of its assets over the newest month, where its issuer reports them. */
+  costs?: FundCosts;
+  /** Why what funds report cannot be read, while it cannot. */
+  reportsFailure?: string;
   /** The multiples the listing's exchange works out, where it does. */
   multiples?: ExchangeMultiples;
   /** Why the exchange's multiples cannot be read, while they cannot. */
@@ -263,7 +280,7 @@ interface Filed {
 }
 
 /** `read` is what the conversation read, which quotes are then held to; without it none is checked, as under a host with no transcript. */
-function setup(councils?: Council[], read?: string[]) {
+function setup(councils?: Council[], read?: string[], watched = false) {
   const clock = { now: AT_ANCHOR };
   const motions: string[] = [];
   const bars = { daily: [ANCHOR_BAR] };
@@ -296,6 +313,16 @@ function setup(councils?: Council[], read?: string[]) {
 
       return filed.fund ?? null;
     },
+    netAssetValue: async () => {
+      if (filed.reportsFailure) throw new Error(filed.reportsFailure);
+
+      return filed.nav ?? null;
+    },
+    fundCosts: async () => {
+      if (filed.reportsFailure) throw new Error(filed.reportsFailure);
+
+      return filed.costs ?? null;
+    },
     multiples: async () => {
       if (filed.multiplesFailure) throw new Error(filed.multiplesFailure);
 
@@ -310,6 +337,17 @@ function setup(councils?: Council[], read?: string[]) {
     store,
     marketData,
     fundamentals,
+    // A decisions model and a model on this computer, so the falsifiers are read against the news.
+    ...(watched && {
+      auditor: async () => ({
+        audit: async () => ({ model: "jev", supported: 1 }),
+      }),
+      embedder: () => ({
+        space: [...FALSIFIER_FLOORS.keys()][0],
+        embed: async (texts: readonly string[]) =>
+          texts.map(() => Float32Array.of(1, 0)),
+      }),
+    }),
     now: () => clock.now,
   });
 
@@ -454,6 +492,53 @@ test("news a decisions model read as stating a falsifier is listed with the repo
   expect(text).not.toContain("Capex rises");
 });
 
+test("the report says whether the news is read against its falsifiers", async () => {
+  const unwatched = setup();
+
+  await unwatched.run(AgentToolName.ReviseReport, REPORT);
+
+  expect(
+    (await unwatched.run(AgentToolName.GetResearch, { symbol: TSMC })).text
+  ).toContain(
+    "News is not read against the falsifiers while no Ollama model embeds news (in Settings, grouping news by meaning, with vectors from Ollama) and no decisions model is set up, so no signal says nothing of the news."
+  );
+
+  const { run, store } = setup(undefined, undefined, true);
+
+  const read = async () =>
+    (await run(AgentToolName.GetResearch, { symbol: TSMC })).text;
+
+  await run(AgentToolName.ReviseReport, REPORT);
+
+  expect(await read()).toContain(
+    "The falsifiers have not been read against the news since this revision; the listing's next news collection reads them."
+  );
+
+  store.setFalsifierPass(TSMC, {
+    revision: 1,
+    at: AT_ANCHOR,
+    items: 12,
+    unread: 2,
+    failure: null,
+  });
+
+  expect(await read()).toContain(
+    "The falsifiers were last read against 12 news items of the week before 2026-09-29 14:00. No item has read as stating one. 2 near one could not be read and wait for the next collection."
+  );
+
+  store.setFalsifierPass(TSMC, {
+    revision: 1,
+    at: AT_ANCHOR,
+    items: 0,
+    unread: 0,
+    failure: "Ollama: not running",
+  });
+
+  expect(await read()).toContain(
+    "Reading the falsifiers against the news failed at 2026-09-29 14:00: Ollama: not running. The next news collection tries again."
+  );
+});
+
 test("a refused revision tells the model what is missing", async () => {
   const { run } = setup();
 
@@ -591,7 +676,7 @@ test("research says how the report's stance has done against the index since it 
   ).toContain(
     [
       "Stance against TAIEX, each stretch the report kept one, on closes as they traded:",
-      "- bullish from 2026-09-29 (revision 1) and standing, 2 sessions: +4.5% against the index's +4.5%, +0.0 points",
+      "- bullish from 2026-09-29 (revision 1) and standing, 2 sessions: +4.5% against the index's +4.5%, 0.0 points",
     ].join("\n")
   );
 });
@@ -831,6 +916,80 @@ test("a fund its exchange lists opens with what it is, and is told from a listin
   );
   expect(text).toContain("A fund files neither statements nor revenue.");
   expect(text).not.toContain("or a code fake does not know");
+});
+
+const FUND_COSTS: FundCosts = {
+  month: "2026-08",
+  management: 0.00564,
+  custody: 0.00222,
+  guarantee: 0,
+  commission: 0.00055,
+  tax: 0.00144,
+  other: 0.00396,
+  total: 0.01382,
+};
+
+test("a fund its issuer reports on gives its net asset value, its close that session against it, and what it paid over a month", async () => {
+  const { run, filed } = setup();
+
+  filed.quarters = [];
+  filed.sheets = [];
+  filed.flows = [];
+  filed.months = [];
+  filed.dividends = [];
+  // A fund the Taipei Exchange lists, which publishes no list of its funds.
+  filed.nav = { date: "2026-09-29", value: 990 };
+  filed.costs = FUND_COSTS;
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    [
+      "TW 2330 fundamentals as filed, from fake, as_of 2026-09-29; amounts in TWD millions",
+      "Net asset value as its issuer struck it for 2026-09-29: 990 TWD a unit. Its close that session, 1000, stood at a premium of 1.01% to it.",
+      "What it paid out of its assets, in percent of its net assets:",
+      "period,management,custody,guarantee,commission,tax,other,total",
+      "2026-08,0.00564,0.00222,0,0.00055,0.00144,0.00396,0.01382",
+      "a year at that pace,0.068,0.027,0,0.007,0.017,0.048,0.166",
+    ].join("\n")
+  );
+  expect(text).toContain("A fund files neither statements nor revenue.");
+});
+
+test("a fund's value below its close is a discount, and one of a session with no bar stands alone", async () => {
+  const { run, filed, bars } = setup();
+
+  filed.nav = { date: "2026-09-29", value: 1010 };
+
+  expect(
+    (await run(AgentToolName.GetFundamentals, { symbol: TSMC })).text
+  ).toContain(
+    "Its close that session, 1000, stood at a discount of 0.99% to it."
+  );
+
+  bars.daily = [];
+
+  expect(
+    (await run(AgentToolName.GetFundamentals, { symbol: TSMC })).text
+  ).toContain(
+    "Net asset value as its issuer struck it for 2026-09-29: 1010 TWD a unit. No close of that session to set it against."
+  );
+});
+
+test("what funds report failing to read is said, and the filed figures stay", async () => {
+  const { run, filed } = setup();
+
+  filed.reportsFailure = "SITCA answered 503";
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    "Its net asset value could not be read: SITCA answered 503"
+  );
+  expect(text).toContain(
+    "What it paid out of its assets could not be read: SITCA answered 503"
+  );
+  expect(text).toContain("Quarters, each for the quarter alone");
 });
 
 test("an actively managed fund tracks no index and names what it measures itself against", async () => {

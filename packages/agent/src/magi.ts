@@ -26,8 +26,10 @@ import { OrderType } from "@solyx/core/order";
 import type { AccountSnapshot, OrderRequest } from "@solyx/core/order";
 import type { ForecastMotion } from "@solyx/core/research";
 import { errorMessage } from "@solyx/utils/error";
+import { parseJson } from "@solyx/utils/json";
 
 import { evidenceText } from "./evidence-text.ts";
+import { bandText, percent } from "./figures.ts";
 
 export interface MagiOptions {
   models: Pick<Models, "completeSimple">;
@@ -186,15 +188,8 @@ const scenarioBallotSchema = z.object({
 const JSON_OBJECT = /\{[\s\S]*\}/;
 
 /** The JSON object an answer holds, as `schema` reads it; `undefined` for an answer that holds none. */
-function readAnswer<Answer>(
-  text: string,
-  schema: z.ZodType<Answer>
-): Answer | undefined {
-  try {
-    return schema.safeParse(JSON.parse(JSON_OBJECT.exec(text)?.[0] ?? "")).data;
-  } catch {
-    return undefined;
-  }
+function readAnswer<Answer>(text: string, schema: z.ZodType<Answer>) {
+  return parseJson(JSON_OBJECT.exec(text)?.[0] ?? "", schema);
 }
 
 /** A unit and the model that answers as it. */
@@ -393,14 +388,6 @@ export function councilText(council: Council): string {
   ].join("\n");
 }
 
-const bandText = (low: number | null, high: number | null) => {
-  if (low === null) return `below ${high}`;
-
-  return high === null ? `${low} and above` : `${low} to ${high}`;
-};
-
-const share = (rate: number) => `${Math.round(rate * 100)}%`;
-
 /** How the units voted on each of a forecast's scenarios, for the model to report: each scenario's tally over its three votes. */
 export function scenarioCouncilsText({
   scenarios,
@@ -419,7 +406,7 @@ export function scenarioCouncilsText({
         votes.filter(({ vote }) => vote === side).length;
 
       return [
-        `- ${scenarios[index].label} (history ${share(baseRates[index])}): ${OUTCOME_TEXT[councilOutcome(council)]}, ${cast(MagiVote.Approve)} to ${cast(MagiVote.Reject)}`,
+        `- ${scenarios[index].label} (history ${percent(baseRates[index], 0)}): ${OUTCOME_TEXT[councilOutcome(council)]}, ${cast(MagiVote.Approve)} to ${cast(MagiVote.Reject)}`,
         ...votes.map(
           ({ unit, vote, reason }) =>
             `  - ${UNIT_NAME[unit]} ${vote ?? "gave no vote"}: ${reason}`
@@ -445,7 +432,7 @@ export function forecastMotion({
     `A forecast for ${symbolKey(draft.instrument)} over ${draft.horizon} sessions from its close of ${anchor.price} on ${anchor.date} is being put on record, where it is frozen and scored against what the price then does. Each scenario for the close at the horizon is a motion: that the close is more likely to land in its band than its history's share.`,
     ...draft.scenarios.map(
       (scenario, index) =>
-        `${index + 1}. ${scenario.label} (${bandText(scenario.low, scenario.high)}): history ${share(baseRates[index])}`
+        `${index + 1}. ${scenario.label} (${bandText(scenario.low, scenario.high)}): history ${percent(baseRates[index], 0)}`
     ),
     `Rationale: ${draft.rationale}`,
     ...(draft.contrary

@@ -1,7 +1,9 @@
 import { groupBy, sumBy } from "es-toolkit";
 import * as z from "zod";
 
-import { exchangeDate, exchangeMidnight, shiftDate } from "./market.ts";
+import { shiftDate } from "@solyx/utils/date";
+
+import { exchangeDate, exchangeMidnight, exchangeTime } from "./market.ts";
 import type { Market } from "./market.ts";
 
 export const Interval = {
@@ -86,6 +88,16 @@ export interface Candle {
 export function candleDate(market: Market, time: Candle["time"]): string {
   return exchangeDate(market, new Date(time * 1000));
 }
+
+/** When a bar opening at `time` traded, on its exchange's clock: to the minute for a bar shorter than a day, else its session's date. */
+export const barTime = (
+  market: Market,
+  interval: Interval,
+  time: Candle["time"]
+) =>
+  isIntraday(interval)
+    ? exchangeTime(market, new Date(time * 1000))
+    : candleDate(market, time);
 
 /** Weekly and monthly bars, which cover whole calendar periods of sessions. */
 export type CalendarInterval =

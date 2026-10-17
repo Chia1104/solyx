@@ -10,6 +10,7 @@ import type { SettingChange } from "@solyx/agent/wire";
 import { DecisionMode } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
 import type { MemoryStore } from "@solyx/core/memory";
+import { NewsVoice } from "@solyx/core/news";
 import { CollectionJob, ScheduleKind } from "@solyx/core/schedule";
 import type { Schedule, ScheduleStore } from "@solyx/core/schedule";
 import type { ThemeStore } from "@solyx/core/theme";
@@ -17,8 +18,14 @@ import { DecisionsProvider } from "@solyx/decisions/provider";
 import { EmbeddingsProvider } from "@solyx/embeddings/provider";
 import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
+import { HOUR_MINUTES } from "@solyx/utils/date";
+import { formatBytes } from "@solyx/utils/format";
+import { tildify, counted } from "@solyx/utils/text";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
+import { RETENTION_DAYS } from "#shared/news.ts";
+import { ColorScheme, Palette } from "#shared/palette.ts";
+import { SettingsSection, settingsLink } from "#shared/settings-section.ts";
 import {
   DECISIONS_SECRETS,
   FubonFile,
@@ -34,10 +41,7 @@ import {
   isWebSearchReady,
   mcpSecretKey,
   timeZonePreferenceSchema,
-} from "#shared/ipc/settings.ts";
-import type { StorageApi } from "#shared/ipc/storage.ts";
-import { ColorScheme, Palette } from "#shared/palette.ts";
-import { SettingsSection, settingsLink } from "#shared/settings-section.ts";
+} from "#shared/settings.ts";
 
 import type { Decisions } from "../decisions/decisions.ts";
 import type { Embeddings } from "../embeddings/embeddings.ts";
@@ -46,6 +50,7 @@ import type { AppearanceSettings } from "../settings/appearance.ts";
 import { entryDescription } from "../settings/config-file.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
+import type { StorageApi } from "../storage/storage-api.ts";
 import type { WebSearchModule } from "../web-search/web-search.ts";
 
 import type { AgentModels } from "./agent-models.ts";
@@ -106,25 +111,6 @@ const stateText = (state: SecretState) =>
 
 const onOff = (on: boolean) => (on ? "on" : "off");
 
-const SIZES = [
-  { unit: "GB", bytes: 1e9 },
-  { unit: "MB", bytes: 1e6 },
-  { unit: "kB", bytes: 1e3 },
-];
-
-/** How many of something a store holds, in words. */
-const counted = (count: number, one: string, many = `${one}s`) =>
-  `${count} ${count === 1 ? one : many}`;
-
-/** A size on disk in the largest unit it fills, as the storage tab shows it. */
-function size(bytes: number): string {
-  const fitting = SIZES.find((each) => bytes >= each.bytes);
-
-  return fitting
-    ? `${(bytes / fitting.bytes).toFixed(1)} ${fitting.unit}`
-    : `${bytes} bytes`;
-}
-
 /** A setting the agent may change once the user allows it. */
 interface Changeable {
   /** What it takes, worded for the model. */
@@ -162,8 +148,6 @@ function choice<T extends string>(
 const flag = (save: (on: boolean) => void) =>
   choice(["true", "false"], (value) => save(value === "true"));
 
-const HOUR_MINUTES = 60;
-
 // A span between collections as the agent may set it, in whole hours, up to a week.
 const hoursSchema = z
   .string()
@@ -180,7 +164,6 @@ const hoursSchema = z
 /** The settings page's tabs as the agent reads them, with what keeps each from working. */
 export function createAgentSetup(options: AgentSetupOptions): SetupPort {
   const { config, secrets } = options;
-  const tildify = (path: string) => path.replace(options.home, "~");
 
   function appearance(): SetupArea {
     const { theme, palette, palettes, priceColors, language, timeZone } =
@@ -316,11 +299,16 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     const providerText = models.providers
       .filter((each) => each.listed)
       .map((each) => {
-        const access = each.subscription?.signedIn
-          ? "subscription signed in"
-          : each.subscription?.only
-            ? "subscription not signed in"
-            : `key ${stateText(each.key)}`;
+        const access = each.server
+          ? each.usable
+            ? "its server lists models that can run the agent"
+            : (each.server.failure ??
+              "its server lists no model that can run the agent")
+          : each.subscription?.signedIn
+            ? "subscription signed in"
+            : each.subscription?.only
+              ? "subscription not signed in"
+              : `key ${stateText(each.key)}`;
 
         const endpoint =
           each.endpoint && each.endpoint.url !== each.endpoint.default
@@ -377,11 +365,11 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
           ...(models.ready
             ? []
             : [
-                "No provider switched on has a key saved or a subscription signed in, so the agent cannot run.",
+                "No provider switched on has a key saved, a subscription signed in or a server listing a model, so the agent cannot run.",
               ]),
           ...(models.ready && !defaultUsable
             ? [
-                `The default model's provider, ${models.provider}, has no key saved or subscription signed in, so a conversation on it cannot run.`,
+                `The default model's provider, ${models.provider}, has no key saved, subscription signed in or model listed, so a conversation on it cannot run.`,
               ]
             : []),
         ],
@@ -484,7 +472,9 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     return {
       name: "Skills",
       link: settingsLink(SettingsSection.Skills),
-      missing: catalog.warnings.map(tildify),
+      missing: catalog.warnings.map((warning) =>
+        tildify(warning, options.home)
+      ),
       settings: [
         {
           name: "the user's own skills",
@@ -637,13 +627,19 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       settings: [
         { name: "version", value: options.version },
         entry(["updates", "check"], String(config.read().updates.check)),
-        { name: "config file", value: tildify(options.files.config) },
-        { name: "skills folder", value: tildify(options.files.skills) },
+        {
+          name: "config file",
+          value: tildify(options.files.config, options.home),
+        },
+        {
+          name: "skills folder",
+          value: tildify(options.files.skills, options.home),
+        },
         {
           name: "standing instructions",
-          value: tildify(options.files.instructions),
+          value: tildify(options.files.instructions, options.home),
         },
-        { name: "mcp.json", value: tildify(options.mcp.file) },
+        { name: "mcp.json", value: tildify(options.mcp.file, options.home) },
       ],
     };
   }
@@ -653,6 +649,14 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     const { candles, conversations, memory, news, research, watchlist } =
       await options.storage.usage();
 
+    const retention = config.read().news.kept;
+
+    const kept = (voice: NewsVoice) => {
+      const days = RETENTION_DAYS[retention[voice]];
+
+      return days === null ? "for good" : `${days} days`;
+    };
+
     return {
       name: "Storage",
       link: settingsLink(SettingsSection.Storage),
@@ -660,7 +664,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       settings: [
         {
           name: "chart bars",
-          value: `${size(candles.bytes)}, ${sumBy(candles.sources, ({ series }) => series)} series and ${counted(
+          value: `${formatBytes(candles.bytes, "en-US")}, ${sumBy(candles.sources, ({ series }) => series)} series and ${counted(
             sumBy(candles.sources, ({ bars }) => bars),
             "bar"
           )}`,
@@ -668,19 +672,19 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         },
         {
           name: "conversations",
-          value: `${size(conversations.bytes)}, ${counted(conversations.conversations, "conversation")}`,
+          value: `${formatBytes(conversations.bytes, "en-US")}, ${counted(conversations.conversations, "conversation")}`,
         },
         {
           name: "memories",
-          value: `${size(memory.bytes)}, ${counted(memory.memories, "memory", "memories")}`,
+          value: `${formatBytes(memory.bytes, "en-US")}, ${counted(memory.memories, "memory", "memories")}`,
         },
         {
           name: "news",
-          value: `${size(news.bytes)}, ${counted(news.items, "item")}`,
+          value: `${formatBytes(news.bytes, "en-US")}, ${counted(news.items, "item")}; announcements and articles kept ${kept(NewsVoice.Press)}, forum and social posts ${kept(NewsVoice.Crowd)}, from when each came out; the user sets how long here`,
         },
         {
           name: "research",
-          value: `${size(research.bytes)}, ${counted(research.reports, "report")} and ${counted(research.forecasts, "forecast")}`,
+          value: `${formatBytes(research.bytes, "en-US")}, ${counted(research.reports, "report")} and ${counted(research.forecasts, "forecast")}`,
         },
         { name: "watchlist", value: counted(watchlist.listings, "listing") },
       ],

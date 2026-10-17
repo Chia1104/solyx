@@ -1,4 +1,4 @@
-import type { Change } from "@solyx/core/changes";
+import type { Change, ChangeScope } from "@solyx/core/changes";
 import {
   ScheduleKind,
   countedFrom,
@@ -11,9 +11,10 @@ import type {
   ScheduledTask,
   ScheduledTaskDraft,
 } from "@solyx/core/schedule";
+import { MINUTE_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 
-import type { ScheduledTaskView } from "#shared/ipc/schedules.ts";
+import type { ScheduledTaskView } from "#shared/schedules.ts";
 
 import type { ScheduledWork } from "../../scheduler.ts";
 import type { AgentService } from "../agent/agent-service.ts";
@@ -21,19 +22,19 @@ import type { ScheduleDays } from "../market/schedule-days.ts";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 // Each pass only looks for tasks that are due, so it follows the scheduler's own tick.
-const PASS_EVERY_MS = 60 * 1000;
+const PASS_EVERY_MS = MINUTE_MS;
 
 // Telling what changed reads the account, which a live broker answers over the network, so tasks
 // that wait on a change are looked at only this often, as news collection reads it.
-const CHANGE_PASS_EVERY_MS = 30 * 60 * 1000;
+const CHANGE_PASS_EVERY_MS = 30 * MINUTE_MS;
 
 export interface SchedulesOptions {
   store: ScheduleStore;
   agent: Pick<AgentService, "runScheduled" | "busy">;
   /** The days a schedule's market trades. */
   days: ScheduleDays;
-  /** What changed after `since`, epoch ms, in what the app keeps of the listings the user follows and of their themes. */
-  changes: (since: number) => Promise<Change[]>;
+  /** What changed within `scope` after `since`, epoch ms, in what the app keeps of listings and themes. */
+  changes: (since: number, scope: ChangeScope) => Promise<Change[]>;
   diagnostics: Pick<Diagnostics, "recovered">;
   /** Called after a task is saved or removed and after each run, so whoever shows them can refresh. */
   onChange: () => void;
@@ -62,19 +63,24 @@ export function createSchedules(options: SchedulesOptions) {
   const running = async ({ lastRun }: ScheduledTask) =>
     lastRun?.sessionId != null && (await agent.busy(lastRun.sessionId));
 
-  async function run(task: ScheduledTask, changes: readonly Change[] = []) {
+  async function run(task: ScheduledTask, changes: Change[] = []) {
     const at = now();
     let lastRun: ScheduledRun;
 
     try {
       const session = await agent.runScheduled(task, changes);
 
-      lastRun = { at, sessionId: session.id, failure: null };
+      lastRun = { at, sessionId: session.id, failure: null, changes };
     } catch (error) {
       diagnostics.recovered(error, "schedules.run", {
         "solyx.schedule": task.id,
       });
-      lastRun = { at, sessionId: null, failure: errorMessage(error) };
+      lastRun = {
+        at,
+        sessionId: null,
+        failure: errorMessage(error),
+        changes,
+      };
     }
 
     // Read afresh, since the user may have saved or removed the task while the run started.
@@ -108,9 +114,11 @@ export function createSchedules(options: SchedulesOptions) {
   const waitsOnChange = ({ schedule }: ScheduledTask) =>
     schedule.kind === ScheduleKind.OnChange;
 
-  /** What changed since the task last ran, where it waits on that; nothing for a task the clock alone times. */
+  /** What changed within its scope since the task last ran, where it waits on that; nothing for a task the clock alone times. */
   const changesFor = async (task: ScheduledTask) =>
-    waitsOnChange(task) ? options.changes(countedFrom(task)) : [];
+    task.schedule.kind === ScheduleKind.OnChange
+      ? options.changes(countedFrom(task), task.schedule.scope)
+      : [];
 
   /** Starts each of `tasks` that is due, one after another, so a model's limit sees no burst. */
   async function pass(tasks: readonly ScheduledTask[]) {

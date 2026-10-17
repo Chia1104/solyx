@@ -2,9 +2,10 @@ import { Button, Switch } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { UpdateStatus } from "#shared/ipc/updates.ts";
-import type { UpdateState } from "#shared/ipc/updates.ts";
+import { UpdateStatus } from "#shared/updates.ts";
+import type { UpdateState } from "#shared/updates.ts";
 
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { SettingsRow } from "../settings/settings-list.tsx";
 import { updateSettingsQuery } from "../settings/settings-query.ts";
@@ -26,13 +27,10 @@ export function UpdateRows() {
   const { data: state } = useQuery(updateStateQuery());
   const { data: settings } = useQuery(updateSettingsQuery());
 
-  const toggle = useMutation({
-    mutationFn: (enabled: boolean) =>
-      window.solyx.settings.setUpdateChecks(enabled),
-  });
+  const toggle = useMutation(orpc.settings.setUpdateChecks.mutationOptions());
 
   const check = useMutation({
-    mutationFn: () => window.solyx.updates.check(),
+    mutationFn: () => client.updates.check(),
   });
 
   if (!state || !settings || state.status === UpdateStatus.Unsupported) {

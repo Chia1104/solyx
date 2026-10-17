@@ -10,8 +10,9 @@ import { useTranslation } from "react-i18next";
 import { isEnumValue } from "@solyx/utils/is";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
-import { SecretState } from "#shared/ipc/settings.ts";
+import { SecretState } from "#shared/settings.ts";
 
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -49,10 +50,9 @@ export function WebSearchSettings() {
   const settings = useQuery(webSearchSettingsQuery());
   const secrets = useQuery(secretsQuery());
 
-  const setProvider = useMutation({
-    mutationFn: (provider: WebSearchProvider) =>
-      window.solyx.settings.setWebSearchProvider(provider),
-  });
+  const setProvider = useMutation(
+    orpc.settings.setWebSearchProvider.mutationOptions()
+  );
 
   const error = settings.error ?? secrets.error;
 
@@ -139,11 +139,12 @@ export function WebSearchSettings() {
                     state={keys[each]}
                     available={available}
                     onSave={(value) =>
-                      window.solyx.settings.saveWebSearchKey(each, value)
+                      client.settings.saveWebSearchKey({
+                        provider: each,
+                        value,
+                      })
                     }
-                    onRemove={() =>
-                      window.solyx.settings.deleteWebSearchKey(each)
-                    }
+                    onRemove={() => client.settings.deleteWebSearchKey(each)}
                   />
                 </SettingsList>
               </TabPanel>

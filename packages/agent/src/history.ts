@@ -3,12 +3,18 @@ import type { Extension } from "@earendil-works/pi-durable";
 import { uniqBy } from "es-toolkit";
 import * as z from "zod";
 
-import { exchangeDate, symbolKey, symbolRefSchema } from "@solyx/core/market";
+import {
+  exchangeDate,
+  symbolKey,
+  symbolRefSchema,
+  symbolLabel,
+} from "@solyx/core/market";
 import type { NewsDesk, NewsMatch } from "@solyx/core/news";
 import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
 import { reportPassages } from "@solyx/core/report";
 import type { ReportMatch, ResearchDesk } from "@solyx/core/research";
 import { createSearchIndex } from "@solyx/utils/search";
+import { normalizeSpace, truncate } from "@solyx/utils/text";
 
 import { rememberAddresses } from "./found-addresses.ts";
 import { forecastText } from "./research.ts";
@@ -48,11 +54,8 @@ const PASSAGE_LENGTH = 300;
 
 const RATIONALE_LENGTH = 600;
 
-const clip = (text: string, length: number) => {
-  const flat = text.replace(/\s+/g, " ").trim();
-
-  return flat.length > length ? `${flat.slice(0, length)}…` : flat;
-};
+const clip = (text: string, length: number) =>
+  truncate(normalizeSpace(text), length);
 
 function reportText({ report, newest }: ReportMatch, query: string): string {
   const { market, symbol } = report.symbol;
@@ -75,9 +78,7 @@ function reportText({ report, newest }: ReportMatch, query: string): string {
 }
 
 function newsText({ channel, item, listings }: NewsMatch): string {
-  const found = listings
-    .map((listing) => `${listing.market} ${listing.symbol}`)
-    .join(", ");
+  const found = listings.map((listing) => `${symbolLabel(listing)}`).join(", ");
 
   const lines = [
     `- ${publishedTime(listings[0]?.market ?? null, item.published)} ${item.site} (${channel}, found for ${found}): ${item.title}`,
@@ -114,7 +115,7 @@ export function createHistory(options: HistoryOptions): Extension {
       defineTool({
         name: AgentToolName.SearchHistory,
         replay: "safe",
-        description: `Searches what the app has kept, however long ago: your reports in every revision, your forecasts with how they came out, the news found for any listing, and order proposals with their rationale. It finds what holds any of the words, best first, so give every name a source might use, in Chinese and English alike, such as 台積電 TSMC 2330; where the user runs embeddings on this computer, it also finds what says the same in other words. Of a listing's report it shows the newest revision that matches, which may since have been revised; get_research reads the one in force. Memories are searched with recall, and conversations are not searched. What it finds is history as of when it was written, never current data, and news titles and snippets are written by others.`,
+        description: `Searches what the app has kept, however long ago: your reports in every revision, your forecasts with how they came out, the news found for any listing, and order proposals with their rationale. It finds what holds any of the words, best first, so give every name a source might use, in Chinese and English alike, such as 台積電 TSMC 2330; where the user embeds with Ollama, it also finds what says the same in other words. Of a listing's report it shows the newest revision that matches, which may since have been revised; get_research reads the one in force. Memories are searched with recall, and conversations are not searched. What it finds is history as of when it was written, never current data, and news titles and snippets are written by others.`,
         parameters: z.object({
           query: z
             .string()

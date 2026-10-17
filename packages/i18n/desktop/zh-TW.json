@@ -227,7 +227,9 @@
       "voices": "新聞 {{press}} / 社群 {{crowd}}",
       "stories_one": "{{count}} 則",
       "stories_other": "{{count}} 則",
-      "hint": "近 {{days}} 天收集到的新聞與討論，經決策模型評分，50 為中性。新聞指公司、媒體與主管機關發布的內容，社群指投資人的貼文；由決策模型判斷每則是誰寫的，模型不確定時才依來源管道判斷。行情、財報查詢這類資料頁不算新聞。講同一件事的內容只算一則：轉載和回文，以及一天內改寫同一則標題的不同媒體或貼文。",
+      "hint": "近 {{days}} 天的新聞與貼文，經決策模型評分，50 為中性。越新的權重越高，近期資料不足時顯示 —。新聞是公司、媒體與主管機關發布的內容，社群是投資人的貼文。同一件事重複出現只算一則。",
+      "stale": "近期資料不足",
+      "latest": "最新一則 {{time}}",
       "off": "情緒評分未啟用",
       "unscored": "設定決策模型後即可評分情緒"
     },
@@ -250,15 +252,15 @@
     "empty": "近 7 天還沒有收集到內容。新聞會依設定頁的頻率自動收集，也可以請 agent 查詢。",
     "headlines": {
       "title": "近期重大消息",
-      "description": "近 {{days}} 天關於庫存與自選、份量最重的消息。依來源（公告優先，其次新聞，再來論壇與社群）、與個股的關聯和重要性、報導廣度與新舊排序。",
+      "description": "近 {{days}} 天關於庫存與自選、份量最重的消息，依來源、關聯度、報導廣度與新舊排序。",
       "unfollowed": "加入自選或持有股票後，這裡會顯示它們份量最重的消息。",
       "empty": "近 {{days}} 天還沒有收集到庫存與自選的消息。新聞會依設定頁的頻率自動收集，也可以請 agent 查詢。"
     }
   },
   "calendar": {
     "title": "接下來",
-    "description": "未來 {{days}} 天庫存與自選的重要日期：公司已訂定或交易所預告的除權息日與股利發放日、股東會、法規規定的下一期財報與月營收最晚公布日、交易所的交易限制（如暫停融券賣出與處置）、Agent 報告記下的日期（如法說會，各附來源），所屬市場的總經數據公布日（附最新數值，公布後列在上方一週），以及休市日。財報、總經與休市日期目前僅支援台股。",
-    "unfollowed": "加入自選或持有股票後，這裡會顯示它們接下來的除權息與財報日期、Agent 報告記下的日期，以及所屬市場的總經數據公布日。",
+    "description": "未來 {{days}} 天庫存與自選的重要日期：除權息與股利發放、股東會、財報截止日、交易限制、Agent 報告記下的日期、總經數據公布與休市日。財報、總經與休市目前僅支援台股。",
+    "unfollowed": "加入自選或持有股票後，這裡會顯示它們的除權息、財報與報告日期，以及所屬市場的總經數據公布日。",
     "empty": "未來 {{days}} 天沒有排定的事件。",
     "unread": "無法讀取 {{symbols}} 的基本面資料，它們的日期可能缺漏。",
     "by": "{{date}} 前",
@@ -291,7 +293,8 @@
     "released": "最近一週公布",
     "reading": {
       "out": "已公布：{{figure}}",
-      "last": "上期（{{period}}）：{{figure}}"
+      "last": "上期（{{period}}）：{{figure}}",
+      "pending": "讀取數值中…"
     },
     "figures": {
       "consumer-prices": "年增 {{yoy}}",
@@ -342,7 +345,7 @@
   },
   "themes": {
     "title": "主題",
-    "description": "你讓 app 持續觀察的國際時事：現在不影響股價，但長期可能波及你持有的標的。每個主題每天搜尋一次新聞，直到有新聞被判讀為符合某個觀察訊號之前都保持安靜。",
+    "description": "長期可能波及持股的國際時事。每個主題每天搜尋一次，在新聞符合某個觀察訊號之前都保持安靜。",
     "empty": "還沒有主題。請 Agent 追蹤一個議題，或到設定裡自己寫一個。",
     "manage": "管理主題",
     "developments_one": "{{count}} 個訊號可能已發生",
@@ -350,7 +353,12 @@
     "quiet-since": "自 {{date}} 起無進展",
     "read-as-stated": "判讀為已發生 {{share}}",
     "not-searched": "尚未搜尋。",
-    "searched": "上次搜尋 {{time}}。"
+    "searched": "上次搜尋 {{time}}。",
+    "no-web-search": "儲存網路搜尋廠商的金鑰之前，主題不會被搜尋。",
+    "no-decisions": "設定 decisions model 之前，搜尋到的新聞不會對照觀察訊號判讀。",
+    "settings": "前往設定",
+    "unread_one": "{{count, number}} 則找到的新聞尚未對照所有觀察訊號判讀。",
+    "unread_other": "{{count, number}} 則找到的新聞尚未對照所有觀察訊號判讀。"
   },
   "agent": {
     "title": "Agent",
@@ -527,11 +535,11 @@
       "read-page-description": "你的網路搜尋供應商會讀取這個網址。如果不是你預期的網址，可能是 agent 讀過的網頁想藉此把你的資料送出去，允許前請先確認。",
       "remember-description": "Agent 想把這段內容留到之後的對話，而且每次對話都會讀取。允許前請確認它寫的是你的意思。",
       "forget-description": "Agent 想遺忘這筆記憶，之後的對話將不再知道它。",
-      "save-theme-description": "Agent 想讓 app 觀察這個主題。你同意後，app 每天會用你的網路搜尋金鑰搜尋它的關鍵字一次，並把找到的新聞對照它的觀察訊號判讀。",
+      "save-theme-description": "Agent 想讓 app 觀察這個主題。你允許後，app 每天會用你的網路搜尋金鑰搜尋一次，並對照觀察訊號判讀。",
       "change-setting-description": "Agent 想變更這項設定。允許後會立即生效，如同你在設定頁變更。",
-      "save-task-description": "Agent 想保留這個排程任務。你允許後，Solyx 開著時 app 會自行把這則訊息傳給 Agent，每次執行都是獨立的對話，並會消耗你的模型 token。你可以在設定頁修改、關閉或移除它。",
+      "save-task-description": "Agent 想保留這個排程任務。你允許後，Solyx 開著時會自動傳送這則訊息，每次執行都是獨立的對話，並會消耗模型 token。你可以在設定頁修改或移除它。",
       "save-task-off": "已關閉",
-      "run-task-description": "Agent 想現在執行這個排程任務。你允許後，它會像時間到了一樣在獨立的對話中執行，並消耗你的模型 token。每隔一段時間執行的任務，下一次會從這次重新起算。",
+      "run-task-description": "Agent 想現在執行這個排程任務，會在獨立的對話中執行並消耗模型 token。重複執行的任務，下一次會從這次重新起算。",
       "change-watchlist-description": "Agent 想變更你的自選。app 會為每一檔自選收集新聞，等待變化的排程任務也會因它們而執行。",
       "allow": "允許",
       "deny": "不允許",
@@ -579,11 +587,35 @@
       "action": "開啟設定導覽"
     }
   },
+  "inbox": {
+    "title": "待處理",
+    "description": "待確認的提案、等你允許的動作，以及被新聞或日期追過的研究。處理後就會從這裡消失。",
+    "empty": "目前沒有等你處理的事。",
+    "proposal": "待確認：{{summary}}",
+    "approval": "有動作等你允許",
+    "falsifier": "新聞可能顯示已發生：{{falsifier}}",
+    "event": "「{{label}}」（{{date}}）已過",
+    "open-proposals": "前往提案",
+    "open-conversation": "前往對話",
+    "open-research": "查看研究"
+  },
   "proposals": {
     "form-title": "建立下單提案",
     "form-description": "提案會先在這裡經過風控檢查，確認送出時會再檢查一次。",
     "summary": "{{side}} {{quantity, number}} 股 @ {{price}}",
     "market-price": "市價",
+    "impact": {
+      "notional": "約 {{amount}} {{currency}}（未含手續費與稅）",
+      "cash": "現金 {{before}} → {{after}} {{currency}}",
+      "shares": "持股 {{before, number}} → {{after, number}} 股"
+    },
+    "basis": {
+      "report": "依據第 {{revision, number}} 版報告（{{stance}}，{{date}} 修訂）",
+      "forecast": "{{direction}}預測，{{count, number}} 個交易日，{{date}} 提出",
+      "no-forecast": "這版報告下尚無預測",
+      "none": "提出時這檔沒有研究報告",
+      "open": "看研究"
+    },
     "confirm": "確認送出",
     "dismiss": "取消",
     "propose-failed": "無法建立提案",
@@ -673,6 +705,22 @@
       "stale": "這份報告修訂後，截至 {{date}} 的新一季財報已公布。Agent 會先修訂報告才能再提出預測。",
       "quote-read": "引文支撐這項主張的可能性：{{share}}（{{model}}）",
       "quote-unread": "引文未經查核"
+    },
+    "watch": {
+      "off": "新聞沒有與這些條件比對，所以這裡沒有訊號，不代表新聞沒提到。",
+      "gaps": {
+        "no-local-embedder": "需要開啟「依語意合併新聞」，並以 Ollama 產生向量。",
+        "unmeasured": "Ollama 的模型還沒量測比對門檻；{{models}} 已量測。",
+        "no-auditor": "需要設定 decisions model。"
+      },
+      "settings": "前往設定",
+      "pending": "尚未與新聞比對；下次收集這檔的新聞時會比對。",
+      "failed": "{{time}} 與新聞比對失敗：{{failure}}。下次收集時會再試。",
+      "read_one": "上次比對 {{time}}：一週內 {{count, number}} 則新聞。",
+      "read_other": "上次比對 {{time}}：一週內 {{count, number}} 則新聞。",
+      "quiet": "沒有新聞被判讀為已發生。",
+      "unread_one": "{{count, number}} 則相近的新聞未能判讀，下次收集時重讀。",
+      "unread_other": "{{count, number}} 則相近的新聞未能判讀，下次收集時重讀。"
     },
     "sections": {
       "business": "業務",
@@ -790,9 +838,9 @@
     "save": "儲存",
     "use-default": "還原預設",
     "language": "語言",
-    "language-description": "套用到整個 app，並保存在這台電腦上。「跟隨系統」會使用電腦的語言，沒有對應的翻譯時改用英文。",
+    "language-description": "「跟隨系統」會使用電腦的語言，沒有對應翻譯時改用英文。",
     "time-zone": "時區",
-    "time-zone-description": "app 本身的事件時間（例如訊息與記憶）依這個時鐘顯示；圖表與交易時段仍使用各交易所的時區。「跟隨系統」會使用電腦的時區。",
+    "time-zone-description": "用於訊息、記憶等 app 本身的時間；圖表與交易時段仍依各交易所的時區。",
     "theme": "主題",
     "theme-description": "「跟隨系統」會依電腦的淺色或深色外觀切換。",
     "themes": {
@@ -873,8 +921,8 @@
     "market-data": {
       "title": "行情",
       "source-title": "台股行情來源",
-      "description": "金鑰與登入資料由作業系統加密保存（macOS 用鑰匙圈、Windows 用 DPAPI），只在這台電腦上使用，儲存後不會再顯示。",
-      "source-description": "台股圖表與即時 K 線從這裡來，請在下方完成所選來源的設定。",
+      "description": "金鑰與登入資料由作業系統加密保存，儲存後不會再顯示。",
+      "source-description": "台股圖表與即時 K 線的來源。",
       "sources": {
         "fugle": "富果",
         "fubon": "富邦新一代 API"
@@ -887,7 +935,7 @@
     },
     "fundamentals": {
       "title": "財報",
-      "description": "台股的財報、月營收與股利來自 FinMind，不需要 token。請選擇 token 所屬的方案，Solyx 會依方案調整請求速度。交易限制來自證交所與櫃買中心的開放資料，不需要金鑰。請求直接從這台電腦送到各個來源。"
+      "description": "台股的財報、月營收與股利來自 FinMind，不填 token 也能用。交易限制來自證交所與櫃買中心的開放資料。"
     },
     "finmind": {
       "plan": "方案",
@@ -946,7 +994,11 @@
       },
       "embeddings-api-key": {
         "label": "API 金鑰",
-        "hint": "OpenAI 平台的 API 金鑰，與 agent 和決策模型的金鑰分開保存；用 ChatGPT 登入無法使用 embeddings。"
+        "hint": "OpenAI 平台的 API 金鑰；用 ChatGPT 登入無法使用 embeddings。"
+      },
+      "ollama-embeddings-api-key": {
+        "label": "API 金鑰",
+        "hint": "只有 Ollama 架在會檢查 bearer token 的代理後面時才需要。"
       },
       "finmind-token": {
         "label": "FinMind token",
@@ -954,7 +1006,7 @@
       },
       "otlp-headers": {
         "label": "OTLP headers",
-        "hint": "傳送 traces 與 logs 時附帶的 header，格式同 OTEL_EXPORTER_OTLP_HEADERS，例如 Grafana Cloud 提供的授權。不需要 header 的 collector 可以留空。"
+        "hint": "格式同 OTEL_EXPORTER_OTLP_HEADERS，例如 Grafana Cloud 提供的授權。collector 不需要時留空。"
       },
       "backup-access-key-id": {
         "label": "Access key ID",
@@ -966,7 +1018,7 @@
       },
       "backup-passphrase": {
         "label": "密語",
-        "hint": "每份備份都用它加密。Solyx 無法找回密語，沒有它就打不開任何備份，請另外保存一份。每份備份只能用建立當時的密語開啟。"
+        "hint": "用來加密每份備份，備份只能用建立當時的密語開啟。Solyx 無法找回密語，請另外保存一份。"
       }
     },
     "sign-in": {
@@ -982,7 +1034,7 @@
       "sign-out-failed": "無法登出"
     },
     "fugle": {
-      "description": "使用你自己的富果 API 金鑰取得行情。請選擇金鑰所屬的方案，Solyx 會依該方案調整請求速度與即時股票數量。",
+      "description": "用你自己的富果 API 金鑰取得行情。請選擇金鑰所屬方案，Solyx 會依方案控制請求頻率。",
       "plan": "方案",
       "plans": {
         "basic": "基本用戶（免費）",
@@ -1016,12 +1068,12 @@
     },
     "agent": {
       "title": "AI Agent",
-      "description": "啟用你要使用的供應商，各自用你自己的 API 金鑰，有訂閱可登入的供應商也可以用你的訂閱。請求會從這台電腦直接送到供應商，或送到你為它設定的端點。每個對話都可以選自己的模型。",
+      "description": "啟用要使用的供應商，各自使用你的 API 金鑰或訂閱。每個對話都可以選自己的模型。",
       "providers-description": "供應商",
       "add-provider": "新增供應商",
       "search-providers": "搜尋供應商",
       "no-provider-found": "沒有符合的供應商",
-      "default-description": "預設模型：對話在你另外選擇之前使用的模型",
+      "default-description": "預設模型：對話未另外選擇時使用的模型",
       "default-provider": "供應商",
       "provider-is-default": "預設模型的供應商，所以維持啟用",
       "provider-default": "預設",
@@ -1029,7 +1081,9 @@
         "off": "未啟用",
         "ready": "可以使用",
         "needs-key": "需要 API 金鑰",
-        "needs-sign-in": "需要登入"
+        "needs-sign-in": "需要登入",
+        "no-models": "沒有可用模型",
+        "unreachable": "沒有回應"
       },
       "enable-provider": "使用 {{provider}} 的模型",
       "key-label": "{{provider}} API 金鑰",
@@ -1038,6 +1092,16 @@
       "auth-description": "訂閱會用你方案內的額度執行 Agent，不按每次請求計費。",
       "endpoint": "API 端點",
       "endpoint-description": "只在使用支援這個供應商原生 API 的閘道時更改，你的金鑰也會送到那裡。",
+      "server-endpoint-description": "{{provider}} 的位址。指向另一台主機時，對話內容會送到那台主機。",
+      "server-key-hint": "只有 {{provider}} 架在會檢查 bearer token 的代理後面時才需要。",
+      "server-models": "可用模型",
+      "server-models-description": "需要支援工具、context 至少 48K 的模型，可用 ollama pull 下載。",
+      "server-models-checking": "檢查中…",
+      "server-models-count_one": "{{count}} 個",
+      "server-models-count_other": "{{count}} 個",
+      "server-models-none": "沒有",
+      "server-unreachable": "連不到 {{provider}}",
+      "list-models": "重新整理",
       "endpoint-invalid": "請輸入 http 或 https 網址",
       "auths": {
         "api-key": "API 金鑰",
@@ -1066,7 +1130,7 @@
         "high": "高"
       },
       "decision-mode": "決策模式",
-      "decision-mode-description": "由誰評斷 Agent 的預測與下單建議。選 MAGI 時，三個單元各以同一心智的一面（科學家、母親、女人）獨立判斷，兩票即通過。下單建議是一個議案，被否決就不會提出；預測的每個走勢各是一個議案，表決它是否比歷史基準更可能發生，預測照樣保存，表決結果並列在旁。每次表決會多用三次對話模型的請求；每筆委託仍需你確認。",
+      "decision-mode-description": "由誰評斷 Agent 的預測與下單建議。MAGI 由三個單元投票，兩票即通過：被否決的下單不會提出，預測則附上表決結果。每次表決多花三次請求，每筆委託仍需你確認。",
       "decision-modes": {
         "single": "Agent 自行決定",
         "magi": "MAGI"
@@ -1087,7 +1151,7 @@
     },
     "web-search": {
       "title": "網路搜尋",
-      "description": "用你自己的金鑰為新聞來源搜尋新聞與社群貼文，也讓 Agent 能上網搜尋、讀取網頁。請求直接從這台電腦送到供應商。",
+      "description": "用你自己的金鑰為新聞來源搜尋新聞與貼文，也讓 Agent 能上網搜尋、讀取網頁。",
       "providers-description": "供應商",
       "provider-states": {
         "ready": "可以使用",
@@ -1105,16 +1169,16 @@
       "key-hints": {
         "firecrawl": "在 Firecrawl 後台建立的金鑰。Firecrawl 搜尋的是 Google。",
         "exa": "在 Exa 後台建立的金鑰。Exa 搜尋的是它自己的索引。",
-        "tavily": "在 Tavily 後台建立的金鑰。Tavily 搜尋的是它自己的索引，搜尋新聞時無法偏重市場所在的國家。"
+        "tavily": "在 Tavily 後台建立的金鑰。Tavily 搜尋新聞時無法偏重特定國家。"
       }
     },
     "news": {
       "title": "新聞",
-      "description": "Agent 會自行讀取台股公司的重大訊息和 PTT 股票板。設定好網路搜尋後，還會搜尋新聞，並取樣台股的 Threads 與美股的 X 貼文；每次搜尋都會用掉供應商的額度。請求直接從這台電腦送到各個來源。"
+      "description": "Agent 會讀取台股重大訊息與 PTT 股票板。設定網路搜尋後，也會搜尋新聞與台股的 Threads、美股的 X 貼文，並用掉供應商額度。"
     },
     "decisions": {
       "title": "決策模型",
-      "description": "用你自己的金鑰回答結構化問題，回傳帶機率的答案而不是文字：為新聞與貼文評分、查核 Agent 研究引用的原文，並在「自動判斷」的對話中判斷 shell 指令。設定前這些功能都不會啟用。請求直接從這台電腦送到服務商。",
+      "description": "用你自己的金鑰回答結構化問題並給出機率：為新聞與貼文評分、查核 Agent 研究引用的原文，並在「自動判斷」的對話中判斷 shell 指令。設定前這些功能不會啟用。",
       "providers-description": "供應商",
       "provider-states": {
         "ready": "可以使用",
@@ -1130,12 +1194,12 @@
         "openai": "OpenAI"
       },
       "account-id": "帳號 ID",
-      "account-id-description": "執行模型的 Workers AI 所屬的 Cloudflare 帳號，可在帳號總覽頁找到。",
+      "account-id-description": "執行 Workers AI 的 Cloudflare 帳號，可在帳號總覽頁找到。",
       "account-id-required": "請輸入帳號 ID",
       "model": "模型",
       "model-descriptions": {
-        "typesafe": "模型 ID。題目是依預設版本評測的，換成其他版本可能會有不同的判斷。",
-        "cloudflare": "模型 ID：clef，或較快的 clef-flash。題目是依預設模型評測的，換成另一個可能會有不同的判斷。",
+        "typesafe": "模型 ID。題目以預設版本評測，換成其他版本可能判斷不同。",
+        "cloudflare": "模型 ID：clef，或較快的 clef-flash。題目以預設模型評測。",
         "openai": "模型 ID；目前 OpenAI 的決策模型只有 gpt-6-luna。"
       },
       "model-required": "請輸入模型 ID",
@@ -1145,25 +1209,49 @@
     },
     "embeddings": {
       "title": "依語意合併新聞（實驗功能）",
-      "description": "不同媒體報導同一件事時，標題常常寫得差很多，比對不出來。開啟後，Solyx 會把每則新聞的標題和摘要開頭轉成向量；兩個網站同一天發布、向量又夠相近的新聞，會合併成同一個故事。",
+      "description": "把不同媒體報導同一件事的新聞合併成一個故事，即使標題寫法不同。",
       "enabled": "依語意合併",
       "enabled-description": "關閉時只靠標題判斷是不是同一個故事。",
       "provider": "向量來源",
       "providers": {
-        "local": "這台電腦（Ollama）",
+        "local": "Ollama",
         "openai": "OpenAI"
       },
       "provider-descriptions": {
-        "local": "用這台電腦上的 Ollama 執行模型，資料不會離開這台電腦。請先在 Ollama 下載模型。",
-        "openai": "使用 OpenAI 的模型與下方的專用金鑰；每則新聞的標題和摘要開頭會送到 OpenAI。"
+        "local": "用這台電腦上的 Ollama 執行模型，資料不會離開這台電腦。",
+        "local-host": "用 {{host}} 上的 Ollama；新聞、你的報告、記憶和搜尋內容都會送到那台主機。",
+        "openai": "使用 OpenAI 的模型與下方的金鑰；新聞標題與摘要開頭會送到 OpenAI。"
       },
       "model": "模型",
       "measured": "已量測：Solyx 知道這個模型怎樣算是同一個故事。",
-      "unmeasured": "尚未量測：向量照樣會保存，但在替這個模型量出門檻前，不會用來合併新聞。"
+      "unmeasured": "尚未量測：向量會保存，但量出這個模型的門檻前不會用來合併新聞。",
+      "base-url": "端點",
+      "base-url-description": "Ollama 的位址。要用另一台主機上的 Ollama 時再更改。",
+      "base-url-invalid": "請輸入 http 或 https 網址",
+      "local-model": {
+        "title": "Ollama 模型",
+        "status": {
+          "checking": "檢查中…",
+          "failed": "無法檢查",
+          "unreachable": "Ollama 未執行",
+          "missing": "尚未下載",
+          "pulling": "下載中…",
+          "ready": "已就緒"
+        },
+        "unreachable": "{{host}} 沒有回應。開啟 Ollama，或先安裝；Solyx 會自動偵測。",
+        "get-ollama": "取得 Ollama",
+        "missing": "把 {{model}} 下載到 Ollama，或在終端機執行 {{command}}。",
+        "pull": "下載",
+        "pull-failed": "下載失敗",
+        "pulling": "離開這頁也會繼續下載。",
+        "pulling-model": "正在下載 {{model}}",
+        "starting": "準備中…",
+        "progress": "{{completed}} / {{total}}"
+      }
     },
     "skills": {
       "title": "Skills",
-      "description": "Agent 遇到相關任務時會讀取的操作手冊。{{skills}} 裡含 SKILL.md 的資料夾是你自己的 skills，優先於內建的。{{shared}} 裡與其他 agent 共用的 skills，要開啟後才會提供給 Agent。",
+      "description": "Agent 遇到相關任務時讀取的操作手冊。你自己的放在 {{skills}}，優先於內建；{{shared}} 裡的要開啟後才會提供。",
       "open-folder": "打開 skills 資料夾",
       "sources": {
         "solyx": "你的",
@@ -1184,14 +1272,14 @@
       "instructions-missing": "尚未建立",
       "warnings-title": "有些 skill 檔案不符合 Agent Skills 格式",
       "shell": "Shell",
-      "shell-description": "讓 agent 在這台電腦上執行指令，skill 需要它才能執行附帶的腳本。每個指令都會先等你允許，除非你把對話設為不詢問。指令沒有沙箱隔離：你允許的指令可以讀取、修改你的檔案並連上網路。僅在模擬帳戶下有效。",
+      "shell-description": "讓 Agent 在這台電腦上執行指令，skill 需要它來執行腳本。除非對話設為不詢問，每個指令都會先等你允許。指令沒有沙箱隔離，你允許的指令可以讀寫你的檔案並連上網路。僅限模擬帳戶。",
       "shell-label": "允許 agent 使用 shell"
     },
     "memory": {
       "title": "記憶",
-      "description-text": "Agent 跨對話保留、每次對話都會讀取的內容，隨著它了解你是誰、怎麼交易而累積。對話設為先詢問時，它新增或改寫記憶前會先問你；你讓對話自動判斷時，它會直接存下。刪除對話不會刪掉它存下的記憶。",
+      "description-text": "Agent 記住的關於你與你交易方式的內容，每次對話都會讀取。刪除對話不會刪掉它存下的記憶。",
       "enabled": "使用記憶",
-      "enabled-description": "Agent 每次對話都會讀取記憶，並存下它對你的了解。關閉後記憶仍會保留，只是不再使用。",
+      "enabled-description": "關閉後記憶仍會保留，只是不再使用。",
       "empty": "還沒有記憶。Agent 會在了解你的過程中存下記憶。",
       "filter": "篩選記憶",
       "no-matches": "沒有符合「{{query}}」的記憶。",
@@ -1211,14 +1299,14 @@
     "schedules": {
       "collections": {
         "title": "App 自己收集的資料",
-        "description": "Solyx 開著時自己做的事，不經過模型，也不開對話。收集到的內容就是總覽顯示的，也是 Agent 任務接著會讀的。",
+        "description": "Solyx 開著時自動進行的工作，不經過模型。收集到的內容會顯示在總覽，也供 Agent 任務讀取。",
         "news": {
           "title": "庫存與自選的新聞",
-          "description": "每檔在時間到時收集一次，除非 Agent 之後已經收過。設定好網路搜尋後，每次收集都會用掉供應商的額度；重大訊息只提供前一天的資料，間隔越長漏掉越多。"
+          "description": "每檔在時間到時收集，Agent 已收過就略過。設定網路搜尋後，每次收集都會用掉供應商額度；重大訊息只回溯一天，間隔太長會漏。"
         },
         "themes": {
           "title": "主題的新聞",
-          "description": "每個主題的關鍵字透過你的網路搜尋廠商搜尋，一組關鍵字一次，再由 decisions model 對照主題的觀察訊號判讀。在儲存廠商金鑰之前不會搜尋。"
+          "description": "透過網路搜尋廠商搜尋每個主題的關鍵字，再由 decisions model 對照觀察訊號判讀。儲存廠商金鑰前不會搜尋。"
         },
         "collect-now": "立即收集",
         "last": "上次收集 {{time}}。",
@@ -1228,7 +1316,7 @@
         "collect-failed": "無法收集"
       },
       "title": "排程任務",
-      "description-text": "Solyx 開著時自動送給 Agent 的訊息，每次執行都開一個獨立對話，做了什麼都在那裡看。沒人看著的執行可以讀取、研究並修訂報告；它提出的下單仍然要等你確認，每次執行都會花用你的模型 token。Agent 經你允許後可以寫入任務，只有你能移除。",
+      "description-text": "Solyx 開著時自動傳給 Agent 的訊息，每次執行都在獨立的對話中。它提出的下單仍要你確認，每次執行都會用掉模型 token。",
       "empty": "還沒有排程任務。",
       "add": "新增任務",
       "name": "名稱",
@@ -1242,7 +1330,7 @@
       },
       "every": "頻率",
       "at-most": "最多",
-      "on-change-description": "當新聞可能顯示報告列出的「什麼會改變看法」已發生、主題的觀察訊號已發生，或報告記下的事件日期已過時才執行，範圍是你的庫存與自選。每半小時檢查一次。",
+      "on-change-description": "當新聞顯示下方報告或主題在留意的事可能已發生，或報告的事件日期已過時執行。每半小時檢查一次。",
       "every-minutes_one": "每 {{count}} 分鐘",
       "every-minutes_other": "每 {{count}} 分鐘",
       "every-hours_one": "每 {{count}} 小時",
@@ -1262,6 +1350,38 @@
       "on-change-minutes_other": "有變化時，最多每 {{count}} 分鐘一次",
       "on-change-hours_one": "有變化時，最多每 {{count}} 小時一次",
       "on-change-hours_other": "有變化時，最多每 {{count}} 小時一次",
+      "scope": {
+        "kinds": "在這些變化時執行",
+        "kind-names": {
+          "falsifier-met": "新聞可能顯示報告「什麼會改變看法」已發生",
+          "event-passed": "報告記下的事件日期已過",
+          "signpost-met": "新聞可能顯示主題的觀察訊號已發生"
+        },
+        "kind-short": {
+          "falsifier-met": "改變看法的條件",
+          "event-passed": "事件日期已過",
+          "signpost-met": "主題觀察訊號"
+        },
+        "separator": "、",
+        "listings": "個股",
+        "every-listing": "全部庫存與自選",
+        "named-listings": "指定個股",
+        "no-listings": "庫存與自選裡還沒有個股。",
+        "themes": "主題",
+        "every-theme": "全部主題",
+        "named-themes": "指定主題",
+        "named": "主題：{{themes}}",
+        "no-themes": "還沒有主題。",
+        "kinds-required": "至少選一種變化",
+        "listings-required": "至少選一檔個股",
+        "themes-required": "至少選一個主題",
+        "ran-for": "上次因為這些變化執行：",
+        "changes": {
+          "falsifier-met": "{{listing}}：新聞可能顯示「{{falsifier}}」已發生",
+          "event-passed": "{{listing}}：{{date}} 的「{{label}}」已過",
+          "signpost-met": "主題「{{theme}}」：新聞可能顯示「{{signpost}}」已發生"
+        }
+      },
       "approval": "需要詢問的呼叫",
       "approvals": {
         "ask": "等我回答",
@@ -1269,7 +1389,7 @@
       },
       "approval-descriptions": {
         "ask": "執行會停在第一個這類呼叫，直到你在它的對話中回答。",
-        "auto": "這次執行自己搜尋到的網頁會直接讀取，decisions model 判定無害的 shell 指令會直接執行，Agent 也會把對你的了解直接存進記憶，其餘仍等你回答。任何任務都不能讓所有呼叫不經詢問。"
+        "auto": "直接讀取本次執行找到的網頁、執行判定無害的 shell 指令並存入記憶，其餘仍等你回答。"
       },
       "required": "請填寫",
       "too-long": "請控制在 {{count}} 個字元內",
@@ -1288,7 +1408,7 @@
     },
     "mcp": {
       "title": "MCP server",
-      "description": "列在 {{path}} 的 server，格式和 Claude、Cursor、pi 使用的 mcpServers 相同。金鑰請寫成 secret:NAME，再在這裡儲存，由系統加密保管。每次呼叫都會先等你允許，除非你讓唯讀的 tool 自動執行。",
+      "description": "列在 {{path}} 的 server，格式與 Claude、Cursor、pi 的 mcpServers 相同。金鑰寫成 secret:NAME 後在這裡儲存。每次呼叫都會先詢問，除非你讓唯讀 tool 自動執行。",
       "open-file": "打開 mcp.json",
       "empty": "還沒有 server。在 mcp.json 加入後就會在這裡連線。",
       "file-error": "無法讀取 mcp.json",
@@ -1321,7 +1441,7 @@
       "set-label": "Agent 使用這 {{count}} 個 tool 時",
       "sign-in": {
         "label": "帳號",
-        "hint": "透過瀏覽器登入，在 server 的頁面允許 Solyx。Solyx 會加密保存授權，不會顯示出來。",
+        "hint": "透過瀏覽器登入，在 server 的頁面允許 Solyx。",
         "sign-in": "登入",
         "sign-in-failed": "無法登入"
       },
@@ -1338,7 +1458,7 @@
       "size": "磁碟用量",
       "candles": {
         "title": "K 線快取",
-        "description": "已收盤的 K 線會存在這台電腦上，圖表就不必每次重新下載。清除後，圖表需要時會再向行情來源下載，並用掉你方案的請求額度。",
+        "description": "已收盤的 K 線存在這台電腦，圖表不必重新下載。清除後需要時會重新下載，並用掉方案的請求額度。",
         "bars": "{{count, number}} 根 K 線",
         "series": "{{count, number}} 組代號與週期",
         "empty": "目前沒有快取",
@@ -1354,7 +1474,7 @@
         "count": "對話數",
         "clear": "刪除所有對話",
         "confirm-title": "要刪除所有對話嗎？",
-        "confirm-body": "對話中的訊息與 shell 指令留下的檔案都會從這台電腦刪除，仍在執行的對話也會停止，無法復原。它們提出的下單建議仍會留在提案中。",
+        "confirm-body": "對話訊息與 shell 指令留下的檔案都會刪除，執行中的對話也會停止，無法復原。它們提出的下單建議會留在提案中。",
         "confirm": "全部刪除",
         "clear-failed": "無法刪除對話"
       },
@@ -1370,11 +1490,34 @@
       },
       "news": {
         "title": "新聞",
-        "description": "新聞來源為你的標的找到的新聞，以及決策模型的評分。來源只能回溯幾天，較舊的新聞無法再收集。",
+        "description": "為你的標的收集的新聞與評分。來源只回溯幾天，較舊的新聞無法再收集。",
         "count": "新聞則數",
+        "kept": {
+          "press": "新聞保留期限",
+          "crowd": "社群保留期限"
+        },
+        "kept-description": {
+          "press": "公司公告與新聞報導",
+          "crowd": "PTT 與社群貼文"
+        },
+        "retention": {
+          "30d": "30 天",
+          "90d": "90 天",
+          "180d": "180 天",
+          "365d": "1 年",
+          "forever": "不刪除"
+        },
+        "kinds": {
+          "press": "公告與新聞",
+          "crowd": "社群貼文"
+        },
+        "shorten-title": "要縮短保留期限嗎？",
+        "shorten-body": "已存的{{kind}}中，超過 {{days}} 天的會立即刪除。來源只回溯幾天，刪除後無法再收集。",
+        "shorten": "刪除較舊的",
+        "keep-failed": "無法變更新聞的保留期限",
         "clear": "清除新聞",
         "confirm-title": "要清除所有新聞嗎？",
-        "confirm-body": "新聞與評分都會從這台電腦刪除，較舊的新聞無法再收集。自選股會在下次更新時重新收集近期新聞。",
+        "confirm-body": "新聞與評分都會刪除，較舊的新聞無法再收集。自選股會在下次更新時重新收集近期新聞。",
         "confirm": "清除",
         "clear-failed": "無法清除新聞"
       },
@@ -1385,7 +1528,7 @@
         "forecasts": "預測數",
         "clear": "刪除所有研究",
         "confirm-title": "要刪除所有研究嗎？",
-        "confirm-body": "所有報告、預測與預測的結果紀錄都會從這台電腦刪除，無法復原。你的對話紀錄會保留。",
+        "confirm-body": "所有報告、預測與預測結果都會刪除，無法復原。你的對話紀錄會保留。",
         "confirm": "全部刪除",
         "clear-failed": "無法刪除研究"
       },
@@ -1403,7 +1546,7 @@
     "backup": {
       "destination": {
         "title": "備份位置",
-        "description": "你自己的 bucket，任何支援 S3 API 的服務都可以，例如 Cloudflare R2、AWS、Backblaze B2 或 MinIO。每份備份離開這台電腦前都會先用你的密語加密，伺服器上只有它讀不懂的內容。",
+        "description": "你自己的 bucket，任何相容 S3 的服務都可以，例如 Cloudflare R2、AWS、Backblaze B2 或 MinIO。備份離開這台電腦前會先用你的密語加密。",
         "endpoint": "伺服器",
         "endpoint-description": "服務的 S3 端點，例如 https://<account>.r2.cloudflarestorage.com。使用 AWS 時不用填。",
         "endpoint-invalid": "請輸入 http 或 https 網址",
@@ -1416,16 +1559,16 @@
         "bucket-invalid": "請輸入 bucket 名稱：3 到 63 個英數字、句點或連字號",
         "bucket-reset": "移除",
         "prefix": "資料夾",
-        "prefix-description": "備份放在 bucket 裡的哪個資料夾；每個安裝在它底下各有自己的資料夾。",
+        "prefix-description": "備份存放在 bucket 裡的資料夾。",
         "prefix-invalid": "請輸入資料夾名稱：英數字、句點、連字號或底線，以斜線分隔"
       },
       "now": {
         "title": "備份",
-        "description": "備份包含你的自選、提案與模擬帳戶、研究、記憶、新聞和對話紀錄，以及設定、技能、固定指示與 MCP 伺服器。金鑰與登入資訊不會進入備份；K 線也不包含，因為圖表會重新抓取。",
+        "description": "包含 Solyx 保存的所有內容與設定、技能，但不含金鑰、登入資訊與 K 線快取。",
         "automatic": "自動備份",
-        "automatic-description": "Solyx 執行期間，到了時間且內容自上次備份後有變動才會備份。每次備份後會清理這個安裝較舊的備份：保留最新 4 份，再保留最近 24 個小時、7 天與 4 週中各自的最後一份（只計有備份的時段），所以不論備份多頻繁，bucket 裡最多 39 份。",
+        "automatic-description": "Solyx 執行期間，時間到且內容有變動才備份。較舊的備份會自動清理，bucket 最多保留 39 份。",
         "every": "頻率",
-        "every-description": "每次備份都會重新上傳全部內容，間隔越短用到的網路流量越多，但 bucket 佔用的空間不會增加。",
+        "every-description": "每次備份都會重新上傳全部內容，間隔越短越耗流量，但不會多佔 bucket 空間。",
         "every-options": {
           "15m": "每 15 分鐘",
           "1h": "每小時",
@@ -1445,20 +1588,20 @@
       },
       "restore": {
         "title": "還原",
-        "description": "用一份備份取代 Solyx 在這台電腦上保存的內容。在另一台電腦還原時，請先設定相同的 bucket、存取金鑰與密語，還原後再重新輸入各項金鑰。",
+        "description": "用備份取代 Solyx 在這台電腦上的內容。在另一台電腦還原時，先設定相同的 bucket、存取金鑰與密語，還原後再重新輸入金鑰。",
         "show": "顯示備份",
         "empty": "這個資料夾還沒有備份",
         "own": "這個安裝",
         "other": "其他安裝",
         "action": "還原",
         "confirm-title": "要還原 {{time}} 的備份嗎？",
-        "confirm-body": "你的自選、提案、模擬帳戶、研究、記憶、新聞、對話紀錄、設定與技能會回到當時的內容，Solyx 會重新啟動。這台電腦目前的內容會移到 Solyx 資料夾內保留，不會刪除。備份中等待確認的提案會被取消，因為它們之後可能已經確認過。金鑰與登入資訊維持不變。",
+        "confirm-body": "你的資料、設定與技能會回到備份當時的狀態，Solyx 會重新啟動。目前的內容會移到一旁保留，不會刪除。備份中等待確認的提案會被取消。金鑰與登入資訊維持不變。",
         "confirm": "還原並重新啟動",
         "failed": "無法還原備份"
       },
       "restored": {
         "title": "已從 {{time}} 的備份還原",
-        "body": "當時等待確認的提案已取消，因為它們之後可能已經確認過。這台電腦先前的內容保留在 Solyx 資料夾內的 restore 資料夾，直到下一次還原。"
+        "body": "當時等待確認的提案已取消。先前的內容保留在 Solyx 資料夾內的 restore 資料夾，直到下次還原。"
       },
       "restore-stuck": {
         "title": "Solyx 無法完成備份的還原",
@@ -1482,15 +1625,15 @@
     },
     "telemetry": {
       "title": "OpenTelemetry",
-      "description": "把 traces 和 logs 送到你指定的 OpenTelemetry 端點，例如 Grafana Cloud。每次 agent 執行（含其中的模型請求與工具呼叫）以及每一輪排程工作各是一條 trace；app 能自行處理或預期之外的每次失敗各是一筆 log。內容只有模型、token 數、耗時與失敗的項目，不含對話內容，也不含供應商回傳的錯誤訊息。設定端點之前不會傳送任何東西。",
+      "description": "把 traces 與 logs 送到你指定的 OpenTelemetry 端點，例如 Grafana Cloud。內容只有模型、token 數、耗時與失敗項目，不含對話內容。設定端點前不會傳送任何東西。",
       "endpoint": "OTLP 端點",
-      "endpoint-description": "格式同 OTEL_EXPORTER_OTLP_ENDPOINT；traces 會透過 HTTP 送到它的 /v1/traces，logs 送到 /v1/logs。",
+      "endpoint-description": "格式同 OTEL_EXPORTER_OTLP_ENDPOINT；traces 送到 /v1/traces，logs 送到 /v1/logs。",
       "endpoint-invalid": "請輸入 http 或 https 網址",
       "stop": "停止傳送"
     },
     "theme-watch": {
       "title": "主題",
-      "description-text": "app 替你持續觀察的國際時事，例如疫情、衝突或醞釀中的法規。每個主題的關鍵字每天透過你的網路搜尋廠商搜尋一次新聞，再由 decisions model 對照觀察訊號判讀，所以在有事情被判讀為已發生之前，主題都保持安靜。Agent 經你同意後可以寫入主題，只有你能刪除。",
+      "description-text": "app 替你觀察的國際時事，例如疫情、衝突或醞釀中的法規。每個主題每天搜尋一次，在新聞符合某個觀察訊號之前都保持安靜。",
       "add": "新增主題",
       "name": "觀察什麼",
       "thesis": "為什麼可能有影響",
@@ -1520,7 +1663,7 @@
       "title": "背景執行",
       "show-menu-bar": "讓 Solyx 常駐選單列",
       "show-system-tray": "讓 Solyx 常駐系統匣",
-      "show-description": "關閉最後一個視窗後，Solyx 仍在那裡繼續執行，排程任務與資料收集不會中斷。",
+      "show-description": "關閉最後一個視窗後 Solyx 仍在背景執行，排程工作不會中斷。",
       "hide-dock": "沒有視窗時離開 Dock",
       "hide-dock-description": "從選單列的圖示可以再開啟 Solyx。"
     }
@@ -1560,7 +1703,7 @@
   },
   "crash-reports": {
     "title": "協助改善 Solyx",
-    "description": "Solyx 當機或遇到預期外的錯誤時，可以透過 Sentry 把報告傳給維護者，讓問題得以修正。在你開啟之前不會傳送任何東西，之後也可以隨時在「設定 → 關於」更改。",
+    "description": "Solyx 當機或遇到預期外的錯誤時，可以透過 Sentry 回報，讓問題得以修正。你開啟前不會傳送任何東西，之後可在「設定 → 關於」更改。",
     "send": "傳送當機報告",
     "send-description": "內容包括出了什麼錯、發生在程式的哪裡，以及 Solyx、Electron 與作業系統的版本。報告不會包含你的金鑰、對話、持股與委託。",
     "unavailable": "此版本不會傳送報告"

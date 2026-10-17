@@ -14,9 +14,11 @@ import type {
   ShareholdersMeeting,
   TradingRestriction,
 } from "@solyx/core/fundamentals";
-import { Market, shiftDate } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
+import { twRocDaySchema } from "@solyx/core/rules/tw";
 import { weekdays } from "@solyx/core/session";
 import type { ClosuresProvider } from "@solyx/core/session";
+import { shiftDate } from "@solyx/utils/date";
 
 const TWSE_API_URL = "https://openapi.twse.com.tw/v1/";
 
@@ -27,23 +29,13 @@ const textSchema = z.string().trim();
 
 const unsetSchema = textSchema.max(0).transform(() => null);
 
-// A day in the Republic of China calendar, written `1151012` or `115/10/12`.
-const rocDaySchema = textSchema
-  .regex(/^\d{2,3}\/?\d{2}\/?\d{2}$/)
-  .transform((day) => {
-    const digits = day.replaceAll("/", "");
-
-    return `${Number(digits.slice(0, -4)) + 1911}-${digits.slice(-4, -2)}-${digits.slice(-2)}`;
-  })
-  .pipe(z.iso.date());
-
 // The exchanges leave a day that is not set empty.
-const rocDayOrUnsetSchema = z.union([rocDaySchema, unsetSchema]);
+const rocDayOrUnsetSchema = z.union([twRocDaySchema, unsetSchema]);
 
 // A disposition's first and last days, which TWSE writes `115/10/08～115/10/15` and TPEx `1151012~1151016`.
 const rocPeriodSchema = textSchema
   .transform((period) => period.split(/[~～]/))
-  .pipe(z.tuple([rocDaySchema, rocDaySchema]));
+  .pipe(z.tuple([twRocDaySchema, twRocDaySchema]));
 
 const codeSchema = textSchema.min(1);
 
@@ -61,7 +53,7 @@ const twseSuspensionSchema = (kind: RestrictionKind) =>
   z
     .object({
       Code: codeSchema,
-      StartDate: rocDaySchema,
+      StartDate: twRocDaySchema,
       EndDate: rocDayOrUnsetSchema,
       Reason: textSchema,
     })
@@ -94,7 +86,7 @@ const twseDispositionSchema = z
 const twseHaltSchema = z
   .object({
     Code: codeSchema,
-    TradingHaltDate: rocDaySchema,
+    TradingHaltDate: twRocDaySchema,
     TradingResumptionDate: rocDayOrUnsetSchema,
   })
   .transform((row): Listed<TradingRestriction> => ({
@@ -108,7 +100,7 @@ const twseHaltSchema = z
 const tpexShortSaleSchema = z
   .object({
     SecuritiesCompanyCode: codeSchema,
-    ShortSaleSuspensionStartDate: rocDaySchema,
+    ShortSaleSuspensionStartDate: twRocDaySchema,
     ShortSaleSuspensionEndDate: rocDayOrUnsetSchema,
     Reason: textSchema,
   })
@@ -124,7 +116,7 @@ const tpexShortSaleSchema = z
 const tpexDayTradingSchema = z
   .object({
     SecuritiesCompanyCode: codeSchema,
-    FirstDayToSuspendSellThenBuy: rocDaySchema,
+    FirstDayToSuspendSellThenBuy: twRocDaySchema,
     DayOfReinstatingSellThenBuy: rocDayOrUnsetSchema,
     Reason: textSchema,
   })
@@ -215,13 +207,13 @@ const twseFundSchema = z
       .nullable()
       .catch(null),
     基金經理人: textOrNothingSchema,
-    上市日期: rocDaySchema.nullable().catch(null),
+    上市日期: twRocDaySchema.nullable().catch(null),
     "發行單位數/轉換數": textSchema
       .regex(/^\d+$/)
       .transform(Number)
       .nullable()
       .catch(null),
-    出表日期: rocDaySchema,
+    出表日期: twRocDaySchema,
   })
   .transform((row): Listed<FundProfile> => ({
     symbol: row.基金代號,
@@ -236,6 +228,11 @@ const twseFundSchema = z
     asOf: row.出表日期,
   }));
 
+// A listing on TWSE's list of the last session's trading, which holds those that did not trade too.
+const twseListingSchema = z
+  .object({ Code: codeSchema })
+  .transform((row) => row.Code);
+
 // A multiple, which an exchange fills with a word for nothing where it works none out.
 const multipleSchema = z.union([
   textSchema.regex(/^\d+(\.\d+)?$/).transform(Number),
@@ -245,7 +242,7 @@ const multipleSchema = z.union([
 const twseMultiplesSchema = z
   .object({
     Code: codeSchema,
-    Date: rocDaySchema,
+    Date: twRocDaySchema,
     PEratio: multipleSchema,
     DividendYield: multipleSchema,
     PBratio: multipleSchema,
@@ -261,7 +258,7 @@ const twseMultiplesSchema = z
 const tpexMultiplesSchema = z
   .object({
     SecuritiesCompanyCode: codeSchema,
-    Date: rocDaySchema,
+    Date: twRocDaySchema,
     PriceEarningRatio: multipleSchema,
     YieldRatio: multipleSchema,
     PriceBookRatio: multipleSchema,
@@ -306,7 +303,7 @@ function exNotice(
 const twseExNoticeSchema = z
   .object({
     Code: codeSchema,
-    Date: rocDaySchema,
+    Date: twRocDaySchema,
     Exdividend: exKindSchema,
     CashDividend: noticeCashSchema,
   })
@@ -317,7 +314,7 @@ const twseExNoticeSchema = z
 const tpexExNoticeSchema = z
   .object({
     SecuritiesCompanyCode: codeSchema,
-    ExRrightsExDividendDate: rocDaySchema,
+    ExRrightsExDividendDate: twRocDaySchema,
     ExRrightsExDividend: exKindSchema,
     CashDividend: noticeCashSchema,
   })
@@ -337,7 +334,7 @@ const meetingSchema = z
   .object({
     [MEETING_CODE]: codeSchema,
     "股東常(臨時)會": textSchema.pipe(z.enum(["常會", "臨時會"])),
-    開會日期: rocDaySchema,
+    開會日期: twRocDaySchema,
     是否改選董監: textSchema.pipe(z.enum(["是", "否"])),
   })
   .transform((row): Listed<ShareholdersMeeting> => ({
@@ -413,7 +410,7 @@ const tpexIndustrySchema = z
 // TWSE's days of the year, each with what it calls the day.
 const twseDaySchema = z.object({
   Name: textSchema.min(1),
-  Date: rocDaySchema,
+  Date: twRocDaySchema,
 });
 
 // The list also names the first and last trading days around a long holiday, which are no closures.
@@ -540,7 +537,20 @@ export function createTwExchanges(
     async getFunds(market) {
       if (market !== Market.TW) return [];
 
-      return list(twse, "opendata/t187ap47_L", twseFundSchema, "基金代號");
+      const [funds, listings] = await Promise.all([
+        list(twse, "opendata/t187ap47_L", twseFundSchema, "基金代號"),
+        list(twse, "exchangeReport/STOCK_DAY_ALL", twseListingSchema),
+      ]);
+
+      // Leaving out every fund would read as the exchange listing none.
+      if (listings.length === 0) {
+        throw new Error("TWSE: exchangeReport/STOCK_DAY_ALL listed nothing");
+      }
+
+      // TWSE's list of funds keeps those it has delisted.
+      const listed = new Set(listings);
+
+      return funds.filter(({ symbol }) => listed.has(symbol));
     },
 
     async getMultiples(market) {

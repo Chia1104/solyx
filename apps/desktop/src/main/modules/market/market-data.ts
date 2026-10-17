@@ -14,17 +14,17 @@ import { sessionQuote } from "@solyx/core/quote";
 import type { SessionQuote } from "@solyx/core/quote";
 import { TW_SECTOR_INDICES } from "@solyx/core/sectors";
 import type { SectorQuote } from "@solyx/core/sectors";
+import { MINUTE_MS } from "@solyx/utils/date";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
 
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 import { createLiveCandles } from "./live-candles.ts";
-import type { LiveSender } from "./live-candles.ts";
 import type { MarketDataSources } from "./market-data-sources.ts";
 
 /** The sectors cost a request per index, so the overview's map and the agent share a read this long. */
-const SECTORS_FRESH_MS = 60 * 1000;
+const SECTORS_FRESH_MS = MINUTE_MS;
 
 interface MarketDataOptions {
   sources: MarketDataSources;
@@ -177,12 +177,12 @@ export function createMarketData({
       return listing;
     },
 
-    /** Starts pushing `sender` today's bars of `symbol`; false when no live stream covers it. */
-    watch: (sender: LiveSender, symbol: SymbolRef, interval: Interval) =>
-      live.watch(sender, symbol, interval),
-
-    unwatch: (sender: LiveSender, symbol: SymbolRef, interval: Interval) =>
-      live.unwatch(sender, symbol, interval),
+    /** Today's bars of `symbol` in `interval` as a live stream pushes them, as `follow` tells. */
+    liveCandles: (
+      symbol: SymbolRef,
+      interval: Interval,
+      signal?: AbortSignal
+    ) => live.follow(symbol, interval, signal),
 
     status: () => sources.status(),
 

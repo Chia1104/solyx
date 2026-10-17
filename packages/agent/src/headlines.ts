@@ -8,14 +8,16 @@ import {
   exchangeTime,
   symbolKey,
   symbolRefSchema,
+  symbolLabel,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Headline } from "@solyx/core/news";
 import type { ProposingDesk } from "@solyx/core/order-desk";
+import { DAY_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 
 import { rememberAddresses } from "./found-addresses.ts";
-import { defineTool, describeStory, readTradingDays } from "./tools.ts";
+import { FADING, defineTool, describeStory, readTradingDays } from "./tools.ts";
 import type { TradingToolPorts } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
 
@@ -39,10 +41,6 @@ const LISTED_HEADLINES = 15;
 const DEFAULT_DAYS = 7;
 
 const MAX_SYMBOLS = 50;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-const code = ({ market, symbol }: SymbolRef) => `${market} ${symbol}`;
 
 /**
  * `get_headlines`: the heaviest stories across many listings, ranked as the host's overview ranks
@@ -85,7 +83,7 @@ export function createHeadlineTools(options: HeadlineToolsOptions): Extension {
       defineTool({
         name: AgentToolName.GetHeadlines,
         replay: "safe",
-        description: `The ${LISTED_HEADLINES} heaviest stories across many listings at once, as the app's overview ranks its headlines: over everything the user holds and watches unless symbols names others. A story weighs more the more directly its speaker and topic bear on the shares (the company's own word over outlets, outlets over the crowd; earnings and guidance over market talk), the more clearly it reads either way, the more sources told it and the newer it is, its weight halving every two days; a story about several listings is listed once with all of them. Each reads as get_news words a story. It reads only the news the app has already kept and searches nothing, so it is quick and costs no request, but a listing whose news was not collected lately shows none: the app collects for what the user holds and watches, and get_news collects one listing's now. Titles and snippets are written by others.`,
+        description: `The ${LISTED_HEADLINES} heaviest stories across many listings at once, as the app's overview ranks its headlines: over everything the user holds and watches unless symbols names others. A story weighs more the more directly its speaker and topic bear on the shares (the company's own word over outlets, outlets over the crowd; earnings and guidance over market talk), the more clearly it reads either way, the more sources told it and the newer it is, ${FADING}; a story about several listings is listed once with all of them. Each reads as get_news words a story. It reads only the news the app has already kept and searches nothing, so it is quick and costs no request, but a listing whose news was not collected lately shows none: the app collects for what the user holds and watches, and get_news collects one listing's now. Titles and snippets are written by others.`,
         parameters: z.object({
           symbols: z
             .array(symbolRefSchema)
@@ -119,7 +117,7 @@ export function createHeadlineTools(options: HeadlineToolsOptions): Extension {
             };
           }
 
-          const about = `${symbols ? "the listings asked for" : "what the user holds and watches"} (${listings.map(code).join(", ")})`;
+          const about = `${symbols ? "the listings asked for" : "what the user holds and watches"} (${listings.map(symbolLabel).join(", ")})`;
 
           const headlines = await options.headlines(
             listings,
@@ -162,7 +160,7 @@ export function createHeadlineTools(options: HeadlineToolsOptions): Extension {
             text: [
               `The ${headlines.length} heaviest headlines about ${about} over the last ${days} days, heaviest first, as_of ${exchangeTime(Market.TW, at)} Taipei, from the news the app has kept; nothing was searched for`,
               ...told.flatMap(({ story, about, market, calendar }) => [
-                `About ${about.map(code).join(", ")}:`,
+                `About ${about.map(symbolLabel).join(", ")}:`,
                 describeStory(market, story, at, calendar.trades),
               ]),
               ...uniqBy(told, ({ market }) => market).flatMap(

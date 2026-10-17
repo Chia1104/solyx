@@ -2,6 +2,7 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { Interval } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
+import { MINUTE_MS } from "@solyx/utils/date";
 
 import { createFugleMarketData } from "../src/fugle.ts";
 
@@ -394,7 +395,7 @@ test("history requests past the plan's budget wait for the window to slide", asy
 
     expect(requests).toHaveLength(60);
 
-    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(MINUTE_MS);
 
     expect(requests).toHaveLength(61);
 

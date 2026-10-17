@@ -7,7 +7,7 @@ import { MacroUnit, macroReadings } from "@solyx/core/macro";
 import type { MacroSeries } from "@solyx/core/macro";
 import { Market, exchangeTime, marketSchema } from "@solyx/core/market";
 
-import { figure, growth, named } from "./macro-text.ts";
+import { figure, named, percentChange } from "./figures.ts";
 import { defineTool } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
 
@@ -33,7 +33,8 @@ function seriesText(series: MacroSeries): string[] {
     `${named(series.figure)}, of ${named(series.indicator)}, in ${UNIT_NAME[series.unit]}:`,
     "period,value,on the year",
     ...takeRight(macroReadings(series), LISTED_PERIODS).map(
-      ({ period, value, yoy }) => [period, figure(value), growth(yoy)].join(",")
+      ({ period, value, yoy }) =>
+        [period, figure(value), percentChange(yoy)].join(",")
     ),
   ];
 }

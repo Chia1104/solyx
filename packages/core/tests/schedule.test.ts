@@ -1,5 +1,8 @@
 import { expect, test } from "vite-plus/test";
 
+import { HOUR_MS } from "@solyx/utils/date";
+
+import { EVERY_CHANGE } from "../src/changes.ts";
 import { Market } from "../src/market.ts";
 import {
   FIXED_TIME_GRACE_MS,
@@ -14,8 +17,6 @@ import {
 } from "../src/schedule.ts";
 import type { Schedule, Timed } from "../src/schedule.ts";
 import { weekdays } from "../src/session.ts";
-
-const HOUR_MS = 60 * 60 * 1000;
 
 const taipei = (time: string) => Date.parse(`${time}+08:00`);
 
@@ -40,7 +41,12 @@ function task(schedule: Schedule, patch: Partial<Timed> = {}): Timed {
   };
 }
 
-const ran = (at: number) => ({ at, sessionId: "1", failure: null });
+const ran = (at: number) => ({
+  at,
+  sessionId: "1",
+  failure: null,
+  changes: [],
+});
 
 // Every weekday trades, and nothing the app watches has changed.
 const QUIET = { trades: weekdays, changed: false };
@@ -155,7 +161,7 @@ test("a trading day is read on the exchange's calendar, whatever clock the task 
   ).toBe(false);
 });
 
-test("a draft refuses what cannot run: a span too short, a time that is none, a zone unknown, a key", () => {
+test("a draft refuses what cannot run: a span too short, a time that is none, a scope that names nothing, a zone unknown, a key", () => {
   const draft = {
     name: "Morning brief",
     prompt: "/watchlist-upkeep",
@@ -169,6 +175,14 @@ test("a draft refuses what cannot run: a span too short, a time that is none, a 
   const refused = [
     { ...draft, schedule: { kind: ScheduleKind.Interval, everyMinutes: 5 } },
     { ...draft, schedule: { ...everyDay, time: "24:00" } },
+    ...[{ kinds: [] }, { listings: [] }, { themes: [] }].map((scope) => ({
+      ...draft,
+      schedule: {
+        kind: ScheduleKind.OnChange,
+        atMostEveryMinutes: 60,
+        scope: { ...EVERY_CHANGE, ...scope },
+      },
+    })),
     { ...draft, timeZone: "Mars/Olympus" },
     { ...draft, approval: "bypass" },
     { ...draft, prompt: "Read it with sk-abcdefghijklmnopqrstuvwxyz first." },
@@ -177,13 +191,14 @@ test("a draft refuses what cannot run: a span too short, a time that is none, a 
   expect(scheduledTaskDraftSchema.safeParse(draft).success).toBe(true);
   expect(
     refused.map((each) => scheduledTaskDraftSchema.safeParse(each).success)
-  ).toEqual([false, false, false, false, false]);
+  ).toEqual(refused.map(() => false));
 });
 
 test("a task that waits on a change runs only once something changed, and no sooner than its shortest span", () => {
   const upkeep = task({
     kind: ScheduleKind.OnChange,
     atMostEveryMinutes: 60,
+    scope: EVERY_CHANGE,
   });
 
   const changed = { trades: weekdays, changed: true };
@@ -268,7 +283,11 @@ test("a collection never waits on a change", () => {
   expect(
     collectionPlanSchema.safeParse({
       ...plan,
-      schedule: { kind: ScheduleKind.OnChange, atMostEveryMinutes: 60 },
+      schedule: {
+        kind: ScheduleKind.OnChange,
+        atMostEveryMinutes: 60,
+        scope: EVERY_CHANGE,
+      },
     }).success
   ).toBe(false);
 });

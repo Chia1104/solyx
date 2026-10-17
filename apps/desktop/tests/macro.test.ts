@@ -5,11 +5,10 @@ import type {
   MacroFiguresProvider,
 } from "@solyx/core/macro";
 import { Market } from "@solyx/core/market";
+import { HOUR_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
 import { createMacro } from "../src/main/modules/macro/macro.ts";
-
-const HOUR_MS = 60 * 60 * 1000;
 
 function setup() {
   // 2026-10-08 12:00 in Taipei.

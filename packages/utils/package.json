@@ -4,18 +4,24 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./date": "./src/date.ts",
     "./error": "./src/error.ts",
+    "./format": "./src/format.ts",
     "./fresh": "./src/fresh.ts",
     "./is": "./src/is.ts",
+    "./json": "./src/json.ts",
     "./rate-limit": "./src/rate-limit.ts",
     "./search": "./src/search.ts",
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./stream": "./src/stream.ts",
+    "./text": "./src/text.ts"
   },
   "scripts": {
     "test": "vp test"
   },
   "dependencies": {
-    "es-toolkit": "catalog:"
+    "es-toolkit": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

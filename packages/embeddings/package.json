@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./ollama": "./src/ollama.ts",
     "./openai-compatible": "./src/openai-compatible.ts",
     "./provider": "./src/provider.ts"
   },

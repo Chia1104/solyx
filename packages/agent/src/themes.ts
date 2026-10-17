@@ -5,8 +5,9 @@ import type { Extension } from "@earendil-works/pi-durable";
 import { compact } from "es-toolkit";
 import * as z from "zod";
 
-import { Market, exchangeDate } from "@solyx/core/market";
+import { Market, exchangeDate, symbolLabel } from "@solyx/core/market";
 import type { ThemeDesk, ThemeItem, ThemeWatch } from "@solyx/core/theme";
+import { MINUTE_MS, HOUR_MS } from "@solyx/utils/date";
 
 import { checkedFirst } from "./approval.ts";
 import type { ToolGuard } from "./approval.ts";
@@ -24,9 +25,7 @@ export interface ThemeToolsOptions {
 
 // A search reaches back past the one before it, so one made sooner finds the same items again
 // and spends the user's searches for nothing.
-const SEARCH_SPAN_MS = 60 * 60 * 1000;
-
-const MINUTE_MS = 60 * 1000;
+const SEARCH_SPAN_MS = HOUR_MS;
 
 // The items listed under a theme: enough to see where it stands without crowding the answer.
 const LISTED_ITEMS = 5;
@@ -43,9 +42,10 @@ function watchText({
   latest,
   collectedAt,
   quietSince,
+  unread,
 }: ThemeWatch): string {
   const listings = theme.listings.map(
-    ({ symbol, exposure }) => `- ${symbol.market} ${symbol.symbol}: ${exposure}`
+    ({ symbol, exposure }) => `- ${symbolLabel(symbol)}: ${exposure}`
   );
 
   return [
@@ -67,6 +67,11 @@ function watchText({
           ),
         ]
       : [`No signpost read as stated; quiet since ${day(quietSince)}.`]),
+    ...(unread > 0
+      ? [
+          `${unread} of the items found last are not yet read against every signpost, so its quiet says nothing of them: a decisions model reads them once one is set up, or at the next search where it could not read them.`,
+        ]
+      : []),
     ...(latest.length > 0
       ? [
           "Found last:",

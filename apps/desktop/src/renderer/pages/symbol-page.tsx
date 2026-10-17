@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef } from "react";
 
 import { ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { getRouteApi } from "@tanstack/react-router";
@@ -19,6 +19,7 @@ import { FlowPanes } from "../modules/flows/flow-panes.tsx";
 import { ListingFlowsPanel } from "../modules/flows/listing-flows.tsx";
 import { IndicatorMenu } from "../modules/market/indicator-menu.tsx";
 import { IntervalSelect } from "../modules/market/interval-select.tsx";
+import { LowerView } from "../modules/market/lower-view.ts";
 import { SymbolChart } from "../modules/market/symbol-chart.tsx";
 import { SymbolQuote } from "../modules/market/symbol-quote.tsx";
 import { NewsList } from "../modules/news/news-list.tsx";
@@ -30,28 +31,18 @@ const route = getRouteApi("/symbol/$market/$symbol");
 
 const NEWS_PANE_ID = "symbol-news";
 
-/** What the pane under the chart shows. */
-const LowerView = {
-  News: "news",
-  Research: "research",
-  Flows: "flows",
-} as const;
-
-type LowerView = (typeof LowerView)[keyof typeof LowerView];
-
 /** Dragging the news up stops before the chart gets shorter than this. */
 const CHART_MIN_HEIGHT = 160;
 
 export function SymbolPage() {
   const { t } = useTranslation();
   const symbol = route.useParams();
-  const { interval } = route.useSearch();
+  const { interval, view: picked } = route.useSearch();
   const navigate = route.useNavigate();
   const split = useRef<HTMLDivElement>(null);
   const news = useRef<HTMLDivElement>(null);
   const newsHeight = useLayoutStore((state) => state.newsHeight);
   const setNewsHeight = useLayoutStore((state) => state.setNewsHeight);
-  const [picked, setLowerView] = useState<LowerView>(LowerView.News);
   // Only Taiwan's exchanges report flows, so a US listing shows the news in their place.
   const flowsShown = symbol.market === Market.TW;
 
@@ -69,7 +60,12 @@ export function SymbolPage() {
       onSelectionChange={(keys) => {
         const [next] = keys;
 
-        if (isEnumValue(LowerView, next)) setLowerView(next);
+        if (isEnumValue(LowerView, next)) {
+          void navigate({
+            search: (search) => ({ ...search, view: next }),
+            replace: true,
+          });
+        }
       }}>
       <ToggleButton id={LowerView.News}>{t("news.title")}</ToggleButton>
       <ToggleButton id={LowerView.Research}>{t("research.title")}</ToggleButton>
@@ -92,7 +88,10 @@ export function SymbolPage() {
         <IntervalSelect
           value={interval}
           onChange={(next) =>
-            void navigate({ search: { interval: next }, replace: true })
+            void navigate({
+              search: (search) => ({ ...search, interval: next }),
+              replace: true,
+            })
           }
         />
         <IndicatorMenu market={symbol.market} interval={interval} />

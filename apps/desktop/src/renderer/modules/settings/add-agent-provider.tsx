@@ -5,8 +5,9 @@ import { Add01Icon } from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
 import type { AgentProvider } from "@solyx/agent/providers";
+import { matchesFilter } from "@solyx/utils/search";
 
-import type { AgentProviderSettings } from "#shared/ipc/settings.ts";
+import type { AgentProviderSettings } from "#shared/settings.ts";
 
 import { Icon } from "../../components/icon.tsx";
 import { ProviderMark } from "../agent/agent-provider-mark.tsx";
@@ -27,13 +28,9 @@ export function AddAgentProvider({
 
   const label = t("settings.agent.add-provider");
   const searchLabel = t("settings.agent.search-providers");
-  const needle = query.trim().toLowerCase();
 
-  const found = providers.filter(
-    ({ provider, name }) =>
-      needle === "" ||
-      name.toLowerCase().includes(needle) ||
-      provider.includes(needle)
+  const found = providers.filter(({ provider, name }) =>
+    matchesFilter(query, name, provider)
   );
 
   return (

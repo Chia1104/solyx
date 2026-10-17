@@ -1,12 +1,14 @@
 import { SpanStatusCode } from "@opentelemetry/api";
 
+import { MINUTE_MS } from "@solyx/utils/date";
+
 import type { Telemetry } from "./modules/telemetry/telemetry.ts";
 
 // A minute places each pass closely enough for work due every half hour or less often.
-const TICK_MS = 60 * 1000;
+const TICK_MS = MINUTE_MS;
 
 // Lets the app finish starting before the first pass.
-const FIRST_TICK_MS = 60 * 1000;
+const FIRST_TICK_MS = MINUTE_MS;
 
 /** Work the main process does on its own while the app runs. */
 export interface ScheduledWork {

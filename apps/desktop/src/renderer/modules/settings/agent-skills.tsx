@@ -12,11 +12,13 @@ import { partition } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import { isEnumValue } from "@solyx/utils/is";
+import { matchesFilter } from "@solyx/utils/search";
 
-import { AppLocation } from "#shared/ipc/settings.ts";
-import type { AgentSkillInfo } from "#shared/ipc/settings.ts";
+import { AppLocation } from "#shared/settings.ts";
+import type { AgentSkillInfo } from "#shared/settings.ts";
 
-import { FilterField, matchesFilter } from "../../components/filter-field.tsx";
+import { client, orpc } from "../../app/rpc.ts";
+import { FilterField } from "../../components/filter-field.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
@@ -96,16 +98,13 @@ export function AgentSkills() {
 
   const offer = useMutation({
     mutationFn: ({ name, offered }: { name: string; offered: boolean }) =>
-      window.solyx.settings.setSharedSkill(name, offered),
+      client.settings.setSharedSkill({ name, enabled: offered }),
   });
 
-  const shell = useMutation({
-    mutationFn: (enabled: boolean) =>
-      window.solyx.settings.setAgentShell(enabled),
-  });
+  const shell = useMutation(orpc.settings.setAgentShell.mutationOptions());
 
   const reveal = useMutation({
-    mutationFn: () => window.solyx.settings.reveal(AppLocation.Skills),
+    mutationFn: () => client.settings.reveal(AppLocation.Skills),
   });
 
   if (error) {

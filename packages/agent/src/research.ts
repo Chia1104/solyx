@@ -19,12 +19,12 @@ import type {
   Forecast,
   ForecastDraft,
   ForecastRecord,
-  ForecastScenario,
   ForecastViolation,
 } from "@solyx/core/forecast";
 import {
   balanceSheetMetrics,
   cashFlowMetrics,
+  premium,
   priceToEarnings,
   revenueTrend,
   statementMetrics,
@@ -33,9 +33,11 @@ import {
 import type {
   Dividend,
   ExchangeMultiples,
+  FundCosts,
   FundProfile,
   Fundamentals,
   MultipleStanding,
+  NetAssetValue,
   PeerStanding,
 } from "@solyx/core/fundamentals";
 import {
@@ -43,9 +45,11 @@ import {
   currencyOf,
   exchangeDate,
   symbolRefSchema,
+  symbolLabel,
 } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
+import { TimePrecision } from "@solyx/core/news";
 import {
   ReportViolationCode,
   claimSchema,
@@ -58,10 +62,24 @@ import type {
   ReportViolation,
   StanceSpell,
 } from "@solyx/core/report";
-import type { FalsifierCheck, ResearchDesk } from "@solyx/core/research";
+import { WatchGap } from "@solyx/core/research";
+import type {
+  FalsifierCheck,
+  FalsifierWatch,
+  ResearchDesk,
+} from "@solyx/core/research";
 import { errorMessage } from "@solyx/utils/error";
+import { counted } from "@solyx/utils/text";
 
 import { evidenceText } from "./evidence-text.ts";
+import {
+  bandText,
+  figure,
+  millions,
+  percent,
+  percentChange,
+  signed,
+} from "./figures.ts";
 import {
   durableScenarioBox,
   forecastMotion,
@@ -164,24 +182,13 @@ const forecastParameters = forecastDraftSchema.extend({
 
 const day = (market: Market, at: number) => exchangeDate(market, new Date(at));
 
-const sessions = (count: number) =>
-  `${count} ${count === 1 ? "session" : "sessions"}`;
-
-const signed = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
-
-function bandText({ low, high }: Pick<ForecastScenario, "low" | "high">) {
-  if (low === null) return `below ${high}`;
-
-  return high === null ? `${low} and above` : `${low} to ${high}`;
-}
-
 /** A lean in points of probability, by its side. */
 function leanText(lean: number): string {
   const size = Math.round(Math.abs(lean) * 100);
 
   if (size === 0) return "neither way";
 
-  return `${size} ${size === 1 ? "point" : "points"} ${lean > 0 ? "up" : "down"}`;
+  return `${counted(size, "point")} ${lean > 0 ? "up" : "down"}`;
 }
 
 /** What a quote was given for, and the quote. */
@@ -270,7 +277,7 @@ function stancesText(
     `Stance against ${BENCHMARK[market].name}, each stretch the report kept one, on closes as they traded:`,
     ...stances.map(
       (spell) =>
-        `- ${spell.stance} from ${spell.from} (revision ${spell.revision}) ${spell.until === null ? "and standing" : `to ${spell.until}`}, ${sessions(spell.sessions)}: ${percent(spell.change)} against the index's ${percent(spell.benchmark)}, ${points(spell.change - spell.benchmark)}`
+        `- ${spell.stance} from ${spell.from} (revision ${spell.revision}) ${spell.until === null ? "and standing" : `to ${spell.until}`}, ${counted(spell.sessions, "session")}: ${percentChange(spell.change, 1)} against the index's ${percentChange(spell.benchmark, 1)}, ${points(spell.change - spell.benchmark)}`
     ),
   ];
 }
@@ -318,11 +325,11 @@ export function forecastText(forecast: Forecast): string {
   const { instrument, anchor, plan, outcome, scenarios } = forecast;
 
   const lines = [
-    `- ${forecast.id}: ${instrument.market} ${instrument.symbol} ${forecast.direction} over ${sessions(forecast.horizon)} from ${anchor.date} at ${anchor.price}, under report revision ${forecast.reportRevision}`,
+    `- ${forecast.id}: ${symbolLabel(instrument)} ${forecast.direction} over ${counted(forecast.horizon, "session")} from ${anchor.date} at ${anchor.price}, under report revision ${forecast.reportRevision}`,
     `  scenarios: ${scenarios
       .map(
         (scenario) =>
-          `${scenario.label} (${bandText(scenario)}) ${scenario.probability}%`
+          `${scenario.label} (${bandText(scenario.low, scenario.high)}) ${scenario.probability}%`
       )
       .join(", ")}`,
   ];
@@ -405,6 +412,64 @@ function signalsText(
   ];
 }
 
+const WATCH_GAP_TEXT = {
+  [WatchGap.NoLocalEmbedder]:
+    "no Ollama model embeds news (in Settings, grouping news by meaning, with vectors from Ollama)",
+  [WatchGap.Unmeasured]:
+    "the Ollama model has no floor measured for reading news against a falsifier",
+  [WatchGap.NoAuditor]: "no decisions model is set up",
+} as const satisfies Record<WatchGap, string>;
+
+/** Whether the news is read against the falsifiers, so no signal is not taken for quiet news. */
+function watchText(
+  market: Market,
+  watch: FalsifierWatch | null,
+  quiet: boolean
+): string[] {
+  if (!watch) return [];
+
+  const { gaps, pass } = watch;
+
+  if (gaps.length > 0) {
+    return [
+      "",
+      `News is not read against the falsifiers while ${gaps.map((gap) => WATCH_GAP_TEXT[gap]).join(" and ")}, so no signal says nothing of the news.`,
+    ];
+  }
+
+  if (!pass) {
+    return [
+      "",
+      "The falsifiers have not been read against the news since this revision; the listing's next news collection reads them.",
+    ];
+  }
+
+  const at = publishedTime(market, {
+    at: new Date(pass.at),
+    precision: TimePrecision.Minute,
+  });
+
+  if (pass.failure !== null) {
+    return [
+      "",
+      `Reading the falsifiers against the news failed at ${at}: ${pass.failure}. The next news collection tries again.`,
+    ];
+  }
+
+  return [
+    "",
+    [
+      `The falsifiers were last read against ${pass.items} news items of the week before ${at}.`,
+      ...(quiet ? ["No item has read as stating one."] : []),
+      ...(pass.unread > 0
+        ? [
+            `${pass.unread} near one could not be read and wait for the next collection.`,
+          ]
+        : []),
+    ].join(" "),
+  ];
+}
+
 function recordText(scope: string, record: ForecastRecord): string {
   if (record.settled === 0) {
     return `Record, ${scope}: ${record.forecasts} forecasts, none settled yet.`;
@@ -426,7 +491,7 @@ function recordText(scope: string, record: ForecastRecord): string {
     `Record, ${scope}: ${record.forecasts} forecasts, ${record.settled} settled, mean Brier ${record.brier?.toFixed(2)} (0 is sure and right; even odds over three bands score 0.67)`,
     ...(record.skill
       ? [
-          `  against history's base rates, over ${record.skill.forecasts} settled: Brier ${record.skill.brier.toFixed(2)} against ${record.skill.baseBrier.toFixed(2)} for the base rates${record.skill.skill === null ? "" : `, skill ${percent(record.skill.skill)} (0 is no better than history alone, below it worse)`}`,
+          `  against history's base rates, over ${record.skill.forecasts} settled: Brier ${record.skill.brier.toFixed(2)} against ${record.skill.baseBrier.toFixed(2)} for the base rates${record.skill.skill === null ? "" : `, skill ${percentChange(record.skill.skill, 1)} (0 is no better than history alone, below it worse)`}`,
         ]
       : []),
     ...(record.motions
@@ -445,22 +510,11 @@ function recordText(scope: string, record: ForecastRecord): string {
 }
 
 /** A gap between two changes, in the percentage points one stands above the other. */
-const points = (gap: number) =>
-  `${gap >= 0 ? "+" : ""}${(gap * 100).toFixed(1)} points`;
+const points = (gap: number) => `${signed(gap * 100, 1)} points`;
 
-const percent = (value: number | null) =>
-  value === null
-    ? "n/a"
-    : `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)}%`;
-
-const margin = (value: number | null) =>
-  value === null ? "n/a" : `${(value * 100).toFixed(1)}%`;
-
-const millions = (value: number | null) =>
-  value === null ? "n/a" : String(Math.round(value / 1e6));
-
-const figure = (value: number | null) =>
-  value === null ? "n/a" : String(Number(value.toFixed(2)));
+/** A figure in whole millions, `n/a` where it is missing. */
+const inMillions = (value: number | null) =>
+  figure(value === null ? null : millions(value));
 
 /** A distribution's day: "none" without that part, "not set" while the company has not set it. */
 const distributionDay = (amount: number, day: string | null) =>
@@ -509,6 +563,57 @@ function fundText(fund: FundProfile): string[] {
   ];
 }
 
+/** A fund's net asset value, and where its close of the same session stood against it. */
+async function netAssetValueText(
+  symbol: SymbolRef,
+  nav: NetAssetValue,
+  { marketData }: ResearchOptions
+): Promise<string> {
+  const value = `Net asset value as its issuer struck it for ${nav.date}: ${nav.value} ${currencyOf(symbol.market)} a unit.`;
+  const unpriced = `${value} No close of that session to set it against.`;
+  let daily;
+
+  try {
+    daily = await marketData.candles(symbol, Interval.OneDay);
+  } catch {
+    // The value still reads while bars are out of reach.
+    return unpriced;
+  }
+
+  const bar = daily.find(
+    ({ time }) => candleDate(symbol.market, time) === nav.date
+  );
+
+  if (!bar) return unpriced;
+
+  const gap = premium(bar.close, nav);
+
+  return `${value} Its close that session, ${bar.close}, stood at a ${gap < 0 ? "discount" : "premium"} of ${(Math.abs(gap) * 100).toFixed(2)}% to it.`;
+}
+
+/** What a fund paid out of its assets over a month, and at that month's pace over a year. */
+function fundCostsText(costs: FundCosts): string[] {
+  const parts = [
+    costs.management,
+    costs.custody,
+    costs.guarantee,
+    costs.commission,
+    costs.tax,
+    costs.other,
+    costs.total,
+  ];
+
+  return [
+    "What it paid out of its assets, in percent of its net assets:",
+    "period,management,custody,guarantee,commission,tax,other,total",
+    [costs.month, ...parts.map((part) => figure(part, 5))].join(","),
+    ["a year at that pace", ...parts.map((part) => figure(part * 12, 3))].join(
+      ","
+    ),
+    "  Commission and tax are paid on the fund's own trades, so they run high in a month it rebalances.",
+  ];
+}
+
 /** A listing's multiples as its exchange works them out, which are not the app's own beside its statements. */
 function multiplesText(multiples: ExchangeMultiples): string {
   const dividendYield =
@@ -543,7 +648,7 @@ function peersText(peers: PeerStanding): string {
 
 /** Why a listing has neither statements nor revenue on file with `source`. */
 function nothingFiledText(
-  fund: FundProfile | undefined,
+  fund: boolean,
   distributes: boolean,
   source: string
 ): string {
@@ -640,7 +745,7 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetResearch,
         replay: "safe",
-        description: `What the app holds of a listing's research: its report with when each part was written and which of its events have passed, how each stretch it kept one stance did against the market's index, its last ${LISTED_FORECASTS} forecasts with how those past their horizon came out, news a decisions model read as stating that one of its falsifiers happened, and how your forecasts have held, for this listing and for every listing. A report is what you thought when you wrote it, never current data.`,
+        description: `What the app holds of a listing's research: its report with when each part was written and which of its events have passed, how each stretch it kept one stance did against the market's index, its last ${LISTED_FORECASTS} forecasts with how those past their horizon came out, news a decisions model read as stating that one of its falsifiers happened and whether the news is read against them at all, and how your forecasts have held, for this listing and for every listing. A report is what you thought when you wrote it, never current data.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
           const [coverage, overall] = await Promise.all([
@@ -657,7 +762,7 @@ export function createResearch(options: ResearchOptions): Extension {
             text: [
               coverage.report
                 ? reportText(coverage.report, coverage.passedEvents)
-                : `${symbol.market} ${symbol.symbol} has no report yet.`,
+                : `${symbolLabel(symbol)} has no report yet.`,
               ...stancesText(symbol.market, coverage.stances),
               ...(coverage.newerFinancials
                 ? [
@@ -669,6 +774,11 @@ export function createResearch(options: ResearchOptions): Extension {
                 ? ["Forecasts, newest first:", ...forecasts.map(forecastText)]
                 : ["No forecasts yet."],
               ...signalsText(symbol.market, coverage.signals),
+              ...watchText(
+                symbol.market,
+                coverage.watch,
+                coverage.signals.length === 0
+              ),
               "",
               recordText("this listing", coverage.record),
               recordText("every listing", overall),
@@ -683,10 +793,10 @@ export function createResearch(options: ResearchOptions): Extension {
       defineTool({
         name: AgentToolName.GetFundamentals,
         replay: "safe",
-        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; its balance sheets at those quarters' ends, with the current ratio and liabilities against assets; its cash flows for each quarter alone, with free cash flow and the four quarters each closes; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. Beside the app's own price-to-earnings multiple, the answer gives the multiples the listing's exchange works out from its last close, price to earnings, dividend yield and price to book, each "n/a" where the exchange works none out, as it does no price to earnings for a company whose earnings add up to a loss; a fund has none. Under them it says where each stands in the listing's industry, as the exchanges class it: against the median of the industry's other listings and the share of them it is above, counting only those with that multiple. For a fund the Taiwan Stock Exchange lists, the answer opens with what it is: its kind in the exchange's words, such as a leveraged, inverse, futures or actively managed fund, the index it tracks or what it measures itself against, whether it may hold securities listed abroad, the day it listed, its manager and its units outstanding. The Taipei Exchange publishes no such list, so a fund listed there, as bond ETFs are, opens with none. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
+        description: `A listing's filed figures, computed by the app: its last ${LISTED_QUARTERS} quarterly income statements, each for that quarter alone, with margins, growth on the year and on the quarter, and trailing four-quarter EPS; its monthly revenue with growth; its price-to-earnings multiple now against the range it has traded in; its balance sheets at those quarters' ends, with the current ratio and liabilities against assets; its cash flows for each quarter alone, with free cash flow and the four quarters each closes; and its last ${LISTED_DIVIDENDS} distributions with the days they go ex and are paid, those still to come among them, and the cash gone ex over the last year. Beside the app's own price-to-earnings multiple, the answer gives the multiples the listing's exchange works out from its last close, price to earnings, dividend yield and price to book, each "n/a" where the exchange works none out, as it does no price to earnings for a company whose earnings add up to a loss; a fund has none. Under them it says where each stands in the listing's industry, as the exchanges class it: against the median of the industry's other listings and the share of them it is above, counting only those with that multiple. For a fund the Taiwan Stock Exchange lists, the answer opens with what it is: its kind in the exchange's words, such as a leveraged, inverse, futures or actively managed fund, the index it tracks or what it measures itself against, whether it may hold securities listed abroad, the day it listed, its manager and its units outstanding. The Taipei Exchange publishes no such list, so a fund listed there, as bond ETFs are, opens with none. For a fund listed on either exchange, it then gives the newest net asset value its issuer struck, with the close of that session as a premium or a discount to it, and what the fund paid out of its assets over the newest month its issuer reported: management, custody, a guarantee, commission and tax on its own trades and the rest, each in percent of its net assets, and that month's pace over a year. A futures fund, or one listed abroad and offered here, has neither. The answer names its source, and each part says when that source has none on file, as it has no statements for a fund, or could not be read, which says nothing of the listing. Taiwan listings only for now: another market is answered as one no source covers. Cite these rather than work them out again.`,
         parameters: z.object({ symbol: symbolRefSchema }),
         async execute({ symbol }) {
-          const listing = `${symbol.market} ${symbol.symbol}`;
+          const listing = `${symbolLabel(symbol)}`;
           const source = fundamentals.source(symbol.market);
 
           if (source === undefined) {
@@ -703,6 +813,8 @@ export function createResearch(options: ResearchOptions): Extension {
             monthly,
             dividends,
             funds,
+            navs,
+            costs,
             multiples,
             peers,
           ] = await Promise.all([
@@ -715,6 +827,16 @@ export function createResearch(options: ResearchOptions): Extension {
               fundamentals
                 .fund(symbol)
                 .then((fund) => (fund === null ? [] : [fund]))
+            ),
+            filed(
+              fundamentals
+                .netAssetValue(symbol)
+                .then((nav) => (nav === null ? [] : [nav]))
+            ),
+            filed(
+              fundamentals
+                .fundCosts(symbol)
+                .then((paid) => (paid === null ? [] : [paid]))
             ),
             filed(
               fundamentals
@@ -767,6 +889,18 @@ export function createResearch(options: ResearchOptions): Extension {
                 : [
                     `Whether its exchange lists it as a fund could not be read: ${funds.failure}`,
                   ]),
+              ...(navs.failure === null
+                ? await Promise.all(
+                    navs.rows.map((nav) =>
+                      netAssetValueText(symbol, nav, options)
+                    )
+                  )
+                : [`Its net asset value could not be read: ${navs.failure}`]),
+              ...(costs.failure === null
+                ? costs.rows.flatMap(fundCostsText)
+                : [
+                    `What it paid out of its assets could not be read: ${costs.failure}`,
+                  ]),
               ...(multiples.failure === null
                 ? multiples.rows.map(multiplesText)
                 : [
@@ -783,14 +917,14 @@ export function createResearch(options: ResearchOptions): Extension {
                 ).map((each) =>
                   [
                     each.statement.periodEnd,
-                    millions(each.statement.revenue),
-                    percent(each.revenueYoY),
-                    percent(each.revenueQoQ),
-                    margin(each.grossMargin),
-                    margin(each.operatingMargin),
-                    margin(each.netMargin),
+                    inMillions(each.statement.revenue),
+                    percentChange(each.revenueYoY, 1),
+                    percentChange(each.revenueQoQ, 1),
+                    percent(each.grossMargin),
+                    percent(each.operatingMargin),
+                    percent(each.netMargin),
                     figure(each.statement.eps),
-                    percent(each.epsYoY),
+                    percentChange(each.epsYoY, 1),
                     figure(each.trailingEps),
                   ].join(",")
                 ),
@@ -807,19 +941,19 @@ export function createResearch(options: ResearchOptions): Extension {
                 ).map(({ sheet, currentRatio, liabilitiesToAssets }) =>
                   [
                     sheet.periodEnd,
-                    millions(sheet.cash),
-                    millions(sheet.receivables),
-                    millions(sheet.inventories),
-                    millions(sheet.currentAssets),
-                    millions(sheet.currentLiabilities),
+                    inMillions(sheet.cash),
+                    inMillions(sheet.receivables),
+                    inMillions(sheet.inventories),
+                    inMillions(sheet.currentAssets),
+                    inMillions(sheet.currentLiabilities),
                     figure(currentRatio),
-                    millions(sheet.shortTermBorrowings),
-                    millions(sheet.longTermBorrowings),
-                    millions(sheet.bondsPayable),
-                    millions(sheet.totalAssets),
-                    millions(sheet.totalLiabilities),
-                    margin(liabilitiesToAssets),
-                    millions(sheet.equity),
+                    inMillions(sheet.shortTermBorrowings),
+                    inMillions(sheet.longTermBorrowings),
+                    inMillions(sheet.bondsPayable),
+                    inMillions(sheet.totalAssets),
+                    inMillions(sheet.totalLiabilities),
+                    percent(liabilitiesToAssets),
+                    inMillions(sheet.equity),
                   ].join(",")
                 ),
                 "  The three borrowing lines are as filed and leave out long-term debt due within a year, so they do not add up to all it owes lenders.",
@@ -831,13 +965,13 @@ export function createResearch(options: ResearchOptions): Extension {
                   (each) =>
                     [
                       each.flow.periodEnd,
-                      millions(each.flow.operating),
-                      millions(each.flow.capitalExpenditure),
-                      millions(each.freeCashFlow),
-                      millions(each.flow.investing),
-                      millions(each.flow.financing),
-                      millions(each.trailingOperating),
-                      millions(each.trailingFreeCashFlow),
+                      inMillions(each.flow.operating),
+                      inMillions(each.flow.capitalExpenditure),
+                      inMillions(each.freeCashFlow),
+                      inMillions(each.flow.investing),
+                      inMillions(each.flow.financing),
+                      inMillions(each.trailingOperating),
+                      inMillions(each.trailingFreeCashFlow),
                     ].join(",")
                 ),
               ]),
@@ -848,16 +982,16 @@ export function createResearch(options: ResearchOptions): Extension {
                   (each) =>
                     [
                       each.month,
-                      millions(each.revenue),
-                      percent(each.yoy),
-                      percent(each.mom),
+                      inMillions(each.revenue),
+                      percentChange(each.yoy, 1),
+                      percentChange(each.mom, 1),
                     ].join(",")
                 ),
               ]),
               ...(nothingFiled
                 ? [
                     nothingFiledText(
-                      funds.rows.at(0),
+                      [funds, navs, costs].some(({ rows }) => rows.length > 0),
                       dividends.rows.length > 0,
                       source
                     ),
@@ -906,11 +1040,11 @@ export function createResearch(options: ResearchOptions): Extension {
             edges
           );
 
-          const listing = `${symbol.market} ${symbol.symbol}`;
+          const listing = `${symbolLabel(symbol)}`;
 
           if (moves.length === 0) {
             return {
-              text: `${listing} has no move of ${sessions(horizon)} in its daily bars since ${since}.`,
+              text: `${listing} has no move of ${counted(horizon, "session")} in its daily bars since ${since}.`,
               details: { symbol },
             };
           }
@@ -918,20 +1052,20 @@ export function createResearch(options: ResearchOptions): Extension {
           const spread = BASE_RATE_QUANTILES.map((share) => {
             const move = moveQuantile(moves, share);
 
-            return `${share * 100}th percentile ${percent(move - 1)} (${figure(anchor.price * move)})`;
+            return `${share * 100}th percentile ${percentChange(move - 1, 1)} (${figure(anchor.price * move)})`;
           });
 
           const bands = bandsBetween(edges);
 
           return {
             text: [
-              `${listing} over ${sessions(horizon)} from ${anchor.date} at ${anchor.price}: ${moves.length} moves of that length in its daily bars since ${since}`,
+              `${listing} over ${counted(horizon, "session")} from ${anchor.date} at ${anchor.price}: ${moves.length} moves of that length in its daily bars since ${since}`,
               `Moves, each with the close it would make from ${anchor.price}: ${spread.join(", ")}`,
               ...(edges.length === 0
                 ? []
                 : rates
                   ? [
-                      `Base rates: ${bands.map((band, index) => `${bandText(band)} ${Math.round(rates[index] * 100)}%`).join("; ")}`,
+                      `Base rates: ${bands.map((band, index) => `${bandText(band.low, band.high)} ${Math.round(rates[index] * 100)}%`).join("; ")}`,
                     ]
                   : [
                       "Base rates: none, since the bars hold too few moves of that length to say.",
@@ -975,7 +1109,7 @@ export function createResearch(options: ResearchOptions): Extension {
           const { symbol, revision: number } = revision.report;
 
           return {
-            text: `Kept revision ${number} of the ${symbol.market} ${symbol.symbol} report.`,
+            text: `Kept revision ${number} of the ${symbolLabel(symbol)} report.`,
             details: { symbol, revision: number } satisfies ReviseReportDetails,
           };
         },

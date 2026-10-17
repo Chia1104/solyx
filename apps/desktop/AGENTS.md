@@ -6,16 +6,17 @@ The Electron app: the main process is the backend, the preload bridges it to the
 
 `src` splits by process first, so each tsconfig keeps Node and DOM apart, then by module (`account`, `market`, `proposals`, `settings`, …). A module keeps one name across every process.
 
-- `shared/ipc/<module>.ts`: the module's IPC contract, an `XxxApi` interface and `xxxChannels`, plus `XxxEvents` and `xxxEvents` for pushes from main. `solyx-api.ts` composes them into `window.solyx`; imported as `#shared/*`.
-- `main/modules/<module>/`: main-side logic and the module's handlers, an object implementing `XxxApi` that `bindIpc(channels, schemas, handlers)` binds whole, parsing every argument with zod because renderer input is untrusted. What only Electron can do reaches a handler object through a small port, so it is tested without Electron.
-- `main/ipc/`, `main/shell/`, `main/scheduler.ts`, `main/services.ts`: IPC infrastructure and registration; the Electron shell, such as windows and the tray's icon; the one clock for periodic work; the composition root.
-- `preload/index.ts`: the contextBridge that builds `window.solyx.<module>` from each module's channel and event maps.
-- `utility/<name>.ts`: a utility process's entry, beside the message contract the main process calls it through. Native SDKs that block or could crash run only in one.
+- `shared/rpc/<module>.contract.ts`: the module's oRPC contract, ending in `<module>Contract`: a zod schema for every input, since renderer input is untrusted, and `type<T>()` outputs. A procedure that takes one value takes it as its input, and one that takes several an object naming them. `router.contract.ts` only composes them, and the renderer imports only its type; imported as `#shared/*`.
+- `shared/<module>.ts`: what either process reads of a module besides its contract, such as its shapes, enums, the schemas a form shares with its procedure, and helpers.
+- `main/modules/<module>/`: main-side logic and the module's procedures in `<module>.route.ts`, ending in `<module>Router`, built on `contractOS` from `main/rpc/context.ts`, or on `implement(<module>Contract)` over a context of its own, the part of the services it reads, where its tests need no more, as `settings` does. What only Electron can do reaches a module through a small port, so it is tested without Electron.
+- `main/rpc/`, `main/shell/`, `main/scheduler.ts`, `main/services.ts`: the oRPC context, router and server; the Electron shell, such as windows and the tray's icon; the one clock for periodic work; the composition root.
+- `preload/index.ts`: forwards the port a window posts to the main process, and carries Sentry's bridge; it exposes nothing to the page.
+- `utility/<name>.ts`: a utility process's entry, beside `<name>.contract.ts`, the oRPC contract it serves on the port the main process hands it as it starts. Native SDKs that block or could crash run only in one.
 - `worker/<name>.ts`: a worker thread's entry, built as its own bundle since a thread starts from a file, beside the message contract the main process starts it with where it has one. The agent's scripts run in one, and each backup and restore in another.
-- `renderer/modules/<module>/`: the module's TanStack Query options (`xxxQueryKeys`, `xxxQuery()`), components, form schemas and hooks.
+- `renderer/modules/<module>/`: the module's TanStack Query options, built from `orpc.<module>.<procedure>` and keyed by `orpc.<module>.key()`, components, form schemas and hooks.
 - `renderer/pages/`: route components that only compose modules.
 - `renderer/components/`: module-neutral components composed from HeroUI, such as the error boundary fallback, the loading and error states every module renders, and the pane splitter, sheet, sections and symbol rows the workspace shares.
-- `renderer/app/`: router, root layout, i18n, query client, theme and zod setup.
+- `renderer/app/`: router, root layout, i18n, query client, theme and zod setup, and `rpc.ts`, the window's channel to the main process with its `client` and `orpc`, the client's TanStack Query utilities.
 
 ## Build and release
 
@@ -26,9 +27,11 @@ The Electron app: the main process is the backend, the preload bridges it to the
 
 ## IPC
 
-- Adding or changing a channel touches its contract, its handler and its renderer call site together; the preload follows the channel map.
-- A module pushes with `webContents.send` on an event channel whenever what it holds changes, whoever changed it (settings and secrets, market data sources, proposals, news). The renderer refetches on a push rather than guessing what a mutation reached; a query goes stale on its own only for what nothing pushes.
-- The preload exposes each push as `onXxx(listener)`, which returns a function that stops listening, and never exposes `ipcRenderer` itself. It also carries Sentry's bridge, which hands the renderer's crash reports to the main process. A handler that needs the asking window takes the invoke event as its last argument.
+- Adding or changing a procedure touches its contract, its route and its renderer call site together.
+- Each window posts one end of a `MessageChannel`, which the preload forwards on `RPC_CONNECT` and the main process serves the router on, with the services and the asking window (`sender`) as context. oRPC is served over those ports alone, never over HTTP, and the main process makes no client of the router, so nothing but a window reaches `proposals.confirm`.
+- A failure reaches the window with the main process's own message, which the renderer shows: the server turns any error that is not an `ORPCError` into one that keeps it, and input that does not parse into its issues in words.
+- A module tells the windows that what it holds changed, whoever changed it (settings and secrets, market data sources, proposals, news), by publishing on the services' `windowEvents`; its `changes` procedure streams each to every window that follows it, until that window's port closes. A payload is an object, `{}` for a change that says nothing more. A stream whose every event matters, as the agent's runs do, keeps all it has not sent yet rather than the publisher's last hundred. The renderer refetches on a change rather than guessing what a mutation reached; a query goes stale on its own only for what nothing pushes.
+- The preload never exposes `ipcRenderer` or a port to the page. Its Sentry bridge hands the renderer's crash reports to the main process.
 - A module may use another module's query keys to invalidate what it changes (a confirmed order refreshes `account`); anything shared more widely moves to a package.
 - The main process asks for a place in the window, such as the one a row of the tray's menu names, through the workspace module: it keeps the destination and pushes that one waits, and a window takes it on the push and again as it loads, so a window opened for it shows it too.
 

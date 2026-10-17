@@ -9,19 +9,20 @@ import { useTranslation } from "react-i18next";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
 import type { McpToolPolicy } from "@solyx/agent/mcp-config";
+import { matchesFilter } from "@solyx/utils/search";
 
-import { SecretState } from "#shared/ipc/settings.ts";
-import type { McpServerSetting, McpToolSetting } from "#shared/ipc/settings.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import { SecretState } from "#shared/settings.ts";
+import type { McpServerSetting, McpToolSetting } from "#shared/settings.ts";
 
 import { currentLocale } from "../../app/i18n.ts";
-import { FilterField, matchesFilter } from "../../components/filter-field.tsx";
+import { client, orpc } from "../../app/rpc.ts";
+import { FilterField } from "../../components/filter-field.tsx";
 import { Section } from "../../components/section.tsx";
 
 import { PolicyTally, PolicyToggle } from "./mcp-policy.tsx";
 import { SecretRow } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import { settingsQueryKeys } from "./settings-query.ts";
 import { SignInRow } from "./sign-in-row.tsx";
 
 const STATE_COLOR: Record<McpServerState, ChipProps["color"]> = {
@@ -50,7 +51,7 @@ function useRefresh() {
 
   return () =>
     queryClient.invalidateQueries(
-      { queryKey: settingsQueryKeys.mcp },
+      { queryKey: orpc.settings.mcp.key() },
       { cancelRefetch: false }
     );
 }
@@ -72,10 +73,8 @@ function McpSecretRow({
       label={<span className="font-mono text-xs">{label}</span>}
       fieldLabel={label}
       state={saved ? SecretState.Saved : SecretState.Missing}
-      onSave={(value) =>
-        window.solyx.settings.saveMcpSecret(server, name, value)
-      }
-      onRemove={() => window.solyx.settings.deleteMcpSecret(server, name)}
+      onSave={(value) => client.settings.saveMcpSecret({ server, name, value })}
+      onRemove={() => client.settings.deleteMcpSecret({ server, name })}
     />
   );
 }
@@ -94,10 +93,13 @@ function McpSignInRow({ server }: { server: McpServerSetting }) {
       signedIn={server.signedIn}
       needsSignIn={server.state === McpServerState.NeedsSignIn}
       onSignIn={() =>
-        window.solyx.settings.signInMcp(server.name, currentLocale())
+        client.settings.signInMcp({
+          server: server.name,
+          locale: currentLocale(),
+        })
       }
-      onCancel={() => window.solyx.settings.cancelMcpSignIn()}
-      onSignOut={() => window.solyx.settings.signOutMcp(server.name)}
+      onCancel={() => client.settings.cancelMcpSignIn()}
+      onSignOut={() => client.settings.signOutMcp(server.name)}
       onSettled={refresh}
     />
   );
@@ -108,7 +110,7 @@ function ConnectionRow({ server }: { server: McpServerSetting }) {
   const refresh = useRefresh();
 
   const reconnect = useMutation({
-    mutationFn: () => window.solyx.settings.reconnectMcp(server.name),
+    mutationFn: () => client.settings.reconnectMcp(server.name),
     onSettled: refresh,
   });
 
@@ -151,7 +153,7 @@ function ToolRow({ server, tool }: { server: string; tool: McpToolSetting }) {
 
   const save = useMutation({
     mutationFn: (policy: McpToolPolicy) =>
-      window.solyx.settings.setMcpToolPolicy(server, [tool.name], policy),
+      client.settings.setMcpToolPolicy({ server, tools: [tool.name], policy }),
     onSettled: refresh,
   });
 
@@ -205,11 +207,11 @@ function SetEveryRow({
 
   const save = useMutation({
     mutationFn: (policy: McpToolPolicy) =>
-      window.solyx.settings.setMcpToolPolicy(
+      client.settings.setMcpToolPolicy({
         server,
-        tools.map((tool) => tool.name),
-        policy
-      ),
+        tools: tools.map((tool) => tool.name),
+        policy,
+      }),
     onSettled: refresh,
   });
 

@@ -1,4 +1,4 @@
-import type { TimeZone } from "./ipc/settings.ts";
+import type { TimeZone } from "./settings.ts";
 
 /** Formats moments on the user's own clock, in the app's language. */
 export interface Clock {

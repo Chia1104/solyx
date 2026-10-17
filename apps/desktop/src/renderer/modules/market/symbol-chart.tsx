@@ -9,8 +9,8 @@ import type { Candle, Interval } from "@solyx/core/candles";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
-import type { MarketDataSource } from "#shared/ipc/settings.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import type { MarketDataSource } from "#shared/settings.ts";
 
 import { ErrorFallback } from "../../components/error-fallback.tsx";
 import { FallbackFrame } from "../../components/fallback-frame.tsx";

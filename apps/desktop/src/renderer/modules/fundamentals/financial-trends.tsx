@@ -6,14 +6,13 @@ import { useTranslation } from "react-i18next";
 
 import { currencyOf } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import { cssPercent } from "@solyx/utils/format";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
 import { financialTrendsQuery } from "./fundamentals-query.ts";
 import { columnScale, quarterOf } from "./trend-columns.ts";
-
-const share = (value: number) => `${value * 100}%`;
 
 /** One period on a tile: its figure and what hovering it says. */
 interface TrendMark {
@@ -49,8 +48,8 @@ function TrendColumns({ marks }: { marks: readonly TrendMark[] }) {
                       index === marks.length - 1 ? "bg-accent" : "bg-muted"
                     )}
                     style={{
-                      top: share(place.top),
-                      height: share(place.height),
+                      top: cssPercent(place.top),
+                      height: cssPercent(place.height),
                     }}
                   />
                 ) : null}
@@ -61,7 +60,7 @@ function TrendColumns({ marks }: { marks: readonly TrendMark[] }) {
         <span
           aria-hidden
           className="absolute inset-x-0 h-px bg-border"
-          style={{ top: share(zero) }}
+          style={{ top: cssPercent(zero) }}
         />
       </div>
       <div

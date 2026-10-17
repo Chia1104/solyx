@@ -1,54 +1,38 @@
-import {
-  QueryObserver,
-  focusManager,
-  queryOptions,
-} from "@tanstack/react-query";
+import { QueryObserver, focusManager } from "@tanstack/react-query";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { Session } from "@solyx/core/session";
+import { MINUTE_MS } from "@solyx/utils/date";
 
-import {
-  marketQueryKeys,
-  marketSessionsQuery,
-} from "./market-sessions-query.ts";
+import { orpc } from "../../app/rpc.ts";
+
+import { marketSessionsQuery } from "./market-sessions-query.ts";
 
 /** Every listing's quote costs a request of the plan's budget, so they refresh at this pace. */
-const QUOTE_REFRESH_MS = 2 * 60 * 1000;
+const QUOTE_REFRESH_MS = 2 * MINUTE_MS;
 
 /** The sectors cost a request per index. */
-const SECTORS_REFRESH_MS = 5 * 60 * 1000;
+const SECTORS_REFRESH_MS = 5 * MINUTE_MS;
 
 /** Sessions change with the clock rather than with any write. */
 const SESSIONS_REFRESH_MS = 5 * 1000;
 
-export const quoteQueryKeys = {
-  market: (market: Market) =>
-    [...marketQueryKeys.all, "quote", market] as const,
-  of: (symbol: SymbolRef) =>
-    [...quoteQueryKeys.market(symbol.market), symbol.symbol] as const,
-};
-
-export const sectorsQueryKeys = {
-  all: [...marketQueryKeys.all, "sectors"] as const,
-};
+/** A market's quotes, every listing's, which refresh together. */
+const marketQuotes = (market: Market) =>
+  orpc.market.quote.key({ input: { market } });
 
 /** Never stale on its own: `followQuotes` refreshes it, so a listing shown twice costs one request. */
 export const quoteQuery = (symbol: SymbolRef) =>
-  queryOptions({
-    queryKey: quoteQueryKeys.of(symbol),
-    queryFn: () => window.solyx.market.quote(symbol),
+  orpc.market.quote.queryOptions({
+    input: symbol,
     staleTime: Infinity,
   });
 
 /** Taiwan's sector indices, which `followQuotes` refreshes only while something shows them. */
 export const sectorsQuery = () =>
-  queryOptions({
-    queryKey: sectorsQueryKeys.all,
-    queryFn: () => window.solyx.market.sectors(),
-    staleTime: Infinity,
-  });
+  orpc.market.sectors.queryOptions({ staleTime: Infinity });
 
 /**
  * The one clock quotes and sectors refresh on, so each costs a request per refresh wherever it
@@ -69,14 +53,14 @@ export function followQuotes(queryClient: QueryClient) {
   setInterval(() => {
     for (const market of Object.values(Market)) {
       if (sessions?.[market] === Session.Regular) {
-        refresh(quoteQueryKeys.market(market));
+        refresh(marketQuotes(market));
       }
     }
   }, QUOTE_REFRESH_MS);
 
   setInterval(() => {
     if (sessions?.[Market.TW] === Session.Regular) {
-      refresh(sectorsQueryKeys.all);
+      refresh(orpc.market.sectors.key());
     }
   }, SECTORS_REFRESH_MS);
 
@@ -98,9 +82,9 @@ export function followQuotes(queryClient: QueryClient) {
         continue;
       }
 
-      refresh(quoteQueryKeys.market(market));
+      refresh(marketQuotes(market));
 
-      if (market === Market.TW) refresh(sectorsQueryKeys.all);
+      if (market === Market.TW) refresh(orpc.market.sectors.key());
     }
   });
 }

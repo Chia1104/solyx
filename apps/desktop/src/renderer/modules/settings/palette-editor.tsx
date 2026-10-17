@@ -26,15 +26,15 @@ import * as z from "zod";
 
 import { isEnumValue } from "@solyx/utils/is";
 
-import type { Appearance } from "#shared/ipc/settings.ts";
 import { ColorScheme, PALETTES, PaletteToken } from "#shared/palette.ts";
 import type { CustomPalette, PaletteColors } from "#shared/palette.ts";
+import type { Appearance } from "#shared/settings.ts";
 
+import { client, orpc } from "../../app/rpc.ts";
 import { useColorScheme } from "../../app/theme.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 
 import { usePaletteName } from "./palette-name.ts";
-import { settingsQueryKeys } from "./settings-query.ts";
 
 const TokenGroup = {
   Paper: "paper",
@@ -228,7 +228,8 @@ function PaletteNameField({ id, name }: { id: string; name: string }) {
   });
 
   const rename = useMutation({
-    mutationFn: (next: string) => window.solyx.settings.renamePalette(id, next),
+    mutationFn: (next: string) =>
+      client.settings.renamePalette({ palette: id, name: next }),
   });
 
   const submit = form.handleSubmit(({ name: next }) => {
@@ -281,7 +282,7 @@ function DeletePalette({
   const [confirming, setConfirming] = useState(false);
 
   const remove = useMutation({
-    mutationFn: () => window.solyx.settings.deletePalette(id),
+    mutationFn: () => client.settings.deletePalette(id),
   });
 
   return (
@@ -357,14 +358,17 @@ export function PaletteEditor({
     }: {
       token: PaletteToken;
       color: string | null;
-    }) => window.solyx.settings.setPaletteColor(id, scheme, token, color),
+    }) =>
+      client.settings.setPaletteColor({ palette: id, scheme, token, color }),
     onError: () =>
-      queryClient.invalidateQueries({ queryKey: settingsQueryKeys.appearance }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.settings.appearance.key(),
+      }),
   });
 
   const preview = (token: PaletteToken, color: string) =>
     queryClient.setQueryData<Appearance>(
-      settingsQueryKeys.appearance,
+      orpc.settings.appearance.queryKey(),
       (appearance) =>
         appearance && {
           ...appearance,

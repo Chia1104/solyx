@@ -1,12 +1,14 @@
 import type { BrokerMode } from "@solyx/core/broker";
+import { truncate } from "@solyx/utils/text";
 
 import { clock } from "#shared/clock.ts";
-import type { Locale, TimeZone } from "#shared/ipc/settings.ts";
-import { UpdateStatus } from "#shared/ipc/updates.ts";
-import type { UpdateState } from "#shared/ipc/updates.ts";
-import { DestinationKind } from "#shared/ipc/workspace.ts";
-import type { Destination } from "#shared/ipc/workspace.ts";
+import type { Approval } from "#shared/inbox.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import type { Locale, TimeZone } from "#shared/settings.ts";
+import { UpdateStatus } from "#shared/updates.ts";
+import type { UpdateState } from "#shared/updates.ts";
+import { DestinationKind } from "#shared/workspace.ts";
+import type { Destination } from "#shared/workspace.ts";
 
 import { CATALOGS, fill, plural } from "../settings/catalogs.ts";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
@@ -53,7 +55,7 @@ export interface TrayState {
   /** Proposals waiting for the user to confirm them. */
   proposals: number;
   /** Conversations with a call waiting for the user to allow it. */
-  approvals: { sessionId: string; title: string }[];
+  approvals: Approval[];
   tasks: TrayTask[];
   update: UpdateState;
 }
@@ -77,11 +79,8 @@ export interface TrayOptions {
 /** How many tasks yet to run the menu lists, soonest first. */
 const UPCOMING_TASKS = 3;
 
-/** A conversation's title or a task's name in the menu, which has no room for a long one. */
-const NAME_LENGTH = 40;
-
-const short = (name: string) =>
-  name.length > NAME_LENGTH ? `${name.slice(0, NAME_LENGTH - 1)}…` : name;
+/** The most of a conversation's title or a task's name the menu shows, which has no room for a long one. */
+const NAME_LENGTH = 39;
 
 /**
  * The app's icon in the menu bar or the system tray, where the app stays open once its last
@@ -135,7 +134,7 @@ export function createTray({
             : []),
           ...approvals.map(({ sessionId, title }) => ({
             label: fill(copy.approval, {
-              title: short(title || catalog.agent.untitled),
+              title: truncate(title || catalog.agent.untitled, NAME_LENGTH),
             }),
             select: () =>
               open({ kind: DestinationKind.Conversation, sessionId }),
@@ -164,7 +163,9 @@ export function createTray({
         groups.push([
           { label: copy.tasks },
           ...running.map(({ name, sessionId }) => ({
-            label: fill(copy["task-running"], { name: short(name) }),
+            label: fill(copy["task-running"], {
+              name: truncate(name, NAME_LENGTH),
+            }),
             select: () =>
               open(
                 sessionId === null
@@ -177,7 +178,7 @@ export function createTray({
           })),
           ...upcoming.map(({ name, nextRunAt }) => ({
             label: fill(copy["task-next"], {
-              name: short(name),
+              name: truncate(name, NAME_LENGTH),
               time: time(nextRunAt),
             }),
             select: () =>

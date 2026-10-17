@@ -3,7 +3,9 @@ import { buttonVariants } from "@heroui/styles";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { UpdateStatus } from "#shared/ipc/updates.ts";
+import { UpdateStatus } from "#shared/updates.ts";
+
+import { client } from "../../app/rpc.ts";
 
 import { updateStateQuery } from "./updates-query.ts";
 
@@ -13,7 +15,7 @@ export function UpdateAction() {
   const { data } = useQuery(updateStateQuery());
 
   const install = useMutation({
-    mutationFn: () => window.solyx.updates.install(),
+    mutationFn: () => client.updates.install(),
   });
 
   if (data?.status === UpdateStatus.Ready) {

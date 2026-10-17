@@ -2,8 +2,9 @@ import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { collectionDue, nextCollection } from "@solyx/core/schedule";
 import type { CollectionPlan } from "@solyx/core/schedule";
+import { MINUTE_MS } from "@solyx/utils/date";
 
-import type { CollectionStatus } from "#shared/ipc/schedules.ts";
+import type { CollectionStatus } from "#shared/schedules.ts";
 
 import type { ScheduledWork } from "../../scheduler.ts";
 import type { ScheduleDays } from "../market/schedule-days.ts";
@@ -12,7 +13,7 @@ import type { Diagnostics } from "../telemetry/diagnostics.ts";
 import type { News } from "./news.ts";
 
 // Often enough that a plan shortened to hours, or a time of day, is followed soon after.
-const PASS_EVERY_MS = 30 * 60 * 1000;
+const PASS_EVERY_MS = 30 * MINUTE_MS;
 
 export interface NewsCollectorOptions {
   news: Pick<News, "refresh" | "lastCollected">;

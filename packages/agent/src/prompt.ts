@@ -7,9 +7,10 @@ import { Interval } from "@solyx/core/candles";
 import { changeText } from "@solyx/core/changes";
 import type { Change } from "@solyx/core/changes";
 import { DecisionMode } from "@solyx/core/council";
-import { Market, exchangeTime, wallTime } from "@solyx/core/market";
+import { Market, exchangeTime, symbolLabel } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Session } from "@solyx/core/session";
+import { wallTime } from "@solyx/utils/date";
 
 import type { AgentSkill } from "./skills.ts";
 
@@ -116,7 +117,7 @@ function placesText({ listing, overview }: AppLinks): string {
 
   return `# Places in the app
 A markdown link whose address starts with #/ opens that place in the app when the user presses it.
-- A listing's page with its chart: ${listing(example, Interval.OneDay)} is ${example.market} ${example.symbol} on daily bars. Put the listing's market and code and the interval in their places; the intervals are ${Object.values(Interval).join(", ")}.
+- A listing's page with its chart: ${listing(example, Interval.OneDay)} is ${symbolLabel(example)} on daily bars. Put the listing's market and code and the interval in their places; the intervals are ${Object.values(Interval).join(", ")}.
 - Today's moves of what the user holds and watches, which get_quotes reads: ${overview[AppPlace.Moves]}
 - The headlines about them, which get_headlines reads: ${overview[AppPlace.Headlines]}
 - The dates ahead, which get_calendar reads: ${overview[AppPlace.Calendar]}
@@ -213,7 +214,7 @@ export interface TurnContext {
 }
 
 const listingText = ({ symbol, name }: ContextListing) =>
-  `${symbol.market} ${symbol.symbol}${name ? ` (${name})` : ""}`;
+  `${symbolLabel(symbol)}${name ? ` (${name})` : ""}`;
 
 /** What the model should know about the moment a message was written. */
 const PLACE_NAME: Record<AppPlace, string> = {

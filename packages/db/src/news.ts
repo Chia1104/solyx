@@ -1,15 +1,31 @@
-import { and, asc, count, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  ne,
+  notExists,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { groupBy, keyBy } from "es-toolkit";
 
 import { clearlyNearest, cosine } from "@solyx/core/embedding";
 import type { SymbolRef } from "@solyx/core/market";
+import { NewsChannel } from "@solyx/core/news";
 import type {
   NewsItem,
   NewsMatch,
   NewsRecord,
   NewsStore,
 } from "@solyx/core/news";
+import { normalizeSpace } from "@solyx/utils/text";
 
 import { connect } from "./connection.ts";
 import { databaseBytes } from "./database-file.ts";
@@ -45,6 +61,7 @@ function toItem(item: ItemRow): NewsItem {
   };
 }
 
+/** Text as a reader sees it, whatever its spacing. */
 /** What `news_terms` holds of an item: the words of its title and snippet. */
 function itemTerms(item: Pick<NewsItem, "title" | "snippet">) {
   return indexedTerms([item.title, item.snippet]);
@@ -163,6 +180,21 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
     save(symbol, source, items, foundAt) {
       db.transaction((tx) => {
         for (const item of items) {
+          const known = tx
+            .select({ title: newsItems.title, snippet: newsItems.snippet })
+            .from(newsItems)
+            .where(
+              and(eq(newsItems.source, source.id), eq(newsItems.key, item.id))
+            )
+            .get();
+
+          // A snippet respaced says nothing new, so the one stored stays and so does its reading.
+          const snippet =
+            known &&
+            normalizeSpace(known.snippet) === normalizeSpace(item.snippet)
+              ? known.snippet
+              : item.snippet;
+
           const stored = tx
             .insert(newsItems)
             .values({
@@ -171,7 +203,7 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
               key: item.id,
               url: item.url,
               title: item.title,
-              snippet: item.snippet,
+              snippet,
               site: item.site,
               publishedAt: item.published?.at.getTime() ?? null,
               publishedPrecision: item.published?.precision ?? null,
@@ -192,6 +224,27 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
             })
             .returning({ id: newsItems.id })
             .get();
+
+          // A reading of the old text says nothing of the new.
+          if (
+            known &&
+            (known.title !== item.title || known.snippet !== snippet)
+          ) {
+            tx.update(listingNews)
+              .set({
+                model: null,
+                relevance: null,
+                stance: null,
+                kind: null,
+                topic: null,
+                speaker: null,
+              })
+              .where(eq(listingNews.itemId, stored.id))
+              .run();
+            tx.delete(itemEmbeddings)
+              .where(eq(itemEmbeddings.itemId, stored.id))
+              .run();
+          }
 
           tx.run(sql`DELETE FROM news_terms WHERE rowid = ${stored.id}`);
           tx.run(
@@ -218,7 +271,9 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
         .where(
           and(
             eq(newsItems.source, record.source),
-            eq(newsItems.key, record.item.id)
+            eq(newsItems.key, record.item.id),
+            eq(newsItems.title, record.item.title),
+            eq(newsItems.snippet, record.item.snippet)
           )
         );
 
@@ -265,7 +320,9 @@ function newsStore(db: NodeSQLiteDatabase): NewsStore {
             .where(
               and(
                 eq(newsItems.source, record.source),
-                eq(newsItems.key, record.item.id)
+                eq(newsItems.key, record.item.id),
+                eq(newsItems.title, record.item.title),
+                eq(newsItems.snippet, record.item.snippet)
               )
             )
             .get();
@@ -440,6 +497,60 @@ export function openNews(path: string, migrationsFolder: string) {
         bytes: databaseBytes(path),
         items: db.select({ items: count() }).from(newsItems).get()?.items ?? 0,
       };
+    },
+
+    /**
+     * Deletes each channel's items that came out before its day in `before`, or were found before
+     * it for every listing when undated, with their scores and vectors, and keeps a channel whose
+     * day is `null` whole; how many it deleted.
+     */
+    prune(before: Record<NewsChannel, Date | null>): number {
+      return db.transaction((tx) => {
+        let pruned = 0;
+
+        for (const channel of Object.values(NewsChannel)) {
+          const day = before[channel];
+
+          if (day === null) continue;
+
+          const at = day.getTime();
+
+          const gone = tx
+            .delete(newsItems)
+            .where(
+              and(
+                eq(newsItems.channel, channel),
+                or(
+                  lt(newsItems.publishedAt, at),
+                  and(
+                    isNull(newsItems.publishedAt),
+                    notExists(
+                      tx
+                        .select({ id: listingNews.itemId })
+                        .from(listingNews)
+                        .where(
+                          and(
+                            eq(listingNews.itemId, newsItems.id),
+                            gte(listingNews.foundAt, at)
+                          )
+                        )
+                    )
+                  )
+                )
+              )
+            )
+            .returning({ id: newsItems.id })
+            .all();
+
+          for (const { id } of gone) {
+            tx.run(sql`DELETE FROM news_terms WHERE rowid = ${id}`);
+          }
+
+          pruned += gone.length;
+        }
+
+        return pruned;
+      });
     },
 
     /**

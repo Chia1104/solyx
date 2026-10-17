@@ -172,3 +172,16 @@ export function fuseRankings<T>(
     .toSorted((a, b) => b.score - a.score)
     .map(({ item }) => item);
 }
+
+/** Whether any of `texts` contains `filter`, ignoring case; an empty filter matches everything. */
+export function matchesFilter(
+  filter: string,
+  ...texts: (string | undefined)[]
+) {
+  const needle = filter.trim().toLocaleLowerCase();
+
+  return (
+    needle === "" ||
+    texts.some((text) => text?.toLocaleLowerCase().includes(needle))
+  );
+}

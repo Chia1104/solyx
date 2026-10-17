@@ -13,6 +13,8 @@ import { promisify } from "node:util";
 import { create, extract } from "tar";
 import * as z from "zod";
 
+import { parseJson } from "@solyx/utils/json";
+
 const FORMAT = "solyx-backup";
 
 /** The extension a bundle's file takes. */
@@ -144,14 +146,6 @@ export async function writeBundle({
   );
 }
 
-function parseHeader(text: string): Header | undefined {
-  try {
-    return headerSchema.parse(JSON.parse(text));
-  } catch {
-    return undefined;
-  }
-}
-
 export interface ReadBundleOptions {
   file: string;
   /** The folder the bundle's content is unpacked into, made when it is not there. */
@@ -187,7 +181,8 @@ export async function readBundle({
     const end = start.indexOf("\n");
 
     line = start.subarray(0, end + 1);
-    header = end === -1 ? undefined : parseHeader(line.toString("utf8"));
+    header =
+      end === -1 ? undefined : parseJson(line.toString("utf8"), headerSchema);
 
     // A tar is never empty, so neither is what lies between the header and the tag.
     if (!header || bytes <= line.length + TAG_BYTES) {

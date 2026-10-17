@@ -1,12 +1,12 @@
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { MemoryPublisher } from "@orpc/publisher/memory";
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
-import type { WebContents } from "electron";
 import { kebabCase, omit, uniqBy } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
-import { changesSince } from "@solyx/core/changes";
+import { changesSince, watchesListings } from "@solyx/core/changes";
 import { Currency, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderDesk, ProposalStatus } from "@solyx/core/order-desk";
@@ -20,29 +20,19 @@ import { openNews } from "@solyx/db/news";
 import { openResearch } from "@solyx/db/research";
 import { openUserData } from "@solyx/db/user";
 import { createFinMind } from "@solyx/fundamentals/finmind";
+import { createSitca } from "@solyx/fundamentals/sitca";
 import { createTwExchanges } from "@solyx/fundamentals/tw-exchanges";
 import { createDgbas } from "@solyx/macro/dgbas";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 
-import { backupEvents } from "#shared/ipc/backup.ts";
-import { marketEvents } from "#shared/ipc/market.ts";
-import { memoryEvents } from "#shared/ipc/memory.ts";
-import { newsEvents } from "#shared/ipc/news.ts";
-import { proposalsEvents } from "#shared/ipc/proposals.ts";
-import { researchEvents } from "#shared/ipc/research.ts";
-import { schedulesEvents } from "#shared/ipc/schedules.ts";
+import type { Approval } from "#shared/inbox.ts";
+import { ColorScheme } from "#shared/palette.ts";
 import {
   AppLocation,
   Secret,
   resolveLocale,
   resolveTimeZone,
-  settingsEvents,
-} from "#shared/ipc/settings.ts";
-import { themesEvents } from "#shared/ipc/themes.ts";
-import { updatesEvents } from "#shared/ipc/updates.ts";
-import { watchlistEvents } from "#shared/ipc/watchlist.ts";
-import { workspaceEvents } from "#shared/ipc/workspace.ts";
-import { ColorScheme } from "#shared/palette.ts";
+} from "#shared/settings.ts";
 
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
@@ -55,6 +45,7 @@ import { createDecisions } from "./modules/decisions/decisions.ts";
 import { createEmbeddings } from "./modules/embeddings/embeddings.ts";
 import { createFlows } from "./modules/flows/flows.ts";
 import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
+import { createInbox } from "./modules/inbox/inbox.ts";
 import { createMacro } from "./modules/macro/macro.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
@@ -63,9 +54,11 @@ import { createScheduleDays } from "./modules/market/schedule-days.ts";
 import {
   createMarketDays,
   createTradingCalendar,
+  marketSessions,
 } from "./modules/market/trading-calendar.ts";
 import { createMemories } from "./modules/memory/memories.ts";
 import { createNewsCollector } from "./modules/news/news-collector.ts";
+import { createNewsRetention } from "./modules/news/news-retention.ts";
 import { createNewsSources } from "./modules/news/news-sources.ts";
 import { createNews } from "./modules/news/news.ts";
 import { createResearch } from "./modules/research/research.ts";
@@ -86,10 +79,12 @@ import { createUpdates } from "./modules/updates/updates.ts";
 import { createWatchlist } from "./modules/watchlist/watchlist.ts";
 import { createWebSearch } from "./modules/web-search/web-search.ts";
 import { createWorkspace } from "./modules/workspace/workspace.ts";
+import type { WindowEvents } from "./rpc/window-events.ts";
 import { createScheduler } from "./scheduler.ts";
 import { appChannel } from "./shell/app-channel.ts";
 import { chromiumFetch } from "./shell/chromium-fetch.ts";
 import { paintWindow, showMainWindow } from "./shell/main-window.ts";
+import { settingsShell } from "./shell/settings-shell.ts";
 import { createTrayShell } from "./shell/tray-icon.ts";
 
 const PAPER_CASH = { [Currency.TWD]: 1_000_000, [Currency.USD]: 30_000 };
@@ -99,13 +94,6 @@ const PAPER_LIMITS: RiskLimits = {
   maxOrderNotional: PAPER_CASH,
   allowedSessions: Object.values(Session),
 };
-
-/** Pushes to every window, since each may show what changed. */
-function broadcast(...push: Parameters<WebContents["send"]>) {
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(...push);
-  }
-}
 
 /** Composition root. A live broker is only ever wired here after the user explicitly turns it on. */
 export function createServices(config: ConfigFile) {
@@ -122,6 +110,9 @@ export function createServices(config: ConfigFile) {
   // Before anything opens a file, since a backup the user had restored takes their place here.
   const restored = takeRestore(folders);
 
+  // Each window streams what it follows from here for as long as its page stays open.
+  const windowEvents = new MemoryPublisher<WindowEvents>();
+
   const userData = openUserData(
     join(userDataDir, "user.sqlite"),
     join(import.meta.dirname, "migrations", "user")
@@ -129,7 +120,10 @@ export function createServices(config: ConfigFile) {
 
   const watchlist = createWatchlist({
     store: userData.watchlist,
-    onChange: () => broadcast(watchlistEvents.onChanged),
+    onChange() {
+      void windowEvents.publish("watchlist:changed", {});
+      void windowEvents.publish("inbox:changed", {});
+    },
   });
 
   const desk = new OrderDesk({
@@ -141,8 +135,10 @@ export function createServices(config: ConfigFile) {
     limits: PAPER_LIMITS,
     tradingDays: (market) => marketDays(market),
     restored: restored !== null,
+    basis: (symbol) => research.desk.basis(symbol),
     onChange() {
-      broadcast(proposalsEvents.onChanged);
+      void windowEvents.publish("proposals:changed", {});
+      void windowEvents.publish("inbox:changed", {});
       void tray.sync();
     },
   });
@@ -182,7 +178,8 @@ export function createServices(config: ConfigFile) {
       openFubonProcess,
     }),
     answers: cache.answers,
-    onSourcesChanged: () => broadcast(marketEvents.onSourcesChanged),
+    onSourcesChanged: () =>
+      void windowEvents.publish("market:sources-changed", {}),
     diagnostics,
   });
 
@@ -206,7 +203,12 @@ export function createServices(config: ConfigFile) {
 
   const decisions = createDecisions({ config, secrets });
 
-  const embeddings = createEmbeddings({ config, secrets });
+  const embeddings = createEmbeddings({
+    config,
+    secrets,
+    diagnostics,
+    onChange: () => void windowEvents.publish("embeddings:changed", {}),
+  });
 
   const webSearch = createWebSearch({ config, secrets });
 
@@ -221,7 +223,7 @@ export function createServices(config: ConfigFile) {
       join(userDataDir, "memory.sqlite"),
       join(import.meta.dirname, "migrations", "memory")
     ),
-    () => broadcast(memoryEvents.onChanged)
+    () => void windowEvents.publish("memory:changed", {})
   );
 
   const news = createNews({
@@ -233,7 +235,7 @@ export function createServices(config: ConfigFile) {
     localEmbedder: () => embeddings.localEmbedder(),
     marketData,
     onChange(symbol) {
-      broadcast(newsEvents.onChanged, symbol);
+      void windowEvents.publish("news:changed", symbol);
       void research.watch(symbol);
     },
   });
@@ -249,6 +251,7 @@ export function createServices(config: ConfigFile) {
   const fundamentals = createFundamentals({
     providers: [finMind],
     exchanges: [twExchanges],
+    fundReports: [createSitca()],
     answers: cache.answers,
   });
 
@@ -275,8 +278,12 @@ export function createServices(config: ConfigFile) {
       news: newsData.store,
       embedder: () => embeddings.localEmbedder(),
       diagnostics,
+      sessions: () => marketSessions(marketDays),
     },
-    () => broadcast(researchEvents.onChanged)
+    () => {
+      void windowEvents.publish("research:changed", {});
+      void windowEvents.publish("inbox:changed", {});
+    }
   );
 
   // The statistics portal's server leaves its intermediate certificate out, which Node's fetch does not make up for.
@@ -303,8 +310,9 @@ export function createServices(config: ConfigFile) {
 
       for (const window of BrowserWindow.getAllWindows()) {
         paintWindow(window, windowColors());
-        window.webContents.send(settingsEvents.onAppearance, next);
       }
+
+      void windowEvents.publish("settings:appearance", next);
     },
   });
 
@@ -325,7 +333,7 @@ export function createServices(config: ConfigFile) {
     plan: () => config.read().collection[CollectionJob.Themes],
     days: scheduleDays,
     diagnostics,
-    onChange: () => broadcast(themesEvents.onChanged),
+    onChange: () => void windowEvents.publish("themes:changed", {}),
   });
 
   // What the main process writes itself is in the language and on the clock the windows show.
@@ -333,10 +341,7 @@ export function createServices(config: ConfigFile) {
     resolveLocale(appearance.read().language, app.getLocale());
 
   const userTimeZone = () =>
-    resolveTimeZone(
-      appearance.read().timeZone,
-      new Intl.DateTimeFormat().resolvedOptions().timeZone
-    );
+    resolveTimeZone(appearance.read().timeZone, Temporal.Now.timeZoneId());
 
   const deviceId = installationId(join(userDataDir, "installation-id"));
 
@@ -346,7 +351,10 @@ export function createServices(config: ConfigFile) {
     tracer: telemetry.tracer,
     getDeviceId: deviceId,
     openExternal,
-    showSignInCode: (code) => broadcast(settingsEvents.onSignInCode, code),
+    showSignInCode: (code) =>
+      void windowEvents.publish("settings:sign-in-code", code),
+    modelsFile: join(userDataDir, "agent-models.json"),
+    onModelsListed: () => void windowEvents.publish("settings:changed", {}),
     skillFolders,
     instructionsFile,
     mcp,
@@ -401,7 +409,12 @@ export function createServices(config: ConfigFile) {
       version: app.getVersion(),
       home,
     },
-    onActivity: () => void tray.sync(),
+    onActivity() {
+      void windowEvents.publish("inbox:changed", {});
+      void tray.sync();
+    },
+    onUpdate: (update) => void windowEvents.publish("agent:update", update),
+    onStoreFailed: () => void windowEvents.publish("agent:store-failed", {}),
   });
 
   const storage = createStorageApi({
@@ -436,7 +449,7 @@ export function createServices(config: ConfigFile) {
     restart,
     timeZone: userTimeZone,
     diagnostics,
-    onChange: () => broadcast(backupEvents.onChanged),
+    onChange: () => void windowEvents.publish("backup:changed", {}),
   });
 
   /** What the user holds, then what they watch, each once; a broker that cannot be read leaves the watchlist. */
@@ -452,6 +465,13 @@ export function createServices(config: ConfigFile) {
 
     return uniqBy([...held, ...watchlist.list()], symbolKey);
   }
+
+  const inbox = createInbox({
+    desk,
+    approvals,
+    followed: followedListings,
+    research: research.desk,
+  });
 
   const newsCollector = createNewsCollector({
     diagnostics,
@@ -473,7 +493,7 @@ export function createServices(config: ConfigFile) {
     updater: createAppUpdater(),
     checkEnabled: () => config.read().updates.check,
     onChange() {
-      broadcast(updatesEvents.onChanged);
+      void windowEvents.publish("updates:changed", {});
       void tray.sync();
     },
   });
@@ -482,31 +502,39 @@ export function createServices(config: ConfigFile) {
     store: userData.schedules,
     agent,
     days: scheduleDays,
-    async changes(since) {
-      const followed = await followedListings();
+    async changes(since, scope) {
+      // The account is read only for a scope that names no listings of its own.
+      const listings = watchesListings(scope)
+        ? (scope.listings ?? (await followedListings()))
+        : [];
 
-      return changesSince(since, Date.now(), {
-        reports: followed.flatMap((symbol) => {
-          const report = researchData.store.report(symbol);
+      return changesSince(
+        since,
+        Date.now(),
+        {
+          reports: listings.flatMap((symbol) => {
+            const report = researchData.store.report(symbol);
 
-          return report
-            ? [
-                {
-                  report,
-                  checks: researchData.store.falsifierChecks(
-                    symbol,
-                    report.revision
-                  ),
-                },
-              ]
-            : [];
-        }),
-        themes: themes.desk.list(),
-      });
+            return report
+              ? [
+                  {
+                    report,
+                    checks: researchData.store.falsifierChecks(
+                      symbol,
+                      report.revision
+                    ),
+                  },
+                ]
+              : [];
+          }),
+          themes: themes.desk.list(),
+        },
+        scope
+      );
     },
     diagnostics,
     onChange() {
-      broadcast(schedulesEvents.onChanged);
+      void windowEvents.publish("schedules:changed", {});
       void tray.sync();
     },
   });
@@ -515,18 +543,24 @@ export function createServices(config: ConfigFile) {
 
   const workspace = createWorkspace({
     showWindow,
-    onDestination: () => broadcast(workspaceEvents.onDestination),
+    onDestination: () => void windowEvents.publish("workspace:changed", {}),
   });
 
-  /** What the tray's menu lists of the desk, the agent, the scheduled tasks and updates. */
-  async function trayState(): Promise<TrayState> {
+  /** The conversations with a call waiting for the user to allow it. */
+  async function approvals(): Promise<Approval[]> {
     const asked = new Set(agent.waiting());
 
     // Conversations are read only for the titles of those that ask.
-    const [sessions, tasks] = await Promise.all([
-      asked.size > 0 ? agent.sessions() : [],
-      schedules.list(),
-    ]);
+    const sessions = asked.size > 0 ? await agent.sessions() : [];
+
+    return sessions
+      .filter((session) => asked.has(session.id))
+      .map(({ id, title }) => ({ sessionId: id, title }));
+  }
+
+  /** What the tray's menu lists of the desk, the agent, the scheduled tasks and updates. */
+  async function trayState(): Promise<TrayState> {
+    const [asked, tasks] = await Promise.all([approvals(), schedules.list()]);
 
     return {
       mode: desk.mode,
@@ -535,9 +569,7 @@ export function createServices(config: ConfigFile) {
         .filter(
           (proposal) => proposal.status === ProposalStatus.AwaitingConfirmation
         ).length,
-      approvals: sessions
-        .filter((session) => asked.has(session.id))
-        .map(({ id, title }) => ({ sessionId: id, title })),
+      approvals: asked,
       tasks: tasks
         .filter((task) => task.enabled || task.running)
         .map(({ name, running, nextRunAt, lastRun }) => ({
@@ -564,21 +596,29 @@ export function createServices(config: ConfigFile) {
   const scheduler = createScheduler({ telemetry });
 
   scheduler.register("News collection", newsCollector.work);
+  scheduler.register(
+    "News retention",
+    createNewsRetention({ news: newsData, config, diagnostics })
+  );
   scheduler.register("Update check", updates);
   scheduler.register("Scheduled tasks", schedules.work);
   scheduler.register("Change watch", schedules.changeWork);
   scheduler.register("Theme watch", themes.work);
+  scheduler.register("Exchange clock", research.work);
   scheduler.register("Backup", backups.work);
 
   nativeTheme.themeSource = appearance.read().theme;
 
-  config.onChange(() => broadcast(settingsEvents.onChanged));
+  config.onChange(() => void windowEvents.publish("settings:changed", {}));
   // A collection's plan lives in the config file, so whoever shows the plans hears of every edit.
-  config.onChange(() => broadcast(schedulesEvents.onChanged));
-  secrets.onChange(() => broadcast(settingsEvents.onChanged));
+  config.onChange(() => void windowEvents.publish("schedules:changed", {}));
+  secrets.onChange(() => void windowEvents.publish("settings:changed", {}));
   // Where backups go is settings and secrets both.
-  config.onChange(() => broadcast(backupEvents.onChanged));
-  secrets.onChange(() => broadcast(backupEvents.onChanged));
+  config.onChange(() => void windowEvents.publish("backup:changed", {}));
+  // Ollama's model and address are in the config file, and a key for a host of the user's own a secret.
+  config.onChange(() => void windowEvents.publish("embeddings:changed", {}));
+  secrets.onChange(() => void windowEvents.publish("embeddings:changed", {}));
+  secrets.onChange(() => void windowEvents.publish("backup:changed", {}));
   // Its switches and its menu's language and clock all live in the config file.
   config.onChange(() => void tray.sync());
   config.watch();
@@ -606,6 +646,7 @@ export function createServices(config: ConfigFile) {
     memories,
     research,
     calendar,
+    macro,
     flows,
     fundamentals,
     agent,
@@ -627,6 +668,9 @@ export function createServices(config: ConfigFile) {
     scheduler,
     tray,
     workspace,
+    inbox,
+    windowEvents,
+    settingsShell,
 
     restart,
   };

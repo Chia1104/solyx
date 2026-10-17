@@ -1,8 +1,9 @@
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { LanguagePreference } from "#shared/ipc/settings.ts";
+import { LanguagePreference } from "#shared/settings.ts";
 
+import { orpc } from "../../app/rpc.ts";
 import { OptionSelect } from "../../components/option-select.tsx";
 
 import { appearanceQuery } from "./settings-query.ts";
@@ -12,10 +13,7 @@ export function LanguageSelect() {
   const { data } = useSuspenseQuery(appearanceQuery());
 
   // The main process pushes the saved appearance, which the query takes.
-  const save = useMutation({
-    mutationFn: (language: LanguagePreference) =>
-      window.solyx.settings.setLanguage(language),
-  });
+  const save = useMutation(orpc.settings.setLanguage.mutationOptions());
 
   return (
     <OptionSelect

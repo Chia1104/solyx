@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { isPlainObject } from "es-toolkit";
@@ -20,6 +20,7 @@ import {
   decisionModeSchema,
 } from "@solyx/core/council";
 import type { Market } from "@solyx/core/market";
+import { NewsVoice } from "@solyx/core/news";
 import {
   CollectionJob,
   ScheduleKind,
@@ -46,8 +47,13 @@ import {
 } from "@solyx/embeddings/provider";
 import { FinMindPlan, finMindPlanSchema } from "@solyx/fundamentals/finmind";
 import { FuglePlan, fuglePlanSchema } from "@solyx/market-data/fugle";
-import { isErrnoError } from "@solyx/utils/error";
-import { watchFile } from "@solyx/utils/server";
+import { HOUR_MINUTES } from "@solyx/utils/date";
+import { parseJson } from "@solyx/utils/json";
+import {
+  readTextIfExistsSync,
+  watchFile,
+  writeFileAtomicSync,
+} from "@solyx/utils/server";
 import {
   WebSearchProvider,
   webSearchProviderSchema,
@@ -59,9 +65,18 @@ import {
   backupIntervalSchema,
   backupPrefixSchema,
   backupRegionSchema,
-} from "#shared/ipc/backup.ts";
-import type { BackupSetting } from "#shared/ipc/backup.ts";
+} from "#shared/backup.ts";
+import type { BackupSetting } from "#shared/backup.ts";
+import { NewsRetention, newsRetentionSchema } from "#shared/news.ts";
 import {
+  ColorScheme,
+  Palette,
+  customPalettesSchema,
+  hasPalette,
+} from "#shared/palette.ts";
+import type { CustomPalette, PaletteToken } from "#shared/palette.ts";
+import {
+  endpointSchema,
   LanguagePreference,
   MarketDataSource,
   PriceColors,
@@ -72,15 +87,8 @@ import {
   priceColorsSchema,
   themeSchema,
   timeZonePreferenceSchema,
-} from "#shared/ipc/settings.ts";
-import type { FubonFile } from "#shared/ipc/settings.ts";
-import {
-  ColorScheme,
-  Palette,
-  customPalettesSchema,
-  hasPalette,
-} from "#shared/palette.ts";
-import type { CustomPalette, PaletteToken } from "#shared/palette.ts";
+} from "#shared/settings.ts";
+import type { FubonFile } from "#shared/settings.ts";
 
 // Text that is empty or of the wrong shape reads as missing.
 const unitModelSchema = agentModelRefSchema.nullable().catch(null);
@@ -88,11 +96,6 @@ const unitModelSchema = agentModelRefSchema.nullable().catch(null);
 const textSchema = z.string().trim().min(1).optional().catch(undefined);
 
 const paletteIdSchema = z.string().min(1).catch(Palette.Blueprint);
-
-/** An http(s) endpoint, which a proxy on this computer may serve without TLS. */
-export const endpointSchema = z.url({ protocol: /^https?$/ }).max(2048);
-
-const HOUR_MINUTES = 60;
 
 /**
  * When each of the app's own collections runs until the user says otherwise, on this computer's
@@ -103,12 +106,12 @@ export const DEFAULT_COLLECTION_PLANS: Record<CollectionJob, CollectionPlan> = {
   [CollectionJob.News]: {
     enabled: true,
     schedule: { kind: ScheduleKind.Interval, everyMinutes: 72 * HOUR_MINUTES },
-    timeZone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
+    timeZone: Temporal.Now.timeZoneId(),
   },
   [CollectionJob.Themes]: {
     enabled: true,
     schedule: { kind: ScheduleKind.Interval, everyMinutes: 24 * HOUR_MINUTES },
-    timeZone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
+    timeZone: Temporal.Now.timeZoneId(),
   },
 };
 
@@ -310,6 +313,26 @@ const configSchema = section(
           }),
       })
     ),
+    news: section(
+      z.looseObject({
+        kept: section(
+          z.looseObject({
+            [NewsVoice.Press]: newsRetentionSchema
+              .catch(NewsRetention.Quarter)
+              .meta({
+                description:
+                  "How long companies' announcements and news articles are kept from when they came out: 30d, 90d, 180d, 365d or forever. Older ones are deleted once a day, and at once when this is shortened; sources reach back only days, so they cannot be collected again.",
+              }),
+            [NewsVoice.Crowd]: newsRetentionSchema
+              .catch(NewsRetention.Month)
+              .meta({
+                description:
+                  "How long forum and social posts are kept from when they were posted, as press news is.",
+              }),
+          })
+        ),
+      })
+    ),
     updates: section(
       z.looseObject({
         check: z.boolean().catch(true).meta({
@@ -438,18 +461,18 @@ const configSchema = section(
           .catch(EmbeddingsProvider.Local)
           .meta({
             description:
-              "Where vectors come from: a model on this computer through Ollama, which sends nothing off it, or OpenAI's, on the key saved in the app for it, which is sent each item's title and the start of its snippet. Only a model a line was measured on joins stories.",
+              "Where vectors come from: Ollama, which sends nothing off this computer unless `local.baseURL` names another host, or OpenAI's, on the key saved in the app for it, which is sent each item's title and the start of its snippet. Only a model a line was measured on joins stories.",
           }),
         local: section(
           z.looseObject({
             model: textSchema.meta({
               description:
-                "The model Ollama runs, pulled first with `ollama pull`.",
+                "The model Ollama runs, which the embeddings settings download into it, as `ollama pull` does.",
               default: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.Local].model,
             }),
             baseURL: endpointSchema.optional().catch(undefined).meta({
               description:
-                "Where Ollama, or another server that speaks OpenAI's embeddings API, listens.",
+                "Where Ollama, or another server that speaks OpenAI's embeddings API, listens: this computer unless you run it on another host, which then receives news, your reports, memories and searches. A key for a proxy in front of it is saved in the app.",
               default: EMBEDDINGS_DEFAULTS[EmbeddingsProvider.Local].baseURL,
             }),
           })
@@ -509,6 +532,7 @@ type ConfigPath =
   | ["agent", "mcpTools", string]
   | ["collection", CollectionJob]
   | ["backup", BackupSetting | "automatic" | "every"]
+  | ["news", "kept", NewsVoice]
   | ["updates", "check"]
   | ["crashReports", "send"]
   | ["otlp", "endpoint"]
@@ -516,6 +540,7 @@ type ConfigPath =
   | ["decisions", "provider"]
   | ["decisions", DecisionsProvider, "model" | "baseURL"]
   | ["decisions", typeof DecisionsProvider.Cloudflare, "accountId"]
+  | ["embeddings", typeof EmbeddingsProvider.Local, "baseURL"]
   | ["embeddings", "enabled" | "provider"];
 
 /** `undefined` removes the entry. */
@@ -609,24 +634,8 @@ const TEMPLATE = serialize({
   },
 });
 
-function readText(file: string): string | undefined {
-  try {
-    return readFileSync(file, "utf8");
-  } catch (error) {
-    if (isErrnoError(error, "ENOENT")) return undefined;
-
-    throw error;
-  }
-}
-
 /** The file's entries, or `undefined` while it has syntax errors; a file that is not an object holds none. */
-function parseSaved(text: string): Saved | undefined {
-  try {
-    return savedSchema.catch({}).parse(JSON.parse(text));
-  } catch {
-    return undefined;
-  }
-}
+const parseSaved = (text: string) => parseJson(text, savedSchema.catch({}));
 
 /**
  * Writes `value` at `path` in `saved`, or removes the entry for `undefined`. An entry where an
@@ -675,18 +684,12 @@ export function createConfigFile(file: string) {
     for (const listener of listeners) listener();
   }
 
-  function write(path: string, text: string) {
-    const temporary = `${path}.tmp`;
-
-    mkdirSync(dirname(path), { recursive: true });
-    // Written aside and renamed into place, so a crash mid-write keeps the previous file.
-    writeFileSync(temporary, text, { mode: 0o600 });
-    renameSync(temporary, path);
-  }
+  const write = (path: string, text: string) =>
+    writeFileAtomicSync(path, text, { mode: 0o600 });
 
   /** Saves every entry in one write, so the file never holds only some of them. */
   function update(entries: readonly ConfigEntry[]) {
-    const saved = parseSaved(readText(file) ?? TEMPLATE);
+    const saved = parseSaved(readTextIfExistsSync(file) ?? TEMPLATE);
 
     if (saved === undefined) {
       throw new Error(`Fix the syntax errors in ${file} before saving`);
@@ -708,9 +711,10 @@ export function createConfigFile(file: string) {
      * something to edit.
      */
     create() {
-      if (readText(schemaFile) !== JSON_SCHEMA) write(schemaFile, JSON_SCHEMA);
+      if (readTextIfExistsSync(schemaFile) !== JSON_SCHEMA)
+        write(schemaFile, JSON_SCHEMA);
 
-      if (readText(file) !== undefined) return;
+      if (readTextIfExistsSync(file) !== undefined) return;
 
       write(file, TEMPLATE);
       announced = TEMPLATE;
@@ -718,7 +722,7 @@ export function createConfigFile(file: string) {
 
     /** The saved settings, with the default for every entry that is missing or no longer parses. */
     read(): Config {
-      const text = readText(file);
+      const text = readTextIfExistsSync(file);
 
       return configSchema.parse(
         text === undefined ? undefined : parseSaved(text)
@@ -746,10 +750,10 @@ export function createConfigFile(file: string) {
     /** Reports edits made outside the app to `onChange` shortly after they land, until the returned function stops. */
     watch(): () => void {
       mkdirSync(dirname(file), { recursive: true });
-      announced ??= readText(file);
+      announced ??= readTextIfExistsSync(file);
 
       return watchFile(file, () => {
-        const text = readText(file);
+        const text = readTextIfExistsSync(file);
 
         if (text !== announced) announce(text);
       });

@@ -34,13 +34,14 @@ import type { AgentView } from "@solyx/agent/wire";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
-import { ScreenKind } from "#shared/ipc/agent.ts";
-import type { AgentScreen } from "#shared/ipc/agent.ts";
-import type { AgentSettings } from "#shared/ipc/settings.ts";
+import { ScreenKind } from "#shared/agent.ts";
+import type { AgentScreen } from "#shared/agent.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import type { AgentSettings } from "#shared/settings.ts";
 
 import { currentTimeZone } from "../../app/clock.ts";
 import { currentLocale } from "../../app/i18n.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 import { listingName, useListingName } from "../market/listing-name.tsx";
@@ -287,7 +288,7 @@ export function AgentComposer({
 
     const { pick, approvalMode } = useAgentStore.getState().unstarted;
 
-    const created = await window.solyx.agent.createSession({
+    const created = await client.agent.createSession({
       ...pick,
       approvalMode,
     });
@@ -308,19 +309,19 @@ export function AgentComposer({
     return created.id;
   }
 
-  const setModel = useMutation({
-    mutationFn: ({ id, pick }: { id: string; pick: AgentModelPick }) =>
-      window.solyx.agent.setModel(id, pick),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: agentQueryKeys.sessions }),
-  });
+  const setModel = useMutation(
+    orpc.agent.setModel.mutationOptions({
+      onSettled: () =>
+        queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
+    })
+  );
 
-  const setApprovalMode = useMutation({
-    mutationFn: ({ id, mode }: { id: string; mode: ApprovalMode }) =>
-      window.solyx.agent.setApprovalMode(id, mode),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: agentQueryKeys.sessions }),
-  });
+  const setApprovalMode = useMutation(
+    orpc.agent.setApprovalMode.mutationOptions({
+      onSettled: () =>
+        queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
+    })
+  );
 
   async function pickModel(next: AgentModelPick) {
     setUnstarted({ pick: next });
@@ -346,7 +347,7 @@ export function AgentComposer({
       // A conversation not yet started holds nothing to summarize.
       id === null
         ? Promise.resolve(CompactionOutcome.NothingOld)
-        : window.solyx.agent.compact(id, instructions),
+        : client.agent.compact({ id, instructions }),
   });
 
   const compacting = progress.data?.compacting === true || compact.isPending;
@@ -358,31 +359,32 @@ export function AgentComposer({
       const id = await session();
       const locale = currentLocale();
 
-      await window.solyx.agent.send(
+      await client.agent.send({
         id,
-        message,
-        screen?.kind === ScreenKind.Listing
-          ? attachedFocus && {
-              ...screen,
-              // The attachment above the input has already asked for it.
-              name: listingName(
-                queryClient.getQueryData(listingQuery(attachedFocus).queryKey),
-                locale
-              ),
-            }
-          : screen,
+        text: message,
+        screen:
+          screen?.kind === ScreenKind.Listing
+            ? attachedFocus && {
+                ...screen,
+                // The attachment above the input has already asked for it.
+                name: listingName(
+                  queryClient.getQueryData(
+                    listingQuery(attachedFocus).queryKey
+                  ),
+                  locale
+                ),
+              }
+            : screen,
         locale,
-        currentTimeZone()
-      );
+        timeZone: currentTimeZone(),
+      });
     },
     onSuccess: () => form.reset(),
     onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: agentQueryKeys.sessions }),
+      queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
   });
 
-  const abort = useMutation({
-    mutationFn: (id: string) => window.solyx.agent.abort(id),
-  });
+  const abort = useMutation(orpc.agent.abort.mutationOptions());
 
   const submit = form.handleSubmit(({ text }) => {
     const command = messageCommand(text);

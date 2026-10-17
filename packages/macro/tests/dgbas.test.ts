@@ -1,4 +1,4 @@
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 
 import { MacroFigure, MacroIndicator, MacroUnit } from "@solyx/core/macro";
 import { Market } from "@solyx/core/market";
@@ -247,14 +247,58 @@ test("fails when a figure has nothing out over the periods asked for", async () 
   );
 });
 
+test("asks again when the database leaves a request hanging", async () => {
+  vi.useFakeTimers();
+
+  const answers = new Map(Object.entries(TABLES));
+  const sent: string[] = [];
+
+  const fetch = async (input: string | URL | Request, init?: RequestInit) => {
+    const request = new Request(input, init);
+    const code = /sdmx\/(A\d+)\//.exec(request.url)?.[1] ?? "";
+
+    sent.push(code);
+
+    if (code === "A081201010" && !sent.slice(0, -1).includes(code)) {
+      return new Promise<Response>((_, reject) => {
+        request.signal.addEventListener("abort", () =>
+          reject(request.signal.reason)
+        );
+      });
+    }
+
+    return Response.json(answers.get(code));
+  };
+
+  const dgbas = createDgbas({
+    fetch,
+    now: () => new Date("2026-10-12T02:00:00Z"),
+  });
+
+  try {
+    const series = dgbas.series(Market.TW, "2025-08");
+
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(
+      (await series)
+        .find(({ figure }) => figure === MacroFigure.Exports)
+        ?.observations.at(-1)
+    ).toEqual({ period: "2026-09", value: 52000 });
+    expect(sent.filter((code) => code === "A081201010")).toHaveLength(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 test("a failure names the database and the status it answered", async () => {
   const { dgbas } = fakeDatabase({
     ...TABLES,
-    A030601015: new Response("", { status: 503 }),
+    A030601015: new Response("", { status: 404 }),
   });
 
   await expect(dgbas.series(Market.TW, "2025-08")).rejects.toThrow(
-    "DGBAS answered 503"
+    "DGBAS answered 404"
   );
 });
 

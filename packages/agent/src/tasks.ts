@@ -5,12 +5,22 @@ import type { Extension, ToolExecutionApi } from "@earendil-works/pi-durable";
 import { orderBy } from "es-toolkit";
 import * as z from "zod";
 
+import {
+  ChangeKind,
+  changeText,
+  watchesListings,
+  watchesThemes,
+} from "@solyx/core/changes";
+import type { ChangeScope } from "@solyx/core/changes";
 import { ScheduleKind, scheduledTaskDraftSchema } from "@solyx/core/schedule";
 import type {
   Schedule,
   ScheduledTask,
   ScheduledTaskDraft,
 } from "@solyx/core/schedule";
+import type { ThemeDesk } from "@solyx/core/theme";
+import { wallTime } from "@solyx/utils/date";
+import { truncate } from "@solyx/utils/text";
 
 import { checkedFirst } from "./approval.ts";
 import type { ToolGuard } from "./approval.ts";
@@ -62,6 +72,8 @@ export interface RunConversations {
 export interface TaskToolsOptions {
   tasks: TaskPort;
   conversations: RunConversations;
+  /** The themes a task's scope may name. */
+  themes: Pick<ThemeDesk, "list">;
 }
 
 const MAX_RUNS = 5;
@@ -114,18 +126,34 @@ function closingReply({ items }: AgentView): string | undefined {
     )
     .findLast((text) => text !== "");
 
-  return reply !== undefined && reply.length > REPLY_CHARACTERS
-    ? `${reply.slice(0, REPLY_CHARACTERS)}…`
-    : reply;
+  return reply === undefined ? undefined : truncate(reply, REPLY_CHARACTERS);
 }
 
-/** A moment on a task's own clock, to the minute. */
-const moment = (at: number, timeZone: string) =>
-  Temporal.Instant.fromEpochMilliseconds(at)
-    .toZonedDateTimeISO(timeZone)
-    .toPlainDateTime()
-    .toString({ smallestUnit: "minute" })
-    .replace("T", " ");
+const KIND_TEXT: Record<ChangeKind, string> = {
+  [ChangeKind.FalsifierMet]: "news may state a report's falsifier",
+  [ChangeKind.EventPassed]: "a report's event passed",
+  [ChangeKind.SignpostMet]: "news may state a theme's signpost",
+};
+
+/** What a task that waits on a change runs for, in words. */
+function scopeText(scope: ChangeScope): string {
+  const { kinds, listings, themes } = scope;
+
+  const of = [
+    ...(watchesListings(scope)
+      ? [
+          listings === null
+            ? "reports of every listing the user holds and watches"
+            : `reports of ${listings.map(({ market, symbol }) => `${market} ${symbol}`).join(", ")}`,
+        ]
+      : []),
+    ...(watchesThemes(scope)
+      ? [themes === null ? "every theme" : `themes ${themes.join(", ")}`]
+      : []),
+  ];
+
+  return `once ${kinds.map((kind) => KIND_TEXT[kind]).join(" or ")}, of ${of.join(" and ")}`;
+}
 
 function whenText(schedule: Schedule, timeZone: string): string {
   switch (schedule.kind) {
@@ -134,22 +162,29 @@ function whenText(schedule: Schedule, timeZone: string): string {
     case ScheduleKind.FixedTime:
       return `at ${schedule.time} ${timeZone}${schedule.tradingDaysOf === null ? ", every day" : `, on days ${schedule.tradingDaysOf} trades`}`;
     case ScheduleKind.OnChange:
-      return `when something the app watches changed, at most every ${schedule.atMostEveryMinutes} minutes`;
+      return `${scopeText(schedule.scope)}, at most every ${schedule.atMostEveryMinutes} minutes`;
   }
 }
 
 function lastRunText({ lastRun, running, timeZone }: ListedTask): string {
   if (lastRun === null) return "Never ran.";
 
-  const at = moment(lastRun.at, timeZone);
+  const at = wallTime(timeZone, new Date(lastRun.at));
 
-  if (lastRun.failure !== null) {
-    return `Last run ${at} could not start: ${lastRun.failure}`;
-  }
+  const head =
+    lastRun.failure !== null
+      ? `Last run ${at} could not start: ${lastRun.failure}`
+      : running
+        ? `Its run of ${at} is still going, or waits for the user.`
+        : `Last ran ${at}.`;
 
-  return running
-    ? `Its run of ${at} is still going, or waits for the user.`
-    : `Last ran ${at}.`;
+  return lastRun.changes.length > 0
+    ? [
+        head,
+        "It was started for:",
+        ...lastRun.changes.map((change) => `- ${changeText(change)}`),
+      ].join("\n")
+    : head;
 }
 
 function taskText(task: ListedTask): string {
@@ -161,7 +196,7 @@ function taskText(task: ListedTask): string {
     lastRunText(task),
     ...(nextRunAt === null
       ? []
-      : [`Next run ${moment(nextRunAt, timeZone)} ${timeZone}.`]),
+      : [`Next run ${wallTime(timeZone, new Date(nextRunAt))} ${timeZone}.`]),
     "Sends:",
     task.prompt,
   ].join("\n");
@@ -172,7 +207,11 @@ function taskText(task: ListedTask): string {
  * read what their runs came to, and `save_task` to write one and `run_task` to start one's run,
  * each once the user allows it. Removing a task stays the user's, in the settings.
  */
-export function createTaskTools({ tasks, conversations }: TaskToolsOptions) {
+export function createTaskTools({
+  tasks,
+  conversations,
+  themes,
+}: TaskToolsOptions) {
   /** The task the arguments write, or why they write none, worded for the model. */
   async function draftOf(args: SaveTaskArguments): Promise<ScheduledTaskDraft> {
     if (
@@ -193,6 +232,16 @@ export function createTaskTools({ tasks, conversations }: TaskToolsOptions) {
       args.everyMinutes === undefined
     ) {
       throw new Error(`An ${args.when} task needs everyMinutes`);
+    }
+
+    const missing = (args.themes ?? []).filter(
+      (id) => !themes.list().some(({ theme }) => theme.id === id)
+    );
+
+    if (missing.length > 0) {
+      throw new Error(
+        `No theme has the id ${missing.join(", ")}; get_themes lists them`
+      );
     }
 
     const draft = scheduledTaskDraftSchema.safeParse({
@@ -292,7 +341,7 @@ export function createTaskTools({ tasks, conversations }: TaskToolsOptions) {
         text: [
           `Runs of task "${task.name}" (id ${taskId}), newest first. Each reply is what that run wrote then, not current data.`,
           ...read.flatMap(({ at, view }) => [
-            `## Run of ${moment(at, task.timeZone)} ${task.timeZone}: ${runState(view)}`,
+            `## Run of ${wallTime(task.timeZone, new Date(at))} ${task.timeZone}: ${runState(view)}`,
             closingReply(view) ?? "It wrote no reply.",
           ]),
         ].join("\n"),

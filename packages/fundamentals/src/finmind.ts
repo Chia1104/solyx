@@ -25,14 +25,13 @@ import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { TW_BOARD_LOT, twFilingDeadline } from "@solyx/core/rules/tw";
 import type { TradingCalendarProvider } from "@solyx/core/session";
+import { HOUR_MS } from "@solyx/utils/date";
 import { createRateLimiter } from "@solyx/utils/rate-limit";
 
 const FINMIND_API_URL = "https://api.finmindtrade.com/api/v4/";
 
 // What FinMind allows an hour without a token, whatever the plan.
 const ANONYMOUS_REQUESTS = 300;
-
-const HOUR_MS = 60 * 60 * 1000;
 
 export const FinMindPlan = {
   Free: "free",

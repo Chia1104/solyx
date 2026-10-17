@@ -6,17 +6,20 @@ import { useTranslation } from "react-i18next";
 import { symbolKey } from "@solyx/core/market";
 import type { Position } from "@solyx/core/order";
 
+import { orpc } from "../../app/rpc.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
 import { ListingName } from "../market/listing-name.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
-import { accountQuery } from "./account-query.ts";
-
 export function AccountSummary() {
   const { t, i18n } = useTranslation();
-  const { data, error, refetch } = useQuery(accountQuery());
+
+  const { data, error, refetch } = useQuery(
+    orpc.account.summary.queryOptions()
+  );
+
   const format = numberFormats(i18n.language);
 
   return (

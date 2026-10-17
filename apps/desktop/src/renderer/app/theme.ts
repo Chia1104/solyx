@@ -3,16 +3,14 @@ import { useCallback, useSyncExternalStore } from "react";
 import { QueryObserver, useSuspenseQuery } from "@tanstack/react-query";
 import { kebabCase } from "es-toolkit";
 
-import type { Appearance } from "#shared/ipc/settings.ts";
 import { ColorScheme, resolvePalette } from "#shared/palette.ts";
 import type { PaletteColors } from "#shared/palette.ts";
+import type { Appearance } from "#shared/settings.ts";
 
-import {
-  appearanceQuery,
-  settingsQueryKeys,
-} from "../modules/settings/settings-query.ts";
+import { appearanceQuery } from "../modules/settings/settings-query.ts";
 
 import { queryClient } from "./query-client.ts";
+import { client, forEachEvent, orpc } from "./rpc.ts";
 
 const darkScheme = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -79,8 +77,8 @@ export async function followAppearance() {
   applyScheme();
   darkScheme.addEventListener("change", applyScheme);
 
-  window.solyx.settings.onAppearance((appearance) => {
-    queryClient.setQueryData(settingsQueryKeys.appearance, appearance);
+  void forEachEvent(client.settings.appearanceChanges(), (appearance) => {
+    queryClient.setQueryData(orpc.settings.appearance.queryKey(), appearance);
   });
 
   // Whatever the query holds shows, so a palette being edited shows before it is saved.

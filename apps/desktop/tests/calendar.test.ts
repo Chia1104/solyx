@@ -3,12 +3,13 @@ import { expect, test, vi } from "vite-plus/test";
 import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
 import { RestrictionKind } from "@solyx/core/fundamentals";
 import type { Dividend, Fundamentals } from "@solyx/core/fundamentals";
-import { MacroFigure, MacroIndicator, MacroUnit } from "@solyx/core/macro";
-import type { MacroRelease, MacroSeries } from "@solyx/core/macro";
+import { MacroIndicator } from "@solyx/core/macro";
+import type { MacroRelease } from "@solyx/core/macro";
 import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Report } from "@solyx/core/report";
 import type { ClosuresProvider } from "@solyx/core/session";
+import { HOUR_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
 import { createCalendar } from "../src/main/modules/calendar/calendar.ts";
@@ -33,21 +34,6 @@ function cash(amount: number, cashExDate: string): Dividend {
 }
 
 const AAPL = { market: Market.US, symbol: "AAPL" };
-
-/** Consumer prices through September, which came out on 2026-10-07. */
-const PRICES: MacroSeries = {
-  market: Market.TW,
-  indicator: MacroIndicator.ConsumerPrices,
-  figure: MacroFigure.ConsumerPrices,
-  unit: MacroUnit.Index,
-  observations: [
-    { period: "2025-09", value: 100 },
-    { period: "2026-08", value: 102 },
-    { period: "2026-09", value: 102.5 },
-  ],
-};
-
-const HOUR_MS = 60 * 60 * 1000;
 
 function consumerPrices(date: string, period: string): MacroRelease {
   return {
@@ -87,9 +73,6 @@ function setup(dividends: Record<string, Dividend[]>) {
             consumerPrices("2026-12-08", "2026-11"),
           ]
         : []
-    ),
-    series: vi.fn<Macro["series"]>(async (market) =>
-      market === Market.TW ? [PRICES] : []
     ),
   };
 
@@ -250,55 +233,25 @@ test("what a listing's exchange lists of it joins its filings: the notices of it
   expect(unread).toEqual([]);
 });
 
-test("the listings' markets' releases come from a week back through the days asked for, each with what is known of its figures", async () => {
+test("the listings' markets' releases come from a week back through the days asked for", async () => {
   const { calendar, macro } = setup({
     [symbolKey(TSMC)]: [],
     [symbolKey(FOXCONN)]: [],
     [symbolKey(AAPL)]: [],
   });
 
-  const { releases, unreadMarkets, unreadFigures } = await calendar.upcoming(
+  const { releases, unreadMarkets } = await calendar.upcoming(
     [TSMC, FOXCONN, AAPL],
     30
   );
 
-  expect(
-    releases.map(({ date, period, readings }) => [
-      date,
-      period,
-      readings.map(({ period: read, value, yoy }) => [
-        read,
-        value,
-        yoy?.toFixed(3),
-      ]),
-    ])
-  ).toEqual([
-    // Out yesterday, with the figure it brought.
-    ["2026-10-07", "2026-09", [["2026-09", 102.5, "0.025"]]],
-    // Ahead, with the newest figure out before it.
-    ["2026-11-05", "2026-10", [["2026-09", 102.5, "0.025"]]],
+  expect(releases.map(({ date, period }) => [date, period])).toEqual([
+    // Out yesterday.
+    ["2026-10-07", "2026-09"],
+    ["2026-11-05", "2026-10"],
   ]);
   expect(unreadMarkets).toEqual([]);
-  expect(unreadFigures).toEqual([]);
   expect(macro.schedule.mock.calls).toEqual([[Market.TW], [Market.US]]);
-});
-
-test("figures that cannot be read name their market, and its releases stay without any", async () => {
-  const { calendar, macro } = setup({ [symbolKey(TSMC)]: [] });
-
-  macro.series.mockRejectedValue(new Error("DGBAS answered 503"));
-
-  const { releases, unreadMarkets, unreadFigures } = await calendar.upcoming(
-    [TSMC],
-    30
-  );
-
-  expect(releases.map(({ date, readings }) => [date, readings])).toEqual([
-    ["2026-10-07", []],
-    ["2026-11-05", []],
-  ]);
-  expect(unreadMarkets).toEqual([]);
-  expect(unreadFigures).toEqual([Market.TW]);
 });
 
 test("the weekdays the listings' markets are closed come within the days asked for, read twice a day at most", async () => {

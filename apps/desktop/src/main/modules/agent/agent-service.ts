@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { Tracer } from "@opentelemetry/api";
-import { BrowserWindow } from "electron";
 import { omit, sum } from "es-toolkit";
 
 import { createAnalysis } from "@solyx/agent/analysis";
@@ -63,11 +62,10 @@ import type { WebReader, WebSearch } from "@solyx/core/web-search";
 import type { AgentStore } from "@solyx/db/agent";
 import { isErrnoError } from "@solyx/utils/error";
 
-import { agentEvents } from "#shared/ipc/agent.ts";
-import type { AgentScreen, AgentUpdate } from "#shared/ipc/agent.ts";
-import type { Locale, TimeZone } from "#shared/ipc/settings.ts";
-import type { ConversationsUsage } from "#shared/ipc/storage.ts";
+import type { AgentScreen, AgentUpdate } from "#shared/agent.ts";
 import { OverviewTab, overviewLink } from "#shared/overview-tab.ts";
+import type { Locale, TimeZone } from "#shared/settings.ts";
+import type { ConversationsUsage } from "#shared/storage.ts";
 import { symbolLink } from "#shared/symbol-link.ts";
 
 import type { Calendar } from "../calendar/calendar.ts";
@@ -137,6 +135,10 @@ interface AgentServiceOptions extends AgentModelsOptions {
   setup: AgentSetupSources;
   /** A run started or ended, or one of its calls began or stopped waiting for the user. */
   onActivity: () => void;
+  /** Every event of every conversation's runs, which every window shows. */
+  onUpdate: (update: AgentUpdate) => void;
+  /** The conversations' store failed, which `storeFailed` tells from then on. */
+  onStoreFailed: () => void;
 }
 
 // `vp pack` ships QuickJS beside the main bundle and builds the scripts' worker next to it.
@@ -196,9 +198,7 @@ export function createAgentService(options: AgentServiceOptions) {
 
     traces.event(sessionId, event);
 
-    for (const window of BrowserWindow.getAllWindows()) {
-      window.webContents.send(agentEvents.onEvent, update);
-    }
+    options.onUpdate(update);
 
     if (waitingCalls.follow(sessionId, event)) options.onActivity();
   };
@@ -245,6 +245,7 @@ export function createAgentService(options: AgentServiceOptions) {
     news: options.news,
     tradingDays: options.tradingDays,
     calendar: (symbols, days) => options.calendar.upcoming(symbols, days),
+    figures: options.macro.series,
     desk: options.desk,
     magi,
     links: {
@@ -320,6 +321,7 @@ export function createAgentService(options: AgentServiceOptions) {
       sessions: () => runtime.sessions(),
       transcript: (id) => runtime.transcript(id),
     },
+    themes: options.themes,
   });
 
   const watched = createWatchlistTools({
@@ -399,9 +401,7 @@ export function createAgentService(options: AgentServiceOptions) {
       storeFailed = true;
       options.diagnostics.report(cause, "agent.store");
 
-      for (const window of BrowserWindow.getAllWindows()) {
-        window.webContents.send(agentEvents.onStoreFailed);
-      }
+      options.onStoreFailed();
     },
   });
 
@@ -473,7 +473,15 @@ export function createAgentService(options: AgentServiceOptions) {
     skills,
     instructions,
 
-    resume: () => runtime.resume(),
+    /**
+     * Carries on the runs the app's exit cut off, once the models a server the user runs listed
+     * last are back, and has that server list them again meanwhile.
+     */
+    async resume() {
+      await models.restoreServerModels();
+      void models.listServerModels();
+      await runtime.resume();
+    },
 
     sessions: () => runtime.sessions(),
 

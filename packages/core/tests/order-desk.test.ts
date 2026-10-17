@@ -1,8 +1,11 @@
 import { noop } from "es-toolkit";
 import { expect, test, vi } from "vite-plus/test";
 
+import { MINUTE_MS } from "@solyx/utils/date";
+
 import { BrokerMode } from "../src/broker.ts";
 import type { BrokerAdapter } from "../src/broker.ts";
+import { ForecastDirection } from "../src/forecast.ts";
 import { Market } from "../src/market.ts";
 import {
   OrderDesk,
@@ -10,9 +13,15 @@ import {
   ProposalStatus,
   SubmissionFailureCode,
 } from "../src/order-desk.ts";
-import type { ProposalStore, TradeProposal } from "../src/order-desk.ts";
+import type {
+  OrderDeskOptions,
+  ProposalBasis,
+  ProposalStore,
+  TradeProposal,
+} from "../src/order-desk.ts";
 import { OrderType, Side } from "../src/order.ts";
 import type { AccountSnapshot, OrderRequest } from "../src/order.ts";
+import { ReportStance } from "../src/report.ts";
 import { RiskViolationCode } from "../src/risk.ts";
 import { Session, weekdays } from "../src/session.ts";
 import type { TradingDays } from "../src/session.ts";
@@ -45,7 +54,10 @@ const DURING_SESSION = Date.parse("2026-09-29T10:00:00+08:00");
 
 const AFTER_CLOSE = Date.parse("2026-09-29T15:00:00+08:00");
 
-function setup(store = memoryStore(), restored = false) {
+function setup(
+  store = memoryStore(),
+  { restored = false, basis }: Pick<OrderDeskOptions, "restored" | "basis"> = {}
+) {
   const clock = { now: DURING_SESSION };
   const tradingDays = vi.fn(async (): Promise<TradingDays> => weekdays);
   const onChange = vi.fn();
@@ -78,6 +90,7 @@ function setup(store = memoryStore(), restored = false) {
     },
     tradingDays,
     restored,
+    basis,
     onChange,
     now: () => clock.now,
   });
@@ -126,6 +139,44 @@ test("proposing again under the same id returns the first proposal", async () =>
   expect(again).toEqual(first);
   expect(store.list()).toHaveLength(1);
   expect(getAccount).toHaveBeenCalledTimes(1);
+});
+
+test("a proposal keeps what research held of its listing as it was made, whoever made it", async () => {
+  const held: ProposalBasis = {
+    report: {
+      revision: 3,
+      revisedAt: DURING_SESSION - MINUTE_MS,
+      stance: ReportStance.Bullish,
+    },
+    forecast: {
+      id: "f-1",
+      createdAt: DURING_SESSION - 30_000,
+      direction: ForecastDirection.Long,
+      horizon: 5,
+    },
+  };
+
+  const basis = vi.fn(() => structuredClone(held));
+  const { desk, store } = setup(memoryStore(), { basis });
+
+  const agent = await proposeFromAgent(desk);
+
+  const user = await desk.propose({
+    order,
+    source: ProposalSource.User,
+    rationale: "",
+  });
+
+  expect(basis).toHaveBeenCalledWith(order.instrument);
+  expect(agent.basis).toEqual(held);
+  expect(user.basis).toEqual(held);
+  expect(store.get(agent.id)?.basis).toEqual(held);
+});
+
+test("a desk given no research keeps no basis", async () => {
+  const { desk } = setup();
+
+  expect((await proposeFromAgent(desk)).basis).toBeNull();
 });
 
 test("confirming submits exactly once", async () => {
@@ -241,7 +292,7 @@ test("what a desk settles as it opens is told to no one, since nothing shows pro
   await vi.waitFor(() => expect(placeOrder).toHaveBeenCalledOnce());
   await proposeFromAgent(desk);
 
-  const reopened = setup(store, true);
+  const reopened = setup(store, { restored: true });
 
   expect(reopened.desk.list().map(({ status }) => status)).toEqual([
     ProposalStatus.Failed,
@@ -260,7 +311,7 @@ test("a proposal that waited in a backup is dismissed, since it may have been co
   // Opened again without a restore, what waits still waits.
   expect(setup(store).desk.list()).toEqual(desk.list());
 
-  const restored = setup(store, true);
+  const restored = setup(store, { restored: true });
 
   expect(restored.desk.list()).toMatchObject([
     { id: waiting.id, status: ProposalStatus.Dismissed },

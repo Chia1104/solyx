@@ -7,13 +7,14 @@ import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { Interval, isIntraday } from "@solyx/core/candles";
 import type { BarInterval, Candle } from "@solyx/core/candles";
-import { Market, exchangeDate, shiftDate } from "@solyx/core/market";
+import { Market, exchangeDate } from "@solyx/core/market";
 import type {
   CandleRequest,
   MarketDataProvider,
 } from "@solyx/core/market-data";
 import { openCache } from "@solyx/db/cache";
 import type { Cache } from "@solyx/db/cache";
+import { shiftDate } from "@solyx/utils/date";
 
 import { withCandleCache } from "../src/candle-cache.ts";
 

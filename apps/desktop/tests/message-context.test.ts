@@ -5,8 +5,8 @@ import { Interval } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
+import { ScreenKind } from "#shared/agent.ts";
 import { ChartIndicator } from "#shared/chart-indicator.ts";
-import { ScreenKind } from "#shared/ipc/agent.ts";
 import { OverviewTab } from "#shared/overview-tab.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
 

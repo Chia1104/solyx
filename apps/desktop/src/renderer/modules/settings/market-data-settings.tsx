@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Market } from "@solyx/core/market";
 
-import { MarketDataSource } from "#shared/ipc/settings.ts";
+import { MarketDataSource } from "#shared/settings.ts";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";

@@ -3,9 +3,12 @@ import { createReadStream, createWriteStream, openAsBlob } from "node:fs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
+import { trimEnd } from "es-toolkit";
 import { XMLParser } from "fast-xml-parser";
 import ky, { isHTTPError } from "ky";
 import * as z from "zod";
+
+import { HOUR_MS } from "@solyx/utils/date";
 
 import { awsEncode, sha256Hex, signRequest } from "./sigv4.ts";
 
@@ -18,7 +21,7 @@ export const awsEndpoint = (region: string) =>
 
 // An upload or a download of a whole backup, which a slow line may take long over; a line gone
 // quiet is given up on rather than waited for.
-const TRANSFER_TIMEOUT_MS = 60 * 60 * 1000;
+const TRANSFER_TIMEOUT_MS = HOUR_MS;
 
 const EMPTY_HASH = sha256Hex("");
 
@@ -100,7 +103,7 @@ export interface BucketObject {
 export function createBucket(options: BucketOptions) {
   const { bucket, now = () => new Date() } = options;
   const endpoint = new URL(options.endpoint);
-  const root = `${endpoint.origin}${endpoint.pathname.replace(/\/+$/, "")}/${awsEncode(bucket)}`;
+  const root = `${endpoint.origin}${trimEnd(endpoint.pathname, "/")}/${awsEncode(bucket)}`;
 
   const signingKey = {
     accessKeyId: options.accessKeyId,

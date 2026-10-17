@@ -22,10 +22,12 @@ import {
   holdsSecret,
 } from "@solyx/core/memory";
 import type { Memory, MemoryChange } from "@solyx/core/memory";
+import { matchesFilter } from "@solyx/utils/search";
 
 import { useClock } from "../../app/clock.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { FilterField, matchesFilter } from "../../components/filter-field.tsx";
+import { FilterField } from "../../components/filter-field.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
@@ -73,12 +75,12 @@ function MemoryRow({ memory }: { memory: Memory }) {
 
   const save = useMutation({
     mutationFn: (change: MemoryChange) =>
-      window.solyx.memory.update(memory.id, change),
+      client.memory.update({ id: memory.id, change }),
     onSuccess: () => setEditing(false),
   });
 
   const forget = useMutation({
-    mutationFn: () => window.solyx.memory.forget(memory.id),
+    mutationFn: () => client.memory.forget(memory.id),
   });
 
   const submit = form.handleSubmit((change) => save.mutate(change));
@@ -195,10 +197,7 @@ export function MemorySettings() {
   const settings = useQuery(memorySettingsQuery());
   const [filter, setFilter] = useState("");
 
-  const enable = useMutation({
-    mutationFn: (enabled: boolean) =>
-      window.solyx.settings.setMemoryEnabled(enabled),
-  });
+  const enable = useMutation(orpc.settings.setMemoryEnabled.mutationOptions());
 
   const error = memories.error ?? settings.error;
 

@@ -6,11 +6,13 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { McpServerState, McpTransportKind } from "@solyx/agent/mcp-config";
 import type { SetupArea } from "@solyx/agent/setup";
+import { EVERY_CHANGE } from "@solyx/core/changes";
 import { Market } from "@solyx/core/market";
 import { ScheduleApproval, ScheduleKind } from "@solyx/core/schedule";
 import type { ScheduledTask } from "@solyx/core/schedule";
 import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FUGLE_PLANS, FuglePlan } from "@solyx/market-data/fugle";
+import { DAY_MINUTES } from "@solyx/utils/date";
 
 import {
   FubonFile,
@@ -18,9 +20,9 @@ import {
   MarketDataSource,
   Secret,
   mcpSecretKey,
-} from "#shared/ipc/settings.ts";
-import type { MarketDataStatus } from "#shared/ipc/settings.ts";
-import type { StorageUsage } from "#shared/ipc/storage.ts";
+} from "#shared/settings.ts";
+import type { MarketDataStatus } from "#shared/settings.ts";
+import type { StorageUsage } from "#shared/storage.ts";
 
 import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
 import { createAgentSetup } from "../src/main/modules/agent/agent-setup.ts";
@@ -104,6 +106,8 @@ function setup(scheduled: ScheduledTask[] = []) {
     getDeviceId: () => "00000000-0000-4000-8000-000000000000",
     openExternal: vi.fn(),
     showSignInCode: vi.fn(),
+    modelsFile: join(home, "data", "agent-models.json"),
+    onModelsListed: vi.fn(),
   });
 
   const port = createAgentSetup({
@@ -114,7 +118,12 @@ function setup(scheduled: ScheduledTask[] = []) {
     models,
     webSearch: createWebSearch({ config, secrets }),
     decisions: createDecisions({ config, secrets }),
-    embeddings: createEmbeddings({ config, secrets }),
+    embeddings: createEmbeddings({
+      config,
+      secrets,
+      diagnostics: { recovered: vi.fn() },
+      onChange: vi.fn(),
+    }),
     mcp,
     skills: async () => ({ skills: [], warnings: [] }),
     instructions: async () => undefined,
@@ -171,7 +180,7 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
     "Taiwan's charts, quotes and news have no source: fugle still needs a Fugle API key.",
   ]);
   expect(area(areas, "Agent models").missing).toEqual([
-    "No provider switched on has a key saved or a subscription signed in, so the agent cannot run.",
+    "No provider switched on has a key saved, a subscription signed in or a server listing a model, so the agent cannot run.",
   ]);
   expect(area(areas, "Web search").missing).toHaveLength(1);
   expect(area(areas, "Decisions model").missing).toHaveLength(1);
@@ -251,8 +260,12 @@ test("storage reads as what each store holds, on the tab where the user clears i
         description: "a cache, which charts fill again once it is cleared",
       },
       { name: "conversations", value: "3.1 MB, 1 conversation" },
-      { name: "memories", value: "98.0 kB, 8 memories" },
-      { name: "news", value: "1.3 GB, 1234 items" },
+      { name: "memories", value: "98 kB, 8 memories" },
+      {
+        name: "news",
+        value:
+          "1.3 GB, 1234 items; announcements and articles kept 90 days, forum and social posts 30 days, from when each came out; the user sets how long here",
+      },
       { name: "research", value: "400 bytes, 3 reports and 14 forecasts" },
       { name: "watchlist", value: "6 listings" },
     ],
@@ -341,12 +354,12 @@ test("a change goes through the writers the settings page uses", async () => {
   expect(saved.embeddings.enabled).toBe(true);
   expect(saved.collection.news).toMatchObject({
     enabled: true,
-    schedule: { kind: ScheduleKind.Interval, everyMinutes: 24 * 60 },
+    schedule: { kind: ScheduleKind.Interval, everyMinutes: DAY_MINUTES },
   });
   // Switching off keeps when it would run.
   expect(saved.collection.themes).toMatchObject({
     enabled: false,
-    schedule: { kind: ScheduleKind.Interval, everyMinutes: 24 * 60 },
+    schedule: { kind: ScheduleKind.Interval, everyMinutes: DAY_MINUTES },
   });
 });
 
@@ -420,7 +433,11 @@ test("the scheduled tasks the user wrote read with when each runs and how its ca
     ...hourly,
     id: "upkeep",
     name: "Upkeep",
-    schedule: { kind: ScheduleKind.OnChange, atMostEveryMinutes: 120 },
+    schedule: {
+      kind: ScheduleKind.OnChange,
+      atMostEveryMinutes: 120,
+      scope: EVERY_CHANGE,
+    },
   };
 
   expect(

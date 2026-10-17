@@ -6,8 +6,8 @@ import { createFirecrawl } from "@solyx/web-search/firecrawl";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 import { createTavily } from "@solyx/web-search/tavily";
 
-import { webSearchKeySecret } from "#shared/ipc/settings.ts";
-import type { WebSearchSettings } from "#shared/ipc/settings.ts";
+import { webSearchKeySecret } from "#shared/settings.ts";
+import type { WebSearchSettings } from "#shared/settings.ts";
 
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";

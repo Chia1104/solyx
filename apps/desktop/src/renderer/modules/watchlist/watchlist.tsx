@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { CloseButton } from "@heroui/react";
+import { CloseButton, ListLayout, Virtualizer } from "@heroui/react";
 import { DragDropVerticalIcon } from "@hugeicons/core-free-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
+import { orpc } from "../../app/rpc.ts";
 import { usePaletteColors } from "../../app/theme.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { highlight } from "../../components/highlight.ts";
@@ -30,7 +31,7 @@ import {
   QuotePrice,
 } from "../market/quote-figures.tsx";
 
-import { watchlistQuery, watchlistQueryKeys } from "./watchlist-query.ts";
+import { watchlistQuery } from "./watchlist-query.ts";
 
 /** `listings` with `symbol` taken out and put back at `index` among the others. */
 function moved(listings: SymbolRef[], symbol: SymbolRef, index: number) {
@@ -76,26 +77,24 @@ export function Watchlist() {
     return () => cancelAnimationFrame(frame);
   }, [data, accent]);
 
-  const remove = useMutation({
-    mutationFn: (symbol: SymbolRef) => window.solyx.watchlist.remove(symbol),
-  });
+  const remove = useMutation(orpc.watchlist.remove.mutationOptions());
 
   // The row lands where it was dropped at once; the main process's order replaces it once saved,
   // and a move that failed pushes nothing, so the list is read again either way.
-  const move = useMutation({
-    mutationFn: ({ symbol, index }: { symbol: SymbolRef; index: number }) =>
-      window.solyx.watchlist.move(symbol, index),
-    onMutate: async ({ symbol, index }) => {
-      await queryClient.cancelQueries({ queryKey: watchlistQueryKeys.all });
+  const move = useMutation(
+    orpc.watchlist.move.mutationOptions({
+      onMutate: async ({ symbol, index }) => {
+        await queryClient.cancelQueries({ queryKey: orpc.watchlist.key() });
 
-      queryClient.setQueryData(
-        watchlistQuery().queryKey,
-        (current) => current && moved(current, symbol, index)
-      );
-    },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: watchlistQueryKeys.all }),
-  });
+        queryClient.setQueryData(
+          watchlistQuery().queryKey,
+          (current) => current && moved(current, symbol, index)
+        );
+      },
+      onSettled: () =>
+        queryClient.invalidateQueries({ queryKey: orpc.watchlist.key() }),
+    })
+  );
 
   const { dragAndDropHooks } = useDragAndDrop<{ symbol: SymbolRef }>({
     getItems: (_keys, items) =>
@@ -157,44 +156,47 @@ export function Watchlist() {
 
   return (
     <>
-      <GridList
-        ref={list}
-        aria-label={t("watchlist.title")}
-        items={data.map((symbol) => ({ id: symbolKey(symbol), symbol }))}
-        dragAndDropHooks={dragAndDropHooks}
-        className="outline-none">
-        {({ symbol }) => (
-          <GridListItem
-            textValue={symbol.symbol}
-            className="group relative outline-none data-[dragging]:opacity-40 data-[focus-visible]:bg-default">
-            <Button
-              slot="drag"
-              className="absolute inset-y-0 left-0 flex w-4 cursor-grab items-center justify-center text-muted opacity-0 outline-none group-hover:opacity-100 data-[focus-visible]:text-accent data-[focus-visible]:opacity-100">
-              <Icon icon={DragDropVerticalIcon} className="size-3" />
-            </Button>
-            <SymbolRow
-              symbol={symbol}
-              name={<ListingName symbol={symbol} />}
-              price={
-                // The remove button takes the price's place while the row is hovered.
-                <span className="transition-opacity group-hover:opacity-0 group-has-[button:focus-visible]:opacity-0 motion-reduce:transition-none">
-                  <QuotePrice symbol={symbol} />
-                </span>
-              }
-              chart={<QuoteLine symbol={symbol} className="size-full" />}
-              detail={<QuoteChange symbol={symbol} />}
-            />
-            <CloseButton
-              aria-label={t("watchlist.remove-symbol", {
-                symbol: symbol.symbol,
-              })}
-              isDisabled={remove.isPending}
-              className="absolute top-1 right-2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none"
-              onPress={() => remove.mutate(symbol)}
-            />
-          </GridListItem>
-        )}
-      </GridList>
+      {/* The watchlist has no limit, and each row draws a chart: only the rows in view are rendered. */}
+      <Virtualizer layout={ListLayout} layoutOptions={{ estimatedRowSize: 68 }}>
+        <GridList
+          ref={list}
+          aria-label={t("watchlist.title")}
+          items={data.map((symbol) => ({ id: symbolKey(symbol), symbol }))}
+          dragAndDropHooks={dragAndDropHooks}
+          className="outline-none">
+          {({ symbol }) => (
+            <GridListItem
+              textValue={symbol.symbol}
+              className="group relative outline-none data-[dragging]:opacity-40 data-[focus-visible]:bg-default">
+              <Button
+                slot="drag"
+                className="absolute inset-y-0 left-0 flex w-4 cursor-grab items-center justify-center text-muted opacity-0 outline-none group-hover:opacity-100 data-[focus-visible]:text-accent data-[focus-visible]:opacity-100">
+                <Icon icon={DragDropVerticalIcon} className="size-3" />
+              </Button>
+              <SymbolRow
+                symbol={symbol}
+                name={<ListingName symbol={symbol} />}
+                price={
+                  // The remove button takes the price's place while the row is hovered.
+                  <span className="transition-opacity group-hover:opacity-0 group-has-[button:focus-visible]:opacity-0 motion-reduce:transition-none">
+                    <QuotePrice symbol={symbol} />
+                  </span>
+                }
+                chart={<QuoteLine symbol={symbol} className="size-full" />}
+                detail={<QuoteChange symbol={symbol} />}
+              />
+              <CloseButton
+                aria-label={t("watchlist.remove-symbol", {
+                  symbol: symbol.symbol,
+                })}
+                isDisabled={remove.isPending}
+                className="absolute top-1 right-2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none"
+                onPress={() => remove.mutate(symbol)}
+              />
+            </GridListItem>
+          )}
+        </GridList>
+      </Virtualizer>
       {actionError ? (
         <div className="px-4 pt-2">
           <ErrorAlert

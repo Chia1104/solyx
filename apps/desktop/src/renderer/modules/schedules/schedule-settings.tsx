@@ -25,12 +25,15 @@ import {
   ScheduleKind,
 } from "@solyx/core/schedule";
 import type { ScheduledTaskDraft } from "@solyx/core/schedule";
+import { isEnumValue } from "@solyx/utils/is";
 
-import type { ScheduledTaskView } from "#shared/ipc/schedules.ts";
+import type { ScheduledTaskView, TaskDraft } from "#shared/schedules.ts";
+import { Locale } from "#shared/settings.ts";
 
 import { currentTimeZone, useClock } from "../../app/clock.ts";
 import { currentLocale } from "../../app/i18n.ts";
 import { Pane, useLayoutStore } from "../../app/layout-store.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -40,11 +43,17 @@ import { RailedColumn } from "../../components/sheet.tsx";
 import { useAgentStore } from "../agent/agent-store.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 
+import {
+  ChangeScopeFields,
+  changeLine,
+  useScopeText,
+} from "./change-scope-fields.tsx";
 import { CollectionList } from "./collection-settings.tsx";
 import { schedulesQuery } from "./schedules-query.ts";
 import {
   NEW_TIMING,
   TimingFields,
+  checkScope,
   scheduleOf,
   scheduleText,
   timingFieldSchemas,
@@ -66,15 +75,17 @@ function useTaskFormSchema() {
         .min(1, { error: t("settings.schedules.required") })
         .max(max, { error: t("settings.schedules.too-long", { count: max }) });
 
-    return z.object({
-      name: text(SCHEDULE_NAME_LENGTH),
-      prompt: text(SCHEDULE_PROMPT_LENGTH).refine(
-        (value) => !holdsSecret(value),
-        { error: t("settings.schedules.secret") }
-      ),
-      approval: z.enum(ScheduleApproval),
-      ...timingFieldSchemas(t),
-    });
+    return z
+      .object({
+        name: text(SCHEDULE_NAME_LENGTH),
+        prompt: text(SCHEDULE_PROMPT_LENGTH).refine(
+          (value) => !holdsSecret(value),
+          { error: t("settings.schedules.secret") }
+        ),
+        approval: z.enum(ScheduleApproval),
+        ...timingFieldSchemas(t),
+      })
+      .superRefine(checkScope(t));
   }, [t]);
 }
 
@@ -104,7 +115,7 @@ const formOf = ({
  * The task a form describes, on the clock and in the language the app shows now: a task saved
  * again follows them, so its time of day reads as the user sees it.
  */
-function draftOf(form: TaskForm, enabled: boolean): ScheduledTaskDraft {
+function draftOf(form: TaskForm, enabled: boolean): TaskDraft {
   return {
     name: form.name,
     prompt: form.prompt,
@@ -127,26 +138,31 @@ function TaskEditor({
 }) {
   const { t } = useTranslation();
 
+  const opened = task ? formOf(task) : NEW_TASK;
+
   const form = useForm({
     resolver: zodResolver(useTaskFormSchema()),
     reValidateMode: "onSubmit",
-    defaultValues: task ? formOf(task) : NEW_TASK,
+    defaultValues: opened,
   });
 
   const approval = useWatch({ control: form.control, name: "approval" });
+  const kind = useWatch({ control: form.control, name: "kind" });
 
   const save = useMutation({
     mutationFn: (values: TaskForm) =>
       task
-        ? window.solyx.schedules.update(task.id, draftOf(values, task.enabled))
-        : window.solyx.schedules.create(draftOf(values, true)),
+        ? client.schedules.update({
+            id: task.id,
+            draft: draftOf(values, task.enabled),
+          })
+        : client.schedules.create(draftOf(values, true)),
     onSuccess: onDone,
   });
 
-  const remove = useMutation({
-    mutationFn: (id: string) => window.solyx.schedules.remove(id),
-    onSuccess: onDone,
-  });
+  const remove = useMutation(
+    orpc.schedules.remove.mutationOptions({ onSuccess: onDone })
+  );
 
   const submit = form.handleSubmit((values) => save.mutate(values));
   const pending = save.isPending || remove.isPending;
@@ -187,6 +203,9 @@ function TaskEditor({
           kinds={Object.values(ScheduleKind)}
           intervals={INTERVALS}
         />
+        {kind === ScheduleKind.OnChange ? (
+          <ChangeScopeFields kept={opened} />
+        ) : null}
       </FormProvider>
       <Controller
         control={form.control}
@@ -284,15 +303,26 @@ function LastRun({ task }: { task: ScheduledTaskView }) {
 function TaskRow({ task }: { task: ScheduledTaskView }) {
   const { t } = useTranslation();
   const clock = useClock();
+  const scopeText = useScopeText();
   const [editing, setEditing] = useState(false);
 
   const enable = useMutation({
     mutationFn: (enabled: boolean) =>
-      window.solyx.schedules.update(task.id, { ...task, enabled }),
+      client.schedules.update({
+        id: task.id,
+        // A task keeps the language it was saved in, unless the app no longer speaks it.
+        draft: {
+          ...task,
+          enabled,
+          locale: isEnumValue(Locale, task.locale)
+            ? task.locale
+            : currentLocale(),
+        },
+      }),
   });
 
   const run = useMutation({
-    mutationFn: () => window.solyx.schedules.runNow(task.id),
+    mutationFn: () => client.schedules.runNow(task.id),
   });
 
   const error = enable.error ?? run.error;
@@ -303,6 +333,9 @@ function TaskRow({ task }: { task: ScheduledTaskView }) {
       description={
         <span className="flex flex-wrap items-center gap-x-2">
           <span>{scheduleText(t, task.schedule, task.timeZone)}</span>
+          {task.schedule.kind === ScheduleKind.OnChange ? (
+            <span>· {scopeText(task.schedule.scope)}</span>
+          ) : null}
           {task.enabled && task.schedule.kind === ScheduleKind.OnChange ? (
             <span>· {t("settings.schedules.waits")}</span>
           ) : null}
@@ -357,9 +390,23 @@ function TaskRow({ task }: { task: ScheduledTaskView }) {
       {editing ? (
         <TaskEditor task={task} onDone={() => setEditing(false)} />
       ) : (
-        <p className="line-clamp-2 text-xs whitespace-pre-wrap text-muted">
-          {task.prompt}
-        </p>
+        <>
+          <p className="line-clamp-2 text-xs whitespace-pre-wrap text-muted">
+            {task.prompt}
+          </p>
+          {task.lastRun && task.lastRun.changes.length > 0 ? (
+            <div className="text-xs text-muted">
+              <p>{t("settings.schedules.scope.ran-for")}</p>
+              <ul className="list-disc pl-4">
+                {task.lastRun.changes.map((change) => {
+                  const line = changeLine(t, change);
+
+                  return <li key={line}>{line}</li>;
+                })}
+              </ul>
+            </div>
+          ) : null}
+        </>
       )}
       {error ? (
         <ErrorAlert

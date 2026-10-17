@@ -28,8 +28,8 @@ import {
   createTypeSafeScorer,
 } from "@solyx/decisions/typesafe";
 
-import { DECISIONS_SECRETS } from "#shared/ipc/settings.ts";
-import type { DecisionsSettings } from "#shared/ipc/settings.ts";
+import { DECISIONS_SECRETS } from "#shared/settings.ts";
+import type { DecisionsSettings } from "#shared/settings.ts";
 
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";

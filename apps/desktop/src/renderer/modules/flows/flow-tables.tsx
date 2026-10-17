@@ -45,7 +45,7 @@ export function NetBuyingTable({
       <Caption title={title} through={through} />
       <Table variant="secondary">
         <Table.ScrollContainer>
-          <Table.Content aria-label={title}>
+          <Table.Content aria-label={title} className="whitespace-nowrap">
             <Table.Header>
               <Table.Column isRowHeader>{t("flows.investor")}</Table.Column>
               <Table.Column className={NUMBER}>
@@ -123,7 +123,7 @@ export function TrendTable({
       <Caption title={title} through={through} />
       <Table variant="secondary">
         <Table.ScrollContainer>
-          <Table.Content aria-label={title}>
+          <Table.Content aria-label={title} className="whitespace-nowrap">
             <Table.Header>
               <Table.Column isRowHeader>{label}</Table.Column>
               <Table.Column className={NUMBER}>

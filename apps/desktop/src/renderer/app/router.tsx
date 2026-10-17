@@ -10,15 +10,16 @@ import * as z from "zod";
 import { Interval, intervalSchema } from "@solyx/core/candles";
 import { symbolRefSchema } from "@solyx/core/market";
 
-import { isMarketDataReady } from "#shared/ipc/settings.ts";
 import { OverviewTab, overviewTabSchema } from "#shared/overview-tab.ts";
 import {
   SettingsSection,
   settingsSectionSchema,
 } from "#shared/settings-section.ts";
+import { isMarketDataReady } from "#shared/settings.ts";
 
 import { ErrorFallback } from "../components/error-fallback.tsx";
 import { NotFound } from "../components/not-found.tsx";
+import { LowerView, lowerViewSchema } from "../modules/market/lower-view.ts";
 import {
   OnboardingStep,
   onboardingStepSchema,
@@ -80,9 +81,10 @@ const overviewRoute = createRoute({
   component: OverviewPage,
 });
 
-// A missing or unknown interval falls back to daily bars instead of failing the page.
+// A missing or unknown interval falls back to daily bars, and a view to the news, instead of failing the page.
 const symbolSearchSchema = z.object({
   interval: intervalSchema.default(Interval.OneDay).catch(Interval.OneDay),
+  view: lowerViewSchema.default(LowerView.News).catch(LowerView.News),
 });
 
 const symbolRoute = createRoute({

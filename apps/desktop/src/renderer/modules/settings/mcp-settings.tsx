@@ -5,10 +5,11 @@ import { useTranslation } from "react-i18next";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
 
-import { AppLocation } from "#shared/ipc/settings.ts";
-import type { McpServerSetting } from "#shared/ipc/settings.ts";
 import { SettingsSection } from "#shared/settings-section.ts";
+import { AppLocation } from "#shared/settings.ts";
+import type { McpServerSetting } from "#shared/settings.ts";
 
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -83,7 +84,7 @@ export function McpSettings({ server }: { server?: string }) {
   const { data, error, refetch } = useQuery(mcpQuery());
 
   const open = useMutation({
-    mutationFn: () => window.solyx.settings.reveal(AppLocation.Mcp),
+    mutationFn: () => client.settings.reveal(AppLocation.Mcp),
   });
 
   if (error) {

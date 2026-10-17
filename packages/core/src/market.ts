@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import { wallTime } from "@solyx/utils/date";
+
 export const Market = {
   TW: "TW",
   US: "US",
@@ -48,6 +50,10 @@ export const BENCHMARK: Record<Market, Benchmark> = {
   },
 };
 
+/** A listing as text written for a person or a model reads it, `TW 2330`. */
+export const symbolLabel = ({ market, symbol }: SymbolRef) =>
+  `${market} ${symbol}`;
+
 /** Identifies a listing across markets, as `TW:2330`. */
 export function symbolKey({ market, symbol }: SymbolRef): string {
   return `${market}:${symbol}`;
@@ -77,24 +83,10 @@ export function exchangeTime(market: Market, at: Date = new Date()): string {
   return wallTime(MARKET_TIME_ZONE[market], at);
 }
 
-/** `YYYY-MM-DD HH:mm` on the clock of `timeZone`, an IANA name. */
-export function wallTime(timeZone: string, at: Date = new Date()): string {
-  return Temporal.Instant.fromEpochMilliseconds(at.getTime())
-    .toZonedDateTimeISO(timeZone)
-    .toPlainDateTime()
-    .toString({ smallestUnit: "minute" })
-    .replace("T", " ");
-}
-
 /** UTC seconds at which an exchange-local calendar date (`YYYY-MM-DD`) begins. */
 export function exchangeMidnight(market: Market, date: string): number {
   return (
     Temporal.PlainDate.from(date).toZonedDateTime(MARKET_TIME_ZONE[market])
       .epochMilliseconds / 1000
   );
-}
-
-/** Moves a `YYYY-MM-DD` calendar date by whole days. */
-export function shiftDate(date: string, days: number): string {
-  return Temporal.PlainDate.from(date).add({ days }).toString();
 }

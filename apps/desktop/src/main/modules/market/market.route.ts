@@ -1,0 +1,36 @@
+import { contractOS } from "../../rpc/context.ts";
+
+import { marketSessions } from "./trading-calendar.ts";
+
+const { market } = contractOS;
+
+export const marketRouter = market.router({
+  sessions: market.sessions.handler(({ context }) =>
+    marketSessions(context.marketDays)
+  ),
+  listing: market.listing.handler(({ context, input }) =>
+    context.marketData.listing(input)
+  ),
+  candles: market.candles.handler(
+    async ({ context, input: { symbol, interval, before } }) => ({
+      symbol,
+      interval,
+      candles:
+        before === undefined
+          ? await context.marketData.candles(symbol, interval)
+          : await context.marketData.olderCandles(symbol, interval, before),
+    })
+  ),
+  quote: market.quote.handler(({ context, input }) =>
+    context.marketData.quote(input)
+  ),
+  sectors: market.sectors.handler(({ context }) =>
+    context.marketData.sectors()
+  ),
+  liveCandles: market.liveCandles.handler(({ context, input, signal }) =>
+    context.marketData.liveCandles(input.symbol, input.interval, signal)
+  ),
+  sourceChanges: market.sourceChanges.handler(({ context, signal }) =>
+    context.windowEvents.subscribe("market:sources-changed", { signal })
+  ),
+});

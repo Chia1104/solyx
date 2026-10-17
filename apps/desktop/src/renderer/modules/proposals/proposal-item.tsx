@@ -1,14 +1,22 @@
 import { Alert, Button, Chip, cn } from "@heroui/react";
 import type { ChipProps } from "@heroui/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { OrderType } from "@solyx/core/order";
+import { Interval } from "@solyx/core/candles";
+import { exchangeDate } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
+import { OrderType, orderImpact } from "@solyx/core/order";
+import type { OrderRequest } from "@solyx/core/order";
 import { ProposalStatus, SubmissionFailureCode } from "@solyx/core/order-desk";
-import type { TradeProposal } from "@solyx/core/order-desk";
+import type { ProposalBasis, TradeProposal } from "@solyx/core/order-desk";
 
+import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { ListingName } from "../market/listing-name.tsx";
+import { LowerView } from "../market/lower-view.ts";
+import { numberFormats } from "../market/number-formats.ts";
 
 import { violationMessage } from "./violation-message.ts";
 
@@ -31,16 +39,88 @@ const STATUS_RULE: Record<ProposalStatus, string> = {
   [ProposalStatus.Failed]: "bg-danger",
 };
 
+/** What the order would spend and leave the account holding, filled whole at its limit price. */
+function OrderImpactLines({ order }: { order: OrderRequest }) {
+  const { t, i18n } = useTranslation();
+  const { amount } = numberFormats(i18n.language);
+  const account = useQuery(orpc.account.summary.queryOptions());
+  const impact = account.data && orderImpact(order, account.data);
+
+  if (!impact) return null;
+
+  const { currency, notional, cash, shares } = impact;
+
+  return (
+    <p className="flex flex-col text-xs text-muted tabular-nums">
+      <span>
+        {t("proposals.impact.notional", {
+          amount: amount.format(notional),
+          currency,
+        })}
+      </span>
+      <span>
+        {t("proposals.impact.cash", {
+          before: amount.format(cash.before),
+          after: amount.format(cash.after),
+          currency,
+        })}
+        {" · "}
+        {t("proposals.impact.shares", {
+          before: shares.before,
+          after: shares.after,
+        })}
+      </span>
+    </p>
+  );
+}
+
+/** The research the proposal was made under, as the desk kept it, and the way to the listing's research now. */
+function BasisLine({
+  symbol,
+  basis: { report, forecast },
+}: {
+  symbol: SymbolRef;
+  basis: ProposalBasis;
+}) {
+  const { t } = useTranslation();
+  const day = (at: number) => exchangeDate(symbol.market, new Date(at));
+
+  if (!report) {
+    return <p className="text-xs text-muted">{t("proposals.basis.none")}</p>;
+  }
+
+  return (
+    <p className="text-xs text-muted tabular-nums">
+      {t("proposals.basis.report", {
+        revision: report.revision,
+        stance: t(`research.stance.${report.stance}`),
+        date: day(report.revisedAt),
+      })}
+      {" · "}
+      {forecast
+        ? t("proposals.basis.forecast", {
+            direction: t(`research.direction.${forecast.direction}`),
+            count: forecast.horizon,
+            date: day(forecast.createdAt),
+          })
+        : t("proposals.basis.no-forecast")}{" "}
+      <Link
+        to="/symbol/$market/$symbol"
+        params={symbol}
+        search={{ interval: Interval.OneDay, view: LowerView.Research }}
+        className="text-foreground underline">
+        {t("proposals.basis.open")}
+      </Link>
+    </p>
+  );
+}
+
 export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   const { t } = useTranslation();
 
-  const confirm = useMutation({
-    mutationFn: () => window.solyx.proposals.confirm(proposal.id),
-  });
+  const confirm = useMutation(orpc.proposals.confirm.mutationOptions());
 
-  const dismiss = useMutation({
-    mutationFn: () => window.solyx.proposals.dismiss(proposal.id),
-  });
+  const dismiss = useMutation(orpc.proposals.dismiss.mutationOptions());
 
   const { order } = proposal;
   const actionError = confirm.error ?? dismiss.error;
@@ -84,9 +164,15 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
               : t("proposals.market-price"),
         })}
       </p>
+      {proposal.status === ProposalStatus.AwaitingConfirmation ? (
+        <OrderImpactLines order={order} />
+      ) : null}
       {proposal.rationale && (
         <p className="text-sm text-muted">{proposal.rationale}</p>
       )}
+      {proposal.basis ? (
+        <BasisLine symbol={order.instrument} basis={proposal.basis} />
+      ) : null}
       {proposal.violations.length > 0 ? (
         <Alert status="danger">
           <Alert.Indicator />
@@ -124,7 +210,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
             size="sm"
             isPending={confirm.isPending}
             isDisabled={dismiss.isPending}
-            onPress={() => confirm.mutate()}>
+            onPress={() => confirm.mutate(proposal.id)}>
             {t("proposals.confirm")}
           </Button>
           <Button
@@ -132,7 +218,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
             variant="tertiary"
             isPending={dismiss.isPending}
             isDisabled={confirm.isPending}
-            onPress={() => dismiss.mutate()}>
+            onPress={() => dismiss.mutate(proposal.id)}>
             {t("proposals.dismiss")}
           </Button>
         </div>

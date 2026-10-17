@@ -16,16 +16,13 @@ import type {
   SourceHealth,
 } from "@solyx/core/news";
 import type { SentimentScorer } from "@solyx/core/sentiment";
+import { HOUR_MS, DAY_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 import { fuseRankings } from "@solyx/utils/search";
 
-import type { NewsCoverage } from "#shared/ipc/news.ts";
+import type { NewsCoverage } from "#shared/news.ts";
 
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
-
-const HOUR_MS = 60 * 60 * 1000;
-
-const DAY_MS = 24 * HOUR_MS;
 
 // A listing's first refresh reaches back a week; later ones overlap the last collection by a day.
 const FIRST_LOOKBACK_MS = 7 * DAY_MS;
@@ -179,7 +176,12 @@ export function createNews(options: NewsOptions) {
 
       const subject = { symbol, listing };
       const embedder = await options.embedder();
-      const read = readNews(await embedded(symbol, since, embedder), subject);
+
+      const read = readNews(
+        await embedded(symbol, since, embedder),
+        subject,
+        now()
+      );
 
       const newest = Object.values(
         groupBy(read.stories, (story) => story.channel)
@@ -232,7 +234,8 @@ export function createNews(options: NewsOptions) {
       // Read again, so the gauge counts the scores just given.
       const { gauge, daily } = readNews(
         store.list(symbol, since, embedder?.space),
-        subject
+        subject,
+        now()
       );
 
       return {
@@ -305,10 +308,11 @@ export function createNews(options: NewsOptions) {
         options.embedder(),
       ]);
 
-      const reading = readNews(await embedded(symbol, since, embedder), {
-        symbol,
-        listing,
-      });
+      const reading = readNews(
+        await embedded(symbol, since, embedder),
+        { symbol, listing },
+        now()
+      );
 
       return { ...reading, stories: reading.stories.map(shown) };
     },

@@ -1,4 +1,3 @@
-import { rmSync } from "node:fs";
 import { basename } from "node:path";
 import { DatabaseSync, backup } from "node:sqlite";
 
@@ -8,16 +7,11 @@ import { readMigrationFiles } from "drizzle-orm/migrator";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 
+import { removeSideFiles } from "./database-file.ts";
+
 // Every page in one step, so the copy is the database as it stood at one moment: a copy made in
 // several starts over whenever the connection that has the database open writes between two.
 const EVERY_PAGE = 2 ** 31 - 1;
-
-// A database in WAL mode gets these beside it as soon as it is read.
-const SIDE_FILES = ["-wal", "-shm"];
-
-function removeSideFiles(file: string) {
-  for (const suffix of SIDE_FILES) rmSync(`${file}${suffix}`, { force: true });
-}
 
 /**
  * Copies a database as it stands at one moment into one file, its write-ahead log folded in,
@@ -66,19 +60,22 @@ const newer = (file: string) =>
 /**
  * Refuses a snapshot of one of the app's own databases that is damaged, or that holds a migration
  * this build does not have, which opening it would not notice. One a build before this made is
- * brought up to date when it is opened.
+ * brought up to date when it is opened. Migrations are told apart by name, as drizzle tells which
+ * to run, since a hash covers the file's line endings, which differ by the system that built it.
  */
 export function verifySnapshot(file: string, migrationsFolder: string) {
   const known = new Set(
-    readMigrationFiles({ migrationsFolder }).map(({ hash }) => hash)
+    readMigrationFiles({ migrationsFolder }).map(({ name }) => name)
   );
 
   inspect(file, (db) => {
-    const applied = db.all<{ hash: string }>(
-      sql`SELECT hash FROM __drizzle_migrations`
+    const applied = db.all<{ name: string | null }>(
+      sql`SELECT name FROM __drizzle_migrations`
     );
 
-    if (applied.some(({ hash }) => !known.has(hash))) throw newer(file);
+    if (applied.some(({ name }) => name === null || !known.has(name))) {
+      throw newer(file);
+    }
   });
 }
 

@@ -3,13 +3,12 @@ import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
 import type { Report } from "@solyx/core/report";
+import { cssPercent } from "@solyx/utils/format";
 
 import { numberFormats } from "../market/number-formats.ts";
 import { quoteQuery } from "../market/quote-query.ts";
 
 import { rangePlace } from "./research-figures.ts";
-
-const share = (value: number) => `${value * 100}%`;
 
 /**
  * A report's fair range and, once the listing's quote is read, where its last price stands
@@ -48,11 +47,14 @@ export function ValuationRange({
             className="relative h-1 max-w-md rounded-full bg-surface-secondary">
             <span
               className="absolute inset-y-0 rounded-full bg-muted"
-              style={{ left: share(place.from), right: share(1 - place.to) }}
+              style={{
+                left: cssPercent(place.from),
+                right: cssPercent(1 - place.to),
+              }}
             />
             <i
               className="absolute -top-[5px] h-3.5 w-0.5 -translate-x-px bg-foreground ring-2 ring-background"
-              style={{ left: share(place.at) }}
+              style={{ left: cssPercent(place.at) }}
             />
           </div>
           <p className="text-xs text-muted tabular-nums">

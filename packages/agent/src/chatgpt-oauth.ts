@@ -1,5 +1,3 @@
-import { createHash, randomBytes } from "node:crypto";
-
 import type {
   LoginOptions,
   OAuthAuth,
@@ -7,6 +5,9 @@ import type {
   ProviderAuthInteraction,
 } from "@earendil-works/pi-ai";
 import * as z from "zod";
+
+import { MINUTE_MS } from "@solyx/utils/date";
+import { pkceChallenge, randomToken } from "@solyx/utils/server";
 
 import { listenForSignIn } from "./sign-in-callback.ts";
 import type { SignInPage } from "./sign-in-callback.ts";
@@ -32,7 +33,7 @@ const CALLBACK_PATH = "/auth/callback";
 const PREFERRED_PORT = 1455;
 
 // Refreshed this long before it expires, so no request starts with a token about to lapse.
-const EXPIRY_MARGIN_MS = 3 * 60 * 1000;
+const EXPIRY_MARGIN_MS = 3 * MINUTE_MS;
 
 export interface ChatGPTOAuthOptions {
   /** Shown on OpenAI's consent screen, the same on every installation. */
@@ -48,8 +49,6 @@ const tokenSchema = z.object({
   expires_in: z.number().positive(),
   scope: z.string(),
 });
-
-const random = () => randomBytes(32).toString("base64url");
 
 /**
  * Signs in with ChatGPT so OpenAI requests run on the user's plan, replacing pi-ai's flow so the
@@ -104,8 +103,8 @@ export function chatgptOAuth(options: ChatGPTOAuthOptions): OAuthAuth {
       throw new Error("Sign in with ChatGPT needs this installation's id");
     }
 
-    const verifier = random();
-    const state = random();
+    const verifier = randomToken();
+    const state = randomToken();
 
     const callback = await listenForSignIn({
       name: "ChatGPT",
@@ -135,10 +134,8 @@ export function chatgptOAuth(options: ChatGPTOAuthOptions): OAuthAuth {
         resource: RESOURCE,
         scope: SCOPE,
         state,
-        nonce: random(),
-        code_challenge: createHash("sha256")
-          .update(verifier)
-          .digest("base64url"),
+        nonce: randomToken(),
+        code_challenge: pkceChallenge(verifier),
         code_challenge_method: "S256",
       }).toString();
 

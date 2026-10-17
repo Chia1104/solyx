@@ -3,12 +3,7 @@ import * as z from "zod";
 
 import { Interval, isIntraday, mergeCandles } from "@solyx/core/candles";
 import type { BarInterval, Candle } from "@solyx/core/candles";
-import {
-  Market,
-  exchangeDate,
-  exchangeMidnight,
-  shiftDate,
-} from "@solyx/core/market";
+import { Market, exchangeDate, exchangeMidnight } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type {
   CandleRequest,
@@ -20,6 +15,8 @@ import type {
   MinuteListener,
 } from "@solyx/core/market-data";
 import { TW_BOARD_LOT } from "@solyx/core/rules/tw";
+import { shiftDate, MINUTE_MS } from "@solyx/utils/date";
+import { parseJson } from "@solyx/utils/json";
 import { createRateLimiter } from "@solyx/utils/rate-limit";
 
 const API_VERSION = "v1.0";
@@ -48,8 +45,6 @@ export interface FugleApiOptions {
   /** @default () => new Date() */
   now?: () => Date;
 }
-
-const MINUTE_MS = 60_000;
 
 // A 429 means something else shares the key's budget; retry briefly rather than hang the chart.
 const MAX_RETRY_AFTER_MS = 10_000;
@@ -396,20 +391,10 @@ export function createFugleApiStream(
   function receive(text: string) {
     watchSilence();
 
-    let json;
-
-    try {
-      json = JSON.parse(text);
-    } catch {
-      return;
-    }
+    const message = parseJson(text, streamMessageSchema);
 
     // Heartbeats, pongs and other events only prove the connection is alive.
-    const parsed = streamMessageSchema.safeParse(json);
-
-    if (!parsed.success) return;
-
-    const message = parsed.data;
+    if (message === undefined) return;
 
     switch (message.event) {
       case "authenticated":

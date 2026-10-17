@@ -1,58 +1,34 @@
-import { queryOptions } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 
-import { AgentEventType } from "@solyx/agent/wire";
-
-import { agentQueryKeys } from "../agent/agent-query.ts";
-
-const all = ["schedules"] as const;
-
-export const schedulesQueryKeys = {
-  all,
-  tasks: [...all, "tasks"] as const,
-  collections: [...all, "collections"] as const,
-};
+import { client, forEachEvent, orpc } from "../../app/rpc.ts";
 
 /** Never stale: the main process says when a task changes or runs, and the agent when a run ends. */
 export const schedulesQuery = () =>
-  queryOptions({
-    queryKey: schedulesQueryKeys.tasks,
-    queryFn: () => window.solyx.schedules.list(),
-    staleTime: Infinity,
-  });
+  orpc.schedules.list.queryOptions({ staleTime: Infinity });
 
 /** Never stale: the main process says when a plan changes, and news and themes when something is collected. */
 export const collectionsQuery = () =>
-  queryOptions({
-    queryKey: schedulesQueryKeys.collections,
-    queryFn: () => window.solyx.schedules.collections(),
-    staleTime: Infinity,
-  });
+  orpc.schedules.collections.queryOptions({ staleTime: Infinity });
 
 /**
  * Refetches the scheduled tasks and the collections' plans whenever one is saved, removed or run,
- * and the conversations with them, since a run starts one of its own; the tasks again as any run
- * ends, which frees its task; and the collections as news or a theme's search brings something in.
+ * and the conversations with them, since a run starts one of its own; and the collections as news
+ * or a theme's search brings something in. A run ending frees its task, which `followAgentEvents`
+ * reads again.
  */
 export function followScheduleChanges(queryClient: QueryClient) {
   const collected = () =>
     void queryClient.invalidateQueries({
-      queryKey: schedulesQueryKeys.collections,
+      queryKey: orpc.schedules.collections.key(),
     });
 
-  window.solyx.schedules.onChanged(() => {
-    void queryClient.invalidateQueries({ queryKey: schedulesQueryKeys.all });
-    void queryClient.invalidateQueries({ queryKey: agentQueryKeys.sessions });
+  void forEachEvent(client.schedules.changes(), () => {
+    void queryClient.invalidateQueries({ queryKey: orpc.schedules.key() });
+    void queryClient.invalidateQueries({
+      queryKey: orpc.agent.sessions.key(),
+    });
   });
 
-  window.solyx.agent.onEvent(({ event }) => {
-    if (event.type === AgentEventType.RunEnd) {
-      void queryClient.invalidateQueries({
-        queryKey: schedulesQueryKeys.tasks,
-      });
-    }
-  });
-
-  window.solyx.news.onChanged(collected);
-  window.solyx.themes.onChanged(collected);
+  void forEachEvent(client.news.changes(), collected);
+  void forEachEvent(client.themes.changes(), collected);
 }

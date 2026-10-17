@@ -1,6 +1,6 @@
 import * as z from "zod";
 
-import { symbolRefSchema } from "./market.ts";
+import { currencyOf, symbolKey, symbolRefSchema } from "./market.ts";
 import type { Currency, SymbolRef } from "./market.ts";
 
 export const Side = {
@@ -72,5 +72,43 @@ export function positionValue(
     cost,
     gain: value - cost,
     gainPercent: cost === 0 ? null : (value - cost) / cost,
+  };
+}
+
+/** What an order leaves the account holding of its currency and its listing. */
+export interface OrderImpact {
+  currency: Currency;
+  /** The limit price times the quantity, before any fee or tax. */
+  notional: number;
+  cash: { before: number; after: number };
+  shares: { before: number; after: number };
+}
+
+/**
+ * What the account would hold once the order fills whole at its limit price, before any fee or
+ * tax; `null` for a market order, whose price is not known until it fills.
+ */
+export function orderImpact(
+  order: OrderRequest,
+  account: AccountSnapshot
+): OrderImpact | null {
+  if (order.type !== OrderType.Limit) return null;
+
+  const { instrument, quantity } = order;
+  const currency = currencyOf(instrument.market);
+  const notional = order.limitPrice * quantity;
+  const cash = account.cash[currency] ?? 0;
+  const sign = order.side === Side.Buy ? 1 : -1;
+
+  const shares =
+    account.positions.find(
+      (position) => symbolKey(position.instrument) === symbolKey(instrument)
+    )?.quantity ?? 0;
+
+  return {
+    currency,
+    notional,
+    cash: { before: cash, after: cash - sign * notional },
+    shares: { before: shares, after: shares + sign * quantity },
   };
 }

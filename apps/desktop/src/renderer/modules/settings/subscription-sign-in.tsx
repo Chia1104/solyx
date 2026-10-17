@@ -4,9 +4,10 @@ import { useTranslation } from "react-i18next";
 
 import type { AgentProvider } from "@solyx/agent/providers";
 
-import type { SignInCode } from "#shared/ipc/settings.ts";
+import type { SignInCode } from "#shared/settings.ts";
 
 import { currentLocale } from "../../app/i18n.ts";
+import { client, forEachEvent } from "../../app/rpc.ts";
 
 import { SignInRow } from "./sign-in-row.tsx";
 
@@ -27,13 +28,20 @@ export function SubscriptionSignIn({
   // The code of the sign-in under way, where the provider's runs on one.
   const [code, setCode] = useState<SignInCode | null>(null);
 
-  useEffect(
-    () =>
-      window.solyx.settings.onSignInCode((next) => {
+  useEffect(() => {
+    const stop = new AbortController();
+    const { signal } = stop;
+
+    void forEachEvent(
+      client.settings.signInCodes(undefined, { signal }),
+      (next) => {
         if (next.provider === provider) setCode(next);
-      }),
-    [provider]
-  );
+      },
+      signal
+    );
+
+    return () => stop.abort();
+  }, [provider]);
 
   return (
     <SignInRow
@@ -47,13 +55,13 @@ export function SubscriptionSignIn({
       onSignIn={() => {
         setCode(null);
 
-        return window.solyx.settings.signInSubscription(
+        return client.settings.signInSubscription({
           provider,
-          currentLocale()
-        );
+          locale: currentLocale(),
+        });
       }}
-      onCancel={() => window.solyx.settings.cancelSignIn()}
-      onSignOut={() => window.solyx.settings.signOutSubscription(provider)}
+      onCancel={() => client.settings.cancelSignIn()}
+      onSignOut={() => client.settings.signOutSubscription(provider)}
     />
   );
 }

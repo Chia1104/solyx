@@ -12,6 +12,12 @@ import { Market, exchangeDate } from "@solyx/core/market";
 
 const DGBAS_URL = "https://nstatdb.dgbas.gov.tw/dgbasAll/";
 
+// The database answers within a second, but now and then leaves a request hanging for minutes
+// while the same request sent again is answered at once.
+const TIMEOUT_MS = 5000;
+
+const RETRIES = 4;
+
 /** How often a table's figures come: by the month or by the quarter. */
 const Cycle = { Month: "M", Quarter: "Q" } as const;
 
@@ -207,6 +213,8 @@ export function createDgbas(options: DgbasOptions = {}): MacroFiguresProvider {
   const api = ky.create({
     baseUrl: DGBAS_URL,
     fetch: options.fetch,
+    timeout: TIMEOUT_MS,
+    retry: { limit: RETRIES, retryOnTimeout: true },
     hooks: {
       beforeError: [
         ({ error }) => {

@@ -13,14 +13,11 @@ import type {
 } from "@solyx/core/theme";
 import { WebSearchKind } from "@solyx/core/web-search";
 import type { WebResult, WebSearch } from "@solyx/core/web-search";
+import { HOUR_MS, DAY_MS, DAY_MINUTES } from "@solyx/utils/date";
 
 import { createThemes } from "../src/main/modules/themes/themes.ts";
 
 const START = Date.parse("2026-10-10T09:00:00+08:00");
-
-const HOUR_MS = 60 * 60 * 1000;
-
-const DAY_MS = 24 * HOUR_MS;
 
 const OUTBREAK: ThemeDraft = {
   title: "Outbreak near the border",
@@ -66,7 +63,7 @@ function memoryStore(): ThemeStore {
 
 const DAILY: CollectionPlan = {
   enabled: true,
-  schedule: { kind: ScheduleKind.Interval, everyMinutes: 24 * 60 },
+  schedule: { kind: ScheduleKind.Interval, everyMinutes: DAY_MINUTES },
   timeZone: "Asia/Taipei",
 };
 

@@ -8,6 +8,7 @@
 import { uniq } from "es-toolkit";
 import * as z from "zod";
 
+import { EVERY_CHANGE, changeScopeSchema } from "@solyx/core/changes";
 import { councilSchema } from "@solyx/core/council";
 import { marketSchema, symbolRefSchema } from "@solyx/core/market";
 import {
@@ -324,7 +325,7 @@ export const saveTaskArgumentsSchema = z.object({
   when: z
     .enum(ScheduleKind)
     .describe(
-      "interval: again every so many minutes. fixed-time: at one time of day. on-change: once something the app watches changed for what the user holds, watches or keeps as a theme"
+      "interval: again every so many minutes. fixed-time: at one time of day. on-change: once something the app watches changed, of the kinds, listings and themes changeKinds, listings and themes name"
     ),
   everyMinutes: z
     .number()
@@ -344,6 +345,21 @@ export const saveTaskArgumentsSchema = z.object({
     .default(null)
     .describe(
       "For fixed-time, the market whose trading days it keeps to, read on the exchange's calendar; null runs every day"
+    ),
+  changeKinds: changeScopeSchema.shape.kinds
+    .default([...EVERY_CHANGE.kinds])
+    .describe(
+      "For on-change, the kinds of change it runs for. falsifier-met: news may state one of a report's falsifiers. event-passed: the day of a report's event went by. signpost-met: news may state one of a theme's signposts"
+    ),
+  listings: changeScopeSchema.shape.listings
+    .default(null)
+    .describe(
+      "For on-change, the listings whose reports it watches, each with its market; null for every listing the user holds and watches as each run finds them"
+    ),
+  themes: changeScopeSchema.shape.themes
+    .default(null)
+    .describe(
+      "For on-change, the ids of the themes from get_themes whose signposts it watches; null for every theme"
     ),
   approval: z
     .enum(ScheduleApproval)
@@ -365,15 +381,19 @@ export function taskSchedule({
   everyMinutes,
   time,
   tradingDaysOf,
-}: Pick<
-  SaveTaskArguments,
-  "when" | "everyMinutes" | "time" | "tradingDaysOf"
->) {
+  changeKinds,
+  listings,
+  themes,
+}: Omit<SaveTaskArguments, "id" | "name" | "prompt" | "approval" | "enabled">) {
   switch (when) {
     case ScheduleKind.Interval:
       return { kind: when, everyMinutes };
     case ScheduleKind.OnChange:
-      return { kind: when, atMostEveryMinutes: everyMinutes };
+      return {
+        kind: when,
+        atMostEveryMinutes: everyMinutes,
+        scope: { kinds: changeKinds, listings, themes },
+      };
     case ScheduleKind.FixedTime:
       return { kind: when, time, tradingDaysOf };
   }

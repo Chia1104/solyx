@@ -1,7 +1,14 @@
 import { expect, test } from "vite-plus/test";
 
+import { MINUTE_MS } from "@solyx/utils/date";
+
 import { EventTiming } from "../src/calendar.ts";
-import { ChangeKind, changeText, changesSince } from "../src/changes.ts";
+import {
+  ChangeKind,
+  EVERY_CHANGE,
+  changeText,
+  changesSince,
+} from "../src/changes.ts";
 import { Market } from "../src/market.ts";
 import { ReportStance } from "../src/report.ts";
 import type { Report } from "../src/report.ts";
@@ -94,14 +101,20 @@ const theme = (checkedAt: number[]): ThemeWatch => ({
   latest: [],
   collectedAt: null,
   quietSince: 0,
+  unread: 0,
 });
 
 test("a falsifier read as stated since then is told once, however many items state it", () => {
   const changes = (checks: FalsifierCheck[]) =>
-    changesSince(SINCE, SINCE + 60_000, {
-      reports: [{ report: { ...REPORT, events: [] }, checks }],
-      themes: [],
-    });
+    changesSince(
+      SINCE,
+      SINCE + MINUTE_MS,
+      {
+        reports: [{ report: { ...REPORT, events: [] }, checks }],
+        themes: [],
+      },
+      EVERY_CHANGE
+    );
 
   expect(changes([check({}), check({ checkedAt: SINCE + 2 })])).toEqual([
     { kind: ChangeKind.FalsifierMet, symbol: TSMC, falsifier: FALSIFIER },
@@ -118,10 +131,15 @@ test("a falsifier read as stated since then is told once, however many items sta
 
 test("an event is told the day after its day, once", () => {
   const changes = (since: number, now: number) =>
-    changesSince(since, now, {
-      reports: [{ report: REPORT, checks: [] }],
-      themes: [],
-    });
+    changesSince(
+      since,
+      now,
+      {
+        reports: [{ report: REPORT, checks: [] }],
+        themes: [],
+      },
+      EVERY_CHANGE
+    );
 
   // Still its day on the exchange.
   expect(changes(SINCE, taipei("2026-10-16T23:00:00"))).toEqual([]);
@@ -141,27 +159,79 @@ test("an event is told the day after its day, once", () => {
 
 test("a signpost read as stated since then is told once, by its theme", () => {
   expect(
-    changesSince(SINCE, SINCE + 60_000, {
-      reports: [],
-      themes: [theme([SINCE - 1, SINCE + 1, SINCE + 2])],
-    })
+    changesSince(
+      SINCE,
+      SINCE + MINUTE_MS,
+      {
+        reports: [],
+        themes: [theme([SINCE - 1, SINCE + 1, SINCE + 2])],
+      },
+      EVERY_CHANGE
+    )
   ).toEqual([
     { kind: ChangeKind.SignpostMet, theme: "Outbreak", signpost: SIGNPOST },
   ]);
   expect(
-    changesSince(SINCE, SINCE + 60_000, {
-      reports: [],
-      themes: [theme([SINCE])],
-    })
+    changesSince(
+      SINCE,
+      SINCE + MINUTE_MS,
+      {
+        reports: [],
+        themes: [theme([SINCE])],
+      },
+      EVERY_CHANGE
+    )
   ).toEqual([]);
+});
+
+test("a task is told only the changes its scope names", () => {
+  const UMC = { market: Market.TW, symbol: "2303" };
+
+  const watched = {
+    reports: [
+      { report: REPORT, checks: [check({})] },
+      { report: { ...REPORT, symbol: UMC }, checks: [check({})] },
+    ],
+    themes: [theme([SINCE + 1])],
+  };
+
+  const changes = (scope: Partial<typeof EVERY_CHANGE>) =>
+    changesSince(SINCE, taipei("2026-10-17T08:30:00"), watched, {
+      ...EVERY_CHANGE,
+      ...scope,
+    });
+
+  expect(changes({})).toHaveLength(5);
+  expect(
+    changes({ kinds: [ChangeKind.FalsifierMet], listings: [UMC] })
+  ).toEqual([
+    { kind: ChangeKind.FalsifierMet, symbol: UMC, falsifier: FALSIFIER },
+  ]);
+  expect(changes({ kinds: [ChangeKind.EventPassed] })).toEqual([
+    expect.objectContaining({ kind: ChangeKind.EventPassed, symbol: TSMC }),
+    expect.objectContaining({ kind: ChangeKind.EventPassed, symbol: UMC }),
+  ]);
+  expect(
+    changes({ kinds: [ChangeKind.SignpostMet], themes: ["other"] })
+  ).toEqual([]);
+  expect(
+    changes({ kinds: [ChangeKind.SignpostMet], themes: ["outbreak"] })
+  ).toEqual([
+    { kind: ChangeKind.SignpostMet, theme: "Outbreak", signpost: SIGNPOST },
+  ]);
 });
 
 test("each change reads as a line that names what it is about", () => {
   expect(
-    changesSince(SINCE, taipei("2026-10-17T08:30:00"), {
-      reports: [{ report: REPORT, checks: [check({})] }],
-      themes: [theme([SINCE + 1])],
-    }).map(changeText)
+    changesSince(
+      SINCE,
+      taipei("2026-10-17T08:30:00"),
+      {
+        reports: [{ report: REPORT, checks: [check({})] }],
+        themes: [theme([SINCE + 1])],
+      },
+      EVERY_CHANGE
+    ).map(changeText)
   ).toEqual([
     `TW 2330: news may state the falsifier "${FALSIFIER}"`,
     'TW 2330: the event "Earnings call" of 2026-10-16 has passed',

@@ -5,16 +5,17 @@ import type {
   MacroRelease,
   MacroSeries,
 } from "@solyx/core/macro";
-import { exchangeDate, shiftDate } from "@solyx/core/market";
+import { exchangeDate } from "@solyx/core/market";
 import type { Market } from "@solyx/core/market";
+import { shiftDate, HOUR_MS } from "@solyx/utils/date";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
 
 // An agency sets its schedule months ahead, so a market's is read twice a day at most.
-const SCHEDULE_FRESH_MS = 12 * 60 * 60 * 1000;
+const SCHEDULE_FRESH_MS = 12 * HOUR_MS;
 
 // A figure comes out at its release's time of day, so a market's are read once an hour at most.
-const SERIES_FRESH_MS = 60 * 60 * 1000;
+const SERIES_FRESH_MS = HOUR_MS;
 
 // Two years and the months a release lags its period, so each of the last thirteen periods has the one a year before it.
 const SERIES_MONTHS = 26;

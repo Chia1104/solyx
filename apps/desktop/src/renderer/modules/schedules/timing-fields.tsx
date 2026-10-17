@@ -8,16 +8,19 @@ import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { Market, marketSchema } from "@solyx/core/market";
+import {
+  ChangeKind,
+  EVERY_CHANGE,
+  watchesListings,
+  watchesThemes,
+} from "@solyx/core/changes";
+import { Market, marketSchema, symbolRefSchema } from "@solyx/core/market";
 import { ScheduleKind } from "@solyx/core/schedule";
 import type { Schedule } from "@solyx/core/schedule";
+import { HOUR_MINUTES, DAY_MINUTES } from "@solyx/utils/date";
 
 import { useClock } from "../../app/clock.ts";
 import { OptionSelect } from "../../components/option-select.tsx";
-
-const HOUR_MINUTES = 60;
-
-const DAY_MINUTES = 24 * HOUR_MINUTES;
 
 const EVERY_DAY = "every-day";
 
@@ -71,7 +74,10 @@ export function scheduleText(
   }
 }
 
-/** When something runs, as a form holds it; whichever fields its kind does not use keep what they had. */
+/**
+ * When something runs, as a form holds it; whichever fields its kind does not use keep what they
+ * had. A change's scope names its listings and themes only where it does not take every one.
+ */
 export const timingFieldSchemas = (t: TFunction) => ({
   kind: z.enum(ScheduleKind),
   everyMinutes: z.number(),
@@ -79,18 +85,55 @@ export const timingFieldSchemas = (t: TFunction) => ({
     error: t("settings.schedules.time-required"),
   }),
   days: z.union([z.literal(EVERY_DAY), marketSchema]),
+  changeKinds: z.array(z.enum(ChangeKind)),
+  everyListing: z.boolean(),
+  listings: z.array(symbolRefSchema),
+  everyTheme: z.boolean(),
+  themes: z.array(z.string()),
 });
 
 export type TimingForm = z.infer<
   z.ZodObject<ReturnType<typeof timingFieldSchemas>>
 >;
 
-/** What a new schedule starts from: a morning time, every day. */
+/** Refuses a change's scope that names nothing, on the field that should. */
+export const checkScope =
+  (t: TFunction) => (form: TimingForm, context: z.RefinementCtx) => {
+    if (form.kind !== ScheduleKind.OnChange) return;
+
+    const kinds = { kinds: form.changeKinds };
+
+    const missing = (path: keyof TimingForm, message: string) =>
+      context.addIssue({ code: "custom", path: [path], message });
+
+    if (form.changeKinds.length === 0) {
+      missing("changeKinds", t("settings.schedules.scope.kinds-required"));
+    }
+
+    if (
+      watchesListings(kinds) &&
+      !form.everyListing &&
+      form.listings.length === 0
+    ) {
+      missing("listings", t("settings.schedules.scope.listings-required"));
+    }
+
+    if (watchesThemes(kinds) && !form.everyTheme && form.themes.length === 0) {
+      missing("themes", t("settings.schedules.scope.themes-required"));
+    }
+  };
+
+/** What a new schedule starts from: a morning time, every day, and every change once it waits on one. */
 export const NEW_TIMING: TimingForm = {
   kind: ScheduleKind.FixedTime,
   everyMinutes: HOUR_MINUTES,
   time: "08:30",
   days: EVERY_DAY,
+  changeKinds: [...EVERY_CHANGE.kinds],
+  everyListing: true,
+  listings: [],
+  everyTheme: true,
+  themes: [],
 };
 
 /** The form's fields a schedule fills; the rest keep what a new one starts with. */
@@ -98,8 +141,20 @@ export function timingOf(schedule: Schedule): Partial<TimingForm> {
   switch (schedule.kind) {
     case ScheduleKind.Interval:
       return { kind: schedule.kind, everyMinutes: schedule.everyMinutes };
-    case ScheduleKind.OnChange:
-      return { kind: schedule.kind, everyMinutes: schedule.atMostEveryMinutes };
+    case ScheduleKind.OnChange: {
+      const { kinds, listings, themes } = schedule.scope;
+
+      return {
+        kind: schedule.kind,
+        everyMinutes: schedule.atMostEveryMinutes,
+        changeKinds: kinds,
+        everyListing: listings === null,
+        listings: listings ?? [],
+        everyTheme: themes === null,
+        themes: themes ?? [],
+      };
+    }
+
     case ScheduleKind.FixedTime:
       return {
         kind: schedule.kind,
@@ -114,8 +169,21 @@ export function scheduleOf(form: TimingForm): Schedule {
   switch (form.kind) {
     case ScheduleKind.Interval:
       return { kind: form.kind, everyMinutes: form.everyMinutes };
-    case ScheduleKind.OnChange:
-      return { kind: form.kind, atMostEveryMinutes: form.everyMinutes };
+    case ScheduleKind.OnChange: {
+      const kinds = { kinds: form.changeKinds };
+
+      return {
+        kind: form.kind,
+        atMostEveryMinutes: form.everyMinutes,
+        scope: {
+          ...kinds,
+          listings:
+            watchesListings(kinds) && !form.everyListing ? form.listings : null,
+          themes: watchesThemes(kinds) && !form.everyTheme ? form.themes : null,
+        },
+      };
+    }
+
     case ScheduleKind.FixedTime:
       return {
         kind: form.kind,

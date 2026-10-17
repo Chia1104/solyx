@@ -17,14 +17,14 @@
     "test": "vp test"
   },
   "dependencies": {
-    "@earendil-works/pi-durable": "catalog:agent",
+    "@earendil-works/pi-durable": "catalog:pi",
     "@solyx/core": "workspace:*",
     "@solyx/utils": "workspace:*",
     "drizzle-orm": "catalog:drizzle",
     "es-toolkit": "catalog:"
   },
   "devDependencies": {
-    "@earendil-works/chord": "catalog:agent",
+    "@earendil-works/chord": "catalog:pi",
     "@types/node": "catalog:",
     "drizzle-kit": "catalog:drizzle",
     "typescript": "catalog:",

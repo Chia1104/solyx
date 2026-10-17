@@ -30,12 +30,18 @@ import {
 } from "@solyx/agent/wire";
 import type { ToolCallView } from "@solyx/agent/wire";
 import { intervalSchema } from "@solyx/core/candles";
-import { marketSchema, symbolKey, symbolRefSchema } from "@solyx/core/market";
+import {
+  marketSchema,
+  symbolKey,
+  symbolRefSchema,
+  symbolLabel,
+} from "@solyx/core/market";
 import type { Memory } from "@solyx/core/memory";
-import { scheduleSchema } from "@solyx/core/schedule";
+import { ScheduleKind, scheduleSchema } from "@solyx/core/schedule";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { useClock } from "../../app/clock.ts";
+import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 import { ListingName } from "../market/listing-name.tsx";
@@ -44,6 +50,7 @@ import { memoryQuery } from "../memory/memory-query.ts";
 import { ProposalItem } from "../proposals/proposal-item.tsx";
 import { proposalsQuery } from "../proposals/proposals-query.ts";
 import { ForecastCard } from "../research/forecast-card.tsx";
+import { useScopeText } from "../schedules/change-scope-fields.tsx";
 import { schedulesQuery } from "../schedules/schedules-query.ts";
 import { scheduleText } from "../schedules/timing-fields.tsx";
 
@@ -160,10 +167,15 @@ function ApprovalCard({
 }) {
   const { t } = useTranslation();
   const { timeZone } = useClock();
+  const scopeText = useScopeText();
 
   const answer = useMutation({
     mutationFn: (approved: boolean) =>
-      window.solyx.agent.approve(sessionId, tool.toolCallId, approved),
+      client.agent.approve({
+        id: sessionId,
+        toolCallId: tool.toolCallId,
+        approved,
+      }),
   });
 
   // Forgetting names a memory by its id, which the card shows by its description.
@@ -231,6 +243,7 @@ function ApprovalCard({
     [
       task.name,
       scheduleText(t, timed, timeZone),
+      ...(timed.kind === ScheduleKind.OnChange ? [scopeText(timed.scope)] : []),
       t(`settings.schedules.approvals.${task.approval}`),
       ...(task.enabled ? [] : [t("agent.approval.save-task-off")]),
       "",
@@ -252,6 +265,9 @@ function ApprovalCard({
       ? [
           due.name,
           scheduleText(t, due.schedule, due.timeZone),
+          ...(due.schedule.kind === ScheduleKind.OnChange
+            ? [scopeText(due.schedule.scope)]
+            : []),
           t(`settings.schedules.approvals.${due.approval}`),
           "",
           due.prompt,
@@ -266,8 +282,7 @@ function ApprovalCard({
       ...theme.signposts.map((signpost) => `· ${signpost}`),
       theme.queries.join(" / "),
       ...theme.listings.map(
-        ({ symbol, exposure }) =>
-          `${symbol.market} ${symbol.symbol}: ${exposure}`
+        ({ symbol, exposure }) => `${symbolLabel(symbol)}: ${exposure}`
       ),
     ].join("\n");
 

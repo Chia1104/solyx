@@ -6,6 +6,7 @@ import { parse } from "yaml";
 import * as z from "zod";
 
 import { errorMessage, isErrnoError } from "@solyx/utils/error";
+import { readTextIfExists } from "@solyx/utils/server";
 
 import { SkillSource } from "./skill-source.ts";
 
@@ -35,7 +36,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "# Order proposal",
       "",
       "1. State the thesis in one sentence and the timeframe it lives on.",
-      "2. Pull fresh data with get_candles and get_indicators for that timeframe and one above it. Quote the as_of time of every number you use.",
+      "2. Pull fresh data with get_candles and get_indicators for that timeframe and one above it. Quote the as_of time of every number you use. For a fund, also read its premium or discount in get_fundamentals, and check it as fund-research says before proposing to buy.",
       "3. Pick the invalidation: the price at which the thesis is wrong, placed beyond a level the data shows (a swing low, a moving average, a range edge), not a round percentage.",
       "4. Pick the first target from the data as well, and compute reward-to-risk as (target - entry) / (entry - invalidation) for a buy, mirrored for a sell. Below 1.5, do not propose; say why instead.",
       "5. Size from risk. Read get_account. Unless the user set a different budget, risk at most 1% of the account's equity in that currency between entry and invalidation, then round down to a valid quantity for the market. Never size beyond the cash available.",
@@ -201,22 +202,22 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
     body: lines(
       "# Fund research",
       "",
-      "A fund files no statements. The app keeps what its exchange lists of it and its distributions. What it holds, what it costs and what a unit is worth are published by its issuer, and the app keeps none of them: find them on the web, each with its date and its source, and never fill one in from memory, since holdings and fees change.",
+      "A fund files no statements. The app keeps what its exchange lists of it, its distributions, the net asset value its issuer struck for the last session it reported and what it paid out of its assets over the newest month. What it holds, the fees its prospectus sets and the value its issuer estimates through a session are published by the issuer alone, and the app keeps none of them: find them on the web, each with its date and its source, and never fill one in from memory, since holdings and fees change.",
       "",
-      "1. Call get_fundamentals. For a fund the Taiwan Stock Exchange lists it opens with the kind of fund, the index it tracks or what it measures itself against, its manager and its units outstanding, and it lists the distributions. A fund listed on the Taipei Exchange, as bond ETFs are, opens with none of that. get_calendar has the day it next goes ex.",
+      "1. Call get_fundamentals. For a fund the Taiwan Stock Exchange lists it opens with the kind of fund, the index it tracks or what it measures itself against, its manager and its units outstanding; a fund listed on the Taipei Exchange, as bond ETFs are, opens with none of that. For a fund listed on either it gives the net asset value and what the fund paid over the newest month, and it lists the distributions. get_calendar has the day it next goes ex.",
       "2. Find the issuer's own page for the fund with web_search: the fund's code and name with what you are after. Once a result shows the issuer's site, keep the next searches to it with sites, and read the page with read_page. Read the issuer's pages, not the Taiwan Stock Exchange's websites: their terms forbid programs from downloading their data, and what the exchange publishes as open data the app already reads.",
       "3. What it holds (成分股, 持股明細, 投資組合): the names, their weights and the date of the list. Draw the largest weights as shares, following canvas, with the rest as one part.",
       "   - An index fund follows its index, so name the index, and when it is next reviewed where the page says.",
       "   - An actively managed fund's list changes from day to day. Give its date, and never call an old list current.",
       "   - A leveraged, inverse or futures fund holds futures and swaps, not the index's shares. It aims at a multiple of one session's move, so over more sessions its return drifts from that multiple of the index's. Say so whenever the view looks further than a session.",
       "   - An exchange-traded note holds nothing: it is its issuer's debt, which pays an index's return. What matters is the issuer's credit and the indicative value (指標價值) it publishes in place of a net asset value.",
-      "4. What it costs (費用率): the management fee (經理費) and the custody fee (保管費) as the prospectus (公開說明書) sets them, and the total expense ratio (總費用率) for the period it names, which adds what the fund paid beyond those two. Say which figure is which and its period. The broker's commission and the transaction tax are the trade's costs, not the fund's: taiwan-market has them.",
-      "5. What a unit is worth (淨值): the issuer strikes a net asset value after each session and publishes an estimate through the session (即時預估淨值). Take the newest it gives, with its date or time and whether it is the estimate, and the close of the same day from get_candles. The premium is the price over the net asset value, less one, and a discount when that is negative; compute it with run_analysis rather than by hand.",
-      "   - Where the holdings trade abroad, an estimate made in Taipei hours rests on prices from before those markets reopen, so a gap may be the market pricing what the estimate has not seen yet.",
-      "   - A premium that holds for days can mean units cannot be created, as when a fund has reached its quota or its issuer has stopped subscriptions. Look for the issuer's notice, and say the premium can close quickly once creation resumes.",
-      "6. Say what you could not find or read. Without web_search and read_page, say these three need a web search vendor set up, which solyx-guide explains, and give only what the app's own tools have.",
+      "4. What it costs (費用率): get_fundamentals gives what the fund paid out of its assets over its newest month, each part in percent of its net assets, and that month's pace over a year. Cite them as what that month cost, not as the fees the prospectus (公開說明書) sets: the management fee (經理費) and the custody fee (保管費) are rates the issuer publishes, which you look up when the user asks for them or get_fundamentals has no month. A month the fund rebalanced pays more commission and tax on its own trades, so a year at that month's pace overstates them. The broker's commission and the transaction tax on the user's own trade are the trade's costs, not the fund's: taiwan-market has them.",
+      "5. What a unit is worth (淨值): get_fundamentals gives the net asset value the issuer struck for the last session it reported, with that session's close as a premium or a discount to it. Through a session the issuer publishes an estimate (即時預估淨值) on its own pages: when the view turns on the premium now, take the newest estimate with its time and set the price of the same moment against it with run_analysis rather than by hand.",
+      "   - Where the holdings trade abroad, a session's value is struck once those markets close, so it comes a day later, and an estimate made in Taipei hours rests on prices from before those markets reopen, so a gap may be the market pricing what the estimate has not seen yet.",
+      "   - Check a premium or a discount before giving a view on the fund or proposing to trade it, whenever it is past 1% or past what the kind of fund shows, which is close to none for one holding Taiwan's shares and wider for one holding abroad: read the net asset values the issuer's pages list for the last few weeks, set each against that session's close from get_candles with run_analysis, and look for the issuer's notice of a quota reached (額度已滿) or of subscriptions stopped (暫停申購). A premium that has held while units could not be created can close within days once creation resumes, so a buyer at it may lose it. Say what the history showed, or that it could not be read.",
+      "6. Say what you could not find or read. Without web_search and read_page, say that the holdings, the prospectus's fees, the estimate through a session and the history of its premium need a web search vendor set up, which solyx-guide explains, and give only what the app's own tools have.",
       "",
-      "A deep analysis of a fund follows deep-analysis with these in place of the statements. What it holds and what it costs belong in the report, each as a claim with the issuer's own words or figures as its quote. The premium of the day belongs in the forecast's rationale, since it goes stale within a session."
+      "A deep analysis of a fund follows deep-analysis with these in place of the statements. What it holds and what it costs belong in the report, each as a claim with the issuer's own words or figures, or get_fundamentals' line for the month, as its quote. The premium of the day belongs in the forecast's rationale, since it goes stale within a session."
     ),
   },
   {
@@ -311,7 +312,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "2. The agent's model: a provider switched on with its API key saved, or OpenAI signed in with ChatGPT. The default model, its thinking and who decides forecasts and proposals (the agent alone, or the MAGI's three units, at three more requests each time) are on the same tab.",
       "3. Web search: a Firecrawl, Exa or Tavily key. Without one you have no web_search or read_page, and news searches only its sources that need no key.",
       "4. A decisions model (TypeSafe, Cloudflare Workers AI or OpenAI) scores news, checks the claims in research against their quotes, and judges shell commands for the auto approval mode. Without one, news goes unscored and auto asks about every command.",
-      "- Optional: a FinMind token raises its request limit, and a paid plan raises it further; fundamentals and investor flows work without one, and trading restrictions come from the exchanges' open data, which needs no key. Embeddings, experimental, group news by meaning.",
+      "- Optional: a FinMind token raises its request limit, and a paid plan raises it further; fundamentals and investor flows work without one, trading restrictions come from the exchanges' open data, and funds' net asset values and costs from SITCA's, neither of which needs a key. Embeddings, experimental, group news by meaning.",
       "",
       "## Keys, tokens and sign-ins",
       "- The user enters them on the tab, never in the conversation: the app keeps them encrypted in the computer's secret store and never shows them again, while whatever is written in a conversation is kept with it and sent to the model's provider. Where the computer has no secret store, nothing can be saved.",
@@ -342,7 +343,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "- The shell is off until the user switches it on, and stays off while the account is live; each command waits for them unless the approval mode lets it run.",
       "- Memory: you save and rewrite memories on your own as you learn the user, and each waits for them only where the conversation asks first; forgetting one waits for them unless nothing asks. They read and edit them on the Memory tab, or switch memory off there.",
       "- Updates: the app checks every six hours while that setting is on. Windows installs on restart; on macOS the update is linked for the user to download.",
-      "- Storage: get_setup says how much each store holds. Only the user clears one, on the Storage tab, and you cannot: chart bars are a cache that fills again, and everything else cleared is gone for good, conversations, memories, news, research and the watchlist alike, so say what would be lost before you send them there.",
+      "- Storage: get_setup says how much each store holds. Only the user clears one, on the Storage tab, and you cannot: chart bars are a cache that fills again, and everything else cleared is gone for good, conversations, memories, news, research and the watchlist alike, so say what would be lost before you send them there. News also ages out on its own after the time get_setup names, which only the user sets, on the same tab.",
       "",
       "## Changing settings",
       "- change_setting changes a setting get_setup says it takes, such as the theme, the default model and thinking, who decides forecasts and proposals, data sources and plans, whether and how often news and themes are collected, and the vendors in use. Use it when the user asks for that change or agrees to one you suggested, and say what the change does first. The user allows each change unless the conversation's approval mode lets it run, and it applies at once.",
@@ -535,18 +536,6 @@ export async function loadSkillCatalog(
  * The user's standing instructions from `AGENTS.md` in the app's config folder, or `undefined`
  * while there is none. Sent whole with every request; the settings page shows how long it is.
  */
-export async function loadInstructions(
-  file: string
-): Promise<string | undefined> {
-  let text: string;
-
-  try {
-    text = (await readFile(file, "utf8")).trim();
-  } catch (error) {
-    if (isErrnoError(error, "ENOENT")) return undefined;
-
-    throw error;
-  }
-
-  return text || undefined;
+export async function loadInstructions(file: string) {
+  return (await readTextIfExists(file))?.trim() || undefined;
 }

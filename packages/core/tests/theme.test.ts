@@ -1,5 +1,7 @@
 import { expect, test, vi } from "vite-plus/test";
 
+import { DAY_MS } from "@solyx/utils/date";
+
 import { Market } from "../src/market.ts";
 import { TimePrecision } from "../src/news.ts";
 import { ThemeDesk, themeDraftSchema } from "../src/theme.ts";
@@ -12,8 +14,6 @@ import type {
 } from "../src/theme.ts";
 
 const AT = Date.parse("2026-10-10T09:00:00+08:00");
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const OUTBREAK: ThemeDraft = {
   title: "Outbreak near the border",
@@ -220,12 +220,14 @@ test("an item found before a decisions model was set up, or before a signpost wa
   expect(desk.list()[0]).toMatchObject({
     developments: [],
     latest: [{ id: "first" }],
+    unread: 1,
   });
 
   auditor = { audit };
   await desk.take("theme-1", []);
 
   expect(audit).toHaveBeenCalledTimes(2);
+  expect(desk.list()[0]).toMatchObject({ unread: 0 });
   expect(desk.list()[0].developments).toHaveLength(2);
 
   desk.save(
@@ -239,13 +241,18 @@ test("an item found before a decisions model was set up, or before a signpost wa
   expect(desk.list()[0].developments.map(({ signpost }) => signpost)).toEqual([
     "A port suspends operations.",
   ]);
+  expect(desk.list()[0]).toMatchObject({ unread: 1 });
 
   audit.mockRejectedValueOnce(new Error("The model is out of reach"));
   await desk.take("theme-1", []);
+
+  expect(desk.list()[0]).toMatchObject({ unread: 1 });
+
   await desk.take("theme-1", []);
 
   // The new signpost is read once the model answers, and never twice.
   expect(audit).toHaveBeenCalledTimes(4);
+  expect(desk.list()[0]).toMatchObject({ unread: 0 });
   expect(desk.list()[0].developments).toHaveLength(2);
 });
 

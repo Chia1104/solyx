@@ -15,7 +15,7 @@ import {
   MarketDataSource,
   Secret,
   agentKeySecret,
-} from "#shared/ipc/settings.ts";
+} from "#shared/settings.ts";
 
 import type { FubonProcess } from "../src/main/modules/market/fubon-client.ts";
 import { createMarketDataSources } from "../src/main/modules/market/market-data-sources.ts";

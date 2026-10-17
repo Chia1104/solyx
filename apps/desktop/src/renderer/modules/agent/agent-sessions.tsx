@@ -1,17 +1,26 @@
 import { useState } from "react";
 
-import { AlertDialog, Button, Popover, ScrollShadow, cn } from "@heroui/react";
+import {
+  AlertDialog,
+  Button,
+  ListLayout,
+  Popover,
+  ScrollShadow,
+  Virtualizer,
+} from "@heroui/react";
 import {
   Add01Icon,
   Delete02Icon,
   Layers01Icon,
 } from "@hugeicons/core-free-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { GridList, GridListItem } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
 import type { AgentSession } from "@solyx/agent/wire";
 
 import { useClock } from "../../app/clock.ts";
+import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 
@@ -35,18 +44,19 @@ function DeleteSessionDialog({
   const queryClient = useQueryClient();
   const select = useAgentStore((state) => state.select);
 
-  const remove = useMutation({
-    mutationFn: (id: string) => window.solyx.agent.deleteSession(id),
-    onSuccess: (_result, id) => {
-      queryClient.removeQueries({ queryKey: agentQueryKeys.transcript(id) });
+  const remove = useMutation(
+    orpc.agent.deleteSession.mutationOptions({
+      onSuccess: (_result, id) => {
+        queryClient.removeQueries({ queryKey: agentQueryKeys.transcript(id) });
 
-      if (id === openId) select(null);
+        if (id === openId) select(null);
 
-      onClose();
-    },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: agentQueryKeys.sessions }),
-  });
+        onClose();
+      },
+      onSettled: () =>
+        queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
+    })
+  );
 
   const close = () => {
     remove.reset();
@@ -136,27 +146,28 @@ export function AgentSessionControls({
               {t("agent.conversations")}
             </Popover.Heading>
             <ScrollShadow size={24} className="max-h-80">
-              <ul className="flex flex-col gap-0.5">
-                {sessions.map((session) => {
-                  const open = session.id === sessionId;
-                  const title = session.title || t("agent.untitled");
+              {/* Every scheduled run opens a conversation, so the list grows without end. */}
+              <Virtualizer
+                layout={ListLayout}
+                layoutOptions={{ estimatedRowSize: 48, gap: 2 }}>
+                <GridList
+                  aria-label={t("agent.conversations")}
+                  items={sessions}
+                  className="outline-none"
+                  onAction={(key) => {
+                    select(String(key));
+                    setListOpen(false);
+                  }}>
+                  {(session) => {
+                    const title = session.title || t("agent.untitled");
 
-                  return (
-                    <li key={session.id} className="group/row relative">
-                      <Button
-                        fullWidth
-                        variant="ghost"
-                        aria-current={open || undefined}
-                        className={cn(
-                          "h-auto min-w-0 flex-col items-start gap-0 py-1.5 pr-9 pl-2 text-left font-normal",
-                          open && "bg-default"
-                        )}
-                        onPress={() => {
-                          select(session.id);
-                          setListOpen(false);
-                        }}>
-                        <span className="w-full truncate text-sm">{title}</span>
-                        <span className="flex w-full min-w-0 gap-1.5 text-xs text-muted">
+                    return (
+                      <GridListItem
+                        textValue={title}
+                        data-open={session.id === sessionId || undefined}
+                        className="group/row relative flex cursor-default flex-col rounded-sm py-1.5 pr-9 pl-2 outline-none data-focus-visible:bg-default data-hovered:bg-default data-open:bg-default">
+                        <span className="truncate text-sm">{title}</span>
+                        <span className="flex min-w-0 gap-1.5 text-xs text-muted">
                           <time
                             dateTime={new Date(session.updatedAt).toISOString()}
                             title={clock.fullTime(session.updatedAt)}
@@ -172,24 +183,24 @@ export function AgentSessionControls({
                             </span>
                           ) : null}
                         </span>
-                      </Button>
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="ghost"
-                        aria-label={t("agent.delete-named", { title })}
-                        className="absolute top-1/2 right-1 -translate-y-1/2 text-muted opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
-                        onPress={() => {
-                          setListOpen(false);
-                          setTarget(session);
-                          setConfirming(true);
-                        }}>
-                        <Icon icon={Delete02Icon} className="size-3.5" />
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="ghost"
+                          aria-label={t("agent.delete-named", { title })}
+                          className="absolute top-1/2 right-1 -translate-y-1/2 text-muted opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
+                          onPress={() => {
+                            setListOpen(false);
+                            setTarget(session);
+                            setConfirming(true);
+                          }}>
+                          <Icon icon={Delete02Icon} className="size-3.5" />
+                        </Button>
+                      </GridListItem>
+                    );
+                  }}
+                </GridList>
+              </Virtualizer>
             </ScrollShadow>
           </Popover.Dialog>
         </Popover.Content>

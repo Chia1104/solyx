@@ -16,6 +16,7 @@ import type {
   ThemeItem,
   ThemeStore,
 } from "@solyx/core/theme";
+import { MINUTE_MS, HOUR_MS } from "@solyx/utils/date";
 
 import { createThemeTools } from "../src/themes.ts";
 import { AgentToolName } from "../src/wire.ts";
@@ -231,7 +232,7 @@ test("a theme is searched now, and asked again within the hour answers with what
   );
   expect(first.details).toEqual({ id: "outbreak" });
 
-  clock.now = AT + 59 * 60 * 1000;
+  clock.now = AT + 59 * MINUTE_MS;
 
   const soon = await run(AgentToolName.SearchTheme, { id: "outbreak" });
 
@@ -240,7 +241,7 @@ test("a theme is searched now, and asked again within the hour answers with what
   );
   expect(search).toHaveBeenCalledOnce();
 
-  clock.now = AT + 60 * 60 * 1000;
+  clock.now = AT + HOUR_MS;
 
   expect(
     (await run(AgentToolName.SearchTheme, { id: "outbreak" })).text

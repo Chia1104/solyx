@@ -20,6 +20,7 @@ import type { UpcomingEvents } from "@solyx/core/calendar";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
+import { ForecastDirection } from "@solyx/core/forecast";
 import { MacroFigure, MacroIndicator, MacroUnit } from "@solyx/core/macro";
 import { Market } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -32,7 +33,12 @@ import type {
 } from "@solyx/core/news";
 import { OrderType, Side } from "@solyx/core/order";
 import { ProposalSource, ProposalStatus } from "@solyx/core/order-desk";
-import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
+import type {
+  OrderDesk,
+  ProposalBasis,
+  TradeProposal,
+} from "@solyx/core/order-desk";
+import { ReportStance } from "@solyx/core/report";
 import { RiskViolationCode } from "@solyx/core/risk";
 import {
   Stance,
@@ -42,11 +48,12 @@ import {
 } from "@solyx/core/sentiment";
 import type { SentimentScore } from "@solyx/core/sentiment";
 import { listedTradingDays, weekdays } from "@solyx/core/session";
+import { HOUR_MS } from "@solyx/utils/date";
 
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
 import { SkillSource } from "../src/skill-source.ts";
-import { createTradingExtension } from "../src/tools.ts";
+import { createTradingExtension, describeProposal } from "../src/tools.ts";
 import type { TradingToolPorts } from "../src/tools.ts";
 import {
   AgentEventType,
@@ -97,7 +104,7 @@ function collection(
   overrides: Partial<NewsCollection> = {}
 ): NewsCollection {
   return {
-    ...readNews(records, { symbol: TSMC, listing: null }),
+    ...readNews(records, { symbol: TSMC, listing: null }, NOW),
     failures: [],
     scored: true,
     ...overrides,
@@ -121,6 +128,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     },
     source: ProposalSource.Agent,
     rationale: "breakout",
+    basis: null,
     createdAt: NOW.getTime(),
     status: ProposalStatus.AwaitingConfirmation,
     violations: [],
@@ -154,9 +162,10 @@ function setup(candles: Candle[] = dailyBars(80)) {
       releases: [],
       closures: [],
       unreadMarkets: [],
-      unreadFigures: [],
     })
   );
+
+  const figures = vi.fn<TradingToolPorts["figures"]>(async () => []);
 
   const ports = {
     marketData,
@@ -164,6 +173,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     news,
     tradingDays,
     calendar,
+    figures,
     desk,
     links: LINKS,
     skills: async () => [
@@ -193,7 +203,16 @@ function setup(candles: Candle[] = dailyBars(80)) {
     return { text: contentText(result.output ?? []), details: result.details };
   };
 
-  return { run, desk, ports, marketData, news, tradingDays, calendar };
+  return {
+    run,
+    desk,
+    ports,
+    marketData,
+    news,
+    tradingDays,
+    calendar,
+    figures,
+  };
 }
 
 function newsItem(title: string, hoursAgo: number | null): NewsItem {
@@ -208,7 +227,7 @@ function newsItem(title: string, hoursAgo: number | null): NewsItem {
       hoursAgo === null
         ? null
         : {
-            at: new Date(NOW.getTime() - hoursAgo * 60 * 60 * 1000),
+            at: new Date(NOW.getTime() - hoursAgo * HOUR_MS),
             precision: TimePrecision.Hour,
           },
     votes: null,
@@ -455,6 +474,54 @@ test("checking reports each violation", async () => {
   expect(text).toContain("invalid-price");
 });
 
+test("a proposal names the research it was made under, as the desk kept it", () => {
+  const made = (basis: ProposalBasis | null): TradeProposal => ({
+    id: "p1",
+    order: {
+      instrument: TSMC,
+      side: Side.Buy,
+      quantity: 1000,
+      type: OrderType.Limit,
+      limitPrice: 1000,
+    },
+    source: ProposalSource.User,
+    rationale: "",
+    basis,
+    createdAt: NOW.getTime(),
+    status: ProposalStatus.AwaitingConfirmation,
+    violations: [],
+  });
+
+  const report = {
+    revision: 3,
+    revisedAt: Date.parse("2026-09-28T09:00:00+08:00"),
+    stance: ReportStance.Bullish,
+  };
+
+  expect(
+    describeProposal(
+      made({
+        report,
+        forecast: {
+          id: "f-1",
+          createdAt: Date.parse("2026-09-29T14:00:00+08:00"),
+          direction: ForecastDirection.Long,
+          horizon: 5,
+        },
+      })
+    )
+  ).toMatch(
+    / \| made under report revision 3 \(bullish, revised 2026-09-28\) and its forecast f-1 \(long over 5 sessions, made 2026-09-29\)$/
+  );
+  expect(describeProposal(made({ report, forecast: null }))).toMatch(
+    /revised 2026-09-28\), with no forecast under it$/
+  );
+  expect(describeProposal(made({ report: null, forecast: null }))).toMatch(
+    / \| made with no report on the listing$/
+  );
+  expect(describeProposal(made(null))).not.toContain("made ");
+});
+
 test("proposing goes through the desk as the agent, once per run", async () => {
   const { desk, ports } = setup();
   const { faux, events, runtime, ended } = agentOn(ports);
@@ -657,7 +724,7 @@ test("the prompt carries the skills and the user's instructions", async () => {
 });
 
 test("the calendar lists the followed listings' events and their markets' releases, deadlines marked", async () => {
-  const { run, desk, calendar } = setup();
+  const { run, desk, calendar, figures } = setup();
 
   desk.account.mockResolvedValue({
     cash: { TWD: 1_000_000 },
@@ -777,25 +844,6 @@ test("the calendar lists the followed listings' events and their markets' releas
         timing: EventTiming.Set,
         period: "2026-09",
         page: "https://www.mof.gov.tw/multiplehtml/384",
-        // Out, with what it brought.
-        readings: [
-          {
-            figure: MacroFigure.Exports,
-            unit: MacroUnit.UsdMillions,
-            period: "2026-09",
-            value: 52000,
-            previous: 50000,
-            yoy: 0.2683,
-          },
-          {
-            figure: MacroFigure.Imports,
-            unit: MacroUnit.UsdMillions,
-            period: "2026-09",
-            value: 38000.5,
-            previous: 36000,
-            yoy: null,
-          },
-        ],
       },
       {
         market: Market.TW,
@@ -805,17 +853,6 @@ test("the calendar lists the followed listings' events and their markets' releas
         timing: EventTiming.Set,
         period: "2026-10",
         page: null,
-        // Ahead, with the newest period out before it.
-        readings: [
-          {
-            figure: MacroFigure.ConsumerPrices,
-            unit: MacroUnit.Index,
-            period: "2026-09",
-            value: 102.5,
-            previous: 102,
-            yoy: 0.025,
-          },
-        ],
       },
       {
         market: Market.TW,
@@ -825,16 +862,6 @@ test("the calendar lists the followed listings' events and their markets' releas
         timing: EventTiming.Set,
         period: "2026-09",
         page: null,
-        readings: [
-          {
-            figure: MacroFigure.BusinessSignal,
-            unit: MacroUnit.Points,
-            period: "2026-08",
-            value: 41,
-            previous: 40,
-            yoy: null,
-          },
-        ],
       },
       {
         market: Market.TW,
@@ -844,13 +871,56 @@ test("the calendar lists the followed listings' events and their markets' releas
         timing: EventTiming.Deadline,
         period: "2026-10",
         page: null,
-        readings: [],
       },
     ],
     closures: [{ market: Market.TW, date: "2026-10-09", name: "國慶日" }],
     unreadMarkets: [],
-    unreadFigures: [Market.TW],
   });
+
+  figures.mockResolvedValue([
+    {
+      market: Market.TW,
+      indicator: MacroIndicator.Trade,
+      figure: MacroFigure.Exports,
+      unit: MacroUnit.UsdMillions,
+      observations: [
+        { period: "2025-09", value: 41000 },
+        { period: "2026-08", value: 50000 },
+        { period: "2026-09", value: 52000 },
+      ],
+    },
+    {
+      market: Market.TW,
+      indicator: MacroIndicator.Trade,
+      figure: MacroFigure.Imports,
+      unit: MacroUnit.UsdMillions,
+      observations: [
+        { period: "2026-08", value: 36000 },
+        { period: "2026-09", value: 38000.5 },
+      ],
+    },
+    {
+      market: Market.TW,
+      indicator: MacroIndicator.ConsumerPrices,
+      figure: MacroFigure.ConsumerPrices,
+      unit: MacroUnit.Index,
+      observations: [
+        { period: "2025-09", value: 100 },
+        { period: "2026-08", value: 102 },
+        { period: "2026-09", value: 102.5 },
+      ],
+    },
+    {
+      market: Market.TW,
+      indicator: MacroIndicator.BusinessSignal,
+      figure: MacroFigure.BusinessSignal,
+      unit: MacroUnit.Points,
+      observations: [
+        { period: "2026-07", value: 40 },
+        { period: "2026-08", value: 41 },
+      ],
+    },
+  ]);
 
   const { text, details } = await run(AgentToolName.GetCalendar, { days: 30 });
 
@@ -858,6 +928,7 @@ test("the calendar lists the followed listings' events and their markets' releas
     [{ market: Market.TW, symbol: "6669" }, TSMC],
     30
   );
+  expect(figures).toHaveBeenCalledWith(Market.TW);
   expect(text.split("\n")).toEqual([
     "Calendar of TW 6669, TW 2330 over the next 30 days, each market from its own day today, as_of 2026-09-30 10:00 Taipei; the same list the app's overview shows",
     "Listings' filings, distributions, meetings and restrictions:",
@@ -879,7 +950,7 @@ test("the calendar lists the followed listings' events and their markets' releas
     "by 2026-11-03 TW purchasing managers for 2026-10",
     "Weekdays their markets are closed:",
     "2026-10-09 TW closed (國慶日)",
-    "Could not read the fundamentals of TW 6669; the economic figures of TW this time, so dates may be missing.",
+    "Could not read the fundamentals of TW 6669 this time, so dates may be missing.",
   ]);
   expect(details).toEqual({
     symbols: [{ market: Market.TW, symbol: "6669" }, TSMC],
@@ -887,6 +958,37 @@ test("the calendar lists the followed listings' events and their markets' releas
     events: 10,
     releases: 4,
   });
+});
+
+test("the calendar names a market whose figures cannot be read, and lists its releases without any", async () => {
+  const { run, calendar, figures } = setup();
+
+  calendar.mockResolvedValue({
+    events: [],
+    research: [],
+    unread: [],
+    releases: [
+      {
+        market: Market.TW,
+        indicator: MacroIndicator.ConsumerPrices,
+        date: "2026-11-05",
+        time: "16:00",
+        timing: EventTiming.Set,
+        period: "2026-10",
+        page: null,
+      },
+    ],
+    closures: [],
+    unreadMarkets: [],
+  });
+  figures.mockRejectedValue(new Error("DGBAS: Request timed out"));
+
+  const { text } = await run(AgentToolName.GetCalendar, { days: 30 });
+
+  expect(text).toContain("2026-11-05 16:00 TW consumer prices for 2026-10\n");
+  expect(text).toContain(
+    "Could not read the economic figures of TW this time, so dates may be missing."
+  );
 });
 
 test("skills are read by name", async () => {
@@ -922,7 +1024,7 @@ test("news reads newest first, leaving out stories that only name the listing", 
   );
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 3 days, as_of 2026-09-30 10:00, scored by jev-1.13.0",
-    "Sentiment 80/100 with 50 neutral: press (announcements, articles) 80/100, crowd (forum, social) unscored",
+    "Sentiment, 50 neutral: overall 80/100; press (announcements, articles) 80/100; crowd (forum, social) unscored",
     "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-29 +0.60 (n=1), 2026-09-30 +0.60 (n=1)",
     "## article: 2 of 3",
     "- ~2026-09-30 05:00 (1 session since) news.test: 外資買超",
@@ -935,6 +1037,20 @@ test("news reads newest first, leaving out stories that only name the listing", 
     `  ${newsItem("法說前瞻", 30).url}`,
   ]);
   expect(details).toEqual({ symbol: TSMC, stories: 3 });
+});
+
+test("a sentiment resting on too little recent news reads as stale, with its newest story", async () => {
+  const { ports, news } = setup();
+
+  news.collect.mockResolvedValue(
+    collection([newsRecord(newsItem("法說前瞻", 72), sentiment(0.9, 0.6))])
+  );
+
+  const { text } = await getNews(ports, { symbol: TSMC });
+
+  expect(text.split("\n")[1]).toBe(
+    "Sentiment, 50 neutral: overall 80/100 stale, newest 2026-09-27 10:00; press (announcements, articles) 80/100 stale, newest 2026-09-27 10:00; crowd (forum, social) unscored"
+  );
 });
 
 test("without a decisions model, news is listed unscored", async () => {
@@ -960,7 +1076,7 @@ test("without a decisions model, news is listed unscored", async () => {
 
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",
-    "Sentiment unscored with 50 neutral: press (announcements, articles) unscored, crowd (forum, social) unscored",
+    "Sentiment, 50 neutral: overall unscored; press (announcements, articles) unscored; crowd (forum, social) unscored",
     "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-28 unscored (n=1), 2026-09-30 unscored (n=1)",
     "## article: 2 of 2",
     "- undated news.test: 無日期",
@@ -1052,7 +1168,7 @@ test("channels get sections, a thread is one story, and a failed source says how
 
   expect(text.split("\n")).toEqual([
     "TW 2330 news and posts over the last 7 days, as_of 2026-09-30 10:00; not scored, since the user has not set up a decisions model",
-    "Sentiment unscored with 50 neutral: press (announcements, articles) unscored, crowd (forum, social) unscored",
+    "Sentiment, 50 neutral: overall unscored; press (announcements, articles) unscored; crowd (forum, social) unscored",
     "Daily stance (n = stories about the listing; each scored story weighed by relevance, promotions left out): 2026-09-30 unscored (n=1)",
     "## forum: 1 of 1",
     "- 2026-09-30 08:00 (1 session since) ptt.cc, votes +61, also told by 1 more (ptt.cc): [新聞] 台積電擬赴美設第二園區",

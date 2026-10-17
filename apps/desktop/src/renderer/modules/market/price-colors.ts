@@ -4,8 +4,8 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 
 import { Market } from "@solyx/core/market";
 
-import { PriceColors } from "#shared/ipc/settings.ts";
-import type { Appearance } from "#shared/ipc/settings.ts";
+import { PriceColors } from "#shared/settings.ts";
+import type { Appearance } from "#shared/settings.ts";
 
 import { usePaletteColors } from "../../app/theme.ts";
 import { appearanceQuery } from "../settings/settings-query.ts";

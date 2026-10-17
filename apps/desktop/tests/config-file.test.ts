@@ -23,14 +23,14 @@ import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
+import { Palette } from "#shared/palette.ts";
 import {
   LanguagePreference,
   MarketDataSource,
   PriceColors,
   Theme,
   TimeZonePreference,
-} from "#shared/ipc/settings.ts";
-import { Palette } from "#shared/palette.ts";
+} from "#shared/settings.ts";
 
 import {
   DEFAULT_COLLECTION_PLANS,
@@ -87,6 +87,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       mcpTools: {},
     },
     collection: DEFAULT_COLLECTION_PLANS,
+    news: { kept: { press: "90d", crowd: "30d" } },
     updates: { check: true },
     otlp: {},
     backup: { automatic: true, every: "1h" },

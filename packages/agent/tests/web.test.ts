@@ -85,7 +85,7 @@ function fakeNews(): Pick<NewsDesk, "collect"> {
 
   return {
     collect: async (symbol) => ({
-      ...readNews([record], { symbol, listing: null }),
+      ...readNews([record], { symbol, listing: null }, NOW),
       failures: [],
       scored: false,
     }),
@@ -124,8 +124,8 @@ function setup(vendor = fakeVendor()) {
       releases: [],
       closures: [],
       unreadMarkets: [],
-      unreadFigures: [],
     }),
+    figures: async () => [],
     desk: {
       check: vi.fn<OrderDesk["check"]>(async () => []),
       propose: vi.fn<OrderDesk["propose"]>(),

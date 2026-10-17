@@ -1,11 +1,13 @@
 import { peerStanding } from "@solyx/core/fundamentals";
 import type {
   ExchangeListsProvider,
+  FundReportsProvider,
   Fundamentals,
   FundamentalsProvider,
 } from "@solyx/core/fundamentals";
 import { exchangeDate, symbolKey } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
+import { HOUR_MS } from "@solyx/utils/date";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
 
@@ -18,16 +20,18 @@ const SHEET_YEARS = 3;
 const REVENUE_MONTHS = 36;
 
 // A quarter or a month is published once, so a listing is asked about twice a day at most.
-const FRESH_MS = 12 * 60 * 60 * 1000;
+const FRESH_MS = 12 * HOUR_MS;
 
 // One read answers for every listing, so a list an exchange draws up each day is read once an hour at most.
-const DAILY_LIST_FRESH_MS = 60 * 60 * 1000;
+const DAILY_LIST_FRESH_MS = HOUR_MS;
 
 export interface FundamentalsOptions {
   /** One per market at most; the first that covers a listing's market answers for it. */
   providers: readonly FundamentalsProvider[];
   /** The sources of the exchanges' own lists, one per market at most. */
   exchanges: readonly ExchangeListsProvider[];
+  /** The sources of what listed funds report of themselves, one per market at most. */
+  fundReports: readonly FundReportsProvider[];
   /** Where each listing's answers, and each market's lists, are kept between runs. */
   answers: AnswerStores;
   /** @default () => new Date() */
@@ -39,9 +43,15 @@ interface Ask {
   provider: FundamentalsProvider;
 }
 
-interface ListAsk {
+/** A source that answers for a whole market at once. */
+interface MarketSource {
+  readonly id: string;
+  readonly markets: readonly Market[];
+}
+
+interface ListAsk<Source> {
   market: Market;
-  provider: ExchangeListsProvider;
+  provider: Source;
 }
 
 /**
@@ -49,23 +59,28 @@ interface ListAsk {
  * half a day, since research asks for the newest quarter far more often than one comes out, and
  * what its exchanges list of it from the source of their lists, a market's kept whole: its funds
  * and shareholders' meetings for half a day, and the lists an exchange draws up each day for an hour.
+ * A fund's net asset value and costs come from the source of what funds report, a market's kept
+ * whole too: the values for an hour, since one is struck after each session, and the costs of a
+ * month for half a day.
  */
 export function createFundamentals({
   providers,
   exchanges,
+  fundReports,
   answers,
   now = () => new Date(),
 }: FundamentalsOptions): Fundamentals {
   const covering = (market: Market) =>
     providers.find(({ markets }) => markets.includes(market));
 
-  /** A market's list from the source of its exchanges', kept whole under `scope`, and the rows of it that are a listing's. */
-  function listed<Row extends { symbol: string }>(
+  /** A market's list from the one of `sources` that covers it, kept whole under `scope`, and the rows of it that are a listing's. */
+  function listed<Source extends MarketSource, Row extends { symbol: string }>(
     scope: string,
-    ask: (provider: ExchangeListsProvider, market: Market) => Promise<Row[]>,
+    sources: readonly Source[],
+    ask: (provider: Source, market: Market) => Promise<Row[]>,
     freshMs: number
   ) {
-    const read = keepFresh<ListAsk, Row[]>({
+    const read = keepFresh<ListAsk<Source>, Row[]>({
       store: answers(`fundamentals:${scope}`),
       id: ({ provider, market }) => `${provider.id}:${market}`,
       ask: ({ provider, market }) => ask(provider, market),
@@ -75,9 +90,7 @@ export function createFundamentals({
 
     /** A market's whole list; none for a market no source lists. */
     const all = (market: Market): Promise<Row[]> => {
-      const provider = exchanges.find(({ markets }) =>
-        markets.includes(market)
-      );
+      const provider = sources.find(({ markets }) => markets.includes(market));
 
       return provider ? read({ market, provider }) : Promise.resolve([]);
     };
@@ -93,18 +106,35 @@ export function createFundamentals({
 
   const funds = listed(
     "funds",
+    exchanges,
     (provider, market) => provider.getFunds(market),
     FRESH_MS
   );
 
   const multiples = listed(
     "multiples",
+    exchanges,
     (provider, market) => provider.getMultiples(market),
     DAILY_LIST_FRESH_MS
   );
 
+  const netAssetValues = listed(
+    "net-asset-values",
+    fundReports,
+    (provider, market) => provider.getNetAssetValues(market),
+    DAILY_LIST_FRESH_MS
+  );
+
+  const fundCosts = listed(
+    "fund-costs",
+    fundReports,
+    (provider, market) => provider.getCosts(market),
+    FRESH_MS
+  );
+
   const industries = listed(
     "industries",
+    exchanges,
     (provider, market) => provider.getIndustries(market),
     FRESH_MS
   );
@@ -178,11 +208,17 @@ export function createFundamentals({
 
     restrictions: listed(
       "restrictions",
+      exchanges,
       (provider, market) => provider.getRestrictions(market),
       DAILY_LIST_FRESH_MS
     ).of,
 
     fund: async (symbol) => (await funds.of(symbol)).at(0) ?? null,
+
+    netAssetValue: async (symbol) =>
+      (await netAssetValues.of(symbol)).at(0) ?? null,
+
+    fundCosts: async (symbol) => (await fundCosts.of(symbol)).at(0) ?? null,
 
     multiples: async (symbol) => (await multiples.of(symbol)).at(0) ?? null,
 
@@ -216,12 +252,14 @@ export function createFundamentals({
 
     exNotices: listed(
       "ex-notices",
+      exchanges,
       (provider, market) => provider.getExNotices(market),
       DAILY_LIST_FRESH_MS
     ).of,
 
     meetings: listed(
       "meetings",
+      exchanges,
       (provider, market) => provider.getMeetings(market),
       FRESH_MS
     ).of,

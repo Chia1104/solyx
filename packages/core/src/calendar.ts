@@ -1,5 +1,7 @@
 import { sortBy } from "es-toolkit";
 
+import { shiftMonth } from "@solyx/utils/date";
+
 import { RestrictionKind } from "./fundamentals.ts";
 import type {
   Dividend,
@@ -76,7 +78,7 @@ export interface ListingEvent {
 /** How many days a release stays on the calendar once its day has come, so the figures it brought are read there. */
 export const RELEASED_DAYS = 7;
 
-/** A release on the calendar with what is known of its figures. */
+/** A release on the calendar with what is known of its figures, which `releaseReadings` finds in its market's series. */
 export interface ReleaseEvent extends MacroRelease {
   /**
    * Its indicator's figures, the headline one first: at its own period once that is out, or else
@@ -90,7 +92,11 @@ export interface ResearchEvent extends ReportEvent {
   symbol: SymbolRef;
 }
 
-/** Some listings' coming events and their markets' releases, as a host's calendar serves them. */
+/**
+ * Some listings' coming events and their markets' releases, as a host's calendar serves them. The
+ * releases come without figures, which a market's series are read for apart, so a database slow to
+ * answer never holds up the dates.
+ */
 export interface UpcomingEvents {
   /** Soonest first. */
   events: ListingEvent[];
@@ -99,13 +105,11 @@ export interface UpcomingEvents {
   /** Listings whose fundamentals could not be read this time, so their events may be missing. */
   unread: SymbolRef[];
   /** The economic releases of the listings' markets, soonest first, those of the last `RELEASED_DAYS` days among them. */
-  releases: ReleaseEvent[];
+  releases: MacroRelease[];
   /** The weekdays the listings' markets are closed, soonest first. */
   closures: MarketClosure[];
   /** Markets whose releases or closures could not be read this time, so some of theirs may be missing. */
   unreadMarkets: Market[];
-  /** Markets whose indicators' figures could not be read this time, so their releases come without any. */
-  unreadFigures: Market[];
 }
 
 /** What a listing's events are derived from, as `Fundamentals` serves it. */
@@ -125,9 +129,6 @@ function quarterEnd(periodEnd: string, quarters: number): string {
 
   return month.toPlainDate({ day: month.daysInMonth }).toString();
 }
-
-const nextMonth = (month: string, months: number) =>
-  Temporal.PlainYearMonth.from(month).add({ months }).toString();
 
 /**
  * The periods after the newest one out, each with the day it is due by, until one is due after
@@ -194,7 +195,7 @@ export function upcomingEvents(
           })),
           ...duePeriods(
             monthlyRevenue.at(-1)?.month,
-            nextMonth,
+            shiftMonth,
             twRevenueDeadline,
             until
           ).map(({ period, due }) => ({

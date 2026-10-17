@@ -8,6 +8,8 @@ import {
   createTypeSafeFactReader,
 } from "../src/typesafe.ts";
 
+import { readSent } from "./fixtures/sent.ts";
+
 const BASE_URL = "https://decisions.test";
 
 const FACT = {
@@ -65,7 +67,7 @@ test("asks how the fact bears on the share price and reads its five levels from 
     },
   });
 
-  const sent = sentSchema.parse(await requests[0].json());
+  const sent = await readSent(requests[0], sentSchema);
 
   // The model reads the fact and its quote alone, never the forecast they were given for.
   expect(sent.state).toEqual({ fact: FACT.text, quote: FACT.quote });

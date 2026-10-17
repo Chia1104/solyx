@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { isEqual } from "es-toolkit";
 
 import { DEFAULT_REGION, awsEndpoint } from "@solyx/backup/s3";
+import { MINUTE_MS, HOUR_MS, DAY_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 
 import {
@@ -13,9 +14,13 @@ import {
   backupBucketSchema,
   backupPrefixSchema,
   backupRegionSchema,
-} from "#shared/ipc/backup.ts";
-import type { BackupApi, StoredBackup } from "#shared/ipc/backup.ts";
-import { Secret, SecretState } from "#shared/ipc/settings.ts";
+} from "#shared/backup.ts";
+import type {
+  BackupSettings,
+  BackupStatus,
+  StoredBackup,
+} from "#shared/backup.ts";
+import { Secret, SecretState, endpointSchema } from "#shared/settings.ts";
 
 import type {
   BackUpOptions,
@@ -24,7 +29,6 @@ import type {
   MadeBackup,
 } from "../../../worker/backup-protocol.ts";
 import type { ScheduledWork } from "../../scheduler.ts";
-import { endpointSchema } from "../settings/config-file.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
@@ -48,13 +52,11 @@ const SECRETS = [
   Secret.BackupPassphrase,
 ];
 
-const MINUTE_MS = 60 * 1000;
-
 const INTERVAL_MS: Record<BackupInterval, number> = {
   [BackupInterval.QuarterHour]: 15 * MINUTE_MS,
-  [BackupInterval.Hour]: 60 * MINUTE_MS,
-  [BackupInterval.SixHours]: 6 * 60 * MINUTE_MS,
-  [BackupInterval.Day]: 24 * 60 * MINUTE_MS,
+  [BackupInterval.Hour]: HOUR_MS,
+  [BackupInterval.SixHours]: 6 * HOUR_MS,
+  [BackupInterval.Day]: DAY_MS,
 };
 
 // Each pass only looks whether a backup is due, which costs no request.
@@ -103,6 +105,19 @@ export interface BackupsOptions {
   now?: () => number;
 }
 
+/** What the backup tab asks of the module, as `backupContract` documents it, and its scheduled pass. */
+export interface Backups {
+  settings(): Promise<BackupSettings>;
+  set(setting: BackupSetting, value: string | null): Promise<void>;
+  setAutomatic(automatic: boolean): Promise<void>;
+  setEvery(every: BackupInterval): Promise<void>;
+  status(): Promise<BackupStatus>;
+  backUp(): Promise<StoredBackup>;
+  list(): Promise<StoredBackup[]>;
+  restore(key: string): Promise<void>;
+  work: ScheduledWork;
+}
+
 /**
  * Backups of what the app keeps, in the bucket the user set up: each one object, sealed under the
  * user's passphrase before it leaves this computer. This side only decides: it reads the settings
@@ -125,7 +140,7 @@ export function createBackups({
   diagnostics,
   onChange,
   now = Date.now,
-}: BackupsOptions): BackupApi & { work: ScheduledWork } {
+}: BackupsOptions): Backups {
   const state = createBackupState(join(folders.dataDir, "backup.json"));
 
   let activity: BackupActivity | null = null;
@@ -379,5 +394,3 @@ export function createBackups({
     },
   };
 }
-
-export type Backups = ReturnType<typeof createBackups>;

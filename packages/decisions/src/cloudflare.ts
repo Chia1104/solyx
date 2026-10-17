@@ -1,4 +1,4 @@
-import { noul } from "@typesafe-ai/sdk";
+import { omit, trimEnd } from "es-toolkit";
 import * as z from "zod";
 
 import type { FactReader } from "@solyx/core/forecast";
@@ -24,7 +24,7 @@ export const CLOUDFLARE_BASE_URL = "https://api.cloudflare.com/client/v4";
 // tells a script from a standard tool; measured with `scripts/eval-commands.ts`.
 const CLEF_COMMAND_QUESTIONS = {
   ...COMMAND_QUESTIONS,
-  runs: noul(COMMAND_QUESTIONS.runs.instructions),
+  runs: omit(COMMAND_QUESTIONS.runs, ["criteria"]),
 };
 
 // Cloudflare's API wraps a model's answers in `result`, and says what went wrong in `errors`.
@@ -50,7 +50,7 @@ export interface CloudflareOptions {
 function cloudflare(options: CloudflareOptions): Ask {
   const { fetch = globalThis.fetch } = options;
 
-  const url = `${options.baseURL.replace(/\/+$/, "")}/accounts/${encodeURIComponent(options.accountId)}/ai/run/@cf/cloudflare/${encodeURIComponent(options.model)}`;
+  const url = `${trimEnd(options.baseURL, "/")}/accounts/${encodeURIComponent(options.accountId)}/ai/run/@cf/cloudflare/${encodeURIComponent(options.model)}`;
 
   return async (request, signal) => {
     const response = await fetch(url, {

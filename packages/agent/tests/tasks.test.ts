@@ -7,9 +7,11 @@ import type {
 } from "@earendil-works/pi-durable";
 import { expect, test, vi } from "vite-plus/test";
 
+import { ChangeKind } from "@solyx/core/changes";
 import { Market } from "@solyx/core/market";
 import { ScheduleApproval, ScheduleKind } from "@solyx/core/schedule";
 import type { ScheduledTaskDraft } from "@solyx/core/schedule";
+import type { ThemeWatch } from "@solyx/core/theme";
 
 import { createTaskTools } from "../src/tasks.ts";
 import type { ListedTask } from "../src/tasks.ts";
@@ -26,6 +28,26 @@ type ToolArguments = Parameters<ToolRegistration["execute"]>[0];
 const taipei = (time: string) => Date.parse(`${time}+08:00`);
 
 const AT = taipei("2026-10-08T07:00:00");
+
+const TSMC = { market: Market.TW, symbol: "2330" };
+
+const OUTBREAK: ThemeWatch = {
+  theme: {
+    id: "outbreak",
+    title: "Outbreak",
+    thesis: "It could close ports.",
+    queries: ["outbreak"],
+    signposts: ["A port suspends operations."],
+    listings: [],
+    createdAt: 0,
+    updatedAt: 0,
+  },
+  developments: [],
+  latest: [],
+  collectedAt: null,
+  quietSince: 0,
+  unread: 0,
+};
 
 const BRIEF = {
   name: "Morning brief",
@@ -100,7 +122,7 @@ function setup(
     if (task) {
       kept.set(id, {
         ...task,
-        lastRun: { at: AT, sessionId: "9", failure: null },
+        lastRun: { at: AT, sessionId: "9", failure: null, changes: [] },
         running: true,
       });
     }
@@ -117,6 +139,7 @@ function setup(
       sessions: async () => sessions,
       transcript: async (id) => transcripts[id] ?? [],
     },
+    themes: { list: () => [OUTBREAK] },
   }).extension((tool) => ({
     ...tool,
     async execute(params, toolApi, context) {
@@ -167,7 +190,7 @@ test("a task is kept on the user's clock and runs its calls as auto unless told 
   expect(asked).toHaveBeenCalledTimes(2);
 });
 
-test("a task is written again under its id, switched off or set to wait on a change", async () => {
+test("a task is written again under its id, switched off or set to wait on the changes it names", async () => {
   const { run, kept } = setup();
 
   await run(AgentToolName.SaveTask, BRIEF);
@@ -181,20 +204,71 @@ test("a task is written again under its id, switched off or set to wait on a cha
       prompt: "Read what changed and say what it means.",
       when: ScheduleKind.OnChange,
       everyMinutes: 120,
+      changeKinds: [ChangeKind.FalsifierMet, ChangeKind.SignpostMet],
+      listings: [TSMC],
+      themes: ["outbreak"],
       approval: ScheduleApproval.Ask,
       enabled: false,
     })
   ).toMatchObject({
-    text: `Wrote task ${id}, "Watch for changes": runs when something the app watches changed, at most every 120 minutes, switched off.`,
+    text: `Wrote task ${id}, "Watch for changes": runs once news may state a report's falsifier or news may state a theme's signpost, of reports of TW 2330 and themes outbreak, at most every 120 minutes, switched off.`,
   });
   expect([...kept.values()]).toMatchObject([
     {
       id,
-      schedule: { kind: ScheduleKind.OnChange, atMostEveryMinutes: 120 },
+      schedule: {
+        kind: ScheduleKind.OnChange,
+        atMostEveryMinutes: 120,
+        scope: {
+          kinds: [ChangeKind.FalsifierMet, ChangeKind.SignpostMet],
+          listings: [TSMC],
+          themes: ["outbreak"],
+        },
+      },
       approval: ScheduleApproval.Ask,
       enabled: false,
     },
   ]);
+
+  const task = kept.get(id);
+
+  if (!task) throw new Error("The task was not kept");
+
+  kept.set(id, {
+    ...task,
+    lastRun: {
+      at: taipei("2026-10-07T09:00:00"),
+      sessionId: "12",
+      failure: null,
+      changes: [
+        {
+          kind: ChangeKind.FalsifierMet,
+          symbol: TSMC,
+          falsifier: "Monthly revenue falls year on year.",
+        },
+      ],
+    },
+  });
+
+  expect((await run(AgentToolName.GetTasks, {})).text).toContain(
+    'Last ran 2026-10-07 09:00.\nIt was started for:\n- TW 2330: news may state the falsifier "Monthly revenue falls year on year."'
+  );
+});
+
+test("a task that waits on every change says so", async () => {
+  const { run } = setup();
+
+  expect(
+    await run(AgentToolName.SaveTask, {
+      ...BRIEF,
+      when: ScheduleKind.OnChange,
+      everyMinutes: 60,
+    })
+  ).toMatchObject({
+    text: expect.stringContaining(
+      "runs once news may state a report's falsifier or a report's event passed or news may state a theme's signpost, of reports of every listing the user holds and watches and every theme, at most every 60 minutes"
+    ),
+  });
 });
 
 test("a task that cannot be kept is refused before the user is asked", async () => {
@@ -217,6 +291,22 @@ test("a task that cannot be kept is refused before the user is asked", async () 
       everyMinutes: 5,
     })
   ).rejects.toThrow("schedule.everyMinutes");
+  await expect(
+    run(AgentToolName.SaveTask, {
+      ...BRIEF,
+      when: ScheduleKind.OnChange,
+      everyMinutes: 60,
+      themes: ["gone"],
+    })
+  ).rejects.toThrow("No theme has the id gone");
+  await expect(
+    run(AgentToolName.SaveTask, {
+      ...BRIEF,
+      when: ScheduleKind.OnChange,
+      everyMinutes: 60,
+      changeKinds: [],
+    })
+  ).rejects.toThrow();
   await expect(
     run(AgentToolName.SaveTask, {
       ...BRIEF,
@@ -249,6 +339,7 @@ test("tasks read with when they run, how their last run went and what they send"
       at: taipei("2026-10-07T08:30:00"),
       sessionId: "12",
       failure: null,
+      changes: [],
     },
     nextRunAt: taipei("2026-10-08T08:30:00"),
   });
@@ -497,6 +588,7 @@ test("a task's run starts once the user allows it, and one that could not start 
         at: AT,
         sessionId: null,
         failure: "No model is set up",
+        changes: [],
       },
     });
   });

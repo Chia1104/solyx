@@ -16,9 +16,10 @@ import type {
   NestedToolExecutionResult,
 } from "@earendil-works/pi-durable";
 
+import { firstLine } from "@solyx/utils/text";
+
 import { approvalEvents } from "./approval.ts";
 import type { ApprovalEvent, ApprovalRecord } from "./approval.ts";
-import { firstLine } from "./text.ts";
 import {
   AgentEventType,
   AgentToolName,
