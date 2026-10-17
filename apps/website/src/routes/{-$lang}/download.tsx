@@ -117,10 +117,10 @@ function Download() {
               <Link
                 to="/{-$lang}/docs/$"
                 params={{ lang: langParam(locale), _splat: "install" }}
-                className="text-primary hover:underline">
+                className="link">
                 {t("download.install-guide")}
               </Link>
-              <a href={RELEASES_URL} className="text-primary hover:underline">
+              <a href={RELEASES_URL} className="link">
                 {t("download.all-releases")}
               </a>
             </div>

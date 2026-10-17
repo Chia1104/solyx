@@ -91,14 +91,20 @@ export function OrderRoad() {
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "absolute inset-0 border-t-2 [clip-path:inset(0_100%_0_0)] [transition:clip-path_600ms_var(--ease-in-out),opacity_400ms_var(--ease-out)] group-data-[filled=true]:[clip-path:inset(0)] motion-reduce:transition-none",
+                    "absolute inset-0 overflow-hidden border-t-2 [clip-path:inset(0_100%_0_0)] [transition:clip-path_600ms_var(--ease-in-out),opacity_400ms_var(--ease-out)] group-data-[filled=true]:[clip-path:inset(0)] motion-reduce:transition-none",
                     inked
-                      ? "border-primary bg-primary/10"
-                      : "border-graphite border-dashed hatch [--hatch-color:color-mix(in_oklab,var(--graphite)_22%,transparent)]",
+                      ? "border-primary bg-primary/10 [--sheen:color-mix(in_oklab,var(--primary)_30%,transparent)]"
+                      : "border-graphite border-dashed hatch [--hatch-color:color-mix(in_oklab,var(--graphite)_22%,transparent)] [--sheen:color-mix(in_oklab,var(--foreground)_10%,transparent)]",
                     clearing && "opacity-0"
-                  )}
-                />
-                <h3 className="relative font-semibold">
+                  )}>
+                  {/* Once the step has filled, a highlight passes over it. */}
+                  <span className="group-data-[filled=true]:animate-sheen absolute inset-0 bg-[linear-gradient(90deg,transparent,var(--sheen),transparent)] motion-reduce:hidden" />
+                </span>
+                <h3
+                  className={cn(
+                    "relative font-semibold transition-colors duration-500",
+                    inked && "group-data-[filled=true]:text-primary"
+                  )}>
                   {t(`road.steps.${step}.title`)}
                 </h3>
                 <p className="text-muted-foreground relative mt-1.5 text-[0.9375rem] leading-relaxed">

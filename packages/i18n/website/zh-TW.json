@@ -135,6 +135,7 @@
     "providers": "服務商",
     "providers-label": "模型服務商",
     "providers-more": "還有 {{count}} 家",
+    "vendors-label": "網路搜尋服務商",
     "items": {
       "quotes": {
         "purpose": "台股報價與 K 線",
@@ -287,6 +288,18 @@
     },
     "on-github": "GitHub 上的版本",
     "pull-request": "Pull request {{number}}"
+  },
+  "status": {
+    "home": "回到首頁",
+    "not-found": {
+      "title": "這裡什麼也沒畫",
+      "lede": "連結可能打錯了，或這一頁已經搬走。"
+    },
+    "error": {
+      "title": "這一頁沒能畫出來",
+      "lede": "載入時出了問題。再試一次，或從首頁重新開始。",
+      "retry": "再試一次"
+    }
   },
   "footer": {
     "disclaimer": "Solyx 不構成投資建議。使用它交易所產生的任何損益，皆由你自行承擔。本軟體依現狀提供，不附任何形式的保證。",

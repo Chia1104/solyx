@@ -42,16 +42,16 @@ function Home() {
     <>
       <PencilBanner id="in-development">{t("banner.app")}</PencilBanner>
       <HomeLayout {...baseOptions(useLocale())}>
-        {/* The sun's radius, which the hero draws with and the sheet below leaves room for. */}
-        <main className="flex-1 [--sun:clamp(4.25rem,11vw,8.75rem)]">
+        {/* The sun's radius, which the hero draws with and the demo's heading overlaps. */}
+        <main className="flex-1 [--sun:clamp(5.5rem,21vw,18rem)]">
           <Hero />
           <Sheet>
-            <SheetRow
-              ruled={false}
-              className="pt-[calc(var(--sun)-2rem)] pb-16 md:pb-20">
-              <SheetHead id="demo" title={t("demo.title")}>
-                {t("demo.lede")}
-              </SheetHead>
+            <SheetRow ruled={false} className="pb-16 md:pb-20">
+              <div className="scrim">
+                <SheetHead id="demo" title={t("demo.title")}>
+                  {t("demo.lede")}
+                </SheetHead>
+              </div>
               <div className="px-3 sm:px-6 lg:px-10">
                 <WorkspaceDemo />
               </div>

@@ -17,7 +17,12 @@ import {
   DialogTrigger,
 } from "../ui/dialog.tsx";
 
-import { MODEL_PROVIDERS, ProviderLogo } from "./model-providers.tsx";
+import {
+  MODEL_PROVIDERS,
+  ProviderLogo,
+  WEB_SEARCH_VENDORS,
+} from "./providers.tsx";
+import type { Provider } from "./providers.tsx";
 import { SheetHead, SheetRow } from "./sheet.tsx";
 
 /** How many providers' logos the model's cell shows before it counts the rest. */
@@ -38,6 +43,9 @@ const SOURCES: SourceKey[] = [
 /** The source whose cell and dialog show the model providers. */
 const MODEL: SourceKey = "model";
 
+/** The source whose cell shows the web search vendors. */
+const WEB: SourceKey = "web";
+
 function ProviderGrid() {
   const { t } = useTranslation();
 
@@ -55,23 +63,29 @@ function ProviderGrid() {
   );
 }
 
-function ProviderStrip() {
+function ProviderStrip({
+  label,
+  providers,
+}: {
+  label: string;
+  providers: Provider[];
+}) {
   const { t } = useTranslation();
-  const rest = MODEL_PROVIDERS.length - PROVIDERS_SHOWN;
+  const rest = providers.length - PROVIDERS_SHOWN;
 
   return (
-    <ul
-      aria-label={t("sources.providers-label")}
-      className="mt-4 flex flex-wrap items-center gap-2.5">
-      {MODEL_PROVIDERS.slice(0, PROVIDERS_SHOWN).map((provider) => (
-        <li key={provider.name} title={provider.name}>
+    <ul aria-label={label} className="mt-4 flex flex-wrap items-center gap-2.5">
+      {providers.slice(0, PROVIDERS_SHOWN).map((provider) => (
+        <li key={provider.name} title={provider.name} className="flex">
           <ProviderLogo provider={provider} />
           <span className="sr-only">{provider.name}</span>
         </li>
       ))}
-      <li className="text-muted-foreground text-sm">
-        {t("sources.providers-more", { count: rest })}
-      </li>
+      {rest > 0 && (
+        <li className="text-muted-foreground text-sm">
+          {t("sources.providers-more", { count: rest })}
+        </li>
+      )}
     </ul>
   );
 }
@@ -111,13 +125,24 @@ function SourceCell({ id }: { id: SourceKey }) {
         </h3>
         <span
           aria-hidden="true"
-          className="text-muted-foreground absolute top-6 right-6 grid size-7 place-items-center rounded-full border border-border transition-colors group-hover:text-foreground">
+          className="text-muted-foreground absolute top-6.5 right-6 grid size-7 place-items-center rounded-full border border-border transition-colors group-hover:text-foreground">
           <Plus className="size-3.5" />
         </span>
         <p className="text-muted-foreground mt-1.5 text-[0.9375rem]">
           {source}
         </p>
-        {providers && <ProviderStrip />}
+        {providers && (
+          <ProviderStrip
+            label={t("sources.providers-label")}
+            providers={MODEL_PROVIDERS}
+          />
+        )}
+        {id === WEB && (
+          <ProviderStrip
+            label={t("sources.vendors-label")}
+            providers={WEB_SEARCH_VENDORS}
+          />
+        )}
         <p className="mt-auto flex flex-wrap gap-1.5 pt-5">
           {bring.length > 0 ? (
             bring.map((thing) => (
@@ -190,7 +215,7 @@ export function Sources() {
           <Link
             to="/{-$lang}/docs/$"
             params={{ lang: langParam(locale), _splat: "keys" }}
-            className="text-primary underline underline-offset-4">
+            className="link">
             {t("sources.more-link")}
           </Link>
         </p>

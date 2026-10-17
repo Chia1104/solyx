@@ -3,6 +3,8 @@ import baseten from "@lobehub/icons-static-svg/icons/baseten.svg?url";
 import cerebras from "@lobehub/icons-static-svg/icons/cerebras-color.svg?url";
 import claude from "@lobehub/icons-static-svg/icons/claude-color.svg?url";
 import deepseek from "@lobehub/icons-static-svg/icons/deepseek-color.svg?url";
+import exa from "@lobehub/icons-static-svg/icons/exa.svg?url";
+import firecrawl from "@lobehub/icons-static-svg/icons/firecrawl-color.svg?url";
 import fireworks from "@lobehub/icons-static-svg/icons/fireworks-color.svg?url";
 import gemini from "@lobehub/icons-static-svg/icons/gemini-color.svg?url";
 import githubcopilot from "@lobehub/icons-static-svg/icons/githubcopilot.svg?url";
@@ -18,6 +20,7 @@ import openai from "@lobehub/icons-static-svg/icons/openai.svg?url";
 import opencode from "@lobehub/icons-static-svg/icons/opencode.svg?url";
 import openrouter from "@lobehub/icons-static-svg/icons/openrouter.svg?url";
 import qwen from "@lobehub/icons-static-svg/icons/qwen-color.svg?url";
+import tavily from "@lobehub/icons-static-svg/icons/tavily-color.svg?url";
 import together from "@lobehub/icons-static-svg/icons/together-color.svg?url";
 import vercel from "@lobehub/icons-static-svg/icons/vercel.svg?url";
 import xai from "@lobehub/icons-static-svg/icons/xai.svg?url";
@@ -25,7 +28,7 @@ import xiaomi from "@lobehub/icons-static-svg/icons/xiaomimimo.svg?url";
 import zai from "@lobehub/icons-static-svg/icons/zai.svg?url";
 import { cn } from "cn";
 
-export interface ModelProvider {
+export interface Provider {
   name: string;
   logo: string;
   /** Drawn in the brand's colours; otherwise one shape tinted with the text colour. */
@@ -36,7 +39,7 @@ export interface ModelProvider {
  * The model providers the app offers, one per company: pi-ai's built-in providers the agent's
  * catalog does not withhold, and Ollama. The logos are lobe-icons', as the app's own settings use.
  */
-export const MODEL_PROVIDERS: ModelProvider[] = [
+export const MODEL_PROVIDERS: Provider[] = [
   { name: "Anthropic", logo: claude, colored: true },
   { name: "OpenAI", logo: openai, colored: false },
   { name: "Google", logo: gemini, colored: true },
@@ -64,11 +67,18 @@ export const MODEL_PROVIDERS: ModelProvider[] = [
   { name: "Ollama", logo: ollama, colored: false },
 ];
 
+/** The web search vendors the app searches and reads the web through, as its settings draw them. */
+export const WEB_SEARCH_VENDORS: Provider[] = [
+  { name: "Firecrawl", logo: firecrawl, colored: true },
+  { name: "Exa", logo: exa, colored: false },
+  { name: "Tavily", logo: tavily, colored: true },
+];
+
 export function ProviderLogo({
   provider,
   className,
 }: {
-  provider: ModelProvider;
+  provider: Provider;
   className?: string;
 }) {
   return provider.colored ? (

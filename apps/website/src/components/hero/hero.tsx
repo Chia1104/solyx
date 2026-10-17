@@ -31,7 +31,8 @@ interface Frame {
 
 /**
  * The panel's lower edge is the horizon: the sun is inked above it and pencilled below it, as the
- * app icon draws it. The page sets the sun's size as `--sun`, which the panel leaves room for.
+ * app icon draws it. The page sets the sun's size as `--sun`, and the copy overlaps its top on a
+ * scrim.
  */
 export function Hero() {
   const { t } = useTranslation();
@@ -96,7 +97,7 @@ export function Hero() {
           className="absolute inset-x-0 bottom-0 h-0.5 bg-[linear-gradient(90deg,transparent,var(--graphite)_22%,var(--graphite)_78%,transparent)]"
         />
 
-        <div className="relative mx-auto max-w-5xl px-6 pt-20 pb-[calc(var(--sun)*2.3+2rem)] text-center md:pt-28">
+        <div className="scrim mx-auto max-w-5xl px-6 pt-20 pb-[calc(var(--sun)*0.75)] text-center [--scrim-color:var(--muted)] md:pt-28">
           <h1 className="text-[clamp(2.4rem,6.4vw,4.75rem)] leading-[0.98] font-[540] tracking-[-0.028em] text-balance [font-stretch:112%]">
             <span className="pencil-text block">{t("hero.pencil")}</span>
             {/* The ink copy wipes over the pencilled one; only the pencilled one is read out. */}
@@ -138,7 +139,7 @@ export function Hero() {
 
       <PencilHalf
         ref={halfRef}
-        className="animate-pencil-in motion-reduce:animate-fade-in absolute top-[calc(100%-0.5rem)] left-1/2 z-10 h-auto w-[calc(var(--sun)*2)] -translate-x-1/2"
+        className="animate-pencil-in motion-reduce:animate-fade-in absolute top-[calc(100%-0.5rem)] left-1/2 h-auto w-[calc(var(--sun)*2)] -translate-x-1/2"
       />
     </section>
   );

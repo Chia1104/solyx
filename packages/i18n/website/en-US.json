@@ -135,6 +135,7 @@
     "providers": "Providers",
     "providers-label": "Model providers",
     "providers-more": "and {{count}} more",
+    "vendors-label": "Web search vendors",
     "items": {
       "quotes": {
         "purpose": "Taiwan quotes and candles",
@@ -287,6 +288,18 @@
     },
     "on-github": "Release on GitHub",
     "pull-request": "Pull request {{number}}"
+  },
+  "status": {
+    "home": "Back to the home page",
+    "not-found": {
+      "title": "Nothing is drawn here",
+      "lede": "The link may be mistyped, or the page has moved."
+    },
+    "error": {
+      "title": "This page failed to draw",
+      "lede": "Something broke while it loaded. Try again, or start over from the home page.",
+      "retry": "Try again"
+    }
   },
   "footer": {
     "disclaimer": "Solyx is not investment advice. You alone are responsible for any gains or losses from trades made with it. It is provided as is, without warranty of any kind.",

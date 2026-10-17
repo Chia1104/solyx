@@ -5,6 +5,10 @@ import { langParam, useLocale } from "../../lib/i18n.ts";
 import { GITHUB_URL } from "../../lib/links.ts";
 import { Logo } from "../logo.tsx";
 
+/** The header's link style, which Fumadocs draws. */
+const NAV_LINK =
+  "text-muted-foreground transition-colors hover:text-accent-foreground";
+
 export function SiteFooter() {
   const { t } = useTranslation();
   const locale = useLocale();
@@ -30,22 +34,22 @@ export function SiteFooter() {
           <Link
             to="/{-$lang}/docs/$"
             params={{ lang: langParam(locale), _splat: "" }}
-            className="hover:text-primary">
+            className={NAV_LINK}>
             {t("nav.docs")}
           </Link>
           <Link
             to="/{-$lang}/download"
             params={{ lang: langParam(locale) }}
-            className="hover:text-primary">
+            className={NAV_LINK}>
             {t("nav.download")}
           </Link>
           <Link
             to="/{-$lang}/changelog"
             params={{ lang: langParam(locale) }}
-            className="hover:text-primary">
+            className={NAV_LINK}>
             {t("nav.changelog")}
           </Link>
-          <a href={GITHUB_URL} className="hover:text-primary">
+          <a href={GITHUB_URL} className={NAV_LINK}>
             {t("nav.github")}
           </a>
         </nav>
