@@ -32,6 +32,7 @@
     "@vitejs/plugin-react": "catalog:react",
     "class-variance-authority": "catalog:website",
     "cn": "catalog:website",
+    "es-toolkit": "catalog:",
     "fumadocs-core": "catalog:docs",
     "fumadocs-mdx": "catalog:docs",
     "fumadocs-ui": "catalog:docs",

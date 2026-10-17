@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as Char123LangChar125IndexRouteImport } from './routes/{-$lang}/index'
+import { Route as Char123LangChar125DownloadRouteImport } from './routes/{-$lang}/download'
 import { Route as Char123LangChar125DocsSplatRouteImport } from './routes/{-$lang}/docs/$'
 
 const ApiSearchRoute = ApiSearchRouteImport.update({
@@ -23,6 +24,12 @@ const Char123LangChar125IndexRoute = Char123LangChar125IndexRouteImport.update({
   path: '/{-$lang}/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char123LangChar125DownloadRoute =
+  Char123LangChar125DownloadRouteImport.update({
+    id: '/{-$lang}/download',
+    path: '/{-$lang}/download',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const Char123LangChar125DocsSplatRoute =
   Char123LangChar125DocsSplatRouteImport.update({
     id: '/{-$lang}/docs/$',
@@ -32,30 +39,40 @@ const Char123LangChar125DocsSplatRoute =
 
 export interface FileRoutesByFullPath {
   '/api/search': typeof ApiSearchRoute
+  '/{-$lang}/download': typeof Char123LangChar125DownloadRoute
   '/{-$lang}/': typeof Char123LangChar125IndexRoute
   '/{-$lang}/docs/$': typeof Char123LangChar125DocsSplatRoute
 }
 export interface FileRoutesByTo {
   '/api/search': typeof ApiSearchRoute
+  '/{-$lang}/download': typeof Char123LangChar125DownloadRoute
   '/{-$lang}': typeof Char123LangChar125IndexRoute
   '/{-$lang}/docs/$': typeof Char123LangChar125DocsSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/api/search': typeof ApiSearchRoute
+  '/{-$lang}/download': typeof Char123LangChar125DownloadRoute
   '/{-$lang}/': typeof Char123LangChar125IndexRoute
   '/{-$lang}/docs/$': typeof Char123LangChar125DocsSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/api/search' | '/{-$lang}/' | '/{-$lang}/docs/$'
+  fullPaths:
+    '/api/search' | '/{-$lang}/download' | '/{-$lang}/' | '/{-$lang}/docs/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/api/search' | '/{-$lang}' | '/{-$lang}/docs/$'
-  id: '__root__' | '/api/search' | '/{-$lang}/' | '/{-$lang}/docs/$'
+  to: '/api/search' | '/{-$lang}/download' | '/{-$lang}' | '/{-$lang}/docs/$'
+  id:
+    | '__root__'
+    | '/api/search'
+    | '/{-$lang}/download'
+    | '/{-$lang}/'
+    | '/{-$lang}/docs/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   ApiSearchRoute: typeof ApiSearchRoute
+  Char123LangChar125DownloadRoute: typeof Char123LangChar125DownloadRoute
   Char123LangChar125IndexRoute: typeof Char123LangChar125IndexRoute
   Char123LangChar125DocsSplatRoute: typeof Char123LangChar125DocsSplatRoute
 }
@@ -76,6 +93,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char123LangChar125IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/{-$lang}/download': {
+      id: '/{-$lang}/download'
+      path: '/{-$lang}/download'
+      fullPath: '/{-$lang}/download'
+      preLoaderRoute: typeof Char123LangChar125DownloadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/{-$lang}/docs/$': {
       id: '/{-$lang}/docs/$'
       path: '/{-$lang}/docs/$'
@@ -88,6 +112,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   ApiSearchRoute: ApiSearchRoute,
+  Char123LangChar125DownloadRoute: Char123LangChar125DownloadRoute,
   Char123LangChar125IndexRoute: Char123LangChar125IndexRoute,
   Char123LangChar125DocsSplatRoute: Char123LangChar125DocsSplatRoute,
 }

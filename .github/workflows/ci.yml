@@ -30,4 +30,7 @@ jobs:
 
       - run: vp check
       - run: vp run -r test
+      # The website's build reads the releases from GitHub's API, which limits callers without a token.
       - run: vp run -r build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

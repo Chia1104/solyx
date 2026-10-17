@@ -5,7 +5,6 @@ import { cn } from "cn";
 import { useTranslation } from "react-i18next";
 
 import { langParam, useLocale } from "../../lib/i18n.ts";
-import { RELEASES_URL } from "../../lib/links.ts";
 import { buttonVariants } from "../ui/button.tsx";
 
 import { PencilHalf } from "./pencil-half.tsx";
@@ -114,14 +113,15 @@ export function Hero() {
             {t("hero.lede")}
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <a
-              href={RELEASES_URL}
+            <Link
+              to="/{-$lang}/download"
+              params={{ lang: langParam(locale) }}
               className={cn(
                 buttonVariants({ variant: "foreground", size: "lg" }),
                 "h-12 rounded-full px-6 text-base"
               )}>
               {t("hero.download")}
-            </a>
+            </Link>
             <Link
               to="/{-$lang}/docs/$"
               params={{ lang: langParam(locale), _splat: "" }}

@@ -236,6 +236,46 @@
     "lede": "Solyx 免費且開源。在你自己開啟真實券商之前，它都只在模擬帳戶上交易。",
     "github": "在 GitHub 上查看"
   },
+  "download": {
+    "title": "下載 Solyx",
+    "lede": "免費且開源，支援搭載 Apple 晶片的 Mac 與 64 位元 Windows。",
+    "for": "下載 {{system}} 版",
+    "detail": "{{channel}} {{version}} · {{size}} MB",
+    "elsewhere": "Solyx 支援 macOS 與 Windows。請在電腦上開啟這個頁面下載。",
+    "your-system": "你的系統",
+    "released": "發布於 {{date}}",
+    "file": "{{type}} · {{size}} MB",
+    "channel": {
+      "stable": {
+        "tab": "正式版",
+        "name": "Solyx",
+        "lede": "目前的正式版。"
+      },
+      "nightly": {
+        "tab": "每晚建置版",
+        "name": "Solyx Nightly",
+        "lede": "每晚建置版取自最新一個通過檢查的 commit，最多每六小時建置一次。它與 Solyx 分開安裝，資料、設定與金鑰各自獨立。"
+      }
+    },
+    "coming-soon": {
+      "title": "即將推出",
+      "lede": "Solyx 還沒有正式版。在那之前，可以先試用 Solyx Nightly，它在模擬帳戶上交易。",
+      "action": "取得每晚建置版"
+    },
+    "system": {
+      "macos": {
+        "name": "macOS",
+        "requirement": "Apple 晶片"
+      },
+      "windows": {
+        "name": "Windows",
+        "requirement": "64 位元"
+      }
+    },
+    "first-launch": "兩個安裝程式都還沒有付費憑證的簽章，所以第一次啟動前系統會跳出警告。",
+    "install-guide": "閱讀安裝說明",
+    "all-releases": "GitHub 上的所有版本"
+  },
   "footer": {
     "disclaimer": "Solyx 不構成投資建議。使用它交易所產生的任何損益，皆由你自行承擔。本軟體依現狀提供，不附任何形式的保證。",
     "copyright": "Copyright 2026 Chia1104。以 GNU AGPL 第 3 版或更新版本授權的自由軟體。"

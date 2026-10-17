@@ -4,7 +4,7 @@ import { Logo } from "../components/logo.tsx";
 
 import { localePath, translators } from "./i18n.ts";
 import type { Locale } from "./i18n.ts";
-import { GITHUB_URL, RELEASES_URL } from "./links.ts";
+import { GITHUB_URL } from "./links.ts";
 
 /** The header the home page and the docs share; Fumadocs adds the language switcher. */
 export function baseOptions(locale: Locale): BaseLayoutProps {
@@ -27,7 +27,11 @@ export function baseOptions(locale: Locale): BaseLayoutProps {
         url: localePath(locale, "/docs"),
         active: "nested-url",
       },
-      { text: t("nav.download"), url: RELEASES_URL, external: true },
+      {
+        text: t("nav.download"),
+        url: localePath(locale, "/download"),
+        active: "url",
+      },
     ],
   };
 }
