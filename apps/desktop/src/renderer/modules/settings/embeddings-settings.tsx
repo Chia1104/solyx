@@ -14,6 +14,7 @@ import { LoadingState } from "../../components/loading-state.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
+import { LocalModelRow } from "../embeddings/local-model-row.tsx";
 
 import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
@@ -111,6 +112,7 @@ export function EmbeddingsSettings() {
             }
             value={space}
           />
+          {provider === EmbeddingsProvider.Local ? <LocalModelRow /> : null}
           {provider === EmbeddingsProvider.OpenAI ? (
             available ? (
               <AppSecretRow

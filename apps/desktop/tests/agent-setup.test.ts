@@ -116,7 +116,12 @@ function setup(scheduled: ScheduledTask[] = []) {
     models,
     webSearch: createWebSearch({ config, secrets }),
     decisions: createDecisions({ config, secrets }),
-    embeddings: createEmbeddings({ config, secrets }),
+    embeddings: createEmbeddings({
+      config,
+      secrets,
+      diagnostics: { recovered: vi.fn() },
+      onChange: vi.fn(),
+    }),
     mcp,
     skills: async () => ({ skills: [], warnings: [] }),
     instructions: async () => undefined,

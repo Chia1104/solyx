@@ -1202,12 +1202,32 @@
         "openai": "OpenAI"
       },
       "provider-descriptions": {
-        "local": "用這台電腦上的 Ollama 執行模型，資料不會離開這台電腦。請先在 Ollama 下載模型。",
+        "local": "用這台電腦上的 Ollama 執行模型，資料不會離開這台電腦。",
         "openai": "使用 OpenAI 的模型與下方的金鑰；新聞標題與摘要開頭會送到 OpenAI。"
       },
       "model": "模型",
       "measured": "已量測：Solyx 知道這個模型怎樣算是同一個故事。",
-      "unmeasured": "尚未量測：向量會保存，但量出這個模型的門檻前不會用來合併新聞。"
+      "unmeasured": "尚未量測：向量會保存，但量出這個模型的門檻前不會用來合併新聞。",
+      "local-model": {
+        "title": "Ollama 模型",
+        "status": {
+          "checking": "檢查中…",
+          "failed": "無法檢查",
+          "unreachable": "Ollama 未執行",
+          "missing": "尚未下載",
+          "pulling": "下載中…",
+          "ready": "已就緒"
+        },
+        "unreachable": "{{host}} 沒有回應。開啟 Ollama，或先安裝；Solyx 會自動偵測。",
+        "get-ollama": "取得 Ollama",
+        "missing": "把 {{model}} 下載到 Ollama，或在終端機執行 {{command}}。",
+        "pull": "下載",
+        "pull-failed": "下載失敗",
+        "pulling": "離開這頁也會繼續下載。",
+        "pulling-model": "正在下載 {{model}}",
+        "starting": "準備中…",
+        "progress": "{{completed}} / {{total}}"
+      }
     },
     "skills": {
       "title": "Skills",

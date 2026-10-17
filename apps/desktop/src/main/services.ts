@@ -203,7 +203,12 @@ export function createServices(config: ConfigFile) {
 
   const decisions = createDecisions({ config, secrets });
 
-  const embeddings = createEmbeddings({ config, secrets });
+  const embeddings = createEmbeddings({
+    config,
+    secrets,
+    diagnostics,
+    onChange: () => void windowEvents.publish("embeddings:changed", {}),
+  });
 
   const webSearch = createWebSearch({ config, secrets });
 
@@ -608,6 +613,8 @@ export function createServices(config: ConfigFile) {
   secrets.onChange(() => void windowEvents.publish("settings:changed", {}));
   // Where backups go is settings and secrets both.
   config.onChange(() => void windowEvents.publish("backup:changed", {}));
+  // The model on this computer is named in the config file.
+  config.onChange(() => void windowEvents.publish("embeddings:changed", {}));
   secrets.onChange(() => void windowEvents.publish("backup:changed", {}));
   // Its switches and its menu's language and clock all live in the config file.
   config.onChange(() => void tray.sync());
