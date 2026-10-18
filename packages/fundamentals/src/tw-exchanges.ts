@@ -1,15 +1,16 @@
-import { mapKeys, sortBy } from "es-toolkit";
+import { mapKeys, orderBy, sortBy } from "es-toolkit";
 import ky, { isHTTPError } from "ky";
 import type { KyInstance } from "ky";
 import * as z from "zod";
 
-import { RestrictionKind } from "@solyx/core/fundamentals";
+import { GovernanceKind, RestrictionKind } from "@solyx/core/fundamentals";
 import type {
   ExNotice,
   ExchangeListsProvider,
   ExchangeMultiples,
   FundProfile,
   Company,
+  GovernanceRecord,
   Listed,
   ShareholdersMeeting,
   TradingRestriction,
@@ -624,6 +625,76 @@ const twseCloseSchema = z
     change: row.Change,
   }));
 
+// A line of a band of the exchanges' list of pledges, `3040      遠見  99.36`: a code, a name and the part pledged.
+const PLEDGE_LINE = /^\s*(\S+)\s+.*?\s(\d+(?:\.\d+)?)\s*$/;
+
+/** The companies a band of pledges lists, each with the part its directors pledged. */
+function pledges(date: string, companies: string): Listed<GovernanceRecord>[] {
+  return companies.split(/\r?\n/).flatMap((line) => {
+    const [, symbol, pledged] = PLEDGE_LINE.exec(line) ?? [];
+
+    return symbol === undefined || pledged === undefined
+      ? []
+      : [
+          {
+            symbol,
+            kind: GovernanceKind.DirectorPledge,
+            date,
+            note: null,
+            pledged: Number(pledged),
+          },
+        ];
+  });
+}
+
+const twsePledgesSchema = z
+  .object({ 出表日期: twRocDaySchema, 公司名稱: z.string() })
+  .transform((row) => pledges(row.出表日期, row.公司名稱));
+
+const tpexPledgesSchema = z
+  .object({ Date: twRocDaySchema, CompanyName: z.string() })
+  .transform((row) => pledges(row.Date, row.CompanyName));
+
+const governance = (
+  symbol: string,
+  kind: GovernanceKind,
+  date: string,
+  note: string
+): Listed<GovernanceRecord> => ({ symbol, kind, date, note, pledged: null });
+
+// The regulator's sanctions and the exchange's fines, which both exchanges list under the same names, but for the code.
+const fineSchema = (code: string, kind: GovernanceKind) =>
+  z
+    .object({
+      [code]: codeSchema,
+      發函日期: twRocDaySchema,
+      違規事由: textSchema.min(1),
+    })
+    .transform((row) =>
+      governance(
+        row[code],
+        kind,
+        row.發函日期,
+        row.違規事由.replace(/\s*\r?\n\s*/g, "")
+      )
+    );
+
+const controlChangeSchema = (code: string) =>
+  z
+    .object({
+      [code]: codeSchema,
+      經營權異動日期: twRocDaySchema,
+      經營權異動說明: textSchema.min(1),
+    })
+    .transform((row) =>
+      governance(
+        row[code],
+        GovernanceKind.ControlChange,
+        row.經營權異動日期,
+        row.經營權異動說明.replace(/\s*\r?\n\s*/g, "")
+      )
+    );
+
 // TWSE's days of the year, each with what it calls the day.
 const twseDaySchema = z.object({
   Name: textSchema.min(1),
@@ -872,6 +943,54 @@ export function createTwExchanges(
       if (market !== Market.TW) return [];
 
       return list(twse, "exchangeReport/STOCK_DAY_ALL", twseCloseSchema);
+    },
+
+    async getGovernance(market) {
+      if (market !== Market.TW) return [];
+
+      const lists = await Promise.all([
+        list(twse, "opendata/t187ap09_L", twsePledgesSchema, "出表日期").then(
+          (bands) => bands.flat()
+        ),
+        list(tpex, "mopsfin_t187ap09_O", tpexPledgesSchema, "Date").then(
+          (bands) => bands.flat()
+        ),
+        list(
+          twse,
+          "opendata/t187ap22_L",
+          fineSchema("股票代號", GovernanceKind.Sanction),
+          "股票代號"
+        ),
+        list(
+          tpex,
+          "mopsfin_t187ap22_O",
+          fineSchema("SecuritiesCompanyCode", GovernanceKind.Sanction)
+        ),
+        list(
+          twse,
+          "opendata/t187ap23_L",
+          fineSchema("股票代號", GovernanceKind.ExchangeFine),
+          "股票代號"
+        ),
+        list(
+          tpex,
+          "mopsfin_t187ap23_O",
+          fineSchema("SecuritiesCompanyCode", GovernanceKind.ExchangeFine)
+        ),
+        list(
+          twse,
+          "opendata/t187ap24_L",
+          controlChangeSchema(TWSE_COMPANY_CODE),
+          TWSE_COMPANY_CODE
+        ),
+        list(
+          tpex,
+          "mopsfin_t187ap24_O",
+          controlChangeSchema("SecuritiesCompanyCode")
+        ),
+      ]);
+
+      return orderBy(lists.flat(), [({ date }) => date], ["desc"]);
     },
 
     async getClosures(market) {

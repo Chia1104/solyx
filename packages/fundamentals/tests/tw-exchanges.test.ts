@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { RestrictionKind } from "@solyx/core/fundamentals";
+import { GovernanceKind, RestrictionKind } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
 
 import { createTwExchanges } from "../src/tw-exchanges.ts";
@@ -981,6 +981,109 @@ test("reads the closes of TWSE's last session, leaving out a listing that did no
   expect(sent).toEqual([`${TWSE}exchangeReport/STOCK_DAY_ALL`]);
 });
 
+test("reads what both exchanges keep on record of how each company is run, newest first", async () => {
+  const { sent, exchanges } = fakeExchanges({
+    [`${TWSE}opendata/t187ap09_L`]: [
+      {
+        出表日期: "1150819",
+        百分比: "90 以上",
+        公司名稱: "3040      範例遠見  99.36\r\n2530      範例建設  92.69\r\n",
+      },
+    ],
+    [`${TPEX}mopsfin_t187ap09_O`]: [
+      {
+        Date: "1150819",
+        Percent: "20 以下",
+        CompanyName: "5483      範例矽晶  0.00\r\n",
+      },
+    ],
+    [`${TWSE}opendata/t187ap22_L`]: [
+      {
+        出表日期: "1151017",
+        發函日期: "1151012",
+        股票代號: "1589",
+        公司名稱: "範例能源",
+        違規事由: "未依規定期限\r\n公告申報財務報告",
+        違反法規: "證券交易法第165條之3",
+        裁處情形: "處新臺幣72萬元罰鍰。",
+      },
+    ],
+    [`${TPEX}mopsfin_t187ap23_O`]: [
+      {
+        Date: "1151018",
+        發函日期: "1150116",
+        SecuritiesCompanyCode: "3664",
+        CompanyName: "範例-KY",
+        違規事由: "內部控制制度之執行核有缺失",
+      },
+    ],
+    [`${TWSE}opendata/t187ap24_L`]: [
+      {
+        出表日期: "1151017",
+        公司代號: "1516",
+        公司名稱: "範例飛",
+        經營權異動日期: "1150629",
+        經營權異動說明: "董事席次累積變動過半",
+      },
+    ],
+  });
+
+  expect(await exchanges.getGovernance(Market.TW)).toEqual([
+    {
+      symbol: "1589",
+      kind: GovernanceKind.Sanction,
+      date: "2026-10-12",
+      note: "未依規定期限公告申報財務報告",
+      pledged: null,
+    },
+    {
+      symbol: "3040",
+      kind: GovernanceKind.DirectorPledge,
+      date: "2026-08-19",
+      note: null,
+      pledged: 99.36,
+    },
+    {
+      symbol: "2530",
+      kind: GovernanceKind.DirectorPledge,
+      date: "2026-08-19",
+      note: null,
+      pledged: 92.69,
+    },
+    {
+      symbol: "5483",
+      kind: GovernanceKind.DirectorPledge,
+      date: "2026-08-19",
+      note: null,
+      pledged: 0,
+    },
+    {
+      symbol: "1516",
+      kind: GovernanceKind.ControlChange,
+      date: "2026-06-29",
+      note: "董事席次累積變動過半",
+      pledged: null,
+    },
+    {
+      symbol: "3664",
+      kind: GovernanceKind.ExchangeFine,
+      date: "2026-01-16",
+      note: "內部控制制度之執行核有缺失",
+      pledged: null,
+    },
+  ]);
+  expect(sent.toSorted()).toEqual([
+    `${TWSE}opendata/t187ap09_L`,
+    `${TWSE}opendata/t187ap22_L`,
+    `${TWSE}opendata/t187ap23_L`,
+    `${TWSE}opendata/t187ap24_L`,
+    `${TPEX}mopsfin_t187ap09_O`,
+    `${TPEX}mopsfin_t187ap22_O`,
+    `${TPEX}mopsfin_t187ap23_O`,
+    `${TPEX}mopsfin_t187ap24_O`,
+  ]);
+});
+
 test("outside Taiwan there is nothing to read, and it costs no request", async () => {
   const { sent, exchanges } = fakeExchanges();
 
@@ -992,6 +1095,7 @@ test("outside Taiwan there is nothing to read, and it costs no request", async (
   expect(await exchanges.getClosures(Market.US)).toEqual([]);
   expect(await exchanges.getCompanies(Market.US)).toEqual([]);
   expect(await exchanges.getSectorCloses(Market.US)).toEqual([]);
+  expect(await exchanges.getGovernance(Market.US)).toEqual([]);
   expect(await exchanges.getPriceLimits(Market.US)).toEqual([]);
   expect(sent).toEqual([]);
 });

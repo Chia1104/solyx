@@ -220,6 +220,31 @@ export interface Industry {
   name: string;
 }
 
+/** What the exchanges keep on record of how a company is run. */
+export const GovernanceKind = {
+  /** How much of their own shares its directors and supervisors have pledged, which the exchanges list for every company each month. */
+  DirectorPledge: "director-pledge",
+  /** The Financial Supervisory Commission sanctioned it or those who run it. */
+  Sanction: "sanction",
+  /** Its exchange fined it for disclosing late or wrongly, or for failings of its internal controls. */
+  ExchangeFine: "exchange-fine",
+  /** Control of it changed hands. */
+  ControlChange: "control-change",
+} as const;
+
+export type GovernanceKind =
+  (typeof GovernanceKind)[keyof typeof GovernanceKind];
+
+export interface GovernanceRecord {
+  kind: GovernanceKind;
+  /** The day the letter went out, control changed or, for a pledge, the exchange drew up its list, `YYYY-MM-DD`. */
+  date: string;
+  /** What happened, in the exchange's or the regulator's words; `null` for a pledge. */
+  note: string | null;
+  /** The part of their own shares its directors and supervisors pledged, in percent; `null` for any other record. */
+  pledged: number | null;
+}
+
 /** A listed company as its exchange lists it. */
 export interface Company {
   industry: Industry;
@@ -281,6 +306,8 @@ export interface ExchangeListsProvider {
   getPriceLimits(market: Market): Promise<Listed<PriceLimits>[]>;
   /** The last session's close of every listing the market's sector indices are drawn from. */
   getSectorCloses(market: Market): Promise<Listed<SessionClose>[]>;
+  /** What the exchanges and the regulator keep on record of how each company is run, as their lists hold it now. */
+  getGovernance(market: Market): Promise<Listed<GovernanceRecord>[]>;
 }
 
 /**
@@ -329,6 +356,8 @@ export interface Fundamentals {
   company(symbol: SymbolRef): Promise<Company | null>;
   /** Which of a Taiwan sector's companies moved its market value most over the exchange's last session; `null` while no source lists them. */
   sectorMovers(sector: TwSector): Promise<SectorMovers | null>;
+  /** What the exchanges keep on record of how the company is run, newest first; none while no source lists its market's. */
+  governance(symbol: SymbolRef): Promise<GovernanceRecord[]>;
   /** Its price limits as its exchange set them after the last session; `null` for a listing no source lists them for. */
   priceLimits(symbol: SymbolRef): Promise<PriceLimits | null>;
 }

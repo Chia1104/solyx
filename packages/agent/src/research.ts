@@ -30,6 +30,7 @@ import {
   statementMetrics,
   trailingCash,
 } from "@solyx/core/fundamentals";
+import { GovernanceKind } from "@solyx/core/fundamentals";
 import type {
   Company,
   Dividend,
@@ -37,6 +38,7 @@ import type {
   FundCosts,
   FundProfile,
   Fundamentals,
+  GovernanceRecord,
   MultipleStanding,
   NetAssetValue,
   PeerStanding,
@@ -71,7 +73,7 @@ import type {
 } from "@solyx/core/research";
 import { regularHours } from "@solyx/core/session";
 import { errorMessage } from "@solyx/utils/error";
-import { counted } from "@solyx/utils/text";
+import { counted, truncate } from "@solyx/utils/text";
 
 import { evidenceText } from "./evidence-text.ts";
 import {
@@ -687,6 +689,49 @@ async function sharesText(
   return `${issued} At the close of ${candleDate(symbol.market, bar.time)}, ${bar.close}, they were worth ${millions(shares * bar.close)} million ${currencyOf(symbol.market)}, and that session traded ${percent(bar.volume / shares, 2)} of them.`;
 }
 
+// A sanction's text runs to several sentences of statute; its start says what was done.
+const GOVERNANCE_NOTE_LENGTH = 240;
+
+// What each kind of record is, for the model.
+const GOVERNANCE_TEXT: Record<
+  Exclude<GovernanceKind, typeof GovernanceKind.DirectorPledge>,
+  string
+> = {
+  [GovernanceKind.Sanction]:
+    "sanctioned by the Financial Supervisory Commission",
+  [GovernanceKind.ExchangeFine]: "fined by its exchange",
+  [GovernanceKind.ControlChange]: "control changed hands",
+};
+
+/** A company's newest pledge, then what else its exchanges keep on record of how it is run, newest first. */
+function governanceText(records: readonly GovernanceRecord[]): string[] {
+  const pledge = records.find(
+    (record) => record.kind === GovernanceKind.DirectorPledge
+  );
+
+  const others = records.flatMap((record) =>
+    record.kind === GovernanceKind.DirectorPledge
+      ? []
+      : [
+          `- ${record.date}, ${GOVERNANCE_TEXT[record.kind]}: ${truncate(record.note ?? "", GOVERNANCE_NOTE_LENGTH)}`,
+        ]
+  );
+
+  return [
+    ...(pledge?.pledged === undefined || pledge.pledged === null
+      ? []
+      : [
+          `Its directors and supervisors had pledged ${figure(pledge.pledged)}% of their own shares as of ${pledge.date}, as its exchange lists them each month.`,
+        ]),
+    ...(others.length > 0
+      ? [
+          "What its exchanges and the regulator keep on record of how it is run:",
+          ...others,
+        ]
+      : []),
+  ];
+}
+
 /** Why a listing has neither statements nor revenue on file with `source`. */
 function nothingFiledText(
   fund: boolean,
@@ -859,6 +904,7 @@ export function createResearch(options: ResearchOptions): Extension {
             multiples,
             peers,
             companies,
+            governance,
           ] = await Promise.all([
             filed(fundamentals.statements(symbol)),
             filed(fundamentals.balanceSheets(symbol)),
@@ -895,6 +941,7 @@ export function createResearch(options: ResearchOptions): Extension {
                 .company(symbol)
                 .then((each) => (each === null ? [] : [each]))
             ),
+            filed(fundamentals.governance(symbol)),
           ]);
 
           const parts = [statements, sheets, flows, monthly, dividends];
@@ -963,6 +1010,11 @@ export function createResearch(options: ResearchOptions): Extension {
                   )
                 : [
                     `The shares its exchange lists it with could not be read: ${companies.failure}`,
+                  ]),
+              ...(governance.failure === null
+                ? governanceText(governance.rows)
+                : [
+                    `What its exchanges keep on record of how it is run could not be read: ${governance.failure}`,
                   ]),
               ...part("Quarterly statements", statements, [
                 "Quarters, each for the quarter alone, by its last day:",

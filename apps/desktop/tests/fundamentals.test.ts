@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vite-plus/test";
 
-import { RestrictionKind } from "@solyx/core/fundamentals";
+import { GovernanceKind, RestrictionKind } from "@solyx/core/fundamentals";
 import type {
   ExchangeListsProvider,
   FundReportsProvider,
@@ -137,6 +137,29 @@ function setup(answers = memoryAnswers()) {
     ]),
     getPriceLimits: vi.fn<ExchangeListsProvider["getPriceLimits"]>(async () => [
       { symbol: "2330", ...PRICE_LIMITS },
+    ]),
+    getGovernance: vi.fn<ExchangeListsProvider["getGovernance"]>(async () => [
+      {
+        symbol: "2330",
+        kind: GovernanceKind.ControlChange,
+        date: "2026-09-01",
+        note: "全面改選董事",
+        pledged: null,
+      },
+      {
+        symbol: "2330",
+        kind: GovernanceKind.DirectorPledge,
+        date: "2026-08-19",
+        note: null,
+        pledged: 1.2,
+      },
+      {
+        symbol: "1101",
+        kind: GovernanceKind.DirectorPledge,
+        date: "2026-08-19",
+        note: null,
+        pledged: 55,
+      },
     ]),
     getSectorCloses: vi.fn<ExchangeListsProvider["getSectorCloses"]>(
       async () => [
@@ -433,4 +456,29 @@ test("a sector's movers are its companies' shares times their change over the ex
   });
   expect(await fundamentals.sectorMovers(TwSector.Cement)).toBeNull();
   expect(lists.getSectorCloses).toHaveBeenCalledExactlyOnceWith(Market.TW);
+});
+
+test("a company's governance records are its own among its market's, read for every company at once and twice a day at most", async () => {
+  const { clock, lists, fundamentals } = setup();
+
+  expect(await fundamentals.governance(TSMC)).toEqual([
+    {
+      kind: GovernanceKind.ControlChange,
+      date: "2026-09-01",
+      note: "全面改選董事",
+      pledged: null,
+    },
+    {
+      kind: GovernanceKind.DirectorPledge,
+      date: "2026-08-19",
+      note: null,
+      pledged: 1.2,
+    },
+  ]);
+  expect(await fundamentals.governance(TAIWAN_50)).toEqual([]);
+
+  clock.now += HOUR_MS;
+  await fundamentals.governance(TSMC);
+
+  expect(lists.getGovernance).toHaveBeenCalledExactlyOnceWith(Market.TW);
 });
