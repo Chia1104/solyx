@@ -22,6 +22,7 @@ import { violationMessage } from "./violation-message.ts";
 
 const STATUS_COLOR: Record<ProposalStatus, ChipProps["color"]> = {
   [ProposalStatus.AwaitingConfirmation]: "accent",
+  [ProposalStatus.Confirming]: "accent",
   [ProposalStatus.Submitting]: "accent",
   [ProposalStatus.Submitted]: "success",
   [ProposalStatus.Rejected]: "danger",
@@ -32,6 +33,7 @@ const STATUS_COLOR: Record<ProposalStatus, ChipProps["color"]> = {
 // A proposal is pencil until the user signs it: hatched while it waits, inked once submitted.
 const STATUS_RULE: Record<ProposalStatus, string> = {
   [ProposalStatus.AwaitingConfirmation]: "hatch [--hatch-color:var(--accent)]",
+  [ProposalStatus.Confirming]: "hatch [--hatch-color:var(--accent)]",
   [ProposalStatus.Submitting]: "hatch [--hatch-color:var(--accent)]",
   [ProposalStatus.Submitted]: "bg-accent",
   [ProposalStatus.Rejected]: "bg-danger",
@@ -186,10 +188,14 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
           </Alert.Content>
         </Alert>
       ) : null}
-      {/* A failed submission is terminal: the broker may have taken the order, so no retry is offered. */}
+      {/* A failed submission is terminal: unless the broker refused it, it may have taken the order, so no retry is offered. */}
       {proposal.failure ? (
         <ErrorAlert
-          title={t("proposals.submit-failed")}
+          title={
+            proposal.failure.code === SubmissionFailureCode.Refused
+              ? t("proposals.submit-refused")
+              : t("proposals.submit-failed")
+          }
           description={
             proposal.failure.code === SubmissionFailureCode.Interrupted
               ? t("proposals.submit-interrupted")

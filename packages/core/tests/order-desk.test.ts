@@ -3,7 +3,7 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { MINUTE_MS } from "@solyx/utils/date";
 
-import { BrokerMode } from "../src/broker.ts";
+import { BrokerMode, OrderRefusedError } from "../src/broker.ts";
 import type { BrokerAdapter } from "../src/broker.ts";
 import { ForecastDirection } from "../src/forecast.ts";
 import { Market } from "../src/market.ts";
@@ -236,7 +236,7 @@ test("rejected proposals cannot be confirmed", async () => {
   expect(placeOrder).not.toHaveBeenCalled();
 });
 
-test("a broker error is terminal", async () => {
+test("a broker error leaves the outcome unknown, and is terminal", async () => {
   const { desk, placeOrder } = setup();
   placeOrder.mockRejectedValueOnce(new Error("timeout"));
 
@@ -248,10 +248,60 @@ test("a broker error is terminal", async () => {
 
   expect(await desk.confirm(id)).toMatchObject({
     status: ProposalStatus.Failed,
-    failure: { code: SubmissionFailureCode.Error, message: "timeout" },
+    failure: { code: SubmissionFailureCode.Unknown, message: "timeout" },
   });
   await expect(desk.confirm(id)).rejects.toThrow();
   expect(placeOrder).toHaveBeenCalledTimes(1);
+});
+
+test("a broker's refusal says nothing was placed, and is terminal too", async () => {
+  const { desk, placeOrder } = setup();
+  placeOrder.mockRejectedValueOnce(new OrderRefusedError("not enough cash"));
+
+  const { id } = await proposeFromAgent(desk);
+
+  expect(await desk.confirm(id)).toMatchObject({
+    status: ProposalStatus.Failed,
+    failure: {
+      code: SubmissionFailureCode.Refused,
+      message: "not enough cash",
+    },
+  });
+  await expect(desk.confirm(id)).rejects.toThrow();
+});
+
+test("a check that fails sends nothing, so the proposal waits for the user again", async () => {
+  const { desk, placeOrder, getAccount } = setup();
+  const { id } = await proposeFromAgent(desk);
+
+  getAccount.mockRejectedValueOnce(new Error("account unreadable"));
+
+  await expect(desk.confirm(id)).rejects.toThrow("account unreadable");
+  expect(placeOrder).not.toHaveBeenCalled();
+  expect(desk.list()).toMatchObject([
+    { id, status: ProposalStatus.AwaitingConfirmation },
+  ]);
+
+  expect(await desk.confirm(id)).toMatchObject({
+    status: ProposalStatus.Submitted,
+  });
+});
+
+test("an exit while the proposal is checked again leaves it waiting, since nothing was sent", async () => {
+  const { desk, placeOrder, getAccount, store } = setup();
+  const { id } = await proposeFromAgent(desk);
+
+  // Nothing settles the check, as if the app quit while it read the account.
+  getAccount.mockReturnValueOnce(new Promise(noop));
+  void desk.confirm(id);
+  await vi.waitFor(() =>
+    expect(desk.list()).toMatchObject([{ status: ProposalStatus.Confirming }])
+  );
+
+  expect(setup(store).desk.list()).toMatchObject([
+    { id, status: ProposalStatus.AwaitingConfirmation },
+  ]);
+  expect(placeOrder).not.toHaveBeenCalled();
 });
 
 test("proposals outlive the desk", async () => {
@@ -382,12 +432,12 @@ test("every change to a proposal is told, its submission included", async () => 
 
   await desk.confirm(id);
 
-  // Once as it starts submitting, once as the broker answers.
-  expect(onChange).toHaveBeenCalledTimes(4);
+  // As it is checked again, as it is sent and as the broker answers.
+  expect(onChange).toHaveBeenCalledTimes(5);
 
   desk.dismiss(other.id);
 
-  expect(onChange).toHaveBeenCalledTimes(5);
+  expect(onChange).toHaveBeenCalledTimes(6);
 });
 
 test("an order is checked against the limits its exchange set for the session it goes to", async () => {

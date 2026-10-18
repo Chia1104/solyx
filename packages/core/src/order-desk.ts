@@ -1,5 +1,6 @@
 import { errorMessage } from "@solyx/utils/error";
 
+import { OrderRefusedError } from "./broker.ts";
 import type { BrokerAdapter, BrokerMode } from "./broker.ts";
 import type { Forecast } from "./forecast.ts";
 import type { Market, SymbolRef } from "./market.ts";
@@ -20,6 +21,9 @@ export type ProposalSource =
 
 export const ProposalStatus = {
   AwaitingConfirmation: "awaiting-confirmation",
+  /** The user confirmed it, and the desk checks it again before it reaches the broker. */
+  Confirming: "confirming",
+  /** It may have reached the broker. */
   Submitting: "submitting",
   Submitted: "submitted",
   Rejected: "rejected",
@@ -31,14 +35,21 @@ export type ProposalStatus =
   (typeof ProposalStatus)[keyof typeof ProposalStatus];
 
 export const SubmissionFailureCode = {
-  /** Checking or placing the order threw. */
-  Error: "error",
-  /** The app exited before the broker answered. */
+  /** The broker refused the order, so it holds nothing of it. */
+  Refused: "refused",
+  /** Placing the order failed without the broker saying it refused it, so it may hold the order. */
+  Unknown: "unknown",
+  /** The app exited before the broker answered, so it may hold the order. */
   Interrupted: "interrupted",
 } as const;
 
 export type SubmissionFailure =
-  | { code: typeof SubmissionFailureCode.Error; message: string }
+  | {
+      code:
+        | typeof SubmissionFailureCode.Refused
+        | typeof SubmissionFailureCode.Unknown;
+      message: string;
+    }
   | { code: typeof SubmissionFailureCode.Interrupted };
 
 /** What research held of a listing as a proposal for it was made, kept as it stood then. */
@@ -138,12 +149,16 @@ export class OrderDesk {
           failure: { code: SubmissionFailureCode.Interrupted },
         });
       } else if (
-        options.restored &&
-        proposal.status === ProposalStatus.AwaitingConfirmation
+        // The app exited while checking it again, before anything was sent, so it waits again.
+        proposal.status === ProposalStatus.Confirming ||
+        (options.restored &&
+          proposal.status === ProposalStatus.AwaitingConfirmation)
       ) {
         options.store.update({
           ...proposal,
-          status: ProposalStatus.Dismissed,
+          status: options.restored
+            ? ProposalStatus.Dismissed
+            : ProposalStatus.AwaitingConfirmation,
         });
       }
     }
@@ -205,48 +220,67 @@ export class OrderDesk {
     return proposal;
   }
 
+  /**
+   * Checks the proposal again and sends it. A check that fails sends nothing, so the proposal
+   * waits for the user again and the failure is thrown; once the order may have reached the
+   * broker, every outcome is kept on the proposal.
+   */
   async confirm(id: string): Promise<TradeProposal> {
     const { broker } = this.#options;
+    const pending = this.#pending(id);
 
     // Claim it before any await so a double click cannot submit twice.
-    let proposal: TradeProposal = {
-      ...this.#pending(id),
-      status: ProposalStatus.Submitting,
-    };
+    this.#save({ ...pending, status: ProposalStatus.Confirming });
 
-    this.#save(proposal);
+    let violations: RiskViolation[];
 
     try {
       // Prices and sessions move between propose and confirm; check again.
-      const violations = await this.check(proposal.order);
-
-      if (violations.length > 0) {
-        proposal = { ...proposal, status: ProposalStatus.Rejected, violations };
-      } else {
-        const { orderId } = await broker.placeOrder(proposal.order);
-
-        proposal = {
-          ...proposal,
-          status: ProposalStatus.Submitted,
-          violations,
-          brokerOrderId: orderId,
-        };
-      }
+      violations = await this.check(pending.order);
     } catch (error) {
-      // Terminal on purpose: the broker may have accepted the order anyway, so never auto-retry.
-      proposal = {
-        ...proposal,
-        status: ProposalStatus.Failed,
-        failure: {
-          code: SubmissionFailureCode.Error,
-          message: errorMessage(error),
-        },
-      };
+      this.#save(pending);
+
+      throw error;
     }
 
-    this.#save(proposal);
+    if (violations.length > 0) {
+      return this.#save({
+        ...pending,
+        status: ProposalStatus.Rejected,
+        violations,
+      });
+    }
 
-    return proposal;
+    const sending: TradeProposal = {
+      ...pending,
+      status: ProposalStatus.Submitting,
+      violations,
+    };
+
+    this.#save(sending);
+
+    try {
+      const { orderId } = await broker.placeOrder(sending.order);
+
+      return this.#save({
+        ...sending,
+        status: ProposalStatus.Submitted,
+        brokerOrderId: orderId,
+      });
+    } catch (error) {
+      // Terminal on purpose: unless the broker refused it, it may hold the order, so never auto-retry.
+      return this.#save({
+        ...sending,
+        status: ProposalStatus.Failed,
+        failure: {
+          code:
+            error instanceof OrderRefusedError
+              ? SubmissionFailureCode.Refused
+              : SubmissionFailureCode.Unknown,
+          message: errorMessage(error),
+        },
+      });
+    }
   }
 
   dismiss(id: string): TradeProposal {
@@ -287,9 +321,11 @@ export class OrderDesk {
     });
   }
 
-  #save(proposal: TradeProposal) {
+  #save(proposal: TradeProposal): TradeProposal {
     this.#options.store.update(proposal);
     this.#options.onChange?.();
+
+    return proposal;
   }
 
   #pending(id: string): TradeProposal {

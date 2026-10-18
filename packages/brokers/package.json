@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@solyx/core": "workspace:*",
+    "@solyx/utils": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

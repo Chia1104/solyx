@@ -135,7 +135,7 @@ export function createServices(config: ConfigFile) {
 
         if (!quote) {
           throw new Error(
-            `No market data source covers ${symbolLabel(instrument)}, so the paper account cannot fill a market order`
+            `No market data source covers ${symbolLabel(instrument)}`
           );
         }
 

@@ -1,5 +1,6 @@
-import { expect, test } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
 
+import { OrderRefusedError } from "@solyx/core/broker";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
@@ -55,25 +56,23 @@ test("buys and sells move cash and positions", async () => {
   ]);
 });
 
-test("cannot spend more cash than it has", async () => {
+test("refuses to spend more cash than it has", async () => {
   const broker = paper({ TWD: 100_000 });
+  const placing = broker.placeOrder(limit(Side.Buy, 1000, 980));
 
-  await expect(broker.placeOrder(limit(Side.Buy, 1000, 980))).rejects.toThrow(
-    "Insufficient TWD"
-  );
+  await expect(placing).rejects.toThrow(OrderRefusedError);
+  await expect(placing).rejects.toThrow("Insufficient TWD");
 });
 
-test("cannot sell what it does not hold", async () => {
+test("refuses to sell what it does not hold", async () => {
   const broker = paper({ TWD: 100_000 });
+  const placing = broker.placeOrder(limit(Side.Sell, 1, 980));
 
-  await expect(broker.placeOrder(limit(Side.Sell, 1, 980))).rejects.toThrow(
-    "Not enough shares"
-  );
+  await expect(placing).rejects.toThrow(OrderRefusedError);
+  await expect(placing).rejects.toThrow("Not enough shares");
 });
 
-test("market orders need a price source", async () => {
-  const broker = paper({ TWD: 1_000_000 });
-
+describe("a market order", () => {
   const order: OrderRequest = {
     instrument: tsmc,
     side: Side.Buy,
@@ -81,7 +80,36 @@ test("market orders need a price source", async () => {
     type: OrderType.Market,
   };
 
-  await expect(broker.placeOrder(order)).rejects.toThrow("no price source");
+  test("fills at the price its source gives", async () => {
+    const broker = createPaperBroker({
+      cash: { TWD: 1_000_000 },
+      ledger: memoryLedger(),
+      getLastPrice: async () => 975,
+    });
+
+    await broker.placeOrder(order);
+
+    expect(await broker.getAccount()).toEqual({
+      cash: { TWD: 25_000 },
+      positions: [{ instrument: tsmc, quantity: 1000, avgPrice: 975 }],
+    });
+  });
+
+  test("is refused without a price source, or when it cannot price one", async () => {
+    await expect(paper({ TWD: 1_000_000 }).placeOrder(order)).rejects.toThrow(
+      OrderRefusedError
+    );
+
+    const unpriced = createPaperBroker({
+      cash: { TWD: 1_000_000 },
+      ledger: memoryLedger(),
+      getLastPrice: () => Promise.reject(new Error("quotes are down")),
+    });
+
+    await expect(unpriced.placeOrder(order)).rejects.toThrow(
+      "could not price the market order: quotes are down"
+    );
+  });
 });
 
 test("the account outlives the broker, and order ids keep counting", async () => {
