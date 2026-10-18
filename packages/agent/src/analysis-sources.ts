@@ -187,6 +187,7 @@ const NAMED = {
   Quarter: quartersSchema.element,
   MonthRevenue: monthsSchema.element,
   Multiples: multiplesSchema,
+  Company: companySchema,
   Dividend: dividendsSchema.element,
 };
 
