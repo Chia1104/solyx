@@ -11,6 +11,7 @@ import type { SkillFolders } from "@solyx/agent/skills";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 import { EmbeddingsProvider } from "@solyx/embeddings/provider";
 import { FINMIND_PLANS } from "@solyx/fundamentals/finmind";
+import { DAY_MS } from "@solyx/utils/date";
 import { tildify } from "@solyx/utils/text";
 
 import { settingsContract } from "#shared/rpc/settings.contract.ts";
@@ -33,6 +34,7 @@ import type { WebSearchModule } from "../web-search/web-search.ts";
 
 import type { AppearanceSettings } from "./appearance.ts";
 import type { ConfigFile } from "./config-file.ts";
+import type { MandateStore } from "./mandate-store.ts";
 import type { SecretStore } from "./secret-store.ts";
 
 /** What only Electron does for the settings page. */
@@ -80,6 +82,7 @@ export interface SettingsContext {
   settingsShell: SettingsShell;
   /** The account the order desk trades, picked as the app started. */
   tradingBroker: TradingBroker;
+  mandates: Pick<MandateStore, "current" | "save" | "revoke">;
   /** Quits the app and starts it again. */
   restart(): void;
   windowEvents: Pick<MemoryPublisher<WindowEvents>, "subscribe">;
@@ -379,6 +382,26 @@ export const settingsRouter = settings.router({
     context.config.set(["trading", "broker"], input);
   }),
   restart: settings.restart.handler(({ context }) => context.restart()),
+  mandate: settings.mandate.handler(({ context }) =>
+    context.mandates.current()
+  ),
+  setMandate: settings.setMandate.handler(
+    async ({ context, input: { days, ...draft } }) => {
+      const mandate = {
+        ...draft,
+        // It covers the account the desk trades now, from now for the days the user gave it.
+        broker: context.tradingBroker,
+        expiresAt: Date.now() + days * DAY_MS,
+      };
+
+      await context.mandates.save(mandate);
+
+      return mandate;
+    }
+  ),
+  revokeMandate: settings.revokeMandate.handler(({ context }) =>
+    context.mandates.revoke()
+  ),
   setOrdersLocked: settings.setOrdersLocked.handler(({ context, input }) => {
     context.config.set(["trading", "locked"], input);
   }),

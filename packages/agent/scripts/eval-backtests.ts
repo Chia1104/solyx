@@ -275,6 +275,7 @@ function recordingDesk(proposals: TradeProposal[]) {
       const proposal: TradeProposal = {
         id: `p${proposals.length + 1}`,
         broker: "paper",
+        mandate: null,
         order,
         source: ProposalSource.Agent,
         rationale,

@@ -688,6 +688,12 @@
       "proposed-for": "Proposed for the {{date}} session",
       "now": "now {{price}} ({{change}})",
       "impact-most": "At most {{amount}} {{currency}} at the limit-up {{price}} (before fees and tax)"
+    },
+    "mandate": {
+      "sent": "Sent under your mandate",
+      "would-send": "Shadow mode: your mandate would send this",
+      "outside": "Outside your mandate: {{reasons}}",
+      "separator": "; "
     }
   },
   "flows": {
@@ -889,6 +895,49 @@
     "unsupported-market": "The account does not trade {{market}} listings",
     "insufficient-cash": "Order value {{notional, number}} {{currency}} exceeds the {{cash, number}} {{currency}} in the account",
     "insufficient-shares": "Selling {{quantity, number}} shares, but the account holds {{held, number}}"
+  },
+  "mandate": {
+    "title": "Trading mandate",
+    "description": "Within these bounds, the agent's proposals go to the broker without waiting for you. Only you can set it.",
+    "set": "Set a mandate",
+    "edit": "Change",
+    "revoke": "Revoke",
+    "save": "Save mandate",
+    "cancel": "Cancel",
+    "listings": "Listings",
+    "listings-hint": "Taiwan codes, separated by commas.",
+    "sides": "Orders",
+    "side-options": {
+      "sales": "Sales only",
+      "both": "Buys and sales"
+    },
+    "max-order-value": "Most per order ({{currency}})",
+    "max-day-value": "Most per day ({{currency}})",
+    "max-day-orders": "Most orders per day",
+    "days": "Lasts for days (up to {{max}})",
+    "shadow": "Shadow mode",
+    "shadow-description": "Only marks the proposals it would send; you still confirm each.",
+    "live": "Sending",
+    "until": "Until {{date}}",
+    "expired": "Expired; it sends nothing",
+    "covers": "{{sides}} of {{listings}}, limit orders only",
+    "bounds": "Up to {{order}} {{currency}} an order, {{day}} {{currency}} and {{orders}} orders a day",
+    "other-account": "It was set for the {{account}}, so it covers nothing here.",
+    "errors": {
+      "days": "1 to {{max}} days"
+    },
+    "violations": {
+      "expired": "the mandate expired",
+      "other-broker": "the mandate is another account's",
+      "not-agent": "your own proposal",
+      "listing": "not a listing it covers",
+      "side": "not a side it covers",
+      "market-order": "a market order",
+      "order-value": "{{value, number}} {{currency}} is past its {{max, number}} an order",
+      "day-value": "today's {{value, number}} {{currency}} would pass its {{max, number}} a day",
+      "day-orders": "it already covered {{max}} orders today",
+      "currency": "it covers no {{currency}} orders"
+    }
   },
   "settings": {
     "title": "Settings",

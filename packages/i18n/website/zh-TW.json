@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Solyx",
-    "description": "交易台股與美股的桌面 App。Agent 分析市場、提出交易建議，在你確認之前，任何委託都不會送到券商。",
+    "description": "交易台股與美股的桌面 App。Agent 分析市場、提出交易建議，除非你確認，或它落在你設定的授權範圍內，任何委託都不會送到券商。",
     "page-title": "{{title}} | Solyx"
   },
   "nav": {
@@ -18,7 +18,7 @@
   "hero": {
     "pencil": "Agent 用鉛筆起草。",
     "ink": "你用墨水簽名。",
-    "lede": "Solyx 是交易台股與美股的桌面 App。Agent 解讀市場、提出委託建議，在你確認之前，任何委託都不會送到券商。",
+    "lede": "Solyx 是交易台股與美股的桌面 App。Agent 解讀市場、提出委託建議，除非你確認，或它落在你設定的授權範圍內，任何委託都不會送到券商。",
     "download": "下載 macOS 或 Windows 版",
     "docs": "閱讀文件",
     "note": "免費且開源。每晚建置版都在模擬帳戶上交易。"

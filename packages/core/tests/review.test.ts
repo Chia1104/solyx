@@ -41,6 +41,7 @@ const submitted = (
 ): TradeProposal => ({
   id: `p-${brokerOrderId}`,
   broker: "paper",
+  mandate: null,
   order: {
     instrument: TSMC,
     side: Side.Buy,

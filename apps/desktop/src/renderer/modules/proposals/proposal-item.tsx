@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { Interval } from "@solyx/core/candles";
+import type { MandateVerdict } from "@solyx/core/mandate";
 import { exchangeDate } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderType, orderImpact } from "@solyx/core/order";
@@ -19,6 +20,7 @@ import { ListingName } from "../market/listing-name.tsx";
 import { LowerView } from "../market/lower-view.ts";
 import { numberFormats } from "../market/number-formats.ts";
 import { quoteQuery } from "../market/quote-query.ts";
+import { mandateViolationMessage } from "../settings/mandate-message.ts";
 import { tradingSettingsQuery } from "../settings/settings-query.ts";
 
 import { violationMessage } from "./violation-message.ts";
@@ -177,6 +179,31 @@ function BasisLine({
   );
 }
 
+/** What the user's mandate made of an agent's proposal: sent it, would have in shadow, or why not. */
+function MandateLine({ verdict }: { verdict: MandateVerdict }) {
+  const { t } = useTranslation();
+
+  if (verdict.violations.length > 0) {
+    return (
+      <p className="text-xs text-muted">
+        {t("proposals.mandate.outside", {
+          reasons: verdict.violations
+            .map((violation) => mandateViolationMessage(t, violation))
+            .join(t("proposals.mandate.separator")),
+        })}
+      </p>
+    );
+  }
+
+  return (
+    <p className="text-xs text-muted">
+      {verdict.shadow
+        ? t("proposals.mandate.would-send")
+        : t("proposals.mandate.sent")}
+    </p>
+  );
+}
+
 export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   const { t } = useTranslation();
 
@@ -247,6 +274,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
       {proposal.basis ? (
         <BasisLine symbol={order.instrument} basis={proposal.basis} />
       ) : null}
+      {proposal.mandate ? <MandateLine verdict={proposal.mandate} /> : null}
       {proposal.violations.length > 0 ? (
         <Alert status="danger">
           <Alert.Indicator />

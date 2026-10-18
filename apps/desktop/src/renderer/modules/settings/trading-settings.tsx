@@ -20,6 +20,7 @@ import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Section } from "../../components/section.tsx";
 
+import { MandateSettings } from "./mandate-settings.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { tradingSettingsQuery } from "./settings-query.ts";
 
@@ -144,40 +145,43 @@ export function TradingSettings() {
   if (!data) return null;
 
   return (
-    <Section title={t("settings.sections.trading")}>
-      <SettingsList>
-        <BrokerRow broker={data.broker} trading={data.trading} />
-        <SettingsRow
-          label={t("proposals.lock.label")}
-          description={t("settings.trading.lock-description")}
-          actions={
-            <Switch
-              isSelected={data.locked}
-              isDisabled={lock.isPending}
-              onChange={(locked) => lock.mutate(locked)}>
-              <Switch.Content>
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-                <span className="sr-only">{t("proposals.lock.label")}</span>
-              </Switch.Content>
-            </Switch>
-          }>
-          {lock.error ? (
-            <ErrorAlert
-              title={t("settings.save-failed")}
-              description={lock.error.message}
+    <>
+      <Section title={t("settings.sections.trading")}>
+        <SettingsList>
+          <BrokerRow broker={data.broker} trading={data.trading} />
+          <SettingsRow
+            label={t("proposals.lock.label")}
+            description={t("settings.trading.lock-description")}
+            actions={
+              <Switch
+                isSelected={data.locked}
+                isDisabled={lock.isPending}
+                onChange={(locked) => lock.mutate(locked)}>
+                <Switch.Content>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  <span className="sr-only">{t("proposals.lock.label")}</span>
+                </Switch.Content>
+              </Switch>
+            }>
+            {lock.error ? (
+              <ErrorAlert
+                title={t("settings.save-failed")}
+                description={lock.error.message}
+              />
+            ) : null}
+          </SettingsRow>
+          {Object.values(Currency).map((currency) => (
+            <LossLimitRow
+              key={currency}
+              currency={currency}
+              amount={data.maxDailyLoss[currency]}
             />
-          ) : null}
-        </SettingsRow>
-        {Object.values(Currency).map((currency) => (
-          <LossLimitRow
-            key={currency}
-            currency={currency}
-            amount={data.maxDailyLoss[currency]}
-          />
-        ))}
-      </SettingsList>
-    </Section>
+          ))}
+        </SettingsList>
+      </Section>
+      <MandateSettings trading={data.trading} />
+    </>
   );
 }

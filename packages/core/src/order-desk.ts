@@ -1,10 +1,12 @@
-import { noop, omit } from "es-toolkit";
+import { noop, omit, sumBy } from "es-toolkit";
 
 import { errorMessage } from "@solyx/utils/error";
 
 import { BrokerOrderStatus, OrderRefusedError, orderTag } from "./broker.ts";
 import type { BrokerAdapter, BrokerMode, BrokerOrder } from "./broker.ts";
 import type { Forecast } from "./forecast.ts";
+import { mandateViolations } from "./mandate.ts";
+import type { Mandate, MandateDay, MandateVerdict } from "./mandate.ts";
 import {
   currencyOf,
   exchangeDate,
@@ -12,7 +14,7 @@ import {
   symbolKey,
 } from "./market.ts";
 import type { Currency, Market, SymbolRef } from "./market.ts";
-import { Side, realizedIn } from "./order.ts";
+import { OrderType, Side, realizedIn } from "./order.ts";
 import type { AccountSnapshot, Fill, OrderRequest } from "./order.ts";
 import type { Report } from "./report.ts";
 import {
@@ -97,6 +99,11 @@ export interface TradeProposal {
   basis: ProposalBasis | null;
   /** What the market stood at as it was made; `null` where the desk kept none, which no confirmation accepts. */
   premise: OrderPremise | null;
+  /**
+   * What the user's mandate made of an agent's proposal that passed every check; `null` where
+   * there was none to ask. One it covered outside shadow the desk sent itself.
+   */
+  mandate: MandateVerdict | null;
   createdAt: number;
   status: ProposalStatus;
   violations: RiskViolation[];
@@ -147,6 +154,16 @@ export interface OrderDeskOptions {
    */
   locked?: () => boolean;
   /**
+   * The user's mandate, read at every agent proposal and again as one it covers is sent.
+   * @default none, so every proposal waits for the user
+   */
+  mandate?: () => Mandate | null;
+  /**
+   * Locks orders as the user's lock does, which the desk asks for once an order it sent under the
+   * mandate went unanswered, since whether the account holds it is not known.
+   */
+  lockOrders?: () => void;
+  /**
    * The most the user lets the account's sales lose in a market's day, per currency, read at
    * every check: once the day's loss reaches it, buys in that currency are refused.
    * @default no limit
@@ -175,6 +192,11 @@ export type ProposingDesk = Pick<
   OrderDesk,
   "check" | "propose" | "list" | "account" | "fills" | "working" | "mode"
 >;
+
+/** The mandate covered it outside shadow, so the desk sends it without the user. */
+function sentByMandate({ mandate }: TradeProposal): boolean {
+  return mandate !== null && !mandate.shadow && mandate.violations.length === 0;
+}
 
 /** A failure that leaves whether the broker holds the order unknown, until the desk finds it. */
 function mayBeHeld({ status, failure }: TradeProposal): boolean {
@@ -368,24 +390,81 @@ export class OrderDesk {
       this.#lastPrice(input.order.instrument),
     ]);
 
+    const passed = violations.length === 0;
+    const createdAt = now();
+    const proposalId = id ?? createId();
+
     const proposal: TradeProposal = {
-      id: id ?? createId(),
+      id: proposalId,
       broker: this.#options.broker.id,
       ...input,
       basis: basis?.(input.order.instrument) ?? null,
       premise: { session, price, band },
-      createdAt: now(),
-      status:
-        violations.length > 0
-          ? ProposalStatus.Rejected
-          : ProposalStatus.AwaitingConfirmation,
+      mandate:
+        passed && input.source === ProposalSource.Agent
+          ? this.#verdict(proposalId, input.order, createdAt)
+          : null,
+      createdAt,
+      status: passed
+        ? ProposalStatus.AwaitingConfirmation
+        : ProposalStatus.Rejected,
       violations,
     };
 
     store.add(proposal);
     this.#options.onChange?.();
 
-    return proposal;
+    if (!sentByMandate(proposal)) return proposal;
+
+    // A check that fails sends nothing and leaves the proposal waiting for the user.
+    return this.#dispatch(proposal, true).catch(
+      () => store.get(proposal.id) ?? proposal
+    );
+  }
+
+  /** What the mandate makes of an agent's order now, or `null` while the user has none. */
+  #verdict(id: string, order: OrderRequest, at: number): MandateVerdict | null {
+    const mandate = this.#options.mandate?.();
+
+    if (!mandate) return null;
+
+    return {
+      shadow: mandate.shadow,
+      violations: mandateViolations(mandate, {
+        order,
+        fromAgent: true,
+        broker: this.#options.broker.id,
+        currency: currencyOf(order.instrument.market),
+        now: at,
+        day: this.#mandateDay(id, order, at),
+      }),
+    };
+  }
+
+  /** What the mandate covered in the market day of an order made at `at`, besides proposal `id`. */
+  #mandateDay(id: string, order: OrderRequest, at: number): MandateDay {
+    const { market } = order.instrument;
+    const day = exchangeDate(market, new Date(at));
+    const currency = currencyOf(market);
+
+    const covered = this.#options.store
+      .list()
+      .filter(
+        (proposal) =>
+          proposal.id !== id &&
+          proposal.mandate?.violations.length === 0 &&
+          currencyOf(proposal.order.instrument.market) === currency &&
+          exchangeDate(market, new Date(proposal.createdAt)) === day
+      );
+
+    return {
+      orders: covered.length,
+      value: sumBy(covered, ({ order: covering }) =>
+        covering.type === OrderType.Limit
+          ? covering.limitPrice * covering.quantity
+          : 0
+      ),
+    };
   }
 
   /**
@@ -396,12 +475,18 @@ export class OrderDesk {
    * proposal.
    */
   async confirm(id: string): Promise<TradeProposal> {
-    const pending = this.#pending(id);
+    return this.#dispatch(this.#pending(id), false);
+  }
 
+  /** Sends `pending` once the confirmation before it has had the broker's answer. */
+  #dispatch(
+    pending: TradeProposal,
+    byMandate: boolean
+  ): Promise<TradeProposal> {
     // Claim it before any await so a double click cannot submit twice.
     this.#save({ ...pending, status: ProposalStatus.Confirming });
 
-    const confirmed = this.#sending.then(() => this.#send(pending));
+    const confirmed = this.#sending.then(() => this.#send(pending, byMandate));
 
     // One that fails leaves the next to go on.
     this.#sending = confirmed.catch(noop);
@@ -409,8 +494,25 @@ export class OrderDesk {
     return confirmed;
   }
 
-  async #send(pending: TradeProposal): Promise<TradeProposal> {
-    const { broker } = this.#options;
+  async #send(
+    pending: TradeProposal,
+    byMandate: boolean
+  ): Promise<TradeProposal> {
+    const { broker, now = Date.now } = this.#options;
+
+    if (byMandate) {
+      // The user may have changed or revoked the mandate while the orders before it went.
+      const mandate = this.#verdict(pending.id, pending.order, now());
+
+      if (!mandate || mandate.shadow || mandate.violations.length > 0) {
+        return this.#save({
+          ...pending,
+          status: ProposalStatus.AwaitingConfirmation,
+          mandate,
+        });
+      }
+    }
+
     let violations: RiskViolation[];
 
     try {
@@ -482,8 +584,13 @@ export class OrderDesk {
         },
       });
 
-      // The broker may list the order already; where it cannot be read, the failure stands.
-      if (mayBeHeld(failed)) void this.reconcile().catch(noop);
+      if (mayBeHeld(failed)) {
+        // Nothing more goes until the user has looked at what the account holds.
+        if (byMandate) this.#options.lockOrders?.();
+
+        // The broker may list the order already; where it cannot be read, the failure stands.
+        void this.reconcile().catch(noop);
+      }
 
       return failed;
     }

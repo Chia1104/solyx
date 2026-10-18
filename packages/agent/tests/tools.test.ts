@@ -22,6 +22,7 @@ import type { Candle } from "@solyx/core/candles";
 import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
 import { ForecastDirection } from "@solyx/core/forecast";
 import { MacroFigure, MacroIndicator, MacroUnit } from "@solyx/core/macro";
+import { MandateViolationCode } from "@solyx/core/mandate";
 import { Market } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import { NewsChannel, TimePrecision, readNews } from "@solyx/core/news";
@@ -120,6 +121,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
   const proposal = (overrides: Partial<TradeProposal>): TradeProposal => ({
     id: "p1",
     broker: "paper",
+    mandate: null,
     order: {
       instrument: TSMC,
       side: Side.Buy,
@@ -210,6 +212,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
   return {
     run,
     desk,
+    proposal,
     ports,
     marketData,
     news,
@@ -494,6 +497,7 @@ test("the account tells how its closed round trips went by the stance they were 
     {
       id: "p1",
       broker: "paper",
+      mandate: null,
       order: {
         instrument: tsmc,
         side: Side.Buy,
@@ -571,6 +575,7 @@ test("a proposal names the research it was made under, as the desk kept it", () 
   const made = (basis: ProposalBasis | null): TradeProposal => ({
     id: "p1",
     broker: "paper",
+    mandate: null,
     order: {
       instrument: TSMC,
       side: Side.Buy,
@@ -677,6 +682,34 @@ test("proposing goes through the desk as the agent, once per run", async () => {
   expect(desk.propose).toHaveBeenCalledTimes(2);
 
   await runtime.close();
+});
+
+test("a proposal says what the user's mandate made of it", () => {
+  const { proposal } = setup();
+
+  expect(
+    describeProposal(
+      proposal({
+        status: ProposalStatus.Submitted,
+        mandate: { shadow: false, violations: [] },
+      })
+    )
+  ).toContain("sent under the user's mandate without waiting for them");
+
+  expect(
+    describeProposal(proposal({ mandate: { shadow: true, violations: [] } }))
+  ).toContain("would have sent it, but is in shadow");
+
+  expect(
+    describeProposal(
+      proposal({
+        mandate: {
+          shadow: false,
+          violations: [{ code: MandateViolationCode.Side }],
+        },
+      })
+    )
+  ).toContain('outside the user\'s mandate [{"code":"side"}]');
 });
 
 test("under the MAGI a rejected proposal is never made, and a carried one keeps its votes", async () => {

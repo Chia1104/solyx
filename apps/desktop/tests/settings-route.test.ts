@@ -15,12 +15,15 @@ import {
 } from "@solyx/agent/mcp-config";
 import { DEFAULT_MODEL } from "@solyx/agent/models";
 import type { AgentProvider } from "@solyx/agent/providers";
-import { Currency } from "@solyx/core/market";
+import { Currency, Market } from "@solyx/core/market";
+import { Side } from "@solyx/core/order";
+import { DAY_MS } from "@solyx/utils/date";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import {
   AppLocation,
   Secret,
+  MANDATE_SECRET,
   SecretState,
   TradingBroker,
   agentKeySecret,
@@ -32,6 +35,7 @@ import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
 import type { McpServers } from "../src/main/modules/agent/mcp-servers.ts";
 import { createAppearance } from "../src/main/modules/settings/appearance.ts";
 import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
+import { createMandateStore } from "../src/main/modules/settings/mandate-store.ts";
 import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
 import { settingsRouter } from "../src/main/modules/settings/settings.route.ts";
 import type { SettingsContext } from "../src/main/modules/settings/settings.route.ts";
@@ -134,6 +138,7 @@ function setup() {
     instructionsFile: join(configDir, "AGENTS.md"),
     settingsShell: shell,
     tradingBroker: TradingBroker.Paper,
+    mandates: createMandateStore(secrets),
     restart: vi.fn(),
     windowEvents: new MemoryPublisher<WindowEvents>(),
     // SAFETY: no procedure a test calls opens a dialog, the only use of the asking window.
@@ -368,6 +373,44 @@ test("orders stay unlocked and without a daily loss limit until the user sets th
   await api.setMaxDailyLoss({ currency: Currency.TWD, amount: null });
 
   expect(await api.trading()).toMatchObject({ locked: true, maxDailyLoss: {} });
+});
+
+test("a mandate covers the account the desk trades for the days the user gives it, sealed with the secrets", async () => {
+  const { api, secrets } = setup();
+
+  expect(await api.mandate()).toBeNull();
+
+  const before = Date.now();
+
+  const mandate = await api.setMandate({
+    shadow: true,
+    listings: [{ market: Market.TW, symbol: "2330" }],
+    sides: [Side.Sell],
+    maxOrderValue: { TWD: 500_000 },
+    maxDayValue: { TWD: 1_000_000 },
+    maxDayOrders: 4,
+    days: 7,
+  });
+
+  expect(mandate).toMatchObject({ broker: TradingBroker.Paper, shadow: true });
+  expect(mandate.expiresAt - before).toBeGreaterThanOrEqual(7 * DAY_MS);
+  expect(await api.mandate()).toEqual(mandate);
+  expect(JSON.parse((await secrets.get(MANDATE_SECRET)) ?? "")).toEqual(
+    mandate
+  );
+
+  await api.revokeMandate();
+
+  expect(await api.mandate()).toBeNull();
+  expect(await secrets.get(MANDATE_SECRET)).toBeUndefined();
+});
+
+test("a sealed mandate that does not parse reads as none", async () => {
+  const { api, secrets } = setup();
+
+  await secrets.save(MANDATE_SECRET, JSON.stringify({ broker: "paper" }));
+
+  await vi.waitFor(async () => expect(await api.mandate()).toBeNull());
 });
 
 test("orders go to the paper account until the user picks another, which the desk trades once the app starts again", async () => {
