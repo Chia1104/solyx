@@ -58,6 +58,8 @@ export const proposals = sqliteTable("proposals", {
   failure: text({ mode: "json" }).$type<SubmissionFailure>(),
   basis: text({ mode: "json" }).$type<ProposalBasis>(),
   premise: text({ mode: "json" }).$type<OrderPremise>(),
+  /** The id of the broker it was proposed to; the paper account where none was kept. */
+  broker: text().notNull().default("paper"),
 });
 
 /** The paper account, in one row: what it holds and how many orders it filled. */

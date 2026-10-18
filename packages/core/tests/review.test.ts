@@ -40,6 +40,7 @@ const submitted = (
   proposalBasis: ProposalBasis | null
 ): TradeProposal => ({
   id: `p-${brokerOrderId}`,
+  broker: "paper",
   order: {
     instrument: TSMC,
     side: Side.Buy,

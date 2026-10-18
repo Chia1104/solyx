@@ -68,6 +68,7 @@ function setup(
     locked,
     maxDailyLoss,
     lastPrice,
+    brokerId = "fake",
   }: Pick<
     OrderDeskOptions,
     | "restored"
@@ -76,7 +77,7 @@ function setup(
     | "locked"
     | "maxDailyLoss"
     | "lastPrice"
-  > = {}
+  > & { brokerId?: string } = {}
 ) {
   const clock = { now: DURING_SESSION };
   const tradingDays = vi.fn(async (): Promise<TradingDays> => weekdays);
@@ -97,7 +98,7 @@ function setup(
   const getOrders = vi.fn<BrokerAdapter["getOrders"]>(async () => []);
 
   const broker: BrokerAdapter = {
-    id: "fake",
+    id: brokerId,
     mode: BrokerMode.Paper,
     markets: [Market.TW],
     getAccount,
@@ -533,6 +534,39 @@ test("a proposal that waited in a backup is dismissed, since it may have been co
   ]);
   await expect(restored.desk.confirm(waiting.id)).rejects.toThrow();
   expect(restored.placeOrder).not.toHaveBeenCalled();
+});
+
+test("a proposal is made for the desk's broker, and one waiting for another is dismissed as a desk opens on this one", async () => {
+  const { desk, store } = setup();
+  const waiting = await proposeFromAgent(desk);
+
+  expect(waiting.broker).toBe("fake");
+
+  const elsewhere = setup(store, { brokerId: "other" });
+
+  expect(elsewhere.desk.list()).toMatchObject([
+    { id: waiting.id, broker: "fake", status: ProposalStatus.Dismissed },
+  ]);
+  await expect(elsewhere.desk.confirm(waiting.id)).rejects.toThrow();
+  expect(elsewhere.placeOrder).not.toHaveBeenCalled();
+});
+
+test("a desk looks for no order of a proposal it did not send", async () => {
+  const { desk, placeOrder, store } = setup();
+  const { id } = await proposeFromAgent(desk);
+
+  placeOrder.mockRejectedValueOnce(new Error("timeout"));
+  await desk.confirm(id);
+
+  const elsewhere = setup(store, { brokerId: "other" });
+
+  elsewhere.getOrders.mockResolvedValue([brokerOrder(id)]);
+  await elsewhere.desk.reconcile();
+
+  expect(elsewhere.getOrders).not.toHaveBeenCalled();
+  expect(elsewhere.desk.list()).toMatchObject([
+    { failure: { code: SubmissionFailureCode.Unknown } },
+  ]);
 });
 
 test("what the account cannot pay for or does not hold is rejected, never sent to fail", async () => {

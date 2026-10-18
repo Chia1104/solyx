@@ -1,10 +1,11 @@
 # `@solyx/brokers`
 
-Brokers, one module per broker, each implementing `BrokerAdapter` from `@solyx/core/broker`. `./paper` is the paper broker; `./fubon` signs in to Fubon through the user's own SDK and exchanges the session for market data tokens.
+Brokers, one module per broker, each implementing `BrokerAdapter` from `@solyx/core/broker`. `./paper` is the paper broker; `./fubon` signs in to Fubon through the user's own SDK, exchanges the session for market data tokens and reads the stock account.
 
 ## Boundaries
 
 - `./fubon`'s session runs only in the utility process the desktop starts for it.
 - A broker throws `OrderRefusedError` only where it surely holds nothing of the order; any other failure leaves the outcome unknown, and the desk never sends that order again.
 - `./paper` keeps its account and every fill in a `PaperLedger`, which the app backs with `@solyx/db/user`, so both outlive the app as proposals do. It writes the account and the fill last, in one write, so an order it cannot fill, for want of cash, shares or a price, is refused. It fills each order whole as it takes it, so its orders are its fills, each kept with the order's tag and limit price.
-- `./fubon` loads `fubon-neo` at runtime from the path the user chooses; it is never a dependency or bundled. It covers sign-in and market data tokens, not accounts or orders.
+- `./fubon` loads `fubon-neo` at runtime from the path the user chooses; it is never a dependency or bundled. It covers sign-in, market data tokens and reading the stock account, not placing or cancelling orders. Every SDK answer is parsed at the boundary, account queries are paced to Fubon's five a second, and orders and fills reach back `FUBON_HISTORY_DAYS`, read in Fubon's 30-day spans. It reads cash orders and holdings alone, since the app's orders neither borrow nor lend shares, and an order Fubon has yet to number is left out until it has one. What the account can spend is its bank's available balance with the earlier days' settlements Fubon reckoned, of which a settlement due today counts only what it takes out, and today's fills and working buys.
+- `scripts/fubon-test-env.ts` reads one of Fubon's shared test accounts through `./fubon`, printing the SDK's answers beside what the app reads of them, so a change to the module is checked against Fubon itself before it reaches a real account.

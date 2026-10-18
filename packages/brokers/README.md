@@ -3,7 +3,7 @@
 Broker adapters, one module per broker:
 
 - `@solyx/brokers/paper`: a paper broker. Orders fill immediately and in full, with no fees or transaction tax, and short selling is not supported.
-- `@solyx/brokers/fubon`: the Fubon Neo API. `openFubonSession` loads the SDK, signs in with an API key and exchanges the session for market data tokens, which `@solyx/market-data/fubon` uses. The broker adapter's account queries, order placement and cancellation wait until the SDK's responses are verified in Fubon's test environment.
+- `@solyx/brokers/fubon`: the Fubon Neo API. `openFubonSession` loads the SDK, signs in with an API key and exchanges the session for market data tokens, which `@solyx/market-data/fubon` uses, and reads the stock account: holdings, what it can spend, orders and fills. The broker adapter places and cancels no orders yet.
 
 ## Why the Fubon SDK is not a dependency
 
@@ -16,3 +16,13 @@ Broker adapters, one module per broker:
 3. Apply for a web certificate on Fubon's site and export it (`.pfx`); an exported certificate's password is the account's ID number unless the user sets another.
 4. Create an API key on Fubon's API key page (SDK 2.2.7 or later). A key limited to market data cannot place orders.
 5. Download the Node.js SDK (`fubon-neo-<version>.tgz`) from the [Fubon Neo API](https://www.fbs.com.tw/TradeAPI/) site, extract it, and choose that folder in the app.
+
+## Checking against Fubon's test environment
+
+Fubon runs a test environment with shared test accounts, open 9:30–19:00 Taipei time on weekdays. Download its package from the [Fubon Neo API](https://www.fbs.com.tw/TradeAPI/docs/welcome/) site, then read one of its accounts through this package:
+
+```sh
+vp exec node packages/brokers/scripts/fubon-test-env.ts <sdk folder> <test certificate .pfx>
+```
+
+The test account's ID number is the certificate's file name, and its login and certificate password are the package's published `12345678`. Fubon's own guide says the test accounts' balances are not accurate and their holdings reset each day.

@@ -119,6 +119,7 @@ function proposal(
 ): TradeProposal {
   return {
     id,
+    broker: "paper",
     order: {
       instrument: { market: Market.TW, symbol },
       side: Side.Buy,

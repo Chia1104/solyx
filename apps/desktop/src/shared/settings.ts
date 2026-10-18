@@ -390,7 +390,21 @@ export interface TraySettings {
   hasDock: boolean;
 }
 
+/** The account the order desk trades. */
+export const TradingBroker = {
+  Paper: "paper",
+  Fubon: "fubon",
+} as const;
+
+export type TradingBroker = (typeof TradingBroker)[keyof typeof TradingBroker];
+
+export const tradingBrokerSchema = z.enum(TradingBroker);
+
 export interface TradingSettings {
+  /** The account the user picked, which the desk trades from the app's next start on. */
+  broker: TradingBroker;
+  /** The account the desk trades now, picked when the app started. */
+  trading: TradingBroker;
   /** Every order is refused until the user unlocks them. */
   locked: boolean;
   /** The most the account's sales may lose in a market's day, per currency; a currency missing has no limit. */

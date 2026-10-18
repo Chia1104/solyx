@@ -1,8 +1,20 @@
-import { NumberField, Switch } from "@heroui/react";
+import {
+  Alert,
+  Button,
+  Description,
+  NumberField,
+  Radio,
+  RadioGroup,
+  Switch,
+} from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { Currency } from "@solyx/core/market";
+import { isEnumValue } from "@solyx/utils/is";
+
+import { TradingBroker } from "#shared/settings.ts";
+import type { TradingSettings as Trading } from "#shared/settings.ts";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
@@ -59,7 +71,71 @@ function LossLimitRow({
   );
 }
 
-/** The limits the order desk puts on every order: the user's lock and each currency's daily loss. */
+/** The account orders go to, which the desk trades from the app's next start on. */
+function BrokerRow({ broker, trading }: Pick<Trading, "broker" | "trading">) {
+  const { t } = useTranslation();
+  const label = t("settings.trading.broker");
+  const save = useMutation(orpc.settings.setTradingBroker.mutationOptions());
+  const restart = useMutation(orpc.settings.restart.mutationOptions());
+
+  return (
+    <SettingsRow
+      label={label}
+      description={t("settings.trading.broker-description")}>
+      <RadioGroup
+        aria-label={label}
+        value={broker}
+        isDisabled={save.isPending}
+        onChange={(next) => {
+          if (isEnumValue(TradingBroker, next) && next !== broker) {
+            save.mutate(next);
+          }
+        }}>
+        {Object.values(TradingBroker).map((option) => (
+          <Radio key={option} value={option}>
+            <Radio.Content>
+              <Radio.Control>
+                <Radio.Indicator />
+              </Radio.Control>
+              {t(`settings.trading.brokers.${option}`)}
+            </Radio.Content>
+            <Description>
+              {t(`settings.trading.broker-hints.${option}`)}
+            </Description>
+          </Radio>
+        ))}
+      </RadioGroup>
+      {broker === trading ? null : (
+        <Alert status="warning">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>{t("settings.trading.restart-title")}</Alert.Title>
+            <Alert.Description>
+              {t("settings.trading.restart-description", {
+                account: t(`settings.trading.brokers.${trading}`),
+              })}
+            </Alert.Description>
+          </Alert.Content>
+          <Button
+            size="sm"
+            variant="secondary"
+            isPending={restart.isPending}
+            onPress={() => restart.mutate(undefined)}>
+            {t("settings.trading.restart")}
+          </Button>
+        </Alert>
+      )}
+      {save.error ? (
+        <ErrorAlert
+          title={t("settings.save-failed")}
+          description={save.error.message}
+        />
+      ) : null}
+    </SettingsRow>
+  );
+}
+
+/** The account orders go to and the limits the desk puts on every order: the user's lock and each currency's daily loss. */
 export function TradingSettings() {
   const { t } = useTranslation();
   const { data } = useQuery(tradingSettingsQuery());
@@ -70,6 +146,7 @@ export function TradingSettings() {
   return (
     <Section title={t("settings.sections.trading")}>
       <SettingsList>
+        <BrokerRow broker={data.broker} trading={data.trading} />
         <SettingsRow
           label={t("proposals.lock.label")}
           description={t("settings.trading.lock-description")}

@@ -48,6 +48,7 @@ const APPLE = { market: Market.US, symbol: "AAPL" };
 function proposal(id: string, patch: Partial<TradeProposal> = {}) {
   return {
     id,
+    broker: "paper",
     order: {
       instrument: TSMC,
       side: Side.Buy,

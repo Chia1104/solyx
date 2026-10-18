@@ -78,7 +78,17 @@
     "avg-price": "均價",
     "no-positions": "尚無庫存",
     "cash": "現金",
-    "unrealized-gain": "未實現損益"
+    "unrealized-gain": "未實現損益",
+    "working": "委託中",
+    "order": "委託",
+    "filled": "已成交",
+    "order-status": {
+      "pending": "傳送中",
+      "working": "委託中",
+      "filled": "完全成交",
+      "cancelled": "已取消",
+      "refused": "失敗"
+    }
   },
   "review": {
     "title": "交易檢討",
@@ -1721,6 +1731,19 @@
       "change-failed": "無法變更主題"
     },
     "trading": {
+      "broker": "下單帳戶",
+      "broker-description": "只有你能切換，重新啟動 Solyx 後生效。",
+      "brokers": {
+        "paper": "模擬帳戶",
+        "fubon": "富邦證券"
+      },
+      "broker-hints": {
+        "paper": "虛擬資金，每筆委託立即成交。",
+        "fubon": "你自己的帳戶，用「行情」裡設定的登入。"
+      },
+      "restart-title": "重新啟動以切換帳戶",
+      "restart-description": "重新啟動前委託仍送往{{account}}；重新啟動時，等待確認的提案會作廢。",
+      "restart": "重新啟動",
       "lock-description": "關閉前所有下單都會被拒絕。Agent 無法變更。",
       "max-daily-loss": "每日虧損上限（{{currency}}）",
       "max-daily-loss-description": "當天賣出的虧損達到這個金額後，就不能再買進這個幣別的股票；賣出不受影響。",

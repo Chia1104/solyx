@@ -83,10 +83,12 @@ import {
   PriceColors,
   Theme,
   TimeZonePreference,
+  TradingBroker,
   languagePreferenceSchema,
   marketDataSourceSchema,
   priceColorsSchema,
   themeSchema,
+  tradingBrokerSchema,
   timeZonePreferenceSchema,
 } from "#shared/settings.ts";
 import type { FubonFile } from "#shared/settings.ts";
@@ -180,6 +182,10 @@ const configSchema = section(
     ),
     trading: section(
       z.looseObject({
+        broker: tradingBrokerSchema.catch(TradingBroker.Paper).meta({
+          description:
+            "The account orders go to: the paper account, or Fubon's once its sign-in is set up in Market data. Only you can switch it, and it takes effect when Solyx starts again.",
+        }),
         locked: z.boolean().catch(false).meta({
           description:
             "Refuses every order: proposals are refused, and none waiting can be sent, until it is switched off. Only you can switch it; the agent cannot.",
@@ -531,7 +537,7 @@ type ConfigPath =
   | ["appearance", "palettes", string, "name"]
   | ["appearance", "palettes", string, ColorScheme, PaletteToken]
   | ["tray", "show" | "hideDock"]
-  | ["trading", "locked"]
+  | ["trading", "broker" | "locked"]
   | ["trading", "maxDailyLoss", Currency]
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle" | "finmind", "plan"]

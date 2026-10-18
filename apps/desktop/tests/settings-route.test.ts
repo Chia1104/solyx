@@ -22,6 +22,7 @@ import {
   AppLocation,
   Secret,
   SecretState,
+  TradingBroker,
   agentKeySecret,
   mcpSecretKey,
   webSearchKeySecret,
@@ -132,6 +133,8 @@ function setup() {
     skillFolders,
     instructionsFile: join(configDir, "AGENTS.md"),
     settingsShell: shell,
+    tradingBroker: TradingBroker.Paper,
+    restart: vi.fn(),
     windowEvents: new MemoryPublisher<WindowEvents>(),
     // SAFETY: no procedure a test calls opens a dialog, the only use of the asking window.
     sender: {} as WebContents,
@@ -143,7 +146,7 @@ function setup() {
     interceptors: [keepMessages],
   });
 
-  return { api, config, secrets, mcp, shell };
+  return { api, config, secrets, mcp, shell, restart: context.restart };
 }
 
 test("a web search vendor's key is saved under its id, and the vendor in use is a setting", async () => {
@@ -345,23 +348,47 @@ test("memory is on until the user switches it off", async () => {
 test("orders stay unlocked and without a daily loss limit until the user sets them", async () => {
   const { api, config } = setup();
 
-  expect(await api.trading()).toEqual({ locked: false, maxDailyLoss: {} });
+  expect(await api.trading()).toMatchObject({
+    locked: false,
+    maxDailyLoss: {},
+  });
 
   await api.setOrdersLocked(true);
   await api.setMaxDailyLoss({ currency: Currency.TWD, amount: 50_000 });
 
-  expect(config.read().trading).toEqual({
+  expect(config.read().trading).toMatchObject({
     locked: true,
     maxDailyLoss: { TWD: 50_000 },
   });
-  expect(await api.trading()).toEqual({
+  expect(await api.trading()).toMatchObject({
     locked: true,
     maxDailyLoss: { TWD: 50_000 },
   });
 
   await api.setMaxDailyLoss({ currency: Currency.TWD, amount: null });
 
-  expect(await api.trading()).toEqual({ locked: true, maxDailyLoss: {} });
+  expect(await api.trading()).toMatchObject({ locked: true, maxDailyLoss: {} });
+});
+
+test("orders go to the paper account until the user picks another, which the desk trades once the app starts again", async () => {
+  const { api, config, restart } = setup();
+
+  expect(await api.trading()).toMatchObject({
+    broker: TradingBroker.Paper,
+    trading: TradingBroker.Paper,
+  });
+
+  await api.setTradingBroker(TradingBroker.Fubon);
+
+  expect(config.read().trading.broker).toBe(TradingBroker.Fubon);
+  expect(await api.trading()).toMatchObject({
+    broker: TradingBroker.Fubon,
+    trading: TradingBroker.Paper,
+  });
+
+  await api.restart();
+
+  expect(restart).toHaveBeenCalledTimes(1);
 });
 
 test("MCP servers show each tool under the policy in force, which secrets are saved, and paths from home", async () => {

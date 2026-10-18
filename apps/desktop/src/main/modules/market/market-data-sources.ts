@@ -71,13 +71,16 @@ interface MarketDataSourcesOptions {
   /** A private folder for the Fubon SDK's logs, which hold the ID number and account details. */
   fubonLogDir: string;
   openFubonProcess: (options: FubonSessionOptions) => Promise<FubonProcess>;
+  /** The order desk trades through Fubon, so its session stays while charts come from elsewhere. */
+  tradesFubon: boolean;
 }
 
 /**
  * The provider and stream behind each market's charts, as the user's settings pick them. Keeps
  * one provider per credential and plan, so request budgets hold across requests, and one Fubon
- * session, signed in on first use. Follows the config file and the secret store itself, and says
- * when the stream it would open changes, whoever changed what it reads.
+ * session, signed in on first use, which the order desk reads the account through while it trades
+ * with Fubon. Follows the config file and the secret store itself, and says when the stream it
+ * would open changes, whoever changed what it reads.
  */
 export function createMarketDataSources({
   config,
@@ -85,6 +88,7 @@ export function createMarketDataSources({
   candles,
   fubonLogDir,
   openFubonProcess,
+  tradesFubon,
 }: MarketDataSourcesOptions) {
   let fugle:
     | { apiKey: string; plan: FuglePlan; provider: MarketDataProvider }
@@ -272,7 +276,7 @@ export function createMarketDataSources({
         return (await fubonConnection())?.provider;
       }
 
-      signOutFubon();
+      if (!tradesFubon) signOutFubon();
 
       return fugleProvider();
     },
@@ -321,6 +325,22 @@ export function createMarketDataSources({
           session: await fubonSession(fubonOptions),
         },
       };
+    },
+
+    /**
+     * The session the order desk reads the account through, signed in on first use; it fails
+     * while the settings are incomplete or the sign-in failed, until the user signs in again.
+     */
+    async fubonSession(): Promise<FubonProcess> {
+      const connection = await fubonConnection();
+
+      if (!connection) {
+        throw new Error(
+          "Fubon's sign-in is not set up: choose the SDK folder and certificate, and save your ID number and API key in Market data"
+        );
+      }
+
+      return connection.session;
     },
 
     /** Signs in again with the saved settings, even after a failure; the stream follows the new session. */

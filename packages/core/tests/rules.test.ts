@@ -1,10 +1,12 @@
 import { describe, expect, test } from "vite-plus/test";
 
+import { Side } from "../src/order.ts";
 import {
   isValidTwQuantity,
   twRevenueDeadline,
   twLots,
   twRocDaySchema,
+  twSpendable,
   twTickSize,
 } from "../src/rules/tw.ts";
 import { usTickSize } from "../src/rules/us.ts";
@@ -82,4 +84,19 @@ describe("twRocDaySchema", () => {
 test("shares count in whole board lots, rounded", () => {
   expect(twLots(12_400)).toBe(12);
   expect(twLots(-2_600)).toBe(-3);
+});
+
+test("a Taiwan account spends its bank's balance with every trade not yet settled against it", () => {
+  const today = [
+    // 100,000 bought, with 142.5 commission.
+    { symbol: "2330", side: Side.Buy, quantity: 100, price: 1000 },
+    // 50,000 of a fund sold, less 71.25 commission and 50 tax.
+    { symbol: "0050", side: Side.Sell, quantity: 1000, price: 50 },
+    // An odd lot pays the least commission.
+    { symbol: "2330", side: Side.Buy, quantity: 1, price: 1000 },
+  ];
+
+  expect(twSpendable(1_000_000, [-200_000, 30_000], today)).toBeCloseTo(
+    1_000_000 - 200_000 + 30_000 - 100_142.5 + 49_878.75 - 1_020
+  );
 });

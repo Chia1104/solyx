@@ -78,7 +78,17 @@
     "avg-price": "Avg. price",
     "no-positions": "No positions",
     "cash": "Cash",
-    "unrealized-gain": "Unrealized gain"
+    "unrealized-gain": "Unrealized gain",
+    "working": "Working orders",
+    "order": "Order",
+    "filled": "Filled",
+    "order-status": {
+      "pending": "Sending",
+      "working": "Working",
+      "filled": "Filled",
+      "cancelled": "Cancelled",
+      "refused": "Refused"
+    }
   },
   "review": {
     "title": "Trade review",
@@ -1721,6 +1731,19 @@
       "change-failed": "Couldn't change the theme"
     },
     "trading": {
+      "broker": "Orders go to",
+      "broker-description": "Only you can switch it. A switch takes effect once Solyx restarts.",
+      "brokers": {
+        "paper": "Paper account",
+        "fubon": "Fubon Securities"
+      },
+      "broker-hints": {
+        "paper": "Pretend money; every order fills at once.",
+        "fubon": "Your own account, signed in as set up in Market data."
+      },
+      "restart-title": "Restart to switch accounts",
+      "restart-description": "Orders go to the {{account}} until Solyx restarts, and proposals waiting for you are dismissed then.",
+      "restart": "Restart",
       "lock-description": "Refuses every order until you switch it off. The agent cannot change it.",
       "max-daily-loss": "Daily loss limit ({{currency}})",
       "max-daily-loss-description": "Once a day's sales lose this much, buys in this currency are refused; sales still go.",

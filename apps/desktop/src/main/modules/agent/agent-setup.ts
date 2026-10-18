@@ -194,15 +194,16 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     };
   }
 
-  /** Only the user changes these, since each lifts a limit on orders. */
+  /** Only the user changes these, since each lifts a limit on orders or picks the account they reach. */
   function trading(): SetupArea {
-    const { locked, maxDailyLoss } = config.read().trading;
+    const { broker, locked, maxDailyLoss } = config.read().trading;
 
     return {
       name: "Trading",
       link: settingsLink(SettingsSection.Trading),
       missing: [],
       settings: [
+        entry(["trading", "broker"], broker),
         entry(["trading", "locked"], String(locked)),
         ...Object.values(Currency).map((currency) => ({
           name: `trading.maxDailyLoss.${currency}`,

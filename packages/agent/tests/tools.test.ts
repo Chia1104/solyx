@@ -119,6 +119,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
 
   const proposal = (overrides: Partial<TradeProposal>): TradeProposal => ({
     id: "p1",
+    broker: "paper",
     order: {
       instrument: TSMC,
       side: Side.Buy,
@@ -492,6 +493,7 @@ test("the account tells how its closed round trips went by the stance they were 
   desk.list.mockReturnValueOnce([
     {
       id: "p1",
+      broker: "paper",
       order: {
         instrument: tsmc,
         side: Side.Buy,
@@ -568,6 +570,7 @@ test("checking reports each violation", async () => {
 test("a proposal names the research it was made under, as the desk kept it", () => {
   const made = (basis: ProposalBasis | null): TradeProposal => ({
     id: "p1",
+    broker: "paper",
     order: {
       instrument: TSMC,
       side: Side.Buy,

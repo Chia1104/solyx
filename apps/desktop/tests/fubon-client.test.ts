@@ -62,6 +62,14 @@ function fakeChild(sdk: Partial<FakeSdk> = {}) {
       realtime: fubon.realtime.handler(() =>
         sdk.realtime ? sdk.realtime() : Promise.resolve(REALTIME)
       ),
+      holdings: fubon.holdings.handler(() => ({
+        inventories: [],
+        unrealized: [],
+        bank: { availableBalance: 0 },
+        settlements: [],
+      })),
+      orders: fubon.orders.handler(() => []),
+      fills: fubon.fills.handler(() => []),
       close: fubon.close.handler(() =>
         sdk.close ? sdk.close() : Promise.resolve()
       ),

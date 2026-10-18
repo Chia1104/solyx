@@ -38,6 +38,7 @@ import {
   priceColorsSchema,
   themeSchema,
   timeZonePreferenceSchema,
+  tradingBrokerSchema,
 } from "../settings.ts";
 import type {
   AgentServerModels,
@@ -242,6 +243,10 @@ export const settingsContract = {
   /** Gives the agent its memories from its next run on, or takes them away; they stay saved. */
   setMemoryEnabled: oc.input(z.boolean()).output(type<void>()),
   trading: oc.output(type<TradingSettings>()),
+  /** Picks the account orders go to from the app's next start on. */
+  setTradingBroker: oc.input(tradingBrokerSchema).output(type<void>()),
+  /** Quits the app and starts it again, as a change that waits for a restart needs. */
+  restart: oc.output(type<void>()),
   /** Locks orders, or unlocks them, from the next check on. */
   setOrdersLocked: oc.input(z.boolean()).output(type<void>()),
   /** Sets the most a currency's sales may lose in a day from the next check on; `null` lifts the limit. */

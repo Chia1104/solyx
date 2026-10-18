@@ -3,7 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import type { BrokerOrder } from "@solyx/core/broker";
 import { symbolKey } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
+import { OrderType } from "@solyx/core/order";
 import type { Position } from "@solyx/core/order";
 
 import { orpc } from "../../app/rpc.ts";
@@ -41,11 +44,81 @@ export function AccountSummary() {
             ))}
           </dl>
           <PositionsTable positions={data.positions} />
+          <WorkingOrders />
         </div>
       ) : (
         <LoadingState />
       )}
     </Section>
+  );
+}
+
+function ListingLink({ symbol }: { symbol: SymbolRef }) {
+  const { t } = useTranslation();
+
+  return (
+    <Link
+      to="/symbol/$market/$symbol"
+      params={{ market: symbol.market, symbol: symbol.symbol }}
+      className="flex min-w-0 items-baseline gap-1.5 hover:underline">
+      <span className="shrink-0 font-medium">{symbol.symbol}</span>
+      <ListingName symbol={symbol} />
+      <span className="shrink-0 text-xs text-muted">
+        {t(`market.${symbol.market}`)}
+      </span>
+    </Link>
+  );
+}
+
+/** The day's orders that may still fill, wherever they were placed; none shows nothing. */
+function WorkingOrders() {
+  const { t, i18n } = useTranslation();
+  const format = numberFormats(i18n.language);
+  const { data } = useQuery(orpc.account.working.queryOptions());
+
+  if (!data?.length) return null;
+
+  const price = ({ order }: BrokerOrder) =>
+    order.type === OrderType.Limit
+      ? format.price.format(order.limitPrice)
+      : t("proposals.market-price");
+
+  return (
+    <Table variant="secondary">
+      <Table.ScrollContainer>
+        <Table.Content aria-label={t("account.working")}>
+          <Table.Header>
+            <Table.Column isRowHeader>{t("account.working")}</Table.Column>
+            <Table.Column>{t("account.order")}</Table.Column>
+            <Table.Column>{t("account.filled")}</Table.Column>
+          </Table.Header>
+          <Table.Body>
+            <Table.Collection items={data}>
+              {(working) => (
+                <Table.Row id={working.id}>
+                  <Table.Cell>
+                    <ListingLink symbol={working.order.instrument} />
+                  </Table.Cell>
+                  <Table.Cell className="tabular-nums">
+                    {t("proposals.summary", {
+                      side: t(`side.${working.order.side}`),
+                      quantity: working.order.quantity,
+                      price: price(working),
+                    })}
+                  </Table.Cell>
+                  <Table.Cell className="tabular-nums">
+                    {format.price.format(working.filled)}{" "}
+                    <span className="text-xs text-muted">
+                      {t(`account.order-status.${working.status}`)}
+                    </span>
+                  </Table.Cell>
+                </Table.Row>
+              )}
+            </Table.Collection>
+          </Table.Body>
+        </Table.Content>
+      </Table.ScrollContainer>
+    </Table>
   );
 }
 
@@ -72,21 +145,7 @@ function PositionsTable({ positions }: { positions: Position[] }) {
               {(position) => (
                 <Table.Row id={symbolKey(position.instrument)}>
                   <Table.Cell>
-                    <Link
-                      to="/symbol/$market/$symbol"
-                      params={{
-                        market: position.instrument.market,
-                        symbol: position.instrument.symbol,
-                      }}
-                      className="flex min-w-0 items-baseline gap-1.5 hover:underline">
-                      <span className="shrink-0 font-medium">
-                        {position.instrument.symbol}
-                      </span>
-                      <ListingName symbol={position.instrument} />
-                      <span className="shrink-0 text-xs text-muted">
-                        {t(`market.${position.instrument.market}`)}
-                      </span>
-                    </Link>
+                    <ListingLink symbol={position.instrument} />
                   </Table.Cell>
                   <Table.Cell className="tabular-nums">
                     {format.price.format(position.quantity)}
