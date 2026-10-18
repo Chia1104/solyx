@@ -73,8 +73,9 @@ export function orderTag(id: string): string {
 }
 
 /**
- * One implementation per broker (`@solyx/brokers/*`). Only the `OrderDesk` holds one, and nothing
- * outside `OrderDesk.confirm` may call `placeOrder`.
+ * One implementation per broker (`@solyx/brokers/*`). Only the `OrderDesk` holds one, nothing
+ * outside `OrderDesk.confirm` may call `placeOrder`, and nothing outside `OrderDesk.cancel`
+ * may call `cancelOrder`.
  */
 export interface BrokerAdapter {
   readonly id: string;
@@ -90,4 +91,9 @@ export interface BrokerAdapter {
    * broker surely holds nothing of the order.
    */
   placeOrder(order: OrderRequest, tag: string): Promise<{ orderId: string }>;
+  /**
+   * Asks the broker to cancel the account's order `id`, whoever placed it; its orders tell what
+   * came of it and what filled first. Throws where the broker did not take the request.
+   */
+  cancelOrder(id: string): Promise<void>;
 }

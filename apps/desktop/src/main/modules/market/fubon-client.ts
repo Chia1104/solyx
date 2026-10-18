@@ -5,7 +5,7 @@ import type { RouterContractClient } from "@orpc/contract";
 
 import type {
   FubonAccount,
-  FubonReader,
+  FubonTrading,
   FubonRealtime,
   FubonSessionOptions,
 } from "@solyx/brokers/fubon";
@@ -16,8 +16,8 @@ import type { fubonContract } from "../../../utility/fubon.contract.ts";
 // fails the chart waiting on it instead of holding it.
 const ANSWER_TIMEOUT_MS = 30_000;
 
-/** A Fubon session held by a utility process of its own, which a Fubon broker reads through. */
-export interface FubonProcess extends FubonReader {
+/** A Fubon session held by a utility process of its own, which a Fubon broker trades through. */
+export interface FubonProcess extends FubonTrading {
   accounts: FubonAccount[];
   /** Exchanges the session for a market data token. */
   realtime(): Promise<FubonRealtime>;
@@ -94,6 +94,8 @@ export async function connectFubon(
       holdings: () => call((signal) => fubon.holdings(undefined, { signal })),
       orders: (from) => call((signal) => fubon.orders(from, { signal })),
       fills: (from) => call((signal) => fubon.fills(from, { signal })),
+      place: (order) => call((signal) => fubon.place(order, { signal })),
+      cancel: (id) => call((signal) => fubon.cancel(id, { signal })),
 
       close() {
         // The process ends even when signing out fails or stalls.

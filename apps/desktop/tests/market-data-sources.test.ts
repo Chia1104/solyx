@@ -48,6 +48,8 @@ function fakeSession(): FubonProcess {
     }),
     orders: async () => [],
     fills: async () => [],
+    place: vi.fn(),
+    cancel: vi.fn(),
     close: vi.fn(),
   };
 }

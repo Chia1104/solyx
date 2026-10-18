@@ -59,17 +59,29 @@ export interface Fill {
   price: number;
   /** UTC milliseconds. */
   filledAt: number;
-  /** What a sale gained over the average cost of the shares it sold, before fees and tax; `null` for a buy. */
+  /**
+   * What a sale gained over the average cost of the shares it sold, as the broker reckons it;
+   * `null` for a buy, or a sale the broker has yet to reckon.
+   */
   realized: number | null;
 }
 
-/** What the fills' sales in `currency` gained in all, a loss below zero. */
-export function realizedIn(fills: readonly Fill[], currency: Currency): number {
-  return sumBy(fills, ({ instrument, realized }) =>
-    realized !== null && currencyOf(instrument.market) === currency
-      ? realized
-      : 0
+/**
+ * What the fills' sales in `currency` gained in all, a loss below zero; `null` while the broker
+ * has yet to reckon one of them.
+ */
+export function realizedIn(
+  fills: readonly Fill[],
+  currency: Currency
+): number | null {
+  const sales = fills.filter(
+    ({ instrument, side }) =>
+      side === Side.Sell && currencyOf(instrument.market) === currency
   );
+
+  if (sales.some(({ realized }) => realized === null)) return null;
+
+  return sumBy(sales, ({ realized }) => realized ?? 0);
 }
 
 /** A position marked at a price. */

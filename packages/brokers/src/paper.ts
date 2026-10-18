@@ -128,6 +128,12 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
         );
     },
 
+    async cancelOrder() {
+      throw new Error(
+        "The paper account fills every order as it takes it, so none is left to cancel"
+      );
+    },
+
     async placeOrder(order, tag) {
       const { now = Date.now } = options;
       const price = await fillPrice(order);

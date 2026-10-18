@@ -14,7 +14,7 @@ import type { BrokerAdapter, BrokerOrder } from "@solyx/core/broker";
 import { MARKET_TIME_ZONE, Market, exchangeDate } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
 import type { AccountSnapshot, Fill, OrderRequest } from "@solyx/core/order";
-import { twSpendable } from "@solyx/core/rules/tw";
+import { isTwOddLot, twSpendable } from "@solyx/core/rules/tw";
 import type { TwTrade } from "@solyx/core/rules/tw";
 
 interface FubonResult<T> {
@@ -30,8 +30,36 @@ export interface FubonAccount {
   accountType: string;
 }
 
+/** An order as Fubon's SDK takes it. */
+export interface FubonOrderObject {
+  buySell: string;
+  symbol: string;
+  /** Shares: whole lots in the regular book, 1–999 in the intraday odd-lot one. */
+  quantity: number;
+  marketType: string;
+  priceType: string;
+  timeInForce: string;
+  orderType: string;
+  /** A limit order's price; a market order takes none. */
+  price?: string;
+  /** The app's tag, which Fubon keeps with the order. */
+  userDef: string;
+}
+
 /** The slice of the SDK's `Stock` this module calls. */
 interface FubonStock {
+  placeOrder(
+    account: FubonAccount,
+    order: FubonOrderObject,
+    unblock: boolean
+  ): FubonResult<unknown>;
+  /** Takes the order as `getOrderResults` gave it. */
+  cancelOrder(
+    account: FubonAccount,
+    order: FubonListedOrder,
+    unblock: boolean
+  ): FubonResult<unknown>;
+  getOrderResults(account: FubonAccount): FubonResult<unknown>;
   getOrderResultsDetail(account: FubonAccount): FubonResult<unknown>;
   orderHistory(
     account: FubonAccount,
@@ -211,9 +239,18 @@ const orderResultSchema = z.object({
   orderType: optionalText,
   status: optionalNumber,
   userDef: optionalText,
+  errorMessage: optionalText,
   lastTime: z.string(),
   details: z.array(z.object({ modifiedTime: z.string() })).nullish(),
 });
+
+// Every field of a listed order is kept, since the SDK cancels an order as it listed it.
+const listedOrderSchema = z.looseObject({
+  date: z.string(),
+  orderNo: optionalText,
+});
+
+type FubonListedOrder = z.infer<typeof listedOrderSchema>;
 
 const filledSchema = z.object({
   date: z.string(),
@@ -262,6 +299,13 @@ export interface FubonSession {
   orders(from: string): FubonOrder[];
   /** The stock account's fills from `from`, an exchange-local day, through today. */
   fills(from: string): FubonFill[];
+  /**
+   * Places `order` and waits for Fubon's answer. Throws where Fubon gave no order back, which
+   * leaves whether it took the order unknown.
+   */
+  place(order: FubonOrderObject): FubonOrder;
+  /** Asks Fubon to cancel today's order `id`; throws where it did not take the request. */
+  cancel(id: string): void;
   close(): void;
 }
 
@@ -504,6 +548,53 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
       });
     },
 
+    place(order) {
+      const result = sdk.stock.placeOrder(stockAccount(), order, false);
+      const placed = orderResultSchema.safeParse(result.data ?? null);
+
+      // A failure Fubon answers with the order it failed is a refusal; one without is not known
+      // to have reached the exchange or not.
+      if (
+        placed.success &&
+        (result.isSuccess || placed.data.status === FUBON_FAILED)
+      ) {
+        return placed.data;
+      }
+
+      throw new Error(
+        `Fubon gave no order back: ${result.message ?? "no reason given"}`
+      );
+    },
+
+    cancel(id) {
+      const [day, orderNo] = id.split(":");
+      const account = stockAccount();
+
+      paceQuery();
+
+      const listed = answer(
+        "order query",
+        sdk.stock.getOrderResults(account),
+        z.array(listedOrderSchema).nullable()
+      );
+
+      const order = listed?.find(
+        (each) => isoDay(each.date) === day && each.orderNo === orderNo
+      );
+
+      if (order === undefined) {
+        throw new Error(`Fubon lists no order ${id} today to cancel`);
+      }
+
+      const result = sdk.stock.cancelOrder(account, order, false);
+
+      if (!result.isSuccess) {
+        throw new Error(
+          `Fubon did not cancel ${id}: ${result.message ?? "no reason"}`
+        );
+      }
+    },
+
     close() {
       sdk.logout();
     },
@@ -529,6 +620,32 @@ const CASH_ORDER = "Stock";
 const fubonOrderId = (date: string, orderNo: string) =>
   `${isoDay(date)}:${orderNo}`;
 
+/**
+ * `order` as Fubon takes it, marked with the app's `tag`: whole lots go to the regular book and
+ * an odd lot to the intraday odd-lot one, each a cash order that stands until the session closes.
+ */
+export function fubonOrderObject(
+  order: OrderRequest,
+  tag: string
+): FubonOrderObject {
+  const base = {
+    buySell: order.side === Side.Buy ? "Buy" : "Sell",
+    symbol: order.instrument.symbol,
+    quantity: order.quantity,
+    marketType: isTwOddLot(order.quantity) ? "IntradayOdd" : "Common",
+    timeInForce: "ROD",
+    orderType: CASH_ORDER,
+    userDef: tag,
+  };
+
+  return order.type === OrderType.Limit
+    ? { ...base, priceType: "Limit", price: String(order.limitPrice) }
+    : { ...base, priceType: "Market" };
+}
+
+/** The status of an order Fubon or the exchange turned down. */
+const FUBON_FAILED = 90;
+
 const FUBON_STATUS = new Map<number, BrokerOrderStatus>([
   [0, BrokerOrderStatus.Pending],
   [4, BrokerOrderStatus.Pending],
@@ -539,7 +656,7 @@ const FUBON_STATUS = new Map<number, BrokerOrderStatus>([
   [30, BrokerOrderStatus.Cancelled],
   [40, BrokerOrderStatus.Cancelled],
   [50, BrokerOrderStatus.Filled],
-  [90, BrokerOrderStatus.Refused],
+  [FUBON_FAILED, BrokerOrderStatus.Refused],
 ]);
 
 /**
@@ -583,7 +700,8 @@ export function fubonOrder(
 
   return {
     id: fubonOrderId(result.date, orderNo),
-    tag: result.userDef?.trim() || null,
+    // Fubon may change a tag's case as it keeps it, and the app's tags are upper case.
+    tag: result.userDef?.trim().toUpperCase() || null,
     order,
     filled: result.filledQty ?? 0,
     status:
@@ -699,24 +817,28 @@ export function fubonAccount(
 }
 
 /** The calls a Fubon broker makes of the session, which lives in a process of its own. */
-export interface FubonReader {
+export interface FubonTrading {
   holdings(): Promise<FubonHoldings>;
   orders(from: string): Promise<FubonOrder[]>;
   fills(from: string): Promise<FubonFill[]>;
+  place(order: FubonOrderObject): Promise<FubonOrder>;
+  cancel(id: string): Promise<void>;
 }
 
 /**
- * Fubon's stock account, read through `reader`. It never signs in itself: the SDK runs only in a
- * process of its own, and market data and trading share one sign-in, since repeated sign-ins could
- * lock the account.
+ * Fubon's stock account, traded through the session `session` hands it. It never signs in itself:
+ * the SDK runs only in a process of its own, and market data and trading share one sign-in, since
+ * repeated sign-ins could lock the account.
  */
-export function createFubonBroker(reader: FubonReader): BrokerAdapter {
+export function createFubonBroker(
+  session: () => Promise<FubonTrading>
+): BrokerAdapter {
   const today = () => exchangeDate(Market.TW);
 
   async function orders(from: string) {
     const day = today();
 
-    return (await reader.orders(from)).flatMap((result) => {
+    return (await (await session()).orders(from)).flatMap((result) => {
       const order = fubonOrder(result, day);
 
       return order ? [order] : [];
@@ -724,7 +846,7 @@ export function createFubonBroker(reader: FubonReader): BrokerAdapter {
   }
 
   async function fills(from: string) {
-    return (await reader.fills(from)).flatMap((fill) => {
+    return (await (await session()).fills(from)).flatMap((fill) => {
       const read = fubonFill(fill);
 
       return read ? [read] : [];
@@ -751,7 +873,7 @@ export function createFubonBroker(reader: FubonReader): BrokerAdapter {
       const day = today();
 
       const [holdings, booked, filled] = await Promise.all([
-        reader.holdings(),
+        (await session()).holdings(),
         orders(day),
         fills(day),
       ]);
@@ -771,8 +893,27 @@ export function createFubonBroker(reader: FubonReader): BrokerAdapter {
       );
     },
 
-    async placeOrder() {
-      throw new OrderRefusedError("Solyx does not place orders with Fubon yet");
+    async placeOrder(order, tag) {
+      const placed = await (
+        await session()
+      ).place(fubonOrderObject(order, tag));
+
+      if (placed.status === FUBON_FAILED) {
+        throw new OrderRefusedError(
+          `Fubon refused the order: ${placed.errorMessage ?? "no reason given"}`
+        );
+      }
+
+      // The desk finds an order Fubon has yet to number by its tag once it has one.
+      if (!placed.orderNo) {
+        throw new Error("Fubon took the order but has yet to number it");
+      }
+
+      return { orderId: fubonOrderId(placed.date, placed.orderNo) };
+    },
+
+    async cancelOrder(id) {
+      await (await session()).cancel(id);
     },
   };
 }

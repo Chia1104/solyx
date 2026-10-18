@@ -170,7 +170,7 @@ export interface OrderDeskOptions {
   createId?: () => string;
 }
 
-/** The desk as an agent may use it: proposing and reading, never confirming or dismissing. */
+/** The desk as an agent may use it: proposing and reading, never confirming, dismissing or cancelling. */
 export type ProposingDesk = Pick<
   OrderDesk,
   "check" | "propose" | "list" | "account" | "fills" | "working" | "mode"
@@ -248,6 +248,19 @@ export class OrderDesk {
   /** The account's orders placed from `since`, UTC milliseconds, on, oldest first. */
   orders(since: number): Promise<BrokerOrder[]> {
     return this.#options.broker.getOrders(since);
+  }
+
+  /**
+   * Asks the broker to cancel the account's order `orderId`, whoever placed it; the account's
+   * orders then tell what came of it. Only a user action reaches it.
+   */
+  async cancel(orderId: string): Promise<void> {
+    try {
+      await this.#options.broker.cancelOrder(orderId);
+    } finally {
+      // Whatever the broker answered, the account may have changed.
+      this.#options.onChange?.();
+    }
   }
 
   /** The orders of the account's current market days that may still fill, oldest first. */
