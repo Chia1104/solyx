@@ -24,6 +24,7 @@ import { MarketFlows } from "../modules/flows/market-flows.tsx";
 import { InboxSection } from "../modules/inbox/inbox-section.tsx";
 import { QuoteHeatMap } from "../modules/market/quote-heat-map.tsx";
 import { SectorHeatMap } from "../modules/market/sector-heat-map.tsx";
+import { SectorMovers } from "../modules/market/sector-movers.tsx";
 import { HeadlineList } from "../modules/news/headline-list.tsx";
 import { HEADLINE_DAYS } from "../modules/news/news-query.ts";
 import { ThemeList } from "../modules/themes/theme-list.tsx";
@@ -180,6 +181,11 @@ export function OverviewPage() {
           title={t("heat-map.sectors.title")}
           description={t("heat-map.sectors.description")}>
           <SectorHeatMap />
+        </Section>
+        <Section
+          title={t("heat-map.movers.title")}
+          description={t("heat-map.movers.description")}>
+          <SectorMovers />
         </Section>
         <Section
           title={t("flows.market-title")}

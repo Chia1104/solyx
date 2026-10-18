@@ -307,6 +307,7 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const sectors = createSectorTools({
     sectors: options.sectors,
+    movers: (sector) => options.fundamentals.sectorMovers(sector),
     marketData: options.marketData,
   });
 

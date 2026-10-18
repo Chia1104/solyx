@@ -943,6 +943,44 @@ test("reads the limits both exchanges set for the next session, a listing withou
   ]);
 });
 
+test("reads the closes of TWSE's last session, leaving out a listing that did not trade", async () => {
+  const { sent, exchanges } = fakeExchanges({
+    [`${TWSE}exchangeReport/STOCK_DAY_ALL`]: [
+      {
+        Date: "1151016",
+        Code: "2330",
+        Name: "範例電子",
+        TradeVolume: "43046982",
+        TradeValue: "104583063462",
+        OpeningPrice: "2430.00",
+        HighestPrice: "2445.00",
+        LowestPrice: "2420.00",
+        ClosingPrice: "2420.00",
+        Change: "-20.0000",
+        Transaction: "400499",
+      },
+      {
+        Date: "1151016",
+        Code: "9999",
+        Name: "範例未成交",
+        TradeVolume: "0",
+        TradeValue: "0",
+        OpeningPrice: "",
+        HighestPrice: "",
+        LowestPrice: "",
+        ClosingPrice: "",
+        Change: "",
+        Transaction: "0",
+      },
+    ],
+  });
+
+  expect(await exchanges.getSectorCloses(Market.TW)).toEqual([
+    { symbol: "2330", date: "2026-10-16", close: 2420, change: -20 },
+  ]);
+  expect(sent).toEqual([`${TWSE}exchangeReport/STOCK_DAY_ALL`]);
+});
+
 test("outside Taiwan there is nothing to read, and it costs no request", async () => {
   const { sent, exchanges } = fakeExchanges();
 
@@ -953,6 +991,7 @@ test("outside Taiwan there is nothing to read, and it costs no request", async (
   expect(await exchanges.getMeetings(Market.US)).toEqual([]);
   expect(await exchanges.getClosures(Market.US)).toEqual([]);
   expect(await exchanges.getCompanies(Market.US)).toEqual([]);
+  expect(await exchanges.getSectorCloses(Market.US)).toEqual([]);
   expect(await exchanges.getPriceLimits(Market.US)).toEqual([]);
   expect(sent).toEqual([]);
 });

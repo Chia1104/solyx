@@ -335,6 +335,7 @@ function setup(councils?: Council[], read?: string[], watched = false) {
     meetings: async () => [],
     peers: async () => filed.peers ?? null,
     company: async () => filed.company ?? null,
+    sectorMovers: async () => null,
     priceLimits: async () => null,
   };
 

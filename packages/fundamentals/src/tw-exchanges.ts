@@ -17,6 +17,7 @@ import type {
 import { Market, exchangeDate } from "@solyx/core/market";
 import type { PriceLimits } from "@solyx/core/risk";
 import { twRocDaySchema } from "@solyx/core/rules/tw";
+import type { SessionClose } from "@solyx/core/sectors";
 import { weekdays } from "@solyx/core/session";
 import type { ClosuresProvider } from "@solyx/core/session";
 import { shiftDate } from "@solyx/utils/date";
@@ -608,6 +609,21 @@ const tpexLimitSchema = z
     )
   );
 
+// A listing's close of TWSE's last session; one that did not trade has no close and is left out.
+const twseCloseSchema = z
+  .object({
+    Code: codeSchema,
+    Date: twRocDaySchema,
+    ClosingPrice: priceSchema,
+    Change: textSchema.regex(/^[-+]?\d+(\.\d+)?$/).transform(Number),
+  })
+  .transform((row): Listed<SessionClose> => ({
+    symbol: row.Code,
+    date: row.Date,
+    close: row.ClosingPrice,
+    change: row.Change,
+  }));
+
 // TWSE's days of the year, each with what it calls the day.
 const twseDaySchema = z.object({
   Name: textSchema.min(1),
@@ -849,6 +865,13 @@ export function createTwExchanges(
         ),
         ...tpexLimits,
       ];
+    },
+
+    // The sector indices are TWSE's, so only its listings' closes are read.
+    async getSectorCloses(market) {
+      if (market !== Market.TW) return [];
+
+      return list(twse, "exchangeReport/STOCK_DAY_ALL", twseCloseSchema);
     },
 
     async getClosures(market) {

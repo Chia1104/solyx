@@ -1,4 +1,5 @@
 import type { SymbolRef } from "@solyx/core/market";
+import type { TwSector } from "@solyx/core/sectors";
 
 import { orpc } from "../../app/rpc.ts";
 
@@ -8,3 +9,7 @@ import { orpc } from "../../app/rpc.ts";
  */
 export const financialTrendsQuery = (symbol: SymbolRef) =>
   orpc.fundamentals.trends.queryOptions({ input: symbol });
+
+/** Goes stale on its own: the main process keeps the exchange's lists for an hour, and nothing pushes when it publishes a session. */
+export const sectorMoversQuery = (sector: TwSector) =>
+  orpc.fundamentals.sectorMovers.queryOptions({ input: sector });
