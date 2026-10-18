@@ -304,7 +304,10 @@
       "short-sale-suspension": "暫停融券賣出",
       "day-trading-suspension": "暫停先賣後買當沖",
       "disposition": "處置股票",
-      "halt": "暫停交易"
+      "halt": "暫停交易",
+      "attention": "注意股票",
+      "near-disposition": "注意累計，可能被處置",
+      "altered-trading": "變更交易（全額交割）"
     },
     "noticed": {
       "ex-dividend": "除息，金額尚未公告",

@@ -14,7 +14,7 @@ import type {
   ShareholdersMeeting,
   TradingRestriction,
 } from "@solyx/core/fundamentals";
-import { Market } from "@solyx/core/market";
+import { Market, exchangeDate } from "@solyx/core/market";
 import type { PriceLimits } from "@solyx/core/risk";
 import { twRocDaySchema } from "@solyx/core/rules/tw";
 import { weekdays } from "@solyx/core/session";
@@ -145,6 +145,129 @@ const tpexDispositionSchema = z
     until: row.DispositionPeriod[1],
     note: row.DispositionReasons || null,
   }));
+
+// A notice of attention, kept while the exchange's list holds it.
+const attention = (
+  symbol: string,
+  from: string,
+  note: string
+): Listed<TradingRestriction> => ({
+  symbol,
+  kind: RestrictionKind.Attention,
+  from,
+  until: null,
+  note: note || null,
+});
+
+const twseAttentionSchema = z
+  .object({
+    Code: codeSchema,
+    Date: twRocDaySchema,
+    TradingInfoForAttention: textSchema,
+  })
+  .transform((row) =>
+    attention(row.Code, row.Date, row.TradingInfoForAttention)
+  );
+
+const tpexAttentionSchema = z
+  .object({
+    SecuritiesCompanyCode: codeSchema,
+    Date: twRocDaySchema,
+    TradingInformation: textSchema,
+  })
+  .transform((row) =>
+    attention(row.SecuritiesCompanyCode, row.Date, row.TradingInformation)
+  );
+
+// How often a listing met the attention criteria, as `115年10月13日至115年10月16日連續四次`, which ends on its last day.
+const RUN_END = /至(\d{2,3})年(\d{1,2})月(\d{1,2})日/;
+
+const runSchema = textSchema.regex(RUN_END).transform((run) => {
+  const [, year = "", month = "", day = ""] = RUN_END.exec(run) ?? [];
+
+  return {
+    run,
+    day: twRocDaySchema.parse(
+      `${year}${month.padStart(2, "0")}${day.padStart(2, "0")}`
+    ),
+  };
+});
+
+const nearDisposition = (
+  symbol: string,
+  { run, day }: z.infer<typeof runSchema>
+): Listed<TradingRestriction> => ({
+  symbol,
+  kind: RestrictionKind.NearDisposition,
+  from: day,
+  until: null,
+  note: run,
+});
+
+const twseNearDispositionSchema = z
+  .object({
+    Code: codeSchema,
+    RecentlyMetAttentionSecuritiesCriteria: runSchema,
+  })
+  .transform((row) =>
+    nearDisposition(row.Code, row.RecentlyMetAttentionSecuritiesCriteria)
+  );
+
+const tpexNearDispositionSchema = z
+  .object({
+    SecuritiesCompanyCode: codeSchema,
+    AccumulationSituation: runSchema,
+  })
+  .transform((row) =>
+    nearDisposition(row.SecuritiesCompanyCode, row.AccumulationSituation)
+  );
+
+// TPEx marks a term a listing trades under with a full-width `Ｙ`.
+const MARKED = "Ｙ";
+
+const markSchema = textSchema.transform((mark) => mark === MARKED);
+
+// What TPEx lists of a listing's terms; only altered trading, batched matching and managed stock alter how it trades.
+const tpexTermsSchema = z.object({
+  SecuritiesCompanyCode: codeSchema,
+  Date: twRocDaySchema,
+  AlteredTrading: markSchema,
+  PeriodicTrading: markSchema,
+  ManagedStock: markSchema,
+});
+
+// The words the exchanges' own pages give the terms that come on top of altered trading.
+const PERIODIC = "分盤交易";
+
+const MANAGED = "管理股票";
+
+/** Altered trading in force today, with the terms that come on top of it; `null` where none alters it. */
+function alteredTrading(
+  symbol: string,
+  from: string,
+  terms: { altered: boolean; periodic: boolean; managed: boolean }
+): Listed<TradingRestriction> | null {
+  if (!terms.altered && !terms.periodic && !terms.managed) return null;
+
+  const note = [
+    terms.periodic ? PERIODIC : null,
+    terms.managed ? MANAGED : null,
+  ].filter((part) => part !== null);
+
+  return {
+    symbol,
+    kind: RestrictionKind.AlteredTrading,
+    from,
+    until: null,
+    note: note.length > 0 ? note.join("、") : null,
+  };
+}
+
+// TWSE's list of what trades under altered terms names no day, so it is today's; `**` marks batched matching.
+const twseAlteredSchema = z.object({
+  Code: codeSchema,
+  PeriodicCallAuctionTrading: textSchema,
+});
 
 // One line of TPEx's halts of the year: a halt, or the resumption of the halt listed before it for the same code.
 const tpexHaltRowSchema = z.object({
@@ -515,6 +638,8 @@ async function list<Row>(
 export interface TwExchangesOptions {
   /** @default globalThis.fetch */
   fetch?: typeof globalThis.fetch;
+  /** Dates the lists that name no day of their own. @default () => new Date() */
+  now?: () => Date;
 }
 
 /**
@@ -530,6 +655,8 @@ export interface TwExchangesOptions {
 export function createTwExchanges(
   options: TwExchangesOptions = {}
 ): ExchangeListsProvider & ClosuresProvider {
+  const { now = () => new Date() } = options;
+
   const exchange = (name: string, baseUrl: string, code: string): Exchange => ({
     name,
     code,
@@ -577,6 +704,32 @@ export function createTwExchanges(
         list(tpex, "tpex_intraday_trading_pre", tpexDayTradingSchema),
         list(tpex, "tpex_disposal_information", tpexDispositionSchema),
         list(tpex, "tpex_spendi_history", tpexHaltRowSchema).then(tpexHalts),
+        list(twse, "announcement/notice", twseAttentionSchema),
+        list(tpex, "tpex_trading_warning_information", tpexAttentionSchema),
+        list(twse, "announcement/notetrans", twseNearDispositionSchema),
+        list(tpex, "tpex_trading_warning_note", tpexNearDispositionSchema),
+        list(twse, "exchangeReport/TWT85U", twseAlteredSchema).then((rows) => {
+          const today = exchangeDate(Market.TW, now());
+
+          return rows.flatMap(
+            (row) =>
+              alteredTrading(row.Code, today, {
+                altered: true,
+                periodic: row.PeriodicCallAuctionTrading === "**",
+                managed: false,
+              }) ?? []
+          );
+        }),
+        list(tpex, "tpex_cmode", tpexTermsSchema).then((rows) =>
+          rows.flatMap(
+            (row) =>
+              alteredTrading(row.SecuritiesCompanyCode, row.Date, {
+                altered: row.AlteredTrading,
+                periodic: row.PeriodicTrading,
+                managed: row.ManagedStock,
+              }) ?? []
+          )
+        ),
       ]);
 
       return sortBy(lists.flat(), [({ from }) => from]);

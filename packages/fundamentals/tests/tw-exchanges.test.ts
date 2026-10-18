@@ -10,7 +10,10 @@ const TWSE = "https://openapi.twse.com.tw/v1/";
 const TPEX = "https://www.tpex.org.tw/openapi/v1/";
 
 /** Answers each list with what is given for its address, and with no rows for one not given. */
-function fakeExchanges(lists: Record<string, object[] | Response> = {}) {
+function fakeExchanges(
+  lists: Record<string, object[] | Response> = {},
+  now?: () => Date
+) {
   const sent: string[] = [];
 
   const fetch = async (input: string | URL | Request, init?: RequestInit) => {
@@ -23,7 +26,7 @@ function fakeExchanges(lists: Record<string, object[] | Response> = {}) {
     return answer instanceof Response ? answer : Response.json(answer);
   };
 
-  return { sent, exchanges: createTwExchanges({ fetch }) };
+  return { sent, exchanges: createTwExchanges({ fetch, now }) };
 }
 
 test("reads both exchanges' lists into one market's restrictions, oldest first", async () => {
@@ -220,14 +223,144 @@ test("reads both exchanges' lists into one market's restrictions, oldest first",
     },
   ]);
   expect(sent.toSorted()).toEqual([
+    `${TWSE}announcement/notetrans`,
+    `${TWSE}announcement/notice`,
     `${TWSE}announcement/punish`,
     `${TWSE}exchangeReport/BFI84U`,
+    `${TWSE}exchangeReport/TWT85U`,
     `${TWSE}exchangeReport/TWTAWU`,
     `${TWSE}exchangeReport/TWTBAU1`,
+    `${TPEX}tpex_cmode`,
     `${TPEX}tpex_disposal_information`,
     `${TPEX}tpex_intraday_trading_pre`,
     `${TPEX}tpex_margin_trading_term`,
     `${TPEX}tpex_spendi_history`,
+    `${TPEX}tpex_trading_warning_information`,
+    `${TPEX}tpex_trading_warning_note`,
+  ]);
+});
+
+test("reads the exchanges' attention notices, the runs of them that may lead to disposition, and altered trading", async () => {
+  const { exchanges } = fakeExchanges(
+    {
+      [`${TWSE}announcement/notice`]: [
+        {
+          Number: "1",
+          Code: "2330",
+          Name: "範例電子",
+          NumberOfAnnouncement: "1",
+          TradingInfoForAttention: "當日週轉率達10%(第四款)",
+          Date: "1151016",
+          ClosingPrice: "1000.00",
+          PE: "20.00",
+        },
+      ],
+      [`${TPEX}tpex_trading_warning_information`]: [
+        {
+          Date: "1151016",
+          SecuritiesCompanyCode: "5483",
+          CompanyName: "範例矽晶",
+          TradingInformation:
+            "最近六個營業日(含當日)累積之最後成交價漲幅達32%(第一款)",
+          ClosePrice: "150.00",
+          PriceEarningRatio: "N/A",
+        },
+      ],
+      [`${TWSE}announcement/notetrans`]: [
+        {
+          Code: "2317",
+          Name: "範例精密",
+          RecentlyMetAttentionSecuritiesCriteria:
+            "115年10月13日至115年10月16日連續四次",
+        },
+      ],
+      // TPEx dates the list in the Gregorian calendar, so the run's own last day is read.
+      [`${TPEX}tpex_trading_warning_note`]: [
+        {
+          Date: "20261016",
+          SecuritiesCompanyCode: "6217",
+          CompanyName: "範例探針",
+          AccumulationSituation: "115年10月15日至115年10月16日連續二次",
+        },
+      ],
+      [`${TWSE}exchangeReport/TWT85U`]: [
+        { Code: "1213", Name: "範例飲料", PeriodicCallAuctionTrading: "  " },
+        { Code: "2314", Name: "範例通訊", PeriodicCallAuctionTrading: "**" },
+      ],
+      [`${TPEX}tpex_cmode`]: [
+        {
+          Date: "1151016",
+          SecuritiesCompanyCode: "3064",
+          CompanyName: "範例科技",
+          AlteredTrading: "Ｙ",
+          PeriodicTrading: "Ｙ",
+          ManagedStock: "Ｙ",
+          MatchingFrequency: "",
+          SuspensionOfTrading: "",
+          " FinancialAnnouncements": "Ｙ",
+        },
+        // Halted alone, which the list of halts tells.
+        {
+          Date: "1151016",
+          SecuritiesCompanyCode: "2067",
+          CompanyName: "範例鋼鐵",
+          AlteredTrading: "",
+          PeriodicTrading: "",
+          ManagedStock: "",
+          MatchingFrequency: "",
+          SuspensionOfTrading: "Ｙ",
+          " FinancialAnnouncements": "Ｙ",
+        },
+      ],
+    },
+    () => new Date("2026-10-19T09:00:00+08:00")
+  );
+
+  const restriction = (
+    symbol: string,
+    kind: RestrictionKind,
+    from: string,
+    note: string | null
+  ) => ({ symbol, kind, from, until: null, note });
+
+  expect(await exchanges.getRestrictions(Market.TW)).toEqual([
+    restriction(
+      "2330",
+      RestrictionKind.Attention,
+      "2026-10-16",
+      "當日週轉率達10%(第四款)"
+    ),
+    restriction(
+      "5483",
+      RestrictionKind.Attention,
+      "2026-10-16",
+      "最近六個營業日(含當日)累積之最後成交價漲幅達32%(第一款)"
+    ),
+    restriction(
+      "2317",
+      RestrictionKind.NearDisposition,
+      "2026-10-16",
+      "115年10月13日至115年10月16日連續四次"
+    ),
+    restriction(
+      "6217",
+      RestrictionKind.NearDisposition,
+      "2026-10-16",
+      "115年10月15日至115年10月16日連續二次"
+    ),
+    restriction(
+      "3064",
+      RestrictionKind.AlteredTrading,
+      "2026-10-16",
+      "分盤交易、管理股票"
+    ),
+    restriction("1213", RestrictionKind.AlteredTrading, "2026-10-19", null),
+    restriction(
+      "2314",
+      RestrictionKind.AlteredTrading,
+      "2026-10-19",
+      "分盤交易"
+    ),
   ]);
 });
 
