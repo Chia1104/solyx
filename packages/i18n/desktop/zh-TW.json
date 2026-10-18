@@ -119,6 +119,18 @@
         "share": "成交比重"
       },
       "unavailable": "到設定完成行情來源後，這裡會顯示上市類股。"
+    },
+    "movers": {
+      "title": "產業主力",
+      "description": "上一個交易日推動產業市值最多的公司：各自的已發行股數乘以漲跌。和類股指數一樣只算上市公司。",
+      "sector": "產業",
+      "summary": "{{date}} 交易日：前一收盤市值 {{value}} {{currency}}，變動 {{change}}（{{percent}}）",
+      "symbol": "代號",
+      "percent": "漲跌幅",
+      "value-change": "市值變動",
+      "contribution": "貢獻",
+      "rest": "其他 {{count}} 檔",
+      "none": "交易所公布的交易日還沒有這個產業的公司。"
     }
   },
   "sectors": {
@@ -491,6 +503,7 @@
       "get_flows": "讀取籌碼",
       "get_macro": "讀取總經數據",
       "get_sectors": "讀取類股",
+      "get_sector_movers": "讀取產業主力",
       "revise_report": "修訂研究報告",
       "submit_forecast": "提出預測",
       "search_history": "搜尋過往紀錄",

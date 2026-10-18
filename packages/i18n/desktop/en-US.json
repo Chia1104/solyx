@@ -119,6 +119,18 @@
         "share": "Share of trading"
       },
       "unavailable": "Set up a market data source in Settings to see the sectors."
+    },
+    "movers": {
+      "title": "Sector movers",
+      "description": "The companies that moved a sector's market value most in the exchange's last session: each one's shares times its change. Listed companies only, as the sector indices are.",
+      "sector": "Sector",
+      "summary": "Session of {{date}}: worth {{value}} {{currency}} at the close before, moved {{change}} ({{percent}})",
+      "symbol": "Symbol",
+      "percent": "Change",
+      "value-change": "Value change",
+      "contribution": "Contribution",
+      "rest": "Other {{count}}",
+      "none": "No session the exchange has published lists this sector's companies."
     }
   },
   "sectors": {
@@ -491,6 +503,7 @@
       "get_flows": "Read investor flows",
       "get_macro": "Read economic figures",
       "get_sectors": "Read sectors",
+      "get_sector_movers": "Read sector movers",
       "revise_report": "Revised the report",
       "submit_forecast": "Made a forecast",
       "search_history": "Searched history",

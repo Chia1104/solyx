@@ -7,6 +7,7 @@ import type {
   FundamentalsProvider,
 } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
+import { TwSector } from "@solyx/core/sectors";
 import { HOUR_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
@@ -125,7 +126,7 @@ function setup(answers = memoryAnswers()) {
     ]),
     getCompanies: vi.fn<ExchangeListsProvider["getCompanies"]>(async () => [
       { symbol: "2330", industry: CHIPS, shares: 25_932_370_067 },
-      { symbol: "2303", industry: CHIPS, shares: null },
+      { symbol: "2303", industry: CHIPS, shares: 12_000_000_000 },
       { symbol: "2454", industry: CHIPS, shares: null },
       { symbol: "3711", industry: CHIPS, shares: null },
       {
@@ -137,6 +138,12 @@ function setup(answers = memoryAnswers()) {
     getPriceLimits: vi.fn<ExchangeListsProvider["getPriceLimits"]>(async () => [
       { symbol: "2330", ...PRICE_LIMITS },
     ]),
+    getSectorCloses: vi.fn<ExchangeListsProvider["getSectorCloses"]>(
+      async () => [
+        { symbol: "2330", date: "2026-10-06", close: 1010, change: 10 },
+        { symbol: "2303", date: "2026-10-06", close: 50, change: -1 },
+      ]
+    ),
   };
 
   const reports = {
@@ -408,4 +415,22 @@ test("a company is its own among those its market's exchanges list, read with it
   await fundamentals.peers(TSMC);
 
   expect(lists.getCompanies).toHaveBeenCalledExactlyOnceWith(Market.TW);
+});
+
+test("a sector's movers are its companies' shares times their change over the exchange's last session, read from two kept lists", async () => {
+  const { lists, fundamentals } = setup();
+
+  expect(await fundamentals.sectorMovers(TwSector.Semiconductors)).toEqual({
+    sector: TwSector.Semiconductors,
+    date: "2026-10-06",
+    marketValue: 25_932_370_067 * 1000 + 12_000_000_000 * 51,
+    valueChange: 25_932_370_067 * 10 - 12_000_000_000,
+    movers: [
+      { symbol: "2330", percent: 0.01, valueChange: 25_932_370_067 * 10 },
+      { symbol: "2303", percent: -1 / 51, valueChange: -12_000_000_000 },
+    ],
+    rest: { companies: 0, valueChange: 0 },
+  });
+  expect(await fundamentals.sectorMovers(TwSector.Cement)).toBeNull();
+  expect(lists.getSectorCloses).toHaveBeenCalledExactlyOnceWith(Market.TW);
 });

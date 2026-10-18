@@ -11,7 +11,7 @@ import type { Candle } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import { TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
-import type { SectorQuote } from "@solyx/core/sectors";
+import type { SectorMovers, SectorQuote } from "@solyx/core/sectors";
 
 import { createSectorTools } from "../src/sectors.ts";
 import { AgentToolName } from "../src/wire.ts";
@@ -58,27 +58,40 @@ const sectorsOf = (quotes: typeof QUOTES): SectorQuote[] =>
     };
   });
 
-function setup(sectors: SectorQuote[] | null) {
+function setup(
+  sectors: SectorQuote[] | null,
+  movers: SectorMovers | null = null
+) {
   const marketData = {
     candles: vi.fn<MarketData["candles"]>(async () => TAIEX),
   };
 
-  const [tool] =
+  const [tool, moversTool] =
     createSectorTools({
       sectors: async () => sectors,
+      movers: async () => movers,
       marketData,
       now: () => NOW,
     }).tools ?? [];
 
-  const run = async (params: Parameters<ToolRegistration["execute"]>[0]) => {
-    // SAFETY: get_sectors never uses its call's api.
+  const execute = async (
+    registered: ToolRegistration,
+    params: Parameters<ToolRegistration["execute"]>[0]
+  ) => {
+    // SAFETY: neither sector tool uses its call's api.
     const api = {} as ToolExecutionApi;
-    const result = await tool.execute(params, api, BACKGROUND_CONTEXT);
+    const result = await registered.execute(params, api, BACKGROUND_CONTEXT);
 
     return { text: contentText(result.output ?? []), details: result.details };
   };
 
-  return { tool, run, marketData };
+  const run = (params: Parameters<ToolRegistration["execute"]>[0]) =>
+    execute(tool, params);
+
+  const runMovers = (params: Parameters<ToolRegistration["execute"]>[0]) =>
+    execute(moversTool, params);
+
+  return { tool, moversTool, run, runMovers, marketData };
 }
 
 test("lists the market's index and each traded sector, largest rise first, as the app computed them", async () => {
@@ -136,4 +149,40 @@ test("says no source covers Taiwan rather than fail", async () => {
   );
   expect(details).toBeUndefined();
   expect(marketData.candles).not.toHaveBeenCalled();
+});
+
+test("names the companies that moved a sector's market value most over the exchange's last session, and sums the rest", async () => {
+  const { moversTool, runMovers } = setup(null, {
+    sector: TwSector.Semiconductors,
+    date: "2026-10-16",
+    marketValue: 100_000_000_000_000,
+    valueChange: -800_000_000_000,
+    movers: [
+      { symbol: "2330", percent: -0.0082, valueChange: -518_000_000_000 },
+      { symbol: "2454", percent: -0.021, valueChange: -120_000_000_000 },
+    ],
+    rest: { companies: 150, valueChange: -162_000_000_000 },
+  });
+
+  expect(moversTool.name).toBe(AgentToolName.GetSectorMovers);
+
+  const { text } = await runMovers({ sector: TwSector.Semiconductors });
+
+  expect(text.split("\n")).toEqual([
+    "semiconductors over the Taiwan Stock Exchange's session of 2026-10-16: its companies' shares were worth 100000000 million TWD at the close before and moved -800000 million (-0.80%). By what each one's shares gained, in TWD millions, and that in points of the sector's market value, which add up to its move:",
+    "symbol,percent,value change,contribution",
+    "2330,-0.82%,-518000,-0.52%",
+    "2454,-2.10%,-120000,-0.12%",
+    "the other 150,,-162000,-0.16%",
+  ]);
+});
+
+test("says when no session lists a company of the sector", async () => {
+  const { runMovers } = setup(null);
+
+  const { text } = await runMovers({ sector: TwSector.Cement });
+
+  expect(text).toBe(
+    "No session the exchange has published lists a company of cement."
+  );
 });

@@ -6,6 +6,7 @@ import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import type { Market, SymbolRef } from "./market.ts";
 import type { PriceLimits } from "./risk.ts";
+import type { SectorMovers, SessionClose, TwSector } from "./sectors.ts";
 
 /** One quarter's income statement, for that quarter alone, in the market's currency. */
 export interface QuarterStatement {
@@ -278,6 +279,8 @@ export interface ExchangeListsProvider {
   getCompanies(market: Market): Promise<Listed<Company>[]>;
   /** Every listing's price limits as the exchanges set them after the last session. */
   getPriceLimits(market: Market): Promise<Listed<PriceLimits>[]>;
+  /** The last session's close of every listing the market's sector indices are drawn from. */
+  getSectorCloses(market: Market): Promise<Listed<SessionClose>[]>;
 }
 
 /**
@@ -324,6 +327,8 @@ export interface Fundamentals {
   peers(symbol: SymbolRef): Promise<PeerStanding | null>;
   /** The company as its exchange lists it; `null` for a listing no source lists as a company, which a fund is. */
   company(symbol: SymbolRef): Promise<Company | null>;
+  /** Which of a Taiwan sector's companies moved its market value most over the exchange's last session; `null` while no source lists them. */
+  sectorMovers(sector: TwSector): Promise<SectorMovers | null>;
   /** Its price limits as its exchange set them after the last session; `null` for a listing no source lists them for. */
   priceLimits(symbol: SymbolRef): Promise<PriceLimits | null>;
 }

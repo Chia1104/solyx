@@ -212,6 +212,7 @@ export const AgentToolName = {
   GetFlows: "get_flows",
   GetMacro: "get_macro",
   GetSectors: "get_sectors",
+  GetSectorMovers: "get_sector_movers",
   ReviseReport: "revise_report",
   SubmitForecast: "submit_forecast",
   SearchHistory: "search_history",

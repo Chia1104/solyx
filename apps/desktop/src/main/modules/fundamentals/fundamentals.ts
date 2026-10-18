@@ -5,8 +5,9 @@ import type {
   Fundamentals,
   FundamentalsProvider,
 } from "@solyx/core/fundamentals";
-import { exchangeDate, symbolKey } from "@solyx/core/market";
-import type { Market, SymbolRef } from "@solyx/core/market";
+import { Market, exchangeDate, symbolKey } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
+import { sectorMovers } from "@solyx/core/sectors";
 import { HOUR_MS } from "@solyx/utils/date";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
@@ -146,6 +147,13 @@ export function createFundamentals({
     DAILY_LIST_FRESH_MS
   );
 
+  const sectorCloses = listed(
+    "sector-closes",
+    exchanges,
+    (provider, market) => provider.getSectorCloses(market),
+    DAILY_LIST_FRESH_MS
+  );
+
   /** `ask`'s answer per listing, kept under `scope`. */
   function fresh<Answer>(
     scope: string,
@@ -275,6 +283,15 @@ export function createFundamentals({
     ).of,
 
     company: async (symbol) => (await companies.of(symbol)).at(0) ?? null,
+
+    async sectorMovers(sector) {
+      const [listed, closes] = await Promise.all([
+        companies.all(Market.TW),
+        sectorCloses.all(Market.TW),
+      ]);
+
+      return sectorMovers(sector, listed, closes);
+    },
 
     priceLimits: async (symbol) => (await priceLimits.of(symbol)).at(0) ?? null,
   };

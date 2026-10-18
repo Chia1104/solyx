@@ -6,4 +6,7 @@ export const fundamentalsRouter = contractOS.fundamentals.router({
   trends: contractOS.fundamentals.trends.handler(({ context, input }) =>
     financialTrends(context.fundamentals, input)
   ),
+  sectorMovers: contractOS.fundamentals.sectorMovers.handler(
+    ({ context, input }) => context.fundamentals.sectorMovers(input)
+  ),
 });

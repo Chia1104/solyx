@@ -14,12 +14,21 @@ import {
 import type { MarketData } from "@solyx/core/market-data";
 import {
   SectorGroup,
+  SECTOR_MOVERS,
   TW_SECTOR_INDICES,
+  TwSector,
   sectorMoves,
 } from "@solyx/core/sectors";
-import type { SectorQuote } from "@solyx/core/sectors";
+import type { SectorMovers, SectorQuote } from "@solyx/core/sectors";
 
-import { millions, named, percent, percentChange, signed } from "./figures.ts";
+import {
+  millions,
+  named,
+  percent,
+  percentChange,
+  signed,
+  signedFigure,
+} from "./figures.ts";
 import { defineTool } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
 import type { GetSectorsDetails } from "./wire.ts";
@@ -27,6 +36,8 @@ import type { GetSectorsDetails } from "./wire.ts";
 export interface SectorToolsOptions {
   /** Every Taiwan sector index's session so far, as the overview's map reads them; `null` while no source covers Taiwan. */
   sectors(): Promise<SectorQuote[] | null>;
+  /** Which of a sector's companies moved its market value most over the exchange's last session, as the overview lists them. */
+  movers(sector: TwSector): Promise<SectorMovers | null>;
   marketData: Pick<MarketData, "candles">;
   /** @default () => new Date() */
   now?: () => Date;
@@ -131,6 +142,49 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
                 : []),
             ].join("\n"),
             details,
+          };
+        },
+      }),
+      defineTool({
+        name: AgentToolName.GetSectorMovers,
+        replay: "safe",
+        description: `Which of one Taiwan sector's companies moved its market value most over the Taiwan Stock Exchange's last session, the same list the overview shows under its sector map: each one's shares as the exchange lists them times its change from the close before, largest move first either way, the top ${SECTOR_MOVERS} named and the rest summed. A sector's index weighs its listings by market value, so these are what moved it; the companies are TWSE's alone, as its index is. It is the last session the exchange has published, which is the one before today's until the afternoon after the close, so name its date. Taiwan only.`,
+        parameters: z.object({
+          sector: z.enum(TwSector).describe("A sector as get_sectors names it"),
+        }),
+        async execute({ sector }) {
+          const movers = await options.movers(sector);
+
+          if (!movers) {
+            return {
+              text: `No session the exchange has published lists a company of ${named(sector)}.`,
+            };
+          }
+
+          const currency = currencyOf(MARKET);
+
+          // A company's part of the move in points of the sector's market value, which add up to it.
+          const contribution = (value: number) =>
+            percentChange(value / movers.marketValue);
+
+          return {
+            text: [
+              `${named(sector)} over the Taiwan Stock Exchange's session of ${movers.date}: its companies' shares were worth ${millions(movers.marketValue)} million ${currency} at the close before and moved ${signedFigure(millions(movers.valueChange), 0)} million (${percentChange(movers.valueChange / movers.marketValue)}). By what each one's shares gained, in ${currency} millions, and that in points of the sector's market value, which add up to its move:`,
+              "symbol,percent,value change,contribution",
+              ...movers.movers.map((mover) =>
+                [
+                  mover.symbol,
+                  percentChange(mover.percent),
+                  signedFigure(millions(mover.valueChange), 0),
+                  contribution(mover.valueChange),
+                ].join(",")
+              ),
+              ...(movers.rest.companies > 0
+                ? [
+                    `the other ${movers.rest.companies},,${signedFigure(millions(movers.rest.valueChange), 0)},${contribution(movers.rest.valueChange)}`,
+                  ]
+                : []),
+            ].join("\n"),
           };
         },
       }),
