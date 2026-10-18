@@ -50,6 +50,7 @@ const submitted = (
   source: ProposalSource.Agent,
   rationale: "test",
   basis: proposalBasis,
+  premise: null,
   createdAt: 0,
   status: ProposalStatus.Submitted,
   violations: [],

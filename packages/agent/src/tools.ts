@@ -558,6 +558,16 @@ export function describeProposal(proposal: TradeProposal): string {
   if (proposal.failure)
     parts.push(`failure ${JSON.stringify(proposal.failure)}`);
 
+  if (proposal.premise) {
+    const { session, price: then } = proposal.premise;
+
+    parts.push(
+      then === null
+        ? `proposed for the ${session} session`
+        : `proposed at ${then} for the ${session} session`
+    );
+  }
+
   if (proposal.basis)
     parts.push(basisText(order.instrument.market, proposal.basis));
 

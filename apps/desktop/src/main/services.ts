@@ -145,6 +145,18 @@ export function createServices(config: ConfigFile) {
     store: userData.proposals,
     limits: PAPER_LIMITS,
     tradingDays: (market) => marketDays(market),
+    // A quote out of reach leaves the price unknown rather than failing the check.
+    lastPrice: (symbol) =>
+      marketData.quote(symbol).then(
+        (quote) => quote?.last ?? null,
+        (error) => {
+          diagnostics.recovered(error, "desk.last-price", {
+            "solyx.listing": symbolKey(symbol),
+          });
+
+          return null;
+        }
+      ),
     // A list out of reach leaves the limits unknown rather than failing the check.
     priceLimits: (symbol) =>
       fundamentals.priceLimits(symbol).catch((error) => {

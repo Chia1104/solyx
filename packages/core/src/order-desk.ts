@@ -10,9 +10,19 @@ import type { Currency, Market, SymbolRef } from "./market.ts";
 import { Side, realizedIn } from "./order.ts";
 import type { AccountSnapshot, Fill, OrderRequest } from "./order.ts";
 import type { Report } from "./report.ts";
-import { checkOrder, sessionBand } from "./risk.ts";
-import type { PriceLimits, RiskLimits, RiskViolation } from "./risk.ts";
-import { getSession, weekdays } from "./session.ts";
+import {
+  RiskViolationCode,
+  checkOrder,
+  premiseViolations,
+  sessionBand,
+} from "./risk.ts";
+import type {
+  OrderPremise,
+  PriceLimits,
+  RiskLimits,
+  RiskViolation,
+} from "./risk.ts";
+import { getSession, sessionDayAt, weekdays } from "./session.ts";
 import type { TradingDays } from "./session.ts";
 
 export const ProposalSource = {
@@ -72,6 +82,8 @@ export interface TradeProposal {
   rationale: string;
   /** The research it was made under; `null` where the desk had none to read. */
   basis: ProposalBasis | null;
+  /** What the market stood at as it was made; `null` where the desk kept none, which no confirmation accepts. */
+  premise: OrderPremise | null;
   createdAt: number;
   status: ProposalStatus;
   violations: RiskViolation[];
@@ -109,6 +121,12 @@ export interface OrderDeskOptions {
    * @default none are known: no limit price is checked against a band, and every market order is refused
    */
   priceLimits?: (symbol: SymbolRef) => Promise<PriceLimits | null>;
+  /**
+   * A listing's last price, which a proposal keeps as part of its premise and confirming it reads
+   * again. It must answer even while quotes cannot be read, with `null`.
+   * @default none is read, so only the session a proposal was made for is checked
+   */
+  lastPrice?: (symbol: SymbolRef) => Promise<number | null>;
   /**
    * Whether the user locked orders, read at every check, so a lock refuses proposals and stops
    * those waiting from being sent until it is lifted.
@@ -224,12 +242,16 @@ export class OrderDesk {
 
     if (made) return made;
 
-    const violations = await this.check(input.order);
+    const [{ violations, session, band }, price] = await Promise.all([
+      this.#checked(input.order),
+      this.#lastPrice(input.order.instrument),
+    ]);
 
     const proposal: TradeProposal = {
       id: id ?? createId(),
       ...input,
       basis: basis?.(input.order.instrument) ?? null,
+      premise: { session, price, band },
       createdAt: now(),
       status:
         violations.length > 0
@@ -271,11 +293,30 @@ export class OrderDesk {
 
     try {
       // Prices and sessions move between propose and confirm; check again.
-      violations = await this.check(pending.order);
+      const [checked, price] = await Promise.all([
+        this.#checked(pending.order),
+        this.#lastPrice(pending.order.instrument),
+      ]);
+
+      violations = [
+        ...premiseViolations(pending.premise, {
+          session: checked.session,
+          price,
+        }),
+        ...checked.violations,
+      ];
     } catch (error) {
       this.#save(pending);
 
       throw error;
+    }
+
+    // The user may have locked orders while the checks waited on the broker and the quote.
+    if (
+      this.#options.locked?.() &&
+      !violations.some(({ code }) => code === RiskViolationCode.OrdersLocked)
+    ) {
+      violations = [{ code: RiskViolationCode.OrdersLocked }, ...violations];
     }
 
     if (violations.length > 0) {
@@ -331,6 +372,11 @@ export class OrderDesk {
 
   /** The risk checks alone, so an order can be tried before it is proposed. */
   async check(order: OrderRequest): Promise<RiskViolation[]> {
+    return (await this.#checked(order)).violations;
+  }
+
+  /** The checks, with the session the order goes to and its band, which a proposal keeps. */
+  async #checked(order: OrderRequest) {
     const {
       broker,
       limits,
@@ -350,14 +396,24 @@ export class OrderDesk {
       this.#dailyLoss(order, at),
     ]);
 
-    return checkOrder(order, limits, {
-      session: getSession(instrument.market, at, trades),
-      markets: broker.markets,
-      account,
-      locked: locked?.() ?? false,
-      dailyLoss,
-      priceBand: sessionBand(listed, instrument.market, at, trades),
-    });
+    const priceBand = sessionBand(listed, instrument.market, at, trades);
+
+    return {
+      violations: checkOrder(order, limits, {
+        session: getSession(instrument.market, at, trades),
+        markets: broker.markets,
+        account,
+        locked: locked?.() ?? false,
+        dailyLoss,
+        priceBand,
+      }),
+      session: sessionDayAt(instrument.market, at, trades),
+      band: priceBand ?? null,
+    };
+  }
+
+  async #lastPrice(symbol: SymbolRef): Promise<number | null> {
+    return (await this.#options.lastPrice?.(symbol)) ?? null;
   }
 
   /** The day's loss against its limit, read from the broker only for a buy that has one. */

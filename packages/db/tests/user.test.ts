@@ -58,6 +58,7 @@ function proposal(id: string, patch: Partial<TradeProposal> = {}) {
     source: ProposalSource.Agent,
     rationale: "breakout",
     basis: null,
+    premise: null,
     createdAt: 1_700_000_000_000,
     status: ProposalStatus.AwaitingConfirmation,
     violations: [],
@@ -277,6 +278,11 @@ describe("proposal store", () => {
           stance: ReportStance.Bullish,
         },
         forecast: null,
+      },
+      premise: {
+        session: "2026-10-19",
+        price: 975,
+        band: { low: 882, high: 1070 },
       },
     });
 

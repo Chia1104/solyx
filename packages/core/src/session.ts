@@ -93,14 +93,19 @@ export function regularHours(market: Market, date: string) {
   return { open: midnight + start * 60, close: midnight + end * 60 };
 }
 
-/** The first exchange-local day after `date` that `trades`. */
+// No market stays closed for a year, so a search past that finds no session.
+const LONGEST_CLOSURE_DAYS = 366;
+
+/** The first exchange-local day after `date` that `trades`, looked for a year ahead at most. */
 export function nextTradingDay(
   date: string,
   trades: TradingDays = weekdays
 ): string {
   let day = shiftDate(date, 1);
 
-  while (!trades(day)) day = shiftDate(day, 1);
+  for (let days = 1; !trades(day) && days < LONGEST_CLOSURE_DAYS; days += 1) {
+    day = shiftDate(day, 1);
+  }
 
   return day;
 }

@@ -648,7 +648,13 @@
       "off": "提案可以確認送出。"
     },
     "submit-interrupted": "券商回覆前 Solyx 就關閉了，這筆委託可能已經送達券商。",
-    "history": "紀錄"
+    "history": "紀錄",
+    "premise": {
+      "proposed-at": "提案時 {{price}}（{{date}} 交易時段）",
+      "proposed-for": "提案於 {{date}} 交易時段",
+      "now": "現價 {{price}}（{{change}}）",
+      "impact-most": "最多約 {{amount}} {{currency}}，以漲停 {{price}} 計（未含手續費與稅）"
+    }
   },
   "flows": {
     "title": "籌碼",
@@ -832,6 +838,9 @@
     }
   },
   "risk": {
+    "premise-stale": "提案時的交易時段（{{date}}）已經過了，請重新提案",
+    "premise-unknown": "這筆提案沒有記下當時的行情，請重新提案",
+    "price-moved": "提案後價格從 {{proposedAt, number}} 變為 {{price, number}}，變動超過 {{max, number}}%，請重新提案",
     "orders-locked": "下單已鎖定，解除後才能下單",
     "daily-loss-reached": "今日賣出已虧損 {{loss, number}} {{currency}}，達到上限 {{max, number}} {{currency}}，只能賣出",
     "invalid-quantity-tw": "台股數量須為 1–999 股零股，或 1,000 股的整數倍",

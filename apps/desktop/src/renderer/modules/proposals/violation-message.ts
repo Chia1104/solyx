@@ -6,6 +6,16 @@ import type { RiskViolation } from "@solyx/core/risk";
 
 export function violationMessage(t: TFunction, violation: RiskViolation) {
   switch (violation.code) {
+    case RiskViolationCode.PremiseStale:
+      return violation.proposedFor === null
+        ? t("risk.premise-unknown")
+        : t("risk.premise-stale", { date: violation.proposedFor });
+    case RiskViolationCode.PriceMoved:
+      return t("risk.price-moved", {
+        proposedAt: violation.proposedAt,
+        price: violation.price,
+        max: violation.max * 100,
+      });
     case RiskViolationCode.OrdersLocked:
       return t("risk.orders-locked");
     case RiskViolationCode.DailyLossReached:
