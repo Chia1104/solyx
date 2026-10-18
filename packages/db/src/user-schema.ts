@@ -12,6 +12,7 @@ import type {
   AccountSnapshot,
   OrderRequest,
   Position,
+  Side,
 } from "@solyx/core/order";
 import type {
   ProposalBasis,
@@ -64,6 +65,19 @@ export const paperAccount = sqliteTable("paper_account", {
   cash: text({ mode: "json" }).$type<AccountSnapshot["cash"]>().notNull(),
   positions: text({ mode: "json" }).$type<Position[]>().notNull(),
   orders: integer().notNull(),
+});
+
+/** Every order the paper account filled, oldest first by `seq`. */
+export const paperFills = sqliteTable("paper_fills", {
+  seq: integer().primaryKey(),
+  orderId: text("order_id").notNull(),
+  market: text().$type<Market>().notNull(),
+  symbol: text().notNull(),
+  side: text().$type<Side>().notNull(),
+  quantity: integer().notNull(),
+  price: real().notNull(),
+  filledAt: integer("filled_at").notNull(),
+  realized: real(),
 });
 
 /** Every scheduled task as the user wrote it, and its last run; `seq` keeps the order they were made in. */

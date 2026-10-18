@@ -4,7 +4,7 @@ import { OrderRefusedError } from "@solyx/core/broker";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
-import type { OrderRequest } from "@solyx/core/order";
+import type { Fill, OrderRequest } from "@solyx/core/order";
 
 import { createPaperBroker } from "../src/paper.ts";
 import type {
@@ -16,12 +16,16 @@ import type {
 // Copies on the way in and out, like a database would, so the broker cannot lean on shared objects.
 function memoryLedger(): PaperLedger {
   let saved: PaperAccount | undefined;
+  const fills: Fill[] = [];
 
   return {
     read: () => structuredClone(saved),
-    write: (account) => {
+    write: (account, fill) => {
       saved = structuredClone(account);
+      fills.push(structuredClone(fill));
     },
+    fills: (since) =>
+      structuredClone(fills.filter(({ filledAt }) => filledAt >= since)),
   };
 }
 
@@ -138,4 +142,42 @@ test("a refused order leaves the account as it was", async () => {
 
   await expect(broker.placeOrder(limit(Side.Buy, 1000, 980))).rejects.toThrow();
   expect(ledger.read()).toBeUndefined();
+});
+
+test("keeps each fill, a sale with what it gained over the average cost", async () => {
+  const clock = { now: 1_000 };
+
+  const broker = createPaperBroker({
+    cash: { TWD: 2_000_000 },
+    ledger: memoryLedger(),
+    now: () => clock.now,
+  });
+
+  await broker.placeOrder(limit(Side.Buy, 1000, 900));
+  clock.now = 2_000;
+  await broker.placeOrder(limit(Side.Buy, 1000, 1000));
+  clock.now = 3_000;
+  await broker.placeOrder(limit(Side.Sell, 500, 920));
+
+  expect(await broker.getFills(2_000)).toEqual([
+    {
+      orderId: "paper-2",
+      instrument: tsmc,
+      side: Side.Buy,
+      quantity: 1000,
+      price: 1000,
+      filledAt: 2_000,
+      realized: null,
+    },
+    {
+      orderId: "paper-3",
+      instrument: tsmc,
+      side: Side.Sell,
+      quantity: 500,
+      price: 920,
+      filledAt: 3_000,
+      // Sold below the average cost of 950.
+      realized: -15_000,
+    },
+  ]);
 });

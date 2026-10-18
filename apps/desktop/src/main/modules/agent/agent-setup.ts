@@ -8,7 +8,7 @@ import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillCatalog } from "@solyx/agent/skills";
 import type { SettingChange } from "@solyx/agent/wire";
 import { DecisionMode } from "@solyx/core/council";
-import { Market } from "@solyx/core/market";
+import { Currency, Market } from "@solyx/core/market";
 import type { MemoryStore } from "@solyx/core/memory";
 import { NewsVoice } from "@solyx/core/news";
 import { CollectionJob, ScheduleKind } from "@solyx/core/schedule";
@@ -190,6 +190,25 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         entry(["appearance", "timeZone"], timeZone),
         entry(["tray", "show"], String(tray.show)),
         entry(["tray", "hideDock"], String(tray.hideDock)),
+      ],
+    };
+  }
+
+  /** Only the user changes these, since each lifts a limit on orders. */
+  function trading(): SetupArea {
+    const { locked, maxDailyLoss } = config.read().trading;
+
+    return {
+      name: "Trading",
+      link: settingsLink(SettingsSection.Trading),
+      missing: [],
+      settings: [
+        entry(["trading", "locked"], String(locked)),
+        ...Object.values(Currency).map((currency) => ({
+          name: `trading.maxDailyLoss.${currency}`,
+          value: String(maxDailyLoss[currency] ?? "no limit"),
+          description: entryDescription(["trading", "maxDailyLoss"]),
+        })),
       ],
     };
   }
@@ -897,6 +916,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       return [
         appearance(),
         market,
+        trading(),
         ...agentAreas,
         skillsArea,
         schedules(),

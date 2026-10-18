@@ -818,6 +818,7 @@
   },
   "risk": {
     "orders-locked": "下單已鎖定，解除後才能下單",
+    "daily-loss-reached": "今日賣出已虧損 {{loss, number}} {{currency}}，達到上限 {{max, number}} {{currency}}，只能賣出",
     "invalid-quantity-tw": "台股數量須為 1–999 股零股，或 1,000 股的整數倍",
     "invalid-quantity-us": "美股數量須為正整數股",
     "invalid-price": "價格 {{price, number(maximumFractionDigits: 4)}} 不符合升降單位 {{tick, number(maximumFractionDigits: 4)}}",
@@ -835,6 +836,7 @@
     "sections": {
       "general": "一般",
       "market-data": "行情",
+      "trading": "交易",
       "storage": "儲存空間",
       "backup": "備份",
       "about": "關於",
@@ -1671,6 +1673,12 @@
       "check-failed": "無法搜尋這個主題",
       "delete": "刪除",
       "change-failed": "無法變更主題"
+    },
+    "trading": {
+      "lock-description": "關閉前所有下單都會被拒絕。Agent 無法變更。",
+      "max-daily-loss": "每日虧損上限（{{currency}}）",
+      "max-daily-loss-description": "當天賣出的虧損達到這個金額後，就不能再買進這個幣別的股票；賣出不受影響。",
+      "no-limit": "不限"
     },
     "tray": {
       "title": "背景執行",

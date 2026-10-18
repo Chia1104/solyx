@@ -3,7 +3,9 @@ import { errorMessage } from "@solyx/utils/error";
 import { OrderRefusedError } from "./broker.ts";
 import type { BrokerAdapter, BrokerMode } from "./broker.ts";
 import type { Forecast } from "./forecast.ts";
-import type { Market, SymbolRef } from "./market.ts";
+import { currencyOf, exchangeDate, exchangeMidnight } from "./market.ts";
+import type { Currency, Market, SymbolRef } from "./market.ts";
+import { Side, realizedIn } from "./order.ts";
 import type { AccountSnapshot, OrderRequest } from "./order.ts";
 import type { Report } from "./report.ts";
 import { checkOrder, sessionBand } from "./risk.ts";
@@ -111,6 +113,12 @@ export interface OrderDeskOptions {
    * @default never locked
    */
   locked?: () => boolean;
+  /**
+   * The most the user lets the account's sales lose in a market's day, per currency, read at
+   * every check: once the day's loss reaches it, buys in that currency are refused.
+   * @default no limit
+   */
+  maxDailyLoss?: () => Partial<Record<Currency, number>>;
   /**
    * The store was put back from a backup. A proposal that waits in it may have been confirmed
    * since the backup was made, so the desk dismisses each as it opens.
@@ -315,9 +323,10 @@ export class OrderDesk {
     const at = new Date(now());
     const trades = (await tradingDays?.(instrument.market)) ?? weekdays;
 
-    const [account, listed] = await Promise.all([
+    const [account, listed, dailyLoss] = await Promise.all([
       broker.getAccount(),
       priceLimits?.(instrument) ?? null,
+      this.#dailyLoss(order, at),
     ]);
 
     return checkOrder(order, limits, {
@@ -325,8 +334,26 @@ export class OrderDesk {
       markets: broker.markets,
       account,
       locked: locked?.() ?? false,
+      dailyLoss,
       priceBand: sessionBand(listed, instrument.market, at, trades),
     });
+  }
+
+  /** The day's loss against its limit, read from the broker only for a buy that has one. */
+  async #dailyLoss({ instrument, side }: OrderRequest, at: Date) {
+    const currency = currencyOf(instrument.market);
+    const max = this.#options.maxDailyLoss?.()[currency];
+
+    if (side !== Side.Buy || max === undefined) return undefined;
+
+    const dayStart = exchangeMidnight(
+      instrument.market,
+      exchangeDate(instrument.market, at)
+    );
+
+    const fills = await this.#options.broker.getFills(dayStart * 1000);
+
+    return { realized: realizedIn(fills, currency), max };
   }
 
   #save(proposal: TradeProposal): TradeProposal {

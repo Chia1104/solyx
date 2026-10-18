@@ -1,3 +1,4 @@
+import { sumBy } from "es-toolkit";
 import * as z from "zod";
 
 import { currencyOf, symbolKey, symbolRefSchema } from "./market.ts";
@@ -46,6 +47,29 @@ export interface Position {
 export interface AccountSnapshot {
   cash: Partial<Record<Currency, number>>;
   positions: Position[];
+}
+
+/** An order filled, whole or in part, as the broker reports it. */
+export interface Fill {
+  /** The broker's id of the order it filled. */
+  orderId: string;
+  instrument: SymbolRef;
+  side: Side;
+  quantity: number;
+  price: number;
+  /** UTC milliseconds. */
+  filledAt: number;
+  /** What a sale gained over the average cost of the shares it sold, before fees and tax; `null` for a buy. */
+  realized: number | null;
+}
+
+/** What the fills' sales in `currency` gained in all, a loss below zero. */
+export function realizedIn(fills: readonly Fill[], currency: Currency): number {
+  return sumBy(fills, ({ instrument, realized }) =>
+    realized !== null && currencyOf(instrument.market) === currency
+      ? realized
+      : 0
+  );
 }
 
 /** A position marked at a price. */

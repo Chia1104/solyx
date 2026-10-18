@@ -14,6 +14,7 @@ import type { AgentModelRef } from "@solyx/agent/providers";
 import type { SkillSource } from "@solyx/agent/skill-source";
 import type { DecisionMode, MagiUnit } from "@solyx/core/council";
 import { Market } from "@solyx/core/market";
+import type { Currency } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
 import type { DecisionsProvider } from "@solyx/decisions/provider";
 import type { EmbeddingsProvider } from "@solyx/embeddings/provider";
@@ -392,6 +393,8 @@ export interface TraySettings {
 export interface TradingSettings {
   /** Every order is refused until the user unlocks them. */
   locked: boolean;
+  /** The most the account's sales may lose in a market's day, per currency; a currency missing has no limit. */
+  maxDailyLoss: Partial<Record<Currency, number>>;
 }
 
 export interface UpdateSettings {

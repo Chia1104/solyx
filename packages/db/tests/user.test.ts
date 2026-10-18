@@ -302,28 +302,52 @@ describe("proposal store", () => {
     expect(store.list()).toStrictEqual([failed, proposal("b")]);
   });
 
-  test("the paper account has none until written, then reads back what was written last", () => {
+  test("the paper account has none until written, then reads back what was written last, with every fill", () => {
     const store = open().paperAccount;
 
     expect(store.read()).toBeUndefined();
+    expect(store.fills(0)).toStrictEqual([]);
 
-    store.write({ cash: { TWD: 1_000_000 }, positions: [], orders: 0 });
-
-    const after = {
-      cash: { TWD: 20_000, USD: 30_000 },
-      positions: [
-        {
-          instrument: TSMC,
-          quantity: 1000,
-          avgPrice: 980,
-        },
-      ],
-      orders: 1,
+    const bought = {
+      orderId: "paper-1",
+      instrument: TSMC,
+      side: Side.Buy,
+      quantity: 1000,
+      price: 980,
+      filledAt: 1_000,
+      realized: null,
     };
 
-    store.write(after);
+    store.write(
+      {
+        cash: { TWD: 20_000 },
+        positions: [{ instrument: TSMC, quantity: 1000, avgPrice: 980 }],
+        orders: 1,
+      },
+      bought
+    );
+
+    const sold = {
+      orderId: "paper-2",
+      instrument: TSMC,
+      side: Side.Sell,
+      quantity: 1000,
+      price: 1000,
+      filledAt: 2_000,
+      realized: 20_000,
+    };
+
+    const after = {
+      cash: { TWD: 1_020_000, USD: 30_000 },
+      positions: [],
+      orders: 2,
+    };
+
+    store.write(after, sold);
 
     expect(store.read()).toStrictEqual(after);
+    expect(store.fills(0)).toStrictEqual([bought, sold]);
+    expect(store.fills(2_000)).toStrictEqual([sold]);
   });
 
   test("proposals outlive the connection", () => {

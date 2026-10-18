@@ -9,6 +9,7 @@ import {
   InformationCircleIcon,
   MagicWand01Icon,
   McpServerIcon,
+  Shield01Icon,
   SlidersHorizontalIcon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
@@ -22,6 +23,7 @@ import { Icon } from "../../components/icon.tsx";
 const SECTION_ICON: Record<SettingsSection, IconSvgElement> = {
   [SettingsSection.General]: SlidersHorizontalIcon,
   [SettingsSection.MarketData]: ChartCandlestickIcon,
+  [SettingsSection.Trading]: Shield01Icon,
   [SettingsSection.Agent]: BotIcon,
   [SettingsSection.Skills]: MagicWand01Icon,
   [SettingsSection.Schedules]: Clock01Icon,

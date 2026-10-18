@@ -56,6 +56,11 @@ export interface RiskContext {
   /** The user locked orders, so every one is refused until they unlock them. */
   locked?: boolean;
   /**
+   * What the account's sales in the order's currency gained over its market's day so far, a loss
+   * below zero, against the most the user lets it lose in a day; unset where they set no limit.
+   */
+  dailyLoss?: { realized: number; max: number };
+  /**
    * The listing's band in the session the order goes to (`sessionBand`). A market order is sized
    * at its high, the most it could fill at, so one is refused where the band is `null` or unknown.
    */
@@ -64,6 +69,7 @@ export interface RiskContext {
 
 export const RiskViolationCode = {
   OrdersLocked: "orders-locked",
+  DailyLossReached: "daily-loss-reached",
   InvalidQuantity: "invalid-quantity",
   InvalidPrice: "invalid-price",
   OddLotMarketOrder: "odd-lot-market-order",
@@ -82,6 +88,12 @@ export type RiskViolationCode =
 /** Carries the data behind a rejection, not text; presenters localize it. */
 export type RiskViolation =
   | { code: typeof RiskViolationCode.OrdersLocked }
+  | {
+      code: typeof RiskViolationCode.DailyLossReached;
+      loss: number;
+      max: number;
+      currency: Currency;
+    }
   | { code: typeof RiskViolationCode.InvalidQuantity; market: Market }
   | { code: typeof RiskViolationCode.InvalidPrice; price: number; tick: number }
   | { code: typeof RiskViolationCode.OddLotMarketOrder }
@@ -134,6 +146,20 @@ export function checkOrder(
   const isTw = instrument.market === Market.TW;
 
   if (context.locked) violations.push({ code: RiskViolationCode.OrdersLocked });
+
+  // A sale only takes risk off, so it still goes once the day's loss reaches the limit.
+  if (
+    order.side === Side.Buy &&
+    context.dailyLoss &&
+    -context.dailyLoss.realized >= context.dailyLoss.max
+  ) {
+    violations.push({
+      code: RiskViolationCode.DailyLossReached,
+      loss: -context.dailyLoss.realized,
+      max: context.dailyLoss.max,
+      currency: currencyOf(instrument.market),
+    });
+  }
 
   if (!context.markets.includes(instrument.market)) {
     violations.push({
