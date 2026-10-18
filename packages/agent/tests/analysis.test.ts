@@ -125,6 +125,10 @@ function fakeSources() {
       dividends: vi.fn<AnalysisSources["fundamentals"]["dividends"]>(
         async () => []
       ),
+      company: vi.fn<AnalysisSources["fundamentals"]["company"]>(async () => ({
+        industry: { code: "24", name: "半導體業" },
+        shares: 25_932_370_067,
+      })),
     },
   };
 }
@@ -265,7 +269,7 @@ test("a script reaches nothing outside its sandbox, and its failure is told to t
 test("a script reads quotes, sectors, flows and filings, with the figures the app computes from them", async () => {
   const { results, sources } = await analyze(`
     const tsmc = { market: "${Market.TW}", symbol: "2330" };
-    const [quote, none, sectors, traded, quarters, months, multiples] = await Promise.all([
+    const [quote, none, sectors, traded, quarters, months, multiples, company] = await Promise.all([
       market.quote(tsmc),
       market.quote({ market: "${Market.TW}", symbol: "9999" }),
       market.sectors(),
@@ -273,6 +277,7 @@ test("a script reads quotes, sectors, flows and filings, with the figures the ap
       fundamentals.statements(tsmc),
       fundamentals.monthlyRevenue(tsmc),
       fundamentals.multiples(tsmc),
+      fundamentals.company(tsmc),
     ]);
     const [foreign] = await flows.netBuying(traded.trades);
     return {
@@ -283,6 +288,7 @@ test("a script reads quotes, sectors, flows and filings, with the figures the ap
       grossMargin: quarters[0].grossMargin,
       yoy: months.at(-1).yoy,
       pe: multiples.priceToEarnings,
+      value: company.shares * quote.last,
     };
   `);
 
@@ -297,6 +303,7 @@ test("a script reads quotes, sectors, flows and filings, with the figures the ap
         grossMargin: 0.55,
         yoy: 0.3,
         pe: 24.5,
+        value: 25_932_370_067 * 1085,
       })}`,
     },
   ]);

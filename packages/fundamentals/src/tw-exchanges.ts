@@ -9,7 +9,7 @@ import type {
   ExchangeListsProvider,
   ExchangeMultiples,
   FundProfile,
-  Industry,
+  Company,
   Listed,
   ShareholdersMeeting,
   TradingRestriction,
@@ -510,25 +510,51 @@ const INDUSTRIES = new Map([
   ["91", "存託憑證"],
 ]);
 
-const industry = (symbol: string, code: string): Listed<Industry> => ({
+const company = (
+  symbol: string,
+  code: string,
+  shares: number | null
+): Listed<Company> => ({
   symbol,
-  code,
-  name: INDUSTRIES.get(code) ?? code,
+  industry: { code, name: INDUSTRIES.get(code) ?? code },
+  shares,
 });
+
+// A count of shares; one written any other way reads as none, which leaves the company's industry standing.
+const sharesSchema = textSchema
+  .regex(/^\d+$/)
+  .transform(Number)
+  .nullable()
+  .catch(null);
 
 const TWSE_COMPANY_CODE = "公司代號";
 
-const twseIndustrySchema = z
-  .object({ [TWSE_COMPANY_CODE]: codeSchema, 產業別: codeSchema })
-  .transform((row) => industry(row[TWSE_COMPANY_CODE], row.產業別));
+const twseCompanySchema = z
+  .object({
+    [TWSE_COMPANY_CODE]: codeSchema,
+    產業別: codeSchema,
+    已發行普通股數或TDR原股發行股數: sharesSchema,
+  })
+  .transform((row) =>
+    company(
+      row[TWSE_COMPANY_CODE],
+      row.產業別,
+      row.已發行普通股數或TDR原股發行股數
+    )
+  );
 
-const tpexIndustrySchema = z
+const tpexCompanySchema = z
   .object({
     SecuritiesCompanyCode: codeSchema,
     SecuritiesIndustryCode: codeSchema,
+    IssueShares: sharesSchema,
   })
   .transform((row) =>
-    industry(row.SecuritiesCompanyCode, row.SecuritiesIndustryCode)
+    company(
+      row.SecuritiesCompanyCode,
+      row.SecuritiesIndustryCode,
+      row.IssueShares
+    )
   );
 
 // The exchanges number warrants, tens of thousands of which their lists of price limits hold, in
@@ -787,17 +813,12 @@ export function createTwExchanges(
       return sortBy(lists.flat(), [({ date }) => date]);
     },
 
-    async getIndustries(market) {
+    async getCompanies(market) {
       if (market !== Market.TW) return [];
 
       const lists = await Promise.all([
-        list(
-          twse,
-          "opendata/t187ap03_L",
-          twseIndustrySchema,
-          TWSE_COMPANY_CODE
-        ),
-        list(tpex, "mopsfin_t187ap03_O", tpexIndustrySchema),
+        list(twse, "opendata/t187ap03_L", twseCompanySchema, TWSE_COMPANY_CODE),
+        list(tpex, "mopsfin_t187ap03_O", tpexCompanySchema),
       ]);
 
       return lists.flat();

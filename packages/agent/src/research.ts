@@ -31,6 +31,7 @@ import {
   trailingCash,
 } from "@solyx/core/fundamentals";
 import type {
+  Company,
   Dividend,
   ExchangeMultiples,
   FundCosts,
@@ -646,6 +647,31 @@ function peersText(peers: PeerStanding): string {
   ].join("; ")}.`;
 }
 
+/** The shares a company has issued, and what they were worth and how many of them traded in its last session. */
+async function sharesText(
+  symbol: SymbolRef,
+  { shares }: Company,
+  { marketData }: ResearchOptions
+): Promise<string> {
+  if (shares === null) return "Its exchange lists no count of its shares.";
+
+  const issued = `Shares issued, as its exchange lists them: ${shares}.`;
+  let daily;
+
+  try {
+    daily = await marketData.candles(symbol, Interval.OneDay);
+  } catch {
+    // The count still reads while bars are out of reach.
+    return issued;
+  }
+
+  const bar = daily.at(-1);
+
+  if (!bar) return issued;
+
+  return `${issued} At the close of ${candleDate(symbol.market, bar.time)}, ${bar.close}, they were worth ${millions(shares * bar.close)} million ${currencyOf(symbol.market)}, and that session traded ${percent(bar.volume / shares, 2)} of them.`;
+}
+
 /** Why a listing has neither statements nor revenue on file with `source`. */
 function nothingFiledText(
   fund: boolean,
@@ -817,6 +843,7 @@ export function createResearch(options: ResearchOptions): Extension {
             costs,
             multiples,
             peers,
+            companies,
           ] = await Promise.all([
             filed(fundamentals.statements(symbol)),
             filed(fundamentals.balanceSheets(symbol)),
@@ -846,6 +873,11 @@ export function createResearch(options: ResearchOptions): Extension {
             filed(
               fundamentals
                 .peers(symbol)
+                .then((each) => (each === null ? [] : [each]))
+            ),
+            filed(
+              fundamentals
+                .company(symbol)
                 .then((each) => (each === null ? [] : [each]))
             ),
           ]);
@@ -908,6 +940,15 @@ export function createResearch(options: ResearchOptions): Extension {
                   ]),
               // What fails the industry's standing fails the multiples above, which already say so.
               ...peers.rows.map(peersText),
+              ...(companies.failure === null
+                ? await Promise.all(
+                    companies.rows.map((company) =>
+                      sharesText(symbol, company, options)
+                    )
+                  )
+                : [
+                    `The shares its exchange lists it with could not be read: ${companies.failure}`,
+                  ]),
               ...part("Quarterly statements", statements, [
                 "Quarters, each for the quarter alone, by its last day:",
                 "quarter,revenue,revenue yoy,revenue qoq,gross margin,operating margin,net margin,eps,eps yoy,trailing eps",

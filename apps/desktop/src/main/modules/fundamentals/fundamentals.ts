@@ -132,10 +132,10 @@ export function createFundamentals({
     FRESH_MS
   );
 
-  const industries = listed(
-    "industries",
+  const companies = listed(
+    "companies",
     exchanges,
-    (provider, market) => provider.getIndustries(market),
+    (provider, market) => provider.getCompanies(market),
     FRESH_MS
   );
 
@@ -231,7 +231,7 @@ export function createFundamentals({
 
     async peers({ market, symbol }) {
       const [classed, worked] = await Promise.all([
-        industries.all(market),
+        companies.all(market),
         multiples.all(market),
       ]);
 
@@ -242,12 +242,15 @@ export function createFundamentals({
 
       const others = new Set(
         classed
-          .filter((each) => each.code === own.code && each.symbol !== symbol)
+          .filter(
+            (each) =>
+              each.industry.code === own.industry.code && each.symbol !== symbol
+          )
           .map((each) => each.symbol)
       );
 
       return {
-        industry: { code: own.code, name: own.name },
+        industry: own.industry,
         listings: others.size + 1,
         asOf: ownMultiples.asOf,
         ...peerStanding(
@@ -270,6 +273,8 @@ export function createFundamentals({
       (provider, market) => provider.getMeetings(market),
       FRESH_MS
     ).of,
+
+    company: async (symbol) => (await companies.of(symbol)).at(0) ?? null,
 
     priceLimits: async (symbol) => (await priceLimits.of(symbol)).at(0) ?? null,
   };

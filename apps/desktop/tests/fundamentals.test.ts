@@ -123,12 +123,16 @@ function setup(answers = memoryAnswers()) {
     getMeetings: vi.fn<ExchangeListsProvider["getMeetings"]>(async () => [
       { symbol: "2330", ...MEETING },
     ]),
-    getIndustries: vi.fn<ExchangeListsProvider["getIndustries"]>(async () => [
-      { symbol: "2330", ...CHIPS },
-      { symbol: "2303", ...CHIPS },
-      { symbol: "2454", ...CHIPS },
-      { symbol: "3711", ...CHIPS },
-      { symbol: "1101", code: "01", name: "水泥工業" },
+    getCompanies: vi.fn<ExchangeListsProvider["getCompanies"]>(async () => [
+      { symbol: "2330", industry: CHIPS, shares: 25_932_370_067 },
+      { symbol: "2303", industry: CHIPS, shares: null },
+      { symbol: "2454", industry: CHIPS, shares: null },
+      { symbol: "3711", industry: CHIPS, shares: null },
+      {
+        symbol: "1101",
+        industry: { code: "01", name: "水泥工業" },
+        shares: null,
+      },
     ]),
     getPriceLimits: vi.fn<ExchangeListsProvider["getPriceLimits"]>(async () => [
       { symbol: "2330", ...PRICE_LIMITS },
@@ -384,11 +388,24 @@ test("a listing's multiples stand among those of the others its exchanges class 
     dividendYield: { value: 0.86, peers: 2, median: 0.86, above: 0 },
     priceToBook: { value: 10.28, peers: 2, median: 2.75, above: 1 },
   });
-  expect(lists.getIndustries).toHaveBeenCalledExactlyOnceWith(Market.TW);
+  expect(lists.getCompanies).toHaveBeenCalledExactlyOnceWith(Market.TW);
 
   // A fund is classed in no industry, and a market no source lists has none.
   expect(await fundamentals.peers(TAIWAN_50)).toBeNull();
   expect(
     await fundamentals.peers({ market: Market.US, symbol: "NVDA" })
   ).toBeNull();
+});
+
+test("a company is its own among those its market's exchanges list, read with its industry's from one list, and a fund is none", async () => {
+  const { lists, fundamentals } = setup();
+
+  expect(await fundamentals.company(TSMC)).toEqual({
+    industry: CHIPS,
+    shares: 25_932_370_067,
+  });
+  expect(await fundamentals.company(TAIWAN_50)).toBeNull();
+  await fundamentals.peers(TSMC);
+
+  expect(lists.getCompanies).toHaveBeenCalledExactlyOnceWith(Market.TW);
 });
