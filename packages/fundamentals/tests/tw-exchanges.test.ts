@@ -702,6 +702,96 @@ test("reads the industry both exchanges class each company in, by the exchanges'
   ]);
 });
 
+test("reads the limits both exchanges set for the next session, a listing without limits among them", async () => {
+  const { sent, exchanges } = fakeExchanges({
+    [`${TWSE}exchangeReport/TWT84U`]: [
+      {
+        Code: "2330",
+        Name: "範例電子",
+        TodayLimitUp: "1070.00",
+        TodayOpeningRefPrice: "975.00",
+        TodayLimitDown: "880.00",
+        PreviousDayOpeningRefPrice: "970.00",
+        PreviousDayPrice: "975.00",
+        PreviousDayLimitUp: "975.00",
+        PreviousDayLimitDown: "980.00",
+        LastTradingDay: "1151016",
+        AllowOddLotTrade: "可",
+      },
+      // Last traded long before, yet its limits are for the same session.
+      {
+        Code: "2887Z1",
+        Name: "範例特",
+        TodayLimitUp: "25.30",
+        TodayOpeningRefPrice: "23.00",
+        TodayLimitDown: "20.70",
+        LastTradingDay: "1141231",
+      },
+      // A fund of foreign shares trades without limits.
+      {
+        Code: "00999A",
+        Name: "範例美國科技",
+        TodayLimitUp: "9999.95",
+        TodayOpeningRefPrice: "9.85",
+        TodayLimitDown: "0.01",
+        LastTradingDay: "1151016",
+      },
+      // A warrant is no listing an order here names.
+      {
+        Code: "053040",
+        Name: "範例購01",
+        TodayLimitUp: "1.20",
+        TodayOpeningRefPrice: "0.80",
+        TodayLimitDown: "0.40",
+        LastTradingDay: "1151016",
+      },
+    ],
+    [`${TPEX}tpex_mainboard_daily_close_quotes`]: [
+      {
+        Date: "1151016",
+        SecuritiesCompanyCode: "5483",
+        CompanyName: "範例矽晶",
+        Close: "150.00",
+        NextReferencePrice: "150.00",
+        NextLimitUp: "165.00",
+        NextLimitDown: "135.00",
+      },
+      {
+        Date: "1151016",
+        SecuritiesCompanyCode: "712345",
+        CompanyName: "範例購02",
+        Close: "0.50",
+        NextReferencePrice: "0.50",
+        NextLimitUp: "0.95",
+        NextLimitDown: "0.05",
+      },
+    ],
+  });
+
+  expect(await exchanges.getPriceLimits(Market.TW)).toEqual([
+    {
+      symbol: "2330",
+      after: "2026-10-16",
+      band: { low: 880, high: 1070 },
+    },
+    {
+      symbol: "2887Z1",
+      after: "2026-10-16",
+      band: { low: 20.7, high: 25.3 },
+    },
+    { symbol: "00999A", after: "2026-10-16", band: null },
+    {
+      symbol: "5483",
+      after: "2026-10-16",
+      band: { low: 135, high: 165 },
+    },
+  ]);
+  expect(sent.toSorted()).toEqual([
+    `${TWSE}exchangeReport/TWT84U`,
+    `${TPEX}tpex_mainboard_daily_close_quotes`,
+  ]);
+});
+
 test("outside Taiwan there is nothing to read, and it costs no request", async () => {
   const { sent, exchanges } = fakeExchanges();
 
@@ -712,5 +802,6 @@ test("outside Taiwan there is nothing to read, and it costs no request", async (
   expect(await exchanges.getMeetings(Market.US)).toEqual([]);
   expect(await exchanges.getClosures(Market.US)).toEqual([]);
   expect(await exchanges.getIndustries(Market.US)).toEqual([]);
+  expect(await exchanges.getPriceLimits(Market.US)).toEqual([]);
   expect(sent).toEqual([]);
 });

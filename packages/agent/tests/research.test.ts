@@ -331,6 +331,7 @@ function setup(councils?: Council[], read?: string[], watched = false) {
     exNotices: async () => [],
     meetings: async () => [],
     peers: async () => filed.peers ?? null,
+    priceLimits: async () => null,
   };
 
   const desk = new ResearchDesk({

@@ -5,6 +5,7 @@ import { shiftMonth } from "@solyx/utils/date";
 import { candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import type { Market, SymbolRef } from "./market.ts";
+import type { PriceLimits } from "./risk.ts";
 
 /** One quarter's income statement, for that quarter alone, in the market's currency. */
 export interface QuarterStatement {
@@ -262,6 +263,8 @@ export interface ExchangeListsProvider {
   getMeetings(market: Market): Promise<Listed<ShareholdersMeeting>[]>;
   /** The industry the exchanges class each company in. */
   getIndustries(market: Market): Promise<Listed<Industry>[]>;
+  /** Every listing's price limits as the exchanges set them after the last session. */
+  getPriceLimits(market: Market): Promise<Listed<PriceLimits>[]>;
 }
 
 /**
@@ -306,6 +309,8 @@ export interface Fundamentals {
   meetings(symbol: SymbolRef): Promise<ShareholdersMeeting[]>;
   /** Its multiples against its industry's; `null` for a listing its exchanges class in none or work no multiples out for, which a fund is. */
   peers(symbol: SymbolRef): Promise<PeerStanding | null>;
+  /** Its price limits as its exchange set them after the last session; `null` for a listing no source lists them for. */
+  priceLimits(symbol: SymbolRef): Promise<PriceLimits | null>;
 }
 
 function standing(

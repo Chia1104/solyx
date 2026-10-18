@@ -1,7 +1,6 @@
 import { countBy, meanBy, range, sortBy, sumBy } from "es-toolkit";
 import * as z from "zod";
 
-import { shiftDate } from "@solyx/utils/date";
 import { sentences } from "@solyx/utils/search";
 
 import { candleDate } from "./candles.ts";
@@ -19,7 +18,7 @@ import {
 import type { AuditedClaim, Claim, ClaimSupport } from "./report.ts";
 import { isOnTick, tickSize } from "./risk.ts";
 import { Stance, stanceValue } from "./sentiment.ts";
-import { regularHours } from "./session.ts";
+import { nextTradingDay, regularHours } from "./session.ts";
 
 export const ForecastDirection = {
   Long: "long",
@@ -701,19 +700,6 @@ const brierOf = (probabilities: readonly number[], scenario: number) =>
       (probability - (index === scenario ? 1 : 0)) ** 2
   );
 
-/** ISO weekday numbering, Monday 1 to Sunday 7, so Saturday opens the weekend. */
-const SATURDAY = 6;
-
-function nextWeekday(date: string): string {
-  let next = shiftDate(date, 1);
-
-  while (Temporal.PlainDate.from(next).dayOfWeek >= SATURDAY) {
-    next = shiftDate(next, 1);
-  }
-
-  return next;
-}
-
 /**
  * When each of a forecast's sessions opens, in UTC seconds, the anchor's first, so a path can be
  * drawn over the listing's daily bars, oldest first. A session that has traded takes its bar's
@@ -738,7 +724,7 @@ export function forecastTimeline(
   ];
 
   while (dates.length <= horizon) {
-    dates.push(nextWeekday(dates[dates.length - 1]));
+    dates.push(nextTradingDay(dates[dates.length - 1]));
   }
 
   return dates.map((date) => exchangeMidnight(instrument.market, date));

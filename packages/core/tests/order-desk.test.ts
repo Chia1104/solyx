@@ -56,7 +56,11 @@ const AFTER_CLOSE = Date.parse("2026-09-29T15:00:00+08:00");
 
 function setup(
   store = memoryStore(),
-  { restored = false, basis }: Pick<OrderDeskOptions, "restored" | "basis"> = {}
+  {
+    restored = false,
+    basis,
+    priceLimits,
+  }: Pick<OrderDeskOptions, "restored" | "basis" | "priceLimits"> = {}
 ) {
   const clock = { now: DURING_SESSION };
   const tradingDays = vi.fn(async (): Promise<TradingDays> => weekdays);
@@ -91,6 +95,7 @@ function setup(
     tradingDays,
     restored,
     basis,
+    priceLimits,
     onChange,
     now: () => clock.now,
   });
@@ -383,4 +388,49 @@ test("every change to a proposal is told, its submission included", async () => 
   desk.dismiss(other.id);
 
   expect(onChange).toHaveBeenCalledTimes(5);
+});
+
+test("an order is checked against the limits its exchange set for the session it goes to", async () => {
+  const priceLimits = vi.fn(async () => ({
+    after: "2026-09-28",
+    band: { low: 882, high: 970 },
+  }));
+
+  const { desk, clock } = setup(undefined, { priceLimits });
+
+  expect(await desk.check(order)).toEqual([
+    { code: RiskViolationCode.OutsidePriceBand, low: 882, high: 970 },
+  ]);
+  expect(priceLimits).toHaveBeenCalledWith(order.instrument);
+
+  // After the close the order goes to the next session, whose limits are not out yet.
+  clock.now = AFTER_CLOSE;
+
+  expect(await desk.check(order)).toEqual([
+    { code: RiskViolationCode.SessionNotAllowed, session: Session.Closed },
+  ]);
+});
+
+test("a market order is sized at the session's limit-up, and refused while it is not known", async () => {
+  const market: OrderRequest = {
+    instrument: order.instrument,
+    side: Side.Buy,
+    quantity: 1000,
+    type: OrderType.Market,
+  };
+
+  const { desk } = setup(undefined, {
+    priceLimits: async () => ({
+      after: "2026-09-28",
+      band: { low: 882, high: 1070 },
+    }),
+  });
+
+  expect(await desk.check(market)).toEqual([]);
+
+  const { desk: unknown } = setup();
+
+  expect(await unknown.check(market)).toEqual([
+    { code: RiskViolationCode.MissingReferencePrice },
+  ]);
 });

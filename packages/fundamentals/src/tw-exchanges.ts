@@ -15,6 +15,7 @@ import type {
   TradingRestriction,
 } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
+import type { PriceLimits } from "@solyx/core/risk";
 import { twRocDaySchema } from "@solyx/core/rules/tw";
 import { weekdays } from "@solyx/core/session";
 import type { ClosuresProvider } from "@solyx/core/session";
@@ -407,6 +408,53 @@ const tpexIndustrySchema = z
     industry(row.SecuritiesCompanyCode, row.SecuritiesIndustryCode)
   );
 
+// The exchanges number warrants, tens of thousands of which their lists of price limits hold, in
+// six characters from `03` to `08` on TWSE and from `7` on TPEx, and nothing else so.
+const WARRANT_CODE = /^(?:0[3-8]\d{3}|7\d{4})[\dA-Z]$/;
+
+const listingCodeSchema = codeSchema.refine((code) => !WARRANT_CODE.test(code));
+
+const priceSchema = textSchema.regex(/^\d+(\.\d+)?$/).transform(Number);
+
+// The limit-up the exchanges set for a listing that trades without limits, as a fund of foreign shares does.
+const UNLIMITED = 9999.95;
+
+const priceLimits = (
+  symbol: string,
+  after: string,
+  low: number,
+  high: number
+): Listed<PriceLimits> => ({
+  symbol,
+  after,
+  band: high >= UNLIMITED ? null : { low, high },
+});
+
+// One of TWSE's limits for the next session, which name the last day the listing traded rather than the session they follow.
+const twseLimitSchema = z.object({
+  Code: listingCodeSchema,
+  TodayLimitUp: priceSchema,
+  TodayLimitDown: priceSchema,
+  LastTradingDay: twRocDaySchema,
+});
+
+// TPEx's quotes of a session, each with the limits it set for the next.
+const tpexLimitSchema = z
+  .object({
+    SecuritiesCompanyCode: listingCodeSchema,
+    Date: twRocDaySchema,
+    NextLimitUp: priceSchema,
+    NextLimitDown: priceSchema,
+  })
+  .transform((row) =>
+    priceLimits(
+      row.SecuritiesCompanyCode,
+      row.Date,
+      row.NextLimitDown,
+      row.NextLimitUp
+    )
+  );
+
 // TWSE's days of the year, each with what it calls the day.
 const twseDaySchema = z.object({
   Name: textSchema.min(1),
@@ -471,8 +519,8 @@ export interface TwExchangesOptions {
 
 /**
  * The restrictions Taiwan's exchanges put on their listings, the funds they list, the multiples
- * they work out, their notices of shares going ex, their companies' shareholders' meetings and
- * the industry they class each company in,
+ * they work out, their notices of shares going ex, their companies' shareholders' meetings, the
+ * industry they class each company in and the price limits they set for the next session,
  * from the open data of the Taiwan Stock Exchange and the Taipei Exchange, which need no key. Each
  * list is the exchange's own of today, so one request answers for every listing and a restriction
  * that ended may be gone from it. The Taipei Exchange publishes no list of its funds, so those
@@ -600,6 +648,29 @@ export function createTwExchanges(
       ]);
 
       return lists.flat();
+    },
+
+    async getPriceLimits(market) {
+      if (market !== Market.TW) return [];
+
+      const [twseLimits, tpexLimits] = await Promise.all([
+        list(twse, "exchangeReport/TWT84U", twseLimitSchema),
+        list(tpex, "tpex_mainboard_daily_close_quotes", tpexLimitSchema),
+      ]);
+
+      // TWSE's list names no session of its own, so it follows the last day any listing traded.
+      const after = twseLimits.reduce(
+        (last, { LastTradingDay }) =>
+          LastTradingDay > last ? LastTradingDay : last,
+        ""
+      );
+
+      return [
+        ...twseLimits.map((row) =>
+          priceLimits(row.Code, after, row.TodayLimitDown, row.TodayLimitUp)
+        ),
+        ...tpexLimits,
+      ];
     },
 
     async getClosures(market) {
