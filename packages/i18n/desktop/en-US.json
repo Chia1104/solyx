@@ -80,6 +80,21 @@
     "cash": "Cash",
     "unrealized-gain": "Unrealized gain"
   },
+  "review": {
+    "title": "Trade review",
+    "description": "Closed positions, from the first buy to the sale that left none, grouped by the stance of the report in force at the first buy. Before fees and tax.",
+    "empty": "No position has been closed yet.",
+    "table": "Round trips in {{currency}}",
+    "stance": "Stance ({{currency}})",
+    "all": "All",
+    "no-report": "No report",
+    "trips": "Trips",
+    "win-rate": "Win rate",
+    "average-win": "Avg. win",
+    "average-loss": "Avg. loss",
+    "payoff-ratio": "Payoff ratio",
+    "realized": "Realized"
+  },
   "watchlist": {
     "title": "Watchlist",
     "empty": "Search a symbol, then add it from above its chart.",

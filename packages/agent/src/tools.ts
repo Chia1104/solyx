@@ -95,6 +95,8 @@ import type {
   ProposingDesk,
   TradeProposal,
 } from "@solyx/core/order-desk";
+import { recordsByStance, roundTrips } from "@solyx/core/review";
+import type { TradeRecord } from "@solyx/core/review";
 import { stanceValue } from "@solyx/core/sentiment";
 import { getSession, sessionsBetween, weekdays } from "@solyx/core/session";
 import type { MarketClosure, TradingDays } from "@solyx/core/session";
@@ -102,7 +104,7 @@ import { shiftDate, wallTime, HOUR_MS, DAY_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 import { normalizeSpace, truncate, counted } from "@solyx/utils/text";
 
-import { figure, signed } from "./figures.ts";
+import { figure, percent, signed, signedFigure } from "./figures.ts";
 import { rememberAddresses } from "./found-addresses.ts";
 import { readingText } from "./macro-text.ts";
 import { councilText, durableBallotBox, orderMotion } from "./magi.ts";
@@ -524,6 +526,19 @@ function basisText(market: Market, { report, forecast }: ProposalBasis) {
     : `${made}, with no forecast under it`;
 }
 
+/** How a set of round trips went, in one line. */
+function recordText({
+  trips,
+  wins,
+  winRate,
+  averageWin,
+  averageLoss,
+  payoffRatio,
+  realized,
+}: TradeRecord) {
+  return `${trips} trips, ${wins} won (${percent(winRate)}), average win ${averageWin === null ? "n/a" : signedFigure(averageWin)}, average loss ${averageLoss === null ? "n/a" : signedFigure(averageLoss)}, payoff ratio ${figure(payoffRatio)}, realized ${signedFigure(realized)}`;
+}
+
 export function describeProposal(proposal: TradeProposal): string {
   const { order } = proposal;
   const price = order.type === OrderType.Limit ? order.limitPrice : "market";
@@ -905,10 +920,13 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
       name: AgentToolName.GetAccount,
       replay: "safe",
       description:
-        "Cash per currency and open positions with their average price, in the account the app trades.",
+        "Cash per currency and open positions with their average price, in the account the app trades, and how its closed round trips went by the stance of the report each was opened under.",
       parameters: z.object({}),
       execute: async () => {
-        const account = await ports.desk.account();
+        const [account, fills] = await Promise.all([
+          ports.desk.account(),
+          ports.desk.fills(0),
+        ]);
 
         const cash = Object.entries(account.cash).map(
           ([currency, amount]) => `${currency} ${amount}`
@@ -919,12 +937,26 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             `${symbolLabel(position.instrument)}: ${position.quantity} shares @ ${position.avgPrice}`
         );
 
+        const records = recordsByStance(
+          roundTrips(fills, ports.desk.list(), account.positions)
+        );
+
         return {
           text: [
             `account: ${ports.desk.mode}`,
             `cash: ${cash.join(", ") || "none"}`,
             "positions:",
             ...(positions.length > 0 ? positions : ["none"]),
+            "closed round trips, before fees and tax, by the stance of the report in force at the first buy:",
+            ...(records.length > 0
+              ? records.flatMap(({ currency, all, stances }) => [
+                  `- ${currency} all: ${recordText(all)}`,
+                  ...stances.map(
+                    ({ stance, record }) =>
+                      `- ${currency} ${stance ?? "no report"}: ${recordText(record)}`
+                  ),
+                ])
+              : ["none"]),
           ].join("\n"),
         };
       },

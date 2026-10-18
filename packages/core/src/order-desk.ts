@@ -8,7 +8,7 @@ import type { Forecast } from "./forecast.ts";
 import { currencyOf, exchangeDate, exchangeMidnight } from "./market.ts";
 import type { Currency, Market, SymbolRef } from "./market.ts";
 import { Side, realizedIn } from "./order.ts";
-import type { AccountSnapshot, OrderRequest } from "./order.ts";
+import type { AccountSnapshot, Fill, OrderRequest } from "./order.ts";
 import type { Report } from "./report.ts";
 import { checkOrder, sessionBand } from "./risk.ts";
 import type { PriceLimits, RiskLimits, RiskViolation } from "./risk.ts";
@@ -142,7 +142,7 @@ export interface OrderDeskOptions {
 /** The desk as an agent may use it: proposing and reading, never confirming or dismissing. */
 export type ProposingDesk = Pick<
   OrderDesk,
-  "check" | "propose" | "list" | "account" | "mode"
+  "check" | "propose" | "list" | "account" | "fills" | "mode"
 >;
 
 /**
@@ -193,6 +193,11 @@ export class OrderDesk {
 
   account(): Promise<AccountSnapshot> {
     return this.#options.broker.getAccount();
+  }
+
+  /** The account's fills from `since`, UTC milliseconds, on, oldest first. */
+  fills(since: number): Promise<Fill[]> {
+    return this.#options.broker.getFills(since);
   }
 
   /**
