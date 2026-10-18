@@ -93,6 +93,32 @@ export function regularHours(market: Market, date: string) {
   return { open: midnight + start * 60, close: midnight + end * 60 };
 }
 
+/** The first exchange-local day after `date` that `trades`. */
+export function nextTradingDay(
+  date: string,
+  trades: TradingDays = weekdays
+): string {
+  let day = shiftDate(date, 1);
+
+  while (!trades(day)) day = shiftDate(day, 1);
+
+  return day;
+}
+
+/** The exchange-local day of the regular session under way at `at`, or else of the next one to open. */
+export function sessionDayAt(
+  market: Market,
+  at: Date = new Date(),
+  trades: TradingDays = weekdays
+): string {
+  const today = exchangeDate(market, at);
+
+  return trades(today) &&
+    at.getTime() < regularHours(market, today).close * 1000
+    ? today
+    : nextTradingDay(today, trades);
+}
+
 /**
  * The days an exchange set from `since` on, `listed` ascending: through the last of them a day
  * trades only when listed, and outside that span every weekday does.

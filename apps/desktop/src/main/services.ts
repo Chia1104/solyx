@@ -7,7 +7,7 @@ import { kebabCase, omit, uniqBy } from "es-toolkit";
 
 import { createPaperBroker } from "@solyx/brokers/paper";
 import { changesSince, watchesListings } from "@solyx/core/changes";
-import { Currency, symbolKey } from "@solyx/core/market";
+import { Currency, symbolKey, symbolLabel } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderDesk, ProposalStatus } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
@@ -130,10 +130,30 @@ export function createServices(config: ConfigFile) {
     broker: createPaperBroker({
       cash: PAPER_CASH,
       ledger: userData.paperAccount,
+      async getLastPrice(instrument) {
+        const quote = await marketData.quote(instrument);
+
+        if (!quote) {
+          throw new Error(
+            `No market data source covers ${symbolLabel(instrument)}, so the paper account cannot fill a market order`
+          );
+        }
+
+        return quote.last;
+      },
     }),
     store: userData.proposals,
     limits: PAPER_LIMITS,
     tradingDays: (market) => marketDays(market),
+    // A list out of reach leaves the limits unknown rather than failing the check.
+    priceLimits: (symbol) =>
+      fundamentals.priceLimits(symbol).catch((error) => {
+        diagnostics.recovered(error, "desk.price-limits", {
+          "solyx.listing": symbolKey(symbol),
+        });
+
+        return null;
+      }),
     restored: restored !== null,
     basis: (symbol) => research.desk.basis(symbol),
     onChange() {

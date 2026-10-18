@@ -4,12 +4,46 @@ import { OrderType, Side } from "./order.ts";
 import type { AccountSnapshot, OrderRequest } from "./order.ts";
 import { isTwOddLot, isValidTwQuantity, twTickSize } from "./rules/tw.ts";
 import { isValidUsQuantity, usTickSize } from "./rules/us.ts";
-import type { Session } from "./session.ts";
+import { nextTradingDay, sessionDayAt } from "./session.ts";
+import type { Session, TradingDays } from "./session.ts";
 
 export interface RiskLimits {
   /** Largest single order, in the market's own currency. */
   maxOrderNotional: Record<Currency, number>;
   allowedSessions: readonly Session[];
+}
+
+/** The prices a listing may trade between in one session. */
+export interface PriceBand {
+  low: number;
+  high: number;
+}
+
+/** A listing's price limits as its exchange sets them after a session, for the next one the market trades. */
+export interface PriceLimits {
+  /** The exchange-local day of the session they follow. */
+  after: string;
+  /** `null` where the listing trades without limits, as a fund of foreign shares does. */
+  band: PriceBand | null;
+}
+
+/**
+ * The band of the session an order placed at `at` goes to: `null` where the listing trades
+ * without limits in it, and `undefined` while that session's limits are not known, as they are not
+ * once it is past the one `limits` were set for.
+ */
+export function sessionBand(
+  limits: PriceLimits | null,
+  market: Market,
+  at: Date,
+  trades: TradingDays
+): PriceBand | null | undefined {
+  if (!limits) return undefined;
+
+  return nextTradingDay(limits.after, trades) ===
+    sessionDayAt(market, at, trades)
+    ? limits.band
+    : undefined;
 }
 
 /** Market and account state at check time. Re-read before every check; it goes stale fast. */
@@ -19,10 +53,11 @@ export interface RiskContext {
   markets: readonly Market[];
   /** What the account holds, which buys spend and sells draw on. */
   account: AccountSnapshot;
-  /** Needed to size market orders. */
-  lastPrice?: number;
-  /** Daily price-limit band from the quote feed; some TW ETFs have none, so it stays optional. */
-  priceBand?: { low: number; high: number };
+  /**
+   * The listing's band in the session the order goes to (`sessionBand`). A market order is sized
+   * at its high, the most it could fill at, so one is refused where the band is `null` or unknown.
+   */
+  priceBand?: PriceBand | null;
 }
 
 export const RiskViolationCode = {
@@ -133,7 +168,7 @@ export function checkOrder(
   }
 
   const referencePrice =
-    order.type === OrderType.Limit ? order.limitPrice : context.lastPrice;
+    order.type === OrderType.Limit ? order.limitPrice : context.priceBand?.high;
 
   if (referencePrice === undefined) {
     violations.push({ code: RiskViolationCode.MissingReferencePrice });

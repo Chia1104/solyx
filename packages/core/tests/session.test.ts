@@ -5,6 +5,8 @@ import {
   Session,
   getSession,
   listedTradingDays,
+  nextTradingDay,
+  sessionDayAt,
   sessionsBetween,
   weekdays,
 } from "../src/session.ts";
@@ -108,5 +110,31 @@ describe("an exchange's listed days", () => {
 
   test("none listed leaves every weekday trading", () => {
     expect(listedTradingDays("2026-09-24", [])("2026-09-28")).toBe(true);
+  });
+});
+
+describe("the session an order goes to", () => {
+  // Friday 2026-10-09 is a holiday in Taipei.
+  const trades = listedTradingDays("2026-10-01", [
+    "2026-10-07",
+    "2026-10-08",
+    "2026-10-12",
+  ]);
+
+  test.each([
+    // Before the close it is the session of the day.
+    ["2026-10-08T08:00:00+08:00", "2026-10-08"],
+    ["2026-10-08T13:29:00+08:00", "2026-10-08"],
+    // From the close on it is the next day the market trades, over the holiday and the weekend.
+    ["2026-10-08T13:30:00+08:00", "2026-10-12"],
+    ["2026-10-09T10:00:00+08:00", "2026-10-12"],
+    ["2026-10-11T22:00:00+08:00", "2026-10-12"],
+  ])("at %s is %s's", (iso, day) => {
+    expect(sessionDayAt(Market.TW, new Date(iso), trades)).toBe(day);
+  });
+
+  test("the next trading day skips the days the market does not trade", () => {
+    expect(nextTradingDay("2026-10-08", trades)).toBe("2026-10-12");
+    expect(nextTradingDay("2026-10-08", weekdays)).toBe("2026-10-09");
   });
 });

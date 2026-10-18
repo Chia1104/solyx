@@ -16,6 +16,11 @@ const TSMC = { market: Market.TW, symbol: "2330" };
 
 const TAIWAN_50 = { market: Market.TW, symbol: "0050" };
 
+const PRICE_LIMITS = {
+  after: "2026-10-06",
+  band: { low: 882, high: 1070 },
+};
+
 const SHORT_SALE = {
   kind: RestrictionKind.ShortSaleSuspension,
   from: "2026-10-05",
@@ -124,6 +129,9 @@ function setup(answers = memoryAnswers()) {
       { symbol: "2454", ...CHIPS },
       { symbol: "3711", ...CHIPS },
       { symbol: "1101", code: "01", name: "水泥工業" },
+    ]),
+    getPriceLimits: vi.fn<ExchangeListsProvider["getPriceLimits"]>(async () => [
+      { symbol: "2330", ...PRICE_LIMITS },
     ]),
   };
 
@@ -326,6 +334,19 @@ test("a listing's multiples are its own among those its market's exchanges work 
   await fundamentals.multiples(TSMC);
 
   expect(lists.getMultiples).toHaveBeenCalledTimes(2);
+});
+
+test("a listing's price limits are its own among those its market's exchanges set, read once an hour at most", async () => {
+  const { clock, lists, fundamentals } = setup();
+
+  expect(await fundamentals.priceLimits(TSMC)).toEqual(PRICE_LIMITS);
+  expect(await fundamentals.priceLimits(TAIWAN_50)).toBeNull();
+  expect(lists.getPriceLimits).toHaveBeenCalledExactlyOnceWith(Market.TW);
+
+  clock.now += HOUR_MS;
+  await fundamentals.priceLimits(TSMC);
+
+  expect(lists.getPriceLimits).toHaveBeenCalledTimes(2);
 });
 
 test("a listing's notices of going ex and its shareholders' meetings are its own among its market's, notices read once an hour and meetings twice a day at most", async () => {

@@ -50,6 +50,10 @@
     "buy": "Buy",
     "sell": "Sell"
   },
+  "order-type": {
+    "limit": "Limit",
+    "market": "Market"
+  },
   "source": {
     "agent": "Agent",
     "user": "Manual"
@@ -791,6 +795,7 @@
   "order-form": {
     "market": "Market",
     "side": "Side",
+    "type": "Order type",
     "symbol": "Symbol",
     "symbol-placeholder": "2330",
     "quantity": "Shares",
@@ -810,7 +815,7 @@
     "invalid-price": "Price {{price, number(maximumFractionDigits: 4)}} is not a multiple of the {{tick, number(maximumFractionDigits: 4)}} tick size",
     "odd-lot-market-order": "Odd-lot orders must be limit orders",
     "outside-price-band": "Price is outside the daily limit band {{low, number}}–{{high, number}}",
-    "missing-reference-price": "Market orders need a last price to estimate their value",
+    "missing-reference-price": "Market orders are sized at the session's limit-up price, which is not known for this listing",
     "order-too-large": "Order value {{notional, number}} {{currency}} exceeds the {{max, number}} limit",
     "session-not-allowed": "Orders are not allowed in the {{session}} session",
     "unsupported-market": "The account does not trade {{market}} listings",

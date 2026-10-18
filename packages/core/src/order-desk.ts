@@ -5,9 +5,9 @@ import type { Forecast } from "./forecast.ts";
 import type { Market, SymbolRef } from "./market.ts";
 import type { AccountSnapshot, OrderRequest } from "./order.ts";
 import type { Report } from "./report.ts";
-import { checkOrder } from "./risk.ts";
-import type { RiskLimits, RiskViolation } from "./risk.ts";
-import { getSession } from "./session.ts";
+import { checkOrder, sessionBand } from "./risk.ts";
+import type { PriceLimits, RiskLimits, RiskViolation } from "./risk.ts";
+import { getSession, weekdays } from "./session.ts";
 import type { TradingDays } from "./session.ts";
 
 export const ProposalSource = {
@@ -88,6 +88,12 @@ export interface OrderDeskOptions {
    * @default every weekday trades
    */
   tradingDays?: (market: Market) => Promise<TradingDays>;
+  /**
+   * A listing's price limits as its exchange last set them, which a limit price is checked against
+   * and a market order sized by. It must answer even while the exchange's lists cannot be read.
+   * @default none are known: no limit price is checked against a band, and every market order is refused
+   */
+  priceLimits?: (symbol: SymbolRef) => Promise<PriceLimits | null>;
   /**
    * The store was put back from a backup. A proposal that waits in it may have been confirmed
    * since the backup was made, so the desk dismisses each as it opens.
@@ -254,18 +260,30 @@ export class OrderDesk {
     return proposal;
   }
 
-  /**
-   * The risk checks alone, so an order can be tried before it is proposed. There is no quote
-   * feed yet, so market orders are rejected for lack of a reference price.
-   */
+  /** The risk checks alone, so an order can be tried before it is proposed. */
   async check(order: OrderRequest): Promise<RiskViolation[]> {
-    const { broker, limits, tradingDays, now = Date.now } = this.#options;
-    const { market } = order.instrument;
+    const {
+      broker,
+      limits,
+      tradingDays,
+      priceLimits,
+      now = Date.now,
+    } = this.#options;
+
+    const { instrument } = order;
+    const at = new Date(now());
+    const trades = (await tradingDays?.(instrument.market)) ?? weekdays;
+
+    const [account, listed] = await Promise.all([
+      broker.getAccount(),
+      priceLimits?.(instrument) ?? null,
+    ]);
 
     return checkOrder(order, limits, {
-      session: getSession(market, new Date(now()), await tradingDays?.(market)),
+      session: getSession(instrument.market, at, trades),
       markets: broker.markets,
-      account: await broker.getAccount(),
+      account,
+      priceBand: sessionBand(listed, instrument.market, at, trades),
     });
   }
 

@@ -9,7 +9,7 @@ import {
 } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { Market } from "@solyx/core/market";
@@ -24,13 +24,15 @@ import { useOrderFormSchema } from "./order-form-schema.ts";
 import type { OrderFormValues } from "./order-form-schema.ts";
 
 function toOrderRequest(values: OrderFormValues): OrderRequest {
-  return {
+  const order = {
     instrument: { market: values.market, symbol: values.symbol },
     side: values.side,
     quantity: values.quantity,
-    type: OrderType.Limit,
-    limitPrice: values.limitPrice,
   };
+
+  return values.type === OrderType.Limit
+    ? { ...order, type: OrderType.Limit, limitPrice: values.limitPrice }
+    : { ...order, type: OrderType.Market };
 }
 
 export function ProposalForm() {
@@ -48,10 +50,13 @@ export function ProposalForm() {
       side: Side.Buy,
       symbol: "",
       quantity: Number.NaN,
+      type: OrderType.Limit,
       limitPrice: Number.NaN,
       rationale: "",
     },
   });
+
+  const type = useWatch({ control: form.control, name: "type" });
 
   const propose = useMutation(
     orpc.proposals.propose.mutationOptions({ onSuccess: () => form.reset() })
@@ -140,10 +145,32 @@ export function ProposalForm() {
       />
       <Controller
         control={form.control}
+        name="type"
+        render={({ field, fieldState }) => (
+          <OptionSelect
+            isRequired
+            label={t("order-form.type")}
+            value={field.value}
+            errorMessage={fieldState.error?.message}
+            options={Object.values(OrderType).map((orderType) => ({
+              id: orderType,
+              label: t(`order-type.${orderType}`),
+            }))}
+            onChange={(orderType) => {
+              field.onChange(orderType);
+              // A market order takes no price, so a price left missing is no longer an error.
+              form.clearErrors("limitPrice");
+            }}
+          />
+        )}
+      />
+      <Controller
+        control={form.control}
         name="limitPrice"
         render={({ field, fieldState }) => (
           <NumberField
-            isRequired
+            isRequired={type === OrderType.Limit}
+            isDisabled={type === OrderType.Market}
             isInvalid={fieldState.invalid}
             minValue={0}
             formatOptions={{ maximumFractionDigits: 4 }}

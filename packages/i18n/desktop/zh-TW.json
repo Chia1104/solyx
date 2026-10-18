@@ -50,6 +50,10 @@
     "buy": "買進",
     "sell": "賣出"
   },
+  "order-type": {
+    "limit": "限價",
+    "market": "市價"
+  },
   "source": {
     "agent": "Agent",
     "user": "手動"
@@ -791,6 +795,7 @@
   "order-form": {
     "market": "市場",
     "side": "買賣",
+    "type": "委託類型",
     "symbol": "代號",
     "symbol-placeholder": "2330",
     "quantity": "股數",
@@ -810,7 +815,7 @@
     "invalid-price": "價格 {{price, number(maximumFractionDigits: 4)}} 不符合升降單位 {{tick, number(maximumFractionDigits: 4)}}",
     "odd-lot-market-order": "零股只能下限價單",
     "outside-price-band": "價格超出漲跌停範圍 {{low, number}}–{{high, number}}",
-    "missing-reference-price": "市價單需要最新成交價才能估算金額",
+    "missing-reference-price": "市價單以當日漲停價估算金額，但這檔目前沒有已知的漲停價",
     "order-too-large": "單筆金額 {{notional, number}} {{currency}} 超過上限 {{max, number}}",
     "session-not-allowed": "目前時段（{{session}}）不允許下單",
     "unsupported-market": "此帳戶不交易{{market}}標的",

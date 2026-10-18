@@ -139,6 +139,13 @@ export function createFundamentals({
     FRESH_MS
   );
 
+  const priceLimits = listed(
+    "price-limits",
+    exchanges,
+    (provider, market) => provider.getPriceLimits(market),
+    DAILY_LIST_FRESH_MS
+  );
+
   /** `ask`'s answer per listing, kept under `scope`. */
   function fresh<Answer>(
     scope: string,
@@ -263,5 +270,7 @@ export function createFundamentals({
       (provider, market) => provider.getMeetings(market),
       FRESH_MS
     ).of,
+
+    priceLimits: async (symbol) => (await priceLimits.of(symbol)).at(0) ?? null,
   };
 }

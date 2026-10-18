@@ -1,12 +1,12 @@
-import { expect, test } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
 
 import { Market } from "../src/market.ts";
 import type { SymbolRef } from "../src/market.ts";
 import { OrderType, Side } from "../src/order.ts";
 import type { OrderRequest } from "../src/order.ts";
-import { RiskViolationCode, checkOrder } from "../src/risk.ts";
+import { RiskViolationCode, checkOrder, sessionBand } from "../src/risk.ts";
 import type { RiskContext, RiskLimits } from "../src/risk.ts";
-import { Session } from "../src/session.ts";
+import { Session, listedTradingDays } from "../src/session.ts";
 
 const limits: RiskLimits = {
   maxOrderNotional: { TWD: 1_000_000, USD: 10_000 },
@@ -86,12 +86,12 @@ test("odd lots cannot be market orders", () => {
     type: OrderType.Market,
   };
 
-  expect(codes(order, { ...open, lastPrice: 980 })).toEqual([
-    RiskViolationCode.OddLotMarketOrder,
-  ]);
+  expect(
+    codes(order, { ...open, priceBand: { low: 882, high: 1070 } })
+  ).toEqual([RiskViolationCode.OddLotMarketOrder]);
 });
 
-test("market orders without a reference price cannot be sized", () => {
+describe("a market order is sized at the session's limit-up", () => {
   const order: OrderRequest = {
     instrument: tsmc,
     side: Side.Buy,
@@ -99,7 +99,76 @@ test("market orders without a reference price cannot be sized", () => {
     type: OrderType.Market,
   };
 
-  expect(codes(order)).toEqual([RiskViolationCode.MissingReferencePrice]);
+  test("which may put it over the cap a limit order at today's price stays under", () => {
+    expect(
+      codes(order, { ...open, priceBand: { low: 810, high: 990 } })
+    ).toEqual([]);
+    expect(
+      checkOrder(order, limits, {
+        ...open,
+        priceBand: { low: 882, high: 1070 },
+      })
+    ).toEqual([
+      {
+        code: RiskViolationCode.OrderTooLarge,
+        notional: 1_070_000,
+        currency: "TWD",
+        max: 1_000_000,
+      },
+    ]);
+  });
+
+  test("and cannot be sized where the listing has no limits or they are not known", () => {
+    expect(codes(order, { ...open, priceBand: null })).toEqual([
+      RiskViolationCode.MissingReferencePrice,
+    ]);
+    expect(codes(order)).toEqual([RiskViolationCode.MissingReferencePrice]);
+  });
+});
+
+describe("the band of the session an order goes to", () => {
+  // The limits set after Thursday 2026-10-08, with Friday a holiday.
+  const trades = listedTradingDays("2026-10-01", [
+    "2026-10-08",
+    "2026-10-12",
+    "2026-10-13",
+  ]);
+
+  const band = { low: 882, high: 1070 };
+  const limits = { after: "2026-10-08", band };
+  const at = (iso: string) => new Date(iso);
+
+  test("holds them for the next day the market trades, until its close", () => {
+    expect(
+      sessionBand(limits, Market.TW, at("2026-10-08T15:00:00+08:00"), trades)
+    ).toEqual(band);
+    expect(
+      sessionBand(limits, Market.TW, at("2026-10-12T13:29:00+08:00"), trades)
+    ).toEqual(band);
+  });
+
+  test("knows none before they are set or after their session closes", () => {
+    expect(
+      sessionBand(limits, Market.TW, at("2026-10-08T10:00:00+08:00"), trades)
+    ).toBeUndefined();
+    expect(
+      sessionBand(limits, Market.TW, at("2026-10-12T13:30:00+08:00"), trades)
+    ).toBeUndefined();
+    expect(
+      sessionBand(null, Market.TW, at("2026-10-12T10:00:00+08:00"), trades)
+    ).toBeUndefined();
+  });
+
+  test("tells a listing without limits from one whose limits are not known", () => {
+    expect(
+      sessionBand(
+        { after: "2026-10-08", band: null },
+        Market.TW,
+        at("2026-10-12T10:00:00+08:00"),
+        trades
+      )
+    ).toBeNull();
+  });
 });
 
 test("limit price outside the daily limit band is rejected", () => {
