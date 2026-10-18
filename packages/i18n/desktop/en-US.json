@@ -627,6 +627,11 @@
     "violations-title": "Blocked by risk checks",
     "submit-failed": "Submission failed; check your broker before placing it again",
     "submit-refused": "The broker refused it; nothing was placed",
+    "lock": {
+      "label": "Lock orders",
+      "on": "Every order is refused until you unlock.",
+      "off": "Proposals can be confirmed and sent."
+    },
     "submit-interrupted": "Solyx closed before the broker replied, so the order may have reached it.",
     "history": "History"
   },
@@ -812,6 +817,7 @@
     }
   },
   "risk": {
+    "orders-locked": "Orders are locked; unlock them to trade",
     "invalid-quantity-tw": "Taiwan orders must be 1–999 odd-lot shares or a multiple of 1,000",
     "invalid-quantity-us": "US orders must be a positive whole number of shares",
     "invalid-price": "Price {{price, number(maximumFractionDigits: 4)}} is not a multiple of the {{tick, number(maximumFractionDigits: 4)}} tick size",

@@ -627,6 +627,11 @@
     "violations-title": "未通過風控檢查",
     "submit-failed": "送單失敗；再次下單前請先到券商確認",
     "submit-refused": "券商拒絕了這筆委託，沒有送出任何單",
+    "lock": {
+      "label": "鎖定下單",
+      "on": "所有下單都會被拒絕，直到你解除鎖定。",
+      "off": "提案可以確認送出。"
+    },
     "submit-interrupted": "券商回覆前 Solyx 就關閉了，這筆委託可能已經送達券商。",
     "history": "紀錄"
   },
@@ -812,6 +817,7 @@
     }
   },
   "risk": {
+    "orders-locked": "下單已鎖定，解除後才能下單",
     "invalid-quantity-tw": "台股數量須為 1–999 股零股，或 1,000 股的整數倍",
     "invalid-quantity-us": "美股數量須為正整數股",
     "invalid-price": "價格 {{price, number(maximumFractionDigits: 4)}} 不符合升降單位 {{tick, number(maximumFractionDigits: 4)}}",

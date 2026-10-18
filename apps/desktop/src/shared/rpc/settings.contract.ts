@@ -55,6 +55,7 @@ import type {
   OtlpSettings,
   SecretsStatus,
   SignInCode,
+  TradingSettings,
   TraySettings,
   UpdateSettings,
   WebSearchSettings,
@@ -240,6 +241,9 @@ export const settingsContract = {
   memory: oc.output(type<MemorySettings>()),
   /** Gives the agent its memories from its next run on, or takes them away; they stay saved. */
   setMemoryEnabled: oc.input(z.boolean()).output(type<void>()),
+  trading: oc.output(type<TradingSettings>()),
+  /** Locks orders, or unlocks them, from the next check on. */
+  setOrdersLocked: oc.input(z.boolean()).output(type<void>()),
   tray: oc.output(type<TraySettings>()),
   /** Puts the icon in the tray or takes it away, at once. */
   setTrayShown: oc.input(z.boolean()).output(type<void>()),

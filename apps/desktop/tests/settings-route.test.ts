@@ -341,6 +341,17 @@ test("memory is on until the user switches it off", async () => {
   expect(await api.memory()).toEqual({ enabled: false });
 });
 
+test("orders stay unlocked until the user locks them", async () => {
+  const { api, config } = setup();
+
+  expect(await api.trading()).toEqual({ locked: false });
+
+  await api.setOrdersLocked(true);
+
+  expect(config.read().trading.locked).toBe(true);
+  expect(await api.trading()).toEqual({ locked: true });
+});
+
 test("MCP servers show each tool under the policy in force, which secrets are saved, and paths from home", async () => {
   const { api, secrets, mcp } = setup();
 

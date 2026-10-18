@@ -60,7 +60,11 @@ function setup(
     restored = false,
     basis,
     priceLimits,
-  }: Pick<OrderDeskOptions, "restored" | "basis" | "priceLimits"> = {}
+    locked,
+  }: Pick<
+    OrderDeskOptions,
+    "restored" | "basis" | "priceLimits" | "locked"
+  > = {}
 ) {
   const clock = { now: DURING_SESSION };
   const tradingDays = vi.fn(async (): Promise<TradingDays> => weekdays);
@@ -96,6 +100,7 @@ function setup(
     restored,
     basis,
     priceLimits,
+    locked,
     onChange,
     now: () => clock.now,
   });
@@ -483,4 +488,22 @@ test("a market order is sized at the session's limit-up, and refused while it is
   expect(await unknown.check(market)).toEqual([
     { code: RiskViolationCode.MissingReferencePrice },
   ]);
+});
+
+test("a lock refuses new proposals and keeps those waiting from being sent, read at every check", async () => {
+  const lock = { on: false };
+  const { desk, placeOrder } = setup(undefined, { locked: () => lock.on });
+  const waiting = await proposeFromAgent(desk);
+
+  lock.on = true;
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [{ code: RiskViolationCode.OrdersLocked }],
+  });
+  expect(await desk.confirm(waiting.id)).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [{ code: RiskViolationCode.OrdersLocked }],
+  });
+  expect(placeOrder).not.toHaveBeenCalled();
 });

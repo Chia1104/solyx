@@ -154,6 +154,7 @@ export function createServices(config: ConfigFile) {
 
         return null;
       }),
+    locked: () => config.read().trading.locked,
     restored: restored !== null,
     basis: (symbol) => research.desk.basis(symbol),
     onChange() {

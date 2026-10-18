@@ -106,6 +106,12 @@ export interface OrderDeskOptions {
    */
   priceLimits?: (symbol: SymbolRef) => Promise<PriceLimits | null>;
   /**
+   * Whether the user locked orders, read at every check, so a lock refuses proposals and stops
+   * those waiting from being sent until it is lifted.
+   * @default never locked
+   */
+  locked?: () => boolean;
+  /**
    * The store was put back from a backup. A proposal that waits in it may have been confirmed
    * since the backup was made, so the desk dismisses each as it opens.
    * @default false
@@ -301,6 +307,7 @@ export class OrderDesk {
       limits,
       tradingDays,
       priceLimits,
+      locked,
       now = Date.now,
     } = this.#options;
 
@@ -317,6 +324,7 @@ export class OrderDesk {
       session: getSession(instrument.market, at, trades),
       markets: broker.markets,
       account,
+      locked: locked?.() ?? false,
       priceBand: sessionBand(listed, instrument.market, at, trades),
     });
   }

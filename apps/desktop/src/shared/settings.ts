@@ -389,6 +389,11 @@ export interface TraySettings {
   hasDock: boolean;
 }
 
+export interface TradingSettings {
+  /** Every order is refused until the user unlocks them. */
+  locked: boolean;
+}
+
 export interface UpdateSettings {
   /** The app checks for a newer version on its own while it runs. */
   check: boolean;

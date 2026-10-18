@@ -66,6 +66,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       language: LanguagePreference.System,
       timeZone: TimeZonePreference.System,
     },
+    trading: { locked: false },
     tray: { show: true, hideDock: false },
     marketData: { TW: MarketDataSource.Fugle },
     providers: {

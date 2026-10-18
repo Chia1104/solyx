@@ -182,6 +182,12 @@ test("limit price outside the daily limit band is rejected", () => {
   ]);
 });
 
+test("every order is refused while the user has locked orders", () => {
+  expect(codes(buyLimit(1000, 980), { ...open, locked: true })).toEqual([
+    RiskViolationCode.OrdersLocked,
+  ]);
+});
+
 test("orders over the notional cap are rejected", () => {
   expect(codes(buyLimit(2000, 980))).toEqual([RiskViolationCode.OrderTooLarge]);
 });

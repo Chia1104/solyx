@@ -92,6 +92,12 @@ export const newsRetentionQuery = () =>
   });
 
 /** Never stale, as below. */
+export const tradingSettingsQuery = () =>
+  orpc.settings.trading.queryOptions({
+    staleTime: Infinity,
+  });
+
+/** Never stale, as below. */
 export const updateSettingsQuery = () =>
   orpc.settings.updates.queryOptions({
     staleTime: Infinity,
