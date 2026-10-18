@@ -17,6 +17,7 @@ import { LoadingState } from "../components/loading-state.tsx";
 import { Section } from "../components/section.tsx";
 import { RAILED_COLUMN, Sheet } from "../components/sheet.tsx";
 import { AccountSummary } from "../modules/account/account-summary.tsx";
+import { TradeReview } from "../modules/account/trade-review.tsx";
 import { CALENDAR_DAYS } from "../modules/calendar/calendar-query.ts";
 import { UpcomingEvents } from "../modules/calendar/upcoming-events.tsx";
 import { MarketFlows } from "../modules/flows/market-flows.tsx";
@@ -145,6 +146,7 @@ export function OverviewPage() {
         <InboxSection />
         <TodaysMoves />
         <AccountSummary />
+        <TradeReview />
       </>
     ),
     [OverviewTab.News]: (

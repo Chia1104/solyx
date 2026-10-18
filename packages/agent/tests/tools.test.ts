@@ -143,6 +143,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
       cash: { TWD: 1_000_000 },
       positions: [],
     })),
+    fills: vi.fn<OrderDesk["fills"]>(async () => []),
     mode: BrokerMode.Paper,
   };
 
@@ -458,6 +459,65 @@ test("a limit order needs its price", async () => {
     })
   ).rejects.toThrow("limitPrice");
   expect(desk.check).not.toHaveBeenCalled();
+});
+
+test("the account tells how its closed round trips went by the stance they were opened under", async () => {
+  const { run, desk } = setup();
+  const tsmc = { market: Market.TW, symbol: "2330" };
+
+  const fill = (
+    orderId: string,
+    side: Side,
+    filledAt: number,
+    realized: number | null
+  ) => ({
+    orderId,
+    instrument: tsmc,
+    side,
+    quantity: 1000,
+    price: 1000,
+    filledAt,
+    realized,
+  });
+
+  desk.fills.mockResolvedValueOnce([
+    fill("B-1", Side.Buy, 1, null),
+    fill("B-2", Side.Sell, 2, 20_000),
+    fill("B-3", Side.Buy, 3, null),
+    fill("B-4", Side.Sell, 4, -10_000),
+  ]);
+
+  desk.list.mockReturnValueOnce([
+    {
+      id: "p1",
+      order: {
+        instrument: tsmc,
+        side: Side.Buy,
+        quantity: 1000,
+        type: OrderType.Limit,
+        limitPrice: 1000,
+      },
+      source: ProposalSource.Agent,
+      rationale: "breakout",
+      basis: {
+        report: { revision: 1, revisedAt: 0, stance: ReportStance.Bullish },
+        forecast: null,
+      },
+      createdAt: 0,
+      status: ProposalStatus.Submitted,
+      violations: [],
+      brokerOrderId: "B-1",
+    },
+  ]);
+
+  const { text } = await run(AgentToolName.GetAccount, {});
+
+  expect(text).toContain(
+    "- TWD all: 2 trips, 1 won (50.0%), average win +20000, average loss -10000, payoff ratio 2, realized +10000"
+  );
+  expect(text).toContain("- TWD bullish: 1 trips, 1 won (100.0%)");
+  expect(text).toContain("- TWD no report: 1 trips, 0 won (0.0%)");
+  expect(desk.fills).toHaveBeenCalledWith(0);
 });
 
 test("checking reports each violation", async () => {

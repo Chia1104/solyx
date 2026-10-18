@@ -80,6 +80,21 @@
     "cash": "現金",
     "unrealized-gain": "未實現損益"
   },
+  "review": {
+    "title": "交易檢討",
+    "description": "已平倉的部位（從第一筆買進到賣光），依第一筆買進時研究報告的立場分組。未含手續費與稅。",
+    "empty": "還沒有平倉的部位。",
+    "table": "{{currency}} 的來回交易",
+    "stance": "立場（{{currency}}）",
+    "all": "全部",
+    "no-report": "無報告",
+    "trips": "筆數",
+    "win-rate": "勝率",
+    "average-win": "平均獲利",
+    "average-loss": "平均虧損",
+    "payoff-ratio": "賺賠比",
+    "realized": "已實現"
+  },
   "watchlist": {
     "title": "自選",
     "empty": "搜尋代號後，在圖表上方加入自選。",

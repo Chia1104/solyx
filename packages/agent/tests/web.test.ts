@@ -131,6 +131,7 @@ function setup(vendor = fakeVendor()) {
       propose: vi.fn<OrderDesk["propose"]>(),
       list: () => [],
       account: async () => ({ cash: {}, positions: [] }),
+      fills: async () => [],
       mode: BrokerMode.Paper,
     },
     links: LINKS,
