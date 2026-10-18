@@ -257,6 +257,25 @@ test("buying and holding a stretch starts from the close its return is measured 
   expect(result.outOfSample?.buyAndHold).toBeCloseTo(1);
 });
 
+test("buying and holding's drawdown is its deepest fall from a high, from the close its stretch is measured from", () => {
+  const result = backtest(
+    TSMC,
+    bars([100, 120, 130, 110, 80]),
+    {
+      entry: { above: [{ price: "close" }, { value: 1000 }] },
+      exit: { below: [{ price: "close" }, { value: 0 }] },
+    },
+    { capital: 100_000, costs: NO_COSTS, split: "2026-01-08" }
+  );
+
+  // The stretch from the fourth bar is measured from the close of 130, its high.
+  expect(result.all.buyAndHoldDrawdown).toBeCloseTo(1 - 80 / 130);
+  expect(result.inSample?.buyAndHoldDrawdown).toBe(0);
+  expect(result.outOfSample?.buyAndHoldDrawdown).toBeCloseTo(1 - 80 / 130);
+  // Holding nothing loses nothing.
+  expect(result.all.maxDrawdown).toBe(0);
+});
+
 describe("splits and what went ex", () => {
   // Bought at the second bar's open and never sold.
   const holding: RuleStrategy = {
@@ -293,6 +312,7 @@ describe("splits and what went ex", () => {
     ]);
     expect(result.all.maxDrawdown).toBe(0);
     expect(result.all.buyAndHold).toBeCloseTo(0.04);
+    expect(result.all.buyAndHoldDrawdown).toBe(0);
   });
 
   test("what went ex while held is bought back in at the reference", () => {

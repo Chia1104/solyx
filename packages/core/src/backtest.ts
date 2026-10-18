@@ -139,6 +139,8 @@ export interface BacktestMetrics {
    * from to its last, before costs, with what went ex bought back in as the rules' prices have it.
    */
   buyAndHold: number;
+  /** The deepest fall holding it would have taken from a high before it, as a fraction, on the closes `buyAndHold` reads. */
+  buyAndHoldDrawdown: number;
 }
 
 export interface BacktestResult {
@@ -312,12 +314,23 @@ function metrics(
     Temporal.PlainDate.from(to)
   ).days;
 
+  // From the close the account's value is measured from, so both start on one price; no order
+  // fills on the first bar, so the first stretch's start is its first close.
+  const holdFrom = bars[Math.max(first - 1, 0)].close;
+
   let peak = start;
   let maxDrawdown = 0;
+  let holdPeak = holdFrom;
+  let buyAndHoldDrawdown = 0;
 
   for (let index = first; index <= last; index++) {
     peak = Math.max(peak, equity[index]);
     maxDrawdown = Math.max(maxDrawdown, 1 - equity[index] / peak);
+    holdPeak = Math.max(holdPeak, bars[index].close);
+    buyAndHoldDrawdown = Math.max(
+      buyAndHoldDrawdown,
+      1 - bars[index].close / holdPeak
+    );
   }
 
   const closed = trades.filter(
@@ -353,9 +366,8 @@ function metrics(
         : null,
     exposure:
       held.slice(first, last + 1).filter(Boolean).length / (last - first + 1),
-    // From the close the account's value is measured from, so both start on one price; no order
-    // fills on the first bar, so the first stretch's start is its first close.
-    buyAndHold: bars[last].close / bars[Math.max(first - 1, 0)].close - 1,
+    buyAndHold: bars[last].close / holdFrom - 1,
+    buyAndHoldDrawdown,
   };
 }
 
