@@ -10,6 +10,16 @@ export const twLots = (shares: number) => Math.round(shares / TW_BOARD_LOT);
 // from `01` and exchange-traded notes from `02`, and nothing else from any of them.
 const FUND_CODE = /^0[0-2]/;
 
+/** The securities transaction tax a sale pays, as a fraction: funds, notes and real estate trusts pay less than shares. */
+export const twSellTaxRate = (code: string) =>
+  FUND_CODE.test(code) ? 0.001 : 0.003;
+
+/** The most a Taiwan broker charges on each side, as a fraction of the trade's value. */
+export const TW_COMMISSION_RATE = 0.001425;
+
+/** The least a Taiwan broker charges for a trade, in TWD. */
+export const TW_MIN_COMMISSION = 20;
+
 /**
  * Tick size for a TWSE or TPEx listing at `price`, told by its code: exchange-traded funds and
  * notes and real estate trusts step finer than stocks, preferred shares and depositary receipts.
