@@ -304,7 +304,10 @@
       "short-sale-suspension": "Short selling suspended",
       "day-trading-suspension": "Sell-first day trading suspended",
       "disposition": "Under disposition",
-      "halt": "Trading halted"
+      "halt": "Trading halted",
+      "attention": "Attention notice",
+      "near-disposition": "May be put under disposition",
+      "altered-trading": "Altered trading, paid in full in advance"
     },
     "noticed": {
       "ex-dividend": "Goes ex-dividend, amount not announced",

@@ -92,6 +92,12 @@ export const RestrictionKind = {
   Disposition: "disposition",
   /** Trading is halted. */
   Halt: "halt",
+  /** Its trading met one of the exchange's attention criteria, which the exchange gives notice of. */
+  Attention: "attention",
+  /** It met the attention criteria sessions running, so one more may put it under disposition. */
+  NearDisposition: "near-disposition",
+  /** It trades under altered terms: paid for in full in advance, and it may match in batches. */
+  AlteredTrading: "altered-trading",
 } as const;
 
 export type RestrictionKind =
