@@ -62,9 +62,15 @@ function setup(
     priceLimits,
     locked,
     maxDailyLoss,
+    lastPrice,
   }: Pick<
     OrderDeskOptions,
-    "restored" | "basis" | "priceLimits" | "locked" | "maxDailyLoss"
+    | "restored"
+    | "basis"
+    | "priceLimits"
+    | "locked"
+    | "maxDailyLoss"
+    | "lastPrice"
   > = {}
 ) {
   const clock = { now: DURING_SESSION };
@@ -106,6 +112,7 @@ function setup(
     priceLimits,
     locked,
     maxDailyLoss,
+    lastPrice,
     onChange,
     now: () => clock.now,
   });
@@ -553,4 +560,98 @@ test("a buy is refused once the day's sales have lost the user's limit, which th
   });
 
   expect(getFills).not.toHaveBeenCalled();
+});
+
+test("a proposal keeps the session it went to and the price then, and holds only for that session", async () => {
+  const { desk, placeOrder, clock } = setup(undefined, {
+    lastPrice: async () => 975,
+    priceLimits: async () => ({
+      after: "2026-09-28",
+      band: { low: 882, high: 1070 },
+    }),
+  });
+
+  const { id, premise } = await proposeFromAgent(desk);
+
+  expect(premise).toEqual({
+    session: "2026-09-29",
+    price: 975,
+    band: { low: 882, high: 1070 },
+  });
+
+  // The next day's session, which the limits kept were not set for either.
+  clock.now = Date.parse("2026-09-30T10:00:00+08:00");
+
+  expect(await desk.confirm(id)).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [
+      {
+        code: RiskViolationCode.PremiseStale,
+        proposedFor: "2026-09-29",
+        session: "2026-09-30",
+      },
+    ],
+  });
+  expect(placeOrder).not.toHaveBeenCalled();
+});
+
+test("a proposal is refused once the price has moved past the most its premise allows, and sent within it", async () => {
+  const price = { now: 975 };
+
+  const { desk, placeOrder } = setup(undefined, {
+    lastPrice: async () => price.now,
+  });
+
+  const moved = await proposeFromAgent(desk);
+  const within = await proposeFromAgent(desk);
+
+  price.now = 1010;
+
+  expect(await desk.confirm(moved.id)).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [
+      {
+        code: RiskViolationCode.PriceMoved,
+        proposedAt: 975,
+        price: 1010,
+        max: 0.03,
+      },
+    ],
+  });
+
+  price.now = 1000;
+
+  expect(await desk.confirm(within.id)).toMatchObject({
+    status: ProposalStatus.Submitted,
+  });
+  expect(placeOrder).toHaveBeenCalledOnce();
+});
+
+test("a price that cannot be read is not compared, and a proposal that kept no premise is refused", async () => {
+  let price: number | null = 975;
+  const store = memoryStore();
+
+  const { desk } = setup(store, { lastPrice: async () => price });
+  const { id } = await proposeFromAgent(desk);
+
+  price = null;
+
+  expect(await desk.confirm(id)).toMatchObject({
+    status: ProposalStatus.Submitted,
+  });
+
+  const kept = await proposeFromAgent(desk);
+
+  store.update({ ...kept, premise: null });
+
+  expect(await desk.confirm(kept.id)).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [
+      {
+        code: RiskViolationCode.PremiseStale,
+        proposedFor: null,
+        session: "2026-09-29",
+      },
+    ],
+  });
 });

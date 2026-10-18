@@ -46,6 +46,56 @@ export function sessionBand(
     : undefined;
 }
 
+/** What the market stood at as an order was proposed, which confirming it checks again. */
+export interface OrderPremise {
+  /** The exchange-local day of the regular session the order went to. */
+  session: string;
+  /** The listing's last price; `null` where none could be read. */
+  price: number | null;
+  /** The band of that session; `null` where it traded without limits or they were not known. */
+  band: PriceBand | null;
+}
+
+/** The most the price may move from the one a proposal was made at before it is proposed again. */
+export const MAX_PREMISE_MOVE = 0.03;
+
+/**
+ * Whatever has changed since an order was proposed that it was argued on: a proposal holds for
+ * the session it was made for, and only while the price stays within `MAX_PREMISE_MOVE` of where
+ * it was, where both prices are known.
+ */
+export function premiseViolations(
+  then: OrderPremise | null,
+  now: Pick<OrderPremise, "session" | "price">
+): RiskViolation[] {
+  if (then?.session !== now.session) {
+    return [
+      {
+        code: RiskViolationCode.PremiseStale,
+        proposedFor: then?.session ?? null,
+        session: now.session,
+      },
+    ];
+  }
+
+  if (
+    then.price !== null &&
+    now.price !== null &&
+    Math.abs(now.price - then.price) > then.price * MAX_PREMISE_MOVE
+  ) {
+    return [
+      {
+        code: RiskViolationCode.PriceMoved,
+        proposedAt: then.price,
+        price: now.price,
+        max: MAX_PREMISE_MOVE,
+      },
+    ];
+  }
+
+  return [];
+}
+
 /** Market and account state at check time. Re-read before every check; it goes stale fast. */
 export interface RiskContext {
   session: Session;
@@ -68,6 +118,8 @@ export interface RiskContext {
 }
 
 export const RiskViolationCode = {
+  PremiseStale: "premise-stale",
+  PriceMoved: "price-moved",
   OrdersLocked: "orders-locked",
   DailyLossReached: "daily-loss-reached",
   InvalidQuantity: "invalid-quantity",
@@ -87,6 +139,18 @@ export type RiskViolationCode =
 
 /** Carries the data behind a rejection, not text; presenters localize it. */
 export type RiskViolation =
+  | {
+      code: typeof RiskViolationCode.PremiseStale;
+      /** The day of the session it was proposed for; `null` where it kept none. */
+      proposedFor: string | null;
+      session: string;
+    }
+  | {
+      code: typeof RiskViolationCode.PriceMoved;
+      proposedAt: number;
+      price: number;
+      max: number;
+    }
   | { code: typeof RiskViolationCode.OrdersLocked }
   | {
       code: typeof RiskViolationCode.DailyLossReached;

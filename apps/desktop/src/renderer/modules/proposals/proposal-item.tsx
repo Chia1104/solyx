@@ -11,12 +11,14 @@ import { OrderType, orderImpact } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 import { ProposalStatus, SubmissionFailureCode } from "@solyx/core/order-desk";
 import type { ProposalBasis, TradeProposal } from "@solyx/core/order-desk";
+import type { OrderPremise } from "@solyx/core/risk";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { ListingName } from "../market/listing-name.tsx";
 import { LowerView } from "../market/lower-view.ts";
 import { numberFormats } from "../market/number-formats.ts";
+import { quoteQuery } from "../market/quote-query.ts";
 import { tradingSettingsQuery } from "../settings/settings-query.ts";
 
 import { violationMessage } from "./violation-message.ts";
@@ -42,12 +44,30 @@ const STATUS_RULE: Record<ProposalStatus, string> = {
   [ProposalStatus.Failed]: "bg-danger",
 };
 
-/** What the order would spend and leave the account holding, filled whole at its limit price. */
-function OrderImpactLines({ order }: { order: OrderRequest }) {
+/**
+ * What the order would spend and leave the account holding, filled whole at its limit price, or a
+ * market order at the limit-up of the session it was proposed for, the most it could fill at.
+ */
+function OrderImpactLines({
+  order,
+  premise,
+}: {
+  order: OrderRequest;
+  premise: OrderPremise | null;
+}) {
   const { t, i18n } = useTranslation();
-  const { amount } = numberFormats(i18n.language);
+  const { amount, price } = numberFormats(i18n.language);
   const account = useQuery(orpc.account.summary.queryOptions());
-  const impact = account.data && orderImpact(order, account.data);
+  const limitUp = premise?.band?.high;
+
+  const sized: OrderRequest | null =
+    order.type === OrderType.Limit
+      ? order
+      : limitUp === undefined
+        ? null
+        : { ...order, type: OrderType.Limit, limitPrice: limitUp };
+
+  const impact = account.data && sized && orderImpact(sized, account.data);
 
   if (!impact) return null;
 
@@ -56,10 +76,16 @@ function OrderImpactLines({ order }: { order: OrderRequest }) {
   return (
     <p className="flex flex-col text-xs text-muted tabular-nums">
       <span>
-        {t("proposals.impact.notional", {
-          amount: amount.format(notional),
-          currency,
-        })}
+        {limitUp === undefined || order.type === OrderType.Limit
+          ? t("proposals.impact.notional", {
+              amount: amount.format(notional),
+              currency,
+            })
+          : t("proposals.premise.impact-most", {
+              amount: amount.format(notional),
+              currency,
+              price: price.format(limitUp),
+            })}
       </span>
       <span>
         {t("proposals.impact.cash", {
@@ -73,6 +99,39 @@ function OrderImpactLines({ order }: { order: OrderRequest }) {
           after: shares.after,
         })}
       </span>
+    </p>
+  );
+}
+
+/** Where the market stood as the proposal was made, against its last price now. */
+function PremiseLine({
+  symbol,
+  premise: { session, price: then },
+}: {
+  symbol: SymbolRef;
+  premise: OrderPremise;
+}) {
+  const { t, i18n } = useTranslation();
+  const format = numberFormats(i18n.language);
+  const now = useQuery(quoteQuery(symbol)).data?.last;
+
+  return (
+    <p className="text-xs text-muted tabular-nums">
+      {then === null
+        ? t("proposals.premise.proposed-for", { date: session })
+        : t("proposals.premise.proposed-at", {
+            price: format.price.format(then),
+            date: session,
+          })}
+      {then !== null && now !== undefined ? (
+        <>
+          {" · "}
+          {t("proposals.premise.now", {
+            price: format.price.format(now),
+            change: format.percentChange.format(now / then - 1),
+          })}
+        </>
+      ) : null}
     </p>
   );
 }
@@ -169,7 +228,12 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
         })}
       </p>
       {proposal.status === ProposalStatus.AwaitingConfirmation ? (
-        <OrderImpactLines order={order} />
+        <>
+          {proposal.premise ? (
+            <PremiseLine symbol={order.instrument} premise={proposal.premise} />
+          ) : null}
+          <OrderImpactLines order={order} premise={proposal.premise} />
+        </>
       ) : null}
       {proposal.rationale && (
         <p className="text-sm text-muted">{proposal.rationale}</p>

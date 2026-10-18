@@ -4,7 +4,12 @@ import { Market } from "../src/market.ts";
 import type { SymbolRef } from "../src/market.ts";
 import { OrderType, Side } from "../src/order.ts";
 import type { OrderRequest } from "../src/order.ts";
-import { RiskViolationCode, checkOrder, sessionBand } from "../src/risk.ts";
+import {
+  RiskViolationCode,
+  checkOrder,
+  premiseViolations,
+  sessionBand,
+} from "../src/risk.ts";
 import type { RiskContext, RiskLimits } from "../src/risk.ts";
 import { Session, listedTradingDays } from "../src/session.ts";
 
@@ -270,4 +275,64 @@ test("a sale of more shares than the account holds is rejected", () => {
   expect(checkOrder(order, limits, open)).toEqual([
     { code: RiskViolationCode.InsufficientShares, quantity: 2000, held: 1000 },
   ]);
+});
+
+describe("a proposal's premise", () => {
+  const then = {
+    session: "2026-10-19",
+    price: 1000,
+    band: { low: 900, high: 1100 },
+  };
+
+  test("holds for its session while the price stays within the most it may move", () => {
+    expect(
+      premiseViolations(then, { session: "2026-10-19", price: 1030 })
+    ).toEqual([]);
+    expect(
+      premiseViolations(then, { session: "2026-10-19", price: 1031 })
+    ).toEqual([
+      {
+        code: RiskViolationCode.PriceMoved,
+        proposedAt: 1000,
+        price: 1031,
+        max: 0.03,
+      },
+    ]);
+    expect(
+      premiseViolations(then, { session: "2026-10-19", price: 969 })
+    ).toHaveLength(1);
+  });
+
+  test("is stale once its session is past, or where none was kept", () => {
+    expect(
+      premiseViolations(then, { session: "2026-10-20", price: 1000 })
+    ).toEqual([
+      {
+        code: RiskViolationCode.PremiseStale,
+        proposedFor: "2026-10-19",
+        session: "2026-10-20",
+      },
+    ]);
+    expect(
+      premiseViolations(null, { session: "2026-10-20", price: 1000 })
+    ).toEqual([
+      {
+        code: RiskViolationCode.PremiseStale,
+        proposedFor: null,
+        session: "2026-10-20",
+      },
+    ]);
+  });
+
+  test("leaves a price it cannot compare alone", () => {
+    expect(
+      premiseViolations(
+        { ...then, price: null },
+        { session: "2026-10-19", price: 2000 }
+      )
+    ).toEqual([]);
+    expect(
+      premiseViolations(then, { session: "2026-10-19", price: null })
+    ).toEqual([]);
+  });
 });
