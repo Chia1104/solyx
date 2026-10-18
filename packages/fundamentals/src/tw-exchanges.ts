@@ -511,6 +511,10 @@ const INDUSTRIES = new Map([
   ["91", "存託憑證"],
 ]);
 
+// The exchanges class depositary receipts under this code, and list for them the shares of their
+// foreign issuer, which are not the receipts the listing trades as.
+const DEPOSITARY_RECEIPTS = "91";
+
 const company = (
   symbol: string,
   code: string,
@@ -518,7 +522,7 @@ const company = (
 ): Listed<Company> => ({
   symbol,
   industry: { code, name: INDUSTRIES.get(code) ?? code },
-  shares,
+  shares: code === DEPOSITARY_RECEIPTS ? null : shares,
 });
 
 // A count of shares; one written any other way reads as none, which leaves the company's industry standing.

@@ -342,6 +342,7 @@ test("the tool declares the sources' functions under their names, on types writt
   const { description } = await analyze();
 
   expect(description).toContain("type ListingFlows = {");
+  expect(description).toContain("type Company = {");
   expect(description).toContain(
     "listing(symbol: SymbolRef): Promise<ListingFlows>;"
   );
