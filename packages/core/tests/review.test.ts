@@ -67,10 +67,14 @@ test("a round trip runs from the buy that opens a position to the sale that leav
   ];
 
   expect(
-    roundTrips(fills, [
-      submitted("B-1", basis(ReportStance.Bullish)),
-      submitted("B-2", basis(ReportStance.Bearish)),
-    ])
+    roundTrips(
+      fills,
+      [
+        submitted("B-1", basis(ReportStance.Bullish)),
+        submitted("B-2", basis(ReportStance.Bearish)),
+      ],
+      [{ instrument: TSMC, quantity: 1000, avgPrice: 1000 }]
+    )
   ).toEqual([
     {
       instrument: TSMC,
@@ -91,12 +95,45 @@ test("a buy no proposal names, or one made with no report, opens a trip under no
   ];
 
   expect(
-    roundTrips(fills, [submitted("B-3", null)]).map(({ stance }) => stance)
+    roundTrips(fills, [submitted("B-3", null)], []).map(({ stance }) => stance)
   ).toEqual([null, null]);
 });
 
-test("a sale of shares held before the fills began opens nothing", () => {
-  expect(roundTrips([fill("B-1", Side.Sell, 1000, 1, 10_000)], [])).toEqual([]);
+test("a position held before the fills began opens no trip until it is sold off, however it was added to", () => {
+  // Held 1,000 before the fills; bought 1,000 more and sold 1,000, so 1,000 are still held.
+  const before = [
+    fill("B-1", Side.Buy, 1000, 1),
+    fill("B-2", Side.Sell, 1000, 2, 10_000),
+  ];
+
+  const holding = [{ instrument: TSMC, quantity: 1000, avgPrice: 1000 }];
+
+  expect(
+    roundTrips(before, [submitted("B-1", basis(ReportStance.Bullish))], holding)
+  ).toEqual([]);
+
+  // Once it is sold off, a later buy opens a trip of its own.
+  const after = [
+    ...before,
+    fill("B-3", Side.Sell, 1000, 3, 5_000),
+    fill("B-4", Side.Buy, 1000, 4),
+    fill("B-5", Side.Sell, 1000, 5, -2_000),
+  ];
+
+  expect(
+    roundTrips(after, [submitted("B-4", basis(ReportStance.Bearish))], [])
+  ).toEqual([
+    {
+      instrument: TSMC,
+      openedAt: 4,
+      closedAt: 5,
+      realized: -2_000,
+      stance: ReportStance.Bearish,
+    },
+  ]);
+  expect(roundTrips([fill("B-1", Side.Sell, 1000, 1, 10_000)], [], [])).toEqual(
+    []
+  );
 });
 
 const trip = (realized: number, stance: ReportStance | null = null) =>
