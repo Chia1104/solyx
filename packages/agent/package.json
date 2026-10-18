@@ -54,6 +54,7 @@
   },
   "devDependencies": {
     "@opentelemetry/sdk-trace-base": "catalog:otel",
+    "@solyx/market-data": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
