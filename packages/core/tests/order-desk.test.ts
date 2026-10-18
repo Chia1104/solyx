@@ -20,7 +20,7 @@ import type {
   TradeProposal,
 } from "../src/order-desk.ts";
 import { OrderType, Side } from "../src/order.ts";
-import type { AccountSnapshot, OrderRequest } from "../src/order.ts";
+import type { AccountSnapshot, Fill, OrderRequest } from "../src/order.ts";
 import { ReportStance } from "../src/report.ts";
 import { RiskViolationCode } from "../src/risk.ts";
 import { Session, weekdays } from "../src/session.ts";
@@ -654,4 +654,83 @@ test("a price that cannot be read is not compared, and a proposal that kept no p
       },
     ],
   });
+});
+
+test("confirmations go one at a time, so a buy is checked against the loss a sale confirmed before it left", async () => {
+  const { desk, account, getFills, placeOrder } = setup(undefined, {
+    maxDailyLoss: () => ({ TWD: 50_000 }),
+  });
+
+  const fills: Fill[] = [];
+
+  account.positions = [
+    { instrument: order.instrument, quantity: 1000, avgPrice: 1100 },
+  ];
+  getFills.mockImplementation(async () => fills);
+  placeOrder.mockImplementation(async (placed) => {
+    if (placed.side === Side.Sell) {
+      fills.push({
+        orderId: "B-0",
+        instrument: placed.instrument,
+        side: Side.Sell,
+        quantity: placed.quantity,
+        price: 1000,
+        filledAt: DURING_SESSION,
+        realized: -100_000,
+      });
+    }
+
+    return { orderId: `B-${fills.length}` };
+  });
+
+  const sale = await desk.propose({
+    order: { ...order, side: Side.Sell },
+    source: ProposalSource.User,
+    rationale: "cut it",
+  });
+
+  const buy = await proposeFromAgent(desk);
+
+  const [sold, bought] = await Promise.all([
+    desk.confirm(sale.id),
+    desk.confirm(buy.id),
+  ]);
+
+  expect(sold.status).toBe(ProposalStatus.Submitted);
+  expect(bought).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [{ code: RiskViolationCode.DailyLossReached }],
+  });
+  expect(placeOrder).toHaveBeenCalledOnce();
+});
+
+test("a lock set while the checks wait on the quote still stops the order", async () => {
+  let locked = false;
+  let quote: (price: number) => void = noop;
+
+  const { desk, placeOrder } = setup(undefined, {
+    locked: () => locked,
+    lastPrice: vi
+      .fn<NonNullable<OrderDeskOptions["lastPrice"]>>()
+      .mockResolvedValueOnce(975)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            quote = resolve;
+          })
+      ),
+  });
+
+  const { id } = await proposeFromAgent(desk);
+  const confirming = desk.confirm(id);
+
+  await vi.waitFor(() => expect(quote).not.toBe(noop));
+  locked = true;
+  quote(975);
+
+  expect(await confirming).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [{ code: RiskViolationCode.OrdersLocked }],
+  });
+  expect(placeOrder).not.toHaveBeenCalled();
 });

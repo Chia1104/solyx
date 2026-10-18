@@ -4,7 +4,7 @@ import { Currency, currencyOf, symbolKey } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import type { TradeProposal } from "./order-desk.ts";
 import { Side } from "./order.ts";
-import type { Fill } from "./order.ts";
+import type { Fill, Position } from "./order.ts";
 import { ReportStance } from "./report.ts";
 
 /** A position in one listing from the buy that opened it to the sale that left none. */
@@ -22,12 +22,14 @@ export interface RoundTrip {
 
 /**
  * The round trips the fills close, oldest first, each opened under the research its first buy's
- * proposal kept. A sale with no buy before it among the fills, of shares held before the broker
- * reported fills, opens nothing, so it is left out.
+ * proposal kept. What the account held before the first fill is worked out from what it holds now
+ * less what the fills bought and sold, and a position it held then opens no trip, however it was
+ * added to, until it is sold off: its first buy, and so its research, is not among the fills.
  */
 export function roundTrips(
   fills: readonly Fill[],
-  proposals: readonly TradeProposal[]
+  proposals: readonly TradeProposal[],
+  holdings: readonly Position[]
 ): RoundTrip[] {
   const basisOf = new Map(
     proposals.flatMap((proposal) =>
@@ -37,37 +39,63 @@ export function roundTrips(
     )
   );
 
-  const open = new Map<string, { trip: RoundTrip; held: number }>();
+  // Each listing's shares, and the trip they belong to; `null` for shares held before the fills began.
+  const positions = new Map<string, { held: number; trip: RoundTrip | null }>();
+
+  for (const { instrument, quantity } of holdings) {
+    positions.set(symbolKey(instrument), { held: quantity, trip: null });
+  }
+
+  for (const { instrument, side, quantity } of fills) {
+    const position = positions.get(symbolKey(instrument)) ?? {
+      held: 0,
+      trip: null,
+    };
+
+    position.held += side === Side.Buy ? -quantity : quantity;
+    positions.set(symbolKey(instrument), position);
+  }
+
+  for (const position of positions.values()) {
+    position.held = Math.max(position.held, 0);
+  }
+
   const closed: RoundTrip[] = [];
 
   for (const fill of fills.toSorted((a, b) => a.filledAt - b.filledAt)) {
-    const key = symbolKey(fill.instrument);
-    const position = open.get(key);
+    const position = positions.get(symbolKey(fill.instrument)) ?? {
+      held: 0,
+      trip: null,
+    };
 
     if (fill.side === Side.Buy) {
-      if (position) {
-        position.held += fill.quantity;
-      } else {
-        open.set(key, {
-          held: fill.quantity,
-          trip: {
-            instrument: fill.instrument,
-            openedAt: fill.filledAt,
-            closedAt: fill.filledAt,
-            realized: 0,
-            stance: basisOf.get(fill.orderId)?.report?.stance ?? null,
-          },
-        });
+      if (position.held === 0) {
+        position.trip = {
+          instrument: fill.instrument,
+          openedAt: fill.filledAt,
+          closedAt: fill.filledAt,
+          realized: 0,
+          stance: basisOf.get(fill.orderId)?.report?.stance ?? null,
+        };
       }
-    } else if (position) {
+
+      position.held += fill.quantity;
+    } else {
       position.held -= fill.quantity;
-      position.trip.realized += fill.realized ?? 0;
+
+      if (position.trip) position.trip.realized += fill.realized ?? 0;
 
       if (position.held <= 0) {
-        closed.push({ ...position.trip, closedAt: fill.filledAt });
-        open.delete(key);
+        if (position.trip) {
+          closed.push({ ...position.trip, closedAt: fill.filledAt });
+        }
+
+        position.held = 0;
+        position.trip = null;
       }
     }
+
+    positions.set(symbolKey(fill.instrument), position);
   }
 
   return closed;

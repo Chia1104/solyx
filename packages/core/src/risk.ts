@@ -59,6 +59,9 @@ export interface OrderPremise {
 /** The most the price may move from the one a proposal was made at before it is proposed again. */
 export const MAX_PREMISE_MOVE = 0.03;
 
+// Prices are decimals that binary numbers only approximate, so a move of exactly the most may read a hair past it.
+const MOVE_TOLERANCE = 1e-9;
+
 /**
  * Whatever has changed since an order was proposed that it was argued on: a proposal holds for
  * the session it was made for, and only while the price stays within `MAX_PREMISE_MOVE` of where
@@ -81,7 +84,8 @@ export function premiseViolations(
   if (
     then.price !== null &&
     now.price !== null &&
-    Math.abs(now.price - then.price) > then.price * MAX_PREMISE_MOVE
+    Math.abs(now.price - then.price) - then.price * MAX_PREMISE_MOVE >
+      then.price * MOVE_TOLERANCE
   ) {
     return [
       {
