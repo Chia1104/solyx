@@ -53,6 +53,8 @@ export interface RiskContext {
   markets: readonly Market[];
   /** What the account holds, which buys spend and sells draw on. */
   account: AccountSnapshot;
+  /** The user locked orders, so every one is refused until they unlock them. */
+  locked?: boolean;
   /**
    * The listing's band in the session the order goes to (`sessionBand`). A market order is sized
    * at its high, the most it could fill at, so one is refused where the band is `null` or unknown.
@@ -61,6 +63,7 @@ export interface RiskContext {
 }
 
 export const RiskViolationCode = {
+  OrdersLocked: "orders-locked",
   InvalidQuantity: "invalid-quantity",
   InvalidPrice: "invalid-price",
   OddLotMarketOrder: "odd-lot-market-order",
@@ -78,6 +81,7 @@ export type RiskViolationCode =
 
 /** Carries the data behind a rejection, not text; presenters localize it. */
 export type RiskViolation =
+  | { code: typeof RiskViolationCode.OrdersLocked }
   | { code: typeof RiskViolationCode.InvalidQuantity; market: Market }
   | { code: typeof RiskViolationCode.InvalidPrice; price: number; tick: number }
   | { code: typeof RiskViolationCode.OddLotMarketOrder }
@@ -128,6 +132,8 @@ export function checkOrder(
   const violations: RiskViolation[] = [];
   const { instrument, quantity } = order;
   const isTw = instrument.market === Market.TW;
+
+  if (context.locked) violations.push({ code: RiskViolationCode.OrdersLocked });
 
   if (!context.markets.includes(instrument.market)) {
     violations.push({

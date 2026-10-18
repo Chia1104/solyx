@@ -366,6 +366,13 @@ export const settingsRouter = settings.router({
     }
   ),
 
+  trading: settings.trading.handler(({ context }) => ({
+    locked: context.config.read().trading.locked,
+  })),
+  setOrdersLocked: settings.setOrdersLocked.handler(({ context, input }) => {
+    context.config.set(["trading", "locked"], input);
+  }),
+
   updates: settings.updates.handler(({ context }) => ({
     check: context.config.read().updates.check,
   })),

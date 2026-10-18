@@ -6,6 +6,8 @@ import type { RiskViolation } from "@solyx/core/risk";
 
 export function violationMessage(t: TFunction, violation: RiskViolation) {
   switch (violation.code) {
+    case RiskViolationCode.OrdersLocked:
+      return t("risk.orders-locked");
     case RiskViolationCode.InvalidQuantity:
       return violation.market === Market.TW
         ? t("risk.invalid-quantity-tw")

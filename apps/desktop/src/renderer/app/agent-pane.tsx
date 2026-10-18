@@ -10,6 +10,7 @@ import { AgentChat } from "../modules/agent/agent-chat.tsx";
 import { agentSessionsQuery } from "../modules/agent/agent-query.ts";
 import { AgentSessionControls } from "../modules/agent/agent-sessions.tsx";
 import { AgentTab, useAgentStore } from "../modules/agent/agent-store.ts";
+import { OrderLock } from "../modules/proposals/order-lock.tsx";
 import { ProposalForm } from "../modules/proposals/proposal-form.tsx";
 import { ProposalQueue } from "../modules/proposals/proposal-queue.tsx";
 import { proposalsQuery } from "../modules/proposals/proposals-query.ts";
@@ -66,6 +67,7 @@ export function AgentPane() {
         <Tabs.Panel
           id={AgentTab.Proposals}
           className="flex min-h-0 flex-1 flex-col p-0">
+          <OrderLock />
           <div className="min-h-0 flex-1 overflow-y-auto">
             <ProposalQueue />
           </div>

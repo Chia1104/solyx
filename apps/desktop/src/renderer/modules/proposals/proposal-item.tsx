@@ -17,6 +17,7 @@ import { ErrorAlert } from "../../components/error-alert.tsx";
 import { ListingName } from "../market/listing-name.tsx";
 import { LowerView } from "../market/lower-view.ts";
 import { numberFormats } from "../market/number-formats.ts";
+import { tradingSettingsQuery } from "../settings/settings-query.ts";
 
 import { violationMessage } from "./violation-message.ts";
 
@@ -121,6 +122,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   const { t } = useTranslation();
 
   const confirm = useMutation(orpc.proposals.confirm.mutationOptions());
+  const locked = useQuery(tradingSettingsQuery()).data?.locked ?? false;
 
   const dismiss = useMutation(orpc.proposals.dismiss.mutationOptions());
 
@@ -215,7 +217,8 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
           <Button
             size="sm"
             isPending={confirm.isPending}
-            isDisabled={dismiss.isPending}
+            // Locked orders would only be refused, which would end the proposal.
+            isDisabled={dismiss.isPending || locked}
             onPress={() => confirm.mutate(proposal.id)}>
             {t("proposals.confirm")}
           </Button>
