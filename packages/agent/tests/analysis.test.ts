@@ -240,6 +240,31 @@ test("a script reads bars and computes with the app's indicators", async () => {
   ]);
 });
 
+test("a script backtests rules over the bars it read, filled at the next open by the app's own engine", async () => {
+  const { results, description } = await analyze(`
+    const symbol = { market: "${Market.TW}", symbol: "2330" };
+    const bars = await tools.candles({ symbol, interval: "${Interval.OneDay}" });
+    const result = await backtest.rules({
+      symbol,
+      bars,
+      strategy: {
+        entry: { above: [{ price: "close" }, { value: 110 }] },
+        exit: { below: [{ price: "close" }, { sma: 5 }] },
+      },
+      costs: { commissionRate: 0, minCommission: 0, sellTaxRate: 0, slippageTicks: 0 },
+    });
+    const [trade] = result.trades;
+    return [result.trades.length, trade.entryPrice, trade.exitDate, result.all.trades];
+  `);
+
+  // The close of 111 is the first past 110, so the next bar's open of 111 buys; nothing sells.
+  expect(results).toEqual([
+    { status: ToolCallStatus.Ok, output: "Result: [1,111,null,0]" },
+  ]);
+  expect(description).toContain("type Strategy = { entry: Condition;");
+  expect(description).toContain("declare const backtest: {");
+});
+
 test("what a script stores is there for the conversation's next script", async () => {
   const { results } = await analyze(
     `store("runs", (load("runs") ?? 0) + 1);`,

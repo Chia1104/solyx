@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./backtest": "./src/backtest.ts",
     "./broker": "./src/broker.ts",
     "./calendar": "./src/calendar.ts",
     "./candles": "./src/candles.ts",

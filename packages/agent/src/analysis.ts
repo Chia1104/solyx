@@ -7,6 +7,11 @@ import { omit } from "es-toolkit";
 import * as z from "zod";
 
 import {
+  backtest,
+  ruleStrategySchema,
+  tradeCostsSchema,
+} from "@solyx/core/backtest";
+import {
   Interval,
   barTime,
   intervalSchema,
@@ -213,6 +218,81 @@ const indicators: CodemodeTool[] = [
   }),
 ];
 
+const metricsSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  totalReturn: z.number(),
+  annualReturn: z.number().nullable(),
+  maxDrawdown: z.number(),
+  trades: z.number(),
+  winRate: z.number().nullable(),
+  payoffRatio: z.number().nullable(),
+  exposure: z.number(),
+  buyAndHold: z.number(),
+});
+
+const backtestSchema = z.object({
+  capital: z.number(),
+  costs: tradeCostsSchema,
+  trades: z.array(
+    z.object({
+      entryDate: z.string(),
+      entryPrice: z.number(),
+      exitDate: z.string().nullable(),
+      exitPrice: z.number(),
+      shares: z.number(),
+      profit: z.number(),
+      return: z.number(),
+      bars: z.number(),
+    })
+  ),
+  equity: z.array(z.object({ date: z.string(), value: z.number() })),
+  all: metricsSchema,
+  inSample: metricsSchema.nullable(),
+  outOfSample: metricsSchema.nullable(),
+});
+
+/** The rule language a backtest reads, declared for the model by hand, since a condition nests in itself. */
+export const BACKTEST_TYPES = [
+  'type Series = { price: "open" | "high" | "low" | "close" | "volume" } | { value: number } | { sma: number } | { ema: number } | { rsi: number } | { bollinger: number; band: "upper" | "middle" | "lower"; width?: number } | { macd: "macd" | "signal" | "histogram" } | { kd: "k" | "d" } | { highest: number } | { lowest: number };',
+  "type Condition = { above: [Series, Series] } | { below: [Series, Series] } | { crossesAbove: [Series, Series] } | { crossesBelow: [Series, Series] } | { all: Condition[] } | { any: Condition[] };",
+  "type Strategy = { entry: Condition; exit: Condition; stopLoss?: number; takeProfit?: number };",
+  "type Costs = { commissionRate: number; minCommission: number; sellTaxRate: number; slippageTicks: number };",
+  "type Metrics = { from: string; to: string; totalReturn: number; annualReturn: number | null; maxDrawdown: number; trades: number; winRate: number | null; payoffRatio: number | null; exposure: number; buyAndHold: number };",
+  "type Trade = { entryDate: string; entryPrice: number; exitDate: string | null; exitPrice: number; shares: number; profit: number; return: number; bars: number };",
+  "type Backtest = { capital: number; costs: Costs; trades: Trade[]; equity: { date: string; value: number }[]; all: Metrics; inSample: Metrics | null; outOfSample: Metrics | null };",
+].join("\n");
+
+/** The app's backtest, so a strategy's fills and costs follow its rules rather than a script's own arithmetic. */
+const backtests: CodemodeTool[] = [
+  scriptFunction({
+    name: "backtest.rules",
+    description:
+      "Runs a long-only strategy over a listing's bars, oldest first, as tools.candles returns them. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing. split, a YYYY-MM-DD, measures the bars before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. Reads nothing.",
+    spread: true,
+    signature:
+      "(input: { symbol: SymbolRef; bars: Bar[]; strategy: Strategy; capital?: number; costs?: Partial<Costs>; split?: string }): Promise<Backtest>",
+    input: z.tuple([
+      z.object({
+        symbol: symbolRefSchema,
+        bars: z.array(barSchema).min(2),
+        strategy: ruleStrategySchema,
+        capital: z.number().positive().optional(),
+        costs: tradeCostsSchema.partial().optional(),
+        split: z.string().optional(),
+      }),
+    ]),
+    output: backtestSchema,
+    run: ([{ symbol, bars, strategy, ...options }]) =>
+      backtest(
+        symbol,
+        bars.map((bar) => ({ ...omit(bar, ["epoch"]), time: bar.epoch })),
+        strategy,
+        options
+      ),
+  }),
+];
+
 /**
  * The functions a script calls as `tools.<name>`. `admitHistory` is asked before a listing's bars
  * are read from further back than the app's own history.
@@ -336,10 +416,15 @@ export function createAnalysis(options: AnalysisOptions): Extension {
       "What a script fetches stays in the script, so fetch every bar you need there and return only the result. `type Bar` is one item of what tools.candles returns.",
       `market, flows and fundamentals read the app's other sources, which count every request against limits the rest of the app shares: a script reads at most ${MAX_LISTINGS} listings through them, so screen the listings that matter rather than every one you can name.`,
       SOURCE_TYPES,
+      BACKTEST_TYPES,
       // Declared with budgets nothing is counted against.
       renderDeclarations({
         tools: dataFunctions(options, () => undefined, now),
-        globals: [...indicators, ...sourceFunctions(options, () => undefined)],
+        globals: [
+          ...indicators,
+          ...backtests,
+          ...sourceFunctions(options, () => undefined),
+        ],
       }),
     ].join("\n\n"),
     parameters: omit(z.toJSONSchema(scriptArgumentsSchema, { io: "input" }), [
@@ -367,7 +452,11 @@ export function createAnalysis(options: AnalysisOptions): Extension {
 
       const result = await options.scripts.run(parsed.data.code, {
         tools: dataFunctions(options, historyBudget(), now),
-        globals: [...indicators, ...sourceFunctions(options, sourceBudget())],
+        globals: [
+          ...indicators,
+          ...backtests,
+          ...sourceFunctions(options, sourceBudget()),
+        ],
         timeoutMs: TIMEOUT_MS,
         signal: context.abortSignal,
         store: saved,
