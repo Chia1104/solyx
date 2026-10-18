@@ -20,7 +20,7 @@ import type {
   TradeProposal,
 } from "../src/order-desk.ts";
 import { OrderType, Side } from "../src/order.ts";
-import type { AccountSnapshot, OrderRequest } from "../src/order.ts";
+import type { AccountSnapshot, Fill, OrderRequest } from "../src/order.ts";
 import { ReportStance } from "../src/report.ts";
 import { RiskViolationCode } from "../src/risk.ts";
 import { Session, weekdays } from "../src/session.ts";
@@ -61,9 +61,10 @@ function setup(
     basis,
     priceLimits,
     locked,
+    maxDailyLoss,
   }: Pick<
     OrderDeskOptions,
-    "restored" | "basis" | "priceLimits" | "locked"
+    "restored" | "basis" | "priceLimits" | "locked" | "maxDailyLoss"
   > = {}
 ) {
   const clock = { now: DURING_SESSION };
@@ -81,11 +82,14 @@ function setup(
     .fn<BrokerAdapter["placeOrder"]>()
     .mockResolvedValue({ orderId: "B-1" });
 
+  const getFills = vi.fn<BrokerAdapter["getFills"]>(async () => []);
+
   const broker: BrokerAdapter = {
     id: "fake",
     mode: BrokerMode.Paper,
     markets: [Market.TW],
     getAccount,
+    getFills,
     placeOrder,
   };
 
@@ -101,6 +105,7 @@ function setup(
     basis,
     priceLimits,
     locked,
+    maxDailyLoss,
     onChange,
     now: () => clock.now,
   });
@@ -109,6 +114,7 @@ function setup(
     desk,
     placeOrder,
     getAccount,
+    getFills,
     account,
     clock,
     tradingDays,
@@ -506,4 +512,93 @@ test("a lock refuses new proposals and keeps those waiting from being sent, read
     violations: [{ code: RiskViolationCode.OrdersLocked }],
   });
   expect(placeOrder).not.toHaveBeenCalled();
+});
+
+test("a buy is refused once the day's sales have lost the user's limit, which the broker's fills tell", async () => {
+  const { desk, getFills } = setup(undefined, {
+    maxDailyLoss: () => ({ TWD: 50_000 }),
+  });
+
+  getFills.mockResolvedValue([
+    {
+      orderId: "B-0",
+      instrument: order.instrument,
+      side: Side.Sell,
+      quantity: 1000,
+      price: 930,
+      filledAt: DURING_SESSION - MINUTE_MS,
+      realized: -60_000,
+    },
+  ]);
+
+  expect(await desk.check(order)).toEqual([
+    {
+      code: RiskViolationCode.DailyLossReached,
+      loss: 60_000,
+      max: 50_000,
+      currency: "TWD",
+    },
+  ]);
+  // From the start of the market's day.
+  expect(getFills).toHaveBeenCalledExactlyOnceWith(
+    Date.parse("2026-09-29T00:00:00+08:00")
+  );
+
+  // A sale needs no fills read, and a market without a limit none either.
+  getFills.mockClear();
+  await desk.check({ ...order, side: Side.Sell });
+  await desk.check({
+    ...order,
+    instrument: { market: Market.US, symbol: "AAPL" },
+  });
+
+  expect(getFills).not.toHaveBeenCalled();
+});
+
+test("confirmations go one at a time, so a buy is checked against the loss a sale confirmed before it left", async () => {
+  const { desk, account, getFills, placeOrder } = setup(undefined, {
+    maxDailyLoss: () => ({ TWD: 50_000 }),
+  });
+
+  const fills: Fill[] = [];
+
+  account.positions = [
+    { instrument: order.instrument, quantity: 1000, avgPrice: 1100 },
+  ];
+  getFills.mockImplementation(async () => fills);
+  placeOrder.mockImplementation(async (placed) => {
+    if (placed.side === Side.Sell) {
+      fills.push({
+        orderId: "B-0",
+        instrument: placed.instrument,
+        side: Side.Sell,
+        quantity: placed.quantity,
+        price: 1000,
+        filledAt: DURING_SESSION,
+        realized: -100_000,
+      });
+    }
+
+    return { orderId: `B-${fills.length}` };
+  });
+
+  const sale = await desk.propose({
+    order: { ...order, side: Side.Sell },
+    source: ProposalSource.User,
+    rationale: "cut it",
+  });
+
+  const buy = await proposeFromAgent(desk);
+
+  const [sold, bought] = await Promise.all([
+    desk.confirm(sale.id),
+    desk.confirm(buy.id),
+  ]);
+
+  expect(sold.status).toBe(ProposalStatus.Submitted);
+  expect(bought).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [{ code: RiskViolationCode.DailyLossReached }],
+  });
+  expect(placeOrder).toHaveBeenCalledOnce();
 });

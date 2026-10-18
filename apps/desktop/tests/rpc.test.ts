@@ -40,6 +40,7 @@ function paperDesk() {
       mode: BrokerMode.Paper,
       markets: [Market.TW],
       getAccount: async () => ({ cash: { TWD: 5_000_000 }, positions: [] }),
+      getFills: async () => [],
       placeOrder: async () => ({ orderId: "B-1" }),
     },
     store: {

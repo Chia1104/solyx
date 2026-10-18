@@ -8,6 +8,12 @@ export function violationMessage(t: TFunction, violation: RiskViolation) {
   switch (violation.code) {
     case RiskViolationCode.OrdersLocked:
       return t("risk.orders-locked");
+    case RiskViolationCode.DailyLossReached:
+      return t("risk.daily-loss-reached", {
+        loss: violation.loss,
+        max: violation.max,
+        currency: violation.currency,
+      });
     case RiskViolationCode.InvalidQuantity:
       return violation.market === Market.TW
         ? t("risk.invalid-quantity-tw")

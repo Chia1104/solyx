@@ -188,6 +188,28 @@ test("every order is refused while the user has locked orders", () => {
   ]);
 });
 
+test("once the day's loss reaches the user's limit, buys are refused and sales still go", () => {
+  const reached = { ...open, dailyLoss: { realized: -50_000, max: 50_000 } };
+
+  expect(checkOrder(buyLimit(1000, 980), limits, reached)).toEqual([
+    {
+      code: RiskViolationCode.DailyLossReached,
+      loss: 50_000,
+      max: 50_000,
+      currency: "TWD",
+    },
+  ]);
+  expect(codes({ ...buyLimit(1000, 980), side: Side.Sell }, reached)).toEqual(
+    []
+  );
+  expect(
+    codes(buyLimit(1000, 980), {
+      ...open,
+      dailyLoss: { realized: -49_999, max: 50_000 },
+    })
+  ).toEqual([]);
+});
+
 test("orders over the notional cap are rejected", () => {
   expect(codes(buyLimit(2000, 980))).toEqual([RiskViolationCode.OrderTooLarge]);
 });

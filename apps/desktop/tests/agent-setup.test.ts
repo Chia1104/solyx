@@ -163,6 +163,7 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
   expect(areas.map((each) => [each.name, each.link])).toEqual([
     ["General", "#/settings?section=general"],
     ["Market data", "#/settings?section=market-data"],
+    ["Trading", "#/settings?section=trading"],
     ["Agent models", "#/settings?section=agent"],
     ["Web search", "#/settings?section=agent"],
     ["Decisions model", "#/settings?section=agent"],
@@ -185,6 +186,11 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
   expect(area(areas, "Web search").missing).toHaveLength(1);
   expect(area(areas, "Decisions model").missing).toHaveLength(1);
   expect(area(areas, "General").missing).toEqual([]);
+  expect(area(areas, "Trading").settings).toMatchObject([
+    { name: "trading.locked", value: "false" },
+    { name: "trading.maxDailyLoss.TWD", value: "no limit" },
+    { name: "trading.maxDailyLoss.USD", value: "no limit" },
+  ]);
 });
 
 test("a config entry carries the description its JSON Schema gives", async () => {

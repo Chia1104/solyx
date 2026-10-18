@@ -366,12 +366,22 @@ export const settingsRouter = settings.router({
     }
   ),
 
-  trading: settings.trading.handler(({ context }) => ({
-    locked: context.config.read().trading.locked,
-  })),
+  trading: settings.trading.handler(({ context }) => {
+    const { locked, maxDailyLoss } = context.config.read().trading;
+
+    return { locked, maxDailyLoss };
+  }),
   setOrdersLocked: settings.setOrdersLocked.handler(({ context, input }) => {
     context.config.set(["trading", "locked"], input);
   }),
+  setMaxDailyLoss: settings.setMaxDailyLoss.handler(
+    ({ context, input: { currency, amount } }) => {
+      context.config.set(
+        ["trading", "maxDailyLoss", currency],
+        amount ?? undefined
+      );
+    }
+  ),
 
   updates: settings.updates.handler(({ context }) => ({
     check: context.config.read().updates.check,

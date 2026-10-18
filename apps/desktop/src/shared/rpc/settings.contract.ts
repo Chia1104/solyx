@@ -12,7 +12,7 @@ import {
   agentThinkingSchema,
 } from "@solyx/agent/providers";
 import { MagiUnit, decisionModeSchema } from "@solyx/core/council";
-import { Market } from "@solyx/core/market";
+import { Currency, Market } from "@solyx/core/market";
 import { NewsVoice } from "@solyx/core/news";
 import { decisionsProviderSchema } from "@solyx/decisions/provider";
 import { embeddingsProviderSchema } from "@solyx/embeddings/provider";
@@ -244,6 +244,15 @@ export const settingsContract = {
   trading: oc.output(type<TradingSettings>()),
   /** Locks orders, or unlocks them, from the next check on. */
   setOrdersLocked: oc.input(z.boolean()).output(type<void>()),
+  /** Sets the most a currency's sales may lose in a day from the next check on; `null` lifts the limit. */
+  setMaxDailyLoss: oc
+    .input(
+      z.object({
+        currency: z.enum(Currency),
+        amount: z.number().positive().nullable(),
+      })
+    )
+    .output(type<void>()),
   tray: oc.output(type<TraySettings>()),
   /** Puts the icon in the tray or takes it away, at once. */
   setTrayShown: oc.input(z.boolean()).output(type<void>()),

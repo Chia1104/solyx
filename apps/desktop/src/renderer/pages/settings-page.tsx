@@ -23,6 +23,7 @@ import { PalettePicker } from "../modules/settings/palette-picker.tsx";
 import { PriceColorsSelect } from "../modules/settings/price-colors-select.tsx";
 import { ThemeSelect } from "../modules/settings/theme-select.tsx";
 import { TimeZoneSelect } from "../modules/settings/time-zone-select.tsx";
+import { TradingSettings } from "../modules/settings/trading-settings.tsx";
 import { WebSearchSettings } from "../modules/settings/web-search-settings.tsx";
 import { StorageSettings } from "../modules/storage/storage-settings.tsx";
 import { TelemetrySettings } from "../modules/telemetry/telemetry-settings.tsx";
@@ -52,6 +53,7 @@ export function SettingsPage() {
       </>
     ),
     [SettingsSection.MarketData]: <MarketDataSettings />,
+    [SettingsSection.Trading]: <TradingSettings />,
     [SettingsSection.Agent]: (
       <>
         <AgentSettings />

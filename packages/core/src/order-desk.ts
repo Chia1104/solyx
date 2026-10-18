@@ -1,9 +1,13 @@
+import { noop } from "es-toolkit";
+
 import { errorMessage } from "@solyx/utils/error";
 
 import { OrderRefusedError } from "./broker.ts";
 import type { BrokerAdapter, BrokerMode } from "./broker.ts";
 import type { Forecast } from "./forecast.ts";
-import type { Market, SymbolRef } from "./market.ts";
+import { currencyOf, exchangeDate, exchangeMidnight } from "./market.ts";
+import type { Currency, Market, SymbolRef } from "./market.ts";
+import { Side, realizedIn } from "./order.ts";
 import type { AccountSnapshot, OrderRequest } from "./order.ts";
 import type { Report } from "./report.ts";
 import { checkOrder, sessionBand } from "./risk.ts";
@@ -112,6 +116,12 @@ export interface OrderDeskOptions {
    */
   locked?: () => boolean;
   /**
+   * The most the user lets the account's sales lose in a market's day, per currency, read at
+   * every check: once the day's loss reaches it, buys in that currency are refused.
+   * @default no limit
+   */
+  maxDailyLoss?: () => Partial<Record<Currency, number>>;
+  /**
    * The store was put back from a backup. A proposal that waits in it may have been confirmed
    * since the backup was made, so the desk dismisses each as it opens.
    * @default false
@@ -141,6 +151,9 @@ export type ProposingDesk = Pick<
  */
 export class OrderDesk {
   readonly #options: OrderDeskOptions;
+
+  /** The confirmation under way, which the next one waits for. */
+  #sending: Promise<unknown> = Promise.resolve();
 
   constructor(options: OrderDeskOptions) {
     this.#options = options;
@@ -227,17 +240,28 @@ export class OrderDesk {
   }
 
   /**
-   * Checks the proposal again and sends it. A check that fails sends nothing, so the proposal
-   * waits for the user again and the failure is thrown; once the order may have reached the
-   * broker, every outcome is kept on the proposal.
+   * Checks the proposal again and sends it. Confirmations go one at a time, each checked once the
+   * one before it has had the broker's answer, so a check reads the cash, shares and fills that
+   * order left. A check that fails sends nothing, so the proposal waits for the user again and the
+   * failure is thrown; once the order may have reached the broker, every outcome is kept on the
+   * proposal.
    */
   async confirm(id: string): Promise<TradeProposal> {
-    const { broker } = this.#options;
     const pending = this.#pending(id);
 
     // Claim it before any await so a double click cannot submit twice.
     this.#save({ ...pending, status: ProposalStatus.Confirming });
 
+    const confirmed = this.#sending.then(() => this.#send(pending));
+
+    // One that fails leaves the next to go on.
+    this.#sending = confirmed.catch(noop);
+
+    return confirmed;
+  }
+
+  async #send(pending: TradeProposal): Promise<TradeProposal> {
+    const { broker } = this.#options;
     let violations: RiskViolation[];
 
     try {
@@ -315,9 +339,10 @@ export class OrderDesk {
     const at = new Date(now());
     const trades = (await tradingDays?.(instrument.market)) ?? weekdays;
 
-    const [account, listed] = await Promise.all([
+    const [account, listed, dailyLoss] = await Promise.all([
       broker.getAccount(),
       priceLimits?.(instrument) ?? null,
+      this.#dailyLoss(order, at),
     ]);
 
     return checkOrder(order, limits, {
@@ -325,8 +350,26 @@ export class OrderDesk {
       markets: broker.markets,
       account,
       locked: locked?.() ?? false,
+      dailyLoss,
       priceBand: sessionBand(listed, instrument.market, at, trades),
     });
+  }
+
+  /** The day's loss against its limit, read from the broker only for a buy that has one. */
+  async #dailyLoss({ instrument, side }: OrderRequest, at: Date) {
+    const currency = currencyOf(instrument.market);
+    const max = this.#options.maxDailyLoss?.()[currency];
+
+    if (side !== Side.Buy || max === undefined) return undefined;
+
+    const dayStart = exchangeMidnight(
+      instrument.market,
+      exchangeDate(instrument.market, at)
+    );
+
+    const fills = await this.#options.broker.getFills(dayStart * 1000);
+
+    return { realized: realizedIn(fills, currency), max };
   }
 
   #save(proposal: TradeProposal): TradeProposal {

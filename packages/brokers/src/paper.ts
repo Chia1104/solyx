@@ -3,7 +3,7 @@ import type { BrokerAdapter } from "@solyx/core/broker";
 import { Market, currencyOf, symbolKey } from "@solyx/core/market";
 import type { Currency, SymbolRef } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
-import type { AccountSnapshot, OrderRequest } from "@solyx/core/order";
+import type { AccountSnapshot, Fill, OrderRequest } from "@solyx/core/order";
 import { errorMessage } from "@solyx/utils/error";
 
 export interface PaperAccount extends AccountSnapshot {
@@ -18,7 +18,10 @@ export interface PaperAccount extends AccountSnapshot {
 export interface PaperLedger {
   /** `undefined` before the account's first order. */
   read(): PaperAccount | undefined;
-  write(account: PaperAccount): void;
+  /** Keeps the account as an order left it, and the order's fill, in one write. */
+  write(account: PaperAccount, fill: Fill): void;
+  /** The fills from `since`, UTC milliseconds, on, oldest first. */
+  fills(since: number): Fill[];
 }
 
 export interface PaperBrokerOptions {
@@ -27,6 +30,8 @@ export interface PaperBrokerOptions {
   ledger: PaperLedger;
   /** Only market orders need it; limit orders fill at their limit price. */
   getLastPrice?: (instrument: SymbolRef) => Promise<number>;
+  /** @default Date.now */
+  now?: () => number;
 }
 
 /**
@@ -71,7 +76,12 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
       return { cash, positions };
     },
 
+    async getFills(since) {
+      return options.ledger.fills(since);
+    },
+
     async placeOrder(order) {
+      const { now = Date.now } = options;
       const price = await fillPrice(order);
       const { cash, positions: held, orders } = account();
       const currency = currencyOf(order.instrument.market);
@@ -83,6 +93,7 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
 
       const position = positions.get(key);
       const notional = price * order.quantity;
+      let realized: number | null = null;
 
       if (order.side === Side.Buy) {
         const available = cash[currency] ?? 0;
@@ -110,19 +121,29 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
         }
 
         cash[currency] = (cash[currency] ?? 0) + notional;
+        realized = (price - position.avgPrice) * order.quantity;
         const quantity = position.quantity - order.quantity;
 
         if (quantity === 0) positions.delete(key);
         else positions.set(key, { ...position, quantity });
       }
 
-      options.ledger.write({
-        cash,
-        positions: [...positions.values()],
-        orders: orders + 1,
-      });
+      const orderId = `paper-${orders + 1}`;
 
-      return { orderId: `paper-${orders + 1}` };
+      options.ledger.write(
+        { cash, positions: [...positions.values()], orders: orders + 1 },
+        {
+          orderId,
+          instrument: order.instrument,
+          side: order.side,
+          quantity: order.quantity,
+          price,
+          filledAt: now(),
+          realized,
+        }
+      );
+
+      return { orderId };
     },
   };
 }

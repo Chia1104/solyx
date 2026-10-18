@@ -19,6 +19,7 @@ import {
   MagiUnit,
   decisionModeSchema,
 } from "@solyx/core/council";
+import { Currency } from "@solyx/core/market";
 import type { Market } from "@solyx/core/market";
 import { NewsVoice } from "@solyx/core/news";
 import {
@@ -94,6 +95,8 @@ import type { FubonFile } from "#shared/settings.ts";
 const unitModelSchema = agentModelRefSchema.nullable().catch(null);
 
 const textSchema = z.string().trim().min(1).optional().catch(undefined);
+
+const lossLimitSchema = z.number().positive().optional().catch(undefined);
 
 const paletteIdSchema = z.string().min(1).catch(Palette.Blueprint);
 
@@ -180,6 +183,15 @@ const configSchema = section(
         locked: z.boolean().catch(false).meta({
           description:
             "Refuses every order: proposals are refused, and none waiting can be sent, until it is switched off. Only you can switch it; the agent cannot.",
+        }),
+        maxDailyLoss: section(
+          z.looseObject({
+            [Currency.TWD]: lossLimitSchema,
+            [Currency.USD]: lossLimitSchema,
+          })
+        ).meta({
+          description:
+            "The most the account's sales may lose in a market's day, per currency. Once the day's loss reaches it, buys in that currency are refused, while sales still go. Unset has no limit.",
         }),
       })
     ),
@@ -520,6 +532,7 @@ type ConfigPath =
   | ["appearance", "palettes", string, ColorScheme, PaletteToken]
   | ["tray", "show" | "hideDock"]
   | ["trading", "locked"]
+  | ["trading", "maxDailyLoss", Currency]
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle" | "finmind", "plan"]
   | ["providers", "fubon", FubonFile]

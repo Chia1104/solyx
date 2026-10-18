@@ -1,10 +1,10 @@
-import { and, asc, desc, eq, max } from "drizzle-orm";
+import { and, asc, desc, eq, gte, max } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { clamp, omit } from "es-toolkit";
 
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import type { AccountSnapshot } from "@solyx/core/order";
+import type { AccountSnapshot, Fill } from "@solyx/core/order";
 import type { ProposalStore, TradeProposal } from "@solyx/core/order-desk";
 import type { ScheduleStore } from "@solyx/core/schedule";
 import type { ThemeItem, ThemeStore } from "@solyx/core/theme";
@@ -12,6 +12,7 @@ import type { ThemeItem, ThemeStore } from "@solyx/core/theme";
 import { connect } from "./connection.ts";
 import {
   paperAccount,
+  paperFills,
   proposals,
   scheduledTasks,
   themeItems,
@@ -137,11 +138,34 @@ function paperAccountStore(db: NodeSQLiteDatabase) {
       return row && omit(row, ["id"]);
     },
 
-    write(account: PaperAccount) {
-      db.insert(paperAccount)
-        .values({ id: PAPER_ACCOUNT_ID, ...account })
-        .onConflictDoUpdate({ target: paperAccount.id, set: account })
-        .run();
+    /** Keeps the account as an order left it, and the order's fill, in one transaction. */
+    write(account: PaperAccount, fill: Fill) {
+      db.transaction((tx) => {
+        tx.insert(paperAccount)
+          .values({ id: PAPER_ACCOUNT_ID, ...account })
+          .onConflictDoUpdate({ target: paperAccount.id, set: account })
+          .run();
+
+        const { instrument, ...rest } = fill;
+
+        tx.insert(paperFills)
+          .values({ ...rest, ...instrument })
+          .run();
+      });
+    },
+
+    /** The fills from `since`, UTC milliseconds, on, oldest first. */
+    fills(since: number): Fill[] {
+      return db
+        .select()
+        .from(paperFills)
+        .where(gte(paperFills.filledAt, since))
+        .orderBy(asc(paperFills.seq))
+        .all()
+        .map(({ market, symbol, ...row }) => ({
+          ...omit(row, ["seq"]),
+          instrument: { market, symbol },
+        }));
     },
   };
 }

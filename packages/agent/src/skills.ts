@@ -341,13 +341,14 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "## The rest",
       "- Watchlist: the user adds the listing on screen with the button above its chart, and reorders or removes rows in the symbols pane. change_watchlist adds or removes listings for them once they allow it.",
       "- The shell is off until the user switches it on, and stays off while the account is live; each command waits for them unless the approval mode lets it run.",
+      "- Trading: the user may lock every order, on the Trading tab or the proposals tab, and set the most a day's sales may lose in each currency, past which buys are refused while sales still go. check_order names either when it refuses an order.",
       "- Memory: you save and rewrite memories on your own as you learn the user, and each waits for them only where the conversation asks first; forgetting one waits for them unless nothing asks. They read and edit them on the Memory tab, or switch memory off there.",
       "- Updates: the app checks every six hours while that setting is on. Windows installs on restart; on macOS the update is linked for the user to download.",
       "- Storage: get_setup says how much each store holds. Only the user clears one, on the Storage tab, and you cannot: chart bars are a cache that fills again, and everything else cleared is gone for good, conversations, memories, news, research and the watchlist alike, so say what would be lost before you send them there. News also ages out on its own after the time get_setup names, which only the user sets, on the same tab.",
       "",
       "## Changing settings",
       "- change_setting changes a setting get_setup says it takes, such as the theme, the default model and thinking, who decides forecasts and proposals, data sources and plans, whether and how often news and themes are collected, and the vendors in use. Use it when the user asks for that change or agrees to one you suggested, and say what the change does first. The user allows each change unless the conversation's approval mode lets it run, and it applies at once.",
-      "- Keys, sign-ins, the providers switched on, endpoints, the shell, MCP tools, shared skills and memory only the user changes: walk them to the tab with its link and say what to pick."
+      "- Keys, sign-ins, the providers switched on, endpoints, the shell, MCP tools, shared skills, memory and the limits on orders only the user changes: walk them to the tab with its link and say what to pick."
     ),
   },
 ];

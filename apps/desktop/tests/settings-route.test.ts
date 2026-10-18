@@ -15,6 +15,7 @@ import {
 } from "@solyx/agent/mcp-config";
 import { DEFAULT_MODEL } from "@solyx/agent/models";
 import type { AgentProvider } from "@solyx/agent/providers";
+import { Currency } from "@solyx/core/market";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import {
@@ -341,15 +342,26 @@ test("memory is on until the user switches it off", async () => {
   expect(await api.memory()).toEqual({ enabled: false });
 });
 
-test("orders stay unlocked until the user locks them", async () => {
+test("orders stay unlocked and without a daily loss limit until the user sets them", async () => {
   const { api, config } = setup();
 
-  expect(await api.trading()).toEqual({ locked: false });
+  expect(await api.trading()).toEqual({ locked: false, maxDailyLoss: {} });
 
   await api.setOrdersLocked(true);
+  await api.setMaxDailyLoss({ currency: Currency.TWD, amount: 50_000 });
 
-  expect(config.read().trading.locked).toBe(true);
-  expect(await api.trading()).toEqual({ locked: true });
+  expect(config.read().trading).toEqual({
+    locked: true,
+    maxDailyLoss: { TWD: 50_000 },
+  });
+  expect(await api.trading()).toEqual({
+    locked: true,
+    maxDailyLoss: { TWD: 50_000 },
+  });
+
+  await api.setMaxDailyLoss({ currency: Currency.TWD, amount: null });
+
+  expect(await api.trading()).toEqual({ locked: true, maxDailyLoss: {} });
 });
 
 test("MCP servers show each tool under the policy in force, which secrets are saved, and paths from home", async () => {

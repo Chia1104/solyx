@@ -1,5 +1,5 @@
 import type { Market } from "./market.ts";
-import type { AccountSnapshot, OrderRequest } from "./order.ts";
+import type { AccountSnapshot, Fill, OrderRequest } from "./order.ts";
 
 export const BrokerMode = {
   Paper: "paper",
@@ -25,6 +25,8 @@ export interface BrokerAdapter {
   readonly mode: BrokerMode;
   readonly markets: readonly Market[];
   getAccount(): Promise<AccountSnapshot>;
+  /** The account's fills from `since`, UTC milliseconds, on, oldest first. */
+  getFills(since: number): Promise<Fill[]>;
   /** Throws `OrderRefusedError` only where the broker surely holds nothing of the order. */
   placeOrder(order: OrderRequest): Promise<{ orderId: string }>;
 }
