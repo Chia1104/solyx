@@ -14,7 +14,7 @@ import type {
 } from "@earendil-works/pi-durable";
 import { expect, test, vi } from "vite-plus/test";
 
-import { BrokerMode } from "@solyx/core/broker";
+import { BrokerMode, BrokerOrderStatus } from "@solyx/core/broker";
 import { EventTiming, ListingEventKind } from "@solyx/core/calendar";
 import type { UpcomingEvents } from "@solyx/core/calendar";
 import { Interval } from "@solyx/core/candles";
@@ -145,6 +145,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
       positions: [],
     })),
     fills: vi.fn<OrderDesk["fills"]>(async () => []),
+    working: vi.fn<OrderDesk["working"]>(async () => []),
     mode: BrokerMode.Paper,
   };
 
@@ -519,7 +520,35 @@ test("the account tells how its closed round trips went by the stance they were 
   );
   expect(text).toContain("- TWD bullish: 1 trips, 1 won (100.0%)");
   expect(text).toContain("- TWD no report: 1 trips, 0 won (0.0%)");
+  expect(text).toContain("working orders:\nnone");
   expect(desk.fills).toHaveBeenCalledWith(0);
+});
+
+test("the account names each order of the day that may still fill", async () => {
+  const { run, desk } = setup();
+
+  desk.working.mockResolvedValueOnce([
+    {
+      id: "B-7",
+      tag: null,
+      order: {
+        instrument: TSMC,
+        side: Side.Sell,
+        quantity: 2000,
+        type: OrderType.Limit,
+        limitPrice: 1010,
+      },
+      filled: 1000,
+      status: BrokerOrderStatus.Working,
+      placedAt: NOW.getTime(),
+    },
+  ]);
+
+  const { text } = await run(AgentToolName.GetAccount, {});
+
+  expect(text).toContain(
+    "working orders:\nB-7 TW 2330 sell 2000 shares limit 1010, 1000 filled, working"
+  );
 });
 
 test("checking reports each violation", async () => {

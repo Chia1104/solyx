@@ -654,16 +654,22 @@
     },
     "confirm": "Confirm and submit",
     "dismiss": "Dismiss",
+    "reconcile": "Look it up at the broker",
+    "failure": {
+      "unknown": "Submission failed; check your broker before placing it again",
+      "refused": "The broker refused it; nothing was placed",
+      "interrupted": "Submission failed; check your broker before placing it again",
+      "interrupted-detail": "Solyx closed before the broker replied, so the order may have reached it.",
+      "absent": "The broker never took it",
+      "absent-detail": "Its session is over and the broker lists no order from it."
+    },
     "propose-failed": "Couldn't create the proposal",
     "violations-title": "Blocked by risk checks",
-    "submit-failed": "Submission failed; check your broker before placing it again",
-    "submit-refused": "The broker refused it; nothing was placed",
     "lock": {
       "label": "Lock orders",
       "on": "Every order is refused until you unlock.",
       "off": "Proposals can be confirmed and sent."
     },
-    "submit-interrupted": "Solyx closed before the broker replied, so the order may have reached it.",
     "history": "History",
     "premise": {
       "proposed-at": "Proposed at {{price}} for the {{date}} session",

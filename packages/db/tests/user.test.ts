@@ -322,6 +322,8 @@ describe("proposal store", () => {
       price: 980,
       filledAt: 1_000,
       realized: null,
+      tag: "A1B2C3",
+      limitPrice: 980,
     };
 
     store.write(
@@ -341,6 +343,8 @@ describe("proposal store", () => {
       price: 1000,
       filledAt: 2_000,
       realized: 20_000,
+      tag: "D4E5F6",
+      limitPrice: null,
     };
 
     const after = {

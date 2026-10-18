@@ -3,8 +3,13 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { MINUTE_MS } from "@solyx/utils/date";
 
-import { BrokerMode, OrderRefusedError } from "../src/broker.ts";
-import type { BrokerAdapter } from "../src/broker.ts";
+import {
+  BrokerMode,
+  BrokerOrderStatus,
+  OrderRefusedError,
+  orderTag,
+} from "../src/broker.ts";
+import type { BrokerAdapter, BrokerOrder } from "../src/broker.ts";
 import { ForecastDirection } from "../src/forecast.ts";
 import { Market } from "../src/market.ts";
 import {
@@ -89,6 +94,7 @@ function setup(
     .mockResolvedValue({ orderId: "B-1" });
 
   const getFills = vi.fn<BrokerAdapter["getFills"]>(async () => []);
+  const getOrders = vi.fn<BrokerAdapter["getOrders"]>(async () => []);
 
   const broker: BrokerAdapter = {
     id: "fake",
@@ -96,6 +102,7 @@ function setup(
     markets: [Market.TW],
     getAccount,
     getFills,
+    getOrders,
     placeOrder,
   };
 
@@ -122,6 +129,7 @@ function setup(
     placeOrder,
     getAccount,
     getFills,
+    getOrders,
     account,
     clock,
     tradingDays,
@@ -286,6 +294,139 @@ test("a broker's refusal says nothing was placed, and is terminal too", async ()
     },
   });
   await expect(desk.confirm(id)).rejects.toThrow();
+});
+
+function brokerOrder(
+  proposalId: string,
+  overrides: Partial<BrokerOrder> = {}
+): BrokerOrder {
+  return {
+    id: "B-9",
+    tag: orderTag(proposalId),
+    order,
+    filled: 0,
+    status: BrokerOrderStatus.Working,
+    placedAt: DURING_SESSION,
+    ...overrides,
+  };
+}
+
+test("an order goes to the broker marked with its proposal's tag", async () => {
+  const { desk, placeOrder } = setup();
+  const { id } = await proposeFromAgent(desk);
+
+  await desk.confirm(id);
+
+  expect(placeOrder).toHaveBeenCalledWith(order, orderTag(id));
+});
+
+test("an order whose sending failed unanswered is found by its tag and kept as submitted", async () => {
+  const { desk, placeOrder, getOrders } = setup();
+  const { id } = await proposeFromAgent(desk);
+
+  placeOrder.mockRejectedValueOnce(new Error("timeout"));
+  getOrders.mockResolvedValue([
+    brokerOrder("someone else's", { id: "B-8" }),
+    brokerOrder(id),
+  ]);
+
+  expect(await desk.confirm(id)).toMatchObject({
+    status: ProposalStatus.Failed,
+    failure: { code: SubmissionFailureCode.Unknown },
+  });
+
+  await vi.waitFor(() =>
+    expect(desk.list()).toEqual([
+      expect.objectContaining({
+        id,
+        status: ProposalStatus.Submitted,
+        brokerOrderId: "B-9",
+      }),
+    ])
+  );
+  expect(desk.list()[0]).not.toHaveProperty("failure");
+  expect(placeOrder).toHaveBeenCalledTimes(1);
+});
+
+test("an order the broker does not list stays unknown until its session is over, then failed for good", async () => {
+  const { desk, placeOrder, getOrders, clock } = setup();
+  const { id } = await proposeFromAgent(desk);
+
+  placeOrder.mockRejectedValueOnce(new Error("timeout"));
+  await desk.confirm(id);
+  await desk.reconcile();
+
+  expect(desk.list()).toMatchObject([
+    { failure: { code: SubmissionFailureCode.Unknown } },
+  ]);
+
+  clock.now = AFTER_CLOSE;
+  await desk.reconcile();
+
+  expect(getOrders).toHaveBeenLastCalledWith(desk.list()[0]?.createdAt);
+  expect(desk.list()).toMatchObject([
+    {
+      status: ProposalStatus.Failed,
+      failure: { code: SubmissionFailureCode.Absent },
+    },
+  ]);
+
+  // Failed for good: nothing is read for it again.
+  getOrders.mockClear();
+  await desk.reconcile();
+  expect(getOrders).not.toHaveBeenCalled();
+});
+
+test("a submission an exit cut off is found by its tag once the desk reconciles", async () => {
+  const { desk, placeOrder, store } = setup();
+  const { id } = await proposeFromAgent(desk);
+
+  placeOrder.mockReturnValueOnce(new Promise(noop));
+  void desk.confirm(id);
+  await vi.waitFor(() =>
+    expect(desk.list()).toMatchObject([{ status: ProposalStatus.Submitting }])
+  );
+
+  const reopened = setup(store);
+  reopened.getOrders.mockResolvedValue([brokerOrder(id)]);
+
+  expect(reopened.desk.list()).toMatchObject([
+    { failure: { code: SubmissionFailureCode.Interrupted } },
+  ]);
+
+  await reopened.desk.reconcile();
+
+  expect(reopened.desk.list()).toMatchObject([
+    { status: ProposalStatus.Submitted, brokerOrderId: "B-9" },
+  ]);
+});
+
+test("a refused order is never looked for, since the broker holds nothing of it", async () => {
+  const { desk, placeOrder, getOrders } = setup();
+  const { id } = await proposeFromAgent(desk);
+
+  placeOrder.mockRejectedValueOnce(new OrderRefusedError("not enough cash"));
+  await desk.confirm(id);
+  await desk.reconcile();
+
+  expect(getOrders).not.toHaveBeenCalled();
+});
+
+test("working orders are the market day's that may still fill", async () => {
+  const { desk, getOrders } = setup();
+
+  getOrders.mockResolvedValue([
+    brokerOrder("a", { id: "B-1", status: BrokerOrderStatus.Pending }),
+    brokerOrder("b", { id: "B-2", status: BrokerOrderStatus.Working }),
+    brokerOrder("c", { id: "B-3", status: BrokerOrderStatus.Filled }),
+    brokerOrder("d", { id: "B-4", status: BrokerOrderStatus.Cancelled }),
+    brokerOrder("e", { id: "B-5", status: BrokerOrderStatus.Refused }),
+  ]);
+
+  expect((await desk.working()).map(({ id }) => id)).toEqual(["B-1", "B-2"]);
+  expect(getOrders).toHaveBeenCalledWith(
+    Date.parse("2026-09-29T00:00:00+08:00")
+  );
 });
 
 test("a check that fails sends nothing, so the proposal waits for the user again", async () => {

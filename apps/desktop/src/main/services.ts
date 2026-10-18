@@ -657,6 +657,11 @@ export function createServices(config: ConfigFile) {
   config.onChange(() => void tray.sync());
   config.watch();
 
+  // A proposal whose sending was cut off or went unanswered may have reached the broker.
+  desk
+    .reconcile()
+    .catch((error) => diagnostics.recovered(error, "desk.reconcile"));
+
   return {
     desk,
     marketDays,

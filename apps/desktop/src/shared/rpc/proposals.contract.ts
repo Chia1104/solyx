@@ -13,6 +13,8 @@ export const proposalsContract = {
     .output(type<TradeProposal>()),
   confirm: oc.input(z.string()).output(type<TradeProposal>()),
   dismiss: oc.input(z.string()).output(type<TradeProposal>()),
+  /** Looks at the broker for the orders of proposals whose sending went unanswered. */
+  reconcile: oc.output(type<void>()),
   /** A proposal was made or changed; the account may have changed with it. */
   changes: changesContract,
 };

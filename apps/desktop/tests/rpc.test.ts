@@ -41,6 +41,7 @@ function paperDesk() {
       markets: [Market.TW],
       getAccount: async () => ({ cash: { TWD: 5_000_000 }, positions: [] }),
       getFills: async () => [],
+      getOrders: async () => [],
       placeOrder: async () => ({ orderId: "B-1" }),
     },
     store: {

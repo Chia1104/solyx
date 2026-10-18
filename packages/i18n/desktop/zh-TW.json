@@ -654,16 +654,22 @@
     },
     "confirm": "確認送出",
     "dismiss": "取消",
+    "reconcile": "向券商查詢",
+    "failure": {
+      "unknown": "送單失敗；再次下單前請先到券商確認",
+      "refused": "券商拒絕了這筆委託，沒有送出任何單",
+      "interrupted": "送單失敗；再次下單前請先到券商確認",
+      "interrupted-detail": "券商回覆前 Solyx 就關閉了，這筆委託可能已經送達券商。",
+      "absent": "券商沒有收到這筆委託",
+      "absent-detail": "它的交易時段已經結束，券商查無這筆委託。"
+    },
     "propose-failed": "無法建立提案",
     "violations-title": "未通過風控檢查",
-    "submit-failed": "送單失敗；再次下單前請先到券商確認",
-    "submit-refused": "券商拒絕了這筆委託，沒有送出任何單",
     "lock": {
       "label": "鎖定下單",
       "on": "所有下單都會被拒絕，直到你解除鎖定。",
       "off": "提案可以確認送出。"
     },
-    "submit-interrupted": "券商回覆前 Solyx 就關閉了，這筆委託可能已經送達券商。",
     "history": "紀錄",
     "premise": {
       "proposed-at": "提案時 {{price}}（{{date}} 交易時段）",

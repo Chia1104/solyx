@@ -171,6 +171,10 @@ export function createFubonBroker(): BrokerAdapter {
       throw notVerified("fill queries");
     },
 
+    async getOrders() {
+      throw notVerified("order queries");
+    },
+
     async placeOrder() {
       throw notVerified("order placement");
     },

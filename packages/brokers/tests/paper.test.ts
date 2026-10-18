@@ -1,22 +1,23 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { OrderRefusedError } from "@solyx/core/broker";
+import { BrokerOrderStatus, OrderRefusedError } from "@solyx/core/broker";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
-import type { Fill, OrderRequest } from "@solyx/core/order";
+import type { OrderRequest } from "@solyx/core/order";
 
 import { createPaperBroker } from "../src/paper.ts";
 import type {
   PaperAccount,
   PaperBrokerOptions,
+  PaperFill,
   PaperLedger,
 } from "../src/paper.ts";
 
 // Copies on the way in and out, like a database would, so the broker cannot lean on shared objects.
 function memoryLedger(): PaperLedger {
   let saved: PaperAccount | undefined;
-  const fills: Fill[] = [];
+  const fills: PaperFill[] = [];
 
   return {
     read: () => structuredClone(saved),
@@ -31,6 +32,8 @@ function memoryLedger(): PaperLedger {
 
 const paper = (cash: PaperBrokerOptions["cash"], ledger = memoryLedger()) =>
   createPaperBroker({ cash, ledger });
+
+const TAG = "A1B2C3";
 
 const tsmc: SymbolRef = {
   market: Market.TW,
@@ -49,9 +52,9 @@ function limit(side: Side, quantity: number, limitPrice: number): OrderRequest {
 
 test("buys and sells move cash and positions", async () => {
   const broker = paper({ TWD: 2_000_000 });
-  await broker.placeOrder(limit(Side.Buy, 1000, 900));
-  await broker.placeOrder(limit(Side.Buy, 1000, 1000));
-  await broker.placeOrder(limit(Side.Sell, 500, 1100));
+  await broker.placeOrder(limit(Side.Buy, 1000, 900), TAG);
+  await broker.placeOrder(limit(Side.Buy, 1000, 1000), TAG);
+  await broker.placeOrder(limit(Side.Sell, 500, 1100), TAG);
   const account = await broker.getAccount();
 
   expect(account.cash.TWD).toBe(2_000_000 - 900_000 - 1_000_000 + 550_000);
@@ -62,7 +65,7 @@ test("buys and sells move cash and positions", async () => {
 
 test("refuses to spend more cash than it has", async () => {
   const broker = paper({ TWD: 100_000 });
-  const placing = broker.placeOrder(limit(Side.Buy, 1000, 980));
+  const placing = broker.placeOrder(limit(Side.Buy, 1000, 980), TAG);
 
   await expect(placing).rejects.toThrow(OrderRefusedError);
   await expect(placing).rejects.toThrow("Insufficient TWD");
@@ -70,7 +73,7 @@ test("refuses to spend more cash than it has", async () => {
 
 test("refuses to sell what it does not hold", async () => {
   const broker = paper({ TWD: 100_000 });
-  const placing = broker.placeOrder(limit(Side.Sell, 1, 980));
+  const placing = broker.placeOrder(limit(Side.Sell, 1, 980), TAG);
 
   await expect(placing).rejects.toThrow(OrderRefusedError);
   await expect(placing).rejects.toThrow("Not enough shares");
@@ -91,7 +94,7 @@ describe("a market order", () => {
       getLastPrice: async () => 975,
     });
 
-    await broker.placeOrder(order);
+    await broker.placeOrder(order, TAG);
 
     expect(await broker.getAccount()).toEqual({
       cash: { TWD: 25_000 },
@@ -100,9 +103,9 @@ describe("a market order", () => {
   });
 
   test("is refused without a price source, or when it cannot price one", async () => {
-    await expect(paper({ TWD: 1_000_000 }).placeOrder(order)).rejects.toThrow(
-      OrderRefusedError
-    );
+    await expect(
+      paper({ TWD: 1_000_000 }).placeOrder(order, TAG)
+    ).rejects.toThrow(OrderRefusedError);
 
     const unpriced = createPaperBroker({
       cash: { TWD: 1_000_000 },
@@ -110,7 +113,7 @@ describe("a market order", () => {
       getLastPrice: () => Promise.reject(new Error("quotes are down")),
     });
 
-    await expect(unpriced.placeOrder(order)).rejects.toThrow(
+    await expect(unpriced.placeOrder(order, TAG)).rejects.toThrow(
       "could not price the market order: quotes are down"
     );
   });
@@ -120,14 +123,14 @@ test("the account outlives the broker, and order ids keep counting", async () =>
   const ledger = memoryLedger();
   const first = paper({ TWD: 2_000_000 }, ledger);
 
-  expect(await first.placeOrder(limit(Side.Buy, 1000, 900))).toEqual({
+  expect(await first.placeOrder(limit(Side.Buy, 1000, 900), TAG)).toEqual({
     orderId: "paper-1",
   });
 
   const reopened = paper({ TWD: 2_000_000 }, ledger);
 
   expect(await reopened.getAccount()).toEqual(await first.getAccount());
-  expect(await reopened.placeOrder(limit(Side.Sell, 1000, 950))).toEqual({
+  expect(await reopened.placeOrder(limit(Side.Sell, 1000, 950), TAG)).toEqual({
     orderId: "paper-2",
   });
   expect(await reopened.getAccount()).toEqual({
@@ -140,7 +143,9 @@ test("a refused order leaves the account as it was", async () => {
   const ledger = memoryLedger();
   const broker = paper({ TWD: 100_000 }, ledger);
 
-  await expect(broker.placeOrder(limit(Side.Buy, 1000, 980))).rejects.toThrow();
+  await expect(
+    broker.placeOrder(limit(Side.Buy, 1000, 980), TAG)
+  ).rejects.toThrow();
   expect(ledger.read()).toBeUndefined();
 });
 
@@ -153,11 +158,11 @@ test("keeps each fill, a sale with what it gained over the average cost", async 
     now: () => clock.now,
   });
 
-  await broker.placeOrder(limit(Side.Buy, 1000, 900));
+  await broker.placeOrder(limit(Side.Buy, 1000, 900), TAG);
   clock.now = 2_000;
-  await broker.placeOrder(limit(Side.Buy, 1000, 1000));
+  await broker.placeOrder(limit(Side.Buy, 1000, 1000), TAG);
   clock.now = 3_000;
-  await broker.placeOrder(limit(Side.Sell, 500, 920));
+  await broker.placeOrder(limit(Side.Sell, 500, 920), TAG);
 
   expect(await broker.getFills(2_000)).toEqual([
     {
@@ -178,6 +183,44 @@ test("keeps each fill, a sale with what it gained over the average cost", async 
       filledAt: 3_000,
       // Sold below the average cost of 950.
       realized: -15_000,
+    },
+  ]);
+});
+
+test("lists each order it filled, whole, with the tag it was placed with", async () => {
+  const broker = createPaperBroker({
+    cash: { TWD: 2_000_000 },
+    ledger: memoryLedger(),
+    getLastPrice: async () => 950,
+    now: () => 1_000,
+  });
+
+  const market: OrderRequest = {
+    instrument: tsmc,
+    side: Side.Buy,
+    quantity: 1000,
+    type: OrderType.Market,
+  };
+
+  await broker.placeOrder(limit(Side.Buy, 1000, 900), "LIMIT1");
+  await broker.placeOrder(market, "MARKET");
+
+  expect(await broker.getOrders(0)).toEqual([
+    {
+      id: "paper-1",
+      tag: "LIMIT1",
+      order: limit(Side.Buy, 1000, 900),
+      filled: 1000,
+      status: BrokerOrderStatus.Filled,
+      placedAt: 1_000,
+    },
+    {
+      id: "paper-2",
+      tag: "MARKET",
+      order: market,
+      filled: 1000,
+      status: BrokerOrderStatus.Filled,
+      placedAt: 1_000,
     },
   ]);
 });

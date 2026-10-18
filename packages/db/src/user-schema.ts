@@ -79,6 +79,10 @@ export const paperFills = sqliteTable("paper_fills", {
   price: real().notNull(),
   filledAt: integer("filled_at").notNull(),
   realized: real(),
+  /** The tag the order was placed with; `null` for one placed without. */
+  tag: text(),
+  /** The order's limit price; `null` for a market order. */
+  limitPrice: real("limit_price"),
 });
 
 /** Every scheduled task as the user wrote it, and its last run; `seq` keeps the order they were made in. */
