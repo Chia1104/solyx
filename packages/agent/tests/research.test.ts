@@ -16,6 +16,7 @@ import type { Forecast } from "@solyx/core/forecast";
 import type {
   BalanceSheet,
   CashFlow,
+  Company,
   Dividend,
   ExchangeMultiples,
   FundCosts,
@@ -277,6 +278,8 @@ interface Filed {
   multiplesFailure?: string;
   /** Where the listing's multiples stand in its industry, where its exchanges class it. */
   peers?: PeerStanding;
+  /** The company as its exchange lists it, where it does. */
+  company?: Company;
 }
 
 /** `read` is what the conversation read, which quotes are then held to; without it none is checked, as under a host with no transcript. */
@@ -331,6 +334,7 @@ function setup(councils?: Council[], read?: string[], watched = false) {
     exNotices: async () => [],
     meetings: async () => [],
     peers: async () => filed.peers ?? null,
+    company: async () => filed.company ?? null,
     priceLimits: async () => null,
   };
 
@@ -1082,6 +1086,49 @@ test("the exchange's multiples read against the industry's, each among the listi
       "Among the 193 listings its exchanges class as 半導體業, itself aside: price to earnings n/a; dividend yield 1.5% against a median of 2.13%, above 20% of the 180 with one; price to book 10.28 against a median of 3.4, above 95% of the 192 with one.",
       "Quarters, each for the quarter alone, by its last day:",
     ].join("\n")
+  );
+});
+
+test("a company's shares read with what they were worth and how many traded at the last close", async () => {
+  const { run, filed } = setup();
+
+  filed.company = {
+    industry: { code: "24", name: "半導體業" },
+    shares: 25_932_370_067,
+  };
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    "Shares issued, as its exchange lists them: 25932370067. At the close of 2026-09-29, 1000, they were worth 25932370 million TWD, and that session traded 0.00% of them."
+  );
+});
+
+test("a session still under way is no close, so the shares are valued at the one before", async () => {
+  const { run, filed, clock, bars } = setup();
+
+  filed.company = {
+    industry: { code: "24", name: "半導體業" },
+    shares: 1_000_000,
+  };
+  bars.daily = [ANCHOR_BAR, ...LATER_BARS];
+  // 10:00 on 2026-10-01, whose bar is still forming.
+  clock.now = Date.parse("2026-10-01T10:00:00+08:00");
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain("At the close of 2026-09-30, 1010,");
+});
+
+test("a depositary receipt's shares are not counted, since its exchange lists its issuer's", async () => {
+  const { run, filed } = setup();
+
+  filed.company = { industry: { code: "91", name: "存託憑證" }, shares: null };
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    "Its exchange lists no count of the shares its listing trades as."
   );
 });
 

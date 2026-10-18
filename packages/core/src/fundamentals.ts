@@ -219,6 +219,13 @@ export interface Industry {
   name: string;
 }
 
+/** A listed company as its exchange lists it. */
+export interface Company {
+  industry: Industry;
+  /** The common shares it has issued, which its listing trades as; `null` where the list gives none, as for a depositary receipt, whose list gives its foreign issuer's shares. */
+  shares: number | null;
+}
+
 /** Where one of a listing's multiples stands among the same multiple of its industry's other listings. */
 export interface MultipleStanding {
   /** The listing's own; `null` where its exchange works none out. */
@@ -267,8 +274,8 @@ export interface ExchangeListsProvider {
   getExNotices(market: Market): Promise<Listed<ExNotice>[]>;
   /** The shareholders' meetings the exchanges list, those already held among them. */
   getMeetings(market: Market): Promise<Listed<ShareholdersMeeting>[]>;
-  /** The industry the exchanges class each company in. */
-  getIndustries(market: Market): Promise<Listed<Industry>[]>;
+  /** Every listed company, with the industry the exchanges class it in and the shares it has issued. */
+  getCompanies(market: Market): Promise<Listed<Company>[]>;
   /** Every listing's price limits as the exchanges set them after the last session. */
   getPriceLimits(market: Market): Promise<Listed<PriceLimits>[]>;
 }
@@ -315,6 +322,8 @@ export interface Fundamentals {
   meetings(symbol: SymbolRef): Promise<ShareholdersMeeting[]>;
   /** Its multiples against its industry's; `null` for a listing its exchanges class in none or work no multiples out for, which a fund is. */
   peers(symbol: SymbolRef): Promise<PeerStanding | null>;
+  /** The company as its exchange lists it; `null` for a listing no source lists as a company, which a fund is. */
+  company(symbol: SymbolRef): Promise<Company | null>;
   /** Its price limits as its exchange set them after the last session; `null` for a listing no source lists them for. */
   priceLimits(symbol: SymbolRef): Promise<PriceLimits | null>;
 }

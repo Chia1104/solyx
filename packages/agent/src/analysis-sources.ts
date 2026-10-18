@@ -33,7 +33,7 @@ export interface AnalysisSources {
   flows: Pick<Flows, "listing">;
   fundamentals: Pick<
     Fundamentals,
-    "statements" | "monthlyRevenue" | "multiples" | "dividends"
+    "statements" | "monthlyRevenue" | "multiples" | "dividends" | "company"
   >;
 }
 
@@ -160,6 +160,11 @@ const multiplesSchema = z.object({
   priceToBook: z.number().nullable(),
 });
 
+const companySchema = z.object({
+  industry: z.object({ code: z.string(), name: z.string() }),
+  shares: z.number().nullable(),
+});
+
 const dividendsSchema = z.array(
   z.object({
     period: z.string(),
@@ -182,6 +187,7 @@ const NAMED = {
   Quarter: quartersSchema.element,
   MonthRevenue: monthsSchema.element,
   Multiples: multiplesSchema,
+  Company: companySchema,
   Dividend: dividendsSchema.element,
 };
 
@@ -319,6 +325,16 @@ export function sourceFunctions(
       input: listing,
       output: multiplesSchema.nullable(),
       run: ([symbol]) => sources.fundamentals.multiples(symbol),
+    }),
+    scriptFunction({
+      name: "fundamentals.company",
+      description:
+        "A Taiwan company as its exchange lists it: the industry it classes it in, by its code and name, and the common shares it has issued, which times a close is its market value and divides a session's volume into its turnover; null for a listing it lists as no company, as a fund. Read from a list of the whole market, so it costs no request of its own.",
+      spread: true,
+      signature: "(symbol: SymbolRef): Promise<Company | null>",
+      input: listing,
+      output: companySchema.nullable(),
+      run: ([symbol]) => sources.fundamentals.company(symbol),
     }),
     scriptFunction({
       name: "fundamentals.cashGoneEx",
