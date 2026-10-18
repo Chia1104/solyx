@@ -703,3 +703,34 @@ test("confirmations go one at a time, so a buy is checked against the loss a sal
   });
   expect(placeOrder).toHaveBeenCalledOnce();
 });
+
+test("a lock set while the checks wait on the quote still stops the order", async () => {
+  let locked = false;
+  let quote: (price: number) => void = noop;
+
+  const { desk, placeOrder } = setup(undefined, {
+    locked: () => locked,
+    lastPrice: vi
+      .fn<NonNullable<OrderDeskOptions["lastPrice"]>>()
+      .mockResolvedValueOnce(975)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            quote = resolve;
+          })
+      ),
+  });
+
+  const { id } = await proposeFromAgent(desk);
+  const confirming = desk.confirm(id);
+
+  await vi.waitFor(() => expect(quote).not.toBe(noop));
+  locked = true;
+  quote(975);
+
+  expect(await confirming).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [{ code: RiskViolationCode.OrdersLocked }],
+  });
+  expect(placeOrder).not.toHaveBeenCalled();
+});

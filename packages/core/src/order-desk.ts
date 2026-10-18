@@ -10,7 +10,12 @@ import type { Currency, Market, SymbolRef } from "./market.ts";
 import { Side, realizedIn } from "./order.ts";
 import type { AccountSnapshot, Fill, OrderRequest } from "./order.ts";
 import type { Report } from "./report.ts";
-import { checkOrder, premiseViolations, sessionBand } from "./risk.ts";
+import {
+  RiskViolationCode,
+  checkOrder,
+  premiseViolations,
+  sessionBand,
+} from "./risk.ts";
 import type {
   OrderPremise,
   PriceLimits,
@@ -304,6 +309,14 @@ export class OrderDesk {
       this.#save(pending);
 
       throw error;
+    }
+
+    // The user may have locked orders while the checks waited on the broker and the quote.
+    if (
+      this.#options.locked?.() &&
+      !violations.some(({ code }) => code === RiskViolationCode.OrdersLocked)
+    ) {
+      violations = [{ code: RiskViolationCode.OrdersLocked }, ...violations];
     }
 
     if (violations.length > 0) {
