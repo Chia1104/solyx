@@ -947,7 +947,9 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             `${symbolLabel(position.instrument)}: ${position.quantity} shares @ ${position.avgPrice}`
         );
 
-        const records = recordsByStance(roundTrips(fills, ports.desk.list()));
+        const records = recordsByStance(
+          roundTrips(fills, ports.desk.list(), account.positions)
+        );
 
         return {
           text: [

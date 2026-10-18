@@ -7,7 +7,12 @@ export const accountRouter = contractOS.account.router({
     brokerMode: context.desk.mode,
     ...(await context.desk.account()),
   })),
-  roundTrips: contractOS.account.roundTrips.handler(async ({ context }) =>
-    roundTrips(await context.desk.fills(0), context.desk.list())
-  ),
+  roundTrips: contractOS.account.roundTrips.handler(async ({ context }) => {
+    const [fills, { positions }] = await Promise.all([
+      context.desk.fills(0),
+      context.desk.account(),
+    ]);
+
+    return roundTrips(fills, context.desk.list(), positions);
+  }),
 });

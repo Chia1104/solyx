@@ -1,3 +1,5 @@
+import { noop } from "es-toolkit";
+
 import { errorMessage } from "@solyx/utils/error";
 
 import { OrderRefusedError } from "./broker.ts";
@@ -163,6 +165,9 @@ export type ProposingDesk = Pick<
 export class OrderDesk {
   readonly #options: OrderDeskOptions;
 
+  /** The confirmation under way, which the next one waits for. */
+  #sending: Promise<unknown> = Promise.resolve();
+
   constructor(options: OrderDeskOptions) {
     this.#options = options;
 
@@ -257,17 +262,28 @@ export class OrderDesk {
   }
 
   /**
-   * Checks the proposal again and sends it. A check that fails sends nothing, so the proposal
-   * waits for the user again and the failure is thrown; once the order may have reached the
-   * broker, every outcome is kept on the proposal.
+   * Checks the proposal again and sends it. Confirmations go one at a time, each checked once the
+   * one before it has had the broker's answer, so a check reads the cash, shares and fills that
+   * order left. A check that fails sends nothing, so the proposal waits for the user again and the
+   * failure is thrown; once the order may have reached the broker, every outcome is kept on the
+   * proposal.
    */
   async confirm(id: string): Promise<TradeProposal> {
-    const { broker } = this.#options;
     const pending = this.#pending(id);
 
     // Claim it before any await so a double click cannot submit twice.
     this.#save({ ...pending, status: ProposalStatus.Confirming });
 
+    const confirmed = this.#sending.then(() => this.#send(pending));
+
+    // One that fails leaves the next to go on.
+    this.#sending = confirmed.catch(noop);
+
+    return confirmed;
+  }
+
+  async #send(pending: TradeProposal): Promise<TradeProposal> {
+    const { broker } = this.#options;
     let violations: RiskViolation[];
 
     try {
