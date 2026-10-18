@@ -147,6 +147,13 @@ export function createFundamentals({
     DAILY_LIST_FRESH_MS
   );
 
+  const governance = listed(
+    "governance",
+    exchanges,
+    (provider, market) => provider.getGovernance(market),
+    FRESH_MS
+  );
+
   const sectorCloses = listed(
     "sector-closes",
     exchanges,
@@ -283,6 +290,8 @@ export function createFundamentals({
     ).of,
 
     company: async (symbol) => (await companies.of(symbol)).at(0) ?? null,
+
+    governance: governance.of,
 
     async sectorMovers(sector) {
       const [listed, closes] = await Promise.all([

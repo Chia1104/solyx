@@ -13,6 +13,7 @@ import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
 import type { Council } from "@solyx/core/council";
 import { ForecastDirection } from "@solyx/core/forecast";
 import type { Forecast } from "@solyx/core/forecast";
+import { GovernanceKind } from "@solyx/core/fundamentals";
 import type {
   BalanceSheet,
   CashFlow,
@@ -21,6 +22,7 @@ import type {
   ExchangeMultiples,
   FundCosts,
   FundProfile,
+  GovernanceRecord,
   MonthlyRevenue,
   NetAssetValue,
   PeerStanding,
@@ -280,6 +282,8 @@ interface Filed {
   peers?: PeerStanding;
   /** The company as its exchange lists it, where it does. */
   company?: Company;
+  /** What the exchanges keep on record of how it is run. */
+  governance?: GovernanceRecord[];
 }
 
 /** `read` is what the conversation read, which quotes are then held to; without it none is checked, as under a host with no transcript. */
@@ -336,6 +340,7 @@ function setup(councils?: Council[], read?: string[], watched = false) {
     peers: async () => filed.peers ?? null,
     company: async () => filed.company ?? null,
     sectorMovers: async () => null,
+    governance: async () => filed.governance ?? [],
     priceLimits: async () => null,
   };
 
@@ -1102,6 +1107,42 @@ test("a company's shares read with what they were worth and how many traded at t
 
   expect(text).toContain(
     "Shares issued, as its exchange lists them: 25932370067. At the close of 2026-09-29, 1000, they were worth 25932370 million TWD, and that session traded 0.00% of them."
+  );
+});
+
+test("a company's pledges and what its exchanges keep on record of how it is run read newest first", async () => {
+  const { run, filed } = setup();
+
+  filed.governance = [
+    {
+      kind: GovernanceKind.Sanction,
+      date: "2026-10-12",
+      note: "未依規定期限公告申報財務報告",
+      pledged: null,
+    },
+    {
+      kind: GovernanceKind.DirectorPledge,
+      date: "2026-08-19",
+      note: null,
+      pledged: 62.5,
+    },
+    {
+      kind: GovernanceKind.ControlChange,
+      date: "2026-06-29",
+      note: "董事席次累積變動過半",
+      pledged: null,
+    },
+  ];
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    [
+      "Its directors and supervisors had pledged 62.5% of their own shares as of 2026-08-19, as its exchange lists them each month.",
+      "What its exchanges and the regulator keep on record of how it is run:",
+      "- 2026-10-12, sanctioned by the Financial Supervisory Commission: 未依規定期限公告申報財務報告",
+      "- 2026-06-29, control changed hands: 董事席次累積變動過半",
+    ].join("\n")
   );
 });
 
