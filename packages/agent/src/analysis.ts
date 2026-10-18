@@ -235,6 +235,7 @@ const metricsSchema = z.object({
   payoffRatio: z.number().nullable(),
   exposure: z.number(),
   buyAndHold: z.number(),
+  buyAndHoldDrawdown: z.number(),
 });
 
 const backtestSchema = z.object({
@@ -264,7 +265,7 @@ export const BACKTEST_TYPES = [
   "type Condition = { above: [Series, Series] } | { below: [Series, Series] } | { crossesAbove: [Series, Series] } | { crossesBelow: [Series, Series] } | { all: Condition[] } | { any: Condition[] };",
   "type Strategy = { entry: Condition; exit: Condition; stopLoss?: number; takeProfit?: number };",
   "type Costs = { commissionRate: number; minCommission: number; sellTaxRate: number; slippageTicks: number };",
-  "type Metrics = { from: string; to: string; totalReturn: number; annualReturn: number | null; maxDrawdown: number; trades: number; winRate: number | null; payoffRatio: number | null; exposure: number; buyAndHold: number };",
+  "type Metrics = { from: string; to: string; totalReturn: number; annualReturn: number | null; maxDrawdown: number; trades: number; winRate: number | null; payoffRatio: number | null; exposure: number; buyAndHold: number; buyAndHoldDrawdown: number };",
   "type Trade = { entryDate: string; entryPrice: number; exitDate: string | null; exitPrice: number; shares: number; profit: number; return: number; bars: number };",
   "type Backtest = { capital: number; costs: Costs; trades: Trade[]; equity: { date: string; value: number }[]; all: Metrics; inSample: Metrics | null; outOfSample: Metrics | null };",
 ].join("\n");
@@ -274,7 +275,7 @@ const backtests: CodemodeTool[] = [
   scriptFunction({
     name: "backtest.rules",
     description:
-      "Runs a long-only strategy over a listing's bars, oldest first, as tools.candles returns them. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules, stops and buyAndHold read prices with splits and what went ex made up for from the bars' references, so pass the bars as they are; orders fill at prices as traded, and what goes ex while held is bought back in, so a trade's shares are those bought. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing. split, a YYYY-MM-DD, measures the bars before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. Reads nothing.",
+      "Runs a long-only strategy over a listing's bars, oldest first, as tools.candles returns them. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules, stops, buyAndHold and buyAndHoldDrawdown read prices with splits and what went ex made up for from the bars' references, so pass the bars as they are; orders fill at prices as traded, and what goes ex while held is bought back in, so a trade's shares are those bought. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing. split, a YYYY-MM-DD, measures the bars before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. Reads nothing.",
     spread: true,
     signature:
       "(input: { symbol: SymbolRef; bars: Bar[]; strategy: Strategy; capital?: number; costs?: Partial<Costs>; split?: string }): Promise<Backtest>",

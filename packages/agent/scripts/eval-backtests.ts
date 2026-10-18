@@ -455,7 +455,7 @@ const percent = (value: number | null) =>
 const stretchText = (metrics: BacktestMetrics | null) =>
   metrics === null
     ? "none"
-    : `${metrics.from} to ${metrics.to}: return ${percent(metrics.totalReturn)}, a year ${percent(metrics.annualReturn)}, drawdown ${percent(metrics.maxDrawdown)}, ${metrics.trades} trades closed, win rate ${percent(metrics.winRate)}, payoff ${metrics.payoffRatio?.toFixed(2) ?? "n/a"}, exposure ${percent(metrics.exposure)}, buying and holding ${percent(metrics.buyAndHold)}`;
+    : `${metrics.from} to ${metrics.to}: return ${percent(metrics.totalReturn)}, a year ${percent(metrics.annualReturn)}, drawdown ${percent(metrics.maxDrawdown)}, ${metrics.trades} trades closed, win rate ${percent(metrics.winRate)}, payoff ${metrics.payoffRatio?.toFixed(2) ?? "n/a"}, exposure ${percent(metrics.exposure)}, buying and holding ${percent(metrics.buyAndHold)} with a drawdown of ${percent(metrics.buyAndHoldDrawdown)}`;
 
 const callText = (call: EngineCall, index: number) =>
   [

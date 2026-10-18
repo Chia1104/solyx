@@ -20,7 +20,7 @@ export interface BacktestRequest {
 export const ENGINE_RUBRIC: Criterion[] = [
   {
     id: "out-of-sample",
-    text: "It reports the out-of-sample stretch apart from the in-sample one, each beside buying and holding over the same bars.",
+    text: "It reports the out-of-sample stretch apart from the in-sample one, each beside buying and holding's return and deepest drawdown over the same bars.",
   },
   {
     id: "figures",
