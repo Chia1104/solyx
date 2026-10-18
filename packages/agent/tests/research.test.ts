@@ -1146,6 +1146,34 @@ test("a company's pledges and what its exchanges keep on record of how it is run
   );
 });
 
+test("a session still under way is no close, so the shares are valued at the one before", async () => {
+  const { run, filed, clock, bars } = setup();
+
+  filed.company = {
+    industry: { code: "24", name: "半導體業" },
+    shares: 1_000_000,
+  };
+  bars.daily = [ANCHOR_BAR, ...LATER_BARS];
+  // 10:00 on 2026-10-01, whose bar is still forming.
+  clock.now = Date.parse("2026-10-01T10:00:00+08:00");
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain("At the close of 2026-09-30, 1010,");
+});
+
+test("a depositary receipt's shares are not counted, since its exchange lists its issuer's", async () => {
+  const { run, filed } = setup();
+
+  filed.company = { industry: { code: "91", name: "存託憑證" }, shares: null };
+
+  const { text } = await run(AgentToolName.GetFundamentals, { symbol: TSMC });
+
+  expect(text).toContain(
+    "Its exchange lists no count of the shares its listing trades as."
+  );
+});
+
 test("the exchange's multiples failing to read is said, and the filed figures stay", async () => {
   const { run, filed } = setup();
 

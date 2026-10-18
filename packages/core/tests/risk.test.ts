@@ -324,6 +324,20 @@ describe("a proposal's premise", () => {
     ]);
   });
 
+  test("takes a move of exactly the most it allows, which decimal prices only approximate", () => {
+    const ten = { session: "2026-10-19", price: 10, band: null };
+
+    expect(
+      premiseViolations(ten, { session: "2026-10-19", price: 10.3 })
+    ).toEqual([]);
+    expect(
+      premiseViolations(ten, { session: "2026-10-19", price: 9.7 })
+    ).toEqual([]);
+    expect(
+      premiseViolations(ten, { session: "2026-10-19", price: 10.31 })
+    ).toHaveLength(1);
+  });
+
   test("leaves a price it cannot compare alone", () => {
     expect(
       premiseViolations(
