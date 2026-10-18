@@ -20,7 +20,7 @@ import type {
   TradeProposal,
 } from "../src/order-desk.ts";
 import { OrderType, Side } from "../src/order.ts";
-import type { AccountSnapshot, OrderRequest } from "../src/order.ts";
+import type { AccountSnapshot, Fill, OrderRequest } from "../src/order.ts";
 import { ReportStance } from "../src/report.ts";
 import { RiskViolationCode } from "../src/risk.ts";
 import { Session, weekdays } from "../src/session.ts";
@@ -553,4 +553,52 @@ test("a buy is refused once the day's sales have lost the user's limit, which th
   });
 
   expect(getFills).not.toHaveBeenCalled();
+});
+
+test("confirmations go one at a time, so a buy is checked against the loss a sale confirmed before it left", async () => {
+  const { desk, account, getFills, placeOrder } = setup(undefined, {
+    maxDailyLoss: () => ({ TWD: 50_000 }),
+  });
+
+  const fills: Fill[] = [];
+
+  account.positions = [
+    { instrument: order.instrument, quantity: 1000, avgPrice: 1100 },
+  ];
+  getFills.mockImplementation(async () => fills);
+  placeOrder.mockImplementation(async (placed) => {
+    if (placed.side === Side.Sell) {
+      fills.push({
+        orderId: "B-0",
+        instrument: placed.instrument,
+        side: Side.Sell,
+        quantity: placed.quantity,
+        price: 1000,
+        filledAt: DURING_SESSION,
+        realized: -100_000,
+      });
+    }
+
+    return { orderId: `B-${fills.length}` };
+  });
+
+  const sale = await desk.propose({
+    order: { ...order, side: Side.Sell },
+    source: ProposalSource.User,
+    rationale: "cut it",
+  });
+
+  const buy = await proposeFromAgent(desk);
+
+  const [sold, bought] = await Promise.all([
+    desk.confirm(sale.id),
+    desk.confirm(buy.id),
+  ]);
+
+  expect(sold.status).toBe(ProposalStatus.Submitted);
+  expect(bought).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [{ code: RiskViolationCode.DailyLossReached }],
+  });
+  expect(placeOrder).toHaveBeenCalledOnce();
 });
