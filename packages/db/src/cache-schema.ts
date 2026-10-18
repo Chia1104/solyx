@@ -40,6 +40,8 @@ export const candles = sqliteTable(
     low: real().notNull(),
     close: real().notNull(),
     volume: real().notNull(),
+    /** The exchange's reference price, where the source gives one. */
+    reference: real(),
   },
   (table) => [primaryKey({ columns: [table.seriesId, table.time] })]
 );

@@ -1,0 +1,1 @@
+ALTER TABLE `candles` ADD `reference` real;

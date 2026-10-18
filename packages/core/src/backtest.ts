@@ -1,7 +1,7 @@
 import { maxBy, minBy, sumBy } from "es-toolkit";
 import * as z from "zod";
 
-import { candleDate } from "./candles.ts";
+import { adjustedCandles, adjustmentFactors, candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import { bollinger, ema, kd, macd, rsi, sma } from "./indicators.ts";
 import type { IndicatorLine } from "./indicators.ts";
@@ -107,6 +107,7 @@ export interface BacktestTrade {
   exitDate: string | null;
   /** The last close for a position still held. */
   exitPrice: number;
+  /** The shares bought; a split or what went ex while held changes how many are sold. */
   shares: number;
   /** What it gained after every cost, a loss below zero; marked at the last close while held. */
   profit: number;
@@ -133,7 +134,10 @@ export interface BacktestMetrics {
   payoffRatio: number | null;
   /** The part of its bars a position was held through. */
   exposure: number;
-  /** What holding the listing through it would have returned, from the close its return is measured from to its last, before costs. */
+  /**
+   * What holding the listing through it would have returned, from the close its return is measured
+   * from to its last, before costs, with what went ex bought back in as the rules' prices have it.
+   */
   buyAndHold: number;
 }
 
@@ -163,46 +167,66 @@ const DAYS_A_YEAR = 365.25;
 // A stretch shorter than this has no yearly pace worth naming.
 const SHORTEST_ANNUALIZED_DAYS = 28;
 
-/** A line of `series` over `bars`, `null` where it has nothing yet, each value read from its bar and those before. */
+/**
+ * A line of `series`, `null` where it has nothing yet, each value read from its bar and those
+ * before on that bar's own terms: a bar's own figures as traded, and an indicator over the bars
+ * adjusted for splits and what went ex, carried to the terms of the bar it is read at.
+ */
 function seriesLine(
   series: RuleSeries,
-  bars: readonly Candle[]
+  bars: readonly Candle[],
+  adjusted: readonly Candle[],
+  factors: readonly number[]
 ): IndicatorLine {
-  const closes = bars.map((bar) => bar.close);
-
   if ("price" in series) return bars.map((bar) => bar[series.price]);
 
   if ("value" in series) return bars.map(() => series.value);
 
-  if ("sma" in series) return sma(closes, series.sma);
+  const closes = adjusted.map((bar) => bar.close);
 
-  if ("ema" in series) return ema(closes, series.ema);
-
+  // Oscillators read alike on any terms.
   if ("rsi" in series) return rsi(closes, series.rsi);
 
+  if ("kd" in series) return kd(adjusted)[series.kd];
+
+  const priced = (line: IndicatorLine) =>
+    line.map((value, index) =>
+      value === null ? null : value * factors[index]
+    );
+
+  if ("sma" in series) return priced(sma(closes, series.sma));
+
+  if ("ema" in series) return priced(ema(closes, series.ema));
+
   if ("bollinger" in series) {
-    return bollinger(closes, series.bollinger, series.width)[series.band];
+    return priced(
+      bollinger(closes, series.bollinger, series.width)[series.band]
+    );
   }
 
-  if ("macd" in series) return macd(closes)[series.macd];
-
-  if ("kd" in series) return kd(bars)[series.kd];
+  if ("macd" in series) return priced(macd(closes)[series.macd]);
 
   const span = "highest" in series ? series.highest : series.lowest;
 
-  return bars.map((_, index) => {
-    if (index < span) return null;
+  return priced(
+    adjusted.map((_, index) => {
+      if (index < span) return null;
 
-    const before = bars.slice(index - span, index);
+      const before = adjusted.slice(index - span, index);
 
-    return "highest" in series
-      ? (maxBy(before, (bar) => bar.high)?.high ?? null)
-      : (minBy(before, (bar) => bar.low)?.low ?? null);
-  });
+      return "highest" in series
+        ? (maxBy(before, (bar) => bar.high)?.high ?? null)
+        : (minBy(before, (bar) => bar.low)?.low ?? null);
+    })
+  );
 }
 
 /** Reads each condition at a bar from lines worked out once per series. */
-function conditionReader(bars: readonly Candle[]) {
+function conditionReader(
+  bars: readonly Candle[],
+  adjusted: readonly Candle[],
+  factors: readonly number[]
+) {
   const lines = new Map<string, IndicatorLine>();
 
   const line = (series: RuleSeries) => {
@@ -211,7 +235,7 @@ function conditionReader(bars: readonly Candle[]) {
 
     if (known) return known;
 
-    const made = seriesLine(series, bars);
+    const made = seriesLine(series, bars, adjusted, factors);
 
     lines.set(key, made);
 
@@ -339,8 +363,14 @@ function metrics(
  * Runs a long-only strategy over a listing's bars, oldest first. Each rule is read at a bar's
  * close from that bar and the ones before it, and acted on at the next bar's open, so no decision
  * sees a price it could not have. A buy spends what the account holds on whole shares; a sale
- * sells them all. A Taiwan bar that opened and closed at one price, up from the close before, is
- * read as locked at its limit and fills no buy, and one locked down fills no sale.
+ * sells them all. A Taiwan bar that opened and closed at one price, up from its reference, is read
+ * as locked at its limit and fills no buy, and one locked down fills no sale.
+ *
+ * Indicators, stops and buying and holding read prices adjusted from the bars' references, so a
+ * split or what went ex reads as no move, each bar's on its own terms so no later one changes it,
+ * while orders fill at prices as traded. A holding carries over a split or what went ex at the
+ * session's reference, as though what went ex bought more shares then, which is what those prices
+ * assume.
  */
 export function backtest(
   symbol: SymbolRef,
@@ -352,7 +382,9 @@ export function backtest(
 
   const capital = options.capital ?? 1_000_000;
   const costs = { ...defaultCosts(symbol), ...options.costs };
-  const holds = conditionReader(bars);
+  const adjusted = adjustedCandles(bars);
+  const factors = adjustmentFactors(bars);
+  const holds = conditionReader(bars, adjusted, factors);
 
   const commission = (value: number) =>
     Math.max(value * costs.commissionRate, value > 0 ? costs.minCommission : 0);
@@ -366,20 +398,21 @@ export function backtest(
 
   const locked = (index: number, up: boolean) => {
     const bar = bars[index];
+    const reference = bar.reference ?? bars[index - 1].close;
 
     return (
       symbol.market === Market.TW &&
       bar.high === bar.low &&
-      (up
-        ? bar.close > bars[index - 1].close
-        : bar.close < bars[index - 1].close)
+      (up ? bar.close > reference : bar.close < reference)
     );
   };
 
   let cash = capital;
 
   let position: {
+    /** Fractional once a split or what went ex has carried it over. */
     shares: number;
+    bought: number;
     price: number;
     cost: number;
     index: number;
@@ -392,6 +425,10 @@ export function backtest(
 
   for (let index = 0; index < bars.length; index++) {
     const bar = bars[index];
+
+    if (position && bar.reference !== undefined) {
+      position.shares *= bars[index - 1].close / bar.reference;
+    }
 
     if (pending === "buy" && !position && !locked(index, true)) {
       const price = slipped(bar.open, true);
@@ -409,7 +446,13 @@ export function backtest(
 
       if (shares > 0 && price * shares + fee <= cash) {
         cash -= price * shares + fee;
-        position = { shares, price, cost: price * shares + fee, index };
+        position = {
+          shares,
+          bought: shares,
+          price,
+          cost: price * shares + fee,
+          index,
+        };
       }
     } else if (pending === "sell" && position && !locked(index, false)) {
       const price = slipped(bar.open, false);
@@ -422,7 +465,7 @@ export function backtest(
         entryPrice: position.price,
         exitDate: candleDate(symbol.market, bar.time),
         exitPrice: price,
-        shares: position.shares,
+        shares: position.bought,
         profit: proceeds - position.cost,
         return: (proceeds - position.cost) / position.cost,
         bars: index - position.index,
@@ -438,7 +481,8 @@ export function backtest(
     if (!position) {
       if (holds(strategy.entry, index)) pending = "buy";
     } else {
-      const change = bar.close / position.price - 1;
+      const change =
+        adjusted[index].close / (position.price / factors[position.index]) - 1;
 
       if (
         holds(strategy.exit, index) ||
@@ -460,7 +504,7 @@ export function backtest(
       entryPrice: position.price,
       exitDate: null,
       exitPrice: bars[last].close,
-      shares: position.shares,
+      shares: position.bought,
       profit: value - position.cost,
       return: (value - position.cost) / position.cost,
       bars: last - position.index,
@@ -469,7 +513,7 @@ export function backtest(
   }
 
   const stretch = (first: number, end: number) =>
-    metrics(symbol, bars, equity, held, trades, first, end, capital);
+    metrics(symbol, adjusted, equity, held, trades, first, end, capital);
 
   const { split: splitDay } = options;
 

@@ -80,7 +80,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "3. Keep the costs the engine defaults to unless the user's own broker charges less; say which you used. Taiwan's tax on sales and the commission both ways take most of a short-term edge.",
       "4. Report each stretch's total and yearly return, deepest drawdown, trades, win rate, payoff ratio and time in the market, beside buying and holding over the same bars. Fewer than twenty trades say little; say so.",
       "5. Say how many variants you tried. Trying many and reporting the best is fitting too, however the split reads.",
-      "6. Prices are as traded, so a listing's dividends read as falls on the days it goes ex; for a high-yield listing, say that buying and holding is understated.",
+      "6. The engine makes up for splits and what went ex from the bars' references, and buys what went ex back in; a bar without one, such as today's while it trades, is read as traded.",
       "7. A backtest is what these rules would have done at these costs on these bars, never a forecast. Do not propose an order from it alone: the user decides, and order-proposal still applies."
     ),
   },

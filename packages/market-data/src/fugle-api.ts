@@ -1,3 +1,4 @@
+import { round } from "es-toolkit";
 import ky from "ky";
 import * as z from "zod";
 
@@ -64,6 +65,9 @@ const NOT_FOUND_IS_EMPTY = {
   throwHttpErrors: (status: number) => status !== 404,
 };
 
+// More than any price on the exchanges has.
+const PRICE_DECIMALS = 4;
+
 // Fugle rejects historical ranges of a year or more.
 const MAX_RANGE_DAYS = 360;
 
@@ -74,6 +78,8 @@ const barSchema = z.object({
   low: z.number(),
   close: z.number(),
   volume: z.number(),
+  /** The close less the exchange's reference price; daily bars only. */
+  change: z.number().optional(),
 });
 
 type Bar = z.infer<typeof barSchema>;
@@ -103,7 +109,7 @@ const intradayCandlesSchema = z.object({
 function toCandle(bar: Bar, interval: BarInterval): Candle {
   const intraday = isIntraday(interval);
 
-  return {
+  const candle = {
     time: intraday
       ? Date.parse(bar.date) / 1000
       : exchangeMidnight(Market.TW, bar.date),
@@ -113,6 +119,12 @@ function toCandle(bar: Bar, interval: BarInterval): Candle {
     close: bar.close,
     volume: intraday ? bar.volume * TW_BOARD_LOT : bar.volume,
   };
+
+  // Rounded back to the exchange's decimals, so a session with nothing gone ex reads its reference
+  // as exactly the close before.
+  return bar.change === undefined
+    ? candle
+    : { ...candle, reference: round(bar.close - bar.change, PRICE_DECIMALS) };
 }
 
 function splitRange(from: string, to: string): [string, string][] {
@@ -167,7 +179,10 @@ export function createFugleApiProvider(
           from,
           to,
           timeframe: TIMEFRAME[interval],
-          fields: "open,high,low,close,volume",
+          // Fugle serves the change, and so the reference, on daily bars alone.
+          fields: isIntraday(interval)
+            ? "open,high,low,close,volume"
+            : "open,high,low,close,volume,change",
           sort: "asc",
         },
       })
