@@ -223,3 +223,36 @@ describe("indicators and stretches", () => {
     expect(result.trades[0].entryDate > "2026-02-02").toBe(true);
   });
 });
+
+test("a buy takes the most shares the cash covers with the minimum commission, rather than none", () => {
+  // 1,010 buys ten shares at 100 before the commission, but the minimum of 20 leaves room for nine.
+  const result = backtest(
+    TSMC,
+    bars([98, 102, 103], (index) =>
+      index === 2 ? { open: 100, low: 100 } : {}
+    ),
+    {
+      entry: { above: [{ price: "close" }, { value: 101 }] },
+      exit: { below: [{ price: "close" }, { value: 0 }] },
+    },
+    { capital: 1_010, costs: { ...defaultCosts(TSMC), slippageTicks: 0 } }
+  );
+
+  expect(result.trades[0]).toMatchObject({ entryPrice: 100, shares: 9 });
+});
+
+test("buying and holding a stretch starts from the close its return is measured from", () => {
+  // Held from the second bar on; the split falls on the bar that doubled.
+  const result = backtest(
+    TSMC,
+    bars([100, 100, 100, 200, 200]),
+    {
+      entry: { above: [{ price: "close" }, { value: 0 }] },
+      exit: { below: [{ price: "close" }, { value: 0 }] },
+    },
+    { capital: 100_000, costs: NO_COSTS, split: "2026-01-08" }
+  );
+
+  expect(result.outOfSample?.totalReturn).toBeCloseTo(1);
+  expect(result.outOfSample?.buyAndHold).toBeCloseTo(1);
+});

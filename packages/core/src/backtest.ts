@@ -133,7 +133,7 @@ export interface BacktestMetrics {
   payoffRatio: number | null;
   /** The part of its bars a position was held through. */
   exposure: number;
-  /** What holding the listing through it would have returned, from its first close to its last, before costs. */
+  /** What holding the listing through it would have returned, from the close its return is measured from to its last, before costs. */
   buyAndHold: number;
 }
 
@@ -329,7 +329,9 @@ function metrics(
         : null,
     exposure:
       held.slice(first, last + 1).filter(Boolean).length / (last - first + 1),
-    buyAndHold: bars[last].close / bars[first].close - 1,
+    // From the close the account's value is measured from, so both start on one price; no order
+    // fills on the first bar, so the first stretch's start is its first close.
+    buyAndHold: bars[last].close / bars[Math.max(first - 1, 0)].close - 1,
   };
 }
 
@@ -393,7 +395,16 @@ export function backtest(
 
     if (pending === "buy" && !position && !locked(index, true)) {
       const price = slipped(bar.open, true);
-      const shares = Math.floor(cash / (price * (1 + costs.commissionRate)));
+
+      // The most shares whose price and commission, at its rate or its minimum, the cash covers.
+      const shares = Math.max(
+        Math.min(
+          Math.floor(cash / (price * (1 + costs.commissionRate))),
+          Math.floor((cash - costs.minCommission) / price)
+        ),
+        0
+      );
+
       const fee = commission(price * shares);
 
       if (shares > 0 && price * shares + fee <= cash) {
