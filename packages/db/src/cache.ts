@@ -21,7 +21,7 @@ import { candleSeries, candles, keptAnswers } from "./cache-schema.ts";
 import { connect } from "./connection.ts";
 import { databaseBytes, removeDatabase } from "./database-file.ts";
 
-// SQLite caps bound parameters per statement; eight columns per bar stays well under it.
+// SQLite caps bound parameters per statement; nine columns per bar stays well under it.
 const INSERT_BATCH = 1000;
 
 // Every reader's answers go stale within a day, so one this old is never read again.
@@ -107,6 +107,7 @@ function candleStore(db: NodeSQLiteDatabase) {
                 low: sql`excluded.low`,
                 close: sql`excluded.close`,
                 volume: sql`excluded.volume`,
+                reference: sql`excluded.reference`,
               },
             })
             .run();
@@ -124,6 +125,7 @@ function candleStore(db: NodeSQLiteDatabase) {
           low: candles.low,
           close: candles.close,
           volume: candles.volume,
+          reference: candles.reference,
         })
         .from(candles)
         .innerJoin(candleSeries, eq(candles.seriesId, candleSeries.id))
@@ -131,7 +133,10 @@ function candleStore(db: NodeSQLiteDatabase) {
           and(seriesOf(key), gte(candles.date, from), lte(candles.date, to))
         )
         .orderBy(asc(candles.time))
-        .all(),
+        .all()
+        .map(({ reference, ...candle }) =>
+          reference === null ? candle : { ...candle, reference }
+        ),
 
     /** Drops bars before `from` and narrows coverage to match. */
     trim(key: CandleSeriesKey, from: string) {

@@ -82,6 +82,12 @@ export interface Candle {
   close: number;
   /** Shares traded. */
   volume: number;
+  /**
+   * The price its session's move counts from, as the exchange set it: the close before, lowered
+   * by what the shares went ex of that day, or divided as they split. Only on a closed session's
+   * bar whose source gives it.
+   */
+  reference?: number;
 }
 
 /** The exchange-local date, `YYYY-MM-DD`, of the session a bar opening at `time` belongs to. */
@@ -125,16 +131,73 @@ export function periodStart(date: string, interval: CalendarInterval): string {
   return start.toString();
 }
 
-/** Combines consecutive bars, oldest first, into one bar that opens with the first. */
+/**
+ * Combines consecutive bars, oldest first, into one bar that opens with the first. Where each has
+ * a reference, the merged one's makes its close's move theirs compounded.
+ */
 export function mergeCandles(candles: readonly Candle[]): Candle {
-  return {
+  const close = candles[candles.length - 1].close;
+
+  const merged = {
     time: candles[0].time,
     open: candles[0].open,
     high: Math.max(...candles.map((candle) => candle.high)),
     low: Math.min(...candles.map((candle) => candle.low)),
-    close: candles[candles.length - 1].close,
+    close,
     volume: sumBy(candles, (candle) => candle.volume),
   };
+
+  let moved = 1;
+
+  for (const { close: each, reference } of candles) {
+    if (reference === undefined) return merged;
+
+    moved *= each / reference;
+  }
+
+  return { ...merged, reference: close / moved };
+}
+
+/**
+ * How far each bar's prices stand below the first bar's terms: every reference up to it over the
+ * close before it, compounded, so a bar's factor reads only it and the bars before. A bar without
+ * a reference moved none.
+ */
+export function adjustmentFactors(candles: readonly Candle[]): number[] {
+  let factor = 1;
+
+  return candles.map((candle, index) => {
+    if (index > 0 && candle.reference !== undefined) {
+      factor *= candle.reference / candles[index - 1].close;
+    }
+
+    return factor;
+  });
+}
+
+/**
+ * Bars on the first one's terms, so a split or what went ex reads as no move, and their volume
+ * the other way, so the value traded stays as it traded. Each reads only it and the bars before.
+ */
+export function adjustedCandles(candles: readonly Candle[]): Candle[] {
+  const factors = adjustmentFactors(candles);
+
+  return candles.map((candle, index) => {
+    const factor = factors[index];
+
+    const adjusted = {
+      time: candle.time,
+      open: candle.open / factor,
+      high: candle.high / factor,
+      low: candle.low / factor,
+      close: candle.close / factor,
+      volume: candle.volume * factor,
+    };
+
+    return candle.reference === undefined
+      ? adjusted
+      : { ...adjusted, reference: candle.reference / factor };
+  });
 }
 
 /** Merges daily bars into weekly or monthly bars of the market's calendar; each opens with its first session. */

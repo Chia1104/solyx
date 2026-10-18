@@ -4,7 +4,7 @@ Market data providers, one module per provider, each implementing `MarketDataPro
 
 ## Boundaries
 
-- Normalize units here: `Candle.volume` is shares and `Candle.time` is UTC seconds, with daily and longer bars at midnight exchange time.
+- Normalize units here: `Candle.volume` is shares and `Candle.time` is UTC seconds, with daily and longer bars at midnight exchange time. A closed daily bar carries the exchange's reference price where the source gives it, which Fugle does as the close less its change; it is set once the session closes, so the cache keeps it.
 - Streaming uses the runtime's `WebSocket`. Call a provider's REST or WebSocket API directly instead of adding its SDK when the surface is small.
 - `./fugle` and `./fubon` both call Fugle's market data API through `fugle-api.ts`: Fubon serves the same API under its own session tokens, so the two differ only in endpoints, credentials and plan. `./fubon` takes its token and endpoints from a `@solyx/brokers/fubon` session rather than loading the SDK itself, and streams from the Normal-mode endpoint, the only one with candles.
 - Fugle's API covers Taiwan listings. Its history stops at the last close, so today's session comes from the intraday endpoint, and ranges of a year or more are split. Providers serve bars of a session or shorter: Fugle clips weekly and monthly bars to the requested range, so the main process's market data module merges them from daily bars, for history and the live bar alike. It answers 404 for a range without sessions as well as for an unknown symbol, so a 404 empties only that request.

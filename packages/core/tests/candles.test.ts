@@ -2,6 +2,7 @@ import { describe, expect, test } from "vite-plus/test";
 
 import {
   Interval,
+  adjustedCandles,
   alignedCloses,
   liveBar,
   mergeCandles,
@@ -77,6 +78,44 @@ test("mergeCandles spans the bars' range and sums their volume", () => {
     close: 9,
     volume: 2000,
   });
+});
+
+test("a merged bar's reference makes its close's move its sessions' moves compounded", () => {
+  // Up 10% to 110, then split one to two and up 10% again from 55.
+  const merged = mergeCandles([
+    { ...session("2024-09-23", 100, 110), reference: 100 },
+    { ...session("2024-09-24", 55, 60.5), reference: 55 },
+  ]);
+
+  expect(merged.close / (merged.reference ?? 0) - 1).toBeCloseTo(0.21);
+  expect(merged.reference).toBeCloseTo(50);
+  expect(
+    mergeCandles([
+      { ...session("2024-09-23", 100, 110), reference: 100 },
+      session("2024-09-24", 110, 120),
+    ])
+  ).not.toHaveProperty("reference");
+});
+
+test("adjusted bars read a split and what went ex as no move, and keep the value traded", () => {
+  const adjusted = adjustedCandles([
+    session("2024-09-23", 200, 200),
+    // Split one to four.
+    { ...session("2024-09-24", 50, 50), reference: 50 },
+    // Went ex of 2.
+    { ...session("2024-09-25", 48, 48), reference: 48 },
+    { ...session("2024-09-26", 48, 49), reference: 48 },
+  ]);
+
+  expect(adjusted.map((bar) => bar.close)).toEqual([
+    200,
+    200,
+    expect.closeTo(200),
+    expect.closeTo(49 / 0.24),
+  ]);
+  expect(adjusted[3].volume * adjusted[3].close).toBeCloseTo(1000 * 49);
+  expect(adjusted[0]).not.toHaveProperty("reference");
+  expect(adjusted[1].reference).toBe(200);
 });
 
 describe("resampleDaily", () => {

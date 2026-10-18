@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -136,6 +136,52 @@ describe("openCache", () => {
     expect(store.read(DAILY, "2026-09-01", "2026-09-30")).toHaveLength(1);
   });
 
+  test("daily bars stored without references are dropped, to be fetched again with them", async () => {
+    // The migrations up to the one that added the reference.
+    const before = join(directory, "migrations");
+    const names = (await readdir(MIGRATIONS)).toSorted();
+
+    for (const name of names.slice(
+      0,
+      names.indexOf("20261018140745_candle_reference")
+    )) {
+      await cp(join(MIGRATIONS, name), join(before, name), { recursive: true });
+    }
+
+    openCache(join(directory, "cache.sqlite"), before).close();
+
+    // Written as SQL, since the repository writes the reference those migrations lack.
+    const client = new DatabaseSync(join(directory, "cache.sqlite"));
+    const minutes = { ...DAILY, interval: Interval.OneMinute };
+    const { time } = session("2026-09-24").candle;
+
+    for (const [id, interval] of [
+      [1, DAILY.interval],
+      [2, minutes.interval],
+    ] as const) {
+      client
+        .prepare(
+          "INSERT INTO candle_series VALUES (?, 'fugle', 'TW', '2330', ?, '2026-09-24', '2026-09-24')"
+        )
+        .run(id, interval);
+      client
+        .prepare(
+          "INSERT INTO candles VALUES (?, ?, '2026-09-24', 100, 100, 100, 100, 1000)"
+        )
+        .run(id, time);
+    }
+
+    client.close();
+
+    const cache = open();
+
+    expect(cache.candles.coverage(DAILY)).toBeUndefined();
+    expect(cache.candles.read(DAILY, "2026-09-01", "2026-09-30")).toEqual([]);
+    expect(
+      cache.candles.read(minutes, "2026-09-24", "2026-09-24")
+    ).toHaveLength(1);
+  });
+
   test("bars outlive the connection", () => {
     const first = open();
 
@@ -168,6 +214,28 @@ describe("candle store", () => {
       from: "2026-09-01",
       to: "2026-09-24",
     });
+  });
+
+  test("a bar keeps the exchange's reference, and one without it reads with none", () => {
+    const { candles: store } = open();
+    const ex = session("2026-09-24", 96);
+
+    store.store(
+      DAILY,
+      [
+        session("2026-09-23"),
+        { ...ex, candle: { ...ex.candle, reference: 96 } },
+      ],
+      { from: "2026-09-23", to: "2026-09-24" }
+    );
+
+    expect(store.read(DAILY, "2026-09-23", "2026-09-24")).toEqual([
+      session("2026-09-23").candle,
+      { ...ex.candle, reference: 96 },
+    ]);
+    expect(store.read(DAILY, "2026-09-23", "2026-09-23")[0]).not.toHaveProperty(
+      "reference"
+    );
   });
 
   test("storing a bar again replaces it", () => {

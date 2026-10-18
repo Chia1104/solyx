@@ -256,3 +256,243 @@ test("buying and holding a stretch starts from the close its return is measured 
   expect(result.outOfSample?.totalReturn).toBeCloseTo(1);
   expect(result.outOfSample?.buyAndHold).toBeCloseTo(1);
 });
+
+describe("splits and what went ex", () => {
+  // Bought at the second bar's open and never sold.
+  const holding: RuleStrategy = {
+    entry: { above: [{ price: "close" }, { value: 0 }] },
+    exit: { below: [{ price: "close" }, { value: 0 }] },
+    stopLoss: 0.1,
+  };
+
+  test("a split while held reads as no move: the stop holds, and the holding carries over", () => {
+    // Split one to four on the fourth bar.
+    const result = backtest(
+      TSMC,
+      bars([100, 100, 100, 25, 26], (index) =>
+        index === 3 ? { open: 25, high: 25.5, low: 25, reference: 25 } : {}
+      ),
+      holding,
+      { capital: 10_000, costs: NO_COSTS }
+    );
+
+    expect(result.trades).toEqual([
+      {
+        entryDate: "2026-01-06",
+        entryPrice: 100,
+        exitDate: null,
+        exitPrice: 26,
+        shares: 100,
+        profit: 400,
+        return: 0.04,
+        bars: 3,
+      },
+    ]);
+    expect(result.equity.map(({ value }) => value)).toEqual([
+      10_000, 10_000, 10_000, 10_000, 10_400,
+    ]);
+    expect(result.all.maxDrawdown).toBe(0);
+    expect(result.all.buyAndHold).toBeCloseTo(0.04);
+  });
+
+  test("what went ex while held is bought back in at the reference", () => {
+    // Went ex of 4 on the fourth bar.
+    const result = backtest(
+      TSMC,
+      bars([100, 100, 100, 96, 97], (index) =>
+        index === 3 ? { open: 96, low: 96, reference: 96 } : {}
+      ),
+      holding,
+      { capital: 10_000, costs: NO_COSTS }
+    );
+
+    expect(result.equity.map(({ value }) => value)).toEqual([
+      10_000,
+      10_000,
+      10_000,
+      expect.closeTo(10_000),
+      expect.closeTo((10_000 / 96) * 97),
+    ]);
+    expect(result.all.totalReturn).toBeCloseTo(97 / 96 - 1);
+    expect(result.all.buyAndHold).toBeCloseTo(97 / 96 - 1);
+  });
+
+  test("a rule against a price reads it as traded, whatever later bars went ex of", () => {
+    const strategy: RuleStrategy = {
+      entry: { crossesAbove: [{ price: "close" }, { value: 100 }] },
+      exit: { below: [{ price: "close" }, { value: 0 }] },
+    };
+
+    const closes = [98, 101, 103, 104, 52];
+
+    const asTraded = backtest(TSMC, bars(closes), strategy, {
+      capital: 10_000,
+      costs: NO_COSTS,
+    });
+
+    // Split one to two on the last bar, after the cross.
+    const split = backtest(
+      TSMC,
+      bars(closes, (index) =>
+        index === 4 ? { open: 52, high: 52, low: 51, reference: 52 } : {}
+      ),
+      strategy,
+      { capital: 10_000, costs: NO_COSTS }
+    );
+
+    expect(split.trades[0].entryDate).toBe(asTraded.trades[0].entryDate);
+  });
+
+  test("a bar locked at its limit is read against its reference", () => {
+    // Went ex of 12 on the fourth bar and locked up at 99, its limit from 90 though under the close before.
+    const result = backtest(
+      TSMC,
+      bars([95, 98, 102, 99, 100], (index) =>
+        index === 3 ? { open: 99, high: 99, low: 99, reference: 90 } : {}
+      ),
+      {
+        entry: { above: [{ price: "close" }, { value: 98.5 }] },
+        exit: { below: [{ price: "close" }, { value: 0 }] },
+      },
+      { capital: 10_000, costs: NO_COSTS }
+    );
+
+    // The third close buys; the locked fourth bar fills nothing, and its close buys again at the fifth's open.
+    expect(result.trades[0]).toMatchObject({
+      entryDate: "2026-01-09",
+      entryPrice: 99,
+    });
+  });
+});
+
+describe("no rule sees a later price", () => {
+  /** Taiwan daily bars of a seeded walk from 100, with a day locked up, a split and what went ex now and then. */
+  function walk(seed: number, length: number): Candle[] {
+    let state = seed;
+
+    const random = () => {
+      state = (state * 1_664_525 + 1_013_904_223) % 2 ** 32;
+
+      return state / 2 ** 32;
+    };
+
+    const tick = (price: number) => Math.max(Math.round(price * 20) / 20, 0.05);
+    let close = 100;
+
+    return bars(Array.from({ length }, () => 0)).map((bar) => {
+      const draw = random();
+      const event = draw < 0.01 ? 0.5 : draw < 0.04 ? 0.97 : 1;
+      const reference = tick(close * event);
+      const move = (random() + random() + random() - 1.5) * 0.03;
+      const lockedUp = random() < 0.01;
+      const next = tick(reference * (lockedUp ? 1.1 : 1 + move));
+      const open = lockedUp ? next : tick(reference * (1 + move / 3));
+
+      close = next;
+
+      return {
+        ...bar,
+        open,
+        high: lockedUp
+          ? next
+          : tick(Math.max(open, next) * (1 + random() * 0.01)),
+        low: lockedUp
+          ? next
+          : tick(Math.min(open, next) * (1 - random() * 0.01)),
+        close: next,
+        reference,
+      };
+    });
+  }
+
+  const strategies: RuleStrategy[] = [
+    {
+      entry: { crossesAbove: [{ sma: 5 }, { sma: 20 }] },
+      exit: { crossesBelow: [{ sma: 5 }, { sma: 20 }] },
+    },
+    {
+      entry: { above: [{ price: "close" }, { highest: 20 }] },
+      exit: { below: [{ price: "close" }, { lowest: 10 }] },
+      takeProfit: 0.15,
+    },
+    {
+      entry: {
+        all: [
+          { crossesAbove: [{ price: "close" }, { value: 100 }] },
+          { below: [{ rsi: 14 }, { value: 70 }] },
+        ],
+      },
+      exit: { crossesBelow: [{ ema: 12 }, { bollinger: 20, band: "middle" }] },
+      stopLoss: 0.05,
+    },
+  ];
+
+  const filled = (result: ReturnType<typeof backtest>, through: string) =>
+    result.trades
+      .filter(({ entryDate }) => entryDate <= through)
+      .map((trade) => ({
+        entryDate: trade.entryDate,
+        entryPrice: trade.entryPrice,
+        shares: trade.shares,
+        exit:
+          trade.exitDate !== null && trade.exitDate <= through
+            ? [trade.exitDate, trade.exitPrice]
+            : null,
+      }));
+
+  test("a run cut short agrees with the whole run up to the cut", () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      const whole = walk(seed, 300);
+
+      for (const strategy of strategies) {
+        const result = backtest(TSMC, whole, strategy);
+
+        for (const cut of [40, 120, 210, 290]) {
+          const short = backtest(TSMC, whole.slice(0, cut + 1), strategy);
+          const day = result.equity[cut].date;
+
+          expect(short.equity).toEqual(result.equity.slice(0, cut + 1));
+          expect(filled(short, day)).toEqual(filled(result, day));
+        }
+      }
+    }
+  });
+
+  test("rewriting the bars after one, the next one's open kept, changes no fill up to that open", () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      const whole = walk(seed, 300);
+      const other = walk(seed + 100, 300);
+
+      for (const strategy of strategies) {
+        const result = backtest(TSMC, whole, strategy);
+
+        for (let cut = 30; cut < 298; cut += 11) {
+          const next = whole[cut + 1];
+
+          // A bar locked at its limit fills nothing, which the bar itself decides.
+          if (next.high === next.low) continue;
+
+          const rewritten = [
+            ...whole.slice(0, cut + 1),
+            {
+              ...next,
+              high: next.open + 1,
+              low: next.open - 1,
+              close: next.open + 0.5,
+            },
+            ...other.slice(cut + 2).map((bar, index) => ({
+              ...bar,
+              time: whole[cut + 2 + index].time,
+            })),
+          ];
+
+          const day = result.equity[cut + 1].date;
+
+          expect(filled(backtest(TSMC, rewritten, strategy), day)).toEqual(
+            filled(result, day)
+          );
+        }
+      }
+    }
+  });
+});

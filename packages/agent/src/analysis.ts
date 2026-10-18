@@ -107,6 +107,12 @@ const barSchema = z.object({
   low: z.number(),
   close: z.number(),
   volume: z.number().describe("Shares"),
+  reference: z
+    .number()
+    .optional()
+    .describe(
+      "The price the exchange set the session's move from: the close before, less what went ex that day or divided by a split. Only on closed daily bars"
+    ),
 });
 
 const valuesSchema = z.array(z.number());
@@ -268,7 +274,7 @@ const backtests: CodemodeTool[] = [
   scriptFunction({
     name: "backtest.rules",
     description:
-      "Runs a long-only strategy over a listing's bars, oldest first, as tools.candles returns them. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing. split, a YYYY-MM-DD, measures the bars before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. Reads nothing.",
+      "Runs a long-only strategy over a listing's bars, oldest first, as tools.candles returns them. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules, stops and buyAndHold read prices with splits and what went ex made up for from the bars' references, so pass the bars as they are; orders fill at prices as traded, and what goes ex while held is bought back in, so a trade's shares are those bought. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing. split, a YYYY-MM-DD, measures the bars before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. Reads nothing.",
     spread: true,
     signature:
       "(input: { symbol: SymbolRef; bars: Bar[]; strategy: Strategy; capital?: number; costs?: Partial<Costs>; split?: string }): Promise<Backtest>",
@@ -329,7 +335,7 @@ function dataFunctions(
   return [
     scriptFunction({
       name: "candles",
-      description: `Every OHLCV bar the app has for a listing, oldest first: about two years of daily bars, three of weekly and five of monthly. since reaches further back on those three intervals, up to ${HISTORY_YEARS} years, for at most ${HISTORY_LISTINGS} listings a script, since each year costs the source a request the first time. Prices are as traded, not adjusted for dividends or splits, which a long span must make up for: see fundamentals.cashGoneEx. The latest bar is still forming while its session is open.`,
+      description: `Every OHLCV bar the app has for a listing, oldest first: about two years of daily bars, three of weekly and five of monthly. since reaches further back on those three intervals, up to ${HISTORY_YEARS} years, for at most ${HISTORY_LISTINGS} listings a script, since each year costs the source a request the first time. Prices are as traded, so a split or what goes ex reads as a fall; close / reference - 1 is a session's move without it, and backtest.rules makes up for it from the references itself. The latest bar is still forming while its session is open.`,
       input: z.object({
         symbol: symbolRefSchema,
         interval: intervalSchema,

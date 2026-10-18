@@ -85,6 +85,43 @@ test("daily bars open at Taipei midnight and keep share volume", async () => {
   ]);
 });
 
+test("a daily bar carries the exchange's reference, its close less the change", async () => {
+  const { fetch, requests } = fakeFugle([
+    {
+      path: "/historical/candles/0050",
+      body: JSON.stringify({
+        data: [
+          { ...bar("2026-09-21", 188.65, 1000), change: 1.15 },
+          // Split one to four: the change counts from a quarter of the close before.
+          { ...bar("2026-09-22", 47.5, 4000), change: 0.34 },
+          // Went ex of 12.77, which leaves the reference a float would put off by a hair.
+          { ...bar("2026-09-23", 35.6, 1000), change: 0.87 },
+        ],
+      }),
+    },
+  ]);
+
+  const provider = createFugleMarketData({
+    apiKey: "test-key",
+    fetch,
+    now: () => DURING_SESSION,
+  });
+
+  const candles = await provider.getCandles({
+    symbol: { market: Market.TW, symbol: "0050" },
+    interval: Interval.OneDay,
+    from: "2026-09-01",
+    to: "2026-09-24",
+  });
+
+  expect(candles.map((candle) => candle.reference)).toEqual([
+    187.5, 47.16, 34.73,
+  ]);
+  expect(requestTo(requests, "historical")?.searchParams.get("fields")).toBe(
+    "open,high,low,close,volume,change"
+  );
+});
+
 test("minute bars convert board lots to shares and append today's session", async () => {
   const { fetch, requests } = fakeFugle([
     {
@@ -127,6 +164,9 @@ test("minute bars convert board lots to shares and append today's session", asyn
   expect(candles[2].time).toBe(Date.parse("2026-09-29T01:00:00Z") / 1000);
   expect(requestTo(requests, "historical")?.searchParams.get("timeframe")).toBe(
     "5"
+  );
+  expect(requestTo(requests, "historical")?.searchParams.get("fields")).toBe(
+    "open,high,low,close,volume"
   );
   expect(requestTo(requests, "intraday")?.searchParams.get("timeframe")).toBe(
     "5"
