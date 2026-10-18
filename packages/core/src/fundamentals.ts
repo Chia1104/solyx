@@ -248,7 +248,7 @@ export interface GovernanceRecord {
 /** A listed company as its exchange lists it. */
 export interface Company {
   industry: Industry;
-  /** The common shares it has issued, or a depositary receipt's shares of its foreign issuer; `null` where the list gives none. */
+  /** The common shares it has issued, which its listing trades as; `null` where the list gives none, as for a depositary receipt, whose list gives its foreign issuer's shares. */
   shares: number | null;
 }
 

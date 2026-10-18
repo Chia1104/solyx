@@ -71,6 +71,7 @@ import type {
   FalsifierWatch,
   ResearchDesk,
 } from "@solyx/core/research";
+import { regularHours } from "@solyx/core/session";
 import { errorMessage } from "@solyx/utils/error";
 import { counted, truncate } from "@solyx/utils/text";
 
@@ -649,13 +650,19 @@ function peersText(peers: PeerStanding): string {
   ].join("; ")}.`;
 }
 
-/** The shares a company has issued, and what they were worth and how many of them traded in its last session. */
+/**
+ * The shares a company has issued, and what they were worth and how many of them traded in its
+ * last finished session: a bar of a session still under way is no close.
+ */
 async function sharesText(
   symbol: SymbolRef,
   { shares }: Company,
-  { marketData }: ResearchOptions
+  { marketData }: ResearchOptions,
+  now: Date
 ): Promise<string> {
-  if (shares === null) return "Its exchange lists no count of its shares.";
+  if (shares === null) {
+    return "Its exchange lists no count of the shares its listing trades as.";
+  }
 
   const issued = `Shares issued, as its exchange lists them: ${shares}.`;
   let daily;
@@ -667,7 +674,15 @@ async function sharesText(
     return issued;
   }
 
-  const bar = daily.at(-1);
+  const today = exchangeDate(symbol.market, now);
+
+  const closed = daily.filter(
+    ({ time }) =>
+      candleDate(symbol.market, time) < today ||
+      now.getTime() >= regularHours(symbol.market, today).close * 1000
+  );
+
+  const bar = closed.at(-1);
 
   if (!bar) return issued;
 
@@ -990,7 +1005,7 @@ export function createResearch(options: ResearchOptions): Extension {
               ...(companies.failure === null
                 ? await Promise.all(
                     companies.rows.map((company) =>
-                      sharesText(symbol, company, options)
+                      sharesText(symbol, company, options, now())
                     )
                   )
                 : [

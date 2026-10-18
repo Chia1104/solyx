@@ -824,6 +824,14 @@ test("reads both exchanges' companies, each with its industry by the exchanges' 
         SecuritiesIndustryCode: "24",
         IssueShares: "586337000",
       },
+      // A depositary receipt's count is its foreign issuer's shares, not its receipts.
+      {
+        Date: "1151011",
+        SecuritiesCompanyCode: "910322",
+        CompanyName: "範例存託",
+        SecuritiesIndustryCode: "91",
+        IssueShares: "10450002831",
+      },
     ],
   });
 
@@ -833,6 +841,11 @@ test("reads both exchanges' companies, each with its industry by the exchanges' 
     { symbol: "2330", industry: chips, shares: 25_932_370_067 },
     { symbol: "9999", industry: { code: "39", name: "39" }, shares: null },
     { symbol: "5483", industry: chips, shares: 586_337_000 },
+    {
+      symbol: "910322",
+      industry: { code: "91", name: "存託憑證" },
+      shares: null,
+    },
   ]);
   expect(sent.toSorted()).toEqual([
     `${TWSE}opendata/t187ap03_L`,
