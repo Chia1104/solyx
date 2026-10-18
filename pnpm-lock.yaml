@@ -820,6 +820,9 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: catalog:otel
         version: 2.12.0(@opentelemetry/api@1.9.1)
+      '@solyx/market-data':
+        specifier: workspace:*
+        version: link:../market-data
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5

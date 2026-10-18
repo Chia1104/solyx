@@ -76,12 +76,14 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "# Backtest",
       "",
       "1. Put the rule in words first: what buys, what sells, on which bars. Then write it as backtest.rules' Strategy in a run_analysis script, over daily bars from tools.candles; pass since to reach back years, for a few listings a script.",
-      "2. Always pass split, a day about two thirds of the way through the bars. Fit on the in-sample stretch alone, then read the out-of-sample one: a rule that only works before the split is fitted to noise.",
-      "3. Keep the costs the engine defaults to unless the user's own broker charges less; say which you used. Taiwan's tax on sales and the commission both ways take most of a short-term edge.",
-      "4. Report each stretch's total and yearly return, deepest drawdown, trades, win rate, payoff ratio and time in the market, beside buying and holding over the same bars. Fewer than twenty trades say little; say so.",
-      "5. Say how many variants you tried. Trying many and reporting the best is fitting too, however the split reads.",
-      "6. The engine makes up for splits and what went ex from the bars' references, and buys what went ex back in; a bar without one, such as today's while it trades, is read as traded.",
-      "7. A backtest is what these rules would have done at these costs on these bars, never a forecast. Do not propose an order from it alone: the user decides, and order-proposal still applies."
+      "2. backtest.rules tests long-only rules: it buys with the account's cash and sells all it holds. A strategy it cannot express, such as a short, borrowed money or a hedge, is not tested: say so, and offer the nearest rule it can test, named as that. Never work out a strategy's fills or returns with a script's own arithmetic, not even as an estimate.",
+      "3. Always pass split, a day about two thirds of the way through the bars. Fit on the in-sample stretch alone, then read the out-of-sample one: a rule that only works before the split is fitted to noise.",
+      "4. Keep the costs the engine defaults to unless the user's own broker charges less; say which you used. Taiwan's tax on sales and the commission both ways take most of a short-term edge.",
+      "5. Report each stretch's total and yearly return, deepest drawdown, trades, win rate, payoff ratio and time in the market, beside buying and holding over the same bars. Cite each figure as the engine returned it for that stretch: a stretch's trades are the ones it closed, and a position still held at the last bar is in none. A range, a rank or a count across backtests is worked out in the script and printed, never read off by eye.",
+      "6. A stretch that closed fewer than twenty trades says little, and so does the best of a search among such stretches: say so wherever you report one, and draw no conclusion about the rule from it.",
+      "7. Say how many variants you tried. Trying many and reporting the best is fitting too, however the split reads.",
+      "8. The engine makes up for splits and what went ex from the bars' references, and buys what went ex back in; a bar without one, such as today's while it trades, is read as traded.",
+      "9. A backtest is what these rules would have done at these costs on these bars, never a forecast. Do not propose an order from it alone: the user decides, and order-proposal still applies."
     ),
   },
   {
