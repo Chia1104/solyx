@@ -1,9 +1,10 @@
-import { BrokerMode } from "@solyx/core/broker";
+import { BrokerMode, OrderRefusedError } from "@solyx/core/broker";
 import type { BrokerAdapter } from "@solyx/core/broker";
 import { Market, currencyOf, symbolKey } from "@solyx/core/market";
 import type { Currency, SymbolRef } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
 import type { AccountSnapshot, OrderRequest } from "@solyx/core/order";
+import { errorMessage } from "@solyx/utils/error";
 
 export interface PaperAccount extends AccountSnapshot {
   /** Orders filled so far, which numbers the next one. */
@@ -30,7 +31,8 @@ export interface PaperBrokerOptions {
 
 /**
  * Fills every order immediately and in full. No fees, no securities transaction tax, no shorting —
- * good enough to exercise the order flow, not to judge a strategy.
+ * good enough to exercise the order flow, not to judge a strategy. An order it cannot fill is
+ * refused, since it changes nothing before the fill is written.
  */
 export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
   const account = (): PaperAccount =>
@@ -44,11 +46,18 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
     if (order.type === OrderType.Limit) return order.limitPrice;
 
     if (!options.getLastPrice)
-      throw new Error(
+      throw new OrderRefusedError(
         "The paper account has no price source, so it cannot fill market orders"
       );
 
-    return options.getLastPrice(order.instrument);
+    try {
+      return await options.getLastPrice(order.instrument);
+    } catch (error) {
+      throw new OrderRefusedError(
+        `The paper account could not price the market order: ${errorMessage(error)}`,
+        { cause: error }
+      );
+    }
   }
 
   return {
@@ -79,7 +88,9 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
         const available = cash[currency] ?? 0;
 
         if (notional > available)
-          throw new Error(`Insufficient ${currency} in the paper account`);
+          throw new OrderRefusedError(
+            `Insufficient ${currency} in the paper account`
+          );
         cash[currency] = available - notional;
         const quantity = (position?.quantity ?? 0) + order.quantity;
 
@@ -93,7 +104,7 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
         });
       } else {
         if (!position || position.quantity < order.quantity) {
-          throw new Error(
+          throw new OrderRefusedError(
             "Not enough shares in the paper account (short selling is not supported)"
           );
         }

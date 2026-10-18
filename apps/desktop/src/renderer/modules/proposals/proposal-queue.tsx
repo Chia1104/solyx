@@ -17,6 +17,7 @@ import { proposalsQuery } from "./proposals-query.ts";
 
 const PENDING: readonly ProposalStatus[] = [
   ProposalStatus.AwaitingConfirmation,
+  ProposalStatus.Confirming,
   ProposalStatus.Submitting,
 ];
 

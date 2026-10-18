@@ -60,6 +60,7 @@
   },
   "status": {
     "awaiting-confirmation": "Awaiting confirmation",
+    "confirming": "Checking",
     "submitting": "Submitting",
     "submitted": "Submitted",
     "rejected": "Rejected by risk checks",
@@ -625,6 +626,7 @@
     "propose-failed": "Couldn't create the proposal",
     "violations-title": "Blocked by risk checks",
     "submit-failed": "Submission failed; check your broker before placing it again",
+    "submit-refused": "The broker refused it; nothing was placed",
     "submit-interrupted": "Solyx closed before the broker replied, so the order may have reached it.",
     "history": "History"
   },

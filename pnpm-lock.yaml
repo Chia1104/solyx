@@ -866,6 +866,9 @@ importers:
       '@solyx/core':
         specifier: workspace:*
         version: link:../core
+      '@solyx/utils':
+        specifier: workspace:*
+        version: link:../utils
       zod:
         specifier: 'catalog:'
         version: 4.6.7

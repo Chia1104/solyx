@@ -294,7 +294,7 @@ describe("proposal store", () => {
 
     const failed = proposal("a", {
       status: ProposalStatus.Failed,
-      failure: { code: SubmissionFailureCode.Error, message: "timeout" },
+      failure: { code: SubmissionFailureCode.Unknown, message: "timeout" },
     });
 
     store.update(failed);
