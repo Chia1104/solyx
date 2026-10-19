@@ -87,9 +87,8 @@ SITCA's data is used under the [Open Government Data License, version 1.0](https
 
 ## Status
 
-- **Paper trading only.** Signing in to Fubon serves market data; it does not yet read an account or place orders.
+- **One live broker.** Besides the paper account, Solyx trades only a Fubon Securities account, and buys there need a settlement account at Taipei Fubon Bank or LINE Bank.
 - **Taiwan market data only.** The app follows the US session and its rules, but no US data source is wired up.
-- **Limit orders only.** Market orders are rejected until the order desk has a quote feed to price them against.
 
 ## Install
 
