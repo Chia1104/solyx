@@ -107,7 +107,9 @@
     "no-working": "沒有委託中的單",
     "recent-fills": "只列出最新 {{count, number}} 筆；交易檢討會計入所有成交。",
     "held": "這檔的庫存",
-    "orders": "委託與成交"
+    "orders": "委託與成交",
+    "market-value": "市值",
+    "cost": "成本"
   },
   "review": {
     "title": "交易檢討",
@@ -470,7 +472,9 @@
     "title": "Agent",
     "tabs": {
       "chat": "對話",
-      "proposals": "交易"
+      "proposals": "交易",
+      "ticket": "買賣",
+      "profit-loss": "損益"
     },
     "new-chat": "新對話",
     "conversations": "對話紀錄",
@@ -740,7 +744,7 @@
       "on": "所有下單都會被拒絕，直到你解除鎖定。",
       "off": "提案可以確認送出。"
     },
-    "history": "紀錄",
+    "history": "提案紀錄",
     "premise": {
       "proposed-at": "提案時 {{price}}（{{date}} 交易時段）",
       "proposed-for": "提案於 {{date}} 交易時段",
@@ -770,7 +774,9 @@
       "ended": "已停止盯價：可能已觸價、到期，或在券商端被刪除。是否已賣出請看帳戶的成交紀錄。",
       "chip-watching": "盯價中",
       "chip-ended": "已結束"
-    }
+    },
+    "pending": "待確認",
+    "none-pending": "沒有等你確認的提案。"
   },
   "flows": {
     "title": "籌碼",
@@ -939,7 +945,7 @@
   "order-form": {
     "title": "下單",
     "tabs": {
-      "order": "買賣",
+      "order": "一般委託",
       "exit": "停損停利"
     },
     "side": "買賣別",
@@ -988,9 +994,7 @@
     },
     "draft": "{{side}} {{quantity}} {{name}} @ {{price}}",
     "draft-market": "{{side}} {{quantity}} {{name}}，市價",
-    "waiting": "提案在下方等你確認送出。改任何欄位會放棄它。",
-    "sent": "已送出。",
-    "dismissed": "這筆提案已取消。",
+    "waiting": "確認或取消下面這筆提案；改任何欄位會放棄它。",
     "pick-on-chart-hint": "在圖上點一個價位，帶入下單單據。",
     "not-found": "{{market}}找不到 {{symbol}}，請確認代號與市場。",
     "no-source": "先設定{{market}}的行情來源，才能下單。"

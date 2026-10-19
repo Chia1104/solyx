@@ -141,67 +141,64 @@ export function SymbolPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ColumnHeader className="px-6">
+      <ColumnHeader className="gap-2 px-6">
         <SymbolQuote symbol={symbol} depth={depth} />
-        <div className="ml-auto shrink-0">
-          <WatchToggle symbol={symbol} />
+        <WatchToggle symbol={symbol} />
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <IntervalSelect
+            value={interval}
+            kind={chart}
+            onChange={(next) =>
+              void navigate({
+                search: (search) => ({
+                  ...search,
+                  interval: next.interval,
+                  chart: next.kind,
+                }),
+                replace: true,
+              })
+            }
+          />
+          {session ? null : (
+            <IndicatorMenu market={symbol.market} interval={interval} />
+          )}
+          <ToggleButtonGroup
+            aria-label={t("chart.tools")}
+            selectionMode="multiple"
+            size="sm"
+            className="shrink-0"
+            selectedKeys={tools}
+            onSelectionChange={(keys) => {
+              setPickingOnChart(keys.has(ChartTool.PickPrice));
+
+              if (keys.has(ChartTool.Book) !== tradeRail) toggleTradeRail();
+            }}>
+            <Tooltip delay={TOOLTIP_DELAY}>
+              <ToggleButton
+                isIconOnly
+                id={ChartTool.PickPrice}
+                aria-label={t("order-form.pick-on-chart")}>
+                <Icon icon={CrosshairIcon} />
+              </ToggleButton>
+              <Tooltip.Content>
+                <p className="font-medium">{t("order-form.pick-on-chart")}</p>
+                <p className="text-xs">{t("order-form.pick-on-chart-hint")}</p>
+              </Tooltip.Content>
+            </Tooltip>
+            <Tooltip delay={TOOLTIP_DELAY}>
+              <ToggleButton
+                isIconOnly
+                id={ChartTool.Book}
+                aria-label={t("depth.book")}
+                aria-controls={BOOK_RAIL_ID}>
+                <ToggleButtonGroup.Separator />
+                <Icon icon={BarChartHorizontalIcon} />
+              </ToggleButton>
+              <Tooltip.Content>{t("depth.book")}</Tooltip.Content>
+            </Tooltip>
+          </ToggleButtonGroup>
         </div>
       </ColumnHeader>
-      {/* A 40px row over its rule, like the agent pane's tabs, so the rules line up across columns. */}
-      <div className="box-content flex h-10 shrink-0 items-center gap-3 border-b border-separator px-6">
-        <IntervalSelect
-          value={interval}
-          kind={chart}
-          onChange={(next) =>
-            void navigate({
-              search: (search) => ({
-                ...search,
-                interval: next.interval,
-                chart: next.kind,
-              }),
-              replace: true,
-            })
-          }
-        />
-        {session ? null : (
-          <IndicatorMenu market={symbol.market} interval={interval} />
-        )}
-        <ToggleButtonGroup
-          aria-label={t("chart.tools")}
-          selectionMode="multiple"
-          size="sm"
-          className="ml-auto shrink-0"
-          selectedKeys={tools}
-          onSelectionChange={(keys) => {
-            setPickingOnChart(keys.has(ChartTool.PickPrice));
-
-            if (keys.has(ChartTool.Book) !== tradeRail) toggleTradeRail();
-          }}>
-          <Tooltip delay={TOOLTIP_DELAY}>
-            <ToggleButton
-              isIconOnly
-              id={ChartTool.PickPrice}
-              aria-label={t("order-form.pick-on-chart")}>
-              <Icon icon={CrosshairIcon} />
-            </ToggleButton>
-            <Tooltip.Content>
-              <p className="font-medium">{t("order-form.pick-on-chart")}</p>
-              <p className="text-xs">{t("order-form.pick-on-chart-hint")}</p>
-            </Tooltip.Content>
-          </Tooltip>
-          <Tooltip delay={TOOLTIP_DELAY}>
-            <ToggleButton
-              isIconOnly
-              id={ChartTool.Book}
-              aria-label={t("depth.book")}
-              aria-controls={BOOK_RAIL_ID}>
-              <ToggleButtonGroup.Separator />
-              <Icon icon={BarChartHorizontalIcon} />
-            </ToggleButton>
-            <Tooltip.Content>{t("depth.book")}</Tooltip.Content>
-          </Tooltip>
-        </ToggleButtonGroup>
-      </div>
       <div ref={split} className="flex min-h-0 flex-1 flex-col">
         {/* The book stands beside the chart alone, so the news below runs the page's full width. */}
         <div

@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 
 import { Disclosure } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
-import { partition } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import { ProposalStatus, exitWatched } from "@solyx/core/order-desk";
@@ -12,6 +11,7 @@ import { usePaletteColors } from "../../app/theme.ts";
 import { highlight } from "../../components/highlight.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
+import { PaneSection } from "../../components/pane-section.tsx";
 
 import { ProposalItem } from "./proposal-item.tsx";
 import { proposalsQuery } from "./proposals-query.ts";
@@ -26,17 +26,56 @@ const PENDING: readonly ProposalStatus[] = [
 const isOpen = (proposal: TradeProposal) =>
   PENDING.includes(proposal.status) || exitWatched(proposal);
 
-/** Proposals still waiting on the user and exits the broker watches, newest first, above the ones already decided. */
-export function ProposalQueue() {
+const selectOpen = (proposals: TradeProposal[]) =>
+  proposals.filter(isOpen).toReversed();
+
+const selectDecided = (proposals: TradeProposal[]) =>
+  proposals.filter((proposal) => !isOpen(proposal)).toReversed();
+
+/** Proposals still waiting on the user and exits the broker watches, newest first. */
+export function PendingProposals() {
   const { t } = useTranslation();
-  const { data, error, refetch } = useQuery(proposalsQuery());
+
+  const { data, error, refetch } = useQuery({
+    ...proposalsQuery(),
+    select: selectOpen,
+  });
+
+  return (
+    <PaneSection title={t("proposals.pending")} count={data?.length}>
+      {error ? (
+        <div className="px-4 pb-3">
+          <LoadError error={error} onRetry={() => void refetch()} />
+        </div>
+      ) : !data ? (
+        <LoadingState />
+      ) : data.length === 0 ? (
+        <p className="px-4 pb-3 text-xs text-muted">
+          {t("proposals.none-pending")}
+        </p>
+      ) : (
+        // The section's own hairline closes the last one.
+        <div className="[&>article:last-child]:border-b-0">
+          {data.map((proposal) => (
+            <ProposalItem key={proposal.id} proposal={proposal} />
+          ))}
+        </div>
+      )}
+    </PaneSection>
+  );
+}
+
+/** Proposals already decided, newest first, folded away until asked for. */
+export function ProposalHistory() {
+  const { t } = useTranslation();
+  const { data } = useQuery({ ...proposalsQuery(), select: selectDecided });
   const { accent } = usePaletteColors();
-  const queue = useRef<HTMLDivElement>(null);
+  const history = useRef<HTMLDivElement>(null);
   const decidedCount = useRef<number | undefined>(undefined);
 
-  const decidedNow = data?.filter((proposal) => !isOpen(proposal)).length;
+  const decidedNow = data?.length;
 
-  // A proposal leaves the queue once decided, so the history it moved into lights up.
+  // A proposal leaves the waiting ones once decided, so the history it moved into lights up.
   useEffect(() => {
     if (decidedNow === undefined) return;
 
@@ -45,45 +84,32 @@ export function ProposalQueue() {
     decidedCount.current = decidedNow;
 
     if (before !== undefined && decidedNow > before) {
-      highlight(queue.current?.querySelector("[data-history]"), accent);
+      highlight(history.current?.querySelector("[data-history]"), accent);
     }
   }, [decidedNow, accent]);
 
-  if (error) {
-    return (
-      <div className="px-4">
-        <LoadError error={error} onRetry={() => void refetch()} />
-      </div>
-    );
-  }
-
-  if (!data) return <LoadingState />;
-
-  const [pending, decided] = partition(data.toReversed(), isOpen);
+  if (!data?.length) return null;
 
   return (
-    <div ref={queue} className="flex flex-col">
-      {pending.map((proposal) => (
-        <ProposalItem key={proposal.id} proposal={proposal} />
-      ))}
-      {decided.length > 0 ? (
-        <Disclosure>
-          <Disclosure.Heading>
-            <Disclosure.Trigger
-              data-history
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-muted">
-              {t("proposals.history")}
-              <span className="text-xs tabular-nums">{decided.length}</span>
-              <Disclosure.Indicator className="ml-auto" />
-            </Disclosure.Trigger>
-          </Disclosure.Heading>
-          <Disclosure.Content>
-            {decided.map((proposal) => (
+    <div ref={history} className="border-b border-separator">
+      <Disclosure>
+        <Disclosure.Heading>
+          <Disclosure.Trigger
+            data-history
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-xs font-medium text-muted">
+            {t("proposals.history")}
+            <span className="tabular-nums">{data.length}</span>
+            <Disclosure.Indicator className="ml-auto" />
+          </Disclosure.Trigger>
+        </Disclosure.Heading>
+        <Disclosure.Content>
+          <div className="border-t border-separator [&>article:last-child]:border-b-0">
+            {data.map((proposal) => (
               <ProposalItem key={proposal.id} proposal={proposal} />
             ))}
-          </Disclosure.Content>
-        </Disclosure>
-      ) : null}
+          </div>
+        </Disclosure.Content>
+      </Disclosure>
     </div>
   );
 }

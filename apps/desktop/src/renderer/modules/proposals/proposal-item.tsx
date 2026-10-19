@@ -324,9 +324,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   );
 
   return (
-    <article
-      data-proposal={proposal.id}
-      className="relative flex flex-col gap-2 border-b border-separator py-3 pr-4 pl-6">
+    <article className="relative flex flex-col gap-2 border-b border-separator py-3 pr-4 pl-6">
       <span
         aria-hidden
         className={cn(

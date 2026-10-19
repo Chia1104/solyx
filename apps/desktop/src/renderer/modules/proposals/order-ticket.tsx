@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import {
-  Alert,
   Button,
   ButtonGroup,
   FieldError,
@@ -10,7 +9,6 @@ import {
   Input,
   Label,
   NumberField,
-  Tabs,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
@@ -34,9 +32,7 @@ import { TW_BOARD_LOT, twTradeCosts } from "@solyx/core/rules/tw";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { orpc } from "../../app/rpc.ts";
-import { usePaletteColors } from "../../app/theme.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { highlight } from "../../components/highlight.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { bandQuery } from "../market/band-query.ts";
 import { listingName, useListingName } from "../market/listing-name.tsx";
@@ -47,6 +43,7 @@ import { directionOf } from "../market/quote-figures.tsx";
 import { useDepth } from "../market/use-depth.ts";
 import { useMarketSources } from "../settings/settings-query.ts";
 
+import { ProposalItem } from "./proposal-item.tsx";
 import { proposalsQuery } from "./proposals-query.ts";
 import {
   TicketUnit,
@@ -55,7 +52,6 @@ import {
 } from "./ticket-schema.ts";
 import type { ExitTicketValues, OrderTicketValues } from "./ticket-schema.ts";
 import { TicketTab, useTicketStore } from "./ticket-store.ts";
-import { violationMessage } from "./violation-message.ts";
 
 const DEFAULT_EXIT_DAYS = 30;
 
@@ -66,9 +62,9 @@ const QUANTITY_PRESETS: Record<TicketUnit, Record<Market, number[]>> = {
 
 /**
  * The order panel: a listing, then an order or an exit of it written out as a draft in pencil.
- * Checking the draft proposes it, and the proposal waits in the queue below like any other. On a
- * listing's page it trades that listing, which the page already names and quotes; elsewhere the
- * user types one.
+ * Checking the draft proposes it, and the proposal waits under it as in the queue. On a listing's
+ * page it trades that listing, which the page already names and quotes; elsewhere the user types
+ * one.
  */
 export function OrderTicket() {
   const { t } = useTranslation();
@@ -91,7 +87,7 @@ export function OrderTicket() {
   return (
     <section
       aria-label={t("order-form.title")}
-      className="flex flex-col gap-4 border-b border-separator px-4 pt-3 pb-5">
+      className="flex flex-col gap-4 p-4">
       {page ? null : <SymbolInput symbol={symbol} />}
       {symbol ? (
         <ListingTicket
@@ -212,33 +208,35 @@ function ListingTicket({
       ) : null}
       <div
         inert={!listing}
-        className={cn("transition-opacity", !listing && "opacity-50")}>
-        <Tabs
-          variant="secondary"
-          className="gap-4"
-          selectedKey={tab}
-          onSelectionChange={(key) => {
-            if (isEnumValue(TicketTab, key)) onTabChange(key);
+        className={cn(
+          "flex flex-col gap-4 transition-opacity",
+          !listing && "opacity-50"
+        )}>
+        {/* A mode of the one panel rather than tabs, which the pane's own already are. */}
+        <ToggleButtonGroup
+          aria-label={t("order-form.title")}
+          selectionMode="single"
+          disallowEmptySelection
+          size="sm"
+          fullWidth
+          selectedKeys={[tab]}
+          onSelectionChange={(keys) => {
+            const [next] = keys;
+
+            if (isEnumValue(TicketTab, next)) onTabChange(next);
           }}>
-          <Tabs.ListContainer className="border-separator">
-            <Tabs.List aria-label={t("order-form.title")}>
-              <Tabs.Tab id={TicketTab.Order} className="h-9">
-                {t("order-form.tabs.order")}
-                <Tabs.Indicator />
-              </Tabs.Tab>
-              <Tabs.Tab id={TicketTab.Exit} className="h-9">
-                {t("order-form.tabs.exit")}
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            </Tabs.List>
-          </Tabs.ListContainer>
-          <Tabs.Panel id={TicketTab.Order} className="p-0">
-            <OrderPanel symbol={symbol} depth={depth} />
-          </Tabs.Panel>
-          <Tabs.Panel id={TicketTab.Exit} className="p-0">
-            <ExitPanel symbol={symbol} />
-          </Tabs.Panel>
-        </Tabs>
+          {Object.values(TicketTab).map((option, index) => (
+            <ToggleButton key={option} id={option} className="flex-1">
+              {index > 0 ? <ToggleButtonGroup.Separator /> : null}
+              {t(`order-form.tabs.${option}`)}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+        {tab === TicketTab.Order ? (
+          <OrderPanel symbol={symbol} depth={depth} />
+        ) : (
+          <ExitPanel symbol={symbol} />
+        )}
       </div>
     </>
   );
@@ -785,8 +783,8 @@ function toOrder(symbol: SymbolRef, values: OrderTicketValues): OrderRequest {
 }
 
 /**
- * What came of checking the draft. A proposal that waits is shown once, in the queue below, which
- * this points to and lights up; one the checks refused says why here, since it leaves the queue.
+ * What came of checking the draft: the proposal it made, confirmed or dismissed right here as in
+ * the queue, or why none was made.
  */
 function Outcome({
   error,
@@ -796,17 +794,6 @@ function Outcome({
   proposal: ReturnType<typeof usePanelProposal>["proposal"];
 }) {
   const { t } = useTranslation();
-  const { accent } = usePaletteColors();
-  const shownId = proposal?.id;
-
-  useEffect(() => {
-    if (!shownId) return;
-
-    const item = document.querySelector(`[data-proposal="${shownId}"]`);
-
-    item?.scrollIntoView({ block: "nearest" });
-    highlight(item, accent);
-  }, [shownId, accent]);
 
   if (error) {
     return (
@@ -821,39 +808,16 @@ function Outcome({
     return <p className="text-xs text-muted">{t("order-form.hint")}</p>;
   }
 
-  switch (proposal.status) {
-    case ProposalStatus.Rejected:
-      return (
-        <Alert status="danger">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>{t("proposals.violations-title")}</Alert.Title>
-            <ul className="list-disc pl-4 text-sm text-muted">
-              {proposal.violations.map((violation) => (
-                <li key={violation.code}>{violationMessage(t, violation)}</li>
-              ))}
-            </ul>
-          </Alert.Content>
-        </Alert>
-      );
-    case ProposalStatus.Submitted:
-      return <p className="text-xs text-muted">{t("order-form.sent")}</p>;
-    case ProposalStatus.Failed:
-      return proposal.failure ? (
-        <ErrorAlert
-          title={t(`proposals.failure.${proposal.failure.code}`)}
-          description={
-            "message" in proposal.failure
-              ? proposal.failure.message
-              : t(`proposals.failure.${proposal.failure.code}-detail`)
-          }
-        />
-      ) : null;
-    case ProposalStatus.Dismissed:
-      return <p className="text-xs text-muted">{t("order-form.dismissed")}</p>;
-    default:
-      return <p className="text-xs text-muted">{t("order-form.waiting")}</p>;
-  }
+  return (
+    <div className="flex flex-col gap-2">
+      {proposal.status === ProposalStatus.AwaitingConfirmation ? (
+        <p className="text-xs text-muted">{t("order-form.waiting")}</p>
+      ) : null}
+      <div className="-mx-4 border-t border-separator">
+        <ProposalItem proposal={proposal} />
+      </div>
+    </div>
+  );
 }
 
 /** A number the exit panel holds, empty as NaN. */

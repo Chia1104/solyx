@@ -9,6 +9,9 @@ import { OrderType } from "@solyx/core/order";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
+import { LoadError } from "../../components/load-error.tsx";
+import { LoadingState } from "../../components/loading-state.tsx";
+import { PaneSection } from "../../components/pane-section.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
 import { ListingLink } from "./listing-link.tsx";
@@ -37,6 +40,20 @@ function CancelButton({ id }: { id: string }) {
   );
 }
 
+/** The order as one line: side, shares and its limit or the market. */
+function OrderSummary({ working: { order } }: { working: BrokerOrder }) {
+  const { t, i18n } = useTranslation();
+
+  return t("proposals.summary", {
+    side: t(`side.${order.side}`),
+    quantity: order.quantity,
+    price:
+      order.type === OrderType.Limit
+        ? numberFormats(i18n.language).price.format(order.limitPrice)
+        : t("proposals.market-price"),
+  });
+}
+
 /**
  * The day's orders that may still fill, wherever they were placed, of one listing where `symbol`
  * names it; none shows nothing unless `showEmpty` says so.
@@ -62,11 +79,6 @@ export function WorkingOrders({
   });
 
   if (!data || (data.length === 0 && !showEmpty)) return null;
-
-  const price = ({ order }: BrokerOrder) =>
-    order.type === OrderType.Limit
-      ? format.price.format(order.limitPrice)
-      : t("proposals.market-price");
 
   return (
     <Table variant="secondary">
@@ -99,11 +111,7 @@ export function WorkingOrders({
                     </Table.Cell>
                   )}
                   <Table.Cell className="tabular-nums">
-                    {t("proposals.summary", {
-                      side: t(`side.${working.order.side}`),
-                      quantity: working.order.quantity,
-                      price: price(working),
-                    })}
+                    <OrderSummary working={working} />
                   </Table.Cell>
                   <Table.Cell className="tabular-nums">
                     {format.price.format(working.filled)}{" "}
@@ -121,5 +129,52 @@ export function WorkingOrders({
         </Table.Content>
       </Table.ScrollContainer>
     </Table>
+  );
+}
+
+/** The day's orders that may still fill, as a side pane's rows, each with its cancel. */
+export function WorkingOrderList() {
+  const { t, i18n } = useTranslation();
+  const format = numberFormats(i18n.language);
+
+  const { data, error, refetch } = useQuery(
+    orpc.account.working.queryOptions()
+  );
+
+  return (
+    <PaneSection title={t("account.working")} count={data?.length}>
+      {error ? (
+        <div className="px-4 pb-3">
+          <LoadError error={error} onRetry={() => void refetch()} />
+        </div>
+      ) : !data ? (
+        <LoadingState />
+      ) : data.length === 0 ? (
+        <p className="px-4 pb-3 text-xs text-muted">
+          {t("account.no-working")}
+        </p>
+      ) : (
+        <ul className="divide-y divide-separator">
+          {data.map((working) => (
+            <li
+              key={working.id}
+              className="flex items-start gap-3 px-4 py-2.5 text-sm">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <ListingLink symbol={working.order.instrument} />
+                <span className="tabular-nums">
+                  <OrderSummary working={working} />
+                </span>
+                <span className="text-xs text-muted tabular-nums">
+                  {t("account.filled")} {format.price.format(working.filled)}
+                  {" · "}
+                  {t(`account.order-status.${working.status}`)}
+                </span>
+              </div>
+              <CancelButton id={working.id} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </PaneSection>
   );
 }

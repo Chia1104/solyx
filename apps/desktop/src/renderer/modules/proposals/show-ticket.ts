@@ -6,10 +6,10 @@ import { AgentTab, useAgentStore } from "../agent/agent-store.ts";
 import { useTicketStore } from "./ticket-store.ts";
 import type { TicketTab } from "./ticket-store.ts";
 
-/** Brings the order panel into view: the agent pane open on its trading tab. */
+/** Brings the order panel into view: the agent pane open on its tab. */
 export function showTicket() {
   useLayoutStore.getState().show(Pane.Agent);
-  useAgentStore.getState().showTab(AgentTab.Proposals);
+  useAgentStore.getState().showTab(AgentTab.Ticket);
 }
 
 /**
