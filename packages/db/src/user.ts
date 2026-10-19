@@ -317,7 +317,9 @@ function themeStore(db: NodeSQLiteDatabase): ThemeStore {
  * wherever the host ships it.
  */
 export function openUserData(path: string, migrationsFolder: string) {
-  const connection = connect(path, migrationsFolder);
+  // A proposal is marked as sending before its order goes out, and the order desk trusts that mark
+  // to never send it again, so a power loss must not take the mark back.
+  const connection = connect(path, migrationsFolder, { durable: true });
 
   return {
     watchlist: watchlistStore(connection.db),
