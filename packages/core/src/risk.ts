@@ -278,6 +278,13 @@ export function stepTicks(
   return stepped;
 }
 
+/** The price on the tick nearest `price`, such as one read off a chart. */
+export function nearestTick(instrument: SymbolRef, price: number): number {
+  const tick = tickSize(instrument, price);
+
+  return round(Math.round(price / tick) * tick, PRICE_DECIMALS);
+}
+
 export function isOnTick(price: number, tick: number): boolean {
   const steps = price / tick;
 

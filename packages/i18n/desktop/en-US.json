@@ -255,6 +255,14 @@
     "quote": {
       "last": "Last price",
       "change": "Change from the previous close"
+    },
+    "trades": {
+      "average": "Avg cost",
+      "stop": "Stop",
+      "target": "Target",
+      "proposed": "Proposed {{side}} {{quantity}}",
+      "limit-up": "Limit up",
+      "limit-down": "Limit down"
     }
   },
   "depth": {
@@ -950,7 +958,8 @@
       "required": "Required",
       "whole": "Use a whole number",
       "positive": "Must be greater than zero"
-    }
+    },
+    "pick-on-chart": "Pick on chart"
   },
   "exit-form": {
     "quantity": "Shares",

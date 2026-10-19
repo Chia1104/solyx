@@ -14,11 +14,16 @@ export interface PickedPrice {
 
 interface TicketStore {
   picked: PickedPrice | null;
+  /** The next click on the chart picks its price, once. */
+  pickingOnChart: boolean;
   pick(symbol: SymbolRef, price: number): void;
+  setPickingOnChart(picking: boolean): void;
 }
 
 export const useTicketStore = create<TicketStore>()((set) => ({
   picked: null,
+  pickingOnChart: false,
+  setPickingOnChart: (pickingOnChart) => set({ pickingOnChart }),
   pick: (symbol, price) =>
     set((state) => ({
       picked: {

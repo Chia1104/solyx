@@ -11,6 +11,7 @@ import {
   checkOrder,
   premiseViolations,
   sessionBand,
+  nearestTick,
   stepTicks,
 } from "../src/risk.ts";
 import type { RiskContext, RiskLimits } from "../src/risk.ts";
@@ -485,4 +486,12 @@ describe("stepTicks", () => {
       0.9999
     );
   });
+});
+
+test("a price read off a chart rounds to its nearest tick", () => {
+  const stock = { market: Market.TW, symbol: "2330" };
+
+  expect(nearestTick(stock, 1042.3)).toBe(1040);
+  expect(nearestTick(stock, 1043.1)).toBe(1045);
+  expect(nearestTick(stock, 49.97)).toBe(49.95);
 });
