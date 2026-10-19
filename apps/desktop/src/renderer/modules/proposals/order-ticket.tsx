@@ -1,37 +1,47 @@
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import {
   Button,
+  ButtonGroup,
   FieldError,
   Form,
+  Input,
   Label,
   NumberField,
-  Tabs,
+  TextField,
   ToggleButton,
   ToggleButtonGroup,
+  cn,
 } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { MinusSignIcon, PlusSignIcon } from "@hugeicons/core-free-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMatch } from "@tanstack/react-router";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import type { Control } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { Market, exchangeDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import type { Depth } from "@solyx/core/market-data";
+import type { Depth, Listing } from "@solyx/core/market-data";
 import { OrderType, Side } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 import { ProposalStatus } from "@solyx/core/order-desk";
-import { stepTicks, tickSize } from "@solyx/core/risk";
+import { tickSize } from "@solyx/core/risk";
 import { TW_BOARD_LOT, twTradeCosts } from "@solyx/core/rules/tw";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { Icon } from "../../components/icon.tsx";
+import { LoadError } from "../../components/load-error.tsx";
 import { bandQuery } from "../market/band-query.ts";
+import { listingName, useListingName } from "../market/listing-name.tsx";
+import { listingQuery } from "../market/listing-query.ts";
 import { numberFormats } from "../market/number-formats.ts";
+import { useDirectionColors } from "../market/price-colors.ts";
+import { directionOf } from "../market/quote-figures.tsx";
+import { useDepth } from "../market/use-depth.ts";
+import { useMarketSources } from "../settings/settings-query.ts";
 
 import { ProposalItem } from "./proposal-item.tsx";
 import { proposalsQuery } from "./proposals-query.ts";
@@ -51,52 +61,225 @@ const QUANTITY_PRESETS: Record<TicketUnit, Record<Market, number[]>> = {
 };
 
 /**
- * An order or an exit for the listing on the page. Checking it makes a proposal, shown under it
- * to confirm like any other; editing the panel after that dismisses the proposal while it waits.
+ * The order panel: a listing, then an order or an exit of it written out as a draft in pencil.
+ * Checking the draft proposes it, and the proposal waits under it as in the queue. On a listing's
+ * page it trades that listing, which the page already names and quotes; elsewhere the user types
+ * one.
  */
-export function OrderTicket({
-  symbol,
-  depth,
-}: {
-  symbol: SymbolRef;
-  depth: Depth | null | undefined;
-}) {
+export function OrderTicket() {
   const { t } = useTranslation();
+  const held = useTicketStore((state) => state.symbol);
   const request = useTicketStore((state) => state.request);
   const [tab, setTab] = useState<TicketTab>(TicketTab.Order);
 
+  const page = useMatch({
+    from: "/symbol/$market/$symbol",
+    shouldThrow: false,
+  });
+
+  const symbol = page?.params ?? held;
+
   // A sale asked for elsewhere opens its tab, whose panel then fills it in.
   useEffect(() => {
-    if (request?.key === symbolKey(symbol)) setTab(request.tab);
-  }, [request, symbol]);
+    if (request) setTab(request.tab);
+  }, [request]);
 
   return (
-    <Tabs
-      variant="secondary"
-      className="gap-3"
-      selectedKey={tab}
-      onSelectionChange={(key) => {
-        if (isEnumValue(TicketTab, key)) setTab(key);
-      }}>
-      <Tabs.ListContainer className="border-separator">
-        <Tabs.List aria-label={t("order-form.title")}>
-          <Tabs.Tab id={TicketTab.Order} className="h-9">
-            {t("order-form.tabs.order")}
-            <Tabs.Indicator />
-          </Tabs.Tab>
-          <Tabs.Tab id={TicketTab.Exit} className="h-9">
-            {t("order-form.tabs.exit")}
-            <Tabs.Indicator />
-          </Tabs.Tab>
-        </Tabs.List>
-      </Tabs.ListContainer>
-      <Tabs.Panel id={TicketTab.Order} className="p-0">
-        <OrderPanel symbol={symbol} depth={depth} />
-      </Tabs.Panel>
-      <Tabs.Panel id={TicketTab.Exit} className="p-0">
-        <ExitPanel symbol={symbol} />
-      </Tabs.Panel>
-    </Tabs>
+    <section
+      aria-label={t("order-form.title")}
+      className="flex flex-col gap-4 p-4">
+      {page ? null : <SymbolInput symbol={symbol} />}
+      {symbol ? (
+        <ListingTicket
+          key={symbolKey(symbol)}
+          symbol={symbol}
+          quoted={!page}
+          tab={tab}
+          onTabChange={setTab}
+        />
+      ) : (
+        <p className="text-sm text-muted">{t("order-form.no-listing")}</p>
+      )}
+    </section>
+  );
+}
+
+/** The listing the panel trades, typed as its code and market; it takes the code on blur or Enter. */
+function SymbolInput({ symbol }: { symbol: SymbolRef | null }) {
+  const { t } = useTranslation();
+  const setSymbol = useTicketStore((state) => state.setSymbol);
+  const [market, setMarket] = useState<Market>(symbol?.market ?? Market.TW);
+  const [code, setCode] = useState(symbol?.symbol ?? "");
+
+  // A sale may name another listing while the field shows this one.
+  useEffect(() => {
+    if (!symbol) return;
+
+    setMarket(symbol.market);
+    setCode(symbol.symbol);
+  }, [symbol]);
+
+  const commit = (nextMarket = market) => {
+    const typed = code.trim().toUpperCase();
+
+    if (typed) setSymbol({ market: nextMarket, symbol: typed });
+  };
+
+  return (
+    <div className="flex items-end gap-2">
+      <TextField className="min-w-0 flex-1">
+        <Label>{t("order-form.symbol")}</Label>
+        <Input
+          value={code}
+          placeholder={t("order-form.symbol-placeholder")}
+          className="uppercase"
+          onChange={(event) => setCode(event.target.value)}
+          onBlur={() => commit()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") commit();
+          }}
+        />
+      </TextField>
+      <ToggleButtonGroup
+        aria-label={t("order-form.market")}
+        selectionMode="single"
+        disallowEmptySelection
+        size="sm"
+        className="shrink-0"
+        selectedKeys={[market]}
+        onSelectionChange={(keys) => {
+          const [next] = keys;
+
+          if (isEnumValue(Market, next)) {
+            setMarket(next);
+            commit(next);
+          }
+        }}>
+        {Object.values(Market).map((option) => (
+          <ToggleButton key={option} id={option}>
+            {t(`market.${option}`)}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
+    </div>
+  );
+}
+
+/**
+ * The panel's tabs for one listing. They open only once the market's source lists it, so a code
+ * mistyped or a market without a source proposes nothing; `quoted` adds its name and last price.
+ */
+function ListingTicket({
+  symbol,
+  quoted,
+  tab,
+  onTabChange,
+}: {
+  symbol: SymbolRef;
+  quoted: boolean;
+  tab: TicketTab;
+  onTabChange: (tab: TicketTab) => void;
+}) {
+  const { t } = useTranslation();
+  const sources = useMarketSources();
+  const ready = sources.data?.[symbol.market]?.ready === true;
+  const lookup = useQuery({ ...listingQuery(symbol), enabled: ready });
+  const listing = lookup.data ?? null;
+  const depth = useDepth(listing ? symbol : null);
+  const market = t(`market.${symbol.market}`);
+
+  return (
+    <>
+      {sources.data && !ready ? (
+        <p className="text-sm text-muted">
+          {t("order-form.no-source", { market })}
+        </p>
+      ) : null}
+      {lookup.error ? (
+        <LoadError error={lookup.error} onRetry={() => void lookup.refetch()} />
+      ) : null}
+      {lookup.data === null ? (
+        <p role="alert" className="text-sm text-danger">
+          {t("order-form.not-found", { market, symbol: symbol.symbol })}
+        </p>
+      ) : null}
+      {quoted && listing ? (
+        <ListingQuote symbol={symbol} listing={listing} depth={depth} />
+      ) : null}
+      <div
+        inert={!listing}
+        className={cn(
+          "flex flex-col gap-4 transition-opacity",
+          !listing && "opacity-50"
+        )}>
+        {/* A mode of the one panel rather than tabs, which the pane's own already are. */}
+        <ToggleButtonGroup
+          aria-label={t("order-form.title")}
+          selectionMode="single"
+          disallowEmptySelection
+          size="sm"
+          fullWidth
+          selectedKeys={[tab]}
+          onSelectionChange={(keys) => {
+            const [next] = keys;
+
+            if (isEnumValue(TicketTab, next)) onTabChange(next);
+          }}>
+          {Object.values(TicketTab).map((option, index) => (
+            <ToggleButton key={option} id={option} className="flex-1">
+              {index > 0 ? <ToggleButtonGroup.Separator /> : null}
+              {t(`order-form.tabs.${option}`)}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+        {tab === TicketTab.Order ? (
+          <OrderPanel symbol={symbol} depth={depth} />
+        ) : (
+          <ExitPanel symbol={symbol} />
+        )}
+      </div>
+    </>
+  );
+}
+
+/** The listing's name with its last price against its reference, once the book has one. */
+function ListingQuote({
+  symbol,
+  listing,
+  depth,
+}: {
+  symbol: SymbolRef;
+  listing: Listing;
+  depth: Depth | null | undefined;
+}) {
+  const { i18n } = useTranslation();
+  const direction = useDirectionColors(symbol.market);
+  const format = numberFormats(i18n.language);
+  const last = depth?.last ?? null;
+
+  return (
+    <p className="flex min-w-0 items-baseline gap-2">
+      <span className="min-w-0 truncate text-sm font-medium">
+        {listingName(listing, i18n.language)}
+      </span>
+      {last === null || !depth ? null : (
+        <>
+          <span className="ml-auto shrink-0 text-sm font-semibold tabular-nums">
+            {format.quotePrice.format(last)}
+          </span>
+          <span
+            className={cn(
+              "shrink-0 text-xs tabular-nums",
+              directionOf(direction, last - depth.reference)?.text ??
+                "text-muted"
+            )}>
+            {format.quotePercentChange.format(
+              (last - depth.reference) / depth.reference
+            )}
+          </span>
+        </>
+      )}
+    </p>
   );
 }
 
@@ -149,6 +332,80 @@ function useSellable(symbol: SymbolRef): number {
   return data ? (data.sellable ?? data.quantity) : 0;
 }
 
+/** A number the panel holds, empty as NaN, stepped by `step` from either end of the field. */
+function StepField({
+  label,
+  value,
+  step,
+  isDisabled,
+  invalid,
+  onChange,
+  onBlur,
+  inputRef,
+}: {
+  label: string;
+  value: number | undefined;
+  step: number;
+  isDisabled?: boolean;
+  invalid?: string;
+  onChange: (value: number) => void;
+  onBlur: () => void;
+  inputRef: (element: HTMLInputElement | null) => void;
+}) {
+  return (
+    <NumberField
+      isDisabled={isDisabled}
+      isInvalid={invalid !== undefined}
+      minValue={0}
+      step={step}
+      formatOptions={{ maximumFractionDigits: 4 }}
+      value={value}
+      onChange={(next) => onChange(next ?? Number.NaN)}
+      onBlur={onBlur}>
+      <Label>{label}</Label>
+      <NumberField.Group>
+        <NumberField.DecrementButton />
+        <NumberField.Input
+          ref={inputRef}
+          className="text-center tabular-nums"
+        />
+        <NumberField.IncrementButton />
+      </NumberField.Group>
+      <FieldError>{invalid}</FieldError>
+    </NumberField>
+  );
+}
+
+/** Quick picks under a field, one row of the same buttons. */
+function Picks({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <ButtonGroup
+      aria-label={label}
+      size="sm"
+      variant="tertiary"
+      className="w-full [&>*]:min-w-0 [&>*]:flex-1 [&>*]:tabular-nums">
+      {children}
+    </ButtonGroup>
+  );
+}
+
+/** The order as written so far, in pencil: it is a draft until checking makes it a proposal. */
+function Draft({
+  sentence,
+  children,
+}: {
+  sentence: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="relative flex flex-col gap-2 border border-dashed border-border py-2.5 pr-3 pl-5">
+      <span aria-hidden className="absolute inset-y-2.5 left-2 w-1.5 hatch" />
+      <p className="text-sm font-medium tabular-nums">{sentence}</p>
+      {children}
+    </div>
+  );
+}
+
 function OrderPanel({
   symbol,
   depth,
@@ -160,6 +417,7 @@ function OrderPanel({
   const format = numberFormats(i18n.language);
   const schema = useOrderTicketSchema();
   const taiwan = symbol.market === Market.TW;
+  const name = useListingName(symbol) ?? symbol.symbol;
   const { data: band } = useQuery(bandQuery(symbol));
   const sellable = useSellable(symbol);
   const { proposal, propose, withdraw } = usePanelProposal();
@@ -196,6 +454,12 @@ function OrderPanel({
     form.clearErrors("price");
   }
 
+  function setQuantity(next: number) {
+    withdraw();
+    form.setValue("quantity", next);
+    form.clearErrors("quantity");
+  }
+
   const picked = useTicketStore((state) => state.picked);
   const seenPick = useRef(picked?.count);
 
@@ -230,6 +494,7 @@ function OrderPanel({
   });
 
   const marketOrder = type === OrderType.Market;
+  const hasPrice = price !== undefined && !Number.isNaN(price) && price > 0;
 
   const shares =
     quantity === undefined || Number.isNaN(quantity)
@@ -243,7 +508,7 @@ function OrderPanel({
     ? side === Side.Buy
       ? band?.high
       : band?.low
-    : price !== undefined && !Number.isNaN(price)
+    : hasPrice
       ? price
       : undefined;
 
@@ -262,14 +527,6 @@ function OrderPanel({
         ? sellable % TW_BOARD_LOT
         : sellable;
 
-  const step = (steps: number) => {
-    const from = price !== undefined && !Number.isNaN(price) ? price : quoted;
-
-    if (from !== null && from !== undefined) {
-      setPrice(stepTicks(symbol, from, steps));
-    }
-  };
-
   const submit = form.handleSubmit((values: OrderTicketValues) => {
     setPriceSet(true);
     propose.mutate({ order: toOrder(symbol, values), rationale: "" });
@@ -282,39 +539,119 @@ function OrderPanel({
     { id: "limit-up", price: band?.high },
   ] as const;
 
+  const amount =
+    quantity === undefined || Number.isNaN(quantity)
+      ? "–"
+      : t(`order-form.count.${unit ?? TicketUnit.Shares}`, { count: quantity });
+
+  const sentence = t(
+    marketOrder ? "order-form.draft-market" : "order-form.draft",
+    {
+      side: t(`side.${side ?? Side.Buy}`),
+      quantity: amount,
+      name,
+      price: hasPrice ? format.quotePrice.format(price) : "–",
+    }
+  );
+
   return (
     <Form
       validationBehavior="aria"
-      className="flex flex-col gap-3"
+      className="flex flex-col gap-4"
       onSubmit={(event) => void submit(event)}>
-      <Controller
-        control={form.control}
-        name="side"
-        render={({ field }) => (
-          <ToggleButtonGroup
-            aria-label={t("order-form.side")}
-            selectionMode="single"
-            disallowEmptySelection
-            size="sm"
-            className="w-full"
-            selectedKeys={[field.value]}
-            onSelectionChange={(keys) => {
-              const [next] = keys;
+      <div className="flex flex-wrap gap-2">
+        <Controller
+          control={form.control}
+          name="side"
+          render={({ field }) => (
+            <ToggleButtonGroup
+              aria-label={t("order-form.side")}
+              selectionMode="single"
+              disallowEmptySelection
+              size="sm"
+              className="min-w-0 flex-[2]"
+              selectedKeys={[field.value]}
+              onSelectionChange={(keys) => {
+                const [next] = keys;
 
-              if (isEnumValue(Side, next)) {
+                if (isEnumValue(Side, next)) {
+                  withdraw();
+                  field.onChange(next);
+                }
+              }}>
+              {Object.values(Side).map((option) => (
+                <ToggleButton key={option} id={option} className="flex-1">
+                  {t(`side.${option}`)}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="type"
+          render={({ field }) => (
+            <ToggleButtonGroup
+              aria-label={t("order-form.type")}
+              selectionMode="single"
+              disallowEmptySelection
+              size="sm"
+              className="min-w-0 flex-1"
+              selectedKeys={[field.value]}
+              onSelectionChange={(keys) => {
+                const [next] = keys;
+
+                if (isEnumValue(OrderType, next)) {
+                  withdraw();
+                  field.onChange(next);
+                  form.clearErrors("price");
+                }
+              }}>
+              {Object.values(OrderType).map((option) => (
+                <ToggleButton key={option} id={option} className="flex-1">
+                  {t(`order-type.${option}`)}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          )}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Controller
+          control={form.control}
+          name="price"
+          render={({ field, fieldState }) => (
+            <StepField
+              label={t("order-form.price")}
+              value={field.value}
+              // Each step is the tick at the price shown, so every price it lands on is one the exchange takes.
+              step={tickSize(symbol, hasPrice ? price : (quoted ?? 1))}
+              isDisabled={marketOrder}
+              invalid={fieldState.error?.message}
+              onChange={(next) => {
                 withdraw();
+                setPriceSet(true);
                 field.onChange(next);
-              }
-            }}>
-            {Object.values(Side).map((option) => (
-              <ToggleButton key={option} id={option} className="flex-1">
-                {t(`side.${option}`)}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
-        )}
-      />
-      <div className="flex gap-2">
+              }}
+              onBlur={field.onBlur}
+              inputRef={field.ref}
+            />
+          )}
+        />
+        <Picks label={t("order-form.price")}>
+          {quickPrices.map((quick) => (
+            <Button
+              key={quick.id}
+              isDisabled={marketOrder || quick.price === undefined}
+              onPress={() => {
+                if (quick.price !== undefined) setPrice(quick.price);
+              }}>
+              {t(`order-form.prices.${quick.id}`)}
+            </Button>
+          ))}
+        </Picks>
+      </div>
+      <div className="flex flex-col gap-1.5">
         {taiwan ? (
           <Controller
             control={form.control}
@@ -325,7 +662,7 @@ function OrderPanel({
                 selectionMode="single"
                 disallowEmptySelection
                 size="sm"
-                className="flex-1"
+                className="w-full"
                 selectedKeys={[field.value]}
                 onSelectionChange={(keys) => {
                   const [next] = keys;
@@ -347,200 +684,77 @@ function OrderPanel({
         ) : null}
         <Controller
           control={form.control}
-          name="type"
-          render={({ field }) => (
-            <ToggleButtonGroup
-              aria-label={t("order-form.type")}
-              selectionMode="single"
-              disallowEmptySelection
-              size="sm"
-              className="flex-1"
-              selectedKeys={[field.value]}
-              onSelectionChange={(keys) => {
-                const [next] = keys;
-
-                if (isEnumValue(OrderType, next)) {
-                  withdraw();
-                  field.onChange(next);
-                  form.clearErrors("price");
-                }
-              }}>
-              {Object.values(OrderType).map((option) => (
-                <ToggleButton key={option} id={option} className="flex-1">
-                  {t(`order-type.${option}`)}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-          )}
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-end gap-1">
-          <Button
-            isIconOnly
-            size="sm"
-            variant="tertiary"
-            aria-label={t("order-form.tick-down")}
-            isDisabled={marketOrder}
-            onPress={() => step(-1)}>
-            <Icon icon={MinusSignIcon} />
-          </Button>
-          <Controller
-            control={form.control}
-            name="price"
-            render={({ field, fieldState }) => (
-              <NumberField
-                className="min-w-0 flex-1"
-                isDisabled={marketOrder}
-                isInvalid={fieldState.invalid}
-                minValue={0}
-                // The arrow keys step by the tick at the price shown; the buttons cross the table's bounds exactly.
-                step={
-                  field.value > 0 ? tickSize(symbol, field.value) : undefined
-                }
-                formatOptions={{ maximumFractionDigits: 4 }}
-                value={field.value}
-                onChange={(next) => {
-                  withdraw();
-                  setPriceSet(true);
-                  field.onChange(next ?? Number.NaN);
-                }}
-                onBlur={field.onBlur}>
-                <Label>{t("order-form.price")}</Label>
-                <NumberField.Group>
-                  <NumberField.Input
-                    ref={field.ref}
-                    className="text-center tabular-nums"
-                  />
-                </NumberField.Group>
-                <FieldError>{fieldState.error?.message}</FieldError>
-              </NumberField>
-            )}
-          />
-          <Button
-            isIconOnly
-            size="sm"
-            variant="tertiary"
-            aria-label={t("order-form.tick-up")}
-            isDisabled={marketOrder}
-            onPress={() => step(1)}>
-            <Icon icon={PlusSignIcon} />
-          </Button>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {quickPrices.map((quick) => (
-            <Button
-              key={quick.id}
-              size="sm"
-              variant="tertiary"
-              className="h-6 min-w-0 px-2 text-xs"
-              isDisabled={marketOrder || quick.price === undefined}
-              onPress={() => {
-                if (quick.price !== undefined) setPrice(quick.price);
-              }}>
-              {t(`order-form.prices.${quick.id}`)}
-            </Button>
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Controller
-          control={form.control}
           name="quantity"
           render={({ field, fieldState }) => (
-            <NumberField
-              isInvalid={fieldState.invalid}
-              minValue={1}
-              step={1}
+            <StepField
+              label={t(`order-form.quantity.${unit ?? TicketUnit.Shares}`)}
               value={field.value}
+              step={1}
+              invalid={fieldState.error?.message}
               onChange={(next) => {
                 withdraw();
-                field.onChange(next ?? Number.NaN);
+                field.onChange(next);
               }}
-              onBlur={field.onBlur}>
-              <Label>
-                {t(`order-form.quantity.${unit ?? TicketUnit.Shares}`)}
-              </Label>
-              <NumberField.Group>
-                <NumberField.DecrementButton />
-                <NumberField.Input
-                  ref={field.ref}
-                  className="text-center tabular-nums"
-                />
-                <NumberField.IncrementButton />
-              </NumberField.Group>
-              <FieldError>{fieldState.error?.message}</FieldError>
-            </NumberField>
+              onBlur={field.onBlur}
+              inputRef={field.ref}
+            />
           )}
         />
-        <div className="flex flex-wrap gap-1">
+        <Picks label={t(`order-form.quantity.${unit ?? TicketUnit.Shares}`)}>
           {QUANTITY_PRESETS[unit ?? TicketUnit.Shares][symbol.market].map(
             (preset) => (
-              <Button
-                key={preset}
-                size="sm"
-                variant="tertiary"
-                className="h-6 min-w-0 px-2 text-xs tabular-nums"
-                onPress={() => {
-                  withdraw();
-                  form.setValue("quantity", preset);
-                  form.clearErrors("quantity");
-                }}>
+              <Button key={preset} onPress={() => setQuantity(preset)}>
                 {format.amount.format(preset)}
               </Button>
             )
           )}
           {side === Side.Sell && all > 0 ? (
-            <Button
-              size="sm"
-              variant="tertiary"
-              className="h-6 min-w-0 px-2 text-xs tabular-nums"
-              onPress={() => {
-                withdraw();
-                form.setValue("quantity", all);
-                form.clearErrors("quantity");
-              }}>
+            <Button onPress={() => setQuantity(all)}>
               {t("order-form.all", { count: all })}
             </Button>
           ) : null}
-        </div>
+        </Picks>
       </div>
-      {value === null ? null : (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs tabular-nums">
-          <dt className="text-muted">
-            {marketOrder
-              ? t(`order-form.costs.value-${side ?? Side.Buy}-market`)
-              : t("order-form.costs.value")}
-          </dt>
-          <dd className="text-right">{format.amount.format(value)}</dd>
-          {costs ? (
-            <>
-              <dt className="text-muted">{t("order-form.costs.commission")}</dt>
-              <dd className="text-right">
-                {format.amount.format(costs.commission)}
-              </dd>
-              {side === Side.Sell ? (
-                <>
-                  <dt className="text-muted">{t("order-form.costs.tax")}</dt>
-                  <dd className="text-right">
-                    {format.amount.format(costs.tax)}
-                  </dd>
-                </>
-              ) : null}
-              <dt className="text-muted">
-                {t(`order-form.costs.total-${side ?? Side.Buy}`)}
-              </dt>
-              <dd className="text-right font-medium">
-                {format.amount.format(
-                  side === Side.Sell
-                    ? value - costs.commission - costs.tax
-                    : value + costs.commission
-                )}
-              </dd>
-            </>
-          ) : null}
-        </dl>
-      )}
+      <Draft sentence={sentence}>
+        {value === null ? null : (
+          <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 text-xs tabular-nums">
+            <dt className="text-muted">
+              {marketOrder
+                ? t(`order-form.costs.value-${side ?? Side.Buy}-market`)
+                : t("order-form.costs.value")}
+            </dt>
+            <dd className="text-right">{format.amount.format(value)}</dd>
+            {costs ? (
+              <>
+                <dt className="text-muted">
+                  {t("order-form.costs.commission")}
+                </dt>
+                <dd className="text-right">
+                  {format.amount.format(costs.commission)}
+                </dd>
+                {side === Side.Sell ? (
+                  <>
+                    <dt className="text-muted">{t("order-form.costs.tax")}</dt>
+                    <dd className="text-right">
+                      {format.amount.format(costs.tax)}
+                    </dd>
+                  </>
+                ) : null}
+                <dt className="font-medium">
+                  {t(`order-form.costs.total-${side ?? Side.Buy}`)}
+                </dt>
+                <dd className="text-right font-medium">
+                  {format.amount.format(
+                    side === Side.Sell
+                      ? value - costs.commission - costs.tax
+                      : value + costs.commission
+                  )}
+                </dd>
+              </>
+            ) : null}
+          </dl>
+        )}
+      </Draft>
       <Button
         type="submit"
         variant="secondary"
@@ -548,11 +762,7 @@ function OrderPanel({
         isPending={propose.isPending}>
         {t("order-form.check")}
       </Button>
-      <PanelOutcome
-        error={propose.error}
-        proposal={proposal}
-        hint={t("order-form.hint")}
-      />
+      <Outcome error={propose.error} proposal={proposal} />
     </Form>
   );
 }
@@ -572,15 +782,16 @@ function toOrder(symbol: SymbolRef, values: OrderTicketValues): OrderRequest {
     : { ...order, type: OrderType.Market };
 }
 
-/** The proposal the panel made, or what to do before there is one. */
-function PanelOutcome({
+/**
+ * What came of checking the draft: the proposal it made, confirmed or dismissed right here as in
+ * the queue, or why none was made.
+ */
+function Outcome({
   error,
   proposal,
-  hint,
 }: {
   error: Error | null;
   proposal: ReturnType<typeof usePanelProposal>["proposal"];
-  hint: string;
 }) {
   const { t } = useTranslation();
 
@@ -593,32 +804,34 @@ function PanelOutcome({
     );
   }
 
-  if (!proposal) return <p className="text-xs text-muted">{hint}</p>;
+  if (!proposal) {
+    return <p className="text-xs text-muted">{t("order-form.hint")}</p>;
+  }
 
   return (
-    <div className="-mx-4 border-t border-separator">
-      <ProposalItem proposal={proposal} />
+    <div className="flex flex-col gap-2">
       {proposal.status === ProposalStatus.AwaitingConfirmation ? (
-        <p className="px-4 pt-2 text-xs text-muted">
-          {t("order-form.edit-dismisses")}
-        </p>
+        <p className="text-xs text-muted">{t("order-form.waiting")}</p>
       ) : null}
+      <div className="-mx-4 border-t border-separator">
+        <ProposalItem proposal={proposal} />
+      </div>
     </div>
   );
 }
 
-/** A number field the exit panel holds, empty as NaN. */
+/** A number the exit panel holds, empty as NaN. */
 function ExitNumber({
   control,
   name,
   label,
-  description,
+  step,
   onEdit,
 }: {
   control: Control<ExitTicketValues>;
   name: "quantity" | "stop" | "target" | "days";
   label: string;
-  description?: string;
+  step: number;
   onEdit: () => void;
 }) {
   return (
@@ -626,25 +839,18 @@ function ExitNumber({
       control={control}
       name={name}
       render={({ field, fieldState }) => (
-        <NumberField
-          isInvalid={fieldState.invalid}
-          minValue={0}
-          formatOptions={{ maximumFractionDigits: 4 }}
+        <StepField
+          label={label}
           value={field.value}
+          step={step}
+          invalid={fieldState.error?.message}
           onChange={(next) => {
             onEdit();
-            field.onChange(next ?? Number.NaN);
+            field.onChange(next);
           }}
-          onBlur={field.onBlur}>
-          <Label>{label}</Label>
-          <NumberField.Group>
-            <NumberField.Input ref={field.ref} className="tabular-nums" />
-          </NumberField.Group>
-          {description ? (
-            <p className="text-xs text-muted">{description}</p>
-          ) : null}
-          <FieldError>{fieldState.error?.message}</FieldError>
-        </NumberField>
+          onBlur={field.onBlur}
+          inputRef={field.ref}
+        />
       )}
     />
   );
@@ -652,8 +858,10 @@ function ExitNumber({
 
 /** Proposes selling shares held once the price falls to a stop or rises to a target. */
 function ExitPanel({ symbol }: { symbol: SymbolRef }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const format = numberFormats(i18n.language);
   const schema = useExitTicketSchema();
+  const name = useListingName(symbol) ?? symbol.symbol;
   const sellable = useSellable(symbol);
   const { proposal, propose, withdraw } = usePanelProposal();
 
@@ -667,6 +875,8 @@ function ExitPanel({ symbol }: { symbol: SymbolRef }) {
       days: DEFAULT_EXIT_DAYS,
     },
   });
+
+  const { quantity, stop, target, days } = useWatch({ control: form.control });
 
   // The account may answer after the panel opens.
   useEffect(() => {
@@ -689,68 +899,84 @@ function ExitPanel({ symbol }: { symbol: SymbolRef }) {
   });
 
   const submit = form.handleSubmit((values) => {
-    const until = Temporal.PlainDate.from(exchangeDate(symbol.market))
-      .add({ days: values.days })
-      .toString();
-
     propose.mutate({
       exit: {
         instrument: symbol,
         quantity: values.quantity,
         stop: Number.isNaN(values.stop) ? null : values.stop,
         target: Number.isNaN(values.target) ? null : values.target,
-        until,
+        until: Temporal.PlainDate.from(exchangeDate(symbol.market))
+          .add({ days: values.days })
+          .toString(),
       },
       rationale: "",
     });
   });
 
+  const priceOf = (value: number | undefined) =>
+    value === undefined || Number.isNaN(value)
+      ? "–"
+      : format.quotePrice.format(value);
+
+  const priceStep = (value: number | undefined) =>
+    tickSize(symbol, value !== undefined && value > 0 ? value : 1);
+
   return (
     <Form
       validationBehavior="aria"
-      className="grid grid-cols-2 gap-3"
+      className="flex flex-col gap-4"
       onSubmit={(event) => void submit(event)}>
-      <ExitNumber
-        control={form.control}
-        name="stop"
-        label={t("exit-form.stop")}
-        onEdit={withdraw}
-      />
-      <ExitNumber
-        control={form.control}
-        name="target"
-        label={t("exit-form.target")}
-        onEdit={withdraw}
-      />
-      <ExitNumber
-        control={form.control}
-        name="quantity"
-        label={t("exit-form.quantity")}
-        onEdit={withdraw}
-      />
-      <ExitNumber
-        control={form.control}
-        name="days"
-        label={t("exit-form.days")}
-        onEdit={withdraw}
-      />
-      <p className="col-span-full text-xs text-muted">
-        {t("exit-form.legs-hint")}
-      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <ExitNumber
+          control={form.control}
+          name="stop"
+          label={t("exit-form.stop")}
+          step={priceStep(stop)}
+          onEdit={withdraw}
+        />
+        <ExitNumber
+          control={form.control}
+          name="target"
+          label={t("exit-form.target")}
+          step={priceStep(target)}
+          onEdit={withdraw}
+        />
+        <ExitNumber
+          control={form.control}
+          name="quantity"
+          label={t("exit-form.quantity")}
+          step={1}
+          onEdit={withdraw}
+        />
+        <ExitNumber
+          control={form.control}
+          name="days"
+          label={t("exit-form.days")}
+          step={1}
+          onEdit={withdraw}
+        />
+      </div>
+      <Draft
+        sentence={t("exit-form.draft", {
+          quantity:
+            quantity === undefined || Number.isNaN(quantity)
+              ? "–"
+              : format.amount.format(quantity),
+          name,
+          stop: priceOf(stop),
+          target: priceOf(target),
+          days: days === undefined || Number.isNaN(days) ? "–" : days,
+        })}>
+        <p className="text-xs text-muted">{t("exit-form.legs-hint")}</p>
+      </Draft>
       <Button
         type="submit"
         variant="secondary"
-        className="col-span-full w-full"
+        className="w-full"
         isPending={propose.isPending}>
         {t("order-form.check")}
       </Button>
-      <div className="col-span-full">
-        <PanelOutcome
-          error={propose.error}
-          proposal={proposal}
-          hint={t("exit-form.description")}
-        />
-      </div>
+      <Outcome error={propose.error} proposal={proposal} />
     </Form>
   );
 }

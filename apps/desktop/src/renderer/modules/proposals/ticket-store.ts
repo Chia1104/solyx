@@ -20,7 +20,7 @@ export const TicketTab = {
 
 export type TicketTab = (typeof TicketTab)[keyof typeof TicketTab];
 
-/** A sale of shares held, asked for elsewhere, such as from a position's row, for the panel to fill in. */
+/** A sale of shares held, asked for elsewhere, such as from a position, for the panel to fill in. */
 export interface TicketRequest {
   /** The listing's `symbolKey`. */
   key: string;
@@ -29,6 +29,9 @@ export interface TicketRequest {
 }
 
 interface TicketStore {
+  /** The listing the order panel trades: the one on screen, or one the user typed or a sale named. */
+  symbol: SymbolRef | null;
+  setSymbol(symbol: SymbolRef): void;
   picked: PickedPrice | null;
   /** Waits until the listing's panel takes it. */
   request: TicketRequest | null;
@@ -41,11 +44,21 @@ interface TicketStore {
 }
 
 export const useTicketStore = create<TicketStore>()((set) => ({
+  symbol: null,
+  setSymbol: (symbol) =>
+    set((state) =>
+      state.symbol && symbolKey(state.symbol) === symbolKey(symbol)
+        ? state
+        : { symbol: { market: symbol.market, symbol: symbol.symbol } }
+    ),
   picked: null,
   request: null,
   pickingOnChart: false,
   requestSale: (symbol, tab, shares) =>
-    set({ request: { key: symbolKey(symbol), tab, shares } }),
+    set({
+      symbol: { market: symbol.market, symbol: symbol.symbol },
+      request: { key: symbolKey(symbol), tab, shares },
+    }),
   takeRequest: () => set({ request: null }),
   setPickingOnChart: (pickingOnChart) => set({ pickingOnChart }),
   pick: (symbol, price) =>

@@ -30,6 +30,7 @@ import { faded } from "../market/chart-palette.ts";
 import { useDirectionColors } from "../market/price-colors.ts";
 
 import { proposalsQuery } from "./proposals-query.ts";
+import { showTicket } from "./show-ticket.ts";
 import { useTicketStore } from "./ticket-store.ts";
 
 // The series only carries the lines and marks: it follows the closes, so it never moves the scale.
@@ -266,6 +267,7 @@ function PriceClick({
 
       pick(symbol, nearestTick(symbol, price));
       setPicking(false);
+      showTicket();
     };
 
     chart.subscribeClick(click);

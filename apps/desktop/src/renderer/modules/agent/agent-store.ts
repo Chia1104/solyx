@@ -5,8 +5,14 @@ import { ApprovalMode } from "@solyx/agent/wire";
 
 /** The agent pane's tabs. */
 export const AgentTab = {
+  /** The conversation with the agent and the controls over which one. */
   Chat: "chat",
+  /** What waits on the user or the broker: proposals, working orders and fills. */
   Proposals: "proposals",
+  /** The order panel. */
+  Ticket: "ticket",
+  /** What the account holds and has made or lost. */
+  ProfitLoss: "profit-loss",
 } as const;
 
 export type AgentTab = (typeof AgentTab)[keyof typeof AgentTab];

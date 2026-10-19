@@ -233,9 +233,6 @@ export type RiskViolation =
       last: string;
     };
 
-// Prices are decimals that binary numbers only approximate, so one on a tick may read a hair off it.
-const TICK_EPSILON = 1e-6;
-
 // More than any tick on the exchanges has.
 const PRICE_DECIMALS = 4;
 
@@ -243,39 +240,6 @@ export function tickSize(instrument: SymbolRef, price: number): number {
   return instrument.market === Market.TW
     ? twTickSize(price, instrument.symbol)
     : usTickSize(price);
-}
-
-/**
- * The price `steps` ticks from `price`, negative ones below it. A price off the tick first moves to
- * the nearest one on that side, and each step takes the tick of the price it lands on, so stepping
- * down across a boundary of the table takes the finer tick below it.
- */
-export function stepTicks(
-  instrument: SymbolRef,
-  price: number,
-  steps: number
-): number {
-  let stepped = price;
-
-  for (let step = 0; step < Math.abs(steps); step += 1) {
-    const tick = tickSize(instrument, stepped);
-
-    if (steps > 0) {
-      stepped = (Math.floor(stepped / tick + TICK_EPSILON) + 1) * tick;
-    } else {
-      const below = (Math.ceil(stepped / tick - TICK_EPSILON) - 1) * tick;
-      const finer = tickSize(instrument, below);
-
-      stepped =
-        finer < tick
-          ? (Math.ceil(stepped / finer - TICK_EPSILON) - 1) * finer
-          : below;
-    }
-
-    stepped = round(stepped, PRICE_DECIMALS);
-  }
-
-  return stepped;
 }
 
 /** The price on the tick nearest `price`, such as one read off a chart. */
