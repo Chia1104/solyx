@@ -91,7 +91,12 @@ import type {
 } from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
-import { ProposalSource, ProposalStatus } from "@solyx/core/order-desk";
+import {
+  MandateSending,
+  ProposalSource,
+  ProposalStatus,
+  mandateSending,
+} from "@solyx/core/order-desk";
 import type {
   ProposalBasis,
   ProposingDesk,
@@ -585,20 +590,30 @@ export function describeProposal(proposal: TradeProposal): string {
   if (proposal.basis)
     parts.push(basisText(order.instrument.market, proposal.basis));
 
-  if (proposal.mandate) parts.push(mandateText(proposal.mandate));
+  if (proposal.mandate) parts.push(mandateText(proposal, proposal.mandate));
 
   return parts.join(" | ");
 }
 
-/** What the user's mandate made of a proposal. */
-function mandateText({ shadow, violations }: MandateVerdict): string {
+/** What the user's mandate made of a proposal, and how far the app got sending it. */
+function mandateText(
+  proposal: TradeProposal,
+  { violations }: MandateVerdict
+): string {
   if (violations.length > 0) {
     return `outside the user's mandate ${JSON.stringify(violations)}`;
   }
 
-  return shadow
-    ? "the user's mandate would have sent it, but is in shadow, so it waits for the user"
-    : "sent under the user's mandate without waiting for them";
+  switch (mandateSending(proposal)) {
+    case null:
+      return "the user's mandate would have sent it, but is in shadow, so it waits for the user";
+    case MandateSending.Checking:
+      return "the user's mandate covers it, and the app is checking it again before sending it";
+    case MandateSending.Sent:
+      return "sent under the user's mandate without waiting for them";
+    case MandateSending.Stopped:
+      return "the user's mandate covered it, but the checks before sending stopped it, so it was not sent";
+  }
 }
 
 /** The agent's trading tools. Their per-run limits are kept with the conversation. */

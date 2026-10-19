@@ -341,6 +341,38 @@ describe("an order as Fubon reports it", () => {
     ).toMatchObject({ type: OrderType.Limit, limitPrice: 72.6 });
   });
 
+  test("an order reads at what it stands for now, and one filled in Fubon's history as filled whole", () => {
+    // Cut from 3,000 shares to 2,000, of which 1,000 filled.
+    expect(
+      fubonOrder(
+        orderResult({ quantity: 3000, afterQty: 2000, filledQty: 1000 }),
+        "2026-10-19"
+      )
+    ).toMatchObject({ order: { quantity: 2000 }, filled: 1000 });
+
+    // Cancelled: nothing of it stands.
+    expect(
+      fubonOrder(orderResult({ afterQty: 0, status: 30 }), "2026-10-19")?.order
+    ).toMatchObject({ quantity: 2000 });
+
+    expect(
+      fubonOrder(
+        orderResult({
+          date: "2026/10/07",
+          quantity: 3000,
+          afterQty: 1000,
+          filledQty: undefined,
+          status: 50,
+        }),
+        "2026-10-19"
+      )
+    ).toMatchObject({
+      order: { quantity: 1000 },
+      filled: 1000,
+      status: BrokerOrderStatus.Filled,
+    });
+  });
+
   test("a margin order, or one Fubon has yet to number, is left out", () => {
     expect(
       fubonOrder(orderResult({ orderType: "Margin" }), "2026-10-19")

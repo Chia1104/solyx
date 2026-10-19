@@ -82,14 +82,13 @@ SITCA's data is used under the [Open Government Data License, version 1.0](https
 
 - **Local-first:** broker certificates, credentials and API keys stay on your machine. There is no relay server.
 - **Bring your own key:** market data providers and LLMs run on your own accounts and keys.
-- **A human confirms every order:** the agent can only propose. Risk checks run again right before an order goes to the broker.
+- **You decide what goes to the broker:** the agent can only propose, and an order waits for you unless it falls within a trading mandate you set. Risk checks run again right before an order goes to the broker.
 - **Paper by default:** live trading stays off until you explicitly turn it on.
 
 ## Status
 
-- **Paper trading only.** Signing in to Fubon serves market data; it does not yet read an account or place orders.
+- **One live broker.** Besides the paper account, Solyx trades only a Fubon Securities account, and buys there need a settlement account at Taipei Fubon Bank or LINE Bank.
 - **Taiwan market data only.** The app follows the US session and its rules, but no US data source is wired up.
-- **Limit orders only.** Market orders are rejected until the order desk has a quote feed to price them against.
 
 ## Install
 

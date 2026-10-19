@@ -239,6 +239,8 @@ const orderResultSchema = z.object({
   price: optionalNumber,
   afterPrice: optionalNumber,
   quantity: optionalNumber,
+  /** What the order stands for now, its fills included; a change of quantity changes it. */
+  afterQty: optionalNumber,
   filledQty: optionalNumber,
   orderType: optionalText,
   status: optionalNumber,
@@ -712,7 +714,10 @@ export function fubonOrder(
   const side = FUBON_SIDE.get(result.buySell ?? "");
   // Fubon lists an order it has yet to number with a blank number.
   const orderNo = result.orderNo?.trim();
-  const { stockNo, quantity } = result;
+  const { stockNo } = result;
+  // What the order stands for now, so one cut down reads at its new size; one nothing of which
+  // stands, as once cancelled, at what it asked for.
+  const quantity = result.afterQty || result.quantity;
 
   if (
     !side ||
@@ -746,7 +751,10 @@ export function fubonOrder(
     id: fubonOrderId(result.date, orderNo),
     tag: result.userDef?.trim() || null,
     order,
-    filled: result.filledQty ?? 0,
+    // Fubon's history leaves out what filled, so an order it lists as filled filled whole.
+    filled:
+      result.filledQty ??
+      (reported === BrokerOrderStatus.Filled ? quantity : 0),
     status:
       open && isoDay(result.date) < today
         ? BrokerOrderStatus.Cancelled
