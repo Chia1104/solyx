@@ -304,7 +304,10 @@ const CONDITIONS_IN_FORCE = "Type2";
 const NONE_FOUND = "查無資料";
 
 // Fubon answers a cancel with its counts, as in "成功筆數:1,失敗筆數:0!".
-const CANCEL_FAILURES = /失敗筆數:(\d+)/;
+const CANCEL_COUNTS = /成功筆數:(\d+),失敗筆數:(\d+)/;
+
+// Fubon stamps a condition order to the second by its own clock, which may run behind this one.
+const CONDITION_SKEW_MS = 30_000;
 
 const quoteSchema = z.object({
   referencePrice: z.number(),
@@ -420,7 +423,8 @@ export interface FubonSession {
   priceLimits(account: string, symbol: string): FubonPriceLimits;
   /**
    * Has Fubon watch one leg of an exit, and answers with its guid or with why Fubon did not take
-   * it. Throws where Fubon's answer leaves whether it took the leg unknown.
+   * it, which a failed answer is only where Fubon then lists no such leg placed since. Throws where
+   * whether it took the leg stays unknown.
    */
   placeCondition(account: string, leg: FubonConditionLeg): FubonConditionPlaced;
   /** The account's condition orders still in force, the app's legs among them. */
@@ -583,6 +587,25 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
   }
 
   const today = () => exchangeDate(Market.TW);
+
+  function conditionsInForce(id: string): FubonWatchedCondition[] {
+    const account = stockAccount(id);
+
+    paceQuery();
+
+    const result = sdk.stock.getConditionOrder(account, CONDITIONS_IN_FORCE);
+
+    // Fubon answers a query that finds none as a failure.
+    if (!result.isSuccess && result.message === NONE_FOUND) return [];
+
+    return (
+      answer(
+        "condition query",
+        result,
+        z.array(conditionDetailSchema).nullable()
+      ) ?? []
+    ).flatMap((detail) => fubonWatchedCondition(detail) ?? []);
+  }
 
   function orders(id: string, from: string): FubonOrder[] {
     const { stock } = sdk;
@@ -768,6 +791,7 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
     placeCondition(id, leg) {
       const account = stockAccount(id);
       const { condition, order } = fubonConditionObject(leg);
+      const placing = Date.now();
 
       const result = sdk.stock.singleCondition(
         account,
@@ -780,7 +804,21 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
       );
 
       if (!result.isSuccess) {
-        return { refused: result.message ?? "no reason given" };
+        // Fubon answers a refusal and a failure it cannot vouch for alike, so the leg counts as
+        // refused only where Fubon lists none like it placed since; where the list cannot be
+        // read, the outcome stays unknown.
+        const placed = conditionsInForce(id).find(
+          (each) =>
+            each.symbol === leg.symbol &&
+            each.quantity === leg.quantity &&
+            each.leg === leg.leg &&
+            each.price === leg.price &&
+            each.placedAt >= placing - CONDITION_SKEW_MS
+        );
+
+        return placed
+          ? { guid: placed.guid }
+          : { refused: result.message ?? "no reason given" };
       }
 
       const placed = conditionPlacedSchema.safeParse(result.data ?? null);
@@ -792,24 +830,7 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
       return { guid: placed.data.guid };
     },
 
-    conditions(id) {
-      const account = stockAccount(id);
-
-      paceQuery();
-
-      const result = sdk.stock.getConditionOrder(account, CONDITIONS_IN_FORCE);
-
-      // Fubon answers a query that finds none as a failure.
-      if (!result.isSuccess && result.message === NONE_FOUND) return [];
-
-      return (
-        answer(
-          "condition query",
-          result,
-          z.array(conditionDetailSchema).nullable()
-        ) ?? []
-      ).flatMap((detail) => fubonWatchedCondition(detail) ?? []);
-    },
+    conditions: conditionsInForce,
 
     cancelCondition(id, guid) {
       const account = stockAccount(id);
@@ -817,12 +838,15 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
       paceQuery();
 
       const result = sdk.stock.cancelConditionOrders(account, guid);
+      const counts = CANCEL_COUNTS.exec(String(result.data ?? ""));
 
-      const failed = Number(
-        CANCEL_FAILURES.exec(String(result.data))?.[1] ?? 0
-      );
-
-      if (!result.isSuccess || failed > 0) {
+      // Only counts that say the one leg was cancelled and none failed confirm it.
+      if (
+        !result.isSuccess ||
+        !counts ||
+        Number(counts[1]) < 1 ||
+        Number(counts[2]) > 0
+      ) {
         throw new Error(
           `Fubon did not cancel exit leg ${guid}: ${result.message ?? String(result.data)}`
         );
