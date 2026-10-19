@@ -278,6 +278,30 @@ test("a buy is rejected while the broker cannot say what the account can spend, 
   ).toEqual([]);
 });
 
+test("a sale may draw only on the shares working sales leave", () => {
+  const order: OrderRequest = {
+    instrument: tsmc,
+    side: Side.Sell,
+    quantity: 1000,
+    type: OrderType.Limit,
+    limitPrice: 400,
+  };
+
+  const reserved: RiskContext = {
+    ...open,
+    account: {
+      ...open.account,
+      positions: [
+        { instrument: tsmc, quantity: 1000, avgPrice: 900, sellable: 0 },
+      ],
+    },
+  };
+
+  expect(checkOrder(order, limits, reserved)).toEqual([
+    { code: RiskViolationCode.InsufficientShares, quantity: 1000, held: 0 },
+  ]);
+});
+
 test("a sale of more shares than the account holds is rejected", () => {
   const order: OrderRequest = {
     instrument: tsmc,
