@@ -1,4 +1,4 @@
-import { Disclosure, Tabs } from "@heroui/react";
+import { Tabs } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -10,9 +10,7 @@ import { AgentChat } from "../modules/agent/agent-chat.tsx";
 import { agentSessionsQuery } from "../modules/agent/agent-query.ts";
 import { AgentSessionControls } from "../modules/agent/agent-sessions.tsx";
 import { AgentTab, useAgentStore } from "../modules/agent/agent-store.ts";
-import { ExitForm } from "../modules/proposals/exit-form.tsx";
 import { OrderLock } from "../modules/proposals/order-lock.tsx";
-import { ProposalForm } from "../modules/proposals/proposal-form.tsx";
 import { ProposalQueue } from "../modules/proposals/proposal-queue.tsx";
 import { proposalsQuery } from "../modules/proposals/proposals-query.ts";
 
@@ -72,42 +70,6 @@ export function AgentPane() {
           <div className="min-h-0 flex-1 overflow-y-auto">
             <ProposalQueue />
           </div>
-          <Disclosure className="max-h-[70%] shrink-0 overflow-y-auto border-t border-separator">
-            <Disclosure.Heading>
-              <Disclosure.Trigger className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium">
-                {t("proposals.form-title")}
-                <Disclosure.Indicator className="ml-auto" />
-              </Disclosure.Trigger>
-            </Disclosure.Heading>
-            <Disclosure.Content>
-              <Tabs variant="secondary" className="gap-0 px-4 pb-4">
-                <Tabs.ListContainer className="border-separator">
-                  <Tabs.List aria-label={t("proposals.form-title")}>
-                    <Tabs.Tab id="order" className="h-9">
-                      {t("proposals.form-kinds.order")}
-                      <Tabs.Indicator />
-                    </Tabs.Tab>
-                    <Tabs.Tab id="exit" className="h-9">
-                      {t("proposals.form-kinds.exit")}
-                      <Tabs.Indicator />
-                    </Tabs.Tab>
-                  </Tabs.List>
-                </Tabs.ListContainer>
-                <Tabs.Panel id="order" className="flex flex-col gap-3 px-0">
-                  <p className="text-xs text-muted">
-                    {t("proposals.form-description")}
-                  </p>
-                  <ProposalForm />
-                </Tabs.Panel>
-                <Tabs.Panel id="exit" className="flex flex-col gap-3 px-0">
-                  <p className="text-xs text-muted">
-                    {t("proposals.exit-form-description")}
-                  </p>
-                  <ExitForm />
-                </Tabs.Panel>
-              </Tabs>
-            </Disclosure.Content>
-          </Disclosure>
         </Tabs.Panel>
       </Tabs>
     </div>

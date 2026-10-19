@@ -5,13 +5,17 @@ description: The one road every order takes, and the checks along it.
 
 Every order in Solyx takes the same road. No setting, mode or extension adds another.
 
-1. **The agent proposes.** Its tools can create a proposal and nothing else; you can also write one yourself.
+1. **The agent proposes.** Its tools can create a proposal and nothing else; you can also make one yourself in the [order panel](#the-order-panel).
 2. **Risk checks run** against the account, the session and the market's rules.
 3. **You confirm** the proposal in the app, or your [trading mandate](#trading-mandate) covers it. Only your click, or a mandate you set yourself, reaches this step.
 4. **The checks run again,** since the market and the account may have moved since the proposal was made.
 5. **The order reaches the broker.**
 
 A proposal that fails a check is rejected and says which rule it broke. One that waits stays pencilled in, hatched and dashed, until you confirm or dismiss it.
+
+## The order panel
+
+Beside a listing's chart sit its quote, its best five bids and asks, and the order panel; **Order** above the chart shows or hides them. The price follows the last trade until you set one: step it a tick at a time, pick a price from the book, or take the limit down, the reference, the last trade or the limit up. A Taiwan order counts board lots, or shares for odd lots, and the panel adds up its value with the commission and, on a sale, the tax. **Check order** makes a proposal from it, shown under the panel to confirm like any other. Changing the panel afterwards dismisses it.
 
 ## The checks
 
@@ -44,7 +48,7 @@ The mandate is sealed with your keys, so only you can set it, in the app. The ag
 
 ## Stops and targets
 
-To sell shares you hold once the price falls or rises far enough, set a stop, a target or both under **New order proposal → Stop and target** in the Proposals tab, watched for up to 60 days. Like any proposal, it waits for you to confirm it. Fubon then watches the price itself, so it fires even while Solyx is closed: a stop sells at the day's lower limit, filling at what buyers bid, and a target sells at its price. Once one sells, Solyx cancels the other the next time it runs, so while Solyx is closed both could sell if you hold more shares than the exit sells. The paper account watches only while Solyx runs: it follows the live minute bars of each listing with an exit, which share your plan's live subscriptions with charts, and checks a listing the stream doesn't cover once a minute. You can cancel an exit from its card while it is still watched.
+To sell shares you hold once the price falls or rises far enough, set a stop, a target or both on the order panel's **Stop and target** tab, watched for up to 60 days. Like any proposal, it waits for you to confirm it. Fubon then watches the price itself, so it fires even while Solyx is closed: a stop sells at the day's lower limit, filling at what buyers bid, and a target sells at its price. Once one sells, Solyx cancels the other the next time it runs, so while Solyx is closed both could sell if you hold more shares than the exit sells. The paper account watches only while Solyx runs: it follows the live minute bars of each listing with an exit, which share your plan's live subscriptions with charts, and checks a listing the stream doesn't cover once a minute. You can cancel an exit from its card while it is still watched.
 
 ## Paper by default
 

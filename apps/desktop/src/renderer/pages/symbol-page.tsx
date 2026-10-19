@@ -24,7 +24,10 @@ import { IntervalSelect } from "../modules/market/interval-select.tsx";
 import { LowerView } from "../modules/market/lower-view.ts";
 import { SymbolChart } from "../modules/market/symbol-chart.tsx";
 import { SymbolQuote } from "../modules/market/symbol-quote.tsx";
+import { useDepth } from "../modules/market/use-depth.ts";
 import { NewsList } from "../modules/news/news-list.tsx";
+import { OrderTicket } from "../modules/proposals/order-ticket.tsx";
+import { useTicketStore } from "../modules/proposals/ticket-store.ts";
 import { ForecastOverlay } from "../modules/research/forecast-overlay.tsx";
 import { ResearchPanel } from "../modules/research/research-panel.tsx";
 import { WatchToggle } from "../modules/watchlist/watch-toggle.tsx";
@@ -32,6 +35,8 @@ import { WatchToggle } from "../modules/watchlist/watch-toggle.tsx";
 const route = getRouteApi("/symbol/$market/$symbol");
 
 const NEWS_PANE_ID = "symbol-news";
+
+const TRADE_RAIL_ID = "symbol-trade";
 
 /** Dragging the news up stops before the chart gets shorter than this. */
 const CHART_MIN_HEIGHT = 160;
@@ -45,6 +50,10 @@ export function SymbolPage() {
   const news = useRef<HTMLDivElement>(null);
   const newsHeight = useLayoutStore((state) => state.newsHeight);
   const setNewsHeight = useLayoutStore((state) => state.setNewsHeight);
+  const tradeRail = useLayoutStore((state) => state.tradeRail);
+  const toggleTradeRail = useLayoutStore((state) => state.toggleTradeRail);
+  const pickPrice = useTicketStore((state) => state.pick);
+  const depth = useDepth(symbol, tradeRail);
   // Only Taiwan's exchanges report flows, so a US listing shows the news in their place.
   const flowsShown = symbol.market === Market.TW;
 
@@ -97,6 +106,14 @@ export function SymbolPage() {
           }
         />
         <IndicatorMenu market={symbol.market} interval={interval} />
+        <ToggleButton
+          size="sm"
+          className="ml-auto"
+          aria-controls={TRADE_RAIL_ID}
+          isSelected={tradeRail}
+          onChange={toggleTradeRail}>
+          {t("order-form.title")}
+        </ToggleButton>
       </div>
       <div className="flex min-h-0 flex-1">
         <div ref={split} className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -163,16 +180,27 @@ export function SymbolPage() {
             ) : null}
           </div>
         </div>
-        {/* Beside the chart only where the main view leaves it room. */}
-        <aside
-          aria-label={t("depth.title")}
-          className="hidden w-64 shrink-0 overflow-y-auto border-l border-separator p-4 @min-[52rem]/main:block">
-          <CatchBoundary
-            getResetKey={() => symbolKey(symbol)}
-            errorComponent={ErrorFallback}>
-            <DepthPanel symbol={symbol} />
-          </CatchBoundary>
-        </aside>
+        {tradeRail ? (
+          <aside
+            id={TRADE_RAIL_ID}
+            aria-label={t("order-form.title")}
+            className="flex w-64 shrink-0 flex-col gap-5 overflow-y-auto border-l border-separator p-4">
+            <CatchBoundary
+              getResetKey={() => symbolKey(symbol)}
+              errorComponent={ErrorFallback}>
+              <DepthPanel
+                symbol={symbol}
+                depth={depth}
+                onPick={(price) => pickPrice(symbol, price)}
+              />
+            </CatchBoundary>
+            <OrderTicket
+              key={symbolKey(symbol)}
+              symbol={symbol}
+              depth={depth}
+            />
+          </aside>
+        ) : null}
       </div>
     </div>
   );

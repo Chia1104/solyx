@@ -8,6 +8,7 @@ import {
   twRocDaySchema,
   twSpendable,
   twTickSize,
+  twTradeCosts,
 } from "../src/rules/tw.ts";
 import { usTickSize } from "../src/rules/us.ts";
 
@@ -99,4 +100,24 @@ test("a Taiwan account spends its bank's balance with every trade not yet settle
   expect(twSpendable(1_000_000, [-200_000, 30_000], today)).toBeCloseTo(
     1_000_000 - 200_000 + 30_000 - 100_142.5 + 49_878.75 - 1_020
   );
+});
+
+describe("twTradeCosts", () => {
+  test("a buy pays the commission, rounded down, and no tax", () => {
+    expect(twTradeCosts(2_080_000, Side.Buy, "2330")).toEqual({
+      commission: 2964,
+      tax: 0,
+    });
+  });
+
+  test("a sale pays a stock's tax, a fund's less, and a small trade the least commission", () => {
+    expect(twTradeCosts(104_500, Side.Sell, "2330")).toEqual({
+      commission: 148,
+      tax: 313,
+    });
+    expect(twTradeCosts(5_000, Side.Sell, "0050")).toEqual({
+      commission: 20,
+      tax: 5,
+    });
+  });
 });

@@ -283,7 +283,8 @@
     "unit": {
       "TW": "單位：張",
       "US": "單位：股"
-    }
+    },
+    "pick": "以 {{price}} 為委託價"
   },
   "news": {
     "title": "新聞與討論",
@@ -678,13 +679,6 @@
     "open-research": "查看研究"
   },
   "proposals": {
-    "form-title": "建立下單提案",
-    "form-description": "提案會先在這裡經過風控檢查，確認送出時會再檢查一次。",
-    "form-kinds": {
-      "order": "委託",
-      "exit": "停損停利"
-    },
-    "exit-form-description": "價格跌到停損價或漲到停利價時，賣出你持有的股票。和其他提案一樣，要你確認才會生效。",
     "summary": "{{side}} {{quantity, number}} 股 @ {{price}}",
     "market-price": "市價",
     "impact": {
@@ -914,28 +908,57 @@
     }
   },
   "order-form": {
-    "market": "市場",
-    "side": "買賣",
+    "title": "下單",
+    "tabs": {
+      "order": "買賣",
+      "exit": "停損停利"
+    },
+    "side": "買賣別",
+    "unit": "交易單位",
+    "units": {
+      "lots": "整股",
+      "shares": "零股"
+    },
     "type": "委託類型",
-    "symbol": "代號",
-    "symbol-placeholder": "2330",
-    "quantity": "股數",
-    "limit-price": "限價",
-    "rationale": "理由",
-    "rationale-placeholder": "會跟提案一起保存，方便日後回顧",
-    "submit": "建立提案",
+    "price": "價格",
+    "tick-down": "降一檔",
+    "tick-up": "升一檔",
+    "prices": {
+      "limit-down": "跌停",
+      "reference": "平盤",
+      "last": "現價",
+      "limit-up": "漲停"
+    },
+    "quantity": {
+      "lots": "張數",
+      "shares": "股數"
+    },
+    "all": "全部 {{count, number}}",
+    "costs": {
+      "value": "價金",
+      "value-buy-market": "價金最多",
+      "value-sell-market": "價金最少",
+      "commission": "手續費",
+      "tax": "交易稅",
+      "total-buy": "應付",
+      "total-sell": "應收"
+    },
+    "check": "檢查委託",
+    "hint": "檢查後會建立一筆提案，按確認才會送出。",
+    "edit-dismisses": "改任何欄位，這筆提案就會放棄。",
     "errors": {
       "required": "必填",
-      "whole-shares": "請輸入整數股",
+      "whole": "請輸入整數",
       "positive": "必須大於零"
     }
   },
   "exit-form": {
+    "quantity": "股數",
     "days": "盯價天數",
     "stop": "停損價",
-    "stop-hint": "跌到此價時，以跌停價賣出。",
     "target": "停利價",
-    "target-hint": "漲到此價時，以此價賣出。",
+    "legs-hint": "跌到停損價時以跌停價賣出；漲到停利價時以停利價賣出。",
+    "description": "價格到了停損價或停利價就賣出持股。和其他提案一樣，要你確認才會生效。",
     "errors": {
       "whole-days": "請輸入整數天",
       "days": "1 到 {{max, number}} 天",

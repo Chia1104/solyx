@@ -11,6 +11,7 @@ import {
   checkOrder,
   premiseViolations,
   sessionBand,
+  stepTicks,
 } from "../src/risk.ts";
 import type { RiskContext, RiskLimits } from "../src/risk.ts";
 import { Session, listedTradingDays } from "../src/session.ts";
@@ -457,5 +458,31 @@ describe("an exit", () => {
     expect(
       checkExit({ ...request, stop: null, target: null }, context)
     ).toEqual([{ code: RiskViolationCode.ExitWithoutPrice }]);
+  });
+});
+
+describe("stepTicks", () => {
+  const stock = { market: Market.TW, symbol: "2330" };
+  const fund = { market: Market.TW, symbol: "0050" };
+
+  test.each([
+    [1040, 1, 1045],
+    [1040, -2, 1030],
+    [1000, -1, 999],
+    [999, 1, 1000],
+    [50, -1, 49.95],
+    [49.95, 1, 50],
+    [100, -1, 99.9],
+    [1042, 1, 1045],
+    [1042, -1, 1040],
+  ])("a stock at %d stepped %d ticks is %d", (price, steps, stepped) => {
+    expect(stepTicks(stock, price, steps)).toBe(stepped);
+  });
+
+  test("a fund steps on its own finer grid, and a US listing by the cent", () => {
+    expect(stepTicks(fund, 50, -1)).toBe(49.99);
+    expect(stepTicks({ market: Market.US, symbol: "AAPL" }, 1, -1)).toBe(
+      0.9999
+    );
   });
 });

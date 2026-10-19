@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 
 import { Chip, cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
 import { Market } from "@solyx/core/market";
@@ -16,14 +17,23 @@ import { bandQuery } from "./band-query.ts";
 import { numberFormats } from "./number-formats.ts";
 import { useDirectionColors } from "./price-colors.ts";
 import { directionOf } from "./quote-figures.tsx";
-import { useDepth } from "./use-depth.ts";
 
 const BOOK_LEVELS = 5;
 
-/** The listing's session so far and its best bids and asks, as its source pushes them. */
-export function DepthPanel({ symbol }: { symbol: SymbolRef }) {
+/**
+ * The listing's session so far and its best bids and asks, as `useDepth` follows them; a price
+ * in the book is handed to `onPick`.
+ */
+export function DepthPanel({
+  symbol,
+  depth,
+  onPick,
+}: {
+  symbol: SymbolRef;
+  depth: Depth | null | undefined;
+  onPick: (price: number) => void;
+}) {
   const { t } = useTranslation();
-  const depth = useDepth(symbol);
 
   if (depth === undefined) return <LoadingState />;
 
@@ -34,7 +44,7 @@ export function DepthPanel({ symbol }: { symbol: SymbolRef }) {
   return (
     <div className="flex flex-col gap-5">
       <QuoteBoard symbol={symbol} depth={depth} />
-      <DepthLadder symbol={symbol} depth={depth} />
+      <DepthLadder symbol={symbol} depth={depth} onPick={onPick} />
     </div>
   );
 }
@@ -177,7 +187,15 @@ function Figure({
 }
 
 /** The best five asks above the best five bids, each side's sizes drawn against the largest. */
-function DepthLadder({ symbol, depth }: { symbol: SymbolRef; depth: Depth }) {
+function DepthLadder({
+  symbol,
+  depth,
+  onPick,
+}: {
+  symbol: SymbolRef;
+  depth: Depth;
+  onPick: (price: number) => void;
+}) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
   const direction = useDirectionColors(symbol.market);
@@ -229,7 +247,16 @@ function DepthLadder({ symbol, depth }: { symbol: SymbolRef; depth: Depth }) {
             "text-center font-medium",
             level && directionOf(direction, level.price - depth.reference)?.text
           )}>
-          {level ? format.quotePrice.format(level.price) : ""}
+          {level ? (
+            <Button
+              aria-label={t("depth.pick", {
+                price: format.quotePrice.format(level.price),
+              })}
+              className="w-full rounded-sm outline-none hover:bg-default focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
+              onPress={() => onPick(level.price)}>
+              {format.quotePrice.format(level.price)}
+            </Button>
+          ) : null}
         </td>
         <td className="relative w-2/5 pl-2 text-left">
           {side === "ask" ? bar : null}
