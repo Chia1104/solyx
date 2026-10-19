@@ -91,7 +91,21 @@
       "refused": "Refused"
     },
     "cancel": "Cancel order",
-    "cancel-failed": "Couldn't cancel the order"
+    "cancel-failed": "Couldn't cancel the order",
+    "last": "Last",
+    "return": "Return",
+    "exits": "Stop / target",
+    "actions": "Actions",
+    "sell": "Sell",
+    "set-exit": "Stop and target",
+    "fills": "Fills",
+    "filled-at": "Time",
+    "side": "Side",
+    "price": "Price",
+    "realized": "Realized",
+    "no-fills": "No fills yet",
+    "no-working": "No orders working",
+    "recent-fills": "The newest {{count, number}} fills. Every fill counts in the trade review."
   },
   "review": {
     "title": "Trade review",
