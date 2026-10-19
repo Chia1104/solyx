@@ -191,6 +191,7 @@ export type RiskViolation =
   | {
       code: typeof RiskViolationCode.InsufficientShares;
       quantity: number;
+      /** The shares the account can sell now, those its working sales hold back left out. */
       held: number;
     };
 
@@ -304,12 +305,14 @@ export function checkOrder(
     }
   }
 
-  // The app makes no short sales, so a sale draws only on shares the account holds.
+  // The app makes no short sales, so a sale draws only on shares the account holds and no
+  // working sale holds back already.
   if (order.side === Side.Sell) {
-    const held =
-      context.account.positions.find(
-        (position) => symbolKey(position.instrument) === symbolKey(instrument)
-      )?.quantity ?? 0;
+    const position = context.account.positions.find(
+      (each) => symbolKey(each.instrument) === symbolKey(instrument)
+    );
+
+    const held = position?.sellable ?? position?.quantity ?? 0;
 
     if (quantity > held) {
       violations.push({
