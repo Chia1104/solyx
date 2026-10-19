@@ -120,6 +120,7 @@ function proposal(
   return {
     id,
     broker: "paper",
+    mandate: null,
     order: {
       instrument: { market: Market.TW, symbol },
       side: Side.Buy,

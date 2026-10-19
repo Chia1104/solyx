@@ -8,7 +8,8 @@ import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillCatalog } from "@solyx/agent/skills";
 import type { SettingChange } from "@solyx/agent/wire";
 import { DecisionMode } from "@solyx/core/council";
-import { Currency, Market } from "@solyx/core/market";
+import type { Mandate } from "@solyx/core/mandate";
+import { Currency, Market, symbolLabel } from "@solyx/core/market";
 import type { MemoryStore } from "@solyx/core/memory";
 import { NewsVoice } from "@solyx/core/news";
 import { CollectionJob, ScheduleKind } from "@solyx/core/schedule";
@@ -77,6 +78,8 @@ export interface AgentSetupSources {
   themes: Pick<ThemeStore, "list">;
   /** What the app keeps on disk, which only the user clears. */
   storage: Pick<StorageApi, "usage">;
+  /** The user's trading mandate, which only they set. */
+  mandate: () => Mandate | null;
   version: string;
   /** Paths are shown with it as `~`. */
   home: string;
@@ -93,6 +96,33 @@ export interface AgentSetupOptions extends AgentSetupSources {
   /** Whether the agent has the shell now, which it never has beside a live account. */
   shellOn: () => boolean;
   files: { config: string; skills: string; instructions: string };
+}
+
+/** The mandate in words, with its bounds as the desk holds orders to them. */
+function mandateText(mandate: Mandate | null): string {
+  if (!mandate) return "none: every order waits for the user";
+
+  const listings = mandate.listings.map(symbolLabel).join(", ");
+
+  const values = Object.values(Currency)
+    .flatMap((currency) => {
+      const order = mandate.maxOrderValue[currency];
+
+      return order === undefined
+        ? []
+        : [
+            `${currency} ${order} an order, ${mandate.maxDayValue[currency] ?? 0} a day`,
+          ];
+    })
+    .join("; ");
+
+  return [
+    `for the ${mandate.broker} account`,
+    mandate.shadow ? "in shadow: it only marks what it would send" : "sending",
+    `until ${new Date(mandate.expiresAt).toISOString()}`,
+    `limit orders to ${mandate.sides.join(" and ")} ${listings}`,
+    `at most ${values}, ${mandate.maxDayOrders} orders a day`,
+  ].join("; ");
 }
 
 /** A config file entry by its path, described as the JSON Schema beside the file describes it. */
@@ -204,6 +234,12 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       missing: [],
       settings: [
         entry(["trading", "broker"], broker),
+        {
+          name: "trading.mandate",
+          value: mandateText(options.mandate()),
+          description:
+            "Within it the order desk sends the agent's proposals without waiting for the user; only the user sets it, in the app's own settings.",
+        },
         entry(["trading", "locked"], String(locked)),
         ...Object.values(Currency).map((currency) => ({
           name: `trading.maxDailyLoss.${currency}`,

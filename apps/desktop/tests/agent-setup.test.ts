@@ -131,6 +131,7 @@ function setup(scheduled: ScheduledTask[] = []) {
     schedules: { list: () => scheduled },
     themes: { list: () => [] },
     storage: { usage: async () => USAGE },
+    mandate: () => null,
     shellOn: () => false,
     version: "0.9.0",
     home,
@@ -188,6 +189,10 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
   expect(area(areas, "General").missing).toEqual([]);
   expect(area(areas, "Trading").settings).toMatchObject([
     { name: "trading.broker", value: "paper" },
+    {
+      name: "trading.mandate",
+      value: "none: every order waits for the user",
+    },
     { name: "trading.locked", value: "false" },
     { name: "trading.maxDailyLoss.TWD", value: "no limit" },
     { name: "trading.maxDailyLoss.USD", value: "no limit" },

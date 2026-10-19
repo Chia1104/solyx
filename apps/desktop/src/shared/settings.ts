@@ -13,6 +13,7 @@ import type {
 import type { AgentModelRef } from "@solyx/agent/providers";
 import type { SkillSource } from "@solyx/agent/skill-source";
 import type { DecisionMode, MagiUnit } from "@solyx/core/council";
+import { mandateSchema } from "@solyx/core/mandate";
 import { Market } from "@solyx/core/market";
 import type { Currency } from "@solyx/core/market";
 import type { MarketDataPlan } from "@solyx/core/market-data";
@@ -109,6 +110,12 @@ export function webSearchKeySecret(
   return `${provider}-api-key`;
 }
 
+/**
+ * The user's trading mandate, sealed with the secrets so no edit of the app's files can forge
+ * one; the renderer reads it back through its own procedures, never as a secret.
+ */
+export const MANDATE_SECRET = "trading-mandate";
+
 /** Every key the secret store saves under. */
 export type SecretKey =
   | Secret
@@ -116,7 +123,8 @@ export type SecretKey =
   | AgentSignInSecret
   | WebSearchKeySecret
   | McpSecretKey
-  | McpSignInKey;
+  | McpSignInKey
+  | typeof MANDATE_SECRET;
 
 export const SecretState = {
   Saved: "saved",
@@ -399,6 +407,16 @@ export const TradingBroker = {
 export type TradingBroker = (typeof TradingBroker)[keyof typeof TradingBroker];
 
 export const tradingBrokerSchema = z.enum(TradingBroker);
+
+/** The most days a mandate lasts before the user sets it again. */
+export const MAX_MANDATE_DAYS = 30;
+
+/** A mandate as the user sets it: the app binds it to the account the desk trades and dates it. */
+export const mandateDraftSchema = mandateSchema
+  .omit({ broker: true, expiresAt: true })
+  .extend({ days: z.number().int().min(1).max(MAX_MANDATE_DAYS) });
+
+export type MandateDraft = z.infer<typeof mandateDraftSchema>;
 
 export interface TradingSettings {
   /** The account the user picked, which the desk trades from the app's next start on. */

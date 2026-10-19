@@ -12,6 +12,7 @@ import {
   agentThinkingSchema,
 } from "@solyx/agent/providers";
 import { MagiUnit, decisionModeSchema } from "@solyx/core/council";
+import type { Mandate } from "@solyx/core/mandate";
 import { Currency, Market } from "@solyx/core/market";
 import { NewsVoice } from "@solyx/core/news";
 import { decisionsProviderSchema } from "@solyx/decisions/provider";
@@ -37,6 +38,7 @@ import {
   marketDataSourceSchema,
   priceColorsSchema,
   themeSchema,
+  mandateDraftSchema,
   timeZonePreferenceSchema,
   tradingBrokerSchema,
 } from "../settings.ts";
@@ -247,6 +249,11 @@ export const settingsContract = {
   setTradingBroker: oc.input(tradingBrokerSchema).output(type<void>()),
   /** Quits the app and starts it again, as a change that waits for a restart needs. */
   restart: oc.output(type<void>()),
+  /** The user's trading mandate; `null` while they have none. */
+  mandate: oc.output(type<Mandate | null>()),
+  /** Sets the mandate for the account the desk trades, in place of the one before. */
+  setMandate: oc.input(mandateDraftSchema).output(type<Mandate>()),
+  revokeMandate: oc.output(type<void>()),
   /** Locks orders, or unlocks them, from the next check on. */
   setOrdersLocked: oc.input(z.boolean()).output(type<void>()),
   /** Sets the most a currency's sales may lose in a day from the next check on; `null` lifts the limit. */

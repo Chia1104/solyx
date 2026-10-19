@@ -7,7 +7,7 @@ Every order in Solyx takes the same road. No setting, mode or extension adds ano
 
 1. **The agent proposes.** Its tools can create a proposal and nothing else; you can also write one yourself.
 2. **Risk checks run** against the account, the session and the market's rules.
-3. **You confirm** the proposal in the app. Only your click reaches this step.
+3. **You confirm** the proposal in the app, or your [trading mandate](#trading-mandate) covers it. Only your click, or a mandate you set yourself, reaches this step.
 4. **The checks run again,** since the market and the account may have moved since the proposal was made.
 5. **The order reaches the broker.**
 
@@ -20,12 +20,28 @@ A proposal that fails a check is rejected and says which rule it broke. One that
 - **Size.** The order's value stays under your limit and within the account's cash, and a sale within the shares held.
 - **Session.** The market's current session accepts orders, and the account trades that market.
 
-Odd-lot orders must be limit orders. Until the order desk has a quote feed to price them against, market orders are rejected.
+Odd-lot orders must be limit orders. A market order is sized at the session's limit-up price, the most it could fill at, so it is rejected while that price is not known.
+
+While you have set a daily loss limit, buys are refused once the day's sales have lost it, or while the broker has yet to reckon one of the day's sales. Sales still go.
 
 ## Failed submissions are never retried
 
-If a submission fails, the broker may have accepted the order anyway, so Solyx marks it failed and never sends it again. Check your broker before placing it yourself. The same holds for an order still submitting when the app quit.
+If a submission fails, the broker may have accepted the order anyway, so Solyx marks it failed and never sends it again. The same holds for an order still submitting when the app quit. Every order carries a tag from its proposal, so Solyx looks for it at the broker: one the broker holds is marked submitted, and one it does not list once its session is over was never placed. You can ask it to look again from the proposal.
+
+## Trading mandate
+
+A trading mandate lets the agent's proposals go to the broker without waiting for you, within bounds you set in **Settings → Trading**:
+
+- the listings it covers, and whether it covers buys or only sales;
+- the most one order may come to, and the most a day's orders may come to and number;
+- how many days it lasts, up to 30.
+
+It covers limit orders only, never your own proposals, and only the account it was set for. Every check still runs, and confirming stays yours for anything outside it.
+
+A new mandate is in **shadow mode** unless you switch it off: it marks each proposal it would have sent, and you still confirm them. Turn shadow mode off once its picks look right. If an order it sent goes unanswered by the broker, or Solyx closes while sending it, Solyx locks orders until you look at the account.
+
+The mandate is sealed with your keys, so only you can set it, in the app. The agent cannot change it, and neither can an edit to Solyx's files.
 
 ## Paper by default
 
-Orders go to a paper account, so no real money moves. A live broker is connected only after you turn it on yourself.
+Orders go to a paper account, so no real money moves. To trade your own account, set up Fubon's sign-in under **Settings → Market data**, then pick Fubon Securities under **Settings → Trading** and restart Solyx. Proposals still waiting for the paper account are dismissed then. Fubon reads the balance only of a settlement account at Taipei Fubon Bank or LINE Bank; with another bank, Solyx cannot tell what you can spend, so it refuses buys and only sales go. You can cancel an order that is still working from the account panel.

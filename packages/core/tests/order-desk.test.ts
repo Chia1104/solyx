@@ -1,7 +1,7 @@
 import { noop } from "es-toolkit";
 import { expect, test, vi } from "vite-plus/test";
 
-import { MINUTE_MS } from "@solyx/utils/date";
+import { DAY_MS, MINUTE_MS } from "@solyx/utils/date";
 
 import {
   BrokerMode,
@@ -11,12 +11,16 @@ import {
 } from "../src/broker.ts";
 import type { BrokerAdapter, BrokerOrder } from "../src/broker.ts";
 import { ForecastDirection } from "../src/forecast.ts";
+import { MandateViolationCode } from "../src/mandate.ts";
+import type { Mandate } from "../src/mandate.ts";
 import { Market } from "../src/market.ts";
 import {
+  MandateSending,
   OrderDesk,
   ProposalSource,
   ProposalStatus,
   SubmissionFailureCode,
+  mandateSending,
 } from "../src/order-desk.ts";
 import type {
   OrderDeskOptions,
@@ -68,6 +72,7 @@ function setup(
     locked,
     maxDailyLoss,
     lastPrice,
+    mandate,
     brokerId = "fake",
   }: Pick<
     OrderDeskOptions,
@@ -77,11 +82,13 @@ function setup(
     | "locked"
     | "maxDailyLoss"
     | "lastPrice"
+    | "mandate"
   > & { brokerId?: string } = {}
 ) {
   const clock = { now: DURING_SESSION };
   const tradingDays = vi.fn(async (): Promise<TradingDays> => weekdays);
   const onChange = vi.fn();
+  const lockOrders = vi.fn();
 
   const account: AccountSnapshot = {
     cash: { TWD: 5_000_000 },
@@ -126,6 +133,8 @@ function setup(
     locked,
     maxDailyLoss,
     lastPrice,
+    mandate,
+    lockOrders,
     onChange,
     now: () => clock.now,
   });
@@ -142,6 +151,7 @@ function setup(
     tradingDays,
     store,
     onChange,
+    lockOrders,
   };
 }
 
@@ -953,4 +963,226 @@ test("a lock set while the checks wait on the quote still stops the order", asyn
     violations: [{ code: RiskViolationCode.OrdersLocked }],
   });
   expect(placeOrder).not.toHaveBeenCalled();
+});
+
+const covering = (overrides: Partial<Mandate> = {}): Mandate => ({
+  broker: "fake",
+  shadow: false,
+  expiresAt: DURING_SESSION + 7 * DAY_MS,
+  listings: [order.instrument],
+  sides: [Side.Buy, Side.Sell],
+  maxOrderValue: { TWD: 1_000_000 },
+  maxDayValue: { TWD: 2_000_000 },
+  maxDayOrders: 5,
+  ...overrides,
+});
+
+test("an agent's proposal the mandate covers is sent without the user, and one it does not waits with why", async () => {
+  let mandate = covering();
+  const { desk, placeOrder } = setup(undefined, { mandate: () => mandate });
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    status: ProposalStatus.Submitted,
+    brokerOrderId: "B-1",
+    mandate: { shadow: false, violations: [] },
+  });
+  expect(placeOrder).toHaveBeenCalledTimes(1);
+
+  mandate = covering({ sides: [Side.Sell] });
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    status: ProposalStatus.AwaitingConfirmation,
+    mandate: { violations: [{ code: MandateViolationCode.Side }] },
+  });
+  expect(placeOrder).toHaveBeenCalledTimes(1);
+});
+
+test("in shadow the mandate only marks what it would send", async () => {
+  const { desk, placeOrder } = setup(undefined, {
+    mandate: () => covering({ shadow: true }),
+  });
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    status: ProposalStatus.AwaitingConfirmation,
+    mandate: { shadow: true, violations: [] },
+  });
+  expect(placeOrder).not.toHaveBeenCalled();
+});
+
+test("the user's own proposal waits for them, and none the checks refused is put to the mandate", async () => {
+  const { desk, placeOrder } = setup(undefined, { mandate: () => covering() });
+
+  expect(
+    await desk.propose({ order, source: ProposalSource.User, rationale: "" })
+  ).toMatchObject({
+    status: ProposalStatus.AwaitingConfirmation,
+    mandate: null,
+  });
+
+  expect(
+    await desk.propose({
+      order: { ...order, quantity: 1500 },
+      source: ProposalSource.Agent,
+      rationale: "",
+    })
+  ).toMatchObject({ status: ProposalStatus.Rejected, mandate: null });
+  expect(placeOrder).not.toHaveBeenCalled();
+});
+
+test("the mandate counts what it covered in the market day, shadow included", async () => {
+  const { desk, clock } = setup(undefined, {
+    mandate: () => covering({ shadow: true, maxDayOrders: 1 }),
+  });
+
+  await proposeFromAgent(desk);
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    mandate: { violations: [{ code: MandateViolationCode.DayOrders, max: 1 }] },
+  });
+
+  clock.now = DURING_SESSION + DAY_MS;
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    mandate: { violations: [] },
+  });
+});
+
+test("an order sent under the mandate that went unanswered locks orders", async () => {
+  const { desk, placeOrder, lockOrders } = setup(undefined, {
+    mandate: () => covering(),
+  });
+
+  placeOrder.mockRejectedValueOnce(new Error("timeout"));
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    status: ProposalStatus.Failed,
+    failure: { code: SubmissionFailureCode.Unknown },
+  });
+  expect(lockOrders).toHaveBeenCalledTimes(1);
+
+  // One the user confirmed is theirs to look into, and one the broker refused holds nothing.
+  const { id } = await desk.propose({
+    order,
+    source: ProposalSource.User,
+    rationale: "",
+  });
+
+  placeOrder.mockRejectedValueOnce(new Error("timeout"));
+  await desk.confirm(id);
+  placeOrder.mockRejectedValueOnce(new OrderRefusedError("no quota"));
+  await proposeFromAgent(desk);
+
+  expect(lockOrders).toHaveBeenCalledTimes(1);
+});
+
+test("an order the mandate was sending when the app exited locks orders as the desk opens again", async () => {
+  const { desk, placeOrder, store } = setup(undefined, {
+    mandate: () => covering(),
+  });
+
+  placeOrder.mockReturnValueOnce(new Promise(noop));
+  void proposeFromAgent(desk);
+
+  await vi.waitFor(() =>
+    expect(desk.list()).toMatchObject([{ status: ProposalStatus.Submitting }])
+  );
+
+  const reopened = setup(store, { mandate: () => covering() });
+
+  expect(reopened.desk.list()).toMatchObject([
+    { failure: { code: SubmissionFailureCode.Interrupted } },
+  ]);
+  expect(reopened.lockOrders).toHaveBeenCalledTimes(1);
+
+  // One the user confirmed is theirs to look into.
+  const user = setup();
+
+  const { id } = await user.desk.propose({
+    order,
+    source: ProposalSource.User,
+    rationale: "",
+  });
+
+  user.placeOrder.mockReturnValueOnce(new Promise(noop));
+  void user.desk.confirm(id);
+
+  await vi.waitFor(() =>
+    expect(user.desk.list()).toMatchObject([
+      { status: ProposalStatus.Submitting },
+    ])
+  );
+
+  expect(setup(user.store).lockOrders).not.toHaveBeenCalled();
+});
+
+test("how far the desk got sending under the mandate follows each proposal's status", async () => {
+  let locked = false;
+
+  const { desk, placeOrder } = setup(undefined, {
+    mandate: () => covering(),
+    locked: () => locked,
+  });
+
+  let answer: (placed: { orderId: string }) => void = noop;
+
+  placeOrder.mockReturnValueOnce(
+    new Promise((resolve) => {
+      answer = resolve;
+    })
+  );
+
+  const first = proposeFromAgent(desk);
+
+  await vi.waitFor(() => expect(placeOrder).toHaveBeenCalledTimes(1));
+
+  const second = proposeFromAgent(desk);
+
+  await vi.waitFor(() => expect(desk.list()).toHaveLength(2));
+
+  const [sending, queued] = desk.list();
+
+  expect(sending && mandateSending(sending)).toBe(MandateSending.Sent);
+  expect(queued && mandateSending(queued)).toBe(MandateSending.Checking);
+
+  // The lock reaches the second one's checks before sending, which then refuse it.
+  locked = true;
+  answer({ orderId: "B-1" });
+
+  expect(mandateSending(await first)).toBe(MandateSending.Sent);
+  expect(await second).toMatchObject({ status: ProposalStatus.Rejected });
+  expect(mandateSending(await second)).toBe(MandateSending.Stopped);
+  expect(placeOrder).toHaveBeenCalledTimes(1);
+});
+
+test("a mandate revoked while its order waited for the one before leaves the order waiting for the user", async () => {
+  let mandate: Mandate | null = covering();
+  const { desk, placeOrder } = setup(undefined, { mandate: () => mandate });
+
+  const { id } = await desk.propose({
+    order,
+    source: ProposalSource.User,
+    rationale: "",
+  });
+
+  let answer: (placed: { orderId: string }) => void = noop;
+
+  placeOrder.mockReturnValueOnce(
+    new Promise((resolve) => {
+      answer = resolve;
+    })
+  );
+
+  const first = desk.confirm(id);
+  const covered = proposeFromAgent(desk);
+
+  await vi.waitFor(() => expect(placeOrder).toHaveBeenCalledTimes(1));
+  mandate = null;
+  answer({ orderId: "B-1" });
+  await first;
+
+  expect(await covered).toMatchObject({
+    status: ProposalStatus.AwaitingConfirmation,
+    mandate: null,
+  });
+  expect(placeOrder).toHaveBeenCalledTimes(1);
 });

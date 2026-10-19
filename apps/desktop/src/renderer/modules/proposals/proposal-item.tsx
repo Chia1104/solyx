@@ -9,7 +9,11 @@ import { exchangeDate } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderType, orderImpact } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
-import { ProposalStatus, SubmissionFailureCode } from "@solyx/core/order-desk";
+import {
+  ProposalStatus,
+  SubmissionFailureCode,
+  mandateSending,
+} from "@solyx/core/order-desk";
 import type { ProposalBasis, TradeProposal } from "@solyx/core/order-desk";
 import type { OrderPremise } from "@solyx/core/risk";
 
@@ -19,6 +23,7 @@ import { ListingName } from "../market/listing-name.tsx";
 import { LowerView } from "../market/lower-view.ts";
 import { numberFormats } from "../market/number-formats.ts";
 import { quoteQuery } from "../market/quote-query.ts";
+import { mandateViolationMessage } from "../settings/mandate-message.ts";
 import { tradingSettingsQuery } from "../settings/settings-query.ts";
 
 import { violationMessage } from "./violation-message.ts";
@@ -177,6 +182,36 @@ function BasisLine({
   );
 }
 
+/** What the user's mandate made of an agent's proposal: sent it, would have in shadow, or why not. */
+function MandateLine({ proposal }: { proposal: TradeProposal }) {
+  const { t } = useTranslation();
+  const verdict = proposal.mandate;
+
+  if (!verdict) return null;
+
+  if (verdict.violations.length > 0) {
+    return (
+      <p className="text-xs text-muted">
+        {t("proposals.mandate.outside", {
+          reasons: verdict.violations
+            .map((violation) => mandateViolationMessage(t, violation))
+            .join(t("proposals.mandate.separator")),
+        })}
+      </p>
+    );
+  }
+
+  const sending = mandateSending(proposal);
+
+  return (
+    <p className="text-xs text-muted">
+      {sending === null
+        ? t("proposals.mandate.would-send")
+        : t(`proposals.mandate.${sending}`)}
+    </p>
+  );
+}
+
 export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   const { t } = useTranslation();
 
@@ -247,6 +282,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
       {proposal.basis ? (
         <BasisLine symbol={order.instrument} basis={proposal.basis} />
       ) : null}
+      <MandateLine proposal={proposal} />
       {proposal.violations.length > 0 ? (
         <Alert status="danger">
           <Alert.Indicator />

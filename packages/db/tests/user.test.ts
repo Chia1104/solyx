@@ -49,6 +49,7 @@ function proposal(id: string, patch: Partial<TradeProposal> = {}) {
   return {
     id,
     broker: "paper",
+    mandate: null,
     order: {
       instrument: TSMC,
       side: Side.Buy,

@@ -70,6 +70,7 @@ import { createAppearance } from "./modules/settings/appearance.ts";
 import type { ConfigFile } from "./modules/settings/config-file.ts";
 import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
+import { createMandateStore } from "./modules/settings/mandate-store.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
 import { createStorageApi } from "./modules/storage/storage-api.ts";
 import { createTelemetry } from "./modules/telemetry/telemetry.ts";
@@ -181,6 +182,8 @@ export function createServices(config: ConfigFile) {
         return null;
       }),
     locked: () => config.read().trading.locked,
+    mandate: () => mandates.current(),
+    lockOrders: () => config.set(["trading", "locked"], true),
     maxDailyLoss: () => config.read().trading.maxDailyLoss,
     restored: restored !== null,
     basis: (symbol) => research.desk.basis(symbol),
@@ -198,6 +201,8 @@ export function createServices(config: ConfigFile) {
     join(userDataDir, "secrets.json"),
     electronCipher
   );
+
+  const mandates = createMandateStore(secrets);
 
   const cache = openCache(
     join(userDataDir, "cache.sqlite"),
@@ -457,6 +462,7 @@ export function createServices(config: ConfigFile) {
       themes: userData.themes,
       // Built after the agent, whose conversations it counts, and read only as a tool is called.
       storage: { usage: () => storage.usage() },
+      mandate: () => mandates.current(),
       version: app.getVersion(),
       home,
     },
@@ -682,6 +688,7 @@ export function createServices(config: ConfigFile) {
   return {
     desk,
     tradingBroker,
+    mandates,
     marketDays,
     secrets,
     config,

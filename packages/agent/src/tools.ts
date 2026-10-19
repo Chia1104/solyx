@@ -61,6 +61,7 @@ import {
 import type { PriceRange } from "@solyx/core/levels";
 import { releaseReadings } from "@solyx/core/macro";
 import type { MacroSeries } from "@solyx/core/macro";
+import type { MandateVerdict } from "@solyx/core/mandate";
 import {
   BENCHMARK,
   Market,
@@ -90,7 +91,12 @@ import type {
 } from "@solyx/core/news";
 import { OrderType, sideSchema } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
-import { ProposalSource } from "@solyx/core/order-desk";
+import {
+  MandateSending,
+  ProposalSource,
+  ProposalStatus,
+  mandateSending,
+} from "@solyx/core/order-desk";
 import type {
   ProposalBasis,
   ProposingDesk,
@@ -584,7 +590,30 @@ export function describeProposal(proposal: TradeProposal): string {
   if (proposal.basis)
     parts.push(basisText(order.instrument.market, proposal.basis));
 
+  if (proposal.mandate) parts.push(mandateText(proposal, proposal.mandate));
+
   return parts.join(" | ");
+}
+
+/** What the user's mandate made of a proposal, and how far the app got sending it. */
+function mandateText(
+  proposal: TradeProposal,
+  { violations }: MandateVerdict
+): string {
+  if (violations.length > 0) {
+    return `outside the user's mandate ${JSON.stringify(violations)}`;
+  }
+
+  switch (mandateSending(proposal)) {
+    case null:
+      return "the user's mandate would have sent it, but is in shadow, so it waits for the user";
+    case MandateSending.Checking:
+      return "the user's mandate covers it, and the app is checking it again before sending it";
+    case MandateSending.Sent:
+      return "sent under the user's mandate without waiting for them";
+    case MandateSending.Stopped:
+      return "the user's mandate covered it, but the checks before sending stopped it, so it was not sent";
+  }
 }
 
 /** The agent's trading tools. Their per-run limits are kept with the conversation. */
@@ -1033,7 +1062,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
       name: AgentToolName.ProposeOrder,
       replay: "safe",
       description:
-        "Puts one order in front of the user for confirmation, after the app's risk checks. It never places the order; only the user can. Once per reply.",
+        "Puts one order in front of the user for confirmation, after the app's risk checks; where a trading mandate the user set covers it, the app sends it to the broker without waiting for them. Its answer says which. Once per reply.",
       parameters: z.object({
         order: orderSchema,
         rationale: z
@@ -1115,7 +1144,14 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         return {
           text: [
             ...(council ? [councilText(council)] : []),
-            `Proposal ${describeProposal(proposal)}. It waits for the user to confirm or dismiss it in the app.`,
+            `Proposal ${describeProposal(proposal)}. ${
+              proposal.status === ProposalStatus.AwaitingConfirmation
+                ? "It waits for the user to confirm or dismiss it in the app."
+                : proposal.mandate?.violations.length === 0 &&
+                    !proposal.mandate.shadow
+                  ? "The user's trading mandate covered it, so the app sent it to the broker without waiting for them; its status says how sending went."
+                  : "The app's checks refused it."
+            }`,
           ].join("\n"),
           details: {
             proposalId: proposal.id,

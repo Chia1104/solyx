@@ -6,6 +6,7 @@ import {
   unique,
 } from "drizzle-orm/sqlite-core";
 
+import type { MandateVerdict } from "@solyx/core/mandate";
 import type { Market } from "@solyx/core/market";
 import type { TimePrecision } from "@solyx/core/news";
 import type {
@@ -60,6 +61,7 @@ export const proposals = sqliteTable("proposals", {
   premise: text({ mode: "json" }).$type<OrderPremise>(),
   /** The id of the broker it was proposed to; the paper account where none was kept. */
   broker: text().notNull().default("paper"),
+  mandate: text({ mode: "json" }).$type<MandateVerdict>(),
 });
 
 /** The paper account, in one row: what it holds and how many orders it filled. */

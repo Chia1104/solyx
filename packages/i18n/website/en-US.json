@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Solyx",
-    "description": "A desktop app for trading Taiwan and US stocks. An agent analyzes the market and proposes trades; nothing reaches your broker until you confirm it.",
+    "description": "A desktop app for trading Taiwan and US stocks. An agent analyzes the market and proposes trades; nothing reaches your broker unless you confirm it or it falls within a mandate you set.",
     "page-title": "{{title}} | Solyx"
   },
   "nav": {
@@ -18,7 +18,7 @@
   "hero": {
     "pencil": "The agent drafts in pencil.",
     "ink": "You sign in ink.",
-    "lede": "Solyx is a desktop app for trading Taiwan and US stocks. An agent reads the market and proposes orders, and nothing reaches your broker until you confirm it.",
+    "lede": "Solyx is a desktop app for trading Taiwan and US stocks. An agent reads the market and proposes orders, and nothing reaches your broker unless you confirm it or it falls within a mandate you set.",
     "download": "Download for macOS or Windows",
     "docs": "Read the docs",
     "note": "Free and open source. Nightly builds trade on a paper account."

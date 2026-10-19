@@ -24,6 +24,7 @@ const proposal = (
 ): TradeProposal => ({
   id,
   broker: "paper",
+  mandate: null,
   order: {
     instrument: TSMC,
     side: Side.Buy,

@@ -23,6 +23,8 @@ export const Currency = {
 
 export type Currency = (typeof Currency)[keyof typeof Currency];
 
+export const currencySchema = z.enum(Currency);
+
 /** A listing, by its market and the code its exchange gives it. */
 export const symbolRefSchema = z.object({
   market: marketSchema,

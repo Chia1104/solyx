@@ -689,6 +689,14 @@
       "proposed-for": "提案於 {{date}} 交易時段",
       "now": "現價 {{price}}（{{change}}）",
       "impact-most": "最多約 {{amount}} {{currency}}，以漲停 {{price}} 計（未含手續費與稅）"
+    },
+    "mandate": {
+      "checking": "依交易授權送出前，正在重新檢查",
+      "sent": "依交易授權自動送出",
+      "stopped": "在交易授權範圍內，但送出前的檢查擋下了",
+      "would-send": "影子模式：授權會自動送出這筆",
+      "outside": "不在授權範圍：{{reasons}}",
+      "separator": "；"
     }
   },
   "flows": {
@@ -891,6 +899,49 @@
     "insufficient-cash": "單筆金額 {{notional, number}} {{currency}} 超過帳戶現金 {{cash, number}} {{currency}}",
     "cash-unknown": "券商讀不到帳戶可動用的 {{currency}}，所以不能買進",
     "insufficient-shares": "欲賣出 {{quantity, number}} 股，但帳戶只有 {{held, number}} 股可賣"
+  },
+  "mandate": {
+    "title": "交易授權",
+    "description": "在這些範圍內，agent 的提案不等你確認就會送往券商。只有你能設定。",
+    "set": "設定授權",
+    "edit": "修改",
+    "revoke": "撤回",
+    "save": "儲存授權",
+    "cancel": "取消",
+    "listings": "標的",
+    "listings-hint": "台股代號，以逗號分隔。",
+    "sides": "委託",
+    "side-options": {
+      "sales": "只賣出",
+      "both": "買進與賣出"
+    },
+    "max-order-value": "單筆上限（{{currency}}）",
+    "max-day-value": "單日上限（{{currency}}）",
+    "max-day-orders": "單日筆數上限",
+    "days": "有效天數（最多 {{max}} 天）",
+    "shadow": "影子模式",
+    "shadow-description": "只標出會自動送出的提案，仍由你逐筆確認。",
+    "live": "自動送出中",
+    "until": "有效至 {{date}}",
+    "expired": "已過期，不會送出任何委託",
+    "covers": "{{listings}}：{{sides}}，僅限價單",
+    "bounds": "單筆最多 {{order}} {{currency}}，每日最多 {{day}} {{currency}}、{{orders}} 筆",
+    "other-account": "這份授權是為{{account}}設定的，不適用目前的帳戶。",
+    "errors": {
+      "days": "1 到 {{max}} 天"
+    },
+    "violations": {
+      "expired": "授權已過期",
+      "other-broker": "授權屬於另一個帳戶",
+      "not-agent": "這是你自己的提案",
+      "listing": "標的不在授權內",
+      "side": "買賣方向不在授權內",
+      "market-order": "市價單不在授權內",
+      "order-value": "金額 {{value, number}} {{currency}} 超過單筆上限 {{max, number}}",
+      "day-value": "今日累計 {{value, number}} {{currency}} 會超過單日上限 {{max, number}}",
+      "day-orders": "今日已自動送出 {{max}} 筆",
+      "currency": "授權不涵蓋 {{currency}} 的委託"
+    }
   },
   "settings": {
     "title": "設定",
