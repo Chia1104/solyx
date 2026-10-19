@@ -574,3 +574,66 @@ test("a symbol without trades or a listing has no quote", async () => {
     await provider.getQuote({ market: Market.TW, symbol: "9999" })
   ).toBeNull();
 });
+
+test("depth counts the book and the volume in shares, and is null before the open's trial or for an index", async () => {
+  const { fetch } = fakeFugle([
+    {
+      path: "/intraday/quote/2330",
+      body: JSON.stringify({
+        date: "2026-09-29",
+        referencePrice: 2460,
+        previousClose: 2475,
+        openPrice: 2470,
+        highPrice: 2470,
+        lowPrice: 2470,
+        lastPrice: 2470,
+        bids: [{ price: 2465, size: 12 }],
+        asks: [],
+        total: {
+          tradeValue: 2_470_000,
+          tradeVolume: 1,
+          tradeVolumeAtBid: 0,
+          tradeVolumeAtAsk: 1,
+        },
+        isTrial: true,
+        lastUpdated: 1_790_643_000_000_000,
+      }),
+    },
+    {
+      path: "/intraday/quote/IX0028",
+      body: JSON.stringify({
+        date: "2026-09-29",
+        type: "INDEX",
+        previousClose: 1200.5,
+        closePrice: 1212.25,
+        lastUpdated: 1_790_643_000_000_000,
+      }),
+    },
+  ]);
+
+  const provider = createFugleMarketData({
+    apiKey: "test-key",
+    fetch,
+    now: () => DURING_SESSION,
+  });
+
+  expect(await provider.getDepth(TSMC)).toEqual({
+    date: "2026-09-29",
+    time: 1_790_643_000_000,
+    reference: 2460,
+    open: 2470,
+    high: 2470,
+    low: 2470,
+    last: null,
+    average: null,
+    volume: 1000,
+    volumeAtBid: 0,
+    volumeAtAsk: 1000,
+    bids: [{ price: 2465, shares: 12_000 }],
+    asks: [],
+    trial: true,
+  });
+  expect(
+    await provider.getDepth({ market: Market.TW, symbol: "IX0028" })
+  ).toBeNull();
+});

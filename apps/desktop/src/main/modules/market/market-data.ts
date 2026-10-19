@@ -14,6 +14,7 @@ import { sessionQuote } from "@solyx/core/quote";
 import type { SessionQuote } from "@solyx/core/quote";
 import { TW_SECTOR_INDICES } from "@solyx/core/sectors";
 import type { SectorQuote } from "@solyx/core/sectors";
+import { Session, getSession } from "@solyx/core/session";
 import { MINUTE_MS } from "@solyx/utils/date";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
@@ -21,13 +22,18 @@ import type { AnswerStores } from "@solyx/utils/fresh";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 import { createLiveCandles } from "./live-candles.ts";
+import { createLiveDepth } from "./live-depth.ts";
+import { createLiveStream } from "./live-stream.ts";
 import type { MarketDataSources } from "./market-data-sources.ts";
+import type { MarketDays } from "./trading-calendar.ts";
 
 /** The sectors cost a request per index, so the overview's map and the agent share a read this long. */
 const SECTORS_FRESH_MS = MINUTE_MS;
 
 interface MarketDataOptions {
   sources: MarketDataSources;
+  /** The days each market trades, which tell when a book is read again. */
+  marketDays: MarketDays;
   /** Where the sectors' answer is kept between reads. */
   answers: AnswerStores;
   diagnostics: Pick<Diagnostics, "recovered">;
@@ -38,27 +44,41 @@ interface MarketDataOptions {
 }
 
 /**
- * Every market's bars, names and live bars, from the sources the user's settings pick; weekly and
+ * Every market's bars, names, live bars and depth, from the sources the user's settings pick; weekly and
  * monthly bars are merged here from daily ones, for history and the live bar alike. Reopens the
  * live stream whenever the sources say it changed, and tells windows so.
  */
 export function createMarketData({
   sources,
+  marketDays,
   answers,
   diagnostics,
   onSourcesChanged,
   now = () => new Date(),
 }: MarketDataOptions) {
   const listings = new Map<string, Listing>();
+  const stream = createLiveStream(() => sources.openStream());
 
   const live = createLiveCandles({
-    openStream: () => sources.openStream(),
+    stream,
     async dailyCandles(request) {
       const provider = await sources.provider(request.symbol.market);
 
       return provider ? provider.getCandles(request) : [];
     },
     now,
+  });
+
+  const depth = createLiveDepth({
+    stream,
+    async read(symbol) {
+      const provider = await sources.provider(symbol.market);
+
+      return provider ? provider.getDepth(symbol) : null;
+    },
+    trading: async (market) =>
+      getSession(market, now(), await marketDays(market)) === Session.Regular,
+    diagnostics,
   });
 
   const sectorQuotes = keepFresh<MarketDataProvider, SectorQuote[]>({
@@ -92,7 +112,7 @@ export function createMarketData({
 
   sources.onStreamChange(() => {
     // Windows watch again once told, and their watches wait for the stream this restart opens.
-    live
+    stream
       .restart()
       .catch((error) => diagnostics.recovered(error, "market.stream.restart"));
     onSourcesChanged();
@@ -183,6 +203,10 @@ export function createMarketData({
       interval: Interval,
       signal?: AbortSignal
     ) => live.follow(symbol, interval, signal),
+
+    /** `symbol`'s depth as it changes, as `follow` tells. */
+    depth: (symbol: SymbolRef, signal?: AbortSignal) =>
+      depth.follow(symbol, signal),
 
     status: () => sources.status(),
 

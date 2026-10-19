@@ -7,7 +7,7 @@ export function PlanLimits({ plan }: { plan: MarketDataPlan }) {
   const { t } = useTranslation();
 
   return t("settings.market-data.limits", {
-    symbols: plan.streamSymbols,
+    subscriptions: plan.streamSubscriptions,
     intraday: plan.requestsPerMinute.intraday,
     historical: plan.requestsPerMinute.historical,
   });

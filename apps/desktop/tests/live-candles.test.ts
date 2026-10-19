@@ -21,6 +21,7 @@ import type {
   LiveCandle,
   LiveSender,
 } from "../src/main/modules/market/live-candles.ts";
+import { createLiveStream } from "../src/main/modules/market/live-stream.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 
@@ -49,6 +50,7 @@ function fakeStream() {
 
       return () => listeners.delete(symbol.symbol);
     },
+    watchDepth: () => undefined,
     close: () => {
       closed = true;
     },
@@ -83,8 +85,10 @@ function setup(today = "2026-09-29") {
   const streams = [fakeStream()];
   const dailyRequests: CandleRequest[] = [];
 
+  const stream = createLiveStream(async () => streams.at(-1)?.stream);
+
   const live = createLiveCandles({
-    openStream: async () => streams.at(-1)?.stream,
+    stream,
     dailyCandles: async (request) => {
       dailyRequests.push(request);
 
@@ -93,7 +97,13 @@ function setup(today = "2026-09-29") {
     now: () => new Date(`${today}T10:00:00+08:00`),
   });
 
-  return { live, streams, dailyRequests, stream: () => streams[0] };
+  return {
+    live,
+    restart: () => stream.restart(),
+    streams,
+    dailyRequests,
+    stream: () => streams[0],
+  };
 }
 
 beforeEach(() => {
@@ -284,7 +294,7 @@ describe("createLiveCandles", () => {
 
   test("without a stream nothing is live", async () => {
     const live = createLiveCandles({
-      openStream: async () => undefined,
+      stream: createLiveStream(async () => undefined),
       dailyCandles: async () => [],
     });
 
@@ -303,18 +313,16 @@ describe("createLiveCandles", () => {
       answer = resolve;
     });
 
-    const live = createLiveCandles({
-      openStream: async () => {
-        opened += 1;
+    const stream = createLiveStream(async () => {
+      opened += 1;
 
-        return opened === 1 ? held : current.stream;
-      },
-      dailyCandles: async () => [],
+      return opened === 1 ? held : current.stream;
     });
 
+    const live = createLiveCandles({ stream, dailyCandles: async () => [] });
     const watching = live.watch(fakeSender().sender, TSMC, Interval.OneMinute);
 
-    await live.restart();
+    await stream.restart();
     answer(stale.stream);
 
     expect(await watching).toBe(true);
@@ -328,13 +336,13 @@ describe("createLiveCandles", () => {
     let opened = 0;
 
     const live = createLiveCandles({
-      openStream: async () => {
+      stream: createLiveStream(async () => {
         opened += 1;
 
         if (opened === 1) throw new Error("offline");
 
         return stream;
-      },
+      }),
       dailyCandles: async () => [],
     });
 
@@ -347,7 +355,7 @@ describe("createLiveCandles", () => {
   });
 
   test("a symbol the restarted stream refuses ends the watches that followed it", async () => {
-    const { live, streams } = setup();
+    const { live, restart, streams } = setup();
     const following = live.follow(TSMC, Interval.OneMinute);
 
     expect((await following.next()).value).toEqual([]);
@@ -359,17 +367,17 @@ describe("createLiveCandles", () => {
 
     const next = following.next();
 
-    await live.restart();
+    await restart();
 
     expect(await next).toEqual({ done: true, value: undefined });
   });
 
   test("a restart watches every symbol again on a new stream", async () => {
-    const { live, streams } = setup();
+    const { live, restart, streams } = setup();
 
     await live.watch(fakeSender().sender, TSMC, Interval.OneMinute);
     streams.push(fakeStream());
-    await live.restart();
+    await restart();
 
     expect(streams[0].isClosed()).toBe(true);
     expect(streams[0].listeners.has("2330")).toBe(false);

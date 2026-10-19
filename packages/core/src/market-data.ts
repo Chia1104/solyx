@@ -32,6 +32,38 @@ export const quoteSchema = z.object({
 
 export type Quote = z.infer<typeof quoteSchema>;
 
+/** A price on one side of a listing's book and the shares waiting at it. */
+export interface DepthLevel {
+  price: number;
+  shares: number;
+}
+
+/** A listing's session so far as its exchange discloses it, with the best bids and asks waiting. */
+export interface Depth {
+  /** The session's exchange-local date, `YYYY-MM-DD`. */
+  date: string;
+  /** UTC milliseconds of the exchange's latest change to it. */
+  time: number;
+  /** What the session's change is measured from, as `Quote.reference` is. */
+  reference: number;
+  /** The session's prices traded so far; `null` until it trades. */
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  last: number | null;
+  /** The price of its shares traded so far on average, by volume. */
+  average: number | null;
+  /** Shares traded so far, and those of them that sold at the bid or bought at the ask. */
+  volume: number;
+  volumeAtBid: number;
+  volumeAtAsk: number;
+  /** The best first, five at the most; a side may be empty. */
+  bids: DepthLevel[];
+  asks: DepthLevel[];
+  /** The exchange is matching trial orders before an auction, so the book shows what would match rather than trades. */
+  trial: boolean;
+}
+
 /** One implementation per data provider (`@solyx/market-data/*`); it runs only in the main process. */
 export interface MarketDataProvider {
   readonly id: string;
@@ -42,6 +74,8 @@ export interface MarketDataProvider {
   getListing(symbol: SymbolRef): Promise<Listing | null>;
   /** `null` for a symbol the provider does not list or that has not traded yet. */
   getQuote(symbol: SymbolRef): Promise<Quote | null>;
+  /** `null` for a symbol the provider does not list or that keeps no book, as an index keeps none. */
+  getDepth(symbol: SymbolRef): Promise<Depth | null>;
 }
 
 /** Bars and names in every market, from the source the user picked for it. */
@@ -59,14 +93,22 @@ export interface MinuteListener {
   onMinute(minute: Candle): void;
 }
 
-/** Live minute bars from a provider's stream; one implementation per provider, main process only. */
+/**
+ * Live minute bars and depth from a provider's stream; one implementation per provider, main
+ * process only. A symbol's bars and its depth are a subscription each.
+ */
 export interface MarketDataStream {
   readonly id: string;
   readonly markets: readonly Market[];
-  /** Starts watching `symbol`; returns a function that stops, or `undefined` when the stream cannot take another symbol. */
+  /** Starts watching `symbol`'s bars; returns a function that stops, or `undefined` when the stream cannot take another subscription. */
   watchMinutes(
     symbol: SymbolRef,
     listener: MinuteListener
+  ): (() => void) | undefined;
+  /** Starts watching `symbol`'s depth, each change of it whole, as `watchMinutes` does its bars. */
+  watchDepth(
+    symbol: SymbolRef,
+    listener: (depth: Depth) => void
   ): (() => void) | undefined;
   close(): void;
 }
@@ -74,8 +116,8 @@ export interface MarketDataStream {
 /** A plan a provider sells; `id` is the provider's own name for it. */
 export interface MarketDataPlan<Id extends string = string> {
   id: Id;
-  /** Symbols its live stream can watch at once. */
-  streamSymbols: number;
+  /** Subscriptions its live stream holds at once, each one symbol's bars or its depth. */
+  streamSubscriptions: number;
   /** REST requests per minute for today's session and for history. */
   requestsPerMinute: { intraday: number; historical: number };
 }

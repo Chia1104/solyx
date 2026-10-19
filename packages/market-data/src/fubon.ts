@@ -12,10 +12,10 @@ import type {
   StreamConnect,
 } from "./fugle-api.ts";
 
-/** Fubon's published limits, the same for every account; one connection streams 300 symbols. */
+/** Fubon's published limits, the same for every account; one connection holds 300 subscriptions. */
 export const FUBON_PLAN = {
   id: "neo",
-  streamSymbols: 300,
+  streamSubscriptions: 300,
   requestsPerMinute: { intraday: 300, historical: 60 },
 } satisfies MarketDataPlan<"neo">;
 
@@ -46,7 +46,7 @@ export interface FubonStreamOptions {
   connect?: StreamConnect;
 }
 
-/** Fubon's live 1-minute bars over one connection. */
+/** Fubon's live 1-minute bars and depth over one connection. */
 export function createFubonStream(
   options: FubonStreamOptions
 ): MarketDataStream {

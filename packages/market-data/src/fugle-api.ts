@@ -8,6 +8,7 @@ import { Market, exchangeDate, exchangeMidnight } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type {
   CandleRequest,
+  Depth,
   Listing,
   Quote,
   MarketDataPlan,
@@ -91,14 +92,70 @@ const tickerSchema = z.object({
   nameEn: z.string().optional(),
 });
 
-// Indices report no reference price, and nothing traded has no close yet.
+const levelSchema = z.object({ price: z.number(), size: z.number() });
+
+// A session so far, as both the REST quote and the stream's aggregates serve it. Indices report no
+// reference price and keep no book, nothing traded has no prices yet, and sizes count board lots.
 const quoteSchema = z.object({
   date: z.string(),
+  openPrice: z.number().optional(),
+  highPrice: z.number().optional(),
+  lowPrice: z.number().optional(),
   closePrice: z.number().optional(),
+  avgPrice: z.number().optional(),
   referencePrice: z.number().optional(),
   previousClose: z.number().optional(),
-  total: z.object({ tradeValue: z.number() }).optional(),
+  bids: z.array(levelSchema).optional(),
+  asks: z.array(levelSchema).optional(),
+  total: z
+    .object({
+      tradeValue: z.number(),
+      tradeVolume: z.number().optional(),
+      tradeVolumeAtBid: z.number().optional(),
+      tradeVolumeAtAsk: z.number().optional(),
+    })
+    .optional(),
+  isTrial: z.boolean().optional(),
+  /** UTC microseconds. */
+  lastUpdated: z.number().optional(),
 });
+
+type FugleQuote = z.infer<typeof quoteSchema>;
+
+const toLevel = ({ price, size }: z.infer<typeof levelSchema>) => ({
+  price,
+  shares: size * TW_BOARD_LOT,
+});
+
+function toDepth(quote: FugleQuote): Depth | null {
+  const reference = quote.referencePrice ?? quote.previousClose;
+
+  if (
+    reference === undefined ||
+    !quote.bids ||
+    !quote.asks ||
+    quote.lastUpdated === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    date: quote.date,
+    time: Math.floor(quote.lastUpdated / 1000),
+    reference,
+    open: quote.openPrice ?? null,
+    high: quote.highPrice ?? null,
+    low: quote.lowPrice ?? null,
+    last: quote.closePrice ?? null,
+    average: quote.avgPrice ?? null,
+    volume: (quote.total?.tradeVolume ?? 0) * TW_BOARD_LOT,
+    volumeAtBid: (quote.total?.tradeVolumeAtBid ?? 0) * TW_BOARD_LOT,
+    volumeAtAsk: (quote.total?.tradeVolumeAtAsk ?? 0) * TW_BOARD_LOT,
+    bids: quote.bids.map(toLevel),
+    asks: quote.asks.map(toLevel),
+    trial: quote.isTrial ?? false,
+  };
+}
 
 const intradayCandlesSchema = z.object({
   date: z.string(),
@@ -230,6 +287,21 @@ export function createFugleApiProvider(
     }
   }
 
+  async function intradayQuote(symbol: SymbolRef): Promise<FugleQuote | null> {
+    assertTaiwan(symbol);
+
+    const response = await intradayBudget(() =>
+      api.get(
+        `intraday/quote/${encodeURIComponent(symbol.symbol)}`,
+        NOT_FOUND_IS_EMPTY
+      )
+    );
+
+    if (response.status === 404) return null;
+
+    return quoteSchema.parse(await response.json());
+  }
+
   return {
     id: access.id,
     markets: [Market.TW],
@@ -283,18 +355,10 @@ export function createFugleApiProvider(
     },
 
     async getQuote(symbol: SymbolRef): Promise<Quote | null> {
-      assertTaiwan(symbol);
+      const quote = await intradayQuote(symbol);
 
-      const response = await intradayBudget(() =>
-        api.get(
-          `intraday/quote/${encodeURIComponent(symbol.symbol)}`,
-          NOT_FOUND_IS_EMPTY
-        )
-      );
+      if (!quote) return null;
 
-      if (response.status === 404) return null;
-
-      const quote = quoteSchema.parse(await response.json());
       const reference = quote.referencePrice ?? quote.previousClose;
 
       if (quote.closePrice === undefined || reference === undefined) {
@@ -308,6 +372,12 @@ export function createFugleApiProvider(
         tradeValue: quote.total?.tradeValue ?? 0,
       };
     },
+
+    async getDepth(symbol: SymbolRef): Promise<Depth | null> {
+      const quote = await intradayQuote(symbol);
+
+      return quote ? toDepth(quote) : null;
+    },
   };
 }
 
@@ -316,20 +386,34 @@ const SILENCE_LIMIT_MS = 75_000;
 
 const RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 
-const streamMessageSchema = z.discriminatedUnion("event", [
+const StreamChannel = {
+  Candles: "candles",
+  Aggregates: "aggregates",
+} as const;
+
+type StreamChannel = (typeof StreamChannel)[keyof typeof StreamChannel];
+
+const streamMessageSchema = z.union([
   z.object({ event: z.literal("authenticated") }),
   z.object({ event: z.literal("error") }),
   z.object({
     event: z.literal("subscribed"),
-    data: z.object({ id: z.string(), symbol: z.string() }),
+    data: z.object({ id: z.string(), channel: z.string(), symbol: z.string() }),
   }),
   z.object({
     event: z.literal("snapshot"),
+    channel: z.literal(StreamChannel.Candles),
     data: z.object({ symbol: z.string(), data: z.array(barSchema) }),
   }),
   z.object({
     event: z.literal("data"),
+    channel: z.literal(StreamChannel.Candles),
     data: barSchema.extend({ symbol: z.string() }),
+  }),
+  z.object({
+    event: z.enum(["snapshot", "data"]),
+    channel: z.literal(StreamChannel.Aggregates),
+    data: quoteSchema.extend({ symbol: z.string() }),
   }),
 ]);
 
@@ -346,17 +430,22 @@ export interface StreamSocket {
 /** Opens a socket to `url`; tests stand in for the server here. */
 export type StreamConnect = (url: string) => StreamSocket;
 
+const subscriptionKey = (channel: string, symbol: string) =>
+  `${channel}:${symbol}`;
+
 /**
- * Live 1-minute bars over one WebSocket. Subscriptions are kept as the set of watched symbols
- * rather than queued commands, so every (re)connect simply subscribes them all.
+ * Live 1-minute bars and depth over one WebSocket. Subscriptions are kept as the sets of watched
+ * symbols rather than queued commands, so every (re)connect simply subscribes them all.
  */
 export function createFugleApiStream(
   access: FugleApiAccess,
   connect: StreamConnect = (url) => new WebSocket(url)
 ): MarketDataStream {
   const url = `${access.streamBaseUrl}/${API_VERSION}/stock/streaming`;
-  const listeners = new Map<string, Set<MinuteListener>>();
-  const channels = new Map<string, string>();
+  const minutes = new Map<string, Set<MinuteListener>>();
+  const depths = new Map<string, Set<(depth: Depth) => void>>();
+  // Fugle's id of each subscription, by channel and symbol.
+  const ids = new Map<string, string>();
   let socket: StreamSocket | undefined;
   let authenticated = false;
   // Refused credentials stay refused, so reconnecting cannot help.
@@ -365,11 +454,13 @@ export function createFugleApiStream(
   let reconnect: ReturnType<typeof setTimeout> | undefined;
   let silence: ReturnType<typeof setTimeout> | undefined;
 
+  const subscriptions = () => minutes.size + depths.size;
+
   const command = (event: string, data: Record<string, string>) =>
     socket?.send(JSON.stringify({ event, data }));
 
-  const subscribe = (symbol: string) =>
-    command("subscribe", { channel: "candles", symbol });
+  const subscribe = (channel: StreamChannel, symbol: string) =>
+    command("subscribe", { channel, symbol });
 
   // Detaches the socket first, so late events from it are ignored.
   function drop() {
@@ -377,13 +468,13 @@ export function createFugleApiStream(
 
     socket = undefined;
     authenticated = false;
-    channels.clear();
+    ids.clear();
     clearTimeout(silence);
     current?.close();
   }
 
   function scheduleReconnect() {
-    if (refused || listeners.size === 0 || reconnect) return;
+    if (refused || subscriptions() === 0 || reconnect) return;
 
     const delay =
       RECONNECT_DELAYS_MS[Math.min(failures, RECONNECT_DELAYS_MS.length - 1)];
@@ -416,7 +507,14 @@ export function createFugleApiStream(
         authenticated = true;
         failures = 0;
 
-        for (const symbol of listeners.keys()) subscribe(symbol);
+        for (const symbol of minutes.keys()) {
+          subscribe(StreamChannel.Candles, symbol);
+        }
+
+        for (const symbol of depths.keys()) {
+          subscribe(StreamChannel.Aggregates, symbol);
+        }
+
         break;
       case "error":
         if (!authenticated) {
@@ -426,29 +524,50 @@ export function createFugleApiStream(
 
         break;
       case "subscribed":
-        channels.set(message.data.symbol, message.data.id);
-        break;
-      case "snapshot": {
-        const minutes = message.data.data.map((bar) =>
-          toCandle(bar, Interval.OneMinute)
+        ids.set(
+          subscriptionKey(message.data.channel, message.data.symbol),
+          message.data.id
         );
-
-        for (const listener of listeners.get(message.data.symbol) ?? []) {
-          listener.onSession(minutes);
-        }
-
         break;
+      default:
+        deliver(message);
+    }
+  }
+
+  function deliver(
+    message: Extract<
+      z.infer<typeof streamMessageSchema>,
+      { event: "snapshot" | "data" }
+    >
+  ) {
+    if (message.channel === StreamChannel.Aggregates) {
+      const depth = toDepth(message.data);
+
+      if (!depth) return;
+
+      for (const listener of depths.get(message.data.symbol) ?? []) {
+        listener(depth);
       }
 
-      case "data": {
-        const minute = toCandle(message.data, Interval.OneMinute);
+      return;
+    }
 
-        for (const listener of listeners.get(message.data.symbol) ?? []) {
-          listener.onMinute(minute);
-        }
+    if (message.event === "snapshot") {
+      const session = message.data.data.map((bar) =>
+        toCandle(bar, Interval.OneMinute)
+      );
 
-        break;
+      for (const listener of minutes.get(message.data.symbol) ?? []) {
+        listener.onSession(session);
       }
+
+      return;
+    }
+
+    const minute = toCandle(message.data, Interval.OneMinute);
+
+    for (const listener of minutes.get(message.data.symbol) ?? []) {
+      listener.onMinute(minute);
     }
   }
 
@@ -480,46 +599,63 @@ export function createFugleApiStream(
     drop();
   }
 
+  function watch<Listener>(
+    channel: StreamChannel,
+    listeners: Map<string, Set<Listener>>,
+    symbol: SymbolRef,
+    listener: Listener
+  ) {
+    if (symbol.market !== Market.TW) return undefined;
+
+    const code = symbol.symbol;
+    const known = listeners.get(code);
+
+    if (!known && subscriptions() >= access.plan.streamSubscriptions) {
+      return undefined;
+    }
+
+    const watchers = known ?? new Set<Listener>();
+
+    listeners.set(code, watchers);
+    watchers.add(listener);
+
+    // Bars answer every subscribe with the session so far, so a new listener starts from it; depth
+    // keeps nothing to replay, so its symbol is subscribed once.
+    if (authenticated && (!known || channel === StreamChannel.Candles)) {
+      subscribe(channel, code);
+    } else if (!socket && !reconnect && !refused) {
+      open();
+    }
+
+    return () => {
+      watchers.delete(listener);
+
+      if (watchers.size > 0) return;
+
+      const key = subscriptionKey(channel, code);
+      const id = ids.get(key);
+
+      listeners.delete(code);
+      ids.delete(key);
+
+      if (subscriptions() === 0) stopAll();
+      else if (id !== undefined) command("unsubscribe", { id });
+    };
+  }
+
   return {
     id: access.id,
     markets: [Market.TW],
 
-    watchMinutes(symbol, listener) {
-      if (symbol.market !== Market.TW) return undefined;
+    watchMinutes: (symbol, listener) =>
+      watch(StreamChannel.Candles, minutes, symbol, listener),
 
-      const code = symbol.symbol;
-      let watchers = listeners.get(code);
-
-      if (!watchers) {
-        if (listeners.size >= access.plan.streamSymbols) return undefined;
-
-        watchers = new Set();
-        listeners.set(code, watchers);
-      }
-
-      watchers.add(listener);
-
-      // Every subscribe is answered with a fresh snapshot, so a new listener starts from the whole session.
-      if (authenticated) subscribe(code);
-      else if (!socket && !reconnect && !refused) open();
-
-      return () => {
-        watchers.delete(listener);
-
-        if (watchers.size > 0) return;
-
-        const id = channels.get(code);
-
-        listeners.delete(code);
-        channels.delete(code);
-
-        if (listeners.size === 0) stopAll();
-        else if (id !== undefined) command("unsubscribe", { id });
-      };
-    },
+    watchDepth: (symbol, listener) =>
+      watch(StreamChannel.Aggregates, depths, symbol, listener),
 
     close() {
-      listeners.clear();
+      minutes.clear();
+      depths.clear();
       stopAll();
     },
   };

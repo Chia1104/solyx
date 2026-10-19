@@ -254,6 +254,7 @@ export function createServices(config: ConfigFile) {
 
   const marketData = createMarketData({
     sources: marketDataSources,
+    marketDays: (market) => marketDays(market),
     answers: cache.answers,
     onSourcesChanged: () =>
       void windowEvents.publish("market:sources-changed", {}),

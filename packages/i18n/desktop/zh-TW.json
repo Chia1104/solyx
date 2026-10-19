@@ -257,6 +257,34 @@
       "change": "與前一日收盤相比"
     }
   },
+  "depth": {
+    "title": "報價",
+    "book": "五檔",
+    "none": "行情來源沒有這檔的報價與五檔。",
+    "trial": "試撮",
+    "open": "開盤",
+    "high": "最高",
+    "low": "最低",
+    "average": "均價",
+    "reference": "參考價",
+    "volume": {
+      "TW": "總量（張）",
+      "US": "總量"
+    },
+    "limit-up": "漲停",
+    "limit-down": "跌停",
+    "at-ask": "外盤 {{share}}",
+    "at-bid": "內盤 {{share}}",
+    "bids": "委買",
+    "asks": "委賣",
+    "price": "價格",
+    "bids-total": "委買 {{total}}",
+    "asks-total": "委賣 {{total}}",
+    "unit": {
+      "TW": "單位：張",
+      "US": "單位：股"
+    }
+  },
   "news": {
     "title": "新聞與討論",
     "channels-label": "管道",
@@ -1099,7 +1127,7 @@
         "fugle": "使用你自己的富果 API 金鑰。",
         "fubon": "透過你的富邦證券帳戶登入。"
       },
-      "limits": "即時 {{symbols, number}} 檔；每分鐘盤中 {{intraday, number}} 次、歷史 {{historical, number}} 次",
+      "limits": "即時訂閱 {{subscriptions, number}} 個；每分鐘盤中 {{intraday, number}} 次、歷史 {{historical, number}} 次",
       "open-brokers": "前往券商設定",
       "fubon-in-brokers": "富邦的登入在「券商」設定，送到富邦帳戶的委託也用同一個登入。"
     },
