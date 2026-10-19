@@ -184,7 +184,11 @@ const configSchema = section(
       z.looseObject({
         broker: tradingBrokerSchema.catch(TradingBroker.Paper).meta({
           description:
-            "The account orders go to: the paper account, or Fubon's once its sign-in is set up in Market data. Only you can switch it, and it takes effect when Solyx starts again.",
+            "The broker orders go to: the paper account, or Fubon once its sign-in is set up in Market data. Only you can switch it, and it takes effect when Solyx starts again.",
+        }),
+        account: z.string().min(1).nullable().catch(null).meta({
+          description:
+            "The broker's account orders go to, as `<branch>-<account>` for one of Fubon's stock accounts; none for the paper account. A Fubon account must be picked before anything goes to it.",
         }),
         locked: z.boolean().catch(false).meta({
           description:
@@ -537,7 +541,7 @@ type ConfigPath =
   | ["appearance", "palettes", string, "name"]
   | ["appearance", "palettes", string, ColorScheme, PaletteToken]
   | ["tray", "show" | "hideDock"]
-  | ["trading", "broker" | "locked"]
+  | ["trading", "broker" | "account" | "locked"]
   | ["trading", "maxDailyLoss", Currency]
   | ["marketData", typeof Market.TW]
   | ["providers", "fugle" | "finmind", "plan"]

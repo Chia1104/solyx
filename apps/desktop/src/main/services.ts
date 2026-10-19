@@ -139,12 +139,15 @@ export function createServices(config: ConfigFile) {
   });
 
   // Read once: the desk trades one account for the app's life, and a switch waits for a restart.
-  const tradingBroker = config.read().trading.broker;
-  const tradesFubon = tradingBroker === TradingBroker.Fubon;
+  const picked = config.read().trading;
+  const tradesFubon = picked.broker === TradingBroker.Fubon;
 
   const desk = new OrderDesk({
     broker: tradesFubon
-      ? createFubonBroker(() => marketDataSources.fubonSession())
+      ? createFubonBroker({
+          session: () => marketDataSources.fubonSession(),
+          account: picked.account,
+        })
       : createPaperBroker({
           cash: PAPER_CASH,
           ledger: userData.paperAccount,
@@ -704,7 +707,7 @@ export function createServices(config: ConfigFile) {
 
   return {
     desk,
-    tradingBroker,
+    tradingBroker: desk.brokerId,
     mandates,
     marketDays,
     secrets,

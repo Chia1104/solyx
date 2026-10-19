@@ -189,6 +189,7 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
   expect(area(areas, "General").missing).toEqual([]);
   expect(area(areas, "Trading").settings).toMatchObject([
     { name: "trading.broker", value: "paper" },
+    { name: "trading.account", value: "none" },
     {
       name: "trading.mandate",
       value: "none: every order waits for the user",

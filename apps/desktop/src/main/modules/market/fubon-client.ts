@@ -97,11 +97,16 @@ export async function connectFubon(
       accounts,
 
       realtime: () => call((signal) => fubon.realtime(undefined, { signal })),
-      holdings: () => call((signal) => fubon.holdings(undefined, { signal })),
-      orders: (from) => call((signal) => fubon.orders(from, { signal })),
-      fills: (from) => call((signal) => fubon.fills(from, { signal })),
-      place: (order) => call((signal) => fubon.place(order, { signal })),
-      cancel: (id) => call((signal) => fubon.cancel(id, { signal })),
+      holdings: (account) =>
+        call((signal) => fubon.holdings(account, { signal })),
+      orders: (account, from) =>
+        call((signal) => fubon.orders({ account, from }, { signal })),
+      fills: (account, from) =>
+        call((signal) => fubon.fills({ account, from }, { signal })),
+      place: (account, order) =>
+        call((signal) => fubon.place({ account, order }, { signal })),
+      cancel: (account, id) =>
+        call((signal) => fubon.cancel({ account, id }, { signal })),
 
       watch(listener) {
         // The stream lasts as long as the process, so it waits under no answer's deadline, and

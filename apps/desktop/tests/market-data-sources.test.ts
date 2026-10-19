@@ -190,6 +190,7 @@ test("a failed Fubon sign-in is not retried until the user asks", async () => {
   expect((await sources.status()).fubon.session).toEqual({
     state: FubonSessionState.SignedIn,
     accounts: 1,
+    stockAccounts: [{ id: "6460-28", name: "Test" }],
   });
 });
 
@@ -310,6 +311,7 @@ test("charts asking while Fubon has yet to answer share one sign-in", async () =
   expect((await status).fubon.session).toEqual({
     state: FubonSessionState.SignedIn,
     accounts: 1,
+    stockAccounts: [{ id: "6460-28", name: "Test" }],
   });
 });
 

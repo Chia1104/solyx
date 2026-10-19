@@ -26,6 +26,7 @@ import {
   fubonFill,
   fubonOrder,
   fubonOrderObject,
+  fubonStockAccounts,
   openFubonSession,
 } from "../src/fubon.ts";
 import type { FubonFill, FubonHoldings, FubonOrder } from "../src/fubon.ts";
@@ -215,6 +216,11 @@ function recordedCalls() {
       createRequire(import.meta.url)(join(directory, "package", "trade.js"))
     ).calls;
 }
+
+// The stock accounts the fake SDK lists for the "good-key" and "no-reports" sign-ins.
+const ACCOUNT = "6460-28";
+
+const UNREPORTED_ACCOUNT = "6460-29";
 
 const options = (apiKey: string, sdkDir = directory) => ({
   sdkDir,
@@ -533,7 +539,7 @@ test("reads the stock account's orders, history in 30-day spans before today's",
 
   const from = Temporal.PlainDate.from(today).subtract({ days: 40 }).toString();
 
-  expect(session.orders(from).map(({ orderNo }) => orderNo)).toEqual([
+  expect(session.orders(ACCOUNT, from).map(({ orderNo }) => orderNo)).toEqual([
     "x0001",
     "x0001",
     "x0002",
@@ -561,7 +567,7 @@ test("each sale takes the realized gain Fubon reckoned for it once, and one it h
 
   expect(
     session
-      .fills(exchangeDate(Market.TW))
+      .fills(ACCOUNT, exchangeDate(Market.TW))
       .map(({ buySell, realized }) => [buySell, realized])
   ).toEqual([
     ["Sell", -203],
@@ -574,7 +580,9 @@ test("without Fubon's report of gains, no sale is reckoned", () => {
   const session = openFubonSession(options("no-reports"));
 
   expect(
-    session.fills(exchangeDate(Market.TW)).map(({ realized }) => realized)
+    session
+      .fills(UNREPORTED_ACCOUNT, exchangeDate(Market.TW))
+      .map(({ realized }) => realized)
   ).toEqual([null, null, null]);
 });
 
@@ -591,14 +599,25 @@ test("tells its listener of each order Fubon reports placed, changed or filled",
 test("a bank Fubon cannot read leaves its balance unknown", () => {
   const session = openFubonSession(options("good-key"));
 
-  expect(session.holdings().bank).toBeNull();
+  expect(session.holdings(ACCOUNT).bank).toBeNull();
 });
 
 test("a query Fubon refuses reports its message", () => {
   const session = openFubonSession(options("no-reports"));
 
-  expect(() => session.holdings()).toThrow(
+  expect(() => session.holdings(UNREPORTED_ACCOUNT)).toThrow(
     "Fubon cost query failed: 證券報表/表單定義資料不存在"
+  );
+});
+
+test("each call names its stock account, and one the sign-in does not list is refused", () => {
+  const session = openFubonSession(options("good-key"));
+
+  expect(fubonStockAccounts(session.accounts)).toEqual([
+    { id: ACCOUNT, name: "Test" },
+  ]);
+  expect(() => session.holdings("6460-29")).toThrow(
+    "Fubon lists no stock account 6460-29 for this sign-in"
   );
 });
 
@@ -684,11 +703,11 @@ describe("placing through the session", () => {
   test("answers with the order Fubon gave back, or the failed one it lists under the tag", () => {
     const session = openFubonSession(options("good-key"));
 
-    expect(session.place(order("2881"))).toMatchObject({
+    expect(session.place(ACCOUNT, order("2881"))).toMatchObject({
       orderNo: "x0003",
       status: 10,
     });
-    expect(session.place(order("8888"))).toMatchObject({
+    expect(session.place(ACCOUNT, order("8888"))).toMatchObject({
       seqNo: "4",
       status: 90,
       errorMessage: "單價輸入錯誤[4385715]",
@@ -704,7 +723,7 @@ describe("placing through the session", () => {
   test("throws where Fubon gave no order back and lists none under the tag, which leaves the outcome unknown", () => {
     const session = openFubonSession(options("good-key"));
 
-    expect(() => session.place(order("9999"))).toThrow(
+    expect(() => session.place(ACCOUNT, order("9999"))).toThrow(
       "Fubon gave no order back: connection lost"
     );
   });
@@ -712,7 +731,7 @@ describe("placing through the session", () => {
   test("cancels today's order by handing back the order as Fubon listed it", () => {
     const session = openFubonSession(options("good-key"));
 
-    session.cancel("2026-10-19:x0002");
+    session.cancel(ACCOUNT, "2026-10-19:x0002");
 
     expect(recordedCalls().find(([call]) => call === "cancelOrder")).toEqual([
       "cancelOrder",
@@ -726,7 +745,7 @@ describe("placing through the session", () => {
       },
       false,
     ]);
-    expect(() => session.cancel("2026-10-19:x9999")).toThrow(
+    expect(() => session.cancel(ACCOUNT, "2026-10-19:x9999")).toThrow(
       "Fubon lists no order 2026-10-19:x9999 today to cancel"
     );
   });
@@ -741,19 +760,35 @@ describe("a Fubon broker placing an order", () => {
     limitPrice: 1005,
   } as const;
 
-  const broker = (placed: FubonOrder) =>
-    createFubonBroker(async () => ({
-      holdings: async () => ({
-        inventories: [],
-        unrealized: [],
-        bank: { availableBalance: 0 },
-        settlements: [],
+  const broker = (placed: FubonOrder, account: string | null = ACCOUNT) =>
+    createFubonBroker({
+      session: async () => ({
+        holdings: async () => ({
+          inventories: [],
+          unrealized: [],
+          bank: { availableBalance: 0 },
+          settlements: [],
+        }),
+        orders: async () => [],
+        fills: async () => [],
+        place: async () => placed,
+        cancel: async () => undefined,
       }),
-      orders: async () => [],
-      fills: async () => [],
-      place: async () => placed,
-      cancel: async () => undefined,
-    }));
+      account,
+    });
+
+  test("is named for the account it trades, and trades none until one is picked", async () => {
+    expect(broker(orderResult()).id).toBe(`fubon:${ACCOUNT}`);
+
+    const unpicked = broker(orderResult(), null);
+
+    await expect(unpicked.getAccount()).rejects.toThrow(
+      "Choose the Fubon account orders go to in Settings → Trading"
+    );
+    await expect(unpicked.placeOrder(limit, "A1B2C3")).rejects.toThrow(
+      "Choose the Fubon account"
+    );
+  });
 
   test("answers with Fubon's day and number for it", async () => {
     await expect(

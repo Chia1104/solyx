@@ -277,7 +277,12 @@ export type FubonSessionState =
 
 export type FubonSessionStatus =
   | { state: typeof FubonSessionState.SignedOut }
-  | { state: typeof FubonSessionState.SignedIn; accounts: number }
+  | {
+      state: typeof FubonSessionState.SignedIn;
+      accounts: number;
+      /** The stock accounts orders may go to, each by its `<branch>-<account>` with its holder's name as Fubon masks it. */
+      stockAccounts: { id: string; name: string }[];
+    }
   | { state: typeof FubonSessionState.Failed; message: string };
 
 export interface MarketDataStatus {
@@ -408,6 +413,17 @@ export type TradingBroker = (typeof TradingBroker)[keyof typeof TradingBroker];
 
 export const tradingBrokerSchema = z.enum(TradingBroker);
 
+/** Where the user has orders go: the paper account, or one of Fubon's stock accounts by its `<branch>-<account>`. */
+export const tradingAccountSchema = z.discriminatedUnion("broker", [
+  z.object({ broker: z.literal(TradingBroker.Paper), account: z.null() }),
+  z.object({
+    broker: z.literal(TradingBroker.Fubon),
+    account: z.string().min(1),
+  }),
+]);
+
+export type TradingAccount = z.infer<typeof tradingAccountSchema>;
+
 /** The most days a mandate lasts before the user sets it again. */
 export const MAX_MANDATE_DAYS = 30;
 
@@ -419,10 +435,12 @@ export const mandateDraftSchema = mandateSchema
 export type MandateDraft = z.infer<typeof mandateDraftSchema>;
 
 export interface TradingSettings {
-  /** The account the user picked, which the desk trades from the app's next start on. */
+  /** The broker the user picked, which the desk trades from the app's next start on. */
   broker: TradingBroker;
-  /** The account the desk trades now, picked when the app started. */
-  trading: TradingBroker;
+  /** The broker's account the user picked; `null` for the paper account, and for Fubon until one is picked. */
+  account: string | null;
+  /** The broker and account the desk trades now, picked when the app started, as their `brokerId`. */
+  trading: string;
   /** Every order is refused until the user unlocks them. */
   locked: boolean;
   /** The most the account's sales may lose in a market's day, per currency; a currency missing has no limit. */

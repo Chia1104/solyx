@@ -286,6 +286,11 @@ export class OrderDesk {
     return this.#options.broker.mode;
   }
 
+  /** The id of the broker and account it trades, which every proposal it makes keeps. */
+  get brokerId(): string {
+    return this.#options.broker.id;
+  }
+
   account(): Promise<AccountSnapshot> {
     return this.#options.broker.getAccount();
   }

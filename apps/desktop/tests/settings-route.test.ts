@@ -413,19 +413,27 @@ test("a sealed mandate that does not parse reads as none", async () => {
   await vi.waitFor(async () => expect(await api.mandate()).toBeNull());
 });
 
-test("orders go to the paper account until the user picks another, which the desk trades once the app starts again", async () => {
+test("orders go to the paper account until the user picks one of Fubon's, which the desk trades once the app starts again", async () => {
   const { api, config, restart } = setup();
 
   expect(await api.trading()).toMatchObject({
     broker: TradingBroker.Paper,
+    account: null,
     trading: TradingBroker.Paper,
   });
 
-  await api.setTradingBroker(TradingBroker.Fubon);
+  await api.setTradingAccount({
+    broker: TradingBroker.Fubon,
+    account: "6460-28",
+  });
 
-  expect(config.read().trading.broker).toBe(TradingBroker.Fubon);
+  expect(config.read().trading).toMatchObject({
+    broker: TradingBroker.Fubon,
+    account: "6460-28",
+  });
   expect(await api.trading()).toMatchObject({
     broker: TradingBroker.Fubon,
+    account: "6460-28",
     trading: TradingBroker.Paper,
   });
 

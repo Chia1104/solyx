@@ -32,11 +32,19 @@ const handler = new RPCHandler(
       return session.accounts;
     }),
     realtime: fubon.realtime.handler(() => signedIn().realtime()),
-    holdings: fubon.holdings.handler(() => signedIn().holdings()),
-    orders: fubon.orders.handler(({ input }) => signedIn().orders(input)),
-    fills: fubon.fills.handler(({ input }) => signedIn().fills(input)),
-    place: fubon.place.handler(({ input }) => signedIn().place(input)),
-    cancel: fubon.cancel.handler(({ input }) => signedIn().cancel(input)),
+    holdings: fubon.holdings.handler(({ input }) => signedIn().holdings(input)),
+    orders: fubon.orders.handler(({ input: { account, from } }) =>
+      signedIn().orders(account, from)
+    ),
+    fills: fubon.fills.handler(({ input: { account, from } }) =>
+      signedIn().fills(account, from)
+    ),
+    place: fubon.place.handler(({ input: { account, order } }) =>
+      signedIn().place(account, order)
+    ),
+    cancel: fubon.cancel.handler(({ input: { account, id } }) =>
+      signedIn().cancel(account, id)
+    ),
     changes: fubon.changes.handler(({ signal }) =>
       changes.subscribe("changed", { signal })
     ),
