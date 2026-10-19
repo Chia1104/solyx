@@ -3,12 +3,15 @@ import * as z from "zod";
 
 import type {
   FubonAccount,
+  FubonConditionLeg,
+  FubonConditionPlaced,
   FubonFill,
   FubonHoldings,
   FubonOrder,
   FubonOrderObject,
   FubonRealtime,
   FubonSessionOptions,
+  FubonWatchedCondition,
 } from "@solyx/brokers/fubon";
 
 import type { Change } from "../shared/rpc/changes.ts";
@@ -38,6 +41,15 @@ export const fubonContract = {
   /** Cancels today's order by its id. */
   cancel: oc
     .input(z.object({ account: accountSchema, id: z.string().min(1) }))
+    .output(type<void>()),
+  /** Has Fubon watch one leg of an exit, and answers with its guid or why Fubon did not take it. */
+  placeCondition: oc
+    .input(type<{ account: string; leg: FubonConditionLeg }>())
+    .output(type<FubonConditionPlaced>()),
+  /** The account's condition orders still in force. */
+  conditions: oc.input(accountSchema).output(type<FubonWatchedCondition[]>()),
+  cancelCondition: oc
+    .input(z.object({ account: accountSchema, guid: z.string().min(1) }))
     .output(type<void>()),
   /** Yields each time Fubon tells of an order of the account being placed, changed or filled. */
   changes: oc.output(asyncIteratorObject(type<Change>())),

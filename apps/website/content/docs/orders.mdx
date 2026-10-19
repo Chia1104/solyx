@@ -42,6 +42,10 @@ A new mandate is in **shadow mode** unless you switch it off: it marks each prop
 
 The mandate is sealed with your keys, so only you can set it, in the app. The agent cannot change it, and neither can an edit to Solyx's files.
 
+## Stops and targets
+
+To sell shares you hold once the price falls or rises far enough, set a stop, a target or both under **New order proposal → Stop and target** in the Proposals tab, watched for up to 60 days. Like any proposal, it waits for you to confirm it. Fubon then watches the price itself, so it fires even while Solyx is closed: a stop sells at the day's lower limit, filling at what buyers bid, and a target sells at its price. Once one sells, Solyx cancels the other the next time it runs, so while Solyx is closed both could sell if you hold more shares than the exit sells. The paper account checks the price once a minute, and only while Solyx runs. You can cancel an exit from its card while it is still watched.
+
 ## Paper by default
 
 Orders go to a paper account, so no real money moves. To trade your own account, set up Fubon's sign-in under **Settings → Brokers**, then pick your Fubon account under **Settings → Trading** and restart Solyx. Proposals still waiting for the paper account are dismissed then. Fubon reads the balance only of a settlement account at Taipei Fubon Bank or LINE Bank; with another bank, Solyx cannot tell what you can spend, so it refuses buys and only sales go. You can cancel an order that is still working from the account panel.

@@ -2,7 +2,8 @@
  * Checks `./fubon` against a `fubon-neo` download in Fubon's shared test environment, failing
  * where the module no longer reads what the SDK answers: the sign-in's stock account, the day's
  * orders and fills, the inventory, and a buy at the day's lower limit placed through the app's
- * broker, listed under its tag, cancelled and reported, then one below that limit refused. The
+ * broker, listed under its tag, cancelled and reported, then one below that limit refused, and an
+ * exit whose legs Fubon watches, lists and cancels. The
  * Fubon SDK workflow runs it on the version Fubon offers. The test environment is open 9:30–19:00
  * Taipei time on weekdays.
  *
@@ -23,7 +24,7 @@ import {
   orderTag,
 } from "@solyx/core/broker";
 import { Market, exchangeDate, exchangeMidnight } from "@solyx/core/market";
-import { OrderType, Side } from "@solyx/core/order";
+import { ExitLeg, OrderType, Side } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 import { errorMessage } from "@solyx/utils/error";
 
@@ -33,6 +34,7 @@ import {
   fubonFill,
   fubonOrder,
   fubonStockAccounts,
+  fubonTrading,
   openFubonSession,
 } from "../src/fubon.ts";
 
@@ -46,6 +48,10 @@ const SYMBOL = "2881";
 const REPORTS_EXPECTED = 3;
 
 const REPORTS_WAIT_MS = 3000;
+
+const EXIT_STOP = 1;
+
+const EXIT_TARGET = 9999;
 
 const [sdkDir, certPath] = process.argv.slice(2);
 
@@ -112,13 +118,7 @@ try {
   });
 
   const broker = createFubonBroker({
-    session: async () => ({
-      holdings: async (id) => session.holdings(id),
-      orders: async (id, from) => session.orders(id, from),
-      fills: async (id, from) => session.fills(id, from),
-      place: async (id, order) => session.place(id, order),
-      cancel: async (id, orderId) => session.cancel(id, orderId),
-    }),
+    session: async () => fubonTrading(session),
     account,
   });
 
@@ -167,6 +167,54 @@ try {
       OrderRefusedError
     );
   });
+
+  await check(
+    "has Fubon watch an exit's legs, lists them and cancels them",
+    async () => {
+      const { exits } = broker;
+
+      assert.ok(exits, "The Fubon broker watches no exits");
+
+      const instrument = { market: Market.TW, symbol: SYMBOL };
+
+      // Prices no session reaches, so neither leg sells while the check runs.
+      const exit = {
+        stop: EXIT_STOP,
+        target: EXIT_TARGET,
+        until: Temporal.PlainDate.from(today).add({ days: 7 }).toString(),
+      };
+
+      const refs = await exits.place(
+        instrument,
+        1000,
+        exit,
+        orderTag(`fubon-sdk-check-exit-${Date.now()}`)
+      );
+
+      const placed = await exits.watching();
+
+      assert.deepEqual(
+        refs.map((ref) => {
+          const leg = placed.find((each) => each.ref === ref);
+
+          return leg && [leg.leg, leg.price, leg.quantity, leg.instrument];
+        }),
+        [
+          [ExitLeg.Stop, EXIT_STOP, 1000, instrument],
+          [ExitLeg.Target, EXIT_TARGET, 1000, instrument],
+        ]
+      );
+
+      for (const ref of refs) await exits.cancel(ref);
+
+      const left = await exits.watching();
+
+      assert.ok(
+        refs.every((ref) => !left.some((each) => each.ref === ref)),
+        "Fubon still watches a leg it was asked to cancel"
+      );
+    }
+  );
 
   await sleep(REPORTS_WAIT_MS);
 

@@ -27,6 +27,7 @@ import {
   fubonFill,
   fubonOrder,
   fubonStockAccounts,
+  fubonTrading,
   openFubonSession,
 } from "../src/fubon.ts";
 
@@ -119,13 +120,7 @@ try {
 
   if (flag === "--sell" && code && shares && price) {
     const broker = createFubonBroker({
-      session: async () => ({
-        holdings: async (id) => session.holdings(id),
-        orders: async (id, from) => session.orders(id, from),
-        fills: async (id, from) => session.fills(id, from),
-        place: async (id, order) => session.place(id, order),
-        cancel: async (id, orderId) => session.cancel(id, orderId),
-      }),
+      session: async () => fubonTrading(session),
       account,
     });
 

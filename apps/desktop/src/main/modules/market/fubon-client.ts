@@ -107,6 +107,12 @@ export async function connectFubon(
         call((signal) => fubon.place({ account, order }, { signal })),
       cancel: (account, id) =>
         call((signal) => fubon.cancel({ account, id }, { signal })),
+      placeCondition: (account, leg) =>
+        call((signal) => fubon.placeCondition({ account, leg }, { signal })),
+      conditions: (account) =>
+        call((signal) => fubon.conditions(account, { signal })),
+      cancelCondition: (account, guid) =>
+        call((signal) => fubon.cancelCondition({ account, guid }, { signal })),
 
       watch(listener) {
         // The stream lasts as long as the process, so it waits under no answer's deadline, and

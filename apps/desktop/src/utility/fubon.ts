@@ -45,6 +45,16 @@ const handler = new RPCHandler(
     cancel: fubon.cancel.handler(({ input: { account, id } }) =>
       signedIn().cancel(account, id)
     ),
+    placeCondition: fubon.placeCondition.handler(
+      ({ input: { account, leg } }) => signedIn().placeCondition(account, leg)
+    ),
+    conditions: fubon.conditions.handler(({ input }) =>
+      signedIn().conditions(input)
+    ),
+    cancelCondition: fubon.cancelCondition.handler(
+      ({ input: { account, guid } }) =>
+        signedIn().cancelCondition(account, guid)
+    ),
     changes: fubon.changes.handler(({ signal }) =>
       changes.subscribe("changed", { signal })
     ),
