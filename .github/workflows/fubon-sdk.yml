@@ -76,16 +76,26 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/sdk.zip" "$FUBON_SDK/fubon_binary/fubon-neo-$VERSION.nodejs.zip"
           mkdir -p "$RUNNER_TEMP/sdk"
           unzip -q "$RUNNER_TEMP/sdk.zip" -d "$RUNNER_TEMP/sdk"
-          tar -xzf "$RUNNER_TEMP/sdk/fubon-neo-$VERSION.tgz" -C "$RUNNER_TEMP/sdk"
+          # GNU tar on Windows reads a drive letter as a remote host, so it is given a relative path.
+          (cd "$RUNNER_TEMP/sdk" && tar -xzf "fubon-neo-$VERSION.tgz")
 
-      # The app loads the SDK in a utility process, which runs Electron's own Node.
+      # The app loads the SDK in a utility process, which runs Electron's own Node. Node starts
+      # Electron, since requiring `electron` may first download it and print as it does.
       - name: Load it under Electron
         working-directory: apps/desktop
-        run: |
-          ELECTRON_RUN_AS_NODE=1 "$(node -p 'require("electron")')" -e '
+        env:
+          LOAD: |
             const { CoreSdk } = require(require("node:path").join(process.argv[1], "trade.js"));
             if (typeof CoreSdk !== "function") throw new Error("The SDK loaded without CoreSdk");
             console.log(`fubon-neo loaded under Electron ${process.versions.electron}`);
+        run: |
+          node -e '
+            const { spawnSync } = require("node:child_process");
+            const { status } = spawnSync(require("electron"), ["-e", process.env.LOAD, process.argv[1]], {
+              stdio: "inherit",
+              env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+            });
+            process.exit(status ?? 1);
           ' "$RUNNER_TEMP/sdk/package"
 
   check:
@@ -111,7 +121,8 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/sdk.zip" "$FUBON_SDK/fubon_binary/fubon-neo-$VERSION.nodejs.zip"
           mkdir -p "$RUNNER_TEMP/sdk" "$RUNNER_TEMP/test"
           unzip -q "$RUNNER_TEMP/sdk.zip" -d "$RUNNER_TEMP/sdk"
-          tar -xzf "$RUNNER_TEMP/sdk/fubon-neo-$VERSION.tgz" -C "$RUNNER_TEMP/sdk"
+          # GNU tar on Windows reads a drive letter as a remote host, so it is given a relative path.
+          (cd "$RUNNER_TEMP/sdk" && tar -xzf "fubon-neo-$VERSION.tgz")
           curl -fsSL -o "$RUNNER_TEMP/test.zip" "$FUBON_SDK/sample_code/test_environment.zip"
           unzip -q "$RUNNER_TEMP/test.zip" -d "$RUNNER_TEMP/test"
 
