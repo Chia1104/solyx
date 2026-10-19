@@ -132,6 +132,7 @@ function setup(vendor = fakeVendor()) {
       list: () => [],
       account: async () => ({ cash: {}, positions: [] }),
       fills: async () => [],
+      working: async () => [],
       mode: BrokerMode.Paper,
     },
     links: LINKS,

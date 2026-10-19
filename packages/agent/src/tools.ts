@@ -12,6 +12,7 @@ import type {
 import { maxBy, omit, takeRight, uniq, uniqBy } from "es-toolkit";
 import * as z from "zod";
 
+import type { BrokerOrder } from "@solyx/core/broker";
 import {
   EventTiming,
   ListingEventKind,
@@ -539,6 +540,18 @@ function recordText({
   return `${trips} trips, ${wins} won (${percent(winRate)}), average win ${averageWin === null ? "n/a" : signedFigure(averageWin)}, average loss ${averageLoss === null ? "n/a" : signedFigure(averageLoss)}, payoff ratio ${figure(payoffRatio)}, realized ${signedFigure(realized)}`;
 }
 
+function describeBrokerOrder({
+  id,
+  order,
+  filled,
+  status,
+}: BrokerOrder): string {
+  const price =
+    order.type === OrderType.Limit ? `limit ${order.limitPrice}` : "market";
+
+  return `${id} ${symbolLabel(order.instrument)} ${order.side} ${order.quantity} shares ${price}, ${filled} filled, ${status}`;
+}
+
 export function describeProposal(proposal: TradeProposal): string {
   const { order } = proposal;
   const price = order.type === OrderType.Limit ? order.limitPrice : "market";
@@ -930,12 +943,13 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
       name: AgentToolName.GetAccount,
       replay: "safe",
       description:
-        "Cash per currency and open positions with their average price, in the account the app trades, and how its closed round trips went by the stance of the report each was opened under.",
+        "Cash per currency and open positions with their average price, in the account the app trades, the orders of today's market days that may still fill, and how its closed round trips went by the stance of the report each was opened under.",
       parameters: z.object({}),
       execute: async () => {
-        const [account, fills] = await Promise.all([
+        const [account, fills, working] = await Promise.all([
           ports.desk.account(),
           ports.desk.fills(0),
+          ports.desk.working(),
         ]);
 
         const cash = Object.entries(account.cash).map(
@@ -957,6 +971,10 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             `cash: ${cash.join(", ") || "none"}`,
             "positions:",
             ...(positions.length > 0 ? positions : ["none"]),
+            "working orders:",
+            ...(working.length > 0
+              ? working.map(describeBrokerOrder)
+              : ["none"]),
             "closed round trips, before fees and tax, by the stance of the report in force at the first buy:",
             ...(records.length > 0
               ? records.flatMap(({ currency, all, stances }) => [

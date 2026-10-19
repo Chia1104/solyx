@@ -14,6 +14,9 @@ export const proposalsRouter = contractOS.proposals.router({
   dismiss: contractOS.proposals.dismiss.handler(({ context, input }) =>
     context.desk.dismiss(input)
   ),
+  reconcile: contractOS.proposals.reconcile.handler(({ context }) =>
+    context.desk.reconcile()
+  ),
   changes: contractOS.proposals.changes.handler(({ context, signal }) =>
     context.windowEvents.subscribe("proposals:changed", { signal })
   ),

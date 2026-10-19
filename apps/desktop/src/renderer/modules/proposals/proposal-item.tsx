@@ -184,9 +184,15 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   const locked = useQuery(tradingSettingsQuery()).data?.locked ?? false;
 
   const dismiss = useMutation(orpc.proposals.dismiss.mutationOptions());
+  const reconcile = useMutation(orpc.proposals.reconcile.mutationOptions());
 
-  const { order } = proposal;
-  const actionError = confirm.error ?? dismiss.error;
+  const { order, failure } = proposal;
+  const actionError = confirm.error ?? dismiss.error ?? reconcile.error;
+
+  // Only a failure the broker did not answer leaves an order it may hold to look for.
+  const unanswered =
+    failure?.code === SubmissionFailureCode.Unknown ||
+    failure?.code === SubmissionFailureCode.Interrupted;
 
   return (
     <article className="relative flex flex-col gap-2 border-b border-separator py-3 pr-4 pl-6">
@@ -255,17 +261,13 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
         </Alert>
       ) : null}
       {/* A failed submission is terminal: unless the broker refused it, it may have taken the order, so no retry is offered. */}
-      {proposal.failure ? (
+      {failure ? (
         <ErrorAlert
-          title={
-            proposal.failure.code === SubmissionFailureCode.Refused
-              ? t("proposals.submit-refused")
-              : t("proposals.submit-failed")
-          }
+          title={t(`proposals.failure.${failure.code}`)}
           description={
-            proposal.failure.code === SubmissionFailureCode.Interrupted
-              ? t("proposals.submit-interrupted")
-              : proposal.failure.message
+            "message" in failure
+              ? failure.message
+              : t(`proposals.failure.${failure.code}-detail`)
           }
         />
       ) : null}
@@ -274,6 +276,17 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
           title={t("common.error-title")}
           description={actionError.message}
         />
+      ) : null}
+      {unanswered ? (
+        <div className="flex gap-2 pt-1">
+          <Button
+            size="sm"
+            variant="secondary"
+            isPending={reconcile.isPending}
+            onPress={() => reconcile.mutate(undefined)}>
+            {t("proposals.reconcile")}
+          </Button>
+        </div>
       ) : null}
       {proposal.status === ProposalStatus.AwaitingConfirmation && (
         <div className="flex gap-2 pt-1">

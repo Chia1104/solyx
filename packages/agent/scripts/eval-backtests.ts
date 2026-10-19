@@ -38,7 +38,7 @@ import { DecisionMode } from "@solyx/core/council";
 import { Market, exchangeDate } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { ProposalSource, ProposalStatus } from "@solyx/core/order-desk";
-import type { OrderDesk, TradeProposal } from "@solyx/core/order-desk";
+import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
 import { getSession, weekdays } from "@solyx/core/session";
 import { createFugleMarketData } from "@solyx/market-data/fugle";
 
@@ -270,6 +270,7 @@ function recordingDesk(proposals: TradeProposal[]) {
     list: () => [],
     account: async () => ({ cash: { TWD: 1_000_000 }, positions: [] }),
     fills: async () => [],
+    working: async () => [],
     async propose({ order, rationale }) {
       const proposal: TradeProposal = {
         id: `p${proposals.length + 1}`,
@@ -287,10 +288,7 @@ function recordingDesk(proposals: TradeProposal[]) {
 
       return proposal;
     },
-  } satisfies Pick<
-    OrderDesk,
-    "check" | "propose" | "list" | "account" | "fills" | "mode"
-  >;
+  } satisfies ProposingDesk;
 }
 
 /** One request's run: the conversation as the app would show it, with what it called. */

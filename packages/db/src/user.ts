@@ -28,6 +28,11 @@ interface PaperAccount extends AccountSnapshot {
   orders: number;
 }
 
+interface PaperFill extends Fill {
+  tag: string | null;
+  limitPrice: number | null;
+}
+
 function watchlistStore(db: NodeSQLiteDatabase) {
   const listing = (ref: SymbolRef) =>
     and(eq(watchlist.market, ref.market), eq(watchlist.symbol, ref.symbol));
@@ -139,7 +144,7 @@ function paperAccountStore(db: NodeSQLiteDatabase) {
     },
 
     /** Keeps the account as an order left it, and the order's fill, in one transaction. */
-    write(account: PaperAccount, fill: Fill) {
+    write(account: PaperAccount, fill: PaperFill) {
       db.transaction((tx) => {
         tx.insert(paperAccount)
           .values({ id: PAPER_ACCOUNT_ID, ...account })
@@ -155,7 +160,7 @@ function paperAccountStore(db: NodeSQLiteDatabase) {
     },
 
     /** The fills from `since`, UTC milliseconds, on, oldest first. */
-    fills(since: number): Fill[] {
+    fills(since: number): PaperFill[] {
       return db
         .select()
         .from(paperFills)

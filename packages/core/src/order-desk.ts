@@ -1,11 +1,16 @@
-import { noop } from "es-toolkit";
+import { noop, omit } from "es-toolkit";
 
 import { errorMessage } from "@solyx/utils/error";
 
-import { OrderRefusedError } from "./broker.ts";
-import type { BrokerAdapter, BrokerMode } from "./broker.ts";
+import { BrokerOrderStatus, OrderRefusedError, orderTag } from "./broker.ts";
+import type { BrokerAdapter, BrokerMode, BrokerOrder } from "./broker.ts";
 import type { Forecast } from "./forecast.ts";
-import { currencyOf, exchangeDate, exchangeMidnight } from "./market.ts";
+import {
+  currencyOf,
+  exchangeDate,
+  exchangeMidnight,
+  symbolKey,
+} from "./market.ts";
 import type { Currency, Market, SymbolRef } from "./market.ts";
 import { Side, realizedIn } from "./order.ts";
 import type { AccountSnapshot, Fill, OrderRequest } from "./order.ts";
@@ -55,6 +60,8 @@ export const SubmissionFailureCode = {
   Unknown: "unknown",
   /** The app exited before the broker answered, so it may hold the order. */
   Interrupted: "interrupted",
+  /** Its session is over and the broker holds no order under its tag, so it never took it. */
+  Absent: "absent",
 } as const;
 
 export type SubmissionFailure =
@@ -64,7 +71,11 @@ export type SubmissionFailure =
         | typeof SubmissionFailureCode.Unknown;
       message: string;
     }
-  | { code: typeof SubmissionFailureCode.Interrupted };
+  | {
+      code:
+        | typeof SubmissionFailureCode.Interrupted
+        | typeof SubmissionFailureCode.Absent;
+    };
 
 /** What research held of a listing as a proposal for it was made, kept as it stood then. */
 export interface ProposalBasis {
@@ -160,8 +171,17 @@ export interface OrderDeskOptions {
 /** The desk as an agent may use it: proposing and reading, never confirming or dismissing. */
 export type ProposingDesk = Pick<
   OrderDesk,
-  "check" | "propose" | "list" | "account" | "fills" | "mode"
+  "check" | "propose" | "list" | "account" | "fills" | "working" | "mode"
 >;
+
+/** A failure that leaves whether the broker holds the order unknown, until the desk finds it. */
+function mayBeHeld({ status, failure }: TradeProposal): boolean {
+  return (
+    status === ProposalStatus.Failed &&
+    (failure?.code === SubmissionFailureCode.Unknown ||
+      failure?.code === SubmissionFailureCode.Interrupted)
+  );
+}
 
 /**
  * The only road from an idea to a real order: propose → risk check → human confirm → broker.
@@ -216,6 +236,82 @@ export class OrderDesk {
   /** The account's fills from `since`, UTC milliseconds, on, oldest first. */
   fills(since: number): Promise<Fill[]> {
     return this.#options.broker.getFills(since);
+  }
+
+  /** The account's orders placed from `since`, UTC milliseconds, on, oldest first. */
+  orders(since: number): Promise<BrokerOrder[]> {
+    return this.#options.broker.getOrders(since);
+  }
+
+  /** The orders of the account's current market days that may still fill, oldest first. */
+  async working(): Promise<BrokerOrder[]> {
+    const { broker, now = Date.now } = this.#options;
+    const at = new Date(now());
+
+    const since = Math.min(
+      ...broker.markets.map(
+        (market) => exchangeMidnight(market, exchangeDate(market, at)) * 1000
+      )
+    );
+
+    return (await broker.getOrders(since)).filter(
+      ({ status }) =>
+        status === BrokerOrderStatus.Pending ||
+        status === BrokerOrderStatus.Working
+    );
+  }
+
+  /**
+   * Finds the orders of proposals whose sending failed without the broker refusing them, by the
+   * tag each was placed with: one the broker holds is kept as submitted, and one it does not hold
+   * once its session is over failed for good. Never sends anything.
+   */
+  async reconcile(): Promise<void> {
+    const { broker, store, tradingDays, now = Date.now } = this.#options;
+    const unsure = store.list().filter(mayBeHeld);
+
+    if (unsure.length === 0) return;
+
+    // Taken before the orders are read, so a session over by then is over in what they list.
+    const at = new Date(now());
+
+    const orders = await broker.getOrders(
+      Math.min(...unsure.map(({ createdAt }) => createdAt))
+    );
+
+    for (const { id, order, premise } of unsure) {
+      const tag = orderTag(id);
+      const { instrument, side } = order;
+      const trades = (await tradingDays?.(instrument.market)) ?? weekdays;
+
+      const held = orders.find(
+        (placed) =>
+          placed.tag === tag &&
+          symbolKey(placed.order.instrument) === symbolKey(instrument) &&
+          placed.order.side === side
+      );
+
+      // Read again after the await: another reconcile may have settled it meanwhile.
+      const proposal = store.get(id);
+
+      if (!proposal || !mayBeHeld(proposal)) continue;
+
+      if (held) {
+        this.#save({
+          ...omit(proposal, ["failure"]),
+          status: ProposalStatus.Submitted,
+          brokerOrderId: held.id,
+        });
+      } else if (
+        premise &&
+        sessionDayAt(instrument.market, at, trades) > premise.session
+      ) {
+        this.#save({
+          ...proposal,
+          failure: { code: SubmissionFailureCode.Absent },
+        });
+      }
+    }
   }
 
   /**
@@ -336,7 +432,10 @@ export class OrderDesk {
     this.#save(sending);
 
     try {
-      const { orderId } = await broker.placeOrder(sending.order);
+      const { orderId } = await broker.placeOrder(
+        sending.order,
+        orderTag(sending.id)
+      );
 
       return this.#save({
         ...sending,
@@ -345,7 +444,7 @@ export class OrderDesk {
       });
     } catch (error) {
       // Terminal on purpose: unless the broker refused it, it may hold the order, so never auto-retry.
-      return this.#save({
+      const failed = this.#save({
         ...sending,
         status: ProposalStatus.Failed,
         failure: {
@@ -356,6 +455,11 @@ export class OrderDesk {
           message: errorMessage(error),
         },
       });
+
+      // The broker may list the order already; where it cannot be read, the failure stands.
+      if (mayBeHeld(failed)) void this.reconcile().catch(noop);
+
+      return failed;
     }
   }
 
