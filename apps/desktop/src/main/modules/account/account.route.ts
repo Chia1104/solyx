@@ -18,4 +18,8 @@ export const accountRouter = contractOS.account.router({
   working: contractOS.account.working.handler(({ context }) =>
     context.desk.working()
   ),
+  // A user's own action; the agent's desk cannot cancel.
+  cancel: contractOS.account.cancel.handler(({ context, input }) =>
+    context.desk.cancel(input)
+  ),
 });

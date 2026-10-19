@@ -6,6 +6,7 @@ import type {
   FubonFill,
   FubonHoldings,
   FubonOrder,
+  FubonOrderObject,
   FubonRealtime,
   FubonSessionOptions,
 } from "@solyx/brokers/fubon";
@@ -23,6 +24,10 @@ export const fubonContract = {
   holdings: oc.output(type<FubonHoldings>()),
   orders: oc.input(fromSchema).output(type<FubonOrder[]>()),
   fills: oc.input(fromSchema).output(type<FubonFill[]>()),
+  /** Places an order and answers with the order Fubon gave back. */
+  place: oc.input(type<FubonOrderObject>()).output(type<FubonOrder>()),
+  /** Cancels today's order by its id. */
+  cancel: oc.input(z.string()).output(type<void>()),
   /** Signs out, after which the main process ends the process. */
   close: oc.output(type<void>()),
 };

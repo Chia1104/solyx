@@ -7,15 +7,18 @@ import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import * as z from "zod";
 
 import { BrokerOrderStatus } from "@solyx/core/broker";
+import { OrderRefusedError } from "@solyx/core/broker";
 import { Market, exchangeDate } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
 import type { Fill } from "@solyx/core/order";
 
 import {
   FUBON_TEST_URL,
+  createFubonBroker,
   fubonAccount,
   fubonFill,
   fubonOrder,
+  fubonOrderObject,
   openFubonSession,
 } from "../src/fubon.ts";
 import type { FubonFill, FubonHoldings, FubonOrder } from "../src/fubon.ts";
@@ -25,6 +28,8 @@ const FAKE_BINDING = `
 const calls = [];
 
 const NO_REPORT = "證券報表/表單定義資料不存在";
+
+const REFUSED = "單價輸入錯誤[4385715]";
 
 class CoreSdk {
   constructor(...args) {
@@ -56,6 +61,27 @@ class CoreSdk {
 
   get stock() {
     return {
+      placeOrder(account, order, unblock) {
+        calls.push(["placeOrder", account.account, order, unblock]);
+
+        if (order.symbol === "9999") return { isSuccess: false, message: "connection lost" };
+
+        if (order.symbol === "8888") return { isSuccess: false, message: REFUSED };
+
+        return { isSuccess: true, data: { date: "2026/10/19", seqNo: "3", orderNo: "x0003", status: 10, userDef: order.userDef, lastTime: "09:00:00.000" } };
+      },
+      getOrderResults(account) {
+        calls.push(["getOrderResults", account.account]);
+
+        return { isSuccess: true, data: [{ date: "2026/10/19", seqNo: "2", orderNo: "x0002", lastTime: "09:00:00.000", isPreOrder: false }, { date: "2026/10/19", seqNo: "4", stockNo: "8888", buySell: "Buy", status: 90, userDef: "A1B2C3", errorMessage: REFUSED, lastTime: "09:00:00.000", isPreOrder: false }] };
+      },
+      cancelOrder(account, order, unblock) {
+        calls.push(["cancelOrder", account.account, order, unblock]);
+
+        return order.orderNo === "x0002"
+          ? { isSuccess: true, data: { ...order, status: 30 } }
+          : { isSuccess: false, message: "not found" };
+      },
       getOrderResultsDetail(account) {
         calls.push(["getOrderResultsDetail", account.account]);
 
@@ -532,4 +558,183 @@ test("a query Fubon refuses reports its message", () => {
   expect(() => session.holdings()).toThrow(
     "Fubon cost query failed: 證券報表/表單定義資料不存在"
   );
+});
+
+const tsmc = { market: Market.TW, symbol: "2330" };
+
+describe("an order as Fubon takes it", () => {
+  test("whole lots go to the regular book at their limit, marked with the tag", () => {
+    expect(
+      fubonOrderObject(
+        {
+          instrument: tsmc,
+          side: Side.Buy,
+          quantity: 2000,
+          type: OrderType.Limit,
+          limitPrice: 1005,
+        },
+        "A1B2C3"
+      )
+    ).toEqual({
+      buySell: "Buy",
+      symbol: "2330",
+      quantity: 2000,
+      marketType: "Common",
+      priceType: "Limit",
+      price: "1005",
+      timeInForce: "ROD",
+      orderType: "Stock",
+      userDef: "A1B2C3",
+    });
+  });
+
+  test("an odd lot goes to the intraday odd-lot book, and a market order takes no price", () => {
+    expect(
+      fubonOrderObject(
+        {
+          instrument: tsmc,
+          side: Side.Sell,
+          quantity: 300,
+          type: OrderType.Limit,
+          limitPrice: 1005,
+        },
+        "A1B2C3"
+      )
+    ).toMatchObject({ buySell: "Sell", marketType: "IntradayOdd" });
+
+    const market = fubonOrderObject(
+      {
+        instrument: tsmc,
+        side: Side.Buy,
+        quantity: 1000,
+        type: OrderType.Market,
+      },
+      "A1B2C3"
+    );
+
+    expect(market).toMatchObject({ priceType: "Market" });
+    expect(market).not.toHaveProperty("price");
+  });
+
+  test("a tag reads back as Fubon kept it, and a blank one as none", () => {
+    expect(
+      fubonOrder(orderResult({ userDef: "A1B2C3" }), "2026-10-19")?.tag
+    ).toBe("A1B2C3");
+    expect(
+      fubonOrder(orderResult({ userDef: " " }), "2026-10-19")?.tag
+    ).toBeNull();
+  });
+});
+
+describe("placing through the session", () => {
+  const order = (symbol: string) =>
+    fubonOrderObject(
+      {
+        instrument: { market: Market.TW, symbol },
+        side: Side.Buy,
+        quantity: 1000,
+        type: OrderType.Limit,
+        limitPrice: 66,
+      },
+      "A1B2C3"
+    );
+
+  test("answers with the order Fubon gave back, or the failed one it lists under the tag", () => {
+    const session = openFubonSession(options("good-key"));
+
+    expect(session.place(order("2881"))).toMatchObject({
+      orderNo: "x0003",
+      status: 10,
+    });
+    expect(session.place(order("8888"))).toMatchObject({
+      seqNo: "4",
+      status: 90,
+      errorMessage: "單價輸入錯誤[4385715]",
+    });
+    expect(recordedCalls().find(([call]) => call === "placeOrder")).toEqual([
+      "placeOrder",
+      "28",
+      order("2881"),
+      false,
+    ]);
+  });
+
+  test("throws where Fubon gave no order back and lists none under the tag, which leaves the outcome unknown", () => {
+    const session = openFubonSession(options("good-key"));
+
+    expect(() => session.place(order("9999"))).toThrow(
+      "Fubon gave no order back: connection lost"
+    );
+  });
+
+  test("cancels today's order by handing back the order as Fubon listed it", () => {
+    const session = openFubonSession(options("good-key"));
+
+    session.cancel("2026-10-19:x0002");
+
+    expect(recordedCalls().find(([call]) => call === "cancelOrder")).toEqual([
+      "cancelOrder",
+      "28",
+      {
+        date: "2026/10/19",
+        seqNo: "2",
+        orderNo: "x0002",
+        lastTime: "09:00:00.000",
+        isPreOrder: false,
+      },
+      false,
+    ]);
+    expect(() => session.cancel("2026-10-19:x9999")).toThrow(
+      "Fubon lists no order 2026-10-19:x9999 today to cancel"
+    );
+  });
+});
+
+describe("a Fubon broker placing an order", () => {
+  const limit = {
+    instrument: tsmc,
+    side: Side.Buy,
+    quantity: 1000,
+    type: OrderType.Limit,
+    limitPrice: 1005,
+  } as const;
+
+  const broker = (placed: FubonOrder) =>
+    createFubonBroker(async () => ({
+      holdings: async () => ({
+        inventories: [],
+        unrealized: [],
+        bank: { availableBalance: 0 },
+        settlements: [],
+      }),
+      orders: async () => [],
+      fills: async () => [],
+      place: async () => placed,
+      cancel: async () => undefined,
+    }));
+
+  test("answers with Fubon's day and number for it", async () => {
+    await expect(
+      broker(orderResult()).placeOrder(limit, "A1B2C3")
+    ).resolves.toEqual({ orderId: "2026-10-19:bA627" });
+  });
+
+  test("is refused where Fubon failed it, so nothing of it is held", async () => {
+    await expect(
+      broker(
+        orderResult({ status: 90, errorMessage: "insufficient quota" })
+      ).placeOrder(limit, "A1B2C3")
+    ).rejects.toThrow(
+      new OrderRefusedError("Fubon refused the order: insufficient quota")
+    );
+  });
+
+  test("leaves the outcome unknown where Fubon has yet to number it", async () => {
+    const placing = broker(
+      orderResult({ orderNo: null, status: 4 })
+    ).placeOrder(limit, "A1B2C3");
+
+    await expect(placing).rejects.toThrow("has yet to number it");
+    await expect(placing).rejects.not.toBeInstanceOf(OrderRefusedError);
+  });
 });

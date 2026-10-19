@@ -3,7 +3,7 @@
 Broker adapters, one module per broker:
 
 - `@solyx/brokers/paper`: a paper broker. Orders fill immediately and in full, with no fees or transaction tax, and short selling is not supported.
-- `@solyx/brokers/fubon`: the Fubon Neo API. `openFubonSession` loads the SDK, signs in with an API key and exchanges the session for market data tokens, which `@solyx/market-data/fubon` uses, and reads the stock account: holdings, what it can spend, orders and fills. The broker adapter places and cancels no orders yet.
+- `@solyx/brokers/fubon`: the Fubon Neo API. `openFubonSession` loads the SDK, signs in with an API key and exchanges the session for market data tokens, which `@solyx/market-data/fubon` uses, and trades the stock account: holdings, what it can spend, orders and fills, and placing and cancelling orders.
 
 ## Why the Fubon SDK is not a dependency
 
@@ -22,7 +22,9 @@ Broker adapters, one module per broker:
 Fubon runs a test environment with shared test accounts, open 9:30–19:00 Taipei time on weekdays. Download its package from the [Fubon Neo API](https://www.fbs.com.tw/TradeAPI/docs/welcome/) site, then read one of its accounts through this package:
 
 ```sh
-vp exec node packages/brokers/scripts/fubon-test-env.ts <sdk folder> <test certificate .pfx>
+vp exec node packages/brokers/scripts/fubon-test-env.ts <sdk folder> <test certificate .pfx> [--sell <code> <shares> <price>]
 ```
+
+`--sell` places a limit sale of one of the test account's holdings, lists the day's orders and cancels it.
 
 The test account's ID number is the certificate's file name, and its login and certificate password are the package's published `12345678`. Fubon's own guide says the test accounts' balances are not accurate and their holdings reset each day.

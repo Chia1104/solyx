@@ -42,6 +42,7 @@ function paperDesk() {
       getAccount: async () => ({ cash: { TWD: 5_000_000 }, positions: [] }),
       getFills: async () => [],
       getOrders: async () => [],
+      cancelOrder: async () => undefined,
       placeOrder: async () => ({ orderId: "B-1" }),
     },
     store: {

@@ -113,7 +113,7 @@ export interface RiskContext {
    * What the account's sales in the order's currency gained over its market's day so far, a loss
    * below zero, against the most the user lets it lose in a day; unset where they set no limit.
    */
-  dailyLoss?: { realized: number; max: number };
+  dailyLoss?: { realized: number | null; max: number };
   /**
    * The listing's band in the session the order goes to (`sessionBand`). A market order is sized
    * at its high, the most it could fill at, so one is refused where the band is `null` or unknown.
@@ -126,6 +126,8 @@ export const RiskViolationCode = {
   PriceMoved: "price-moved",
   OrdersLocked: "orders-locked",
   DailyLossReached: "daily-loss-reached",
+  /** A sale of the day's has yet to be reckoned, so how much the day lost is not known. */
+  DailyLossUnknown: "daily-loss-unknown",
   InvalidQuantity: "invalid-quantity",
   InvalidPrice: "invalid-price",
   OddLotMarketOrder: "odd-lot-market-order",
@@ -161,6 +163,11 @@ export type RiskViolation =
   | {
       code: typeof RiskViolationCode.DailyLossReached;
       loss: number;
+      max: number;
+      currency: Currency;
+    }
+  | {
+      code: typeof RiskViolationCode.DailyLossUnknown;
       max: number;
       currency: Currency;
     }
@@ -219,18 +226,26 @@ export function checkOrder(
 
   if (context.locked) violations.push({ code: RiskViolationCode.OrdersLocked });
 
-  // A sale only takes risk off, so it still goes once the day's loss reaches the limit.
-  if (
-    order.side === Side.Buy &&
-    context.dailyLoss &&
-    -context.dailyLoss.realized >= context.dailyLoss.max
-  ) {
-    violations.push({
-      code: RiskViolationCode.DailyLossReached,
-      loss: -context.dailyLoss.realized,
-      max: context.dailyLoss.max,
-      currency: currencyOf(instrument.market),
-    });
+  // A sale only takes risk off, so it still goes once the day's loss reaches the limit, or while
+  // it cannot be told.
+  if (order.side === Side.Buy && context.dailyLoss) {
+    const { realized, max } = context.dailyLoss;
+    const currency = currencyOf(instrument.market);
+
+    if (realized === null) {
+      violations.push({
+        code: RiskViolationCode.DailyLossUnknown,
+        max,
+        currency,
+      });
+    } else if (-realized >= max) {
+      violations.push({
+        code: RiskViolationCode.DailyLossReached,
+        loss: -realized,
+        max,
+        currency,
+      });
+    }
   }
 
   if (!context.markets.includes(instrument.market)) {

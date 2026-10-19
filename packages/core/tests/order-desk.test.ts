@@ -97,6 +97,10 @@ function setup(
   const getFills = vi.fn<BrokerAdapter["getFills"]>(async () => []);
   const getOrders = vi.fn<BrokerAdapter["getOrders"]>(async () => []);
 
+  const cancelOrder = vi.fn<BrokerAdapter["cancelOrder"]>(
+    async () => undefined
+  );
+
   const broker: BrokerAdapter = {
     id: brokerId,
     mode: BrokerMode.Paper,
@@ -105,6 +109,7 @@ function setup(
     getFills,
     getOrders,
     placeOrder,
+    cancelOrder,
   };
 
   const desk = new OrderDesk({
@@ -131,6 +136,7 @@ function setup(
     getAccount,
     getFills,
     getOrders,
+    cancelOrder,
     account,
     clock,
     tradingDays,
@@ -735,6 +741,45 @@ test("a buy is refused once the day's sales have lost the user's limit, which th
   });
 
   expect(getFills).not.toHaveBeenCalled();
+});
+
+test("a buy waits while a sale of the day's has yet to be reckoned, and a sale still goes", async () => {
+  const { desk, getFills } = setup(undefined, {
+    maxDailyLoss: () => ({ TWD: 50_000 }),
+  });
+
+  getFills.mockResolvedValue([
+    {
+      orderId: "B-0",
+      instrument: order.instrument,
+      side: Side.Sell,
+      quantity: 1000,
+      price: 930,
+      filledAt: DURING_SESSION - MINUTE_MS,
+      realized: null,
+    },
+  ]);
+
+  expect(await desk.check(order)).toEqual([
+    { code: RiskViolationCode.DailyLossUnknown, max: 50_000, currency: "TWD" },
+  ]);
+  expect(await desk.check({ ...order, side: Side.Sell })).not.toContainEqual(
+    expect.objectContaining({ code: RiskViolationCode.DailyLossUnknown })
+  );
+});
+
+test("cancelling asks the broker and tells whoever shows the account, whatever it answered", async () => {
+  const { desk, cancelOrder, onChange } = setup();
+
+  await desk.cancel("B-7");
+
+  expect(cancelOrder).toHaveBeenCalledExactlyOnceWith("B-7");
+  expect(onChange).toHaveBeenCalledTimes(1);
+
+  cancelOrder.mockRejectedValueOnce(new Error("already filled"));
+
+  await expect(desk.cancel("B-7")).rejects.toThrow("already filled");
+  expect(onChange).toHaveBeenCalledTimes(2);
 });
 
 test("a proposal keeps the session it went to and the price then, and holds only for that session", async () => {

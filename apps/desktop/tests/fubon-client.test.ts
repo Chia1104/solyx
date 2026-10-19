@@ -70,6 +70,8 @@ function fakeChild(sdk: Partial<FakeSdk> = {}) {
       })),
       orders: fubon.orders.handler(() => []),
       fills: fubon.fills.handler(() => []),
+      place: fubon.place.handler(() => Promise.reject(new Error("unused"))),
+      cancel: fubon.cancel.handler(() => undefined),
       close: fubon.close.handler(() =>
         sdk.close ? sdk.close() : Promise.resolve()
       ),

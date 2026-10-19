@@ -89,7 +89,9 @@
       "filled": "Filled",
       "cancelled": "Cancelled",
       "refused": "Refused"
-    }
+    },
+    "cancel": "Cancel order",
+    "cancel-failed": "Couldn't cancel the order"
   },
   "review": {
     "title": "Trade review",
@@ -876,6 +878,7 @@
     "price-moved": "The price has moved from {{proposedAt, number}} to {{price, number}} since it was proposed, more than {{max, number}}%; propose it again",
     "orders-locked": "Orders are locked; unlock them to trade",
     "daily-loss-reached": "Today's sales lost {{loss, number}} {{currency}}, reaching your {{max, number}} {{currency}} limit; only sales can go",
+    "daily-loss-unknown": "A sale of today's has yet to be reckoned, so whether today's sales reached your {{max, number}} {{currency}} limit is not known; only sales can go for now",
     "invalid-quantity-tw": "Taiwan orders must be 1–999 odd-lot shares or a multiple of 1,000",
     "invalid-quantity-us": "US orders must be a positive whole number of shares",
     "invalid-price": "Price {{price, number(maximumFractionDigits: 4)}} is not a multiple of the {{tick, number(maximumFractionDigits: 4)}} tick size",

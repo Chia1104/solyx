@@ -24,6 +24,11 @@ export function violationMessage(t: TFunction, violation: RiskViolation) {
         max: violation.max,
         currency: violation.currency,
       });
+    case RiskViolationCode.DailyLossUnknown:
+      return t("risk.daily-loss-unknown", {
+        max: violation.max,
+        currency: violation.currency,
+      });
     case RiskViolationCode.InvalidQuantity:
       return violation.market === Market.TW
         ? t("risk.invalid-quantity-tw")

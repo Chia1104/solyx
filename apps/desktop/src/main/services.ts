@@ -140,14 +140,7 @@ export function createServices(config: ConfigFile) {
 
   const desk = new OrderDesk({
     broker: tradesFubon
-      ? createFubonBroker({
-          holdings: async () =>
-            (await marketDataSources.fubonSession()).holdings(),
-          orders: async (from) =>
-            (await marketDataSources.fubonSession()).orders(from),
-          fills: async (from) =>
-            (await marketDataSources.fubonSession()).fills(from),
-        })
+      ? createFubonBroker(() => marketDataSources.fubonSession())
       : createPaperBroker({
           cash: PAPER_CASH,
           ledger: userData.paperAccount,

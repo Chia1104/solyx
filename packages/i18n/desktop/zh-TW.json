@@ -89,7 +89,9 @@
       "filled": "完全成交",
       "cancelled": "已取消",
       "refused": "失敗"
-    }
+    },
+    "cancel": "撤單",
+    "cancel-failed": "撤單失敗"
   },
   "review": {
     "title": "交易檢討",
@@ -876,6 +878,7 @@
     "price-moved": "提案後價格從 {{proposedAt, number}} 變為 {{price, number}}，變動超過 {{max, number}}%，請重新提案",
     "orders-locked": "下單已鎖定，解除後才能下單",
     "daily-loss-reached": "今日賣出已虧損 {{loss, number}} {{currency}}，達到上限 {{max, number}} {{currency}}，只能賣出",
+    "daily-loss-unknown": "今日有筆賣出券商尚未結算，還不知道是否已達虧損上限 {{max, number}} {{currency}}；目前只能賣出",
     "invalid-quantity-tw": "台股數量須為 1–999 股零股，或 1,000 股的整數倍",
     "invalid-quantity-us": "美股數量須為正整數股",
     "invalid-price": "價格 {{price, number(maximumFractionDigits: 4)}} 不符合升降單位 {{tick, number(maximumFractionDigits: 4)}}",

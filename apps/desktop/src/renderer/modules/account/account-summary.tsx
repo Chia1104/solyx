@@ -1,5 +1,5 @@
-import { EmptyState, Table } from "@heroui/react";
-import { useQuery } from "@tanstack/react-query";
+import { Button, EmptyState, Table } from "@heroui/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +10,7 @@ import { OrderType } from "@solyx/core/order";
 import type { Position } from "@solyx/core/order";
 
 import { orpc } from "../../app/rpc.ts";
+import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
@@ -72,6 +73,30 @@ function ListingLink({ symbol }: { symbol: SymbolRef }) {
   );
 }
 
+/** Asks the broker to cancel one order; the account's orders then tell what came of it. */
+function CancelButton({ id }: { id: string }) {
+  const { t } = useTranslation();
+  const cancel = useMutation(orpc.account.cancel.mutationOptions());
+
+  return (
+    <div className="flex flex-col items-end gap-2">
+      <Button
+        size="sm"
+        variant="tertiary"
+        isPending={cancel.isPending}
+        onPress={() => cancel.mutate(id)}>
+        {t("account.cancel")}
+      </Button>
+      {cancel.error ? (
+        <ErrorAlert
+          title={t("account.cancel-failed")}
+          description={cancel.error.message}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 /** The day's orders that may still fill, wherever they were placed; none shows nothing. */
 function WorkingOrders() {
   const { t, i18n } = useTranslation();
@@ -93,6 +118,9 @@ function WorkingOrders() {
             <Table.Column isRowHeader>{t("account.working")}</Table.Column>
             <Table.Column>{t("account.order")}</Table.Column>
             <Table.Column>{t("account.filled")}</Table.Column>
+            <Table.Column>
+              <span className="sr-only">{t("account.cancel")}</span>
+            </Table.Column>
           </Table.Header>
           <Table.Body>
             <Table.Collection items={data}>
@@ -113,6 +141,9 @@ function WorkingOrders() {
                     <span className="text-xs text-muted">
                       {t(`account.order-status.${working.status}`)}
                     </span>
+                  </Table.Cell>
+                  <Table.Cell>
+                    <CancelButton id={working.id} />
                   </Table.Cell>
                 </Table.Row>
               )}

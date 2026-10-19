@@ -1,4 +1,5 @@
 import { oc, type } from "@orpc/contract";
+import * as z from "zod";
 
 import type { BrokerOrder } from "@solyx/core/broker";
 import type { RoundTrip } from "@solyx/core/review";
@@ -11,4 +12,6 @@ export const accountContract = {
   roundTrips: oc.output(type<RoundTrip[]>()),
   /** The orders of today's market days that may still fill, oldest first. */
   working: oc.output(type<BrokerOrder[]>()),
+  /** Asks the broker to cancel one of the account's orders, by its id. */
+  cancel: oc.input(z.string().min(1)).output(type<void>()),
 };
