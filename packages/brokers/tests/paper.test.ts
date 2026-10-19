@@ -1,12 +1,13 @@
-import { describe, expect, test } from "vite-plus/test";
+import { describe, expect, test, vi } from "vite-plus/test";
 
 import { BrokerOrderStatus, OrderRefusedError } from "@solyx/core/broker";
-import { Market } from "@solyx/core/market";
+import type { Candle } from "@solyx/core/candles";
+import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { ExitLeg, OrderType, Side } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 
-import { createPaperBroker } from "../src/paper.ts";
+import { createPaperBroker, exitPrice } from "../src/paper.ts";
 import type {
   PaperAccount,
   PaperBrokerOptions,
@@ -344,5 +345,214 @@ describe("exits", () => {
     await expect(exits.cancel(`${TAG}:stop`)).rejects.toThrow(
       "watches no exit leg"
     );
+  });
+});
+
+describe("an exit on live bars", () => {
+  const NOW = Date.UTC(2026, 9, 19, 2);
+  const minute = (n: number) => NOW / 1000 + n * 60;
+
+  const bar = (
+    time: number,
+    low: number,
+    high: number,
+    open = 600
+  ): Candle => ({
+    time,
+    open,
+    high,
+    low,
+    close: open,
+    volume: 1000,
+  });
+
+  test("sells at the leg's price, or at the open where the bar opened past it, and at the stop where a bar reached both", () => {
+    const legs = [
+      { leg: ExitLeg.Stop, price: 550 },
+      { leg: ExitLeg.Target, price: 700 },
+    ];
+
+    expect(exitPrice(legs, bar(0, 560, 650))).toBeNull();
+    expect(exitPrice(legs, bar(0, 548, 650))).toBe(550);
+    expect(exitPrice(legs, bar(0, 560, 705))).toBe(700);
+    expect(exitPrice(legs, bar(0, 530, 560, 540))).toBe(540);
+    expect(exitPrice(legs, bar(0, 700, 720, 710))).toBe(710);
+    expect(exitPrice(legs, bar(0, 540, 710))).toBe(550);
+  });
+
+  // Hands each followed listing its bars as the test pushes them, as the live stream does.
+  function liveFeed() {
+    const feeds = new Map<string, (bars: Candle[]) => void>();
+    const ended: string[] = [];
+
+    const bars = (instrument: SymbolRef, signal: AbortSignal) => ({
+      async *[Symbol.asyncIterator]() {
+        const queue: Candle[][] = [];
+        let wake: (() => void) | undefined;
+
+        const key = symbolKey(instrument);
+
+        feeds.set(key, (batch) => {
+          queue.push(batch);
+          wake?.();
+        });
+        signal.addEventListener("abort", () => wake?.());
+
+        while (!signal.aborted) {
+          const batch = queue.shift();
+
+          if (batch) {
+            yield batch;
+          } else {
+            await new Promise<void>((resolve) => {
+              wake = resolve;
+            });
+          }
+        }
+
+        feeds.delete(key);
+        ended.push(key);
+      },
+    });
+
+    const push = async (batch: Candle[]) => {
+      feeds.get(symbolKey(tsmc))?.(batch);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    };
+
+    return { bars, push, feeds, ended };
+  }
+
+  test("follows the listing while an exit is watched, sells on the first bar after it was placed that reaches a leg, and then stops following", async () => {
+    const feed = liveFeed();
+    const getLastPrice = vi.fn(async () => 600);
+    const onExitSold = vi.fn();
+
+    const broker = createPaperBroker({
+      cash: { TWD: 1_000_000 },
+      ledger: memoryLedger(),
+      getLastPrice,
+      bars: feed.bars,
+      onExitSold,
+      now: () => NOW,
+    });
+
+    await broker.placeOrder(limit(Side.Buy, 1000, 600), "BUY001");
+    await broker.exits?.place(
+      tsmc,
+      1000,
+      { stop: 550, target: 700, until: "2026-11-18" },
+      TAG
+    );
+
+    expect(feed.feeds.has(symbolKey(tsmc))).toBe(true);
+
+    // The minute it was placed in fell below the stop before it was.
+    await feed.push([bar(minute(0), 540, 610)]);
+
+    expect((await broker.getAccount()).positions).toHaveLength(1);
+    expect(onExitSold).not.toHaveBeenCalled();
+
+    await feed.push([bar(minute(1), 545, 600)]);
+
+    expect(onExitSold).toHaveBeenCalledOnce();
+
+    expect((await broker.getAccount()).positions).toEqual([]);
+    expect((await broker.getFills(0)).at(-1)).toMatchObject({
+      price: 550,
+      realized: -50_000,
+    });
+    expect(feed.ended).toEqual([symbolKey(tsmc)]);
+    expect(await broker.exits?.watching()).toEqual([]);
+  });
+
+  test("a price reached while the app was closed sells nothing once it follows the listing again", async () => {
+    const feed = liveFeed();
+    const ledger = memoryLedger();
+    const clock = { now: NOW };
+
+    const open = () =>
+      createPaperBroker({
+        cash: { TWD: 1_000_000 },
+        ledger,
+        getLastPrice: async () => 600,
+        bars: feed.bars,
+        now: () => clock.now,
+      });
+
+    const before = open();
+
+    await before.placeOrder(limit(Side.Buy, 1000, 600), "BUY001");
+    await before.exits?.place(
+      tsmc,
+      1000,
+      { stop: 550, target: 700, until: "2026-11-18" },
+      TAG
+    );
+
+    // The app is closed from minute 2 to minute 10, and opens again then.
+    clock.now = NOW + 10 * 60_000;
+
+    const after = open();
+
+    await after.exits?.watching();
+
+    // The session's first bars, as a stream gives them on subscribing.
+    await feed.push([bar(minute(5), 540, 600), bar(minute(10), 590, 600)]);
+
+    expect((await after.getAccount()).positions).toHaveLength(1);
+
+    await feed.push([bar(minute(11), 548, 600)]);
+
+    expect((await after.getAccount()).positions).toEqual([]);
+  });
+
+  test("reads no price for a listing it follows live, and reads it once the stream no longer covers it", async () => {
+    const feed = liveFeed();
+    const getLastPrice = vi.fn(async () => 600);
+
+    const broker = createPaperBroker({
+      cash: { TWD: 1_000_000 },
+      ledger: memoryLedger(),
+      getLastPrice,
+      bars: feed.bars,
+      now: () => NOW,
+    });
+
+    await broker.placeOrder(limit(Side.Buy, 1000, 600), "BUY001");
+    await broker.exits?.place(
+      tsmc,
+      1000,
+      { stop: 550, target: 700, until: "2026-11-18" },
+      TAG
+    );
+    await broker.exits?.watching();
+
+    expect(getLastPrice).not.toHaveBeenCalled();
+
+    // A stream past the plan's symbols ends as soon as it starts.
+    async function* uncoveredBars(): AsyncGenerator<Candle[]> {
+      // No stream covers the listing, so no bar comes.
+    }
+
+    const uncovered = createPaperBroker({
+      cash: { TWD: 1_000_000 },
+      ledger: memoryLedger(),
+      getLastPrice,
+      bars: uncoveredBars,
+      now: () => NOW,
+    });
+
+    await uncovered.placeOrder(limit(Side.Buy, 1000, 600), "BUY001");
+    await uncovered.exits?.place(
+      tsmc,
+      1000,
+      { stop: 550, target: 700, until: "2026-11-18" },
+      TAG
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await uncovered.exits?.watching();
+
+    expect(getLastPrice).toHaveBeenCalledOnce();
   });
 });
