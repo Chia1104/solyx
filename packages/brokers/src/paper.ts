@@ -1,4 +1,4 @@
-import { groupBy, omit } from "es-toolkit";
+import { groupBy, noop, omit } from "es-toolkit";
 
 import {
   BrokerMode,
@@ -6,6 +6,7 @@ import {
   OrderRefusedError,
 } from "@solyx/core/broker";
 import type { BrokerAdapter, WatchedExitLeg } from "@solyx/core/broker";
+import type { Candle } from "@solyx/core/candles";
 import {
   Market,
   currencyOf,
@@ -15,6 +16,7 @@ import {
 import type { Currency, SymbolRef } from "@solyx/core/market";
 import { ExitLeg, OrderType, Side, exitLegs } from "@solyx/core/order";
 import type { AccountSnapshot, Fill, OrderRequest } from "@solyx/core/order";
+import { MINUTE_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 
 export interface PaperAccount extends AccountSnapshot {
@@ -69,6 +71,17 @@ export interface PaperBrokerOptions {
   ledger: PaperLedger;
   /** Only market orders and exits need it; limit orders fill at their limit price. */
   getLastPrice?: (instrument: SymbolRef) => Promise<number>;
+  /**
+   * Today's minute bars of `instrument` as they form, a batch for each push, until `signal`
+   * aborts or no stream covers it, which exits are checked against as they come.
+   * @default none, so exits are checked against the last price only when the desk asks
+   */
+  bars?: (
+    instrument: SymbolRef,
+    signal: AbortSignal
+  ) => AsyncIterable<Candle[]>;
+  /** Called once a bar sold an exit, a change to the account no one asked for, so its holder can look again. */
+  onExitSold?: () => void;
   /** @default Date.now */
   now?: () => number;
 }
@@ -76,10 +89,12 @@ export interface PaperBrokerOptions {
 /**
  * Fills every order immediately and in full. No fees, no securities transaction tax, no shorting —
  * good enough to exercise the order flow, not to judge a strategy. An order it cannot fill is
- * refused, since it changes nothing before the fill is written. It watches exits only as it is
- * asked what it watches, against the listing's last price then: a leg the price has reached sells
- * whole at that price and ends its siblings in the same write, so one sale ends the exit, and one
- * whose last day has passed ends unsold.
+ * refused, since it changes nothing before the fill is written. It watches an exit's listing on
+ * the live bars it is given while the app runs: the first minute bar after the exit was placed
+ * that reaches a leg sells the exit whole there, at the leg's price, or at the bar's open where it
+ * opened past it, and ends its siblings in the same write, so one sale ends the exit. Asked what it
+ * watches, it checks the last price too, for a listing no stream covers, and ends the exits whose
+ * last day has passed unsold.
  */
 export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
   const { ledger, now = Date.now } = options;
@@ -182,8 +197,32 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
     return { orderId };
   }
 
-  /** Sells for each exit a leg's price has reached, and ends those whose last day has passed. */
-  async function settleExits() {
+  /** Sells the exit whose legs are `legs` whole at `price`, or ends it unsold where its shares are gone. */
+  function sellExit(legs: readonly PaperExitLeg[], price: number) {
+    const [first] = legs;
+
+    if (!first) return;
+
+    const { instrument, quantity, tag } = first;
+    const refs = legs.map(({ ref }) => ref);
+
+    try {
+      fill(
+        { instrument, side: Side.Sell, quantity, type: OrderType.Market },
+        price,
+        tag,
+        refs
+      );
+    } catch (error) {
+      if (!(error instanceof OrderRefusedError)) throw error;
+
+      ledger.removeExitLegs(refs);
+    }
+  }
+
+  /** The exits still watched, the legs of each, with those whose last day has passed ended unsold. */
+  function watchedExits(): PaperExitLeg[][] {
+    const watched: PaperExitLeg[][] = [];
     const exits = groupBy(ledger.exitLegs(), ({ tag }) => tag);
 
     for (const legs of Object.values(exits)) {
@@ -191,18 +230,106 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
 
       if (!first) continue;
 
-      const { instrument, quantity, tag, until } = first;
-      const refs = legs.map(({ ref }) => ref);
+      const today = exchangeDate(first.instrument.market, new Date(now()));
 
-      if (until < exchangeDate(instrument.market, new Date(now()))) {
-        ledger.removeExitLegs(refs);
+      if (first.until < today) {
+        ledger.removeExitLegs(legs.map(({ ref }) => ref));
+      } else {
+        watched.push(legs);
+      }
+    }
+
+    return watched;
+  }
+
+  /** Sells each exit a minute bar of its listing reached, once the bar opened after it was placed. */
+  function settleBars(instrument: SymbolRef, bars: readonly Candle[]) {
+    const ordered = bars.toSorted((left, right) => left.time - right.time);
+    let sold = false;
+
+    for (const legs of watchedExits()) {
+      const [first] = legs;
+
+      if (!first || symbolKey(first.instrument) !== symbolKey(instrument)) {
         continue;
       }
 
+      // The minute it was placed in holds prices from before it.
+      const from =
+        (Math.floor(first.placedAt / MINUTE_MS) + 1) * (MINUTE_MS / 1000);
+
+      for (const bar of ordered) {
+        const price = bar.time < from ? null : exitPrice(legs, bar);
+
+        if (price !== null) {
+          sellExit(legs, price);
+          sold = true;
+          break;
+        }
+      }
+    }
+
+    followBars();
+
+    if (sold) options.onExitSold?.();
+  }
+
+  const streams = new Map<string, AbortController>();
+
+  /** Follows the bars of each listing an exit is watched on, and stops following the rest. */
+  function followBars() {
+    const { bars } = options;
+
+    if (!bars) return;
+
+    const wanted = new Map(
+      ledger
+        .exitLegs()
+        .map(({ instrument }) => [symbolKey(instrument), instrument] as const)
+    );
+
+    for (const [key, controller] of streams) {
+      if (!wanted.has(key)) {
+        controller.abort();
+        streams.delete(key);
+      }
+    }
+
+    for (const [key, instrument] of wanted) {
+      if (streams.has(key)) continue;
+
+      const controller = new AbortController();
+
+      streams.set(key, controller);
+
+      // A stream that ends or fails leaves the last price to check until the next ask follows it again.
+      void (async () => {
+        for await (const batch of bars(instrument, controller.signal)) {
+          settleBars(instrument, batch);
+        }
+      })()
+        .catch(noop)
+        .finally(() => {
+          if (streams.get(key) === controller) streams.delete(key);
+        });
+    }
+  }
+
+  /** Sells for each exit the listing's last price has reached, for a listing no stream covers. */
+  async function settleExits() {
+    for (const legs of watchedExits()) {
+      const [first] = legs;
+
+      // A listing followed live is settled by its bars, at no request for its price.
+      if (!first || streams.has(symbolKey(first.instrument))) continue;
+
       // A price that cannot be read leaves the exit watched, as a broker's would be.
       const price = await options
-        .getLastPrice?.(instrument)
+        .getLastPrice?.(first.instrument)
         .catch(() => undefined);
+
+      // A bar may have sold it while the price was read.
+      const still = ledger.exitLegs().some(({ tag }) => tag === first.tag);
 
       const reached =
         price !== undefined &&
@@ -210,22 +337,10 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
           leg.leg === ExitLeg.Stop ? price <= leg.price : price >= leg.price
         );
 
-      if (!reached) continue;
-
-      try {
-        fill(
-          { instrument, side: Side.Sell, quantity, type: OrderType.Market },
-          price,
-          tag,
-          refs
-        );
-      } catch (error) {
-        // Shares sold meanwhile leave none for the exit, which ends unsold.
-        if (!(error instanceof OrderRefusedError)) throw error;
-
-        ledger.removeExitLegs(refs);
-      }
+      if (still && reached) sellExit(legs, price);
     }
+
+    followBars();
   }
 
   return {
@@ -301,6 +416,7 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
         }));
 
         ledger.addExitLegs(legs);
+        followBars();
 
         return legs.map(({ ref }) => ref);
       },
@@ -317,7 +433,31 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
         }
 
         ledger.removeExitLegs([ref]);
+        followBars();
       },
     },
   };
+}
+
+/**
+ * The price an exit's leg sells at in `bar`, or `null` where the bar reaches neither: at the bar's
+ * open where it opened past a leg, and otherwise at the leg's price. A bar that reaches both sells
+ * at the stop, since nothing in it tells which came first.
+ */
+export function exitPrice(
+  legs: readonly Pick<WatchedExitLeg, "leg" | "price">[],
+  bar: Pick<Candle, "open" | "high" | "low">
+): number | null {
+  const stop = legs.find(({ leg }) => leg === ExitLeg.Stop)?.price;
+  const target = legs.find(({ leg }) => leg === ExitLeg.Target)?.price;
+
+  if (target !== undefined && bar.open >= target) return bar.open;
+
+  if (stop !== undefined && bar.open <= stop) return bar.open;
+
+  if (stop !== undefined && bar.low <= stop) return stop;
+
+  if (target !== undefined && bar.high >= target) return target;
+
+  return null;
 }

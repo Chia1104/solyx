@@ -7,6 +7,7 @@ import { debounce, kebabCase, omit, uniqBy } from "es-toolkit";
 
 import { createFubonBroker } from "@solyx/brokers/fubon";
 import { createPaperBroker } from "@solyx/brokers/paper";
+import { Interval } from "@solyx/core/candles";
 import { changesSince, watchesListings } from "@solyx/core/changes";
 import { Currency, symbolKey, symbolLabel } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -102,7 +103,7 @@ const PAPER_LIMITS: RiskLimits = {
 const BROKER_REPORTS_SETTLE_MS = 500;
 
 // How often the desk asks the broker which exit legs it still watches, so one sale ends the rest
-// and the paper account, which only checks prices when asked, sells at them.
+// and the paper account checks the last price of a listing the live stream does not cover.
 const EXIT_WATCH_MS = 60_000;
 
 // A live account's orders go only to the regular session, whose books every broker takes alike.
@@ -166,6 +167,16 @@ export function createServices(config: ConfigFile) {
 
             return quote.last;
           },
+          // The live stream's minute bars, which charts share; past the plan's symbols, the last price is checked instead.
+          bars: (instrument, signal) =>
+            marketData.liveCandles(instrument, Interval.OneMinute, signal),
+          // As Fubon's reports do, so the exit's proposal shows it ended and the account shows the sale.
+          onExitSold: () =>
+            void desk
+              .brokerChanged()
+              .catch((error) =>
+                diagnostics.recovered(error, "desk.broker-changed")
+              ),
         }),
     store: userData.proposals,
     limits: tradesFubon ? LIVE_LIMITS : PAPER_LIMITS,
