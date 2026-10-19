@@ -5,7 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { partition } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
-import { ProposalStatus } from "@solyx/core/order-desk";
+import { ProposalStatus, exitWatched } from "@solyx/core/order-desk";
+import type { TradeProposal } from "@solyx/core/order-desk";
 
 import { usePaletteColors } from "../../app/theme.ts";
 import { highlight } from "../../components/highlight.ts";
@@ -21,7 +22,11 @@ const PENDING: readonly ProposalStatus[] = [
   ProposalStatus.Submitting,
 ];
 
-/** Proposals still waiting on the user, newest first, above the ones already decided. */
+/** Waiting on the user, or an exit the broker still watches, which the user may cancel. */
+const isOpen = (proposal: TradeProposal) =>
+  PENDING.includes(proposal.status) || exitWatched(proposal);
+
+/** Proposals still waiting on the user and exits the broker watches, newest first, above the ones already decided. */
 export function ProposalQueue() {
   const { t } = useTranslation();
   const { data, error, refetch } = useQuery(proposalsQuery());
@@ -29,9 +34,7 @@ export function ProposalQueue() {
   const queue = useRef<HTMLDivElement>(null);
   const decidedCount = useRef<number | undefined>(undefined);
 
-  const decidedNow = data?.filter(
-    (proposal) => !PENDING.includes(proposal.status)
-  ).length;
+  const decidedNow = data?.filter((proposal) => !isOpen(proposal)).length;
 
   // A proposal leaves the queue once decided, so the history it moved into lights up.
   useEffect(() => {
@@ -56,9 +59,7 @@ export function ProposalQueue() {
 
   if (!data) return <LoadingState />;
 
-  const [pending, decided] = partition(data.toReversed(), (proposal) =>
-    PENDING.includes(proposal.status)
-  );
+  const [pending, decided] = partition(data.toReversed(), isOpen);
 
   return (
     <div ref={queue} className="flex flex-col">

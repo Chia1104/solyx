@@ -651,6 +651,11 @@
   "proposals": {
     "form-title": "建立下單提案",
     "form-description": "提案會先在這裡經過風控檢查，確認送出時會再檢查一次。",
+    "form-kinds": {
+      "order": "委託",
+      "exit": "停損停利"
+    },
+    "exit-form-description": "價格跌到停損價或漲到停利價時，賣出你持有的股票。和其他提案一樣，要你確認才會生效。",
     "summary": "{{side}} {{quantity, number}} 股 @ {{price}}",
     "market-price": "市價",
     "impact": {
@@ -697,6 +702,22 @@
       "would-send": "影子模式：授權會自動送出這筆",
       "outside": "不在授權範圍：{{reasons}}",
       "separator": "；"
+    },
+    "exit": {
+      "summary": "{{until}} 前{{legs}} 時，賣出 {{quantity, number}} 股",
+      "stop": "跌到 {{price, number}}",
+      "target": "漲到 {{price, number}}",
+      "or": " 或",
+      "broker-hint": "券商自己盯價，Solyx 關著也會觸發。停損以跌停價送出，停利以停利價送出；其中一筆賣出後，Solyx 下次執行時會取消另一筆。",
+      "paper-hint": "模擬帳戶只在 Solyx 開著時每分鐘查一次價格，觸發就以當時價格成交。",
+      "watching": "券商盯價中，Solyx 關著也會觸發。",
+      "paper-watching": "Solyx 開著時每分鐘查一次價格。",
+      "cancel": "取消",
+      "cancel-failed": "無法取消停損停利",
+      "cancelled": "你已取消。",
+      "ended": "已停止盯價：可能已觸價、到期，或在券商端被刪除。是否已賣出請看帳戶的成交紀錄。",
+      "chip-watching": "盯價中",
+      "chip-ended": "已結束"
     }
   },
   "flows": {
@@ -880,6 +901,18 @@
       "positive": "必須大於零"
     }
   },
+  "exit-form": {
+    "days": "盯價天數",
+    "stop": "停損價",
+    "stop-hint": "跌到此價時，以跌停價賣出。",
+    "target": "停利價",
+    "target-hint": "漲到此價時，以此價賣出。",
+    "errors": {
+      "whole-days": "請輸入整數天",
+      "days": "1 到 {{max, number}} 天",
+      "without-price": "停損價和停利價至少填一個"
+    }
+  },
   "risk": {
     "premise-stale": "提案時的交易時段（{{date}}）已經過了，請重新提案",
     "premise-unknown": "這筆提案沒有記下當時的行情，請重新提案",
@@ -898,7 +931,13 @@
     "unsupported-market": "此帳戶不交易{{market}}標的",
     "insufficient-cash": "單筆金額 {{notional, number}} {{currency}} 超過帳戶現金 {{cash, number}} {{currency}}",
     "cash-unknown": "券商讀不到帳戶可動用的 {{currency}}，所以不能買進",
-    "insufficient-shares": "欲賣出 {{quantity, number}} 股，但帳戶只有 {{held, number}} 股可賣"
+    "insufficient-shares": "欲賣出 {{quantity, number}} 股，但帳戶只有 {{held, number}} 股可賣",
+    "exits-unsupported": "這個券商不支援停損停利盯價",
+    "exit-without-price": "停損價和停利價至少填一個",
+    "exit-price-unknown": "讀不到現價，無法判斷停損或停利價是否已經到了",
+    "stop-not-below-price": "停損價 {{stop, number}} 沒有低於現價 {{price, number}}，會立刻賣出",
+    "target-not-above-price": "停利價 {{target, number}} 沒有高於現價 {{price, number}}，會立刻賣出",
+    "exit-until-out-of-range": "盯價的最後一天要在 {{first}} 到 {{last}} 之間"
   },
   "mandate": {
     "title": "交易授權",

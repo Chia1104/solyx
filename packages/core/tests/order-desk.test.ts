@@ -9,7 +9,12 @@ import {
   OrderRefusedError,
   orderTag,
 } from "../src/broker.ts";
-import type { BrokerAdapter, BrokerOrder } from "../src/broker.ts";
+import type {
+  BrokerAdapter,
+  BrokerExits,
+  BrokerOrder,
+  WatchedExitLeg,
+} from "../src/broker.ts";
 import { ForecastDirection } from "../src/forecast.ts";
 import { MandateViolationCode } from "../src/mandate.ts";
 import type { Mandate } from "../src/mandate.ts";
@@ -28,10 +33,15 @@ import type {
   ProposalStore,
   TradeProposal,
 } from "../src/order-desk.ts";
-import { OrderType, Side } from "../src/order.ts";
-import type { AccountSnapshot, Fill, OrderRequest } from "../src/order.ts";
+import { ExitLeg, OrderType, Side, exitLegs } from "../src/order.ts";
+import type {
+  AccountSnapshot,
+  ExitRequest,
+  Fill,
+  OrderRequest,
+} from "../src/order.ts";
 import { ReportStance } from "../src/report.ts";
-import { RiskViolationCode } from "../src/risk.ts";
+import { MAX_PREMISE_MOVE, RiskViolationCode } from "../src/risk.ts";
 import { Session, weekdays } from "../src/session.ts";
 import type { TradingDays } from "../src/session.ts";
 
@@ -73,6 +83,7 @@ function setup(
     maxDailyLoss,
     lastPrice,
     mandate,
+    exits,
     brokerId = "fake",
   }: Pick<
     OrderDeskOptions,
@@ -83,7 +94,7 @@ function setup(
     | "maxDailyLoss"
     | "lastPrice"
     | "mandate"
-  > & { brokerId?: string } = {}
+  > & { brokerId?: string; exits?: BrokerExits } = {}
 ) {
   const clock = { now: DURING_SESSION };
   const tradingDays = vi.fn(async (): Promise<TradingDays> => weekdays);
@@ -117,6 +128,7 @@ function setup(
     getOrders,
     placeOrder,
     cancelOrder,
+    ...(exits && { exits }),
   };
 
   const desk = new OrderDesk({
@@ -1204,4 +1216,265 @@ test("a mandate revoked while its order waited for the one before leaves the ord
     mandate: null,
   });
   expect(placeOrder).toHaveBeenCalledTimes(1);
+});
+
+const tsmc = { market: Market.TW, symbol: "2330" };
+
+// The fake broker watches what it is asked to, numbering each leg as it comes.
+function watchingBroker() {
+  const watched: WatchedExitLeg[] = [];
+  let placed = 0;
+
+  const exits = {
+    place: vi.fn<BrokerExits["place"]>(async (instrument, quantity, exit) =>
+      exitLegs(exit).map(({ leg, price }) => {
+        placed += 1;
+
+        const ref = `E-${placed}`;
+
+        watched.push({
+          ref,
+          instrument,
+          quantity,
+          leg,
+          price,
+          placedAt: DURING_SESSION,
+        });
+
+        return ref;
+      })
+    ),
+    watching: vi.fn<BrokerExits["watching"]>(async () =>
+      structuredClone(watched)
+    ),
+    cancel: vi.fn<BrokerExits["cancel"]>(async (ref) => {
+      watched.splice(
+        watched.findIndex((leg) => leg.ref === ref),
+        1
+      );
+    }),
+  };
+
+  return { exits, watched };
+}
+
+const exitRequest: ExitRequest = {
+  instrument: tsmc,
+  quantity: 1000,
+  stop: 950,
+  target: 1100,
+  until: "2026-10-29",
+};
+
+function exitSetup(options: Parameters<typeof setup>[1] = {}) {
+  const broker = watchingBroker();
+
+  const set = setup(memoryStore(), {
+    lastPrice: async () => 1000,
+    exits: broker.exits,
+    ...options,
+  });
+
+  set.account.positions = [{ instrument: tsmc, quantity: 1000, avgPrice: 900 }];
+
+  const proposeExit = (exit: Partial<ExitRequest> = {}) =>
+    set.desk.propose({
+      exit: { ...exitRequest, ...exit },
+      source: ProposalSource.Agent,
+      rationale: "test",
+    });
+
+  return { ...set, ...broker, proposeExit };
+}
+
+test("an exit is a sale of what is held that waits for the user, which the mandate never sends", async () => {
+  const { proposeExit, exits, placeOrder } = exitSetup({
+    mandate: () => covering(),
+  });
+
+  const proposal = await proposeExit();
+
+  expect(proposal).toMatchObject({
+    status: ProposalStatus.AwaitingConfirmation,
+    order: {
+      instrument: tsmc,
+      side: Side.Sell,
+      quantity: 1000,
+      type: OrderType.Market,
+    },
+    exit: { stop: 950, target: 1100, until: "2026-10-29" },
+    premise: { price: 1000 },
+    mandate: null,
+    violations: [],
+  });
+  expect(exits.place).not.toHaveBeenCalled();
+  expect(placeOrder).not.toHaveBeenCalled();
+});
+
+test("confirming an exit has the broker watch each leg, and once one sells the desk ends the other", async () => {
+  const { desk, proposeExit, exits, watched, placeOrder } = exitSetup();
+  const { id } = await proposeExit();
+
+  const confirmed = await desk.confirm(id);
+
+  expect(confirmed).toMatchObject({
+    status: ProposalStatus.Submitted,
+    exitRefs: ["E-1", "E-2"],
+  });
+  expect(exits.place).toHaveBeenCalledWith(
+    tsmc,
+    1000,
+    { stop: 950, target: 1100, until: "2026-10-29" },
+    orderTag(id)
+  );
+  expect(placeOrder).not.toHaveBeenCalled();
+
+  await desk.reconcile();
+
+  expect(exits.cancel).not.toHaveBeenCalled();
+
+  // The stop sold, so the broker no longer watches it.
+  watched.splice(0, 1);
+  await desk.reconcile();
+
+  expect(exits.cancel).toHaveBeenCalledWith("E-2");
+  expect(desk.list()[0]?.exitEnded).toEqual({
+    at: DURING_SESSION,
+    cancelled: false,
+  });
+});
+
+test("an exit holds for the session it was proposed for and while the price stays near where it was, as an order does", async () => {
+  let price = 1000;
+
+  const { desk, proposeExit, clock, exits } = exitSetup({
+    lastPrice: async () => price,
+  });
+
+  const moved = await proposeExit();
+
+  price = 1040;
+
+  expect((await desk.confirm(moved.id)).violations).toEqual([
+    {
+      code: RiskViolationCode.PriceMoved,
+      proposedAt: 1000,
+      price: 1040,
+      max: MAX_PREMISE_MOVE,
+    },
+  ]);
+
+  price = 1000;
+
+  const stale = await proposeExit();
+
+  clock.now += DAY_MS;
+
+  expect(await desk.confirm(stale.id)).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [
+      {
+        code: RiskViolationCode.PremiseStale,
+        proposedFor: "2026-09-29",
+        session: "2026-09-30",
+      },
+    ],
+  });
+  expect(exits.place).not.toHaveBeenCalled();
+});
+
+test("the user cancels an exit's legs, and an exit no longer watched cannot be cancelled", async () => {
+  const { desk, proposeExit, exits } = exitSetup();
+  const { id } = await proposeExit();
+
+  await desk.confirm(id);
+
+  expect(await desk.cancelExit(id)).toMatchObject({
+    exitEnded: { at: DURING_SESSION, cancelled: true },
+  });
+  expect(exits.cancel.mock.calls).toEqual([["E-1"], ["E-2"]]);
+  await expect(desk.cancelExit(id)).rejects.toThrow("watches no exit");
+});
+
+test("an exit whose price is reached already, or unknown, is refused", async () => {
+  const reached = exitSetup();
+
+  expect(
+    (await reached.proposeExit({ stop: 1000, target: 990 })).violations
+  ).toEqual([
+    {
+      code: RiskViolationCode.StopNotBelowPrice,
+      stop: 1000,
+      price: 1000,
+    },
+    {
+      code: RiskViolationCode.TargetNotAbovePrice,
+      target: 990,
+      price: 1000,
+    },
+  ]);
+
+  const unknown = exitSetup({ lastPrice: async () => null });
+
+  expect((await unknown.proposeExit()).violations).toEqual([
+    { code: RiskViolationCode.ExitPriceUnknown },
+  ]);
+});
+
+test("an exit sells only shares the account's other exits leave", async () => {
+  const { desk, proposeExit } = exitSetup();
+
+  await desk.confirm((await proposeExit()).id);
+
+  expect((await proposeExit({ target: null })).violations).toEqual([
+    { code: RiskViolationCode.InsufficientShares, quantity: 1000, held: 0 },
+  ]);
+});
+
+test("a broker that watches no prices takes no exit", async () => {
+  const { desk } = setup(memoryStore(), { lastPrice: async () => 1000 });
+
+  const proposal = await desk.propose({
+    exit: exitRequest,
+    source: ProposalSource.User,
+    rationale: "test",
+  });
+
+  expect(proposal.violations).toContainEqual({
+    code: RiskViolationCode.ExitsUnsupported,
+  });
+});
+
+test("an exit whose placing went unanswered is found among the legs the broker watches", async () => {
+  const { desk, proposeExit, exits } = exitSetup();
+  const { id } = await proposeExit();
+  const place = exits.place.getMockImplementation();
+
+  exits.place.mockImplementationOnce(async (...args) => {
+    await place?.(...args);
+
+    throw new Error("socket closed");
+  });
+
+  const failed = await desk.confirm(id);
+
+  expect(failed).toMatchObject({
+    status: ProposalStatus.Failed,
+    failure: { code: SubmissionFailureCode.Unknown },
+  });
+
+  await desk.reconcile();
+
+  expect(desk.list()[0]).toMatchObject({
+    status: ProposalStatus.Submitted,
+    exitRefs: ["E-1", "E-2"],
+  });
+  expect(desk.list()[0]?.failure).toBeUndefined();
+});
+
+test("an exit's legs read stop first", () => {
+  expect(exitLegs({ stop: 1, target: 2, until: "2026-10-29" })).toEqual([
+    { leg: ExitLeg.Stop, price: 1 },
+    { leg: ExitLeg.Target, price: 2 },
+  ]);
 });

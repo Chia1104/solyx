@@ -10,6 +10,7 @@ import { AgentChat } from "../modules/agent/agent-chat.tsx";
 import { agentSessionsQuery } from "../modules/agent/agent-query.ts";
 import { AgentSessionControls } from "../modules/agent/agent-sessions.tsx";
 import { AgentTab, useAgentStore } from "../modules/agent/agent-store.ts";
+import { ExitForm } from "../modules/proposals/exit-form.tsx";
 import { OrderLock } from "../modules/proposals/order-lock.tsx";
 import { ProposalForm } from "../modules/proposals/proposal-form.tsx";
 import { ProposalQueue } from "../modules/proposals/proposal-queue.tsx";
@@ -79,12 +80,32 @@ export function AgentPane() {
               </Disclosure.Trigger>
             </Disclosure.Heading>
             <Disclosure.Content>
-              <div className="flex flex-col gap-3 px-4 pb-4">
-                <p className="text-xs text-muted">
-                  {t("proposals.form-description")}
-                </p>
-                <ProposalForm />
-              </div>
+              <Tabs variant="secondary" className="gap-0 px-4 pb-4">
+                <Tabs.ListContainer className="border-separator">
+                  <Tabs.List aria-label={t("proposals.form-title")}>
+                    <Tabs.Tab id="order" className="h-9">
+                      {t("proposals.form-kinds.order")}
+                      <Tabs.Indicator />
+                    </Tabs.Tab>
+                    <Tabs.Tab id="exit" className="h-9">
+                      {t("proposals.form-kinds.exit")}
+                      <Tabs.Indicator />
+                    </Tabs.Tab>
+                  </Tabs.List>
+                </Tabs.ListContainer>
+                <Tabs.Panel id="order" className="flex flex-col gap-3 px-0">
+                  <p className="text-xs text-muted">
+                    {t("proposals.form-description")}
+                  </p>
+                  <ProposalForm />
+                </Tabs.Panel>
+                <Tabs.Panel id="exit" className="flex flex-col gap-3 px-0">
+                  <p className="text-xs text-muted">
+                    {t("proposals.exit-form-description")}
+                  </p>
+                  <ExitForm />
+                </Tabs.Panel>
+              </Tabs>
             </Disclosure.Content>
           </Disclosure>
         </Tabs.Panel>

@@ -1,7 +1,7 @@
 import { Market, currencyOf, symbolKey } from "./market.ts";
 import type { Currency, SymbolRef } from "./market.ts";
-import { OrderType, Side } from "./order.ts";
-import type { AccountSnapshot, OrderRequest } from "./order.ts";
+import { OrderType, Side, exitLegs } from "./order.ts";
+import type { AccountSnapshot, ExitRequest, OrderRequest } from "./order.ts";
 import { isTwOddLot, isValidTwQuantity, twTickSize } from "./rules/tw.ts";
 import { isValidUsQuantity, usTickSize } from "./rules/us.ts";
 import { nextTradingDay, sessionDayAt } from "./session.ts";
@@ -140,6 +140,16 @@ export const RiskViolationCode = {
   /** The broker cannot say what the account can spend, so no buy can be held to it. */
   CashUnknown: "cash-unknown",
   InsufficientShares: "insufficient-shares",
+  /** The broker watches no prices itself, so it takes no exit. */
+  ExitsUnsupported: "exits-unsupported",
+  ExitWithoutPrice: "exit-without-price",
+  /** The listing's price cannot be read, so whether a stop or target would sell at once cannot be told. */
+  ExitPriceUnknown: "exit-price-unknown",
+  /** The listing already trades at or below the stop, so it would sell at once. */
+  StopNotBelowPrice: "stop-not-below-price",
+  /** The listing already trades at or above the target, so it would sell at once. */
+  TargetNotAbovePrice: "target-not-above-price",
+  ExitUntilOutOfRange: "exit-until-out-of-range",
 } as const;
 
 export type RiskViolationCode =
@@ -198,8 +208,27 @@ export type RiskViolation =
   | {
       code: typeof RiskViolationCode.InsufficientShares;
       quantity: number;
-      /** The shares the account can sell now, those its working sales hold back left out. */
+      /** The shares the account can sell now, those its working sales and other exits hold back left out. */
       held: number;
+    }
+  | { code: typeof RiskViolationCode.ExitsUnsupported }
+  | { code: typeof RiskViolationCode.ExitWithoutPrice }
+  | { code: typeof RiskViolationCode.ExitPriceUnknown }
+  | {
+      code: typeof RiskViolationCode.StopNotBelowPrice;
+      stop: number;
+      price: number;
+    }
+  | {
+      code: typeof RiskViolationCode.TargetNotAbovePrice;
+      target: number;
+      price: number;
+    }
+  | {
+      code: typeof RiskViolationCode.ExitUntilOutOfRange;
+      /** The first and last exchange-local days an exit may end on. */
+      first: string;
+      last: string;
     };
 
 export function tickSize(instrument: SymbolRef, price: number): number {
@@ -342,6 +371,133 @@ export function checkOrder(
     violations.push({
       code: RiskViolationCode.SessionNotAllowed,
       session: context.session,
+    });
+  }
+
+  return violations;
+}
+
+/** The most days after the one it is made on that an exit is watched, inside Fubon's 90 with room for the day it starts. */
+export const MAX_EXIT_DAYS = 60;
+
+/** Market and account state an exit is checked against. Re-read before every check. */
+export interface ExitContext {
+  /** The markets the broker trades. */
+  markets: readonly Market[];
+  /** What the account holds, which the exit sells from. */
+  account: AccountSnapshot;
+  /** The user locked orders, so no exit is placed either. */
+  locked?: boolean;
+  /** Whether the broker watches prices itself (`BrokerAdapter.exits`). */
+  watches: boolean;
+  /** The listing's last price; `null` where none could be read. */
+  price: number | null;
+  /** The exchange-local day the check runs on. */
+  today: string;
+  /** The shares of the listing the account's other exits already sell. */
+  covered: number;
+}
+
+/**
+ * Deterministic checks of an exit before it is proposed and again before it is placed. It sells
+ * only shares the account holds that its working sales and other exits leave, and neither price
+ * may be reached already, since the broker would sell at once.
+ */
+export function checkExit(
+  request: ExitRequest,
+  context: ExitContext
+): RiskViolation[] {
+  const violations: RiskViolation[] = [];
+  const { instrument, quantity, stop, target, until } = request;
+  const isTw = instrument.market === Market.TW;
+
+  if (context.locked) violations.push({ code: RiskViolationCode.OrdersLocked });
+
+  if (!context.watches) {
+    violations.push({ code: RiskViolationCode.ExitsUnsupported });
+  }
+
+  if (!context.markets.includes(instrument.market)) {
+    violations.push({
+      code: RiskViolationCode.UnsupportedMarket,
+      market: instrument.market,
+    });
+  }
+
+  if (isTw ? !isValidTwQuantity(quantity) : !isValidUsQuantity(quantity)) {
+    violations.push({
+      code: RiskViolationCode.InvalidQuantity,
+      market: instrument.market,
+    });
+  }
+
+  const legs = exitLegs(request);
+
+  if (legs.length === 0) {
+    violations.push({ code: RiskViolationCode.ExitWithoutPrice });
+  }
+
+  for (const { price } of legs) {
+    const tick = tickSize(instrument, price);
+
+    if (!(price > 0) || !isOnTick(price, tick)) {
+      violations.push({ code: RiskViolationCode.InvalidPrice, price, tick });
+    }
+  }
+
+  const { price } = context;
+
+  if (price === null) {
+    if (legs.length > 0) {
+      violations.push({ code: RiskViolationCode.ExitPriceUnknown });
+    }
+  } else {
+    if (stop !== null && stop >= price) {
+      violations.push({
+        code: RiskViolationCode.StopNotBelowPrice,
+        stop,
+        price,
+      });
+    }
+
+    if (target !== null && target <= price) {
+      violations.push({
+        code: RiskViolationCode.TargetNotAbovePrice,
+        target,
+        price,
+      });
+    }
+  }
+
+  const today = Temporal.PlainDate.from(context.today);
+  const first = today.add({ days: 1 });
+  const last = today.add({ days: MAX_EXIT_DAYS });
+
+  if (
+    Temporal.PlainDate.compare(until, first) < 0 ||
+    Temporal.PlainDate.compare(until, last) > 0
+  ) {
+    violations.push({
+      code: RiskViolationCode.ExitUntilOutOfRange,
+      first: first.toString(),
+      last: last.toString(),
+    });
+  }
+
+  const position = context.account.positions.find(
+    (each) => symbolKey(each.instrument) === symbolKey(instrument)
+  );
+
+  const held = Math.max(
+    (position?.sellable ?? position?.quantity ?? 0) - context.covered,
+    0
+  );
+
+  if (quantity > held) {
+    violations.push({
+      code: RiskViolationCode.InsufficientShares,
+      quantity,
+      held,
     });
   }
 

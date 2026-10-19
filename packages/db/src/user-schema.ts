@@ -11,6 +11,8 @@ import type { Market } from "@solyx/core/market";
 import type { TimePrecision } from "@solyx/core/news";
 import type {
   AccountSnapshot,
+  Exit,
+  ExitLeg,
   OrderRequest,
   Position,
   Side,
@@ -62,6 +64,12 @@ export const proposals = sqliteTable("proposals", {
   /** The id of the broker it was proposed to; the paper account where none was kept. */
   broker: text().notNull().default("paper"),
   mandate: text({ mode: "json" }).$type<MandateVerdict>(),
+  exit: text({ mode: "json" }).$type<Exit>(),
+  exitRefs: text("exit_refs", { mode: "json" }).$type<string[]>(),
+  exitEnded: text("exit_ended", { mode: "json" }).$type<{
+    at: number;
+    cancelled: boolean;
+  }>(),
 });
 
 /** The paper account, in one row: what it holds and how many orders it filled. */
@@ -87,6 +95,22 @@ export const paperFills = sqliteTable("paper_fills", {
   tag: text(),
   /** The order's limit price; `null` for a market order. */
   limitPrice: real("limit_price"),
+});
+
+/** The exit legs the paper account watches, each until its exit sells or ends. */
+export const paperExitLegs = sqliteTable("paper_exit_legs", {
+  seq: integer().primaryKey(),
+  ref: text().notNull().unique(),
+  /** The tag its exit was placed with, which its siblings share and its sale's fill keeps. */
+  tag: text().notNull(),
+  market: text().$type<Market>().notNull(),
+  symbol: text().notNull(),
+  quantity: integer().notNull(),
+  leg: text().$type<ExitLeg>().notNull(),
+  price: real().notNull(),
+  /** The last exchange-local day it is watched. */
+  until: text().notNull(),
+  placedAt: integer("placed_at").notNull(),
 });
 
 /** Every scheduled task as the user wrote it, and its last run; `seq` keeps the order they were made in. */

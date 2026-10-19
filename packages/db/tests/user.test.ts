@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import { ChangeKind, EVERY_CHANGE } from "@solyx/core/changes";
 import { Market } from "@solyx/core/market";
 import { TimePrecision } from "@solyx/core/news";
-import { OrderType, Side } from "@solyx/core/order";
+import { ExitLeg, OrderType, Side } from "@solyx/core/order";
 import {
   ProposalSource,
   ProposalStatus,
@@ -360,6 +360,77 @@ describe("proposal store", () => {
     expect(store.read()).toStrictEqual(after);
     expect(store.fills(0)).toStrictEqual([bought, sold]);
     expect(store.fills(2_000)).toStrictEqual([sold]);
+  });
+
+  test("an exit reads back with its legs and how it ended, and an update can clear what it held", () => {
+    const { proposals: store } = open();
+
+    const exit = proposal("a", {
+      order: {
+        instrument: TSMC,
+        side: Side.Sell,
+        quantity: 1000,
+        type: OrderType.Market,
+      },
+      exit: { stop: 950, target: null, until: "2026-11-18" },
+      status: ProposalStatus.Submitted,
+      exitRefs: ["E-1"],
+      exitEnded: { at: 2_000, cancelled: false },
+    });
+
+    store.add(exit);
+
+    expect(store.get("a")).toStrictEqual(exit);
+
+    const order = proposal("a");
+
+    store.update(order);
+
+    expect(store.get("a")).toStrictEqual(order);
+  });
+
+  test("the paper account's exit legs read back oldest first, and a sale drops the ones it ends", () => {
+    const store = open().paperAccount;
+
+    const leg = (ref: string, price: number) => ({
+      ref,
+      tag: "A1B2C3",
+      instrument: TSMC,
+      quantity: 1000,
+      leg: ref.endsWith("stop") ? ExitLeg.Stop : ExitLeg.Target,
+      price,
+      until: "2026-11-18",
+      placedAt: 1_000,
+    });
+
+    store.addExitLegs([leg("A1B2C3:stop", 950), leg("A1B2C3:target", 1100)]);
+    store.addExitLegs([leg("D4E5F6:stop", 900)]);
+
+    expect(store.exitLegs().map(({ ref }) => ref)).toEqual([
+      "A1B2C3:stop",
+      "A1B2C3:target",
+      "D4E5F6:stop",
+    ]);
+    expect(store.exitLegs()[0]).toStrictEqual(leg("A1B2C3:stop", 950));
+
+    store.write(
+      { cash: { TWD: 950_000 }, positions: [], orders: 1 },
+      {
+        orderId: "paper-1",
+        instrument: TSMC,
+        side: Side.Sell,
+        quantity: 1000,
+        price: 948,
+        filledAt: 2_000,
+        realized: null,
+        tag: "A1B2C3",
+        limitPrice: null,
+      },
+      ["A1B2C3:stop", "A1B2C3:target"]
+    );
+    store.removeExitLegs(["D4E5F6:stop"]);
+
+    expect(store.exitLegs()).toStrictEqual([]);
   });
 
   test("proposals outlive the connection", () => {

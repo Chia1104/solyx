@@ -4,18 +4,22 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { brokerOfId } from "@solyx/core/broker";
 import { Interval } from "@solyx/core/candles";
 import { exchangeDate } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { OrderType, orderImpact } from "@solyx/core/order";
-import type { OrderRequest } from "@solyx/core/order";
+import { OrderType, exitLegs, orderImpact } from "@solyx/core/order";
+import type { Exit, OrderRequest } from "@solyx/core/order";
 import {
   ProposalStatus,
   SubmissionFailureCode,
+  exitWatched,
   mandateSending,
 } from "@solyx/core/order-desk";
 import type { ProposalBasis, TradeProposal } from "@solyx/core/order-desk";
 import type { OrderPremise } from "@solyx/core/risk";
+
+import { TradingBroker } from "#shared/settings.ts";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
@@ -212,6 +216,66 @@ function MandateLine({ proposal }: { proposal: TradeProposal }) {
   );
 }
 
+/** The sale an exit makes and the prices that set it off. */
+function ExitSummary({ quantity, exit }: { quantity: number; exit: Exit }) {
+  const { t } = useTranslation();
+
+  return (
+    <p className="text-sm tabular-nums">
+      {t("proposals.exit.summary", {
+        quantity,
+        until: exit.until,
+        legs: exitLegs(exit)
+          .map(({ leg, price }) => t(`proposals.exit.${leg}`, { price }))
+          .join(t("proposals.exit.or")),
+      })}
+    </p>
+  );
+}
+
+/** Where the broker stands on an exit it was given: watching, or done and why. */
+function ExitState({ proposal }: { proposal: TradeProposal }) {
+  const { t } = useTranslation();
+  const cancel = useMutation(orpc.proposals.cancelExit.mutationOptions());
+
+  if (exitWatched(proposal)) {
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-muted">
+          {brokerOfId(proposal.broker).broker === TradingBroker.Paper
+            ? t("proposals.exit.paper-watching")
+            : t("proposals.exit.watching")}
+        </p>
+        <div>
+          <Button
+            size="sm"
+            variant="secondary"
+            isPending={cancel.isPending}
+            onPress={() => cancel.mutate(proposal.id)}>
+            {t("proposals.exit.cancel")}
+          </Button>
+        </div>
+        {cancel.error ? (
+          <ErrorAlert
+            title={t("proposals.exit.cancel-failed")}
+            description={cancel.error.message}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  if (!proposal.exitEnded) return null;
+
+  return (
+    <p className="text-xs text-muted">
+      {proposal.exitEnded.cancelled
+        ? t("proposals.exit.cancelled")
+        : t("proposals.exit.ended")}
+    </p>
+  );
+}
+
 export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   const { t } = useTranslation();
 
@@ -221,8 +285,22 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   const dismiss = useMutation(orpc.proposals.dismiss.mutationOptions());
   const reconcile = useMutation(orpc.proposals.reconcile.mutationOptions());
 
-  const { order, failure } = proposal;
+  const { order, failure, exit } = proposal;
   const actionError = confirm.error ?? dismiss.error ?? reconcile.error;
+
+  // A placed exit reads by whether the broker still watches it rather than as submitted.
+  const exitChip =
+    exit && proposal.status === ProposalStatus.Submitted
+      ? exitWatched(proposal)
+        ? {
+            color: STATUS_COLOR[proposal.status],
+            label: t("proposals.exit.chip-watching"),
+          }
+        : {
+            color: STATUS_COLOR[ProposalStatus.Dismissed],
+            label: t("proposals.exit.chip-ended"),
+          }
+      : null;
 
   // Only a failure the broker did not answer leaves an order it may hold to look for.
   const unanswered =
@@ -253,29 +331,42 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
         </span>
         <Chip
           className="ml-auto"
-          color={STATUS_COLOR[proposal.status]}
+          color={exitChip?.color ?? STATUS_COLOR[proposal.status]}
           size="sm">
-          {t(`status.${proposal.status}`)}
+          {exitChip?.label ?? t(`status.${proposal.status}`)}
         </Chip>
       </header>
-      <p className="text-sm tabular-nums">
-        {t("proposals.summary", {
-          side: t(`side.${order.side}`),
-          quantity: order.quantity,
-          price:
-            order.type === OrderType.Limit
-              ? order.limitPrice
-              : t("proposals.market-price"),
-        })}
-      </p>
+      {exit ? (
+        <ExitSummary quantity={order.quantity} exit={exit} />
+      ) : (
+        <p className="text-sm tabular-nums">
+          {t("proposals.summary", {
+            side: t(`side.${order.side}`),
+            quantity: order.quantity,
+            price:
+              order.type === OrderType.Limit
+                ? order.limitPrice
+                : t("proposals.market-price"),
+          })}
+        </p>
+      )}
       {proposal.status === ProposalStatus.AwaitingConfirmation ? (
         <>
           {proposal.premise ? (
             <PremiseLine symbol={order.instrument} premise={proposal.premise} />
           ) : null}
-          <OrderImpactLines order={order} premise={proposal.premise} />
+          {exit ? (
+            <p className="text-xs text-muted">
+              {brokerOfId(proposal.broker).broker === TradingBroker.Paper
+                ? t("proposals.exit.paper-hint")
+                : t("proposals.exit.broker-hint")}
+            </p>
+          ) : (
+            <OrderImpactLines order={order} premise={proposal.premise} />
+          )}
         </>
       ) : null}
+      {exit ? <ExitState proposal={proposal} /> : null}
       {proposal.rationale && (
         <p className="text-sm text-muted">{proposal.rationale}</p>
       )}

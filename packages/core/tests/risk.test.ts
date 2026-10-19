@@ -3,9 +3,11 @@ import { describe, expect, test } from "vite-plus/test";
 import { Market } from "../src/market.ts";
 import type { SymbolRef } from "../src/market.ts";
 import { OrderType, Side } from "../src/order.ts";
-import type { OrderRequest } from "../src/order.ts";
+import type { AccountSnapshot, OrderRequest } from "../src/order.ts";
 import {
+  MAX_EXIT_DAYS,
   RiskViolationCode,
+  checkExit,
   checkOrder,
   premiseViolations,
   sessionBand,
@@ -387,5 +389,73 @@ describe("a proposal's premise", () => {
     expect(
       premiseViolations(then, { session: "2026-10-19", price: null })
     ).toEqual([]);
+  });
+});
+
+describe("an exit", () => {
+  const holding: AccountSnapshot = {
+    cash: {},
+    positions: [
+      {
+        instrument: { market: Market.TW, symbol: "2330" },
+        quantity: 2000,
+        avgPrice: 900,
+        sellable: 1000,
+      },
+    ],
+  };
+
+  const context = {
+    markets: [Market.TW],
+    account: holding,
+    watches: true,
+    price: 1000,
+    today: "2026-10-19",
+    covered: 0,
+  };
+
+  const request = {
+    instrument: { market: Market.TW, symbol: "2330" },
+    quantity: 1000,
+    stop: 950,
+    target: 1100,
+    until: "2026-11-18",
+  };
+
+  test("passes on shares the account can sell, prices on the tick either side of the last and a last day within reach", () => {
+    expect(checkExit(request, context)).toEqual([]);
+  });
+
+  test("ends from tomorrow through MAX_EXIT_DAYS on", () => {
+    const range = {
+      code: RiskViolationCode.ExitUntilOutOfRange,
+      first: "2026-10-20",
+      last: "2026-12-18",
+    };
+
+    expect(checkExit({ ...request, until: "2026-10-19" }, context)).toEqual([
+      range,
+    ]);
+    expect(checkExit({ ...request, until: "2026-12-18" }, context)).toEqual([]);
+    expect(checkExit({ ...request, until: "2026-12-19" }, context)).toEqual([
+      range,
+    ]);
+    expect(MAX_EXIT_DAYS).toBe(60);
+  });
+
+  test("sets a price, on the listing's tick, and sells no more than the working sales and other exits leave", () => {
+    expect(
+      checkExit(
+        { ...request, quantity: 1500, stop: 950.5, target: null },
+        { ...context, covered: 500 }
+      )
+    ).toEqual([
+      { code: RiskViolationCode.InvalidQuantity, market: Market.TW },
+      { code: RiskViolationCode.InvalidPrice, price: 950.5, tick: 1 },
+      { code: RiskViolationCode.InsufficientShares, quantity: 1500, held: 500 },
+    ]);
+    expect(
+      checkExit({ ...request, stop: null, target: null }, context)
+    ).toEqual([{ code: RiskViolationCode.ExitWithoutPrice }]);
   });
 });

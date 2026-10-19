@@ -101,6 +101,10 @@ const PAPER_LIMITS: RiskLimits = {
 // Fubon tells of one order in a few reports at once (taken, changed, filled), which one read covers.
 const BROKER_REPORTS_SETTLE_MS = 500;
 
+// How often the desk asks the broker which exit legs it still watches, so one sale ends the rest
+// and the paper account, which only checks prices when asked, sells at them.
+const EXIT_WATCH_MS = 60_000;
+
 // A live account's orders go only to the regular session, whose books every broker takes alike.
 const LIVE_LIMITS: RiskLimits = {
   maxOrderNotional: PAPER_CASH,
@@ -669,6 +673,17 @@ export function createServices(config: ConfigFile) {
   scheduler.register("Theme watch", themes.work);
   scheduler.register("Exchange clock", research.work);
   scheduler.register("Backup", backups.work);
+  scheduler.register("Exit watch", {
+    everyMs: EXIT_WATCH_MS,
+    async run() {
+      // Prices move only in a regular session, so outside one nothing can reach an exit.
+      const sessions = await marketSessions(marketDays);
+
+      if (Object.values(sessions).includes(Session.Regular)) {
+        await desk.reconcileExits();
+      }
+    },
+  });
 
   nativeTheme.themeSource = appearance.read().theme;
 

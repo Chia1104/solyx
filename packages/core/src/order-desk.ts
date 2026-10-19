@@ -3,7 +3,12 @@ import { noop, omit, sumBy } from "es-toolkit";
 import { errorMessage } from "@solyx/utils/error";
 
 import { BrokerOrderStatus, OrderRefusedError, orderTag } from "./broker.ts";
-import type { BrokerAdapter, BrokerMode, BrokerOrder } from "./broker.ts";
+import type {
+  BrokerAdapter,
+  BrokerMode,
+  BrokerOrder,
+  WatchedExitLeg,
+} from "./broker.ts";
 import type { Forecast } from "./forecast.ts";
 import { mandateViolations } from "./mandate.ts";
 import type { Mandate, MandateDay, MandateVerdict } from "./mandate.ts";
@@ -14,11 +19,18 @@ import {
   symbolKey,
 } from "./market.ts";
 import type { Currency, Market, SymbolRef } from "./market.ts";
-import { OrderType, Side, realizedIn } from "./order.ts";
-import type { AccountSnapshot, Fill, OrderRequest } from "./order.ts";
+import { OrderType, Side, exitLegs, realizedIn } from "./order.ts";
+import type {
+  AccountSnapshot,
+  Exit,
+  ExitRequest,
+  Fill,
+  OrderRequest,
+} from "./order.ts";
 import type { Report } from "./report.ts";
 import {
   RiskViolationCode,
+  checkExit,
   checkOrder,
   premiseViolations,
   sessionBand,
@@ -109,6 +121,24 @@ export interface TradeProposal {
   violations: RiskViolation[];
   brokerOrderId?: string;
   failure?: SubmissionFailure;
+  /**
+   * The exit whose sale `order` is, which the broker watches and sends itself rather than placing
+   * the order as it is confirmed; missing for an order.
+   */
+  exit?: Exit;
+  /** The broker's refs for the exit's legs once it watches them, in `exitLegs` order. */
+  exitRefs?: string[];
+  /** When the broker stopped watching the exit: once a leg sold, it expired or was taken off, or the user cancelled it. */
+  exitEnded?: { at: number; cancelled: boolean };
+}
+
+/** Whether the broker watches the proposal's exit now. */
+export function exitWatched(proposal: TradeProposal): boolean {
+  return (
+    proposal.exit !== undefined &&
+    proposal.status === ProposalStatus.Submitted &&
+    proposal.exitEnded === undefined
+  );
 }
 
 /**
@@ -225,6 +255,9 @@ export function mandateSending(proposal: TradeProposal): MandateSending | null {
       return MandateSending.Stopped;
   }
 }
+
+// A broker's clock may run behind the app's, so a leg placed for a proposal may read as placed a little before it.
+const PLACED_SKEW_MS = 60_000;
 
 /** A failure that leaves whether the broker holds the order unknown, until the desk finds it. */
 function mayBeHeld({ status, failure }: TradeProposal): boolean {
@@ -356,10 +389,15 @@ export class OrderDesk {
   async reconcile(): Promise<void> {
     const { broker, store, tradingDays, now = Date.now } = this.#options;
 
+    await this.reconcileExits();
+
     const unsure = store
       .list()
       .filter(
-        (proposal) => proposal.broker === broker.id && mayBeHeld(proposal)
+        (proposal) =>
+          proposal.broker === broker.id &&
+          proposal.exit === undefined &&
+          mayBeHeld(proposal)
       );
 
     if (unsure.length === 0) return;
@@ -407,18 +445,141 @@ export class OrderDesk {
   }
 
   /**
-   * A caller that may run again after a crash passes the same `id` each time, and gets back the
-   * proposal already made under it instead of a second one.
+   * The exits the broker watches, and those whose placing went unanswered, by the legs it watches
+   * now: one whose placing went unanswered is kept as submitted once every leg is found, and once
+   * one leg of an exit is no longer watched, since it sold, expired or was taken off, the others
+   * are cancelled, so one sale ends the exit. Places nothing.
+   */
+  async reconcileExits(): Promise<void> {
+    const { broker, store, now = Date.now } = this.#options;
+    const { exits } = broker;
+
+    if (!exits) return;
+
+    const open = store
+      .list()
+      .filter(
+        (proposal) =>
+          proposal.broker === broker.id &&
+          proposal.exit !== undefined &&
+          (exitWatched(proposal) || mayBeHeld(proposal))
+      );
+
+    if (open.length === 0) return;
+
+    const watched = await exits.watching();
+
+    for (const { id } of open) {
+      // Read again after each await: a cancel or another reconcile may have settled it meanwhile.
+      const proposal = store.get(id);
+
+      if (proposal && mayBeHeld(proposal)) {
+        const refs = this.#placedLegs(proposal, watched);
+
+        if (refs) {
+          this.#save({
+            ...omit(proposal, ["failure"]),
+            status: ProposalStatus.Submitted,
+            exitRefs: refs,
+          });
+        }
+      } else if (proposal && exitWatched(proposal)) {
+        const refs = proposal.exitRefs ?? [];
+
+        const left = refs.filter((ref) =>
+          watched.some((leg) => leg.ref === ref)
+        );
+
+        if (left.length === refs.length) continue;
+
+        for (const ref of left) await exits.cancel(ref);
+
+        const ended = store.get(id);
+
+        if (ended && exitWatched(ended)) {
+          this.#save({ ...ended, exitEnded: { at: now(), cancelled: false } });
+        }
+      }
+    }
+  }
+
+  /** The refs of `proposal`'s exit legs among those `watched`, where the broker watches every one of them. */
+  #placedLegs(
+    { id, order, exit, createdAt }: TradeProposal,
+    watched: WatchedExitLeg[]
+  ): string[] | null {
+    if (!exit) return null;
+
+    // A leg another proposal already holds is not this one's.
+    const held = new Set(
+      this.#options.store
+        .list()
+        .flatMap((other) => (other.id === id ? [] : (other.exitRefs ?? [])))
+    );
+
+    const refs = exitLegs(exit).map(
+      ({ leg, price }) =>
+        watched.find(
+          (placed) =>
+            !held.has(placed.ref) &&
+            placed.leg === leg &&
+            placed.price === price &&
+            placed.quantity === order.quantity &&
+            symbolKey(placed.instrument) === symbolKey(order.instrument) &&
+            placed.placedAt >= createdAt - PLACED_SKEW_MS
+        )?.ref
+    );
+
+    return refs.every((ref) => ref !== undefined) ? refs : null;
+  }
+
+  /**
+   * Asks the broker to stop watching exit `id`, a user's action alone; a leg that sold or ended
+   * meanwhile is left as it is.
+   */
+  async cancelExit(id: string): Promise<TradeProposal> {
+    const { broker, store, now = Date.now } = this.#options;
+    const proposal = store.get(id);
+
+    if (!proposal || !exitWatched(proposal) || !broker.exits) {
+      throw new Error(`The broker watches no exit of proposal ${id}`);
+    }
+
+    try {
+      const watched = await broker.exits.watching();
+
+      for (const ref of proposal.exitRefs ?? []) {
+        if (watched.some((leg) => leg.ref === ref)) {
+          await broker.exits.cancel(ref);
+        }
+      }
+
+      return this.#save({
+        ...(store.get(id) ?? proposal),
+        exitEnded: { at: now(), cancelled: true },
+      });
+    } finally {
+      // Whatever the broker answered, what it watches may have changed.
+      this.#options.onChange?.();
+    }
+  }
+
+  /**
+   * Proposes an order, or an exit whose sale the broker sends itself. A caller that may run again
+   * after a crash passes the same `id` each time, and gets back the proposal already made under it
+   * instead of a second one.
    */
   async propose({
     id,
     ...input
   }: {
     id?: string;
-    order: OrderRequest;
     source: ProposalSource;
     rationale: string;
-  }): Promise<TradeProposal> {
+  } & (
+    | { order: OrderRequest }
+    | { exit: ExitRequest }
+  )): Promise<TradeProposal> {
     const {
       store,
       basis,
@@ -429,6 +590,10 @@ export class OrderDesk {
     const made = id === undefined ? undefined : store.get(id);
 
     if (made) return made;
+
+    if ("exit" in input) {
+      return this.#proposeExit(id ?? createId(), input);
+    }
 
     const [{ violations, session, band }, price] = await Promise.all([
       this.#checked(input.order),
@@ -465,6 +630,42 @@ export class OrderDesk {
     return this.#dispatch(proposal, true).catch(
       () => store.get(proposal.id) ?? proposal
     );
+  }
+
+  /** The exit as an order to sell its shares, which the broker sends at its prices. */
+  async #proposeExit(
+    id: string,
+    {
+      exit: request,
+      ...input
+    }: { exit: ExitRequest; source: ProposalSource; rationale: string }
+  ): Promise<TradeProposal> {
+    const { store, basis, now = Date.now } = this.#options;
+    const { instrument, quantity, stop, target, until } = request;
+    const { violations, session, price } = await this.#checkedExit(id, request);
+
+    const proposal: TradeProposal = {
+      id,
+      broker: this.#options.broker.id,
+      order: { instrument, side: Side.Sell, quantity, type: OrderType.Market },
+      exit: { stop, target, until },
+      ...input,
+      basis: basis?.(instrument) ?? null,
+      premise: { session, price, band: null },
+      // The mandate sends no exit: each waits for the user.
+      mandate: null,
+      createdAt: now(),
+      status:
+        violations.length === 0
+          ? ProposalStatus.AwaitingConfirmation
+          : ProposalStatus.Rejected,
+      violations,
+    };
+
+    store.add(proposal);
+    this.#options.onChange?.();
+
+    return proposal;
   }
 
   /** What the mandate makes of an agent's order now, or `null` while the user has none. */
@@ -543,6 +744,8 @@ export class OrderDesk {
     pending: TradeProposal,
     byMandate: boolean
   ): Promise<TradeProposal> {
+    if (pending.exit) return this.#sendExit(pending, pending.exit);
+
     const { broker, now = Date.now } = this.#options;
 
     if (byMandate) {
@@ -639,6 +842,140 @@ export class OrderDesk {
 
       return failed;
     }
+  }
+
+  /**
+   * Checks the exit again against the session and price now, refusing it as an order is refused
+   * once either has moved past its premise, and has the broker watch it.
+   */
+  async #sendExit(pending: TradeProposal, exit: Exit): Promise<TradeProposal> {
+    const { broker } = this.#options;
+    const { instrument, quantity } = pending.order;
+    let violations: RiskViolation[];
+
+    try {
+      const checked = await this.#checkedExit(pending.id, {
+        ...exit,
+        instrument,
+        quantity,
+      });
+
+      violations = [
+        ...premiseViolations(pending.premise, checked),
+        ...checked.violations,
+      ];
+    } catch (error) {
+      this.#save(pending);
+
+      throw error;
+    }
+
+    // The user may have locked orders while the checks waited on the broker and the quote.
+    if (
+      this.#options.locked?.() &&
+      !violations.some(({ code }) => code === RiskViolationCode.OrdersLocked)
+    ) {
+      violations = [{ code: RiskViolationCode.OrdersLocked }, ...violations];
+    }
+
+    if (violations.length > 0 || !broker.exits) {
+      return this.#save({
+        ...pending,
+        status: ProposalStatus.Rejected,
+        violations,
+      });
+    }
+
+    const sending: TradeProposal = {
+      ...pending,
+      status: ProposalStatus.Submitting,
+      violations,
+    };
+
+    this.#save(sending);
+
+    try {
+      const refs = await broker.exits.place(
+        instrument,
+        quantity,
+        exit,
+        orderTag(sending.id)
+      );
+
+      return this.#save({
+        ...sending,
+        status: ProposalStatus.Submitted,
+        exitRefs: refs,
+      });
+    } catch (error) {
+      // As for an order: unless the broker refused it, it may watch the exit, so never place it again.
+      const failed = this.#save({
+        ...sending,
+        status: ProposalStatus.Failed,
+        failure: {
+          code:
+            error instanceof OrderRefusedError
+              ? SubmissionFailureCode.Refused
+              : SubmissionFailureCode.Unknown,
+          message: errorMessage(error),
+        },
+      });
+
+      if (mayBeHeld(failed)) void this.reconcile().catch(noop);
+
+      return failed;
+    }
+  }
+
+  /** The exit's checks, with the session it was made in and the price it was checked against. */
+  async #checkedExit(id: string, request: ExitRequest) {
+    const {
+      broker,
+      store,
+      tradingDays,
+      locked,
+      now = Date.now,
+    } = this.#options;
+
+    const { instrument } = request;
+    const at = new Date(now());
+    const trades = (await tradingDays?.(instrument.market)) ?? weekdays;
+
+    const [account, price] = await Promise.all([
+      broker.getAccount(),
+      this.#lastPrice(instrument),
+    ]);
+
+    // Shares the broker may already sell for the listing's other exits.
+    const covered = sumBy(
+      store
+        .list()
+        .filter(
+          (other) =>
+            other.id !== id &&
+            other.broker === broker.id &&
+            other.exit !== undefined &&
+            symbolKey(other.order.instrument) === symbolKey(instrument) &&
+            (exitWatched(other) ||
+              mayBeHeld(other) ||
+              other.status === ProposalStatus.Submitting)
+        ),
+      ({ order }) => order.quantity
+    );
+
+    return {
+      violations: checkExit(request, {
+        markets: broker.markets,
+        account,
+        locked: locked?.() ?? false,
+        watches: broker.exits !== undefined,
+        price,
+        today: exchangeDate(instrument.market, at),
+        covered,
+      }),
+      session: sessionDayAt(instrument.market, at, trades),
+      price,
+    };
   }
 
   dismiss(id: string): TradeProposal {

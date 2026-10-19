@@ -271,7 +271,13 @@ function recordingDesk(proposals: TradeProposal[]) {
     account: async () => ({ cash: { TWD: 1_000_000 }, positions: [] }),
     fills: async () => [],
     working: async () => [],
-    async propose({ order, rationale }) {
+    async propose(input) {
+      if (!("order" in input)) {
+        throw new Error("The evaluation proposes no exits");
+      }
+
+      const { order, rationale } = input;
+
       const proposal: TradeProposal = {
         id: `p${proposals.length + 1}`,
         broker: "paper",
