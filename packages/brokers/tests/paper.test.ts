@@ -3,13 +3,14 @@ import { describe, expect, test } from "vite-plus/test";
 import { BrokerOrderStatus, OrderRefusedError } from "@solyx/core/broker";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { OrderType, Side } from "@solyx/core/order";
+import { ExitLeg, OrderType, Side } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 
 import { createPaperBroker } from "../src/paper.ts";
 import type {
   PaperAccount,
   PaperBrokerOptions,
+  PaperExitLeg,
   PaperFill,
   PaperLedger,
 } from "../src/paper.ts";
@@ -18,15 +19,26 @@ import type {
 function memoryLedger(): PaperLedger {
   let saved: PaperAccount | undefined;
   const fills: PaperFill[] = [];
+  let legs: PaperExitLeg[] = [];
+
+  const drop = (refs: readonly string[]) => {
+    legs = legs.filter(({ ref }) => !refs.includes(ref));
+  };
 
   return {
     read: () => structuredClone(saved),
-    write: (account, fill) => {
+    write: (account, fill, ended = []) => {
       saved = structuredClone(account);
       fills.push(structuredClone(fill));
+      drop(ended);
     },
     fills: (since) =>
       structuredClone(fills.filter(({ filledAt }) => filledAt >= since)),
+    exitLegs: () => structuredClone(legs),
+    addExitLegs: (added) => {
+      legs.push(...structuredClone(added));
+    },
+    removeExitLegs: drop,
   };
 }
 
@@ -223,4 +235,114 @@ test("lists each order it filled, whole, with the tag it was placed with", async
       placedAt: 1_000,
     },
   ]);
+});
+
+describe("exits", () => {
+  // 10:00 in Taipei on 2026-10-19.
+  const NOW = Date.UTC(2026, 9, 19, 2);
+
+  async function holding(price: { last: number }) {
+    const ledger = memoryLedger();
+
+    const broker = createPaperBroker({
+      cash: { TWD: 1_000_000 },
+      ledger,
+      getLastPrice: async () => price.last,
+      now: () => NOW,
+    });
+
+    await broker.placeOrder(limit(Side.Buy, 1000, 600), "BUY001");
+
+    if (!broker.exits) throw new Error("The paper account watches exits");
+
+    return { broker, exits: broker.exits, ledger };
+  }
+
+  const exit = { stop: 550, target: 700, until: "2026-11-18" };
+
+  test("watches each leg until the price reaches one, which sells the exit whole at that price and ends the other", async () => {
+    const price = { last: 600 };
+    const { broker, exits } = await holding(price);
+
+    const refs = await exits.place(tsmc, 1000, exit, TAG);
+
+    expect(refs).toEqual([`${TAG}:stop`, `${TAG}:target`]);
+    expect(await exits.watching()).toEqual([
+      {
+        ref: `${TAG}:stop`,
+        instrument: tsmc,
+        quantity: 1000,
+        leg: ExitLeg.Stop,
+        price: 550,
+        placedAt: NOW,
+      },
+      {
+        ref: `${TAG}:target`,
+        instrument: tsmc,
+        quantity: 1000,
+        leg: ExitLeg.Target,
+        price: 700,
+        placedAt: NOW,
+      },
+    ]);
+
+    price.last = 548;
+
+    expect(await exits.watching()).toEqual([]);
+    expect((await broker.getAccount()).positions).toEqual([]);
+    expect((await broker.getOrders(0)).at(-1)).toMatchObject({
+      tag: TAG,
+      order: { side: Side.Sell, quantity: 1000, type: OrderType.Market },
+    });
+    expect((await broker.getFills(0)).at(-1)).toMatchObject({
+      price: 548,
+      realized: -52_000,
+    });
+  });
+
+  test("a target reached sells too", async () => {
+    const price = { last: 600 };
+    const { broker, exits } = await holding(price);
+
+    await exits.place(tsmc, 1000, { ...exit, stop: null }, TAG);
+    price.last = 705;
+
+    expect(await exits.watching()).toEqual([]);
+    expect((await broker.getFills(0)).at(-1)).toMatchObject({ price: 705 });
+  });
+
+  test("one whose last day has passed ends unsold", async () => {
+    const { broker, exits } = await holding({ last: 600 });
+
+    await exits.place(tsmc, 1000, { ...exit, until: "2026-10-18" }, TAG);
+
+    expect(await exits.watching()).toEqual([]);
+    expect((await broker.getAccount()).positions).toHaveLength(1);
+  });
+
+  test("one whose shares were sold meanwhile ends unsold", async () => {
+    const price = { last: 600 };
+    const { broker, exits } = await holding(price);
+
+    await exits.place(tsmc, 1000, exit, TAG);
+    await broker.placeOrder(limit(Side.Sell, 1000, 600), "SELL01");
+    price.last = 540;
+
+    expect(await exits.watching()).toEqual([]);
+    expect(await broker.getFills(0)).toHaveLength(2);
+  });
+
+  test("a cancelled leg is no longer watched, and one it does not watch cannot be cancelled", async () => {
+    const { exits } = await holding({ last: 600 });
+
+    await exits.place(tsmc, 1000, exit, TAG);
+    await exits.cancel(`${TAG}:stop`);
+
+    expect((await exits.watching()).map(({ ref }) => ref)).toEqual([
+      `${TAG}:target`,
+    ]);
+    await expect(exits.cancel(`${TAG}:stop`)).rejects.toThrow(
+      "watches no exit leg"
+    );
+  });
 });

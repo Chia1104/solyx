@@ -74,5 +74,26 @@ export function violationMessage(t: TFunction, violation: RiskViolation) {
         quantity: violation.quantity,
         held: violation.held,
       });
+    case RiskViolationCode.ExitsUnsupported:
+      return t("risk.exits-unsupported");
+    case RiskViolationCode.ExitWithoutPrice:
+      return t("risk.exit-without-price");
+    case RiskViolationCode.ExitPriceUnknown:
+      return t("risk.exit-price-unknown");
+    case RiskViolationCode.StopNotBelowPrice:
+      return t("risk.stop-not-below-price", {
+        stop: violation.stop,
+        price: violation.price,
+      });
+    case RiskViolationCode.TargetNotAbovePrice:
+      return t("risk.target-not-above-price", {
+        target: violation.target,
+        price: violation.price,
+      });
+    case RiskViolationCode.ExitUntilOutOfRange:
+      return t("risk.exit-until-out-of-range", {
+        first: violation.first,
+        last: violation.last,
+      });
   }
 }

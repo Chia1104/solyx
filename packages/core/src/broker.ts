@@ -1,5 +1,11 @@
-import type { Market } from "./market.ts";
-import type { AccountSnapshot, Fill, OrderRequest } from "./order.ts";
+import type { Market, SymbolRef } from "./market.ts";
+import type {
+  AccountSnapshot,
+  Exit,
+  ExitLeg,
+  Fill,
+  OrderRequest,
+} from "./order.ts";
 
 export const BrokerMode = {
   Paper: "paper",
@@ -92,10 +98,44 @@ export function orderTag(id: string): string {
   return tag;
 }
 
+/** One of an exit's legs a broker watches. */
+export interface WatchedExitLeg {
+  /** The broker's own id for the leg, the one `BrokerExits.place` answered with. */
+  ref: string;
+  instrument: SymbolRef;
+  /** The shares it sells. */
+  quantity: number;
+  leg: ExitLeg;
+  /** The price it sells at once the listing trades at or past it. */
+  price: number;
+  /** UTC milliseconds. */
+  placedAt: number;
+}
+
+/** A broker that watches a listing's price itself and sends an exit's sale once it is reached. */
+export interface BrokerExits {
+  /**
+   * Places a leg for each of `exit`'s prices (`exitLegs`), each selling `quantity` of `instrument`
+   * once the listing trades at or past its price, from the first day the broker can watch through
+   * `exit.until`, and answers with each leg's ref in that order. Places all of them or none:
+   * throws `OrderRefusedError` only where the broker surely watches none of them.
+   */
+  place(
+    instrument: SymbolRef,
+    quantity: number,
+    exit: Exit,
+    tag: string
+  ): Promise<string[]>;
+  /** The legs it watches now, the ones placed outside the app among them. */
+  watching(): Promise<WatchedExitLeg[]>;
+  /** Stops watching leg `ref`; throws where the broker did not take the request. */
+  cancel(ref: string): Promise<void>;
+}
+
 /**
  * One implementation per broker (`@solyx/brokers/*`). Only the `OrderDesk` holds one, nothing
- * outside `OrderDesk.confirm` may call `placeOrder`, and nothing outside `OrderDesk.cancel`
- * may call `cancelOrder`.
+ * outside `OrderDesk.confirm` may call `placeOrder` or `exits.place`, and nothing outside
+ * `OrderDesk.cancel` and `OrderDesk.cancelExit` may call `cancelOrder` or `exits.cancel`.
  */
 export interface BrokerAdapter {
   readonly id: string;
@@ -116,4 +156,6 @@ export interface BrokerAdapter {
    * came of it and what filled first. Throws where the broker did not take the request.
    */
   cancelOrder(id: string): Promise<void>;
+  /** Exits the broker watches the price for itself; unset where it watches none. */
+  readonly exits?: BrokerExits;
 }

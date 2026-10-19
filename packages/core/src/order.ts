@@ -38,6 +38,53 @@ export const orderRequestSchema = z.discriminatedUnion("type", [
 
 export type OrderRequest = z.infer<typeof orderRequestSchema>;
 
+/**
+ * A sale the broker sends itself once the listing trades at or past one of its prices, which it
+ * watches from the first day it can through `until`: the stop as the price falls to it, selling at
+ * the day's lower limit so it fills at what buyers bid, and the target as the price rises to it,
+ * selling at the target. Selling at one ends the other. Checks structure only, as an order's
+ * schema does; `checkExit` owns the trading rules.
+ */
+export const exitSchema = z.object({
+  /** Sells once the price trades at or below it; `null` for none. */
+  stop: z.number().nullable(),
+  /** Sells once the price trades at or above it; `null` for none. */
+  target: z.number().nullable(),
+  /** The last exchange-local day the broker watches the price. */
+  until: z.iso.date(),
+});
+
+export type Exit = z.infer<typeof exitSchema>;
+
+/** A sale of `quantity` of `instrument` at an exit's prices, as the user or the agent asks for one. */
+export const exitRequestSchema = exitSchema.extend({
+  instrument: symbolRefSchema,
+  /** Always in shares, as an order's are. */
+  quantity: z.number(),
+});
+
+export type ExitRequest = z.infer<typeof exitRequestSchema>;
+
+export const ExitLeg = {
+  Stop: "stop",
+  Target: "target",
+} as const;
+
+export type ExitLeg = (typeof ExitLeg)[keyof typeof ExitLeg];
+
+export const exitLegSchema = z.enum(ExitLeg);
+
+/** The legs an exit sets, stop first, each with the price it sells at once the listing trades at or past it. */
+export function exitLegs({ stop, target }: Exit): {
+  leg: ExitLeg;
+  price: number;
+}[] {
+  return [
+    ...(stop === null ? [] : [{ leg: ExitLeg.Stop, price: stop }]),
+    ...(target === null ? [] : [{ leg: ExitLeg.Target, price: target }]),
+  ];
+}
+
 export interface Position {
   instrument: SymbolRef;
   quantity: number;

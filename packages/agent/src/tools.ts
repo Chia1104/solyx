@@ -89,12 +89,13 @@ import type {
   Published,
   SentimentReading,
 } from "@solyx/core/news";
-import { OrderType, sideSchema } from "@solyx/core/order";
-import type { OrderRequest } from "@solyx/core/order";
+import { OrderType, exitLegs, sideSchema } from "@solyx/core/order";
+import type { Exit, OrderRequest } from "@solyx/core/order";
 import {
   MandateSending,
   ProposalSource,
   ProposalStatus,
+  exitWatched,
   mandateSending,
 } from "@solyx/core/order-desk";
 import type {
@@ -558,15 +559,34 @@ function describeBrokerOrder({
   return `${id} ${symbolLabel(order.instrument)} ${order.side} ${order.quantity} shares ${price}, ${filled} filled, ${status}`;
 }
 
+/** An exit's sale, its prices and whether the broker still watches it. */
+function exitText(proposal: TradeProposal, exit: Exit): string {
+  const legs = exitLegs(exit)
+    .map(({ leg, price }) => `${leg} ${price}`)
+    .join(", ");
+
+  const state = exitWatched(proposal)
+    ? ", the broker is watching it"
+    : proposal.exitEnded?.cancelled
+      ? ", cancelled by the user"
+      : proposal.exitEnded
+        ? ", the broker stopped watching it (a price was reached, it expired or it was removed); fills show whether it sold"
+        : "";
+
+  return `exit: sell ${proposal.order.quantity} once the price reaches ${legs}, watched through ${exit.until}${state}`;
+}
+
 export function describeProposal(proposal: TradeProposal): string {
-  const { order } = proposal;
+  const { order, exit } = proposal;
   const price = order.type === OrderType.Limit ? order.limitPrice : "market";
 
   const parts = [
     proposal.id,
     exchangeTime(order.instrument.market, new Date(proposal.createdAt)),
     `${symbolLabel(order.instrument)}`,
-    `${order.side} ${order.quantity} @ ${price}`,
+    exit
+      ? exitText(proposal, exit)
+      : `${order.side} ${order.quantity} @ ${price}`,
     proposal.status,
   ];
 

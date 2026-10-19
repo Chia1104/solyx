@@ -14,6 +14,10 @@ export const proposalsRouter = contractOS.proposals.router({
   dismiss: contractOS.proposals.dismiss.handler(({ context, input }) =>
     context.desk.dismiss(input)
   ),
+  // As with cancelling an order, only the user stops the broker watching an exit.
+  cancelExit: contractOS.proposals.cancelExit.handler(({ context, input }) =>
+    context.desk.cancelExit(input)
+  ),
   reconcile: contractOS.proposals.reconcile.handler(({ context }) =>
     context.desk.reconcile()
   ),

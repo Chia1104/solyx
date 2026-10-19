@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, gte, max } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, max } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { clamp, omit } from "es-toolkit";
 
+import type { WatchedExitLeg } from "@solyx/core/broker";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { AccountSnapshot, Fill } from "@solyx/core/order";
@@ -12,6 +13,7 @@ import type { ThemeItem, ThemeStore } from "@solyx/core/theme";
 import { connect } from "./connection.ts";
 import {
   paperAccount,
+  paperExitLegs,
   paperFills,
   proposals,
   scheduledTasks,
@@ -31,6 +33,11 @@ interface PaperAccount extends AccountSnapshot {
 interface PaperFill extends Fill {
   tag: string | null;
   limitPrice: number | null;
+}
+
+interface PaperExitLeg extends WatchedExitLeg {
+  tag: string;
+  until: string;
 }
 
 function watchlistStore(db: NodeSQLiteDatabase) {
@@ -91,12 +98,22 @@ function watchlistStore(db: NodeSQLiteDatabase) {
 }
 
 function toProposal(row: typeof proposals.$inferSelect): TradeProposal {
-  const { brokerOrderId, failure, ...rest } = omit(row, ["seq"]);
+  const { brokerOrderId, failure, exit, exitRefs, exitEnded, ...rest } = omit(
+    row,
+    ["seq"]
+  );
+
   const proposal: TradeProposal = rest;
 
   if (brokerOrderId !== null) proposal.brokerOrderId = brokerOrderId;
 
   if (failure !== null) proposal.failure = failure;
+
+  if (exit !== null) proposal.exit = exit;
+
+  if (exitRefs !== null) proposal.exitRefs = exitRefs;
+
+  if (exitEnded !== null) proposal.exitEnded = exitEnded;
 
   return proposal;
 }
@@ -127,6 +144,9 @@ function proposalStore(db: NodeSQLiteDatabase): ProposalStore {
           ...proposal,
           brokerOrderId: proposal.brokerOrderId ?? null,
           failure: proposal.failure ?? null,
+          exit: proposal.exit ?? null,
+          exitRefs: proposal.exitRefs ?? null,
+          exitEnded: proposal.exitEnded ?? null,
         })
         .where(eq(proposals.id, proposal.id))
         .run();
@@ -143,9 +163,22 @@ function paperAccountStore(db: NodeSQLiteDatabase) {
       return row && omit(row, ["id"]);
     },
 
-    /** Keeps the account as an order left it, and the order's fill, in one transaction. */
-    write(account: PaperAccount, fill: PaperFill) {
+    /**
+     * Keeps the account as an order left it, and the order's fill, in one transaction, with the
+     * exit legs `ended` dropped where the order was an exit's sale.
+     */
+    write(
+      account: PaperAccount,
+      fill: PaperFill,
+      ended: readonly string[] = []
+    ) {
       db.transaction((tx) => {
+        if (ended.length > 0) {
+          tx.delete(paperExitLegs)
+            .where(inArray(paperExitLegs.ref, [...ended]))
+            .run();
+        }
+
         tx.insert(paperAccount)
           .values({ id: PAPER_ACCOUNT_ID, ...account })
           .onConflictDoUpdate({ target: paperAccount.id, set: account })
@@ -157,6 +190,38 @@ function paperAccountStore(db: NodeSQLiteDatabase) {
           .values({ ...rest, ...instrument })
           .run();
       });
+    },
+
+    /** The exit legs the account watches, oldest first. */
+    exitLegs(): PaperExitLeg[] {
+      return db
+        .select()
+        .from(paperExitLegs)
+        .orderBy(asc(paperExitLegs.seq))
+        .all()
+        .map(({ market, symbol, ...row }) => ({
+          ...omit(row, ["seq"]),
+          instrument: { market, symbol },
+        }));
+    },
+
+    /** Keeps an exit's legs, all of them or none. */
+    addExitLegs(legs: readonly PaperExitLeg[]) {
+      db.transaction((tx) => {
+        for (const { instrument, ...leg } of legs) {
+          tx.insert(paperExitLegs)
+            .values({ ...leg, ...instrument })
+            .run();
+        }
+      });
+    },
+
+    removeExitLegs(refs: readonly string[]) {
+      if (refs.length === 0) return;
+
+      db.delete(paperExitLegs)
+        .where(inArray(paperExitLegs.ref, [...refs]))
+        .run();
     },
 
     /** The fills from `since`, UTC milliseconds, on, oldest first. */

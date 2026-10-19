@@ -651,6 +651,11 @@
   "proposals": {
     "form-title": "New order proposal",
     "form-description": "Proposals pass the risk checks here and again when you confirm them.",
+    "form-kinds": {
+      "order": "Order",
+      "exit": "Stop and target"
+    },
+    "exit-form-description": "Sells shares you hold once the price falls to the stop or rises to the target. It waits for your confirmation like any proposal.",
     "summary": "{{side}} {{quantity, number}} shares @ {{price}}",
     "market-price": "market",
     "impact": {
@@ -697,6 +702,22 @@
       "would-send": "Shadow mode: your mandate would send this",
       "outside": "Outside your mandate: {{reasons}}",
       "separator": "; "
+    },
+    "exit": {
+      "summary": "Sell {{quantity, number}} shares on {{legs}}, watched through {{until}}",
+      "stop": "a fall to {{price, number}}",
+      "target": "a rise to {{price, number}}",
+      "or": " or ",
+      "broker-hint": "The broker watches the price itself, even while Solyx is closed. A stop sells at the day's lower limit and a target at its price; once one sells, Solyx cancels the other when it next runs.",
+      "paper-hint": "The paper account checks the price once a minute while Solyx runs, and sells at the last price.",
+      "watching": "The broker is watching the price, even while Solyx is closed.",
+      "paper-watching": "Solyx checks the price once a minute while it runs.",
+      "cancel": "Cancel",
+      "cancel-failed": "Couldn't cancel the stop and target",
+      "cancelled": "You cancelled it.",
+      "ended": "No longer watched: a price was reached, it expired, or it was removed at the broker. The account's fills show whether it sold.",
+      "chip-watching": "Watching",
+      "chip-ended": "Ended"
     }
   },
   "flows": {
@@ -880,6 +901,18 @@
       "positive": "Must be greater than zero"
     }
   },
+  "exit-form": {
+    "days": "Days watched",
+    "stop": "Stop",
+    "stop-hint": "Sells at the day's lower limit once the price falls to it.",
+    "target": "Target",
+    "target-hint": "Sells at this price once the price rises to it.",
+    "errors": {
+      "whole-days": "Enter whole days",
+      "days": "Between 1 and {{max, number}} days",
+      "without-price": "Set a stop, a target or both"
+    }
+  },
   "risk": {
     "premise-stale": "Proposed for the {{date}} session, which has passed; propose it again",
     "premise-unknown": "The market as it was proposed wasn't kept; propose it again",
@@ -898,7 +931,13 @@
     "unsupported-market": "The account does not trade {{market}} listings",
     "insufficient-cash": "Order value {{notional, number}} {{currency}} exceeds the {{cash, number}} {{currency}} in the account",
     "cash-unknown": "The broker can't tell how much {{currency}} the account can spend, so buys are refused",
-    "insufficient-shares": "Selling {{quantity, number}} shares, but the account can sell only {{held, number}}"
+    "insufficient-shares": "Selling {{quantity, number}} shares, but the account can sell only {{held, number}}",
+    "exits-unsupported": "This broker doesn't watch prices for a stop or target",
+    "exit-without-price": "Set a stop, a target or both",
+    "exit-price-unknown": "The last price can't be read, so whether the stop or target is already reached can't be told",
+    "stop-not-below-price": "The stop {{stop, number}} isn't below the last price {{price, number}}, so it would sell at once",
+    "target-not-above-price": "The target {{target, number}} isn't above the last price {{price, number}}, so it would sell at once",
+    "exit-until-out-of-range": "It can be watched until a day from {{first}} to {{last}}"
   },
   "mandate": {
     "title": "Trading mandate",
