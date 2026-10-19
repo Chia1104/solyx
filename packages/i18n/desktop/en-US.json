@@ -105,7 +105,9 @@
     "realized": "Realized",
     "no-fills": "No fills yet",
     "no-working": "No orders working",
-    "recent-fills": "The newest {{count, number}} fills. Every fill counts in the trade review."
+    "recent-fills": "The newest {{count, number}} fills. Every fill counts in the trade review.",
+    "held": "Held",
+    "orders": "Orders"
   },
   "review": {
     "title": "Trade review",
@@ -268,7 +270,8 @@
     "open-settings": "Open settings",
     "quote": {
       "last": "Last price",
-      "change": "Change from the previous close"
+      "change": "Change from the previous close",
+      "change-reference": "Change from the reference price"
     },
     "trades": {
       "average": "Avg cost",
@@ -465,7 +468,7 @@
     "title": "Agent",
     "tabs": {
       "chat": "Chat",
-      "proposals": "Proposals"
+      "proposals": "Trade"
     },
     "new-chat": "New conversation",
     "conversations": "Conversations",
@@ -945,8 +948,6 @@
     },
     "type": "Order type",
     "price": "Price",
-    "tick-down": "Down a tick",
-    "tick-up": "Up a tick",
     "prices": {
       "limit-down": "Limit down",
       "reference": "Reference",
@@ -968,14 +969,26 @@
       "total-sell": "To receive"
     },
     "check": "Check order",
-    "hint": "Checking makes a proposal. Nothing is sent until you confirm it.",
-    "edit-dismisses": "Changing the order dismisses this proposal.",
+    "hint": "This is a draft. Checking makes it a proposal; nothing is sent until you confirm it.",
     "errors": {
       "required": "Required",
       "whole": "Use a whole number",
       "positive": "Must be greater than zero"
     },
-    "pick-on-chart": "Pick on chart"
+    "pick-on-chart": "Pick on chart",
+    "symbol": "Symbol",
+    "symbol-placeholder": "e.g. 2330",
+    "market": "Market",
+    "no-listing": "Enter a symbol to start an order; a listing's page fills it in.",
+    "count": {
+      "lots": "{{count, number}} lots",
+      "shares": "{{count, number}} shares"
+    },
+    "draft": "{{side}} {{quantity}} of {{name}} at {{price}}",
+    "draft-market": "{{side}} {{quantity}} of {{name}} at market",
+    "waiting": "The proposal waits below for you to confirm it. Changing the order dismisses it.",
+    "sent": "Sent.",
+    "dismissed": "This proposal was dismissed."
   },
   "exit-form": {
     "quantity": "Shares",
@@ -988,7 +1001,8 @@
       "whole-days": "Enter whole days",
       "days": "Between 1 and {{max, number}} days",
       "without-price": "Set a stop, a target or both"
-    }
+    },
+    "draft": "Sell {{quantity}} shares of {{name}} at a stop of {{stop}} or a target of {{target}}, for {{days}} days"
   },
   "risk": {
     "premise-stale": "Proposed for the {{date}} session, which has passed; propose it again",

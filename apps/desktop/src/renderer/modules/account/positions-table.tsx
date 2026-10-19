@@ -1,6 +1,5 @@
-import { Button, EmptyState, Table } from "@heroui/react";
+import { Button, ButtonGroup, EmptyState, Table } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { symbolKey } from "@solyx/core/market";
@@ -8,10 +7,10 @@ import type { SymbolRef } from "@solyx/core/market";
 import type { Position } from "@solyx/core/order";
 import { exitWatched } from "@solyx/core/order-desk";
 
-import { useLayoutStore } from "../../app/layout-store.ts";
 import { numberFormats } from "../market/number-formats.ts";
 import { proposalsQuery } from "../proposals/proposals-query.ts";
-import { TicketTab, useTicketStore } from "../proposals/ticket-store.ts";
+import { openSale } from "../proposals/show-ticket.ts";
+import { TicketTab } from "../proposals/ticket-store.ts";
 
 import { ListingLink } from "./listing-link.tsx";
 import {
@@ -20,37 +19,8 @@ import {
   PositionReturn,
 } from "./position-figures.tsx";
 
-/**
- * Opens the listing's order panel on a sale of what the account can sell, or on an exit of it,
- * for the user to finish and check; nothing is proposed until they do.
- */
-function useOpenSale() {
-  const navigate = useNavigate();
-  const shown = useParams({ strict: false });
-  const requestSale = useTicketStore((state) => state.requestSale);
-  const showTradeRail = useLayoutStore((state) => state.showTradeRail);
-
-  return (position: Position, tab: TicketTab) => {
-    const { market, symbol } = position.instrument;
-
-    requestSale(
-      position.instrument,
-      tab,
-      position.sellable ?? position.quantity
-    );
-    showTradeRail();
-
-    if (shown.market !== market || shown.symbol !== symbol) {
-      void navigate({
-        to: "/symbol/$market/$symbol",
-        params: { market, symbol },
-      });
-    }
-  };
-}
-
 /** The stops and targets the broker watches on the listing, each as stop / target. */
-function WatchedExits({ symbol }: { symbol: SymbolRef }) {
+export function WatchedExits({ symbol }: { symbol: SymbolRef }) {
   const { i18n } = useTranslation();
   const format = numberFormats(i18n.language);
 
@@ -76,11 +46,14 @@ function WatchedExits({ symbol }: { symbol: SymbolRef }) {
     .join(", ");
 }
 
+/** The shares of a holding a sale can draw on now. */
+export const sellableOf = (position: Position) =>
+  position.sellable ?? position.quantity;
+
 /** What the account holds, marked at each listing's last price, with a sale or an exit a click away. */
 export function PositionsTable({ positions }: { positions: Position[] }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
-  const openSale = useOpenSale();
 
   return (
     <Table variant="secondary">
@@ -135,20 +108,31 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
                       <WatchedExits symbol={symbol} />
                     </Table.Cell>
                     <Table.Cell>
-                      <div className="flex justify-end gap-1">
+                      <ButtonGroup
+                        size="sm"
+                        variant="tertiary"
+                        className="ml-auto">
                         <Button
-                          size="sm"
-                          variant="tertiary"
-                          onPress={() => openSale(position, TicketTab.Order)}>
+                          onPress={() =>
+                            openSale(
+                              symbol,
+                              sellableOf(position),
+                              TicketTab.Order
+                            )
+                          }>
                           {t("account.sell")}
                         </Button>
                         <Button
-                          size="sm"
-                          variant="tertiary"
-                          onPress={() => openSale(position, TicketTab.Exit)}>
+                          onPress={() =>
+                            openSale(
+                              symbol,
+                              sellableOf(position),
+                              TicketTab.Exit
+                            )
+                          }>
                           {t("account.set-exit")}
                         </Button>
-                      </div>
+                      </ButtonGroup>
                     </Table.Cell>
                   </Table.Row>
                 );

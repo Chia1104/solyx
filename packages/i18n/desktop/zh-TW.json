@@ -105,7 +105,9 @@
     "realized": "已實現損益",
     "no-fills": "還沒有成交",
     "no-working": "沒有委託中的單",
-    "recent-fills": "只列出最新 {{count, number}} 筆；交易檢討會計入所有成交。"
+    "recent-fills": "只列出最新 {{count, number}} 筆；交易檢討會計入所有成交。",
+    "held": "這檔的庫存",
+    "orders": "委託與成交"
   },
   "review": {
     "title": "交易檢討",
@@ -268,7 +270,8 @@
     "open-settings": "前往設定",
     "quote": {
       "last": "最新價",
-      "change": "與前一日收盤相比"
+      "change": "與前一日收盤相比",
+      "change-reference": "相對參考價的漲跌"
     },
     "trades": {
       "average": "均價",
@@ -465,7 +468,7 @@
     "title": "Agent",
     "tabs": {
       "chat": "對話",
-      "proposals": "提案"
+      "proposals": "交易"
     },
     "new-chat": "新對話",
     "conversations": "對話紀錄",
@@ -945,8 +948,6 @@
     },
     "type": "委託類型",
     "price": "價格",
-    "tick-down": "降一檔",
-    "tick-up": "升一檔",
     "prices": {
       "limit-down": "跌停",
       "reference": "平盤",
@@ -968,14 +969,26 @@
       "total-sell": "應收"
     },
     "check": "檢查委託",
-    "hint": "檢查後會建立一筆提案，按確認才會送出。",
-    "edit-dismisses": "改任何欄位，這筆提案就會放棄。",
+    "hint": "這是草稿。檢查後才會成為提案，確認後才會送出。",
     "errors": {
       "required": "必填",
       "whole": "請輸入整數",
       "positive": "必須大於零"
     },
-    "pick-on-chart": "點價"
+    "pick-on-chart": "點價",
+    "symbol": "代號",
+    "symbol-placeholder": "例如 2330",
+    "market": "市場",
+    "no-listing": "輸入代號開始下單；在個股頁會自動帶入。",
+    "count": {
+      "lots": "{{count, number}} 張",
+      "shares": "{{count, number}} 股"
+    },
+    "draft": "{{side}} {{quantity}} {{name}} @ {{price}}",
+    "draft-market": "{{side}} {{quantity}} {{name}}，市價",
+    "waiting": "提案在下方等你確認送出。改任何欄位會放棄它。",
+    "sent": "已送出。",
+    "dismissed": "這筆提案已取消。"
   },
   "exit-form": {
     "quantity": "股數",
@@ -988,7 +1001,8 @@
       "whole-days": "請輸入整數天",
       "days": "1 到 {{max, number}} 天",
       "without-price": "停損價和停利價至少填一個"
-    }
+    },
+    "draft": "賣出 {{name}} {{quantity}} 股：跌到 {{stop}} 或漲到 {{target}} 時，{{days}} 天內有效"
   },
   "risk": {
     "premise-stale": "提案時的交易時段（{{date}}）已經過了，請重新提案",

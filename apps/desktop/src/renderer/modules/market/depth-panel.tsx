@@ -1,6 +1,4 @@
-import { useEffect, useRef } from "react";
-
-import { Chip, cn } from "@heroui/react";
+import { cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "react-aria-components";
 import { useTranslation } from "react-i18next";
@@ -10,7 +8,6 @@ import type { SymbolRef } from "@solyx/core/market";
 import type { Depth, DepthLevel } from "@solyx/core/market-data";
 import { twLots } from "@solyx/core/rules/tw";
 
-import { highlight } from "../../components/highlight.ts";
 import { LoadingState } from "../../components/loading-state.tsx";
 
 import { bandQuery } from "./band-query.ts";
@@ -22,7 +19,7 @@ const BOOK_LEVELS = 5;
 
 /**
  * The listing's session so far and its best bids and asks, as `useDepth` follows them; a price
- * in the book is handed to `onPick`.
+ * in the book is handed to `onPick`. The last price heads the page instead.
  */
 export function DepthPanel({
   symbol,
@@ -53,31 +50,13 @@ export function DepthPanel({
 const sizeOf = (market: Market, shares: number) =>
   market === Market.TW ? twLots(shares) : shares;
 
+/** The session's figures beside its last price, which the page's header shows. */
 function QuoteBoard({ symbol, depth }: { symbol: SymbolRef; depth: Depth }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
   const direction = useDirectionColors(symbol.market);
   const { data: band } = useQuery(bandQuery(symbol));
-  const lastElement = useRef<HTMLSpanElement>(null);
-  const seen = useRef<number | null>(null);
-
-  const { last, reference } = depth;
-
-  useEffect(() => {
-    const before = seen.current;
-
-    seen.current = last;
-
-    if (last === null || before === null || last === before) return;
-
-    highlight(
-      lastElement.current,
-      (last > before ? direction.rise : direction.fall).solid
-    );
-  }, [last, direction]);
-
-  const change = last === null ? null : last - reference;
-  const moved = change === null ? undefined : directionOf(direction, change);
+  const { reference } = depth;
   const matched = depth.volumeAtAsk + depth.volumeAtBid;
 
   const price = (value: number | null | undefined) =>
@@ -92,31 +71,6 @@ function QuoteBoard({ symbol, depth }: { symbol: SymbolRef; depth: Depth }) {
 
   return (
     <section aria-label={t("depth.title")} className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span
-          ref={lastElement}
-          className={cn(
-            "-mx-1 rounded-sm px-1 text-2xl font-semibold tabular-nums",
-            moved?.text
-          )}>
-          {price(last)}
-        </span>
-        {change === null ? null : (
-          <span
-            className={cn(
-              "text-sm font-medium tabular-nums",
-              moved?.text ?? "text-muted"
-            )}>
-            {format.quoteChange.format(change)}{" "}
-            {format.quotePercentChange.format(change / reference)}
-          </span>
-        )}
-        {depth.trial ? (
-          <Chip size="sm" variant="soft">
-            {t("depth.trial")}
-          </Chip>
-        ) : null}
-      </div>
       <dl className="grid grid-cols-3 gap-x-3 gap-y-1.5 text-xs">
         <Figure label={t("depth.open")} className={priced(depth.open)}>
           {price(depth.open)}

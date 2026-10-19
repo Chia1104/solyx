@@ -10,12 +10,14 @@ import { AgentChat } from "../modules/agent/agent-chat.tsx";
 import { agentSessionsQuery } from "../modules/agent/agent-query.ts";
 import { AgentSessionControls } from "../modules/agent/agent-sessions.tsx";
 import { AgentTab, useAgentStore } from "../modules/agent/agent-store.ts";
+import { OrderTicket } from "../modules/proposals/order-ticket.tsx";
 import { ProposalQueue } from "../modules/proposals/proposal-queue.tsx";
 import { proposalsQuery } from "../modules/proposals/proposals-query.ts";
 
 /**
- * The conversation with the agent, and the proposals waiting for the user to confirm them. A
- * proposal the agent makes also shows in the conversation where it was made.
+ * The conversation with the agent, and trading: the order panel above the proposals waiting for
+ * the user to confirm them. A proposal the agent makes also shows in the conversation where it
+ * was made.
  */
 export function AgentPane() {
   const { t } = useTranslation();
@@ -66,6 +68,7 @@ export function AgentPane() {
           id={AgentTab.Proposals}
           className="flex min-h-0 flex-1 flex-col p-0">
           <div className="min-h-0 flex-1 overflow-y-auto">
+            <OrderTicket />
             <ProposalQueue />
           </div>
         </Tabs.Panel>

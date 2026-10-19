@@ -308,7 +308,9 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
     failure?.code === SubmissionFailureCode.Interrupted;
 
   return (
-    <article className="relative flex flex-col gap-2 border-b border-separator py-3 pr-4 pl-6">
+    <article
+      data-proposal={proposal.id}
+      className="relative flex flex-col gap-2 border-b border-separator py-3 pr-4 pl-6">
       <span
         aria-hidden
         className={cn(

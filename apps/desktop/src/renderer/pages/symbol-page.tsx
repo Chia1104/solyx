@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { CatchBoundary, getRouteApi } from "@tanstack/react-router";
@@ -16,7 +16,8 @@ import {
   SplitterEdge,
   SplitterOrientation,
 } from "../components/pane-splitter.tsx";
-import { AccountPanel } from "../modules/account/account-panel.tsx";
+import { ListingOrdersPanel } from "../modules/account/listing-orders.tsx";
+import { ListingPosition } from "../modules/account/listing-position.tsx";
 import { FlowPanes } from "../modules/flows/flow-panes.tsx";
 import { ListingFlowsPanel } from "../modules/flows/listing-flows.tsx";
 import { ChartKind } from "../modules/market/chart-kind.ts";
@@ -28,7 +29,7 @@ import { SymbolChart } from "../modules/market/symbol-chart.tsx";
 import { SymbolQuote } from "../modules/market/symbol-quote.tsx";
 import { useDepth } from "../modules/market/use-depth.ts";
 import { NewsList } from "../modules/news/news-list.tsx";
-import { OrderTicket } from "../modules/proposals/order-ticket.tsx";
+import { showTicket } from "../modules/proposals/show-ticket.ts";
 import { useTicketStore } from "../modules/proposals/ticket-store.ts";
 import { TradeOverlay } from "../modules/proposals/trade-overlay.tsx";
 import { ForecastOverlay } from "../modules/research/forecast-overlay.tsx";
@@ -39,7 +40,7 @@ const route = getRouteApi("/symbol/$market/$symbol");
 
 const NEWS_PANE_ID = "symbol-news";
 
-const TRADE_RAIL_ID = "symbol-trade";
+const BOOK_RAIL_ID = "symbol-book";
 
 /** Dragging the news up stops before the chart gets shorter than this. */
 const CHART_MIN_HEIGHT = 160;
@@ -57,9 +58,22 @@ export function SymbolPage() {
   const tradeRail = useLayoutStore((state) => state.tradeRail);
   const toggleTradeRail = useLayoutStore((state) => state.toggleTradeRail);
   const pickPrice = useTicketStore((state) => state.pick);
+  const setTicketSymbol = useTicketStore((state) => state.setSymbol);
   const pickingOnChart = useTicketStore((state) => state.pickingOnChart);
   const setPickingOnChart = useTicketStore((state) => state.setPickingOnChart);
-  const depth = useDepth(symbol, tradeRail || session);
+  const depth = useDepth(tradeRail || session ? symbol : null);
+  const { market, symbol: code } = symbol;
+
+  // The order panel trades the listing on screen until the user names another.
+  useEffect(() => {
+    setTicketSymbol({ market, symbol: code });
+  }, [market, code, setTicketSymbol]);
+
+  const pick = (price: number) => {
+    pickPrice(symbol, price);
+    showTicket();
+  };
+
   // Only Taiwan's exchanges report flows, so a US listing shows the news in their place.
   const flowsShown = symbol.market === Market.TW;
 
@@ -89,14 +103,14 @@ export function SymbolPage() {
       {flowsShown ? (
         <ToggleButton id={LowerView.Flows}>{t("flows.title")}</ToggleButton>
       ) : null}
-      <ToggleButton id={LowerView.Account}>{t("account.title")}</ToggleButton>
+      <ToggleButton id={LowerView.Orders}>{t("account.orders")}</ToggleButton>
     </ToggleButtonGroup>
   );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ColumnHeader className="px-6">
-        <SymbolQuote symbol={symbol} />
+        <SymbolQuote symbol={symbol} depth={depth} />
         <div className="ml-auto shrink-0">
           <WatchToggle symbol={symbol} />
         </div>
@@ -120,22 +134,19 @@ export function SymbolPage() {
         {session ? null : (
           <IndicatorMenu market={symbol.market} interval={interval} />
         )}
-        {tradeRail ? (
-          <ToggleButton
-            size="sm"
-            className="ml-auto"
-            isSelected={pickingOnChart}
-            onChange={setPickingOnChart}>
-            {t("order-form.pick-on-chart")}
-          </ToggleButton>
-        ) : null}
         <ToggleButton
           size="sm"
-          className={tradeRail ? undefined : "ml-auto"}
-          aria-controls={TRADE_RAIL_ID}
+          className="ml-auto"
+          isSelected={pickingOnChart}
+          onChange={setPickingOnChart}>
+          {t("order-form.pick-on-chart")}
+        </ToggleButton>
+        <ToggleButton
+          size="sm"
+          aria-controls={BOOK_RAIL_ID}
           isSelected={tradeRail}
           onChange={toggleTradeRail}>
-          {t("order-form.title")}
+          {t("depth.book")}
         </ToggleButton>
       </div>
       <div className="flex min-h-0 flex-1">
@@ -204,30 +215,22 @@ export function SymbolPage() {
             {lowerView === LowerView.Flows ? (
               <ListingFlowsPanel symbol={symbol} heading={lowerViews} />
             ) : null}
-            {lowerView === LowerView.Account ? (
-              <AccountPanel heading={lowerViews} />
+            {lowerView === LowerView.Orders ? (
+              <ListingOrdersPanel symbol={symbol} heading={lowerViews} />
             ) : null}
           </div>
         </div>
         {tradeRail ? (
           <aside
-            id={TRADE_RAIL_ID}
-            aria-label={t("order-form.title")}
-            className="flex w-64 shrink-0 flex-col gap-5 overflow-y-auto border-l border-separator p-4">
+            id={BOOK_RAIL_ID}
+            aria-label={t("depth.book")}
+            className="flex w-60 shrink-0 flex-col gap-4 overflow-y-auto border-l border-separator p-4">
             <CatchBoundary
               getResetKey={() => symbolKey(symbol)}
               errorComponent={ErrorFallback}>
-              <DepthPanel
-                symbol={symbol}
-                depth={depth}
-                onPick={(price) => pickPrice(symbol, price)}
-              />
+              <DepthPanel symbol={symbol} depth={depth} onPick={pick} />
             </CatchBoundary>
-            <OrderTicket
-              key={symbolKey(symbol)}
-              symbol={symbol}
-              depth={depth}
-            />
+            <ListingPosition symbol={symbol} />
           </aside>
         ) : null}
       </div>

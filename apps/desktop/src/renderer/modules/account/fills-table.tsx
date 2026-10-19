@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { MARKET_TIME_ZONE } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import type { Fill } from "@solyx/core/order";
 
 import { orpc } from "../../app/rpc.ts";
@@ -27,13 +28,13 @@ function filledAt(fill: Fill, locale: string) {
   }).format(fill.filledAt);
 }
 
-/** The account's newest fills, newest first, with what each sale gained. */
-export function FillsTable() {
+/** The account's newest fills, of one listing where `symbol` names it, newest first, with what each sale gained. */
+export function FillsTable({ symbol }: { symbol?: SymbolRef }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
 
   const { data, error, refetch } = useQuery(
-    orpc.account.fills.queryOptions({ input: undefined })
+    orpc.account.fills.queryOptions({ input: symbol })
   );
 
   if (error) return <LoadError error={error} onRetry={() => void refetch()} />;
@@ -52,7 +53,9 @@ export function FillsTable() {
           <Table.Content aria-label={t("account.fills")}>
             <Table.Header>
               <Table.Column isRowHeader>{t("account.filled-at")}</Table.Column>
-              <Table.Column>{t("account.symbol")}</Table.Column>
+              {symbol ? null : (
+                <Table.Column>{t("account.symbol")}</Table.Column>
+              )}
               <Table.Column>{t("account.side")}</Table.Column>
               <Table.Column>{t("account.shares")}</Table.Column>
               <Table.Column>{t("account.price")}</Table.Column>
@@ -70,9 +73,11 @@ export function FillsTable() {
                     <Table.Cell className="tabular-nums">
                       {filledAt(fill, i18n.language)}
                     </Table.Cell>
-                    <Table.Cell>
-                      <ListingLink symbol={fill.instrument} />
-                    </Table.Cell>
+                    {symbol ? null : (
+                      <Table.Cell>
+                        <ListingLink symbol={fill.instrument} />
+                      </Table.Cell>
+                    )}
                     <Table.Cell>{t(`side.${fill.side}`)}</Table.Cell>
                     <Table.Cell className="tabular-nums">
                       {format.price.format(fill.quantity)}

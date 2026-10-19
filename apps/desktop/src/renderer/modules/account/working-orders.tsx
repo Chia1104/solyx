@@ -3,6 +3,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type { BrokerOrder } from "@solyx/core/broker";
+import { symbolKey } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import { OrderType } from "@solyx/core/order";
 
 import { orpc } from "../../app/rpc.ts";
@@ -36,13 +38,28 @@ function CancelButton({ id }: { id: string }) {
 }
 
 /**
- * The day's orders that may still fill, wherever they were placed; none shows nothing unless
- * `showEmpty` says so.
+ * The day's orders that may still fill, wherever they were placed, of one listing where `symbol`
+ * names it; none shows nothing unless `showEmpty` says so.
  */
-export function WorkingOrders({ showEmpty = false }: { showEmpty?: boolean }) {
+export function WorkingOrders({
+  symbol,
+  showEmpty = false,
+}: {
+  symbol?: SymbolRef;
+  showEmpty?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
-  const { data } = useQuery(orpc.account.working.queryOptions());
+
+  const { data } = useQuery({
+    ...orpc.account.working.queryOptions(),
+    select: (orders) =>
+      symbol
+        ? orders.filter(
+            ({ order }) => symbolKey(order.instrument) === symbolKey(symbol)
+          )
+        : orders,
+  });
 
   if (!data || (data.length === 0 && !showEmpty)) return null;
 
@@ -56,8 +73,12 @@ export function WorkingOrders({ showEmpty = false }: { showEmpty?: boolean }) {
       <Table.ScrollContainer>
         <Table.Content aria-label={t("account.working")}>
           <Table.Header>
-            <Table.Column isRowHeader>{t("account.working")}</Table.Column>
-            <Table.Column>{t("account.order")}</Table.Column>
+            {symbol ? null : (
+              <Table.Column isRowHeader>{t("account.symbol")}</Table.Column>
+            )}
+            <Table.Column isRowHeader={symbol !== undefined}>
+              {t("account.order")}
+            </Table.Column>
             <Table.Column>{t("account.filled")}</Table.Column>
             <Table.Column>
               <span className="sr-only">{t("account.cancel")}</span>
@@ -72,9 +93,11 @@ export function WorkingOrders({ showEmpty = false }: { showEmpty?: boolean }) {
             <Table.Collection items={data}>
               {(working) => (
                 <Table.Row id={working.id}>
-                  <Table.Cell>
-                    <ListingLink symbol={working.order.instrument} />
-                  </Table.Cell>
+                  {symbol ? null : (
+                    <Table.Cell>
+                      <ListingLink symbol={working.order.instrument} />
+                    </Table.Cell>
+                  )}
                   <Table.Cell className="tabular-nums">
                     {t("proposals.summary", {
                       side: t(`side.${working.order.side}`),

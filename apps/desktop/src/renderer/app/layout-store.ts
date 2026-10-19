@@ -57,7 +57,7 @@ interface LayoutState {
   panes: Record<Pane, PaneState>;
   newsHeight: number;
   agendaView: AgendaView;
-  /** Whether the symbol page shows its quote, book and order panel beside the chart. */
+  /** Whether the symbol page shows its quote, book and position beside the chart. */
   tradeRail: boolean;
 }
 
@@ -69,7 +69,6 @@ interface LayoutActions {
   setNewsHeight: (height: number) => void;
   setAgendaView: (view: AgendaView) => void;
   toggleTradeRail: () => void;
-  showTradeRail: () => void;
 }
 
 type LayoutStore = LayoutState & LayoutActions;
@@ -140,7 +139,6 @@ export const useLayoutStore = create<LayoutStore>()(
       setNewsHeight: (height) => set({ newsHeight: clampNewsHeight(height) }),
       setAgendaView: (agendaView) => set({ agendaView }),
       toggleTradeRail: () => set((state) => ({ tradeRail: !state.tradeRail })),
-      showTradeRail: () => set({ tradeRail: true }),
     }),
     persistOptions<LayoutStore>("workspace-layout", persistedLayoutSchema)
   )
