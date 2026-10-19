@@ -41,12 +41,7 @@ import {
   useOrderTicketSchema,
 } from "./ticket-schema.ts";
 import type { ExitTicketValues, OrderTicketValues } from "./ticket-schema.ts";
-import { useTicketStore } from "./ticket-store.ts";
-
-const TicketTab = {
-  Order: "order",
-  Exit: "exit",
-} as const;
+import { TicketTab, useTicketStore } from "./ticket-store.ts";
 
 const DEFAULT_EXIT_DAYS = 30;
 
@@ -67,9 +62,22 @@ export function OrderTicket({
   depth: Depth | null | undefined;
 }) {
   const { t } = useTranslation();
+  const request = useTicketStore((state) => state.request);
+  const [tab, setTab] = useState<TicketTab>(TicketTab.Order);
+
+  // A sale asked for elsewhere opens its tab, whose panel then fills it in.
+  useEffect(() => {
+    if (request?.key === symbolKey(symbol)) setTab(request.tab);
+  }, [request, symbol]);
 
   return (
-    <Tabs variant="secondary" className="gap-3">
+    <Tabs
+      variant="secondary"
+      className="gap-3"
+      selectedKey={tab}
+      onSelectionChange={(key) => {
+        if (isEnumValue(TicketTab, key)) setTab(key);
+      }}>
       <Tabs.ListContainer className="border-separator">
         <Tabs.List aria-label={t("order-form.title")}>
           <Tabs.Tab id={TicketTab.Order} className="h-9">
@@ -197,6 +205,28 @@ function OrderPanel({
     seenPick.current = picked.count;
 
     if (picked.key === symbolKey(symbol)) setPrice(picked.price);
+  });
+
+  const request = useTicketStore((state) => state.request);
+  const takeRequest = useTicketStore((state) => state.takeRequest);
+
+  // A sale of shares held, asked for from a position: board lots where they make one, else odd shares.
+  useEffect(() => {
+    if (request?.key !== symbolKey(symbol) || request.tab !== TicketTab.Order) {
+      return;
+    }
+
+    takeRequest();
+    withdraw();
+
+    const lots = taiwan && request.shares >= TW_BOARD_LOT;
+
+    form.setValue("side", Side.Sell);
+    form.setValue("unit", lots ? TicketUnit.Lots : TicketUnit.Shares);
+    form.setValue(
+      "quantity",
+      lots ? Math.floor(request.shares / TW_BOARD_LOT) : request.shares
+    );
   });
 
   const marketOrder = type === OrderType.Market;
@@ -644,6 +674,19 @@ function ExitPanel({ symbol }: { symbol: SymbolRef }) {
       form.setValue("quantity", sellable);
     }
   }, [sellable, form]);
+
+  const request = useTicketStore((state) => state.request);
+  const takeRequest = useTicketStore((state) => state.takeRequest);
+
+  useEffect(() => {
+    if (request?.key !== symbolKey(symbol) || request.tab !== TicketTab.Exit) {
+      return;
+    }
+
+    takeRequest();
+    withdraw();
+    form.setValue("quantity", request.shares, { shouldDirty: true });
+  });
 
   const submit = form.handleSubmit((values) => {
     const until = Temporal.PlainDate.from(exchangeDate(symbol.market))

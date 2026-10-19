@@ -91,7 +91,21 @@
       "refused": "失敗"
     },
     "cancel": "撤單",
-    "cancel-failed": "撤單失敗"
+    "cancel-failed": "撤單失敗",
+    "last": "現價",
+    "return": "報酬率",
+    "exits": "停損／停利",
+    "actions": "動作",
+    "sell": "賣出",
+    "set-exit": "停損停利",
+    "fills": "成交",
+    "filled-at": "時間",
+    "side": "買賣",
+    "price": "價格",
+    "realized": "已實現損益",
+    "no-fills": "還沒有成交",
+    "no-working": "沒有委託中的單",
+    "recent-fills": "只列出最新 {{count, number}} 筆；交易檢討會計入所有成交。"
   },
   "review": {
     "title": "交易檢討",

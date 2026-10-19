@@ -24,6 +24,7 @@ import { WindowTitleBar } from "../components/window-title-bar.tsx";
 import { BrokerModeChip } from "../modules/account/broker-mode-chip.tsx";
 import { MarketSessions } from "../modules/market/market-sessions.tsx";
 import { SymbolSearch } from "../modules/market/symbol-search.tsx";
+import { OrderLockToggle } from "../modules/proposals/order-lock.tsx";
 import { UpdateAction } from "../modules/updates/update-action.tsx";
 
 import { BACK_HOTKEYS, PANE_HOTKEY } from "./hotkeys.ts";
@@ -132,7 +133,10 @@ export function TitleBar({ searchRef }: { searchRef: Ref<HTMLInputElement> }) {
       <div className="ml-auto flex items-center gap-4">
         <UpdateAction />
         <MarketSessions />
-        <BrokerModeChip />
+        <div className="flex items-center gap-2">
+          <OrderLockToggle />
+          <BrokerModeChip />
+        </div>
         <div className="flex items-center gap-1">
           <SettingsButton />
           <PaneToggle pane={Pane.Agent} />

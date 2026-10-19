@@ -12,17 +12,41 @@ export interface PickedPrice {
   count: number;
 }
 
+/** Which of the order panel's tabs a request opens. */
+export const TicketTab = {
+  Order: "order",
+  Exit: "exit",
+} as const;
+
+export type TicketTab = (typeof TicketTab)[keyof typeof TicketTab];
+
+/** A sale of shares held, asked for elsewhere, such as from a position's row, for the panel to fill in. */
+export interface TicketRequest {
+  /** The listing's `symbolKey`. */
+  key: string;
+  tab: TicketTab;
+  shares: number;
+}
+
 interface TicketStore {
   picked: PickedPrice | null;
+  /** Waits until the listing's panel takes it. */
+  request: TicketRequest | null;
   /** The next click on the chart picks its price, once. */
   pickingOnChart: boolean;
   pick(symbol: SymbolRef, price: number): void;
   setPickingOnChart(picking: boolean): void;
+  requestSale(symbol: SymbolRef, tab: TicketTab, shares: number): void;
+  takeRequest(): void;
 }
 
 export const useTicketStore = create<TicketStore>()((set) => ({
   picked: null,
+  request: null,
   pickingOnChart: false,
+  requestSale: (symbol, tab, shares) =>
+    set({ request: { key: symbolKey(symbol), tab, shares } }),
+  takeRequest: () => set({ request: null }),
   setPickingOnChart: (pickingOnChart) => set({ pickingOnChart }),
   pick: (symbol, price) =>
     set((state) => ({

@@ -16,6 +16,7 @@ import {
   SplitterEdge,
   SplitterOrientation,
 } from "../components/pane-splitter.tsx";
+import { AccountPanel } from "../modules/account/account-panel.tsx";
 import { FlowPanes } from "../modules/flows/flow-panes.tsx";
 import { ListingFlowsPanel } from "../modules/flows/listing-flows.tsx";
 import { DepthPanel } from "../modules/market/depth-panel.tsx";
@@ -86,6 +87,7 @@ export function SymbolPage() {
       {flowsShown ? (
         <ToggleButton id={LowerView.Flows}>{t("flows.title")}</ToggleButton>
       ) : null}
+      <ToggleButton id={LowerView.Account}>{t("account.title")}</ToggleButton>
     </ToggleButtonGroup>
   );
 
@@ -190,6 +192,9 @@ export function SymbolPage() {
             ) : null}
             {lowerView === LowerView.Flows ? (
               <ListingFlowsPanel symbol={symbol} heading={lowerViews} />
+            ) : null}
+            {lowerView === LowerView.Account ? (
+              <AccountPanel heading={lowerViews} />
             ) : null}
           </div>
         </div>
