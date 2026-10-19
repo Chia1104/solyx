@@ -78,6 +78,7 @@
     "avg-price": "Avg. price",
     "no-positions": "No positions",
     "cash": "Cash",
+    "cash-unknown": "Unknown",
     "unrealized-gain": "Unrealized gain",
     "working": "Working orders",
     "order": "Order",
@@ -888,6 +889,7 @@
     "session-not-allowed": "Orders are not allowed in the {{session}} session",
     "unsupported-market": "The account does not trade {{market}} listings",
     "insufficient-cash": "Order value {{notional, number}} {{currency}} exceeds the {{cash, number}} {{currency}} in the account",
+    "cash-unknown": "The broker can't tell how much {{currency}} the account can spend, so buys are refused",
     "insufficient-shares": "Selling {{quantity, number}} shares, but the account holds {{held, number}}"
   },
   "settings": {
@@ -1742,7 +1744,7 @@
       },
       "broker-hints": {
         "paper": "Pretend money; every order fills at once.",
-        "fubon": "Your own account, signed in as set up in Market data."
+        "fubon": "Your own account, signed in as set up in Market data. Buys need a settlement account at Taipei Fubon Bank or LINE Bank; with another bank, only sales go."
       },
       "restart-title": "Restart to switch accounts",
       "restart-description": "Orders go to the {{account}} until Solyx restarts, and proposals waiting for you are dismissed then.",

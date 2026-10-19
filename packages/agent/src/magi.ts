@@ -472,7 +472,7 @@ export function orderMotion(
   );
 
   const cash = Object.entries(account.cash)
-    .map(([currency, amount]) => `${currency} ${amount}`)
+    .map(([currency, amount]) => `${currency} ${amount ?? "unknown"}`)
     .join(", ");
 
   return [

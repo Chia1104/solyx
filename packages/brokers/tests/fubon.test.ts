@@ -27,6 +27,10 @@ import type { FubonFill, FubonHoldings, FubonOrder } from "../src/fubon.ts";
 const FAKE_BINDING = `
 const calls = [];
 
+const NO_REPORT = "證券報表/表單定義資料不存在";
+
+const REFUSED = "單價輸入錯誤[4385715]";
+
 class CoreSdk {
   constructor(...args) {
     calls.push(["new", ...args]);
@@ -35,8 +39,11 @@ class CoreSdk {
   apikeyLogin(...args) {
     calls.push(["apikeyLogin", ...args]);
 
-    return args[1] === "good-key"
-      ? { isSuccess: true, data: [{ name: "Test", branchNo: "6460", account: "28", accountType: "stock" }] }
+    // "no-reports" signs in to an account Fubon keeps no reports of gains for, as in its test environment.
+    const account = { "good-key": "28", "no-reports": "29" }[args[1]];
+
+    return account
+      ? { isSuccess: true, data: [{ name: "Test", branchNo: "6460", account, accountType: "stock" }] }
       : { isSuccess: false, message: "API key rejected" };
   }
 
@@ -59,16 +66,14 @@ class CoreSdk {
 
         if (order.symbol === "9999") return { isSuccess: false, message: "connection lost" };
 
-        if (order.symbol === "8888") {
-          return { isSuccess: false, message: "rejected", data: { date: "2026/10/19", seqNo: "4", status: 90, errorMessage: "price outside the limits", lastTime: "09:00:00.000" } };
-        }
+        if (order.symbol === "8888") return { isSuccess: false, message: REFUSED };
 
         return { isSuccess: true, data: { date: "2026/10/19", seqNo: "3", orderNo: "x0003", status: 10, userDef: order.userDef, lastTime: "09:00:00.000" } };
       },
       getOrderResults(account) {
         calls.push(["getOrderResults", account.account]);
 
-        return { isSuccess: true, data: [{ date: "2026/10/19", seqNo: "2", orderNo: "x0002", lastTime: "09:00:00.000", isPreOrder: false }] };
+        return { isSuccess: true, data: [{ date: "2026/10/19", seqNo: "2", orderNo: "x0002", lastTime: "09:00:00.000", isPreOrder: false }, { date: "2026/10/19", seqNo: "4", stockNo: "8888", buySell: "Buy", status: 90, userDef: "A1B2C3", errorMessage: REFUSED, lastTime: "09:00:00.000", isPreOrder: false }] };
       },
       cancelOrder(account, order, unblock) {
         calls.push(["cancelOrder", account.account, order, unblock]);
@@ -102,16 +107,23 @@ class CoreSdk {
       realizedGainsAndLoses(account) {
         calls.push(["realizedGainsAndLoses", account.account]);
 
-        return { isSuccess: true, data: [{ date: "2026/10/19", stockNo: "2881", buySell: "Sell", orderType: "Stock", filledQty: 1000, filledPrice: 66, realizedProfit: 0, realizedLoss: 203 }] };
+        return account.account === "29"
+          ? { isSuccess: false, message: NO_REPORT }
+          : { isSuccess: true, data: [{ date: "2026/10/19", stockNo: "2881", buySell: "Sell", orderType: "Stock", filledQty: 1000, filledPrice: 66, realizedProfit: 0, realizedLoss: 203 }] };
       },
       inventories() {
         return { isSuccess: true, data: [] };
       },
-      unrealizedGainsAndLoses() {
-        return { isSuccess: true, data: [] };
+      unrealizedGainsAndLoses(account) {
+        return account.account === "29"
+          ? { isSuccess: false, message: NO_REPORT }
+          : { isSuccess: true, data: [] };
       },
       bankRemain() {
-        return { isSuccess: false, message: "bank unreachable" };
+        return { isSuccess: false, message: "此帳戶之交割銀行不在銀行餘額查詢支援範圍" };
+      },
+      querySettlement() {
+        return { isSuccess: true, data: { account: { branchNo: "6460", account: "28" } } };
       },
     };
   }
@@ -299,6 +311,9 @@ describe("an order as Fubon reports it", () => {
     expect(
       fubonOrder(orderResult({ orderNo: null, status: 4 }), "2026-10-19")
     ).toBeNull();
+    expect(
+      fubonOrder(orderResult({ orderNo: " ", status: 90 }), "2026-10-19")
+    ).toBeNull();
   });
 });
 
@@ -416,6 +431,10 @@ test("the account holds its cash shares and spends the bank's balance with every
 
   // The fill and the 1,000 shares still working each cost 66,000 and 94.05 commission.
   expect(account.cash.TWD).toBeCloseTo(1_000_000 - 100_000 - 2 * 66_094.05);
+
+  expect(
+    fubonAccount({ ...holdings, bank: null }, [], [bought], "2026-10-19").cash
+  ).toEqual({ TWD: null });
 });
 
 test("signs in to the test environment with a password, at its endpoint", async () => {
@@ -482,11 +501,25 @@ test("each sale takes the realized gain Fubon reckoned for it once, and one it h
   ]);
 });
 
-test("a query Fubon refuses reports its message", () => {
+test("without Fubon's report of gains, no sale is reckoned", () => {
+  const session = openFubonSession(options("no-reports"));
+
+  expect(
+    session.fills(exchangeDate(Market.TW)).map(({ realized }) => realized)
+  ).toEqual([null, null, null]);
+});
+
+test("a bank Fubon cannot read leaves its balance unknown", () => {
   const session = openFubonSession(options("good-key"));
 
+  expect(session.holdings().bank).toBeNull();
+});
+
+test("a query Fubon refuses reports its message", () => {
+  const session = openFubonSession(options("no-reports"));
+
   expect(() => session.holdings()).toThrow(
-    "Fubon bank balance query failed: bank unreachable"
+    "Fubon cost query failed: 證券報表/表單定義資料不存在"
   );
 });
 
@@ -546,10 +579,13 @@ describe("an order as Fubon takes it", () => {
     expect(market).not.toHaveProperty("price");
   });
 
-  test("a tag reads back as the app wrote it, whatever case Fubon kept it in", () => {
+  test("a tag reads back as Fubon kept it, and a blank one as none", () => {
     expect(
-      fubonOrder(orderResult({ userDef: "a1b2c3" }), "2026-10-19")?.tag
+      fubonOrder(orderResult({ userDef: "A1B2C3" }), "2026-10-19")?.tag
     ).toBe("A1B2C3");
+    expect(
+      fubonOrder(orderResult({ userDef: " " }), "2026-10-19")?.tag
+    ).toBeNull();
   });
 });
 
@@ -566,7 +602,7 @@ describe("placing through the session", () => {
       "A1B2C3"
     );
 
-  test("answers with the order Fubon gave back, a failed one included", () => {
+  test("answers with the order Fubon gave back, or the failed one it lists under the tag", () => {
     const session = openFubonSession(options("good-key"));
 
     expect(session.place(order("2881"))).toMatchObject({
@@ -574,8 +610,9 @@ describe("placing through the session", () => {
       status: 10,
     });
     expect(session.place(order("8888"))).toMatchObject({
+      seqNo: "4",
       status: 90,
-      errorMessage: "price outside the limits",
+      errorMessage: "單價輸入錯誤[4385715]",
     });
     expect(recordedCalls().find(([call]) => call === "placeOrder")).toEqual([
       "placeOrder",
@@ -585,7 +622,7 @@ describe("placing through the session", () => {
     ]);
   });
 
-  test("throws where Fubon gave no order back, which leaves the outcome unknown", () => {
+  test("throws where Fubon gave no order back and lists none under the tag, which leaves the outcome unknown", () => {
     const session = openFubonSession(options("good-key"));
 
     expect(() => session.place(order("9999"))).toThrow(

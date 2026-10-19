@@ -39,7 +39,9 @@ export function AccountSummary() {
                   {t("account.cash")} {currency}
                 </dt>
                 <dd className="text-xl font-semibold tabular-nums">
-                  {format.price.format(amount ?? 0)}
+                  {amount === null
+                    ? t("account.cash-unknown")
+                    : format.price.format(amount ?? 0)}
                 </dd>
               </div>
             ))}

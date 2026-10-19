@@ -953,7 +953,8 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
         ]);
 
         const cash = Object.entries(account.cash).map(
-          ([currency, amount]) => `${currency} ${amount}`
+          ([currency, amount]) =>
+            `${currency} ${amount ?? "unknown: the broker cannot read it, so buys in it are refused"}`
         );
 
         const positions = account.positions.map(
