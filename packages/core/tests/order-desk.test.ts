@@ -41,7 +41,7 @@ import type {
   OrderRequest,
 } from "../src/order.ts";
 import { ReportStance } from "../src/report.ts";
-import { RiskViolationCode } from "../src/risk.ts";
+import { MAX_PREMISE_MOVE, RiskViolationCode } from "../src/risk.ts";
 import { Session, weekdays } from "../src/session.ts";
 import type { TradingDays } from "../src/session.ts";
 
@@ -1342,6 +1342,45 @@ test("confirming an exit has the broker watch each leg, and once one sells the d
     at: DURING_SESSION,
     cancelled: false,
   });
+});
+
+test("an exit holds for the session it was proposed for and while the price stays near where it was, as an order does", async () => {
+  let price = 1000;
+
+  const { desk, proposeExit, clock, exits } = exitSetup({
+    lastPrice: async () => price,
+  });
+
+  const moved = await proposeExit();
+
+  price = 1040;
+
+  expect((await desk.confirm(moved.id)).violations).toEqual([
+    {
+      code: RiskViolationCode.PriceMoved,
+      proposedAt: 1000,
+      price: 1040,
+      max: MAX_PREMISE_MOVE,
+    },
+  ]);
+
+  price = 1000;
+
+  const stale = await proposeExit();
+
+  clock.now += DAY_MS;
+
+  expect(await desk.confirm(stale.id)).toMatchObject({
+    status: ProposalStatus.Rejected,
+    violations: [
+      {
+        code: RiskViolationCode.PremiseStale,
+        proposedFor: "2026-09-29",
+        session: "2026-09-30",
+      },
+    ],
+  });
+  expect(exits.place).not.toHaveBeenCalled();
 });
 
 test("the user cancels an exit's legs, and an exit no longer watched cannot be cancelled", async () => {
