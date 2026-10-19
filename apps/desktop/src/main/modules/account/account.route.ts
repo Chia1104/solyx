@@ -15,4 +15,7 @@ export const accountRouter = contractOS.account.router({
 
     return roundTrips(fills, context.desk.list(), positions);
   }),
+  working: contractOS.account.working.handler(({ context }) =>
+    context.desk.working()
+  ),
 });

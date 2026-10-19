@@ -87,6 +87,8 @@ export interface ProposalBasis {
 
 export interface TradeProposal {
   id: string;
+  /** The id of the broker it was proposed to, the only one that may take it. */
+  broker: string;
   order: OrderRequest;
   source: ProposalSource;
   /** Why this trade: the agent's argument or the user's note. Kept for the review log. */
@@ -206,17 +208,22 @@ export class OrderDesk {
           failure: { code: SubmissionFailureCode.Interrupted },
         });
       } else if (
-        // The app exited while checking it again, before anything was sent, so it waits again.
         proposal.status === ProposalStatus.Confirming ||
-        (options.restored &&
-          proposal.status === ProposalStatus.AwaitingConfirmation)
+        proposal.status === ProposalStatus.AwaitingConfirmation
       ) {
-        options.store.update({
-          ...proposal,
-          status: options.restored
-            ? ProposalStatus.Dismissed
-            : ProposalStatus.AwaitingConfirmation,
-        });
+        // One that waited in a backup may have been confirmed since, and one proposed to another
+        // broker was argued on that account, not this one.
+        const stale = options.restored || proposal.broker !== options.broker.id;
+
+        // The app exited while checking it again, before anything was sent, so it waits again.
+        if (stale || proposal.status === ProposalStatus.Confirming) {
+          options.store.update({
+            ...proposal,
+            status: stale
+              ? ProposalStatus.Dismissed
+              : ProposalStatus.AwaitingConfirmation,
+          });
+        }
       }
     }
   }
@@ -268,7 +275,12 @@ export class OrderDesk {
    */
   async reconcile(): Promise<void> {
     const { broker, store, tradingDays, now = Date.now } = this.#options;
-    const unsure = store.list().filter(mayBeHeld);
+
+    const unsure = store
+      .list()
+      .filter(
+        (proposal) => proposal.broker === broker.id && mayBeHeld(proposal)
+      );
 
     if (unsure.length === 0) return;
 
@@ -345,6 +357,7 @@ export class OrderDesk {
 
     const proposal: TradeProposal = {
       id: id ?? createId(),
+      broker: this.#options.broker.id,
       ...input,
       basis: basis?.(input.order.instrument) ?? null,
       premise: { session, price, band },

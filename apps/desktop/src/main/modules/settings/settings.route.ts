@@ -20,7 +20,7 @@ import {
   mcpSecretKey,
   webSearchKeySecret,
 } from "#shared/settings.ts";
-import type { AppInfo, FubonFile } from "#shared/settings.ts";
+import type { AppInfo, FubonFile, TradingBroker } from "#shared/settings.ts";
 
 import type { WindowEvents } from "../../rpc/window-events.ts";
 import type { AgentService } from "../agent/agent-service.ts";
@@ -78,6 +78,10 @@ export interface SettingsContext {
   skillFolders: SkillFolders;
   instructionsFile: string;
   settingsShell: SettingsShell;
+  /** The account the order desk trades, picked as the app started. */
+  tradingBroker: TradingBroker;
+  /** Quits the app and starts it again. */
+  restart(): void;
   windowEvents: Pick<MemoryPublisher<WindowEvents>, "subscribe">;
   sender: WebContents;
 }
@@ -367,10 +371,14 @@ export const settingsRouter = settings.router({
   ),
 
   trading: settings.trading.handler(({ context }) => {
-    const { locked, maxDailyLoss } = context.config.read().trading;
+    const { broker, locked, maxDailyLoss } = context.config.read().trading;
 
-    return { locked, maxDailyLoss };
+    return { broker, trading: context.tradingBroker, locked, maxDailyLoss };
   }),
+  setTradingBroker: settings.setTradingBroker.handler(({ context, input }) => {
+    context.config.set(["trading", "broker"], input);
+  }),
+  restart: settings.restart.handler(({ context }) => context.restart()),
   setOrdersLocked: settings.setOrdersLocked.handler(({ context, input }) => {
     context.config.set(["trading", "locked"], input);
   }),

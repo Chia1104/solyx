@@ -40,6 +40,14 @@ function fakeSession(): FubonProcess {
       restBaseUrl: "https://rest.example.test/marketdata",
       streamBaseUrl: "wss://stream.example.test/marketdata",
     }),
+    holdings: async () => ({
+      inventories: [],
+      unrealized: [],
+      bank: { availableBalance: 0 },
+      settlements: [],
+    }),
+    orders: async () => [],
+    fills: async () => [],
     close: vi.fn(),
   };
 }
@@ -70,7 +78,7 @@ beforeEach(async () => {
 
 afterEach(() => rm(directory, { recursive: true, force: true }));
 
-function setup() {
+function setup({ tradesFubon = false } = {}) {
   const configFile = join(directory, ".solyx", "config.json");
   const config = createConfigFile(configFile);
 
@@ -87,6 +95,7 @@ function setup() {
     candles: openCache(":memory:", MIGRATIONS).candles,
     fubonLogDir: join(directory, "fubon"),
     openFubonProcess,
+    tradesFubon,
   });
 
   // Everything Fubon signs in with, and Fubon as Taiwan's source.
@@ -212,6 +221,30 @@ test("switching Taiwan back to Fugle signs out of Fubon", async () => {
   await sources.provider(Market.TW);
 
   expect((await openedSession(0)).close).toHaveBeenCalled();
+});
+
+test("while the desk trades with Fubon, charts from Fugle leave its session signed in and shared", async () => {
+  openFubonProcess.mockImplementation(async () => fakeSession());
+
+  const { config, sources, useFubon } = setup({ tradesFubon: true });
+
+  await useFubon();
+  await sources.provider(Market.TW);
+  config.set(["marketData", Market.TW], MarketDataSource.Fugle);
+  await sources.provider(Market.TW);
+
+  expect(await sources.fubonSession()).toBe(await openedSession(0));
+  expect((await openedSession(0)).close).not.toHaveBeenCalled();
+  expect(openFubonProcess).toHaveBeenCalledTimes(1);
+});
+
+test("the desk's session fails while Fubon's sign-in is not set up, without signing in", async () => {
+  const { sources } = setup({ tradesFubon: true });
+
+  await expect(sources.fubonSession()).rejects.toThrow(
+    "Fubon's sign-in is not set up"
+  );
+  expect(openFubonProcess).not.toHaveBeenCalled();
 });
 
 test("charts asking while Fubon has yet to answer share one sign-in", async () => {

@@ -62,6 +62,8 @@ export function violationMessage(t: TFunction, violation: RiskViolation) {
         cash: violation.cash,
         currency: violation.currency,
       });
+    case RiskViolationCode.CashUnknown:
+      return t("risk.cash-unknown", { currency: violation.currency });
     case RiskViolationCode.InsufficientShares:
       return t("risk.insufficient-shares", {
         quantity: violation.quantity,

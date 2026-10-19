@@ -1,4 +1,7 @@
+import { sum } from "es-toolkit";
 import * as z from "zod";
+
+import { Side } from "../order.ts";
 
 /** Shares in one board lot. */
 export const TW_BOARD_LOT = 1000;
@@ -19,6 +22,48 @@ export const TW_COMMISSION_RATE = 0.001425;
 
 /** The least a Taiwan broker charges for a trade, in TWD. */
 export const TW_MIN_COMMISSION = 20;
+
+/** A trade made today, which settles with the account's bank on the second trading day after. */
+export interface TwTrade {
+  /** The listing's code, which sets a sale's tax. */
+  symbol: string;
+  side: Side;
+  /** Shares. */
+  quantity: number;
+  price: number;
+}
+
+/**
+ * What a trade does to the account's bank once it settles, a buy below zero: a buy with the most
+ * commission and a sale with the most commission and tax taken off, so it errs low.
+ */
+export function twSettlement({
+  symbol,
+  side,
+  quantity,
+  price,
+}: TwTrade): number {
+  const value = quantity * price;
+  const commission = Math.max(TW_MIN_COMMISSION, value * TW_COMMISSION_RATE);
+
+  return side === Side.Buy
+    ? -(value + commission)
+    : value - commission - value * twSellTaxRate(symbol);
+}
+
+/**
+ * What a Taiwan account can spend on buys now: its settlement bank's balance with every trade
+ * already made settled against it, since trades settle on the second trading day after. Earlier
+ * days' trades come as the broker reckoned them, and today's, its fills and what its buys still on
+ * the book could spend, as `twSettlement` reckons them.
+ */
+export function twSpendable(
+  bank: number,
+  unsettled: readonly number[],
+  today: readonly TwTrade[]
+): number {
+  return bank + sum(unsettled) + sum(today.map(twSettlement));
+}
 
 /**
  * Tick size for a TWSE or TPEx listing at `price`, told by its code: exchange-traded funds and

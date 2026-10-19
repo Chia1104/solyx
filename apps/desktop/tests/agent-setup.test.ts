@@ -187,6 +187,7 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
   expect(area(areas, "Decisions model").missing).toHaveLength(1);
   expect(area(areas, "General").missing).toEqual([]);
   expect(area(areas, "Trading").settings).toMatchObject([
+    { name: "trading.broker", value: "paper" },
     { name: "trading.locked", value: "false" },
     { name: "trading.maxDailyLoss.TWD", value: "no limit" },
     { name: "trading.maxDailyLoss.USD", value: "no limit" },

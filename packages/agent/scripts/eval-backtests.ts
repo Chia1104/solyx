@@ -274,6 +274,7 @@ function recordingDesk(proposals: TradeProposal[]) {
     async propose({ order, rationale }) {
       const proposal: TradeProposal = {
         id: `p${proposals.length + 1}`,
+        broker: "paper",
         order,
         source: ProposalSource.Agent,
         rationale,

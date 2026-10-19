@@ -1,0 +1,1 @@
+ALTER TABLE `proposals` ADD `broker` text DEFAULT 'paper' NOT NULL;

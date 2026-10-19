@@ -27,6 +27,9 @@ const handler = new RPCHandler(
       return session.accounts;
     }),
     realtime: fubon.realtime.handler(() => signedIn().realtime()),
+    holdings: fubon.holdings.handler(() => signedIn().holdings()),
+    orders: fubon.orders.handler(({ input }) => signedIn().orders(input)),
+    fills: fubon.fills.handler(({ input }) => signedIn().fills(input)),
     close: fubon.close.handler(() => {
       session?.close();
       session = undefined;

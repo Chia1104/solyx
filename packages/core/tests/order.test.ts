@@ -88,6 +88,21 @@ test("a buy spends its notional in its market's currency and adds to the holding
   });
 });
 
+test("a buy's cash is unknown where the broker cannot say what the account can spend", () => {
+  expect(
+    orderImpact(
+      {
+        instrument: TSMC,
+        side: Side.Buy,
+        type: OrderType.Limit,
+        limitPrice: 1_005,
+        quantity: 500,
+      },
+      { ...ACCOUNT, cash: { TWD: null } }
+    )
+  ).toMatchObject({ cash: null, shares: { before: 1_000, after: 1_500 } });
+});
+
 test("a sale brings its notional in and draws on the holding, and a listing not held starts from none", () => {
   expect(
     orderImpact(

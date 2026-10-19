@@ -23,6 +23,7 @@ const proposal = (
   status: TradeProposal["status"]
 ): TradeProposal => ({
   id,
+  broker: "paper",
   order: {
     instrument: TSMC,
     side: Side.Buy,

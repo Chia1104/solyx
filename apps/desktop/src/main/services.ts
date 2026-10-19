@@ -5,6 +5,7 @@ import { MemoryPublisher } from "@orpc/publisher/memory";
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import { kebabCase, omit, uniqBy } from "es-toolkit";
 
+import { createFubonBroker } from "@solyx/brokers/fubon";
 import { createPaperBroker } from "@solyx/brokers/paper";
 import { changesSince, watchesListings } from "@solyx/core/changes";
 import { Currency, symbolKey, symbolLabel } from "@solyx/core/market";
@@ -30,6 +31,7 @@ import { ColorScheme } from "#shared/palette.ts";
 import {
   AppLocation,
   Secret,
+  TradingBroker,
   resolveLocale,
   resolveTimeZone,
 } from "#shared/settings.ts";
@@ -95,6 +97,12 @@ const PAPER_LIMITS: RiskLimits = {
   allowedSessions: Object.values(Session),
 };
 
+// A live account's orders go only to the regular session, whose books every broker takes alike.
+const LIVE_LIMITS: RiskLimits = {
+  maxOrderNotional: PAPER_CASH,
+  allowedSessions: [Session.Regular],
+};
+
 /** Composition root. A live broker is only ever wired here after the user explicitly turns it on. */
 export function createServices(config: ConfigFile) {
   const userDataDir = app.getPath("userData");
@@ -126,24 +134,37 @@ export function createServices(config: ConfigFile) {
     },
   });
 
+  // Read once: the desk trades one account for the app's life, and a switch waits for a restart.
+  const tradingBroker = config.read().trading.broker;
+  const tradesFubon = tradingBroker === TradingBroker.Fubon;
+
   const desk = new OrderDesk({
-    broker: createPaperBroker({
-      cash: PAPER_CASH,
-      ledger: userData.paperAccount,
-      async getLastPrice(instrument) {
-        const quote = await marketData.quote(instrument);
+    broker: tradesFubon
+      ? createFubonBroker({
+          holdings: async () =>
+            (await marketDataSources.fubonSession()).holdings(),
+          orders: async (from) =>
+            (await marketDataSources.fubonSession()).orders(from),
+          fills: async (from) =>
+            (await marketDataSources.fubonSession()).fills(from),
+        })
+      : createPaperBroker({
+          cash: PAPER_CASH,
+          ledger: userData.paperAccount,
+          async getLastPrice(instrument) {
+            const quote = await marketData.quote(instrument);
 
-        if (!quote) {
-          throw new Error(
-            `No market data source covers ${symbolLabel(instrument)}`
-          );
-        }
+            if (!quote) {
+              throw new Error(
+                `No market data source covers ${symbolLabel(instrument)}`
+              );
+            }
 
-        return quote.last;
-      },
-    }),
+            return quote.last;
+          },
+        }),
     store: userData.proposals,
-    limits: PAPER_LIMITS,
+    limits: tradesFubon ? LIVE_LIMITS : PAPER_LIMITS,
     tradingDays: (market) => marketDays(market),
     // A quote out of reach leaves the price unknown rather than failing the check.
     lastPrice: (symbol) =>
@@ -203,14 +224,17 @@ export function createServices(config: ConfigFile) {
 
   const { diagnostics } = telemetry;
 
+  const marketDataSources = createMarketDataSources({
+    config,
+    secrets,
+    candles: cache.candles,
+    fubonLogDir: join(userDataDir, "fubon"),
+    openFubonProcess,
+    tradesFubon,
+  });
+
   const marketData = createMarketData({
-    sources: createMarketDataSources({
-      config,
-      secrets,
-      candles: cache.candles,
-      fubonLogDir: join(userDataDir, "fubon"),
-      openFubonProcess,
-    }),
+    sources: marketDataSources,
     answers: cache.answers,
     onSourcesChanged: () =>
       void windowEvents.publish("market:sources-changed", {}),
@@ -664,6 +688,7 @@ export function createServices(config: ConfigFile) {
 
   return {
     desk,
+    tradingBroker,
     marketDays,
     secrets,
     config,

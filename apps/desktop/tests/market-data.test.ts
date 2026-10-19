@@ -65,6 +65,7 @@ function setup() {
     openStream: async () => streams.at(-1)?.stream,
     status: vi.fn<MarketDataSources["status"]>(),
     signInFubon: vi.fn<MarketDataSources["signInFubon"]>(),
+    fubonSession: vi.fn<MarketDataSources["fubonSession"]>(),
     onStreamChange(listener) {
       streamListeners.add(listener);
 
