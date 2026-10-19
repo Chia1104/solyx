@@ -844,18 +844,26 @@ export class OrderDesk {
     }
   }
 
-  /** Checks the exit again against the price now and has the broker watch it. */
+  /**
+   * Checks the exit again against the session and price now, refusing it as an order is refused
+   * once either has moved past its premise, and has the broker watch it.
+   */
   async #sendExit(pending: TradeProposal, exit: Exit): Promise<TradeProposal> {
     const { broker } = this.#options;
     const { instrument, quantity } = pending.order;
     let violations: RiskViolation[];
 
     try {
-      ({ violations } = await this.#checkedExit(pending.id, {
+      const checked = await this.#checkedExit(pending.id, {
         ...exit,
         instrument,
         quantity,
-      }));
+      });
+
+      violations = [
+        ...premiseViolations(pending.premise, checked),
+        ...checked.violations,
+      ];
     } catch (error) {
       this.#save(pending);
 
