@@ -44,7 +44,29 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "7. Call propose_order once. The rationale must hold: the thesis, the evidence with its as_of times, entry, invalidation, target, reward-to-risk, and what would make you withdraw the idea.",
       "8. Tell the user what propose_order answered: the proposal waits for their confirmation in the app, or their trading mandate covered it and the app sent it to the broker. Never say an order filled.",
       "",
-      "Do not propose when data is missing or stale, when the market is closed and the user did not ask for a resting order, or when the user only asked for an opinion."
+      "Do not propose when data is missing or stale, when the market is closed and the user did not ask for a resting order, or when the user only asked for an opinion.",
+      "",
+      "Once a buy has filled, offer to protect it with an exit at its invalidation and target, as exit-plan says."
+    ),
+  },
+  {
+    name: "exit-plan",
+    source: SkillSource.BuiltIn,
+    userInvocable: true,
+    description:
+      "Setting a stop, a target or both on a position the account holds, which the broker watches and sells at itself. Read before calling propose_exit.",
+    body: lines(
+      "# Exit plan",
+      "",
+      "1. Read get_account: the position, and the exits the broker already watches. Sell only shares no working sale or other exit sells.",
+      "2. Read get_research for the listing. The stop is where the thesis is wrong: a price one of the report's falsifiers names, or the invalidation the buy was proposed with, placed beyond a level the data shows (a swing low, a moving average, a range edge). Where no level is near, use a multiple of the average true range from get_indicators. Never a round percentage.",
+      "3. The target comes from the forecast's bands or the order's first target. Either price may be left out, but say what that leaves unprotected.",
+      "4. Read get_base_rates over the horizon you mean to watch, and say how often the listing's past moves reached the stop and the target from here.",
+      "5. Watch until the forecast's horizon or the day the thesis should have played out by, from tomorrow to 60 days on. Put both prices on the market's tick grid, the stop below the last price and the target above it.",
+      "6. Call propose_exit once. The rationale holds why each price, the evidence with its as_of times and what the exit protects.",
+      "7. Tell the user what it means: once they confirm it, the broker watches the price even while the app is closed; the stop sells at the day's lower limit, so it fills at what buyers bid and can fill well below the stop on a gap; the target sells at its price. Once one sells, the app cancels the other when it next runs, so while it is closed both could sell if the account holds more shares than the exit sells. On a paper account the price is checked only while the app runs.",
+      "",
+      "Never call an exit placed, sold or filled unless a tool says so. An exit that ended reads as ended in list_proposals; whether it sold is in the account's fills."
     ),
   },
   {
@@ -325,6 +347,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "",
       "## What Solyx is",
       "- A desktop app for trading Taiwan (TWSE, TPEx) and US stocks. You research and may propose an order; the user confirms or dismisses it in the app, and only then does it reach the broker, unless a trading mandate the user set in Settings → Trading covers it: a limit order on listings, sides and values they chose, for some days, which is in shadow mode, only marking what it would send, unless they switched that off. The account is paper, with no real money, until the user picks a live broker there.",
+      "- A stop or target on a position held is a proposal too, which the user can also make in the Proposals tab: once they confirm it, the broker watches the price and sells at it itself, Fubon even while the app is closed. The mandate never sends one.",
       "- Everything runs on the user's computer on their own keys. The app runs no server between them and their providers.",
       "",
       "## First-time setup, in the order the app's own setup takes",

@@ -197,6 +197,7 @@ export const AgentToolName = {
   ListProposals: "list_proposals",
   CheckOrder: "check_order",
   ProposeOrder: "propose_order",
+  ProposeExit: "propose_exit",
   ReadSkill: "read_skill",
   ToolSearch: "tool_search",
   RunAnalysis: "run_analysis",

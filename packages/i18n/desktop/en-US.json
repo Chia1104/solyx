@@ -501,6 +501,7 @@
       "list_proposals": "Read your proposals",
       "check_order": "Checked an order",
       "propose_order": "Proposed an order",
+      "propose_exit": "Proposed a stop and target",
       "read_skill": "Read a playbook",
       "tool_search": "Searched MCP tools",
       "run_analysis": "Ran an analysis",

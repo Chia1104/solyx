@@ -452,7 +452,8 @@ export function AgentToolCall({
   const { t } = useTranslation();
 
   const proposal =
-    tool.toolName === AgentToolName.ProposeOrder &&
+    (tool.toolName === AgentToolName.ProposeOrder ||
+      tool.toolName === AgentToolName.ProposeExit) &&
     tool.status === ToolCallStatus.Ok
       ? proposeOrderDetailsSchema.safeParse(tool.details).data
       : undefined;

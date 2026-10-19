@@ -48,6 +48,7 @@ test("with no folders the built-in playbooks are offered", async () => {
 
   expect(offered(catalog)).toEqual([
     "order-proposal",
+    "exit-plan",
     "technical-read",
     "backtest",
     "taiwan-market",
@@ -148,6 +149,7 @@ test("background skills cannot be asked for with /name, and a skill can be unles
   ).toEqual([
     "dividend-check",
     "order-proposal",
+    "exit-plan",
     "technical-read",
     "backtest",
     "portfolio-review",

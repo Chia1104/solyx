@@ -493,7 +493,7 @@ test("the account tells how its closed round trips went by the stance they were 
     fill("B-4", Side.Sell, 4, -10_000),
   ]);
 
-  desk.list.mockReturnValueOnce([
+  desk.list.mockReturnValue([
     {
       id: "p1",
       broker: "paper",
@@ -682,6 +682,104 @@ test("proposing goes through the desk as the agent, once per run", async () => {
   expect(desk.propose).toHaveBeenCalledTimes(2);
 
   await runtime.close();
+});
+
+test("an exit goes through the desk as the agent's proposal, and shares the reply's one proposal with an order", async () => {
+  const { desk, ports, proposal } = setup();
+  const { faux, events, runtime, ended } = agentOn(ports);
+  const { id } = await runtime.create();
+
+  desk.propose.mockResolvedValue(
+    proposal({
+      order: {
+        instrument: TSMC,
+        side: Side.Sell,
+        quantity: 1000,
+        type: OrderType.Market,
+      },
+      exit: { stop: 950, target: null, until: "2026-11-18" },
+    })
+  );
+
+  faux.setResponses([
+    fauxAssistantMessage(
+      [
+        fauxToolCall(
+          AgentToolName.ProposeExit,
+          {
+            exit: {
+              market: Market.TW,
+              symbol: "2330",
+              quantity: 1000,
+              stop: 950,
+              until: "2026-11-18",
+            },
+            rationale: "the swing low at 955 breaks the thesis",
+          },
+          { id: "exit" }
+        ),
+        fauxToolCall(
+          AgentToolName.ProposeOrder,
+          { order, rationale: "breakout above 1000" },
+          { id: "order" }
+        ),
+      ],
+      { stopReason: "toolUse" }
+    ),
+    fauxAssistantMessage("It waits for you."),
+  ]);
+
+  await runtime.send(id, { text: "Protect my 2330", context: "" });
+  await ended(1);
+
+  expect(desk.propose).toHaveBeenCalledOnce();
+  expect(desk.propose).toHaveBeenCalledWith({
+    id: expect.any(String),
+    exit: {
+      instrument: TSMC,
+      quantity: 1000,
+      stop: 950,
+      target: null,
+      until: "2026-11-18",
+    },
+    source: ProposalSource.Agent,
+    rationale: "the swing low at 955 breaks the thesis",
+  });
+
+  const calls = foldEvents(events).items.filter(
+    (item) => item.kind === AgentItemKind.Tool
+  );
+
+  expect(calls).toContainEqual(
+    expect.objectContaining({
+      error: expect.stringContaining("Only one proposal"),
+    })
+  );
+
+  await runtime.close();
+});
+
+test("an exit reads as its sale and prices, and whether the broker still watches it", () => {
+  const { proposal } = setup();
+
+  const exit = proposal({
+    order: {
+      instrument: TSMC,
+      side: Side.Sell,
+      quantity: 1000,
+      type: OrderType.Market,
+    },
+    exit: { stop: 950, target: 1100, until: "2026-11-18" },
+    status: ProposalStatus.Submitted,
+    exitRefs: ["E-1", "E-2"],
+  });
+
+  expect(describeProposal(exit)).toContain(
+    "exit: sell 1000 once the price reaches stop 950, target 1100, watched through 2026-11-18, the broker is watching it"
+  );
+  expect(
+    describeProposal({ ...exit, exitEnded: { at: 0, cancelled: true } })
+  ).toContain("cancelled by the user");
 });
 
 test("a proposal says what the user's mandate made of it", () => {
