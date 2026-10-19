@@ -278,7 +278,8 @@ const realizedSchema = z.object({
 export interface FubonHoldings {
   inventories: z.infer<typeof inventorySchema>[];
   unrealized: z.infer<typeof unrealizedSchema>[];
-  bank: z.infer<typeof bankSchema>;
+  /** `null` where Fubon cannot read the settlement bank's balance, as for any bank but its own and LINE Bank. */
+  bank: z.infer<typeof bankSchema> | null;
   settlements: z.infer<typeof settlementSchema>[];
 }
 
@@ -433,6 +434,19 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
     return answer(what, call(stockAccount()), schema);
   }
 
+  /** As `query`, but `null` where Fubon answers that it cannot, for what the app can do without. */
+  function attempt<T>(
+    what: string,
+    call: (account: FubonAccount) => FubonResult<unknown>,
+    schema: z.ZodType<T>
+  ): T | null {
+    paceQuery();
+
+    const result = call(stockAccount());
+
+    return result.isSuccess ? answer(what, result, schema) : null;
+  }
+
   const today = () => exchangeDate(Market.TW);
 
   function orders(from: string): FubonOrder[] {
@@ -491,7 +505,7 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
             (account) => accounting.unrealizedGainsAndLoses(account),
             z.array(unrealizedSchema).nullable()
           ) ?? [],
-        bank: query(
+        bank: attempt(
           "bank balance query",
           (account) => accounting.bankRemain(account),
           bankSchema
@@ -520,8 +534,9 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
           ) ?? []
       );
 
+      // Without Fubon's report of gains, as in its test environment, no sale is reckoned.
       const realized =
-        query(
+        attempt(
           "realized gain query",
           (account) => accounting.realizedGainsAndLoses(account),
           z.array(realizedSchema).nullable()
@@ -549,17 +564,29 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
     },
 
     place(order) {
-      const result = sdk.stock.placeOrder(stockAccount(), order, false);
+      const account = stockAccount();
+      const result = sdk.stock.placeOrder(account, order, false);
       const placed = orderResultSchema.safeParse(result.data ?? null);
 
-      // A failure Fubon answers with the order it failed is a refusal; one without is not known
-      // to have reached the exchange or not.
-      if (
-        placed.success &&
-        (result.isSuccess || placed.data.status === FUBON_FAILED)
-      ) {
-        return placed.data;
-      }
+      if (result.isSuccess && placed.success) return placed.data;
+
+      // Fubon answers a refusal with its reason alone and lists the order it failed under the
+      // order's tag; where it lists none, the order is not known to have reached it or not.
+      paceQuery();
+
+      const listed = z
+        .array(orderResultSchema)
+        .nullable()
+        .safeParse(sdk.stock.getOrderResults(account).data ?? null);
+
+      const found = listed.data?.findLast(
+        (each) =>
+          each.userDef?.trim() === order.userDef &&
+          each.stockNo === order.symbol &&
+          each.buySell === order.buySell
+      );
+
+      if (found) return found;
 
       throw new Error(
         `Fubon gave no order back: ${result.message ?? "no reason given"}`
@@ -668,7 +695,9 @@ export function fubonOrder(
   today: string
 ): BrokerOrder | null {
   const side = FUBON_SIDE.get(result.buySell ?? "");
-  const { orderNo, stockNo, quantity } = result;
+  // Fubon lists an order it has yet to number with a blank number.
+  const orderNo = result.orderNo?.trim();
+  const { stockNo, quantity } = result;
 
   if (
     !side ||
@@ -700,8 +729,7 @@ export function fubonOrder(
 
   return {
     id: fubonOrderId(result.date, orderNo),
-    // Fubon may change a tag's case as it keeps it, and the app's tags are upper case.
-    tag: result.userDef?.trim().toUpperCase() || null,
+    tag: result.userDef?.trim() || null,
     order,
     filled: result.filledQty ?? 0,
     status:
@@ -735,8 +763,8 @@ export function fubonFill(fill: FubonFill): Fill | null {
 /**
  * The account as the app reads it: the shares it holds outright at what they cost, and what it
  * can spend on buys, its settlement bank's balance with every trade not yet settled against it
- * (`twSpendable`). On a settlement day the bank may or may not have taken that day's trades yet,
- * so only what they take out is counted, which errs low.
+ * (`twSpendable`), unknown where Fubon cannot read the bank. On a settlement day the bank may or
+ * may not have taken that day's trades yet, so only what they take out is counted, which errs low.
  */
 export function fubonAccount(
   { inventories, unrealized, bank, settlements }: FubonHoldings,
@@ -807,10 +835,13 @@ export function fubonAccount(
 
   return {
     cash: {
-      TWD: twSpendable(bank.availableBalance, unsettled, [
-        ...traded,
-        ...booked,
-      ]),
+      TWD:
+        bank === null
+          ? null
+          : twSpendable(bank.availableBalance, unsettled, [
+              ...traded,
+              ...booked,
+            ]),
     },
     positions,
   };

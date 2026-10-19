@@ -137,6 +137,8 @@ export const RiskViolationCode = {
   SessionNotAllowed: "session-not-allowed",
   UnsupportedMarket: "unsupported-market",
   InsufficientCash: "insufficient-cash",
+  /** The broker cannot say what the account can spend, so no buy can be held to it. */
+  CashUnknown: "cash-unknown",
   InsufficientShares: "insufficient-shares",
 } as const;
 
@@ -192,6 +194,7 @@ export type RiskViolation =
       cash: number;
       currency: Currency;
     }
+  | { code: typeof RiskViolationCode.CashUnknown; currency: Currency }
   | {
       code: typeof RiskViolationCode.InsufficientShares;
       quantity: number;
@@ -301,13 +304,16 @@ export function checkOrder(
       });
     }
 
-    const cash = context.account.cash[currency] ?? 0;
+    // A currency the account lists no cash in holds none.
+    const cash = context.account.cash[currency];
 
-    if (order.side === Side.Buy && notional > cash) {
+    if (order.side === Side.Buy && cash === null) {
+      violations.push({ code: RiskViolationCode.CashUnknown, currency });
+    } else if (order.side === Side.Buy && notional > (cash ?? 0)) {
       violations.push({
         code: RiskViolationCode.InsufficientCash,
         notional,
-        cash,
+        cash: cash ?? 0,
         currency,
       });
     }

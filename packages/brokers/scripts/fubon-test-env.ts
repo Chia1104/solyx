@@ -8,7 +8,8 @@
  * The folder is one extracted from fubon-neo-<version>.tgz, and the certificate one from Fubon's
  * test environment package, named for the test account's ID number; its login and certificate
  * password is Fubon's published `12345678`. `--sell` also places a limit sale of what the test
- * account holds through the app's broker, lists it and cancels it.
+ * account holds through the app's broker, lists it and cancels it; a price past the day's limits
+ * shows how a refusal reads.
  */
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -57,19 +58,34 @@ const session = openFubonSession({
   url: FUBON_TEST_URL,
 });
 
+/** Runs one read and prints what it gave, or why it failed, so one failure hides none of the rest. */
+function step<T>(title: string, read: () => T): T | null {
+  try {
+    const value = read();
+
+    show(title, pretty(value));
+
+    return value;
+  } catch (error) {
+    show(`${title} failed`, errorMessage(error));
+
+    return null;
+  }
+}
+
 try {
   const today = exchangeDate(Market.TW);
 
   show("accounts", pretty(session.accounts));
 
-  const holdings = session.holdings();
-  show("holdings as Fubon answered", pretty(holdings));
+  // The test environment keeps no reports of costs or gains, so this fails there.
+  const holdings = step("holdings as Fubon answered", () => session.holdings());
 
-  const orders = session.orders(today);
-  show("today's orders as Fubon answered", pretty(orders));
+  const orders =
+    step("today's orders as Fubon answered", () => session.orders(today)) ?? [];
 
-  const fills = session.fills(today);
-  show("today's fills as Fubon answered", pretty(fills));
+  const fills =
+    step("today's fills as Fubon answered", () => session.fills(today)) ?? [];
 
   const read = {
     orders: orders.flatMap((order) => fubonOrder(order, today) ?? []),
@@ -78,10 +94,12 @@ try {
 
   show("orders as the app reads them", pretty(read.orders));
   show("fills as the app reads them", pretty(read.fills));
-  show(
-    "the account as the app reads it",
-    pretty(fubonAccount(holdings, read.orders, read.fills, today))
-  );
+
+  if (holdings) {
+    step("the account as the app reads it", () =>
+      fubonAccount(holdings, read.orders, read.fills, today)
+    );
+  }
 
   if (flag === "--sell" && code && shares && price) {
     const broker = createFubonBroker(async () => ({
@@ -94,6 +112,10 @@ try {
 
     const tag = orderTag(`fubon-test-env-${Date.now()}`);
     const dayStart = exchangeMidnight(Market.TW, today) * 1000;
+
+    // The test accounts are shared, so only this run's order is shown.
+    const placedNow = async () =>
+      (await broker.getOrders(dayStart)).filter((order) => order.tag === tag);
 
     try {
       const { orderId } = await broker.placeOrder(
@@ -108,16 +130,10 @@ try {
       );
 
       show("placed", pretty({ orderId, tag }));
-      show(
-        "the day's orders after placing",
-        pretty(await broker.getOrders(dayStart))
-      );
+      show("the order after placing", pretty(await placedNow()));
 
       await broker.cancelOrder(orderId);
-      show(
-        "the day's orders after cancelling",
-        pretty(await broker.getOrders(dayStart))
-      );
+      show("the order after cancelling", pretty(await placedNow()));
     } catch (error) {
       // A refusal says Fubon holds nothing of the order; any other failure leaves it unknown.
       show(

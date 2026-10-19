@@ -78,6 +78,7 @@
     "avg-price": "均價",
     "no-positions": "尚無庫存",
     "cash": "現金",
+    "cash-unknown": "讀不到",
     "unrealized-gain": "未實現損益",
     "working": "委託中",
     "order": "委託",
@@ -894,6 +895,7 @@
     "session-not-allowed": "目前時段（{{session}}）不允許下單",
     "unsupported-market": "此帳戶不交易{{market}}標的",
     "insufficient-cash": "單筆金額 {{notional, number}} {{currency}} 超過帳戶現金 {{cash, number}} {{currency}}",
+    "cash-unknown": "券商讀不到帳戶可動用的 {{currency}}，所以不能買進",
     "insufficient-shares": "欲賣出 {{quantity, number}} 股，但帳戶只持有 {{held, number}} 股"
   },
   "mandate": {
@@ -1791,7 +1793,7 @@
       },
       "broker-hints": {
         "paper": "虛擬資金，每筆委託立即成交。",
-        "fubon": "你自己的帳戶，用「行情」裡設定的登入。"
+        "fubon": "你自己的帳戶，用「行情」裡設定的登入。交割銀行是台北富邦或 LINE Bank 才能買進，其他銀行只能賣出。"
       },
       "restart-title": "重新啟動以切換帳戶",
       "restart-description": "重新啟動前委託仍送往{{account}}；重新啟動時，等待確認的提案會作廢。",

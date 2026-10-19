@@ -263,6 +263,21 @@ test("a buy past the account's cash is rejected", () => {
   ]);
 });
 
+test("a buy is rejected while the broker cannot say what the account can spend, and a sale still goes", () => {
+  const unknown: RiskContext = {
+    ...open,
+    account: { ...open.account, cash: { TWD: null } },
+  };
+
+  expect(checkOrder(buyLimit(1000, 980), limits, unknown)).toEqual([
+    { code: RiskViolationCode.CashUnknown, currency: "TWD" },
+  ]);
+
+  expect(
+    checkOrder({ ...buyLimit(1000, 980), side: Side.Sell }, limits, unknown)
+  ).toEqual([]);
+});
+
 test("a sale of more shares than the account holds is rejected", () => {
   const order: OrderRequest = {
     instrument: tsmc,

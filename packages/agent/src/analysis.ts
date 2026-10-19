@@ -373,11 +373,11 @@ function dataFunctions(
     scriptFunction({
       name: "account",
       description:
-        "Cash per currency and open positions with their average price, in the account the app trades.",
+        "Cash per currency, null where the broker cannot read it, and open positions with their average price, in the account the app trades.",
       input: z.object({}),
       output: z.object({
         mode: z.string(),
-        cash: z.record(z.string(), z.number()),
+        cash: z.record(z.string(), z.number().nullable()),
         positions: z.array(
           z.object({
             symbol: symbolRefSchema,

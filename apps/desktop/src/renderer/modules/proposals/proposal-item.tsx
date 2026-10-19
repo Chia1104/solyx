@@ -90,12 +90,12 @@ function OrderImpactLines({
             })}
       </span>
       <span>
-        {t("proposals.impact.cash", {
-          before: amount.format(cash.before),
-          after: amount.format(cash.after),
-          currency,
-        })}
-        {" · "}
+        {cash &&
+          `${t("proposals.impact.cash", {
+            before: amount.format(cash.before),
+            after: amount.format(cash.after),
+            currency,
+          })} · `}
         {t("proposals.impact.shares", {
           before: shares.before,
           after: shares.after,

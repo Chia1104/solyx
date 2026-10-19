@@ -45,7 +45,8 @@ export interface Position {
 }
 
 export interface AccountSnapshot {
-  cash: Partial<Record<Currency, number>>;
+  /** What the account can spend per currency; `null` where the broker cannot say, which refuses its buys. */
+  cash: Partial<Record<Currency, number | null>>;
   positions: Position[];
 }
 
@@ -116,7 +117,8 @@ export interface OrderImpact {
   currency: Currency;
   /** The limit price times the quantity, before any fee or tax. */
   notional: number;
-  cash: { before: number; after: number };
+  /** `null` where the broker cannot say what the account can spend. */
+  cash: { before: number; after: number } | null;
   shares: { before: number; after: number };
 }
 
@@ -133,7 +135,7 @@ export function orderImpact(
   const { instrument, quantity } = order;
   const currency = currencyOf(instrument.market);
   const notional = order.limitPrice * quantity;
-  const cash = account.cash[currency] ?? 0;
+  const cash = account.cash[currency];
   const sign = order.side === Side.Buy ? 1 : -1;
 
   const shares =
@@ -144,7 +146,10 @@ export function orderImpact(
   return {
     currency,
     notional,
-    cash: { before: cash, after: cash - sign * notional },
+    cash:
+      cash === null
+        ? null
+        : { before: cash ?? 0, after: (cash ?? 0) - sign * notional },
     shares: { before: shares, after: shares + sign * quantity },
   };
 }
