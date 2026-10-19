@@ -14,6 +14,7 @@ import { ScheduleSettings } from "../modules/schedules/schedule-settings.tsx";
 import { AboutSettings } from "../modules/settings/about-settings.tsx";
 import { AgentSettings } from "../modules/settings/agent-settings.tsx";
 import { AgentSkills } from "../modules/settings/agent-skills.tsx";
+import { BrokerSettings } from "../modules/settings/broker-settings.tsx";
 import { DecisionsSettings } from "../modules/settings/decisions-settings.tsx";
 import { EmbeddingsSettings } from "../modules/settings/embeddings-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
@@ -53,6 +54,7 @@ export function SettingsPage() {
       </>
     ),
     [SettingsSection.MarketData]: <MarketDataSettings />,
+    [SettingsSection.Brokers]: <BrokerSettings />,
     [SettingsSection.Trading]: <TradingSettings />,
     [SettingsSection.Agent]: (
       <>

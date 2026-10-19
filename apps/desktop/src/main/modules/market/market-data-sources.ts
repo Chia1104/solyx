@@ -123,6 +123,18 @@ export function createMarketDataSources({
 
   let appliedStreamSettings = streamSettings();
 
+  let chartsFromFubon = twSource() === MarketDataSource.Fubon;
+
+  // Charts leaving Fubon end its session unless the desk trades through it, while a sign-in the
+  // user asks for as charts come from elsewhere stays, so its accounts can be picked.
+  config.onChange(() => {
+    const fromFubon = twSource() === MarketDataSource.Fubon;
+
+    if (chartsFromFubon && !fromFubon && !tradesFubon) signOutFubon();
+
+    chartsFromFubon = fromFubon;
+  });
+
   config.onChange(() => {
     const next = streamSettings();
 
@@ -286,8 +298,6 @@ export function createMarketDataSources({
         return (await fubonConnection())?.provider;
       }
 
-      if (!tradesFubon) signOutFubon();
-
       return fugleProvider();
     },
 
@@ -333,9 +343,11 @@ export function createMarketDataSources({
       const source = twSource();
       const fubonOptions = await fubonSettings();
 
+      const fubonReady = fubonOptions !== undefined;
+
       const ready =
         source === MarketDataSource.Fubon
-          ? fubonOptions !== undefined
+          ? fubonReady
           : (await secrets.state(Secret.FugleApiKey)) === SecretState.Saved;
 
       return {
@@ -343,6 +355,7 @@ export function createMarketDataSources({
         fugle: { plan: fuglePlan(), plans: Object.values(FUGLE_PLANS) },
         fubon: {
           plan: FUBON_PLAN,
+          ready: fubonReady,
           files: fubonFiles(),
           session: await fubonSession(fubonOptions),
         },
@@ -358,7 +371,7 @@ export function createMarketDataSources({
 
       if (!connection) {
         throw new Error(
-          "Fubon's sign-in is not set up: choose the SDK folder and certificate, and save your ID number and API key in Market data"
+          "Fubon's sign-in is not set up: choose the SDK folder and certificate, and save your ID number and API key in Brokers"
         );
       }
 

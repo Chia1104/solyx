@@ -184,7 +184,7 @@ const configSchema = section(
       z.looseObject({
         broker: tradingBrokerSchema.catch(TradingBroker.Paper).meta({
           description:
-            "The broker orders go to: the paper account, or Fubon once its sign-in is set up in Market data. Only you can switch it, and it takes effect when Solyx starts again.",
+            "The broker orders go to: the paper account, or Fubon once its sign-in is set up in Brokers. Only you can switch it, and it takes effect when Solyx starts again.",
         }),
         account: z.string().min(1).nullable().catch(null).meta({
           description:

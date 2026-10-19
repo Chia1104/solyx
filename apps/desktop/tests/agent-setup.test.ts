@@ -68,6 +68,7 @@ function marketStatus(
     fugle: { plan: FuglePlan.Basic, plans: Object.values(FUGLE_PLANS) },
     fubon: {
       plan: FUGLE_PLANS[FuglePlan.Basic],
+      ready: source === MarketDataSource.Fubon && ready,
       files: {
         [FubonFile.Sdk]: join(home, "fubon-sdk"),
         [FubonFile.Certificate]: null,
@@ -164,6 +165,7 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
   expect(areas.map((each) => [each.name, each.link])).toEqual([
     ["General", "#/settings?section=general"],
     ["Market data", "#/settings?section=market-data"],
+    ["Brokers", "#/settings?section=brokers"],
     ["Trading", "#/settings?section=trading"],
     ["Agent models", "#/settings?section=agent"],
     ["Web search", "#/settings?section=agent"],
@@ -239,7 +241,7 @@ test("a saved key reads only as saved, never as its value", async () => {
   ).toBe(FinMindPlan.Free);
 });
 
-test("Fubon names what it still needs and a failed sign-in that waits for the user", async () => {
+test("Fubon names what it still needs under Brokers, and a failed sign-in that waits for the user there", async () => {
   const { port, secrets, marketData } = setup();
 
   await secrets.save(Secret.FubonApiKey, "fubon-key");
@@ -251,12 +253,15 @@ test("Fubon names what it still needs and a failed sign-in that waits for the us
     },
   });
 
-  const { missing } = area(await port.read(), "Market data");
+  const areas = await port.read();
 
-  expect(missing[0]).toBe(
-    "Taiwan's charts, quotes and news have no source: fubon still needs the certificate, the ID number."
-  );
-  expect(missing[1]).toMatch(/^Fubon's sign-in failed: wrong password\./);
+  expect(area(areas, "Market data").missing).toEqual([
+    "Taiwan's charts, quotes and news have no source: Fubon's sign-in, set up under Brokers, still needs the certificate, the ID number.",
+  ]);
+  expect(area(areas, "Brokers").missing).toEqual([
+    expect.stringMatching(/^Fubon's sign-in failed: wrong password\./),
+  ]);
+  expect(setting(area(areas, "Brokers"), "Fubon API key")?.value).toBe("saved");
 });
 
 test("storage reads as what each store holds, on the tab where the user clears it", async () => {

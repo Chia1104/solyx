@@ -265,7 +265,7 @@ export interface MarketSource {
 }
 
 export const FubonSessionState = {
-  /** Not signed in with the saved settings yet; the first Taiwan chart signs in. */
+  /** Not signed in with the saved settings yet; the first Taiwan chart from Fubon, or the desk trading through it, signs in. */
   SignedOut: "signed-out",
   SignedIn: "signed-in",
   /** Kept until the settings change or the user signs in again, since retries could lock the account. */
@@ -292,6 +292,8 @@ export interface MarketDataStatus {
   fugle: { plan: FuglePlan; plans: MarketDataPlan<FuglePlan>[] };
   fubon: {
     plan: MarketDataPlan;
+    /** Whether everything Fubon signs in with is saved, whichever source Taiwan's charts come from. */
+    ready: boolean;
     files: Record<FubonFile, string | null>;
     session: FubonSessionStatus;
   };

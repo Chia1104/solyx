@@ -67,7 +67,7 @@ export function OnboardingPage() {
     },
     [OnboardingStep.MarketData]: {
       complete: isMarketDataReady(marketData.data),
-      content: <MarketDataSettings />,
+      content: <MarketDataSettings fubonInPlace />,
     },
     [OnboardingStep.Agent]: {
       complete: agent.data?.ready === true,

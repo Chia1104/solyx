@@ -11,13 +11,20 @@ import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
 
 import { FinMindSettings } from "./finmind-settings.tsx";
-import { FubonSettings } from "./fubon-settings.tsx";
+import { FubonConnectionRow, FubonSettings } from "./fubon-settings.tsx";
 import { FugleSettings } from "./fugle-settings.tsx";
 import { MarketDataSourceSelect } from "./market-data-source.tsx";
 import { marketDataQuery } from "./settings-query.ts";
 
-/** The Taiwan source, then only what that source needs set up. */
-export function MarketDataSettings() {
+/**
+ * The Taiwan source, then only what that source needs set up. Fubon's sign-in is set up under
+ * Brokers, except in first-run setup (`fubonInPlace`), which has no Brokers section to link to.
+ */
+export function MarketDataSettings({
+  fubonInPlace = false,
+}: {
+  fubonInPlace?: boolean;
+}) {
   const { t } = useTranslation();
   const { data, error, refetch } = useQuery(marketDataQuery());
 
@@ -47,10 +54,12 @@ export function MarketDataSettings() {
       <Section
         title={t(`settings.market-data.sources.${current.source}`)}
         description={t(`settings.${current.source}.description`)}>
-        {current.source === MarketDataSource.Fubon ? (
+        {current.source === MarketDataSource.Fugle ? (
+          <FugleSettings status={data} />
+        ) : fubonInPlace ? (
           <FubonSettings status={data} />
         ) : (
-          <FugleSettings status={data} />
+          <FubonConnectionRow status={data} />
         )}
       </Section>
       <Section

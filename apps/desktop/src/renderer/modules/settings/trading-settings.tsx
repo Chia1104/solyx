@@ -2,17 +2,21 @@ import {
   Alert,
   Button,
   Description,
+  buttonVariants,
+  cn,
   NumberField,
   Radio,
   RadioGroup,
   Switch,
 } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { brokerId } from "@solyx/core/broker";
 import { Currency } from "@solyx/core/market";
 
+import { SettingsSection } from "#shared/settings-section.ts";
 import { TradingBroker } from "#shared/settings.ts";
 import type {
   TradingAccount,
@@ -137,12 +141,32 @@ function BrokerRow({
             {option.hint ? <Description>{option.hint}</Description> : null}
           </Radio>
         ))}
+        {/* Fubon is offered before its sign-in lists an account, so it can be found here. */}
+        {fubonAccounts.length > 0 ? null : (
+          <Radio value={TradingBroker.Fubon} isDisabled>
+            <Radio.Content>
+              <Radio.Control>
+                <Radio.Indicator />
+              </Radio.Control>
+              {t("settings.trading.brokers.fubon")}
+            </Radio.Content>
+            <Description>{t("settings.trading.fubon-sign-in")}</Description>
+          </Radio>
+        )}
       </RadioGroup>
-      <Description>
-        {fubonAccounts.length > 0
-          ? t("settings.trading.broker-hints.fubon")
-          : t("settings.trading.fubon-sign-in")}
-      </Description>
+      {fubonAccounts.length > 0 ? (
+        <Description>{t("settings.trading.broker-hints.fubon")}</Description>
+      ) : (
+        <Link
+          to="/settings"
+          search={{ section: SettingsSection.Brokers }}
+          className={cn(
+            buttonVariants({ size: "sm", variant: "secondary" }),
+            "self-start"
+          )}>
+          {t("settings.trading.set-up-fubon")}
+        </Link>
+      )}
       {gone ? (
         <Alert status="warning">
           <Alert.Indicator />
