@@ -5,7 +5,8 @@ import { buttonVariants } from "@heroui/styles";
 import { CatchBoundary, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import type { Candle, Interval } from "@solyx/core/candles";
+import { Interval } from "@solyx/core/candles";
+import type { Candle } from "@solyx/core/candles";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
@@ -16,7 +17,9 @@ import { ErrorFallback } from "../../components/error-fallback.tsx";
 import { FallbackFrame } from "../../components/fallback-frame.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 
+import { ChartKind } from "./chart-kind.ts";
 import { PriceChart } from "./price-chart.tsx";
+import { SessionChart } from "./session-chart.tsx";
 import { useCandles } from "./use-candles.ts";
 
 function SetupRequired({ source }: { source: MarketDataSource }) {
@@ -49,18 +52,29 @@ function SetupRequired({ source }: { source: MarketDataSource }) {
 export function SymbolChart({
   symbol,
   interval,
+  kind,
+  reference,
   overlay,
   panes,
 }: {
   symbol: SymbolRef;
   interval: Interval;
+  /** Bars of `interval`, or the newest session on minute bars. */
+  kind: ChartKind;
+  /** The session's reference price for the session chart, where known. */
+  reference: number | null;
   /** What else to draw on the price pane, given the bars the chart shows. */
   overlay?: (candles: Candle[]) => ReactNode;
   /** Panes to draw below the indicators', given the bars and the first pane free. */
   panes?: (candles: Candle[], firstPane: number) => ReactNode;
 }) {
   const { t } = useTranslation();
-  const { settings, source, candles } = useCandles(symbol, interval);
+  const session = kind === ChartKind.Session;
+
+  const { settings, source, candles } = useCandles(
+    symbol,
+    session ? Interval.OneMinute : interval
+  );
 
   if (settings.error) {
     return (
@@ -125,20 +139,30 @@ export function SymbolChart({
   }
 
   // Each listing and interval gets a fresh chart, time scale and error boundary.
-  const dataset = `${symbolKey(data.symbol)}:${data.interval}`;
+  const dataset = `${symbolKey(data.symbol)}:${data.interval}:${kind}`;
 
   return (
     <div className="relative size-full" aria-busy={isPlaceholderData}>
       <CatchBoundary getResetKey={() => dataset} errorComponent={ErrorFallback}>
-        <PriceChart
-          key={dataset}
-          candles={data.candles}
-          market={data.symbol.market}
-          interval={data.interval}
-          onNearOldest={loadOlder}
-          panes={panes && ((firstPane) => panes(data.candles, firstPane))}>
-          {overlay?.(data.candles)}
-        </PriceChart>
+        {session ? (
+          <SessionChart
+            key={dataset}
+            candles={data.candles}
+            market={data.symbol.market}
+            reference={reference}
+            overlay={overlay}
+          />
+        ) : (
+          <PriceChart
+            key={dataset}
+            candles={data.candles}
+            market={data.symbol.market}
+            interval={data.interval}
+            onNearOldest={loadOlder}
+            panes={panes && ((firstPane) => panes(data.candles, firstPane))}>
+            {overlay?.(data.candles)}
+          </PriceChart>
+        )}
       </CatchBoundary>
       {isFetchingNextPage ? (
         <Spinner

@@ -277,7 +277,9 @@
       "proposed": "提案 {{side}} {{quantity}}",
       "limit-up": "漲停",
       "limit-down": "跌停"
-    }
+    },
+    "session": "分時",
+    "reference": "參考價"
   },
   "depth": {
     "title": "報價",

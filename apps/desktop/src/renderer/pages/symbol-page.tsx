@@ -19,6 +19,7 @@ import {
 import { AccountPanel } from "../modules/account/account-panel.tsx";
 import { FlowPanes } from "../modules/flows/flow-panes.tsx";
 import { ListingFlowsPanel } from "../modules/flows/listing-flows.tsx";
+import { ChartKind } from "../modules/market/chart-kind.ts";
 import { DepthPanel } from "../modules/market/depth-panel.tsx";
 import { IndicatorMenu } from "../modules/market/indicator-menu.tsx";
 import { IntervalSelect } from "../modules/market/interval-select.tsx";
@@ -46,7 +47,8 @@ const CHART_MIN_HEIGHT = 160;
 export function SymbolPage() {
   const { t } = useTranslation();
   const symbol = route.useParams();
-  const { interval, view: picked } = route.useSearch();
+  const { interval, view: picked, chart } = route.useSearch();
+  const session = chart === ChartKind.Session;
   const navigate = route.useNavigate();
   const split = useRef<HTMLDivElement>(null);
   const news = useRef<HTMLDivElement>(null);
@@ -57,7 +59,7 @@ export function SymbolPage() {
   const pickPrice = useTicketStore((state) => state.pick);
   const pickingOnChart = useTicketStore((state) => state.pickingOnChart);
   const setPickingOnChart = useTicketStore((state) => state.setPickingOnChart);
-  const depth = useDepth(symbol, tradeRail);
+  const depth = useDepth(symbol, tradeRail || session);
   // Only Taiwan's exchanges report flows, so a US listing shows the news in their place.
   const flowsShown = symbol.market === Market.TW;
 
@@ -103,14 +105,21 @@ export function SymbolPage() {
       <div className="box-content flex h-10 shrink-0 items-center gap-3 border-b border-separator px-6">
         <IntervalSelect
           value={interval}
+          kind={chart}
           onChange={(next) =>
             void navigate({
-              search: (search) => ({ ...search, interval: next }),
+              search: (search) => ({
+                ...search,
+                interval: next.interval,
+                chart: next.kind,
+              }),
               replace: true,
             })
           }
         />
-        <IndicatorMenu market={symbol.market} interval={interval} />
+        {session ? null : (
+          <IndicatorMenu market={symbol.market} interval={interval} />
+        )}
         {tradeRail ? (
           <ToggleButton
             size="sm"
@@ -135,10 +144,12 @@ export function SymbolPage() {
             <SymbolChart
               symbol={symbol}
               interval={interval}
+              kind={chart}
+              reference={depth?.reference ?? null}
               // A forecast counts sessions, so its paths are drawn on daily bars alone.
               overlay={(candles) => (
                 <>
-                  {interval === Interval.OneDay ? (
+                  {!session && interval === Interval.OneDay ? (
                     <ForecastOverlay symbol={symbol} candles={candles} />
                   ) : null}
                   <TradeOverlay symbol={symbol} candles={candles} />

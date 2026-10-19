@@ -277,7 +277,9 @@
       "proposed": "Proposed {{side}} {{quantity}}",
       "limit-up": "Limit up",
       "limit-down": "Limit down"
-    }
+    },
+    "session": "Intraday",
+    "reference": "Reference"
   },
   "depth": {
     "title": "Quote",
