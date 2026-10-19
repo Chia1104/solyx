@@ -19,6 +19,7 @@ import { isMarketDataReady } from "#shared/settings.ts";
 
 import { ErrorFallback } from "../components/error-fallback.tsx";
 import { NotFound } from "../components/not-found.tsx";
+import { ChartKind, chartKindSchema } from "../modules/market/chart-kind.ts";
 import { LowerView, lowerViewSchema } from "../modules/market/lower-view.ts";
 import {
   OnboardingStep,
@@ -81,10 +82,11 @@ const overviewRoute = createRoute({
   component: OverviewPage,
 });
 
-// A missing or unknown interval falls back to daily bars, and a view to the news, instead of failing the page.
+// A missing or unknown interval falls back to daily bars, a view to the news and a chart to bars, instead of failing the page.
 const symbolSearchSchema = z.object({
   interval: intervalSchema.default(Interval.OneDay).catch(Interval.OneDay),
   view: lowerViewSchema.default(LowerView.News).catch(LowerView.News),
+  chart: chartKindSchema.default(ChartKind.Candles).catch(ChartKind.Candles),
 });
 
 const symbolRoute = createRoute({
