@@ -24,6 +24,8 @@ import type { FubonFill, FubonHoldings, FubonOrder } from "../src/fubon.ts";
 const FAKE_BINDING = `
 const calls = [];
 
+const NO_REPORT = "證券報表/表單定義資料不存在";
+
 class CoreSdk {
   constructor(...args) {
     calls.push(["new", ...args]);
@@ -32,8 +34,11 @@ class CoreSdk {
   apikeyLogin(...args) {
     calls.push(["apikeyLogin", ...args]);
 
-    return args[1] === "good-key"
-      ? { isSuccess: true, data: [{ name: "Test", branchNo: "6460", account: "28", accountType: "stock" }] }
+    // "no-reports" signs in to an account Fubon keeps no reports of gains for, as in its test environment.
+    const account = { "good-key": "28", "no-reports": "29" }[args[1]];
+
+    return account
+      ? { isSuccess: true, data: [{ name: "Test", branchNo: "6460", account, accountType: "stock" }] }
       : { isSuccess: false, message: "API key rejected" };
   }
 
@@ -76,16 +81,23 @@ class CoreSdk {
       realizedGainsAndLoses(account) {
         calls.push(["realizedGainsAndLoses", account.account]);
 
-        return { isSuccess: true, data: [{ date: "2026/10/19", stockNo: "2881", buySell: "Sell", orderType: "Stock", filledQty: 1000, filledPrice: 66, realizedProfit: 0, realizedLoss: 203 }] };
+        return account.account === "29"
+          ? { isSuccess: false, message: NO_REPORT }
+          : { isSuccess: true, data: [{ date: "2026/10/19", stockNo: "2881", buySell: "Sell", orderType: "Stock", filledQty: 1000, filledPrice: 66, realizedProfit: 0, realizedLoss: 203 }] };
       },
       inventories() {
         return { isSuccess: true, data: [] };
       },
-      unrealizedGainsAndLoses() {
-        return { isSuccess: true, data: [] };
+      unrealizedGainsAndLoses(account) {
+        return account.account === "29"
+          ? { isSuccess: false, message: NO_REPORT }
+          : { isSuccess: true, data: [] };
       },
       bankRemain() {
-        return { isSuccess: false, message: "bank unreachable" };
+        return { isSuccess: false, message: "此帳戶之交割銀行不在銀行餘額查詢支援範圍" };
+      },
+      querySettlement() {
+        return { isSuccess: true, data: { account: { branchNo: "6460", account: "28" } } };
       },
     };
   }
@@ -273,6 +285,9 @@ describe("an order as Fubon reports it", () => {
     expect(
       fubonOrder(orderResult({ orderNo: null, status: 4 }), "2026-10-19")
     ).toBeNull();
+    expect(
+      fubonOrder(orderResult({ orderNo: " ", status: 90 }), "2026-10-19")
+    ).toBeNull();
   });
 });
 
@@ -390,6 +405,10 @@ test("the account holds its cash shares and spends the bank's balance with every
 
   // The fill and the 1,000 shares still working each cost 66,000 and 94.05 commission.
   expect(account.cash.TWD).toBeCloseTo(1_000_000 - 100_000 - 2 * 66_094.05);
+
+  expect(
+    fubonAccount({ ...holdings, bank: null }, [], [bought], "2026-10-19").cash
+  ).toEqual({ TWD: null });
 });
 
 test("signs in to the test environment with a password, at its endpoint", async () => {
@@ -456,10 +475,24 @@ test("each sale takes the realized gain Fubon reckoned for it once, and one it h
   ]);
 });
 
-test("a query Fubon refuses reports its message", () => {
+test("without Fubon's report of gains, no sale is reckoned", () => {
+  const session = openFubonSession(options("no-reports"));
+
+  expect(
+    session.fills(exchangeDate(Market.TW)).map(({ realized }) => realized)
+  ).toEqual([null, null, null]);
+});
+
+test("a bank Fubon cannot read leaves its balance unknown", () => {
   const session = openFubonSession(options("good-key"));
 
+  expect(session.holdings().bank).toBeNull();
+});
+
+test("a query Fubon refuses reports its message", () => {
+  const session = openFubonSession(options("no-reports"));
+
   expect(() => session.holdings()).toThrow(
-    "Fubon bank balance query failed: bank unreachable"
+    "Fubon cost query failed: 證券報表/表單定義資料不存在"
   );
 });

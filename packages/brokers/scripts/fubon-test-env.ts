@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
 
 import { Market, exchangeDate } from "@solyx/core/market";
+import { errorMessage } from "@solyx/utils/error";
 
 import {
   FUBON_TEST_URL,
@@ -52,19 +53,34 @@ const session = openFubonSession({
   url: FUBON_TEST_URL,
 });
 
+/** Runs one read and prints what it gave, or why it failed, so one failure hides none of the rest. */
+function step<T>(title: string, read: () => T): T | null {
+  try {
+    const value = read();
+
+    show(title, pretty(value));
+
+    return value;
+  } catch (error) {
+    show(`${title} failed`, errorMessage(error));
+
+    return null;
+  }
+}
+
 try {
   const today = exchangeDate(Market.TW);
 
   show("accounts", pretty(session.accounts));
 
-  const holdings = session.holdings();
-  show("holdings as Fubon answered", pretty(holdings));
+  // The test environment keeps no reports of costs or gains, so this fails there.
+  const holdings = step("holdings as Fubon answered", () => session.holdings());
 
-  const orders = session.orders(today);
-  show("today's orders as Fubon answered", pretty(orders));
+  const orders =
+    step("today's orders as Fubon answered", () => session.orders(today)) ?? [];
 
-  const fills = session.fills(today);
-  show("today's fills as Fubon answered", pretty(fills));
+  const fills =
+    step("today's fills as Fubon answered", () => session.fills(today)) ?? [];
 
   const read = {
     orders: orders.flatMap((order) => fubonOrder(order, today) ?? []),
@@ -73,10 +89,12 @@ try {
 
   show("orders as the app reads them", pretty(read.orders));
   show("fills as the app reads them", pretty(read.fills));
-  show(
-    "the account as the app reads it",
-    pretty(fubonAccount(holdings, read.orders, read.fills, today))
-  );
+
+  if (holdings) {
+    step("the account as the app reads it", () =>
+      fubonAccount(holdings, read.orders, read.fills, today)
+    );
+  }
 } finally {
   session.close();
 }
