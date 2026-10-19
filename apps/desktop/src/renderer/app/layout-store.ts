@@ -57,6 +57,8 @@ interface LayoutState {
   panes: Record<Pane, PaneState>;
   newsHeight: number;
   agendaView: AgendaView;
+  /** Whether the symbol page shows its quote, book and order panel beside the chart. */
+  tradeRail: boolean;
 }
 
 interface LayoutActions {
@@ -66,6 +68,7 @@ interface LayoutActions {
   show: (pane: Pane) => void;
   setNewsHeight: (height: number) => void;
   setAgendaView: (view: AgendaView) => void;
+  toggleTradeRail: () => void;
 }
 
 type LayoutStore = LayoutState & LayoutActions;
@@ -86,6 +89,7 @@ const defaultState: LayoutState = {
   })),
   newsHeight: NEWS_HEIGHT.default,
   agendaView: AgendaView.Week,
+  tradeRail: true,
 };
 
 // Limits can change between versions, so saved widths are clamped as they load.
@@ -101,6 +105,7 @@ const persistedLayoutSchema = z.object({
   // Caught on its own, so a height that does not parse leaves the saved pane widths.
   newsHeight: z.number().transform(clampNewsHeight).catch(NEWS_HEIGHT.default),
   agendaView: z.enum(AgendaView).catch(AgendaView.Week),
+  tradeRail: z.boolean().catch(true),
 });
 
 export const useLayoutStore = create<LayoutStore>()(
@@ -133,6 +138,7 @@ export const useLayoutStore = create<LayoutStore>()(
         })),
       setNewsHeight: (height) => set({ newsHeight: clampNewsHeight(height) }),
       setAgendaView: (agendaView) => set({ agendaView }),
+      toggleTradeRail: () => set((state) => ({ tradeRail: !state.tradeRail })),
     }),
     persistOptions<LayoutStore>("workspace-layout", persistedLayoutSchema)
   )

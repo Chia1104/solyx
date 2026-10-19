@@ -283,7 +283,8 @@
     "unit": {
       "TW": "In lots",
       "US": "In shares"
-    }
+    },
+    "pick": "Use {{price}} as the order's price"
   },
   "news": {
     "title": "News and posts",
@@ -678,13 +679,6 @@
     "open-research": "Open research"
   },
   "proposals": {
-    "form-title": "New order proposal",
-    "form-description": "Proposals pass the risk checks here and again when you confirm them.",
-    "form-kinds": {
-      "order": "Order",
-      "exit": "Stop and target"
-    },
-    "exit-form-description": "Sells shares you hold once the price falls to the stop or rises to the target. It waits for your confirmation like any proposal.",
     "summary": "{{side}} {{quantity, number}} shares @ {{price}}",
     "market-price": "market",
     "impact": {
@@ -914,28 +908,57 @@
     }
   },
   "order-form": {
-    "market": "Market",
+    "title": "Order",
+    "tabs": {
+      "order": "Buy or sell",
+      "exit": "Stop and target"
+    },
     "side": "Side",
+    "unit": "Unit",
+    "units": {
+      "lots": "Board lots",
+      "shares": "Odd lots"
+    },
     "type": "Order type",
-    "symbol": "Symbol",
-    "symbol-placeholder": "2330",
-    "quantity": "Shares",
-    "limit-price": "Limit price",
-    "rationale": "Rationale",
-    "rationale-placeholder": "Kept with the proposal for later review",
-    "submit": "Create proposal",
+    "price": "Price",
+    "tick-down": "Down a tick",
+    "tick-up": "Up a tick",
+    "prices": {
+      "limit-down": "Limit down",
+      "reference": "Reference",
+      "last": "Last",
+      "limit-up": "Limit up"
+    },
+    "quantity": {
+      "lots": "Lots",
+      "shares": "Shares"
+    },
+    "all": "All {{count, number}}",
+    "costs": {
+      "value": "Value",
+      "value-buy-market": "Value at most",
+      "value-sell-market": "Value at least",
+      "commission": "Commission",
+      "tax": "Tax",
+      "total-buy": "To pay",
+      "total-sell": "To receive"
+    },
+    "check": "Check order",
+    "hint": "Checking makes a proposal. Nothing is sent until you confirm it.",
+    "edit-dismisses": "Changing the order dismisses this proposal.",
     "errors": {
       "required": "Required",
-      "whole-shares": "Use whole shares",
+      "whole": "Use a whole number",
       "positive": "Must be greater than zero"
     }
   },
   "exit-form": {
+    "quantity": "Shares",
     "days": "Days watched",
     "stop": "Stop",
-    "stop-hint": "Sells at the day's lower limit once the price falls to it.",
     "target": "Target",
-    "target-hint": "Sells at this price once the price rises to it.",
+    "legs-hint": "A stop sells at the day's lower limit once the price falls to it; a target sells at its price once the price rises to it.",
+    "description": "Sells shares you hold once the price reaches the stop or the target. Like any proposal, it waits for your confirmation.",
     "errors": {
       "whole-days": "Enter whole days",
       "days": "Between 1 and {{max, number}} days",

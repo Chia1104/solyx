@@ -23,6 +23,20 @@ export const TW_COMMISSION_RATE = 0.001425;
 /** The least a Taiwan broker charges for a trade, in TWD. */
 export const TW_MIN_COMMISSION = 20;
 
+/**
+ * What a trade of `value` TWD pays at a Taiwan broker's full rate, each rounded down to the dollar
+ * as brokers bill it: the commission, at least `TW_MIN_COMMISSION`, and the tax a sale pays.
+ */
+export function twTradeCosts(value: number, side: Side, code: string) {
+  return {
+    commission:
+      value > 0
+        ? Math.max(TW_MIN_COMMISSION, Math.floor(value * TW_COMMISSION_RATE))
+        : 0,
+    tax: side === Side.Sell ? Math.floor(value * twSellTaxRate(code)) : 0,
+  };
+}
+
 /** A trade made today, which settles with the account's bank on the second trading day after. */
 export interface TwTrade {
   /** The listing's code, which sets a sale's tax. */
