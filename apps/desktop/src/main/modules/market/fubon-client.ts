@@ -2,6 +2,7 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/message-port";
 import type { SupportedMessagePort } from "@orpc/client/message-port";
 import type { RouterContractClient } from "@orpc/contract";
+import { noop } from "es-toolkit";
 
 import type {
   FubonAccount,
@@ -21,6 +22,11 @@ export interface FubonProcess extends FubonTrading {
   accounts: FubonAccount[];
   /** Exchanges the session for a market data token. */
   realtime(): Promise<FubonRealtime>;
+  /**
+   * Calls `listener` whenever Fubon tells of an order of the account being placed, changed or
+   * filled, until the process ends.
+   */
+  watch(listener: () => void): void;
   /** Signs out and ends the process. */
   close(): void;
 }
@@ -96,6 +102,18 @@ export async function connectFubon(
       fills: (from) => call((signal) => fubon.fills(from, { signal })),
       place: (order) => call((signal) => fubon.place(order, { signal })),
       cancel: (id) => call((signal) => fubon.cancel(id, { signal })),
+
+      watch(listener) {
+        // The stream lasts as long as the process, so it waits under no answer's deadline, and
+        // it ends with the process, whose end every call reports.
+        void (async () => {
+          const changes = await fubon.changes(undefined, {
+            signal: ending.signal,
+          });
+
+          for await (const _change of changes) listener();
+        })().catch(noop);
+      },
 
       close() {
         // The process ends even when signing out fails or stalls.

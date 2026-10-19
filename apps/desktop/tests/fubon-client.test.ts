@@ -1,5 +1,6 @@
 import { MessageChannel } from "node:worker_threads";
 
+import { MemoryPublisher } from "@orpc/publisher/memory";
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/message-port";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
@@ -12,6 +13,7 @@ import type {
 
 import { connectFubon } from "../src/main/modules/market/fubon-client.ts";
 import { keepMessages } from "../src/main/rpc/messages.ts";
+import type { Change } from "../src/shared/rpc/changes.ts";
 import { fubonContract } from "../src/utility/fubon.contract.ts";
 
 const OPTIONS = {
@@ -51,6 +53,8 @@ function fakeChild(sdk: Partial<FakeSdk> = {}) {
   const opened: FubonSessionOptions[] = [];
   const exits: ((code: number) => void)[] = [];
   const kill = vi.fn();
+  const reports = new MemoryPublisher<{ changed: Change }>();
+  const streams = { opened: 0 };
 
   const handler = new RPCHandler(
     fubon.router({
@@ -72,6 +76,11 @@ function fakeChild(sdk: Partial<FakeSdk> = {}) {
       fills: fubon.fills.handler(() => []),
       place: fubon.place.handler(() => Promise.reject(new Error("unused"))),
       cancel: fubon.cancel.handler(() => undefined),
+      changes: fubon.changes.handler(({ signal }) => {
+        streams.opened += 1;
+
+        return reports.subscribe("changed", { signal });
+      }),
       close: fubon.close.handler(() =>
         sdk.close ? sdk.close() : Promise.resolve()
       ),
@@ -97,7 +106,10 @@ function fakeChild(sdk: Partial<FakeSdk> = {}) {
   const connect = (answerTimeoutMs?: number) =>
     connectFubon(child, port1, OPTIONS, answerTimeoutMs);
 
-  return { connect, opened, exit, kill };
+  // Fubon telling of an order of the account changing.
+  const report = () => reports.publish("changed", {});
+
+  return { connect, opened, exit, kill, report, streams };
 }
 
 beforeEach(() => {
@@ -130,6 +142,21 @@ test("a session signs in with the options, then answers each call", async () => 
     "second",
   ]);
   expect(kill).not.toHaveBeenCalled();
+});
+
+test("each report Fubon tells of reaches the session's listener", async () => {
+  const { connect, report, streams } = fakeChild();
+  const session = await connect();
+  const listener = vi.fn();
+
+  session.watch(listener);
+
+  // The stream opens over the port before a report can reach it.
+  await vi.waitFor(() => expect(streams.opened).toBe(1));
+  await report();
+  await report();
+
+  await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(2));
 });
 
 test("a failed sign-in ends the process and tells Fubon's reason", async () => {

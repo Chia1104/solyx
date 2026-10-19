@@ -8,8 +8,8 @@
  * The folder is one extracted from fubon-neo-<version>.tgz, and the certificate one from Fubon's
  * test environment package, named for the test account's ID number; its login and certificate
  * password is Fubon's published `12345678`. `--sell` also places a limit sale of what the test
- * account holds through the app's broker, lists it and cancels it; a price past the day's limits
- * shows how a refusal reads.
+ * account holds through the app's broker, lists it and cancels it, counting the reports Fubon
+ * pushes meanwhile; a price past the day's limits shows how a refusal reads.
  */
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -30,6 +30,8 @@ import {
 } from "../src/fubon.ts";
 
 const TEST_PASSWORD = "12345678";
+
+const REPORTS_WAIT_MS = 3000;
 
 const [sdkDir, certPath, flag, code, shares, price] = process.argv.slice(2);
 
@@ -113,6 +115,13 @@ try {
     const tag = orderTag(`fubon-test-env-${Date.now()}`);
     const dayStart = exchangeMidnight(Market.TW, today) * 1000;
 
+    // Others trade the shared account too, so a report may be of their orders as well.
+    let reports = 0;
+
+    session.onChange(() => {
+      reports += 1;
+    });
+
     // The test accounts are shared, so only this run's order is shown.
     const placedNow = async () =>
       (await broker.getOrders(dayStart)).filter((order) => order.tag === tag);
@@ -144,6 +153,10 @@ try {
         })
       );
     }
+
+    // Fubon's reports arrive once the SDK's calls no longer hold the process.
+    await new Promise((resolve) => setTimeout(resolve, REPORTS_WAIT_MS));
+    show("reports Fubon told of meanwhile", pretty(reports));
   }
 } finally {
   session.close();

@@ -181,7 +181,7 @@ export interface OrderDeskOptions {
    * @default none is read, and proposals keep no basis
    */
   basis?: (symbol: SymbolRef) => ProposalBasis;
-  /** Called after every change to a proposal, so whoever shows them can refresh. */
+  /** Called after every change to a proposal or the account the desk hears of, so whoever shows them can refresh. */
   onChange?: () => void;
   now?: () => number;
   createId?: () => string;
@@ -283,6 +283,15 @@ export class OrderDesk {
       // Whatever the broker answered, the account may have changed.
       this.#options.onChange?.();
     }
+  }
+
+  /**
+   * The broker told of a change to the account's orders or fills, such as a fill: the host shows
+   * the account anew, and the desk looks for the orders of proposals whose sending went unanswered.
+   */
+  async brokerChanged(): Promise<void> {
+    this.#options.onChange?.();
+    await this.reconcile();
   }
 
   /** The orders of the account's current market days that may still fill, oldest first. */

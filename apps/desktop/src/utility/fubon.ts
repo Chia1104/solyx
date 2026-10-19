@@ -1,3 +1,4 @@
+import { MemoryPublisher } from "@orpc/publisher/memory";
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/message-port";
 
@@ -5,10 +6,13 @@ import { openFubonSession } from "@solyx/brokers/fubon";
 import type { FubonSession } from "@solyx/brokers/fubon";
 
 import { keepMessages } from "../main/rpc/messages.ts";
+import type { Change } from "../shared/rpc/changes.ts";
 
 import { fubonContract } from "./fubon.contract.ts";
 
 let session: FubonSession | undefined;
+
+const changes = new MemoryPublisher<{ changed: Change }>();
 
 function signedIn(): FubonSession {
   if (!session) throw new Error("Not signed in to Fubon");
@@ -23,6 +27,7 @@ const handler = new RPCHandler(
   fubon.router({
     open: fubon.open.handler(({ input }) => {
       session = openFubonSession(input);
+      session.onChange(() => void changes.publish("changed", {}));
 
       return session.accounts;
     }),
@@ -32,6 +37,9 @@ const handler = new RPCHandler(
     fills: fubon.fills.handler(({ input }) => signedIn().fills(input)),
     place: fubon.place.handler(({ input }) => signedIn().place(input)),
     cancel: fubon.cancel.handler(({ input }) => signedIn().cancel(input)),
+    changes: fubon.changes.handler(({ signal }) =>
+      changes.subscribe("changed", { signal })
+    ),
     close: fubon.close.handler(() => {
       session?.close();
       session = undefined;

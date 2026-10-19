@@ -98,6 +98,8 @@ export function createMarketDataSources({
 
   const streamListeners = new Set<() => void>();
 
+  const fubonListeners = new Set<() => void>();
+
   const twSource = () => config.read().marketData.TW;
 
   const fuglePlan = () => config.read().providers.fugle.plan;
@@ -158,6 +160,10 @@ export function createMarketDataSources({
     options: FubonSessionOptions
   ): Promise<FubonConnection> {
     const session = await openFubonProcess(options);
+
+    session.watch(() => {
+      for (const listener of fubonListeners) listener();
+    });
 
     try {
       const realtime = await session.realtime();
@@ -304,6 +310,18 @@ export function createMarketDataSources({
 
       return () => {
         streamListeners.delete(listener);
+      };
+    },
+
+    /**
+     * Calls `listener` whenever Fubon tells the session it holds of an order of the account being
+     * placed, changed or filled, whichever session that is.
+     */
+    onFubonChange(listener: () => void): () => void {
+      fubonListeners.add(listener);
+
+      return () => {
+        fubonListeners.delete(listener);
       };
     },
 

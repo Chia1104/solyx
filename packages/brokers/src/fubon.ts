@@ -97,6 +97,10 @@ interface FubonCoreSdk {
     certPassword?: string
   ): FubonResult<FubonAccount[]>;
   logout(): boolean;
+  /** Each takes one callback, in place of any before it. */
+  innerSetOnOrder(callback: () => void): void;
+  innerSetOnOrderChanged(callback: () => void): void;
+  setOnFilled(callback: () => void): void;
   exchangeRealtimeToken(): string;
   /** Called after the token exchange, which may suggest the endpoint. */
   realtimeWsUrl(mode: "normal" | "speed"): string;
@@ -307,6 +311,11 @@ export interface FubonSession {
   place(order: FubonOrderObject): FubonOrder;
   /** Asks Fubon to cancel today's order `id`; throws where it did not take the request. */
   cancel(id: string): void;
+  /**
+   * Calls `listener`, in place of any before it, whenever Fubon tells of an order of the account
+   * being placed, changed or filled, the app's or not.
+   */
+  onChange(listener: () => void): void;
   close(): void;
 }
 
@@ -620,6 +629,12 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
           `Fubon did not cancel ${id}: ${result.message ?? "no reason"}`
         );
       }
+    },
+
+    onChange(listener) {
+      sdk.innerSetOnOrder(() => listener());
+      sdk.innerSetOnOrderChanged(() => listener());
+      sdk.setOnFilled(() => listener());
     },
 
     close() {
