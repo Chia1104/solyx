@@ -1190,6 +1190,8 @@
       },
       "connection": "Connection",
       "not-chosen": "Not chosen",
+      "sdk-missing": "There's no Fubon SDK in this folder.",
+      "sdk-untested": "Solyx hasn't been checked with fubon-neo {{version}} yet, only with {{tested}}.",
       "choose": "Choose…",
       "change": "Change…",
       "sign-in": "Sign in",

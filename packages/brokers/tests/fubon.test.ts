@@ -26,6 +26,7 @@ import {
   fubonFill,
   fubonOrder,
   fubonOrderObject,
+  fubonSdkVersion,
   fubonStockAccounts,
   openFubonSession,
 } from "../src/fubon.ts";
@@ -91,6 +92,13 @@ class CoreSdk {
         return order.orderNo === "x0002"
           ? { isSuccess: true, data: { ...order, status: 30 } }
           : { isSuccess: false, message: "not found" };
+      },
+      querySymbolQuote(account, symbol) {
+        calls.push(["querySymbolQuote", account.account, symbol]);
+
+        return symbol === "2881"
+          ? { isSuccess: true, data: { symbol, referencePrice: 46, limitupPrice: 50.6, limitdownPrice: 41.4, lastPrice: 158.5 } }
+          : { isSuccess: true, data: { symbol } };
       },
       getOrderResultsDetail(account) {
         calls.push(["getOrderResultsDetail", account.account]);
@@ -270,6 +278,29 @@ test("a folder without the SDK says so", () => {
   expect(() =>
     openFubonSession(options("good-key", join(directory, "elsewhere")))
   ).toThrow(/No Fubon Neo SDK/);
+});
+
+test("the SDK's version reads from its manifest, in the folder chosen or its package folder", async () => {
+  expect(fubonSdkVersion(directory)).toBe("2.3.0");
+  expect(fubonSdkVersion(join(directory, "package"))).toBe("2.3.0");
+  expect(fubonSdkVersion(join(directory, "elsewhere"))).toBeNull();
+
+  await writeFile(join(directory, "package", "package.json"), "{");
+
+  expect(fubonSdkVersion(directory)).toBeNull();
+});
+
+test("a symbol's price limits read as Fubon quotes them, and one it quotes none for fails", () => {
+  const session = openFubonSession(options("good-key"));
+
+  expect(session.priceLimits(ACCOUNT, "2881")).toEqual({
+    reference: 46,
+    up: 50.6,
+    down: 41.4,
+  });
+  expect(() => session.priceLimits(ACCOUNT, "0000")).toThrow(
+    /Fubon quote query answered in a shape Solyx does not read/
+  );
 });
 
 const day = "2026/10/19";

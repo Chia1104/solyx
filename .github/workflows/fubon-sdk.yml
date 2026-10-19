@@ -1,0 +1,219 @@
+# Checks the Fubon module against the fubon-neo version Fubon offers for download, the only one it
+# keeps there: the module against the SDK's declarations, the SDK loading under Electron on the
+# platforms the app ships for, and orders through the module in Fubon's shared test environment,
+# open 9:30–19:00 Taipei time on weekdays. Each weekday run then proposes adding a version that
+# passed to FUBON_SDK_VERSIONS, or opens an issue for one that failed. A pull request that changes
+# the module runs the same checks, the orders only while the test environment is open. Nothing of
+# the SDK or the test certificates is kept: each run downloads them from Fubon.
+name: Fubon SDK
+
+on:
+  schedule:
+    # 10:30 Taipei on weekdays.
+    - cron: "30 2 * * 1-5"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - packages/brokers/src/fubon.ts
+      - packages/brokers/scripts/fubon-sdk-*.ts
+      - .github/workflows/fubon-sdk.yml
+
+permissions:
+  contents: read
+
+# The test account is shared, so one run places orders at a time.
+concurrency:
+  group: fubon-sdk
+  cancel-in-progress: false
+
+env:
+  FUBON_SDK: https://www.fbs.com.tw/TradeAPI_SDK
+
+jobs:
+  latest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.find.outputs.version }}
+    steps:
+      - id: find
+        run: |
+          version=$(curl -fsSL https://www.fbs.com.tw/TradeAPI/docs/download/download-sdk/ \
+            | grep -a -o -E 'fubon-neo-[0-9]+\.[0-9]+\.[0-9]+\.nodejs\.zip' | head -n 1 \
+            | sed -E 's/^fubon-neo-(.+)\.nodejs\.zip$/\1/')
+          if [ -z "$version" ]; then
+            echo "::error::Fubon's download page names no Node.js SDK"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "::notice::Fubon offers fubon-neo $version"
+
+  load:
+    needs: latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-26, windows-2025]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: "26"
+          cache: true
+
+      - name: Download the SDK
+        env:
+          VERSION: ${{ needs.latest.outputs.version }}
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/sdk.zip" "$FUBON_SDK/fubon_binary/fubon-neo-$VERSION.nodejs.zip"
+          mkdir -p "$RUNNER_TEMP/sdk"
+          unzip -q "$RUNNER_TEMP/sdk.zip" -d "$RUNNER_TEMP/sdk"
+          tar -xzf "$RUNNER_TEMP/sdk/fubon-neo-$VERSION.tgz" -C "$RUNNER_TEMP/sdk"
+
+      # The app loads the SDK in a utility process, which runs Electron's own Node.
+      - name: Load it under Electron
+        working-directory: apps/desktop
+        run: |
+          ELECTRON_RUN_AS_NODE=1 "$(node -p 'require("electron")')" -e '
+            const { CoreSdk } = require(require("node:path").join(process.argv[1], "trade.js"));
+            if (typeof CoreSdk !== "function") throw new Error("The SDK loaded without CoreSdk");
+            console.log(`fubon-neo loaded under Electron ${process.versions.electron}`);
+          ' "$RUNNER_TEMP/sdk/package"
+
+  check:
+    needs: latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      ordered: ${{ steps.open.outputs.open }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: "26"
+          cache: true
+
+      - name: Download the SDK and the test environment's certificates
+        env:
+          VERSION: ${{ needs.latest.outputs.version }}
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/sdk.zip" "$FUBON_SDK/fubon_binary/fubon-neo-$VERSION.nodejs.zip"
+          mkdir -p "$RUNNER_TEMP/sdk" "$RUNNER_TEMP/test"
+          unzip -q "$RUNNER_TEMP/sdk.zip" -d "$RUNNER_TEMP/sdk"
+          tar -xzf "$RUNNER_TEMP/sdk/fubon-neo-$VERSION.tgz" -C "$RUNNER_TEMP/sdk"
+          curl -fsSL -o "$RUNNER_TEMP/test.zip" "$FUBON_SDK/sample_code/test_environment.zip"
+          unzip -q "$RUNNER_TEMP/test.zip" -d "$RUNNER_TEMP/test"
+
+      - name: Check the module against the SDK's declarations
+        run: vp exec node packages/brokers/scripts/fubon-sdk-types.ts "$RUNNER_TEMP/sdk"
+
+      - id: open
+        name: Is the test environment open?
+        run: |
+          day=$(TZ=Asia/Taipei date +%u)
+          time=$(TZ=Asia/Taipei date +%H%M)
+          if [ "$day" -le 5 ] && (( 10#$time >= 930 && 10#$time < 1900 )); then
+            echo "open=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Fubon's test environment is closed, so no orders were checked"
+          fi
+
+      - name: Check orders in the test environment
+        if: steps.open.outputs.open == 'true'
+        run: |
+          vp exec node packages/brokers/scripts/fubon-sdk-check.ts "$RUNNER_TEMP/sdk" \
+            "$RUNNER_TEMP/test/test_environment/41610792.pfx"
+
+  record:
+    needs: [latest, load, check]
+    if: always() && github.event_name != 'pull_request' && needs.latest.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: "26"
+          cache: true
+
+      - name: Propose the version, or report its failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.latest.outputs.version }}
+          PASSED: ${{ needs.load.result == 'success' && needs.check.result == 'success' }}
+          ORDERED: ${{ needs.check.outputs.ordered == 'true' }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          tested=$(vp exec node -e '
+            import("./packages/brokers/src/fubon.ts").then(({ FUBON_SDK_VERSIONS }) =>
+              console.log(FUBON_SDK_VERSIONS.includes(process.argv[1])));
+          ' "$VERSION")
+
+          if [ "$PASSED" != true ]; then
+            title="fubon-neo $VERSION fails Solyx's Fubon check"
+            existing=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number // ""')
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "It failed again in $RUN."
+            else
+              if [ "$tested" = true ]; then
+                was="Solyx was checked with this version before, so Fubon or its test environment changed what it answers."
+              else
+                was="This version is new to Solyx, which warns anyone who chooses it."
+              fi
+              gh issue create --title "$title" --body "$(printf '%s\n\n%s\n\nRun: %s' \
+                "The Fubon SDK workflow failed on fubon-neo $VERSION, the version Fubon offers for download." \
+                "$was" "$RUN")"
+            fi
+            exit 0
+          fi
+
+          if [ "$tested" = true ] || [ "$ORDERED" != true ]; then
+            exit 0
+          fi
+
+          branch="fubon-sdk/$VERSION"
+          if git ls-remote --exit-code origin "refs/heads/$branch" > /dev/null; then
+            echo "::notice::$branch already proposes fubon-neo $VERSION"
+            exit 0
+          fi
+
+          node -e '
+            const fs = require("node:fs");
+            const path = "packages/brokers/src/fubon.ts";
+            const source = fs.readFileSync(path, "utf8");
+            const next = source.replace(
+              /(export const FUBON_SDK_VERSIONS = \[)([^\]]*)\]/,
+              (_, head, list) => `${head}${list.trim().replace(/,$/, "")}, "${process.env.VERSION}"]`
+            );
+            if (next === source) throw new Error("No FUBON_SDK_VERSIONS in " + path);
+            fs.writeFileSync(path, next);
+          '
+          vp fmt packages/brokers/src/fubon.ts
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "feat(brokers): count fubon-neo $VERSION as checked"
+          git push origin "$branch"
+          gh pr create --base develop --head "$branch" \
+            --title "feat(brokers): count fubon-neo $VERSION as checked" \
+            --body "$(printf '%s\n\n%s\n\nRun: %s' \
+              "fubon-neo $VERSION, the version Fubon now offers, passed the Fubon SDK workflow: the module fits its declarations, it loads under Electron on macOS and Windows, and orders went through in Fubon's test environment. Recording it stops the app warning anyone who chooses it." \
+              "CI does not start on a pull request a workflow opens; close and reopen it to run CI." \
+              "$RUN")"

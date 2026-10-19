@@ -48,6 +48,29 @@ function FubonSessionValue({ status }: { status: MarketDataStatus }) {
   );
 }
 
+/** What is wrong with the SDK folder chosen: no SDK in it, or a version Solyx was not checked with. */
+function SdkNote({
+  version,
+  tested,
+}: {
+  version: string | null;
+  tested: string[];
+}) {
+  const { t } = useTranslation();
+
+  if (version === null) {
+    return (
+      <p className="text-xs text-danger">{t("settings.fubon.sdk-missing")}</p>
+    );
+  }
+
+  return tested.includes(version) ? null : (
+    <p className="text-xs text-warning">
+      {t("settings.fubon.sdk-untested", { version, tested: tested.join(", ") })}
+    </p>
+  );
+}
+
 /** Fubon's sign-in as Taiwan's market data reads it, set up under Brokers. */
 export function FubonConnectionRow({ status }: { status: MarketDataStatus }) {
   const { t } = useTranslation();
@@ -108,7 +131,7 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
   if (!secrets.data) return <LoadingState />;
 
   const { available, states } = secrets.data;
-  const { ready, files, plan, session } = status.fubon;
+  const { ready, files, plan, session, sdkVersion } = status.fubon;
 
   return (
     <div className="flex flex-col gap-3">
@@ -148,6 +171,7 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
         </SettingsRow>
         {Object.values(FubonFile).map((file) => {
           const path = files[file];
+          const version = file === FubonFile.Sdk ? sdkVersion : null;
 
           return (
             <SettingsRow
@@ -156,7 +180,9 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
               description={t(`settings.fubon.files.${file}.hint`)}
               value={
                 path ? (
-                  <span title={path}>{fileName(path)}</span>
+                  <span title={path}>
+                    {version === null ? fileName(path) : `fubon-neo ${version}`}
+                  </span>
                 ) : (
                   t("settings.fubon.not-chosen")
                 )
@@ -172,8 +198,14 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
                     ? t("settings.fubon.change")
                     : t("settings.fubon.choose")}
                 </Button>
-              }
-            />
+              }>
+              {file === FubonFile.Sdk && path ? (
+                <SdkNote
+                  version={version}
+                  tested={status.fubon.testedSdkVersions}
+                />
+              ) : null}
+            </SettingsRow>
           );
         })}
         {FUBON_SECRETS.map((secret) => (
