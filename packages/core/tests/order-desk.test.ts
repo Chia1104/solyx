@@ -15,10 +15,12 @@ import { MandateViolationCode } from "../src/mandate.ts";
 import type { Mandate } from "../src/mandate.ts";
 import { Market } from "../src/market.ts";
 import {
+  MandateSending,
   OrderDesk,
   ProposalSource,
   ProposalStatus,
   SubmissionFailureCode,
+  mandateSending,
 } from "../src/order-desk.ts";
 import type {
   OrderDeskOptions,
@@ -1071,6 +1073,45 @@ test("an order sent under the mandate that went unanswered locks orders", async 
   await proposeFromAgent(desk);
 
   expect(lockOrders).toHaveBeenCalledTimes(1);
+});
+
+test("how far the desk got sending under the mandate follows each proposal's status", async () => {
+  let locked = false;
+
+  const { desk, placeOrder } = setup(undefined, {
+    mandate: () => covering(),
+    locked: () => locked,
+  });
+
+  let answer: (placed: { orderId: string }) => void = noop;
+
+  placeOrder.mockReturnValueOnce(
+    new Promise((resolve) => {
+      answer = resolve;
+    })
+  );
+
+  const first = proposeFromAgent(desk);
+
+  await vi.waitFor(() => expect(placeOrder).toHaveBeenCalledTimes(1));
+
+  const second = proposeFromAgent(desk);
+
+  await vi.waitFor(() => expect(desk.list()).toHaveLength(2));
+
+  const [sending, queued] = desk.list();
+
+  expect(sending && mandateSending(sending)).toBe(MandateSending.Sent);
+  expect(queued && mandateSending(queued)).toBe(MandateSending.Checking);
+
+  // The lock reaches the second one's checks before sending, which then refuse it.
+  locked = true;
+  answer({ orderId: "B-1" });
+
+  expect(mandateSending(await first)).toBe(MandateSending.Sent);
+  expect(await second).toMatchObject({ status: ProposalStatus.Rejected });
+  expect(mandateSending(await second)).toBe(MandateSending.Stopped);
+  expect(placeOrder).toHaveBeenCalledTimes(1);
 });
 
 test("a mandate revoked while its order waited for the one before leaves the order waiting for the user", async () => {

@@ -691,7 +691,9 @@
       "impact-most": "At most {{amount}} {{currency}} at the limit-up {{price}} (before fees and tax)"
     },
     "mandate": {
+      "checking": "Checking again before sending it under your mandate",
       "sent": "Sent under your mandate",
+      "stopped": "Your mandate covered it, but the checks before sending stopped it",
       "would-send": "Shadow mode: your mandate would send this",
       "outside": "Outside your mandate: {{reasons}}",
       "separator": "; "

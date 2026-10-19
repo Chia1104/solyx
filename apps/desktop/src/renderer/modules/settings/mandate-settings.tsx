@@ -92,7 +92,7 @@ function formValues(mandate: Mandate | null): MandateFormValues {
     maxDayValue: mandate?.maxDayValue[Currency.TWD] ?? Number.NaN,
     maxDayOrders: mandate?.maxDayOrders ?? Number.NaN,
     days: DEFAULT_DAYS,
-    // A mandate starts in shadow, so the user sees what it would send before it sends anything.
+    // Shadow unless the user switches it off, so they see what it would send before it sends anything.
     shadow: mandate?.shadow ?? true,
   };
 }

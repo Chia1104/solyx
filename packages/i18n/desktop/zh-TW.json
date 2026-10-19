@@ -691,7 +691,9 @@
       "impact-most": "最多約 {{amount}} {{currency}}，以漲停 {{price}} 計（未含手續費與稅）"
     },
     "mandate": {
+      "checking": "依交易授權送出前，正在重新檢查",
       "sent": "依交易授權自動送出",
+      "stopped": "在交易授權範圍內，但送出前的檢查擋下了",
       "would-send": "影子模式：授權會自動送出這筆",
       "outside": "不在授權範圍：{{reasons}}",
       "separator": "；"

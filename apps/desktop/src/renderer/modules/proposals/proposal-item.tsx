@@ -5,12 +5,15 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { Interval } from "@solyx/core/candles";
-import type { MandateVerdict } from "@solyx/core/mandate";
 import { exchangeDate } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderType, orderImpact } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
-import { ProposalStatus, SubmissionFailureCode } from "@solyx/core/order-desk";
+import {
+  ProposalStatus,
+  SubmissionFailureCode,
+  mandateSending,
+} from "@solyx/core/order-desk";
 import type { ProposalBasis, TradeProposal } from "@solyx/core/order-desk";
 import type { OrderPremise } from "@solyx/core/risk";
 
@@ -180,8 +183,11 @@ function BasisLine({
 }
 
 /** What the user's mandate made of an agent's proposal: sent it, would have in shadow, or why not. */
-function MandateLine({ verdict }: { verdict: MandateVerdict }) {
+function MandateLine({ proposal }: { proposal: TradeProposal }) {
   const { t } = useTranslation();
+  const verdict = proposal.mandate;
+
+  if (!verdict) return null;
 
   if (verdict.violations.length > 0) {
     return (
@@ -195,11 +201,13 @@ function MandateLine({ verdict }: { verdict: MandateVerdict }) {
     );
   }
 
+  const sending = mandateSending(proposal);
+
   return (
     <p className="text-xs text-muted">
-      {verdict.shadow
+      {sending === null
         ? t("proposals.mandate.would-send")
-        : t("proposals.mandate.sent")}
+        : t(`proposals.mandate.${sending}`)}
     </p>
   );
 }
@@ -274,7 +282,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
       {proposal.basis ? (
         <BasisLine symbol={order.instrument} basis={proposal.basis} />
       ) : null}
-      {proposal.mandate ? <MandateLine verdict={proposal.mandate} /> : null}
+      <MandateLine proposal={proposal} />
       {proposal.violations.length > 0 ? (
         <Alert status="danger">
           <Alert.Indicator />

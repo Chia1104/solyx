@@ -198,6 +198,34 @@ function sentByMandate({ mandate }: TradeProposal): boolean {
   return mandate !== null && !mandate.shadow && mandate.violations.length === 0;
 }
 
+export const MandateSending = {
+  /** The desk is checking it again before it sends it. */
+  Checking: "checking",
+  /** It reached the broker, or may have. */
+  Sent: "sent",
+  /** The checks before sending refused it or failed, so it waits for the user or was refused. */
+  Stopped: "stopped",
+} as const;
+
+export type MandateSending =
+  (typeof MandateSending)[keyof typeof MandateSending];
+
+/** How far the desk got sending a proposal under the mandate; `null` where the mandate did not have it sent. */
+export function mandateSending(proposal: TradeProposal): MandateSending | null {
+  if (!sentByMandate(proposal)) return null;
+
+  switch (proposal.status) {
+    case ProposalStatus.Confirming:
+      return MandateSending.Checking;
+    case ProposalStatus.Submitting:
+    case ProposalStatus.Submitted:
+    case ProposalStatus.Failed:
+      return MandateSending.Sent;
+    default:
+      return MandateSending.Stopped;
+  }
+}
+
 /** A failure that leaves whether the broker holds the order unknown, until the desk finds it. */
 function mayBeHeld({ status, failure }: TradeProposal): boolean {
   return (

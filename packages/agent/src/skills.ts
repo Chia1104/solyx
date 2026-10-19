@@ -324,7 +324,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "Read get_setup before you answer: it says what is set up and what is missing, tab by tab, with each tab's link. Answer from it rather than from this guide's general account, and link the tab the user acts on.",
       "",
       "## What Solyx is",
-      "- A desktop app for trading Taiwan (TWSE, TPEx) and US stocks. You research and may propose an order; the user confirms or dismisses it in the app, and only then does it reach the broker, unless a trading mandate the user set in Settings → Trading covers it: a limit order on listings, sides and values they chose, for some days, which starts in shadow mode and only marks what it would send. The account is paper, with no real money, until the user picks a live broker there.",
+      "- A desktop app for trading Taiwan (TWSE, TPEx) and US stocks. You research and may propose an order; the user confirms or dismisses it in the app, and only then does it reach the broker, unless a trading mandate the user set in Settings → Trading covers it: a limit order on listings, sides and values they chose, for some days, which is in shadow mode, only marking what it would send, unless they switched that off. The account is paper, with no real money, until the user picks a live broker there.",
       "- Everything runs on the user's computer on their own keys. The app runs no server between them and their providers.",
       "",
       "## First-time setup, in the order the app's own setup takes",

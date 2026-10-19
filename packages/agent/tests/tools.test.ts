@@ -696,6 +696,16 @@ test("a proposal says what the user's mandate made of it", () => {
     )
   ).toContain("sent under the user's mandate without waiting for them");
 
+  // Covered, but the checks before sending refused it, so nothing was sent.
+  expect(
+    describeProposal(
+      proposal({
+        status: ProposalStatus.Rejected,
+        mandate: { shadow: false, violations: [] },
+      })
+    )
+  ).toContain("the checks before sending stopped it, so it was not sent");
+
   expect(
     describeProposal(proposal({ mandate: { shadow: true, violations: [] } }))
   ).toContain("would have sent it, but is in shadow");
