@@ -51,6 +51,9 @@ function fakeSession(): FubonProcess {
     fills: async () => [],
     place: vi.fn(),
     cancel: vi.fn(),
+    placeCondition: vi.fn(),
+    conditions: async () => [],
+    cancelCondition: vi.fn(),
     watch: vi.fn(),
     close: vi.fn(),
   };

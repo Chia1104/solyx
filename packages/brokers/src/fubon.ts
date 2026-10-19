@@ -13,9 +13,9 @@ import {
 } from "@solyx/core/broker";
 import type { BrokerAdapter, BrokerOrder } from "@solyx/core/broker";
 import { MARKET_TIME_ZONE, Market, exchangeDate } from "@solyx/core/market";
-import { OrderType, Side } from "@solyx/core/order";
+import { ExitLeg, OrderType, Side, exitLegs } from "@solyx/core/order";
 import type { AccountSnapshot, Fill, OrderRequest } from "@solyx/core/order";
-import { isTwOddLot, twSpendable } from "@solyx/core/rules/tw";
+import { TW_BOARD_LOT, isTwOddLot, twSpendable } from "@solyx/core/rules/tw";
 import type { TwTrade } from "@solyx/core/rules/tw";
 import { parseJson } from "@solyx/utils/json";
 
@@ -87,6 +87,23 @@ interface FubonStock {
   getOrderResults(account: FubonAccount): FubonResult<unknown>;
   getOrderResultsDetail(account: FubonAccount): FubonResult<unknown>;
   querySymbolQuote(account: FubonAccount, symbol: string): FubonResult<unknown>;
+  singleCondition(
+    account: FubonAccount,
+    startDate: string,
+    endDate: string,
+    stopSign: string,
+    condition: FubonConditionObject["condition"],
+    order: FubonConditionObject["order"]
+  ): FubonResult<unknown>;
+  /** By the status the SDK names `ConditionStatus`, such as `Type2` for those still in force. */
+  getConditionOrder(
+    account: FubonAccount,
+    conditionStatus?: string
+  ): FubonResult<unknown>;
+  cancelConditionOrders(
+    account: FubonAccount,
+    guid: string
+  ): FubonResult<unknown>;
   orderHistory(
     account: FubonAccount,
     startDate: string,
@@ -279,6 +296,19 @@ const unrealizedSchema = z.object({
 
 const bankSchema = z.object({ availableBalance: z.number() });
 
+const conditionPlacedSchema = z.object({ guid: z.string().min(1) });
+
+// `ConditionStatus.Type2`, the condition orders still in force.
+const CONDITIONS_IN_FORCE = "Type2";
+
+const NONE_FOUND = "查無資料";
+
+// Fubon answers a cancel with its counts, as in "成功筆數:1,失敗筆數:0!".
+const CANCEL_COUNTS = /成功筆數:(\d+),失敗筆數:(\d+)/;
+
+// Fubon stamps a condition order to the second by its own clock, which may run behind this one.
+const CONDITION_SKEW_MS = 30_000;
+
 const quoteSchema = z.object({
   referencePrice: z.number(),
   limitupPrice: z.number(),
@@ -391,6 +421,16 @@ export interface FubonSession {
   cancel(account: string, id: string): void;
   /** The day's reference price and limits on `symbol`'s price, as Fubon quotes them. */
   priceLimits(account: string, symbol: string): FubonPriceLimits;
+  /**
+   * Has Fubon watch one leg of an exit, and answers with its guid or with why Fubon did not take
+   * it, which a failed answer is only where Fubon then lists no such leg placed since. Throws where
+   * whether it took the leg stays unknown.
+   */
+  placeCondition(account: string, leg: FubonConditionLeg): FubonConditionPlaced;
+  /** The account's condition orders still in force, the app's legs among them. */
+  conditions(account: string): FubonWatchedCondition[];
+  /** Has Fubon stop watching condition order `guid`; throws where it did not take the request. */
+  cancelCondition(account: string, guid: string): void;
   /**
    * Calls `listener`, in place of any before it, whenever Fubon tells of an order of the account
    * being placed, changed or filled, the app's or not.
@@ -547,6 +587,25 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
   }
 
   const today = () => exchangeDate(Market.TW);
+
+  function conditionsInForce(id: string): FubonWatchedCondition[] {
+    const account = stockAccount(id);
+
+    paceQuery();
+
+    const result = sdk.stock.getConditionOrder(account, CONDITIONS_IN_FORCE);
+
+    // Fubon answers a query that finds none as a failure.
+    if (!result.isSuccess && result.message === NONE_FOUND) return [];
+
+    return (
+      answer(
+        "condition query",
+        result,
+        z.array(conditionDetailSchema).nullable()
+      ) ?? []
+    ).flatMap((detail) => fubonWatchedCondition(detail) ?? []);
+  }
 
   function orders(id: string, from: string): FubonOrder[] {
     const { stock } = sdk;
@@ -729,6 +788,71 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
       }
     },
 
+    placeCondition(id, leg) {
+      const account = stockAccount(id);
+      const { condition, order } = fubonConditionObject(leg);
+      const placing = Date.now();
+
+      const result = sdk.stock.singleCondition(
+        account,
+        fubonDay(leg.from),
+        fubonDay(leg.until),
+        // Watched until the whole sale fills.
+        "Full",
+        condition,
+        order
+      );
+
+      if (!result.isSuccess) {
+        // Fubon answers a refusal and a failure it cannot vouch for alike, so the leg counts as
+        // refused only where Fubon lists none like it placed since; where the list cannot be
+        // read, the outcome stays unknown.
+        const placed = conditionsInForce(id).find(
+          (each) =>
+            each.symbol === leg.symbol &&
+            each.quantity === leg.quantity &&
+            each.leg === leg.leg &&
+            each.price === leg.price &&
+            each.placedAt >= placing - CONDITION_SKEW_MS
+        );
+
+        return placed
+          ? { guid: placed.guid }
+          : { refused: result.message ?? "no reason given" };
+      }
+
+      const placed = conditionPlacedSchema.safeParse(result.data ?? null);
+
+      if (!placed.success) {
+        throw new Error("Fubon took the exit leg but named no guid for it");
+      }
+
+      return { guid: placed.data.guid };
+    },
+
+    conditions: conditionsInForce,
+
+    cancelCondition(id, guid) {
+      const account = stockAccount(id);
+
+      paceQuery();
+
+      const result = sdk.stock.cancelConditionOrders(account, guid);
+      const counts = CANCEL_COUNTS.exec(String(result.data ?? ""));
+
+      // Only counts that say the one leg was cancelled and none failed confirm it.
+      if (
+        !result.isSuccess ||
+        !counts ||
+        Number(counts[1]) < 1 ||
+        Number(counts[2]) > 0
+      ) {
+        throw new Error(
+          `Fubon did not cancel exit leg ${guid}: ${result.message ?? String(result.data)}`
+        );
+      }
+    },
+
     priceLimits(id, symbol) {
       const quote = query(
         id,
@@ -796,6 +920,132 @@ export function fubonOrderObject(
   return order.type === OrderType.Limit
     ? { ...base, priceType: "Limit", price: String(order.limitPrice) }
     : { ...base, priceType: "Market" };
+}
+
+/** One of an exit's legs as the app asks Fubon to watch it. */
+export interface FubonConditionLeg {
+  symbol: string;
+  /** Shares: whole lots in the regular book, 1–999 in the intraday odd-lot one. */
+  quantity: number;
+  leg: ExitLeg;
+  /** The price the leg sells at once the listing trades at or past it. */
+  price: number;
+  /** The first and last exchange-local days Fubon watches it. */
+  from: string;
+  until: string;
+}
+
+/** The condition and the order Fubon's SDK takes for one leg. */
+export interface FubonConditionObject {
+  condition: {
+    marketType: string;
+    symbol: string;
+    trigger: string;
+    triggerValue: string;
+    comparison: string;
+  };
+  order: {
+    buySell: string;
+    symbol: string;
+    quantity: number;
+    marketType: string;
+    priceType: string;
+    timeInForce: string;
+    orderType: string;
+    price?: string;
+  };
+}
+
+/**
+ * A leg as Fubon takes it: watching the listing's own traded price, a stop sells at the day's
+ * lower limit, so it fills at what buyers bid, and a target at its price, each a cash sale that
+ * stands until the session closes, in the regular book or the intraday odd-lot one.
+ */
+export function fubonConditionObject({
+  symbol,
+  quantity,
+  leg,
+  price,
+}: FubonConditionLeg): FubonConditionObject {
+  const stop = leg === ExitLeg.Stop;
+
+  return {
+    condition: {
+      marketType: "Reference",
+      symbol,
+      trigger: "MatchedPrice",
+      triggerValue: String(price),
+      comparison: stop ? "LessThanOrEqual" : "GreaterThanOrEqual",
+    },
+    order: {
+      buySell: "Sell",
+      symbol,
+      quantity,
+      marketType: isTwOddLot(quantity) ? "IntradayOdd" : "Common",
+      timeInForce: "ROD",
+      orderType: CASH_ORDER,
+      ...(stop
+        ? { priceType: "LimitDown" }
+        : { priceType: "Limit", price: String(price) }),
+    },
+  };
+}
+
+/** What Fubon answered to a leg: its guid, or why it did not take it. */
+export type FubonConditionPlaced = { guid: string } | { refused: string };
+
+/** A leg Fubon watches, as the app reads one of the account's condition orders. */
+export interface FubonWatchedCondition {
+  guid: string;
+  symbol: string;
+  quantity: number;
+  leg: ExitLeg;
+  price: number;
+  /** UTC milliseconds. */
+  placedAt: number;
+}
+
+const conditionDetailSchema = z.object({
+  guid: z.string(),
+  symbol: z.string(),
+  conditionContent: z.string(),
+  conditionBuySell: z.string(),
+  conditionVolume: z.string(),
+  createTime: z.string(),
+});
+
+export type FubonConditionDetail = z.infer<typeof conditionDetailSchema>;
+
+// Fubon words a condition rather than giving its fields, as in "富邦金成交價小於等於41.5元".
+const CONDITION_PRICE = /(小於等於|大於等於)([\d,]+(?:\.\d+)?)元/;
+
+const CONDITION_VOLUME = /^(\d+)(張|股)$/;
+
+/**
+ * A condition order as the app reads one, or `null` for one it does not place: anything but a
+ * cash sale at a traded price at or past a level, as Fubon words it.
+ */
+export function fubonWatchedCondition(
+  detail: FubonConditionDetail
+): FubonWatchedCondition | null {
+  const price = CONDITION_PRICE.exec(detail.conditionContent);
+  const volume = CONDITION_VOLUME.exec(detail.conditionVolume.trim());
+
+  if (detail.conditionBuySell !== "現股賣" || !price || !volume) return null;
+
+  const [, comparison = "", level = ""] = price;
+  const [, count = "", unit = ""] = volume;
+
+  return {
+    guid: detail.guid,
+    symbol: detail.symbol,
+    quantity: Number(count) * (unit === "張" ? TW_BOARD_LOT : 1),
+    leg: comparison === "小於等於" ? ExitLeg.Stop : ExitLeg.Target,
+    price: Number(level.replaceAll(",", "")),
+    placedAt: Temporal.PlainDateTime.from(
+      detail.createTime.replace(" ", "T")
+    ).toZonedDateTime(MARKET_TIME_ZONE[Market.TW]).epochMilliseconds,
+  };
 }
 
 /** The status of an order Fubon or the exchange turned down. */
@@ -989,6 +1239,48 @@ export interface FubonTrading {
   fills(account: string, from: string): Promise<FubonFill[]>;
   place(account: string, order: FubonOrderObject): Promise<FubonOrder>;
   cancel(account: string, id: string): Promise<void>;
+  placeCondition(
+    account: string,
+    leg: FubonConditionLeg
+  ): Promise<FubonConditionPlaced>;
+  conditions(account: string): Promise<FubonWatchedCondition[]>;
+  cancelCondition(account: string, guid: string): Promise<void>;
+}
+
+/** `session`'s trading, for a caller that holds the session in its own process, as a script does. */
+export function fubonTrading(session: FubonSession): FubonTrading {
+  return {
+    holdings: async (id) => session.holdings(id),
+    orders: async (id, from) => session.orders(id, from),
+    fills: async (id, from) => session.fills(id, from),
+    place: async (id, order) => session.place(id, order),
+    cancel: async (id, orderId) => session.cancel(id, orderId),
+    placeCondition: async (id, leg) => session.placeCondition(id, leg),
+    conditions: async (id) => session.conditions(id),
+    cancelCondition: async (id, guid) => session.cancelCondition(id, guid),
+  };
+}
+
+// Fubon starts a condition order on the day it is placed only from 08:30 to 16:32 Taipei time on a
+// day the market trades; outside that it starts the next day, which it takes whatever day it is.
+const CONDITION_OPENS = Temporal.PlainTime.from("08:30");
+
+const CONDITION_CLOSES = Temporal.PlainTime.from("16:30");
+
+/** The first day Fubon would watch a condition placed at `at`, UTC milliseconds. */
+export function fubonConditionStart(at: number): string {
+  const local = Temporal.Instant.fromEpochMilliseconds(at).toZonedDateTimeISO(
+    MARKET_TIME_ZONE[Market.TW]
+  );
+
+  const time = local.toPlainTime();
+
+  const today =
+    local.dayOfWeek <= 5 &&
+    Temporal.PlainTime.compare(time, CONDITION_OPENS) >= 0 &&
+    Temporal.PlainTime.compare(time, CONDITION_CLOSES) < 0;
+
+  return (today ? local : local.add({ days: 1 })).toPlainDate().toString();
 }
 
 /**
@@ -1106,6 +1398,72 @@ export function createFubonBroker({
       const id = picked();
 
       await (await session()).cancel(id, orderId);
+    },
+
+    exits: {
+      async place(instrument, quantity, exit) {
+        const id = picked();
+        const trading = await session();
+        const placed: string[] = [];
+
+        async function placeLeg(leg: FubonConditionLeg) {
+          const answer = await trading.placeCondition(id, leg);
+
+          // A holiday leaves a start of today refused, so it starts the next day instead.
+          if ("refused" in answer && leg.from === exchangeDate(Market.TW)) {
+            const tomorrow = Temporal.PlainDate.from(leg.from)
+              .add({ days: 1 })
+              .toString();
+
+            return trading.placeCondition(id, { ...leg, from: tomorrow });
+          }
+
+          return answer;
+        }
+
+        for (const { leg, price } of exitLegs(exit)) {
+          const answer = await placeLeg({
+            symbol: instrument.symbol,
+            quantity,
+            leg,
+            price,
+            from: fubonConditionStart(Date.now()),
+            until: exit.until,
+          });
+
+          if ("refused" in answer) {
+            // All or none: a leg placed before one Fubon refused is taken off again, and where
+            // that fails, the cancel's error leaves what Fubon watches unknown.
+            for (const guid of placed) await trading.cancelCondition(id, guid);
+
+            throw new OrderRefusedError(
+              `Fubon refused the exit's ${leg}: ${answer.refused}`
+            );
+          }
+
+          placed.push(answer.guid);
+        }
+
+        return placed;
+      },
+
+      async watching() {
+        const id = picked();
+
+        return (await (await session()).conditions(id)).map(
+          ({ guid, symbol, ...leg }) => ({
+            ...leg,
+            ref: guid,
+            instrument: { market: Market.TW, symbol },
+          })
+        );
+      },
+
+      async cancel(ref) {
+        const id = picked();
+
+        await (await session()).cancelCondition(id, ref);
+      },
     },
   };
 }

@@ -76,6 +76,9 @@ function fakeChild(sdk: Partial<FakeSdk> = {}) {
       fills: fubon.fills.handler(() => []),
       place: fubon.place.handler(() => Promise.reject(new Error("unused"))),
       cancel: fubon.cancel.handler(() => undefined),
+      placeCondition: fubon.placeCondition.handler(() => ({ guid: "G-1" })),
+      conditions: fubon.conditions.handler(() => []),
+      cancelCondition: fubon.cancelCondition.handler(() => undefined),
       changes: fubon.changes.handler(({ signal }) => {
         streams.opened += 1;
 

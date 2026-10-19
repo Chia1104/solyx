@@ -16,7 +16,7 @@ import * as z from "zod";
 import { BrokerOrderStatus } from "@solyx/core/broker";
 import { OrderRefusedError } from "@solyx/core/broker";
 import { Market, exchangeDate } from "@solyx/core/market";
-import { OrderType, Side } from "@solyx/core/order";
+import { ExitLeg, OrderType, Side } from "@solyx/core/order";
 import type { Fill } from "@solyx/core/order";
 
 import {
@@ -25,18 +25,28 @@ import {
   fubonAccount,
   fubonFill,
   fubonOrder,
+  fubonConditionObject,
+  fubonConditionStart,
   fubonOrderObject,
   fubonSdkVersion,
   fubonStockAccounts,
   openFubonSession,
 } from "../src/fubon.ts";
-import type { FubonFill, FubonHoldings, FubonOrder } from "../src/fubon.ts";
+import type {
+  FubonConditionLeg,
+  FubonConditionPlaced,
+  FubonFill,
+  FubonHoldings,
+  FubonOrder,
+} from "../src/fubon.ts";
 
 // Stands in for the SDK's native binding; it records calls on the module so tests can read them.
 const FAKE_BINDING = `
 const calls = [];
 
 const reports = {};
+
+const lost = [];
 
 const NO_REPORT = "證券報表/表單定義資料不存在";
 
@@ -99,6 +109,46 @@ class CoreSdk {
         return symbol === "2881"
           ? { isSuccess: true, data: { symbol, referencePrice: 46, limitupPrice: 50.6, limitdownPrice: 41.4, lastPrice: 158.5 } }
           : { isSuccess: true, data: { symbol } };
+      },
+      singleCondition(account, start, end, stopSign, condition, order) {
+        calls.push(["singleCondition", account.account, start, end, stopSign, condition, order]);
+
+        if (condition.symbol === "8888") return { isSuccess: false, message: "觸發價格錯誤" };
+
+        // "7777" is taken, but the answer is lost on the way back.
+        if (condition.symbol === "7777") {
+          const comparison = condition.comparison === "LessThanOrEqual" ? "小於等於" : "大於等於";
+          const createTime = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 19).replace("T", " ");
+
+          lost.push({ guid: "G-LOST", symbol: "7777", conditionBuySell: "現股賣", conditionContent: "成交價" + comparison + condition.triggerValue + "元", conditionVolume: order.quantity + "股", createTime });
+
+          return { isSuccess: false, message: "連線逾時" };
+        }
+
+        return { isSuccess: true, data: { guid: "G-" + calls.length } };
+      },
+      getConditionOrder(account, status) {
+        calls.push(["getConditionOrder", account.account, status]);
+
+        if (account.account === "29") return { isSuccess: false, message: "查無資料" };
+
+        const detail = { batchNo: "", orderLevel: "0", account: account.account, conditionBuySell: "現股賣", startDate: "2026/10/20", status: "預約(N)", createTime: "2026-10-19 16:44:57" };
+
+        return { isSuccess: true, data: [
+          ...lost,
+          { ...detail, guid: "G-1", symbol: "2881", conditionContent: "當自2026/10/20至2026/10/23內 富邦金成交價小於等於41.5元 全部成交為止", conditionVolume: "1張" },
+          { ...detail, guid: "G-2", symbol: "2330", conditionContent: "當自2026/10/20至2026/10/23內 台積電成交價大於等於1,005元 全部成交為止", conditionVolume: "100股" },
+          { ...detail, guid: "G-3", symbol: "2330", conditionBuySell: "現股買", conditionContent: "當自2026/10/20至2026/10/23內 台積電成交價小於等於900元 全部成交為止", conditionVolume: "1張" },
+        ] };
+      },
+      cancelConditionOrders(account, guid) {
+        calls.push(["cancelConditionOrders", account.account, guid]);
+
+        if (guid === "G-9") return { isSuccess: true, data: "成功筆數:0,失敗筆數:1!" };
+
+        if (guid === "G-8") return { isSuccess: true };
+
+        return { isSuccess: true, data: "成功筆數:1,失敗筆數:0!" };
       },
       getOrderResultsDetail(account) {
         calls.push(["getOrderResultsDetail", account.account]);
@@ -809,6 +859,9 @@ describe("a Fubon broker placing an order", () => {
         fills: async () => [],
         place: async () => placed,
         cancel: async () => undefined,
+        placeCondition: async () => ({ refused: "not in this test" }),
+        conditions: async () => [],
+        cancelCondition: async () => undefined,
       }),
       account,
     });
@@ -849,5 +902,212 @@ describe("a Fubon broker placing an order", () => {
 
     await expect(placing).rejects.toThrow("has yet to number it");
     await expect(placing).rejects.not.toBeInstanceOf(OrderRefusedError);
+  });
+});
+
+describe("an exit at Fubon", () => {
+  const stopLeg = {
+    symbol: "2881",
+    quantity: 1000,
+    leg: ExitLeg.Stop,
+    price: 41.5,
+    from: "2026-10-20",
+    until: "2026-10-23",
+  };
+
+  test("a stop sells at the day's lower limit and a target at its price, an odd lot in the odd-lot book", () => {
+    expect(fubonConditionObject(stopLeg)).toEqual({
+      condition: {
+        marketType: "Reference",
+        symbol: "2881",
+        trigger: "MatchedPrice",
+        triggerValue: "41.5",
+        comparison: "LessThanOrEqual",
+      },
+      order: {
+        buySell: "Sell",
+        symbol: "2881",
+        quantity: 1000,
+        marketType: "Common",
+        timeInForce: "ROD",
+        orderType: "Stock",
+        priceType: "LimitDown",
+      },
+    });
+    expect(
+      fubonConditionObject({
+        ...stopLeg,
+        leg: ExitLeg.Target,
+        price: 50,
+        quantity: 100,
+      })
+    ).toMatchObject({
+      condition: { comparison: "GreaterThanOrEqual", triggerValue: "50" },
+      order: { marketType: "IntradayOdd", priceType: "Limit", price: "50" },
+    });
+  });
+
+  test("starts the day it is placed within Fubon's hours on a weekday, and the next day otherwise", () => {
+    const at = (time: string) => Date.parse(`${time}+08:00`);
+
+    expect(fubonConditionStart(at("2026-10-19T10:00:00"))).toBe("2026-10-19");
+    expect(fubonConditionStart(at("2026-10-19T08:00:00"))).toBe("2026-10-20");
+    expect(fubonConditionStart(at("2026-10-19T17:00:00"))).toBe("2026-10-20");
+    expect(fubonConditionStart(at("2026-10-24T10:00:00"))).toBe("2026-10-25");
+  });
+
+  test("the session places a leg for its guid, says why Fubon refused one, lists the sales in force and cancels by guid", () => {
+    const session = openFubonSession(options("good-key"));
+
+    expect(session.placeCondition(ACCOUNT, stopLeg)).toEqual({
+      guid: expect.stringMatching(/^G-/),
+    });
+    expect(recordedCalls().at(-1)).toEqual([
+      "singleCondition",
+      "28",
+      "20261020",
+      "20261023",
+      "Full",
+      fubonConditionObject(stopLeg).condition,
+      fubonConditionObject(stopLeg).order,
+    ]);
+    expect(
+      session.placeCondition(ACCOUNT, { ...stopLeg, symbol: "8888" })
+    ).toEqual({ refused: "觸發價格錯誤" });
+
+    const placedAt = Date.parse("2026-10-19T16:44:57+08:00");
+
+    expect(session.conditions(ACCOUNT)).toEqual([
+      {
+        guid: "G-1",
+        symbol: "2881",
+        quantity: 1000,
+        leg: ExitLeg.Stop,
+        price: 41.5,
+        placedAt,
+      },
+      {
+        guid: "G-2",
+        symbol: "2330",
+        quantity: 100,
+        leg: ExitLeg.Target,
+        price: 1005,
+        placedAt,
+      },
+    ]);
+    expect(recordedCalls().at(-1)).toEqual([
+      "getConditionOrder",
+      "28",
+      "Type2",
+    ]);
+
+    session.cancelCondition(ACCOUNT, "G-1");
+
+    expect(() => session.cancelCondition(ACCOUNT, "G-9")).toThrow(
+      "Fubon did not cancel exit leg G-9"
+    );
+    // An answer whose counts cannot be read confirms nothing.
+    expect(() => session.cancelCondition(ACCOUNT, "G-8")).toThrow(
+      "Fubon did not cancel exit leg G-8"
+    );
+  });
+
+  test("a failed answer is a refusal only where Fubon then lists no such leg placed since", () => {
+    const session = openFubonSession(options("good-key"));
+    const lost = { ...stopLeg, symbol: "7777", quantity: 100, price: 30 };
+
+    expect(session.placeCondition(ACCOUNT, lost)).toEqual({ guid: "G-LOST" });
+    expect(
+      session.placeCondition(ACCOUNT, { ...stopLeg, symbol: "8888" })
+    ).toEqual({ refused: "觸發價格錯誤" });
+  });
+
+  test("an account with none in force lists none", () => {
+    const session = openFubonSession(options("no-reports"));
+
+    expect(session.conditions(UNREPORTED_ACCOUNT)).toEqual([]);
+  });
+
+  function exitBroker(answers: FubonConditionPlaced[]) {
+    const placed: FubonConditionLeg[] = [];
+    const cancelled: string[] = [];
+
+    const broker = createFubonBroker({
+      session: async () => ({
+        holdings: async () => ({
+          inventories: [],
+          unrealized: [],
+          bank: { availableBalance: 0 },
+          settlements: [],
+        }),
+        orders: async () => [],
+        fills: async () => [],
+        place: async () => orderResult(),
+        cancel: async () => undefined,
+        placeCondition: async (_account, leg) => {
+          placed.push(leg);
+
+          return answers.shift() ?? { guid: `G-${placed.length}` };
+        },
+        conditions: async () => [
+          {
+            guid: "G-1",
+            symbol: "2881",
+            quantity: 1000,
+            leg: ExitLeg.Stop,
+            price: 41.5,
+            placedAt: 1,
+          },
+        ],
+        cancelCondition: async (_account, guid) => {
+          cancelled.push(guid);
+        },
+      }),
+      account: ACCOUNT,
+    });
+
+    if (!broker.exits) throw new Error("The Fubon broker watches exits");
+
+    return { exits: broker.exits, placed, cancelled };
+  }
+
+  const fubonFinancial = { market: Market.TW, symbol: "2881" };
+
+  const exit = { stop: 41.5, target: 50, until: "2026-10-30" };
+
+  test("the broker places each leg and answers with their guids, and reads what Fubon watches as legs", async () => {
+    const { exits, placed } = exitBroker([]);
+
+    expect(await exits.place(fubonFinancial, 1000, exit, "A1B2C3")).toEqual([
+      "G-1",
+      "G-2",
+    ]);
+    expect(placed.map(({ leg, price, until }) => [leg, price, until])).toEqual([
+      [ExitLeg.Stop, 41.5, "2026-10-30"],
+      [ExitLeg.Target, 50, "2026-10-30"],
+    ]);
+    expect(await exits.watching()).toEqual([
+      {
+        ref: "G-1",
+        instrument: fubonFinancial,
+        quantity: 1000,
+        leg: ExitLeg.Stop,
+        price: 41.5,
+        placedAt: 1,
+      },
+    ]);
+  });
+
+  test("a leg Fubon refuses takes off the ones placed before it, so the exit is placed whole or not at all", async () => {
+    const { exits, cancelled } = exitBroker([
+      { guid: "G-1" },
+      { refused: "價格錯誤" },
+      { refused: "價格錯誤" },
+    ]);
+
+    await expect(
+      exits.place(fubonFinancial, 1000, exit, "A1B2C3")
+    ).rejects.toThrow(OrderRefusedError);
+    expect(cancelled).toEqual(["G-1"]);
   });
 });
