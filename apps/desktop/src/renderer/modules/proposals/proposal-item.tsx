@@ -30,6 +30,7 @@ import { quoteQuery } from "../market/quote-query.ts";
 import { mandateViolationMessage } from "../settings/mandate-message.ts";
 import { tradingSettingsQuery } from "../settings/settings-query.ts";
 
+import { ProposalRationale } from "./proposal-rationale.tsx";
 import { violationMessage } from "./violation-message.ts";
 
 const STATUS_COLOR: Record<ProposalStatus, ChipProps["color"]> = {
@@ -307,6 +308,21 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
     failure?.code === SubmissionFailureCode.Unknown ||
     failure?.code === SubmissionFailureCode.Interrupted;
 
+  const summary = exit ? (
+    <ExitSummary quantity={order.quantity} exit={exit} />
+  ) : (
+    <p className="text-sm tabular-nums">
+      {t("proposals.summary", {
+        side: t(`side.${order.side}`),
+        quantity: order.quantity,
+        price:
+          order.type === OrderType.Limit
+            ? order.limitPrice
+            : t("proposals.market-price"),
+      })}
+    </p>
+  );
+
   return (
     <article
       data-proposal={proposal.id}
@@ -338,20 +354,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
           {exitChip?.label ?? t(`status.${proposal.status}`)}
         </Chip>
       </header>
-      {exit ? (
-        <ExitSummary quantity={order.quantity} exit={exit} />
-      ) : (
-        <p className="text-sm tabular-nums">
-          {t("proposals.summary", {
-            side: t(`side.${order.side}`),
-            quantity: order.quantity,
-            price:
-              order.type === OrderType.Limit
-                ? order.limitPrice
-                : t("proposals.market-price"),
-          })}
-        </p>
-      )}
+      {summary}
       {proposal.status === ProposalStatus.AwaitingConfirmation ? (
         <>
           {proposal.premise ? (
@@ -369,9 +372,9 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
         </>
       ) : null}
       {exit ? <ExitState proposal={proposal} /> : null}
-      {proposal.rationale && (
-        <p className="text-sm text-muted">{proposal.rationale}</p>
-      )}
+      {proposal.rationale ? (
+        <ProposalRationale proposal={proposal} summary={summary} />
+      ) : null}
       {proposal.basis ? (
         <BasisLine symbol={order.instrument} basis={proposal.basis} />
       ) : null}

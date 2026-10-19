@@ -18,13 +18,14 @@ import {
 } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMatch } from "@tanstack/react-router";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import type { Control } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { Market, exchangeDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import type { Depth } from "@solyx/core/market-data";
+import type { Depth, Listing } from "@solyx/core/market-data";
 import { OrderType, Side } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 import { ProposalStatus } from "@solyx/core/order-desk";
@@ -36,12 +37,15 @@ import { orpc } from "../../app/rpc.ts";
 import { usePaletteColors } from "../../app/theme.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { highlight } from "../../components/highlight.ts";
+import { LoadError } from "../../components/load-error.tsx";
 import { bandQuery } from "../market/band-query.ts";
-import { useListingName, useListingNames } from "../market/listing-name.tsx";
+import { listingName, useListingName } from "../market/listing-name.tsx";
+import { listingQuery } from "../market/listing-query.ts";
 import { numberFormats } from "../market/number-formats.ts";
 import { useDirectionColors } from "../market/price-colors.ts";
 import { directionOf } from "../market/quote-figures.tsx";
 import { useDepth } from "../market/use-depth.ts";
+import { useMarketSources } from "../settings/settings-query.ts";
 
 import { proposalsQuery } from "./proposals-query.ts";
 import {
@@ -62,14 +66,22 @@ const QUANTITY_PRESETS: Record<TicketUnit, Record<Market, number[]>> = {
 
 /**
  * The order panel: a listing, then an order or an exit of it written out as a draft in pencil.
- * Checking the draft proposes it, and the proposal waits in the queue below like any other.
+ * Checking the draft proposes it, and the proposal waits in the queue below like any other. On a
+ * listing's page it trades that listing, which the page already names and quotes; elsewhere the
+ * user types one.
  */
 export function OrderTicket() {
   const { t } = useTranslation();
-  const symbol = useTicketStore((state) => state.symbol);
+  const held = useTicketStore((state) => state.symbol);
   const request = useTicketStore((state) => state.request);
-  const depth = useDepth(symbol);
   const [tab, setTab] = useState<TicketTab>(TicketTab.Order);
+
+  const page = useMatch({
+    from: "/symbol/$market/$symbol",
+    shouldThrow: false,
+  });
+
+  const symbol = page?.params ?? held;
 
   // A sale asked for elsewhere opens its tab, whose panel then fills it in.
   useEffect(() => {
@@ -80,14 +92,133 @@ export function OrderTicket() {
     <section
       aria-label={t("order-form.title")}
       className="flex flex-col gap-4 border-b border-separator px-4 pt-3 pb-5">
-      <ListingField symbol={symbol} depth={depth} />
+      {page ? null : <SymbolInput symbol={symbol} />}
       {symbol ? (
+        <ListingTicket
+          key={symbolKey(symbol)}
+          symbol={symbol}
+          quoted={!page}
+          tab={tab}
+          onTabChange={setTab}
+        />
+      ) : (
+        <p className="text-sm text-muted">{t("order-form.no-listing")}</p>
+      )}
+    </section>
+  );
+}
+
+/** The listing the panel trades, typed as its code and market; it takes the code on blur or Enter. */
+function SymbolInput({ symbol }: { symbol: SymbolRef | null }) {
+  const { t } = useTranslation();
+  const setSymbol = useTicketStore((state) => state.setSymbol);
+  const [market, setMarket] = useState<Market>(symbol?.market ?? Market.TW);
+  const [code, setCode] = useState(symbol?.symbol ?? "");
+
+  // A sale may name another listing while the field shows this one.
+  useEffect(() => {
+    if (!symbol) return;
+
+    setMarket(symbol.market);
+    setCode(symbol.symbol);
+  }, [symbol]);
+
+  const commit = (nextMarket = market) => {
+    const typed = code.trim().toUpperCase();
+
+    if (typed) setSymbol({ market: nextMarket, symbol: typed });
+  };
+
+  return (
+    <div className="flex items-end gap-2">
+      <TextField className="min-w-0 flex-1">
+        <Label>{t("order-form.symbol")}</Label>
+        <Input
+          value={code}
+          placeholder={t("order-form.symbol-placeholder")}
+          className="uppercase"
+          onChange={(event) => setCode(event.target.value)}
+          onBlur={() => commit()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") commit();
+          }}
+        />
+      </TextField>
+      <ToggleButtonGroup
+        aria-label={t("order-form.market")}
+        selectionMode="single"
+        disallowEmptySelection
+        size="sm"
+        className="shrink-0"
+        selectedKeys={[market]}
+        onSelectionChange={(keys) => {
+          const [next] = keys;
+
+          if (isEnumValue(Market, next)) {
+            setMarket(next);
+            commit(next);
+          }
+        }}>
+        {Object.values(Market).map((option) => (
+          <ToggleButton key={option} id={option}>
+            {t(`market.${option}`)}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
+    </div>
+  );
+}
+
+/**
+ * The panel's tabs for one listing. They open only once the market's source lists it, so a code
+ * mistyped or a market without a source proposes nothing; `quoted` adds its name and last price.
+ */
+function ListingTicket({
+  symbol,
+  quoted,
+  tab,
+  onTabChange,
+}: {
+  symbol: SymbolRef;
+  quoted: boolean;
+  tab: TicketTab;
+  onTabChange: (tab: TicketTab) => void;
+}) {
+  const { t } = useTranslation();
+  const sources = useMarketSources();
+  const ready = sources.data?.[symbol.market]?.ready === true;
+  const lookup = useQuery({ ...listingQuery(symbol), enabled: ready });
+  const listing = lookup.data ?? null;
+  const depth = useDepth(listing ? symbol : null);
+  const market = t(`market.${symbol.market}`);
+
+  return (
+    <>
+      {sources.data && !ready ? (
+        <p className="text-sm text-muted">
+          {t("order-form.no-source", { market })}
+        </p>
+      ) : null}
+      {lookup.error ? (
+        <LoadError error={lookup.error} onRetry={() => void lookup.refetch()} />
+      ) : null}
+      {lookup.data === null ? (
+        <p role="alert" className="text-sm text-danger">
+          {t("order-form.not-found", { market, symbol: symbol.symbol })}
+        </p>
+      ) : null}
+      {quoted && listing ? (
+        <ListingQuote symbol={symbol} listing={listing} depth={depth} />
+      ) : null}
+      <div
+        inert={!listing}
+        className={cn("transition-opacity", !listing && "opacity-50")}>
         <Tabs
           variant="secondary"
           className="gap-4"
           selectedKey={tab}
           onSelectionChange={(key) => {
-            if (isEnumValue(TicketTab, key)) setTab(key);
+            if (isEnumValue(TicketTab, key)) onTabChange(key);
           }}>
           <Tabs.ListContainer className="border-separator">
             <Tabs.List aria-label={t("order-form.title")}>
@@ -102,115 +233,55 @@ export function OrderTicket() {
             </Tabs.List>
           </Tabs.ListContainer>
           <Tabs.Panel id={TicketTab.Order} className="p-0">
-            <OrderPanel key={symbolKey(symbol)} symbol={symbol} depth={depth} />
+            <OrderPanel symbol={symbol} depth={depth} />
           </Tabs.Panel>
           <Tabs.Panel id={TicketTab.Exit} className="p-0">
-            <ExitPanel key={symbolKey(symbol)} symbol={symbol} />
+            <ExitPanel symbol={symbol} />
           </Tabs.Panel>
         </Tabs>
-      ) : (
-        <p className="text-sm text-muted">{t("order-form.no-listing")}</p>
-      )}
-    </section>
+      </div>
+    </>
   );
 }
 
-/**
- * The listing the panel trades, as its code and market, with its name and last price once
- * known. The listing page on screen fills it in; elsewhere the user types one.
- */
-function ListingField({
+/** The listing's name with its last price against its reference, once the book has one. */
+function ListingQuote({
   symbol,
+  listing,
   depth,
 }: {
-  symbol: SymbolRef | null;
+  symbol: SymbolRef;
+  listing: Listing;
   depth: Depth | null | undefined;
 }) {
-  const { t, i18n } = useTranslation();
-  const setSymbol = useTicketStore((state) => state.setSymbol);
-  const [market, setMarket] = useState<Market>(symbol?.market ?? Market.TW);
-  const [code, setCode] = useState(symbol?.symbol ?? "");
-  const [name] = useListingNames(symbol ? [symbol] : []);
-  const direction = useDirectionColors(symbol?.market ?? market);
+  const { i18n } = useTranslation();
+  const direction = useDirectionColors(symbol.market);
   const format = numberFormats(i18n.language);
-
-  // The page or a sale may name another listing while the field shows this one.
-  useEffect(() => {
-    if (!symbol) return;
-
-    setMarket(symbol.market);
-    setCode(symbol.symbol);
-  }, [symbol]);
-
-  const commit = (nextMarket = market) => {
-    const typed = code.trim().toUpperCase();
-
-    if (typed) setSymbol({ market: nextMarket, symbol: typed });
-  };
-
   const last = depth?.last ?? null;
-  const change = last === null || !depth ? null : last - depth.reference;
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-end gap-2">
-        <TextField className="min-w-0 flex-1">
-          <Label>{t("order-form.symbol")}</Label>
-          <Input
-            value={code}
-            placeholder={t("order-form.symbol-placeholder")}
-            className="uppercase"
-            onChange={(event) => setCode(event.target.value)}
-            onBlur={() => commit()}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") commit();
-            }}
-          />
-        </TextField>
-        <ToggleButtonGroup
-          aria-label={t("order-form.market")}
-          selectionMode="single"
-          disallowEmptySelection
-          size="sm"
-          className="shrink-0"
-          selectedKeys={[market]}
-          onSelectionChange={(keys) => {
-            const [next] = keys;
-
-            if (isEnumValue(Market, next)) {
-              setMarket(next);
-              commit(next);
-            }
-          }}>
-          {Object.values(Market).map((option) => (
-            <ToggleButton key={option} id={option}>
-              {t(`market.${option}`)}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-      </div>
-      {symbol ? (
-        <p className="flex min-w-0 items-baseline gap-2">
-          <span className="min-w-0 truncate text-sm font-medium">
-            {name ?? symbol.symbol}
+    <p className="flex min-w-0 items-baseline gap-2">
+      <span className="min-w-0 truncate text-sm font-medium">
+        {listingName(listing, i18n.language)}
+      </span>
+      {last === null || !depth ? null : (
+        <>
+          <span className="ml-auto shrink-0 text-sm font-semibold tabular-nums">
+            {format.quotePrice.format(last)}
           </span>
-          {last === null ? null : (
-            <span className="ml-auto shrink-0 text-sm font-semibold tabular-nums">
-              {format.quotePrice.format(last)}
-            </span>
-          )}
-          {change === null || !depth ? null : (
-            <span
-              className={cn(
-                "shrink-0 text-xs tabular-nums",
-                directionOf(direction, change)?.text ?? "text-muted"
-              )}>
-              {format.quotePercentChange.format(change / depth.reference)}
-            </span>
-          )}
-        </p>
-      ) : null}
-    </div>
+          <span
+            className={cn(
+              "shrink-0 text-xs tabular-nums",
+              directionOf(direction, last - depth.reference)?.text ??
+                "text-muted"
+            )}>
+            {format.quotePercentChange.format(
+              (last - depth.reference) / depth.reference
+            )}
+          </span>
+        </>
+      )}
+    </p>
   );
 }
 

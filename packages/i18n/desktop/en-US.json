@@ -282,7 +282,8 @@
       "limit-down": "Limit down"
     },
     "session": "Intraday",
-    "reference": "Reference"
+    "reference": "Reference",
+    "tools": "Chart tools"
   },
   "depth": {
     "title": "Quote",
@@ -311,7 +312,8 @@
       "TW": "In lots",
       "US": "In shares"
     },
-    "pick": "Use {{price}} as the order's price"
+    "pick": "Use {{price}} as the order's price",
+    "resize": "Resize the order book"
   },
   "news": {
     "title": "News and posts",
@@ -988,7 +990,10 @@
     "draft-market": "{{side}} {{quantity}} of {{name}} at market",
     "waiting": "The proposal waits below for you to confirm it. Changing the order dismisses it.",
     "sent": "Sent.",
-    "dismissed": "This proposal was dismissed."
+    "dismissed": "This proposal was dismissed.",
+    "pick-on-chart-hint": "Click a price on the chart to put it on the order.",
+    "not-found": "No {{symbol}} in {{market}}. Check the code and the market.",
+    "no-source": "Set up market data for {{market}} to trade there."
   },
   "exit-form": {
     "quantity": "Shares",

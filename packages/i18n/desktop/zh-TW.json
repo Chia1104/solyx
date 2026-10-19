@@ -282,7 +282,8 @@
       "limit-down": "跌停"
     },
     "session": "分時",
-    "reference": "參考價"
+    "reference": "參考價",
+    "tools": "圖表工具"
   },
   "depth": {
     "title": "報價",
@@ -311,7 +312,8 @@
       "TW": "單位：張",
       "US": "單位：股"
     },
-    "pick": "以 {{price}} 為委託價"
+    "pick": "以 {{price}} 為委託價",
+    "resize": "調整五檔寬度"
   },
   "news": {
     "title": "新聞與討論",
@@ -988,7 +990,10 @@
     "draft-market": "{{side}} {{quantity}} {{name}}，市價",
     "waiting": "提案在下方等你確認送出。改任何欄位會放棄它。",
     "sent": "已送出。",
-    "dismissed": "這筆提案已取消。"
+    "dismissed": "這筆提案已取消。",
+    "pick-on-chart-hint": "在圖上點一個價位，帶入下單單據。",
+    "not-found": "{{market}}找不到 {{symbol}}，請確認代號與市場。",
+    "no-source": "先設定{{market}}的行情來源，才能下單。"
   },
   "exit-form": {
     "quantity": "股數",

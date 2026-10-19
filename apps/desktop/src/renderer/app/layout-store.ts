@@ -48,6 +48,9 @@ export const MAIN_MIN_WIDTH = 480;
 /** The symbol page's news under its chart; at its least only the news's header row shows. */
 export const NEWS_HEIGHT = { min: 40, default: 256 };
 
+/** The symbol page's book beside its chart; its most is also capped by the room the chart leaves. */
+export const BOOK_WIDTH = { min: 200, max: 400, default: 240 };
+
 interface PaneState {
   width: number;
   open: boolean;
@@ -56,6 +59,7 @@ interface PaneState {
 interface LayoutState {
   panes: Record<Pane, PaneState>;
   newsHeight: number;
+  bookWidth: number;
   agendaView: AgendaView;
   /** Whether the symbol page shows its quote, book and position beside the chart. */
   tradeRail: boolean;
@@ -67,6 +71,7 @@ interface LayoutActions {
   /** Opens the pane where it is closed. */
   show: (pane: Pane) => void;
   setNewsHeight: (height: number) => void;
+  setBookWidth: (width: number) => void;
   setAgendaView: (view: AgendaView) => void;
   toggleTradeRail: () => void;
 }
@@ -82,12 +87,17 @@ function clampNewsHeight(height: number) {
   return Math.round(Math.max(height, NEWS_HEIGHT.min));
 }
 
+function clampBookWidth(width: number) {
+  return Math.round(clamp(width, BOOK_WIDTH.min, BOOK_WIDTH.max));
+}
+
 const defaultState: LayoutState = {
   panes: mapValues(PANE_LIMITS, (limits) => ({
     width: limits.default,
     open: true,
   })),
   newsHeight: NEWS_HEIGHT.default,
+  bookWidth: BOOK_WIDTH.default,
   agendaView: AgendaView.Week,
   tradeRail: true,
 };
@@ -104,6 +114,7 @@ const persistedLayoutSchema = z.object({
   ),
   // Caught on its own, so a height that does not parse leaves the saved pane widths.
   newsHeight: z.number().transform(clampNewsHeight).catch(NEWS_HEIGHT.default),
+  bookWidth: z.number().transform(clampBookWidth).catch(BOOK_WIDTH.default),
   agendaView: z.enum(AgendaView).catch(AgendaView.Week),
   tradeRail: z.boolean().catch(true),
 });
@@ -137,6 +148,7 @@ export const useLayoutStore = create<LayoutStore>()(
           },
         })),
       setNewsHeight: (height) => set({ newsHeight: clampNewsHeight(height) }),
+      setBookWidth: (width) => set({ bookWidth: clampBookWidth(width) }),
       setAgendaView: (agendaView) => set({ agendaView }),
       toggleTradeRail: () => set((state) => ({ tradeRail: !state.tradeRail })),
     }),
