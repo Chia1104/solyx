@@ -251,7 +251,8 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     };
   }
 
-  async function marketData(): Promise<SetupArea> {
+  /** Market data, then the brokers whose sign-in it and the order desk share. */
+  async function marketData(): Promise<SetupArea[]> {
     const [status, states] = await Promise.all([
       options.marketData.status(),
       secrets.states(),
@@ -259,87 +260,101 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
 
     const source = status.markets[Market.TW]?.source ?? MarketDataSource.Fugle;
     const { fubon } = status;
-    const missing: string[] = [];
 
-    if (!isMarketDataReady(status)) {
-      const needs =
-        source === MarketDataSource.Fubon
-          ? [
-              ...(fubon.files[FubonFile.Sdk] ? [] : ["the SDK folder"]),
-              ...(fubon.files[FubonFile.Certificate]
-                ? []
-                : ["the certificate"]),
-              ...(states[Secret.FubonPersonalId] === SecretState.Saved
-                ? []
-                : ["the ID number"]),
-              ...(states[Secret.FubonApiKey] === SecretState.Saved
-                ? []
-                : ["the API key"]),
-            ].join(", ")
-          : "a Fugle API key";
+    const fubonNeeds = [
+      ...(fubon.files[FubonFile.Sdk] ? [] : ["the SDK folder"]),
+      ...(fubon.files[FubonFile.Certificate] ? [] : ["the certificate"]),
+      ...(states[Secret.FubonPersonalId] === SecretState.Saved
+        ? []
+        : ["the ID number"]),
+      ...(states[Secret.FubonApiKey] === SecretState.Saved
+        ? []
+        : ["the API key"]),
+    ].join(", ");
 
-      missing.push(
-        `Taiwan's charts, quotes and news have no source: ${source} still needs ${needs}.`
-      );
-    }
+    const marketMissing = isMarketDataReady(status)
+      ? []
+      : [
+          source === MarketDataSource.Fubon
+            ? `Taiwan's charts, quotes and news have no source: Fubon's sign-in, set up under Brokers, still needs ${fubonNeeds}.`
+            : `Taiwan's charts, quotes and news have no source: ${source} still needs a Fugle API key.`,
+        ];
 
-    if (
-      source === MarketDataSource.Fubon &&
+    const brokersMissing =
       fubon.session.state === FubonSessionState.Failed
-    ) {
-      missing.push(
-        `Fubon's sign-in failed: ${fubon.session.message}. It is not tried again until its settings change or the user signs in again on this tab, since repeated failures could lock the account.`
-      );
-    }
+        ? [
+            `Fubon's sign-in failed: ${fubon.session.message}. It is not tried again until its settings change or the user signs in again on this tab, since repeated failures could lock the account.`,
+          ]
+        : [];
 
     const session =
       fubon.session.state === FubonSessionState.SignedIn
         ? `signed in, ${fubon.session.accounts} accounts`
         : fubon.session.state;
 
-    return {
-      name: "Market data",
-      link: settingsLink(SettingsSection.MarketData),
-      missing,
-      settings: [
-        entry(["marketData", Market.TW], source),
-        {
-          name: "US market data",
-          value: "no source in the app covers it yet",
-        },
-        { name: "Fugle API key", value: stateText(states[Secret.FugleApiKey]) },
-        entry(["providers", "fugle", "plan"], status.fugle.plan),
-        entry(
-          ["providers", "fubon", FubonFile.Sdk],
-          fubon.files[FubonFile.Sdk] ? "chosen" : "not chosen"
-        ),
-        entry(
-          ["providers", "fubon", FubonFile.Certificate],
-          fubon.files[FubonFile.Certificate] ? "chosen" : "not chosen"
-        ),
-        {
-          name: "Fubon ID number",
-          value: stateText(states[Secret.FubonPersonalId]),
-        },
-        { name: "Fubon API key", value: stateText(states[Secret.FubonApiKey]) },
-        {
-          name: "Fubon certificate password",
-          value: stateText(states[Secret.FubonCertPassword]),
-          description: "Optional: without it, the ID number is tried.",
-        },
-        { name: "Fubon sign-in", value: session },
-        {
-          name: "FinMind token",
-          value: stateText(states[Secret.FinMindToken]),
-          description:
-            "Optional: FinMind serves fundamentals, investor flows and trading days without one, under a lower limit.",
-        },
-        entry(
-          ["providers", "finmind", "plan"],
-          config.read().providers.finmind.plan
-        ),
-      ],
-    };
+    return [
+      {
+        name: "Market data",
+        link: settingsLink(SettingsSection.MarketData),
+        missing: marketMissing,
+        settings: [
+          entry(["marketData", Market.TW], source),
+          {
+            name: "US market data",
+            value: "no source in the app covers it yet",
+          },
+          {
+            name: "Fugle API key",
+            value: stateText(states[Secret.FugleApiKey]),
+          },
+          entry(["providers", "fugle", "plan"], status.fugle.plan),
+          {
+            name: "FinMind token",
+            value: stateText(states[Secret.FinMindToken]),
+            description:
+              "Optional: FinMind serves fundamentals, investor flows and trading days without one, under a lower limit.",
+          },
+          entry(
+            ["providers", "finmind", "plan"],
+            config.read().providers.finmind.plan
+          ),
+        ],
+      },
+      {
+        name: "Brokers",
+        link: settingsLink(SettingsSection.Brokers),
+        missing: brokersMissing,
+        settings: [
+          entry(
+            ["providers", "fubon", FubonFile.Sdk],
+            fubon.files[FubonFile.Sdk] ? "chosen" : "not chosen"
+          ),
+          entry(
+            ["providers", "fubon", FubonFile.Certificate],
+            fubon.files[FubonFile.Certificate] ? "chosen" : "not chosen"
+          ),
+          {
+            name: "Fubon ID number",
+            value: stateText(states[Secret.FubonPersonalId]),
+          },
+          {
+            name: "Fubon API key",
+            value: stateText(states[Secret.FubonApiKey]),
+          },
+          {
+            name: "Fubon certificate password",
+            value: stateText(states[Secret.FubonCertPassword]),
+            description: "Optional: without it, the ID number is tried.",
+          },
+          {
+            name: "Fubon sign-in",
+            value: session,
+            description:
+              "One sign-in serves Taiwan's market data when it comes from Fubon and the order desk when it trades a Fubon account.",
+          },
+        ],
+      },
+    ];
   }
 
   async function agent(): Promise<SetupArea[]> {
@@ -941,19 +956,25 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
 
   return {
     async read() {
-      const [market, agentAreas, skillsArea, mcpArea, storageArea, changes] =
-        await Promise.all([
-          marketData(),
-          agent(),
-          skills(),
-          mcp(),
-          storage(),
-          changeables(),
-        ]);
+      const [
+        marketAreas,
+        agentAreas,
+        skillsArea,
+        mcpArea,
+        storageArea,
+        changes,
+      ] = await Promise.all([
+        marketData(),
+        agent(),
+        skills(),
+        mcp(),
+        storage(),
+        changeables(),
+      ]);
 
       return [
         appearance(),
-        market,
+        ...marketAreas,
         trading(),
         ...agentAreas,
         skillsArea,

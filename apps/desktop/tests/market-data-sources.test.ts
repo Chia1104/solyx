@@ -227,6 +227,26 @@ test("switching Taiwan back to Fugle signs out of Fubon", async () => {
   expect((await openedSession(0)).close).toHaveBeenCalled();
 });
 
+test("a sign-in the user asks for while charts come from Fugle stays, so its accounts can be picked", async () => {
+  openFubonProcess.mockImplementation(async () => fakeSession());
+
+  const { config, secrets, sources, useFubon } = setup();
+
+  await useFubon();
+  config.set(["marketData", Market.TW], MarketDataSource.Fugle);
+  await secrets.save(Secret.FugleApiKey, "fugle-key");
+
+  expect((await sources.status()).fubon.ready).toBe(true);
+
+  await sources.signInFubon();
+
+  expect((await sources.provider(Market.TW))?.id).toBe("fugle");
+  expect((await sources.status()).fubon.session).toMatchObject({
+    state: FubonSessionState.SignedIn,
+  });
+  expect((await openedSession(0)).close).not.toHaveBeenCalled();
+});
+
 test("while the desk trades with Fubon, charts from Fugle leave its session signed in and shared", async () => {
   openFubonProcess.mockImplementation(async () => fakeSession());
 

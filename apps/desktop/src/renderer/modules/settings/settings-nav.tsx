@@ -1,4 +1,5 @@
 import {
+  BankIcon,
   BotIcon,
   Brain01Icon,
   ChartCandlestickIcon,
@@ -23,6 +24,7 @@ import { Icon } from "../../components/icon.tsx";
 const SECTION_ICON: Record<SettingsSection, IconSvgElement> = {
   [SettingsSection.General]: SlidersHorizontalIcon,
   [SettingsSection.MarketData]: ChartCandlestickIcon,
+  [SettingsSection.Brokers]: BankIcon,
   [SettingsSection.Trading]: Shield01Icon,
   [SettingsSection.Agent]: BotIcon,
   [SettingsSection.Skills]: MagicWand01Icon,

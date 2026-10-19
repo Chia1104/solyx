@@ -628,7 +628,7 @@
       "ready": "Ready",
       "incomplete": "Not set up yet",
       "trading": "Trading",
-      "paper-note": "Orders go to a paper account, so no real money moves."
+      "paper-note": "Orders go to a paper account, so no real money moves. To trade your own account, set up its broker later under Settings → Brokers."
     },
     "restart": {
       "label": "Setup guide",
@@ -948,6 +948,7 @@
     "sections": {
       "general": "General",
       "market-data": "Market data",
+      "brokers": "Brokers",
       "trading": "Trading",
       "storage": "Storage",
       "backup": "Backup",
@@ -1058,7 +1059,13 @@
         "fugle": "With your own Fugle API key.",
         "fubon": "Through your Fubon Securities account."
       },
-      "limits": "{{symbols, number}} live symbols; {{intraday, number}} intraday and {{historical, number}} history requests a minute"
+      "limits": "{{symbols, number}} live symbols; {{intraday, number}} intraday and {{historical, number}} history requests a minute",
+      "open-brokers": "Open Brokers",
+      "fubon-in-brokers": "Fubon's sign-in is set up under Brokers, and orders to a Fubon account use it too."
+    },
+    "brokers": {
+      "fubon": "Fubon Securities",
+      "fubon-description": "Signs in to Fubon Securities with an API key and the certificate exported from Fubon's website. Market data and orders share this sign-in; a key limited to market data can't place orders."
     },
     "fundamentals": {
       "title": "Fundamentals",
@@ -1189,7 +1196,7 @@
       "sign-in-again": "Sign in again",
       "signed-in": "Signed in to {{count, number}} accounts",
       "signed-out": "Not signed in",
-      "signed-out-hint": "Solyx signs in when a Taiwan chart first needs data.",
+      "signed-out-hint": "Solyx signs in when charts or orders first need Fubon.",
       "incomplete": "Setup incomplete",
       "sign-in-failed": "Couldn't sign in to Fubon"
     },
@@ -1796,9 +1803,10 @@
       "broker-account": "{{broker}} {{account}}",
       "broker-hints": {
         "paper": "Pretend money; every order fills at once.",
-        "fubon": "Fubon's accounts are the ones its sign-in in Market data lists. Buys need a settlement account at Taipei Fubon Bank or LINE Bank; with another bank, only sales go."
+        "fubon": "Fubon's accounts are the ones its sign-in under Brokers lists. Buys need a settlement account at Taipei Fubon Bank or LINE Bank; with another bank, only sales go."
       },
-      "fubon-sign-in": "Sign in to Fubon in Market data to pick one of its accounts.",
+      "fubon-sign-in": "Sign in to Fubon under Brokers to pick one of its accounts.",
+      "set-up-fubon": "Set up Fubon",
       "account-gone": "Fubon's sign-in no longer lists account {{account}}, so nothing can go to it. Pick another account.",
       "restart-title": "Restart to switch accounts",
       "restart-description": "Orders go to the {{account}} until Solyx restarts, and proposals waiting for you are dismissed then.",

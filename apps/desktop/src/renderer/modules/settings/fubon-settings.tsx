@@ -1,13 +1,10 @@
-import { Button, cn } from "@heroui/react";
+import { Button, buttonVariants, cn } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import {
-  FubonFile,
-  FubonSessionState,
-  Secret,
-  isMarketDataReady,
-} from "#shared/settings.ts";
+import { SettingsSection } from "#shared/settings-section.ts";
+import { FubonFile, FubonSessionState, Secret } from "#shared/settings.ts";
 import type { MarketDataStatus } from "#shared/settings.ts";
 
 import { client, orpc } from "../../app/rpc.ts";
@@ -28,9 +25,58 @@ const FUBON_SECRETS = [
 
 const fileName = (path: string) => path.split(/[\\/]/).at(-1) ?? path;
 
+/** How Fubon's sign-in stands, in red once it failed. */
+function FubonSessionValue({ status }: { status: MarketDataStatus }) {
+  const { t } = useTranslation();
+  const { ready, session } = status.fubon;
+
+  const text = !ready
+    ? t("settings.fubon.incomplete")
+    : session.state === FubonSessionState.SignedIn
+      ? t("settings.fubon.signed-in", { count: session.accounts })
+      : session.state === FubonSessionState.Failed
+        ? t("settings.fubon.sign-in-failed")
+        : t("settings.fubon.signed-out");
+
+  return (
+    <span
+      className={cn(
+        ready && session.state === FubonSessionState.Failed && "text-danger"
+      )}>
+      {text}
+    </span>
+  );
+}
+
+/** Fubon's sign-in as Taiwan's market data reads it, set up under Brokers. */
+export function FubonConnectionRow({ status }: { status: MarketDataStatus }) {
+  const { t } = useTranslation();
+
+  return (
+    <SettingsList>
+      <SettingsRow
+        label={t("settings.fubon.connection")}
+        description={<PlanLimits plan={status.fubon.plan} />}
+        value={<FubonSessionValue status={status} />}
+        actions={
+          <Link
+            to="/settings"
+            search={{ section: SettingsSection.Brokers }}
+            className={buttonVariants({ size: "sm", variant: "secondary" })}>
+            {t("settings.market-data.open-brokers")}
+          </Link>
+        }>
+        <p className="text-xs text-muted">
+          {t("settings.market-data.fubon-in-brokers")}
+        </p>
+      </SettingsRow>
+    </SettingsList>
+  );
+}
+
 /**
- * What signing in to Fubon takes, one row each, under the state of the session they sign in.
- * Rendered only while Fubon is the Taiwan source, so the market's readiness is Fubon's.
+ * What signing in to Fubon takes, one row each, under the state of the session they sign in,
+ * which Taiwan's market data and the order desk share.
  */
 export function FubonSettings({ status }: { status: MarketDataStatus }) {
   const { t } = useTranslation();
@@ -62,17 +108,7 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
   if (!secrets.data) return <LoadingState />;
 
   const { available, states } = secrets.data;
-  const { files, plan, session } = status.fubon;
-
-  const complete = isMarketDataReady(status);
-
-  const sessionValue = !complete
-    ? t("settings.fubon.incomplete")
-    : session.state === FubonSessionState.SignedIn
-      ? t("settings.fubon.signed-in", { count: session.accounts })
-      : session.state === FubonSessionState.Failed
-        ? t("settings.fubon.sign-in-failed")
-        : t("settings.fubon.signed-out");
+  const { ready, files, plan, session } = status.fubon;
 
   return (
     <div className="flex flex-col gap-3">
@@ -81,21 +117,12 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
         <SettingsRow
           label={t("settings.fubon.connection")}
           description={<PlanLimits plan={plan} />}
-          value={
-            <span
-              className={cn(
-                complete &&
-                  session.state === FubonSessionState.Failed &&
-                  "text-danger"
-              )}>
-              {sessionValue}
-            </span>
-          }
+          value={<FubonSessionValue status={status} />}
           actions={
             <Button
               size="sm"
               variant="secondary"
-              isDisabled={!complete}
+              isDisabled={!ready}
               isPending={signIn.isPending}
               onPress={() => signIn.mutate()}>
               {session.state === FubonSessionState.SignedOut
@@ -103,10 +130,10 @@ export function FubonSettings({ status }: { status: MarketDataStatus }) {
                 : t("settings.fubon.sign-in-again")}
             </Button>
           }>
-          {complete && session.state === FubonSessionState.Failed ? (
+          {ready && session.state === FubonSessionState.Failed ? (
             <p className="text-xs text-danger">{session.message}</p>
           ) : null}
-          {complete && session.state === FubonSessionState.SignedOut ? (
+          {ready && session.state === FubonSessionState.SignedOut ? (
             <p className="text-xs text-muted">
               {t("settings.fubon.signed-out-hint")}
             </p>
