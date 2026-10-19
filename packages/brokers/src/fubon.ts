@@ -204,11 +204,14 @@ const optionalNumber = z.number().nullish();
 
 const optionalText = z.string().nullish();
 
+// Board and odd lots are counted apart: an odd-lot sale moves a lot from one to the other.
 const inventorySchema = z.object({
   stockNo: z.string(),
   orderType: z.string(),
   todayQty: z.number(),
-  odd: z.object({ todayQty: z.number() }).nullish(),
+  /** What working sales leave to sell. */
+  tradableQty: z.number(),
+  odd: z.object({ todayQty: z.number(), tradableQty: z.number() }).nullish(),
 });
 
 const unrealizedSchema = z.object({
@@ -796,7 +799,7 @@ export function fubonAccount(
   today: string
 ): AccountSnapshot {
   const positions = inventories.flatMap(
-    ({ stockNo, orderType, todayQty, odd }) => {
+    ({ stockNo, orderType, todayQty, tradableQty, odd }) => {
       const quantity = todayQty + (odd?.todayQty ?? 0);
 
       if (orderType !== CASH_ORDER || quantity <= 0) return [];
@@ -810,6 +813,7 @@ export function fubonAccount(
           instrument: { market: Market.TW, symbol: stockNo },
           quantity,
           avgPrice: cost?.costPrice ?? 0,
+          sellable: tradableQty + (odd?.tradableQty ?? 0),
         },
       ];
     }

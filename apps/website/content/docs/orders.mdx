@@ -38,7 +38,7 @@ A trading mandate lets the agent's proposals go to the broker without waiting fo
 
 It covers limit orders only, never your own proposals, and only the account it was set for. Every check still runs, and confirming stays yours for anything outside it.
 
-A new mandate is in **shadow mode** unless you switch it off: it marks each proposal it would have sent, and you still confirm them. Turn shadow mode off once its picks look right. If an order it sent goes unanswered by the broker, Solyx locks orders until you look at the account.
+A new mandate is in **shadow mode** unless you switch it off: it marks each proposal it would have sent, and you still confirm them. Turn shadow mode off once its picks look right. If an order it sent goes unanswered by the broker, or Solyx closes while sending it, Solyx locks orders until you look at the account.
 
 The mandate is sealed with your keys, so only you can set it, in the app. The agent cannot change it, and neither can an edit to Solyx's files.
 
