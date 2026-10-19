@@ -22,7 +22,7 @@ Broker SDKs never ship with Solyx. To use Fubon, download its `fubon-neo` SDK yo
 
 ## Plans and limits
 
-Providers enforce the limits of your plan, so Solyx keeps one connection per key and plan and spaces its requests to match. Closed sessions are cached on your computer, so a chart does not download them twice.
+Providers enforce the limits of your plan, so Solyx keeps one connection per key and plan and spaces its requests to match. Closed sessions are cached on your computer, so a chart does not download them twice. A plan's live subscriptions are shared: a chart's live bars take one, and the quote and order book beside it another. A book the stream has no room for is read every few seconds while the market trades.
 
 ## Endpoints you choose
 

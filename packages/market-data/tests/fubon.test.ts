@@ -54,7 +54,7 @@ test("history is asked of the session's endpoint with its token", async () => {
   expect(requests[0].headers.has("X-API-KEY")).toBe(false);
 });
 
-test("the stream signs in with the session token and takes the plan's symbols", () => {
+test("the stream signs in with the session token and takes the plan's subscriptions", () => {
   const urls: string[] = [];
   const sent: unknown[] = [];
   const opened: ((event: { data?: unknown }) => void)[] = [];
@@ -76,11 +76,13 @@ test("the stream signs in with the session token and takes the plan's symbols", 
     },
   });
 
-  const watches = Array.from({ length: FUBON_PLAN.streamSymbols + 1 }, (_, i) =>
-    stream.watchMinutes(
-      { market: Market.TW, symbol: String(1000 + i) },
-      LISTENER
-    )
+  const watches = Array.from(
+    { length: FUBON_PLAN.streamSubscriptions + 1 },
+    (_, i) =>
+      stream.watchMinutes(
+        { market: Market.TW, symbol: String(1000 + i) },
+        LISTENER
+      )
   );
 
   for (const listener of opened) listener({});
@@ -91,7 +93,7 @@ test("the stream signs in with the session token and takes the plan's symbols", 
   expect(sent).toEqual([
     { event: "auth", data: { sdkToken: "session-token" } },
   ]);
-  expect(watches.filter(Boolean)).toHaveLength(FUBON_PLAN.streamSymbols);
+  expect(watches.filter(Boolean)).toHaveLength(FUBON_PLAN.streamSubscriptions);
   expect(watches.at(-1)).toBeUndefined();
 
   stream.close();

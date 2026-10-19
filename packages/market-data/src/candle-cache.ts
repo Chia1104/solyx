@@ -114,6 +114,8 @@ export function withCandleCache(
 
     getQuote: (symbol) => provider.getQuote(symbol),
 
+    getDepth: (symbol) => provider.getDepth(symbol),
+
     getCandles,
   };
 }

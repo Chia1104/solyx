@@ -1,3 +1,5 @@
+import { sessionBand } from "@solyx/core/risk";
+
 import { contractOS } from "../../rpc/context.ts";
 
 import { marketSessions } from "./trading-calendar.ts";
@@ -30,6 +32,17 @@ export const marketRouter = market.router({
   liveCandles: market.liveCandles.handler(({ context, input, signal }) =>
     context.marketData.liveCandles(input.symbol, input.interval, signal)
   ),
+  depth: market.depth.handler(({ context, input, signal }) =>
+    context.marketData.depth(input, signal)
+  ),
+  band: market.band.handler(async ({ context, input }) => {
+    const [limits, days] = await Promise.all([
+      context.fundamentals.priceLimits(input),
+      context.marketDays(input.market),
+    ]);
+
+    return sessionBand(limits, input.market, new Date(), days) ?? null;
+  }),
   sourceChanges: market.sourceChanges.handler(({ context, signal }) =>
     context.windowEvents.subscribe("market:sources-changed", { signal })
   ),

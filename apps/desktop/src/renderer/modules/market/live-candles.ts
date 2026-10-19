@@ -9,6 +9,7 @@ import type { SymbolRef } from "@solyx/core/market";
 import { client, forEachEvent } from "../../app/rpc.ts";
 
 import { candlesQuery } from "./candles-query.ts";
+import { useSourceChanges } from "./use-source-changes.ts";
 
 /**
  * Keeps the chart's query in step with today's bars while `enabled`; returns whether a live
@@ -22,21 +23,8 @@ export function useLiveCandles(
 ): boolean {
   const queryClient = useQueryClient();
   const [live, setLive] = useState(false);
-  const [sources, setSources] = useState(0);
+  const sources = useSourceChanges();
   const { market, symbol: code } = symbol;
-
-  useEffect(() => {
-    const stop = new AbortController();
-    const { signal } = stop;
-
-    void forEachEvent(
-      client.market.sourceChanges(undefined, { signal }),
-      () => setSources((count) => count + 1),
-      signal
-    );
-
-    return () => stop.abort();
-  }, []);
 
   useEffect(() => {
     if (!enabled) return;

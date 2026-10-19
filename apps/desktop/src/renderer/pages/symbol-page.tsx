@@ -1,15 +1,16 @@
 import { useRef } from "react";
 
 import { ToggleButton, ToggleButtonGroup } from "@heroui/react";
-import { getRouteApi } from "@tanstack/react-router";
+import { CatchBoundary, getRouteApi } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { Interval, isIntraday } from "@solyx/core/candles";
-import { Market } from "@solyx/core/market";
+import { Market, symbolKey } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { NEWS_HEIGHT, useLayoutStore } from "../app/layout-store.ts";
 import { ColumnHeader } from "../components/column-header.tsx";
+import { ErrorFallback } from "../components/error-fallback.tsx";
 import {
   PaneSplitter,
   SplitterEdge,
@@ -17,6 +18,7 @@ import {
 } from "../components/pane-splitter.tsx";
 import { FlowPanes } from "../modules/flows/flow-panes.tsx";
 import { ListingFlowsPanel } from "../modules/flows/listing-flows.tsx";
+import { DepthPanel } from "../modules/market/depth-panel.tsx";
 import { IndicatorMenu } from "../modules/market/indicator-menu.tsx";
 import { IntervalSelect } from "../modules/market/interval-select.tsx";
 import { LowerView } from "../modules/market/lower-view.ts";
@@ -96,69 +98,81 @@ export function SymbolPage() {
         />
         <IndicatorMenu market={symbol.market} interval={interval} />
       </div>
-      <div ref={split} className="flex min-h-0 flex-1 flex-col">
-        <div className="min-h-40 flex-1 border-b border-separator p-3">
-          <SymbolChart
-            symbol={symbol}
-            interval={interval}
-            // A forecast counts sessions, so its paths are drawn on daily bars alone.
-            overlay={
-              interval === Interval.OneDay
-                ? (candles) => (
-                    <ForecastOverlay symbol={symbol} candles={candles} />
-                  )
-                : undefined
-            }
-            // Flows come a session at a time, so they are drawn on daily bars and longer.
-            panes={
-              flowsShown && !isIntraday(interval)
-                ? (candles, firstPane) => (
-                    <FlowPanes
-                      symbol={symbol}
-                      candles={candles}
-                      firstPane={firstPane}
-                    />
-                  )
-                : undefined
-            }
-          />
+      <div className="flex min-h-0 flex-1">
+        <div ref={split} className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="min-h-40 flex-1 border-b border-separator p-3">
+            <SymbolChart
+              symbol={symbol}
+              interval={interval}
+              // A forecast counts sessions, so its paths are drawn on daily bars alone.
+              overlay={
+                interval === Interval.OneDay
+                  ? (candles) => (
+                      <ForecastOverlay symbol={symbol} candles={candles} />
+                    )
+                  : undefined
+              }
+              // Flows come a session at a time, so they are drawn on daily bars and longer.
+              panes={
+                flowsShown && !isIntraday(interval)
+                  ? (candles, firstPane) => (
+                      <FlowPanes
+                        symbol={symbol}
+                        candles={candles}
+                        firstPane={firstPane}
+                      />
+                    )
+                  : undefined
+              }
+            />
+          </div>
+          {/* Shrinks before the chart does when the window is too short for both. */}
+          <div
+            ref={news}
+            id={NEWS_PANE_ID}
+            className="relative min-h-10"
+            style={{ height: newsHeight }}>
+            <PaneSplitter
+              orientation={SplitterOrientation.Horizontal}
+              edge={SplitterEdge.End}
+              label={t("news.resize")}
+              controls={NEWS_PANE_ID}
+              size={newsHeight}
+              min={NEWS_HEIGHT.min}
+              maxSize={() =>
+                Math.max(
+                  NEWS_HEIGHT.min,
+                  (split.current?.clientHeight ?? window.innerHeight) -
+                    CHART_MIN_HEIGHT
+                )
+              }
+              onPreview={(next) => {
+                if (news.current) news.current.style.height = `${next}px`;
+              }}
+              onCommit={setNewsHeight}
+              onReset={() => setNewsHeight(NEWS_HEIGHT.default)}
+            />
+            {lowerView === LowerView.News ? (
+              <NewsList symbol={symbol} heading={lowerViews} />
+            ) : null}
+            {lowerView === LowerView.Research ? (
+              <ResearchPanel symbol={symbol} heading={lowerViews} />
+            ) : null}
+            {lowerView === LowerView.Flows ? (
+              <ListingFlowsPanel symbol={symbol} heading={lowerViews} />
+            ) : null}
+          </div>
         </div>
-        {/* Shrinks before the chart does when the window is too short for both. */}
-        <div
-          ref={news}
-          id={NEWS_PANE_ID}
-          className="relative min-h-10"
-          style={{ height: newsHeight }}>
-          <PaneSplitter
-            orientation={SplitterOrientation.Horizontal}
-            edge={SplitterEdge.End}
-            label={t("news.resize")}
-            controls={NEWS_PANE_ID}
-            size={newsHeight}
-            min={NEWS_HEIGHT.min}
-            maxSize={() =>
-              Math.max(
-                NEWS_HEIGHT.min,
-                (split.current?.clientHeight ?? window.innerHeight) -
-                  CHART_MIN_HEIGHT
-              )
-            }
-            onPreview={(next) => {
-              if (news.current) news.current.style.height = `${next}px`;
-            }}
-            onCommit={setNewsHeight}
-            onReset={() => setNewsHeight(NEWS_HEIGHT.default)}
-          />
-          {lowerView === LowerView.News ? (
-            <NewsList symbol={symbol} heading={lowerViews} />
-          ) : null}
-          {lowerView === LowerView.Research ? (
-            <ResearchPanel symbol={symbol} heading={lowerViews} />
-          ) : null}
-          {lowerView === LowerView.Flows ? (
-            <ListingFlowsPanel symbol={symbol} heading={lowerViews} />
-          ) : null}
-        </div>
+        {/* Beside the chart only where the main view leaves it room. */}
+        <aside
+          aria-label={t("depth.title")}
+          className="hidden w-64 shrink-0 overflow-y-auto border-l border-separator p-4 @min-[52rem]/main:block">
+          <CatchBoundary
+            getResetKey={() => symbolKey(symbol)}
+            errorComponent={ErrorFallback}>
+            <DepthPanel symbol={symbol} />
+          </CatchBoundary>
+        </aside>
       </div>
     </div>
   );

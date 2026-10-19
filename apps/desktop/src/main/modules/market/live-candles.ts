@@ -15,6 +15,8 @@ import type { SymbolRef } from "@solyx/core/market";
 import type { CandleRequest, MarketDataStream } from "@solyx/core/market-data";
 import { shiftDate } from "@solyx/utils/date";
 
+import type { LiveStream } from "./live-stream.ts";
+
 // A busy symbol pushes several times a second; windows hear about it at most four times.
 const FLUSH_MS = 250;
 
@@ -52,8 +54,7 @@ interface LiveSymbol {
 }
 
 interface LiveCandlesOptions {
-  /** Opens the provider's stream, or resolves `undefined` when its key is not saved. */
-  openStream(): Promise<MarketDataStream | undefined>;
+  stream: LiveStream;
   /** Closed daily bars, which the current week's and month's bars start from. */
   dailyCandles(request: CandleRequest): Promise<Candle[]>;
   /** @default () => new Date() */
@@ -65,43 +66,9 @@ interface LiveCandlesOptions {
  * intervals it watches. Only today's session is pushed: earlier sessions come from history.
  */
 export function createLiveCandles(options: LiveCandlesOptions) {
+  const { stream } = options;
   const now = options.now ?? (() => new Date());
   const live = new Map<string, LiveSymbol>();
-  let stream: MarketDataStream | undefined;
-  let opening: Promise<MarketDataStream | undefined> | undefined;
-
-  function ensureStream(): Promise<MarketDataStream | undefined> {
-    if (stream) return Promise.resolve(stream);
-
-    opening ??= open();
-
-    return opening;
-  }
-
-  function open() {
-    const attempt: Promise<MarketDataStream | undefined> = options
-      .openStream()
-      .then((opened) => {
-        // A restart while this one opened makes its stream stale, so callers get the current one.
-        if (opening !== attempt) {
-          opened?.close();
-
-          return ensureStream();
-        }
-
-        stream = opened;
-        opening = undefined;
-
-        return opened;
-      });
-
-    // A failed open is tried again by the next caller.
-    void attempt.catch(() => {
-      if (opening === attempt) opening = undefined;
-    });
-
-    return attempt;
-  }
 
   function loadPeriod(state: LiveSymbol, watch: Watch, date: string) {
     if (!isCalendarInterval(watch.interval) || watch.loading === date) return;
@@ -249,7 +216,7 @@ export function createLiveCandles(options: LiveCandlesOptions) {
     symbol: SymbolRef,
     interval: Interval
   ): Promise<boolean> {
-    const opened = await ensureStream();
+    const opened = await stream.ensure();
 
     if (!opened) return false;
 
@@ -291,6 +258,27 @@ export function createLiveCandles(options: LiveCandlesOptions) {
 
     release(state);
   }
+
+  // Every symbol is watched again on the new stream, and one it refuses stops being live, which ends its watches.
+  stream.onRestart(async () => {
+    for (const state of live.values()) state.stop();
+
+    if (live.size === 0) return;
+
+    const opened = await stream.ensure();
+
+    for (const [key, state] of live) {
+      const stop = opened && listen(state, opened);
+
+      if (stop) {
+        state.stop = stop;
+      } else {
+        live.delete(key);
+
+        for (const sender of state.watches.keys()) sender.end?.();
+      }
+    }
+  });
 
   return {
     watch,
@@ -336,37 +324,6 @@ export function createLiveCandles(options: LiveCandlesOptions) {
       } finally {
         unwatch(sender, symbol);
         await pushed.return();
-      }
-    },
-
-    /**
-     * Reopens the stream, as after the provider's key changes, and watches every symbol again;
-     * a symbol the new stream refuses stops being live, which ends its watches.
-     */
-    async restart() {
-      const previous = stream;
-
-      stream = undefined;
-      opening = undefined;
-
-      for (const state of live.values()) state.stop();
-
-      previous?.close();
-
-      if (live.size === 0) return;
-
-      const opened = await ensureStream();
-
-      for (const [key, state] of live) {
-        const stop = opened && listen(state, opened);
-
-        if (stop) {
-          state.stop = stop;
-        } else {
-          live.delete(key);
-
-          for (const sender of state.watches.keys()) sender.end?.();
-        }
       }
     },
   };

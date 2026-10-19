@@ -27,17 +27,17 @@ export const fuglePlanSchema = z.enum(FuglePlan);
 export const FUGLE_PLANS = {
   [FuglePlan.Basic]: {
     id: FuglePlan.Basic,
-    streamSymbols: 5,
+    streamSubscriptions: 5,
     requestsPerMinute: { intraday: 60, historical: 60 },
   },
   [FuglePlan.Developer]: {
     id: FuglePlan.Developer,
-    streamSymbols: 300,
+    streamSubscriptions: 300,
     requestsPerMinute: { intraday: 600, historical: 60 },
   },
   [FuglePlan.Advanced]: {
     id: FuglePlan.Advanced,
-    streamSymbols: 2000,
+    streamSubscriptions: 2000,
     requestsPerMinute: { intraday: 2000, historical: 60 },
   },
 } satisfies { [Plan in FuglePlan]: MarketDataPlan<Plan> };
@@ -45,7 +45,7 @@ export const FUGLE_PLANS = {
 interface FugleKey {
   apiKey: string;
   /**
-   * The plan the key belongs to, which sets the request budgets and how many symbols stream.
+   * The plan the key belongs to, which sets the request budgets and how many subscriptions stream.
    * @default FuglePlan.Basic
    */
   plan?: FuglePlan;
@@ -74,7 +74,7 @@ export interface FugleStreamOptions extends FugleKey {
   connect?: StreamConnect;
 }
 
-/** Fugle's live 1-minute bars; each watched symbol takes one of the plan's subscriptions. */
+/** Fugle's live 1-minute bars and depth; each symbol's bars and its depth take one of the plan's subscriptions each. */
 export function createFugleStream(
   options: FugleStreamOptions
 ): MarketDataStream {

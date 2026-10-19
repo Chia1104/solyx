@@ -257,6 +257,34 @@
       "change": "Change from the previous close"
     }
   },
+  "depth": {
+    "title": "Quote",
+    "book": "Order book",
+    "none": "The market data source has no quote or order book for this listing.",
+    "trial": "Trial match",
+    "open": "Open",
+    "high": "High",
+    "low": "Low",
+    "average": "Average",
+    "reference": "Reference",
+    "volume": {
+      "TW": "Volume (lots)",
+      "US": "Volume"
+    },
+    "limit-up": "Limit up",
+    "limit-down": "Limit down",
+    "at-ask": "At the ask {{share}}",
+    "at-bid": "At the bid {{share}}",
+    "bids": "Bids",
+    "asks": "Asks",
+    "price": "Price",
+    "bids-total": "Bids {{total}}",
+    "asks-total": "Asks {{total}}",
+    "unit": {
+      "TW": "In lots",
+      "US": "In shares"
+    }
+  },
   "news": {
     "title": "News and posts",
     "channels-label": "Channels",
@@ -1099,7 +1127,7 @@
         "fugle": "With your own Fugle API key.",
         "fubon": "Through your Fubon Securities account."
       },
-      "limits": "{{symbols, number}} live symbols; {{intraday, number}} intraday and {{historical, number}} history requests a minute",
+      "limits": "{{subscriptions, number}} live subscriptions; {{intraday, number}} intraday and {{historical, number}} history requests a minute",
       "open-brokers": "Open Brokers",
       "fubon-in-brokers": "Fubon's sign-in is set up under Brokers, and orders to a Fubon account use it too."
     },

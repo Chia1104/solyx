@@ -5,8 +5,9 @@ import { intervalSchema } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { symbolRefSchema } from "@solyx/core/market";
 import type { Market } from "@solyx/core/market";
-import type { Listing } from "@solyx/core/market-data";
+import type { Depth, Listing } from "@solyx/core/market-data";
 import type { SessionQuote } from "@solyx/core/quote";
+import type { PriceBand } from "@solyx/core/risk";
 import type { SectorQuote } from "@solyx/core/sectors";
 import type { Session } from "@solyx/core/session";
 
@@ -45,6 +46,19 @@ export const marketContract = {
   liveCandles: oc
     .input(seriesSchema)
     .output(asyncIteratorObject(type<Candle[]>())),
+  /**
+   * The listing's depth as it changes: where it stands first, `null` when no source covers the
+   * market or the source keeps no book for the symbol, then each change, pushed by the live stream
+   * where it takes the symbol and read every few seconds through the regular session where not.
+   */
+  depth: oc
+    .input(symbolRefSchema)
+    .output(asyncIteratorObject(type<Depth | null>())),
+  /**
+   * The prices the listing may trade between in the session an order placed now goes to; `null`
+   * where it trades without limits or the exchange's list for that session is not out or not read.
+   */
+  band: oc.input(symbolRefSchema).output(type<PriceBand | null>()),
   /** Where some market's bars come from changed, by the settings page or a hand edit: load and watch again. */
   sourceChanges: changesContract,
 };

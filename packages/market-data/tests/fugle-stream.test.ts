@@ -1,8 +1,9 @@
+import { noop } from "es-toolkit";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import type { Candle } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
-import type { MinuteListener } from "@solyx/core/market-data";
+import type { Depth, MinuteListener } from "@solyx/core/market-data";
 
 import type { StreamSocket } from "../src/fugle-api.ts";
 import { createFugleStream } from "../src/fugle.ts";
@@ -13,8 +14,10 @@ const HON_HAI = { market: Market.TW, symbol: "2317" };
 
 type ServerBar = ReturnType<typeof bar>;
 
+type ServerQuote = ReturnType<typeof aggregate>;
+
 /** The payload fields of Fugle's server events that these tests play. */
-interface ServerData extends Partial<ServerBar> {
+interface ServerData extends Partial<ServerBar>, Partial<ServerQuote> {
   message?: string;
   id?: string;
   channel?: string;
@@ -58,22 +61,24 @@ class FakeSocket implements StreamSocket {
     for (const handler of this.handlers.get(type) ?? []) handler({ data });
   }
 
-  receive(event: string, data: ServerData) {
-    this.emit("message", JSON.stringify({ event, data }));
+  receive(event: string, data: ServerData, channel?: string) {
+    this.emit("message", JSON.stringify({ event, data, channel }));
   }
 
-  /** Opens, authenticates and confirms a subscription per symbol, as Fugle does. */
+  /** Opens, authenticates and confirms a bars subscription per symbol, as Fugle does. */
   accept(...symbols: string[]) {
     this.emit("open");
     this.receive("authenticated", { message: "Authenticated successfully" });
 
-    for (const symbol of symbols) {
-      this.receive("subscribed", {
-        id: `channel-${symbol}`,
-        channel: "candles",
-        symbol,
-      });
-    }
+    for (const symbol of symbols) this.subscribed("candles", symbol);
+  }
+
+  subscribed(channel: string, symbol: string) {
+    this.receive("subscribed", {
+      id: `${channel}-${symbol}`,
+      channel,
+      symbol,
+    });
   }
 }
 
@@ -86,6 +91,39 @@ function bar(clock: string, close: number, volume: number) {
     close,
     volume,
     average: close,
+  };
+}
+
+/** A session so far as the aggregates channel serves it, sizes in board lots. */
+function aggregate(symbol: string, last: number) {
+  return {
+    date: "2026-09-29",
+    type: "EQUITY",
+    exchange: "TWSE",
+    market: "TSE",
+    symbol,
+    name: "台積電",
+    referencePrice: 2460,
+    previousClose: 2460,
+    openPrice: 2470,
+    highPrice: 2485,
+    lowPrice: 2465,
+    closePrice: last,
+    avgPrice: 2476.5,
+    bids: [
+      { price: last - 5, size: 87 },
+      { price: last - 10, size: 245 },
+    ],
+    asks: [{ price: last, size: 80 }],
+    total: {
+      tradeValue: 31_019_803_000,
+      tradeVolume: 12_538,
+      tradeVolumeAtBid: 5_853,
+      tradeVolumeAtAsk: 6_400,
+      transaction: 9_530,
+      time: 1_790_643_600_000_000,
+    },
+    lastUpdated: 1_790_643_600_123_456,
   };
 }
 
@@ -158,12 +196,16 @@ test("snapshots and pushes arrive as minute bars counted in shares", () => {
 
   stream.watchMinutes(TSMC, listener);
   socket().accept("2330");
-  socket().receive("snapshot", {
-    symbol: "2330",
-    timeframe: "1",
-    data: [bar("09:00", 2475, 4937)],
-  });
-  socket().receive("data", { symbol: "2330", ...bar("09:01", 2480, 12) });
+  socket().receive(
+    "snapshot",
+    { symbol: "2330", timeframe: "1", data: [bar("09:00", 2475, 4937)] },
+    "candles"
+  );
+  socket().receive(
+    "data",
+    { symbol: "2330", ...bar("09:01", 2480, 12) },
+    "candles"
+  );
 
   expect(sessions).toEqual([
     [
@@ -190,7 +232,7 @@ test("the last watcher of a symbol unsubscribes it, and the last symbol closes t
 
   expect(socket().sent.at(-1)).toEqual({
     event: "unsubscribe",
-    data: { id: "channel-2317" },
+    data: { id: "candles-2317" },
   });
 
   stopTsmc?.();
@@ -219,10 +261,11 @@ test("a dropped connection reconnects and subscribes again, and its snapshot ref
     data: { channel: "candles", symbol: "2330" },
   });
 
-  socket().receive("snapshot", {
-    symbol: "2330",
-    data: [bar("09:00", 2475, 1)],
-  });
+  socket().receive(
+    "snapshot",
+    { symbol: "2330", data: [bar("09:00", 2475, 1)] },
+    "candles"
+  );
 
   expect(sessions).toHaveLength(1);
 });
@@ -280,4 +323,77 @@ test("symbols past the plan's capacity and other markets are refused", () => {
       recorder().listener
     )
   ).toBeUndefined();
+});
+
+test("depth arrives whole and in shares, its symbol subscribed once on its own channel", () => {
+  const { stream, socket } = setup();
+  const depths: Depth[] = [];
+
+  stream.watchDepth(TSMC, (depth) => depths.push(depth));
+  socket().accept();
+
+  expect(socket().sent.at(-1)).toEqual({
+    event: "subscribe",
+    data: { channel: "aggregates", symbol: "2330" },
+  });
+
+  stream.watchDepth(TSMC, noop);
+
+  expect(
+    socket().sent.filter(({ event }) => event === "subscribe")
+  ).toHaveLength(1);
+
+  socket().receive("data", aggregate("2330", 2480), "aggregates");
+
+  expect(depths).toEqual([
+    {
+      date: "2026-09-29",
+      time: 1_790_643_600_123,
+      reference: 2460,
+      open: 2470,
+      high: 2485,
+      low: 2465,
+      last: 2480,
+      average: 2476.5,
+      volume: 12_538_000,
+      volumeAtBid: 5_853_000,
+      volumeAtAsk: 6_400_000,
+      bids: [
+        { price: 2475, shares: 87_000 },
+        { price: 2470, shares: 245_000 },
+      ],
+      asks: [{ price: 2480, shares: 80_000 }],
+      trial: false,
+    },
+  ]);
+});
+
+test("a symbol's bars and its depth take a subscription each, and each unsubscribes its own", () => {
+  const { stream, socket } = setup();
+  const stopBars = stream.watchMinutes(TSMC, recorder().listener);
+  const stopDepth = stream.watchDepth(TSMC, noop);
+
+  for (const symbol of ["2317", "2454", "2303"]) {
+    expect(
+      stream.watchMinutes({ market: Market.TW, symbol }, recorder().listener)
+    ).toBeTypeOf("function");
+  }
+
+  expect(stream.watchDepth(HON_HAI, noop)).toBeUndefined();
+
+  socket().accept("2330");
+  socket().subscribed("aggregates", "2330");
+  stopDepth?.();
+
+  expect(socket().sent.at(-1)).toEqual({
+    event: "unsubscribe",
+    data: { id: "aggregates-2330" },
+  });
+
+  stopBars?.();
+
+  expect(socket().sent.at(-1)).toEqual({
+    event: "unsubscribe",
+    data: { id: "candles-2330" },
+  });
 });

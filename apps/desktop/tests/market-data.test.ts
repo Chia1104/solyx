@@ -13,6 +13,7 @@ import type {
   MarketDataStream,
 } from "@solyx/core/market-data";
 import { SectorGroup, TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
+import { weekdays } from "@solyx/core/session";
 import { MINUTE_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
@@ -40,6 +41,7 @@ function fakeStream(room = Infinity) {
 
       return () => watched.delete(symbol.symbol);
     },
+    watchDepth: () => undefined,
     close: () => {
       closed = true;
     },
@@ -55,6 +57,7 @@ function setup() {
     getCandles: vi.fn(async () => []),
     getListing: vi.fn(async () => ({ name: "台積電", englishName: "TSMC" })),
     getQuote: vi.fn(async () => null),
+    getDepth: vi.fn(async () => null),
   };
 
   const streams = [fakeStream()];
@@ -81,6 +84,7 @@ function setup() {
 
   const marketData = createMarketData({
     sources,
+    marketDays: async () => weekdays,
     answers: memoryAnswers(),
     diagnostics: { recovered: vi.fn() },
     onSourcesChanged,
