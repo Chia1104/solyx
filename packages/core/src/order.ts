@@ -42,6 +42,11 @@ export interface Position {
   instrument: SymbolRef;
   quantity: number;
   avgPrice: number;
+  /**
+   * The shares a sale can draw on now, less those its working sales hold back, as the broker
+   * reports them; missing where the broker holds none back, so every share held can be sold.
+   */
+  sellable?: number;
 }
 
 export interface AccountSnapshot {

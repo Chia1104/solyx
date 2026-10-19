@@ -1094,6 +1094,46 @@ test("an order sent under the mandate that went unanswered locks orders", async 
   expect(lockOrders).toHaveBeenCalledTimes(1);
 });
 
+test("an order the mandate was sending when the app exited locks orders as the desk opens again", async () => {
+  const { desk, placeOrder, store } = setup(undefined, {
+    mandate: () => covering(),
+  });
+
+  placeOrder.mockReturnValueOnce(new Promise(noop));
+  void proposeFromAgent(desk);
+
+  await vi.waitFor(() =>
+    expect(desk.list()).toMatchObject([{ status: ProposalStatus.Submitting }])
+  );
+
+  const reopened = setup(store, { mandate: () => covering() });
+
+  expect(reopened.desk.list()).toMatchObject([
+    { failure: { code: SubmissionFailureCode.Interrupted } },
+  ]);
+  expect(reopened.lockOrders).toHaveBeenCalledTimes(1);
+
+  // One the user confirmed is theirs to look into.
+  const user = setup();
+
+  const { id } = await user.desk.propose({
+    order,
+    source: ProposalSource.User,
+    rationale: "",
+  });
+
+  user.placeOrder.mockReturnValueOnce(new Promise(noop));
+  void user.desk.confirm(id);
+
+  await vi.waitFor(() =>
+    expect(user.desk.list()).toMatchObject([
+      { status: ProposalStatus.Submitting },
+    ])
+  );
+
+  expect(setup(user.store).lockOrders).not.toHaveBeenCalled();
+});
+
 test("how far the desk got sending under the mandate follows each proposal's status", async () => {
   let locked = false;
 

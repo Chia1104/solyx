@@ -257,6 +257,9 @@ export class OrderDesk {
           status: ProposalStatus.Failed,
           failure: { code: SubmissionFailureCode.Interrupted },
         });
+
+        // As for one unanswered: nothing more goes until the user has looked at the account.
+        if (sentByMandate(proposal)) options.lockOrders?.();
       } else if (
         proposal.status === ProposalStatus.Confirming ||
         proposal.status === ProposalStatus.AwaitingConfirmation

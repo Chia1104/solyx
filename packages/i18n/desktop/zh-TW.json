@@ -898,7 +898,7 @@
     "unsupported-market": "此帳戶不交易{{market}}標的",
     "insufficient-cash": "單筆金額 {{notional, number}} {{currency}} 超過帳戶現金 {{cash, number}} {{currency}}",
     "cash-unknown": "券商讀不到帳戶可動用的 {{currency}}，所以不能買進",
-    "insufficient-shares": "欲賣出 {{quantity, number}} 股，但帳戶只持有 {{held, number}} 股"
+    "insufficient-shares": "欲賣出 {{quantity, number}} 股，但帳戶只有 {{held, number}} 股可賣"
   },
   "mandate": {
     "title": "交易授權",

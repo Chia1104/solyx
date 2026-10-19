@@ -426,19 +426,23 @@ test("the account holds its cash shares and spends the bank's balance with every
         stockNo: "2881",
         orderType: "Stock",
         todayQty: 2000,
-        odd: { todayQty: 300 },
+        // A working sale holds back a lot and 100 odd shares.
+        tradableQty: 1000,
+        odd: { todayQty: 300, tradableQty: 200 },
       },
       {
         stockNo: "2330",
         orderType: "Margin",
         todayQty: 1000,
-        odd: { todayQty: 0 },
+        tradableQty: 1000,
+        odd: { todayQty: 0, tradableQty: 0 },
       },
       {
         stockNo: "0050",
         orderType: "Stock",
         todayQty: 0,
-        odd: { todayQty: 0 },
+        tradableQty: 0,
+        odd: { todayQty: 0, tradableQty: 0 },
       },
     ],
     unrealized: [
@@ -501,6 +505,7 @@ test("the account holds its cash shares and spends the bank's balance with every
       instrument: { market: Market.TW, symbol: "2881" },
       quantity: 2300,
       avgPrice: 60,
+      sellable: 1200,
     },
   ]);
 
