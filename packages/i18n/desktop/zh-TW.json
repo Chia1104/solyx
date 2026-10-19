@@ -1799,6 +1799,7 @@
         "fubon": "富邦帳戶來自「行情」裡的登入。交割銀行是台北富邦或 LINE Bank 才能買進，其他銀行只能賣出。"
       },
       "fubon-sign-in": "先在「行情」登入富邦，才能選它的帳戶。",
+      "account-gone": "富邦這次登入沒有列出帳戶 {{account}}，委託送不到這個帳戶。請改選其他帳戶。",
       "restart-title": "重新啟動以切換帳戶",
       "restart-description": "重新啟動前委託仍送往{{account}}；重新啟動時，等待確認的提案會作廢。",
       "restart": "重新啟動",

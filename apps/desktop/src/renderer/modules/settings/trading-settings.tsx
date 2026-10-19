@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { brokerId } from "@solyx/core/broker";
 import { Currency } from "@solyx/core/market";
 
-import { FubonSessionState, TradingBroker } from "#shared/settings.ts";
+import { TradingBroker } from "#shared/settings.ts";
 import type {
   TradingAccount,
   TradingSettings as Trading,
@@ -26,7 +26,7 @@ import { Section } from "../../components/section.tsx";
 import { MandateSettings } from "./mandate-settings.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { marketDataQuery, tradingSettingsQuery } from "./settings-query.ts";
-import { tradingAccountLabel } from "./trading-account.ts";
+import { fubonChoices, tradingAccountLabel } from "./trading-account.ts";
 
 /** The most a currency's sales may lose in a day, saved as the field commits; empty lifts the limit. */
 function LossLimitRow({
@@ -88,16 +88,8 @@ function BrokerRow({
   const restart = useMutation(orpc.settings.restart.mutationOptions());
   const session = useQuery(marketDataQuery()).data?.fubon.session;
 
-  const listed =
-    session?.state === FubonSessionState.SignedIn ? session.stockAccounts : [];
-
-  // The account picked stays listed while Fubon is not signed in to list it.
-  const fubonAccounts =
-    broker === TradingBroker.Fubon &&
-    account !== null &&
-    !listed.some(({ id }) => id === account)
-      ? [{ id: account, name: "" }, ...listed]
-      : listed;
+  const fubonAccount = broker === TradingBroker.Fubon ? account : null;
+  const { accounts: fubonAccounts, gone } = fubonChoices(session, fubonAccount);
 
   const options: {
     id: string;
@@ -151,6 +143,16 @@ function BrokerRow({
           ? t("settings.trading.broker-hints.fubon")
           : t("settings.trading.fubon-sign-in")}
       </Description>
+      {gone ? (
+        <Alert status="warning">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Description>
+              {t("settings.trading.account-gone", { account: fubonAccount })}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      ) : null}
       {picked === trading ? null : (
         <Alert status="warning">
           <Alert.Indicator />
