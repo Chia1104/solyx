@@ -1190,6 +1190,8 @@
       },
       "connection": "連線",
       "not-chosen": "尚未選擇",
+      "sdk-missing": "這個資料夾裡沒有富邦 SDK。",
+      "sdk-untested": "Solyx 還沒用 fubon-neo {{version}} 測試過，只測過 {{tested}}。",
       "choose": "選擇…",
       "change": "變更…",
       "sign-in": "登入",

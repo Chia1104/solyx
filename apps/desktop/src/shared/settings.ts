@@ -295,6 +295,10 @@ export interface MarketDataStatus {
     /** Whether everything Fubon signs in with is saved, whichever source Taiwan's charts come from. */
     ready: boolean;
     files: Record<FubonFile, string | null>;
+    /** The version of the SDK in the folder chosen, `null` where none is chosen or there is no SDK in it. */
+    sdkVersion: string | null;
+    /** The SDK's versions Solyx was checked with in Fubon's test environment. */
+    testedSdkVersions: string[];
     session: FubonSessionStatus;
   };
 }

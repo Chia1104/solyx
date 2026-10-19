@@ -287,6 +287,16 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
           ]
         : [];
 
+    const tested = fubon.testedSdkVersions.join(", ");
+
+    const sdkText = !fubon.files[FubonFile.Sdk]
+      ? "not chosen"
+      : fubon.sdkVersion === null
+        ? "chosen, but the folder holds no SDK"
+        : fubon.testedSdkVersions.includes(fubon.sdkVersion)
+          ? `fubon-neo ${fubon.sdkVersion}, which Solyx was checked with`
+          : `fubon-neo ${fubon.sdkVersion}, which Solyx has not been checked with (it has with ${tested})`;
+
     const session =
       fubon.session.state === FubonSessionState.SignedIn
         ? `signed in, ${fubon.session.accounts} accounts`
@@ -325,10 +335,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         link: settingsLink(SettingsSection.Brokers),
         missing: brokersMissing,
         settings: [
-          entry(
-            ["providers", "fubon", FubonFile.Sdk],
-            fubon.files[FubonFile.Sdk] ? "chosen" : "not chosen"
-          ),
+          entry(["providers", "fubon", FubonFile.Sdk], sdkText),
           entry(
             ["providers", "fubon", FubonFile.Certificate],
             fubon.files[FubonFile.Certificate] ? "chosen" : "not chosen"

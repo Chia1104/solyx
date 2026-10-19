@@ -17,6 +17,7 @@ import { OrderType, Side } from "@solyx/core/order";
 import type { AccountSnapshot, Fill, OrderRequest } from "@solyx/core/order";
 import { isTwOddLot, twSpendable } from "@solyx/core/rules/tw";
 import type { TwTrade } from "@solyx/core/rules/tw";
+import { parseJson } from "@solyx/utils/json";
 
 interface FubonResult<T> {
   isSuccess: boolean;
@@ -85,6 +86,7 @@ interface FubonStock {
   ): FubonResult<unknown>;
   getOrderResults(account: FubonAccount): FubonResult<unknown>;
   getOrderResultsDetail(account: FubonAccount): FubonResult<unknown>;
+  querySymbolQuote(account: FubonAccount, symbol: string): FubonResult<unknown>;
   orderHistory(
     account: FubonAccount,
     startDate: string,
@@ -132,7 +134,8 @@ interface FubonCoreSdk {
   readonly accounting: FubonAccounting;
 }
 
-interface FubonBinding {
+/** The slice of the SDK's `trade.js` this module loads. */
+export interface FubonBinding {
   CoreSdk: new (
     version: string,
     pongInterval?: number,
@@ -155,14 +158,40 @@ const MISSED_PONGS = 2;
 const manifestSchema = z.object({ version: z.string() });
 
 /**
+ * The `fubon-neo` versions `scripts/fubon-sdk-check.ts` passed with in Fubon's test environment,
+ * oldest first. Fubon offers only its newest for download, which the Fubon SDK workflow checks
+ * each weekday and adds here once it passes.
+ */
+export const FUBON_SDK_VERSIONS = ["2.4.0"];
+
+/** The folder the user chose, or the `package` folder inside it, where it holds the SDK. */
+const sdkFolder = (dir: string) =>
+  [dir, join(dir, "package")].find((candidate) =>
+    existsSync(join(candidate, BINDING))
+  );
+
+function readManifest(sdkDir: string) {
+  const path = join(sdkDir, "package.json");
+
+  return existsSync(path)
+    ? parseJson(readFileSync(path, "utf8"), manifestSchema)
+    : undefined;
+}
+
+/** The version of the SDK in `dir`, read from its manifest without loading it; `null` where there is none. */
+export function fubonSdkVersion(dir: string): string | null {
+  const sdkDir = sdkFolder(dir);
+
+  return sdkDir ? (readManifest(sdkDir)?.version ?? null) : null;
+}
+
+/**
  * `fubon-neo` is downloaded by each user from Fubon and may not be redistributed, so it is never
  * a package dependency. The user extracts it and chooses that folder or the `package` folder
  * inside it.
  */
 function loadFubonSdk(dir: string) {
-  const sdkDir = [dir, join(dir, "package")].find((candidate) =>
-    existsSync(join(candidate, BINDING))
-  );
+  const sdkDir = sdkFolder(dir);
 
   if (!sdkDir) {
     throw new Error(
@@ -170,9 +199,13 @@ function loadFubonSdk(dir: string) {
     );
   }
 
-  const { version } = manifestSchema.parse(
-    JSON.parse(readFileSync(join(sdkDir, "package.json"), "utf8"))
-  );
+  const manifest = readManifest(sdkDir);
+
+  if (!manifest) {
+    throw new Error(`The Fubon Neo SDK in ${sdkDir} names no version`);
+  }
+
+  const { version } = manifest;
 
   // SAFETY: `sdkDir` holds the user's copy of the official `fubon-neo` package, whose native
   // binding exports these classes; a wrong folder fails at login, before any order is placed.
@@ -245,6 +278,12 @@ const unrealizedSchema = z.object({
 });
 
 const bankSchema = z.object({ availableBalance: z.number() });
+
+const quoteSchema = z.object({
+  referencePrice: z.number(),
+  limitupPrice: z.number(),
+  limitdownPrice: z.number(),
+});
 
 const settlementSchema = z.object({
   date: z.string(),
@@ -327,6 +366,12 @@ export interface FubonFill extends z.infer<typeof filledSchema> {
  * Each call names the stock account it is for by its `fubonAccountId`, and fails for one the
  * sign-in does not list, so no call reads or trades an account the user did not pick.
  */
+export interface FubonPriceLimits {
+  reference: number;
+  up: number;
+  down: number;
+}
+
 export interface FubonSession {
   accounts: FubonAccount[];
   /** Exchanges the session for a market data token. */
@@ -344,6 +389,8 @@ export interface FubonSession {
   place(account: string, order: FubonOrderObject): FubonOrder;
   /** Asks Fubon to cancel today's order `id`; throws where it did not take the request. */
   cancel(account: string, id: string): void;
+  /** The day's reference price and limits on `symbol`'s price, as Fubon quotes them. */
+  priceLimits(account: string, symbol: string): FubonPriceLimits;
   /**
    * Calls `listener`, in place of any before it, whenever Fubon tells of an order of the account
    * being placed, changed or filled, the app's or not.
@@ -680,6 +727,21 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
           `Fubon did not cancel ${orderId}: ${result.message ?? "no reason"}`
         );
       }
+    },
+
+    priceLimits(id, symbol) {
+      const quote = query(
+        id,
+        "quote query",
+        (account) => sdk.stock.querySymbolQuote(account, symbol),
+        quoteSchema
+      );
+
+      return {
+        reference: quote.referencePrice,
+        up: quote.limitupPrice,
+        down: quote.limitdownPrice,
+      };
     },
 
     onChange(listener) {

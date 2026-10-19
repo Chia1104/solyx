@@ -73,6 +73,8 @@ function marketStatus(
         [FubonFile.Sdk]: join(home, "fubon-sdk"),
         [FubonFile.Certificate]: null,
       },
+      sdkVersion: "2.5.0",
+      testedSdkVersions: ["2.4.0"],
       session: { state: FubonSessionState.SignedOut },
     },
   };
@@ -262,6 +264,9 @@ test("Fubon names what it still needs under Brokers, and a failed sign-in that w
     expect.stringMatching(/^Fubon's sign-in failed: wrong password\./),
   ]);
   expect(setting(area(areas, "Brokers"), "Fubon API key")?.value).toBe("saved");
+  expect(setting(area(areas, "Brokers"), "providers.fubon.sdk")?.value).toBe(
+    "fubon-neo 2.5.0, which Solyx has not been checked with (it has with 2.4.0)"
+  );
 });
 
 test("storage reads as what each store holds, on the tab where the user clears it", async () => {

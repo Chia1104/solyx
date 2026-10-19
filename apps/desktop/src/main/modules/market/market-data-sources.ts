@@ -1,6 +1,10 @@
 import { isEqual } from "es-toolkit";
 
-import { fubonStockAccounts } from "@solyx/brokers/fubon";
+import {
+  FUBON_SDK_VERSIONS,
+  fubonSdkVersion,
+  fubonStockAccounts,
+} from "@solyx/brokers/fubon";
 import type { FubonRealtime, FubonSessionOptions } from "@solyx/brokers/fubon";
 import { Market } from "@solyx/core/market";
 import type {
@@ -341,6 +345,7 @@ export function createMarketDataSources({
 
     async status(): Promise<MarketDataStatus> {
       const source = twSource();
+      const files = fubonFiles();
       const fubonOptions = await fubonSettings();
 
       const fubonReady = fubonOptions !== undefined;
@@ -356,7 +361,9 @@ export function createMarketDataSources({
         fubon: {
           plan: FUBON_PLAN,
           ready: fubonReady,
-          files: fubonFiles(),
+          files,
+          sdkVersion: files.sdk === null ? null : fubonSdkVersion(files.sdk),
+          testedSdkVersions: FUBON_SDK_VERSIONS,
           session: await fubonSession(fubonOptions),
         },
       };

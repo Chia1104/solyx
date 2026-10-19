@@ -1,9 +1,10 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
+import { FUBON_SDK_VERSIONS } from "@solyx/brokers/fubon";
 import type { FubonSessionOptions } from "@solyx/brokers/fubon";
 import { Market } from "@solyx/core/market";
 import { openCache } from "@solyx/db/cache";
@@ -245,6 +246,27 @@ test("a sign-in the user asks for while charts come from Fugle stays, so its acc
     state: FubonSessionState.SignedIn,
   });
   expect((await openedSession(0)).close).not.toHaveBeenCalled();
+});
+
+test("the chosen SDK's version reads from its folder beside the versions Solyx was checked with", async () => {
+  const { config, sources } = setup();
+
+  expect((await sources.status()).fubon).toMatchObject({
+    sdkVersion: null,
+    testedSdkVersions: FUBON_SDK_VERSIONS,
+  });
+
+  const sdk = join(directory, "fubon-neo", "package");
+
+  await mkdir(sdk, { recursive: true });
+  await writeFile(join(sdk, "trade.js"), "");
+  await writeFile(join(sdk, "package.json"), '{ "version": "2.5.0" }');
+  config.set(
+    ["providers", "fubon", FubonFile.Sdk],
+    join(directory, "fubon-neo")
+  );
+
+  expect((await sources.status()).fubon.sdkVersion).toBe("2.5.0");
 });
 
 test("while the desk trades with Fubon, charts from Fugle leave its session signed in and shared", async () => {
