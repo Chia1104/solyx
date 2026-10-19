@@ -9,6 +9,7 @@ import {
   BrokerMode,
   BrokerOrderStatus,
   OrderRefusedError,
+  brokerId,
 } from "@solyx/core/broker";
 import type { BrokerAdapter, BrokerOrder } from "@solyx/core/broker";
 import { MARKET_TIME_ZONE, Market, exchangeDate } from "@solyx/core/market";
@@ -28,6 +29,29 @@ export interface FubonAccount {
   branchNo: string;
   account: string;
   accountType: string;
+}
+
+/** A stock account as the user picks one: its `fubonAccountId`, and its holder's name as Fubon masks it. */
+export interface FubonStockAccount {
+  id: string;
+  name: string;
+}
+
+/** The id the app names one of Fubon's accounts by, `<branch>-<account>`. */
+export function fubonAccountId({
+  branchNo,
+  account,
+}: Pick<FubonAccount, "branchNo" | "account">): string {
+  return `${branchNo}-${account}`;
+}
+
+/** The stock accounts a sign-in lists, which the user picks among. */
+export function fubonStockAccounts(
+  accounts: readonly FubonAccount[]
+): FubonStockAccount[] {
+  return accounts
+    .filter(({ accountType }) => accountType === "stock")
+    .map((account) => ({ id: fubonAccountId(account), name: account.name }));
 }
 
 /** An order as Fubon's SDK takes it. */
@@ -299,23 +323,27 @@ export interface FubonFill extends z.infer<typeof filledSchema> {
   realized: number | null;
 }
 
+/**
+ * Each call names the stock account it is for by its `fubonAccountId`, and fails for one the
+ * sign-in does not list, so no call reads or trades an account the user did not pick.
+ */
 export interface FubonSession {
   accounts: FubonAccount[];
   /** Exchanges the session for a market data token. */
   realtime(): FubonRealtime;
   /** What the stock account holds and owes now. */
-  holdings(): FubonHoldings;
+  holdings(account: string): FubonHoldings;
   /** The stock account's orders placed from `from`, an exchange-local day, through today. */
-  orders(from: string): FubonOrder[];
+  orders(account: string, from: string): FubonOrder[];
   /** The stock account's fills from `from`, an exchange-local day, through today. */
-  fills(from: string): FubonFill[];
+  fills(account: string, from: string): FubonFill[];
   /**
    * Places `order` and waits for Fubon's answer. Throws where Fubon gave no order back, which
    * leaves whether it took the order unknown.
    */
-  place(order: FubonOrderObject): FubonOrder;
+  place(account: string, order: FubonOrderObject): FubonOrder;
   /** Asks Fubon to cancel today's order `id`; throws where it did not take the request. */
-  cancel(id: string): void;
+  cancel(account: string, id: string): void;
   /**
    * Calls `listener`, in place of any before it, whenever Fubon tells of an order of the account
    * being placed, changed or filled, the app's or not.
@@ -430,40 +458,50 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
   const accounts = result.data;
   const paceQuery = pacer(ACCOUNT_QUERIES_PER_SECOND);
 
-  function stockAccount(): FubonAccount {
-    const account = accounts.find(({ accountType }) => accountType === "stock");
+  function stockAccount(id: string): FubonAccount {
+    const account = accounts.find(
+      (each) => each.accountType === "stock" && fubonAccountId(each) === id
+    );
 
-    if (!account) throw new Error("Fubon lists no stock account to trade");
+    if (!account) {
+      throw new Error(`Fubon lists no stock account ${id} for this sign-in`);
+    }
 
     return account;
   }
 
   function query<T>(
+    id: string,
     what: string,
     call: (account: FubonAccount) => FubonResult<unknown>,
     schema: z.ZodType<T>
   ): T {
+    const account = stockAccount(id);
+
     paceQuery();
 
-    return answer(what, call(stockAccount()), schema);
+    return answer(what, call(account), schema);
   }
 
   /** As `query`, but `null` where Fubon answers that it cannot, for what the app can do without. */
   function attempt<T>(
+    id: string,
     what: string,
     call: (account: FubonAccount) => FubonResult<unknown>,
     schema: z.ZodType<T>
   ): T | null {
+    const account = stockAccount(id);
+
     paceQuery();
 
-    const result = call(stockAccount());
+    const result = call(account);
 
     return result.isSuccess ? answer(what, result, schema) : null;
   }
 
   const today = () => exchangeDate(Market.TW);
 
-  function orders(from: string): FubonOrder[] {
+  function orders(id: string, from: string): FubonOrder[] {
     const { stock } = sdk;
     const yesterday = Temporal.PlainDate.from(today()).subtract({ days: 1 });
 
@@ -472,6 +510,7 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
         ? historySpans(from, yesterday.toString()).flatMap(
             ([start, end]) =>
               query(
+                id,
                 "order history",
                 (account) =>
                   stock.orderHistory(account, fubonDay(start), fubonDay(end)),
@@ -483,6 +522,7 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
     return [
       ...past,
       ...(query(
+        id,
         "order query",
         (account) => stock.getOrderResultsDetail(account),
         z.array(orderResultSchema).nullable()
@@ -503,29 +543,33 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
       };
     },
 
-    holdings() {
+    holdings(id) {
       const { accounting } = sdk;
 
       return {
         inventories:
           query(
+            id,
             "inventory query",
             (account) => accounting.inventories(account),
             z.array(inventorySchema).nullable()
           ) ?? [],
         unrealized:
           query(
+            id,
             "cost query",
             (account) => accounting.unrealizedGainsAndLoses(account),
             z.array(unrealizedSchema).nullable()
           ) ?? [],
         bank: attempt(
+          id,
           "bank balance query",
           (account) => accounting.bankRemain(account),
           bankSchema
         ),
         settlements:
           query(
+            id,
             "settlement query",
             (account) => accounting.querySettlement(account, "3d"),
             settlementsSchema
@@ -535,12 +579,13 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
 
     orders,
 
-    fills(from) {
+    fills(id, from) {
       const { stock, accounting } = sdk;
 
       const fills = historySpans(from, today()).flatMap(
         ([start, end]) =>
           query(
+            id,
             "fill query",
             (account) =>
               stock.filledHistory(account, fubonDay(start), fubonDay(end)),
@@ -551,6 +596,7 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
       // Without Fubon's report of gains, as in its test environment, no sale is reckoned.
       const realized =
         attempt(
+          id,
           "realized gain query",
           (account) => accounting.realizedGainsAndLoses(account),
           z.array(realizedSchema).nullable()
@@ -577,8 +623,8 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
       });
     },
 
-    place(order) {
-      const account = stockAccount();
+    place(id, order) {
+      const account = stockAccount(id);
       const result = sdk.stock.placeOrder(account, order, false);
       const placed = orderResultSchema.safeParse(result.data ?? null);
 
@@ -607,9 +653,9 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
       );
     },
 
-    cancel(id) {
-      const [day, orderNo] = id.split(":");
-      const account = stockAccount();
+    cancel(id, orderId) {
+      const [day, orderNo] = orderId.split(":");
+      const account = stockAccount(id);
 
       paceQuery();
 
@@ -624,14 +670,14 @@ export function openFubonSession(options: FubonSessionOptions): FubonSession {
       );
 
       if (order === undefined) {
-        throw new Error(`Fubon lists no order ${id} today to cancel`);
+        throw new Error(`Fubon lists no order ${orderId} today to cancel`);
       }
 
       const result = sdk.stock.cancelOrder(account, order, false);
 
       if (!result.isSuccess) {
         throw new Error(
-          `Fubon did not cancel ${id}: ${result.message ?? "no reason"}`
+          `Fubon did not cancel ${orderId}: ${result.message ?? "no reason"}`
         );
       }
     },
@@ -876,27 +922,43 @@ export function fubonAccount(
 
 /** The calls a Fubon broker makes of the session, which lives in a process of its own. */
 export interface FubonTrading {
-  holdings(): Promise<FubonHoldings>;
-  orders(from: string): Promise<FubonOrder[]>;
-  fills(from: string): Promise<FubonFill[]>;
-  place(order: FubonOrderObject): Promise<FubonOrder>;
-  cancel(id: string): Promise<void>;
+  holdings(account: string): Promise<FubonHoldings>;
+  orders(account: string, from: string): Promise<FubonOrder[]>;
+  fills(account: string, from: string): Promise<FubonFill[]>;
+  place(account: string, order: FubonOrderObject): Promise<FubonOrder>;
+  cancel(account: string, id: string): Promise<void>;
 }
 
 /**
- * Fubon's stock account, traded through the session `session` hands it. It never signs in itself:
- * the SDK runs only in a process of its own, and market data and trading share one sign-in, since
- * repeated sign-ins could lock the account.
+ * One of Fubon's stock accounts, `account` by its `fubonAccountId`, traded through the session
+ * `session` hands it. It never signs in itself: the SDK runs only in a process of its own, and
+ * market data and trading share one sign-in, since repeated sign-ins could lock the account.
  */
-export function createFubonBroker(
-  session: () => Promise<FubonTrading>
-): BrokerAdapter {
+export function createFubonBroker({
+  session,
+  account,
+}: {
+  session: () => Promise<FubonTrading>;
+  /** `null` until the user picks one, which leaves the broker reading and trading nothing. */
+  account: string | null;
+}): BrokerAdapter {
   const today = () => exchangeDate(Market.TW);
+
+  function picked(): string {
+    if (account === null) {
+      throw new Error(
+        "Choose the Fubon account orders go to in Settings → Trading"
+      );
+    }
+
+    return account;
+  }
 
   async function orders(from: string) {
     const day = today();
+    const id = picked();
 
-    return (await (await session()).orders(from)).flatMap((result) => {
+    return (await (await session()).orders(id, from)).flatMap((result) => {
       const order = fubonOrder(result, day);
 
       return order ? [order] : [];
@@ -904,7 +966,9 @@ export function createFubonBroker(
   }
 
   async function fills(from: string) {
-    return (await (await session()).fills(from)).flatMap((fill) => {
+    const id = picked();
+
+    return (await (await session()).fills(id, from)).flatMap((fill) => {
       const read = fubonFill(fill);
 
       return read ? [read] : [];
@@ -923,15 +987,17 @@ export function createFubonBroker(
   }
 
   return {
-    id: "fubon",
+    id: brokerId("fubon", account),
     mode: BrokerMode.Live,
     markets: [Market.TW],
 
     async getAccount() {
       const day = today();
 
+      const id = picked();
+
       const [holdings, booked, filled] = await Promise.all([
-        (await session()).holdings(),
+        (await session()).holdings(id),
         orders(day),
         fills(day),
       ]);
@@ -952,9 +1018,11 @@ export function createFubonBroker(
     },
 
     async placeOrder(order, tag) {
+      const id = picked();
+
       const placed = await (
         await session()
-      ).place(fubonOrderObject(order, tag));
+      ).place(id, fubonOrderObject(order, tag));
 
       if (placed.status === FUBON_FAILED) {
         throw new OrderRefusedError(
@@ -962,16 +1030,20 @@ export function createFubonBroker(
         );
       }
 
+      const orderNo = placed.orderNo?.trim();
+
       // The desk finds an order Fubon has yet to number by its tag once it has one.
-      if (!placed.orderNo) {
+      if (!orderNo) {
         throw new Error("Fubon took the order but has yet to number it");
       }
 
-      return { orderId: fubonOrderId(placed.date, placed.orderNo) };
+      return { orderId: fubonOrderId(placed.date, orderNo) };
     },
 
-    async cancelOrder(id) {
-      await (await session()).cancel(id);
+    async cancelOrder(orderId) {
+      const id = picked();
+
+      await (await session()).cancel(id, orderId);
     },
   };
 }

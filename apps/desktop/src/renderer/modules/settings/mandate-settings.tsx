@@ -26,13 +26,15 @@ import { Currency, Market } from "@solyx/core/market";
 import { Side } from "@solyx/core/order";
 
 import { MAX_MANDATE_DAYS } from "#shared/settings.ts";
-import type { MandateDraft, TradingBroker } from "#shared/settings.ts";
+import type { MandateDraft } from "#shared/settings.ts";
 
 import { useClock } from "../../app/clock.ts";
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Section } from "../../components/section.tsx";
 import { numberFormats } from "../market/number-formats.ts";
+
+import { tradingAccountLabel } from "./trading-account.ts";
 
 const Sides = {
   Sales: "sales",
@@ -314,7 +316,7 @@ function MandateSummary({
   trading,
 }: {
   mandate: Mandate;
-  trading: TradingBroker;
+  trading: string;
 }) {
   const { t, i18n } = useTranslation();
   const clock = useClock();
@@ -359,9 +361,7 @@ function MandateSummary({
           <Alert.Content>
             <Alert.Description>
               {t("mandate.other-account", {
-                account: t(`settings.trading.brokers.${mandate.broker}`, {
-                  defaultValue: mandate.broker,
-                }),
+                account: tradingAccountLabel(t, mandate.broker),
               })}
             </Alert.Description>
           </Alert.Content>
@@ -372,7 +372,7 @@ function MandateSummary({
 }
 
 /** The mandate under which the desk sends the agent's proposals without the user, which only they set. */
-export function MandateSettings({ trading }: { trading: TradingBroker }) {
+export function MandateSettings({ trading }: { trading: string }) {
   const { t } = useTranslation();
   const { data: mandate } = useQuery(orpc.settings.mandate.queryOptions());
   const [editing, setEditing] = useState(false);

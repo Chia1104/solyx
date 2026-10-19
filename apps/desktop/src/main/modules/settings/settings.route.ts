@@ -21,7 +21,8 @@ import {
   mcpSecretKey,
   webSearchKeySecret,
 } from "#shared/settings.ts";
-import type { AppInfo, FubonFile, TradingBroker } from "#shared/settings.ts";
+import { TradingBroker } from "#shared/settings.ts";
+import type { AppInfo, FubonFile } from "#shared/settings.ts";
 
 import type { WindowEvents } from "../../rpc/window-events.ts";
 import type { AgentService } from "../agent/agent-service.ts";
@@ -80,8 +81,8 @@ export interface SettingsContext {
   skillFolders: SkillFolders;
   instructionsFile: string;
   settingsShell: SettingsShell;
-  /** The account the order desk trades, picked as the app started. */
-  tradingBroker: TradingBroker;
+  /** The broker and account the order desk trades, picked as the app started, as their `brokerId`. */
+  tradingBroker: string;
   mandates: Pick<MandateStore, "current" | "save" | "revoke">;
   /** Quits the app and starts it again. */
   restart(): void;
@@ -374,13 +375,23 @@ export const settingsRouter = settings.router({
   ),
 
   trading: settings.trading.handler(({ context }) => {
-    const { broker, locked, maxDailyLoss } = context.config.read().trading;
+    const { broker, account, locked, maxDailyLoss } =
+      context.config.read().trading;
 
-    return { broker, trading: context.tradingBroker, locked, maxDailyLoss };
+    return {
+      broker,
+      account: broker === TradingBroker.Paper ? null : account,
+      trading: context.tradingBroker,
+      locked,
+      maxDailyLoss,
+    };
   }),
-  setTradingBroker: settings.setTradingBroker.handler(({ context, input }) => {
-    context.config.set(["trading", "broker"], input);
-  }),
+  setTradingAccount: settings.setTradingAccount.handler(
+    ({ context, input: { broker, account } }) => {
+      context.config.set(["trading", "account"], account);
+      context.config.set(["trading", "broker"], broker);
+    }
+  ),
   restart: settings.restart.handler(({ context }) => context.restart()),
   mandate: settings.mandate.handler(({ context }) =>
     context.mandates.current()

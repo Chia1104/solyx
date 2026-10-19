@@ -45,6 +45,26 @@ export interface BrokerOrder {
   placedAt: number;
 }
 
+/**
+ * The id of a broker trading one account of several, `<broker>:<account>`, or the broker's own
+ * where it trades one, so proposals and a mandate made on one account never go to another.
+ */
+export function brokerId(broker: string, account: string | null): string {
+  return account === null ? broker : `${broker}:${account}`;
+}
+
+/** The broker and account a `brokerId` names. */
+export function brokerOfId(id: string): {
+  broker: string;
+  account: string | null;
+} {
+  const at = id.indexOf(":");
+
+  return at < 0
+    ? { broker: id, account: null }
+    : { broker: id.slice(0, at), account: id.slice(at + 1) };
+}
+
 const TAG_DIGITS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 const TAG_LENGTH = 6;

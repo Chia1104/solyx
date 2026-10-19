@@ -26,6 +26,7 @@ import {
   fubonAccount,
   fubonFill,
   fubonOrder,
+  fubonStockAccounts,
   openFubonSession,
 } from "../src/fubon.ts";
 
@@ -80,14 +81,27 @@ try {
 
   show("accounts", pretty(session.accounts));
 
+  // A test sign-in lists one stock account.
+  const [stock] = fubonStockAccounts(session.accounts);
+
+  if (!stock) throw new Error("The test account lists no stock account");
+
+  const account = stock.id;
+
   // The test environment keeps no reports of costs or gains, so this fails there.
-  const holdings = step("holdings as Fubon answered", () => session.holdings());
+  const holdings = step("holdings as Fubon answered", () =>
+    session.holdings(account)
+  );
 
   const orders =
-    step("today's orders as Fubon answered", () => session.orders(today)) ?? [];
+    step("today's orders as Fubon answered", () =>
+      session.orders(account, today)
+    ) ?? [];
 
   const fills =
-    step("today's fills as Fubon answered", () => session.fills(today)) ?? [];
+    step("today's fills as Fubon answered", () =>
+      session.fills(account, today)
+    ) ?? [];
 
   const read = {
     orders: orders.flatMap((order) => fubonOrder(order, today) ?? []),
@@ -104,13 +118,16 @@ try {
   }
 
   if (flag === "--sell" && code && shares && price) {
-    const broker = createFubonBroker(async () => ({
-      holdings: async () => session.holdings(),
-      orders: async (from) => session.orders(from),
-      fills: async (from) => session.fills(from),
-      place: async (order) => session.place(order),
-      cancel: async (id) => session.cancel(id),
-    }));
+    const broker = createFubonBroker({
+      session: async () => ({
+        holdings: async (id) => session.holdings(id),
+        orders: async (id, from) => session.orders(id, from),
+        fills: async (id, from) => session.fills(id, from),
+        place: async (id, order) => session.place(id, order),
+        cancel: async (id, orderId) => session.cancel(id, orderId),
+      }),
+      account,
+    });
 
     const tag = orderTag(`fubon-test-env-${Date.now()}`);
     const dayStart = exchangeMidnight(Market.TW, today) * 1000;

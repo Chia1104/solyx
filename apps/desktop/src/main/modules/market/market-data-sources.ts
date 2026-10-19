@@ -1,5 +1,6 @@
 import { isEqual } from "es-toolkit";
 
+import { fubonStockAccounts } from "@solyx/brokers/fubon";
 import type { FubonRealtime, FubonSessionOptions } from "@solyx/brokers/fubon";
 import { Market } from "@solyx/core/market";
 import type {
@@ -245,6 +246,9 @@ export function createMarketDataSources({
       ? {
           state: FubonSessionState.SignedIn,
           accounts: outcome.connection.session.accounts.length,
+          stockAccounts: fubonStockAccounts(
+            outcome.connection.session.accounts
+          ),
         }
       : {
           state: FubonSessionState.Failed,

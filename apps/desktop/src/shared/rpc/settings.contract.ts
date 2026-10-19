@@ -40,7 +40,7 @@ import {
   themeSchema,
   mandateDraftSchema,
   timeZonePreferenceSchema,
-  tradingBrokerSchema,
+  tradingAccountSchema,
 } from "../settings.ts";
 import type {
   AgentServerModels,
@@ -246,7 +246,7 @@ export const settingsContract = {
   setMemoryEnabled: oc.input(z.boolean()).output(type<void>()),
   trading: oc.output(type<TradingSettings>()),
   /** Picks the account orders go to from the app's next start on. */
-  setTradingBroker: oc.input(tradingBrokerSchema).output(type<void>()),
+  setTradingAccount: oc.input(tradingAccountSchema).output(type<void>()),
   /** Quits the app and starts it again, as a change that waits for a restart needs. */
   restart: oc.output(type<void>()),
   /** The user's trading mandate; `null` while they have none. */

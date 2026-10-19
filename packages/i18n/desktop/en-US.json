@@ -1793,10 +1793,13 @@
         "paper": "Paper account",
         "fubon": "Fubon Securities"
       },
+      "broker-account": "{{broker}} {{account}}",
       "broker-hints": {
         "paper": "Pretend money; every order fills at once.",
-        "fubon": "Your own account, signed in as set up in Market data. Buys need a settlement account at Taipei Fubon Bank or LINE Bank; with another bank, only sales go."
+        "fubon": "Fubon's accounts are the ones its sign-in in Market data lists. Buys need a settlement account at Taipei Fubon Bank or LINE Bank; with another bank, only sales go."
       },
+      "fubon-sign-in": "Sign in to Fubon in Market data to pick one of its accounts.",
+      "account-gone": "Fubon's sign-in no longer lists account {{account}}, so nothing can go to it. Pick another account.",
       "restart-title": "Restart to switch accounts",
       "restart-description": "Orders go to the {{account}} until Solyx restarts, and proposals waiting for you are dismissed then.",
       "restart": "Restart",

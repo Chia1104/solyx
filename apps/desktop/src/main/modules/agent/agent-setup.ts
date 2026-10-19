@@ -226,7 +226,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
 
   /** Only the user changes these, since each lifts a limit on orders or picks the account they reach. */
   function trading(): SetupArea {
-    const { broker, locked, maxDailyLoss } = config.read().trading;
+    const { broker, account, locked, maxDailyLoss } = config.read().trading;
 
     return {
       name: "Trading",
@@ -234,6 +234,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       missing: [],
       settings: [
         entry(["trading", "broker"], broker),
+        entry(["trading", "account"], account ?? "none"),
         {
           name: "trading.mandate",
           value: mandateText(options.mandate()),

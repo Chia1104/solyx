@@ -10,11 +10,14 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { brokerId } from "@solyx/core/broker";
 import { Currency } from "@solyx/core/market";
-import { isEnumValue } from "@solyx/utils/is";
 
 import { TradingBroker } from "#shared/settings.ts";
-import type { TradingSettings as Trading } from "#shared/settings.ts";
+import type {
+  TradingAccount,
+  TradingSettings as Trading,
+} from "#shared/settings.ts";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
@@ -22,7 +25,8 @@ import { Section } from "../../components/section.tsx";
 
 import { MandateSettings } from "./mandate-settings.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
-import { tradingSettingsQuery } from "./settings-query.ts";
+import { marketDataQuery, tradingSettingsQuery } from "./settings-query.ts";
+import { fubonChoices, tradingAccountLabel } from "./trading-account.ts";
 
 /** The most a currency's sales may lose in a day, saved as the field commits; empty lifts the limit. */
 function LossLimitRow({
@@ -73,11 +77,41 @@ function LossLimitRow({
 }
 
 /** The account orders go to, which the desk trades from the app's next start on. */
-function BrokerRow({ broker, trading }: Pick<Trading, "broker" | "trading">) {
+function BrokerRow({
+  broker,
+  account,
+  trading,
+}: Pick<Trading, "broker" | "account" | "trading">) {
   const { t } = useTranslation();
   const label = t("settings.trading.broker");
-  const save = useMutation(orpc.settings.setTradingBroker.mutationOptions());
+  const save = useMutation(orpc.settings.setTradingAccount.mutationOptions());
   const restart = useMutation(orpc.settings.restart.mutationOptions());
+  const session = useQuery(marketDataQuery()).data?.fubon.session;
+
+  const fubonAccount = broker === TradingBroker.Fubon ? account : null;
+  const { accounts: fubonAccounts, gone } = fubonChoices(session, fubonAccount);
+
+  const options: {
+    id: string;
+    value: TradingAccount;
+    label: string;
+    hint: string;
+  }[] = [
+    {
+      id: brokerId(TradingBroker.Paper, null),
+      value: { broker: TradingBroker.Paper, account: null },
+      label: t("settings.trading.brokers.paper"),
+      hint: t("settings.trading.broker-hints.paper"),
+    },
+    ...fubonAccounts.map(({ id, name }) => ({
+      id: brokerId(TradingBroker.Fubon, id),
+      value: { broker: TradingBroker.Fubon, account: id },
+      label: tradingAccountLabel(t, brokerId(TradingBroker.Fubon, id)),
+      hint: name,
+    })),
+  ];
+
+  const picked = brokerId(broker, account);
 
   return (
     <SettingsRow
@@ -85,35 +119,48 @@ function BrokerRow({ broker, trading }: Pick<Trading, "broker" | "trading">) {
       description={t("settings.trading.broker-description")}>
       <RadioGroup
         aria-label={label}
-        value={broker}
+        value={picked}
         isDisabled={save.isPending}
         onChange={(next) => {
-          if (isEnumValue(TradingBroker, next) && next !== broker) {
-            save.mutate(next);
-          }
+          const option = options.find(({ id }) => id === next);
+
+          if (option && next !== picked) save.mutate(option.value);
         }}>
-        {Object.values(TradingBroker).map((option) => (
-          <Radio key={option} value={option}>
+        {options.map((option) => (
+          <Radio key={option.id} value={option.id}>
             <Radio.Content>
               <Radio.Control>
                 <Radio.Indicator />
               </Radio.Control>
-              {t(`settings.trading.brokers.${option}`)}
+              {option.label}
             </Radio.Content>
-            <Description>
-              {t(`settings.trading.broker-hints.${option}`)}
-            </Description>
+            {option.hint ? <Description>{option.hint}</Description> : null}
           </Radio>
         ))}
       </RadioGroup>
-      {broker === trading ? null : (
+      <Description>
+        {fubonAccounts.length > 0
+          ? t("settings.trading.broker-hints.fubon")
+          : t("settings.trading.fubon-sign-in")}
+      </Description>
+      {gone ? (
+        <Alert status="warning">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Description>
+              {t("settings.trading.account-gone", { account: fubonAccount })}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      ) : null}
+      {picked === trading ? null : (
         <Alert status="warning">
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>{t("settings.trading.restart-title")}</Alert.Title>
             <Alert.Description>
               {t("settings.trading.restart-description", {
-                account: t(`settings.trading.brokers.${trading}`),
+                account: tradingAccountLabel(t, trading),
               })}
             </Alert.Description>
           </Alert.Content>
@@ -148,7 +195,11 @@ export function TradingSettings() {
     <>
       <Section title={t("settings.sections.trading")}>
         <SettingsList>
-          <BrokerRow broker={data.broker} trading={data.trading} />
+          <BrokerRow
+            broker={data.broker}
+            account={data.account}
+            trading={data.trading}
+          />
           <SettingsRow
             label={t("proposals.lock.label")}
             description={t("settings.trading.lock-description")}
