@@ -28,6 +28,8 @@ export interface LiveCandle {
 /** Where one watch's bars go: a window's stream of them, or a test. */
 export interface LiveSender {
   send(updates: LiveCandle[]): void;
+  /** The symbol stopped being live under it, as when a restarted stream refuses it, so no bar comes again. */
+  end?(): void;
 }
 
 interface Watch {
@@ -297,7 +299,7 @@ export function createLiveCandles(options: LiveCandlesOptions) {
     /**
      * Today's bars of `symbol` in `interval` as they change, a batch for each push: an empty one
      * first once a live stream covers the symbol, and none, with the end at once, when none does.
-     * Watches until `signal` aborts or the caller stops reading.
+     * Watches until `signal` aborts, the caller stops reading or the symbol stops being live.
      */
     async *follow(
       symbol: SymbolRef,
@@ -308,12 +310,17 @@ export function createLiveCandles(options: LiveCandlesOptions) {
         bars: { updates: LiveCandle[] };
       }>();
 
+      const ended = new AbortController();
+
       const sender: LiveSender = {
         send: (updates) => void batches.publish("bars", { updates }),
+        end: () => ended.abort(),
       };
 
       // Read from before the watch, whose first flush may come at once.
-      const pushed = batches.subscribe("bars", { signal });
+      const pushed = batches.subscribe("bars", {
+        signal: signal ? AbortSignal.any([signal, ended.signal]) : ended.signal,
+      });
 
       try {
         if (!(await watch(sender, symbol, interval))) return;
@@ -323,6 +330,9 @@ export function createLiveCandles(options: LiveCandlesOptions) {
         for await (const { updates } of pushed) {
           yield updates.map((update) => update.candle);
         }
+      } catch (error) {
+        // A symbol no longer live ends the watch, as one no stream covers does, rather than failing it.
+        if (!ended.signal.aborted) throw error;
       } finally {
         unwatch(sender, symbol);
         await pushed.return();
@@ -331,7 +341,7 @@ export function createLiveCandles(options: LiveCandlesOptions) {
 
     /**
      * Reopens the stream, as after the provider's key changes, and watches every symbol again;
-     * a symbol the new stream refuses stops being live.
+     * a symbol the new stream refuses stops being live, which ends its watches.
      */
     async restart() {
       const previous = stream;
@@ -354,6 +364,8 @@ export function createLiveCandles(options: LiveCandlesOptions) {
           state.stop = stop;
         } else {
           live.delete(key);
+
+          for (const sender of state.watches.keys()) sender.end?.();
         }
       }
     },

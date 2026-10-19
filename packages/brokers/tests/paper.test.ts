@@ -466,6 +466,47 @@ describe("an exit on live bars", () => {
     expect(await broker.exits?.watching()).toEqual([]);
   });
 
+  test("a price reached while the app was closed sells nothing once it follows the listing again", async () => {
+    const feed = liveFeed();
+    const ledger = memoryLedger();
+    const clock = { now: NOW };
+
+    const open = () =>
+      createPaperBroker({
+        cash: { TWD: 1_000_000 },
+        ledger,
+        getLastPrice: async () => 600,
+        bars: feed.bars,
+        now: () => clock.now,
+      });
+
+    const before = open();
+
+    await before.placeOrder(limit(Side.Buy, 1000, 600), "BUY001");
+    await before.exits?.place(
+      tsmc,
+      1000,
+      { stop: 550, target: 700, until: "2026-11-18" },
+      TAG
+    );
+
+    // The app is closed from minute 2 to minute 10, and opens again then.
+    clock.now = NOW + 10 * 60_000;
+
+    const after = open();
+
+    await after.exits?.watching();
+
+    // The session's first bars, as a stream gives them on subscribing.
+    await feed.push([bar(minute(5), 540, 600), bar(minute(10), 590, 600)]);
+
+    expect((await after.getAccount()).positions).toHaveLength(1);
+
+    await feed.push([bar(minute(11), 548, 600)]);
+
+    expect((await after.getAccount()).positions).toEqual([]);
+  });
+
   test("reads no price for a listing it follows live, and reads it once the stream no longer covers it", async () => {
     const feed = liveFeed();
     const getLastPrice = vi.fn(async () => 600);

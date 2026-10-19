@@ -90,8 +90,8 @@ export interface PaperBrokerOptions {
  * Fills every order immediately and in full. No fees, no securities transaction tax, no shorting —
  * good enough to exercise the order flow, not to judge a strategy. An order it cannot fill is
  * refused, since it changes nothing before the fill is written. It watches an exit's listing on
- * the live bars it is given while the app runs: the first minute bar after the exit was placed
- * that reaches a leg sells the exit whole there, at the leg's price, or at the bar's open where it
+ * the live bars it is given while the app runs: the first minute bar after the exit was placed and
+ * this run began following the listing that reaches a leg sells the exit whole there, at the leg's price, or at the bar's open where it
  * opened past it, and ends its siblings in the same write, so one sale ends the exit. Asked what it
  * watches, it checks the last price too, for a listing no stream covers, and ends the exits whose
  * last day has passed unsold.
@@ -242,8 +242,16 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
     return watched;
   }
 
-  /** Sells each exit a minute bar of its listing reached, once the bar opened after it was placed. */
-  function settleBars(instrument: SymbolRef, bars: readonly Candle[]) {
+  /**
+   * Sells each exit a minute bar of its listing reached, once the bar opened after the exit was
+   * placed and after this run began following the listing at `followedAt`, so a price reached while
+   * the app was closed, which a stream's first bars of the session hold, sells nothing.
+   */
+  function settleBars(
+    instrument: SymbolRef,
+    bars: readonly Candle[],
+    followedAt: number
+  ) {
     const ordered = bars.toSorted((left, right) => left.time - right.time);
     let sold = false;
 
@@ -254,9 +262,8 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
         continue;
       }
 
-      // The minute it was placed in holds prices from before it.
-      const from =
-        (Math.floor(first.placedAt / MINUTE_MS) + 1) * (MINUTE_MS / 1000);
+      // The minute either began in holds prices from before it.
+      const from = nextMinute(Math.max(first.placedAt, followedAt));
 
       for (const bar of ordered) {
         const price = bar.time < from ? null : exitPrice(legs, bar);
@@ -299,13 +306,14 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
       if (streams.has(key)) continue;
 
       const controller = new AbortController();
+      const followedAt = now();
 
       streams.set(key, controller);
 
       // A stream that ends or fails leaves the last price to check until the next ask follows it again.
       void (async () => {
         for await (const batch of bars(instrument, controller.signal)) {
-          settleBars(instrument, batch);
+          settleBars(instrument, batch, followedAt);
         }
       })()
         .catch(noop)
@@ -438,6 +446,10 @@ export function createPaperBroker(options: PaperBrokerOptions): BrokerAdapter {
     },
   };
 }
+
+/** The time, UTC seconds as a bar's, of the minute after the one `at`, UTC milliseconds, falls in. */
+const nextMinute = (at: number) =>
+  (Math.floor(at / MINUTE_MS) + 1) * (MINUTE_MS / 1000);
 
 /**
  * The price an exit's leg sells at in `bar`, or `null` where the bar reaches neither: at the bar's

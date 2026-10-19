@@ -346,6 +346,24 @@ describe("createLiveCandles", () => {
     ).toBe(true);
   });
 
+  test("a symbol the restarted stream refuses ends the watches that followed it", async () => {
+    const { live, streams } = setup();
+    const following = live.follow(TSMC, Interval.OneMinute);
+
+    expect((await following.next()).value).toEqual([]);
+
+    const refusing = fakeStream();
+
+    refusing.stream.watchMinutes = () => undefined;
+    streams.push(refusing);
+
+    const next = following.next();
+
+    await live.restart();
+
+    expect(await next).toEqual({ done: true, value: undefined });
+  });
+
   test("a restart watches every symbol again on a new stream", async () => {
     const { live, streams } = setup();
 
