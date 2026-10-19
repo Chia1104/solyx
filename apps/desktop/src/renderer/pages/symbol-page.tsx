@@ -28,6 +28,7 @@ import { useDepth } from "../modules/market/use-depth.ts";
 import { NewsList } from "../modules/news/news-list.tsx";
 import { OrderTicket } from "../modules/proposals/order-ticket.tsx";
 import { useTicketStore } from "../modules/proposals/ticket-store.ts";
+import { TradeOverlay } from "../modules/proposals/trade-overlay.tsx";
 import { ForecastOverlay } from "../modules/research/forecast-overlay.tsx";
 import { ResearchPanel } from "../modules/research/research-panel.tsx";
 import { WatchToggle } from "../modules/watchlist/watch-toggle.tsx";
@@ -53,6 +54,8 @@ export function SymbolPage() {
   const tradeRail = useLayoutStore((state) => state.tradeRail);
   const toggleTradeRail = useLayoutStore((state) => state.toggleTradeRail);
   const pickPrice = useTicketStore((state) => state.pick);
+  const pickingOnChart = useTicketStore((state) => state.pickingOnChart);
+  const setPickingOnChart = useTicketStore((state) => state.setPickingOnChart);
   const depth = useDepth(symbol, tradeRail);
   // Only Taiwan's exchanges report flows, so a US listing shows the news in their place.
   const flowsShown = symbol.market === Market.TW;
@@ -106,9 +109,18 @@ export function SymbolPage() {
           }
         />
         <IndicatorMenu market={symbol.market} interval={interval} />
+        {tradeRail ? (
+          <ToggleButton
+            size="sm"
+            className="ml-auto"
+            isSelected={pickingOnChart}
+            onChange={setPickingOnChart}>
+            {t("order-form.pick-on-chart")}
+          </ToggleButton>
+        ) : null}
         <ToggleButton
           size="sm"
-          className="ml-auto"
+          className={tradeRail ? undefined : "ml-auto"}
           aria-controls={TRADE_RAIL_ID}
           isSelected={tradeRail}
           onChange={toggleTradeRail}>
@@ -122,13 +134,14 @@ export function SymbolPage() {
               symbol={symbol}
               interval={interval}
               // A forecast counts sessions, so its paths are drawn on daily bars alone.
-              overlay={
-                interval === Interval.OneDay
-                  ? (candles) => (
-                      <ForecastOverlay symbol={symbol} candles={candles} />
-                    )
-                  : undefined
-              }
+              overlay={(candles) => (
+                <>
+                  {interval === Interval.OneDay ? (
+                    <ForecastOverlay symbol={symbol} candles={candles} />
+                  ) : null}
+                  <TradeOverlay symbol={symbol} candles={candles} />
+                </>
+              )}
               // Flows come a session at a time, so they are drawn on daily bars and longer.
               panes={
                 flowsShown && !isIntraday(interval)
