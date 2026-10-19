@@ -105,6 +105,7 @@ import type {
 } from "@solyx/core/order-desk";
 import { recordsByStance, roundTrips } from "@solyx/core/review";
 import type { TradeRecord } from "@solyx/core/review";
+import { MAX_EXIT_DAYS } from "@solyx/core/risk";
 import { stanceValue } from "@solyx/core/sentiment";
 import { getSession, sessionsBetween, weekdays } from "@solyx/core/session";
 import type { MarketClosure, TradingDays } from "@solyx/core/session";
@@ -204,6 +205,34 @@ const ProposalClaimDoc = defineDoc<{
   fork: "initial",
   initial: () => ({ claim: null }),
 });
+
+/**
+ * Claims the reply's one proposal for this call in a commit, so calls the model makes at once in
+ * one reply cannot both pass, whichever tool makes them.
+ */
+async function claimProposal(api: ToolExecutionApi, context: Context) {
+  const claimed = await api.commit(async (tx) => {
+    const run =
+      (await tx.doc(LiveDoc, api.conversationId)).run?.inputs[0] ?? null;
+
+    const proposal = await tx.doc(ProposalClaimDoc, api.conversationId);
+    const { claim } = proposal;
+
+    if (claim && claim.run === run && claim.callId !== api.callId) {
+      return false;
+    }
+
+    proposal.claim = { run, callId: api.callId };
+
+    return true;
+  }, context);
+
+  if (!claimed) {
+    throw new Error(
+      "Only one proposal per reply; ask the user before proposing another"
+    );
+  }
+}
 
 const MAX_BARS = 200;
 
@@ -636,6 +665,39 @@ function mandateText(
   }
 }
 
+const exitSchema = z.object({
+  market: marketSchema,
+  symbol: symbolRefSchema.shape.symbol.describe(
+    "Exchange code, such as 2330 or AAPL"
+  ),
+  quantity: z
+    .number()
+    .int()
+    .positive()
+    .describe(
+      "Shares held to sell, not lots, which no working sale or other exit already sells"
+    ),
+  stop: z
+    .number()
+    .positive()
+    .optional()
+    .describe(
+      "Sells at the day's lower limit once the price trades at or below it; below the last price, on the tick grid"
+    ),
+  target: z
+    .number()
+    .positive()
+    .optional()
+    .describe(
+      "Sells at this price once the price trades at or above it; above the last price, on the tick grid"
+    ),
+  until: z.iso
+    .date()
+    .describe(
+      `The last exchange-local day the broker watches the price, from tomorrow to ${MAX_EXIT_DAYS} days on`
+    ),
+});
+
 /** The agent's trading tools. Their per-run limits are kept with the conversation. */
 function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
   const now = ports.now ?? (() => new Date());
@@ -992,7 +1054,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
       name: AgentToolName.GetAccount,
       replay: "safe",
       description:
-        "Cash per currency and open positions with their average price, in the account the app trades, the orders of today's market days that may still fill, and how its closed round trips went by the stance of the report each was opened under.",
+        "Cash per currency and open positions with their average price, in the account the app trades, the orders of today's market days that may still fill, the exits the broker watches, and how its closed round trips went by the stance of the report each was opened under.",
       parameters: z.object({}),
       execute: async () => {
         const [account, fills, working] = await Promise.all([
@@ -1000,6 +1062,8 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           ports.desk.fills(0),
           ports.desk.working(),
         ]);
+
+        const exits = ports.desk.list().filter(exitWatched);
 
         const cash = Object.entries(account.cash).map(
           ([currency, amount]) =>
@@ -1025,6 +1089,8 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             ...(working.length > 0
               ? working.map(describeBrokerOrder)
               : ["none"]),
+            "exits the broker watches:",
+            ...(exits.length > 0 ? exits.map(describeProposal) : ["none"]),
             "closed round trips, before fees and tax, by the stance of the report in force at the first buy:",
             ...(records.length > 0
               ? records.flatMap(({ currency, all, stances }) => [
@@ -1096,28 +1162,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
       execute: async ({ order, rationale }, api, context) => {
         const request = toOrderRequest(order);
 
-        // Claimed in a commit, so calls the model makes at once in one reply cannot both pass.
-        const claimed = await api.commit(async (tx) => {
-          const run =
-            (await tx.doc(LiveDoc, api.conversationId)).run?.inputs[0] ?? null;
-
-          const proposal = await tx.doc(ProposalClaimDoc, api.conversationId);
-          const { claim } = proposal;
-
-          if (claim && claim.run === run && claim.callId !== api.callId) {
-            return false;
-          }
-
-          proposal.claim = { run, callId: api.callId };
-
-          return true;
-        }, context);
-
-        if (!claimed) {
-          throw new Error(
-            "Only one proposal per reply; ask the user before proposing another"
-          );
-        }
+        await claimProposal(api, context);
 
         // Kept with the call, so a call that runs again after a restart finds its proposal.
         const id = await api.memo("proposal-id", crypto.randomUUID(), context);
@@ -1177,6 +1222,51 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             proposalId: proposal.id,
             ...(council && { council }),
           } satisfies ProposeOrderDetails,
+        };
+      },
+    }),
+
+    defineTool({
+      name: AgentToolName.ProposeExit,
+      replay: "safe",
+      description:
+        "Puts one exit of a position the account holds in front of the user for confirmation, after the app's checks: a stop, a target or both, which the broker then watches and sells at itself, even while the app is closed. The mandate never sends one. It counts as the reply's one proposal.",
+      parameters: z.object({
+        exit: exitSchema,
+        rationale: z
+          .string()
+          .min(1)
+          .max(4000)
+          .describe(
+            "Why each price, with the evidence and its as_of times, and what the exit protects, in the user's language"
+          ),
+      }),
+      execute: async ({ exit, rationale }, api, context) => {
+        await claimProposal(api, context);
+
+        // Kept with the call, so a call that runs again after a restart finds its proposal.
+        const id = await api.memo("proposal-id", crypto.randomUUID(), context);
+
+        const proposal = await ports.desk.propose({
+          id,
+          exit: {
+            instrument: { market: exit.market, symbol: exit.symbol },
+            quantity: exit.quantity,
+            stop: exit.stop ?? null,
+            target: exit.target ?? null,
+            until: exit.until,
+          },
+          source: ProposalSource.Agent,
+          rationale,
+        });
+
+        return {
+          text: `Proposal ${describeProposal(proposal)}. ${
+            proposal.status === ProposalStatus.AwaitingConfirmation
+              ? "It waits for the user to confirm or dismiss it in the app; once confirmed, the broker watches the price."
+              : "The app's checks refused it."
+          }`,
+          details: { proposalId: proposal.id } satisfies ProposeOrderDetails,
         };
       },
     }),

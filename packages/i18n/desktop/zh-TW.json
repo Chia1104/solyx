@@ -501,6 +501,7 @@
       "list_proposals": "讀取提案",
       "check_order": "檢查委託",
       "propose_order": "提出下單建議",
+      "propose_exit": "提出停損停利建議",
       "read_skill": "讀取操作手冊",
       "tool_search": "搜尋 MCP 工具",
       "run_analysis": "執行分析",
