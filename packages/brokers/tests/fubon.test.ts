@@ -46,6 +46,8 @@ const calls = [];
 
 const reports = {};
 
+const lost = [];
+
 const NO_REPORT = "證券報表/表單定義資料不存在";
 
 const REFUSED = "單價輸入錯誤[4385715]";
@@ -111,9 +113,19 @@ class CoreSdk {
       singleCondition(account, start, end, stopSign, condition, order) {
         calls.push(["singleCondition", account.account, start, end, stopSign, condition, order]);
 
-        return condition.symbol === "8888"
-          ? { isSuccess: false, message: "觸發價格錯誤" }
-          : { isSuccess: true, data: { guid: "G-" + calls.length } };
+        if (condition.symbol === "8888") return { isSuccess: false, message: "觸發價格錯誤" };
+
+        // "7777" is taken, but the answer is lost on the way back.
+        if (condition.symbol === "7777") {
+          const comparison = condition.comparison === "LessThanOrEqual" ? "小於等於" : "大於等於";
+          const createTime = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 19).replace("T", " ");
+
+          lost.push({ guid: "G-LOST", symbol: "7777", conditionBuySell: "現股賣", conditionContent: "成交價" + comparison + condition.triggerValue + "元", conditionVolume: order.quantity + "股", createTime });
+
+          return { isSuccess: false, message: "連線逾時" };
+        }
+
+        return { isSuccess: true, data: { guid: "G-" + calls.length } };
       },
       getConditionOrder(account, status) {
         calls.push(["getConditionOrder", account.account, status]);
@@ -123,6 +135,7 @@ class CoreSdk {
         const detail = { batchNo: "", orderLevel: "0", account: account.account, conditionBuySell: "現股賣", startDate: "2026/10/20", status: "預約(N)", createTime: "2026-10-19 16:44:57" };
 
         return { isSuccess: true, data: [
+          ...lost,
           { ...detail, guid: "G-1", symbol: "2881", conditionContent: "當自2026/10/20至2026/10/23內 富邦金成交價小於等於41.5元 全部成交為止", conditionVolume: "1張" },
           { ...detail, guid: "G-2", symbol: "2330", conditionContent: "當自2026/10/20至2026/10/23內 台積電成交價大於等於1,005元 全部成交為止", conditionVolume: "100股" },
           { ...detail, guid: "G-3", symbol: "2330", conditionBuySell: "現股買", conditionContent: "當自2026/10/20至2026/10/23內 台積電成交價小於等於900元 全部成交為止", conditionVolume: "1張" },
@@ -131,9 +144,11 @@ class CoreSdk {
       cancelConditionOrders(account, guid) {
         calls.push(["cancelConditionOrders", account.account, guid]);
 
-        return guid === "G-9"
-          ? { isSuccess: true, data: "成功筆數:0,失敗筆數:1!" }
-          : { isSuccess: true, data: "成功筆數:1,失敗筆數:0!" };
+        if (guid === "G-9") return { isSuccess: true, data: "成功筆數:0,失敗筆數:1!" };
+
+        if (guid === "G-8") return { isSuccess: true };
+
+        return { isSuccess: true, data: "成功筆數:1,失敗筆數:0!" };
       },
       getOrderResultsDetail(account) {
         calls.push(["getOrderResultsDetail", account.account]);
@@ -991,6 +1006,20 @@ describe("an exit at Fubon", () => {
     expect(() => session.cancelCondition(ACCOUNT, "G-9")).toThrow(
       "Fubon did not cancel exit leg G-9"
     );
+    // An answer whose counts cannot be read confirms nothing.
+    expect(() => session.cancelCondition(ACCOUNT, "G-8")).toThrow(
+      "Fubon did not cancel exit leg G-8"
+    );
+  });
+
+  test("a failed answer is a refusal only where Fubon then lists no such leg placed since", () => {
+    const session = openFubonSession(options("good-key"));
+    const lost = { ...stopLeg, symbol: "7777", quantity: 100, price: 30 };
+
+    expect(session.placeCondition(ACCOUNT, lost)).toEqual({ guid: "G-LOST" });
+    expect(
+      session.placeCondition(ACCOUNT, { ...stopLeg, symbol: "8888" })
+    ).toEqual({ refused: "觸發價格錯誤" });
   });
 
   test("an account with none in force lists none", () => {
