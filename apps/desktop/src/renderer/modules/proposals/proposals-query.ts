@@ -6,7 +6,7 @@ import { client, forEachEvent, orpc } from "../../app/rpc.ts";
 export const proposalsQuery = () =>
   orpc.proposals.list.queryOptions({ staleTime: Infinity });
 
-/** Refetches the proposals and the account whenever a proposal changes, in any window or by the agent. */
+/** Refetches the proposals and the account whenever either changes, in any window, by the agent or at the broker. */
 export function followProposalChanges(queryClient: QueryClient) {
   void forEachEvent(client.proposals.changes(), () => {
     void queryClient.invalidateQueries({ queryKey: orpc.proposals.key() });

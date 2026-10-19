@@ -3,7 +3,14 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from "vite-plus/test";
 import * as z from "zod";
 
 import { BrokerOrderStatus } from "@solyx/core/broker";
@@ -26,6 +33,8 @@ import type { FubonFill, FubonHoldings, FubonOrder } from "../src/fubon.ts";
 // Stands in for the SDK's native binding; it records calls on the module so tests can read them.
 const FAKE_BINDING = `
 const calls = [];
+
+const reports = {};
 
 const NO_REPORT = "證券報表/表單定義資料不存在";
 
@@ -128,6 +137,18 @@ class CoreSdk {
     };
   }
 
+  innerSetOnOrder(callback) {
+    reports.order = callback;
+  }
+
+  innerSetOnOrderChanged(callback) {
+    reports.changed = callback;
+  }
+
+  setOnFilled(callback) {
+    reports.filled = callback;
+  }
+
   exchangeRealtimeToken() {
     return "sdk-token";
   }
@@ -143,7 +164,14 @@ class FugleRealtime {
   }
 }
 
-module.exports = { CoreSdk, FugleRealtime, calls };
+// Fubon telling of an order being placed, changed and filled, each through its own callback.
+function report() {
+  reports.order?.(null, { isSuccess: true });
+  reports.changed?.(null, { isSuccess: true });
+  reports.filled?.(null, {});
+}
+
+module.exports = { CoreSdk, FugleRealtime, calls, report };
 `;
 
 let directory: string;
@@ -171,6 +199,15 @@ afterEach(async () => {
 });
 
 /** What the fake binding was asked, in order. */
+/** Has the fake SDK tell of an order being placed, changed and filled. */
+function report() {
+  z.object({ report: z.custom<() => void>() })
+    .parse(
+      createRequire(import.meta.url)(join(directory, "package", "trade.js"))
+    )
+    .report();
+}
+
 function recordedCalls() {
   return z
     .object({ calls: z.array(z.array(z.unknown())) })
@@ -544,6 +581,16 @@ test("without Fubon's report of gains, no sale is reckoned", () => {
   expect(
     session.fills(exchangeDate(Market.TW)).map(({ realized }) => realized)
   ).toEqual([null, null, null]);
+});
+
+test("tells its listener of each order Fubon reports placed, changed or filled", () => {
+  const session = openFubonSession(options("good-key"));
+  const listener = vi.fn();
+
+  session.onChange(listener);
+  report();
+
+  expect(listener).toHaveBeenCalledTimes(3);
 });
 
 test("a bank Fubon cannot read leaves its balance unknown", () => {

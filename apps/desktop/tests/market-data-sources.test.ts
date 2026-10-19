@@ -50,6 +50,7 @@ function fakeSession(): FubonProcess {
     fills: async () => [],
     place: vi.fn(),
     cancel: vi.fn(),
+    watch: vi.fn(),
     close: vi.fn(),
   };
 }
@@ -238,6 +239,32 @@ test("while the desk trades with Fubon, charts from Fugle leave its session sign
   expect(await sources.fubonSession()).toBe(await openedSession(0));
   expect((await openedSession(0)).close).not.toHaveBeenCalled();
   expect(openFubonProcess).toHaveBeenCalledTimes(1);
+});
+
+test("Fubon's reports reach every listener, from whichever session signed in", async () => {
+  openFubonProcess.mockImplementation(async () => fakeSession());
+
+  const { secrets, sources, useFubon } = setup({ tradesFubon: true });
+  const listener = vi.fn();
+
+  sources.onFubonChange(listener);
+  await useFubon();
+
+  const report = async (n: number) => {
+    const [[told]] = vi.mocked((await openedSession(n)).watch).mock.calls;
+
+    told?.();
+  };
+
+  await sources.fubonSession();
+  await report(0);
+
+  // Signing in again with new settings opens a session whose reports reach it too.
+  await secrets.save(Secret.FubonApiKey, "new-key");
+  await sources.fubonSession();
+  await report(1);
+
+  expect(listener).toHaveBeenCalledTimes(2);
 });
 
 test("the desk's session fails while Fubon's sign-in is not set up, without signing in", async () => {

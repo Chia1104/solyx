@@ -394,6 +394,25 @@ test("an order the broker does not list stays unknown until its session is over,
   expect(getOrders).not.toHaveBeenCalled();
 });
 
+test("a change the broker tells of refreshes the account and finds an unanswered order", async () => {
+  const { desk, placeOrder, getOrders, onChange } = setup();
+  const { id } = await proposeFromAgent(desk);
+
+  placeOrder.mockRejectedValueOnce(new Error("timeout"));
+  await desk.confirm(id);
+  await desk.reconcile();
+
+  onChange.mockClear();
+  getOrders.mockResolvedValue([brokerOrder(id)]);
+
+  await desk.brokerChanged();
+
+  expect(onChange).toHaveBeenCalled();
+  expect(desk.list()).toMatchObject([
+    { id, status: ProposalStatus.Submitted, brokerOrderId: "B-9" },
+  ]);
+});
+
 test("a submission an exit cut off is found by its tag once the desk reconciles", async () => {
   const { desk, placeOrder, store } = setup();
   const { id } = await proposeFromAgent(desk);

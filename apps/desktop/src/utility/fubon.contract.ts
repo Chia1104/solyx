@@ -1,4 +1,4 @@
-import { oc, type } from "@orpc/contract";
+import { asyncIteratorObject, oc, type } from "@orpc/contract";
 import * as z from "zod";
 
 import type {
@@ -10,6 +10,8 @@ import type {
   FubonRealtime,
   FubonSessionOptions,
 } from "@solyx/brokers/fubon";
+
+import type { Change } from "../shared/rpc/changes.ts";
 
 /** An exchange-local day, from which a read reaches through today. */
 const fromSchema = z.iso.date();
@@ -28,6 +30,8 @@ export const fubonContract = {
   place: oc.input(type<FubonOrderObject>()).output(type<FubonOrder>()),
   /** Cancels today's order by its id. */
   cancel: oc.input(z.string()).output(type<void>()),
+  /** Yields each time Fubon tells of an order of the account being placed, changed or filled. */
+  changes: oc.output(asyncIteratorObject(type<Change>())),
   /** Signs out, after which the main process ends the process. */
   close: oc.output(type<void>()),
 };

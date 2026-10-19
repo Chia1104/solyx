@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 
 import { MemoryPublisher } from "@orpc/publisher/memory";
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
-import { kebabCase, omit, uniqBy } from "es-toolkit";
+import { debounce, kebabCase, omit, uniqBy } from "es-toolkit";
 
 import { createFubonBroker } from "@solyx/brokers/fubon";
 import { createPaperBroker } from "@solyx/brokers/paper";
@@ -97,6 +97,9 @@ const PAPER_LIMITS: RiskLimits = {
   maxOrderNotional: PAPER_CASH,
   allowedSessions: Object.values(Session),
 };
+
+// Fubon tells of one order in a few reports at once (taken, changed, filled), which one read covers.
+const BROKER_REPORTS_SETTLE_MS = 500;
 
 // A live account's orders go only to the regular session, whose books every broker takes alike.
 const LIVE_LIMITS: RiskLimits = {
@@ -684,6 +687,20 @@ export function createServices(config: ConfigFile) {
   desk
     .reconcile()
     .catch((error) => diagnostics.recovered(error, "desk.reconcile"));
+
+  if (tradesFubon) {
+    marketDataSources.onFubonChange(
+      debounce(
+        () =>
+          void desk
+            .brokerChanged()
+            .catch((error) =>
+              diagnostics.recovered(error, "desk.broker-changed")
+            ),
+        BROKER_REPORTS_SETTLE_MS
+      )
+    );
+  }
 
   return {
     desk,

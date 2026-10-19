@@ -1,3 +1,4 @@
+import { noop } from "es-toolkit";
 import { expect, test, vi } from "vite-plus/test";
 
 import {
@@ -73,6 +74,7 @@ function setup() {
         streamListeners.delete(listener);
       };
     },
+    onFubonChange: () => noop,
   };
 
   const clock = { now: NOW };
