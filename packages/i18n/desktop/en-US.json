@@ -837,7 +837,13 @@
       "quarter": "{{year}} Q{{quarter}}",
       "on-year": "{{change}} on the year",
       "month-revenue": "{{revenue}} in {{month}}",
-      "mark": "{{period}}: {{figure}}"
+      "mark": "{{period}}: {{figure}}",
+      "margins": "Margins",
+      "margin": {
+        "gross": "Gross",
+        "operating": "Operating",
+        "net": "Net"
+      }
     }
   },
   "research": {
