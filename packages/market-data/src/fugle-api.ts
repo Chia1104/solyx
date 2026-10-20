@@ -79,8 +79,14 @@ const barSchema = z.object({
   low: z.number(),
   close: z.number(),
   volume: z.number(),
-  /** The close less the exchange's reference price; daily bars only. */
-  change: z.number().optional(),
+  /**
+   * The close less the exchange's reference price; daily bars only. Fugle sends `null` for the odd
+   * session, even an ex-dividend one, which then carries no reference.
+   */
+  change: z
+    .number()
+    .nullish()
+    .transform((change) => change ?? undefined),
 });
 
 type Bar = z.infer<typeof barSchema>;
