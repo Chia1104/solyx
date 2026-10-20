@@ -109,7 +109,9 @@
     "held": "Held",
     "orders": "Orders",
     "market-value": "Value",
-    "cost": "Cost"
+    "cost": "Cost",
+    "realized-trend": "Realized over time, then by trip",
+    "realized-trip": "{{date}} {{symbol}}: {{realized}}"
   },
   "review": {
     "title": "Trade review",
@@ -336,7 +338,11 @@
       "stale": "Too little recent news",
       "latest": "Newest story {{time}}",
       "off": "Sentiment off",
-      "unscored": "Set up a decisions model to score sentiment"
+      "unscored": "Set up a decisions model to score sentiment",
+      "daily": "Sentiment by day",
+      "day": "{{date}}: {{score}}, {{count}} stories",
+      "day-unscored": "{{date}}: {{count}} stories, none scored",
+      "day-none": "{{date}}: no stories"
     },
     "coverage": {
       "collected": "Collected {{time}}",
@@ -895,7 +901,11 @@
       "strip": "What each forecast gave the band that held, oldest first; the line is history's share. {{led, number}} of the {{settled, number}} settled gave it the most.",
       "mark": "{{date}}: gave the band that held {{given}}",
       "mark-history": "{{date}}: gave the band that held {{given}}, history {{history}}",
-      "mark-open": "{{date}}: still open"
+      "mark-open": "{{date}}: still open",
+      "calibration": "How often what was given came true; on the dashed line, just as often as given.",
+      "calibration-bucket": "{{scenarios, number}} scenarios given {{from}}–{{to}}%: {{held, number}} came true ({{rate}})",
+      "calibration-label": "Calibration",
+      "calibration-given": "Given"
     },
     "forecast": {
       "horizon": "{{count, number}}-session horizon from {{date}} at {{price}}",

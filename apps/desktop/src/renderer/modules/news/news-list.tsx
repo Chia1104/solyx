@@ -203,6 +203,7 @@ export function NewsList({
           <SentimentGauge
             symbol={symbol}
             gauge={reading?.gauge}
+            daily={reading?.daily}
             scoring={scoring}
           />
         </div>

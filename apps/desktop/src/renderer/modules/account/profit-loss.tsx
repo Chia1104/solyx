@@ -6,6 +6,7 @@ import { Currency, Market, currencyOf, symbolKey } from "@solyx/core/market";
 import { positionValue } from "@solyx/core/order";
 import type { Position } from "@solyx/core/order";
 import { recordsByStance } from "@solyx/core/review";
+import type { RoundTrip } from "@solyx/core/review";
 
 import { orpc } from "../../app/rpc.ts";
 import { LoadError } from "../../components/load-error.tsx";
@@ -25,6 +26,7 @@ import {
   PositionReturn,
 } from "./position-figures.tsx";
 import { WatchedExits, sellableOf } from "./positions-table.tsx";
+import { RealizedTrend } from "./realized-trend.tsx";
 
 /** The market whose prices a currency's figures move with, for the colours of their direction. */
 const marketOf = (currency: Currency) =>
@@ -190,6 +192,9 @@ function RealizedTotals() {
               key={currency}
               currency={currency}
               realized={all.realized}
+              trips={data.filter(
+                ({ instrument }) => currencyOf(instrument.market) === currency
+              )}
               details={[
                 `${t("review.trips")} ${all.trips}`,
                 `${t("review.win-rate")} ${
@@ -209,10 +214,12 @@ function RealizedTotals() {
 function RealizedLine({
   currency,
   realized,
+  trips,
   details,
 }: {
   currency: Currency;
   realized: number;
+  trips: readonly RoundTrip[];
   details: string;
 }) {
   const { i18n } = useTranslation();
@@ -231,6 +238,7 @@ function RealizedLine({
         </span>
       </div>
       <p className="text-xs text-muted tabular-nums">{details}</p>
+      <RealizedTrend trips={trips} market={marketOf(currency)} />
     </div>
   );
 }

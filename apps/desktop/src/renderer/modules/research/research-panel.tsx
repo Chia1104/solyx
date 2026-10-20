@@ -37,6 +37,7 @@ import { numberFormats } from "../market/number-formats.ts";
 import { PublishedTime } from "../news/news-list.tsx";
 import { useDecisionsReady } from "../settings/settings-query.ts";
 
+import { CalibrationChart } from "./calibration-chart.tsx";
 import { ForecastBody } from "./forecast-card.tsx";
 import { ForecastStrip } from "./forecast-strip.tsx";
 import { researchCoverageQuery } from "./research-query.ts";
@@ -454,7 +455,12 @@ function CoverageView({
             </span>
           ) : null}
         </h3>
-        <ForecastStrip forecasts={forecasts} />
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+          <div className="min-w-0 flex-[1_1_16rem]">
+            <ForecastStrip forecasts={forecasts} />
+          </div>
+          <CalibrationChart buckets={record.calibration} />
+        </div>
         {forecasts.length === 0 ? (
           <p className="text-sm text-muted">{t("research.forecasts.none")}</p>
         ) : (
