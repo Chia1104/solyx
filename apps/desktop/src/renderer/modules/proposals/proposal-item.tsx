@@ -23,6 +23,7 @@ import { TradingBroker } from "#shared/settings.ts";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
+import { HoldButton } from "../../components/hold-button.tsx";
 import { ListingName } from "../market/listing-name.tsx";
 import { LowerView } from "../market/lower-view.ts";
 import { numberFormats } from "../market/number-formats.ts";
@@ -420,15 +421,15 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
       ) : null}
       {proposal.status === ProposalStatus.AwaitingConfirmation && (
         <div className="flex gap-2 pt-1">
-          {/* The app's only ink-filled button: signing is the one act that makes a trade real. */}
-          <Button
+          {/* The app's only button that fills with ink, and only as it is held: signing is the one act that makes a trade real. */}
+          <HoldButton
             size="sm"
             isPending={confirm.isPending}
             // Locked orders would only be refused, which would end the proposal.
             isDisabled={dismiss.isPending || locked}
-            onPress={() => confirm.mutate(proposal.id)}>
+            onConfirm={() => confirm.mutate(proposal.id)}>
             {t("proposals.confirm")}
-          </Button>
+          </HoldButton>
           <Button
             size="sm"
             variant="tertiary"

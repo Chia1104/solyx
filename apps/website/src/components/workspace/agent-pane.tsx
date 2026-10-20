@@ -8,6 +8,7 @@ import { Button } from "../ui/button.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs.tsx";
 
 import { price } from "./format.ts";
+import { HoldButton } from "./hold-button.tsx";
 import type { Listing } from "./listings.ts";
 import { Ask, Band, Vote } from "./script.ts";
 import type { Forecast, Proposal, Scenario, Turn } from "./script.ts";
@@ -431,9 +432,9 @@ function ProposalCard({
 
         {status === ProposalStatus.AwaitingConfirmation && (
           <div className="mt-4 flex gap-2">
-            <Button size="sm" onClick={onConfirm}>
+            <HoldButton onConfirm={onConfirm}>
               {app("proposals.confirm")}
-            </Button>
+            </HoldButton>
             <Button variant="outline" size="sm" onClick={onDismiss}>
               {app("proposals.dismiss")}
             </Button>

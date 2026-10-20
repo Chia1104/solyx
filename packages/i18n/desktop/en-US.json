@@ -726,7 +726,7 @@
       "none": "Made with no report on this listing",
       "open": "Open research"
     },
-    "confirm": "Confirm and submit",
+    "confirm": "Hold to submit",
     "dismiss": "Dismiss",
     "reconcile": "Look it up at the broker",
     "failure": {
@@ -994,7 +994,7 @@
     },
     "draft": "{{side}} {{quantity}} of {{name}} at {{price}}",
     "draft-market": "{{side}} {{quantity}} of {{name}} at market",
-    "waiting": "Confirm or dismiss the proposal below. Changing the order dismisses it.",
+    "waiting": "Hold to submit the proposal below, or dismiss it. Changing the order dismisses it.",
     "pick-on-chart-hint": "Click a price on the chart to put it on the order.",
     "not-found": "No {{symbol}} in {{market}}. Check the code and the market.",
     "no-source": "Set up market data for {{market}} to trade there."

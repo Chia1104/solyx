@@ -726,7 +726,7 @@
       "none": "提出時這檔沒有研究報告",
       "open": "看研究"
     },
-    "confirm": "確認送出",
+    "confirm": "按住送出",
     "dismiss": "取消",
     "reconcile": "向券商查詢",
     "failure": {
@@ -994,7 +994,7 @@
     },
     "draft": "{{side}} {{quantity}} {{name}} @ {{price}}",
     "draft-market": "{{side}} {{quantity}} {{name}}，市價",
-    "waiting": "確認或取消下面這筆提案；改任何欄位會放棄它。",
+    "waiting": "按住送出下面這筆提案，或取消它；改任何欄位會放棄它。",
     "pick-on-chart-hint": "在圖上點一個價位，帶入下單單據。",
     "not-found": "{{market}}找不到 {{symbol}}，請確認代號與市場。",
     "no-source": "先設定{{market}}的行情來源，才能下單。"
