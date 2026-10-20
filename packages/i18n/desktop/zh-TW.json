@@ -996,6 +996,7 @@
       "shares": "股數"
     },
     "all": "全部 {{count, number}}",
+    "odd-left": "另有 {{count, number}} 股零股，需另以零股委託賣出。",
     "costs": {
       "value": "價金",
       "value-buy-market": "價金最多",

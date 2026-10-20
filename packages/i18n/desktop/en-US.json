@@ -996,6 +996,7 @@
       "shares": "Shares"
     },
     "all": "All {{count, number}}",
+    "odd-left": "{{count, number}} odd shares are left over; sell them as an odd-lot order.",
     "costs": {
       "value": "Value",
       "value-buy-market": "Value at most",

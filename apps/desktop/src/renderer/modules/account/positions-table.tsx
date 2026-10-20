@@ -9,7 +9,7 @@ import { exitWatched } from "@solyx/core/order-desk";
 
 import { numberFormats } from "../market/number-formats.ts";
 import { proposalsQuery } from "../proposals/proposals-query.ts";
-import { openSale } from "../proposals/show-ticket.ts";
+import { useOpenSale } from "../proposals/show-ticket.ts";
 import { TicketTab } from "../proposals/ticket-store.ts";
 
 import { ListingLink } from "./listing-link.tsx";
@@ -54,6 +54,7 @@ export const sellableOf = (position: Position) =>
 export function PositionsTable({ positions }: { positions: Position[] }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
+  const openSale = useOpenSale();
 
   return (
     <Table variant="secondary">

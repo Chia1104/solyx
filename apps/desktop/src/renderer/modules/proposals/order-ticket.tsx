@@ -31,9 +31,12 @@ import { tickSize } from "@solyx/core/risk";
 import { TW_BOARD_LOT, twTradeCosts } from "@solyx/core/rules/tw";
 import { isEnumValue } from "@solyx/utils/is";
 
+import { Pane, useLayoutStore } from "../../app/layout-store.ts";
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
+import { sellableOf } from "../account/positions-table.tsx";
+import { AgentTab, useAgentStore } from "../agent/agent-store.ts";
 import { bandQuery } from "../market/band-query.ts";
 import { listingName, useListingName } from "../market/listing-name.tsx";
 import { listingQuery } from "../market/listing-query.ts";
@@ -69,8 +72,8 @@ const QUANTITY_PRESETS: Record<TicketUnit, Record<Market, number[]>> = {
 export function OrderTicket() {
   const { t } = useTranslation();
   const held = useTicketStore((state) => state.symbol);
-  const request = useTicketStore((state) => state.request);
-  const [tab, setTab] = useState<TicketTab>(TicketTab.Order);
+  const tabShown = useAgentStore((state) => state.tab === AgentTab.Ticket);
+  const paneOpen = useLayoutStore((state) => state.panes[Pane.Agent].open);
 
   const page = useMatch({
     from: "/symbol/$market/$symbol",
@@ -78,11 +81,6 @@ export function OrderTicket() {
   });
 
   const symbol = page?.params ?? held;
-
-  // A sale asked for elsewhere opens its tab, whose panel then fills it in.
-  useEffect(() => {
-    if (request) setTab(request.tab);
-  }, [request]);
 
   return (
     <section
@@ -94,8 +92,7 @@ export function OrderTicket() {
           key={symbolKey(symbol)}
           symbol={symbol}
           quoted={!page}
-          tab={tab}
-          onTabChange={setTab}
+          inView={tabShown && paneOpen}
         />
       ) : (
         <p className="text-sm text-muted">{t("order-form.no-listing")}</p>
@@ -168,24 +165,25 @@ function SymbolInput({ symbol }: { symbol: SymbolRef | null }) {
 /**
  * The panel's tabs for one listing. They open only once the market's source lists it, so a code
  * mistyped or a market without a source proposes nothing; `quoted` adds its name and last price.
+ * It stays mounted behind the pane's other tabs, so it follows the book only while `inView`.
  */
 function ListingTicket({
   symbol,
   quoted,
-  tab,
-  onTabChange,
+  inView,
 }: {
   symbol: SymbolRef;
   quoted: boolean;
-  tab: TicketTab;
-  onTabChange: (tab: TicketTab) => void;
+  inView: boolean;
 }) {
   const { t } = useTranslation();
+  const tab = useTicketStore((state) => state.tab);
+  const setTab = useTicketStore((state) => state.setTab);
   const sources = useMarketSources();
   const ready = sources.data?.[symbol.market]?.ready === true;
   const lookup = useQuery({ ...listingQuery(symbol), enabled: ready });
   const listing = lookup.data ?? null;
-  const depth = useDepth(listing ? symbol : null);
+  const depth = useDepth(listing && inView ? symbol : null);
   const market = t(`market.${symbol.market}`);
 
   return (
@@ -223,7 +221,7 @@ function ListingTicket({
           onSelectionChange={(keys) => {
             const [next] = keys;
 
-            if (isEnumValue(TicketTab, next)) onTabChange(next);
+            if (isEnumValue(TicketTab, next)) setTab(next);
           }}>
           {Object.values(TicketTab).map((option, index) => (
             <ToggleButton key={option} id={option} className="flex-1">
@@ -232,11 +230,13 @@ function ListingTicket({
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
-        {tab === TicketTab.Order ? (
+        {/* Both stay mounted, so moving between them keeps each one's draft. */}
+        <div hidden={tab !== TicketTab.Order}>
           <OrderPanel symbol={symbol} depth={depth} />
-        ) : (
+        </div>
+        <div hidden={tab !== TicketTab.Exit}>
           <ExitPanel symbol={symbol} />
-        )}
+        </div>
       </div>
     </>
   );
@@ -323,13 +323,16 @@ function usePanelProposal() {
 function useSellable(symbol: SymbolRef): number {
   const { data } = useQuery({
     ...orpc.account.summary.queryOptions(),
-    select: (account) =>
-      account.positions.find(
+    select: (account) => {
+      const position = account.positions.find(
         ({ instrument }) => symbolKey(instrument) === symbolKey(symbol)
-      ),
+      );
+
+      return position ? sellableOf(position) : 0;
+    },
   });
 
-  return data ? (data.sellable ?? data.quantity) : 0;
+  return data ?? 0;
 }
 
 /** A number the panel holds, empty as NaN, stepped by `step` from either end of the field. */
@@ -422,7 +425,7 @@ function OrderPanel({
   const sellable = useSellable(symbol);
   const { proposal, propose, withdraw } = usePanelProposal();
   // The price follows the last trade until the user sets one, and stays once checked.
-  const [priceSet, setPriceSet] = useState(false);
+  const priceSet = useRef(false);
 
   const form = useForm({
     resolver: zodResolver(schema),
@@ -444,12 +447,12 @@ function OrderPanel({
   const quoted = depth ? (depth.last ?? depth.reference) : null;
 
   useEffect(() => {
-    if (!priceSet && quoted !== null) form.setValue("price", quoted);
-  }, [priceSet, quoted, form]);
+    if (!priceSet.current && quoted !== null) form.setValue("price", quoted);
+  }, [quoted, form]);
 
   function setPrice(next: number) {
     withdraw();
-    setPriceSet(true);
+    priceSet.current = true;
     form.setValue("price", next);
     form.clearErrors("price");
   }
@@ -474,7 +477,8 @@ function OrderPanel({
   const request = useTicketStore((state) => state.request);
   const takeRequest = useTicketStore((state) => state.takeRequest);
 
-  // A sale of shares held, asked for from a position: board lots where they make one, else odd shares.
+  // A sale of shares held, asked for from a position, replaces the draft: a limit at the last price
+  // that the price follows again, in board lots where they make one, else odd shares.
   useEffect(() => {
     if (request?.key !== symbolKey(symbol) || request.tab !== TicketTab.Order) {
       return;
@@ -482,15 +486,19 @@ function OrderPanel({
 
     takeRequest();
     withdraw();
+    priceSet.current = false;
 
     const lots = taiwan && request.shares >= TW_BOARD_LOT;
 
-    form.setValue("side", Side.Sell);
-    form.setValue("unit", lots ? TicketUnit.Lots : TicketUnit.Shares);
-    form.setValue(
-      "quantity",
-      lots ? Math.floor(request.shares / TW_BOARD_LOT) : request.shares
-    );
+    form.reset({
+      side: Side.Sell,
+      unit: lots ? TicketUnit.Lots : TicketUnit.Shares,
+      type: OrderType.Limit,
+      price: quoted ?? Number.NaN,
+      quantity: lots
+        ? Math.floor(request.shares / TW_BOARD_LOT)
+        : request.shares,
+    });
   });
 
   const marketOrder = type === OrderType.Market;
@@ -527,8 +535,14 @@ function OrderPanel({
         ? sellable % TW_BOARD_LOT
         : sellable;
 
+  // Board lots and odd shares sell as separate orders, so a sale in lots leaves the odd ones.
+  const oddLeft =
+    side === Side.Sell && unit === TicketUnit.Lots
+      ? sellable % TW_BOARD_LOT
+      : 0;
+
   const submit = form.handleSubmit((values: OrderTicketValues) => {
-    setPriceSet(true);
+    priceSet.current = true;
     propose.mutate({ order: toOrder(symbol, values), rationale: "" });
   });
 
@@ -630,7 +644,7 @@ function OrderPanel({
               invalid={fieldState.error?.message}
               onChange={(next) => {
                 withdraw();
-                setPriceSet(true);
+                priceSet.current = true;
                 field.onChange(next);
               }}
               onBlur={field.onBlur}
@@ -754,6 +768,11 @@ function OrderPanel({
             ) : null}
           </dl>
         )}
+        {oddLeft > 0 ? (
+          <p className="text-xs text-muted">
+            {t("order-form.odd-left", { count: oddLeft })}
+          </p>
+        ) : null}
       </Draft>
       <Button
         type="submit"
@@ -896,6 +915,7 @@ function ExitPanel({ symbol }: { symbol: SymbolRef }) {
     takeRequest();
     withdraw();
     form.setValue("quantity", request.shares, { shouldDirty: true });
+    form.clearErrors("quantity");
   });
 
   const submit = form.handleSubmit((values) => {
