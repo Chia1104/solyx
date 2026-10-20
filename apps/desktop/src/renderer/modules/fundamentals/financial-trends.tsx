@@ -4,11 +4,13 @@ import { cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import type { StatementMetrics } from "@solyx/core/fundamentals";
 import { currencyOf } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { cssPercent } from "@solyx/utils/format";
 
 import { LoadError } from "../../components/load-error.tsx";
+import { LINE_COLORS } from "../market/chart-palette.ts";
 import { numberFormats } from "../market/number-formats.ts";
 
 import { financialTrendsQuery } from "./fundamentals-query.ts";
@@ -100,6 +102,142 @@ function Tile({
   );
 }
 
+/** The margins drawn, from what is left after the cost of sales to what is left after everything. */
+const MARGINS = [
+  {
+    key: "gross",
+    of: (quarter: StatementMetrics) => quarter.grossMargin,
+    color: LINE_COLORS.fast,
+  },
+  {
+    key: "operating",
+    of: (quarter: StatementMetrics) => quarter.operatingMargin,
+    color: LINE_COLORS.slow,
+  },
+  {
+    key: "net",
+    of: (quarter: StatementMetrics) => quarter.netMargin,
+    color: LINE_COLORS.oscillator,
+  },
+] as const;
+
+/** Room above and below the lines, in hundredths of the plot. */
+const INSET = 8;
+
+/**
+ * The gross, operating and net margins over the quarters on one scale, each a line in its own
+ * colour, named with its newest figure. Nothing is drawn while fewer than two quarters report one.
+ */
+function MarginLines({
+  quarters,
+}: {
+  quarters: readonly (StatementMetrics & { period: string })[];
+}) {
+  const { t, i18n } = useTranslation();
+  const { percent, fineShare } = numberFormats(i18n.language);
+
+  const lines = MARGINS.map((margin) => ({
+    ...margin,
+    values: quarters.map(margin.of),
+  })).filter(
+    ({ values }) => values.filter((value) => value !== null).length >= 2
+  );
+
+  if (lines.length === 0) return null;
+
+  const all = lines.flatMap(({ values }) =>
+    values.filter((value) => value !== null)
+  );
+
+  const low = Math.min(...all);
+  const high = Math.max(...all);
+
+  const x = (index: number) => (index / (quarters.length - 1)) * 100;
+
+  const y = (value: number) =>
+    high === low
+      ? 50
+      : INSET + ((high - value) / (high - low)) * (100 - 2 * INSET);
+
+  // A quarter that reports no figure breaks the line rather than bridging it.
+  const path = (values: readonly (number | null)[]) =>
+    values
+      .map((value, index) =>
+        value === null
+          ? ""
+          : `${index === 0 || values[index - 1] === null ? "M" : "L"}${x(index).toFixed(2)},${y(value).toFixed(2)}`
+      )
+      .join("");
+
+  const shown = (value: number | null) =>
+    value === null ? "–" : fineShare.format(value);
+
+  return (
+    <figure className="flex min-w-0 flex-col gap-1.5">
+      <figcaption className="flex flex-col">
+        <span className="truncate text-xs text-muted">
+          {t("fundamentals.trends.margins")}
+        </span>
+        <span className="flex flex-wrap items-baseline gap-x-2 text-xs tabular-nums">
+          {lines.map(({ key, color, values }) => (
+            <span key={key} className="flex items-center gap-1">
+              <i
+                aria-hidden
+                className="h-0.5 w-2.5 rounded-full"
+                style={{ backgroundColor: color }}
+              />
+              {t(`fundamentals.trends.margin.${key}`)}{" "}
+              {percent.format(values.at(-1) ?? 0)}
+            </span>
+          ))}
+        </span>
+      </figcaption>
+      <div className="relative h-12">
+        <svg
+          aria-hidden
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          className="absolute inset-0 size-full overflow-visible">
+          {lines.map(({ key, color, values }) => (
+            <path
+              key={key}
+              d={path(values)}
+              fill="none"
+              style={{ stroke: color }}
+              strokeWidth={1.5}
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+        </svg>
+        <ol className="relative flex h-full">
+          {quarters.map((quarter) => (
+            <li
+              key={quarter.period}
+              title={t("fundamentals.trends.mark", {
+                period: quarter.period,
+                figure: lines
+                  .map(
+                    ({ key, of }) =>
+                      `${t(`fundamentals.trends.margin.${key}`)} ${shown(of(quarter))}`
+                  )
+                  .join(" · "),
+              })}
+              className="h-full flex-1"
+            />
+          ))}
+        </ol>
+      </div>
+      <div
+        aria-hidden
+        className="flex justify-between gap-3 text-[10px] text-muted tabular-nums">
+        <span>{quarters.at(0)?.period}</span>
+        <span>{quarters.at(-1)?.period}</span>
+      </div>
+    </figure>
+  );
+}
+
 /**
  * A listing's filed figures over its newest quarters and months, as the fundamentals module keeps
  * them. Nothing shows for a market no source covers or a listing that files none, as a fund does.
@@ -184,6 +322,7 @@ export function FinancialTrends({ symbol }: { symbol: SymbolRef }) {
                 }))}
               />
             )}
+            <MarginLines quarters={quarters} />
           </>
         ) : null}
         {newestMonth && newestMonth.yoy !== null ? (

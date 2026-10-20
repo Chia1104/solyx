@@ -837,7 +837,13 @@
       "quarter": "{{year}} Q{{quarter}}",
       "on-year": "年增率 {{change}}",
       "month-revenue": "{{month}} 營收 {{revenue}}",
-      "mark": "{{period}}：{{figure}}"
+      "mark": "{{period}}：{{figure}}",
+      "margins": "利潤率",
+      "margin": {
+        "gross": "毛利",
+        "operating": "營益",
+        "net": "淨利"
+      }
     }
   },
   "research": {

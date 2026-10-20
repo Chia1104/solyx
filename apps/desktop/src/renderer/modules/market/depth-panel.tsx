@@ -6,13 +6,16 @@ import { useTranslation } from "react-i18next";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Depth, DepthLevel } from "@solyx/core/market-data";
+import type { PriceBand } from "@solyx/core/risk";
 import { twLots } from "@solyx/core/rules/tw";
+import { cssPercent } from "@solyx/utils/format";
 
 import { LoadingState } from "../../components/loading-state.tsx";
 
 import { bandQuery } from "./band-query.ts";
 import { numberFormats } from "./number-formats.ts";
 import { useDirectionColors } from "./price-colors.ts";
+import type { DirectionColors } from "./price-colors.ts";
 import { directionOf } from "./quote-figures.tsx";
 
 const BOOK_LEVELS = 5;
@@ -49,6 +52,65 @@ export function DepthPanel({
 /** Taiwan's book counts board lots, as its traders read it; elsewhere it counts shares. */
 const sizeOf = (market: Market, shares: number) =>
   market === Market.TW ? twLots(shares) : shares;
+
+/**
+ * Where the session has traded within what it may: the track runs from the limit-down to the
+ * limit-up, or across the day's range and the reference where the market sets none; the
+ * solid stretch is the day's low to high, ticks mark the reference and the open, and a mark the
+ * last price in its direction's colour. The figures beside it say the same in numbers.
+ */
+function DayRange({
+  depth,
+  band,
+  direction,
+}: {
+  depth: Depth;
+  band: PriceBand | null | undefined;
+  direction: DirectionColors;
+}) {
+  const { low, high, open, last, reference } = depth;
+
+  if (low === null || high === null) return null;
+
+  // Once the session is over the band is the next one's, which today's range may reach past.
+  const from = Math.min(band?.low ?? low, low, reference);
+  const to = Math.max(band?.high ?? high, high, reference);
+
+  if (to <= from) return null;
+
+  const at = (price: number) => cssPercent((price - from) / (to - from));
+
+  return (
+    <div aria-hidden className="relative h-4">
+      <span className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-muted/20" />
+      <span
+        className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-muted/60"
+        style={{ left: at(low), width: cssPercent((high - low) / (to - from)) }}
+      />
+      <span
+        className="absolute inset-y-0 w-px bg-foreground/50"
+        style={{ left: at(reference) }}
+      />
+      {open === null ? null : (
+        <span
+          className="absolute inset-y-0.5 w-0.5 -translate-x-1/2 bg-foreground"
+          style={{ left: at(open) }}
+        />
+      )}
+      {last === null ? null : (
+        <span
+          className="absolute -top-1.5 size-0 -translate-x-1/2 border-x-4 border-t-[6px] border-x-transparent"
+          style={{
+            left: at(last),
+            borderTopColor:
+              directionOf(direction, last - reference)?.solid ??
+              "var(--foreground)",
+          }}
+        />
+      )}
+    </div>
+  );
+}
 
 /** The session's figures beside its last price, which the page's header shows. */
 function QuoteBoard({ symbol, depth }: { symbol: SymbolRef; depth: Depth }) {
@@ -95,6 +157,7 @@ function QuoteBoard({ symbol, depth }: { symbol: SymbolRef; depth: Depth }) {
           {price(band?.low)}
         </Figure>
       </dl>
+      <DayRange depth={depth} band={band} direction={direction} />
       {matched > 0 ? (
         <div className="flex flex-col gap-1 text-xs text-muted">
           <div

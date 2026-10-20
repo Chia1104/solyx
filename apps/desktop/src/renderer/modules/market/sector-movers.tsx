@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Table } from "@heroui/react";
+import { Table, cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { Currency, Market } from "@solyx/core/market";
 import { TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 import type { SectorMovers as Movers } from "@solyx/core/sectors";
+import { cssPercent } from "@solyx/utils/format";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -16,6 +17,36 @@ import { sectorMoversQuery } from "../fundamentals/fundamentals-query.ts";
 
 import { ListingName } from "./listing-name.tsx";
 import { numberFormats } from "./number-formats.ts";
+import { useDirectionColors } from "./price-colors.ts";
+import { directionOf } from "./quote-figures.tsx";
+
+/** A company's part of the sector's move as a bar either side of zero, against the largest part shown. */
+function ContributionBar({
+  value,
+  largest,
+}: {
+  value: number;
+  largest: number;
+}) {
+  const direction = useDirectionColors(Market.TW);
+
+  return (
+    <span aria-hidden className="relative inline-block h-2.5 w-16 shrink-0">
+      <span className="absolute inset-y-0 left-1/2 w-px bg-separator" />
+      <span
+        className={cn(
+          "absolute inset-y-0",
+          value >= 0 ? "left-1/2 rounded-r-[2px]" : "right-1/2 rounded-l-[2px]"
+        )}
+        style={{
+          width: cssPercent(largest === 0 ? 0 : Math.abs(value) / largest / 2),
+          backgroundColor:
+            directionOf(direction, value)?.solid ?? "var(--muted)",
+        }}
+      />
+    </span>
+  );
+}
 
 /** The companies that moved one sector's market value most, the rest in one row. */
 function MoversTable({ movers }: { movers: Movers }) {
@@ -32,6 +63,12 @@ function MoversTable({ movers }: { movers: Movers }) {
       ? [{ id: "rest", mover: null, rest: movers.rest }]
       : []),
   ];
+
+  const largest = Math.max(
+    ...rows.map(({ mover, rest }) =>
+      Math.abs(mover?.valueChange ?? rest?.valueChange ?? 0)
+    )
+  );
 
   return (
     <Table variant="secondary">
@@ -80,8 +117,16 @@ function MoversTable({ movers }: { movers: Movers }) {
                       mover?.valueChange ?? rest?.valueChange ?? 0
                     )}
                   </Table.Cell>
-                  <Table.Cell className="tabular-nums">
-                    {contribution(mover?.valueChange ?? rest?.valueChange ?? 0)}
+                  <Table.Cell>
+                    <span className="flex items-center gap-2 tabular-nums">
+                      <ContributionBar
+                        value={mover?.valueChange ?? rest?.valueChange ?? 0}
+                        largest={largest}
+                      />
+                      {contribution(
+                        mover?.valueChange ?? rest?.valueChange ?? 0
+                      )}
+                    </span>
                   </Table.Cell>
                 </Table.Row>
               )}
