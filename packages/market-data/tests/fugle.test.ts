@@ -122,6 +122,41 @@ test("a daily bar carries the exchange's reference, its close less the change", 
   );
 });
 
+test("a daily bar whose change is null carries no reference", async () => {
+  const { fetch } = fakeFugle([
+    {
+      path: "/historical/candles/00679B",
+      body: JSON.stringify({
+        data: [
+          { ...bar("2026-08-20", 26.36, 1000), change: 0.38 },
+          // An ex-dividend session Fugle sent no change for.
+          { ...bar("2026-08-21", 25.84, 1000), change: null },
+          { ...bar("2026-08-24", 25.83, 1000), change: -0.01 },
+        ],
+      }),
+    },
+  ]);
+
+  const provider = createFugleMarketData({
+    apiKey: "test-key",
+    fetch,
+    now: () => DURING_SESSION,
+  });
+
+  const candles = await provider.getCandles({
+    symbol: { market: Market.TW, symbol: "00679B" },
+    interval: Interval.OneDay,
+    from: "2026-08-01",
+    to: "2026-08-24",
+  });
+
+  expect(candles.map((candle) => candle.reference)).toEqual([
+    25.98,
+    undefined,
+    25.84,
+  ]);
+});
+
 test("minute bars convert board lots to shares and append today's session", async () => {
   const { fetch, requests } = fakeFugle([
     {
