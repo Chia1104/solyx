@@ -109,7 +109,9 @@
     "held": "這檔的庫存",
     "orders": "委託與成交",
     "market-value": "市值",
-    "cost": "成本"
+    "cost": "成本",
+    "realized-trend": "已實現損益的累積與每一趟",
+    "realized-trip": "{{date}} {{symbol}}：{{realized}}"
   },
   "review": {
     "title": "交易檢討",
@@ -336,7 +338,11 @@
       "stale": "近期資料不足",
       "latest": "最新一則 {{time}}",
       "off": "情緒評分未啟用",
-      "unscored": "設定決策模型後即可評分情緒"
+      "unscored": "設定決策模型後即可評分情緒",
+      "daily": "每日情緒",
+      "day": "{{date}}：{{score}}，{{count}} 則",
+      "day-unscored": "{{date}}：{{count}} 則，未評分",
+      "day-none": "{{date}}：沒有新聞"
     },
     "coverage": {
       "collected": "收集於 {{time}}",
@@ -895,7 +901,11 @@
       "strip": "每次預測給成真區間的機率，由舊到新；橫線是歷史機率。已結算的 {{settled, number}} 筆中，{{led, number}} 筆給它的機率最高。",
       "mark": "{{date}}：給成真區間 {{given}}",
       "mark-history": "{{date}}：給成真區間 {{given}}，歷史 {{history}}",
-      "mark-open": "{{date}}：進行中"
+      "mark-open": "{{date}}：進行中",
+      "calibration": "給的機率實際成真的比例；落在虛線上表示給得剛好。",
+      "calibration-bucket": "給 {{from}}–{{to}}% 的情境 {{scenarios, number}} 個，成真 {{held, number}} 個（{{rate}}）",
+      "calibration-label": "預測校準",
+      "calibration-given": "給的機率"
     },
     "forecast": {
       "horizon": "{{count, number}} 個交易日，自 {{date}} 的 {{price}} 起算",
