@@ -28,10 +28,16 @@ import { listingFlowsQuery } from "./flows-query.ts";
 const lots = (shares: number | null) =>
   shares === null ? null : twLots(shares);
 
+/** Two series' values added bar by bar; a bar neither has stays empty. */
+const added = (a: (number | null)[], b: (number | null)[]) =>
+  a.map((value, index) =>
+    value === null && b[index] === null ? null : (value ?? 0) + (b[index] ?? 0)
+  );
+
 /**
- * A Taiwan listing's flows under its chart, in lots and bar by bar: each enabled group's net
- * buying as bars about zero, and the margin balance as a line, each in a pane of its own from
- * `firstPane` on. Nothing is read until one is enabled.
+ * A Taiwan listing's flows under its chart, bar by bar: each enabled group's net buying in lots as
+ * bars about zero, the margin and short balances in lots and foreigners' share of the listing as
+ * lines, each in a pane of its own from `firstPane` on. Nothing is read until one is enabled.
  */
 export function FlowPanes({
   symbol,
@@ -68,15 +74,41 @@ export function FlowPanes({
         color
       );
 
+    // Dealers hedge the warrants they issue on top of trading for themselves; both are what they bought.
+    const dealers = added(
+      netBuyingByBar(data.trades, Investor.Dealer, bars),
+      netBuyingByBar(data.trades, Investor.DealerHedging, bars)
+    ).map(lots);
+
     return {
       foreign: net(Investor.Foreign, LINE_COLORS.fast),
       trust: net(Investor.InvestmentTrust, LINE_COLORS.slow),
+      dealer: toHistogram(
+        times,
+        dealers,
+        LINE_COLORS.dealer,
+        LINE_COLORS.dealer
+      ),
       margin: toLine(
         times,
         balanceByBar(
           data.margin.map(({ date, margin }) => ({ date, value: margin })),
           bars
         ).map(lots)
+      ),
+      short: toLine(
+        times,
+        balanceByBar(
+          data.margin.map(({ date, short }) => ({ date, value: short })),
+          bars
+        ).map(lots)
+      ),
+      holding: toLine(
+        times,
+        balanceByBar(
+          data.foreign.map(({ date, ratio }) => ({ date, value: ratio * 100 })),
+          bars
+        )
       ),
     };
   }, [data, candles, symbol.market]);
@@ -93,9 +125,19 @@ export function FlowPanes({
     return {
       foreign: labelled(t("chart.flow-titles.foreign-flow")),
       trust: labelled(t("chart.flow-titles.trust-flow")),
+      dealer: labelled(t("chart.flow-titles.dealer-flow")),
       margin: {
         ...lineOptions(LINE_COLORS.oscillator),
         ...labelled(t("chart.flow-titles.margin")),
+      },
+      short: {
+        ...lineOptions(LINE_COLORS.short),
+        ...labelled(t("chart.flow-titles.short")),
+      },
+      holding: {
+        ...lineOptions(LINE_COLORS.holding),
+        ...labelled(t("chart.flow-titles.foreign-holding")),
+        priceFormat: { type: "percent" as const },
       },
     };
   }, [t]);
@@ -125,6 +167,39 @@ export function FlowPanes({
               definition={HistogramSeries}
               data={lines.trust}
               options={options.trust}
+              pane={pane}
+              paneStretch={LOWER_PANE_STRETCH}
+            />
+          );
+        case ChartIndicator.DealerFlow:
+          return (
+            <Series
+              key={indicator}
+              definition={HistogramSeries}
+              data={lines.dealer}
+              options={options.dealer}
+              pane={pane}
+              paneStretch={LOWER_PANE_STRETCH}
+            />
+          );
+        case ChartIndicator.Short:
+          return (
+            <Series
+              key={indicator}
+              definition={LineSeries}
+              data={lines.short}
+              options={options.short}
+              pane={pane}
+              paneStretch={LOWER_PANE_STRETCH}
+            />
+          );
+        case ChartIndicator.ForeignHolding:
+          return (
+            <Series
+              key={indicator}
+              definition={LineSeries}
+              data={lines.holding}
+              options={options.holding}
               pane={pane}
               paneStretch={LOWER_PANE_STRETCH}
             />

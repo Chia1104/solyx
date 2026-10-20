@@ -19,7 +19,10 @@ export const ChartIndicator = {
   SessionLevels: "session-levels",
   ForeignFlow: "foreign-flow",
   TrustFlow: "trust-flow",
+  DealerFlow: "dealer-flow",
   Margin: "margin",
+  Short: "short",
+  ForeignHolding: "foreign-holding",
 } as const;
 
 export type ChartIndicator =
@@ -31,7 +34,10 @@ export const chartIndicatorSchema = z.enum(ChartIndicator);
 export const FLOW_INDICATORS: readonly ChartIndicator[] = [
   ChartIndicator.ForeignFlow,
   ChartIndicator.TrustFlow,
+  ChartIndicator.DealerFlow,
   ChartIndicator.Margin,
+  ChartIndicator.Short,
+  ChartIndicator.ForeignHolding,
 ];
 
 /** Drawn from sessions, which only daily bars count one by one. */

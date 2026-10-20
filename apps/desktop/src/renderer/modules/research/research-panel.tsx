@@ -41,6 +41,7 @@ import { CalibrationChart } from "./calibration-chart.tsx";
 import { ForecastBody } from "./forecast-card.tsx";
 import { ForecastStrip } from "./forecast-strip.tsx";
 import { researchCoverageQuery } from "./research-query.ts";
+import { StanceHistory } from "./stance-history.tsx";
 import { ValuationRange } from "./valuation-range.tsx";
 
 /** Hands the agent's composer a request for a deep analysis, in a new conversation the user sends. */
@@ -262,7 +263,7 @@ function ReportView({
   passedEvents,
   signals,
   watch,
-  standing,
+  stances,
 }: {
   report: Report;
   /** The last day of a quarter published since the report was revised, if one was. */
@@ -270,13 +271,14 @@ function ReportView({
   passedEvents: Audited<ReportEvent>[];
   signals: FalsifierCheck[];
   watch: FalsifierWatch | null;
-  /** The stretch the report's stance has stood, against its market's index; `undefined` while it cannot be measured. */
-  standing: StanceSpell | undefined;
+  /** Each stretch the report kept one stance, against its market's index; none while they cannot be measured. */
+  stances: StanceSpell[];
 }) {
   const { t, i18n } = useTranslation();
   const { percentChange } = numberFormats(i18n.language);
   const { market } = report.symbol;
   const day = (at: number) => exchangeDate(market, new Date(at));
+  const standing = stances.findLast(({ until }) => until === null);
 
   return (
     <article className="flex flex-col gap-4 text-sm">
@@ -300,6 +302,7 @@ function ReportView({
           })}
         </p>
       ) : null}
+      <StanceHistory market={market} spells={stances} />
       {newerFinancials ? (
         <p className="rounded-sm border border-dashed border-separator px-3 py-2 text-xs text-muted">
           {t("research.report.stale", { date: newerFinancials })}
@@ -438,7 +441,7 @@ function CoverageView({
           passedEvents={passedEvents}
           signals={signals}
           watch={watch}
-          standing={stances.findLast(({ until }) => until === null)}
+          stances={stances}
         />
       ) : (
         <div className="flex flex-col gap-4 text-sm">

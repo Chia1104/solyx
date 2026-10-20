@@ -239,12 +239,18 @@
       "session-levels": "Session levels",
       "foreign-flow": "Foreign net buying",
       "trust-flow": "Trust net buying",
-      "margin": "Margin balance"
+      "margin": "Margin balance",
+      "dealer-flow": "Dealer net buying",
+      "short": "Short balance",
+      "foreign-holding": "Foreign holding"
     },
     "flow-titles": {
       "foreign-flow": "Foreign",
       "trust-flow": "Trusts",
-      "margin": "Margin"
+      "margin": "Margin",
+      "dealer-flow": "Dealers",
+      "short": "Short",
+      "foreign-holding": "Foreign %"
     },
     "levels": {
       "quarter-line-break": "MA60 break",
@@ -408,7 +414,9 @@
     "reading": {
       "out": "Out: {{figure}}",
       "last": "Last, {{period}}: {{figure}}",
-      "pending": "Reading figures…"
+      "pending": "Reading figures…",
+      "trend": "{{from}} to {{to}}",
+      "trend-growth": "Year-on-year growth, {{from}} to {{to}}"
     },
     "figures": {
       "consumer-prices": "{{yoy}} on the year",
@@ -817,7 +825,8 @@
     "listing-empty": "No flows reported for this listing.",
     "market-title": "Market flows",
     "market-description": "What foreign investors, investment trusts and dealers bought and sold across Taiwan's market, its margin and their TAIEX futures positions. The exchanges publish a session's figures between 15:00 and 21:00 Taipei.",
-    "market-empty": "No flows reported yet."
+    "market-empty": "No flows reported yet.",
+    "net-chart": "Net buying by session"
   },
   "fundamentals": {
     "trends": {
@@ -864,7 +873,11 @@
       "none": "No report yet.",
       "stale": "A newer quarter, ending {{date}}, came out after this report was revised. The agent revises it before its next forecast.",
       "quote-read": "Quote read as stating it: {{share}} likely ({{model}})",
-      "quote-unread": "Quote not checked"
+      "quote-unread": "Quote not checked",
+      "stance-history": "Stance history",
+      "stance-history-caption": "Height: return over the {{index}}",
+      "stance-now": "now",
+      "stance-spell": "{{stance}} from {{date}}, {{count, number}} sessions: {{change}}, the {{index}} {{benchmark}}"
     },
     "watch": {
       "off": "News is not read against these, so no signal here says nothing of the news.",
