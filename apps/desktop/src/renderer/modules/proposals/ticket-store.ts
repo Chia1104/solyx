@@ -29,9 +29,11 @@ export interface TicketRequest {
 }
 
 interface TicketStore {
-  /** The listing the order panel trades: the one on screen, or one the user typed or a sale named. */
+  /** The listing the order panel trades off a listing's page: the last page's, or one the user typed. */
   symbol: SymbolRef | null;
   setSymbol(symbol: SymbolRef): void;
+  tab: TicketTab;
+  setTab(tab: TicketTab): void;
   picked: PickedPrice | null;
   /** Waits until the listing's panel takes it. */
   request: TicketRequest | null;
@@ -51,14 +53,13 @@ export const useTicketStore = create<TicketStore>()((set) => ({
         ? state
         : { symbol: { market: symbol.market, symbol: symbol.symbol } }
     ),
+  tab: TicketTab.Order,
+  setTab: (tab) => set({ tab }),
   picked: null,
   request: null,
   pickingOnChart: false,
   requestSale: (symbol, tab, shares) =>
-    set({
-      symbol: { market: symbol.market, symbol: symbol.symbol },
-      request: { key: symbolKey(symbol), tab, shares },
-    }),
+    set({ tab, request: { key: symbolKey(symbol), tab, shares } }),
   takeRequest: () => set({ request: null }),
   setPickingOnChart: (pickingOnChart) => set({ pickingOnChart }),
   pick: (symbol, price) =>

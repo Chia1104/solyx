@@ -7,7 +7,7 @@ import type { SymbolRef } from "@solyx/core/market";
 
 import { orpc } from "../../app/rpc.ts";
 import { numberFormats } from "../market/number-formats.ts";
-import { openSale } from "../proposals/show-ticket.ts";
+import { useOpenSale } from "../proposals/show-ticket.ts";
 import { TicketTab } from "../proposals/ticket-store.ts";
 
 import { PositionGain, PositionReturn } from "./position-figures.tsx";
@@ -20,6 +20,7 @@ import { WatchedExits, sellableOf } from "./positions-table.tsx";
 export function ListingPosition({ symbol }: { symbol: SymbolRef }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
+  const openSale = useOpenSale();
 
   const { data: position } = useQuery({
     ...orpc.account.summary.queryOptions(),

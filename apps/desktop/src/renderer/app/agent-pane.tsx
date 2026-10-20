@@ -1,4 +1,4 @@
-import { Tabs } from "@heroui/react";
+import { Tabs, cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -79,7 +79,11 @@ export function AgentPane() {
         <FillList />
         <ProposalHistory />
       </Tabs.Panel>
-      <Tabs.Panel id={AgentTab.Ticket} className={PANEL}>
+      {/* Kept mounted behind the other tabs, so a draft outlives a look at them. */}
+      <Tabs.Panel
+        id={AgentTab.Ticket}
+        shouldForceMount
+        className={cn(PANEL, "data-inert:hidden")}>
         <OrderTicket />
       </Tabs.Panel>
       <Tabs.Panel id={AgentTab.ProfitLoss} className={PANEL}>
