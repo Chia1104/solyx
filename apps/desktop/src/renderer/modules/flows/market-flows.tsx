@@ -12,6 +12,7 @@ import { numberFormats } from "../market/number-formats.ts";
 import { NetBuyingTable, TrendTable } from "./flow-tables.tsx";
 import type { TrendRow } from "./flow-tables.tsx";
 import { marketFlowsQuery } from "./flows-query.ts";
+import { NetBuyingChart } from "./net-buying-chart.tsx";
 
 /** Who traded a whole market after each session: net buying, margin, and positions in its index future. */
 export function MarketFlows({ market }: { market: Market }) {
@@ -101,6 +102,7 @@ export function MarketFlows({ market }: { market: Market }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
+        <NetBuyingChart trades={data.trades} format={signedAmount} />
         <NetBuyingTable
           title={t("flows.net-value")}
           trades={data.trades}

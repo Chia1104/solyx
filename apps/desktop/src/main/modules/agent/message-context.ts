@@ -28,7 +28,10 @@ const INDICATOR_WORDS: Record<ChartIndicator, string> = {
   [ChartIndicator.SessionLevels]: "session levels",
   [ChartIndicator.ForeignFlow]: "foreign net buying",
   [ChartIndicator.TrustFlow]: "investment trust net buying",
+  [ChartIndicator.DealerFlow]: "dealer net buying",
   [ChartIndicator.Margin]: "margin balances",
+  [ChartIndicator.Short]: "short balances",
+  [ChartIndicator.ForeignHolding]: "foreign holding ratio",
 };
 
 const PLACE_OF_TAB: Record<OverviewTab, AppPlace> = {

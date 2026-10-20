@@ -11,8 +11,8 @@ import type {
   ReleaseEvent,
   ResearchEvent,
 } from "@solyx/core/calendar";
-import { MacroUnit, releaseReadings } from "@solyx/core/macro";
-import type { MacroRelease } from "@solyx/core/macro";
+import { MacroUnit, macroReadings, releaseReadings } from "@solyx/core/macro";
+import type { MacroRelease, MacroSeries } from "@solyx/core/macro";
 import { exchangeDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketClosure } from "@solyx/core/session";
@@ -21,6 +21,7 @@ import { shiftDate } from "@solyx/utils/date";
 import { useClock } from "../../app/clock.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
+import { Sparkline } from "../../components/sparkline.tsx";
 import { macroSeriesQuery } from "../macro/macro-query.ts";
 import { ListingName } from "../market/listing-name.tsx";
 import { numberFormats } from "../market/number-formats.ts";
@@ -182,15 +183,58 @@ function ResearchRow({ event }: { event: ResearchEvent }) {
   );
 }
 
+/** Two years of monthly figures. */
+const TREND_PERIODS = 24;
+
 /**
- * A release's headline figure in words: what it brought once its period is out, or else the newest
- * out before it, while its market's figures are still being read.
+ * A release's headline figure period by period up to the one it reads, the newest
+ * `TREND_PERIODS`: its growth on a year before where the figure grows, as an index or an amount
+ * does, else its level, as a rate's.
+ */
+function figureTrend(release: ReleaseEvent, series: readonly MacroSeries[]) {
+  const [reading] = release.readings;
+
+  const figure =
+    reading &&
+    series.find(
+      (each) =>
+        each.market === release.market &&
+        each.indicator === release.indicator &&
+        each.figure === reading.figure
+    );
+
+  if (!reading || !figure) return null;
+
+  const readings = macroReadings(figure).filter(
+    ({ period }) => period <= reading.period
+  );
+
+  const grows = readings.some(({ yoy }) => yoy !== null);
+
+  return {
+    grows,
+    points: readings
+      .flatMap(({ period, value, yoy }) => {
+        const shown = grows ? yoy : value;
+
+        return shown === null ? [] : [{ period, value: shown }];
+      })
+      .slice(-TREND_PERIODS),
+  };
+}
+
+/**
+ * A release's headline figure in words, what it brought once its period is out or else the newest
+ * out before it, with how it has gone the periods before, while its market's figures are still
+ * being read.
  */
 function ReleaseFigure({
   release,
+  series,
   pending,
 }: {
   release: ReleaseEvent;
+  series: readonly MacroSeries[];
   pending: boolean;
 }) {
   const { t, i18n } = useTranslation();
@@ -223,12 +267,40 @@ function ReleaseFigure({
         : format.percentChange.format(reading.yoy),
   });
 
+  const trend = figureTrend(release, series);
+  const first = trend?.points.at(0);
+  const last = trend?.points.at(-1);
+
   return (
-    <span className="ms-1.5 text-xs tabular-nums">
-      {reading.period === release.period
-        ? t("calendar.reading.out", { figure })
-        : t("calendar.reading.last", { period: reading.period, figure })}
-    </span>
+    <>
+      <span className="ms-1.5 text-xs tabular-nums">
+        {reading.period === release.period
+          ? t("calendar.reading.out", { figure })
+          : t("calendar.reading.last", { period: reading.period, figure })}
+      </span>
+      {trend && first && last && trend.points.length >= 3 ? (
+        <span
+          title={t(
+            trend.grows
+              ? "calendar.reading.trend-growth"
+              : "calendar.reading.trend",
+            { from: first.period, to: last.period }
+          )}
+          className="ms-2 inline-block h-3.5 w-14 align-middle">
+          <Sparkline
+            points={trend.points.map(({ value }, index) => ({
+              time: index,
+              value,
+            }))}
+            from={0}
+            to={trend.points.length - 1}
+            baseline={trend.grows ? 0 : null}
+            color="var(--muted)"
+            className="size-full"
+          />
+        </span>
+      ) : null}
+    </>
   );
 }
 
@@ -237,9 +309,11 @@ const releaseKey = ({ market, indicator, date, period }: MacroRelease) =>
 
 function ReleaseRow({
   release,
+  series,
   pending,
 }: {
   release: ReleaseEvent;
+  series: readonly MacroSeries[];
   pending: boolean;
 }) {
   const { t } = useTranslation();
@@ -280,7 +354,7 @@ function ReleaseRow({
             .filter((part) => part !== null)
             .join(" · ")}
         </span>
-        <ReleaseFigure release={release} pending={pending} />
+        <ReleaseFigure release={release} series={series} pending={pending} />
       </span>
     </li>
   );
@@ -396,6 +470,7 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
           <ReleaseRow
             key={releaseKey(release)}
             release={release}
+            series={series}
             pending={pending.has(release.market)}
           />
         ),
@@ -431,6 +506,7 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
               <ReleaseRow
                 key={releaseKey(release)}
                 release={release}
+                series={series}
                 pending={pending.has(release.market)}
               />
             ))}

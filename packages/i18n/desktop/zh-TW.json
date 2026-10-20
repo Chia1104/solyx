@@ -239,12 +239,18 @@
       "session-levels": "日內參考價",
       "foreign-flow": "外資買賣超",
       "trust-flow": "投信買賣超",
-      "margin": "融資餘額"
+      "margin": "融資餘額",
+      "dealer-flow": "自營商買賣超",
+      "short": "融券餘額",
+      "foreign-holding": "外資持股比例"
     },
     "flow-titles": {
       "foreign-flow": "外資",
       "trust-flow": "投信",
-      "margin": "融資"
+      "margin": "融資",
+      "dealer-flow": "自營商",
+      "short": "融券",
+      "foreign-holding": "外資持股"
     },
     "levels": {
       "quarter-line-break": "跌破季線",
@@ -408,7 +414,9 @@
     "reading": {
       "out": "已公布：{{figure}}",
       "last": "上期（{{period}}）：{{figure}}",
-      "pending": "讀取數值中…"
+      "pending": "讀取數值中…",
+      "trend": "{{from}} 至 {{to}}",
+      "trend-growth": "年增率，{{from}} 至 {{to}}"
     },
     "figures": {
       "consumer-prices": "年增 {{yoy}}",
@@ -817,7 +825,8 @@
     "listing-empty": "沒有這檔的籌碼資料。",
     "market-title": "大盤籌碼",
     "market-description": "外資、投信、自營商在台股的買賣超、融資融券，以及他們的台指期部位。交易所在台北時間 15:00 到 21:00 之間陸續公布當日資料。",
-    "market-empty": "還沒有籌碼資料。"
+    "market-empty": "還沒有籌碼資料。",
+    "net-chart": "每日法人買賣超"
   },
   "fundamentals": {
     "trends": {
@@ -864,7 +873,11 @@
       "none": "尚無報告。",
       "stale": "這份報告修訂後，截至 {{date}} 的新一季財報已公布。Agent 會先修訂報告才能再提出預測。",
       "quote-read": "引文支撐這項主張的可能性：{{share}}（{{model}}）",
-      "quote-unread": "引文未經查核"
+      "quote-unread": "引文未經查核",
+      "stance-history": "立場的歷史",
+      "stance-history-caption": "高低是相對{{index}}的超額報酬",
+      "stance-now": "至今",
+      "stance-spell": "{{stance}}，自 {{date}} 起 {{count, number}} 個交易日：{{change}}，同期 {{index}} {{benchmark}}"
     },
     "watch": {
       "off": "新聞沒有與這些條件比對，所以這裡沒有訊號，不代表新聞沒提到。",
