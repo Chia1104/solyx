@@ -2087,6 +2087,13 @@
     "send-description": "What went wrong and where in the code, with the versions of Solyx, Electron and your operating system. Reports leave out your keys, conversations, holdings and orders.",
     "unavailable": "This build doesn't send reports"
   },
+  "legal": {
+    "title": "Terms and privacy",
+    "description": "The terms you use Solyx under, and what leaves your computer and where it goes.",
+    "notice": "Using Solyx means you accept its terms of use. Its privacy policy says what leaves your computer and where it goes.",
+    "terms": "Terms of use",
+    "privacy": "Privacy policy"
+  },
   "locale": {
     "system": "System",
     "en-US": "English",

@@ -14,6 +14,7 @@ import { RailedColumn } from "../../components/sheet.tsx";
 import { CrashReportRow } from "../crash-reports/crash-report-row.tsx";
 import { UpdateRows } from "../updates/update-rows.tsx";
 
+import { LegalRow } from "./legal-links.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { aboutQuery } from "./settings-query.ts";
 
@@ -95,6 +96,7 @@ export function AboutSettings() {
         />
         <SettingsRow label={t("settings.about.node")} value={data.node} />
         <SettingsRow label={t("settings.about.license")} value={LICENSE} />
+        <LegalRow />
       </SettingsList>
       {reveal.error ? (
         <ErrorAlert

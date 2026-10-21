@@ -9,6 +9,8 @@
     "download": "下載",
     "changelog": "更新紀錄",
     "github": "GitHub",
+    "terms": "使用條款",
+    "privacy": "隱私權政策",
     "footer": "頁尾"
   },
   "banner": {
@@ -291,6 +293,9 @@
   },
   "docs": {
     "screenshot-pending": "截圖待補"
+  },
+  "legal": {
+    "updated": "最後更新：{{date}}"
   },
   "status": {
     "home": "回到首頁",

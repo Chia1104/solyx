@@ -1,0 +1,97 @@
+---
+title: Privacy policy
+description: What Solyx keeps on your computer, what it sends and to whom, and what reaches the Solyx project itself.
+updated: 2026-10-21
+---
+
+Solyx runs on your computer. The Solyx project runs no server that receives your conversations, keys, holdings or orders, there is no Solyx account, and neither the app nor this website carries analytics or advertising. What leaves your computer goes straight to the services you set up, on your own keys, or to the few places listed under [What reaches the Solyx project](#what-reaches-the-solyx-project).
+
+This policy covers the Solyx desktop app, its update feed and this website, `usesolyx.trade`. The maintainer, Chia1104, is responsible for them. You can reach them at the address under [Contact](#contact).
+
+## What stays on your computer
+
+Solyx keeps its data in two folders on your computer: a data folder (`~/Library/Application Support/Solyx` on macOS, `%APPDATA%\Solyx` on Windows) and a config folder, `~/.solyx`. **Settings → About** shows both. They hold:
+
+- **Your data:** the watchlist, proposals, orders and fills of the paper account, scheduled tasks, themes, conversations, the agent's memories, reports and forecasts, collected news, and cached market data.
+- **Your settings,** in `~/.solyx/config.json`, with your skills, `AGENTS.md` and `mcp.json` beside it. The config holds the account number orders go to once you pick a broker account.
+- **Keys, sign-ins and your trading mandate,** encrypted by your operating system's secret store (Keychain on macOS, DPAPI on Windows, a keyring on Linux). They never reach the config file, a log or a backup.
+- **Logs of your broker's SDK.** Fubon's SDK writes its own logs into the data folder, and they can include your ID number and account details.
+- **Two random identifiers:** one Solyx makes for the installation, and one its updater makes. Neither is derived from you or your computer.
+
+News is kept for 90 days (press) or 30 days (posts) unless you change it. Everything else stays until you delete it.
+
+## What Solyx sends, and to whom
+
+Solyx sends data only to the services you set up, directly from your computer, and only what each needs. Each is a separate company with its own terms and privacy policy, which govern what it does with what it receives.
+
+| Service                       | What it receives                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Market data (Fugle, or Fubon) | Your key, and the listings you chart, quote, watch or hold                                                                                                                                                                                                                                                                        |
+| Your broker (Fubon)           | Your sign-in, certificate and API key, and the orders you confirm or your mandate sends; it returns your balances, holdings and fills                                                                                                                                                                                             |
+| FinMind                       | Its token if you set one, and the codes of listings whose figures Solyx reads                                                                                                                                                                                                                                                     |
+| Your model provider           | Your messages and the agent's replies, the context of each message (the time, your time zone, paper or live, what is on your screen, listings you name), your `AGENTS.md`, the index of the agent's memories, and the results of the tools it uses, which can include your cash, holdings, orders and proposals, news and filings |
+| Your web search vendor        | Searches for the listings and themes you follow, the agent's searches, and the addresses of pages it reads                                                                                                                                                                                                                        |
+| Your decisions model          | News text with the listing it concerns, claims with their quotes, and, in conversations set to **Allow for me**, the shell commands it judges                                                                                                                                                                                     |
+| Your embedding provider       | The title and opening of news items. Your own text (searches, reports, memories) goes only to the Ollama endpoint you set, never to OpenAI                                                                                                                                                                                        |
+| Your backup bucket            | Your data, sealed under your passphrase. Readable without it: the app's name and version, the installation identifier and the time of each backup                                                                                                                                                                                 |
+| Your OTLP endpoint            | Traces and logs of what the app did: models, tool names, token counts, costs, events and error types, never what a conversation says                                                                                                                                                                                              |
+| MCP servers you add           | The arguments of the tool calls they serve                                                                                                                                                                                                                                                                                        |
+
+Your model provider sees what the agent reads, so it can see your account's balances and holdings when the agent looks at them. Keys and passwords are never sent to it. A trace never carries the content of a conversation.
+
+### Public sources
+
+Solyx also reads public data that needs no key: TWSE's and TPEx's open data, SITCA, Taiwan's statistics portal and DGBAS, and PTT's Stock board. Like any website, they see your IP address and what is asked. Searching PTT for news names the listings you hold and watch. News is collected every 72 hours by default; you can change or stop it under **Settings → Schedules**.
+
+### Signing in
+
+When you sign in to a model provider (ChatGPT, OpenRouter, GitHub Copilot, xAI or Meta), you do so on the provider's own page. Solyx receives the resulting token or key on a listener bound to `127.0.0.1` that stays open only while the sign-in waits, and keeps it with your other keys. Signing in with ChatGPT tells OpenAI the installation identifier and that the client is Solyx.
+
+## What reaches the Solyx project
+
+### Update checks
+
+Solyx checks `download.usesolyx.trade` for a newer version a minute after it starts, every six hours after that, and when you ask. The request carries your IP address, the updater's random identifier and a generic user agent, and names the file for your system. The feed is stored on Cloudflare R2. The project does not use these requests to identify or track you. Switch the checks off under **Settings → About → Check for updates**. On macOS, a new version opens its release page on GitHub, under GitHub's privacy policy.
+
+### Crash reports
+
+Crash reports are off until you switch them on, in the first-launch setup or under **Settings → About**. Once on, Solyx sends a report through [Sentry](https://sentry.io/privacy/) when it crashes or hits an error it did not expect.
+
+- **A report holds** the error's type and message and where in the code it happened; the versions of Solyx, Electron and your operating system; your computer's processor, memory, screen size, graphics, locale and time zone; and when the app started and quit.
+- **Solyx removes** your keys, your home folder's name from paths, request data, user details, the console's and the network's breadcrumbs, and crash dumps. Sentry is told not to store your IP address or your computer's name. Reports do not carry your conversations, holdings or orders, though an error's message names what failed.
+- **Reports are used** only to find and fix bugs, are seen only by the maintainer, and are kept as long as Sentry keeps them. Switching reports off stops them at once.
+
+### This website
+
+This website sets no cookies and runs no analytics, and its fonts are served from the site itself. It keeps your choice of theme, and any notice you closed, in your browser's local storage. Search runs in your browser. Cloudflare, which serves the site, processes your IP address and requests to deliver it and protect it from abuse, under [Cloudflare's privacy policy](https://www.cloudflare.com/privacypolicy/). Installers are downloaded from GitHub, under [GitHub's privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
+
+### When you contact the project
+
+If you email the project or open an issue, the project receives what you send and uses it only to answer you. An issue on GitHub is public, so don't put personal data in one.
+
+## Your choices
+
+- **Turn things off.** Crash reports, update checks, news collection and each service you set up can be switched off or removed in **Settings**. Keys and sign-ins can be removed one by one.
+- **Delete your data.** **Settings → Storage** clears conversations, memories, news, research, the watchlist and cached market data. Backups in your bucket are yours to delete there.
+- **Uninstalling does not delete your data.** To remove everything, delete the data folder and `~/.solyx` as well, and the Solyx entries in your system's keychain. A nightly build keeps its own, named Solyx Nightly and `~/.solyx-nightly`.
+- **Your rights.** Under Taiwan's Personal Data Protection Act, you may ask to see, copy, correct, stop the use of, or delete personal data the project holds about you, such as a crash report or an email. Write to the address below; include the time a crash happened so the report can be found, since reports carry no name.
+
+For data held by a service you set up, ask that service.
+
+## Security
+
+Keys are encrypted by your operating system, and backups are sealed with AES-256-GCM under a key drawn from your passphrase. The sources and services Solyx knows are reached over HTTPS; an address you enter yourself, such as an Ollama server or an OTLP endpoint, is used as you give it. No software is perfectly secure; keep your computer, your passphrase and your keys safe.
+
+## Who Solyx is for
+
+Solyx is meant for adults who can hold a securities account where they live. It is not directed at children, and the project does not knowingly receive data from them.
+
+## Changes to this policy
+
+This policy changes when what Solyx sends changes. Changes are posted on this page with a new date above, and the repository keeps every earlier version.
+
+This policy is published in English and Traditional Chinese. If the two differ, the Traditional Chinese version prevails.
+
+## Contact
+
+For privacy questions and requests, write to [contact@chia1104.dev](mailto:contact@chia1104.dev). For anything else, you can also open an issue on [GitHub](https://github.com/Chia1104/solyx/issues).

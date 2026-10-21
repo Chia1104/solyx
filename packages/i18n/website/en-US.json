@@ -9,6 +9,8 @@
     "download": "Download",
     "changelog": "Changelog",
     "github": "GitHub",
+    "terms": "Terms of use",
+    "privacy": "Privacy policy",
     "footer": "Footer"
   },
   "banner": {
@@ -291,6 +293,9 @@
   },
   "docs": {
     "screenshot-pending": "Screenshot to come"
+  },
+  "legal": {
+    "updated": "Last updated {{date}}"
   },
   "status": {
     "home": "Back to the home page",

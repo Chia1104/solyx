@@ -2087,6 +2087,13 @@
     "send-description": "內容包括出了什麼錯、發生在程式的哪裡，以及 Solyx、Electron 與作業系統的版本。報告不會包含你的金鑰、對話、持股與委託。",
     "unavailable": "此版本不會傳送報告"
   },
+  "legal": {
+    "title": "使用條款與隱私權",
+    "description": "使用 Solyx 的條款，以及哪些資料會離開你的電腦、送往哪裡。",
+    "notice": "使用 Solyx 即表示你接受它的使用條款。隱私權政策說明哪些資料會離開你的電腦、送往哪裡。",
+    "terms": "使用條款",
+    "privacy": "隱私權政策"
+  },
   "locale": {
     "system": "跟隨系統",
     "en-US": "English",

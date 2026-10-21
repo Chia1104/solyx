@@ -18,6 +18,7 @@ import { SetupSummary } from "../modules/onboarding/setup-summary.tsx";
 import { AgentSettings } from "../modules/settings/agent-settings.tsx";
 import { DecisionsSettings } from "../modules/settings/decisions-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
+import { LegalSection } from "../modules/settings/legal-links.tsx";
 import { MarketDataSettings } from "../modules/settings/market-data-settings.tsx";
 import { NewsSettings } from "../modules/settings/news-settings.tsx";
 import { PalettePicker } from "../modules/settings/palette-picker.tsx";
@@ -62,6 +63,7 @@ export function OnboardingPage() {
             </div>
           </Section>
           <CrashReportSection />
+          <LegalSection />
         </>
       ),
     },
