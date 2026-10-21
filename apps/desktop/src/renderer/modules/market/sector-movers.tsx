@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-import { Table, cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -20,121 +19,113 @@ import { numberFormats } from "./number-formats.ts";
 import { useDirectionColors } from "./price-colors.ts";
 import { directionOf } from "./quote-figures.tsx";
 
-/** A company's part of the sector's move as a bar either side of zero, against the largest part shown. */
-function ContributionBar({
-  value,
-  largest,
-}: {
-  value: number;
-  largest: number;
-}) {
-  const direction = useDirectionColors(Market.TW);
-
-  return (
-    <span aria-hidden className="relative inline-block h-2.5 w-16 shrink-0">
-      <span className="absolute inset-y-0 left-1/2 w-px bg-separator" />
-      <span
-        className={cn(
-          "absolute inset-y-0",
-          value >= 0 ? "left-1/2 rounded-r-[2px]" : "right-1/2 rounded-l-[2px]"
-        )}
-        style={{
-          width: cssPercent(largest === 0 ? 0 : Math.abs(value) / largest / 2),
-          backgroundColor:
-            directionOf(direction, value)?.solid ?? "var(--muted)",
-        }}
-      />
-    </span>
-  );
-}
-
-/** The companies that moved one sector's market value most, the rest in one row. */
+/**
+ * The companies that moved one sector's market value most, the rest in one row. Each row's ground
+ * is a bar of its part of the move against the largest part shown, washing into its direction's
+ * colour toward the end that marks it.
+ */
 function MoversTable({ movers }: { movers: Movers }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
+  const direction = useDirectionColors(Market.TW);
 
   // A company's part of the sector's move, in points of its market value, which add up to the move.
   const contribution = (value: number) =>
     format.quotePercentChange.format(value / movers.marketValue);
 
   const rows = [
-    ...movers.movers.map((mover) => ({ id: mover.symbol, mover, rest: null })),
+    ...movers.movers.map((mover) => ({
+      id: mover.symbol,
+      mover,
+      rest: null,
+      valueChange: mover.valueChange,
+    })),
     ...(movers.rest.companies > 0
-      ? [{ id: "rest", mover: null, rest: movers.rest }]
+      ? [
+          {
+            id: "rest",
+            mover: null,
+            rest: movers.rest,
+            valueChange: movers.rest.valueChange,
+          },
+        ]
       : []),
   ];
 
   const largest = Math.max(
-    ...rows.map(({ mover, rest }) =>
-      Math.abs(mover?.valueChange ?? rest?.valueChange ?? 0)
-    )
+    ...rows.map(({ valueChange }) => Math.abs(valueChange))
   );
 
   return (
-    <Table variant="secondary">
-      <Table.ScrollContainer>
-        <Table.Content aria-label={t("heat-map.movers.title")}>
-          <Table.Header>
-            <Table.Column isRowHeader>
-              {t("heat-map.movers.symbol")}
-            </Table.Column>
-            <Table.Column>{t("heat-map.movers.percent")}</Table.Column>
-            <Table.Column>{t("heat-map.movers.value-change")}</Table.Column>
-            <Table.Column>{t("heat-map.movers.contribution")}</Table.Column>
-          </Table.Header>
-          <Table.Body>
-            <Table.Collection items={rows}>
-              {({ id, mover, rest }) => (
-                <Table.Row id={id}>
-                  <Table.Cell>
-                    {mover ? (
-                      <Link
-                        to="/symbol/$market/$symbol"
-                        params={{ market: Market.TW, symbol: mover.symbol }}
-                        className="flex min-w-0 items-baseline gap-1.5 hover:underline">
-                        <span className="shrink-0 font-medium">
-                          {mover.symbol}
-                        </span>
-                        <ListingName
-                          symbol={{ market: Market.TW, symbol: mover.symbol }}
-                        />
-                      </Link>
-                    ) : (
-                      <span className="text-muted">
-                        {t("heat-map.movers.rest", {
-                          count: rest?.companies ?? 0,
-                        })}
-                      </span>
-                    )}
-                  </Table.Cell>
-                  <Table.Cell className="tabular-nums">
-                    {mover
-                      ? format.quotePercentChange.format(mover.percent)
-                      : ""}
-                  </Table.Cell>
-                  <Table.Cell className="tabular-nums">
-                    {format.signedCompactAmount.format(
-                      mover?.valueChange ?? rest?.valueChange ?? 0
-                    )}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="flex items-center gap-2 tabular-nums">
-                      <ContributionBar
-                        value={mover?.valueChange ?? rest?.valueChange ?? 0}
-                        largest={largest}
-                      />
-                      {contribution(
-                        mover?.valueChange ?? rest?.valueChange ?? 0
-                      )}
-                    </span>
-                  </Table.Cell>
-                </Table.Row>
-              )}
-            </Table.Collection>
-          </Table.Body>
-        </Table.Content>
-      </Table.ScrollContainer>
-    </Table>
+    <table
+      aria-label={t("heat-map.movers.title")}
+      className="w-full border-separate border-spacing-y-0.5 text-sm tabular-nums">
+      <thead className="text-xs text-muted">
+        <tr>
+          <th className="px-2 pb-1 text-left font-normal">
+            {t("heat-map.movers.symbol")}
+          </th>
+          <th className="px-2 pb-1 text-right font-normal whitespace-nowrap">
+            {t("heat-map.movers.percent")}
+          </th>
+          <th className="px-2 pb-1 text-right font-normal whitespace-nowrap">
+            {t("heat-map.movers.value-change")}
+          </th>
+          <th className="px-2 pb-1 text-right font-normal whitespace-nowrap">
+            {t("heat-map.movers.contribution")}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(({ id, mover, rest, valueChange }) => {
+          const color = directionOf(direction, valueChange)?.solid;
+
+          return (
+            // The row is the bar's containing block, and isolates it so it sits under the text.
+            <tr key={id} className="relative isolate h-8">
+              <td className="w-full max-w-0 px-2">
+                {color ? (
+                  <span
+                    aria-hidden
+                    className="absolute inset-y-0 left-0 -z-10 rounded-md"
+                    style={{
+                      width: cssPercent(Math.abs(valueChange) / largest),
+                      backgroundImage: `linear-gradient(to right, color-mix(in oklab, ${color} 2%, transparent), color-mix(in oklab, ${color} 34%, transparent))`,
+                    }}
+                  />
+                ) : null}
+                {mover ? (
+                  <Link
+                    to="/symbol/$market/$symbol"
+                    params={{ market: Market.TW, symbol: mover.symbol }}
+                    className="flex min-w-0 items-baseline gap-1.5 hover:underline">
+                    <span className="shrink-0 font-medium">{mover.symbol}</span>
+                    <ListingName
+                      symbol={{ market: Market.TW, symbol: mover.symbol }}
+                    />
+                  </Link>
+                ) : (
+                  <span className="text-muted">
+                    {t("heat-map.movers.rest", {
+                      count: rest?.companies ?? 0,
+                    })}
+                  </span>
+                )}
+              </td>
+              <td className="px-2 text-right whitespace-nowrap">
+                {mover ? format.quotePercentChange.format(mover.percent) : ""}
+              </td>
+              <td className="px-2 text-right whitespace-nowrap">
+                {format.signedCompactAmount.format(valueChange)}
+              </td>
+              <td className="px-2 text-right whitespace-nowrap">
+                {contribution(valueChange)}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
