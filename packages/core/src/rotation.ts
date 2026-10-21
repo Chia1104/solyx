@@ -2,7 +2,7 @@ import { alignedCloses, candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import { RELATIVE_STRENGTH_PERIODS } from "./indicators.ts";
 import type { IndicatorLine } from "./indicators.ts";
-import type { Market } from "./market.ts";
+import type { Market, SymbolRef } from "./market.ts";
 import type { SectorIndex } from "./sectors.ts";
 
 /**
@@ -238,3 +238,12 @@ export const readRotations = (
 export interface SectorRotation extends SectorIndex {
   readings: RotationReading[];
 }
+
+/** A listing's rotation against its market's index on adjusted bars, one reading per period. */
+export interface ListingRotation {
+  symbol: SymbolRef;
+  readings: RotationReading[];
+}
+
+/** How many listings one read of their rotations may take, each a daily-bar request. */
+export const MAX_ROTATION_LISTINGS = 50;

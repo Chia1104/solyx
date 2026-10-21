@@ -183,7 +183,9 @@
         "weakening": "Weakening",
         "lagging": "Lagging",
         "improving": "Improving"
-      }
+      },
+      "followed-title": "Your listings' rotation",
+      "followed-description": "What you hold and watch against each market's index, on prices adjusted for splits and what went ex, read as the sectors are; the line is the last {{trail}} sessions. A listing held and watched shows as held."
     }
   },
   "sectors": {
