@@ -12,7 +12,11 @@ import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import { Quadrant, RotationInterval } from "@solyx/core/rotation";
-import type { ListingRotation, SectorRotation } from "@solyx/core/rotation";
+import type {
+  ListingRotation,
+  RotationSet,
+  SectorRotation,
+} from "@solyx/core/rotation";
 import { TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 import type { SectorMovers, SectorQuote } from "@solyx/core/sectors";
 
@@ -71,15 +75,30 @@ function setup(
   };
 
   const listingRotations = vi.fn(
-    async (symbols: readonly SymbolRef[]): Promise<ListingRotation[]> =>
-      symbols.map((symbol) => ({ symbol, readings: [] }))
+    async (
+      symbols: readonly SymbolRef[],
+      _through?: string
+    ): Promise<RotationSet<ListingRotation>> => ({
+      asOf: "2026-10-13",
+      sessions: ["2026-10-13"],
+      entries: symbols.map((symbol) => ({ symbol, readings: [] })),
+    })
+  );
+
+  const rotationsRead = vi.fn(
+    async (_through?: string): Promise<RotationSet<SectorRotation> | null> =>
+      rotations && {
+        asOf: "2026-10-13",
+        sessions: ["2026-10-13"],
+        entries: rotations,
+      }
   );
 
   const [tool, moversTool, rotationTool] =
     createSectorTools({
       sectors: async () => sectors,
       movers: async () => movers,
-      rotations: async () => rotations,
+      rotations: rotationsRead,
       listingRotations,
       marketData,
       now: () => NOW,
@@ -114,6 +133,7 @@ function setup(
     runRotation,
     marketData,
     listingRotations,
+    rotationsRead,
   };
 }
 
@@ -306,29 +326,33 @@ test("places listings the model names through the host's reading of them against
     { market: Market.TW, symbol: "2454" },
   ];
 
-  listingRotations.mockResolvedValueOnce([
-    {
-      symbol: symbols[0],
-      readings: [reading([0.2, 0.1], [0.9, -0.4])],
-    },
-    { symbol: symbols[1], readings: [reading([-1, -1], [-0.2, 0.6])] },
-    {
-      symbol: symbols[2],
-      readings: [
-        {
-          interval: RotationInterval.Daily,
-          period: 60,
-          trail: [],
-          quadrant: null,
-          transition: null,
-        },
-      ],
-    },
-  ]);
+  listingRotations.mockResolvedValueOnce({
+    asOf: "2026-10-13",
+    sessions: ["2026-10-13"],
+    entries: [
+      {
+        symbol: symbols[0],
+        readings: [reading([0.2, 0.1], [0.9, -0.4])],
+      },
+      { symbol: symbols[1], readings: [reading([-1, -1], [-0.2, 0.6])] },
+      {
+        symbol: symbols[2],
+        readings: [
+          {
+            interval: RotationInterval.Daily,
+            period: 60,
+            trail: [],
+            quadrant: null,
+            transition: null,
+          },
+        ],
+      },
+    ],
+  });
 
   const { text } = await runRotation({ symbols });
 
-  expect(listingRotations).toHaveBeenCalledWith(symbols);
+  expect(listingRotations).toHaveBeenCalledWith(symbols, undefined);
 
   const lines = text.split("\n");
 
@@ -350,5 +374,16 @@ test("says no source covers Taiwan rather than fail the rotation", async () => {
 
   expect(text).toBe(
     "No sector indices: no market data source covers Taiwan yet. get_setup says what is missing."
+  );
+});
+
+test("reads the graph as it stood at the close of a session the model names", async () => {
+  const { runRotation, rotationsRead } = setup(null, null, []);
+
+  const { text } = await runRotation({ through: "2026-09-30" });
+
+  expect(rotationsRead).toHaveBeenCalledWith("2026-09-30");
+  expect(text).toMatch(
+    /as_of 2026-10-13 10:42 Taipei, read as it stood at the close of 2026-09-30:/
   );
 });

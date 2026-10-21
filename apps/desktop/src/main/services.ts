@@ -341,7 +341,6 @@ export function createServices(config: ConfigFile) {
       marketData.candlesSince(symbol, Interval.OneDay, since),
     sourceId: (market) => marketData.sourceId(market),
     company: (symbol) => fundamentals.company(symbol),
-    answers: cache.answers,
   });
 
   const tradingDays = createTradingCalendar({
@@ -480,8 +479,9 @@ export function createServices(config: ConfigFile) {
     flows,
     macro,
     sectors: () => marketData.sectors(),
-    rotations: () => rotations.sectors(),
-    listingRotations: (symbols) => rotations.listings(symbols),
+    rotations: (through) => rotations.sectors(through),
+    listingRotations: (symbols, through) =>
+      rotations.listings(symbols, through),
     quote: (symbol) => marketData.quote(symbol),
     candlesSince: (symbol, interval, since) =>
       marketData.candlesSince(symbol, interval, since),

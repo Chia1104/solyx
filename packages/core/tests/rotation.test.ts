@@ -155,7 +155,7 @@ describe("readRotation", () => {
   const benchmark = bars(closes.map(() => 1000));
 
   const daily = (candles: Candle[]) =>
-    rotationSeries(Market.TW, RotationInterval.Daily, candles, TODAY);
+    rotationSeries(Market.TW, RotationInterval.Daily, candles, null);
 
   test("dates each stop and names the newest quadrant and the last crossing", () => {
     const reading = readRotation(daily(listing), daily(benchmark), 4);
@@ -208,11 +208,42 @@ describe("readRotation", () => {
   });
 
   test("readEveryRotation reads both intervals", () => {
-    const readings = readEveryRotation(Market.TW, listing, benchmark, TODAY);
+    const readings = readEveryRotation(Market.TW, listing, benchmark, {
+      today: TODAY,
+    });
 
     expect(
       readings.map(({ interval, period }) => `${interval}:${period}`)
     ).toEqual(["1d:20", "1d:60", "1d:120", "1w:13", "1w:26", "1w:52"]);
+  });
+});
+
+describe("readEveryRotation as of a session", () => {
+  // Sixty sessions from 2026-01-05, which hold a month's reading and its trail twice over.
+  const closes = Array.from({ length: 60 }, (_, i) => 100 + i * (i % 3));
+  const listing = bars(closes);
+  const benchmark = bars(closes.map(() => 1000));
+  const TODAY = "2026-03-30";
+  const THROUGH = "2026-03-13";
+
+  test("reads only the bars up to the session, as the graph stood at its close", () => {
+    const back = readEveryRotation(Market.TW, listing, benchmark, {
+      today: TODAY,
+      through: THROUGH,
+    }).find(({ period }) => period === 20)!;
+
+    expect(back.trail).toHaveLength(ROTATION_TRAIL);
+    expect(back.trail.at(-1)?.date).toBe(THROUGH);
+
+    const upTo = (candles: Candle[]) =>
+      rotationSeries(
+        Market.TW,
+        RotationInterval.Daily,
+        candles.filter((bar) => bar.time <= taipei(THROUGH)),
+        null
+      );
+
+    expect(back).toEqual(readRotation(upTo(listing), upTo(benchmark), 20));
   });
 });
 
@@ -226,7 +257,7 @@ describe("rotationSeries", () => {
       Market.TW,
       RotationInterval.Weekly,
       daily,
-      "2026-02-03"
+      "2026-02-02"
     );
 
     expect(weekly.keys).toEqual([
@@ -251,7 +282,7 @@ describe("rotationSeries", () => {
       Market.TW,
       RotationInterval.Weekly,
       daily.slice(0, -1),
-      "2026-01-28"
+      "2026-01-26"
     );
 
     expect(weekly.keys).toEqual(["2026-01-05", "2026-01-12", "2026-01-19"]);
@@ -262,7 +293,7 @@ describe("rotationSeries", () => {
       Market.TW,
       RotationInterval.Daily,
       daily.slice(0, 2),
-      "2026-02-03"
+      null
     );
 
     expect(series.keys).toEqual(

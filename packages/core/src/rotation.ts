@@ -216,14 +216,14 @@ export interface RotationSeries {
 
 /**
  * Daily bars as `interval` reads them: as they are, or merged into weeks of the market's
- * calendar with the week under way on `today` left out, since a weekly reading is of closed
- * weeks alone. The bars keep the terms they came on, so adjust them first.
+ * calendar, the week starting `openWeek` left out, since a weekly reading is of closed weeks
+ * alone. The bars keep the terms they came on, so adjust them first.
  */
 export function rotationSeries(
   market: Market,
   interval: RotationInterval,
   daily: readonly Candle[],
-  today: string
+  openWeek: string | null
 ): RotationSeries {
   if (interval === RotationInterval.Daily) {
     return {
@@ -238,7 +238,7 @@ export function rotationSeries(
     groupBy(daily, (bar) =>
       periodStart(candleDate(market, bar.time), Interval.OneWeek)
     )
-  ).filter(([week]) => week !== periodStart(today, Interval.OneWeek));
+  ).filter(([week]) => week !== openWeek);
 
   return {
     interval,
@@ -302,19 +302,59 @@ export const readRotations = (
     readRotation(series, benchmark, period)
   );
 
-/** Every reading of `daily` against `benchmark`: each interval's periods on bars of that interval. */
-export const readEveryRotation = (
+/** When a rotation is read: the exchange's day now, and the session it is taken back to where it is. */
+export interface RotationClock {
+  today: string;
+  /** The last session read, as the graph stood at its close; the newest where left out. */
+  through?: string;
+}
+
+/**
+ * Every reading of `daily` against `benchmark` as of the clock: each interval's periods on bars
+ * of that interval up to `through`, whose week is left out of the weekly ones while it is the
+ * week under way or a later session of it was traded, since at its close that week was open.
+ */
+export function readEveryRotation(
   market: Market,
   daily: readonly Candle[],
   benchmark: readonly Candle[],
-  today: string
-): RotationReading[] =>
-  Object.values(RotationInterval).flatMap((interval) =>
+  { today, through }: RotationClock
+): RotationReading[] {
+  const until = through ?? today;
+  const week = periodStart(until, Interval.OneWeek);
+
+  const upTo = (bars: readonly Candle[]) =>
+    bars.filter((bar) => candleDate(market, bar.time) <= until);
+
+  const open =
+    week === periodStart(today, Interval.OneWeek) ||
+    daily.some((bar) => {
+      const date = candleDate(market, bar.time);
+
+      return date > until && periodStart(date, Interval.OneWeek) === week;
+    })
+      ? week
+      : null;
+
+  return Object.values(RotationInterval).flatMap((interval) =>
     readRotations(
-      rotationSeries(market, interval, daily, today),
-      rotationSeries(market, interval, benchmark, today)
+      rotationSeries(market, interval, upTo(daily), open),
+      rotationSeries(market, interval, upTo(benchmark), open)
     )
   );
+}
+
+/** Readings as of one session, with the sessions they may be taken back to. */
+export interface RotationSet<Entry> {
+  /** The session the readings are of. */
+  asOf: string;
+  /** The sessions the readings may be taken back to, oldest first and ending with the newest. */
+  sessions: string[];
+  entries: Entry[];
+}
+
+/** How many sessions back a rotation may be taken: half a year of them. */
+export const PLAYBACK_SESSIONS = 120;
 
 /** A sector index's rotation against its market's index, one reading per interval and period. */
 export interface SectorRotation extends SectorIndex {

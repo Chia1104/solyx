@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 
-import { cn } from "@heroui/react";
+import { Slider, cn } from "@heroui/react";
 import { Link } from "@tanstack/react-router";
 import { scaleLinear } from "d3-scale";
 import { orderBy } from "es-toolkit";
@@ -39,6 +39,14 @@ export interface RotationGroup {
   id: string;
   label: string;
   color: string;
+}
+
+/** Taking the graph back to a session's close: the sessions it may go back to, oldest first, and the one shown. */
+export interface RotationPlayback {
+  sessions: readonly string[];
+  /** The session shown; `null` for the newest. */
+  through: string | null;
+  onChange: (through: string | null) => void;
 }
 
 /** The quadrants in the order a rotation runs through them, from where an entry leads. */
@@ -325,6 +333,42 @@ function QuadrantLists({
   );
 }
 
+/** A slider over the sessions the graph may be taken back to, the newest at its right end. */
+function PlaybackSlider({ playback }: { playback: RotationPlayback }) {
+  const { t } = useTranslation();
+  const { sessions, through, onChange } = playback;
+  const last = sessions.length - 1;
+
+  const index =
+    through === null ? last : Math.max(sessions.indexOf(through), 0);
+
+  return (
+    <Slider
+      aria-label={t("heat-map.rotation.playback")}
+      minValue={0}
+      maxValue={last}
+      step={1}
+      value={index}
+      onChange={(value) => {
+        const next = Array.isArray(value) ? value[0] : value;
+
+        onChange(next >= last ? null : (sessions[next] ?? null));
+      }}
+      className="max-w-md">
+      <div className="flex justify-between text-xs text-muted tabular-nums">
+        <span>{t("heat-map.rotation.playback")}</span>
+        <Slider.Output>
+          {through ?? t("heat-map.rotation.latest", { date: sessions[last] })}
+        </Slider.Output>
+      </div>
+      <Slider.Track>
+        <Slider.Fill />
+        <Slider.Thumb />
+      </Slider.Track>
+    </Slider>
+  );
+}
+
 /**
  * Entries on a relative rotation graph over a period picked here, in their group's colour, with
  * a filter down to one group where there are several; under the plot, the groups' colours and the
@@ -333,9 +377,11 @@ function QuadrantLists({
 export function RotationGraph({
   entries,
   groups,
+  playback,
 }: {
   entries: readonly RotationEntry[];
   groups: readonly RotationGroup[];
+  playback?: RotationPlayback;
 }) {
   const { t } = useTranslation();
 
@@ -408,6 +454,9 @@ export function RotationGraph({
           />
         ) : null}
       </div>
+      {playback && playback.sessions.length > 1 ? (
+        <PlaybackSlider playback={playback} />
+      ) : null}
       {placed.length === 0 ? (
         <p className="text-sm text-muted">{t("heat-map.rotation.none")}</p>
       ) : (
