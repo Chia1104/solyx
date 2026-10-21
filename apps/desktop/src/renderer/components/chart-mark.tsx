@@ -31,7 +31,7 @@ export function ChartMark({
           role="img"
           aria-label={label}
           className={cn(
-            "group/mark absolute inset-0 rounded-[3px] outline-none hover:bg-default/60 focus-visible:bg-default/60 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+            "group/mark absolute inset-0 rounded-[3px] outline-none hover:bg-default focus-visible:bg-default focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
             className
           )}
           style={style}>

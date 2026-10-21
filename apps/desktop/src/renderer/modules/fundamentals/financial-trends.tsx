@@ -253,7 +253,7 @@ function MarginLines({
                     </>
                   }
                   // Light enough that the lines show through the band.
-                  className="hover:bg-default/40 focus-visible:bg-default/40">
+                  className="hover:bg-default/60 focus-visible:bg-default/60">
                   {lines.map(({ key, color, values }) => {
                     const value = values[index];
 
