@@ -5,8 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
-import { ROTATION_PERIODS } from "@solyx/core/rotation";
+import { ROTATION_PERIODS, RotationInterval } from "@solyx/core/rotation";
 import type { RotationReading } from "@solyx/core/rotation";
+import { isEnumValue } from "@solyx/utils/is";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -17,7 +18,11 @@ import { listingRotationQuery } from "./quote-query.ts";
 import { RotationPlot } from "./rotation-graph.tsx";
 import type { PlacedEntry } from "./rotation-graph.tsx";
 
-const DEFAULT_PERIOD = 60;
+/** The period picked first in each interval: a quarter of sessions, or half a year of weeks. */
+const DEFAULT_PERIOD: Record<RotationInterval, number> = {
+  [RotationInterval.Daily]: 60,
+  [RotationInterval.Weekly]: 26,
+};
 
 /** The line against the market's index, and the one against the listing's own sector's. */
 const Against = {
@@ -40,7 +45,12 @@ const COLORS: Record<Against, string> = {
 export function ListingRotation({ symbol }: { symbol: SymbolRef }) {
   const { t, i18n } = useTranslation();
   const { signedIndicator } = numberFormats(i18n.language);
-  const [period, setPeriod] = useState(DEFAULT_PERIOD);
+
+  const [interval, setInterval] = useState<RotationInterval>(
+    RotationInterval.Daily
+  );
+
+  const [period, setPeriod] = useState(DEFAULT_PERIOD[interval]);
   const [focused, setFocused] = useState<string | null>(null);
   const { data, error, refetch } = useQuery(listingRotationQuery(symbol));
 
@@ -77,7 +87,9 @@ export function ListingRotation({ symbol }: { symbol: SymbolRef }) {
       ];
 
     const placed = lines.flatMap((line): PlacedEntry[] => {
-      const reading = line.readings.find((each) => each.period === period);
+      const reading = line.readings.find(
+        (each) => each.interval === interval && each.period === period
+      );
 
       return reading?.quadrant
         ? [{ ...line, group: line.id, color: COLORS[line.id], reading }]
@@ -101,7 +113,7 @@ export function ListingRotation({ symbol }: { symbol: SymbolRef }) {
         <ul className="flex min-w-0 flex-1 flex-col gap-2 text-xs">
           {lines.map((line) => {
             const reading = line.readings.find(
-              (each) => each.period === period
+              (each) => each.interval === interval && each.period === period
             );
 
             const last = reading?.trail.at(-1);
@@ -152,25 +164,47 @@ export function ListingRotation({ symbol }: { symbol: SymbolRef }) {
     <section className="flex flex-col gap-2">
       <h3 className="flex flex-wrap items-center justify-between gap-2 text-sm font-medium">
         {t("heat-map.rotation.listing-title")}
-        <ToggleButtonGroup
-          aria-label={t("heat-map.rotation.period")}
-          selectionMode="single"
-          disallowEmptySelection
-          size="sm"
-          selectedKeys={[String(period)]}
-          onSelectionChange={(keys) => {
-            const next = ROTATION_PERIODS.find((each) =>
-              keys.has(String(each))
-            );
+        <span className="flex flex-wrap gap-2">
+          <ToggleButtonGroup
+            aria-label={t("heat-map.rotation.bars")}
+            selectionMode="single"
+            disallowEmptySelection
+            size="sm"
+            selectedKeys={[interval]}
+            onSelectionChange={(keys) => {
+              const [next] = keys;
 
-            if (next !== undefined) setPeriod(next);
-          }}>
-          {ROTATION_PERIODS.map((each) => (
-            <ToggleButton key={each} id={String(each)}>
-              {t("heat-map.rotation.sessions", { count: each })}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
+              if (isEnumValue(RotationInterval, next)) {
+                setInterval(next);
+                setPeriod(DEFAULT_PERIOD[next]);
+              }
+            }}>
+            {Object.values(RotationInterval).map((each) => (
+              <ToggleButton key={each} id={each}>
+                {t(`heat-map.rotation.intervals.${each}`)}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          <ToggleButtonGroup
+            aria-label={t("heat-map.rotation.period")}
+            selectionMode="single"
+            disallowEmptySelection
+            size="sm"
+            selectedKeys={[String(period)]}
+            onSelectionChange={(keys) => {
+              const next = ROTATION_PERIODS[interval].find((each) =>
+                keys.has(String(each))
+              );
+
+              if (next !== undefined) setPeriod(next);
+            }}>
+            {ROTATION_PERIODS[interval].map((each) => (
+              <ToggleButton key={each} id={String(each)}>
+                {t(`heat-map.rotation.periods.${interval}`, { count: each })}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </span>
       </h3>
       {body}
     </section>

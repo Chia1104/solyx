@@ -12,7 +12,6 @@ import type {
   MarketDataProvider,
   MarketDataStream,
 } from "@solyx/core/market-data";
-import { ROTATION_PERIODS } from "@solyx/core/rotation";
 import { SectorGroup, TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 import { weekdays } from "@solyx/core/session";
 import { MINUTE_MS } from "@solyx/utils/date";
@@ -238,79 +237,6 @@ test("sectors read within a minute share one read of the indices", async () => {
   await marketData.sectors();
 
   expect(provider.getQuote).toHaveBeenCalledTimes(2 * TW_SECTOR_INDICES.length);
-});
-
-test("rotations read the TAIEX's and each index's daily bars once and keep the answer a minute", async () => {
-  const { marketData, provider, clock } = setup();
-
-  const rotations = await marketData.rotations();
-
-  expect(provider.getCandles).toHaveBeenCalledTimes(
-    TW_SECTOR_INDICES.length + 1
-  );
-  expect(provider.getCandles).toHaveBeenCalledWith({
-    symbol: { market: Market.TW, symbol: "IX0001" },
-    interval: Interval.OneDay,
-    ...lookbackRange(Market.TW, Interval.OneDay, NOW),
-  });
-  expect(rotations).toHaveLength(TW_SECTOR_INDICES.length);
-  expect(rotations?.find((each) => each.symbol === "IX0028")).toEqual({
-    sector: TwSector.Semiconductors,
-    group: SectorGroup.Electronics,
-    symbol: "IX0028",
-    readings: ROTATION_PERIODS.map((period) => ({
-      period,
-      trail: [],
-      quadrant: null,
-      transition: null,
-    })),
-  });
-
-  clock.now = new Date(NOW.getTime() + MINUTE_MS - 1);
-  await marketData.rotations();
-
-  expect(provider.getCandles).toHaveBeenCalledTimes(
-    TW_SECTOR_INDICES.length + 1
-  );
-});
-
-test("listing rotations read each listing's daily bars and its market's index once", async () => {
-  const { marketData, provider } = setup();
-
-  const symbols = [
-    { market: Market.TW, symbol: "2330" },
-    { market: Market.TW, symbol: "2454" },
-  ];
-
-  const rotations = await marketData.listingRotations(symbols);
-
-  expect(provider.getCandles).toHaveBeenCalledTimes(3);
-  expect(provider.getCandles).toHaveBeenCalledWith({
-    symbol: { market: Market.TW, symbol: "IX0001" },
-    interval: Interval.OneDay,
-    ...lookbackRange(Market.TW, Interval.OneDay, NOW),
-  });
-  expect(rotations.map(({ symbol }) => symbol)).toEqual(symbols);
-  expect(rotations[0].readings.map(({ period }) => period)).toEqual(
-    ROTATION_PERIODS
-  );
-});
-
-test("rotationAgainst reads the listing's and the other's daily bars", async () => {
-  const { marketData, provider } = setup();
-
-  const readings = await marketData.rotationAgainst(
-    { market: Market.TW, symbol: "2330" },
-    { market: Market.TW, symbol: "IX0028" }
-  );
-
-  expect(provider.getCandles).toHaveBeenCalledTimes(2);
-  expect(provider.getCandles).toHaveBeenCalledWith({
-    symbol: { market: Market.TW, symbol: "IX0028" },
-    interval: Interval.OneDay,
-    ...lookbackRange(Market.TW, Interval.OneDay, NOW),
-  });
-  expect(readings.map(({ period }) => period)).toEqual(ROTATION_PERIODS);
 });
 
 test("weekly bars merge whole weeks of the source's daily bars", async () => {

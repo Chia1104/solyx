@@ -1,6 +1,5 @@
 import {
   Interval,
-  adjustedCandles,
   isCalendarInterval,
   lookbackRange,
   olderRange,
@@ -8,17 +7,11 @@ import {
   resampleDaily,
 } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
-import { BENCHMARK, Market, symbolKey } from "@solyx/core/market";
+import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Listing, MarketDataProvider } from "@solyx/core/market-data";
 import { sessionQuote } from "@solyx/core/quote";
 import type { SessionQuote } from "@solyx/core/quote";
-import { readRotations } from "@solyx/core/rotation";
-import type {
-  ListingRotation,
-  RotationReading,
-  SectorRotation,
-} from "@solyx/core/rotation";
 import { TW_SECTOR_INDICES } from "@solyx/core/sectors";
 import type { SectorQuote } from "@solyx/core/sectors";
 import { Session, getSession } from "@solyx/core/session";
@@ -105,36 +98,6 @@ export function createMarketData({
     now: () => now().getTime(),
   });
 
-  // The rotations read every index's daily bars, which the candle cache keeps but for the session
-  // under way, so the overview's chart and the agent share a read as the sectors do.
-  const sectorRotations = keepFresh<MarketDataProvider, SectorRotation[]>({
-    store: answers("market:rotations"),
-    id: (provider) => provider.id,
-    async ask(provider) {
-      const daily = (symbol: string) =>
-        provider.getCandles({
-          symbol: { market: Market.TW, symbol },
-          interval: Interval.OneDay,
-          ...lookbackRange(Market.TW, Interval.OneDay, now()),
-        });
-
-      const benchmark = await daily(BENCHMARK[Market.TW].symbol.symbol);
-
-      return Promise.all(
-        TW_SECTOR_INDICES.map(async (index) => ({
-          ...index,
-          readings: readRotations(
-            Market.TW,
-            await daily(index.symbol),
-            benchmark
-          ),
-        }))
-      );
-    },
-    fresh: freshFor(SECTORS_FRESH_MS),
-    now: () => now().getTime(),
-  });
-
   async function providerOf(market: Market) {
     const provider = await sources.provider(market);
 
@@ -176,14 +139,6 @@ export function createMarketData({
 
     return resampleDaily(daily, interval, symbol.market);
   }
-
-  /** A listing's daily bars over the lookback. */
-  const daily = (symbol: SymbolRef) =>
-    read(
-      symbol,
-      Interval.OneDay,
-      lookbackRange(symbol.market, Interval.OneDay, now())
-    );
 
   return {
     candles: (symbol: SymbolRef, interval: Interval) =>
@@ -228,57 +183,9 @@ export function createMarketData({
       return provider ? sectorQuotes(provider) : null;
     },
 
-    /** Every Taiwan sector index's rotation against the TAIEX over each period; `null` when no source covers Taiwan. */
-    async rotations(): Promise<SectorRotation[] | null> {
-      const provider = await sources.provider(Market.TW);
-
-      return provider ? sectorRotations(provider) : null;
-    },
-
-    /**
-     * Each listing's rotation against its market's index over each period, on bars adjusted for
-     * splits and what went ex; a daily-bar request per listing, and one per market for its index.
-     */
-    async listingRotations(
-      symbols: readonly SymbolRef[]
-    ): Promise<ListingRotation[]> {
-      const benchmarks = new Map<Market, Promise<Candle[]>>();
-
-      const benchmark = (market: Market) => {
-        let bars = benchmarks.get(market);
-
-        if (!bars) {
-          bars = daily(BENCHMARK[market].symbol);
-          benchmarks.set(market, bars);
-        }
-
-        return bars;
-      };
-
-      return Promise.all(
-        symbols.map(async (symbol) => ({
-          symbol,
-          readings: readRotations(
-            symbol.market,
-            adjustedCandles(await daily(symbol)),
-            await benchmark(symbol.market)
-          ),
-        }))
-      );
-    },
-
-    /** A listing's rotation against any other listing or index over each period, on adjusted bars; a daily-bar request each. */
-    async rotationAgainst(
-      symbol: SymbolRef,
-      benchmark: SymbolRef
-    ): Promise<RotationReading[]> {
-      const [bars, against] = await Promise.all([
-        daily(symbol),
-        daily(benchmark),
-      ]);
-
-      return readRotations(symbol.market, adjustedCandles(bars), against);
-    },
+    /** The id of the source covering `market`; `null` while none does. */
+    sourceId: async (market: Market) =>
+      (await sources.provider(market))?.id ?? null,
 
     /** Kept for the session once found, since news groups a listing's stories by its names on every read. */
     async listing(symbol: SymbolRef): Promise<Listing | null> {

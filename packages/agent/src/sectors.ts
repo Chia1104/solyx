@@ -18,6 +18,8 @@ import {
   Quadrant,
   ROTATION_PERIODS,
   ROTATION_TRAIL,
+  RotationInterval,
+  rotationIntervalSchema,
 } from "@solyx/core/rotation";
 import type {
   ListingRotation,
@@ -72,16 +74,52 @@ const QUADRANT_ORDER = [
   Quadrant.Improving,
 ];
 
-const periodSchema = z
-  .number()
-  .int()
-  .refine((period) => ROTATION_PERIODS.includes(period), {
-    message: `One of ${ROTATION_PERIODS.join(", ")}`,
+/** What a bar of each interval is called, in the legend and the table. */
+const BAR_NAMES: Record<RotationInterval, string> = {
+  [RotationInterval.Daily]: "sessions",
+  [RotationInterval.Weekly]: "weeks",
+};
+
+const rotationArgumentsSchema = z
+  .object({
+    interval: rotationIntervalSchema
+      .default(RotationInterval.Daily)
+      .describe(
+        `Bars each reading is read over: ${RotationInterval.Daily} for sessions, ${RotationInterval.Weekly} for closed weeks`
+      ),
+    period: z
+      .number()
+      .int()
+      .optional()
+      .describe(
+        `Bars each reading is standardized over: ${Object.values(
+          RotationInterval
+        )
+          .map(
+            (interval) =>
+              `one of ${ROTATION_PERIODS[interval].join(", ")} ${BAR_NAMES[interval]}`
+          )
+          .join("; ")}; the middle one where left out`
+      ),
+    symbols: z
+      .array(symbolRefSchema)
+      .max(MAX_ROTATION_LISTINGS)
+      .optional()
+      .describe(
+        `Listings to read instead of the sectors, up to ${MAX_ROTATION_LISTINGS}, each a daily-bar request`
+      ),
   })
-  .default(60)
-  .describe(
-    `Sessions each reading is standardized over, one of ${ROTATION_PERIODS.join(", ")}: a month, a quarter or half a year`
-  );
+  .superRefine(({ interval, period }, context) => {
+    const periods = ROTATION_PERIODS[interval];
+
+    if (period !== undefined && !periods.includes(period)) {
+      context.addIssue({
+        code: "custom",
+        path: ["period"],
+        message: `One of ${periods.join(", ")} ${BAR_NAMES[interval]}`,
+      });
+    }
+  });
 
 /** One line of the rotation table: where the reading stands, where it was, and its last crossing. */
 function rotationRow(name: string, reading: RotationReading) {
@@ -130,8 +168,15 @@ function rotationTable(
 }
 
 /** What the table's columns mean, once per call. */
-const rotationLegend = (period: number, benchmark: string) =>
-  `the level is how far the listing's price over ${benchmark}'s stands from its own ${period}-session mean, in standard deviations, and the momentum how far the level's latest change stands from its ${period}-session mean; leading is both above zero, weakening a level above zero losing it, lagging both below, improving a level below zero gaining. The trail is the last ${ROTATION_TRAIL} sessions, and the crossing the last one in it into the quadrant it ends in. A level above zero says the ratio stands above its own recent mean, not that the listing outran ${benchmark} over the period: get_indicators' relative strength says that.`;
+const rotationLegend = (
+  interval: RotationInterval,
+  period: number,
+  benchmark: string
+) => {
+  const bars = BAR_NAMES[interval];
+
+  return `the level is how far the listing's price over ${benchmark}'s stands from its own ${period}-${bars.slice(0, -1)} mean, in standard deviations, and the momentum how far the level's latest change stands from its ${period}-${bars.slice(0, -1)} mean; leading is both above zero, weakening a level above zero losing it, lagging both below, improving a level below zero gaining. The trail is the last ${ROTATION_TRAIL} ${bars}${interval === RotationInterval.Weekly ? ", closed weeks only, each dated by its last session" : ""}, and the crossing the last one in it into the quadrant it ends in. A level above zero says the ratio stands above its own recent mean, not that the listing outran ${benchmark} over the period: get_indicators' relative strength says that.`;
+};
 
 /**
  * `get_sectors`: Taiwan's market by sector, as the host's market data reads the exchange's sector
@@ -279,24 +324,18 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
       defineTool({
         name: AgentToolName.GetRotation,
         replay: "safe",
-        description: `Where listings stand on a relative rotation graph against their market's index, as the app computes it from daily bars: by default every Taiwan sector index against the ${BENCHMARK[MARKET].name}, the same chart the overview draws, so do not draw it again; or, given symbols, each listing against its market's index (the ${BENCHMARK[Market.TW].name} in Taiwan, ${BENCHMARK[Market.US].name} in the US), on prices adjusted for splits and what went ex. Each reading is standardized over a period of sessions and the last ${ROTATION_TRAIL} sessions are its trail, so a reading takes twice the period of bars. The level is not a return against the index and the momentum not the index's: read the legend the call returns. It changes nothing.`,
-        parameters: z.object({
-          period: periodSchema,
-          symbols: z
-            .array(symbolRefSchema)
-            .max(MAX_ROTATION_LISTINGS)
-            .optional()
-            .describe(
-              `Listings to read instead of the sectors, up to ${MAX_ROTATION_LISTINGS}, each a daily-bar request`
-            ),
-        }),
-        async execute({ period, symbols }) {
+        description: `Where listings stand on a relative rotation graph against their market's index, as the app computes it from daily bars: by default every Taiwan sector index against the ${BENCHMARK[MARKET].name}, the same chart the overview draws, so do not draw it again; or, given symbols, each listing against its market's index (the ${BENCHMARK[Market.TW].name} in Taiwan, ${BENCHMARK[Market.US].name} in the US), on prices adjusted for splits and what went ex. Each reading is standardized over a period of sessions, or of closed weeks, and the last ${ROTATION_TRAIL} bars are its trail, so a reading takes twice the period of bars. The level is not a return against the index and the momentum not the index's: read the legend the call returns. It changes nothing.`,
+        parameters: rotationArgumentsSchema,
+        async execute({ interval, period: asked, symbols }) {
+          const period = asked ?? ROTATION_PERIODS[interval][1];
           const asOf = `as_of ${exchangeTime(MARKET, now())} Taipei`;
 
           if (symbols) {
             const rows = (await options.listingRotations(symbols)).flatMap(
               ({ symbol, readings }) => {
-                const reading = readings.find((each) => each.period === period);
+                const reading = readings.find(
+                  (each) => each.interval === interval && each.period === period
+                );
 
                 return reading ? [{ name: symbolLabel(symbol), reading }] : [];
               }
@@ -306,7 +345,7 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
 
             return {
               text: [
-                `Rotation of ${rows.length} listings against their market's index over ${period} sessions ${asOf}: ${rotationLegend(period, markets.map((market) => BENCHMARK[market].name).join(" or "))}`,
+                `Rotation of ${rows.length} listings against their market's index over ${period} ${BAR_NAMES[interval]} ${asOf}: ${rotationLegend(interval, period, markets.map((market) => BENCHMARK[market].name).join(" or "))}`,
                 ...rotationTable(rows),
               ].join("\n"),
             };
@@ -335,7 +374,7 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
 
           return {
             text: [
-              `Taiwan's listed sectors' rotation against the ${BENCHMARK[MARKET].name} over ${period} sessions${session ? ` to ${session}` : ""} ${asOf}: ${rotationLegend(period, `the ${BENCHMARK[MARKET].name}`)}`,
+              `Taiwan's listed sectors' rotation against the ${BENCHMARK[MARKET].name} over ${period} ${BAR_NAMES[interval]}${session ? ` to ${session}` : ""} ${asOf}: ${rotationLegend(interval, period, `the ${BENCHMARK[MARKET].name}`)}`,
               ...rotationTable(rows),
             ].join("\n"),
           };

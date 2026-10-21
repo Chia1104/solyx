@@ -171,7 +171,6 @@
       "period": "期間",
       "group": "分組",
       "every-group": "全部",
-      "sessions": "{{count}} 個交易日",
       "level": "相對位置",
       "momentum": "動能",
       "crossed": "進入",
@@ -189,7 +188,16 @@
       "listing-title": "輪動",
       "against": "對{{name}}",
       "sector-index": "{{sector}}類股指數",
-      "reading": "{{quadrant}}，相對位置 {{level}}，動能 {{momentum}}"
+      "reading": "{{quadrant}}，相對位置 {{level}}，動能 {{momentum}}",
+      "bars": "頻率",
+      "intervals": {
+        "1d": "日",
+        "1w": "週"
+      },
+      "periods": {
+        "1d": "{{count}} 個交易日",
+        "1w": "{{count}} 週"
+      }
     }
   },
   "sectors": {
