@@ -1,7 +1,13 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 
-import { Spinner, cn } from "@heroui/react";
+import {
+  Button,
+  Spinner,
+  ToggleButton,
+  ToggleButtonGroup,
+  cn,
+} from "@heroui/react";
 import { Link } from "@tanstack/react-router";
 import { scaleLinear } from "d3-scale";
 import { orderBy, uniq } from "es-toolkit";
@@ -80,8 +86,8 @@ const DEFAULT_PERIOD: Record<RotationInterval, number> = {
   [RotationInterval.Weekly]: 26,
 };
 
-/** The filter's choice that keeps every group. */
-const EVERY_GROUP = "every";
+/** No ids, shared so a default keeps its identity across renders. */
+const NONE: ReadonlySet<string> = new Set();
 
 /** An entry with its colour and its reading as of the session shown. */
 export interface PlacedEntry extends Omit<RotationEntry, "paths"> {
@@ -115,15 +121,23 @@ function closesOn(
   return frames.map((day) => byDay.get(day) ?? null);
 }
 
+/** How strongly a trail's segment `i` of `count` is drawn, the oldest faintest, so the line reads towards its dot. */
+const segmentOpacity = (i: number, count: number) =>
+  count < 1 ? 1 : 0.2 + (0.8 * (i + 1)) / count;
+
 /**
- * Every entry's trail over the period, one line each in its group's colour, ending in a dot that
- * names the entry and its reading as it is pointed at; the quadrants meet at the origin. Pointing
- * at an entry, here or in the lists under the plot, lifts its line over the rest.
+ * Every entry's trail over the period, one line each in its group's colour that fades towards its
+ * start and ends in a dot naming the entry and its reading as it is pointed at; the quadrants meet
+ * at the origin. Pointing at an entry, here or in the lists under the plot, lifts its line over
+ * the rest and names it beside its dot; given `onPin`, pressing a dot pins it so, and pinned
+ * entries stay lifted while others are pointed at.
  */
 export function RotationPlot({
   placed,
   focused,
   onFocus,
+  pinned = NONE,
+  onPin,
   className,
   loading = false,
   reach = reachOf(placed.flatMap(({ reading }) => reading.trail)),
@@ -131,6 +145,8 @@ export function RotationPlot({
   placed: readonly PlacedEntry[];
   focused: string | null;
   onFocus: (id: string | null) => void;
+  pinned?: ReadonlySet<string>;
+  onPin?: (id: string) => void;
   /** Sizes the plot; four by three, no taller than the overview's, where left out. */
   className?: string;
   /** Another reading is on its way: what is drawn is the last one, dimmed, with a spinner over it. */
@@ -150,8 +166,11 @@ export function RotationPlot({
   const quadrantName = (quadrant: Quadrant) =>
     t(`heat-map.rotation.quadrants.${quadrant}`);
 
-  // The focused line is drawn last, so it lies over the rest.
-  const drawn = orderBy(placed, [({ id }) => id === focused], ["asc"]);
+  const lifted = (id: string) => focused === id || pinned.has(id);
+  const anyLifted = focused !== null || pinned.size > 0;
+
+  // Lifted lines are drawn last, so they lie over the rest.
+  const drawn = orderBy(placed, [({ id }) => lifted(id)], ["asc"]);
 
   return (
     <div
@@ -210,23 +229,30 @@ export function RotationPlot({
             vectorEffect="non-scaling-stroke"
           />
         </g>
-        {drawn.map(({ id, color, reading }) => {
-          const lifted = focused === id;
+        {drawn.map(({ id, color, reading: { trail } }) => {
+          const up = lifted(id);
+          const opacity = up ? 1 : anyLifted ? 0.12 : 0.45;
 
           return (
-            <polyline
+            <g
               key={id}
-              points={reading.trail
-                .map((stop) => `${x(stop.level)},${y(stop.momentum)}`)
-                .join(" ")}
-              fill="none"
               stroke={color}
-              strokeOpacity={lifted ? 1 : focused ? 0.12 : 0.45}
-              strokeWidth={lifted ? 2.5 : 1.5}
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
+              strokeWidth={up ? 2.5 : 1.5}
+              strokeLinecap="round"
               className="transition-[stroke-opacity]"
-            />
+              strokeOpacity={opacity}>
+              {trail.slice(1).map((stop, i) => (
+                <line
+                  key={stop.date}
+                  x1={x(trail[i].level)}
+                  y1={y(trail[i].momentum)}
+                  x2={x(stop.level)}
+                  y2={y(stop.momentum)}
+                  opacity={segmentOpacity(i, trail.length - 1)}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+            </g>
           );
         })}
       </svg>
@@ -251,6 +277,8 @@ export function RotationPlot({
                   level,
                   momentum,
                 })}
+                pressed={pinned.has(id)}
+                onPress={onPin && (() => onPin(id))}
                 tooltip={
                   <>
                     <p>
@@ -280,12 +308,21 @@ export function RotationPlot({
                         </>
                       ) : null}
                     </dl>
+                    {onPin ? (
+                      <p className="text-xs text-muted">
+                        {t(
+                          pinned.has(id)
+                            ? "heat-map.rotation.unpin-hint"
+                            : "heat-map.rotation.pin-hint"
+                        )}
+                      </p>
+                    ) : null}
                   </>
                 }
                 className={cn(
                   "inset-auto -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-background transition-[opacity,width,height]",
-                  focused === id ? "size-3.5" : "size-2.5",
-                  focused && focused !== id && "opacity-30"
+                  lifted(id) ? "size-3.5" : "size-2.5",
+                  anyLifted && !lifted(id) && "opacity-30"
                 )}
                 style={{
                   left: cssPercent(x(last.level) / 100),
@@ -293,6 +330,23 @@ export function RotationPlot({
                   backgroundColor: color,
                 }}
               />
+              {lifted(id) ? (
+                <span
+                  aria-hidden
+                  className={cn(
+                    "pointer-events-none absolute -translate-y-1/2 rounded-sm bg-background/80 px-1 text-[11px] leading-4 font-medium whitespace-nowrap",
+                    // Named on the side away from the nearer edge.
+                    x(last.level) > 70
+                      ? "-translate-x-[calc(100%+0.625rem)]"
+                      : "translate-x-2.5"
+                  )}
+                  style={{
+                    left: cssPercent(x(last.level) / 100),
+                    top: cssPercent(y(last.momentum) / 100),
+                  }}>
+                  {name}
+                </span>
+              ) : null}
             </li>
           );
         })}
@@ -301,81 +355,107 @@ export function RotationPlot({
   );
 }
 
-/** The entries in each quadrant, the highest level first, in their group's colour; a listing's row opens its page. */
+/**
+ * The entries in each quadrant, the highest level first, in their group's colour: a listing's row
+ * opens its page, and any other row pins its entry.
+ */
 function QuadrantLists({
   placed,
   focused,
   onFocus,
+  pinned,
+  onPin,
 }: {
   placed: readonly PlacedEntry[];
   focused: string | null;
   onFocus: (id: string | null) => void;
+  pinned: ReadonlySet<string>;
+  onPin: (id: string) => void;
 }) {
   const { t } = useTranslation();
+  const lifted = (id: string) => focused === id || pinned.has(id);
+  const anyLifted = focused !== null || pinned.size > 0;
 
   return (
     <ul className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs @md/main:grid-cols-4">
-      {QUADRANT_ORDER.map((quadrant) => (
-        <li key={quadrant} className="flex flex-col gap-1">
-          <p className="font-medium">
-            {t(`heat-map.rotation.quadrants.${quadrant}`)}
-          </p>
-          <ol className="flex flex-col gap-0.5">
-            {orderBy(
-              placed.filter(({ reading }) => reading.quadrant === quadrant),
-              [({ reading }) => reading.trail.at(-1)?.level ?? 0],
-              ["desc"]
-            ).map(({ id, name, title, color, symbol }) => {
-              const content = (
-                <>
-                  <i
-                    aria-hidden
-                    className="size-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: color }}
-                  />
-                  <span className="min-w-0 truncate">{title ?? name}</span>
-                </>
-              );
+      {QUADRANT_ORDER.map((quadrant) => {
+        const inside = orderBy(
+          placed.filter(({ reading }) => reading.quadrant === quadrant),
+          [({ reading }) => reading.trail.at(-1)?.level ?? 0],
+          ["desc"]
+        );
 
-              const className = cn(
-                "flex min-w-0 items-center gap-1.5 transition-colors",
-                focused === id ? "text-foreground" : "text-muted",
-                focused && focused !== id && "opacity-50"
-              );
+        return (
+          <li key={quadrant} className="flex flex-col gap-1">
+            <p className="flex items-baseline gap-1.5 font-medium">
+              {t(`heat-map.rotation.quadrants.${quadrant}`)}
+              <span className="font-normal text-muted tabular-nums">
+                {inside.length}
+              </span>
+            </p>
+            <ol className="flex flex-col gap-0.5">
+              {inside.map(({ id, name, title, color, symbol }) => {
+                const content = (
+                  <>
+                    <i
+                      aria-hidden
+                      className="size-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="min-w-0 truncate">{title ?? name}</span>
+                  </>
+                );
 
-              return (
-                <li
-                  key={id}
-                  onPointerEnter={() => onFocus(id)}
-                  onPointerLeave={() => onFocus(null)}
-                  onFocus={() => onFocus(id)}
-                  onBlur={() => onFocus(null)}>
-                  {symbol ? (
-                    <Link
-                      to="/symbol/$market/$symbol"
-                      params={symbol}
-                      className={cn(className, "hover:underline")}>
-                      {content}
-                    </Link>
-                  ) : (
-                    <span className={className}>{content}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        </li>
-      ))}
+                const className = cn(
+                  "flex min-w-0 items-center gap-1.5 text-left transition-colors",
+                  lifted(id) ? "text-foreground" : "text-muted",
+                  pinned.has(id) && "font-medium",
+                  anyLifted && !lifted(id) && "opacity-50"
+                );
+
+                return (
+                  <li
+                    key={id}
+                    onPointerEnter={() => onFocus(id)}
+                    onPointerLeave={() => onFocus(null)}
+                    onFocus={() => onFocus(id)}
+                    onBlur={() => onFocus(null)}>
+                    {symbol ? (
+                      <Link
+                        to="/symbol/$market/$symbol"
+                        params={symbol}
+                        className={cn(className, "hover:underline")}>
+                        {content}
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-pressed={pinned.has(id)}
+                        onClick={() => onPin(id)}
+                        className={cn(
+                          className,
+                          "w-full cursor-pointer rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                        )}>
+                        {content}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
 /**
- * Entries on a relative rotation graph over a period picked here, in their group's colour, with
- * a filter down to one group where there are several; under the plot, the timeline it may be
- * taken back along, the groups' colours and the entries by quadrant. Taking it back reads the
- * paths it holds, and the axes reach as far as any session shown would, so the plot keeps still
- * while the dots move.
+ * Entries on a relative rotation graph over a period picked here, in their group's colour, each
+ * group shown or hidden by its own toggle where there are several; under the plot, the timeline
+ * it may be taken back along and the entries by quadrant. Taking it back reads the paths it
+ * holds, and the axes reach as far as any session shown would, so the plot keeps still while the
+ * dots move. Entries pinned on the plot or in the lists stay lifted across sessions and periods.
  */
 export function RotationGraph({
   entries,
@@ -399,9 +479,19 @@ export function RotationGraph({
   );
 
   const [period, setPeriod] = useState(DEFAULT_PERIOD[interval]);
-  const [group, setGroup] = useState(EVERY_GROUP);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(NONE);
   const [focused, setFocused] = useState<string | null>(null);
+  const [pinned, setPinned] = useState<ReadonlySet<string>>(NONE);
   const [through, setThrough] = useState<string | null>(null);
+
+  const pin = (id: string) =>
+    setPinned((before) => {
+      const after = new Set(before);
+
+      if (!after.delete(id)) after.add(id);
+
+      return after;
+    });
 
   const colors = new Map(groups.map((each) => [each.id, each.color]));
 
@@ -412,9 +502,7 @@ export function RotationGraph({
 
     const color = colors.get(entry.group);
 
-    return path &&
-      color !== undefined &&
-      (group === EVERY_GROUP || entry.group === group)
+    return path && color !== undefined && !hidden.has(entry.group)
       ? [{ ...entry, color, path }]
       : [];
   });
@@ -463,17 +551,48 @@ export function RotationGraph({
           className="w-44"
         />
         {controls}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
         {groups.length > 1 ? (
-          <OptionSelect
-            label={t("heat-map.rotation.group")}
-            value={group}
-            options={[
-              { id: EVERY_GROUP, label: t("heat-map.rotation.every-group") },
-              ...groups.map(({ id, label }) => ({ id, label })),
-            ]}
-            onChange={setGroup}
-            className="w-44"
-          />
+          <ToggleButtonGroup
+            aria-label={t("heat-map.rotation.group")}
+            selectionMode="multiple"
+            disallowEmptySelection
+            size="sm"
+            selectedKeys={groups
+              .filter(({ id }) => !hidden.has(id))
+              .map(({ id }) => id)}
+            onSelectionChange={(keys) =>
+              setHidden(
+                new Set(
+                  groups.filter(({ id }) => !keys.has(id)).map(({ id }) => id)
+                )
+              )
+            }>
+            {groups.map(({ id, label, color }, index) => (
+              <ToggleButton
+                key={id}
+                id={id}
+                className="not-data-selected:text-muted not-data-selected:[&_i]:opacity-40">
+                {index > 0 ? <ToggleButtonGroup.Separator /> : null}
+                <i
+                  aria-hidden
+                  className="size-2 rounded-full"
+                  style={{ backgroundColor: color }}
+                />
+                {label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        ) : null}
+        {pinned.size > 0 ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onPress={() => setPinned(NONE)}>
+            {t("heat-map.rotation.clear-pins", { count: pinned.size })}
+          </Button>
         ) : null}
       </div>
       {placed.length === 0 ? (
@@ -484,6 +603,8 @@ export function RotationGraph({
             placed={placed}
             focused={focused}
             onFocus={setFocused}
+            pinned={pinned}
+            onPin={pin}
             loading={loading}
             reach={reachOf(stops)}
           />
@@ -499,22 +620,12 @@ export function RotationGraph({
               onChange={setThrough}
             />
           ) : null}
-          <ul className="flex flex-wrap gap-3 text-xs text-muted">
-            {groups.map(({ id, label, color }) => (
-              <li key={id} className="flex items-center gap-1.5">
-                <i
-                  aria-hidden
-                  className="size-2 rounded-full"
-                  style={{ backgroundColor: color }}
-                />
-                {label}
-              </li>
-            ))}
-          </ul>
           <QuadrantLists
             placed={placed}
             focused={focused}
             onFocus={setFocused}
+            pinned={pinned}
+            onPin={pin}
           />
         </>
       )}
