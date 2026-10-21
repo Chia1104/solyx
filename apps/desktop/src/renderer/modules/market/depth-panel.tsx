@@ -11,6 +11,7 @@ import { twLots } from "@solyx/core/rules/tw";
 import { cssPercent } from "@solyx/utils/format";
 
 import { LoadingState } from "../../components/loading-state.tsx";
+import { WashBar } from "../../components/wash-bar.tsx";
 
 import { bandQuery } from "./band-query.ts";
 import { numberFormats } from "./number-formats.ts";
@@ -203,7 +204,10 @@ function Figure({
   );
 }
 
-/** The best five asks above the best five bids, each side's sizes drawn against the largest. */
+/**
+ * The best five asks above the best five bids, each side's sizes drawn against the largest in the
+ * colour its level's price takes against the reference.
+ */
 function DepthLadder({
   symbol,
   depth,
@@ -242,14 +246,16 @@ function DepthLadder({
       ? format.amount.format(sizeOf(symbol.market, level.shares))
       : "";
 
+    // A level at the reference takes the neutral ink, as its price does.
     const bar = level ? (
-      <span
-        aria-hidden
-        className={cn(
-          "absolute inset-y-0.5 bg-foreground/10",
-          side === "bid" ? "right-0" : "left-0"
-        )}
-        style={{ width: `${(level.shares / largest) * 100}%` }}
+      <WashBar
+        share={level.shares / largest}
+        color={
+          directionOf(direction, level.price - depth.reference)?.solid ??
+          "var(--muted)"
+        }
+        fromRight={side === "bid"}
+        className="inset-y-0.5 rounded-sm"
       />
     ) : null;
 

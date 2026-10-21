@@ -25,6 +25,8 @@ import { Sparkline } from "../../components/sparkline.tsx";
 import { macroSeriesQuery } from "../macro/macro-query.ts";
 import { ListingName } from "../market/listing-name.tsx";
 import { numberFormats } from "../market/number-formats.ts";
+import { useDirectionColors } from "../market/price-colors.ts";
+import { directionOf } from "../market/quote-figures.tsx";
 
 import { Agenda } from "./agenda.tsx";
 import { CALENDAR_DAYS, upcomingEventsQuery } from "./calendar-query.ts";
@@ -225,8 +227,8 @@ function figureTrend(release: ReleaseEvent, series: readonly MacroSeries[]) {
 
 /**
  * A release's headline figure in words, what it brought once its period is out or else the newest
- * out before it, with how it has gone the periods before, while its market's figures are still
- * being read.
+ * out before it, with how it has gone the periods before, drawn in the colour of its newest
+ * period's move from the one before, while its market's figures are still being read.
  */
 function ReleaseFigure({
   release,
@@ -239,6 +241,7 @@ function ReleaseFigure({
 }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
+  const direction = useDirectionColors(release.market);
   const [reading] = release.readings;
 
   if (pending) {
@@ -269,7 +272,14 @@ function ReleaseFigure({
 
   const trend = figureTrend(release, series);
   const first = trend?.points.at(0);
+  const previous = trend?.points.at(-2);
   const last = trend?.points.at(-1);
+
+  // The user's colours for a rise and a fall in the release's market, as a listing's line takes them.
+  const tone =
+    (previous && last
+      ? directionOf(direction, last.value - previous.value)?.solid
+      : undefined) ?? "var(--muted)";
 
   return (
     <>
@@ -295,7 +305,9 @@ function ReleaseFigure({
             from={0}
             to={trend.points.length - 1}
             baseline={trend.grows ? 0 : null}
-            color="var(--muted)"
+            color={tone}
+            // So small a line shows its wash only this strong.
+            shade={0.6}
             className="size-full"
           />
         </span>

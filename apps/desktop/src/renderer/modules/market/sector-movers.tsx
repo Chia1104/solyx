@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Table, cn } from "@heroui/react";
+import { Table } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -8,11 +8,11 @@ import { useTranslation } from "react-i18next";
 import { Currency, Market } from "@solyx/core/market";
 import { TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 import type { SectorMovers as Movers } from "@solyx/core/sectors";
-import { cssPercent } from "@solyx/utils/format";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
+import { WashBar } from "../../components/wash-bar.tsx";
 import { sectorMoversQuery } from "../fundamentals/fundamentals-query.ts";
 
 import { ListingName } from "./listing-name.tsx";
@@ -20,38 +20,14 @@ import { numberFormats } from "./number-formats.ts";
 import { useDirectionColors } from "./price-colors.ts";
 import { directionOf } from "./quote-figures.tsx";
 
-/** A company's part of the sector's move as a bar either side of zero, against the largest part shown. */
-function ContributionBar({
-  value,
-  largest,
-}: {
-  value: number;
-  largest: number;
-}) {
-  const direction = useDirectionColors(Market.TW);
-
-  return (
-    <span aria-hidden className="relative inline-block h-2.5 w-16 shrink-0">
-      <span className="absolute inset-y-0 left-1/2 w-px bg-separator" />
-      <span
-        className={cn(
-          "absolute inset-y-0",
-          value >= 0 ? "left-1/2 rounded-r-[2px]" : "right-1/2 rounded-l-[2px]"
-        )}
-        style={{
-          width: cssPercent(largest === 0 ? 0 : Math.abs(value) / largest / 2),
-          backgroundColor:
-            directionOf(direction, value)?.solid ?? "var(--muted)",
-        }}
-      />
-    </span>
-  );
-}
-
-/** The companies that moved one sector's market value most, the rest in one row. */
+/**
+ * The companies that moved one sector's market value most, the rest in one row. Each part of the
+ * move lies on a bar against the largest part shown, in its direction's colour.
+ */
 function MoversTable({ movers }: { movers: Movers }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
+  const direction = useDirectionColors(Market.TW);
 
   // A company's part of the sector's move, in points of its market value, which add up to the move.
   const contribution = (value: number) =>
@@ -80,56 +56,65 @@ function MoversTable({ movers }: { movers: Movers }) {
             </Table.Column>
             <Table.Column>{t("heat-map.movers.percent")}</Table.Column>
             <Table.Column>{t("heat-map.movers.value-change")}</Table.Column>
-            <Table.Column>{t("heat-map.movers.contribution")}</Table.Column>
+            {/* Wide enough that the bars under the figures can tell the smaller parts apart. */}
+            <Table.Column className="w-2/5">
+              {t("heat-map.movers.contribution")}
+            </Table.Column>
           </Table.Header>
           <Table.Body>
             <Table.Collection items={rows}>
-              {({ id, mover, rest }) => (
-                <Table.Row id={id}>
-                  <Table.Cell>
-                    {mover ? (
-                      <Link
-                        to="/symbol/$market/$symbol"
-                        params={{ market: Market.TW, symbol: mover.symbol }}
-                        className="flex min-w-0 items-baseline gap-1.5 hover:underline">
-                        <span className="shrink-0 font-medium">
-                          {mover.symbol}
+              {({ id, mover, rest }) => {
+                const valueChange =
+                  mover?.valueChange ?? rest?.valueChange ?? 0;
+
+                const color = directionOf(direction, valueChange)?.solid;
+
+                return (
+                  <Table.Row id={id}>
+                    <Table.Cell>
+                      {mover ? (
+                        <Link
+                          to="/symbol/$market/$symbol"
+                          params={{ market: Market.TW, symbol: mover.symbol }}
+                          className="flex min-w-0 items-baseline gap-1.5 hover:underline">
+                          <span className="shrink-0 font-medium">
+                            {mover.symbol}
+                          </span>
+                          <ListingName
+                            symbol={{ market: Market.TW, symbol: mover.symbol }}
+                          />
+                        </Link>
+                      ) : (
+                        <span className="text-muted">
+                          {t("heat-map.movers.rest", {
+                            count: rest?.companies ?? 0,
+                          })}
                         </span>
-                        <ListingName
-                          symbol={{ market: Market.TW, symbol: mover.symbol }}
-                        />
-                      </Link>
-                    ) : (
-                      <span className="text-muted">
-                        {t("heat-map.movers.rest", {
-                          count: rest?.companies ?? 0,
-                        })}
-                      </span>
-                    )}
-                  </Table.Cell>
-                  <Table.Cell className="tabular-nums">
-                    {mover
-                      ? format.quotePercentChange.format(mover.percent)
-                      : ""}
-                  </Table.Cell>
-                  <Table.Cell className="tabular-nums">
-                    {format.signedCompactAmount.format(
-                      mover?.valueChange ?? rest?.valueChange ?? 0
-                    )}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="flex items-center gap-2 tabular-nums">
-                      <ContributionBar
-                        value={mover?.valueChange ?? rest?.valueChange ?? 0}
-                        largest={largest}
-                      />
-                      {contribution(
-                        mover?.valueChange ?? rest?.valueChange ?? 0
                       )}
-                    </span>
-                  </Table.Cell>
-                </Table.Row>
-              )}
+                    </Table.Cell>
+                    <Table.Cell className="tabular-nums">
+                      {mover
+                        ? format.quotePercentChange.format(mover.percent)
+                        : ""}
+                    </Table.Cell>
+                    <Table.Cell className="tabular-nums">
+                      {format.signedCompactAmount.format(valueChange)}
+                    </Table.Cell>
+                    <Table.Cell className="relative tabular-nums">
+                      {color ? (
+                        <WashBar
+                          share={Math.abs(valueChange) / largest}
+                          color={color}
+                          className="inset-y-1.5"
+                        />
+                      ) : null}
+                      <span className="relative">
+                        {contribution(valueChange)}
+                      </span>
+                    </Table.Cell>
+                  </Table.Row>
+                );
+              }}
             </Table.Collection>
           </Table.Body>
         </Table.Content>
