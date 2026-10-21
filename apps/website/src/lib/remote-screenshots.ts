@@ -14,28 +14,24 @@ const SCREENSHOT_FILE = /<Screenshot\b[^>]*?\bfile="([^"]+)"/g;
 
 const PAGE_LANG = /\.([a-z]{2}-[A-Z]{2})\.mdx$/;
 
-/** Whether the asset host holds `path`; an answer other than found or not found fails the build. */
+/** Whether the asset host holds `path`, or `undefined` when it answers neither found nor not found. */
 const held = limitAsync(async (path: string) => {
-  const url = `${SCREENSHOT_ASSETS_URL}/${path}`;
-
-  const response = await fetch(url, {
+  const response = await fetch(`${SCREENSHOT_ASSETS_URL}/${path}`, {
     method: "HEAD",
     signal: AbortSignal.timeout(10_000),
-  });
+  }).catch(() => undefined);
 
-  if (response.status === 404) return false;
+  if (response?.ok) return true;
 
-  if (!response.ok) {
-    throw new Error(`The asset host answered ${url} with ${response.status}`);
-  }
-
-  return true;
+  return response?.status === 404 ? false : undefined;
 }, 8);
 
 /**
- * The screenshots the asset host holds of those the docs could show, by their path under `docs/`:
- * each file a page names, in the page's language and either scheme, less those the repository
- * keeps, since the repository's copy is the one shown.
+ * The screenshots the docs could show from the asset host, by their path under `docs/`: each file a
+ * page names, in the page's language and either scheme, less those the repository keeps, since the
+ * repository's copy is the one shown. `offered` holds those the host holds and those it gave no
+ * answer for, which are also listed in `unanswered`: a page offers them, and the browser falls
+ * back past one that fails to load, so the host's trouble never fails the build.
  */
 export async function readRemoteScreenshots(docsDir: string) {
   const candidates: string[] = [];
@@ -51,16 +47,25 @@ export async function readRemoteScreenshots(docsDir: string) {
     }
   }
 
-  const found = await Promise.all(
+  const answers = await Promise.all(
     uniq(candidates).map(async (path) => {
       const inRepository = await access(join(docsDir, "images", path)).then(
         () => true,
         () => false
       );
 
-      return !inRepository && (await held(path)) ? path : undefined;
+      return { path, held: inRepository ? false : await held(path) };
     })
   );
 
-  return found.filter((path) => path !== undefined).toSorted();
+  return {
+    offered: answers
+      .filter((answer) => answer.held !== false)
+      .map((answer) => answer.path)
+      .toSorted(),
+    unanswered: answers
+      .filter((answer) => answer.held === undefined)
+      .map((answer) => answer.path)
+      .toSorted(),
+  };
 }

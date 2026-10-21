@@ -123,7 +123,7 @@ const releaseData = {
 
 const REMOTE_SCREENSHOTS = "virtual:remote-screenshots";
 
-let remoteScreenshots: ReturnType<typeof readRemoteScreenshots> | undefined;
+let remoteScreenshots: Promise<string[]> | undefined;
 
 // The asset host is asked once per build which screenshots it holds, so a page draws each shot, or
 // its pencilled frame, without the browser asking; a shot uploaded later shows from the next deploy.
@@ -134,7 +134,17 @@ const screenshotData = {
   async load(id) {
     if (id !== `\0${REMOTE_SCREENSHOTS}`) return undefined;
 
-    remoteScreenshots ??= readRemoteScreenshots(docsDir);
+    remoteScreenshots ??= readRemoteScreenshots(docsDir).then(
+      ({ offered, unanswered }) => {
+        if (unanswered.length > 0) {
+          this.warn(
+            `The asset host gave no answer for ${unanswered.length} screenshots, which their pages offer anyway: ${unanswered.join(", ")}`
+          );
+        }
+
+        return offered;
+      }
+    );
 
     return `export default ${JSON.stringify(await remoteScreenshots)};`;
   },
