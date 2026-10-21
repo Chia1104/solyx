@@ -1,4 +1,3 @@
-import { groupBy } from "es-toolkit";
 import * as z from "zod";
 
 import { Interval, candleDate, mergeCandles, periodStart } from "./candles.ts";
@@ -29,46 +28,150 @@ export function quadrantOf(level: number, momentum: number): Quadrant {
 }
 
 // Variation within 32 ulps of the values' magnitude is rounding, not a move, so no z-score
-// reads it, and the window is centred on its first value before scaling for the same reason.
+// reads it.
 const PRECISION = 32 * Number.EPSILON;
+
+// Below this share of the values' mean square, a variance from running sums may be mostly
+// rounding, so the window is summed again on its own terms.
+const SUMS_RELIABLE = 1e-6;
+
+/** The last of `window` in standard deviations from their mean, centred and scaled first so rounding stays below the guard; `null` where they do not vary beyond it. */
+function exactZ(window: readonly number[]): number | null {
+  const base = window[0];
+  let scale = 0;
+  let magnitude = 0;
+
+  for (const each of window) {
+    scale = Math.max(scale, Math.abs(each - base));
+    magnitude = Math.max(magnitude, Math.abs(each));
+  }
+
+  if (scale <= PRECISION * magnitude) return null;
+
+  let sum = 0;
+
+  for (const each of window) sum += (each - base) / scale;
+
+  const mean = sum / window.length;
+  let variance = 0;
+
+  for (const each of window) variance += ((each - base) / scale - mean) ** 2;
+
+  variance /= window.length;
+
+  return ((window.at(-1)! - base) / scale - mean) / Math.sqrt(variance);
+}
+
+/** The values from `start` to `end`, or `null` where one of them is. */
+function windowOf(
+  values: readonly (number | null)[],
+  start: number,
+  end: number
+): number[] | null {
+  const window: number[] = [];
+
+  for (let i = start; i <= end; i++) {
+    const each = values[i];
+
+    if (each === null) return null;
+
+    window.push(each);
+  }
+
+  return window;
+}
+
+/** One value of a window on a monotonic queue, with where it stands. */
+interface Queued {
+  index: number;
+  value: number;
+}
 
 /**
  * Each value's distance from the mean of the `period` values ending with it, in their population
  * standard deviations; `null` while those values are fewer, where any of them is `null`, or
- * where they do not vary beyond rounding.
+ * where they do not vary beyond rounding. Running sums over the values less the first one, with
+ * the window's range kept on monotonic queues, read every window in one pass; a window whose
+ * variance those sums cannot vouch for is summed again on its own.
  */
 export function rollingZ(
   values: readonly (number | null)[],
   period: number
 ): IndicatorLine {
-  return values.map((value, i) => {
-    if (i < period - 1 || value === null) return null;
+  const line: IndicatorLine = new Array<number | null>(values.length).fill(
+    null
+  );
 
-    const window = values.slice(i - period + 1, i + 1);
+  const base = values.find((each) => each !== null);
 
-    if (window.some((each) => each === null)) return null;
+  if (base === undefined) return line;
 
-    // SAFETY: every null was returned on above.
-    const window_ = window as number[];
-    const base = window_[0];
-    let scale = 0;
-    let magnitude = 0;
+  // The window's values highest first and lowest first, each queue dropping what a newer value outdoes.
+  const highs: Queued[] = [];
+  const lows: Queued[] = [];
+  let sum = 0;
+  let squares = 0;
+  let lastNull = -1;
 
-    for (const each of window_) {
-      scale = Math.max(scale, Math.abs(each - base));
-      magnitude = Math.max(magnitude, Math.abs(each));
+  for (let i = 0; i < values.length; i++) {
+    const value = values[i];
+    const start = i - period + 1;
+    const dropped = start > 0 ? values[start - 1] : null;
+
+    if (dropped !== null) {
+      const gone = dropped - base;
+
+      sum -= gone;
+      squares -= gone * gone;
     }
 
-    if (scale <= PRECISION * magnitude) return null;
+    if (value === null) {
+      lastNull = i;
+      continue;
+    }
 
-    const scaled = window_.map((each) => (each - base) / scale);
-    const mean = scaled.reduce((sum, each) => sum + each, 0) / period;
+    const centred = value - base;
 
-    const variance =
-      scaled.reduce((sum, each) => sum + (each - mean) ** 2, 0) / period;
+    sum += centred;
+    squares += centred * centred;
 
-    return (scaled[period - 1] - mean) / Math.sqrt(variance);
-  });
+    while (highs.length > 0 && highs[highs.length - 1].value <= value) {
+      highs.pop();
+    }
+
+    highs.push({ index: i, value });
+
+    while (lows.length > 0 && lows[lows.length - 1].value >= value) {
+      lows.pop();
+    }
+
+    lows.push({ index: i, value });
+
+    while (highs[0].index < start) highs.shift();
+
+    while (lows[0].index < start) lows.shift();
+
+    if (start < 0 || lastNull >= start) continue;
+
+    const high = highs[0].value;
+    const low = lows[0].value;
+    const magnitude = Math.max(Math.abs(high), Math.abs(low));
+
+    if (high - low <= PRECISION * magnitude) continue;
+
+    const mean = sum / period;
+    const variance = squares / period - mean * mean;
+
+    if (variance > SUMS_RELIABLE * (squares / period)) {
+      line[i] = (centred - mean) / Math.sqrt(variance);
+    } else {
+      const window = windowOf(values, start, i);
+
+      line[i] = window && exactZ(window);
+    }
+  }
+
+  return line;
 }
 
 /** A listing's rotation against a benchmark, one coordinate pair per bar. */
@@ -204,6 +307,42 @@ export interface RotationReading {
   transition: { from: Quadrant; to: Quadrant; date: string } | null;
 }
 
+/** Daily bars with each one's exchange-local day and the day that opens its week, worked out once. */
+export interface DatedBars {
+  market: Market;
+  bars: readonly Candle[];
+  dates: readonly string[];
+  weeks: readonly string[];
+}
+
+/** `bars` dated on the market's calendar, once, so every reading of them reads the dates rather than the clock. */
+export function dateBars(market: Market, bars: readonly Candle[]): DatedBars {
+  const dates = bars.map((bar) => candleDate(market, bar.time));
+
+  return {
+    market,
+    bars,
+    dates,
+    weeks: dates.map((date) => periodStart(date, Interval.OneWeek)),
+  };
+}
+
+/** The bars dated `through` or before, which are the first of them since the bars are in time order. */
+function through(dated: DatedBars, until: string): DatedBars {
+  let end = dated.dates.length;
+
+  while (end > 0 && dated.dates[end - 1] > until) end--;
+
+  return end === dated.dates.length
+    ? dated
+    : {
+        market: dated.market,
+        bars: dated.bars.slice(0, end),
+        dates: dated.dates.slice(0, end),
+        weeks: dated.weeks.slice(0, end),
+      };
+}
+
 /** Bars of a rotation's interval, with what each is matched and dated by. */
 export interface RotationSeries {
   interval: RotationInterval;
@@ -215,37 +354,42 @@ export interface RotationSeries {
 }
 
 /**
- * Daily bars as `interval` reads them: as they are, or merged into weeks of the market's
+ * Dated daily bars as `interval` reads them: as they are, or merged into weeks of the market's
  * calendar, the week starting `openWeek` left out, since a weekly reading is of closed weeks
  * alone. The bars keep the terms they came on, so adjust them first.
  */
 export function rotationSeries(
-  market: Market,
+  dated: DatedBars,
   interval: RotationInterval,
-  daily: readonly Candle[],
   openWeek: string | null
 ): RotationSeries {
+  const { bars, dates, weeks } = dated;
+
   if (interval === RotationInterval.Daily) {
     return {
       interval,
-      bars: [...daily],
-      keys: daily.map((bar) => String(bar.time)),
-      dates: daily.map((bar) => candleDate(market, bar.time)),
+      bars: [...bars],
+      keys: bars.map((bar) => String(bar.time)),
+      dates: [...dates],
     };
   }
 
-  const weeks = Object.entries(
-    groupBy(daily, (bar) =>
-      periodStart(candleDate(market, bar.time), Interval.OneWeek)
-    )
-  ).filter(([week]) => week !== openWeek);
+  const series: RotationSeries = { interval, bars: [], keys: [], dates: [] };
+  let start = 0;
 
-  return {
-    interval,
-    bars: weeks.map(([, bars]) => mergeCandles(bars)),
-    keys: weeks.map(([week]) => week),
-    dates: weeks.map(([, bars]) => candleDate(market, bars.at(-1)!.time)),
-  };
+  for (let i = 1; i <= bars.length; i++) {
+    if (i < bars.length && weeks[i] === weeks[start]) continue;
+
+    if (weeks[start] !== openWeek) {
+      series.bars.push(mergeCandles(bars.slice(start, i)));
+      series.keys.push(weeks[start]);
+      series.dates.push(dates[i - 1]);
+    }
+
+    start = i;
+  }
+
+  return series;
 }
 
 /**
@@ -315,31 +459,25 @@ export interface RotationClock {
  * week under way or a later session of it was traded, since at its close that week was open.
  */
 export function readEveryRotation(
-  market: Market,
-  daily: readonly Candle[],
-  benchmark: readonly Candle[],
-  { today, through }: RotationClock
+  daily: DatedBars,
+  benchmark: DatedBars,
+  { today, through: until = today }: RotationClock
 ): RotationReading[] {
-  const until = through ?? today;
   const week = periodStart(until, Interval.OneWeek);
-
-  const upTo = (bars: readonly Candle[]) =>
-    bars.filter((bar) => candleDate(market, bar.time) <= until);
 
   const open =
     week === periodStart(today, Interval.OneWeek) ||
-    daily.some((bar) => {
-      const date = candleDate(market, bar.time);
-
-      return date > until && periodStart(date, Interval.OneWeek) === week;
-    })
+    daily.dates.some((date, i) => date > until && daily.weeks[i] === week)
       ? week
       : null;
 
+  const own = through(daily, until);
+  const other = through(benchmark, until);
+
   return Object.values(RotationInterval).flatMap((interval) =>
     readRotations(
-      rotationSeries(market, interval, upTo(daily), open),
-      rotationSeries(market, interval, upTo(benchmark), open)
+      rotationSeries(own, interval, open),
+      rotationSeries(other, interval, open)
     )
   );
 }

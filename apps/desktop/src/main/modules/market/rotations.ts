@@ -20,22 +20,43 @@ import {
   PLAYBACK_SESSIONS,
   RotationAgainst,
   benchmarkFitness,
+  dateBars,
   readEveryRotation,
 } from "@solyx/core/rotation";
 import type {
+  DatedBars,
   ListingRotation,
   RotationReading,
   RotationSet,
   SectorRotation,
 } from "@solyx/core/rotation";
 import { TW_SECTOR_INDICES, sectorOfIndustry } from "@solyx/core/sectors";
+import { Session, getSession, weekdays } from "@solyx/core/session";
 import { MINUTE_MS } from "@solyx/utils/date";
-import { freshFor, keepFresh, memoryAnswers } from "@solyx/utils/fresh";
+import { keepFresh, memoryAnswers } from "@solyx/utils/fresh";
 
 import type { ListingRotationView } from "#shared/market.ts";
 
-/** The indices' bars cost a daily-bar request each, so the overview's graph and the agent share a read this long. */
-const BARS_FRESH_MS = MINUTE_MS;
+/** Through the regular session the newest bar still moves, so bars read then are read again this much later. */
+const LIVE_FRESH_MS = 5 * MINUTE_MS;
+
+/**
+ * Daily bars stand until the session under way ends: a read is fresh while the exchange's day and
+ * its session are what they were, and through the regular session for `LIVE_FRESH_MS`. Every
+ * weekday counts as traded here, which only has a holiday's bars read again sooner than needed.
+ */
+function barsFresh(market: Market, askedAt: number, now: number): boolean {
+  const asked = new Date(askedAt);
+  const at = new Date(now);
+
+  if (exchangeDate(market, asked) !== exchangeDate(market, at)) return false;
+
+  const session = getSession(market, at, weekdays);
+
+  if (session !== getSession(market, asked, weekdays)) return false;
+
+  return session !== Session.Regular || now - askedAt < LIVE_FRESH_MS;
+}
 
 interface RotationsOptions {
   /** A listing's daily bars from `since` on, through the candle cache; rejects while no source covers its market. */
@@ -52,8 +73,9 @@ interface RotationsOptions {
  * Every rotation the app reads, on daily bars through the candle cache: the sectors against the
  * TAIEX, listings against their market's index or any benchmark, each over every interval and
  * period, as of the newest session or any of the last `PLAYBACK_SESSIONS`. Listings' bars are
- * adjusted for splits and what went ex; an index's need no adjusting. The sector indices' bars are
- * kept in memory for a minute, since every reading of them is worked out afresh.
+ * adjusted for splits and what went ex; an index's need no adjusting. Every listing's and index's
+ * bars are kept in memory while the session they were read in lasts, since every reading is
+ * worked out from them afresh and sliding back or changing the benchmark should cost no request.
  */
 export function createRotations({
   candlesSince,
@@ -70,16 +92,31 @@ export function createRotations({
 
   const today = (market: Market) => exchangeDate(market, now());
 
+  // Bars kept in memory are dated once, however many readings are taken from them.
+  const dated = new WeakMap<readonly Candle[], DatedBars>();
+
+  const dateOnce = (market: Market, bars: readonly Candle[]) => {
+    let known = dated.get(bars);
+
+    if (!known) {
+      known = dateBars(market, bars);
+      dated.set(bars, known);
+    }
+
+    return known;
+  };
+
   const readings = (
     symbol: SymbolRef,
     bars: readonly Candle[],
     benchmark: readonly Candle[],
     through: string | undefined
   ) =>
-    readEveryRotation(symbol.market, bars, benchmark, {
-      today: today(symbol.market),
-      through,
-    });
+    readEveryRotation(
+      dateOnce(symbol.market, bars),
+      dateOnce(symbol.market, benchmark),
+      { today: today(symbol.market), through }
+    );
 
   /** The sessions a set may be taken back to, from the benchmark's bars: the last `PLAYBACK_SESSIONS` up to `asOf`. */
   const sessions = (market: Market, benchmark: readonly Candle[]) =>
@@ -87,8 +124,10 @@ export function createRotations({
       .map((bar) => candleDate(market, bar.time))
       .slice(-PLAYBACK_SESSIONS);
 
+  const answers = memoryAnswers();
+
   const indexBars = keepFresh<string, Record<string, Candle[]>>({
-    store: memoryAnswers()("market:rotation-bars"),
+    store: answers("market:rotation-bars"),
     id: (source) => source,
     async ask() {
       const taiex = BENCHMARK[Market.TW].symbol;
@@ -105,7 +144,16 @@ export function createRotations({
 
       return Object.fromEntries(bars);
     },
-    fresh: freshFor(BARS_FRESH_MS),
+    fresh: (_source, askedAt, at) => barsFresh(Market.TW, askedAt, at),
+    now: () => now().getTime(),
+  });
+
+  /** A listing's or benchmark's daily bars, kept as the indices' are, so sliding back and a change of benchmark cost no request. */
+  const listingBars = keepFresh<SymbolRef, Candle[]>({
+    store: answers("market:rotation-listing-bars"),
+    id: symbolKey,
+    ask: daily,
+    fresh: ({ market }, askedAt, at) => barsFresh(market, askedAt, at),
     now: () => now().getTime(),
   });
 
@@ -121,7 +169,7 @@ export function createRotations({
   async function benchmarkBars(
     benchmark: SymbolRef,
     through: string | undefined,
-    read = daily
+    read = listingBars
   ): Promise<Candle[]> {
     if (isMarketIndex(benchmark) || isTwIndex(benchmark)) {
       return read(benchmark);
@@ -149,7 +197,7 @@ export function createRotations({
     benchmark: Promise<Candle[]>,
     through?: string
   ): Promise<RotationReading[]> {
-    const [bars, other] = await Promise.all([daily(symbol), benchmark]);
+    const [bars, other] = await Promise.all([listingBars(symbol), benchmark]);
 
     return readings(symbol, adjustedCandles(bars), other, through);
   }
@@ -179,21 +227,7 @@ export function createRotations({
       against: mode = RotationAgainst.Market,
     }: ListingsOptions = {}
   ): Promise<RotationSet<ListingRotation>> {
-    // Each index or benchmark is read once for every listing of the call.
-    const reads = new Map<string, Promise<Candle[]>>();
-
-    const read = (symbol: SymbolRef) => {
-      const key = symbolKey(symbol);
-      let bars = reads.get(key);
-
-      if (!bars) {
-        bars = daily(symbol);
-        reads.set(key, bars);
-      }
-
-      return bars;
-    };
-
+    const read = listingBars;
     const barsOf = (symbol: SymbolRef) => benchmarkBars(symbol, through, read);
 
     const benchmarkOf = async (
@@ -306,7 +340,7 @@ export function createRotations({
 
     /** A listing against any other listing or index; a daily-bar request each. */
     rotationAgainst: (symbol: SymbolRef, benchmark: SymbolRef) =>
-      against(symbol, daily(benchmark)),
+      against(symbol, listingBars(benchmark)),
 
     /**
      * A listing against its market's index and, for a TWSE company whose industry has a sector
@@ -328,7 +362,7 @@ export function createRotations({
               ...index,
               readings: await against(
                 symbol,
-                daily({ market: Market.TW, symbol: index.symbol })
+                listingBars({ market: Market.TW, symbol: index.symbol })
               ),
             }
           : null,

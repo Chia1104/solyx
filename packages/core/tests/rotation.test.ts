@@ -8,6 +8,7 @@ import {
   ROTATION_TRAIL,
   RotationInterval,
   benchmarkFitness,
+  dateBars,
   lastTransition,
   quadrantOf,
   readEveryRotation,
@@ -47,19 +48,44 @@ describe("rollingZ", () => {
   });
 
   test("is null while the window holds a null or does not vary", () => {
-    expect(rollingZ([1, null, 3, 4, 5], 3)).toEqual([
-      null,
-      null,
-      null,
-      null,
-      1 / Math.sqrt(2 / 3),
-    ]);
+    const line = rollingZ([1, null, 3, 4, 5], 3);
+
+    expect(line.slice(0, 4)).toEqual([null, null, null, null]);
+    expect(line[4]).toBeCloseTo(1 / Math.sqrt(2 / 3));
     expect(rollingZ([2, 2, 2], 3)).toEqual([null, null, null]);
     expect(rollingZ([1e9, 1e9 + 1e-7, 1e9 + 2e-7], 3)).toEqual([
       null,
       null,
       null,
     ]);
+  });
+
+  test("reads a long drifting series as each window read on its own would", () => {
+    const values = Array.from(
+      { length: 400 },
+      (_, i) => 1.2 + 0.3 * Math.sin(i / 7) + i / 1000
+    );
+
+    const line = rollingZ(values, 60);
+
+    for (let i = 59; i < values.length; i += 37) {
+      const window = values.slice(i - 59, i + 1);
+      const mean = window.reduce((sum, each) => sum + each, 0) / 60;
+
+      const variance =
+        window.reduce((sum, each) => sum + (each - mean) ** 2, 0) / 60;
+
+      expect(line[i]).toBeCloseTo((values[i] - mean) / Math.sqrt(variance), 9);
+    }
+  });
+
+  test("a flat stretch inside a varying series reads as no variation", () => {
+    const values = [1, 2, 3, 2, 2, 2, 2, 5];
+    const line = rollingZ(values, 4);
+
+    expect(line[5]).not.toBeNull();
+    expect(line[6]).toBeNull();
+    expect(line[7]).not.toBeNull();
   });
 
   test("scores a window of large values as it would the same window shifted to zero", () => {
@@ -156,7 +182,7 @@ describe("readRotation", () => {
   const benchmark = bars(closes.map(() => 1000));
 
   const daily = (candles: Candle[]) =>
-    rotationSeries(Market.TW, RotationInterval.Daily, candles, null);
+    rotationSeries(dateBars(Market.TW, candles), RotationInterval.Daily, null);
 
   test("dates each stop and names the newest quadrant and the last crossing", () => {
     const reading = readRotation(daily(listing), daily(benchmark), 4);
@@ -196,7 +222,15 @@ describe("readRotation", () => {
     const whole = readRotation(daily(listing), daily(benchmark), 4);
     const offset = readRotation(daily(listing), daily(benchmark.slice(2)), 4);
 
-    expect(offset.trail).toEqual(whole.trail);
+    expect(offset.trail.map(({ date }) => date)).toEqual(
+      whole.trail.map(({ date }) => date)
+    );
+
+    // The sums are centred on the first ratio read, which the offset moves, so only rounding differs.
+    for (const [i, stop] of offset.trail.entries()) {
+      expect(stop.level).toBeCloseTo(whole.trail[i].level, 9);
+      expect(stop.momentum).toBeCloseTo(whole.trail[i].momentum, 9);
+    }
   });
 
   test("readRotations reads every period of the series' interval", () => {
@@ -209,9 +243,11 @@ describe("readRotation", () => {
   });
 
   test("readEveryRotation reads both intervals", () => {
-    const readings = readEveryRotation(Market.TW, listing, benchmark, {
-      today: TODAY,
-    });
+    const readings = readEveryRotation(
+      dateBars(Market.TW, listing),
+      dateBars(Market.TW, benchmark),
+      { today: TODAY }
+    );
 
     expect(
       readings.map(({ interval, period }) => `${interval}:${period}`)
@@ -228,19 +264,22 @@ describe("readEveryRotation as of a session", () => {
   const THROUGH = "2026-03-13";
 
   test("reads only the bars up to the session, as the graph stood at its close", () => {
-    const back = readEveryRotation(Market.TW, listing, benchmark, {
-      today: TODAY,
-      through: THROUGH,
-    }).find(({ period }) => period === 20)!;
+    const back = readEveryRotation(
+      dateBars(Market.TW, listing),
+      dateBars(Market.TW, benchmark),
+      { today: TODAY, through: THROUGH }
+    ).find(({ period }) => period === 20)!;
 
     expect(back.trail).toHaveLength(ROTATION_TRAIL);
     expect(back.trail.at(-1)?.date).toBe(THROUGH);
 
     const upTo = (candles: Candle[]) =>
       rotationSeries(
-        Market.TW,
+        dateBars(
+          Market.TW,
+          candles.filter((bar) => bar.time <= taipei(THROUGH))
+        ),
         RotationInterval.Daily,
-        candles.filter((bar) => bar.time <= taipei(THROUGH)),
         null
       );
 
@@ -255,9 +294,8 @@ describe("rotationSeries", () => {
 
   test("merges sessions into closed weeks dated by their last session, matched by their first day", () => {
     const weekly = rotationSeries(
-      Market.TW,
+      dateBars(Market.TW, daily),
       RotationInterval.Weekly,
-      daily,
       "2026-02-02"
     );
 
@@ -280,9 +318,8 @@ describe("rotationSeries", () => {
 
   test("leaves out the week under way", () => {
     const weekly = rotationSeries(
-      Market.TW,
+      dateBars(Market.TW, daily.slice(0, -1)),
       RotationInterval.Weekly,
-      daily.slice(0, -1),
       "2026-01-26"
     );
 
@@ -291,9 +328,8 @@ describe("rotationSeries", () => {
 
   test("keeps sessions as they are, keyed by their time", () => {
     const series = rotationSeries(
-      Market.TW,
+      dateBars(Market.TW, daily.slice(0, 2)),
       RotationInterval.Daily,
-      daily.slice(0, 2),
       null
     );
 

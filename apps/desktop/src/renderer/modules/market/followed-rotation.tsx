@@ -56,7 +56,7 @@ export function FollowedRotation() {
     return <p className="text-sm text-muted">{t("heat-map.empty")}</p>;
   }
 
-  if (rotations.error) {
+  if (rotations.error && !rotations.data) {
     return (
       <LoadError
         error={rotations.error}
@@ -69,6 +69,7 @@ export function FollowedRotation() {
 
   return (
     <RotationGraph
+      loading={rotations.isFetching}
       playback={{
         sessions: rotations.data.sessions,
         through,
