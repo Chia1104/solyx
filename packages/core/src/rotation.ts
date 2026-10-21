@@ -346,6 +346,8 @@ export function readEveryRotation(
 
 /** Readings as of one session, with the sessions they may be taken back to. */
 export interface RotationSet<Entry> {
+  /** What every entry was read against; `null` where each names its own. */
+  benchmark: SymbolRef | null;
   /** The session the readings are of. */
   asOf: string;
   /** The sessions the readings may be taken back to, oldest first and ending with the newest. */
@@ -356,15 +358,87 @@ export interface RotationSet<Entry> {
 /** How many sessions back a rotation may be taken: half a year of them. */
 export const PLAYBACK_SESSIONS = 120;
 
-/** A sector index's rotation against its market's index, one reading per interval and period. */
+/** A sector index's rotation against the set's benchmark, one reading per interval and period. */
 export interface SectorRotation extends SectorIndex {
   readings: RotationReading[];
 }
 
-/** A listing's rotation against its market's index on adjusted bars, one reading per interval and period. */
+/** What listings are read against: their market's index, or each its own sector's. */
+export const RotationAgainst = {
+  Market: "market",
+  Sector: "sector",
+} as const;
+
+export type RotationAgainst =
+  (typeof RotationAgainst)[keyof typeof RotationAgainst];
+
+export const rotationAgainstSchema = z.enum(RotationAgainst);
+
+/** A listing's rotation on adjusted bars, one reading per interval and period. */
 export interface ListingRotation {
   symbol: SymbolRef;
+  /** What it was read against; `null` where nothing applies, as a sector's index to a listing outside the TWSE's industries, which leaves no readings. */
+  benchmark: SymbolRef | null;
   readings: RotationReading[];
+}
+
+/** Of the market's last `BENCHMARK_SESSIONS` sessions a benchmark must have traded on `BENCHMARK_TRADED` at least and never missed `BENCHMARK_GAP` in a row, since a bar it lacks breaks every window it falls in. */
+export const BENCHMARK_SESSIONS = 240;
+
+export const BENCHMARK_TRADED = 228;
+
+export const BENCHMARK_GAP = 4;
+
+/** How a listing qualifies as a benchmark over the market's last sessions. */
+export interface BenchmarkFitness {
+  /** How many of the market's sessions were read, `BENCHMARK_SESSIONS` unless the calendar is shorter. */
+  sessions: number;
+  /** On how many of them it traded. */
+  traded: number;
+  /** The most sessions in a row it missed. */
+  longestGap: number;
+  fit: boolean;
+}
+
+/**
+ * Whether `bars` qualify as a benchmark against `calendar`, the market's own index's daily bars,
+ * over the last `BENCHMARK_SESSIONS` of them up to `through`: a market's own index always does.
+ */
+export function benchmarkFitness(
+  market: Market,
+  calendar: readonly Candle[],
+  bars: readonly Candle[],
+  through?: string
+): BenchmarkFitness {
+  const sessions = calendar
+    .map((bar) => candleDate(market, bar.time))
+    .filter((date) => through === undefined || date <= through)
+    .slice(-BENCHMARK_SESSIONS);
+
+  const traded = new Set(bars.map((bar) => candleDate(market, bar.time)));
+  let count = 0;
+  let run = 0;
+  let longestGap = 0;
+
+  for (const date of sessions) {
+    if (traded.has(date)) {
+      count++;
+      run = 0;
+    } else {
+      run++;
+      longestGap = Math.max(longestGap, run);
+    }
+  }
+
+  return {
+    sessions: sessions.length,
+    traded: count,
+    longestGap,
+    fit:
+      sessions.length === BENCHMARK_SESSIONS &&
+      count >= BENCHMARK_TRADED &&
+      longestGap < BENCHMARK_GAP,
+  };
 }
 
 /** How many listings one read of their rotations may take, each a daily-bar request. */

@@ -38,9 +38,12 @@ export const sectorsQuery = () =>
  * The sector indices' rotation, read from daily bars, so a session moves it little until it
  * closes: `followQuotes` refreshes it as the after-hours session opens.
  */
-export const rotationsQuery = (through: string | null) =>
+export const rotationsQuery = (
+  through: string | null,
+  benchmark: SymbolRef | null
+) =>
   orpc.market.rotations.queryOptions({
-    input: { through: through ?? undefined },
+    input: { through: through ?? undefined, benchmark: benchmark ?? undefined },
     staleTime: Infinity,
   });
 

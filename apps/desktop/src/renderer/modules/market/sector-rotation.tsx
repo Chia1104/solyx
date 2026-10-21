@@ -1,14 +1,18 @@
 import { useState } from "react";
 
+import { Input, Label, TextField } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { BENCHMARK, Market } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import { SectorGroup } from "@solyx/core/sectors";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
 import { LINE_COLORS } from "./chart-palette.ts";
+import { ListingName } from "./listing-name.tsx";
 import { rotationsQuery } from "./quote-query.ts";
 import { RotationGraph } from "./rotation-graph.tsx";
 
@@ -19,38 +23,98 @@ const GROUP_COLORS: Record<SectorGroup, string> = {
   [SectorGroup.Other]: LINE_COLORS.oscillator,
 };
 
-/** Taiwan's listed sectors on a relative rotation graph against the TAIEX. */
+/** A TWSE code to read the sectors against in the TAIEX's place, taken as it is entered or left. */
+function BenchmarkField({
+  benchmark,
+  onChange,
+}: {
+  benchmark: SymbolRef | null;
+  onChange: (benchmark: SymbolRef | null) => void;
+}) {
+  const { t } = useTranslation();
+  const [code, setCode] = useState(benchmark?.symbol ?? "");
+
+  const commit = () => {
+    const next = code.trim().toUpperCase();
+
+    setCode(next);
+    onChange(next === "" ? null : { market: Market.TW, symbol: next });
+  };
+
+  return (
+    <TextField className="w-36">
+      <Label>{t("heat-map.rotation.benchmark")}</Label>
+      <Input
+        value={code}
+        placeholder={BENCHMARK[Market.TW].name}
+        className="uppercase"
+        onChange={(event) => setCode(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") commit();
+        }}
+      />
+    </TextField>
+  );
+}
+
+/** Taiwan's listed sectors on a relative rotation graph against the TAIEX, or a TWSE listing picked here. */
 export function SectorRotation() {
   const { t } = useTranslation();
   const [through, setThrough] = useState<string | null>(null);
-  const { data, error, refetch } = useQuery(rotationsQuery(through));
+  const [benchmark, setBenchmark] = useState<SymbolRef | null>(null);
+  const { data, error, refetch } = useQuery(rotationsQuery(through, benchmark));
+
+  const controls = (
+    <BenchmarkField benchmark={benchmark} onChange={setBenchmark} />
+  );
+
+  let body;
 
   if (error) {
-    return <LoadError error={error} onRetry={() => void refetch()} />;
-  }
-
-  if (data === undefined) return <LoadingState />;
-
-  if (data === null) {
-    return (
+    body = <LoadError error={error} onRetry={() => void refetch()} />;
+  } else if (data === undefined) {
+    body = <LoadingState />;
+  } else if (data === null) {
+    body = (
       <p className="text-sm text-muted">{t("heat-map.sectors.unavailable")}</p>
+    );
+  } else {
+    return (
+      <RotationGraph
+        controls={
+          <>
+            {controls}
+            {data.benchmark && benchmark ? (
+              <p className="flex items-baseline gap-1 self-end pb-2 text-xs text-muted">
+                {t("heat-map.rotation.against", {
+                  name: data.benchmark.symbol,
+                })}
+                <ListingName symbol={data.benchmark} />
+              </p>
+            ) : null}
+          </>
+        }
+        playback={{ sessions: data.sessions, through, onChange: setThrough }}
+        entries={data.entries.map(({ sector, group, readings }) => ({
+          id: sector,
+          name: t(`sectors.names.${sector}`),
+          group,
+          readings,
+        }))}
+        groups={Object.values(SectorGroup).map((group) => ({
+          id: group,
+          label: t(`sectors.groups.${group}`),
+          color: GROUP_COLORS[group],
+        }))}
+      />
     );
   }
 
   return (
-    <RotationGraph
-      playback={{ sessions: data.sessions, through, onChange: setThrough }}
-      entries={data.entries.map(({ sector, group, readings }) => ({
-        id: sector,
-        name: t(`sectors.names.${sector}`),
-        group,
-        readings,
-      }))}
-      groups={Object.values(SectorGroup).map((group) => ({
-        id: group,
-        label: t(`sectors.groups.${group}`),
-        color: GROUP_COLORS[group],
-      }))}
-    />
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-3">{controls}</div>
+      {body}
+    </div>
   );
 }

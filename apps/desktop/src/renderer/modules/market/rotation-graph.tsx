@@ -378,10 +378,13 @@ export function RotationGraph({
   entries,
   groups,
   playback,
+  controls,
 }: {
   entries: readonly RotationEntry[];
   groups: readonly RotationGroup[];
   playback?: RotationPlayback;
+  /** More controls beside the bars and period, such as the benchmark. */
+  controls?: ReactNode;
 }) {
   const { t } = useTranslation();
 
@@ -441,6 +444,7 @@ export function RotationGraph({
           onChange={(id) => setPeriod(Number(id))}
           className="w-44"
         />
+        {controls}
         {groups.length > 1 ? (
           <OptionSelect
             label={t("heat-map.rotation.group")}

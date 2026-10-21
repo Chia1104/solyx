@@ -7,6 +7,7 @@ import {
   ROTATION_PERIODS,
   ROTATION_TRAIL,
   RotationInterval,
+  benchmarkFitness,
   lastTransition,
   quadrantOf,
   readEveryRotation,
@@ -300,5 +301,45 @@ describe("rotationSeries", () => {
       daily.slice(0, 2).map(({ time }) => String(time))
     );
     expect(series.dates).toEqual(["2026-01-05", "2026-01-06"]);
+  });
+});
+
+describe("benchmarkFitness", () => {
+  const calendar = bars(Array.from({ length: 250 }, () => 1000));
+
+  test("a listing that traded nearly every session with no long halt qualifies", () => {
+    const listing = calendar.filter((_, i) => i % 40 !== 0);
+    const fitness = benchmarkFitness(Market.TW, calendar, listing);
+
+    expect(fitness).toEqual({
+      sessions: 240,
+      traded: 234,
+      longestGap: 1,
+      fit: true,
+    });
+  });
+
+  test("too few sessions traded, a halt of four, or a short calendar disqualify", () => {
+    expect(
+      benchmarkFitness(Market.TW, calendar, calendar.slice(0, 230)).fit
+    ).toBe(false);
+    expect(
+      benchmarkFitness(
+        Market.TW,
+        calendar,
+        calendar.filter((_, i) => i < 100 || i >= 104)
+      )
+    ).toMatchObject({ traded: 236, longestGap: 4, fit: false });
+    expect(
+      benchmarkFitness(Market.TW, calendar.slice(0, 100), calendar).fit
+    ).toBe(false);
+  });
+
+  test("reads the sessions up to `through` alone", () => {
+    const through = "2026-11-20";
+    const fitness = benchmarkFitness(Market.TW, calendar, calendar, through);
+
+    expect(fitness.sessions).toBe(230);
+    expect(fitness.fit).toBe(false);
   });
 });

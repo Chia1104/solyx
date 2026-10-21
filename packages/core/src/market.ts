@@ -92,3 +92,7 @@ export function exchangeMidnight(market: Market, date: string): number {
       .epochMilliseconds / 1000
   );
 }
+
+/** Whether the listing is one of the Taiwan exchanges' own indices, coded `IX` and four digits, which trade nothing of their own. */
+export const isTwIndex = ({ market, symbol }: SymbolRef) =>
+  market === Market.TW && /^IX\d{4}$/.test(symbol);
