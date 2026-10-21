@@ -1,8 +1,13 @@
+import { scaleSqrt } from "d3-scale";
 import { useTranslation } from "react-i18next";
 
 import type { CalibrationBucket } from "@solyx/core/forecast";
 import { cssPercent } from "@solyx/utils/format";
 
+import {
+  ChartTooltip,
+  useChartHover,
+} from "../../components/chart-tooltip.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
 /** The largest dot's diameter in pixels, for the bucket that holds the most scenarios. */
@@ -13,7 +18,7 @@ const LEAST = 6;
 /**
  * How often the scenarios given each band of probability came true, against the dashed diagonal
  * where they would come true just as often as given; each dot is sized by how many scenarios it
- * stands for. Nothing is drawn until a forecast has settled.
+ * stands for, and hovering one names them. Nothing is drawn until a forecast has settled.
  */
 export function CalibrationChart({
   buckets,
@@ -22,11 +27,25 @@ export function CalibrationChart({
 }) {
   const { t, i18n } = useTranslation();
   const { percent } = numberFormats(i18n.language);
+  const { hover, show, hide } = useChartHover();
   const stated = buckets.filter(({ scenarios }) => scenarios > 0);
 
   if (stated.length === 0) return null;
 
-  const most = Math.max(...stated.map(({ scenarios }) => scenarios));
+  const size = scaleSqrt()
+    .domain([0, Math.max(...stated.map(({ scenarios }) => scenarios))])
+    .range([LEAST, MOST]);
+
+  const describe = ({ from, to, scenarios, held }: CalibrationBucket) =>
+    t("research.forecasts.calibration-bucket", {
+      from,
+      to,
+      scenarios,
+      held,
+      rate: percent.format(held / scenarios),
+    });
+
+  const hovered = hover ? stated[hover.index] : undefined;
 
   return (
     <figure
@@ -57,29 +76,21 @@ export function CalibrationChart({
             />
           </svg>
           <ol>
-            {stated.map(({ from, to, scenarios, held }) => {
-              const size = LEAST + (MOST - LEAST) * Math.sqrt(scenarios / most);
-
-              return (
-                <li
-                  key={from}
-                  title={t("research.forecasts.calibration-bucket", {
-                    from,
-                    to,
-                    scenarios,
-                    held,
-                    rate: percent.format(held / scenarios),
-                  })}
-                  className="absolute -translate-x-1/2 translate-y-1/2 rounded-full bg-accent ring-2 ring-background"
-                  style={{
-                    left: cssPercent((from + to) / 200),
-                    bottom: cssPercent(held / scenarios),
-                    width: size,
-                    height: size,
-                  }}
-                />
-              );
-            })}
+            {stated.map((bucket, index) => (
+              <li
+                key={bucket.from}
+                className="absolute -translate-x-1/2 translate-y-1/2 rounded-full bg-accent ring-2 ring-background"
+                style={{
+                  left: cssPercent((bucket.from + bucket.to) / 200),
+                  bottom: cssPercent(bucket.held / bucket.scenarios),
+                  width: size(bucket.scenarios),
+                  height: size(bucket.scenarios),
+                }}
+                onPointerMove={(event) => show(index, event)}
+                onPointerLeave={hide}>
+                <span className="sr-only">{describe(bucket)}</span>
+              </li>
+            ))}
           </ol>
         </div>
       </div>
@@ -97,6 +108,9 @@ export function CalibrationChart({
       <figcaption className="text-xs text-muted">
         {t("research.forecasts.calibration")}
       </figcaption>
+      <ChartTooltip hover={hover}>
+        {hovered ? describe(hovered) : null}
+      </ChartTooltip>
     </figure>
   );
 }

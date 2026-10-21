@@ -1,7 +1,8 @@
 import { useId } from "react";
 
 import { cn } from "@heroui/react";
-import { clamp } from "es-toolkit";
+import { scaleLinear } from "d3-scale";
+import { area, line } from "d3-shape";
 
 interface SparklinePoint {
   time: number;
@@ -38,27 +39,23 @@ export function Sparkline({
 
   if (baseline !== null) values.push(baseline);
 
-  const low = Math.min(...values);
-  const high = Math.max(...values);
+  const x = scaleLinear().domain([from, to]).range([0, 100]).clamp(true);
 
-  const x = (time: number) =>
-    ((clamp(time, from, to) - from) / (to - from || 1)) * 100;
+  // A flat line sits in the middle, where d3 puts every value of a domain with no width.
+  const y = scaleLinear()
+    .domain([Math.min(...values), Math.max(...values)])
+    .range([100 - INSET, INSET]);
 
-  // A flat line sits in the middle.
-  const y = (value: number) =>
-    high === low
-      ? 50
-      : INSET + ((high - value) / (high - low)) * (100 - 2 * INSET);
+  const path = line<SparklinePoint>(
+    (point) => x(point.time),
+    (point) => y(point.value)
+  )(points);
 
-  const path = points
-    .map(
-      (point, index) =>
-        `${index === 0 ? "M" : "L"}${x(point.time).toFixed(2)},${y(point.value).toFixed(2)}`
-    )
-    .join("");
-
-  const first = points.at(0);
-  const last = points.at(-1);
+  const wash = area<SparklinePoint>(
+    (point) => x(point.time),
+    100,
+    (point) => y(point.value)
+  )(points);
 
   return (
     <svg
@@ -78,12 +75,7 @@ export function Sparkline({
           <stop offset={1} style={{ stopColor: color, stopOpacity: 0 }} />
         </linearGradient>
       </defs>
-      {first && last ? (
-        <path
-          d={`${path}L${x(last.time).toFixed(2)},100L${x(first.time).toFixed(2)},100Z`}
-          fill={`url(#${fade})`}
-        />
-      ) : null}
+      {wash ? <path d={wash} fill={`url(#${fade})`} /> : null}
       {baseline === null ? null : (
         <line
           x1={0}
@@ -98,7 +90,7 @@ export function Sparkline({
         />
       )}
       <path
-        d={path}
+        d={path ?? undefined}
         fill="none"
         style={{ stroke: color }}
         strokeWidth={1.25}

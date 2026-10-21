@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 import { cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
+import { scaleLinear } from "d3-scale";
+import { line } from "d3-shape";
 import { useTranslation } from "react-i18next";
 
 import type { StatementMetrics } from "@solyx/core/fundamentals";
@@ -9,6 +11,10 @@ import { currencyOf } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { cssPercent } from "@solyx/utils/format";
 
+import {
+  ChartTooltip,
+  useChartHover,
+} from "../../components/chart-tooltip.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LINE_COLORS } from "../market/chart-palette.ts";
 import { numberFormats } from "../market/number-formats.ts";
@@ -26,28 +32,32 @@ interface TrendMark {
 /**
  * A figure over its periods, oldest first: the newest in ink, the rest in pencil, all on zero.
  * The plot is only as wide as its columns, so the periods named under it sit at its two ends.
+ * Hovering a column names its period and figure, and fades the others.
  */
 function TrendColumns({ marks }: { marks: readonly TrendMark[] }) {
   const { zero, columns } = columnScale(marks.map(({ figure }) => figure));
+  const { hover, show, hide } = useChartHover();
 
   return (
     <div className="flex w-fit max-w-full flex-col gap-1.5">
       <div className="relative h-12">
-        <ol className="flex h-full gap-[3px]">
+        <ol className="flex h-full gap-[3px]" onPointerLeave={hide}>
           {marks.map((mark, index) => {
             const place = columns[index];
 
             return (
               <li
                 key={mark.key}
-                title={mark.title}
-                className="relative h-full w-4 min-w-1 shrink">
+                className="relative h-full w-4 min-w-1 shrink"
+                onPointerMove={(event) => show(index, event)}>
+                <span className="sr-only">{mark.title}</span>
                 {place ? (
                   <span
                     className={cn(
                       "absolute inset-x-0 min-h-px",
                       place.falls ? "rounded-b-[2px]" : "rounded-t-[2px]",
-                      index === marks.length - 1 ? "bg-accent" : "bg-muted"
+                      index === marks.length - 1 ? "bg-accent" : "bg-muted",
+                      hover && hover.index !== index && "opacity-40"
                     )}
                     style={{
                       top: cssPercent(place.top),
@@ -71,6 +81,9 @@ function TrendColumns({ marks }: { marks: readonly TrendMark[] }) {
         <span>{marks.at(0)?.key}</span>
         <span>{marks.at(-1)?.key}</span>
       </div>
+      <ChartTooltip hover={hover}>
+        {hover ? marks[hover.index].title : null}
+      </ChartTooltip>
     </div>
   );
 }
@@ -126,7 +139,8 @@ const INSET = 8;
 
 /**
  * The gross, operating and net margins over the quarters on one scale, each a line in its own
- * colour, named with its newest figure. Nothing is drawn while fewer than two quarters report one.
+ * colour, named with its newest figure. Hovering the plot marks the nearest quarter on every line
+ * and names its three margins. Nothing is drawn while fewer than two quarters report one.
  */
 function MarginLines({
   quarters,
@@ -135,6 +149,7 @@ function MarginLines({
 }) {
   const { t, i18n } = useTranslation();
   const { percent, fineShare } = numberFormats(i18n.language);
+  const { hover, show, hide } = useChartHover();
 
   const lines = MARGINS.map((margin) => ({
     ...margin,
@@ -149,28 +164,26 @@ function MarginLines({
     values.filter((value) => value !== null)
   );
 
-  const low = Math.min(...all);
-  const high = Math.max(...all);
+  const x = scaleLinear()
+    .domain([0, quarters.length - 1])
+    .range([0, 100])
+    .clamp(true);
 
-  const x = (index: number) => (index / (quarters.length - 1)) * 100;
+  const y = scaleLinear()
+    .domain([Math.min(...all), Math.max(...all)])
+    .range([100 - INSET, INSET]);
 
-  const y = (value: number) =>
-    high === low
-      ? 50
-      : INSET + ((high - value) / (high - low)) * (100 - 2 * INSET);
-
-  // A quarter that reports no figure breaks the line rather than bridging it.
-  const path = (values: readonly (number | null)[]) =>
-    values
-      .map((value, index) =>
-        value === null
-          ? ""
-          : `${index === 0 || values[index - 1] === null ? "M" : "L"}${x(index).toFixed(2)},${y(value).toFixed(2)}`
-      )
-      .join("");
+  // A quarter that reports no figure breaks the line rather than bridging it, so `y` never reads
+  // the zero standing in for it.
+  const path = line<number | null>()
+    .defined((value) => value !== null)
+    .x((_, index) => x(index))
+    .y((value) => y(value ?? 0));
 
   const shown = (value: number | null) =>
     value === null ? "–" : fineShare.format(value);
+
+  const hovered = hover ? quarters[hover.index] : undefined;
 
   return (
     <figure className="flex min-w-0 flex-col gap-1.5">
@@ -192,7 +205,19 @@ function MarginLines({
           ))}
         </span>
       </figcaption>
-      <div className="relative h-12">
+      <div
+        className="relative h-12"
+        onPointerMove={(event) => {
+          const box = event.currentTarget.getBoundingClientRect();
+
+          show(
+            Math.round(
+              x.invert(((event.clientX - box.left) / box.width) * 100)
+            ),
+            event
+          );
+        }}
+        onPointerLeave={hide}>
         <svg
           aria-hidden
           viewBox="0 0 100 100"
@@ -201,7 +226,7 @@ function MarginLines({
           {lines.map(({ key, color, values }) => (
             <path
               key={key}
-              d={path(values)}
+              d={path(values) ?? undefined}
               fill="none"
               style={{ stroke: color }}
               strokeWidth={1.5}
@@ -210,11 +235,33 @@ function MarginLines({
             />
           ))}
         </svg>
-        <ol className="relative flex h-full">
+        {hover ? (
+          <div aria-hidden>
+            <span
+              className="absolute inset-y-0 w-px bg-border"
+              style={{ left: cssPercent(x(hover.index) / 100) }}
+            />
+            {lines.map(({ key, color, values }) => {
+              const value = values[hover.index];
+
+              return value === null ? null : (
+                <span
+                  key={key}
+                  className="absolute size-1.5 -translate-1/2 rounded-full ring-2 ring-background"
+                  style={{
+                    left: cssPercent(x(hover.index) / 100),
+                    top: cssPercent(y(value) / 100),
+                    backgroundColor: color,
+                  }}
+                />
+              );
+            })}
+          </div>
+        ) : null}
+        <ol className="sr-only">
           {quarters.map((quarter) => (
-            <li
-              key={quarter.period}
-              title={t("fundamentals.trends.mark", {
+            <li key={quarter.period}>
+              {t("fundamentals.trends.mark", {
                 period: quarter.period,
                 figure: lines
                   .map(
@@ -223,8 +270,7 @@ function MarginLines({
                   )
                   .join(" · "),
               })}
-              className="h-full flex-1"
-            />
+            </li>
           ))}
         </ol>
       </div>
@@ -234,6 +280,26 @@ function MarginLines({
         <span>{quarters.at(0)?.period}</span>
         <span>{quarters.at(-1)?.period}</span>
       </div>
+      <ChartTooltip hover={hover}>
+        {hovered ? (
+          <>
+            <span className="font-medium">{hovered.period}</span>
+            {lines.map(({ key, color, of }) => (
+              <span key={key} className="flex items-center gap-1.5">
+                <i
+                  aria-hidden
+                  className="h-0.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: color }}
+                />
+                <span className="text-muted">
+                  {t(`fundamentals.trends.margin.${key}`)}
+                </span>
+                <span className="ml-auto pl-3">{shown(of(hovered))}</span>
+              </span>
+            ))}
+          </>
+        ) : null}
+      </ChartTooltip>
     </figure>
   );
 }
