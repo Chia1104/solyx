@@ -199,7 +199,8 @@
         "1w": "{{count}} 週"
       },
       "playback": "回放",
-      "latest": "最新（{{date}}）"
+      "latest": "最新（{{date}}）",
+      "benchmark": "基準"
     }
   },
   "sectors": {

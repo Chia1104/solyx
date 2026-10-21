@@ -11,7 +11,11 @@ import type { Candle } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
-import { Quadrant, RotationInterval } from "@solyx/core/rotation";
+import {
+  Quadrant,
+  RotationAgainst,
+  RotationInterval,
+} from "@solyx/core/rotation";
 import type {
   ListingRotation,
   RotationSet,
@@ -77,17 +81,30 @@ function setup(
   const listingRotations = vi.fn(
     async (
       symbols: readonly SymbolRef[],
-      _through?: string
+      _options: {
+        through?: string;
+        benchmark?: SymbolRef;
+        against?: RotationAgainst;
+      }
     ): Promise<RotationSet<ListingRotation>> => ({
+      benchmark: null,
       asOf: "2026-10-13",
       sessions: ["2026-10-13"],
-      entries: symbols.map((symbol) => ({ symbol, readings: [] })),
+      entries: symbols.map((symbol) => ({
+        symbol,
+        benchmark: { market: symbol.market, symbol: "IX0001" },
+        readings: [],
+      })),
     })
   );
 
   const rotationsRead = vi.fn(
-    async (_through?: string): Promise<RotationSet<SectorRotation> | null> =>
+    async (
+      _through?: string,
+      _benchmark?: SymbolRef
+    ): Promise<RotationSet<SectorRotation> | null> =>
       rotations && {
+        benchmark: { market: Market.TW, symbol: "IX0001" },
         asOf: "2026-10-13",
         sessions: ["2026-10-13"],
         entries: rotations,
@@ -327,16 +344,23 @@ test("places listings the model names through the host's reading of them against
   ];
 
   listingRotations.mockResolvedValueOnce({
+    benchmark: null,
     asOf: "2026-10-13",
     sessions: ["2026-10-13"],
     entries: [
       {
         symbol: symbols[0],
+        benchmark: { market: Market.TW, symbol: "IX0001" },
         readings: [reading([0.2, 0.1], [0.9, -0.4])],
       },
-      { symbol: symbols[1], readings: [reading([-1, -1], [-0.2, 0.6])] },
+      {
+        symbol: symbols[1],
+        benchmark: { market: Market.US, symbol: "SPY" },
+        readings: [reading([-1, -1], [-0.2, 0.6])],
+      },
       {
         symbol: symbols[2],
+        benchmark: { market: Market.TW, symbol: "IX0001" },
         readings: [
           {
             interval: RotationInterval.Daily,
@@ -352,7 +376,11 @@ test("places listings the model names through the host's reading of them against
 
   const { text } = await runRotation({ symbols });
 
-  expect(listingRotations).toHaveBeenCalledWith(symbols, undefined);
+  expect(listingRotations).toHaveBeenCalledWith(symbols, {
+    through: undefined,
+    benchmark: undefined,
+    against: undefined,
+  });
 
   const lines = text.split("\n");
 
@@ -382,8 +410,66 @@ test("reads the graph as it stood at the close of a session the model names", as
 
   const { text } = await runRotation({ through: "2026-09-30" });
 
-  expect(rotationsRead).toHaveBeenCalledWith("2026-09-30");
+  expect(rotationsRead).toHaveBeenCalledWith("2026-09-30", undefined);
   expect(text).toMatch(
     /as_of 2026-10-13 10:42 Taipei, read as it stood at the close of 2026-09-30:/
+  );
+});
+
+test("reads listings each against its own sector's index, naming the index and those with none", async () => {
+  const { runRotation, listingRotations } = setup(null);
+
+  const symbols = [
+    { market: Market.TW, symbol: "2330" },
+    { market: Market.TW, symbol: "9999" },
+  ];
+
+  listingRotations.mockResolvedValueOnce({
+    benchmark: null,
+    asOf: "2026-10-13",
+    sessions: ["2026-10-13"],
+    entries: [
+      {
+        symbol: symbols[0],
+        benchmark: { market: Market.TW, symbol: "IX0028" },
+        readings: [reading([0.2, 0.1], [0.9, 0.4])],
+      },
+      { symbol: symbols[1], benchmark: null, readings: [] },
+    ],
+  });
+
+  const { text } = await runRotation({
+    symbols,
+    against: RotationAgainst.Sector,
+  });
+
+  expect(listingRotations).toHaveBeenCalledWith(symbols, {
+    through: undefined,
+    benchmark: undefined,
+    against: RotationAgainst.Sector,
+  });
+
+  const lines = text.split("\n");
+
+  expect(lines[0]).toMatch(
+    /^Rotation of 1 listings against each its own sector's index over 60 sessions as_of/
+  );
+  expect(lines[2]).toBe(
+    "TW 2330 vs IX0028,leading,+0.90,+0.40,none in the trail,+0.20/+0.10 on 2026-09-29"
+  );
+  expect(lines.at(-1)).toBe(
+    "No sector index applies to TW 9999: only a TWSE company in an industry with one is read this way."
+  );
+});
+
+test("reads the sectors against a benchmark the model names", async () => {
+  const { runRotation, rotationsRead } = setup(null, null, []);
+
+  const benchmark = { market: Market.TW, symbol: "0050" };
+  const { text } = await runRotation({ benchmark });
+
+  expect(rotationsRead).toHaveBeenCalledWith(undefined, benchmark);
+  expect(text).toMatch(
+    /^Taiwan's listed sectors' rotation against TW 0050 over 60 sessions/
   );
 });

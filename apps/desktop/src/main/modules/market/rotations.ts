@@ -6,9 +6,22 @@ import {
 } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import type { Company } from "@solyx/core/fundamentals";
-import { BENCHMARK, Market, exchangeDate } from "@solyx/core/market";
+import {
+  BENCHMARK,
+  Market,
+  exchangeDate,
+  isTwIndex,
+  symbolKey,
+  symbolLabel,
+} from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { PLAYBACK_SESSIONS, readEveryRotation } from "@solyx/core/rotation";
+import {
+  BENCHMARK_SESSIONS,
+  PLAYBACK_SESSIONS,
+  RotationAgainst,
+  benchmarkFitness,
+  readEveryRotation,
+} from "@solyx/core/rotation";
 import type {
   ListingRotation,
   RotationReading,
@@ -96,6 +109,40 @@ export function createRotations({
     now: () => now().getTime(),
   });
 
+  /** Whether `symbol` is its market's own index, which needs no adjusting and always qualifies as a benchmark. */
+  const isMarketIndex = (symbol: SymbolRef) =>
+    symbolKey(symbol) === symbolKey(BENCHMARK[symbol.market].symbol);
+
+  /**
+   * A benchmark's bars: an index's as they are, and a listing's adjusted once it qualifies over
+   * the market's last sessions, so a halt in it breaks no window. `read` is the daily bars, memoized
+   * by the caller where it reads the same index for several listings.
+   */
+  async function benchmarkBars(
+    benchmark: SymbolRef,
+    through: string | undefined,
+    read = daily
+  ): Promise<Candle[]> {
+    if (isMarketIndex(benchmark) || isTwIndex(benchmark)) {
+      return read(benchmark);
+    }
+
+    const [bars, calendar] = await Promise.all([
+      read(benchmark),
+      read(BENCHMARK[benchmark.market].symbol),
+    ]);
+
+    const fitness = benchmarkFitness(benchmark.market, calendar, bars, through);
+
+    if (!fitness.fit) {
+      throw new Error(
+        `${symbolLabel(benchmark)} cannot be a benchmark: it traded on ${fitness.traded} of the market's last ${fitness.sessions} sessions and missed ${fitness.longestGap} in a row, where ${BENCHMARK_SESSIONS} sessions with few missed and none for days are needed`
+      );
+    }
+
+    return adjustedCandles(bars);
+  }
+
   /** A listing's readings against `benchmark`'s bars, on its own bars adjusted. */
   async function against(
     symbol: SymbolRef,
@@ -107,40 +154,98 @@ export function createRotations({
     return readings(symbol, adjustedCandles(bars), other, through);
   }
 
+  /** The index of the sector a TWSE company is classed in; `null` for any other listing. */
+  async function sectorIndexOf(symbol: SymbolRef) {
+    const listed = symbol.market === Market.TW ? await company(symbol) : null;
+    const sector = listed && sectorOfIndustry(listed.industry.code);
+    const index = TW_SECTOR_INDICES.find((each) => each.sector === sector);
+
+    return sector && index ? { sector, symbol: index.symbol } : null;
+  }
+
+  interface ListingsOptions {
+    through?: string;
+    /** One benchmark for every listing, which must be of its market; the market's index where left out. */
+    benchmark?: SymbolRef;
+    /** @default RotationAgainst.Market */
+    against?: RotationAgainst;
+  }
+
   async function listings(
     symbols: readonly SymbolRef[],
-    through?: string
+    {
+      through,
+      benchmark,
+      against: mode = RotationAgainst.Market,
+    }: ListingsOptions = {}
   ): Promise<RotationSet<ListingRotation>> {
-    const benchmarks = new Map<Market, Promise<Candle[]>>();
+    // Each index or benchmark is read once for every listing of the call.
+    const reads = new Map<string, Promise<Candle[]>>();
 
-    const benchmark = (market: Market) => {
-      let bars = benchmarks.get(market);
+    const read = (symbol: SymbolRef) => {
+      const key = symbolKey(symbol);
+      let bars = reads.get(key);
 
       if (!bars) {
-        bars = daily(BENCHMARK[market].symbol);
-        benchmarks.set(market, bars);
+        bars = daily(symbol);
+        reads.set(key, bars);
       }
 
       return bars;
     };
 
+    const barsOf = (symbol: SymbolRef) => benchmarkBars(symbol, through, read);
+
+    const benchmarkOf = async (
+      symbol: SymbolRef
+    ): Promise<SymbolRef | null> => {
+      if (benchmark) {
+        if (benchmark.market !== symbol.market) {
+          throw new Error(
+            `${symbolLabel(benchmark)} is not of ${symbolLabel(symbol)}'s market, so it cannot be its benchmark`
+          );
+        }
+
+        return benchmark;
+      }
+
+      if (mode === RotationAgainst.Sector) {
+        const index = await sectorIndexOf(symbol);
+
+        return index && { market: Market.TW, symbol: index.symbol };
+      }
+
+      return BENCHMARK[symbol.market].symbol;
+    };
+
     const entries = await Promise.all(
-      symbols.map(async (symbol) => ({
-        symbol,
-        readings: await against(symbol, benchmark(symbol.market), through),
-      }))
+      symbols.map(async (symbol) => {
+        const own = await benchmarkOf(symbol);
+
+        return {
+          symbol,
+          benchmark: own,
+          readings: own ? await against(symbol, barsOf(own), through) : [],
+        };
+      })
     );
 
     // The markets' sessions together, so a slider over listings of both reaches every one.
     const days = new Set<string>();
 
-    for (const [market, bars] of benchmarks) {
-      for (const day of sessions(market, await bars)) days.add(day);
+    for (const market of new Set(symbols.map(({ market }) => market))) {
+      for (const day of sessions(
+        market,
+        await read(BENCHMARK[market].symbol)
+      )) {
+        days.add(day);
+      }
     }
 
     const all = [...days].toSorted().slice(-PLAYBACK_SESSIONS);
 
     return {
+      benchmark: benchmark ?? null,
       asOf: through ?? all.at(-1) ?? today(Market.TW),
       sessions: all,
       entries,
@@ -148,20 +253,40 @@ export function createRotations({
   }
 
   return {
-    /** Every Taiwan sector index against the TAIEX as of `through` or the newest session; `null` when no source covers Taiwan. */
+    /**
+     * Every Taiwan sector index against the TAIEX, or against `benchmark`, a TWSE listing or
+     * index that qualifies, as of `through` or the newest session; `null` when no source covers
+     * Taiwan.
+     */
     async sectors(
-      through?: string
+      through?: string,
+      benchmark?: SymbolRef
     ): Promise<RotationSet<SectorRotation> | null> {
       const source = await sourceId(Market.TW);
 
       if (source === null) return null;
 
-      const bars = await indexBars(source);
-      const taiex = bars[BENCHMARK[Market.TW].symbol.symbol] ?? [];
-      const all = sessions(Market.TW, taiex);
+      const taiex = BENCHMARK[Market.TW].symbol;
+
+      if (benchmark && benchmark.market !== Market.TW) {
+        throw new Error(
+          `${symbolLabel(benchmark)} is not a Taiwan listing, so the sectors cannot be read against it`
+        );
+      }
+
+      const [bars, other] = await Promise.all([
+        indexBars(source),
+        benchmark && !isMarketIndex(benchmark)
+          ? benchmarkBars(benchmark, through)
+          : null,
+      ]);
+
+      const calendar = bars[taiex.symbol] ?? [];
+      const all = sessions(Market.TW, calendar);
       const symbol = (code: string) => ({ market: Market.TW, symbol: code });
 
       return {
+        benchmark: benchmark ?? taiex,
         asOf: through ?? all.at(-1) ?? today(Market.TW),
         sessions: all,
         entries: TW_SECTOR_INDICES.map((index) => ({
@@ -169,7 +294,7 @@ export function createRotations({
           readings: readings(
             symbol(index.symbol),
             bars[index.symbol] ?? [],
-            taiex,
+            other ?? calendar,
             through
           ),
         })),
@@ -188,30 +313,25 @@ export function createRotations({
      * index, against that index too; the exchange's list says which industry it is in.
      */
     async listing(symbol: SymbolRef): Promise<ListingRotationView> {
-      const [own, listed] = await Promise.all([
+      const [own, index] = await Promise.all([
         listings([symbol]),
-        symbol.market === Market.TW ? company(symbol) : null,
+        sectorIndexOf(symbol),
       ]);
-
-      const sector = listed && sectorOfIndustry(listed.industry.code);
-      const index = TW_SECTOR_INDICES.find((each) => each.sector === sector);
 
       return {
         index: {
           name: BENCHMARK[symbol.market].name,
           readings: own.entries[0].readings,
         },
-        sector:
-          sector && index
-            ? {
-                sector,
-                symbol: index.symbol,
-                readings: await against(
-                  symbol,
-                  daily({ market: Market.TW, symbol: index.symbol })
-                ),
-              }
-            : null,
+        sector: index
+          ? {
+              ...index,
+              readings: await against(
+                symbol,
+                daily({ market: Market.TW, symbol: index.symbol })
+              ),
+            }
+          : null,
       };
     },
   };

@@ -8,7 +8,10 @@ import type { Market } from "@solyx/core/market";
 import type { Depth, Listing } from "@solyx/core/market-data";
 import type { SessionQuote } from "@solyx/core/quote";
 import type { PriceBand } from "@solyx/core/risk";
-import { MAX_ROTATION_LISTINGS } from "@solyx/core/rotation";
+import {
+  MAX_ROTATION_LISTINGS,
+  rotationAgainstSchema,
+} from "@solyx/core/rotation";
 import type {
   ListingRotation,
   RotationSet,
@@ -49,7 +52,13 @@ export const marketContract = {
    * names, or the newest; a daily-bar request each. `null` when no source covers Taiwan.
    */
   rotations: oc
-    .input(z.object({ through: z.iso.date().optional() }))
+    .input(
+      z.object({
+        through: z.iso.date().optional(),
+        /** A TWSE listing or index to read the sectors against in the TAIEX's place; rejects one that does not qualify. */
+        benchmark: symbolRefSchema.optional(),
+      })
+    )
     .output(type<RotationSet<SectorRotation> | null>()),
   /** Each listing's rotation against its market's index on adjusted bars, a daily-bar request each; rejects while no source covers a market. */
   listingRotations: oc
@@ -57,6 +66,8 @@ export const marketContract = {
       z.object({
         symbols: z.array(symbolRefSchema).max(MAX_ROTATION_LISTINGS),
         through: z.iso.date().optional(),
+        benchmark: symbolRefSchema.optional(),
+        against: rotationAgainstSchema.optional(),
       })
     )
     .output(type<RotationSet<ListingRotation>>()),

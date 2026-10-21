@@ -30,10 +30,11 @@ export const marketRouter = market.router({
     context.marketData.sectors()
   ),
   rotations: market.rotations.handler(({ context, input }) =>
-    context.rotations.sectors(input.through)
+    context.rotations.sectors(input.through, input.benchmark)
   ),
-  listingRotations: market.listingRotations.handler(({ context, input }) =>
-    context.rotations.listings(input.symbols, input.through)
+  listingRotations: market.listingRotations.handler(
+    ({ context, input: { symbols, ...options } }) =>
+      context.rotations.listings(symbols, options)
   ),
   listingRotation: market.listingRotation.handler(({ context, input }) =>
     context.rotations.listing(input)

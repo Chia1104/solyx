@@ -479,9 +479,9 @@ export function createServices(config: ConfigFile) {
     flows,
     macro,
     sectors: () => marketData.sectors(),
-    rotations: (through) => rotations.sectors(through),
-    listingRotations: (symbols, through) =>
-      rotations.listings(symbols, through),
+    rotations: (through, benchmark) => rotations.sectors(through, benchmark),
+    listingRotations: (symbols, options) =>
+      rotations.listings(symbols, options),
     quote: (symbol) => marketData.quote(symbol),
     candlesSince: (symbol, interval, since) =>
       marketData.candlesSince(symbol, interval, since),
