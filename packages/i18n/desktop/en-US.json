@@ -170,7 +170,6 @@
       "description": "Each TWSE sector index against the TAIEX, standardized over the period: across, how far the ratio of the two stands from its own mean, in standard deviations; up, how far that level's latest change stands from its mean. The line is the last {{trail}} sessions and the dot the newest. A level above zero is a ratio above its own recent mean, not a gain on the index.",
       "period": "Period",
       "group": "Group",
-      "every-group": "Every group",
       "level": "Level",
       "momentum": "Momentum",
       "crossed": "Entered",
@@ -211,6 +210,9 @@
         "1w": "Next week"
       },
       "to-latest": "Back to latest",
+      "pin-hint": "Click to pin",
+      "unpin-hint": "Click to unpin",
+      "clear-pins": "Unpin all ({{count}})",
       "benchmark": "Benchmark"
     }
   },
