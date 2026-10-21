@@ -214,6 +214,7 @@ export const AgentToolName = {
   GetMacro: "get_macro",
   GetSectors: "get_sectors",
   GetSectorMovers: "get_sector_movers",
+  GetRotation: "get_rotation",
   ReviseReport: "revise_report",
   SubmitForecast: "submit_forecast",
   SearchHistory: "search_history",

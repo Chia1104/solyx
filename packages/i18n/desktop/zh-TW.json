@@ -594,6 +594,7 @@
       "get_macro": "讀取總經數據",
       "get_sectors": "讀取類股",
       "get_sector_movers": "讀取產業主力",
+      "get_rotation": "讀取類股輪動",
       "revise_report": "修訂研究報告",
       "submit_forecast": "提出預測",
       "search_history": "搜尋過往紀錄",

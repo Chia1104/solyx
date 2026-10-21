@@ -29,6 +29,9 @@ export const marketRouter = market.router({
   sectors: market.sectors.handler(({ context }) =>
     context.marketData.sectors()
   ),
+  rotations: market.rotations.handler(({ context }) =>
+    context.marketData.rotations()
+  ),
   liveCandles: market.liveCandles.handler(({ context, input, signal }) =>
     context.marketData.liveCandles(input.symbol, input.interval, signal)
   ),

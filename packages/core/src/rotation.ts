@@ -3,6 +3,7 @@ import type { Candle } from "./candles.ts";
 import { RELATIVE_STRENGTH_PERIODS } from "./indicators.ts";
 import type { IndicatorLine } from "./indicators.ts";
 import type { Market } from "./market.ts";
+import type { SectorIndex } from "./sectors.ts";
 
 /**
  * Where a listing stands on its rotation against a benchmark: ahead of it and still gaining
@@ -232,3 +233,8 @@ export const readRotations = (
   ROTATION_PERIODS.map((period) =>
     readRotation(market, bars, benchmark, period)
   );
+
+/** A sector index's rotation against its market's index, one reading per period. */
+export interface SectorRotation extends SectorIndex {
+  readings: RotationReading[];
+}

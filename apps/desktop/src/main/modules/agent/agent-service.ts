@@ -127,6 +127,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   macro: Pick<Macro, "series">;
   /** Taiwan's sector indices, as the overview's map reads them. */
   sectors: SectorToolsOptions["sectors"];
+  /** Those indices' rotation against the TAIEX, as the overview's chart reads it. */
+  rotations: SectorToolsOptions["rotations"];
   /** A listing's newest session, as the overview's moves read it. */
   quote: QuoteToolsOptions["quote"];
   /** A listing's bars from a day on, for a script that needs more than the lookback. */
@@ -307,6 +309,7 @@ export function createAgentService(options: AgentServiceOptions) {
 
   const sectors = createSectorTools({
     sectors: options.sectors,
+    rotations: options.rotations,
     movers: (sector) => options.fundamentals.sectorMovers(sector),
     marketData: options.marketData,
   });

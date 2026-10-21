@@ -10,6 +10,8 @@ import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
+import { Quadrant } from "@solyx/core/rotation";
+import type { SectorRotation } from "@solyx/core/rotation";
 import { TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 import type { SectorMovers, SectorQuote } from "@solyx/core/sectors";
 
@@ -60,16 +62,18 @@ const sectorsOf = (quotes: typeof QUOTES): SectorQuote[] =>
 
 function setup(
   sectors: SectorQuote[] | null,
-  movers: SectorMovers | null = null
+  movers: SectorMovers | null = null,
+  rotations: SectorRotation[] | null = null
 ) {
   const marketData = {
     candles: vi.fn<MarketData["candles"]>(async () => TAIEX),
   };
 
-  const [tool, moversTool] =
+  const [tool, moversTool, rotationTool] =
     createSectorTools({
       sectors: async () => sectors,
       movers: async () => movers,
+      rotations: async () => rotations,
       marketData,
       now: () => NOW,
     }).tools ?? [];
@@ -91,7 +95,18 @@ function setup(
   const runMovers = (params: Parameters<ToolRegistration["execute"]>[0]) =>
     execute(moversTool, params);
 
-  return { tool, moversTool, run, runMovers, marketData };
+  const runRotation = (params: Parameters<ToolRegistration["execute"]>[0]) =>
+    execute(rotationTool, params);
+
+  return {
+    tool,
+    moversTool,
+    rotationTool,
+    run,
+    runMovers,
+    runRotation,
+    marketData,
+  };
 }
 
 test("lists the market's index and each traded sector, largest rise first, as the app computed them", async () => {
@@ -184,5 +199,137 @@ test("says when no session lists a company of the sector", async () => {
 
   expect(text).toBe(
     "No session the exchange has published lists a company of cement."
+  );
+});
+
+const index = (sector: TwSector) =>
+  TW_SECTOR_INDICES.find((each) => each.sector === sector)!;
+
+/** A reading over 60 sessions whose trail runs from `first` to `last`. */
+const reading = (
+  first: [number, number],
+  last: [number, number],
+  transition: SectorRotation["readings"][number]["transition"] = null
+) => ({
+  period: 60,
+  trail: [
+    { date: "2026-09-29", level: first[0], momentum: first[1] },
+    { date: "2026-10-13", level: last[0], momentum: last[1] },
+  ],
+  quadrant:
+    last[0] >= 0
+      ? last[1] >= 0
+        ? Quadrant.Leading
+        : Quadrant.Weakening
+      : last[1] >= 0
+        ? Quadrant.Improving
+        : Quadrant.Lagging,
+  transition,
+});
+
+test("places every sector by quadrant from the host's readings, the highest level first in each", async () => {
+  const rotations: SectorRotation[] = [
+    {
+      ...index(TwSector.Finance),
+      readings: [reading([-0.5, -0.2], [-1.2, 0.3])],
+    },
+    {
+      ...index(TwSector.Semiconductors),
+      readings: [
+        reading([-0.3, 0.8], [1.2, 0.4], {
+          from: Quadrant.Improving,
+          to: Quadrant.Leading,
+          date: "2026-10-06",
+        }),
+      ],
+    },
+    {
+      ...index(TwSector.Shipping),
+      readings: [reading([0.1, 0.2], [1.8, 0.1])],
+    },
+    {
+      ...index(TwSector.Glass),
+      readings: [{ period: 60, trail: [], quadrant: null, transition: null }],
+    },
+  ];
+
+  const { rotationTool, runRotation } = setup(null, null, rotations);
+
+  expect(rotationTool.name).toBe(AgentToolName.GetRotation);
+
+  const { text } = await runRotation({});
+  const lines = text.split("\n");
+
+  expect(lines[0]).toMatch(
+    /^Taiwan's listed sectors' rotation against the TAIEX over 60 sessions to 2026-10-13 as_of 2026-10-13 10:42 Taipei: the level is how far/
+  );
+  expect(lines.slice(1)).toEqual([
+    "name,quadrant,level,momentum,crossed,trail start (level/momentum)",
+    "shipping (IX0037),leading,+1.80,+0.10,none in the trail,+0.10/+0.20 on 2026-09-29",
+    "semiconductors (IX0028),leading,+1.20,+0.40,2026-10-06 from improving,-0.30/+0.80 on 2026-09-29",
+    "finance (IX0039),improving,-1.20,+0.30,none in the trail,-0.50/-0.20 on 2026-09-29",
+    "Too few bars: glass (IX0022)",
+  ]);
+});
+
+test("refuses a period the app does not read", async () => {
+  const { runRotation } = setup(null, null, []);
+
+  await expect(runRotation({ period: 30 })).rejects.toThrow(
+    "One of 20, 60, 120"
+  );
+});
+
+test("places listings the model names against their market's index, which it reads once a market", async () => {
+  const { runRotation, marketData } = setup(null);
+
+  // A flat index and a listing that pulls away from it faster and faster over 40 sessions.
+  const dates = Array.from({ length: 40 }, (_, i) => {
+    const day = new Date("2026-08-03T00:00:00Z");
+
+    day.setUTCDate(day.getUTCDate() + i + 2 * Math.floor(i / 5));
+
+    return day.toISOString().slice(0, 10);
+  });
+
+  marketData.candles.mockImplementation(async ({ symbol }) =>
+    dates.map((date, i) =>
+      bar(date, symbol === "IX0001" ? 20_000 : 100 * 1.01 ** ((i * i) / 40))
+    )
+  );
+
+  const { text } = await runRotation({
+    period: 20,
+    symbols: [
+      { market: Market.TW, symbol: "2330" },
+      { market: Market.TW, symbol: "2454" },
+    ],
+  });
+
+  expect(marketData.candles).toHaveBeenCalledTimes(3);
+  expect(marketData.candles).toHaveBeenCalledWith(
+    { market: Market.TW, symbol: "IX0001" },
+    Interval.OneDay
+  );
+
+  const lines = text.split("\n");
+
+  expect(lines[0]).toMatch(
+    /^Rotation of 2 listings against their market's index over 20 sessions as_of 2026-10-13 10:42 Taipei: the level is how far the listing's price over TAIEX's stands/
+  );
+  expect(lines[2]).toMatch(
+    /^TW 2330,leading,\+\d\.\d\d,\+\d\.\d\d,none in the trail,/
+  );
+  expect(lines[3]).toMatch(/^TW 2454,leading,/);
+  expect(lines).toHaveLength(4);
+});
+
+test("says no source covers Taiwan rather than fail the rotation", async () => {
+  const { runRotation } = setup(null);
+
+  const { text } = await runRotation({});
+
+  expect(text).toBe(
+    "No sector indices: no market data source covers Taiwan yet. get_setup says what is missing."
   );
 });

@@ -3,15 +3,24 @@ import type { Extension } from "@earendil-works/pi-durable";
 import { orderBy, sumBy } from "es-toolkit";
 import * as z from "zod";
 
-import { Interval, candleDate } from "@solyx/core/candles";
+import { Interval, adjustedCandles, candleDate } from "@solyx/core/candles";
+import type { Candle } from "@solyx/core/candles";
 import {
   BENCHMARK,
   Market,
   currencyOf,
   exchangeTime,
   symbolLabel,
+  symbolRefSchema,
 } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
+import {
+  Quadrant,
+  ROTATION_PERIODS,
+  ROTATION_TRAIL,
+  readRotation,
+} from "@solyx/core/rotation";
+import type { RotationReading, SectorRotation } from "@solyx/core/rotation";
 import {
   SectorGroup,
   SECTOR_MOVERS,
@@ -38,12 +47,86 @@ export interface SectorToolsOptions {
   sectors(): Promise<SectorQuote[] | null>;
   /** Which of a sector's companies moved its market value most over the exchange's last session, as the overview lists them. */
   movers(sector: TwSector): Promise<SectorMovers | null>;
+  /** Every Taiwan sector index's rotation against the TAIEX, as the overview's chart reads it; `null` while no source covers Taiwan. */
+  rotations(): Promise<SectorRotation[] | null>;
   marketData: Pick<MarketData, "candles">;
   /** @default () => new Date() */
   now?: () => Date;
 }
 
 const MARKET = Market.TW;
+
+/** How many listings one call may read, each a daily-bar request. */
+const MAX_ROTATION_LISTINGS = 20;
+
+/** Quadrants in the order a rotation runs through them, from where a listing leads. */
+const QUADRANT_ORDER = [
+  Quadrant.Leading,
+  Quadrant.Weakening,
+  Quadrant.Lagging,
+  Quadrant.Improving,
+];
+
+const periodSchema = z
+  .number()
+  .int()
+  .refine((period) => ROTATION_PERIODS.includes(period), {
+    message: `One of ${ROTATION_PERIODS.join(", ")}`,
+  })
+  .default(60)
+  .describe(
+    `Sessions each reading is standardized over, one of ${ROTATION_PERIODS.join(", ")}: a month, a quarter or half a year`
+  );
+
+/** One line of the rotation table: where the reading stands, where it was, and its last crossing. */
+function rotationRow(name: string, reading: RotationReading) {
+  const last = reading.trail.at(-1);
+  const first = reading.trail[0];
+
+  if (!last || !first) return null;
+
+  return [
+    name,
+    reading.quadrant,
+    signed(last.level),
+    signed(last.momentum),
+    reading.transition
+      ? `${reading.transition.date} from ${reading.transition.from}`
+      : "none in the trail",
+    `${signed(first.level)}/${signed(first.momentum)} on ${first.date}`,
+  ].join(",");
+}
+
+/** Readings grouped by quadrant in `QUADRANT_ORDER`, the highest level first within each, then those with none. */
+function rotationTable(
+  rows: { name: string; reading: RotationReading }[]
+): string[] {
+  const ordered = orderBy(
+    rows.filter(({ reading }) => reading.quadrant !== null),
+    [
+      ({ reading }) =>
+        reading.quadrant === null
+          ? QUADRANT_ORDER.length
+          : QUADRANT_ORDER.indexOf(reading.quadrant),
+      ({ reading }) => reading.trail.at(-1)?.level ?? 0,
+    ],
+    ["asc", "desc"]
+  );
+
+  const unread = rows.filter(({ reading }) => reading.quadrant === null);
+
+  return [
+    "name,quadrant,level,momentum,crossed,trail start (level/momentum)",
+    ...ordered.flatMap(({ name, reading }) => rotationRow(name, reading) ?? []),
+    ...(unread.length > 0
+      ? [`Too few bars: ${unread.map(({ name }) => name).join(", ")}`]
+      : []),
+  ];
+}
+
+/** What the table's columns mean, once per call. */
+const rotationLegend = (period: number, benchmark: string) =>
+  `the level is how far the listing's price over ${benchmark}'s stands from its own ${period}-session mean, in standard deviations, and the momentum how far the level's latest change stands from its ${period}-session mean; leading is both above zero, weakening a level above zero losing it, lagging both below, improving a level below zero gaining. The trail is the last ${ROTATION_TRAIL} sessions, and the crossing the last one in it into the quadrant it ends in. A level above zero says the ratio stands above its own recent mean, not that the listing outran ${benchmark} over the period: get_indicators' relative strength says that.`;
 
 /**
  * `get_sectors`: Taiwan's market by sector, as the host's market data reads the exchange's sector
@@ -184,6 +267,93 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
                     `the other ${movers.rest.companies},,${signedFigure(millions(movers.rest.valueChange), 0)},${contribution(movers.rest.valueChange)}`,
                   ]
                 : []),
+            ].join("\n"),
+          };
+        },
+      }),
+      defineTool({
+        name: AgentToolName.GetRotation,
+        replay: "safe",
+        description: `Where listings stand on a relative rotation graph against their market's index, as the app computes it from daily bars: by default every Taiwan sector index against the ${BENCHMARK[MARKET].name}, the same chart the overview draws, so do not draw it again; or, given symbols, each listing against its market's index (the ${BENCHMARK[Market.TW].name} in Taiwan, ${BENCHMARK[Market.US].name} in the US), on prices adjusted for splits and what went ex. Each reading is standardized over a period of sessions and the last ${ROTATION_TRAIL} sessions are its trail, so a reading takes twice the period of bars. The level is not a return against the index and the momentum not the index's: read the legend the call returns. It changes nothing.`,
+        parameters: z.object({
+          period: periodSchema,
+          symbols: z
+            .array(symbolRefSchema)
+            .max(MAX_ROTATION_LISTINGS)
+            .optional()
+            .describe(
+              `Listings to read instead of the sectors, up to ${MAX_ROTATION_LISTINGS}, each a daily-bar request`
+            ),
+        }),
+        async execute({ period, symbols }) {
+          const asOf = `as_of ${exchangeTime(MARKET, now())} Taipei`;
+
+          if (symbols) {
+            const benchmarks = new Map<Market, Promise<Candle[]>>();
+
+            const benchmark = (market: Market) => {
+              let bars = benchmarks.get(market);
+
+              if (!bars) {
+                bars = options.marketData.candles(
+                  BENCHMARK[market].symbol,
+                  Interval.OneDay
+                );
+                benchmarks.set(market, bars);
+              }
+
+              return bars;
+            };
+
+            const rows = await Promise.all(
+              symbols.map(async (symbol) => ({
+                name: symbolLabel(symbol),
+                reading: readRotation(
+                  symbol.market,
+                  adjustedCandles(
+                    await options.marketData.candles(symbol, Interval.OneDay)
+                  ),
+                  await benchmark(symbol.market),
+                  period
+                ),
+              }))
+            );
+
+            const markets = [...new Set(symbols.map(({ market }) => market))];
+
+            return {
+              text: [
+                `Rotation of ${rows.length} listings against their market's index over ${period} sessions ${asOf}: ${rotationLegend(period, markets.map((market) => BENCHMARK[market].name).join(" or "))}`,
+                ...rotationTable(rows),
+              ].join("\n"),
+            };
+          }
+
+          const sectors = await options.rotations();
+
+          if (!sectors) {
+            return {
+              text: "No sector indices: no market data source covers Taiwan yet. get_setup says what is missing.",
+            };
+          }
+
+          const rows = sectors.flatMap(({ sector, symbol, readings }) => {
+            const reading = readings.find((each) => each.period === period);
+
+            return reading
+              ? [{ name: `${named(sector)} (${symbol})`, reading }]
+              : [];
+          });
+
+          const session = rows
+            .flatMap(({ reading }) => reading.trail.at(-1)?.date ?? [])
+            .toSorted()
+            .at(-1);
+
+          return {
+            text: [
+              `Taiwan's listed sectors' rotation against the ${BENCHMARK[MARKET].name} over ${period} sessions${session ? ` to ${session}` : ""} ${asOf}: ${rotationLegend(period, `the ${BENCHMARK[MARKET].name}`)}`,
+              ...rotationTable(rows),
             ].join("\n"),
           };
         },
