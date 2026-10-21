@@ -41,6 +41,14 @@ export const sectorsQuery = () =>
 export const rotationsQuery = () =>
   orpc.market.rotations.queryOptions({ staleTime: Infinity });
 
+/** The listings' rotation against their market's index, refreshed with the sectors' as a session closes. */
+export const listingRotationsQuery = (symbols: SymbolRef[]) =>
+  orpc.market.listingRotations.queryOptions({
+    input: symbols,
+    staleTime: Infinity,
+    enabled: symbols.length > 0,
+  });
+
 /**
  * The one clock quotes and sectors refresh on, so each costs a request per refresh wherever it
  * shows: at their pace through their market's regular session, and once more as its after-hours
@@ -90,6 +98,7 @@ export function followQuotes(queryClient: QueryClient) {
       }
 
       refresh(marketQuotes(market));
+      refresh(orpc.market.listingRotations.key());
 
       if (market === Market.TW) {
         refresh(orpc.market.sectors.key());

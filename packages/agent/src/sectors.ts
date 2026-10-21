@@ -3,8 +3,7 @@ import type { Extension } from "@earendil-works/pi-durable";
 import { orderBy, sumBy } from "es-toolkit";
 import * as z from "zod";
 
-import { Interval, adjustedCandles, candleDate } from "@solyx/core/candles";
-import type { Candle } from "@solyx/core/candles";
+import { Interval, candleDate } from "@solyx/core/candles";
 import {
   BENCHMARK,
   Market,
@@ -13,14 +12,18 @@ import {
   symbolLabel,
   symbolRefSchema,
 } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import {
   Quadrant,
   ROTATION_PERIODS,
   ROTATION_TRAIL,
-  readRotation,
 } from "@solyx/core/rotation";
-import type { RotationReading, SectorRotation } from "@solyx/core/rotation";
+import type {
+  ListingRotation,
+  RotationReading,
+  SectorRotation,
+} from "@solyx/core/rotation";
 import {
   SectorGroup,
   SECTOR_MOVERS,
@@ -49,6 +52,8 @@ export interface SectorToolsOptions {
   movers(sector: TwSector): Promise<SectorMovers | null>;
   /** Every Taiwan sector index's rotation against the TAIEX, as the overview's chart reads it; `null` while no source covers Taiwan. */
   rotations(): Promise<SectorRotation[] | null>;
+  /** Each listing's rotation against its market's index on adjusted bars, as the overview's chart reads it; rejects while no source covers a market. */
+  listingRotations(symbols: readonly SymbolRef[]): Promise<ListingRotation[]>;
   marketData: Pick<MarketData, "candles">;
   /** @default () => new Date() */
   now?: () => Date;
@@ -289,34 +294,12 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
           const asOf = `as_of ${exchangeTime(MARKET, now())} Taipei`;
 
           if (symbols) {
-            const benchmarks = new Map<Market, Promise<Candle[]>>();
+            const rows = (await options.listingRotations(symbols)).flatMap(
+              ({ symbol, readings }) => {
+                const reading = readings.find((each) => each.period === period);
 
-            const benchmark = (market: Market) => {
-              let bars = benchmarks.get(market);
-
-              if (!bars) {
-                bars = options.marketData.candles(
-                  BENCHMARK[market].symbol,
-                  Interval.OneDay
-                );
-                benchmarks.set(market, bars);
+                return reading ? [{ name: symbolLabel(symbol), reading }] : [];
               }
-
-              return bars;
-            };
-
-            const rows = await Promise.all(
-              symbols.map(async (symbol) => ({
-                name: symbolLabel(symbol),
-                reading: readRotation(
-                  symbol.market,
-                  adjustedCandles(
-                    await options.marketData.candles(symbol, Interval.OneDay)
-                  ),
-                  await benchmark(symbol.market),
-                  period
-                ),
-              }))
             );
 
             const markets = [...new Set(symbols.map(({ market }) => market))];

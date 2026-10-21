@@ -9,9 +9,10 @@ import { expect, test, vi } from "vite-plus/test";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import { Quadrant } from "@solyx/core/rotation";
-import type { SectorRotation } from "@solyx/core/rotation";
+import type { ListingRotation, SectorRotation } from "@solyx/core/rotation";
 import { TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 import type { SectorMovers, SectorQuote } from "@solyx/core/sectors";
 
@@ -69,11 +70,17 @@ function setup(
     candles: vi.fn<MarketData["candles"]>(async () => TAIEX),
   };
 
+  const listingRotations = vi.fn(
+    async (symbols: readonly SymbolRef[]): Promise<ListingRotation[]> =>
+      symbols.map((symbol) => ({ symbol, readings: [] }))
+  );
+
   const [tool, moversTool, rotationTool] =
     createSectorTools({
       sectors: async () => sectors,
       movers: async () => movers,
       rotations: async () => rotations,
+      listingRotations,
       marketData,
       now: () => NOW,
     }).tools ?? [];
@@ -106,6 +113,7 @@ function setup(
     runMovers,
     runRotation,
     marketData,
+    listingRotations,
   };
 }
 
@@ -280,48 +288,42 @@ test("refuses a period the app does not read", async () => {
   );
 });
 
-test("places listings the model names against their market's index, which it reads once a market", async () => {
-  const { runRotation, marketData } = setup(null);
+test("places listings the model names through the host's reading of them against their market's index", async () => {
+  const { runRotation, listingRotations } = setup(null);
 
-  // A flat index and a listing that pulls away from it faster and faster over 40 sessions.
-  const dates = Array.from({ length: 40 }, (_, i) => {
-    const day = new Date("2026-08-03T00:00:00Z");
+  const symbols = [
+    { market: Market.TW, symbol: "2330" },
+    { market: Market.US, symbol: "NVDA" },
+    { market: Market.TW, symbol: "2454" },
+  ];
 
-    day.setUTCDate(day.getUTCDate() + i + 2 * Math.floor(i / 5));
+  listingRotations.mockResolvedValueOnce([
+    {
+      symbol: symbols[0],
+      readings: [reading([0.2, 0.1], [0.9, -0.4])],
+    },
+    { symbol: symbols[1], readings: [reading([-1, -1], [-0.2, 0.6])] },
+    {
+      symbol: symbols[2],
+      readings: [{ period: 60, trail: [], quadrant: null, transition: null }],
+    },
+  ]);
 
-    return day.toISOString().slice(0, 10);
-  });
+  const { text } = await runRotation({ symbols });
 
-  marketData.candles.mockImplementation(async ({ symbol }) =>
-    dates.map((date, i) =>
-      bar(date, symbol === "IX0001" ? 20_000 : 100 * 1.01 ** ((i * i) / 40))
-    )
-  );
-
-  const { text } = await runRotation({
-    period: 20,
-    symbols: [
-      { market: Market.TW, symbol: "2330" },
-      { market: Market.TW, symbol: "2454" },
-    ],
-  });
-
-  expect(marketData.candles).toHaveBeenCalledTimes(3);
-  expect(marketData.candles).toHaveBeenCalledWith(
-    { market: Market.TW, symbol: "IX0001" },
-    Interval.OneDay
-  );
+  expect(listingRotations).toHaveBeenCalledWith(symbols);
 
   const lines = text.split("\n");
 
   expect(lines[0]).toMatch(
-    /^Rotation of 2 listings against their market's index over 20 sessions as_of 2026-10-13 10:42 Taipei: the level is how far the listing's price over TAIEX's stands/
+    /^Rotation of 3 listings against their market's index over 60 sessions as_of 2026-10-13 10:42 Taipei: the level is how far the listing's price over TAIEX or S&P 500 \(SPY\)'s stands/
   );
-  expect(lines[2]).toMatch(
-    /^TW 2330,leading,\+\d\.\d\d,\+\d\.\d\d,none in the trail,/
-  );
-  expect(lines[3]).toMatch(/^TW 2454,leading,/);
-  expect(lines).toHaveLength(4);
+  expect(lines.slice(1)).toEqual([
+    "name,quadrant,level,momentum,crossed,trail start (level/momentum)",
+    "TW 2330,weakening,+0.90,-0.40,none in the trail,+0.20/+0.10 on 2026-09-29",
+    "US NVDA,improving,-0.20,+0.60,none in the trail,-1.00/-1.00 on 2026-09-29",
+    "Too few bars: TW 2454",
+  ]);
 });
 
 test("says no source covers Taiwan rather than fail the rotation", async () => {

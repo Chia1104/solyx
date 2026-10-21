@@ -23,6 +23,7 @@ import { CALENDAR_DAYS } from "../modules/calendar/calendar-query.ts";
 import { UpcomingEvents } from "../modules/calendar/upcoming-events.tsx";
 import { MarketFlows } from "../modules/flows/market-flows.tsx";
 import { InboxSection } from "../modules/inbox/inbox-section.tsx";
+import { FollowedRotation } from "../modules/market/followed-rotation.tsx";
 import { QuoteHeatMap } from "../modules/market/quote-heat-map.tsx";
 import { SectorHeatMap } from "../modules/market/sector-heat-map.tsx";
 import { SectorMovers } from "../modules/market/sector-movers.tsx";
@@ -195,6 +196,13 @@ export function OverviewPage() {
             trail: ROTATION_TRAIL,
           })}>
           <SectorRotation />
+        </Section>
+        <Section
+          title={t("heat-map.rotation.followed-title")}
+          description={t("heat-map.rotation.followed-description", {
+            trail: ROTATION_TRAIL,
+          })}>
+          <FollowedRotation />
         </Section>
         <Section
           title={t("flows.market-title")}

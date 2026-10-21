@@ -8,7 +8,8 @@ import type { Market } from "@solyx/core/market";
 import type { Depth, Listing } from "@solyx/core/market-data";
 import type { SessionQuote } from "@solyx/core/quote";
 import type { PriceBand } from "@solyx/core/risk";
-import type { SectorRotation } from "@solyx/core/rotation";
+import { MAX_ROTATION_LISTINGS } from "@solyx/core/rotation";
+import type { ListingRotation, SectorRotation } from "@solyx/core/rotation";
 import type { SectorQuote } from "@solyx/core/sectors";
 import type { Session } from "@solyx/core/session";
 
@@ -41,6 +42,10 @@ export const marketContract = {
   sectors: oc.output(type<SectorQuote[] | null>()),
   /** Every Taiwan sector index's rotation against the TAIEX, a daily-bar request each; `null` when no source covers Taiwan. */
   rotations: oc.output(type<SectorRotation[] | null>()),
+  /** Each listing's rotation against its market's index on adjusted bars, a daily-bar request each; rejects while no source covers a market. */
+  listingRotations: oc
+    .input(z.array(symbolRefSchema).max(MAX_ROTATION_LISTINGS))
+    .output(type<ListingRotation[]>()),
   /**
    * Today's bars of the series as they form, a batch at a time, each bar replacing the one with
    * the same time: an empty batch first once a live stream covers the symbol, and none, with the

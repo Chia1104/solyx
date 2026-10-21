@@ -274,6 +274,28 @@ test("rotations read the TAIEX's and each index's daily bars once and keep the a
   );
 });
 
+test("listing rotations read each listing's daily bars and its market's index once", async () => {
+  const { marketData, provider } = setup();
+
+  const symbols = [
+    { market: Market.TW, symbol: "2330" },
+    { market: Market.TW, symbol: "2454" },
+  ];
+
+  const rotations = await marketData.listingRotations(symbols);
+
+  expect(provider.getCandles).toHaveBeenCalledTimes(3);
+  expect(provider.getCandles).toHaveBeenCalledWith({
+    symbol: { market: Market.TW, symbol: "IX0001" },
+    interval: Interval.OneDay,
+    ...lookbackRange(Market.TW, Interval.OneDay, NOW),
+  });
+  expect(rotations.map(({ symbol }) => symbol)).toEqual(symbols);
+  expect(rotations[0].readings.map(({ period }) => period)).toEqual(
+    ROTATION_PERIODS
+  );
+});
+
 test("weekly bars merge whole weeks of the source's daily bars", async () => {
   const { marketData, provider } = setup();
 
