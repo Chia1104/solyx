@@ -1,4 +1,8 @@
-import { QueryObserver, focusManager } from "@tanstack/react-query";
+import {
+  QueryObserver,
+  focusManager,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
 import { Market } from "@solyx/core/market";
@@ -45,6 +49,8 @@ export const rotationsQuery = (
   orpc.market.rotations.queryOptions({
     input: { through: through ?? undefined, benchmark: benchmark ?? undefined },
     staleTime: Infinity,
+    // The graph stays up, dimmed, while another session or benchmark is read.
+    placeholderData: keepPreviousData,
   });
 
 /** One listing against its market's index and its sector's, refreshed as the listing rotations are. */
@@ -63,6 +69,7 @@ export const listingRotationsQuery = (
     input: { symbols, through: through ?? undefined },
     staleTime: Infinity,
     enabled: symbols.length > 0,
+    placeholderData: keepPreviousData,
   });
 
 /**

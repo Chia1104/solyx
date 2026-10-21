@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 
-import { Slider, cn } from "@heroui/react";
+import { Slider, Spinner, cn } from "@heroui/react";
 import { Link } from "@tanstack/react-router";
 import { scaleLinear } from "d3-scale";
 import { orderBy } from "es-toolkit";
@@ -93,12 +93,15 @@ export function RotationPlot({
   focused,
   onFocus,
   className,
+  loading = false,
 }: {
   placed: readonly PlacedEntry[];
   focused: string | null;
   onFocus: (id: string | null) => void;
   /** Sizes the plot; four by three, no taller than the overview's, where left out. */
   className?: string;
+  /** Another reading is on its way: what is drawn is the last one, dimmed, with a spinner over it. */
+  loading?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const { signedIndicator } = numberFormats(i18n.language);
@@ -127,10 +130,19 @@ export function RotationPlot({
 
   return (
     <div
+      aria-busy={loading}
       className={cn(
         "relative w-full rounded-sm pencil",
         className ?? "aspect-[4/3] max-h-80"
       )}>
+      {loading ? (
+        <span
+          role="status"
+          aria-label={t("common.loading")}
+          className="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-background/50">
+          <Spinner size="sm" color="current" className="text-muted" />
+        </span>
+      ) : null}
       {QUADRANT_ORDER.map((quadrant) => (
         <span
           key={quadrant}
@@ -379,12 +391,15 @@ export function RotationGraph({
   groups,
   playback,
   controls,
+  loading = false,
 }: {
   entries: readonly RotationEntry[];
   groups: readonly RotationGroup[];
   playback?: RotationPlayback;
   /** More controls beside the bars and period, such as the benchmark. */
   controls?: ReactNode;
+  /** The entries are the last read while another is on its way. */
+  loading?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -469,6 +484,7 @@ export function RotationGraph({
             placed={placed}
             focused={focused}
             onFocus={setFocused}
+            loading={loading}
           />
           <ul className="flex flex-wrap gap-3 text-xs text-muted">
             {groups.map(({ id, label, color }) => (

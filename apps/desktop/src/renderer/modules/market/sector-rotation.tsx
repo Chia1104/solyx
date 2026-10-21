@@ -63,7 +63,10 @@ export function SectorRotation() {
   const { t } = useTranslation();
   const [through, setThrough] = useState<string | null>(null);
   const [benchmark, setBenchmark] = useState<SymbolRef | null>(null);
-  const { data, error, refetch } = useQuery(rotationsQuery(through, benchmark));
+
+  const { data, error, refetch, isFetching } = useQuery(
+    rotationsQuery(through, benchmark)
+  );
 
   const controls = (
     <BenchmarkField benchmark={benchmark} onChange={setBenchmark} />
@@ -71,7 +74,7 @@ export function SectorRotation() {
 
   let body;
 
-  if (error) {
+  if (error && !data) {
     body = <LoadError error={error} onRetry={() => void refetch()} />;
   } else if (data === undefined) {
     body = <LoadingState />;
@@ -82,9 +85,15 @@ export function SectorRotation() {
   } else {
     return (
       <RotationGraph
+        loading={isFetching}
         controls={
           <>
             {controls}
+            {error ? (
+              <p role="alert" className="basis-full text-xs text-danger">
+                {error.message}
+              </p>
+            ) : null}
             {data.benchmark && benchmark ? (
               <p className="flex items-baseline gap-1 self-end pb-2 text-xs text-muted">
                 {t("heat-map.rotation.against", {
