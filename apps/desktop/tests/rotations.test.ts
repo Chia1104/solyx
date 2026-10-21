@@ -4,9 +4,12 @@ import type { Candle } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import {
+  PLAYBACK_SESSIONS,
   ROTATION_PERIODS,
+  ROTATION_TRAIL,
   RotationAgainst,
   RotationInterval,
+  readingThrough,
 } from "@solyx/core/rotation";
 import { SectorGroup, TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 import { MINUTE_MS } from "@solyx/utils/date";
@@ -199,6 +202,56 @@ test("a benchmark other than the market's index must have traded on nearly every
       benchmark: { market: Market.US, symbol: "SPY" },
     })
   ).rejects.toThrow("US SPY is not of TW 2330's market");
+});
+
+test("the sectors' history cuts each path to the sessions it plays back across, beside the benchmark's closes", async () => {
+  const wave = YEAR.map((each, i) => ({
+    ...each,
+    close: 100 + 10 * Math.sin(i / 9) + i / 20,
+  }));
+
+  const { rotations } = setup({ IX0001: YEAR, IX0028: wave });
+  const history = await rotations.sectorHistory();
+  const sessions = history?.sessions ?? [];
+  const through = sessions[30];
+
+  const semis = <Entry extends { symbol: string }>(
+    entries: Entry[] | undefined
+  ) => entries?.find(({ symbol }) => symbol === "IX0028");
+
+  const paths = semis(history?.entries)?.paths ?? [];
+
+  expect(sessions).toHaveLength(PLAYBACK_SESSIONS);
+  expect(history?.closes).toEqual(sessions.map(() => 100));
+  expect(paths[0].stops.filter(({ date }) => date < sessions[0])).toHaveLength(
+    ROTATION_TRAIL - 1
+  );
+  expect(paths.map((path) => readingThrough(path))).toEqual(
+    semis(await rotations.sectors().then((set) => set?.entries))?.readings
+  );
+  expect(paths.map((path) => readingThrough(path, through))).toEqual(
+    semis(await rotations.sectors(through).then((set) => set?.entries))
+      ?.readings
+  );
+});
+
+test("listings' history gives the benchmark's closes only where every listing shares one", async () => {
+  const { rotations } = setup({ IX0001: TAIEX });
+
+  const one = await rotations.listingHistory([
+    TSMC,
+    { market: Market.TW, symbol: "2454" },
+  ]);
+
+  expect(one.closes).toEqual([23_000, 23_000, 23_000, 23_000]);
+  expect(one.entries[0].paths).toHaveLength(EMPTY_READINGS.length);
+
+  const both = await rotations.listingHistory([
+    TSMC,
+    { market: Market.US, symbol: "AAPL" },
+  ]);
+
+  expect(both.closes).toBeNull();
 });
 
 test("sectors are null while no source covers Taiwan", async () => {

@@ -42,14 +42,11 @@ export const sectorsQuery = () =>
  * The sector indices' rotation, read from daily bars, so a session moves it little until it
  * closes: `followQuotes` refreshes it as the after-hours session opens.
  */
-export const rotationsQuery = (
-  through: string | null,
-  benchmark: SymbolRef | null
-) =>
+export const rotationsQuery = (benchmark: SymbolRef | null) =>
   orpc.market.rotations.queryOptions({
-    input: { through: through ?? undefined, benchmark: benchmark ?? undefined },
+    input: { benchmark: benchmark ?? undefined },
     staleTime: Infinity,
-    // The graph stays up, dimmed, while another session or benchmark is read.
+    // The graph stays up, dimmed, while another benchmark is read.
     placeholderData: keepPreviousData,
   });
 
@@ -61,12 +58,9 @@ export const listingRotationQuery = (symbol: SymbolRef) =>
   });
 
 /** The listings' rotation against their market's index, refreshed with the sectors' as a session closes. */
-export const listingRotationsQuery = (
-  symbols: SymbolRef[],
-  through: string | null
-) =>
+export const listingRotationsQuery = (symbols: SymbolRef[]) =>
   orpc.market.listingRotations.queryOptions({
-    input: { symbols, through: through ?? undefined },
+    input: { symbols },
     staleTime: Infinity,
     enabled: symbols.length > 0,
     placeholderData: keepPreviousData,

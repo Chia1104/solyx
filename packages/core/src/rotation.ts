@@ -211,59 +211,6 @@ export function rotation(
   return { level, momentum: rollingZ(change, period) };
 }
 
-/** One bar's place on a rotation graph. */
-export interface RotationPoint {
-  /** Which bar, as an index into the bars the rotation was read from. */
-  index: number;
-  level: number;
-  momentum: number;
-}
-
-/** The last `trail` bars with both coordinates, oldest first. */
-export function rotationTrail(
-  { level, momentum }: Rotation,
-  trail: number
-): RotationPoint[] {
-  const points: RotationPoint[] = [];
-
-  for (
-    let index = level.length - 1;
-    index >= 0 && points.length < trail;
-    index--
-  ) {
-    const each = level[index];
-    const other = momentum[index];
-
-    if (each !== null && other !== null) {
-      points.push({ index, level: each, momentum: other });
-    }
-  }
-
-  return points.reverse();
-}
-
-/** A trail's last crossing from one quadrant into another. */
-export interface Transition {
-  from: Quadrant;
-  to: Quadrant;
-  /** The bar the trail entered `to` at. */
-  index: number;
-}
-
-/** The last crossing between consecutive points of `trail`; `null` where it stays in one quadrant. */
-export function lastTransition(
-  trail: readonly RotationPoint[]
-): Transition | null {
-  for (let i = trail.length - 1; i > 0; i--) {
-    const to = quadrantOf(trail[i].level, trail[i].momentum);
-    const from = quadrantOf(trail[i - 1].level, trail[i - 1].momentum);
-
-    if (from !== to) return { from, to, index: trail[i].index };
-  }
-
-  return null;
-}
-
 /** The bars a rotation is read over: a session each, or a completed week each. */
 export const RotationInterval = {
   Daily: Interval.OneDay,
@@ -295,6 +242,27 @@ export interface RotationStop {
   momentum: number;
 }
 
+/** A trail's last crossing from one quadrant into another, dated by the bar it entered `to` at. */
+export interface Transition {
+  from: Quadrant;
+  to: Quadrant;
+  date: string;
+}
+
+/** The last crossing between consecutive stops of `trail`; `null` where it stays in one quadrant. */
+export function lastTransition(
+  trail: readonly RotationStop[]
+): Transition | null {
+  for (let i = trail.length - 1; i > 0; i--) {
+    const to = quadrantOf(trail[i].level, trail[i].momentum);
+    const from = quadrantOf(trail[i - 1].level, trail[i - 1].momentum);
+
+    if (from !== to) return { from, to, date: trail[i].date };
+  }
+
+  return null;
+}
+
 /** A listing's rotation against its benchmark over one period, as the overview plots and the agent cites it. */
 export interface RotationReading {
   interval: RotationInterval;
@@ -304,7 +272,54 @@ export interface RotationReading {
   /** Where the newest bar lies; `null` while the bars are too few. */
   quadrant: Quadrant | null;
   /** The trail's last crossing into the quadrant it ends in; `null` where it stays in one. */
-  transition: { from: Quadrant; to: Quadrant; date: string } | null;
+  transition: Transition | null;
+}
+
+/** Every bar's place of a rotation over one period, oldest first, which a reading as of any of them is cut from. */
+export interface RotationPath {
+  interval: RotationInterval;
+  period: number;
+  /** Every bar with both coordinates; none while the bars are too few. */
+  stops: RotationStop[];
+}
+
+/**
+ * The reading `path` gives as of `through`, from its stops up to that day alone: since each
+ * stop is read from its own bar and the ones before it, this is the reading the bars up to that
+ * day would give. The newest where left out.
+ */
+export function readingThrough(
+  { interval, period, stops }: RotationPath,
+  through?: string
+): RotationReading {
+  let end = stops.length;
+
+  if (through !== undefined) {
+    while (end > 0 && stops[end - 1].date > through) end--;
+  }
+
+  const trail = stops.slice(Math.max(0, end - ROTATION_TRAIL), end);
+  const last = trail.at(-1);
+
+  return {
+    interval,
+    period,
+    trail,
+    quadrant: last ? quadrantOf(last.level, last.momentum) : null,
+    transition: lastTransition(trail),
+  };
+}
+
+/** The stops a reading as of `first` or any later day draws on: those after it, and the trail it ends. */
+export function playbackPath(path: RotationPath, first: string): RotationPath {
+  let end = path.stops.findIndex(({ date }) => date > first);
+
+  if (end < 0) end = path.stops.length;
+
+  return {
+    ...path,
+    stops: path.stops.slice(Math.max(0, end - ROTATION_TRAIL)),
+  };
 }
 
 /** Daily bars with each one's exchange-local day and the day that opens its week, worked out once. */
@@ -325,22 +340,6 @@ export function dateBars(market: Market, bars: readonly Candle[]): DatedBars {
     dates,
     weeks: dates.map((date) => periodStart(date, Interval.OneWeek)),
   };
-}
-
-/** The bars dated `through` or before, which are the first of them since the bars are in time order. */
-function through(dated: DatedBars, until: string): DatedBars {
-  let end = dated.dates.length;
-
-  while (end > 0 && dated.dates[end - 1] > until) end--;
-
-  return end === dated.dates.length
-    ? dated
-    : {
-        market: dated.market,
-        bars: dated.bars.slice(0, end),
-        dates: dated.dates.slice(0, end),
-        weeks: dated.weeks.slice(0, end),
-      };
 }
 
 /** Bars of a rotation's interval, with what each is matched and dated by. */
@@ -396,55 +395,55 @@ export function rotationSeries(
  * `series` against `benchmark` over `period` bars of their interval: the series is the listing's,
  * on one set of terms, and the benchmark's bars are matched to its by key.
  */
-export function readRotation(
+export function rotationPath(
   series: RotationSeries,
   benchmark: RotationSeries,
-  period: number,
-  trail = ROTATION_TRAIL
-): RotationReading {
+  period: number
+): RotationPath {
   const closes = new Map(
     benchmark.keys.map((key, i) => [key, benchmark.bars[i].close])
   );
 
-  const stops = rotationTrail(
-    rotation(
-      series.bars.map((bar) => bar.close),
-      series.keys.map((key) => closes.get(key) ?? null),
-      period
-    ),
-    trail
+  const { level, momentum } = rotation(
+    series.bars.map((bar) => bar.close),
+    series.keys.map((key) => closes.get(key) ?? null),
+    period
   );
 
-  const dated = stops.map(({ index, level, momentum }) => ({
-    date: series.dates[index],
-    level,
-    momentum,
-  }));
+  const stops: RotationStop[] = [];
 
-  const last = dated.at(-1);
-  const crossed = lastTransition(stops);
+  for (const [i, each] of level.entries()) {
+    const other = momentum[i];
 
-  return {
-    interval: series.interval,
-    period,
-    trail: dated,
-    quadrant: last ? quadrantOf(last.level, last.momentum) : null,
-    transition: crossed && {
-      from: crossed.from,
-      to: crossed.to,
-      date: series.dates[crossed.index],
-    },
-  };
+    if (each !== null && other !== null) {
+      stops.push({ date: series.dates[i], level: each, momentum: other });
+    }
+  }
+
+  return { interval: series.interval, period, stops };
 }
 
-/** One reading per period of the series' interval, in `ROTATION_PERIODS` order. */
-export const readRotations = (
-  series: RotationSeries,
-  benchmark: RotationSeries
-): RotationReading[] =>
-  ROTATION_PERIODS[series.interval].map((period) =>
-    readRotation(series, benchmark, period)
-  );
+/**
+ * Every path of `daily` against `benchmark`, each interval's periods in `ROTATION_PERIODS` order,
+ * the week of `today` left out of the weekly ones since it is under way. A week is dated by its
+ * last session, so a reading as of a session within it leaves it out too.
+ */
+export function rotationPaths(
+  daily: DatedBars,
+  benchmark: DatedBars,
+  today: string
+): RotationPath[] {
+  const open = periodStart(today, Interval.OneWeek);
+
+  return Object.values(RotationInterval).flatMap((interval) => {
+    const own = rotationSeries(daily, interval, open);
+    const other = rotationSeries(benchmark, interval, open);
+
+    return ROTATION_PERIODS[interval].map((period) =>
+      rotationPath(own, other, period)
+    );
+  });
+}
 
 /** When a rotation is read: the exchange's day now, and the session it is taken back to where it is. */
 export interface RotationClock {
@@ -453,34 +452,15 @@ export interface RotationClock {
   through?: string;
 }
 
-/**
- * Every reading of `daily` against `benchmark` as of the clock: each interval's periods on bars
- * of that interval up to `through`, whose week is left out of the weekly ones while it is the
- * week under way or a later session of it was traded, since at its close that week was open.
- */
-export function readEveryRotation(
+/** Every reading of `daily` against `benchmark` as of the clock, each interval's periods in `ROTATION_PERIODS` order. */
+export const readEveryRotation = (
   daily: DatedBars,
   benchmark: DatedBars,
-  { today, through: until = today }: RotationClock
-): RotationReading[] {
-  const week = periodStart(until, Interval.OneWeek);
-
-  const open =
-    week === periodStart(today, Interval.OneWeek) ||
-    daily.dates.some((date, i) => date > until && daily.weeks[i] === week)
-      ? week
-      : null;
-
-  const own = through(daily, until);
-  const other = through(benchmark, until);
-
-  return Object.values(RotationInterval).flatMap((interval) =>
-    readRotations(
-      rotationSeries(own, interval, open),
-      rotationSeries(other, interval, open)
-    )
+  { today, through }: RotationClock
+): RotationReading[] =>
+  rotationPaths(daily, benchmark, today).map((path) =>
+    readingThrough(path, through)
   );
-}
 
 /** Readings as of one session, with the sessions they may be taken back to. */
 export interface RotationSet<Entry> {
@@ -496,9 +476,26 @@ export interface RotationSet<Entry> {
 /** How many sessions back a rotation may be taken: half a year of them. */
 export const PLAYBACK_SESSIONS = 120;
 
+/** Rotations as paths over the sessions they may be played back across, so a graph takes them back to any of those without reading them again. */
+export interface RotationHistory<Entry> {
+  /** What every entry was read against; `null` where each names its own. */
+  benchmark: SymbolRef | null;
+  /** The sessions the paths may be played back across, oldest first and ending with the newest. */
+  sessions: string[];
+  /** The closes on `sessions` of the one benchmark every entry was read against, `null` on a session it lacks; `null` where entries name different ones. */
+  closes: (number | null)[] | null;
+  /** Each entry's paths, cut to what a reading as of the first session or a later one draws on (`playbackPath`). */
+  entries: Entry[];
+}
+
 /** A sector index's rotation against the set's benchmark, one reading per interval and period. */
 export interface SectorRotation extends SectorIndex {
   readings: RotationReading[];
+}
+
+/** A sector index's paths against the set's benchmark, one per interval and period. */
+export interface SectorHistory extends SectorIndex {
+  paths: RotationPath[];
 }
 
 /** What listings are read against: their market's index, or each its own sector's. */
@@ -518,6 +515,13 @@ export interface ListingRotation {
   /** What it was read against; `null` where nothing applies, as a sector's index to a listing outside the TWSE's industries, which leaves no readings. */
   benchmark: SymbolRef | null;
   readings: RotationReading[];
+}
+
+/** A listing's paths on adjusted bars, one per interval and period; none where it has no benchmark. */
+export interface ListingHistory {
+  symbol: SymbolRef;
+  benchmark: SymbolRef | null;
+  paths: RotationPath[];
 }
 
 /** Of the market's last `BENCHMARK_SESSIONS` sessions a benchmark must have traded on `BENCHMARK_TRADED` at least and never missed `BENCHMARK_GAP` in a row, since a bar it lacks breaks every window it falls in. */

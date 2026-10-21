@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { useQuery } from "@tanstack/react-query";
 import { uniqBy } from "es-toolkit";
 import { useTranslation } from "react-i18next";
@@ -47,8 +45,7 @@ export function FollowedRotation() {
     symbolKey
   ).slice(0, MAX_ROTATION_LISTINGS);
 
-  const [through, setThrough] = useState<string | null>(null);
-  const rotations = useQuery(listingRotationsQuery(symbols, through));
+  const rotations = useQuery(listingRotationsQuery(symbols));
 
   if (account.isPending || watchlist.isPending) return <LoadingState />;
 
@@ -70,12 +67,8 @@ export function FollowedRotation() {
   return (
     <RotationGraph
       loading={rotations.isFetching}
-      playback={{
-        sessions: rotations.data.sessions,
-        through,
-        onChange: setThrough,
-      }}
-      entries={rotations.data.entries.map(({ symbol, readings }) => ({
+      playback={rotations.data}
+      entries={rotations.data.entries.map(({ symbol, paths }) => ({
         id: symbolKey(symbol),
         name: symbol.symbol,
         title: (
@@ -85,7 +78,7 @@ export function FollowedRotation() {
           </>
         ),
         group: held.has(symbolKey(symbol)) ? HELD : WATCHED,
-        readings,
+        paths,
         symbol,
       }))}
       groups={[

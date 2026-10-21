@@ -61,11 +61,10 @@ function BenchmarkField({
 /** Taiwan's listed sectors on a relative rotation graph against the TAIEX, or a TWSE listing picked here. */
 export function SectorRotation() {
   const { t } = useTranslation();
-  const [through, setThrough] = useState<string | null>(null);
   const [benchmark, setBenchmark] = useState<SymbolRef | null>(null);
 
   const { data, error, refetch, isFetching } = useQuery(
-    rotationsQuery(through, benchmark)
+    rotationsQuery(benchmark)
   );
 
   const controls = (
@@ -104,12 +103,12 @@ export function SectorRotation() {
             ) : null}
           </>
         }
-        playback={{ sessions: data.sessions, through, onChange: setThrough }}
-        entries={data.entries.map(({ sector, group, readings }) => ({
+        playback={data}
+        entries={data.entries.map(({ sector, group, paths }) => ({
           id: sector,
           name: t(`sectors.names.${sector}`),
           group,
-          readings,
+          paths,
         }))}
         groups={Object.values(SectorGroup).map((group) => ({
           id: group,
