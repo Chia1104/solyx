@@ -8,10 +8,7 @@ import { ReportStance } from "@solyx/core/report";
 import type { StanceSpell } from "@solyx/core/report";
 import { cssPercent } from "@solyx/utils/format";
 
-import {
-  ChartTooltip,
-  useChartHover,
-} from "../../components/chart-tooltip.tsx";
+import { ChartMark } from "../../components/chart-mark.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
 /** Ink for a view the report held, and grey for none. */
@@ -24,7 +21,7 @@ const STANCE_FILL: Record<ReportStance, string> = {
 /**
  * Each stretch the report kept one stance, oldest first: as wide as the sessions it ran, raised
  * or lowered by how far the listing outran or trailed its index over them, in its stance's
- * colour, and named as it is hovered. Drawn once the stance has changed, since one stretch is what
+ * colour, and named as it is pointed at. Drawn once the stance has changed, since one stretch is what
  * the line above says.
  */
 export function StanceHistory({
@@ -36,7 +33,6 @@ export function StanceHistory({
 }) {
   const { t, i18n } = useTranslation();
   const { percentChange } = numberFormats(i18n.language);
-  const { hover, show, hide } = useChartHover();
 
   if (spells.length < 2) return null;
 
@@ -52,8 +48,6 @@ export function StanceHistory({
       benchmark: percentChange.format(spell.benchmark),
       index: BENCHMARK[market].name,
     });
-
-  const hovered = hover ? spells[hover.index] : undefined;
 
   return (
     <figure
@@ -75,27 +69,26 @@ export function StanceHistory({
           aria-hidden
           className="absolute inset-x-0 top-1/2 h-px bg-separator"
         />
-        <ol className="relative flex h-full gap-0.5" onPointerLeave={hide}>
+        <ol className="relative flex h-full gap-0.5">
           {spells.map((spell, index) => (
             <li
               key={`${spell.revision}-${spell.from}`}
               className="relative h-full min-w-1"
-              style={{ flexGrow: Math.max(spell.sessions, 1) }}
-              onPointerMove={(event) => show(index, event)}>
-              <span className="sr-only">{describe(spell)}</span>
-              <span
-                className={cn(
-                  "absolute inset-x-0 min-h-px",
-                  excess[index] >= 0
-                    ? "bottom-1/2 rounded-t-[2px]"
-                    : "top-1/2 rounded-b-[2px]",
-                  STANCE_FILL[spell.stance],
-                  hover && hover.index !== index && "opacity-40"
-                )}
-                style={{
-                  height: cssPercent(Math.abs(excess[index]) / largest / 2),
-                }}
-              />
+              style={{ flexGrow: Math.max(spell.sessions, 1) }}>
+              <ChartMark label={describe(spell)}>
+                <span
+                  className={cn(
+                    "absolute inset-x-0 min-h-px",
+                    excess[index] >= 0
+                      ? "bottom-1/2 rounded-t-[2px]"
+                      : "top-1/2 rounded-b-[2px]",
+                    STANCE_FILL[spell.stance]
+                  )}
+                  style={{
+                    height: cssPercent(Math.abs(excess[index]) / largest / 2),
+                  }}
+                />
+              </ChartMark>
             </li>
           ))}
         </ol>
@@ -109,9 +102,6 @@ export function StanceHistory({
         </span>
         <span>{spells.at(-1)?.until ?? t("research.report.stance-now")}</span>
       </figcaption>
-      <ChartTooltip hover={hover}>
-        {hovered ? describe(hovered) : null}
-      </ChartTooltip>
     </figure>
   );
 }

@@ -8,10 +8,7 @@ import { Investor } from "@solyx/core/flows";
 import type { InvestorTrades } from "@solyx/core/flows";
 import { cssPercent } from "@solyx/utils/format";
 
-import {
-  ChartTooltip,
-  useChartHover,
-} from "../../components/chart-tooltip.tsx";
+import { ChartMark } from "../../components/chart-mark.tsx";
 import { LINE_COLORS } from "../market/chart-palette.ts";
 
 /** About a month of sessions. */
@@ -40,7 +37,7 @@ const GROUPS: { id: Investor; investors: Investor[]; color: string }[] = [
 /**
  * The newest sessions' net buying by each group, a column a session: what the groups bought
  * stacked above the line and what they sold below it, so a column's reach either way is how much
- * the groups together leaned that way. Hovering a column names each group's figure that session.
+ * the groups together leaned that way. Pointing at a column names each group's figure that session.
  */
 export function NetBuyingChart({
   trades,
@@ -50,7 +47,6 @@ export function NetBuyingChart({
   format: (amount: number) => string;
 }) {
   const { t } = useTranslation();
-  const { hover, show, hide } = useChartHover();
 
   const dates = uniq(trades.map(({ date }) => date))
     .toSorted()
@@ -88,8 +84,6 @@ export function NetBuyingChart({
     ),
   ];
 
-  const hovered = hover ? sessions[hover.index] : undefined;
-
   return (
     <figure aria-label={t("flows.net-chart")} className="flex flex-col gap-1.5">
       <ul className="flex gap-3 text-xs text-muted">
@@ -117,40 +111,56 @@ export function NetBuyingChart({
             className="absolute inset-x-0 h-px bg-separator"
             style={{ bottom: cssPercent(y(0)) }}
           />
-          <ol
-            className="relative flex h-full justify-between gap-1"
-            onPointerLeave={hide}>
+          <ol className="relative flex h-full justify-between gap-1">
             {sessions.map((session, index) => (
               <li
                 key={session.date}
-                className={cn(
-                  "relative h-full max-w-4 min-w-1 flex-1",
-                  hover && hover.index !== index && "opacity-40"
-                )}
-                onPointerMove={(event) => show(index, event)}>
-                <span className="sr-only">{describe(session).join(" ")}</span>
-                {series.map((points) => {
-                  const [from, to] = points[index];
+                className="relative h-full max-w-4 min-w-1 flex-1">
+                <ChartMark
+                  label={describe(session).join(" ")}
+                  tooltip={
+                    <>
+                      <span className="font-medium">{session.date}</span>
+                      {GROUPS.map(({ id, color }, group) => (
+                        <span key={id} className="flex items-center gap-1.5">
+                          <i
+                            aria-hidden
+                            className="size-2 rounded-[2px]"
+                            style={{ backgroundColor: color }}
+                          />
+                          <span className="text-muted">
+                            {t(`flows.investors.${id}`)}
+                          </span>
+                          <span className="ml-auto pl-3">
+                            {format(session.nets[group])}
+                          </span>
+                        </span>
+                      ))}
+                    </>
+                  }>
+                  {series.map((points) => {
+                    const [from, to] = points[index];
 
-                  if (from === to) return null;
+                    if (from === to) return null;
 
-                  return (
-                    <span
-                      key={GROUPS[points.key].id}
-                      className={cn(
-                        "absolute inset-x-0 border-background",
-                        // Stacked on another group, it leaves a line of the page between them.
-                        from > 0 && "border-b",
-                        to < 0 && "border-t"
-                      )}
-                      style={{
-                        bottom: cssPercent(y(from)),
-                        height: cssPercent(y(to) - y(from)),
-                        backgroundColor: GROUPS[points.key].color,
-                      }}
-                    />
-                  );
-                })}
+                    return (
+                      <span
+                        key={GROUPS[points.key].id}
+                        className={cn(
+                          "absolute inset-x-0 border-background",
+                          // Stacked on another group, it leaves a line of the page between them.
+                          from > 0 && "border-b",
+                          to < 0 && "border-t"
+                        )}
+                        style={{
+                          bottom: cssPercent(y(from)),
+                          height: cssPercent(y(to) - y(from)),
+                          backgroundColor: GROUPS[points.key].color,
+                        }}
+                      />
+                    );
+                  })}
+                </ChartMark>
               </li>
             ))}
           </ol>
@@ -160,26 +170,6 @@ export function NetBuyingChart({
         <span>{dates[0]}</span>
         <span>{dates.at(-1)}</span>
       </figcaption>
-      <ChartTooltip hover={hover}>
-        {hovered ? (
-          <>
-            <span className="font-medium">{hovered.date}</span>
-            {GROUPS.map(({ id, color }, group) => (
-              <span key={id} className="flex items-center gap-1.5">
-                <i
-                  aria-hidden
-                  className="size-2 rounded-[2px]"
-                  style={{ backgroundColor: color }}
-                />
-                <span className="text-muted">{t(`flows.investors.${id}`)}</span>
-                <span className="ml-auto pl-3">
-                  {format(hovered.nets[group])}
-                </span>
-              </span>
-            ))}
-          </>
-        ) : null}
-      </ChartTooltip>
     </figure>
   );
 }
