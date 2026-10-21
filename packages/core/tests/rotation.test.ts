@@ -10,14 +10,15 @@ import {
   benchmarkFitness,
   dateBars,
   lastTransition,
+  playbackPath,
   quadrantOf,
   readEveryRotation,
-  readRotation,
-  readRotations,
+  readingThrough,
   rollingZ,
   rotation,
+  rotationPath,
+  rotationPaths,
   rotationSeries,
-  rotationTrail,
 } from "../src/rotation.ts";
 
 const taipei = (date: string) => Date.parse(`${date}T00:00:00+08:00`) / 1000;
@@ -137,40 +138,25 @@ describe("quadrants", () => {
     expect(quadrantOf(-1, 1)).toBe(Quadrant.Improving);
   });
 
-  test("rotationTrail keeps the last bars with both coordinates, oldest first", () => {
-    const trail = rotationTrail(
-      { level: [null, 1, 2, 3, 4], momentum: [null, null, -1, null, 1] },
-      5
-    );
-
-    expect(trail).toEqual([
-      { index: 2, level: 2, momentum: -1 },
-      { index: 4, level: 4, momentum: 1 },
-    ]);
-    expect(rotationTrail({ level: [1, 2], momentum: [1, 1] }, 1)).toEqual([
-      { index: 1, level: 2, momentum: 1 },
-    ]);
-  });
-
   test("lastTransition names the last crossing between consecutive stops", () => {
     const stops = [
-      { index: 0, level: -1, momentum: -1 },
-      { index: 1, level: -1, momentum: 1 },
-      { index: 2, level: 1, momentum: 1 },
-      { index: 3, level: 2, momentum: 1 },
+      { date: "2026-01-05", level: -1, momentum: -1 },
+      { date: "2026-01-06", level: -1, momentum: 1 },
+      { date: "2026-01-07", level: 1, momentum: 1 },
+      { date: "2026-01-08", level: 2, momentum: 1 },
     ];
 
     expect(lastTransition(stops)).toEqual({
       from: Quadrant.Improving,
       to: Quadrant.Leading,
-      index: 2,
+      date: "2026-01-07",
     });
     expect(lastTransition(stops.slice(2))).toBeNull();
     expect(lastTransition([])).toBeNull();
   });
 });
 
-describe("readRotation", () => {
+describe("readingThrough", () => {
   // A listing that gains on a flat benchmark faster and faster, then slips a little each session.
   const closes = [
     100, 100.5, 101, 101.5, 102, 103, 104, 105.5, 107, 109, 111, 114, 117, 121,
@@ -185,7 +171,9 @@ describe("readRotation", () => {
     rotationSeries(dateBars(Market.TW, candles), RotationInterval.Daily, null);
 
   test("dates each stop and names the newest quadrant and the last crossing", () => {
-    const reading = readRotation(daily(listing), daily(benchmark), 4);
+    const reading = readingThrough(
+      rotationPath(daily(listing), daily(benchmark), 4)
+    );
 
     expect(reading.interval).toBe(RotationInterval.Daily);
     expect(reading.period).toBe(4);
@@ -203,10 +191,8 @@ describe("readRotation", () => {
   });
 
   test("gives an empty trail while the bars are too few", () => {
-    const reading = readRotation(
-      daily(listing.slice(0, 7)),
-      daily(benchmark),
-      4
+    const reading = readingThrough(
+      rotationPath(daily(listing.slice(0, 7)), daily(benchmark), 4)
     );
 
     expect(reading).toEqual({
@@ -219,8 +205,13 @@ describe("readRotation", () => {
   });
 
   test("matches the benchmark's bars by time rather than by position", () => {
-    const whole = readRotation(daily(listing), daily(benchmark), 4);
-    const offset = readRotation(daily(listing), daily(benchmark.slice(2)), 4);
+    const whole = readingThrough(
+      rotationPath(daily(listing), daily(benchmark), 4)
+    );
+
+    const offset = readingThrough(
+      rotationPath(daily(listing), daily(benchmark.slice(2)), 4)
+    );
 
     expect(offset.trail.map(({ date }) => date)).toEqual(
       whole.trail.map(({ date }) => date)
@@ -233,57 +224,98 @@ describe("readRotation", () => {
     }
   });
 
-  test("readRotations reads every period of the series' interval", () => {
-    const readings = readRotations(daily(listing), daily(benchmark));
-
-    expect(readings.map(({ period }) => period)).toEqual(
-      ROTATION_PERIODS[RotationInterval.Daily]
-    );
-    expect(readings.every(({ trail }) => trail.length === 0)).toBe(true);
-  });
-
-  test("readEveryRotation reads both intervals", () => {
-    const readings = readEveryRotation(
+  test("rotationPaths reads every period of both intervals", () => {
+    const paths = rotationPaths(
       dateBars(Market.TW, listing),
       dateBars(Market.TW, benchmark),
-      { today: TODAY }
+      TODAY
     );
 
     expect(
-      readings.map(({ interval, period }) => `${interval}:${period}`)
+      paths.map(({ interval, period }) => `${interval}:${period}`)
     ).toEqual(["1d:20", "1d:60", "1d:120", "1w:13", "1w:26", "1w:52"]);
+    expect(
+      paths.filter(({ interval }) => interval === RotationInterval.Daily)
+    ).toEqual(
+      ROTATION_PERIODS[RotationInterval.Daily].map((period) =>
+        rotationPath(daily(listing), daily(benchmark), period)
+      )
+    );
   });
 });
 
 describe("readEveryRotation as of a session", () => {
-  // Sixty sessions from 2026-01-05, which hold a month's reading and its trail twice over.
-  const closes = Array.from({ length: 60 }, (_, i) => 100 + i * (i % 3));
+  // Two hundred sessions from 2026-01-05 to 2026-10-09, which hold a quarter of weeks' reading and its trail.
+  const closes = Array.from({ length: 200 }, (_, i) => 100 + i * (i % 3));
   const listing = bars(closes);
   const benchmark = bars(closes.map(() => 1000));
-  const TODAY = "2026-03-30";
-  const THROUGH = "2026-03-13";
+  const TODAY = "2026-10-12";
 
-  test("reads only the bars up to the session, as the graph stood at its close", () => {
+  const upTo = (candles: Candle[], through: string) =>
+    dateBars(
+      Market.TW,
+      candles.filter((bar) => bar.time <= taipei(through))
+    );
+
+  // A Friday, read once its week has closed, and the Wednesday after, while its week was under way.
+  test.each([
+    ["2026-09-18", "2026-09-21"],
+    ["2026-09-23", "2026-09-23"],
+  ])("reads as the bars up to %s alone would on %s", (through, then) => {
     const back = readEveryRotation(
       dateBars(Market.TW, listing),
       dateBars(Market.TW, benchmark),
-      { today: TODAY, through: THROUGH }
-    ).find(({ period }) => period === 20)!;
+      { today: TODAY, through }
+    );
 
-    expect(back.trail).toHaveLength(ROTATION_TRAIL);
-    expect(back.trail.at(-1)?.date).toBe(THROUGH);
+    const alone = readEveryRotation(
+      upTo(listing, through),
+      upTo(benchmark, through),
+      { today: then }
+    );
 
-    const upTo = (candles: Candle[]) =>
-      rotationSeries(
-        dateBars(
-          Market.TW,
-          candles.filter((bar) => bar.time <= taipei(THROUGH))
-        ),
-        RotationInterval.Daily,
-        null
+    expect(back.find(({ period }) => period === 20)?.trail.at(-1)?.date).toBe(
+      through
+    );
+    expect(back).toEqual(alone);
+  });
+
+  test("leaves out the week a session falls inside", () => {
+    const [weekly] = readEveryRotation(
+      dateBars(Market.TW, listing),
+      dateBars(Market.TW, benchmark),
+      { today: TODAY, through: "2026-09-23" }
+    ).filter(({ interval }) => interval === RotationInterval.Weekly);
+
+    expect(weekly.trail.at(-1)?.date).toBe("2026-09-18");
+  });
+});
+
+describe("playbackPath", () => {
+  const path = {
+    interval: RotationInterval.Daily,
+    period: 4,
+    stops: Array.from({ length: 30 }, (_, i) => ({
+      date: `2026-01-${String(i + 1).padStart(2, "0")}`,
+      level: i,
+      momentum: i,
+    })),
+  };
+
+  test("keeps what a reading as of the first session or a later one draws on", () => {
+    const cut = playbackPath(path, "2026-01-20");
+
+    expect(cut.stops[0].date).toBe("2026-01-11");
+
+    for (const through of ["2026-01-20", "2026-01-25", "2026-01-30"]) {
+      expect(readingThrough(cut, through)).toEqual(
+        readingThrough(path, through)
       );
+    }
+  });
 
-    expect(back).toEqual(readRotation(upTo(listing), upTo(benchmark), 20));
+  test("keeps the last trail where every stop is older than the first session", () => {
+    expect(playbackPath(path, "2026-02-10").stops).toHaveLength(ROTATION_TRAIL);
   });
 });
 

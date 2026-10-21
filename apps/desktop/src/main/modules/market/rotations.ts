@@ -1,9 +1,4 @@
-import {
-  Interval,
-  adjustedCandles,
-  candleDate,
-  lookbackRange,
-} from "@solyx/core/candles";
+import { Interval, adjustedCandles, lookbackRange } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import type { Company } from "@solyx/core/fundamentals";
 import {
@@ -21,13 +16,18 @@ import {
   RotationAgainst,
   benchmarkFitness,
   dateBars,
-  readEveryRotation,
+  playbackPath,
+  readingThrough,
+  rotationPaths,
 } from "@solyx/core/rotation";
 import type {
   DatedBars,
+  ListingHistory,
   ListingRotation,
-  RotationReading,
+  RotationHistory,
+  RotationPath,
   RotationSet,
+  SectorHistory,
   SectorRotation,
 } from "@solyx/core/rotation";
 import { TW_SECTOR_INDICES, sectorOfIndustry } from "@solyx/core/sectors";
@@ -72,10 +72,11 @@ interface RotationsOptions {
 /**
  * Every rotation the app reads, on daily bars through the candle cache: the sectors against the
  * TAIEX, listings against their market's index or any benchmark, each over every interval and
- * period, as of the newest session or any of the last `PLAYBACK_SESSIONS`. Listings' bars are
- * adjusted for splits and what went ex; an index's need no adjusting. Every listing's and index's
- * bars are kept in memory while the session they were read in lasts, since every reading is
- * worked out from them afresh and sliding back or changing the benchmark should cost no request.
+ * period, as readings as of the newest session or any of the last `PLAYBACK_SESSIONS`, or as the
+ * paths across those sessions a graph plays back. Listings' bars are adjusted for splits and what
+ * went ex; an index's need no adjusting. Every listing's and index's bars are kept in memory while
+ * the session they were read in lasts, since every path is worked out from them afresh and a
+ * change of benchmark should cost no request.
  */
 export function createRotations({
   candlesSince,
@@ -106,23 +107,39 @@ export function createRotations({
     return known;
   };
 
-  const readings = (
+  const paths = (
     symbol: SymbolRef,
     bars: readonly Candle[],
-    benchmark: readonly Candle[],
-    through: string | undefined
+    benchmark: readonly Candle[]
   ) =>
-    readEveryRotation(
+    rotationPaths(
       dateOnce(symbol.market, bars),
       dateOnce(symbol.market, benchmark),
-      { today: today(symbol.market), through }
+      today(symbol.market)
     );
 
-  /** The sessions a set may be taken back to, from the benchmark's bars: the last `PLAYBACK_SESSIONS` up to `asOf`. */
+  /** The sessions a set may be taken back to, from the benchmark's bars: the last `PLAYBACK_SESSIONS`. */
   const sessions = (market: Market, benchmark: readonly Candle[]) =>
-    benchmark
-      .map((bar) => candleDate(market, bar.time))
-      .slice(-PLAYBACK_SESSIONS);
+    dateOnce(market, benchmark).dates.slice(-PLAYBACK_SESSIONS);
+
+  /** `benchmark`'s close on each of `days`, `null` on one it did not trade. */
+  const closesOn = (
+    market: Market,
+    benchmark: readonly Candle[],
+    days: readonly string[]
+  ) => {
+    const { dates } = dateOnce(market, benchmark);
+    const closes = new Map(dates.map((date, i) => [date, benchmark[i].close]));
+
+    return days.map((day) => closes.get(day) ?? null);
+  };
+
+  /** Readings as of `through`, or the paths cut to the sessions they may be played back across. */
+  const readingsOf = (all: RotationPath[], through?: string) =>
+    all.map((path) => readingThrough(path, through));
+
+  const playback = (all: RotationPath[], days: readonly string[]) =>
+    days.length === 0 ? all : all.map((path) => playbackPath(path, days[0]));
 
   const answers = memoryAnswers();
 
@@ -191,15 +208,14 @@ export function createRotations({
     return adjustedCandles(bars);
   }
 
-  /** A listing's readings against `benchmark`'s bars, on its own bars adjusted. */
+  /** A listing's paths against `benchmark`'s bars, on its own bars adjusted. */
   async function against(
     symbol: SymbolRef,
-    benchmark: Promise<Candle[]>,
-    through?: string
-  ): Promise<RotationReading[]> {
+    benchmark: Promise<Candle[]>
+  ): Promise<RotationPath[]> {
     const [bars, other] = await Promise.all([listingBars(symbol), benchmark]);
 
-    return readings(symbol, adjustedCandles(bars), other, through);
+    return paths(symbol, adjustedCandles(bars), other);
   }
 
   /** The index of the sector a TWSE company is classed in; `null` for any other listing. */
@@ -212,6 +228,7 @@ export function createRotations({
   }
 
   interface ListingsOptions {
+    /** The session a benchmark other than an index must qualify as of; the newest where left out. */
     through?: string;
     /** One benchmark for every listing, which must be of its market; the market's index where left out. */
     benchmark?: SymbolRef;
@@ -219,14 +236,15 @@ export function createRotations({
     against?: RotationAgainst;
   }
 
-  async function listings(
+  /** Each listing's paths, with the sessions they may be read as of: every market's together, so a graph of listings of both reaches every one. */
+  async function listingPaths(
     symbols: readonly SymbolRef[],
     {
       through,
       benchmark,
       against: mode = RotationAgainst.Market,
     }: ListingsOptions = {}
-  ): Promise<RotationSet<ListingRotation>> {
+  ) {
     const read = listingBars;
     const barsOf = (symbol: SymbolRef) => benchmarkBars(symbol, through, read);
 
@@ -259,12 +277,11 @@ export function createRotations({
         return {
           symbol,
           benchmark: own,
-          readings: own ? await against(symbol, barsOf(own), through) : [],
+          paths: own ? await against(symbol, barsOf(own)) : [],
         };
       })
     );
 
-    // The markets' sessions together, so a slider over listings of both reaches every one.
     const days = new Set<string>();
 
     for (const market of new Set(symbols.map(({ market }) => market))) {
@@ -276,13 +293,45 @@ export function createRotations({
       }
     }
 
-    const all = [...days].toSorted().slice(-PLAYBACK_SESSIONS);
+    return {
+      entries,
+      sessions: [...days].toSorted().slice(-PLAYBACK_SESSIONS),
+    };
+  }
+
+  /** The sectors' paths against `benchmark`, or the TAIEX, with the sessions they may be read as of; `null` when no source covers Taiwan. */
+  async function sectorPaths(through?: string, benchmark?: SymbolRef) {
+    const source = await sourceId(Market.TW);
+
+    if (source === null) return null;
+
+    const taiex = BENCHMARK[Market.TW].symbol;
+
+    if (benchmark && benchmark.market !== Market.TW) {
+      throw new Error(
+        `${symbolLabel(benchmark)} is not a Taiwan listing, so the sectors cannot be read against it`
+      );
+    }
+
+    const [bars, other] = await Promise.all([
+      indexBars(source),
+      benchmark && !isMarketIndex(benchmark)
+        ? benchmarkBars(benchmark, through)
+        : null,
+    ]);
+
+    const calendar = bars[taiex.symbol] ?? [];
+    const against = other ?? calendar;
+    const symbol = (code: string) => ({ market: Market.TW, symbol: code });
 
     return {
-      benchmark: benchmark ?? null,
-      asOf: through ?? all.at(-1) ?? today(Market.TW),
-      sessions: all,
-      entries,
+      benchmark: benchmark ?? taiex,
+      bars: against,
+      sessions: sessions(Market.TW, calendar),
+      entries: TW_SECTOR_INDICES.map((index) => ({
+        ...index,
+        paths: paths(symbol(index.symbol), bars[index.symbol] ?? [], against),
+      })),
     };
   }
 
@@ -296,51 +345,89 @@ export function createRotations({
       through?: string,
       benchmark?: SymbolRef
     ): Promise<RotationSet<SectorRotation> | null> {
-      const source = await sourceId(Market.TW);
+      const read = await sectorPaths(through, benchmark);
 
-      if (source === null) return null;
-
-      const taiex = BENCHMARK[Market.TW].symbol;
-
-      if (benchmark && benchmark.market !== Market.TW) {
-        throw new Error(
-          `${symbolLabel(benchmark)} is not a Taiwan listing, so the sectors cannot be read against it`
-        );
-      }
-
-      const [bars, other] = await Promise.all([
-        indexBars(source),
-        benchmark && !isMarketIndex(benchmark)
-          ? benchmarkBars(benchmark, through)
-          : null,
-      ]);
-
-      const calendar = bars[taiex.symbol] ?? [];
-      const all = sessions(Market.TW, calendar);
-      const symbol = (code: string) => ({ market: Market.TW, symbol: code });
+      if (read === null) return null;
 
       return {
-        benchmark: benchmark ?? taiex,
-        asOf: through ?? all.at(-1) ?? today(Market.TW),
-        sessions: all,
-        entries: TW_SECTOR_INDICES.map((index) => ({
+        benchmark: read.benchmark,
+        asOf: through ?? read.sessions.at(-1) ?? today(Market.TW),
+        sessions: read.sessions,
+        entries: read.entries.map(({ paths: all, ...index }) => ({
           ...index,
-          readings: readings(
-            symbol(index.symbol),
-            bars[index.symbol] ?? [],
-            other ?? calendar,
-            through
-          ),
+          readings: readingsOf(all, through),
+        })),
+      };
+    },
+
+    /** The sectors' paths across the sessions a graph may play them back over, as `sectors` reads them. */
+    async sectorHistory(
+      benchmark?: SymbolRef
+    ): Promise<RotationHistory<SectorHistory> | null> {
+      const read = await sectorPaths(undefined, benchmark);
+
+      if (read === null) return null;
+
+      return {
+        benchmark: read.benchmark,
+        sessions: read.sessions,
+        closes: closesOn(Market.TW, read.bars, read.sessions),
+        entries: read.entries.map(({ paths: all, ...index }) => ({
+          ...index,
+          paths: playback(all, read.sessions),
         })),
       };
     },
 
     /** Each listing against its market's index: a daily-bar request per listing, and one per market for its index. */
-    listings,
+    async listings(
+      symbols: readonly SymbolRef[],
+      options: ListingsOptions = {}
+    ): Promise<RotationSet<ListingRotation>> {
+      const read = await listingPaths(symbols, options);
 
-    /** A listing against any other listing or index; a daily-bar request each. */
-    rotationAgainst: (symbol: SymbolRef, benchmark: SymbolRef) =>
-      against(symbol, listingBars(benchmark)),
+      return {
+        benchmark: options.benchmark ?? null,
+        asOf: options.through ?? read.sessions.at(-1) ?? today(Market.TW),
+        sessions: read.sessions,
+        entries: read.entries.map(({ paths: all, ...entry }) => ({
+          ...entry,
+          readings: readingsOf(all, options.through),
+        })),
+      };
+    },
+
+    /** The listings' paths across the sessions a graph may play them back over, as `listings` reads them. */
+    async listingHistory(
+      symbols: readonly SymbolRef[],
+      options: Omit<ListingsOptions, "through"> = {}
+    ): Promise<RotationHistory<ListingHistory>> {
+      const read = await listingPaths(symbols, options);
+      const one = read.entries[0]?.benchmark;
+
+      const shared =
+        one &&
+        read.entries.every(
+          ({ benchmark }) =>
+            benchmark && symbolKey(benchmark) === symbolKey(one)
+        );
+
+      return {
+        benchmark: options.benchmark ?? null,
+        sessions: read.sessions,
+        closes: shared
+          ? closesOn(
+              one.market,
+              await benchmarkBars(one, undefined),
+              read.sessions
+            )
+          : null,
+        entries: read.entries.map(({ paths: all, ...entry }) => ({
+          ...entry,
+          paths: playback(all, read.sessions),
+        })),
+      };
+    },
 
     /**
      * A listing against its market's index and, for a TWSE company whose industry has a sector
@@ -348,21 +435,23 @@ export function createRotations({
      */
     async listing(symbol: SymbolRef): Promise<ListingRotationView> {
       const [own, index] = await Promise.all([
-        listings([symbol]),
+        listingPaths([symbol]),
         sectorIndexOf(symbol),
       ]);
 
       return {
         index: {
           name: BENCHMARK[symbol.market].name,
-          readings: own.entries[0].readings,
+          readings: readingsOf(own.entries[0].paths),
         },
         sector: index
           ? {
               ...index,
-              readings: await against(
-                symbol,
-                listingBars({ market: Market.TW, symbol: index.symbol })
+              readings: readingsOf(
+                await against(
+                  symbol,
+                  listingBars({ market: Market.TW, symbol: index.symbol })
+                )
               ),
             }
           : null,

@@ -1,10 +1,10 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 
-import { Slider, Spinner, cn } from "@heroui/react";
+import { Spinner, cn } from "@heroui/react";
 import { Link } from "@tanstack/react-router";
 import { scaleLinear } from "d3-scale";
-import { orderBy } from "es-toolkit";
+import { orderBy, uniq } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
@@ -12,8 +12,9 @@ import {
   Quadrant,
   ROTATION_PERIODS,
   RotationInterval,
+  readingThrough,
 } from "@solyx/core/rotation";
-import type { RotationReading } from "@solyx/core/rotation";
+import type { RotationPath, RotationReading } from "@solyx/core/rotation";
 import { cssPercent } from "@solyx/utils/format";
 import { isEnumValue } from "@solyx/utils/is";
 
@@ -21,6 +22,7 @@ import { ChartMark } from "../../components/chart-mark.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 
 import { numberFormats } from "./number-formats.ts";
+import { RotationTimeline } from "./rotation-timeline.tsx";
 
 /** One line of the graph: a sector or a listing, in its group's colour. */
 export interface RotationEntry {
@@ -30,7 +32,7 @@ export interface RotationEntry {
   /** What the lists show of it; `name` where left out. */
   title?: ReactNode;
   group: string;
-  readings: RotationReading[];
+  paths: RotationPath[];
   /** The listing its row opens, where it is one. */
   symbol?: SymbolRef;
 }
@@ -41,12 +43,16 @@ export interface RotationGroup {
   color: string;
 }
 
-/** Taking the graph back to a session's close: the sessions it may go back to, oldest first, and the one shown. */
+/** The sessions the graph may be taken back to, oldest first, and the closes of the benchmark that governs every entry, where one does. */
 export interface RotationPlayback {
   sessions: readonly string[];
-  /** The session shown; `null` for the newest. */
-  through: string | null;
-  onChange: (through: string | null) => void;
+  closes: readonly (number | null)[] | null;
+}
+
+/** How far a plot's axes reach either way from the origin, in standard deviations. */
+export interface RotationReach {
+  level: number;
+  momentum: number;
 }
 
 /** The quadrants in the order a rotation runs through them, from where an entry leads. */
@@ -77,10 +83,36 @@ const DEFAULT_PERIOD: Record<RotationInterval, number> = {
 /** The filter's choice that keeps every group. */
 const EVERY_GROUP = "every";
 
-/** An entry with its colour and its reading over the period shown. */
-export interface PlacedEntry extends RotationEntry {
+/** An entry with its colour and its reading as of the session shown. */
+export interface PlacedEntry extends Omit<RotationEntry, "paths"> {
   color: string;
   reading: RotationReading;
+}
+
+/** Each axis's reach over `stops`, never under `LEAST_REACH`. */
+function reachOf(
+  stops: readonly { level: number; momentum: number }[]
+): RotationReach {
+  let level = LEAST_REACH;
+  let momentum = LEAST_REACH;
+
+  for (const stop of stops) {
+    level = Math.max(level, Math.abs(stop.level));
+    momentum = Math.max(momentum, Math.abs(stop.momentum));
+  }
+
+  return { level, momentum };
+}
+
+/** The close on each of `frames`, from the closes on `sessions`. */
+function closesOn(
+  sessions: readonly string[],
+  closes: readonly (number | null)[],
+  frames: readonly string[]
+) {
+  const byDay = new Map(sessions.map((day, i) => [day, closes[i]]));
+
+  return frames.map((day) => byDay.get(day) ?? null);
 }
 
 /**
@@ -94,6 +126,7 @@ export function RotationPlot({
   onFocus,
   className,
   loading = false,
+  reach = reachOf(placed.flatMap(({ reading }) => reading.trail)),
 }: {
   placed: readonly PlacedEntry[];
   focused: string | null;
@@ -102,24 +135,16 @@ export function RotationPlot({
   className?: string;
   /** Another reading is on its way: what is drawn is the last one, dimmed, with a spinner over it. */
   loading?: boolean;
+  /** How far the axes reach; as far as the trails drawn, where left out. */
+  reach?: RotationReach;
 }) {
   const { t, i18n } = useTranslation();
   const { signedIndicator } = numberFormats(i18n.language);
 
-  const reach = (pick: (stop: { level: number; momentum: number }) => number) =>
-    Math.max(
-      LEAST_REACH,
-      ...placed.flatMap(({ reading }) =>
-        reading.trail.map((stop) => Math.abs(pick(stop)))
-      )
-    );
-
-  const x = scaleLinear()
-    .domain([-reach((stop) => stop.level), reach((stop) => stop.level)])
-    .range([0, 100]);
+  const x = scaleLinear().domain([-reach.level, reach.level]).range([0, 100]);
 
   const y = scaleLinear()
-    .domain([-reach((stop) => stop.momentum), reach((stop) => stop.momentum)])
+    .domain([-reach.momentum, reach.momentum])
     .range([100, 0]);
 
   const quadrantName = (quadrant: Quadrant) =>
@@ -345,46 +370,12 @@ function QuadrantLists({
   );
 }
 
-/** A slider over the sessions the graph may be taken back to, the newest at its right end. */
-function PlaybackSlider({ playback }: { playback: RotationPlayback }) {
-  const { t } = useTranslation();
-  const { sessions, through, onChange } = playback;
-  const last = sessions.length - 1;
-
-  const index =
-    through === null ? last : Math.max(sessions.indexOf(through), 0);
-
-  return (
-    <Slider
-      aria-label={t("heat-map.rotation.playback")}
-      minValue={0}
-      maxValue={last}
-      step={1}
-      value={index}
-      onChange={(value) => {
-        const next = Array.isArray(value) ? value[0] : value;
-
-        onChange(next >= last ? null : (sessions[next] ?? null));
-      }}
-      className="max-w-md">
-      <div className="flex justify-between text-xs text-muted tabular-nums">
-        <span>{t("heat-map.rotation.playback")}</span>
-        <Slider.Output>
-          {through ?? t("heat-map.rotation.latest", { date: sessions[last] })}
-        </Slider.Output>
-      </div>
-      <Slider.Track>
-        <Slider.Fill />
-        <Slider.Thumb />
-      </Slider.Track>
-    </Slider>
-  );
-}
-
 /**
  * Entries on a relative rotation graph over a period picked here, in their group's colour, with
- * a filter down to one group where there are several; under the plot, the groups' colours and the
- * entries by quadrant.
+ * a filter down to one group where there are several; under the plot, the timeline it may be
+ * taken back along, the groups' colours and the entries by quadrant. Taking it back reads the
+ * paths it holds, and the axes reach as far as any session shown would, so the plot keeps still
+ * while the dots move.
  */
 export function RotationGraph({
   entries,
@@ -395,7 +386,7 @@ export function RotationGraph({
 }: {
   entries: readonly RotationEntry[];
   groups: readonly RotationGroup[];
-  playback?: RotationPlayback;
+  playback: RotationPlayback;
   /** More controls beside the bars and period, such as the benchmark. */
   controls?: ReactNode;
   /** The entries are the last read while another is on its way. */
@@ -410,26 +401,38 @@ export function RotationGraph({
   const [period, setPeriod] = useState(DEFAULT_PERIOD[interval]);
   const [group, setGroup] = useState(EVERY_GROUP);
   const [focused, setFocused] = useState<string | null>(null);
+  const [through, setThrough] = useState<string | null>(null);
 
   const colors = new Map(groups.map((each) => [each.id, each.color]));
 
-  const placed = entries.flatMap((entry): PlacedEntry[] => {
-    const reading = entry.readings.find(
+  const shown = entries.flatMap(({ paths, ...entry }) => {
+    const path = paths.find(
       (each) => each.interval === interval && each.period === period
     );
 
     const color = colors.get(entry.group);
 
-    if (
-      !reading?.quadrant ||
-      color === undefined ||
-      (group !== EVERY_GROUP && entry.group !== group)
-    ) {
-      return [];
-    }
-
-    return [{ ...entry, color, reading }];
+    return path &&
+      color !== undefined &&
+      (group === EVERY_GROUP || entry.group === group)
+      ? [{ ...entry, color, path }]
+      : [];
   });
+
+  const placed = shown.flatMap(({ path, ...entry }): PlacedEntry[] => {
+    const reading = readingThrough(path, through ?? undefined);
+
+    return reading.quadrant ? [{ ...entry, reading }] : [];
+  });
+
+  const stops = shown.flatMap(({ path }) => path.stops);
+  const first = playback.sessions.at(0);
+
+  const frames = uniq(
+    stops
+      .map(({ date }) => date)
+      .filter((date) => first === undefined || date >= first)
+  ).toSorted();
 
   return (
     <div className="flex flex-col gap-3">
@@ -473,9 +476,6 @@ export function RotationGraph({
           />
         ) : null}
       </div>
-      {playback && playback.sessions.length > 1 ? (
-        <PlaybackSlider playback={playback} />
-      ) : null}
       {placed.length === 0 ? (
         <p className="text-sm text-muted">{t("heat-map.rotation.none")}</p>
       ) : (
@@ -485,7 +485,20 @@ export function RotationGraph({
             focused={focused}
             onFocus={setFocused}
             loading={loading}
+            reach={reachOf(stops)}
           />
+          {frames.length > 1 ? (
+            <RotationTimeline
+              frames={frames}
+              closes={
+                playback.closes &&
+                closesOn(playback.sessions, playback.closes, frames)
+              }
+              interval={interval}
+              through={through}
+              onChange={setThrough}
+            />
+          ) : null}
           <ul className="flex flex-wrap gap-3 text-xs text-muted">
             {groups.map(({ id, label, color }) => (
               <li key={id} className="flex items-center gap-1.5">

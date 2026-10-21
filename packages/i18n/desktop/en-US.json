@@ -200,6 +200,17 @@
       },
       "playback": "As of",
       "latest": "Latest ({{date}})",
+      "play": "Play",
+      "pause": "Pause",
+      "previous": {
+        "1d": "Previous session",
+        "1w": "Previous week"
+      },
+      "next": {
+        "1d": "Next session",
+        "1w": "Next week"
+      },
+      "to-latest": "Back to latest",
       "benchmark": "Benchmark"
     }
   },

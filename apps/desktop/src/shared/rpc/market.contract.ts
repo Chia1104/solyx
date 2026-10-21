@@ -13,9 +13,9 @@ import {
   rotationAgainstSchema,
 } from "@solyx/core/rotation";
 import type {
-  ListingRotation,
-  RotationSet,
-  SectorRotation,
+  ListingHistory,
+  RotationHistory,
+  SectorHistory,
 } from "@solyx/core/rotation";
 import type { SectorQuote } from "@solyx/core/sectors";
 import type { Session } from "@solyx/core/session";
@@ -48,29 +48,27 @@ export const marketContract = {
   /** Every Taiwan sector index's session so far, one request each; `null` when no source covers Taiwan. */
   sectors: oc.output(type<SectorQuote[] | null>()),
   /**
-   * Every Taiwan sector index's rotation against the TAIEX as of `through`, a session the set
-   * names, or the newest; a daily-bar request each. `null` when no source covers Taiwan.
+   * Every Taiwan sector index's rotation against the TAIEX across the sessions it may be played
+   * back over, a daily-bar request each. `null` when no source covers Taiwan.
    */
   rotations: oc
     .input(
       z.object({
-        through: z.iso.date().optional(),
         /** A TWSE listing or index to read the sectors against in the TAIEX's place; rejects one that does not qualify. */
         benchmark: symbolRefSchema.optional(),
       })
     )
-    .output(type<RotationSet<SectorRotation> | null>()),
-  /** Each listing's rotation against its market's index on adjusted bars, a daily-bar request each; rejects while no source covers a market. */
+    .output(type<RotationHistory<SectorHistory> | null>()),
+  /** Each listing's rotation on adjusted bars across the sessions it may be played back over, a daily-bar request each; rejects while no source covers a market. */
   listingRotations: oc
     .input(
       z.object({
         symbols: z.array(symbolRefSchema).max(MAX_ROTATION_LISTINGS),
-        through: z.iso.date().optional(),
         benchmark: symbolRefSchema.optional(),
         against: rotationAgainstSchema.optional(),
       })
     )
-    .output(type<RotationSet<ListingRotation>>()),
+    .output(type<RotationHistory<ListingHistory>>()),
   /** One listing against its market's index and, for a TWSE company in an industry with an index, against that index too. */
   listingRotation: oc
     .input(symbolRefSchema)
