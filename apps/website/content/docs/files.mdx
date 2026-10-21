@@ -63,7 +63,7 @@ A nightly and a development build keep folders of their own, so neither touches 
 
 **Settings → Storage** shows how much each store holds and clears the candle cache, conversations, memory, news, research or the watchlist.
 
-Solyx writes no log file. Its logs go to the terminal, and to an [OTLP endpoint](/docs/setup/observability) if you name one.
+Solyx writes no log file of its own; only Fubon's SDK keeps logs, in `fubon/`. Solyx's logs go to the terminal, and to an [OTLP endpoint](/docs/setup/observability) if you name one.
 
 ## What config.json holds
 

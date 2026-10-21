@@ -63,7 +63,7 @@ Solyx 有兩個資料夾：家目錄裡的設定資料夾，你可以手動編�
 
 **設定 → 儲存空間** 會顯示每個儲存區佔了多少空間，並可清除 K 線快取、對話、記憶、新聞、研究或自選。
 
-Solyx 不寫日誌檔。日誌會輸出到終端機，如果你指定了 [OTLP 端點](/zh-TW/docs/setup/observability)，也會送到那裡。
+Solyx 自己不寫日誌檔，只有富邦的 SDK 會把日誌存在 `fubon/`。Solyx 的日誌會輸出到終端機，如果你指定了 [OTLP 端點](/zh-TW/docs/setup/observability)，也會送到那裡。
 
 ## config.json 存了什麼 [#what-configjson-holds]
 
