@@ -1,4 +1,6 @@
 import { cn } from "@heroui/react";
+import { scaleLinear } from "d3-scale";
+import { stack, stackOffsetDiverging } from "d3-shape";
 import { sumBy, uniq } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +8,10 @@ import { Investor } from "@solyx/core/flows";
 import type { InvestorTrades } from "@solyx/core/flows";
 import { cssPercent } from "@solyx/utils/format";
 
+import {
+  ChartTooltip,
+  useChartHover,
+} from "../../components/chart-tooltip.tsx";
 import { LINE_COLORS } from "../market/chart-palette.ts";
 
 /** About a month of sessions. */
@@ -34,7 +40,7 @@ const GROUPS: { id: Investor; investors: Investor[]; color: string }[] = [
 /**
  * The newest sessions' net buying by each group, a column a session: what the groups bought
  * stacked above the line and what they sold below it, so a column's reach either way is how much
- * the groups together leaned that way.
+ * the groups together leaned that way. Hovering a column names each group's figure that session.
  */
 export function NetBuyingChart({
   trades,
@@ -44,6 +50,7 @@ export function NetBuyingChart({
   format: (amount: number) => string;
 }) {
   const { t } = useTranslation();
+  const { hover, show, hide } = useChartHover();
 
   const dates = uniq(trades.map(({ date }) => date))
     .toSorted()
@@ -63,18 +70,25 @@ export function NetBuyingChart({
     ),
   }));
 
-  const highest = Math.max(
-    0,
-    ...sessions.map(({ nets }) => sumBy(nets, (net) => Math.max(net, 0)))
-  );
+  // One series a group, in the groups' order: buying stacked up from zero, selling down from it.
+  const series = stack<(typeof sessions)[number], number>()
+    .keys(GROUPS.keys())
+    .value((session, group) => session.nets[group])
+    .offset(stackOffsetDiverging)(sessions);
 
-  const lowest = Math.min(
-    0,
-    ...sessions.map(({ nets }) => sumBy(nets, (net) => Math.min(net, 0)))
-  );
+  const reaches = series.flat().flat();
+  const highest = Math.max(0, ...reaches);
+  const lowest = Math.min(0, ...reaches);
+  const y = scaleLinear().domain([lowest, highest]).range([0, 1]);
 
-  const span = highest - lowest || 1;
-  const zero = -lowest / span;
+  const describe = ({ date, nets }: (typeof sessions)[number]) => [
+    date,
+    ...GROUPS.map(
+      ({ id }, index) => `${t(`flows.investors.${id}`)} ${format(nets[index])}`
+    ),
+  ];
+
+  const hovered = hover ? sessions[hover.index] : undefined;
 
   return (
     <figure aria-label={t("flows.net-chart")} className="flex flex-col gap-1.5">
@@ -101,53 +115,44 @@ export function NetBuyingChart({
           <span
             aria-hidden
             className="absolute inset-x-0 h-px bg-separator"
-            style={{ bottom: cssPercent(zero) }}
+            style={{ bottom: cssPercent(y(0)) }}
           />
-          <ol className="relative flex h-full justify-between gap-1">
-            {sessions.map(({ date, nets }) => {
-              let above = zero;
-              let below = zero;
+          <ol
+            className="relative flex h-full justify-between gap-1"
+            onPointerLeave={hide}>
+            {sessions.map((session, index) => (
+              <li
+                key={session.date}
+                className={cn(
+                  "relative h-full max-w-4 min-w-1 flex-1",
+                  hover && hover.index !== index && "opacity-40"
+                )}
+                onPointerMove={(event) => show(index, event)}>
+                <span className="sr-only">{describe(session).join(" ")}</span>
+                {series.map((points) => {
+                  const [from, to] = points[index];
 
-              return (
-                <li
-                  key={date}
-                  title={[
-                    date,
-                    ...GROUPS.map(
-                      ({ id }, index) =>
-                        `${t(`flows.investors.${id}`)} ${format(nets[index])}`
-                    ),
-                  ].join("\n")}
-                  className="relative h-full max-w-4 min-w-1 flex-1">
-                  {nets.map((net, index) => {
-                    if (net === 0) return null;
+                  if (from === to) return null;
 
-                    const height = Math.abs(net) / span;
-                    const bottom = net > 0 ? above : below - height;
-                    // Stacked on another group, it leaves a line of the page between them.
-                    const stacked = net > 0 ? above > zero : below < zero;
-
-                    if (net > 0) above += height;
-                    else below -= height;
-
-                    return (
-                      <span
-                        key={GROUPS[index].id}
-                        className={cn(
-                          "absolute inset-x-0 border-background",
-                          stacked && (net > 0 ? "border-b" : "border-t")
-                        )}
-                        style={{
-                          bottom: cssPercent(bottom),
-                          height: cssPercent(height),
-                          backgroundColor: GROUPS[index].color,
-                        }}
-                      />
-                    );
-                  })}
-                </li>
-              );
-            })}
+                  return (
+                    <span
+                      key={GROUPS[points.key].id}
+                      className={cn(
+                        "absolute inset-x-0 border-background",
+                        // Stacked on another group, it leaves a line of the page between them.
+                        from > 0 && "border-b",
+                        to < 0 && "border-t"
+                      )}
+                      style={{
+                        bottom: cssPercent(y(from)),
+                        height: cssPercent(y(to) - y(from)),
+                        backgroundColor: GROUPS[points.key].color,
+                      }}
+                    />
+                  );
+                })}
+              </li>
+            ))}
           </ol>
         </div>
       </div>
@@ -155,6 +160,26 @@ export function NetBuyingChart({
         <span>{dates[0]}</span>
         <span>{dates.at(-1)}</span>
       </figcaption>
+      <ChartTooltip hover={hover}>
+        {hovered ? (
+          <>
+            <span className="font-medium">{hovered.date}</span>
+            {GROUPS.map(({ id, color }, group) => (
+              <span key={id} className="flex items-center gap-1.5">
+                <i
+                  aria-hidden
+                  className="size-2 rounded-[2px]"
+                  style={{ backgroundColor: color }}
+                />
+                <span className="text-muted">{t(`flows.investors.${id}`)}</span>
+                <span className="ml-auto pl-3">
+                  {format(hovered.nets[group])}
+                </span>
+              </span>
+            ))}
+          </>
+        ) : null}
+      </ChartTooltip>
     </figure>
   );
 }

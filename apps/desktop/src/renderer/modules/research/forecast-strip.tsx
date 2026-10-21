@@ -1,9 +1,15 @@
+import type { PointerEvent } from "react";
+
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
 import type { Forecast } from "@solyx/core/forecast";
 import { cssPercent } from "@solyx/utils/format";
 
+import {
+  ChartTooltip,
+  useChartHover,
+} from "../../components/chart-tooltip.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
 import { forecastMarks } from "./research-figures.ts";
@@ -15,38 +21,39 @@ const MARKS = 24;
 // A mark narrows before the strip outgrows its column.
 const SLOT = "h-full max-w-3 min-w-1 flex-1";
 
-function Mark({ mark }: { mark: ForecastMark }) {
-  const { t, i18n } = useTranslation();
-  const { percent } = numberFormats(i18n.language);
-  const { date, settled } = mark;
+function Mark({
+  mark,
+  description,
+  faded,
+  onPointerMove,
+}: {
+  mark: ForecastMark;
+  description: string;
+  faded: boolean;
+  onPointerMove: (event: PointerEvent) => void;
+}) {
+  const { settled } = mark;
 
   if (!settled) {
     return (
       <li
-        title={t("research.forecasts.mark-open", { date })}
         // Pencil until it settles, as its card is.
         className={cn(
           SLOT,
-          "rounded-t-[2px] border border-b-0 border-dashed border-border hatch"
+          "rounded-t-[2px] border border-b-0 border-dashed border-border hatch",
+          faded && "opacity-40"
         )}
-      />
+        onPointerMove={onPointerMove}>
+        <span className="sr-only">{description}</span>
+      </li>
     );
   }
 
-  const given = percent.format(settled.given);
-
   return (
     <li
-      title={
-        settled.history === null
-          ? t("research.forecasts.mark", { date, given })
-          : t("research.forecasts.mark-history", {
-              date,
-              given,
-              history: percent.format(settled.history),
-            })
-      }
-      className={cn(SLOT, "relative")}>
+      className={cn(SLOT, "relative", faded && "opacity-40")}
+      onPointerMove={onPointerMove}>
+      <span className="sr-only">{description}</span>
       <span
         className={cn(
           "absolute inset-x-0 bottom-0 min-h-px rounded-t-[2px]",
@@ -66,8 +73,8 @@ function Mark({ mark }: { mark: ForecastMark }) {
 
 /**
  * The record at a glance: what each forecast gave the band that held, against what the listing's
- * history gave it. Nothing is drawn until two forecasts stand and one has settled, since one
- * column compares with nothing.
+ * history gave it, each named as it is hovered. Nothing is drawn until two forecasts stand and one
+ * has settled, since one column compares with nothing.
  */
 export function ForecastStrip({
   forecasts,
@@ -76,10 +83,27 @@ export function ForecastStrip({
 }) {
   const { t, i18n } = useTranslation();
   const { percent } = numberFormats(i18n.language);
+  const { hover, show, hide } = useChartHover();
   const marks = forecastMarks(forecasts, MARKS);
   const settled = marks.flatMap((mark) => mark.settled ?? []);
 
   if (marks.length < 2 || settled.length === 0) return null;
+
+  const describe = ({ date, settled: mark }: ForecastMark) => {
+    if (!mark) return t("research.forecasts.mark-open", { date });
+
+    const given = percent.format(mark.given);
+
+    return mark.history === null
+      ? t("research.forecasts.mark", { date, given })
+      : t("research.forecasts.mark-history", {
+          date,
+          given,
+          history: percent.format(mark.history),
+        });
+  };
+
+  const hovered = hover ? marks[hover.index] : undefined;
 
   return (
     <figure className="flex flex-col gap-1.5">
@@ -90,9 +114,17 @@ export function ForecastStrip({
           <span>{percent.format(1)}</span>
           <span>{percent.format(0)}</span>
         </div>
-        <ol className="flex h-14 min-w-0 flex-1 items-end gap-[3px] border-b border-separator">
-          {marks.map((mark) => (
-            <Mark key={mark.id} mark={mark} />
+        <ol
+          className="flex h-14 min-w-0 flex-1 items-end gap-[3px] border-b border-separator"
+          onPointerLeave={hide}>
+          {marks.map((mark, index) => (
+            <Mark
+              key={mark.id}
+              mark={mark}
+              description={describe(mark)}
+              faded={hover !== null && hover.index !== index}
+              onPointerMove={(event) => show(index, event)}
+            />
           ))}
         </ol>
       </div>
@@ -102,6 +134,9 @@ export function ForecastStrip({
           led: settled.filter(({ led }) => led).length,
         })}
       </figcaption>
+      <ChartTooltip hover={hover}>
+        {hovered ? describe(hovered) : null}
+      </ChartTooltip>
     </figure>
   );
 }
