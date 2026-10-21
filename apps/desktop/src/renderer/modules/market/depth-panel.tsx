@@ -11,6 +11,7 @@ import { twLots } from "@solyx/core/rules/tw";
 import { cssPercent } from "@solyx/utils/format";
 
 import { LoadingState } from "../../components/loading-state.tsx";
+import { WashBar } from "../../components/wash-bar.tsx";
 
 import { bandQuery } from "./band-query.ts";
 import { numberFormats } from "./number-formats.ts";
@@ -242,14 +243,13 @@ function DepthLadder({
       ? format.amount.format(sizeOf(symbol.market, level.shares))
       : "";
 
+    // Sizes are not a price's direction, so they take the neutral ink rather than red or green.
     const bar = level ? (
-      <span
-        aria-hidden
-        className={cn(
-          "absolute inset-y-0.5 bg-foreground/10",
-          side === "bid" ? "right-0" : "left-0"
-        )}
-        style={{ width: `${(level.shares / largest) * 100}%` }}
+      <WashBar
+        share={level.shares / largest}
+        color="var(--muted)"
+        fromRight={side === "bid"}
+        className="inset-y-0.5 rounded-sm"
       />
     ) : null;
 

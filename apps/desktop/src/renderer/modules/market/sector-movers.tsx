@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { Table } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -7,11 +8,11 @@ import { useTranslation } from "react-i18next";
 import { Currency, Market } from "@solyx/core/market";
 import { TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 import type { SectorMovers as Movers } from "@solyx/core/sectors";
-import { cssPercent } from "@solyx/utils/format";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
+import { WashBar } from "../../components/wash-bar.tsx";
 import { sectorMoversQuery } from "../fundamentals/fundamentals-query.ts";
 
 import { ListingName } from "./listing-name.tsx";
@@ -20,9 +21,8 @@ import { useDirectionColors } from "./price-colors.ts";
 import { directionOf } from "./quote-figures.tsx";
 
 /**
- * The companies that moved one sector's market value most, the rest in one row. Each row's ground
- * is a bar of its part of the move against the largest part shown, washing into its direction's
- * colour toward the end that marks it.
+ * The companies that moved one sector's market value most, the rest in one row. Each part of the
+ * move lies on a bar against the largest part shown, in its direction's colour.
  */
 function MoversTable({ movers }: { movers: Movers }) {
   const { t, i18n } = useTranslation();
@@ -34,98 +34,92 @@ function MoversTable({ movers }: { movers: Movers }) {
     format.quotePercentChange.format(value / movers.marketValue);
 
   const rows = [
-    ...movers.movers.map((mover) => ({
-      id: mover.symbol,
-      mover,
-      rest: null,
-      valueChange: mover.valueChange,
-    })),
+    ...movers.movers.map((mover) => ({ id: mover.symbol, mover, rest: null })),
     ...(movers.rest.companies > 0
-      ? [
-          {
-            id: "rest",
-            mover: null,
-            rest: movers.rest,
-            valueChange: movers.rest.valueChange,
-          },
-        ]
+      ? [{ id: "rest", mover: null, rest: movers.rest }]
       : []),
   ];
 
   const largest = Math.max(
-    ...rows.map(({ valueChange }) => Math.abs(valueChange))
+    ...rows.map(({ mover, rest }) =>
+      Math.abs(mover?.valueChange ?? rest?.valueChange ?? 0)
+    )
   );
 
   return (
-    <table
-      aria-label={t("heat-map.movers.title")}
-      className="w-full border-separate border-spacing-y-0.5 text-sm tabular-nums">
-      <thead className="text-xs text-muted">
-        <tr>
-          <th className="px-2 pb-1 text-left font-normal">
-            {t("heat-map.movers.symbol")}
-          </th>
-          <th className="px-2 pb-1 text-right font-normal whitespace-nowrap">
-            {t("heat-map.movers.percent")}
-          </th>
-          <th className="px-2 pb-1 text-right font-normal whitespace-nowrap">
-            {t("heat-map.movers.value-change")}
-          </th>
-          <th className="px-2 pb-1 text-right font-normal whitespace-nowrap">
-            {t("heat-map.movers.contribution")}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map(({ id, mover, rest, valueChange }) => {
-          const color = directionOf(direction, valueChange)?.solid;
+    <Table variant="secondary">
+      <Table.ScrollContainer>
+        <Table.Content aria-label={t("heat-map.movers.title")}>
+          <Table.Header>
+            <Table.Column isRowHeader>
+              {t("heat-map.movers.symbol")}
+            </Table.Column>
+            <Table.Column>{t("heat-map.movers.percent")}</Table.Column>
+            <Table.Column>{t("heat-map.movers.value-change")}</Table.Column>
+            {/* Wide enough that the bars under the figures can tell the smaller parts apart. */}
+            <Table.Column className="w-2/5">
+              {t("heat-map.movers.contribution")}
+            </Table.Column>
+          </Table.Header>
+          <Table.Body>
+            <Table.Collection items={rows}>
+              {({ id, mover, rest }) => {
+                const valueChange =
+                  mover?.valueChange ?? rest?.valueChange ?? 0;
 
-          return (
-            // The row is the bar's containing block, and isolates it so it sits under the text.
-            <tr key={id} className="relative isolate h-8">
-              <td className="w-full max-w-0 px-2">
-                {color ? (
-                  <span
-                    aria-hidden
-                    className="absolute inset-y-0 left-0 -z-10 rounded-md"
-                    style={{
-                      width: cssPercent(Math.abs(valueChange) / largest),
-                      backgroundImage: `linear-gradient(to right, color-mix(in oklab, ${color} 2%, transparent), color-mix(in oklab, ${color} 34%, transparent))`,
-                    }}
-                  />
-                ) : null}
-                {mover ? (
-                  <Link
-                    to="/symbol/$market/$symbol"
-                    params={{ market: Market.TW, symbol: mover.symbol }}
-                    className="flex min-w-0 items-baseline gap-1.5 hover:underline">
-                    <span className="shrink-0 font-medium">{mover.symbol}</span>
-                    <ListingName
-                      symbol={{ market: Market.TW, symbol: mover.symbol }}
-                    />
-                  </Link>
-                ) : (
-                  <span className="text-muted">
-                    {t("heat-map.movers.rest", {
-                      count: rest?.companies ?? 0,
-                    })}
-                  </span>
-                )}
-              </td>
-              <td className="px-2 text-right whitespace-nowrap">
-                {mover ? format.quotePercentChange.format(mover.percent) : ""}
-              </td>
-              <td className="px-2 text-right whitespace-nowrap">
-                {format.signedCompactAmount.format(valueChange)}
-              </td>
-              <td className="px-2 text-right whitespace-nowrap">
-                {contribution(valueChange)}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                const color = directionOf(direction, valueChange)?.solid;
+
+                return (
+                  <Table.Row id={id}>
+                    <Table.Cell>
+                      {mover ? (
+                        <Link
+                          to="/symbol/$market/$symbol"
+                          params={{ market: Market.TW, symbol: mover.symbol }}
+                          className="flex min-w-0 items-baseline gap-1.5 hover:underline">
+                          <span className="shrink-0 font-medium">
+                            {mover.symbol}
+                          </span>
+                          <ListingName
+                            symbol={{ market: Market.TW, symbol: mover.symbol }}
+                          />
+                        </Link>
+                      ) : (
+                        <span className="text-muted">
+                          {t("heat-map.movers.rest", {
+                            count: rest?.companies ?? 0,
+                          })}
+                        </span>
+                      )}
+                    </Table.Cell>
+                    <Table.Cell className="tabular-nums">
+                      {mover
+                        ? format.quotePercentChange.format(mover.percent)
+                        : ""}
+                    </Table.Cell>
+                    <Table.Cell className="tabular-nums">
+                      {format.signedCompactAmount.format(valueChange)}
+                    </Table.Cell>
+                    <Table.Cell className="relative tabular-nums">
+                      {color ? (
+                        <WashBar
+                          share={Math.abs(valueChange) / largest}
+                          color={color}
+                          className="inset-y-1.5"
+                        />
+                      ) : null}
+                      <span className="relative">
+                        {contribution(valueChange)}
+                      </span>
+                    </Table.Cell>
+                  </Table.Row>
+                );
+              }}
+            </Table.Collection>
+          </Table.Body>
+        </Table.Content>
+      </Table.ScrollContainer>
+    </Table>
   );
 }
 
