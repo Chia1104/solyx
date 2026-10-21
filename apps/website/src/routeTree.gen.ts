@@ -13,6 +13,8 @@ import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as Char123LangChar125IndexRouteImport } from './routes/{-$lang}/index'
 import { Route as Char123LangChar125ChangelogRouteImport } from './routes/{-$lang}/changelog'
 import { Route as Char123LangChar125DownloadRouteImport } from './routes/{-$lang}/download'
+import { Route as Char123LangChar125PrivacyRouteImport } from './routes/{-$lang}/privacy'
+import { Route as Char123LangChar125TermsRouteImport } from './routes/{-$lang}/terms'
 import { Route as Char123LangChar125DocsSplatRouteImport } from './routes/{-$lang}/docs/$'
 
 const ApiSearchRoute = ApiSearchRouteImport.update({
@@ -37,6 +39,17 @@ const Char123LangChar125DownloadRoute =
     path: '/{-$lang}/download',
     getParentRoute: () => rootRouteImport,
   } as any)
+const Char123LangChar125PrivacyRoute =
+  Char123LangChar125PrivacyRouteImport.update({
+    id: '/{-$lang}/privacy',
+    path: '/{-$lang}/privacy',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char123LangChar125TermsRoute = Char123LangChar125TermsRouteImport.update({
+  id: '/{-$lang}/terms',
+  path: '/{-$lang}/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Char123LangChar125DocsSplatRoute =
   Char123LangChar125DocsSplatRouteImport.update({
     id: '/{-$lang}/docs/$',
@@ -48,6 +61,8 @@ export interface FileRoutesByFullPath {
   '/api/search': typeof ApiSearchRoute
   '/{-$lang}/changelog': typeof Char123LangChar125ChangelogRoute
   '/{-$lang}/download': typeof Char123LangChar125DownloadRoute
+  '/{-$lang}/privacy': typeof Char123LangChar125PrivacyRoute
+  '/{-$lang}/terms': typeof Char123LangChar125TermsRoute
   '/{-$lang}/': typeof Char123LangChar125IndexRoute
   '/{-$lang}/docs/$': typeof Char123LangChar125DocsSplatRoute
 }
@@ -55,6 +70,8 @@ export interface FileRoutesByTo {
   '/api/search': typeof ApiSearchRoute
   '/{-$lang}/changelog': typeof Char123LangChar125ChangelogRoute
   '/{-$lang}/download': typeof Char123LangChar125DownloadRoute
+  '/{-$lang}/privacy': typeof Char123LangChar125PrivacyRoute
+  '/{-$lang}/terms': typeof Char123LangChar125TermsRoute
   '/{-$lang}': typeof Char123LangChar125IndexRoute
   '/{-$lang}/docs/$': typeof Char123LangChar125DocsSplatRoute
 }
@@ -63,6 +80,8 @@ export interface FileRoutesById {
   '/api/search': typeof ApiSearchRoute
   '/{-$lang}/changelog': typeof Char123LangChar125ChangelogRoute
   '/{-$lang}/download': typeof Char123LangChar125DownloadRoute
+  '/{-$lang}/privacy': typeof Char123LangChar125PrivacyRoute
+  '/{-$lang}/terms': typeof Char123LangChar125TermsRoute
   '/{-$lang}/': typeof Char123LangChar125IndexRoute
   '/{-$lang}/docs/$': typeof Char123LangChar125DocsSplatRoute
 }
@@ -72,6 +91,8 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/{-$lang}/changelog'
     | '/{-$lang}/download'
+    | '/{-$lang}/privacy'
+    | '/{-$lang}/terms'
     | '/{-$lang}/'
     | '/{-$lang}/docs/$'
   fileRoutesByTo: FileRoutesByTo
@@ -79,6 +100,8 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/{-$lang}/changelog'
     | '/{-$lang}/download'
+    | '/{-$lang}/privacy'
+    | '/{-$lang}/terms'
     | '/{-$lang}'
     | '/{-$lang}/docs/$'
   id:
@@ -86,6 +109,8 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/{-$lang}/changelog'
     | '/{-$lang}/download'
+    | '/{-$lang}/privacy'
+    | '/{-$lang}/terms'
     | '/{-$lang}/'
     | '/{-$lang}/docs/$'
   fileRoutesById: FileRoutesById
@@ -94,6 +119,8 @@ export interface RootRouteChildren {
   ApiSearchRoute: typeof ApiSearchRoute
   Char123LangChar125ChangelogRoute: typeof Char123LangChar125ChangelogRoute
   Char123LangChar125DownloadRoute: typeof Char123LangChar125DownloadRoute
+  Char123LangChar125PrivacyRoute: typeof Char123LangChar125PrivacyRoute
+  Char123LangChar125TermsRoute: typeof Char123LangChar125TermsRoute
   Char123LangChar125IndexRoute: typeof Char123LangChar125IndexRoute
   Char123LangChar125DocsSplatRoute: typeof Char123LangChar125DocsSplatRoute
 }
@@ -128,6 +155,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char123LangChar125DownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/{-$lang}/privacy': {
+      id: '/{-$lang}/privacy'
+      path: '/{-$lang}/privacy'
+      fullPath: '/{-$lang}/privacy'
+      preLoaderRoute: typeof Char123LangChar125PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/{-$lang}/terms': {
+      id: '/{-$lang}/terms'
+      path: '/{-$lang}/terms'
+      fullPath: '/{-$lang}/terms'
+      preLoaderRoute: typeof Char123LangChar125TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/{-$lang}/docs/$': {
       id: '/{-$lang}/docs/$'
       path: '/{-$lang}/docs/$'
@@ -142,6 +183,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSearchRoute: ApiSearchRoute,
   Char123LangChar125ChangelogRoute: Char123LangChar125ChangelogRoute,
   Char123LangChar125DownloadRoute: Char123LangChar125DownloadRoute,
+  Char123LangChar125PrivacyRoute: Char123LangChar125PrivacyRoute,
+  Char123LangChar125TermsRoute: Char123LangChar125TermsRoute,
   Char123LangChar125IndexRoute: Char123LangChar125IndexRoute,
   Char123LangChar125DocsSplatRoute: Char123LangChar125DocsSplatRoute,
 }

@@ -30,7 +30,7 @@ export function SiteFooter() {
         </div>
         <nav
           aria-label={t("nav.footer")}
-          className="flex gap-6 text-sm md:flex-col md:gap-2">
+          className="flex flex-wrap gap-x-6 gap-y-2 text-sm md:flex-col md:gap-2">
           <Link
             to="/{-$lang}/docs/$"
             params={{ lang: langParam(locale), _splat: "" }}
@@ -52,6 +52,18 @@ export function SiteFooter() {
           <a href={GITHUB_URL} className={NAV_LINK}>
             {t("nav.github")}
           </a>
+          <Link
+            to="/{-$lang}/terms"
+            params={{ lang: langParam(locale) }}
+            className={NAV_LINK}>
+            {t("nav.terms")}
+          </Link>
+          <Link
+            to="/{-$lang}/privacy"
+            params={{ lang: langParam(locale) }}
+            className={NAV_LINK}>
+            {t("nav.privacy")}
+          </Link>
         </nav>
       </div>
     </footer>
