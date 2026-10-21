@@ -184,6 +184,15 @@ export const TW_SECTOR_INDUSTRY: Record<TwSector, string> = {
   [TwSector.HomeLiving]: "38",
 };
 
+/** The sector whose index is drawn from the exchange's industry `code`; `null` for an industry with none, as depositary receipts. */
+export function sectorOfIndustry(code: string): TwSector | null {
+  const found = Object.values(TwSector).find(
+    (sector) => TW_SECTOR_INDUSTRY[sector] === code
+  );
+
+  return found ?? null;
+}
+
 /** A listing's close of a session as its exchange lists it, with its change from the close before. */
 export interface SessionClose {
   /** The session's exchange-local day. */

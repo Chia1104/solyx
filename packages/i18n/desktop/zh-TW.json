@@ -185,7 +185,11 @@
         "improving": "改善"
       },
       "followed-title": "持股與追蹤的輪動",
-      "followed-description": "你持有和追蹤的標的對各自市場的指數，用還原價計算，讀法和類股相同；線是最近 {{trail}} 個交易日。又持有又追蹤的算持股。"
+      "followed-description": "你持有和追蹤的標的對各自市場的指數，用還原價計算，讀法和類股相同；線是最近 {{trail}} 個交易日。又持有又追蹤的算持股。",
+      "listing-title": "輪動",
+      "against": "對{{name}}",
+      "sector-index": "{{sector}}類股指數",
+      "reading": "{{quadrant}}，相對位置 {{level}}，動能 {{momentum}}"
     }
   },
   "sectors": {

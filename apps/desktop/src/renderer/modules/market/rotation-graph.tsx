@@ -60,7 +60,8 @@ const DEFAULT_PERIOD = 60;
 /** The filter's choice that keeps every group. */
 const EVERY_GROUP = "every";
 
-interface Placed extends RotationEntry {
+/** An entry with its colour and its reading over the period shown. */
+export interface PlacedEntry extends RotationEntry {
   color: string;
   reading: RotationReading;
 }
@@ -70,14 +71,17 @@ interface Placed extends RotationEntry {
  * names the entry and its reading as it is pointed at; the quadrants meet at the origin. Pointing
  * at an entry, here or in the lists under the plot, lifts its line over the rest.
  */
-function RotationPlot({
+export function RotationPlot({
   placed,
   focused,
   onFocus,
+  className,
 }: {
-  placed: readonly Placed[];
+  placed: readonly PlacedEntry[];
   focused: string | null;
   onFocus: (id: string | null) => void;
+  /** Sizes the plot; four by three, no taller than the overview's, where left out. */
+  className?: string;
 }) {
   const { t, i18n } = useTranslation();
   const { signedIndicator } = numberFormats(i18n.language);
@@ -105,7 +109,11 @@ function RotationPlot({
   const drawn = orderBy(placed, [({ id }) => id === focused], ["asc"]);
 
   return (
-    <div className="relative aspect-[4/3] max-h-80 w-full rounded-sm pencil">
+    <div
+      className={cn(
+        "relative w-full rounded-sm pencil",
+        className ?? "aspect-[4/3] max-h-80"
+      )}>
       {QUADRANT_ORDER.map((quadrant) => (
         <span
           key={quadrant}
@@ -245,7 +253,7 @@ function QuadrantLists({
   focused,
   onFocus,
 }: {
-  placed: readonly Placed[];
+  placed: readonly PlacedEntry[];
   focused: string | null;
   onFocus: (id: string | null) => void;
 }) {
@@ -327,7 +335,7 @@ export function RotationGraph({
 
   const colors = new Map(groups.map((each) => [each.id, each.color]));
 
-  const placed = entries.flatMap((entry): Placed[] => {
+  const placed = entries.flatMap((entry): PlacedEntry[] => {
     const reading = entry.readings.find((each) => each.period === period);
     const color = colors.get(entry.group);
 

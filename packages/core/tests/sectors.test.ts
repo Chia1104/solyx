@@ -7,6 +7,7 @@ import {
   sectorMoves,
   TW_SECTOR_INDUSTRY,
   sectorMovers,
+  sectorOfIndustry,
 } from "../src/sectors.ts";
 
 test("every sector has one index of its own", () => {
@@ -112,4 +113,10 @@ test("a sector's movers are its companies by what their shares gained, the top n
     rest: { companies: 1, valueChange: 250 },
   });
   expect(sectorMovers(TwSector.Steel, companies, closes)).toBeNull();
+});
+
+test("sectorOfIndustry names the sector an industry code's index is drawn from", () => {
+  expect(sectorOfIndustry("24")).toBe(TwSector.Semiconductors);
+  expect(sectorOfIndustry("17")).toBe(TwSector.Finance);
+  expect(sectorOfIndustry("91")).toBeNull();
 });

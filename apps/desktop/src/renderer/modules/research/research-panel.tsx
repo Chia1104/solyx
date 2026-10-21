@@ -33,6 +33,7 @@ import { LoadingState } from "../../components/loading-state.tsx";
 import { useAgentStore } from "../agent/agent-store.ts";
 import { timedDay } from "../calendar/upcoming-events.tsx";
 import { FinancialTrends } from "../fundamentals/financial-trends.tsx";
+import { ListingRotation } from "../market/listing-rotation.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 import { PublishedTime } from "../news/news-list.tsx";
 import { useDecisionsReady } from "../settings/settings-query.ts";
@@ -426,6 +427,7 @@ function CoverageView({
     return (
       <div className="flex flex-col gap-4 px-6 py-4 text-sm">
         <p className="text-muted">{t("research.empty")}</p>
+        <ListingRotation symbol={symbol} />
         <FinancialTrends symbol={symbol} />
       </div>
     );
@@ -434,6 +436,9 @@ function CoverageView({
   return (
     // Side by side where the main view is wide; narrower, the forecasts follow the report.
     <div className="grid gap-6 px-6 py-4 @min-[56rem]/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="@min-[56rem]/main:col-span-2">
+        <ListingRotation symbol={symbol} />
+      </div>
       {report ? (
         <ReportView
           report={report}

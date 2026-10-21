@@ -296,6 +296,23 @@ test("listing rotations read each listing's daily bars and its market's index on
   );
 });
 
+test("rotationAgainst reads the listing's and the other's daily bars", async () => {
+  const { marketData, provider } = setup();
+
+  const readings = await marketData.rotationAgainst(
+    { market: Market.TW, symbol: "2330" },
+    { market: Market.TW, symbol: "IX0028" }
+  );
+
+  expect(provider.getCandles).toHaveBeenCalledTimes(2);
+  expect(provider.getCandles).toHaveBeenCalledWith({
+    symbol: { market: Market.TW, symbol: "IX0028" },
+    interval: Interval.OneDay,
+    ...lookbackRange(Market.TW, Interval.OneDay, NOW),
+  });
+  expect(readings.map(({ period }) => period)).toEqual(ROTATION_PERIODS);
+});
+
 test("weekly bars merge whole weeks of the source's daily bars", async () => {
   const { marketData, provider } = setup();
 
