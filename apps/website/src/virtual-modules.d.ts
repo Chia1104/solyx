@@ -15,3 +15,10 @@ declare module "virtual:release-notes" {
 
   export default releases;
 }
+
+declare module "virtual:remote-screenshots" {
+  /** The screenshots the asset host held when the site was built, by their path under `docs/`. */
+  const paths: string[];
+
+  export default paths;
+}

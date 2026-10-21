@@ -27,6 +27,7 @@ import {
   readReleases,
   releaseNotes,
 } from "./src/lib/releases.ts";
+import { readRemoteScreenshots } from "./src/lib/remote-screenshots.ts";
 import { socialCardPath } from "./src/lib/social-card.ts";
 
 const docsUrl = createGetUrl("/docs");
@@ -120,6 +121,25 @@ const releaseData = {
   },
 } satisfies Plugin;
 
+const REMOTE_SCREENSHOTS = "virtual:remote-screenshots";
+
+let remoteScreenshots: ReturnType<typeof readRemoteScreenshots> | undefined;
+
+// The asset host is asked once per build which screenshots it holds, so a page draws each shot, or
+// its pencilled frame, without the browser asking; a shot uploaded later shows from the next deploy.
+const screenshotData = {
+  name: "solyx:remote-screenshots",
+  resolveId: (id) =>
+    id === REMOTE_SCREENSHOTS ? `\0${REMOTE_SCREENSHOTS}` : undefined,
+  async load(id) {
+    if (id !== `\0${REMOTE_SCREENSHOTS}`) return undefined;
+
+    remoteScreenshots ??= readRemoteScreenshots(docsDir);
+
+    return `export default ${JSON.stringify(await remoteScreenshots)};`;
+  },
+} satisfies Plugin;
+
 const require = createRequire(import.meta.url);
 
 // TanStack Start's prerender writes a response as text, which breaks an image, and a card drawn in
@@ -205,6 +225,7 @@ export default defineConfig({
     }),
     react(),
     releaseData,
+    screenshotData,
     socialCards,
   ],
   environments: {

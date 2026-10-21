@@ -6,7 +6,7 @@ description: 附機率的價格區間，一提出就凍結，並對照實際價�
 預測把一檔股票幾個交易日後（最多 20 個）的收盤價切成二到四個價格區間，每個區間各有一個機率。每個區間都帶著一條 Agent 預期價格會走的路徑，從最新一根 K 棒起以虛線畫在圖上，機率越高顏色越深。偏多或偏空的預測可以附上計畫：進場價、停損價與目標價。
 
 <Screenshot
-  file="research/forecast-chart.zh-TW.png"
+  file="research/forecast-chart.png"
   alt="畫在日線圖上的預測情境，附進場、停損與目標"
 />
 
@@ -31,6 +31,6 @@ description: 附機率的價格區間，一提出就凍結，並對照實際價�
 
 在個股研究的 **預測** 底下，紀錄顯示有幾筆預測已結算、平均 Brier 分數、相對歷史基準率的預測能力，以及計畫的平均 R。一條長條由舊到新，顯示每筆預測給成真區間的機率，並對照歷史的比例；**預測校準** 圖則顯示給出的機率實際成真的比例：落在虛線上，表示成真的頻率剛好等於給的機率。紀錄也會列出 MAGI 可決的情境，以及決策模型對事實的判讀，對照歷史預期的表現如何。
 
-<Screenshot file="research/calibration.zh-TW.png" alt="預測紀錄與預測校準圖" />
+<Screenshot file="research/calibration.png" alt="預測紀錄與預測校準圖" />
 
 [預測怎麼評分](/zh-TW/docs/data/forecasts#judging-at-the-horizon)。
