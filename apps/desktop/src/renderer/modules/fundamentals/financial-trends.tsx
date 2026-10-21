@@ -11,10 +11,7 @@ import { currencyOf } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { cssPercent } from "@solyx/utils/format";
 
-import {
-  ChartTooltip,
-  useChartHover,
-} from "../../components/chart-tooltip.tsx";
+import { ChartMark } from "../../components/chart-mark.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LINE_COLORS } from "../market/chart-palette.ts";
 import { numberFormats } from "../market/number-formats.ts";
@@ -32,46 +29,41 @@ interface TrendMark {
 /**
  * A figure over its periods, oldest first: the newest in ink, the rest in pencil, all on zero.
  * The plot is only as wide as its columns, so the periods named under it sit at its two ends.
- * Hovering a column names its period and figure, and fades the others.
  */
 function TrendColumns({ marks }: { marks: readonly TrendMark[] }) {
   const { zero, columns } = columnScale(marks.map(({ figure }) => figure));
-  const { hover, show, hide } = useChartHover();
 
   return (
     <div className="flex w-fit max-w-full flex-col gap-1.5">
       <div className="relative h-12">
-        <ol className="flex h-full gap-[3px]" onPointerLeave={hide}>
+        <ol className="flex h-full gap-[3px]">
           {marks.map((mark, index) => {
             const place = columns[index];
 
             return (
-              <li
-                key={mark.key}
-                className="relative h-full w-4 min-w-1 shrink"
-                onPointerMove={(event) => show(index, event)}>
-                <span className="sr-only">{mark.title}</span>
-                {place ? (
-                  <span
-                    className={cn(
-                      "absolute inset-x-0 min-h-px",
-                      place.falls ? "rounded-b-[2px]" : "rounded-t-[2px]",
-                      index === marks.length - 1 ? "bg-accent" : "bg-muted",
-                      hover && hover.index !== index && "opacity-40"
-                    )}
-                    style={{
-                      top: cssPercent(place.top),
-                      height: cssPercent(place.height),
-                    }}
-                  />
-                ) : null}
+              <li key={mark.key} className="relative h-full w-4 min-w-1 shrink">
+                <ChartMark label={mark.title}>
+                  {place ? (
+                    <span
+                      className={cn(
+                        "absolute inset-x-0 min-h-px",
+                        place.falls ? "rounded-b-[2px]" : "rounded-t-[2px]",
+                        index === marks.length - 1 ? "bg-accent" : "bg-muted"
+                      )}
+                      style={{
+                        top: cssPercent(place.top),
+                        height: cssPercent(place.height),
+                      }}
+                    />
+                  ) : null}
+                </ChartMark>
               </li>
             );
           })}
         </ol>
         <span
           aria-hidden
-          className="absolute inset-x-0 h-px bg-border"
+          className="pointer-events-none absolute inset-x-0 h-px bg-border"
           style={{ top: cssPercent(zero) }}
         />
       </div>
@@ -81,9 +73,6 @@ function TrendColumns({ marks }: { marks: readonly TrendMark[] }) {
         <span>{marks.at(0)?.key}</span>
         <span>{marks.at(-1)?.key}</span>
       </div>
-      <ChartTooltip hover={hover}>
-        {hover ? marks[hover.index].title : null}
-      </ChartTooltip>
     </div>
   );
 }
@@ -139,8 +128,8 @@ const INSET = 8;
 
 /**
  * The gross, operating and net margins over the quarters on one scale, each a line in its own
- * colour, named with its newest figure. Hovering the plot marks the nearest quarter on every line
- * and names its three margins. Nothing is drawn while fewer than two quarters report one.
+ * colour, named with its newest figure. Pointing at a quarter marks it on every line and names
+ * its three margins. Nothing is drawn while fewer than two quarters report one.
  */
 function MarginLines({
   quarters,
@@ -149,7 +138,6 @@ function MarginLines({
 }) {
   const { t, i18n } = useTranslation();
   const { percent, fineShare } = numberFormats(i18n.language);
-  const { hover, show, hide } = useChartHover();
 
   const lines = MARGINS.map((margin) => ({
     ...margin,
@@ -166,8 +154,7 @@ function MarginLines({
 
   const x = scaleLinear()
     .domain([0, quarters.length - 1])
-    .range([0, 100])
-    .clamp(true);
+    .range([0, 100]);
 
   const y = scaleLinear()
     .domain([Math.min(...all), Math.max(...all)])
@@ -183,7 +170,7 @@ function MarginLines({
   const shown = (value: number | null) =>
     value === null ? "–" : fineShare.format(value);
 
-  const hovered = hover ? quarters[hover.index] : undefined;
+  const last = quarters.length - 1;
 
   return (
     <figure className="flex min-w-0 flex-col gap-1.5">
@@ -205,19 +192,7 @@ function MarginLines({
           ))}
         </span>
       </figcaption>
-      <div
-        className="relative h-12"
-        onPointerMove={(event) => {
-          const box = event.currentTarget.getBoundingClientRect();
-
-          show(
-            Math.round(
-              x.invert(((event.clientX - box.left) / box.width) * 100)
-            ),
-            event
-          );
-        }}
-        onPointerLeave={hide}>
+      <div className="relative h-12">
         <svg
           aria-hidden
           viewBox="0 0 100 100"
@@ -235,43 +210,69 @@ function MarginLines({
             />
           ))}
         </svg>
-        {hover ? (
-          <div aria-hidden>
-            <span
-              className="absolute inset-y-0 w-px bg-border"
-              style={{ left: cssPercent(x(hover.index) / 100) }}
-            />
-            {lines.map(({ key, color, values }) => {
-              const value = values[hover.index];
+        {/* Each quarter's band reaches halfway to its neighbours' points, so the one pointed at is the nearest. */}
+        <ol className="absolute inset-0 flex">
+          {quarters.map((quarter, index) => {
+            const end = index === 0 || index === last;
+            // Where the quarter's point sits across its band.
+            const at = index === 0 ? 0 : index === last ? 1 : 0.5;
 
-              return value === null ? null : (
-                <span
-                  key={key}
-                  className="absolute size-1.5 -translate-1/2 rounded-full ring-2 ring-background"
-                  style={{
-                    left: cssPercent(x(hover.index) / 100),
-                    top: cssPercent(y(value) / 100),
-                    backgroundColor: color,
-                  }}
-                />
-              );
-            })}
-          </div>
-        ) : null}
-        <ol className="sr-only">
-          {quarters.map((quarter) => (
-            <li key={quarter.period}>
-              {t("fundamentals.trends.mark", {
-                period: quarter.period,
-                figure: lines
-                  .map(
-                    ({ key, of }) =>
-                      `${t(`fundamentals.trends.margin.${key}`)} ${shown(of(quarter))}`
-                  )
-                  .join(" · "),
-              })}
-            </li>
-          ))}
+            return (
+              <li
+                key={quarter.period}
+                className="relative h-full basis-0"
+                style={{ flexGrow: end ? 1 : 2 }}>
+                <ChartMark
+                  label={t("fundamentals.trends.mark", {
+                    period: quarter.period,
+                    figure: lines
+                      .map(
+                        ({ key, of }) =>
+                          `${t(`fundamentals.trends.margin.${key}`)} ${shown(of(quarter))}`
+                      )
+                      .join(" · "),
+                  })}
+                  tooltip={
+                    <>
+                      <span className="font-medium">{quarter.period}</span>
+                      {lines.map(({ key, color, of }) => (
+                        <span key={key} className="flex items-center gap-1.5">
+                          <i
+                            aria-hidden
+                            className="h-0.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: color }}
+                          />
+                          <span className="text-muted">
+                            {t(`fundamentals.trends.margin.${key}`)}
+                          </span>
+                          <span className="ml-auto pl-3">
+                            {shown(of(quarter))}
+                          </span>
+                        </span>
+                      ))}
+                    </>
+                  }
+                  // Light enough that the lines show through the band.
+                  className="hover:bg-default/40 focus-visible:bg-default/40">
+                  {lines.map(({ key, color, values }) => {
+                    const value = values[index];
+
+                    return value === null ? null : (
+                      <span
+                        key={key}
+                        className="absolute hidden size-1.5 -translate-1/2 rounded-full ring-2 ring-background group-hover/mark:block group-focus-visible/mark:block"
+                        style={{
+                          left: cssPercent(at),
+                          top: cssPercent(y(value) / 100),
+                          backgroundColor: color,
+                        }}
+                      />
+                    );
+                  })}
+                </ChartMark>
+              </li>
+            );
+          })}
         </ol>
       </div>
       <div
@@ -280,26 +281,6 @@ function MarginLines({
         <span>{quarters.at(0)?.period}</span>
         <span>{quarters.at(-1)?.period}</span>
       </div>
-      <ChartTooltip hover={hover}>
-        {hovered ? (
-          <>
-            <span className="font-medium">{hovered.period}</span>
-            {lines.map(({ key, color, of }) => (
-              <span key={key} className="flex items-center gap-1.5">
-                <i
-                  aria-hidden
-                  className="h-0.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: color }}
-                />
-                <span className="text-muted">
-                  {t(`fundamentals.trends.margin.${key}`)}
-                </span>
-                <span className="ml-auto pl-3">{shown(of(hovered))}</span>
-              </span>
-            ))}
-          </>
-        ) : null}
-      </ChartTooltip>
     </figure>
   );
 }

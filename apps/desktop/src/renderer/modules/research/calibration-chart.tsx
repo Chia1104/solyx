@@ -4,10 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { CalibrationBucket } from "@solyx/core/forecast";
 import { cssPercent } from "@solyx/utils/format";
 
-import {
-  ChartTooltip,
-  useChartHover,
-} from "../../components/chart-tooltip.tsx";
+import { ChartMark } from "../../components/chart-mark.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
 /** The largest dot's diameter in pixels, for the bucket that holds the most scenarios. */
@@ -18,7 +15,7 @@ const LEAST = 6;
 /**
  * How often the scenarios given each band of probability came true, against the dashed diagonal
  * where they would come true just as often as given; each dot is sized by how many scenarios it
- * stands for, and hovering one names them. Nothing is drawn until a forecast has settled.
+ * stands for, and pointing at one names them. Nothing is drawn until a forecast has settled.
  */
 export function CalibrationChart({
   buckets,
@@ -27,7 +24,6 @@ export function CalibrationChart({
 }) {
   const { t, i18n } = useTranslation();
   const { percent } = numberFormats(i18n.language);
-  const { hover, show, hide } = useChartHover();
   const stated = buckets.filter(({ scenarios }) => scenarios > 0);
 
   if (stated.length === 0) return null;
@@ -44,8 +40,6 @@ export function CalibrationChart({
       held,
       rate: percent.format(held / scenarios),
     });
-
-  const hovered = hover ? stated[hover.index] : undefined;
 
   return (
     <figure
@@ -76,19 +70,18 @@ export function CalibrationChart({
             />
           </svg>
           <ol>
-            {stated.map((bucket, index) => (
-              <li
-                key={bucket.from}
-                className="absolute -translate-x-1/2 translate-y-1/2 rounded-full bg-accent ring-2 ring-background"
-                style={{
-                  left: cssPercent((bucket.from + bucket.to) / 200),
-                  bottom: cssPercent(bucket.held / bucket.scenarios),
-                  width: size(bucket.scenarios),
-                  height: size(bucket.scenarios),
-                }}
-                onPointerMove={(event) => show(index, event)}
-                onPointerLeave={hide}>
-                <span className="sr-only">{describe(bucket)}</span>
+            {stated.map((bucket) => (
+              <li key={bucket.from}>
+                <ChartMark
+                  label={describe(bucket)}
+                  className="inset-auto -translate-x-1/2 translate-y-1/2 rounded-full bg-accent ring-2 ring-background hover:bg-accent focus-visible:bg-accent"
+                  style={{
+                    left: cssPercent((bucket.from + bucket.to) / 200),
+                    bottom: cssPercent(bucket.held / bucket.scenarios),
+                    width: size(bucket.scenarios),
+                    height: size(bucket.scenarios),
+                  }}
+                />
               </li>
             ))}
           </ol>
@@ -108,9 +101,6 @@ export function CalibrationChart({
       <figcaption className="text-xs text-muted">
         {t("research.forecasts.calibration")}
       </figcaption>
-      <ChartTooltip hover={hover}>
-        {hovered ? describe(hovered) : null}
-      </ChartTooltip>
     </figure>
   );
 }
