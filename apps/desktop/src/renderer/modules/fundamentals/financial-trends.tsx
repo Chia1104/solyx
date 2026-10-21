@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 import { cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
+import { scaleLinear } from "d3-scale";
+import { line } from "d3-shape";
 import { useTranslation } from "react-i18next";
 
 import type { StatementMetrics } from "@solyx/core/fundamentals";
@@ -9,6 +11,7 @@ import { currencyOf } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { cssPercent } from "@solyx/utils/format";
 
+import { ChartMark } from "../../components/chart-mark.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LINE_COLORS } from "../market/chart-palette.ts";
 import { numberFormats } from "../market/number-formats.ts";
@@ -38,30 +41,29 @@ function TrendColumns({ marks }: { marks: readonly TrendMark[] }) {
             const place = columns[index];
 
             return (
-              <li
-                key={mark.key}
-                title={mark.title}
-                className="relative h-full w-4 min-w-1 shrink">
-                {place ? (
-                  <span
-                    className={cn(
-                      "absolute inset-x-0 min-h-px",
-                      place.falls ? "rounded-b-[2px]" : "rounded-t-[2px]",
-                      index === marks.length - 1 ? "bg-accent" : "bg-muted"
-                    )}
-                    style={{
-                      top: cssPercent(place.top),
-                      height: cssPercent(place.height),
-                    }}
-                  />
-                ) : null}
+              <li key={mark.key} className="relative h-full w-4 min-w-1 shrink">
+                <ChartMark label={mark.title}>
+                  {place ? (
+                    <span
+                      className={cn(
+                        "absolute inset-x-0 min-h-px",
+                        place.falls ? "rounded-b-[2px]" : "rounded-t-[2px]",
+                        index === marks.length - 1 ? "bg-accent" : "bg-muted"
+                      )}
+                      style={{
+                        top: cssPercent(place.top),
+                        height: cssPercent(place.height),
+                      }}
+                    />
+                  ) : null}
+                </ChartMark>
               </li>
             );
           })}
         </ol>
         <span
           aria-hidden
-          className="absolute inset-x-0 h-px bg-border"
+          className="pointer-events-none absolute inset-x-0 h-px bg-border"
           style={{ top: cssPercent(zero) }}
         />
       </div>
@@ -126,7 +128,8 @@ const INSET = 8;
 
 /**
  * The gross, operating and net margins over the quarters on one scale, each a line in its own
- * colour, named with its newest figure. Nothing is drawn while fewer than two quarters report one.
+ * colour, named with its newest figure. Pointing at a quarter marks it on every line and names
+ * its three margins. Nothing is drawn while fewer than two quarters report one.
  */
 function MarginLines({
   quarters,
@@ -149,28 +152,25 @@ function MarginLines({
     values.filter((value) => value !== null)
   );
 
-  const low = Math.min(...all);
-  const high = Math.max(...all);
+  const x = scaleLinear()
+    .domain([0, quarters.length - 1])
+    .range([0, 100]);
 
-  const x = (index: number) => (index / (quarters.length - 1)) * 100;
+  const y = scaleLinear()
+    .domain([Math.min(...all), Math.max(...all)])
+    .range([100 - INSET, INSET]);
 
-  const y = (value: number) =>
-    high === low
-      ? 50
-      : INSET + ((high - value) / (high - low)) * (100 - 2 * INSET);
-
-  // A quarter that reports no figure breaks the line rather than bridging it.
-  const path = (values: readonly (number | null)[]) =>
-    values
-      .map((value, index) =>
-        value === null
-          ? ""
-          : `${index === 0 || values[index - 1] === null ? "M" : "L"}${x(index).toFixed(2)},${y(value).toFixed(2)}`
-      )
-      .join("");
+  // A quarter that reports no figure breaks the line rather than bridging it, so `y` never reads
+  // the zero standing in for it.
+  const path = line<number | null>()
+    .defined((value) => value !== null)
+    .x((_, index) => x(index))
+    .y((value) => y(value ?? 0));
 
   const shown = (value: number | null) =>
     value === null ? "–" : fineShare.format(value);
+
+  const last = quarters.length - 1;
 
   return (
     <figure className="flex min-w-0 flex-col gap-1.5">
@@ -201,7 +201,7 @@ function MarginLines({
           {lines.map(({ key, color, values }) => (
             <path
               key={key}
-              d={path(values)}
+              d={path(values) ?? undefined}
               fill="none"
               style={{ stroke: color }}
               strokeWidth={1.5}
@@ -210,22 +210,69 @@ function MarginLines({
             />
           ))}
         </svg>
-        <ol className="relative flex h-full">
-          {quarters.map((quarter) => (
-            <li
-              key={quarter.period}
-              title={t("fundamentals.trends.mark", {
-                period: quarter.period,
-                figure: lines
-                  .map(
-                    ({ key, of }) =>
-                      `${t(`fundamentals.trends.margin.${key}`)} ${shown(of(quarter))}`
-                  )
-                  .join(" · "),
-              })}
-              className="h-full flex-1"
-            />
-          ))}
+        {/* Each quarter's band reaches halfway to its neighbours' points, so the one pointed at is the nearest. */}
+        <ol className="absolute inset-0 flex">
+          {quarters.map((quarter, index) => {
+            const end = index === 0 || index === last;
+            // Where the quarter's point sits across its band.
+            const at = index === 0 ? 0 : index === last ? 1 : 0.5;
+
+            return (
+              <li
+                key={quarter.period}
+                className="relative h-full basis-0"
+                style={{ flexGrow: end ? 1 : 2 }}>
+                <ChartMark
+                  label={t("fundamentals.trends.mark", {
+                    period: quarter.period,
+                    figure: lines
+                      .map(
+                        ({ key, of }) =>
+                          `${t(`fundamentals.trends.margin.${key}`)} ${shown(of(quarter))}`
+                      )
+                      .join(" · "),
+                  })}
+                  tooltip={
+                    <>
+                      <span className="font-medium">{quarter.period}</span>
+                      {lines.map(({ key, color, of }) => (
+                        <span key={key} className="flex items-center gap-1.5">
+                          <i
+                            aria-hidden
+                            className="h-0.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: color }}
+                          />
+                          <span className="text-muted">
+                            {t(`fundamentals.trends.margin.${key}`)}
+                          </span>
+                          <span className="ml-auto pl-3">
+                            {shown(of(quarter))}
+                          </span>
+                        </span>
+                      ))}
+                    </>
+                  }
+                  // Light enough that the lines show through the band.
+                  className="hover:bg-default/60 focus-visible:bg-default/60">
+                  {lines.map(({ key, color, values }) => {
+                    const value = values[index];
+
+                    return value === null ? null : (
+                      <span
+                        key={key}
+                        className="absolute hidden size-1.5 -translate-1/2 rounded-full ring-2 ring-background group-hover/mark:block group-focus-visible/mark:block"
+                        style={{
+                          left: cssPercent(at),
+                          top: cssPercent(y(value) / 100),
+                          backgroundColor: color,
+                        }}
+                      />
+                    );
+                  })}
+                </ChartMark>
+              </li>
+            );
+          })}
         </ol>
       </div>
       <div
