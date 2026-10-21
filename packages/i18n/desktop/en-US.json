@@ -185,7 +185,11 @@
         "improving": "Improving"
       },
       "followed-title": "Your listings' rotation",
-      "followed-description": "What you hold and watch against each market's index, on prices adjusted for splits and what went ex, read as the sectors are; the line is the last {{trail}} sessions. A listing held and watched shows as held."
+      "followed-description": "What you hold and watch against each market's index, on prices adjusted for splits and what went ex, read as the sectors are; the line is the last {{trail}} sessions. A listing held and watched shows as held.",
+      "listing-title": "Rotation",
+      "against": "Against {{name}}",
+      "sector-index": "the {{sector}} index",
+      "reading": "{{quadrant}}, level {{level}}, momentum {{momentum}}"
     }
   },
   "sectors": {

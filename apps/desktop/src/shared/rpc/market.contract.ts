@@ -13,7 +13,7 @@ import type { ListingRotation, SectorRotation } from "@solyx/core/rotation";
 import type { SectorQuote } from "@solyx/core/sectors";
 import type { Session } from "@solyx/core/session";
 
-import type { CandleSet } from "../market.ts";
+import type { CandleSet, ListingRotationView } from "../market.ts";
 
 import { changesContract } from "./changes.ts";
 
@@ -46,6 +46,10 @@ export const marketContract = {
   listingRotations: oc
     .input(z.array(symbolRefSchema).max(MAX_ROTATION_LISTINGS))
     .output(type<ListingRotation[]>()),
+  /** One listing against its market's index and, for a TWSE company in an industry with an index, against that index too. */
+  listingRotation: oc
+    .input(symbolRefSchema)
+    .output(type<ListingRotationView>()),
   /**
    * Today's bars of the series as they form, a batch at a time, each bar replacing the one with
    * the same time: an empty batch first once a live stream covers the symbol, and none, with the

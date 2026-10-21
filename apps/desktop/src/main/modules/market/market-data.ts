@@ -14,7 +14,11 @@ import type { Listing, MarketDataProvider } from "@solyx/core/market-data";
 import { sessionQuote } from "@solyx/core/quote";
 import type { SessionQuote } from "@solyx/core/quote";
 import { readRotations } from "@solyx/core/rotation";
-import type { ListingRotation, SectorRotation } from "@solyx/core/rotation";
+import type {
+  ListingRotation,
+  RotationReading,
+  SectorRotation,
+} from "@solyx/core/rotation";
 import { TW_SECTOR_INDICES } from "@solyx/core/sectors";
 import type { SectorQuote } from "@solyx/core/sectors";
 import { Session, getSession } from "@solyx/core/session";
@@ -173,6 +177,14 @@ export function createMarketData({
     return resampleDaily(daily, interval, symbol.market);
   }
 
+  /** A listing's daily bars over the lookback. */
+  const daily = (symbol: SymbolRef) =>
+    read(
+      symbol,
+      Interval.OneDay,
+      lookbackRange(symbol.market, Interval.OneDay, now())
+    );
+
   return {
     candles: (symbol: SymbolRef, interval: Interval) =>
       read(symbol, interval, lookbackRange(symbol.market, interval, now())),
@@ -232,13 +244,6 @@ export function createMarketData({
     ): Promise<ListingRotation[]> {
       const benchmarks = new Map<Market, Promise<Candle[]>>();
 
-      const daily = (symbol: SymbolRef) =>
-        read(
-          symbol,
-          Interval.OneDay,
-          lookbackRange(symbol.market, Interval.OneDay, now())
-        );
-
       const benchmark = (market: Market) => {
         let bars = benchmarks.get(market);
 
@@ -260,6 +265,19 @@ export function createMarketData({
           ),
         }))
       );
+    },
+
+    /** A listing's rotation against any other listing or index over each period, on adjusted bars; a daily-bar request each. */
+    async rotationAgainst(
+      symbol: SymbolRef,
+      benchmark: SymbolRef
+    ): Promise<RotationReading[]> {
+      const [bars, against] = await Promise.all([
+        daily(symbol),
+        daily(benchmark),
+      ]);
+
+      return readRotations(symbol.market, adjustedCandles(bars), against);
     },
 
     /** Kept for the session once found, since news groups a listing's stories by its names on every read. */

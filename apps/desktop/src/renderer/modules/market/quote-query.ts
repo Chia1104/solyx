@@ -41,6 +41,13 @@ export const sectorsQuery = () =>
 export const rotationsQuery = () =>
   orpc.market.rotations.queryOptions({ staleTime: Infinity });
 
+/** One listing against its market's index and its sector's, refreshed as the listing rotations are. */
+export const listingRotationQuery = (symbol: SymbolRef) =>
+  orpc.market.listingRotation.queryOptions({
+    input: symbol,
+    staleTime: Infinity,
+  });
+
 /** The listings' rotation against their market's index, refreshed with the sectors' as a session closes. */
 export const listingRotationsQuery = (symbols: SymbolRef[]) =>
   orpc.market.listingRotations.queryOptions({
@@ -99,6 +106,7 @@ export function followQuotes(queryClient: QueryClient) {
 
       refresh(marketQuotes(market));
       refresh(orpc.market.listingRotations.key());
+      refresh(orpc.market.listingRotation.key());
 
       if (market === Market.TW) {
         refresh(orpc.market.sectors.key());
