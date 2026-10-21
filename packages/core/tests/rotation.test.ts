@@ -224,7 +224,7 @@ describe("readEveryRotation as of a session", () => {
   const listing = bars(closes);
   const benchmark = bars(closes.map(() => 1000));
   const TODAY = "2026-03-30";
-  const THROUGH = "2026-02-27";
+  const THROUGH = "2026-03-13";
 
   test("reads only the bars up to the session, as the graph stood at its close", () => {
     const back = readEveryRotation(Market.TW, listing, benchmark, {
