@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -20,7 +22,8 @@ const GROUP_COLORS: Record<SectorGroup, string> = {
 /** Taiwan's listed sectors on a relative rotation graph against the TAIEX. */
 export function SectorRotation() {
   const { t } = useTranslation();
-  const { data, error, refetch } = useQuery(rotationsQuery());
+  const [through, setThrough] = useState<string | null>(null);
+  const { data, error, refetch } = useQuery(rotationsQuery(through));
 
   if (error) {
     return <LoadError error={error} onRetry={() => void refetch()} />;
@@ -36,7 +39,8 @@ export function SectorRotation() {
 
   return (
     <RotationGraph
-      entries={data.map(({ sector, group, readings }) => ({
+      playback={{ sessions: data.sessions, through, onChange: setThrough }}
+      entries={data.entries.map(({ sector, group, readings }) => ({
         id: sector,
         name: t(`sectors.names.${sector}`),
         group,

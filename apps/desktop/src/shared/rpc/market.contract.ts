@@ -9,7 +9,11 @@ import type { Depth, Listing } from "@solyx/core/market-data";
 import type { SessionQuote } from "@solyx/core/quote";
 import type { PriceBand } from "@solyx/core/risk";
 import { MAX_ROTATION_LISTINGS } from "@solyx/core/rotation";
-import type { ListingRotation, SectorRotation } from "@solyx/core/rotation";
+import type {
+  ListingRotation,
+  RotationSet,
+  SectorRotation,
+} from "@solyx/core/rotation";
 import type { SectorQuote } from "@solyx/core/sectors";
 import type { Session } from "@solyx/core/session";
 
@@ -40,12 +44,22 @@ export const marketContract = {
   quote: oc.input(symbolRefSchema).output(type<SessionQuote | null>()),
   /** Every Taiwan sector index's session so far, one request each; `null` when no source covers Taiwan. */
   sectors: oc.output(type<SectorQuote[] | null>()),
-  /** Every Taiwan sector index's rotation against the TAIEX, a daily-bar request each; `null` when no source covers Taiwan. */
-  rotations: oc.output(type<SectorRotation[] | null>()),
+  /**
+   * Every Taiwan sector index's rotation against the TAIEX as of `through`, a session the set
+   * names, or the newest; a daily-bar request each. `null` when no source covers Taiwan.
+   */
+  rotations: oc
+    .input(z.object({ through: z.iso.date().optional() }))
+    .output(type<RotationSet<SectorRotation> | null>()),
   /** Each listing's rotation against its market's index on adjusted bars, a daily-bar request each; rejects while no source covers a market. */
   listingRotations: oc
-    .input(z.array(symbolRefSchema).max(MAX_ROTATION_LISTINGS))
-    .output(type<ListingRotation[]>()),
+    .input(
+      z.object({
+        symbols: z.array(symbolRefSchema).max(MAX_ROTATION_LISTINGS),
+        through: z.iso.date().optional(),
+      })
+    )
+    .output(type<RotationSet<ListingRotation>>()),
   /** One listing against its market's index and, for a TWSE company in an industry with an index, against that index too. */
   listingRotation: oc
     .input(symbolRefSchema)

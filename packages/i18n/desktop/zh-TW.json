@@ -197,7 +197,9 @@
       "periods": {
         "1d": "{{count}} 個交易日",
         "1w": "{{count}} 週"
-      }
+      },
+      "playback": "回放",
+      "latest": "最新（{{date}}）"
     }
   },
   "sectors": {

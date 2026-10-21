@@ -18,12 +18,14 @@ import {
   Quadrant,
   ROTATION_PERIODS,
   ROTATION_TRAIL,
+  PLAYBACK_SESSIONS,
   RotationInterval,
   rotationIntervalSchema,
 } from "@solyx/core/rotation";
 import type {
   ListingRotation,
   RotationReading,
+  RotationSet,
   SectorRotation,
 } from "@solyx/core/rotation";
 import {
@@ -52,10 +54,13 @@ export interface SectorToolsOptions {
   sectors(): Promise<SectorQuote[] | null>;
   /** Which of a sector's companies moved its market value most over the exchange's last session, as the overview lists them. */
   movers(sector: TwSector): Promise<SectorMovers | null>;
-  /** Every Taiwan sector index's rotation against the TAIEX, as the overview's chart reads it; `null` while no source covers Taiwan. */
-  rotations(): Promise<SectorRotation[] | null>;
+  /** Every Taiwan sector index's rotation against the TAIEX as of `through` or the newest session, as the overview's chart reads it; `null` while no source covers Taiwan. */
+  rotations(through?: string): Promise<RotationSet<SectorRotation> | null>;
   /** Each listing's rotation against its market's index on adjusted bars, as the overview's chart reads it; rejects while no source covers a market. */
-  listingRotations(symbols: readonly SymbolRef[]): Promise<ListingRotation[]>;
+  listingRotations(
+    symbols: readonly SymbolRef[],
+    through?: string
+  ): Promise<RotationSet<ListingRotation>>;
   marketData: Pick<MarketData, "candles">;
   /** @default () => new Date() */
   now?: () => Date;
@@ -107,6 +112,12 @@ const rotationArgumentsSchema = z
       .optional()
       .describe(
         `Listings to read instead of the sectors, up to ${MAX_ROTATION_LISTINGS}, each a daily-bar request`
+      ),
+    through: z.iso
+      .date()
+      .optional()
+      .describe(
+        `A session, YYYY-MM-DD, to read the graph as it stood at its close, within the last ${PLAYBACK_SESSIONS}; the newest where left out`
       ),
   })
   .superRefine(({ interval, period }, context) => {
@@ -324,22 +335,22 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
       defineTool({
         name: AgentToolName.GetRotation,
         replay: "safe",
-        description: `Where listings stand on a relative rotation graph against their market's index, as the app computes it from daily bars: by default every Taiwan sector index against the ${BENCHMARK[MARKET].name}, the same chart the overview draws, so do not draw it again; or, given symbols, each listing against its market's index (the ${BENCHMARK[Market.TW].name} in Taiwan, ${BENCHMARK[Market.US].name} in the US), on prices adjusted for splits and what went ex. Each reading is standardized over a period of sessions, or of closed weeks, and the last ${ROTATION_TRAIL} bars are its trail, so a reading takes twice the period of bars. The level is not a return against the index and the momentum not the index's: read the legend the call returns. It changes nothing.`,
+        description: `Where listings stand on a relative rotation graph against their market's index, as the app computes it from daily bars: by default every Taiwan sector index against the ${BENCHMARK[MARKET].name}, the same chart the overview draws, so do not draw it again, as it stands now or as it stood at the close of a session you name; or, given symbols, each listing against its market's index (the ${BENCHMARK[Market.TW].name} in Taiwan, ${BENCHMARK[Market.US].name} in the US), on prices adjusted for splits and what went ex. Each reading is standardized over a period of sessions, or of closed weeks, and the last ${ROTATION_TRAIL} bars are its trail, so a reading takes twice the period of bars. The level is not a return against the index and the momentum not the index's: read the legend the call returns. It changes nothing.`,
         parameters: rotationArgumentsSchema,
-        async execute({ interval, period: asked, symbols }) {
+        async execute({ interval, period: asked, symbols, through }) {
           const period = asked ?? ROTATION_PERIODS[interval][1];
-          const asOf = `as_of ${exchangeTime(MARKET, now())} Taipei`;
+          const asOf = `as_of ${exchangeTime(MARKET, now())} Taipei${through ? `, read as it stood at the close of ${through}` : ""}`;
 
           if (symbols) {
-            const rows = (await options.listingRotations(symbols)).flatMap(
-              ({ symbol, readings }) => {
-                const reading = readings.find(
-                  (each) => each.interval === interval && each.period === period
-                );
+            const set = await options.listingRotations(symbols, through);
 
-                return reading ? [{ name: symbolLabel(symbol), reading }] : [];
-              }
-            );
+            const rows = set.entries.flatMap(({ symbol, readings }) => {
+              const reading = readings.find(
+                (each) => each.interval === interval && each.period === period
+              );
+
+              return reading ? [{ name: symbolLabel(symbol), reading }] : [];
+            });
 
             const markets = [...new Set(symbols.map(({ market }) => market))];
 
@@ -351,15 +362,15 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
             };
           }
 
-          const sectors = await options.rotations();
+          const set = await options.rotations(through);
 
-          if (!sectors) {
+          if (!set) {
             return {
               text: "No sector indices: no market data source covers Taiwan yet. get_setup says what is missing.",
             };
           }
 
-          const rows = sectors.flatMap(({ sector, symbol, readings }) => {
+          const rows = set.entries.flatMap(({ sector, symbol, readings }) => {
             const reading = readings.find((each) => each.period === period);
 
             return reading

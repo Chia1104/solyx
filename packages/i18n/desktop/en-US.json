@@ -197,7 +197,9 @@
       "periods": {
         "1d": "{{count}} sessions",
         "1w": "{{count}} weeks"
-      }
+      },
+      "playback": "As of",
+      "latest": "Latest ({{date}})"
     }
   },
   "sectors": {
