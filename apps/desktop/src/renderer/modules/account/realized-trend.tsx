@@ -6,6 +6,7 @@ import type { Market } from "@solyx/core/market";
 import type { RoundTrip } from "@solyx/core/review";
 import { cssPercent } from "@solyx/utils/format";
 
+import { ChartMark } from "../../components/chart-mark.tsx";
 import { Sparkline } from "../../components/sparkline.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 import { useDirectionColors } from "../market/price-colors.ts";
@@ -17,7 +18,8 @@ const COLUMNS = 40;
 /**
  * What closed round trips have realized in one market's currency: the running total from zero by
  * when each closed, and under it the newest trips a column each, a gain above the line and a loss
- * below in their direction's colours. Nothing is drawn for fewer than two trips.
+ * below in their direction's colours, each named as it is pointed at. Nothing is drawn for fewer
+ * than two trips.
  */
 export function RealizedTrend({
   trips,
@@ -47,6 +49,13 @@ export function RealizedTrend({
   const shown = closed.slice(-COLUMNS);
   const largest = Math.max(...shown.map(({ realized }) => Math.abs(realized)));
 
+  const describe = (trip: RoundTrip) =>
+    t("account.realized-trip", {
+      date: exchangeDate(trip.instrument.market, new Date(trip.closedAt)),
+      symbol: trip.instrument.symbol,
+      realized: signedAmount.format(trip.realized),
+    });
+
   return (
     <figure
       aria-label={t("account.realized-trend")}
@@ -72,29 +81,23 @@ export function RealizedTrend({
             return (
               <li
                 key={`${symbolKey(trip.instrument)}-${trip.closedAt}`}
-                title={t("account.realized-trip", {
-                  date: exchangeDate(
-                    trip.instrument.market,
-                    new Date(trip.closedAt)
-                  ),
-                  symbol: trip.instrument.symbol,
-                  realized: signedAmount.format(trip.realized),
-                })}
                 className="relative h-full max-w-2 min-w-[2px] flex-1">
-                <span
-                  className={cn(
-                    "absolute inset-x-0 min-h-px",
-                    trip.realized >= 0
-                      ? "bottom-1/2 rounded-t-[2px]"
-                      : "top-1/2 rounded-b-[2px]"
-                  )}
-                  style={{
-                    height: cssPercent(share / 2),
-                    backgroundColor:
-                      directionOf(direction, trip.realized)?.solid ??
-                      "var(--muted)",
-                  }}
-                />
+                <ChartMark label={describe(trip)}>
+                  <span
+                    className={cn(
+                      "absolute inset-x-0 min-h-px",
+                      trip.realized >= 0
+                        ? "bottom-1/2 rounded-t-[2px]"
+                        : "top-1/2 rounded-b-[2px]"
+                    )}
+                    style={{
+                      height: cssPercent(share / 2),
+                      backgroundColor:
+                        directionOf(direction, trip.realized)?.solid ??
+                        "var(--muted)",
+                    }}
+                  />
+                </ChartMark>
               </li>
             );
           })}
