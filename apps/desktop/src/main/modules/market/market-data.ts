@@ -7,11 +7,13 @@ import {
   resampleDaily,
 } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
-import { Market, symbolKey } from "@solyx/core/market";
+import { BENCHMARK, Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Listing, MarketDataProvider } from "@solyx/core/market-data";
 import { sessionQuote } from "@solyx/core/quote";
 import type { SessionQuote } from "@solyx/core/quote";
+import { readRotations } from "@solyx/core/rotation";
+import type { SectorRotation } from "@solyx/core/rotation";
 import { TW_SECTOR_INDICES } from "@solyx/core/sectors";
 import type { SectorQuote } from "@solyx/core/sectors";
 import { Session, getSession } from "@solyx/core/session";
@@ -94,6 +96,36 @@ export function createMarketData({
           }),
         }))
       ),
+    fresh: freshFor(SECTORS_FRESH_MS),
+    now: () => now().getTime(),
+  });
+
+  // The rotations read every index's daily bars, which the candle cache keeps but for the session
+  // under way, so the overview's chart and the agent share a read as the sectors do.
+  const sectorRotations = keepFresh<MarketDataProvider, SectorRotation[]>({
+    store: answers("market:rotations"),
+    id: (provider) => provider.id,
+    async ask(provider) {
+      const daily = (symbol: string) =>
+        provider.getCandles({
+          symbol: { market: Market.TW, symbol },
+          interval: Interval.OneDay,
+          ...lookbackRange(Market.TW, Interval.OneDay, now()),
+        });
+
+      const benchmark = await daily(BENCHMARK[Market.TW].symbol.symbol);
+
+      return Promise.all(
+        TW_SECTOR_INDICES.map(async (index) => ({
+          ...index,
+          readings: readRotations(
+            Market.TW,
+            await daily(index.symbol),
+            benchmark
+          ),
+        }))
+      );
+    },
     fresh: freshFor(SECTORS_FRESH_MS),
     now: () => now().getTime(),
   });
@@ -181,6 +213,13 @@ export function createMarketData({
       const provider = await sources.provider(Market.TW);
 
       return provider ? sectorQuotes(provider) : null;
+    },
+
+    /** Every Taiwan sector index's rotation against the TAIEX over each period; `null` when no source covers Taiwan. */
+    async rotations(): Promise<SectorRotation[] | null> {
+      const provider = await sources.provider(Market.TW);
+
+      return provider ? sectorRotations(provider) : null;
     },
 
     /** Kept for the session once found, since news groups a listing's stories by its names on every read. */
