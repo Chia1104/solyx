@@ -76,6 +76,23 @@ for await (const file of glob("**/*.mdx", { cwd: docsDir })) {
   cards.push({ path, title, description });
 }
 
+const legalDir = join(import.meta.dirname, "content/legal");
+
+// The terms and the privacy policy take the site's own paths, `/terms` and `/zh-TW/terms`.
+for await (const file of glob("*.mdx", { cwd: legalDir })) {
+  const [, name, locale] =
+    /^(.+?)(?:\.([a-z]{2}-[A-Z]{2}))?\.mdx$/.exec(file) ?? [];
+
+  const path = locale ? `/${locale}/${name}` : `/${name}`;
+
+  const { title, description } = pageSchema.parse(
+    frontmatter(await readFile(join(legalDir, file), "utf8")).data
+  );
+
+  pages.push({ path });
+  cards.push({ path, title, description });
+}
+
 const LATEST_RELEASES = "virtual:latest-releases";
 
 const RELEASE_NOTES = "virtual:release-notes";

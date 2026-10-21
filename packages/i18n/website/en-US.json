@@ -9,6 +9,8 @@
     "download": "Download",
     "changelog": "Changelog",
     "github": "GitHub",
+    "terms": "Terms of use",
+    "privacy": "Privacy policy",
     "footer": "Footer"
   },
   "banner": {
@@ -288,6 +290,9 @@
     },
     "on-github": "Release on GitHub",
     "pull-request": "Pull request {{number}}"
+  },
+  "legal": {
+    "updated": "Last updated {{date}}"
   },
   "status": {
     "home": "Back to the home page",
