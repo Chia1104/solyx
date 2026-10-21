@@ -1,0 +1,96 @@
+---
+title: Models
+description: Switch on a model provider for the agent, on an API key, a subscription you already have, or a model on your computer.
+---
+
+Under **Settings → AI agent**, switch on the providers you want, each on your own API key or subscription. **Add provider** searches the catalog. A provider's tile says whether it is ready: **Ready**, **Needs an API key**, **Needs a sign-in**, **No model to run** or **Not answering**.
+
+<Screenshot
+  file="settings/agent.png"
+  alt="Settings → AI agent, with a provider switched on and its API key"
+/>
+
+## Providers
+
+Solyx offers the providers its agent runtime, pi, can reach with a key, among them:
+
+<Cards>
+  <Card title="Anthropic" href="https://console.anthropic.com/settings/keys">
+    Claude, the default. Create a key in the Claude Console.
+  </Card>
+  <Card title="OpenAI" href="https://platform.openai.com/api-keys">
+    A platform API key, or sign in with ChatGPT.
+  </Card>
+  <Card title="Google" href="https://aistudio.google.com/apikey">
+    Gemini, on a key from Google AI Studio.
+  </Card>
+  <Card title="OpenRouter" href="https://openrouter.ai/settings/keys">
+    Many companies' models behind one key, or sign in to create one.
+  </Card>
+</Cards>
+
+Others include DeepSeek, Mistral, xAI, Meta, GitHub Copilot, Groq, Cerebras, Fireworks, Together, Hugging Face, Moonshot, MiniMax, Qwen, Z.ai, NVIDIA and Vercel AI Gateway, plus Ollama on your own computer.
+
+## A key or a subscription
+
+<Tabs
+  items={[
+    "API key",
+    "Sign in with ChatGPT",
+    "OpenRouter",
+    "Copilot, xAI and Meta",
+  ]}>
+  <Tab value="API key">
+    <Steps>
+      <Step>**Create a key** in the provider's own console.</Step>
+      <Step>
+        **Switch the provider on** with its **Use … models** switch, and set its
+        **API key**.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab value="Sign in with ChatGPT">
+    For OpenAI, set **Pay with** to your ChatGPT subscription and press **Sign
+    in with ChatGPT**. Your browser opens OpenAI's sign-in, and Solyx listens on
+    `127.0.0.1` only until it comes back. A ChatGPT sign-in does not cover the
+    [decisions model](/docs/setup/decisions) or
+    [embeddings](/docs/setup/embeddings), which need a platform API key.
+  </Tab>
+  <Tab value="OpenRouter">
+    Press **Sign in with OpenRouter** and approve the key on OpenRouter's page;
+    it creates a key labelled Solyx and hands it back to the app, which saves it
+    as the provider's API key. Or paste a key from [OpenRouter's keys
+    page](https://openrouter.ai/settings/keys).
+  </Tab>
+  <Tab value="Copilot, xAI and Meta">
+    GitHub Copilot, xAI's SuperGrok or X Premium, and Meta's Muse sign in with a
+    code: Solyx shows a code and opens the provider's page, where you enter it.
+    No listener is opened. GitHub Copilot takes only a sign-in, on github.com.
+  </Tab>
+</Tabs>
+
+## Your own gateway
+
+**API endpoint** sends a provider's requests to another address, such as your own gateway. Change it only for a gateway that speaks the provider's own API; your key is sent there too. It applies only while you pay with an API key, and is offered only for providers whose models share one address.
+
+## Ollama
+
+Run a model on your own computer with [Ollama](https://ollama.com/download).
+
+<Steps>
+  <Step>
+    **Install Ollama** and pull a model that calls tools and holds at least 48K tokens of context, with `ollama pull <model>`. Models with a shorter window are not offered.
+  </Step>
+  <Step>
+    **Switch Ollama on** under **Settings → AI agent**. Its **API endpoint** is `http://127.0.0.1:11434`; on another machine, your conversations are sent there.
+  </Step>
+  <Step>
+    **Check the models.** The **Models** row lists those that qualify; press **Check again** after pulling one.
+  </Step>
+</Steps>
+
+Solyx asks Ollama for up to 64K tokens of context per request. The API key is needed only if a proxy in front of Ollama checks a bearer token.
+
+## The default model
+
+Below the providers, pick the **Provider**, **Model** and **Thinking** level (Off, Low, Medium or High) new conversations start with, and the **Decision mode**: **The agent alone** or the [MAGI](/docs/research/magi), with a model for each unit. Each conversation can change model and thinking level from its composer.

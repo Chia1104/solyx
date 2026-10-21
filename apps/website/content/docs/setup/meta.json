@@ -1,0 +1,14 @@
+{
+  "title": "Setup",
+  "pages": [
+    "index",
+    "market-data",
+    "broker",
+    "models",
+    "web-search",
+    "decisions",
+    "embeddings",
+    "backup",
+    "observability"
+  ]
+}

@@ -1,0 +1,30 @@
+---
+title: Memory
+description: What the agent keeps of how you trade, across conversations, and how you read, edit and forget it.
+---
+
+The agent remembers across conversations what it learns of how you trade, in memories you can read, edit and forget under **Settings → Memory**.
+
+| Kind        | Holds                          |
+| ----------- | ------------------------------ |
+| About you   | Who you are and how you trade  |
+| How to work | How you want the agent to work |
+| Note        | Anything else worth keeping    |
+
+<Screenshot
+  file="settings/memory.png"
+  alt="Settings → Memory with memories of each kind"
+/>
+
+## Saving and forgetting
+
+- In **Ask first**, a memory waits for you to allow it. In **Allow for me**, it is saved without asking, and the call says so.
+- Forgetting always waits for you unless the conversation is in **Don't ask**.
+- A memory takes a description of up to 150 characters and details of up to 2,000. Anything that looks like a key or an ID number is refused.
+- With a local embedder, a memory too close to one the agent already has is refused, and the agent is pointed to that one.
+
+## What every conversation reads
+
+Each conversation starts with an index of memories, those about you and how to work first, then notes, newest first, within 8,000 characters; the rest it can recall by search.
+
+**Use memory** switches it off: memories stay saved but are neither read nor written.

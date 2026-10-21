@@ -5,29 +5,70 @@ description: macOS 與 Windows 的每晚建置版，以及第一次啟動時會�
 
 macOS（`.dmg`）與 Windows（`.exe`）的每晚建置版都放在[下載頁面](/zh-TW/download)。每晚建置版取自最新一個通過檢查的 commit，最多每六小時建置一次。
 
-## 第一次啟動
+## 第一次啟動 [#first-launch]
 
 Solyx 還沒有付費的簽章憑證。macOS App 使用 ad-hoc 簽章，Windows 安裝程式沒有簽章，所以第一次啟動前系統會跳出警告。
 
-- **macOS**：先開啟一次 App，再到「系統設定」的「隱私權與安全性」允許它。
-- **Windows**：在 SmartScreen 提示中選「其他資訊」，再選「仍要執行」。
+<Tabs items={["macOS", "Windows"]}>
+  <Tab value="macOS">
+    <Steps>
+      <Step>
+        **打開 `.dmg`**，把 Solyx Nightly 拖進「應用程式」。
+      </Step>
+      <Step>
+        **先開啟一次 App。** 它沒有 Developer ID 簽章，所以 macOS 會拒絕開啟。
+      </Step>
+      <Step>
+        **允許它**：到 **系統設定 → 隱私權與安全性** 按 **強制打開**，再開啟一次。
+      </Step>
+    </Steps>
 
-每晚建置版會以 Solyx Nightly 的名稱安裝，並保有自己的資料，所以不會動到正式版的設定、金鑰或資料庫。
+    <Screenshot file="install/macos-open-anyway.zh-TW.png" alt="系統設定 → 隱私權與安全性裡的「強制打開」" />
 
-## 更新
+  </Tab>
+  <Tab value="Windows">
+    <Steps>
+      <Step>
+        **執行安裝程式。**
+      </Step>
+      <Step>
+        **在 SmartScreen 提示中**選 **其他資訊**，再選 **仍要執行**。
+      </Step>
+    </Steps>
 
-Solyx 在啟動一分鐘後、之後每六小時，以及你要求時，都會檢查它所屬頻道的更新。
+    <Screenshot file="install/windows-smartscreen.zh-TW.png" alt="SmartScreen 的「其他資訊」與「仍要執行」" />
 
-- **Windows** 會下載更新，並在 Solyx 重新啟動或結束時安裝。
-- **macOS** 會告訴你有新版本，並連到它的發布頁面，因為原地安裝需要 Developer ID 簽章。
+  </Tab>
+</Tabs>
 
-## Solyx 把東西放在哪裡
+每晚建置版會以 Solyx Nightly 的名稱安裝，並保有自己的資料，所以不會動到正式版的設定、金鑰或資料庫。第一次開啟時，Solyx 會一步步帶你設定它需要的東西。[金鑰與來源](/zh-TW/docs/setup)。
+
+## 更新 [#updates]
+
+Solyx 在啟動一分鐘後、之後每六小時，以及你在 **設定 → 關於** 按 **立即檢查** 時，都會檢查它所屬頻道的更新。關掉那裡的 **自動檢查更新**，就不會再自動檢查。
+
+<Tabs items={["Windows", "macOS"]}>
+  <Tab value="Windows">
+    Solyx 會下載更新，並在重新啟動或結束時安裝；按標題列的 **重新啟動以更新**
+    會立刻安裝。
+  </Tab>
+  <Tab value="macOS">
+    Solyx 會告訴你有新版本，**下載更新** 會連到它的發布頁面，因為原地安裝需要
+    Developer ID 簽章。
+  </Tab>
+</Tabs>
+
+開發版與 Linux 版都不會檢查更新。
+
+## Solyx 把東西放在哪裡 [#where-solyx-keeps-things]
 
 - **設定**存在 `~/.solyx/config.json`。你可以手動編輯；Solyx 會在不重新啟動的情況下套用存檔的變更，且絕不會覆寫有語法錯誤的檔案。
 - **金鑰與登入**用系統的機密儲存區加密保存，絕不會出現在設定檔、日誌或備份裡。
 - **你給 Agent 的指示**放在設定檔旁邊：`skills/`、`AGENTS.md` 與 `mcp.json`。
 
-## 自己建置
+[每個檔案，以及 config.json 存了什麼](/zh-TW/docs/files)。
+
+## 自己建置 [#build-it-yourself]
 
 Solyx 需要 [Vite+](https://viteplus.dev/)（`vp`）與 Node.js 26 以上版本。
 

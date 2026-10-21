@@ -3,10 +3,18 @@
   "pages": [
     "index",
     "install",
-    "keys",
+    "---設定---",
+    "...setup",
     "---使用 Solyx---",
+    "workspace",
+    "charts",
     "orders",
     "agent",
-    "research"
+    "research",
+    "news",
+    "---資料與計算---",
+    "...data",
+    "---參考---",
+    "files"
   ]
 }

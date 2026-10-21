@@ -1,0 +1,81 @@
+---
+title: Rotation and heat maps
+description: How the rotation graph places sectors and listings against a benchmark, and what colours and sizes the heat maps.
+---
+
+## The rotation graph
+
+The rotation graph shows where each sector or listing stands against a benchmark, and which way it is heading. It plots two figures, both counted in standard deviations:
+
+$$
+\begin{aligned}
+\text{ratio}_t &= \frac{\text{close}_t}{\text{benchmark}_t} \\
+\text{level}_t &= z_n(\text{ratio})_t \\
+\text{momentum}_t &= z_n(\text{level}_t - \text{level}_{t-1})
+\end{aligned}
+$$
+
+A z-score is how far the newest value sits from the mean of the last $$n$$ bars, the period, in their population standard deviations:
+
+$$
+z_n(x)_t = \frac{x_t - \mu_n}{\sigma_n}
+$$
+
+Since momentum is a z-score of a z-score, the first point needs about twice $$n$$ bars.
+
+<Callout type="warn" title="Not a return, and not JdK's RS-Ratio">
+  Both axes are centred on 0, not 100, and neither is a percentage. The graph
+  tells you how unusual a listing's standing against the benchmark is for that
+  listing, not how much it gained.
+</Callout>
+
+### Quadrants
+
+|               | Momentum ≥ 0 | Momentum < 0 |
+| ------------- | ------------ | ------------ |
+| **Level ≥ 0** | Leading      | Weakening    |
+| **Level < 0** | Improving    | Lagging      |
+
+### Periods
+
+| Interval | Periods              | Default |
+| -------- | -------------------- | ------- |
+| Daily    | 20, 60, 120 sessions | 60      |
+| Weekly   | 13, 26, 52 weeks     | 26      |
+
+Weekly readings use closed weeks only, each dated by its last session, so the week still trading never moves the graph. Each entry trails its last 10 bars, fading towards the oldest, and playback reaches back over the last 120 sessions. The axes reach at least ±1.5 standard deviations.
+
+### Benchmarks and bars
+
+- **Sectors** are read against the TAIEX (`IX0001`) unless you or the agent pick another benchmark.
+- **A listing** is read against its market's index, its own TWSE sector index, or another listing that traded steadily: at least 228 of the market's last 240 sessions, never missing 4 in a row.
+- Listings' bars are [adjusted](/docs/data/market-data#as-traded-or-adjusted) for dividends and splits; indices are used as published.
+- About three years of daily bars are read, at most 50 listings at a time, and the graph refreshes every 5 minutes during the regular session.
+
+### Sector indices
+
+Sectors are the exchange's own 31 industry indices (`IX0010`–`IX0042` and `IX0185`–`IX0188`), not equal-weighted baskets. The aggregate indices, such as the electronics index, are left out so no listing counts twice.
+
+## Heat maps
+
+Heat maps are treemaps: groups keep their order and tiles are laid out largest first. A tile's colour mixes the direction's colour with the surface, deeper the further it moved, and its text turns white once the colour passes 65%.
+
+<Tabs items={["Your listings", "Sectors"]}>
+  <Tab value="Your listings">
+
+    - **Colour:** the move from the previous session's close, read from 5-minute bars. Full colour at ±5%.
+    - **Size:** a holding by its market value, shares × last price, scaled so each group's area matches its count of tiles. Watchlist tiles are all one size.
+    - A listing you both hold and watch appears once, among holdings.
+
+  </Tab>
+  <Tab value="Sectors">
+
+    - **Colour:** the sector index's move from its reference. Full colour at ±3%.
+    - **Size:** the sector's share of the value traded across every sector, equal before the first trade.
+    - **Groups:** electronics, finance and the rest.
+    - **Movers:** a sector's top ten companies by shares × change.
+
+  </Tab>
+</Tabs>
+
+Rises are red and falls green for Taiwan, and the other way round for the US, as each market's convention has it. You can change either under **Settings → General**.

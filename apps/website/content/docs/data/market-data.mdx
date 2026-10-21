@@ -1,0 +1,142 @@
+---
+title: Bars and sessions
+description: How Solyx reads candles, keeps them on your computer, follows the session live and stays within your plan.
+---
+
+## Intervals
+
+Charts and the agent read bars at eight intervals. Each reaches back a fixed span when it first loads; scrolling left loads older pages of the same span, never shorter than 21 days, so a market closure never ends the history early. The chart asks for the next page once fewer than 20 bars remain left of the view.
+
+| Interval   | First load reaches back |
+| ---------- | ----------------------- |
+| 1 minute   | 5 days                  |
+| 5 minutes  | 30 days                 |
+| 15 minutes | 60 days                 |
+| 30 minutes | 120 days                |
+| 1 hour     | 180 days                |
+| 1 day      | 730 days                |
+| 1 week     | 1,095 days              |
+| 1 month    | 1,825 days              |
+
+Every bar is timed in UTC; a daily or longer bar opens at midnight in the exchange's own zone, Asia/Taipei for Taiwan and America/New_York for the US.
+
+### Weeks and months
+
+Weekly and monthly bars are built on your computer from daily bars, so every source gives the same weeks. A week starts on Monday and a month on its first day. The merged bar takes the first open, the highest high, the lowest low, the last close and the summed volume.
+
+### Today's bars
+
+A provider's history never includes today: Solyx asks it for history up to yesterday and for today in one intraday request, and today's daily bar is the session's hourly bars merged. Fugle refuses ranges of a year or more, so longer histories are read in 360-day pieces.
+
+Intraday bars and the order book arrive in board lots and are multiplied by 1,000; daily bars already count shares.
+
+## The reference price
+
+Each closed session's bar keeps its **reference price**: the price the exchange counted that session's move from. It is the previous close, lowered by what went ex-dividend that day or divided by a split. Solyx reads it as the close less the session's change, which Fugle reports with every daily bar:
+
+$$
+\text{reference} = \text{close} - \text{change}
+$$
+
+It is rounded to four decimal places.
+
+A quote and the order book use the exchange's reference price, or the previous close where none is given. Fugle reports no change for the odd-lot session, even on an ex-dividend day, so such a bar has no reference.
+
+### As traded or adjusted
+
+<Callout title="Charts show prices as traded">
+  The price chart and every indicator on it, and the agent's indicator tool,
+  read bars as they traded. A dividend or split shows as a gap. Only
+  [backtests](/docs/data/backtests) and the [rotation
+  graph](/docs/data/rotation) adjust prices, since both compare a stretch of
+  history across those gaps.
+</Callout>
+
+Adjusting divides each bar by how much the events after it have lowered the price, which the reference prices measure:
+
+$$
+\text{factor}_i = \prod_{j \le i} \frac{\text{reference}_j}{\text{close}_{j-1}}
+\qquad
+\tilde{P}_i = \frac{P_i}{\text{factor}_i}
+\qquad
+\tilde{V}_i = V_i \times \text{factor}_i
+$$
+
+where $$P$$ is each of the open, high, low and close, and $$V$$ the volume.
+
+The traded value of a bar stays the same, and each bar depends only on itself and the bars before it, so nothing later leaks into an earlier bar.
+
+A merged week or month compounds its sessions' moves, so its reference is $$\text{close} \div \prod_i \frac{\text{close}_i}{\text{reference}_i}$$; one session without a reference leaves the merged bar without one.
+
+## Sessions
+
+| Market | Pre-market    | Regular       | After hours                     |
+| ------ | ------------- | ------------- | ------------------------------- |
+| Taiwan | 08:30 – 09:00 | 09:00 – 13:30 | 14:00 – 14:30, at a fixed price |
+| US     | 04:00 – 09:30 | 09:30 – 16:00 | 16:00 – 20:00                   |
+
+Taiwan's trading days come from FinMind's trading calendar, read once a day and reaching a year back. Outside what it covers, or while it cannot be read, every weekday counts as a trading day. Typhoon closures and early closes are not known in advance.
+
+## The cache
+
+Bars of closed sessions are kept in `cache.sqlite` on your computer, so a chart never downloads them twice.
+
+- Each source's bars are kept apart, keyed by source, market, symbol and interval, so two providers' bars never mix.
+- Only sessions before today are kept; today's bars are fetched each time and added on top.
+- A series covers one unbroken span. A chart that reaches past it fills the gap at either end; one that starts after the span's end starts the series over.
+- The span ends at its newest bar, so a holiday or a session not yet published is asked for again next time.
+- Intraday series are trimmed to the furthest back a chart has asked for since Solyx started.
+
+## Live bars
+
+While the market trades, one stream serves every window. Each listing's bars take one of your plan's live subscriptions however many charts and intervals watch it, and its order book another.
+
+- Minutes are bucketed on the clock: a 5-minute bar starts at a multiple of five minutes.
+- The live daily bar is today's minutes merged. The live week and month merge the period's earlier days with today.
+- A window repaints at most every 250 ms.
+- Without the stream, an intraday chart reads its bars again every minute.
+
+If the stream goes quiet for 75 seconds it reconnects, waiting 1, 2, 5, 10 and then 30 seconds between tries.
+
+## Plans and limits
+
+Solyx keeps one connection for each key and plan, and spaces its requests so they stay inside the plan. A request that comes back with HTTP 429 waits as long as the provider asks, up to 10 seconds.
+
+<Tabs items={["Fugle", "Fubon", "FinMind"]}>
+  <Tab value="Fugle">
+
+    | Plan      | Live subscriptions | Intraday requests / min | History requests / min |
+    | --------- | ------------------ | ----------------------- | ---------------------- |
+    | Basic     | 5                  | 60                      | 60                     |
+    | Developer | 300                | 600                     | 60                     |
+    | Advanced  | 2,000              | 2,000                   | 60                     |
+
+  </Tab>
+  <Tab value="Fubon">
+    Fubon's market data allows 300 live subscriptions, 300 intraday requests and
+    60 history requests a minute.
+  </Tab>
+  <Tab value="FinMind">
+
+    | Plan        | Requests / hour |
+    | ----------- | --------------- |
+    | No token    | 300             |
+    | Free        | 600             |
+    | Backer      | 1,600           |
+    | Sponsor     | 6,000           |
+    | Sponsor Pro | 20,000          |
+
+  </Tab>
+</Tabs>
+
+A book the stream has no room for is read every 5 seconds during the regular session, and once more as it ends, to catch the closing auction.
+
+### How often the rest refreshes
+
+| What                                  | How often                      |
+| ------------------------------------- | ------------------------------ |
+| Quotes on the watchlist and heat maps | Every 2 minutes in the session |
+| Sector indices and the rotation graph | Every 5 minutes in the session |
+| Whether the session is open           | Every 5 seconds                |
+
+Quotes, sectors and rotations refresh once more as the after-hours session opens. A hidden window fetches nothing.

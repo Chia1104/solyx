@@ -1,0 +1,143 @@
+---
+title: Fundamentals and flows
+description: The figures Solyx works out from statements, funds' reports, investor flows and economic releases.
+---
+
+The app works out every growth rate, margin and multiple itself, so the agent quotes a figure rather than computing it in its head. Amounts the agent reads are in millions, percentages to one decimal place and changes to two, with a missing figure written as n/a.
+
+## Statements
+
+FinMind supplies the statements, monthly revenue and dividends.
+
+| What                          | How far back | Kept for |
+| ----------------------------- | ------------ | -------- |
+| Income statements             | 5 years      | 12 hours |
+| Balance sheets and cash flows | 3 years      | 12 hours |
+| Monthly revenue               | 36 months    | 12 hours |
+| Dividends                     | 5 years      | 12 hours |
+
+### Cleaning the rows
+
+- A quarter without revenue is dropped, and so is a balance sheet without total assets.
+- Net income is the profit attributable to the parent's owners, or after-tax income where that line is missing.
+- Cash flows are filed year to date, so each quarter is its year-to-date figure less the quarter before; the first quarter is taken as filed. A quarter whose predecessor is missing has no figure.
+- Capital spending is the cash paid for property, plant and equipment.
+- A distribution's cash dividend adds its earnings and statutory surplus parts; so does its stock dividend. One that pays nothing is dropped.
+
+### When a figure became public
+
+Each quarter is taken as known from its filing deadline, so a past multiple uses only what had been published by that day.
+
+| Quarter         | Deadline                   |
+| --------------- | -------------------------- |
+| Q1              | May 15                     |
+| Q2              | August 14                  |
+| Q3              | November 14                |
+| Q4              | March 31, next year        |
+| Monthly revenue | The 10th of the next month |
+
+## Derived figures
+
+| Figure                        | How it is worked out                                                                                            |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Growth                        | $$\frac{\text{now} - \text{before}}{\lvert \text{before} \rvert}$$, so a loss turning to profit reads as a rise |
+| Revenue and EPS, year on year | Against the quarter twelve months earlier                                                                       |
+| Revenue, quarter on quarter   | Against the quarter before                                                                                      |
+| Monthly revenue               | Against the same month a year earlier, and the month before                                                     |
+| Gross, operating, net margin  | The line ÷ revenue                                                                                              |
+| Trailing EPS                  | The last four quarters added up; none if one is missing                                                         |
+| Current ratio                 | Current assets ÷ current liabilities                                                                            |
+| Liabilities to assets         | Total liabilities ÷ total assets                                                                                |
+| Free cash flow                | Operating cash flow − capital spending, per quarter and over four quarters                                      |
+| Trailing cash dividend        | Cash paid with an ex-dividend day in the past year                                                              |
+| P/E now                       | The latest weekly close ÷ the newest trailing EPS                                                               |
+| P/E history                   | Each weekly close over three years ÷ the trailing EPS public by then, as its low, median and high               |
+
+P/E history leaves out weeks with trailing EPS at or below zero or fewer than four public quarters. Growth and margins are empty where the figure before is zero or missing.
+
+The exchanges' own P/E, dividend yield and price-to-book come from TWSE and TPEx as they publish them; Solyx does not recompute them.
+
+### Peers
+
+A listing's peers are the others in its industry. For each multiple, Solyx gives the peers' median and the share of peers below the listing.
+
+### The company
+
+- **Market value** is the shares outstanding × the last finished session's close.
+- **Turnover** is that session's volume ÷ shares outstanding.
+- **Governance** notes list directors' pledged shares, then sanctions, exchange fines and changes of control.
+
+## ETFs
+
+<Accordions>
+  <Accordion title="Profile">
+    TWSE's open data describes each fund it lists. TPEx publishes no such list,
+    so funds listed there have no profile.
+  </Accordion>
+  <Accordion title="Net asset value and premium">
+    SITCA publishes each fund's NAV daily. The premium or discount is the close
+    of the NAV's own session ÷ NAV − 1, to two decimal places. A NAV struck in
+    another currency is left out. NAV is kept for an hour.
+  </Accordion>
+  <Accordion title="Costs">
+    SITCA's monthly cost figures, each a share of net assets: management,
+    custody, guarantee, commission, tax, other and their total. The year's cost
+    is the month's × 12. Costs are kept for 12 hours.
+  </Accordion>
+  <Accordion title="Distributions">
+    A fund's distributions come with FinMind's dividends, dated by FinMind since
+    a fund announces none. A listing with distributions but no statements is
+    read as a fund.
+  </Accordion>
+</Accordions>
+
+SITCA's data is used under the [Open Government Data License, version 1.0](https://data.gov.tw/license).
+
+## Investor flows
+
+Flows (籌碼) show who trades a Taiwan listing: foreign investors, investment trusts, dealers and dealers' hedging. FinMind's foreign dealers count as foreign investors.
+
+| Figure          | How it is worked out                                                                 |
+| --------------- | ------------------------------------------------------------------------------------ |
+| Net buying      | Bought − sold, over the newest session, week (5 sessions) and month (20)             |
+| Streak          | Sessions in a row on the newest session's side; positive for buying                  |
+| Balance trend   | The newest margin, short or foreign holding less its value 1, 5 and 20 sessions back |
+| Margin use      | Margin balance ÷ margin limit                                                        |
+| Short to margin | Short balance ÷ margin balance                                                       |
+| Futures         | Each group's long − short open interest in TAIEX futures                             |
+
+Listing figures are given in lots, market trades in NT$ millions and foreign holding in percent. A week or month the data only partly covers reads as unknown on the chart. Flows are published between 15:00 and 21:00 Taipei time, so an answer is kept until FinMind's next publication, at 15:30, 18:30 or 21:30, and at most a day. A year of flows is read.
+
+## Economic releases
+
+The release calendar comes from Taiwan's statistics portal (stat.gov.tw), and the figures from DGBAS's statistical database.
+
+| Release               | Agency                       | Figures from DGBAS                |
+| --------------------- | ---------------------------- | --------------------------------- |
+| CPI                   | DGBAS                        | CPI and core CPI, index           |
+| Advance GDP           | DGBAS                        | GDP growth, %, quarterly          |
+| Economic forecast     | DGBAS                        | None                              |
+| Trade                 | Ministry of Finance          | Exports and imports, US$ millions |
+| Industrial production | Ministry of Economic Affairs | Index                             |
+| Export orders         | Ministry of Economic Affairs | US$ millions                      |
+| Business indicators   | National Development Council | Signal score, points              |
+| PMI                   | National Development Council | None                              |
+
+- A release dated "by day N" is marked as a deadline; otherwise its day is set.
+- A figure is matched to the newest reading for a period no later than the release's.
+- Year-on-year change is worked out for indices and amounts, from the same period a year earlier; rates and scores get none.
+- A period not yet out comes back as 0, so each series ends at its last real figure, and a table whose items change names fails rather than passing off another figure.
+- The schedule is kept 12 hours and figures an hour. The agent reads the last 13 periods.
+
+## The calendar
+
+The overview's calendar gathers, for the next 90 days:
+
+- **Filings,** quarterly reports by their deadline and monthly revenue by the 10th, for Taiwan listings;
+- **Distributions,** their ex-dividend, payment and ex-rights days, and the exchanges' own ex notices where a distribution gives no day;
+- **Shareholders' meetings,** regular or special, and whether directors are elected;
+- **Trading restrictions,** from their first day, or today while in force;
+- **Market closures** and **economic releases,** which stay listed for seven days after their day;
+- **Events in your reports.**
+
+Each event is set, due by a deadline, or expected. The agent reads 30 days ahead unless it asks for up to 90.

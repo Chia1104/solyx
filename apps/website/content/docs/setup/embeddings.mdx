@@ -1,0 +1,58 @@
+---
+title: Embeddings
+description: Vectors that group news by meaning, search research and memories, and watch falsifiers, from Ollama or OpenAI.
+---
+
+An embedder turns text into vectors, so Solyx can tell two stories that say the same thing in other words, and search what it keeps by meaning. It is off until you switch on **Group by meaning** under **Settings → AI agent → Group news by meaning (experimental)**.
+
+With it on:
+
+- reprints of one event from different sites are grouped into one [story](/docs/data/news#stories-not-headlines);
+- news, research, forecasts and memories are searched by meaning as well as by words;
+- with a local model and a decisions model, Solyx watches reports' [falsifiers](/docs/research#falsifier-watch) in the news.
+
+<Screenshot
+  file="settings/embeddings.png"
+  alt="Settings → AI agent → Group news by meaning, with the Ollama model ready"
+/>
+
+<Tabs items={["Ollama", "LM Studio", "OpenAI"]}>
+  <Tab value="Ollama">
+    <Steps>
+      <Step>
+        **Install Ollama** from [ollama.com](https://ollama.com/download) and
+        start it. **Get Ollama** in the settings links there.
+      </Step>
+      <Step>
+        **Set Vectors from to Ollama.** The **Endpoint** is
+        `http://127.0.0.1:11434/v1`; change it to use Ollama on another machine.
+      </Step>
+      <Step>
+        **Download the model.** **Model in Ollama** checks for
+        `qwen3-embedding:0.6b` and offers **Download**, or run `ollama pull
+        qwen3-embedding:0.6b` in a terminal.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab value="LM Studio">
+    [LM Studio](https://lmstudio.ai/) answers the same OpenAI-compatible API.
+    Start its local server, load an embedding model, and point **Vectors from:
+    Ollama**'s **Endpoint** at it, such as `http://127.0.0.1:1234/v1`.
+    **Download** works only with Ollama, so load the model in LM Studio
+    yourself.
+  </Tab>
+  <Tab value="OpenAI">
+    Set **Vectors from** to **OpenAI** and enter an API key from the [OpenAI
+    platform](https://platform.openai.com/api-keys); signing in with ChatGPT
+    doesn't cover embeddings. Solyx uses `text-embedding-3-large` at 1,024
+    dimensions.
+  </Tab>
+</Tabs>
+
+<Callout title="Your own words go only to the local embedder">
+  News may be embedded by either provider. Reports, falsifiers, memories and
+  your searches are embedded only by the Ollama endpoint, never by OpenAI. If
+  you point that endpoint at another machine, they are sent there.
+</Callout>
+
+The API key under Ollama is needed only if a proxy in front of it checks a bearer token. A database keeps vectors of one model at a time, so switching models starts its vectors over.

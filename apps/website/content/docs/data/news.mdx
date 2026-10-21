@@ -1,0 +1,139 @@
+---
+title: News and sentiment
+description: How Solyx collects news, groups it into stories, reads who speaks and which way they lean, and ranks headlines.
+---
+
+## Sources
+
+| Source                    | What it brings                                        | Needs            |
+| ------------------------- | ----------------------------------------------------- | ---------------- |
+| MOPS material information | What Taiwan companies file, to the minute             | Nothing          |
+| Insider transfers         | Share transfers insiders declare                      | Nothing          |
+| PTT's Stock board         | Posts naming the listing, with their pushes           | Nothing          |
+| News outlets              | Articles naming the listing                           | A web search key |
+| Threads and X             | Posts on Taiwan listings (Threads) and US tickers (X) | A web search key |
+
+On PTT, a 爆 counts as +100 pushes, an XX as −100 and X1 to X9 as −10 to −90.
+
+## Collection
+
+- Each listing's news is collected every 72 hours and each theme's every 24 by default; change both under **Settings → Schedules → What the app collects**. The collector checks what is due every 30 minutes.
+- A listing's first collection reaches back 7 days, and each later one overlaps the last by a day.
+- Each source and channel brings up to 10 items a time.
+- A source that fails three times in a row rests for six hours, unless the agent asks for it.
+
+## Stories, not headlines
+
+Reprints and rewordings of one event are grouped into a story:
+
+<Steps>
+  <Step>
+    **Same title.** On one channel, titles that match once `Re:` and `Fw:` are
+    stripped join within three days. A title needs at least eight letters.
+  </Step>
+  <Step>
+    **Retold.** From the same kind of voice within a day, titles that share at
+    least 40% of the shorter one's letter pairs join, once the listing's code
+    and names and the site's own tags are taken out.
+  </Step>
+  <Step>
+    **Same meaning.** With an embedder on, items from different sites dated on
+    the same exchange day join when their vectors are close enough: cosine 0.82
+    for OpenAI's `text-embedding-3-large` at 1,024 dimensions, 0.89 for
+    `qwen3-embedding:0.6b`.
+  </Step>
+</Steps>
+
+A story's lead is its earliest item the decisions model read; the rest are its retellings.
+
+## Reading a story
+
+The decisions model reads each story once, from its title, snippet, site and address, and answers:
+
+| Question  | Answers                                                                |
+| --------- | ---------------------------------------------------------------------- |
+| Relevance | Whether it is about the listing                                        |
+| Stance    | Five levels, from very bearish to very bullish                         |
+| Kind      | Report, opinion or promotion                                           |
+| Topic     | Earnings, guidance, capital, legal, business, analyst, market or other |
+| Speaker   | The company, an outlet, an investor, a reference page or another voice |
+
+$$
+\text{stance} = \sum_{\ell} P(\ell)\, w_\ell
+\qquad
+w = -1,\ -0.5,\ 0,\ 0.5,\ 1
+$$
+
+The weights run from very bearish to very bullish.
+
+The speaker is the model's likeliest answer when it is reasonably sure, and the channel's usual voice otherwise. A story counts as about the listing at relevance 0.5 or more.
+
+A changed title or snippet clears the story's reading and it is read again; a snippet that only changed its spacing keeps it.
+
+## The gauge
+
+The gauge sums the stories' stances, each weighted by how relevant it is, how unlike a promotion and how fresh:
+
+$$
+\begin{aligned}
+\text{weight} &= \text{relevance} \times \bigl(1 - P(\text{promotion})\bigr) \times \text{fade} \\
+\text{fade} &= 0.5^{\,\text{age} / \text{half-life}} \\
+\text{score} &= \operatorname{round}\bigl((\text{weighted stance} + 1) \times 50\bigr)
+\end{aligned}
+$$
+
+The score runs from 0 to 100, with 50 neutral.
+
+| Voice     | Half-life |
+| --------- | --------- |
+| The press | 2 days    |
+| The crowd | 1 day     |
+
+The gauge is marked stale once the faded weight falls under 0.5. The daily stance on the chart does not fade.
+
+## Ranking headlines
+
+$$
+\begin{aligned}
+\text{weight} &= \text{speaker} \times \text{reading} \times \log_2(1 + \text{items}) \times \text{fade} \\
+\text{reading} &= \text{relevance} \times \bigl(1 - P(\text{promotion})\bigr) \times \text{topic} \times \frac{1 + \lvert \text{stance} \rvert}{2}
+\end{aligned}
+$$
+
+where items is how many items the story holds.
+
+| Speaker                  | Weight | Topic              | Weight |
+| ------------------------ | ------ | ------------------ | ------ |
+| The company              | 1      | Earnings, guidance | 1      |
+| An outlet, another voice | 0.8    | Capital, legal     | 0.8    |
+| An investor              | 0.45   | Business, analyst  | 0.6    |
+| A reference page         | 0      | Market, other      | 0.3    |
+
+A story not yet read counts 0.3. Stories that share an item, or whose leads read alike, show as one headline. The overview shows eight headlines from the past week, and the agent reads fifteen.
+
+## How long news is kept
+
+The press's items are kept 90 days and the crowd's 30 by default. You can keep either for 30, 90, 180 or 365 days, or forever, under **Settings → Storage**. Items are counted from when they were published, or found where undated, and pruned once a day, and at once when you shorten the time.
+
+## Themes
+
+A theme searches the news daily for up to four queries, reaching back 14 days the first time and overlapping a day after that. The decisions model reads each of the newest 20 items once against each signpost; at 0.6 or more, the item marks a development. The agent may search a theme at most once an hour.
+
+## Search by meaning
+
+With an embedder, Solyx searches news, reports, forecasts and memories by meaning as well as by words, and merges the two rankings by reciprocal rank (k = 60). It keeps the hits that stand clearly above the rest: 0.12 above the query's mean similarity.
+
+| Text embedded | What is used                                                                                  |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| A news item   | Its title and the first 500 characters of its snippet                                         |
+| A memory      | Its description and body                                                                      |
+| A report      | Its thesis, each driver, risk, falsifier, valuation and event, and each sentence of its prose |
+| A forecast    | Each sentence of its rationale and contrary case, and each claim                              |
+
+<Callout title="Your own words go only to the local embedder">
+  News may be embedded by OpenAI or by Ollama. Reports, falsifiers, memories and
+  your searches are embedded only by the Ollama endpoint you set, never by
+  OpenAI.
+</Callout>
+
+With `qwen3-embedding:0.6b`, a new memory as close as 0.72 to one of the same kind is taken for a duplicate, and the agent is pointed to the one it already has.

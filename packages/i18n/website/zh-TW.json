@@ -289,6 +289,9 @@
     "on-github": "GitHub 上的版本",
     "pull-request": "Pull request {{number}}"
   },
+  "docs": {
+    "screenshot-pending": "截圖待補"
+  },
   "status": {
     "home": "回到首頁",
     "not-found": {

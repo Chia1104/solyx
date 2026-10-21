@@ -1,0 +1,111 @@
+---
+title: 行情
+description: 設定富果或富邦取得台股報價與圖表，以及 FinMind 取得財報與籌碼。
+---
+
+在 **設定 → 行情**，**台股行情來源** 決定台股的圖表與即時 K 線從哪裡來：**富果**，用你自己的富果 API 金鑰；或 **富邦新一代 API**，透過你的富邦證券帳戶。
+
+<Screenshot
+  file="settings/market-data.zh-TW.png"
+  alt="設定 → 行情，附台股行情來源與富果區塊"
+/>
+
+## 富果 [#fugle]
+
+[富果](https://developer.fugle.tw/)提供台股的報價、K 線與即時 K 線。免費的基本用戶方案就夠你開始使用。
+
+<Steps>
+  <Step>
+    在 [fugle.tw](https://www.fugle.tw/account/register) **註冊富果帳號**。
+  </Step>
+  <Step>
+    在富果的[金鑰頁面](https://developer.fugle.tw/docs/key/) **申請行情 API 金鑰**。請先閱讀[使用條款](https://developer.fugle.tw/docs/data/intro#statement)；申請金鑰即表示同意這些條款。
+
+    <Screenshot file="setup/fugle-api-key.png" alt="富果的金鑰頁面，附一把行情 API 金鑰" />
+
+  </Step>
+  <Step>
+    **需要更多額度時再選方案**。基本用戶免費；開發者與進階用戶是[付費訂閱](https://developer.fugle.tw/docs/pricing)，有更多即時訂閱數與請求次數。
+  </Step>
+  <Step>
+    **填進 Solyx**。在 **設定 → 行情 → 富果** 填入 **API 金鑰**，並選擇金鑰所屬的 **方案**：**基本用戶（免費）**、**開發者** 或 **進階用戶**。Solyx 會依這個方案控制請求的頻率。
+  </Step>
+</Steps>
+
+| 方案     | 即時訂閱數 | 盤中請求（每分鐘） | 歷史請求（每分鐘） |
+| -------- | ---------- | ------------------ | ------------------ |
+| 基本用戶 | 5          | 60                 | 60                 |
+| 開發者   | 300        | 600                | 60                 |
+| 進階用戶 | 2,000      | 2,000              | 60                 |
+
+<Callout title="五個訂閱很快就用完">
+  在基本用戶方案下，每張圖表的即時 K
+  線佔一個訂閱，它的五檔再佔一個，所以開兩張圖表、再加一筆盯價中的停損停利，就會用滿這個方案。即時行情沒有空位的五檔，改成每
+  5 秒讀一次。
+</Callout>
+
+## 用富邦當行情來源 [#fubon-as-market-data]
+
+選擇 **富邦新一代 API**，就會透過你的富邦證券帳戶讀取行情。它允許 300 個即時訂閱，以及每分鐘 300 次盤中請求與 60 次歷史請求。富邦的登入在 **設定 → 券商** 設定，送到富邦帳戶的委託也用同一個登入。[設定富邦](/zh-TW/docs/setup/broker)。
+
+## FinMind [#finmind]
+
+財報、月營收、股利、籌碼與台股的交易日曆來自 [FinMind](https://finmindtrade.com/)，不填 token 也能用。
+
+<Steps>
+  <Step>
+    在 [finmindtrade.com](https://finmindtrade.com/) **註冊**免費帳號。
+  </Step>
+  <Step>
+    從你的[使用者頁面](https://finmindtrade.com/analysis/#/account/user) **複製 API token**。
+
+    <Screenshot file="setup/finmind-token.png" alt="FinMind 的使用者頁面與它的 API token" />
+
+  </Step>
+  <Step>
+    **填進 Solyx**。在 **設定 → 行情 → 財報** 填入 **FinMind token**，並選擇它的 **方案**：**免費**、**Backer**、**Sponsor** 或 **Sponsor Pro**。
+  </Step>
+</Steps>
+
+| 方案        | 每小時請求次數 |
+| ----------- | -------------- |
+| 不填 token  | 300            |
+| 免費        | 600            |
+| Backer      | 1,600          |
+| Sponsor     | 6,000          |
+| Sponsor Pro | 20,000         |
+
+財報、籌碼與交易日曆共用同一份額度。
+
+## 開放資料 [#open-data]
+
+這些來源不需要你準備任何東西。
+
+<Accordions>
+  <Accordion title="證交所與櫃買中心的開放資料">
+    來自[證交所 OpenAPI](https://openapi.twse.com.tw/) 與[櫃買中心
+    OpenAPI](https://www.tpex.org.tw/openapi/)：公司基本資料、交易所公布的本益比、殖利率與股價淨值比、漲跌停價、類股收盤、除權息預告、股東會、處置與注意股票、公司治理相關公告（質押、處分、罰鍰、經營權異動）、重大訊息、內部人持股轉讓、休市日，以及在證交所上市的基金。
+  </Accordion>
+  <Accordion title="投信投顧公會">
+    基金的每日淨值與每月費用，來自[投信投顧公會的開放資料](https://www.sitca.org.tw/)，依[政府資料開放授權條款第
+    1 版](https://data.gov.tw/license)使用。
+  </Accordion>
+  <Accordion title="中華民國統計資訊網與主計總處">
+    發布行事曆來自
+    [stat.gov.tw](https://www.stat.gov.tw/)；CPI、GDP、進出口貿易、外銷訂單、工業生產與景氣指標的數值，來自[主計總處的總體統計資料庫](https://nstatdb.dgbas.gov.tw/)。
+  </Accordion>
+  <Accordion title="PTT 股票板">
+    [PTT
+    股票板](https://www.ptt.cc/bbs/Stock/index.html)上提到你追蹤標的的文章。
+  </Accordion>
+</Accordions>
+
+<Callout type="info" title="只讀網站允許程式讀取的資料">
+  條款禁止程式下載資料的網站，Solyx
+  一律不讀。證交所自己的網站就禁止，所以只讀它以開放資料公布的內容；基金的預估淨值只有那些網站才有，由
+  Agent 到發行投信自己的網頁上找。
+</Callout>
+
+## 美股行情 [#us-market-data]
+
+App 已經跟著美股的交易時段與規則運作，但還沒有接上任何美股資料來源。

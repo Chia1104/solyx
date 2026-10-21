@@ -1,0 +1,49 @@
+---
+title: Reports
+description: A view of a listing over quarters, whose claims keep their sources' own words.
+---
+
+A report holds the agent's view of a listing over quarters:
+
+- **the stance,** bullish, neutral or bearish, and the thesis behind it;
+- **what carries the view,** and **the risks** to it;
+- **what would change the view,** the falsifiers that would prove it wrong;
+- **a fair range** of value, set against the last price;
+- **the dates ahead,** such as earnings or a shareholders' meeting, which also appear on the calendar;
+- **sections** on the business, its financials, valuation, catalysts and risks.
+
+Ask for a **Deep analysis** under a listing's chart, and the agent writes a report and a forecast. It revises the report as you talk; each revision changes only what it names, and every earlier one is kept. Once a newer quarter comes out, the report is marked stale until the agent revises it, and no forecast is made before then.
+
+<Screenshot
+  file="research/report.png"
+  alt="A listing's research tab, with its stance, thesis, drivers, risks and the stance strip"
+/>
+
+## Claims keep their sources' words
+
+A claim in a report carries a quote from its source. The quote must stand in something the conversation actually read, and a decisions model checks that it says what the claim asserts; a report that fails either is refused. [How quotes are checked](/docs/data/forecasts#quotes-must-be-read).
+
+<Callout title="A decisions model makes the check">
+  Without a [decisions model](/docs/setup/decisions), claims are kept but marked
+  unread.
+</Callout>
+
+## The stance record
+
+Each stance is measured against the market's index, from the revision that set it to the one that changed it. Once the stance has changed, a strip under it shows each stretch as wide as it ran, raised or lowered by how far the listing outran or trailed the index. [How excess return is measured](/docs/data/forecasts#stance-against-the-index).
+
+## Falsifier watch
+
+With a local embedder and a decisions model set up, Solyx reads the week's news against each falsifier after every collection, and tells the agent when one looks met. [How the watch works](/docs/data/forecasts#falsifier-watch).
+
+<Cards>
+  <Card title="Forecasts" href="/docs/research/forecasts">
+    Price bands with probabilities, frozen once made and scored.
+  </Card>
+  <Card title="The MAGI" href="/docs/research/magi">
+    Three units that vote on forecasts and proposals.
+  </Card>
+  <Card title="Themes" href="/docs/research/themes">
+    Topics watched over quarters, with daily news searches.
+  </Card>
+</Cards>

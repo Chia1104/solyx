@@ -1,0 +1,15 @@
+{
+  "title": "How Solyx computes",
+  "pages": [
+    "index",
+    "market-data",
+    "indicators",
+    "levels",
+    "rotation",
+    "fundamentals",
+    "forecasts",
+    "news",
+    "backtests",
+    "market-rules"
+  ]
+}

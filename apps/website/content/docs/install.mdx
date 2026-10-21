@@ -9,23 +9,64 @@ Nightly builds for macOS (`.dmg`) and Windows (`.exe`) are on the [download page
 
 Solyx has no paid signing certificates yet. The macOS app is ad-hoc signed and the Windows installer unsigned, so the system warns you before the first launch.
 
-- **macOS:** open the app once, then allow it under System Settings, Privacy & Security.
-- **Windows:** in the SmartScreen prompt, choose More info, then Run anyway.
+<Tabs items={["macOS", "Windows"]}>
+  <Tab value="macOS">
+    <Steps>
+      <Step>
+        **Open the `.dmg`** and drag Solyx Nightly into Applications.
+      </Step>
+      <Step>
+        **Open the app once.** macOS refuses it, since it is not signed with a Developer ID.
+      </Step>
+      <Step>
+        **Allow it** under **System Settings → Privacy & Security**, with **Open Anyway**, then open it again.
+      </Step>
+    </Steps>
 
-A nightly installs as Solyx Nightly and keeps its own data, so it never touches a stable install's settings, keys or databases.
+    <Screenshot file="install/macos-open-anyway.png" alt="Open Anyway under System Settings → Privacy & Security" />
+
+  </Tab>
+  <Tab value="Windows">
+    <Steps>
+      <Step>
+        **Run the installer.**
+      </Step>
+      <Step>
+        **In the SmartScreen prompt,** choose **More info**, then **Run anyway**.
+      </Step>
+    </Steps>
+
+    <Screenshot file="install/windows-smartscreen.png" alt="SmartScreen's More info and Run anyway" />
+
+  </Tab>
+</Tabs>
+
+A nightly installs as Solyx Nightly and keeps its own data, so it never touches a stable install's settings, keys or databases. The first time it opens, Solyx walks you through what it needs. [Keys and sources](/docs/setup).
 
 ## Updates
 
-Solyx checks its channel for updates a minute after it starts, every six hours after that, and whenever you ask.
+Solyx checks its channel for updates a minute after it starts, every six hours after that, and whenever you press **Check now** under **Settings → About**. **Check for updates** there switches the automatic checks off.
 
-- **Windows** downloads the update and installs it when Solyx restarts or quits.
-- **macOS** tells you a newer version is out and links to its release, since installing in place needs a Developer ID signature.
+<Tabs items={["Windows", "macOS"]}>
+  <Tab value="Windows">
+    Solyx downloads the update and installs it when it restarts or quits;
+    **Restart to update** in the title bar does it now.
+  </Tab>
+  <Tab value="macOS">
+    Solyx tells you a newer version is out, and **Download update** links to its
+    release, since installing in place needs a Developer ID signature.
+  </Tab>
+</Tabs>
+
+A development build, and Linux, never check.
 
 ## Where Solyx keeps things
 
 - **Settings** live in `~/.solyx/config.json`. You may edit it by hand; Solyx applies saved changes without a restart and never overwrites a file with syntax errors.
 - **Keys and sign-ins** are saved encrypted with your system's secret store, and never in the config file, a log or a backup.
 - **Your instructions for the agent** sit beside the config: `skills/`, `AGENTS.md` and `mcp.json`.
+
+[Every file, and what config.json holds](/docs/files).
 
 ## Build it yourself
 

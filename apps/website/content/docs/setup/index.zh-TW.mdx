@@ -1,0 +1,68 @@
+---
+title: 金鑰與來源
+description: Solyx 讀取哪些資料、從哪裡讀，以及各自需要你準備什麼。
+---
+
+每把金鑰都是你的，並加密存在你的電腦上。有行情來源和一個模型就能開始；其餘的會增加 Agent 能做的事。請求直接從你的電腦送到各供應商。
+
+| 用途                             | 來源                                          | 你要準備                                              | 設定說明                                        |
+| -------------------------------- | --------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------- |
+| 台股報價與 K 線                  | 富果，或富邦                                  | 富果 API 金鑰，或富邦的 SDK 與登入                    | [行情](/zh-TW/docs/setup/market-data)           |
+| 財報、股利與籌碼                 | FinMind                                       | 不需要；有 token 可提高上限                           | [行情](/zh-TW/docs/setup/market-data#finmind)   |
+| 交易所清單、重大訊息與內部人轉讓 | 證交所與櫃買中心的開放資料                    | 不需要                                                | [行情](/zh-TW/docs/setup/market-data#open-data) |
+| 基金淨值與費用                   | 投信投顧公會的開放資料                        | 不需要                                                | [行情](/zh-TW/docs/setup/market-data#open-data) |
+| 經濟數據發布與數值               | 中華民國統計資訊網與主計總處                  | 不需要                                                | [行情](/zh-TW/docs/setup/market-data#open-data) |
+| 下單到你自己的帳戶               | 富邦證券                                      | 富邦的 SDK、憑證與 API 金鑰                           | [券商](/zh-TW/docs/setup/broker)                |
+| Agent 的模型                     | 你選擇的模型供應商                            | API 金鑰，或登入 ChatGPT、GitHub Copilot、xAI 或 Meta | [模型](/zh-TW/docs/setup/models)                |
+| 網路搜尋與新聞來源               | Firecrawl、Exa 或 Tavily                      | API 金鑰                                              | [網路搜尋](/zh-TW/docs/setup/web-search)        |
+| 判讀主張、新聞與指令（決策模型） | TypeSafe、Cloudflare Workers AI 或 OpenAI     | API 金鑰                                              | [決策模型](/zh-TW/docs/setup/decisions)         |
+| 語意搜尋與新聞分群（嵌入模型）   | OpenAI，或你電腦上的模型（Ollama、LM Studio） | API 金鑰，或不需要                                    | [嵌入模型](/zh-TW/docs/setup/embeddings)        |
+| 備份                             | 任何相容 S3 的 bucket                         | 存取金鑰與密語                                        | [備份](/zh-TW/docs/setup/backup)                |
+| 追蹤與日誌                       | 任何 OTLP 端點                                | 端點位址與 headers                                    | [可觀測性](/zh-TW/docs/setup/observability)     |
+
+## 第一次啟動 [#first-launch]
+
+Solyx 第一次開啟時，會一步步帶你設定它需要的東西。每一步都可以略過，之後再到 **設定** 補上。
+
+<Steps>
+  <Step>**歡迎**。選擇主題、漲跌顏色與語言，以及是否傳送當機報告。</Step>
+  <Step>
+    **行情**。選擇用富果或富邦取得台股報價與圖表，並輸入它的金鑰或登入。[行情](/zh-TW/docs/setup/market-data)。
+  </Step>
+  <Step>
+    **AI
+    Agent**。啟用一個模型供應商，並輸入金鑰或登入。[模型](/zh-TW/docs/setup/models)。
+  </Step>
+  <Step>
+    **網路搜尋**。輸入新聞與 Agent
+    搜尋時所用供應商的金鑰，並設定新聞多久收集一次。[網路搜尋](/zh-TW/docs/setup/web-search)。
+  </Step>
+  <Step>
+    **決策模型**。輸入判讀主張、新聞與指令的模型金鑰。[決策模型](/zh-TW/docs/setup/decisions)。
+  </Step>
+  <Step>
+    **完成**。摘要會顯示哪些部分已經就緒。在你設定券商之前，委託都會送到模擬帳戶。
+  </Step>
+</Steps>
+
+<Screenshot
+  file="settings/onboarding.zh-TW.png"
+  alt="第一次啟動的設定流程，停在行情這一步"
+/>
+
+## 金鑰怎麼保存 [#how-keys-are-kept]
+
+金鑰與登入資料由作業系統的機密儲存區加密，存好後就不會再顯示：金鑰那一列只提供 **取代** 與 **移除**。它們絕不會進入設定檔、日誌、錯誤回報或備份。
+
+<Callout type="warn" title="Linux 需要金鑰圈">
+  在 Linux 上，要先安裝並解鎖 GNOME Keyring 或 KWallet，Solyx
+  才能儲存金鑰。設定好之後，請重新啟動 Solyx。
+</Callout>
+
+## 方案與上限 [#plans-and-limits]
+
+供應商會依你的方案限制用量，所以 Solyx 每個金鑰與方案只保持一個連線，並依方案調整請求的間隔。已收盤的交易日會快取在你的電腦上，圖表不會重複下載。方案的即時訂閱數是共用的：圖表的即時 K 線佔一個，旁邊的報價與五檔再佔一個。即時行情沒有空位時，五檔改在盤中每幾秒讀一次。[各方案的上限](/zh-TW/docs/data/market-data#plans-and-limits)。
+
+## 你自己指定的端點 [#endpoints-you-choose]
+
+只有你能把模型供應商的請求轉送到其他端點（例如你自己的閘道）、為 App 的追蹤與日誌指定端點，或指定接收備份的 bucket。備份離開電腦前會用你的密語封存，且絕不包含任何金鑰。

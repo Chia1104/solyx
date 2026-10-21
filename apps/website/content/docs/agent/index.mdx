@@ -1,0 +1,96 @@
+---
+title: The agent
+description: What the agent reads, how its actions are allowed, and what it never does.
+---
+
+The agent talks about what is on your screen. A message carries the listing you are looking at, with its chart's interval and indicators, or the overview's tab; **Don't attach** leaves the screen out of a message.
+
+<Screenshot
+  file="agent/conversation.png"
+  alt="A conversation in the agent's pane, with a tool call and a reply drawn as a canvas"
+/>
+
+## Talking to it
+
+- **`@`** names another listing: those on screen first, then what you hold, then what you watch.
+- **`/`** calls a skill or a command. `/compact` summarizes earlier messages to free up context, keeping what you write after it.
+- **The model and thinking level** are picked per conversation in the composer, starting from your [default](/docs/setup/models#the-default-model).
+- **The context meter** shows how much of the model's window the conversation fills. Older messages are summarized as it fills; **Summarize earlier messages** does it now. Each reply's **Tokens** show what was prompted, read from and written to the cache, and replied.
+- **Replies** can draw figures, a canvas in the app's own colours with no scripts or network, and link into the app. A link to the web asks before it opens.
+- **Edit as a new message** starts over from one of yours.
+
+## What it reads
+
+- **Figures it cites rather than works out.** Its tools read candles, indicators, fundamentals, investor flows, economic figures, the calendar, news and your account. The app computes growth, margins and multiples, so the model quotes them. [How Solyx computes](/docs/data).
+- **Its own analysis.** Scripts it writes run in a sandbox that reads market data, flows, fundamentals and the account, and reaches nothing else: no network and no files.
+- **The web,** through your [Firecrawl, Exa or Tavily key](/docs/setup/web-search).
+- **What it learned of you.** [Memories](/docs/agent/memory) carry over between conversations; you can read, edit and forget each one.
+
+## How its actions are allowed
+
+Each conversation picks how the agent's tool calls and shell commands are allowed.
+
+| Mode         | What runs without you                                                                                                                                           |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ask first    | Nothing: tool calls and shell commands wait for you to allow them.                                                                                              |
+| Allow for me | Shell commands the decisions model judges harmless, reading pages this conversation found, and saving what it learns about you to memory. Everything else asks. |
+| Don't ask    | Tool calls and shell commands.                                                                                                                                  |
+
+Without a [decisions model](/docs/setup/decisions), **Allow for me** asks for every shell command. A call that waits shows what it is about to do, with **Allow** and **Don't allow**, and one that ran unasked says why.
+
+<Callout type="warn" title="No mode confirms an order">
+  Its tools only propose: your hold in the app confirms, or a [trading
+  mandate](/docs/orders/mandate) you set sends what falls within it.
+</Callout>
+
+## What it can change
+
+The agent can read your setup and change a few settings when you ask: the theme, palettes, price colours, language and time zone, the market data source and plans, the default model and thinking level, the decision mode, how often news and themes are collected, the web search and decisions providers, embeddings and update checks. Each change waits for you unless the conversation is in **Don't ask**.
+
+It can never change a key or sign-in, which providers are on, an endpoint, the shell, MCP tools' policies, shared skills, memory, the menu bar, the backup's destination, the account orders go to, the mandate or the lock.
+
+## Its tools
+
+<Accordions>
+  <Accordion title="Market and account">
+    The session and local time of each market; candles; indicators and levels;
+    quotes for many listings; the news with its sentiment; the heaviest
+    headlines; the calendar; the watchlist; and the account's cash, positions,
+    working orders, exits and round trips.
+  </Accordion>
+  <Accordion title="Orders">
+    List proposals, check an order against the risk checks without proposing it,
+    propose an order, and propose a stop or target. Nothing else.
+  </Accordion>
+  <Accordion title="Research">
+    Reports and forecasts, fundamentals, base rates, revising a report,
+    submitting a forecast, investor flows, economic figures, sectors and their
+    movers, rotation, and searching stored research, news and proposals.
+  </Accordion>
+  <Accordion title="Web, memory and themes">
+    Search the web and read a page; recall, remember and forget; read themes,
+    search one, and save one.
+  </Accordion>
+  <Accordion title="Tasks, watchlist and setup">
+    Read scheduled tasks and their runs, run one now, save one; change the
+    watchlist; read the setup and change a setting.
+  </Accordion>
+  <Accordion title="Scripts and extensions">
+    Read a skill; run an analysis script in the sandbox; search and call MCP
+    servers' tools, or script them; and, when you switch it on, the shell.
+  </Accordion>
+</Accordions>
+
+Web tools come only with a web search key, and memory tools only while memory is on.
+
+<Cards>
+  <Card title="Extensions" href="/docs/agent/extensions">
+    Skills, standing instructions, MCP servers and the shell.
+  </Card>
+  <Card title="Schedules" href="/docs/agent/schedules">
+    Tasks that send the agent a message on their own.
+  </Card>
+  <Card title="Memory" href="/docs/agent/memory">
+    What it keeps of how you trade.
+  </Card>
+</Cards>

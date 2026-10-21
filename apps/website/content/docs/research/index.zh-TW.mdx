@@ -1,0 +1,48 @@
+---
+title: 報告
+description: 以季為單位看一檔股票，其中的主張都保留出處的原文。
+---
+
+報告記錄 Agent 對一檔股票以季為單位的看法：
+
+- **立場**：看多、中立或看空，以及背後的論點；
+- **論點支撐**，以及它面臨的 **風險**；
+- **什麼會改變看法**：會證明它錯了的反證條件；
+- **合理區間**：估值的區間，對照最新價；
+- **未來事件**：例如財報公布或股東會，也會出現在行事曆上；
+- **各節內容**：業務、財務、估值、催化劑與風險。
+
+在個股圖表下方按 **深度分析**，Agent 就會寫一份報告和一筆預測。它會在對話中修訂報告；每次修訂只改它點名的部分，之前的每一版都會保留。新一季財報公布後，報告會標成過時，直到 Agent 修訂它，在那之前不會提出預測。
+
+<Screenshot
+  file="research/report.zh-TW.png"
+  alt="個股的研究分頁，有立場、論點、論點支撐、風險與立場的歷史"
+/>
+
+## 主張保留出處的原文 [#claims-keep-their-sources-words]
+
+報告裡的主張都附上出處的引文。引文必須出自這段對話實際讀到的內容，並由決策模型檢查它是否說了主張所說的事；兩者有一項不通過，報告就會被拒絕。[引文怎麼查核](/zh-TW/docs/data/forecasts#quotes-must-be-read)。
+
+<Callout title="由決策模型查核">
+  沒有[決策模型](/zh-TW/docs/setup/decisions)時，主張仍會保留，但標為未經查核。
+</Callout>
+
+## 立場紀錄 [#the-stance-record]
+
+每個立場都會對照市場指數衡量，從設定它的那一版，算到改變它的那一版。立場改變過之後，下方會有一條立場的歷史：每段的寬度是它維持的時間，往上或往下是這段期間這檔股票領先或落後指數多少。[超額報酬怎麼計算](/zh-TW/docs/data/forecasts#stance-against-the-index)。
+
+## 反證條件追蹤 [#falsifier-watch]
+
+設好本機嵌入模型與決策模型後，Solyx 每次收集完新聞，都會拿這一週的新聞比對每個反證條件，一旦某個條件看起來已經成立，就會告訴 Agent。[追蹤怎麼運作](/zh-TW/docs/data/forecasts#falsifier-watch)。
+
+<Cards>
+  <Card title="預測" href="/zh-TW/docs/research/forecasts">
+    附機率的價格區間，一提出就凍結，並會評分。
+  </Card>
+  <Card title="MAGI" href="/zh-TW/docs/research/magi">
+    三個單元，對預測與提案投票。
+  </Card>
+  <Card title="主題" href="/zh-TW/docs/research/themes">
+    以季為單位追蹤的議題，每天搜尋新聞。
+  </Card>
+</Cards>

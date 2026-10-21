@@ -1,3 +1,5 @@
+import katexCss from "katex/dist/katex.min.css?url";
+
 import { Suspense, use } from "react";
 
 import { createFileRoute, notFound } from "@tanstack/react-router";
@@ -47,6 +49,8 @@ export const Route = createFileRoute("/{-$lang}/docs/$")({
     const { t } = translators[localeOf(params.lang) ?? Locale.EnUS];
 
     return {
+      // KaTeX's stylesheet sets the math in docs, so only docs pages load it.
+      links: [{ rel: "stylesheet", href: katexCss }],
       meta: loaderData
         ? [
             { title: t("meta.page-title", { title: loaderData.title }) },

@@ -1,0 +1,57 @@
+---
+title: Levels
+description: Support zones, the volume profile, the 52-week range and the session's levels, all read from the bars.
+---
+
+Levels are marked from the bars themselves, on daily bars unless noted, and the agent cites the same ones the chart draws.
+
+## Support zones
+
+A zone is a band of prices the bars suggest buyers have defended.
+
+| Zone           | Drawn around                      | Width          |
+| -------------- | --------------------------------- | -------------- |
+| Quarter line   | the 60-session average            | 2% either side |
+| Half-year line | the 120-session average           | 3% either side |
+| Dense volume   | the busiest prices of the profile | see below      |
+
+A line's zone is drawn only while the line sits below the last close. The zones are listed from the highest down.
+
+## Volume profile
+
+The profile covers the last 120 daily bars, about half a year, split into 30 equal price slices from their lowest low to their highest high.
+
+<Steps>
+  <Step>
+    **Spread each bar's volume** across the slices its high and low span, in
+    proportion to how much of each slice the bar covers. A bar that traded at
+    one price puts all its volume in one slice.
+  </Step>
+  <Step>**Find the point of control,** the slice with the most volume.</Step>
+  <Step>
+    **Grow the dense zone.** Among slices wholly below the last close, start at
+    the busiest and take in each neighbour that holds at least 60% of its
+    volume.
+  </Step>
+</Steps>
+
+The busiest slice is drawn across a fifth of the chart's width, and the rest in proportion.
+
+## 52-week range
+
+The highest high and lowest low of the last 240 daily bars, as long as the year line.
+
+## Breaks
+
+A marker shows where a close fell below the quarter line or the year line from at or above it the session before.
+
+## Session levels
+
+On intraday bars the chart marks:
+
+- **the previous session's** high, low and close;
+- **the opening range,** the high and low of the regular session's first 30 minutes, once those minutes have passed. It shows on bars of 30 minutes or less.
+
+## The session chart
+
+**Intraday** charts the newest session on minute bars around its reference price, or the previous close where none is known. The scale is even either side of it and spans at least ±0.5%, and the time axis runs to the regular session's close, so the line fills in as the session goes.

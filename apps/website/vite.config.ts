@@ -12,6 +12,8 @@ import { createGetUrl, getSlugs } from "fumadocs-core/source";
 import { pageSchema } from "fumadocs-core/source/schema";
 import { fumadocsMdx } from "fumadocs-mdx/vite";
 import { generateOGImage } from "fumadocs-ui/og/takumi";
+import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
 import { Renderer } from "takumi-js/node";
 import type { Plugin } from "vite-plus";
 import { defineConfig } from "vite-plus";
@@ -160,7 +162,15 @@ export default defineConfig({
   // Fumadocs reads its content from the root, which the prerender's preview server does not pass on.
   root: import.meta.dirname,
   plugins: [
-    fumadocsMdx(),
+    fumadocsMdx({
+      // Math is written between `$$`, since prose quotes prices such as NT$20 and US$30,000.
+      globalOptions: {
+        mdxOptions: {
+          remarkPlugins: [[remarkMath, { singleDollarTextMath: false }]],
+          rehypePlugins: (plugins) => [rehypeKatex, ...plugins],
+        },
+      },
+    }),
     // Tests run in Node; the plugin would move them into the Workers runtime, which they do not need.
     !process.env.VITEST && voidPlugin(),
     // Void refuses a Worker that carries an image, and every page's assets reach the client build

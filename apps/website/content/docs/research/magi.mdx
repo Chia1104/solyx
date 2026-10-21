@@ -1,0 +1,45 @@
+---
+title: The MAGI
+description: Three units, each a persona on a model you pick, that vote on forecasts and order proposals.
+---
+
+You choose who judges the agent's forecasts and proposals: the agent alone, or the MAGI. The MAGI put each of a forecast's scenarios and each order proposal to a vote. Three units, each a persona on a model you pick, judge alone:
+
+| Unit                          | Weighs                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| **MELCHIOR·1**, the scientist | What the data and the evidence show                                            |
+| **BALTHASAR·2**, the mother   | What could be lost, and whether standing aside is what the evidence called for |
+| **CASPER·3**, the woman       | What the crowd wants now, and what standing aside gives up                     |
+
+Two votes carry a motion. A carried order still waits for you.
+
+<Screenshot
+  file="research/magi-vote.png"
+  alt="A MAGI vote in the conversation, with each unit's verdict and reason"
+/>
+
+## What is put to a vote
+
+<Tabs items={["Order proposals", "Forecasts"]}>
+  <Tab value="Order proposals">
+    One motion, held only once the proposal has passed every risk check. A
+    rejected order makes no proposal; a carried one waits for you to confirm it
+    like any other.
+  </Tab>
+  <Tab value="Forecasts">
+    Each scenario is its own motion: that the close is likelier to land in its
+    band than its base rate says. A forecast without base rates is not voted on,
+    and it is kept whatever the result.
+  </Tab>
+</Tabs>
+
+The units never see the agent's own probabilities, direction or plan, only the evidence, so they judge the case rather than the conclusion. [What each unit reads](/docs/data/forecasts#the-magis-vote).
+
+## Setting them up
+
+Under **Settings → AI agent**, set **Decision mode** to **MAGI** and pick each unit's model, or leave a unit on the conversation's model. Each unit runs on your own key, so a vote costs three model calls.
+
+<Screenshot
+  file="settings/magi.png"
+  alt="Decision mode and the MAGI units' models under Settings → AI agent"
+/>

@@ -34,7 +34,11 @@ catalogs:
     fumadocs-mdx: 15.4.7
     # The examples' default build of Fumadocs' UI, on Base UI; the plain npm package is its Radix build.
     fumadocs-ui: npm:@fumadocs/base-ui@16.17.5
+    # rehype-katex renders with katex 0.16, so its stylesheet comes from the same version.
+    katex: 0.16.47
     lucide-react: 1.55.0
+    rehype-katex: 7.0.1
+    remark-math: 6.0.0
     takumi-js: 2.16.3
   drizzle:
     # 1.0.0-rc.5 ships only as commit builds; drizzle-kit must match drizzle-orm exactly.

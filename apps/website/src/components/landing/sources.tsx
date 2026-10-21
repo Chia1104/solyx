@@ -214,7 +214,7 @@ export function Sources() {
           {t("sources.more")}{" "}
           <Link
             to="/{-$lang}/docs/$"
-            params={{ lang: langParam(locale), _splat: "keys" }}
+            params={{ lang: langParam(locale), _splat: "setup" }}
             className="link">
             {t("sources.more-link")}
           </Link>

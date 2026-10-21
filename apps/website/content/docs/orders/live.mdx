@@ -1,0 +1,40 @@
+---
+title: Paper and live
+description: Orders go to a paper account until you switch to your own Fubon account.
+---
+
+## Paper by default
+
+Orders go to a paper account, so no real money moves. It starts with NT$1,000,000 and US$30,000 and takes orders in every session, so you can try the whole road after the close.
+
+<Callout title="Paper fills are not a backtest">
+  The paper account fills every order at once and in full, with no commission,
+  tax or short selling. It is there to exercise the road to an order, not to
+  judge a strategy; for that, ask the agent for a
+  [backtest](/docs/data/backtests).
+</Callout>
+
+## Trading your own account
+
+<Callout type="warn" title="Real money moves">
+  Once you switch, a confirmed proposal, or one your trading mandate covers, is
+  a real order at your broker.
+</Callout>
+
+<Steps>
+  <Step>
+    **Set up Fubon's sign-in** under **Settings → Brokers**: its SDK, your
+    certificate and your login. [Setting up Fubon](/docs/setup/broker).
+  </Step>
+  <Step>**Pick your Fubon account** under **Settings → Trading**.</Step>
+  <Step>
+    **Restart Solyx.** Proposals still waiting for the paper account are
+    dismissed then.
+  </Step>
+</Steps>
+
+A live account sends orders only to the regular session. You can cancel an order that is still working under **Orders**.
+
+## Settlement banks
+
+Fubon reads the balance only of a settlement account at Taipei Fubon Bank or LINE Bank. With another bank, Solyx cannot tell what you can spend, so it refuses buys and only sales go.

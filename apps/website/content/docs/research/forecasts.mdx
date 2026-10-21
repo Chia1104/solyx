@@ -1,0 +1,39 @@
+---
+title: Forecasts
+description: Price bands with probabilities, frozen once made and judged against what the price did.
+---
+
+A forecast splits a listing's close a few sessions ahead, up to 20, into two to four price bands, each with a probability. Each band carries a path the agent expects the price to take, drawn dashed on the chart from the newest bar, darker the likelier it is. A long or short forecast may add a plan: an entry, a stop and a target.
+
+<Screenshot
+  file="research/forecast-chart.png"
+  alt="A forecast's scenarios drawn on the daily chart, with its entry, stop and target"
+/>
+
+## What a forecast must pass
+
+- The listing has a current report, and only one forecast is made per session.
+- The probabilities add up to 100, and the bands cover every price once.
+- A long or short leans the way it says against the listing's base rates.
+- A plan's reward is at least its risk.
+
+[Every check, step by step](/docs/data/forecasts#checks-before-it-is-kept).
+
+## Base rates
+
+Beside each band, the forecast shows how often the listing's own history would have landed in it over the same number of sessions. Base rates are what a forecast must beat: one that only repeats them has no skill. [How they are counted](/docs/data/forecasts#base-rates).
+
+## Judged at the horizon
+
+Once made, a forecast is frozen. After the horizon's regular close it is judged against where the price closed, with cash dividends that went ex in between added back, and scored with the Brier score. Its plan is replayed bar by bar, ties going against it.
+
+## The record
+
+Under **Forecasts** in a listing's research, the record shows how many forecasts settled and their mean Brier score, their skill against history's base rates, and the mean R of their plans. A strip shows what each forecast gave the band that held, oldest first, against history's share, and the **Calibration** chart shows how often what was given came true: on its dashed line, just as often as given. The record also says how the MAGI's carried scenarios and the decisions model's reading of the facts fared against what history expected.
+
+<Screenshot
+  file="research/calibration.png"
+  alt="The forecast record with its calibration chart"
+/>
+
+[How forecasts are scored](/docs/data/forecasts#judging-at-the-horizon).

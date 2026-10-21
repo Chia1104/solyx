@@ -1,0 +1,71 @@
+---
+title: Web search
+description: A Firecrawl, Exa or Tavily key, which news collection and the agent search and read the web through.
+---
+
+A web search key finds news outlets' articles and Threads and X posts for the [news](/docs/news), and lets the agent search the web and read pages. Without one, news comes only from the sources that need no key, MOPS filings, insider transfers and PTT, and the agent has no web tools.
+
+<Screenshot
+  file="settings/web-search.png"
+  alt="Settings → AI agent → Web search, with the vendor in use"
+/>
+
+<Tabs items={["Firecrawl", "Exa", "Tavily"]}>
+  <Tab value="Firecrawl">
+    Firecrawl searches Google. It is the default vendor.
+
+    <Steps>
+      <Step>
+        **Create a key** on [Firecrawl's API keys page](https://www.firecrawl.dev/app/api-keys). A free account comes with credits.
+
+        <Screenshot file="setup/firecrawl-api-key.png" alt="Firecrawl's API keys page" />
+      </Step>
+      <Step>
+        **Enter it** under **Settings → AI agent → Web search → Firecrawl**.
+      </Step>
+    </Steps>
+
+  </Tab>
+  <Tab value="Exa">
+    Exa searches its own index.
+
+    <Steps>
+      <Step>
+        **Create a key** on [Exa's dashboard](https://dashboard.exa.ai/api-keys).
+
+        <Screenshot file="setup/exa-api-key.png" alt="Exa's API keys page" />
+      </Step>
+      <Step>
+        **Enter it** under **Settings → AI agent → Web search → Exa**.
+      </Step>
+    </Steps>
+
+  </Tab>
+  <Tab value="Tavily">
+    Tavily's news searches can't favour a market's country.
+
+    <Steps>
+      <Step>
+        **Create a key** on [Tavily's dashboard](https://app.tavily.com/). A free key comes with 1,000 credits a month.
+
+        <Screenshot file="setup/tavily-api-key.png" alt="Tavily's dashboard with an API key" />
+      </Step>
+      <Step>
+        **Enter it** under **Settings → AI agent → Web search → Tavily**.
+      </Step>
+    </Steps>
+
+  </Tab>
+</Tabs>
+
+With more than one key saved, **Vendor** picks the one news and the agent search through.
+
+## Staying within a free tier
+
+News of what you hold and watch is collected every 72 hours by default, so a free tier covers a watchlist of about ten listings; each theme is searched every 24 hours. Change both under **Settings → Schedules → What the app collects**. [How news is collected](/docs/data/news#collection).
+
+<Callout type="warn" title="Pages the agent reads go through your vendor">
+  Reading a page asks your vendor to fetch its address. In **Ask first** and
+  **Allow for me** modes, an address the conversation did not find itself waits
+  for you, since a page the agent read could be trying to send your data out.
+</Callout>

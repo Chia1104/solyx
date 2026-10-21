@@ -1,0 +1,100 @@
+---
+title: The workspace
+description: The watchlist, the overview, a listing's page and the agent's pane, and how to move between them.
+---
+
+Solyx's window has three columns: your watchlist and positions on the left, the overview or a listing's page in the middle, and the agent's pane on the right.
+
+<Screenshot
+  file="workspace/overview.png"
+  alt="The workspace: the watchlist, the overview's Today tab and the agent's pane"
+/>
+
+## The title bar
+
+From left to right: the watchlist toggle, **Back**, Solyx's name (which opens the overview), the symbol search, an update when one is ready, each market's session, the order lock, whether you trade on paper or live, **Settings** and the agent pane's toggle.
+
+A strip runs under the title bar: hatched in pencil while orders go to the paper account, a solid ink line once they go to your own.
+
+## Watchlist and positions
+
+The left column lists your **Watchlist**, then your **Positions**, each row with its name, the session's line, its price and today's change, and a position with its gain. Search a symbol, then add it with the star above its chart. Drag a row to reorder it; its ✕ removes it.
+
+## The overview
+
+<Tabs items={["Today", "News", "Calendar", "Market"]}>
+  <Tab value="Today">
+
+    - **To handle:** proposals waiting for you to confirm, conversations with a call to allow, and reports whose falsifier the news may have met or whose date has passed. Each leaves once handled.
+    - **Today's moves:** a heat map of your positions, sized by market value, and your watchlist.
+    - **The account:** cash and what you hold.
+    - **Trade review:** your closed round trips, grouped by the report's stance at the first buy, with their win rate, average win and loss, and payoff ratio.
+
+  </Tab>
+  <Tab value="News">
+    **Headlines** of the past week across what you hold and watch, grouped into
+    stories, and your **Themes**.
+  </Tab>
+  <Tab value="Calendar">
+    **Coming up** over the next 90 days, by week or month: filings, ex-dividend
+    days, shareholders' meetings, market closures, trading restrictions and
+    economic releases, each release with a line of its last 24 figures. A day
+    still expected is marked apart from one that is set.
+  </Tab>
+  <Tab value="Market">
+    **Listed sectors** as a heat map sized by value traded, **Sector movers**,
+    **Sector rotation**, **Your listings' rotation**, and **Market flows**.
+  </Tab>
+</Tabs>
+
+[How heat maps and rotation are worked out](/docs/data/rotation).
+
+## A listing's page
+
+Above the chart sit the quote, the watch star, the interval, **Indicators** and **Chart tools**: **Pick on chart** and **Order book**. [Charts](/docs/charts).
+
+**Under the chart** picks what shows below it:
+
+| View           | What                                                                                     |
+| -------------- | ---------------------------------------------------------------------------------------- |
+| News and posts | The listing's stories and the sentiment gauge. [News](/docs/news)                        |
+| Research       | Its report, forecasts, filed figures, rotation and fund data. [Research](/docs/research) |
+| Flows          | Investor flows, for Taiwan listings                                                      |
+| Orders         | The listing's working orders and newest fills                                            |
+
+<Screenshot
+  file="workspace/symbol-page.png"
+  alt="A listing's page with the chart, the order book and Research under the chart"
+/>
+
+## The agent's pane
+
+Four tabs: **Chat**, **Orders**, **Trade** and **P&L**. **Orders** counts the proposals waiting for you. **Trade** keeps its draft while you switch tabs. [The agent](/docs/agent) and [the order panel](/docs/orders/order-panel).
+
+## The menu bar
+
+Solyx stays in the menu bar, or the system tray on Windows, while its window is closed, so scheduled tasks and exits keep running. Its menu lists what waits for you, the proposals to confirm and calls to allow, the scheduled tasks running and the next three, and an update when one is ready. A row only opens the window in the right place: nothing in the menu confirms an order or allows a call. The icon shows how many things wait, and so does the Dock.
+
+Under **Settings → General → Background**, **Keep Solyx in the menu bar** can be switched off, and on macOS **Leave the Dock while no window is open** hides it from the Dock.
+
+## Keyboard shortcuts
+
+| Keys                               | Does                          |
+| ---------------------------------- | ----------------------------- |
+| <kbd>⌘ B</kbd> / <kbd>Ctrl B</kbd> | Show or hide the watchlist    |
+| <kbd>⌘ I</kbd> / <kbd>Ctrl I</kbd> | Show or hide the agent's pane |
+| <kbd>⌘ K</kbd> / <kbd>Ctrl K</kbd> | Search a symbol               |
+| <kbd>⌘ [</kbd> / <kbd>Alt ←</kbd>  | Go back                       |
+| <kbd>Enter</kbd>                   | Send a message                |
+| <kbd>Shift Enter</kbd>             | A new line in a message       |
+
+Drag a divider to resize a column, or focus it and use the arrow keys; double-click it to reset. **Hold to submit** needs a 1.2-second hold, which a screen reader's press stands in for.
+
+## Appearance
+
+Under **Settings → General**:
+
+- **Theme:** System, Light or Dark.
+- **Palette:** one for light and one for dark, from Blueprint, Graphite, Sepia, Iris, Lagoon, Asuka, Rei, Unit-01, Mari, Cyberpunk and Lucy. Copy one to edit its paper, text, lines and accent.
+- **Price colors:** by each market's convention, red for a rise in Taiwan and green in the US, or red up or green up everywhere.
+- **Language** and **Time zone**.

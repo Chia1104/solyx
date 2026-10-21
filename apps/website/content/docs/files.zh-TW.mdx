@@ -1,0 +1,144 @@
+---
+title: 檔案與設定
+description: Solyx 把設定、資料與金鑰放在哪裡，以及 config.json 存了什麼。
+---
+
+Solyx 有兩個資料夾：家目錄裡的設定資料夾，你可以手動編輯；以及由 App 管理的 App 資料夾。**設定 → 關於** 會列出這兩個資料夾，並附上 **在 Finder 中顯示** 或 **開啟所在資料夾**。
+
+## 各頻道各自分開 [#each-channel-apart]
+
+每晚建置版與開發版都有自己的資料夾，所以都不會動到正式版的設定、金鑰或資料庫。
+
+| 版本       | 設定資料夾         | App 資料夾（macOS）                           | App 資料夾（Windows）     |
+| ---------- | ------------------ | --------------------------------------------- | ------------------------- |
+| 正式版     | `~/.solyx`         | `~/Library/Application Support/Solyx`         | `%APPDATA%\Solyx`         |
+| 每晚建置版 | `~/.solyx-nightly` | `~/Library/Application Support/Solyx Nightly` | `%APPDATA%\Solyx Nightly` |
+| 開發版     | `~/.solyx-dev`     | `~/Library/Application Support/Solyx Dev`     | `%APPDATA%\Solyx Dev`     |
+
+## 設定資料夾 [#the-config-folder]
+
+<Files>
+  <Folder name="~/.solyx" defaultOpen>
+    <File name="config.json" />
+    <File name="config.schema.json" />
+    <File name="AGENTS.md" />
+    <File name="mcp.json" />
+    <Folder name="skills" />
+  </Folder>
+</Files>
+
+- **`config.json`** 存放你的設定。Solyx 不需重新啟動就會套用存檔的修改，會保留它不讀的項目，某個項目解析不了時就改用它的預設值，且絕不會覆寫有語法錯誤的檔案。
+- **`config.schema.json`** 是 `config.json` 指定的 `$schema`，描述每個項目，讓編輯器可以檢查並自動完成這個檔案。Solyx 每次啟動都會重新寫入它。
+- **`AGENTS.md`**、**`mcp.json`** 與 **`skills/`** 是你寫給 Agent 的東西。[擴充](/zh-TW/docs/agent/extensions)。
+
+## App 資料夾 [#the-data-folder]
+
+<Files>
+  <Folder name="Solyx" defaultOpen>
+    <File name="user.sqlite" />
+    <File name="research.sqlite" />
+    <File name="memory.sqlite" />
+    <File name="news.sqlite" />
+    <File name="agent.sqlite" />
+    <File name="cache.sqlite" />
+    <File name="secrets.json" />
+    <Folder name="agent-workspaces" />
+    <Folder name="fubon" />
+    <Folder name="restore" />
+  </Folder>
+</Files>
+
+| 檔案                | 存放內容                                                 |
+| ------------------- | -------------------------------------------------------- |
+| `user.sqlite`       | 自選、提案、模擬帳戶與它的成交、停損停利、排程任務與主題 |
+| `research.sqlite`   | 報告與預測                                               |
+| `memory.sqlite`     | Agent 的記憶                                             |
+| `news.sqlite`       | 收集到的新聞與它們的判讀結果                             |
+| `agent.sqlite`      | 對話                                                     |
+| `cache.sqlite`      | 暫存一段時間的 K 線與供應商回應；可以放心清除            |
+| `secrets.json`      | 金鑰、登入資料與交易授權，由作業系統加密                 |
+| `agent-workspaces/` | 每段對話執行 shell 指令用的資料夾                        |
+| `fubon/`            | 富邦 SDK 的日誌                                          |
+| `restore/`          | 等下次啟動時套用的還原，以及被它取代的檔案               |
+
+**設定 → 儲存空間** 會顯示每個儲存區佔了多少空間，並可清除 K 線快取、對話、記憶、新聞、研究或自選。
+
+Solyx 不寫日誌檔。日誌會輸出到終端機，如果你指定了 [OTLP 端點](/zh-TW/docs/setup/observability)，也會送到那裡。
+
+## config.json 存了什麼 [#what-configjson-holds]
+
+每個項目都可以省略，省略的就用預設值。金鑰絕不會出現在這裡。
+
+<TypeTable
+  type={{
+    appearance: {
+      description:
+        "主題、淺色與深色的配色、你自己的配色、漲跌顏色、語言與時區。",
+      type: "object",
+    },
+    trading: {
+      description: "委託送往的券商與帳戶、下單鎖定，以及各幣別的每日虧損上限。",
+      type: "object",
+      default: '{ broker: "paper" }',
+    },
+    tray: {
+      description: "Solyx 是否常駐選單列，以及沒有視窗時是否離開 Dock。",
+      type: "object",
+    },
+    marketData: {
+      description: "各市場報價與 K 線的來源。",
+      type: "object",
+      default: '{ TW: "fugle" }',
+    },
+    providers: {
+      description: "富果與 FinMind 的方案，以及富邦 SDK 與憑證的路徑。",
+      type: "object",
+    },
+    agent: {
+      description:
+        "啟用的模型供應商，預設的供應商、模型與思考程度，端點、共用的 Skills、shell、決策模式與 MAGI 的模型、記憶，以及 MCP 工具的放行方式。",
+      type: "object",
+    },
+    collection: {
+      description: "新聞與主題多久收集一次。",
+      type: "object",
+    },
+    news: {
+      description: "新聞報導與社群貼文各保留多久。",
+      type: "object",
+    },
+    updates: {
+      description: "Solyx 是否檢查更新。",
+      type: "object",
+    },
+    otlp: {
+      description: "追蹤與日誌送往的 OTLP 端點。",
+      type: "object",
+    },
+    backup: {
+      description: "Bucket 的伺服器、區域、名稱與資料夾，以及多久備份一次。",
+      type: "object",
+    },
+    crashReports: {
+      description: "是否傳送當機報告。",
+      type: "object",
+      default: "{ send: false }",
+    },
+    webSearch: {
+      description: "使用中的網路搜尋供應商。",
+      type: "object",
+      default: '{ provider: "firecrawl" }',
+    },
+    decisions: {
+      description:
+        "使用中的決策模型，以及各供應商的模型、端點與 Cloudflare 的帳號 ID。",
+      type: "object",
+      default: '{ provider: "typesafe" }',
+    },
+    embeddings: {
+      description: "是否依語意將新聞分群，以及嵌入模型的供應商、模型與端點。",
+      type: "object",
+      default: "{ enabled: false }",
+    },
+  }}
+/>

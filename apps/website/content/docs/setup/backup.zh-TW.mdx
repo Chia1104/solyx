@@ -1,0 +1,99 @@
+---
+title: 備份
+description: 把 Solyx 的資料備份到相容 S3 的 bucket，用你的密語封存，並能在任何一台電腦上還原。
+---
+
+Solyx 會把資料備份到你指定的 bucket，可以是 Cloudflare R2、Amazon S3，或任何支援 S3 API 的服務。每份備份在離開電腦前都會用你的密語封存，而且絕不包含任何金鑰。
+
+<Screenshot
+  file="settings/backup.zh-TW.png"
+  alt="設定 → 備份，顯示備份位置與頻率"
+/>
+
+## 備份位置 [#where-backups-go]
+
+<Tabs items={["Cloudflare R2", "Amazon S3", "其他 S3 服務"]}>
+  <Tab value="Cloudflare R2">
+    <Steps>
+      <Step>
+        **建立 bucket**：在 [Cloudflare 後台](https://dash.cloudflare.com/?to=/:account/r2/overview)的 R2 底下建立。
+      </Step>
+      <Step>
+        **建立 API 權杖**：在 **Account Details** 選擇 **API Tokens** 旁的 **Manage**，建立一個具備 **Object Read & Write** 權限、範圍限於這個 bucket 的權杖。複製它的 **Access Key ID** 與 **Secret Access Key**；密鑰只會顯示一次。[Cloudflare 的說明](https://developers.cloudflare.com/r2/api/tokens/)。
+
+        <Screenshot file="setup/r2-api-token.png" alt="建立具備 Object Read & Write 權限的 R2 API 權杖" />
+      </Step>
+      <Step>
+        **填入 Solyx**：**伺服器** 填 `https://<account id>.r2.cloudflarestorage.com`，**區域** 填 `auto`，再填 **Bucket** 與權杖的兩個部分。
+      </Step>
+    </Steps>
+
+  </Tab>
+  <Tab value="Amazon S3">
+    <Steps>
+      <Step>
+        **建立 bucket**：在 [S3 console](https://console.aws.amazon.com/s3/) 建立。
+      </Step>
+      <Step>
+        **建立存取金鑰**：在 [IAM](https://console.aws.amazon.com/iam/) 為一個能列出、讀取、寫入與刪除該 bucket 物件的使用者建立。
+      </Step>
+      <Step>
+        **填入 Solyx**：**伺服器** 留空（或按 **改用 AWS**），設定 bucket 的 **區域** 與 **Bucket**，再填金鑰的兩個部分。
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab value="其他 S3 服務">
+    把 **伺服器** 設為該服務的 S3 位址，再填它的 **區域**、**Bucket**，以及能列出、讀取、寫入與刪除物件的存取金鑰。Solyx 以路徑指定 bucket，也就是 `https://server/bucket/…`。
+  </Tab>
+</Tabs>
+
+<Steps>
+  <Step>
+    **設定密語**：備份會用它封存（AES-256-GCM，金鑰由 scrypt 從密語導出）。Solyx
+    無法找回密語，請另外保存一份。
+  </Step>
+  <Step>
+    **選擇資料夾**（選填）：bucket 裡存放備份的資料夾，除非你更改，否則就是 App
+    的名稱。備份會放在它底下，依安裝與時間命名。
+  </Step>
+</Steps>
+
+## 頻率 [#how-often]
+
+**自動備份** 預設開啟，每小時一次；也可以在 **頻率** 改成每 15 分鐘、每 6 小時或每天。只有內容有變動時才會備份，備份失敗會在 15 分鐘後重試。**立即備份** 會馬上備份一次。
+
+Solyx 會保留最新的 4 份備份，再加上過去 24 小時每小時、過去 7 天每天、過去 4 週每週的最後一份：最多 39 份。它只會清理這個安裝的備份。
+
+## 備份包含什麼 [#what-a-backup-holds]
+
+<Files>
+  <Folder name="備份包含" defaultOpen>
+    <File name="user.sqlite — 自選、提案、模擬帳戶、排程任務、主題" />
+    <File name="research.sqlite、memory.sqlite、news.sqlite、agent.sqlite" />
+    <File name="config.json、mcp.json、AGENTS.md" />
+    <Folder name="skills" />
+    <Folder name="agent-workspaces" />
+  </Folder>
+  <Folder name="備份絕不包含" defaultOpen>
+    <File name="金鑰、登入資訊與交易授權" />
+    <File name="cache.sqlite — K 線，會重新下載" />
+    <File name="視窗配置與圖表選用的指標" />
+  </Folder>
+</Files>
+
+## 還原 [#restoring]
+
+<Steps>
+  <Step>
+    **顯示備份** 會列出這個安裝的備份，以及同一個 bucket 裡其他安裝的備份。
+  </Step>
+  <Step>
+    選一份按 **還原**，再按
+    **還原並重新啟動**。目前的檔案會移到一旁保留，直到下次還原。
+  </Step>
+  <Step>
+    **重新啟動後**，備份中等待確認的提案會被取消，因為你可能在備份之後已經確認過它們。
+  </Step>
+</Steps>
+
+在另一台電腦上，先設定相同的 bucket、存取金鑰與密語，還原後再重新輸入你的金鑰。

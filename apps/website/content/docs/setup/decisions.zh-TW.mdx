@@ -1,0 +1,69 @@
+---
+title: 決策模型
+description: 判讀主張、新聞與指令並以機率作答的模型，可用 TypeSafe、Cloudflare Workers AI 或 OpenAI。
+---
+
+決策模型以機率回答結構化的問題，又快又便宜。Solyx 會請它：
+
+- 檢查報告或預測引用的原文，是否真的說了主張所說的事；
+- 判讀每則新聞的相關性、立場、類型、議題與發言者，以及每個主題的觀察訊號；
+- 判讀預測所依據的事實偏向哪一邊；
+- 判斷 shell 指令是否無害，讓 **自動判斷** 不必詢問就能執行它。
+
+沒有決策模型時，主張會保留但不經判讀，新聞沒有情緒評分，**自動判斷** 也會對每個 shell 指令先詢問。
+
+<Screenshot
+  file="settings/decisions.zh-TW.png"
+  alt="設定 → AI Agent → 決策模型，顯示使用中的供應商"
+/>
+
+<Tabs items={["TypeSafe", "Cloudflare Workers AI", "OpenAI"]}>
+  <Tab value="TypeSafe">
+    預設使用 [TypeSafe](https://typesafe.ai) 的 System One 模型 Jev。
+
+    <Steps>
+      <Step>
+        **建立金鑰**：到 [TypeSafe console](https://console.typesafe.ai/) 建立。它的[文件](https://docs.typesafe.ai/introduction)介紹了各個模型。
+
+        <Screenshot file="setup/typesafe-api-key.png" alt="在 TypeSafe console 建立 API 金鑰" />
+      </Step>
+      <Step>
+        **填入金鑰**：填在 **設定 → AI Agent → 決策模型 → TypeSafe**。除非你更改，模型是 `jev-1.13.0`。
+      </Step>
+    </Steps>
+
+  </Tab>
+  <Tab value="Cloudflare Workers AI">
+    Cloudflare 在 Workers AI 上提供 Clef 模型：`clef`，或較快的 `clef-flash`。
+
+    <Steps>
+      <Step>
+        **打開 Workers AI**：在 [Cloudflare 後台](https://dash.cloudflare.com/?to=/:account/ai/workers-ai)打開它，並選擇 **Use REST API**。
+      </Step>
+      <Step>
+        **建立 Workers AI API 權杖**並複製。自訂權杖需要 Workers AI 的 Read 與 Edit 權限。
+
+        <Screenshot file="setup/cloudflare-workers-ai-token.png" alt="在 Cloudflare 後台建立 Workers AI API 權杖" />
+      </Step>
+      <Step>
+        **複製 Account ID**：它顯示在同一頁，或帳號的總覽頁。
+      </Step>
+      <Step>
+        **兩者都填入**：在 **設定 → AI Agent → 決策模型 → Cloudflare Workers AI** 填入 **API 權杖** 與 **帳號 ID**。
+      </Step>
+    </Steps>
+
+  </Tab>
+  <Tab value="OpenAI">
+    <Steps>
+      <Step>
+        **建立 API 金鑰**：到 [OpenAI 平台](https://platform.openai.com/api-keys)建立。用 ChatGPT 登入無法使用 Decisions API。
+      </Step>
+      <Step>
+        **填入金鑰**：填在 **設定 → AI Agent → 決策模型 → OpenAI**。除非你更改，模型是 `gpt-6-luna`。
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+每個供應商的 **模型** 與 **端點** 都可以更改；端點可以指向支援相同 API 的閘道。

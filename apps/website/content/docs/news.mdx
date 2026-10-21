@@ -1,0 +1,40 @@
+---
+title: News
+description: Filings, insider transfers, PTT and the news outlets, grouped into stories with who speaks and which way they lean.
+---
+
+Solyx collects the news of what you hold and watch, groups reprints and rewordings of one event into a story, and has a decisions model read who speaks in each and which way it leans.
+
+## Sources
+
+- **Material information** Taiwan companies file, and the share transfers their insiders declare.
+- **PTT's Stock board.**
+- **News outlets' articles, and Threads and X posts,** through your [web search key](/docs/setup/web-search).
+
+Without a web search key, only filings, insider transfers and PTT are read.
+
+## On a listing's page
+
+**News and posts**, under the chart, lists the listing's stories by channel: filings, news, the forum and social posts. Beside them the **Sentiment** gauge reads from 0 to 100, 50 neutral, for the press and the crowd apart, with **Sentiment by day** below it. It says when the news was last collected and which sources failed.
+
+<Screenshot
+  file="news/sentiment.png"
+  alt="News and posts under the chart, with the sentiment gauge and sentiment by day"
+/>
+
+## On the overview
+
+**Headlines** on the overview's **News** tab ranks the past week's stories across what you hold and watch, weighting what the company says above outlets and outlets above investors, and earnings above market chatter.
+
+## How often, and for how long
+
+| Setting                                 | Default        | Where                                        |
+| --------------------------------------- | -------------- | -------------------------------------------- |
+| Collect news of what you hold and watch | Every 72 hours | Settings → Schedules → What the app collects |
+| Collect news for themes                 | Every 24 hours | Settings → Schedules → What the app collects |
+| Keep press news                         | 90 days        | Settings → Storage                           |
+| Keep crowd posts                        | 30 days        | Settings → Storage                           |
+
+Collection can run every 6 or 12 hours, daily, every 3 or 7 days, or at a time of day; **Collect now** runs it at once. News can be kept 30, 90 or 180 days, a year, or forever.
+
+[How stories are grouped and stance is scored](/docs/data/news).
