@@ -13,6 +13,11 @@ export const numberFormats = memoize((locale: string) => ({
     maximumFractionDigits: 2,
   }),
   indicator: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }),
+  /** An indicator read either side of zero, such as a rotation's coordinates. */
+  signedIndicator: new Intl.NumberFormat(locale, {
+    signDisplay: "exceptZero",
+    maximumFractionDigits: 2,
+  }),
   /** A share of a whole, such as a likelihood. */
   percent: new Intl.NumberFormat(locale, {
     style: "percent",

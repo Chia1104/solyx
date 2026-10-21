@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 
 import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import { ROTATION_TRAIL } from "@solyx/core/rotation";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { OverviewTab } from "#shared/overview-tab.ts";
@@ -25,6 +26,7 @@ import { InboxSection } from "../modules/inbox/inbox-section.tsx";
 import { QuoteHeatMap } from "../modules/market/quote-heat-map.tsx";
 import { SectorHeatMap } from "../modules/market/sector-heat-map.tsx";
 import { SectorMovers } from "../modules/market/sector-movers.tsx";
+import { SectorRotation } from "../modules/market/sector-rotation.tsx";
 import { HeadlineList } from "../modules/news/headline-list.tsx";
 import { HEADLINE_DAYS } from "../modules/news/news-query.ts";
 import { ThemeList } from "../modules/themes/theme-list.tsx";
@@ -186,6 +188,13 @@ export function OverviewPage() {
           title={t("heat-map.movers.title")}
           description={t("heat-map.movers.description")}>
           <SectorMovers />
+        </Section>
+        <Section
+          title={t("heat-map.rotation.title")}
+          description={t("heat-map.rotation.description", {
+            trail: ROTATION_TRAIL,
+          })}>
+          <SectorRotation />
         </Section>
         <Section
           title={t("flows.market-title")}

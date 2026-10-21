@@ -164,6 +164,26 @@
       "contribution": "貢獻",
       "rest": "其他 {{count}} 檔",
       "none": "交易所公布的交易日還沒有這個產業的公司。"
+    },
+    "rotation": {
+      "title": "類股輪動",
+      "description": "每個上市類股指數對加權指數，依期間標準化：橫軸是兩者比值離自身平均幾個標準差，縱軸是這個位置的最新變化離其平均幾個標準差。線是最近 {{trail}} 個交易日，點是最新一日。橫軸大於零是比值高於自身近期平均，不代表贏過大盤。",
+      "period": "期間",
+      "group": "分組",
+      "every-group": "全部",
+      "sessions": "{{count}} 個交易日",
+      "level": "相對位置",
+      "momentum": "動能",
+      "crossed": "進入",
+      "crossed-from": "{{date}}，自{{from}}",
+      "mark": "{{name}}：{{quadrant}}，相對位置 {{level}}，動能 {{momentum}}",
+      "none": "交易日還不夠，尚無法讀出位置。",
+      "quadrants": {
+        "leading": "領先",
+        "weakening": "轉弱",
+        "lagging": "落後",
+        "improving": "改善"
+      }
     }
   },
   "sectors": {
