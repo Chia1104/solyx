@@ -1,4 +1,7 @@
-import { alignedCloses, candleDate } from "./candles.ts";
+import { groupBy } from "es-toolkit";
+import * as z from "zod";
+
+import { Interval, candleDate, mergeCandles, periodStart } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import { RELATIVE_STRENGTH_PERIODS } from "./indicators.ts";
 import type { IndicatorLine } from "./indicators.ts";
@@ -158,15 +161,32 @@ export function lastTransition(
   return null;
 }
 
-/** The sessions a rotation is read over, as relative strength is: a month, a quarter and half a year. */
-export const ROTATION_PERIODS = RELATIVE_STRENGTH_PERIODS;
+/** The bars a rotation is read over: a session each, or a completed week each. */
+export const RotationInterval = {
+  Daily: Interval.OneDay,
+  Weekly: Interval.OneWeek,
+} as const;
 
-/** How many sessions of a rotation are plotted and cited: two weeks of them. */
+export type RotationInterval =
+  (typeof RotationInterval)[keyof typeof RotationInterval];
+
+export const rotationIntervalSchema = z.enum(RotationInterval);
+
+/**
+ * The periods a rotation is read over, per interval: a month, a quarter and half a year of
+ * sessions, as relative strength is read, or a quarter, half a year and a year of weeks.
+ */
+export const ROTATION_PERIODS: Record<RotationInterval, readonly number[]> = {
+  [RotationInterval.Daily]: RELATIVE_STRENGTH_PERIODS,
+  [RotationInterval.Weekly]: [13, 26, 52],
+};
+
+/** How many bars of a rotation are plotted and cited: two weeks of sessions, or ten weeks. */
 export const ROTATION_TRAIL = 10;
 
-/** A rotation's place on one session. */
+/** A rotation's place on one bar. */
 export interface RotationStop {
-  /** The session's exchange-local day. */
+  /** The exchange-local day of the bar's session, or of the last session of its week. */
   date: string;
   level: number;
   momentum: number;
@@ -174,37 +194,85 @@ export interface RotationStop {
 
 /** A listing's rotation against its benchmark over one period, as the overview plots and the agent cites it. */
 export interface RotationReading {
+  interval: RotationInterval;
   period: number;
-  /** The last `ROTATION_TRAIL` sessions with both coordinates, oldest first; empty while the bars are too few. */
+  /** The last `ROTATION_TRAIL` bars with both coordinates, oldest first; empty while the bars are too few. */
   trail: RotationStop[];
-  /** Where the newest session lies; `null` while the bars are too few. */
+  /** Where the newest bar lies; `null` while the bars are too few. */
   quadrant: Quadrant | null;
   /** The trail's last crossing into the quadrant it ends in; `null` where it stays in one. */
   transition: { from: Quadrant; to: Quadrant; date: string } | null;
 }
 
+/** Bars of a rotation's interval, with what each is matched and dated by. */
+export interface RotationSeries {
+  interval: RotationInterval;
+  bars: Candle[];
+  /** What a benchmark's bar is matched to each by: its time, or the first day of its week. */
+  keys: string[];
+  /** Each bar's exchange-local day: its session's, or its week's last session's. */
+  dates: string[];
+}
+
 /**
- * `bars` against `benchmark` over `period` sessions: the bars are the listing's daily ones, on one
- * set of terms, and the benchmark's are matched to them by time.
+ * Daily bars as `interval` reads them: as they are, or merged into weeks of the market's
+ * calendar with the week under way on `today` left out, since a weekly reading is of closed
+ * weeks alone. The bars keep the terms they came on, so adjust them first.
+ */
+export function rotationSeries(
+  market: Market,
+  interval: RotationInterval,
+  daily: readonly Candle[],
+  today: string
+): RotationSeries {
+  if (interval === RotationInterval.Daily) {
+    return {
+      interval,
+      bars: [...daily],
+      keys: daily.map((bar) => String(bar.time)),
+      dates: daily.map((bar) => candleDate(market, bar.time)),
+    };
+  }
+
+  const weeks = Object.entries(
+    groupBy(daily, (bar) =>
+      periodStart(candleDate(market, bar.time), Interval.OneWeek)
+    )
+  ).filter(([week]) => week !== periodStart(today, Interval.OneWeek));
+
+  return {
+    interval,
+    bars: weeks.map(([, bars]) => mergeCandles(bars)),
+    keys: weeks.map(([week]) => week),
+    dates: weeks.map(([, bars]) => candleDate(market, bars.at(-1)!.time)),
+  };
+}
+
+/**
+ * `series` against `benchmark` over `period` bars of their interval: the series is the listing's,
+ * on one set of terms, and the benchmark's bars are matched to its by key.
  */
 export function readRotation(
-  market: Market,
-  bars: readonly Candle[],
-  benchmark: readonly Candle[],
+  series: RotationSeries,
+  benchmark: RotationSeries,
   period: number,
   trail = ROTATION_TRAIL
 ): RotationReading {
+  const closes = new Map(
+    benchmark.keys.map((key, i) => [key, benchmark.bars[i].close])
+  );
+
   const stops = rotationTrail(
     rotation(
-      bars.map((bar) => bar.close),
-      alignedCloses(bars, benchmark),
+      series.bars.map((bar) => bar.close),
+      series.keys.map((key) => closes.get(key) ?? null),
       period
     ),
     trail
   );
 
   const dated = stops.map(({ index, level, momentum }) => ({
-    date: candleDate(market, bars[index].time),
+    date: series.dates[index],
     level,
     momentum,
   }));
@@ -213,33 +281,47 @@ export function readRotation(
   const crossed = lastTransition(stops);
 
   return {
+    interval: series.interval,
     period,
     trail: dated,
     quadrant: last ? quadrantOf(last.level, last.momentum) : null,
     transition: crossed && {
       from: crossed.from,
       to: crossed.to,
-      date: candleDate(market, bars[crossed.index].time),
+      date: series.dates[crossed.index],
     },
   };
 }
 
-/** One reading per period of `ROTATION_PERIODS`, in its order. */
+/** One reading per period of the series' interval, in `ROTATION_PERIODS` order. */
 export const readRotations = (
-  market: Market,
-  bars: readonly Candle[],
-  benchmark: readonly Candle[]
+  series: RotationSeries,
+  benchmark: RotationSeries
 ): RotationReading[] =>
-  ROTATION_PERIODS.map((period) =>
-    readRotation(market, bars, benchmark, period)
+  ROTATION_PERIODS[series.interval].map((period) =>
+    readRotation(series, benchmark, period)
   );
 
-/** A sector index's rotation against its market's index, one reading per period. */
+/** Every reading of `daily` against `benchmark`: each interval's periods on bars of that interval. */
+export const readEveryRotation = (
+  market: Market,
+  daily: readonly Candle[],
+  benchmark: readonly Candle[],
+  today: string
+): RotationReading[] =>
+  Object.values(RotationInterval).flatMap((interval) =>
+    readRotations(
+      rotationSeries(market, interval, daily, today),
+      rotationSeries(market, interval, benchmark, today)
+    )
+  );
+
+/** A sector index's rotation against its market's index, one reading per interval and period. */
 export interface SectorRotation extends SectorIndex {
   readings: RotationReading[];
 }
 
-/** A listing's rotation against its market's index on adjusted bars, one reading per period. */
+/** A listing's rotation against its market's index on adjusted bars, one reading per interval and period. */
 export interface ListingRotation {
   symbol: SymbolRef;
   readings: RotationReading[];

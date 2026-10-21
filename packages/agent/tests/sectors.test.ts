@@ -11,7 +11,7 @@ import type { Candle } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
-import { Quadrant } from "@solyx/core/rotation";
+import { Quadrant, RotationInterval } from "@solyx/core/rotation";
 import type { ListingRotation, SectorRotation } from "@solyx/core/rotation";
 import { TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 import type { SectorMovers, SectorQuote } from "@solyx/core/sectors";
@@ -219,6 +219,7 @@ const reading = (
   last: [number, number],
   transition: SectorRotation["readings"][number]["transition"] = null
 ) => ({
+  interval: RotationInterval.Daily,
   period: 60,
   trail: [
     { date: "2026-09-29", level: first[0], momentum: first[1] },
@@ -257,7 +258,15 @@ test("places every sector by quadrant from the host's readings, the highest leve
     },
     {
       ...index(TwSector.Glass),
-      readings: [{ period: 60, trail: [], quadrant: null, transition: null }],
+      readings: [
+        {
+          interval: RotationInterval.Daily,
+          period: 60,
+          trail: [],
+          quadrant: null,
+          transition: null,
+        },
+      ],
     },
   ];
 
@@ -305,7 +314,15 @@ test("places listings the model names through the host's reading of them against
     { symbol: symbols[1], readings: [reading([-1, -1], [-0.2, 0.6])] },
     {
       symbol: symbols[2],
-      readings: [{ period: 60, trail: [], quadrant: null, transition: null }],
+      readings: [
+        {
+          interval: RotationInterval.Daily,
+          period: 60,
+          trail: [],
+          quadrant: null,
+          transition: null,
+        },
+      ],
     },
   ]);
 

@@ -8,9 +8,14 @@ import { orderBy } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
-import { Quadrant, ROTATION_PERIODS } from "@solyx/core/rotation";
+import {
+  Quadrant,
+  ROTATION_PERIODS,
+  RotationInterval,
+} from "@solyx/core/rotation";
 import type { RotationReading } from "@solyx/core/rotation";
 import { cssPercent } from "@solyx/utils/format";
+import { isEnumValue } from "@solyx/utils/is";
 
 import { ChartMark } from "../../components/chart-mark.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
@@ -55,7 +60,11 @@ const QUADRANT_CORNERS: Record<Quadrant, string> = {
 /** Each axis reaches at least this many standard deviations, so a quiet market does not fill the plot. */
 const LEAST_REACH = 1.5;
 
-const DEFAULT_PERIOD = 60;
+/** The period picked first in each interval: a quarter of sessions, or half a year of weeks. */
+const DEFAULT_PERIOD: Record<RotationInterval, number> = {
+  [RotationInterval.Daily]: 60,
+  [RotationInterval.Weekly]: 26,
+};
 
 /** The filter's choice that keeps every group. */
 const EVERY_GROUP = "every";
@@ -329,14 +338,22 @@ export function RotationGraph({
   groups: readonly RotationGroup[];
 }) {
   const { t } = useTranslation();
-  const [period, setPeriod] = useState(DEFAULT_PERIOD);
+
+  const [interval, setInterval] = useState<RotationInterval>(
+    RotationInterval.Daily
+  );
+
+  const [period, setPeriod] = useState(DEFAULT_PERIOD[interval]);
   const [group, setGroup] = useState(EVERY_GROUP);
   const [focused, setFocused] = useState<string | null>(null);
 
   const colors = new Map(groups.map((each) => [each.id, each.color]));
 
   const placed = entries.flatMap((entry): PlacedEntry[] => {
-    const reading = entry.readings.find((each) => each.period === period);
+    const reading = entry.readings.find(
+      (each) => each.interval === interval && each.period === period
+    );
+
     const color = colors.get(entry.group);
 
     if (
@@ -354,11 +371,26 @@ export function RotationGraph({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-3">
         <OptionSelect
+          label={t("heat-map.rotation.bars")}
+          value={interval}
+          options={Object.values(RotationInterval).map((each) => ({
+            id: each,
+            label: t(`heat-map.rotation.intervals.${each}`),
+          }))}
+          onChange={(next) => {
+            if (isEnumValue(RotationInterval, next)) {
+              setInterval(next);
+              setPeriod(DEFAULT_PERIOD[next]);
+            }
+          }}
+          className="w-36"
+        />
+        <OptionSelect
           label={t("heat-map.rotation.period")}
           value={String(period)}
-          options={ROTATION_PERIODS.map((each) => ({
+          options={ROTATION_PERIODS[interval].map((each) => ({
             id: String(each),
-            label: t("heat-map.rotation.sessions", { count: each }),
+            label: t(`heat-map.rotation.periods.${interval}`, { count: each }),
           }))}
           onChange={(id) => setPeriod(Number(id))}
           className="w-44"

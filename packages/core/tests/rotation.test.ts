@@ -6,12 +6,15 @@ import {
   Quadrant,
   ROTATION_PERIODS,
   ROTATION_TRAIL,
+  RotationInterval,
   lastTransition,
   quadrantOf,
+  readEveryRotation,
   readRotation,
   readRotations,
   rollingZ,
   rotation,
+  rotationSeries,
   rotationTrail,
 } from "../src/rotation.ts";
 
@@ -147,12 +150,17 @@ describe("readRotation", () => {
     125, 124.5, 124, 123.5, 123, 122.5,
   ];
 
+  const TODAY = "2026-02-02";
   const listing = bars(closes);
   const benchmark = bars(closes.map(() => 1000));
 
-  test("dates each stop and names the newest quadrant and the last crossing", () => {
-    const reading = readRotation(Market.TW, listing, benchmark, 4);
+  const daily = (candles: Candle[]) =>
+    rotationSeries(Market.TW, RotationInterval.Daily, candles, TODAY);
 
+  test("dates each stop and names the newest quadrant and the last crossing", () => {
+    const reading = readRotation(daily(listing), daily(benchmark), 4);
+
+    expect(reading.interval).toBe(RotationInterval.Daily);
     expect(reading.period).toBe(4);
     expect(reading.trail).toHaveLength(ROTATION_TRAIL);
     expect(reading.trail[0]?.date).toBe("2026-01-19");
@@ -168,9 +176,14 @@ describe("readRotation", () => {
   });
 
   test("gives an empty trail while the bars are too few", () => {
-    const reading = readRotation(Market.TW, listing.slice(0, 7), benchmark, 4);
+    const reading = readRotation(
+      daily(listing.slice(0, 7)),
+      daily(benchmark),
+      4
+    );
 
     expect(reading).toEqual({
+      interval: RotationInterval.Daily,
       period: 4,
       trail: [],
       quadrant: null,
@@ -179,16 +192,82 @@ describe("readRotation", () => {
   });
 
   test("matches the benchmark's bars by time rather than by position", () => {
-    const whole = readRotation(Market.TW, listing, benchmark, 4);
-    const offset = readRotation(Market.TW, listing, benchmark.slice(2), 4);
+    const whole = readRotation(daily(listing), daily(benchmark), 4);
+    const offset = readRotation(daily(listing), daily(benchmark.slice(2)), 4);
 
     expect(offset.trail).toEqual(whole.trail);
   });
 
-  test("readRotations reads every period", () => {
-    const readings = readRotations(Market.TW, listing, benchmark);
+  test("readRotations reads every period of the series' interval", () => {
+    const readings = readRotations(daily(listing), daily(benchmark));
 
-    expect(readings.map(({ period }) => period)).toEqual(ROTATION_PERIODS);
+    expect(readings.map(({ period }) => period)).toEqual(
+      ROTATION_PERIODS[RotationInterval.Daily]
+    );
     expect(readings.every(({ trail }) => trail.length === 0)).toBe(true);
+  });
+
+  test("readEveryRotation reads both intervals", () => {
+    const readings = readEveryRotation(Market.TW, listing, benchmark, TODAY);
+
+    expect(
+      readings.map(({ interval, period }) => `${interval}:${period}`)
+    ).toEqual(["1d:20", "1d:60", "1d:120", "1w:13", "1w:26", "1w:52"]);
+  });
+});
+
+describe("rotationSeries", () => {
+  // Four weeks of sessions from Monday 2026-01-05, the fourth missing its Monday, then a Monday.
+  const closes = Array.from({ length: 21 }, (_, i) => 100 + i);
+  const daily = bars(closes).filter((_, i) => i !== 15);
+
+  test("merges sessions into closed weeks dated by their last session, matched by their first day", () => {
+    const weekly = rotationSeries(
+      Market.TW,
+      RotationInterval.Weekly,
+      daily,
+      "2026-02-03"
+    );
+
+    expect(weekly.keys).toEqual([
+      "2026-01-05",
+      "2026-01-12",
+      "2026-01-19",
+      "2026-01-26",
+    ]);
+    expect(weekly.dates).toEqual([
+      "2026-01-09",
+      "2026-01-16",
+      "2026-01-23",
+      "2026-01-30",
+    ]);
+    expect(weekly.bars.map(({ close }) => close)).toEqual([104, 109, 114, 119]);
+    // The fourth week opened on its Tuesday, which is no reason to match it apart from the others.
+    expect(weekly.bars[3].open).toBe(116);
+  });
+
+  test("leaves out the week under way", () => {
+    const weekly = rotationSeries(
+      Market.TW,
+      RotationInterval.Weekly,
+      daily.slice(0, -1),
+      "2026-01-28"
+    );
+
+    expect(weekly.keys).toEqual(["2026-01-05", "2026-01-12", "2026-01-19"]);
+  });
+
+  test("keeps sessions as they are, keyed by their time", () => {
+    const series = rotationSeries(
+      Market.TW,
+      RotationInterval.Daily,
+      daily.slice(0, 2),
+      "2026-02-03"
+    );
+
+    expect(series.keys).toEqual(
+      daily.slice(0, 2).map(({ time }) => String(time))
+    );
+    expect(series.dates).toEqual(["2026-01-05", "2026-01-06"]);
   });
 });

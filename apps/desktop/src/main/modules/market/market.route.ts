@@ -1,6 +1,4 @@
-import { BENCHMARK, Market } from "@solyx/core/market";
 import { sessionBand } from "@solyx/core/risk";
-import { TW_SECTOR_INDICES, sectorOfIndustry } from "@solyx/core/sectors";
 
 import { contractOS } from "../../rpc/context.ts";
 
@@ -32,42 +30,13 @@ export const marketRouter = market.router({
     context.marketData.sectors()
   ),
   rotations: market.rotations.handler(({ context }) =>
-    context.marketData.rotations()
+    context.rotations.sectors()
   ),
   listingRotations: market.listingRotations.handler(({ context, input }) =>
-    context.marketData.listingRotations(input)
+    context.rotations.listings(input)
   ),
-  listingRotation: market.listingRotation.handler(
-    async ({ context, input }) => {
-      const [against] = await context.marketData.listingRotations([input]);
-
-      // Only TWSE's industries have an index, and the exchange's list says which one a company is in.
-      const company =
-        input.market === Market.TW
-          ? await context.fundamentals.company(input)
-          : null;
-
-      const sector = company && sectorOfIndustry(company.industry.code);
-      const index = TW_SECTOR_INDICES.find((each) => each.sector === sector);
-
-      return {
-        index: {
-          name: BENCHMARK[input.market].name,
-          readings: against.readings,
-        },
-        sector:
-          sector && index
-            ? {
-                sector,
-                symbol: index.symbol,
-                readings: await context.marketData.rotationAgainst(input, {
-                  market: Market.TW,
-                  symbol: index.symbol,
-                }),
-              }
-            : null,
-      };
-    }
+  listingRotation: market.listingRotation.handler(({ context, input }) =>
+    context.rotations.listing(input)
   ),
   liveCandles: market.liveCandles.handler(({ context, input, signal }) =>
     context.marketData.liveCandles(input.symbol, input.interval, signal)

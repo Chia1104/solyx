@@ -171,7 +171,6 @@
       "period": "Period",
       "group": "Group",
       "every-group": "Every group",
-      "sessions": "{{count}} sessions",
       "level": "Level",
       "momentum": "Momentum",
       "crossed": "Entered",
@@ -189,7 +188,16 @@
       "listing-title": "Rotation",
       "against": "Against {{name}}",
       "sector-index": "the {{sector}} index",
-      "reading": "{{quadrant}}, level {{level}}, momentum {{momentum}}"
+      "reading": "{{quadrant}}, level {{level}}, momentum {{momentum}}",
+      "bars": "Bars",
+      "intervals": {
+        "1d": "Sessions",
+        "1w": "Weeks"
+      },
+      "periods": {
+        "1d": "{{count}} sessions",
+        "1w": "{{count}} weeks"
+      }
     }
   },
   "sectors": {

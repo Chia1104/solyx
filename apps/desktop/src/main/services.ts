@@ -53,6 +53,7 @@ import { createMacro } from "./modules/macro/macro.ts";
 import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
+import { createRotations } from "./modules/market/rotations.ts";
 import { createScheduleDays } from "./modules/market/schedule-days.ts";
 import {
   createMarketDays,
@@ -335,6 +336,14 @@ export function createServices(config: ConfigFile) {
 
   const flows = createFlows({ providers: [finMind], answers: cache.answers });
 
+  const rotations = createRotations({
+    candlesSince: (symbol, since) =>
+      marketData.candlesSince(symbol, Interval.OneDay, since),
+    sourceId: (market) => marketData.sourceId(market),
+    company: (symbol) => fundamentals.company(symbol),
+    answers: cache.answers,
+  });
+
   const tradingDays = createTradingCalendar({
     providers: [finMind],
     answers: cache.answers,
@@ -471,8 +480,8 @@ export function createServices(config: ConfigFile) {
     flows,
     macro,
     sectors: () => marketData.sectors(),
-    rotations: () => marketData.rotations(),
-    listingRotations: (symbols) => marketData.listingRotations(symbols),
+    rotations: () => rotations.sectors(),
+    listingRotations: (symbols) => rotations.listings(symbols),
     quote: (symbol) => marketData.quote(symbol),
     candlesSince: (symbol, interval, since) =>
       marketData.candlesSince(symbol, interval, since),
@@ -754,6 +763,7 @@ export function createServices(config: ConfigFile) {
     appearance,
     windowColors,
     marketData,
+    rotations,
     userData,
     watchlist,
     memories,
