@@ -29,6 +29,7 @@
     "./research": "./src/research.ts",
     "./review": "./src/review.ts",
     "./risk": "./src/risk.ts",
+    "./rotation": "./src/rotation.ts",
     "./rules/tw": "./src/rules/tw.ts",
     "./rules/us": "./src/rules/us.ts",
     "./schedule": "./src/schedule.ts",
