@@ -22,6 +22,7 @@ export function Sparkline({
   to,
   baseline,
   color,
+  shade = 0.24,
   className,
 }: {
   points: readonly SparklinePoint[];
@@ -31,6 +32,11 @@ export function Sparkline({
   baseline: number | null;
   /** Any CSS colour, custom properties included. */
   color: string;
+  /**
+   * How opaque the wash is at the top of the box.
+   * @default 0.24
+   */
+  shade?: number;
   className?: string;
 }) {
   const fade = useId();
@@ -74,7 +80,7 @@ export function Sparkline({
           y1={0}
           x2={0}
           y2={100}>
-          <stop offset={0} style={{ stopColor: color, stopOpacity: 0.24 }} />
+          <stop offset={0} style={{ stopColor: color, stopOpacity: shade }} />
           <stop offset={1} style={{ stopColor: color, stopOpacity: 0 }} />
         </linearGradient>
       </defs>

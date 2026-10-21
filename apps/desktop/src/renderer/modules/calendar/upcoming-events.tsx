@@ -296,6 +296,8 @@ function ReleaseFigure({
             to={trend.points.length - 1}
             baseline={trend.grows ? 0 : null}
             color="var(--muted)"
+            // So small a line shows its wash only this strong.
+            shade={0.6}
             className="size-full"
           />
         </span>

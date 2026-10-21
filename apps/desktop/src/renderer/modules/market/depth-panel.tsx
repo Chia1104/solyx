@@ -204,7 +204,10 @@ function Figure({
   );
 }
 
-/** The best five asks above the best five bids, each side's sizes drawn against the largest. */
+/**
+ * The best five asks above the best five bids, each side's sizes drawn against the largest in the
+ * colour its level's price takes against the reference.
+ */
 function DepthLadder({
   symbol,
   depth,
@@ -243,11 +246,14 @@ function DepthLadder({
       ? format.amount.format(sizeOf(symbol.market, level.shares))
       : "";
 
-    // Sizes are not a price's direction, so they take the neutral ink rather than red or green.
+    // A level at the reference takes the neutral ink, as its price does.
     const bar = level ? (
       <WashBar
         share={level.shares / largest}
-        color="var(--muted)"
+        color={
+          directionOf(direction, level.price - depth.reference)?.solid ??
+          "var(--muted)"
+        }
         fromRight={side === "bid"}
         className="inset-y-0.5 rounded-sm"
       />
