@@ -41,6 +41,10 @@ const TSMC = { market: Market.TW, symbol: "2330" };
 
 const AT = Date.UTC(2026, 9, 13, 8);
 
+const DESK = "3f2a8c1e-5b7d-4e9a-8c6f-1d2e3f4a5b6c";
+
+const LAPTOP = "9b8a7c6d-1e2f-4a3b-9c4d-5e6f7a8b9c0d";
+
 let directory: string;
 
 let server: FakeS3;
@@ -110,7 +114,7 @@ test("a thread makes a backup, lists it and stages it on another computer", asyn
     folders: desk.folders,
     app: "solyx",
     version: "1.2.3",
-    installation: "desk",
+    installation: DESK,
     at: AT,
     timeZone: "Asia/Taipei",
   };
@@ -119,7 +123,7 @@ test("a thread makes a backup, lists it and stages it on another computer", asyn
 
   expect(made).toMatchObject({
     backup: {
-      key: "solyx/desk/20261013T080000Z.solyx-backup",
+      key: `solyx/${DESK}/20261013T080000Z.solyx-backup`,
       createdAt: AT,
       own: true,
     },
@@ -132,7 +136,7 @@ test("a thread makes a backup, lists it and stages it on another computer", asyn
     threads.backUpIfChanged({ ...job, at: AT + 1000, last: made.digest })
   ).resolves.toBeNull();
   await expect(
-    threads.list({ to: destination(), installation: "laptop" })
+    threads.list({ to: destination(), installation: LAPTOP })
   ).resolves.toEqual([{ ...made.backup, own: false }]);
 
   await expect(
@@ -166,7 +170,7 @@ test("a failure crosses from the thread with its message and what kind it was", 
     folders: desk.folders,
     app: "solyx",
     version: "1.2.3",
-    installation: "desk",
+    installation: DESK,
     at: AT,
     timeZone: "Asia/Taipei",
   });
@@ -185,7 +189,7 @@ test("a failure crosses from the thread with its message and what kind it was", 
       to: destination(),
       folders: desk.folders,
       migrations: MIGRATIONS,
-      key: "solyx/desk/20261013T080000Z.solyx-backup",
+      key: `solyx/${DESK}/20261013T080000Z.solyx-backup`,
     })
   ).rejects.toThrow(`${server.host} answered 404 NoSuchKey`);
   expect(existsSync(restorePaths(desk.folders.dataDir).pending)).toBe(false);
@@ -198,6 +202,6 @@ test("a thread that cannot start fails the job rather than leaving it waiting", 
   );
 
   await expect(
-    missing.list({ to: destination(), installation: "desk" })
+    missing.list({ to: destination(), installation: DESK })
   ).rejects.toThrow();
 });

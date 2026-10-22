@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
+import { createBucket } from "@solyx/backup/s3";
 import type { Bucket } from "@solyx/backup/s3";
 import { Market } from "@solyx/core/market";
 import { openAgentStore } from "@solyx/db/agent";
@@ -68,6 +69,13 @@ const FOXCONN = { market: Market.TW, symbol: "2317" };
 
 const AT = Date.UTC(2026, 9, 13, 8);
 
+const DESK = "3f2a8c1e-5b7d-4e9a-8c6f-1d2e3f4a5b6c";
+
+const LAPTOP = "9b8a7c6d-1e2f-4a3b-9c4d-5e6f7a8b9c0d";
+
+// Each computer's installation id, a UUID as the app makes one.
+const INSTALLATIONS = { desk: DESK, laptop: LAPTOP };
+
 /** A bucket in memory, which two computers may share. */
 function memoryBucket() {
   const objects = new Map<string, Buffer>();
@@ -108,7 +116,7 @@ afterEach(async () => {
 
 /** A computer with the app's databases and files on it, set up to back up to `shared`. */
 async function computer(
-  name: string,
+  name: keyof typeof INSTALLATIONS,
   shared: ReturnType<typeof memoryBucket>,
   passphrase = "correct horse battery staple",
   // The jobs run where the test stands, on the bucket in memory, as a thread runs them in the app.
@@ -171,7 +179,7 @@ async function computer(
     migrations: MIGRATIONS,
     app: "solyx",
     version: "1.2.3",
-    installation: () => name,
+    installation: () => INSTALLATIONS[name],
     restored: null,
     restart,
     timeZone: () => "Asia/Taipei",
@@ -208,7 +216,7 @@ test("a backup is one sealed object under its installation, named after its mome
   const made = await desk.backups.backUp();
 
   expect(made).toMatchObject({
-    key: "solyx/desk/20261013T080000Z.solyx-backup",
+    key: `solyx/${DESK}/20261013T080000Z.solyx-backup`,
     createdAt: AT,
     own: true,
   });
@@ -237,20 +245,20 @@ test("every installation's backups are listed newest first, and others' things l
   await desk.backups.backUp();
   laptop.clock.now = AT + HOUR_MS + 3;
   await laptop.backups.backUp();
-  shared.objects.set("solyx/desk/notes.txt", Buffer.from("not a backup"));
+  shared.objects.set(`solyx/${DESK}/notes.txt`, Buffer.from("not a backup"));
   shared.objects.set(
-    "elsewhere/desk/20261013T080000Z.solyx-backup",
+    `elsewhere/${DESK}/20261013T080000Z.solyx-backup`,
     Buffer.from("another folder's")
   );
 
   await expect(laptop.backups.list()).resolves.toMatchObject([
     {
-      key: "solyx/laptop/20261013T090000Z.solyx-backup",
+      key: `solyx/${LAPTOP}/20261013T090000Z.solyx-backup`,
       createdAt: AT + HOUR_MS,
       own: true,
     },
     {
-      key: "solyx/desk/20261013T080000Z.solyx-backup",
+      key: `solyx/${DESK}/20261013T080000Z.solyx-backup`,
       createdAt: AT,
       own: false,
     },
@@ -645,7 +653,7 @@ test("a passphrase changed is backed up under at the next pass, though nothing e
   );
 
   await laptop.backups.restore(
-    backupKey("solyx", "desk", AT + HOUR_MS + MINUTE_MS)
+    backupKey("solyx", DESK, AT + HOUR_MS + MINUTE_MS)
   );
 
   expect(laptop.restart).toHaveBeenCalledOnce();
@@ -714,8 +722,8 @@ test("another bucket or folder is backed up to as if for the first time", async 
   await desk.backups.work.run();
 
   expect([...shared.objects.keys()]).toEqual([
-    "solyx/desk/20261013T080000Z.solyx-backup",
-    "moved/desk/20261013T080100Z.solyx-backup",
+    `solyx/${DESK}/20261013T080000Z.solyx-backup`,
+    `moved/${DESK}/20261013T080100Z.solyx-backup`,
   ]);
   await expect(desk.backups.status()).resolves.toMatchObject({
     lastBackupAt: AT + MINUTE_MS,
@@ -755,7 +763,7 @@ test("after a backup the installation's older ones thin out, and nothing else in
 
   // A backup a day over two months, the laptop's among them, and a file someone else put there.
   for (let day = 1; day <= 60; day += 1) {
-    for (const installation of ["desk", "laptop"]) {
+    for (const installation of [DESK, LAPTOP]) {
       shared.objects.set(
         backupKey("solyx", installation, AT - day * DAY_MS),
         Buffer.alloc(10)
@@ -763,27 +771,85 @@ test("after a backup the installation's older ones thin out, and nothing else in
     }
   }
 
-  shared.objects.set("solyx/desk/notes.txt", Buffer.from("not a backup"));
+  shared.objects.set(`solyx/${DESK}/notes.txt`, Buffer.from("not a backup"));
 
   const made = await desk.backups.backUp();
   const kept = [...shared.objects.keys()];
 
   const own = kept.filter(
-    (key) => readBackupKey("solyx", key)?.installation === "desk"
+    (key) => readBackupKey("solyx", key)?.installation === DESK
   );
 
   // The last of each of 24 hours that hold one, which a backup a day makes 24 days, the newest
   // four, seven days and four weeks all among them.
   expect(own).toHaveLength(24);
   expect(own).toContain(made.key);
-  expect(kept.filter((key) => key.startsWith("solyx/laptop/"))).toHaveLength(
+  expect(kept.filter((key) => key.startsWith(`solyx/${LAPTOP}/`))).toHaveLength(
     60
   );
-  expect(kept).toContain("solyx/desk/notes.txt");
+  expect(kept).toContain(`solyx/${DESK}/notes.txt`);
   await expect(desk.backups.status()).resolves.toMatchObject({
     stored: { count: 24, bytes: made.bytes + 230 },
     failure: null,
   });
+});
+
+test("thinning deletes nothing a listing names of another installation or above the folder", async () => {
+  const days = Array.from({ length: 60 }, (_, day) => AT - (day + 1) * DAY_MS);
+  const own = days.map((at) => backupKey("solyx", DESK, at));
+
+  // A server that answers for this installation's folder with what lies outside it too.
+  const named = [
+    ...own,
+    ...days.flatMap((at) => [
+      backupKey("solyx", LAPTOP, at),
+      backupKey("solyx", "..", at),
+      backupKey("solyx", ".", at),
+      backupKey("solyx", `${DESK}/..`, at),
+    ]),
+  ];
+
+  const listing = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">',
+    `<Name>solyx-backups</Name><Prefix>solyx/${DESK}/</Prefix><IsTruncated>false</IsTruncated>`,
+    ...named.map(
+      (key) =>
+        `<Contents><Key>${key}</Key><LastModified>2026-10-13T08:00:00.000Z</LastModified><Size>10</Size></Contents>`
+    ),
+    "</ListBucketResult>",
+  ].join("\n");
+
+  const removed: string[] = [];
+
+  const fetch: typeof globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init);
+    const { pathname } = new URL(request.url);
+
+    if (request.method === "DELETE") {
+      removed.push(decodeURIComponent(pathname));
+
+      return new Response(null, { status: 204 });
+    }
+
+    return request.method === "GET"
+      ? new Response(listing, { status: 200 })
+      : new Response(null, { status: 200 });
+  };
+
+  const desk = await computer(
+    "desk",
+    memoryBucket(),
+    "correct horse battery staple",
+    createBackupJobs((options) => createBucket({ ...options, fetch }))
+  );
+
+  await desk.backups.backUp();
+
+  const ownPaths = new Set(own.map((key) => `/solyx-backups/${key}`));
+
+  expect(removed.length).toBeGreaterThan(0);
+  expect(removed.filter((path) => !ownPaths.has(path))).toEqual([]);
 });
 
 test("a bucket out of reach is said why and tried again later, never every minute", async () => {
@@ -854,7 +920,7 @@ test("a backup stays made when thinning out the older ones fails", async () => {
 
   for (let day = 1; day <= 60; day += 1) {
     shared.objects.set(
-      backupKey("solyx", "desk", AT - day * 24 * HOUR_MS),
+      backupKey("solyx", DESK, AT - day * 24 * HOUR_MS),
       Buffer.alloc(10)
     );
   }
@@ -882,20 +948,24 @@ test("a backup stays made when thinning out the older ones fails", async () => {
 });
 
 test("a key names its installation and moment, and anything else in the folder is no backup", () => {
-  const key = backupKey("backups/solyx", "desk", AT);
+  const key = backupKey("backups/solyx", DESK, AT);
 
-  expect(key).toBe("backups/solyx/desk/20261013T080000Z.solyx-backup");
+  expect(key).toBe(`backups/solyx/${DESK}/20261013T080000Z.solyx-backup`);
   expect(readBackupKey("backups/solyx", key)).toEqual({
-    installation: "desk",
+    installation: DESK,
     createdAt: AT,
   });
 
   for (const other of [
-    "backups/solyx/desk/notes.txt",
+    `backups/solyx/${DESK}/notes.txt`,
     "backups/solyx/20261013T080000Z.solyx-backup",
-    "backups/solyx/desk/deeper/20261013T080000Z.solyx-backup",
-    "backups/solyx/desk/2026-10-13.solyx-backup",
-    "backups/solyx-nightly/desk/20261013T080000Z.solyx-backup",
+    `backups/solyx/${DESK}/deeper/20261013T080000Z.solyx-backup`,
+    `backups/solyx/${DESK}/2026-10-13.solyx-backup`,
+    `backups/solyx-nightly/${DESK}/20261013T080000Z.solyx-backup`,
+    "backups/solyx/desk/20261013T080000Z.solyx-backup",
+    "backups/solyx/../20261013T080000Z.solyx-backup",
+    "backups/solyx/./20261013T080000Z.solyx-backup",
+    "backups/solyx//20261013T080000Z.solyx-backup",
   ]) {
     expect(readBackupKey("backups/solyx", other)).toBeUndefined();
   }

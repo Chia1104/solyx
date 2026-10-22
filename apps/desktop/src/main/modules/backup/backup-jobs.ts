@@ -58,6 +58,9 @@ const STAMP = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/;
 export const backupKey = (folder: string, installation: string, at: number) =>
   `${folder}/${installation}/${stamp(at)}${BUNDLE_EXTENSION}`;
 
+// An installation's id as `installationId` makes it, so no other segment, such as `..`, passes for one.
+const installationSchema = z.uuid();
+
 /** Who made the backup at `key` and when, or `undefined` for an object in the folder that is not one. */
 export function readBackupKey(folder: string, key: string) {
   if (!key.startsWith(`${folder}/`) || !key.endsWith(BUNDLE_EXTENSION)) {
@@ -69,7 +72,11 @@ export function readBackupKey(folder: string, key: string) {
     .split("/");
 
   // Only a name written as `stamp` writes it, since a date alone would parse as a moment too.
-  if (!installation || deeper.length > 0 || !STAMP.test(name)) {
+  if (
+    !installationSchema.safeParse(installation).success ||
+    deeper.length > 0 ||
+    !STAMP.test(name)
+  ) {
     return undefined;
   }
 
@@ -220,11 +227,15 @@ export function createBackupJobs(
     bucket: Bucket,
     { to: { folder }, installation, timeZone }: BackUpOptions
   ) {
+    // The listing is only the server's word, so a key it names of another installation, or
+    // outside the folder, is left alone.
     const own = (await bucket.list(`${folder}/${installation}/`)).flatMap(
       ({ key, bytes }) => {
         const made = readBackupKey(folder, key);
 
-        return made ? [{ key, bytes, createdAt: made.createdAt }] : [];
+        return made?.installation === installation
+          ? [{ key, bytes, createdAt: made.createdAt }]
+          : [];
       }
     );
 
