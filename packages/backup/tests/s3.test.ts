@@ -80,6 +80,29 @@ test("an object is deleted by its key, and one already gone is no failure", asyn
   expect([...server.objects.keys()]).toEqual(["a/2"]);
 });
 
+test("a key with a `.` or `..` segment is refused before any request, since a URL would resolve it elsewhere", async () => {
+  const source = join(directory, "source");
+
+  await writeFile(source, "sealed");
+  server.objects.set("b", Buffer.from("another object"));
+
+  for (const key of ["a/../b", "a/./b", "../b", "./b", "a/..", "."]) {
+    await expect(bucket().remove(key)).rejects.toThrow(
+      `${key} names no object a request can reach`
+    );
+    await expect(bucket().put(key, source)).rejects.toThrow();
+    await expect(bucket().get(key, join(directory, "copy"))).rejects.toThrow();
+  }
+
+  expect(server.paths).toEqual([]);
+  expect([...server.objects.keys()]).toEqual(["b"]);
+
+  // Dots within a segment name an object as any other character does.
+  await bucket().put("a/.../.b", source);
+
+  expect(server.paths).toEqual(["PUT /solyx-backups/a/.../.b"]);
+});
+
 test("a server under a path keeps it before the bucket", async () => {
   const under = bucket({ endpoint: `${server.endpoint}/` });
 

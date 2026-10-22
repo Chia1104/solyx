@@ -133,8 +133,16 @@ export function createBucket(options: BucketOptions) {
     },
   });
 
-  const objectUrl = (key: string) =>
-    new URL(`${root}/${key.split("/").map(awsEncode).join("/")}`);
+  function objectUrl(key: string) {
+    const segments = key.split("/");
+
+    // A URL resolves `.` and `..`, percent-encoded or not, so the request would reach another object.
+    if (segments.some((segment) => segment === "." || segment === "..")) {
+      throw new Error(`${key} names no object a request can reach`);
+    }
+
+    return new URL(`${root}/${segments.map(awsEncode).join("/")}`);
+  }
 
   const signed = (method: string, url: URL, payloadHash: string) =>
     signRequest({ method, url, payloadHash }, signingKey, now());
