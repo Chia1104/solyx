@@ -16,7 +16,13 @@ import { createConfigFile } from "./modules/settings/config-file.ts";
 import { serveRpc } from "./rpc/serve.ts";
 import { createServices } from "./services.ts";
 import type { Services } from "./services.ts";
+import { appChannel } from "./shell/app-channel.ts";
 import { APP_ICON, createMainWindow } from "./shell/main-window.ts";
+import { refusesRemoteDebugging } from "./shell/remote-debugging.ts";
+
+// Before anything else runs, so a stable or nightly build never opens the DevTools protocol's port
+// or pipe, which Chromium opens as the app gets ready.
+if (refusesRemoteDebugging(appChannel(), app.commandLine)) process.exit(1);
 
 // The name picks userData and the OS secret store entry, so development never reads or
 // changes what an installed Solyx keeps, such as broker credentials. It must change before ready.

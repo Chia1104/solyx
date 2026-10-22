@@ -1,5 +1,6 @@
-import { app } from "electron";
 import { autoUpdater } from "electron-updater";
+
+import { AppChannel, appChannel } from "../../shell/app-channel.ts";
 
 import type { Updater } from "./updates.ts";
 
@@ -9,8 +10,12 @@ import type { Updater } from "./updates.ts";
  * signature, so there the feed only says which version is newer.
  */
 export function createAppUpdater(): Updater | null {
+  const channel = appChannel();
+
+  // The test package is never published, so it has no feed.
   if (
-    !app.isPackaged ||
+    channel === AppChannel.Development ||
+    channel === AppChannel.Test ||
     (process.platform !== "win32" && process.platform !== "darwin")
   )
     return null;
