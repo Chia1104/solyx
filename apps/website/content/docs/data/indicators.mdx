@@ -1,0 +1,125 @@
+---
+title: Indicators
+description: The formulas behind every line and pane on the chart, and what the agent reads.
+---
+
+Every indicator is worked out on your computer by the same code for the chart and for the agent, on bars [as traded](/docs/data/market-data#as-traded-or-adjusted). A line is empty for the first bars until its window is full.
+
+## Which chart shows what
+
+| Indicator                                                       | Where it is drawn           |
+| --------------------------------------------------------------- | --------------------------- |
+| Moving averages, Bollinger bands                                | Every interval              |
+| VWAP, session levels                                            | Intraday bars only          |
+| Relative strength, 52-week range, support zones, volume profile | Daily bars only             |
+| MACD, RSI, KD, volume ratio                                     | Panes below the chart       |
+| Investor flows                                                  | Taiwan listings, daily bars |
+
+Short moving averages and KD are on until you turn them off. The panes stack in the order MACD, RSI, KD, volume ratio, relative strength.
+
+## Moving averages
+
+Simple averages of the close over Taiwan's usual periods:
+
+$$
+\text{SMA}_n = \frac{1}{n} \sum_{k=0}^{n-1} C_{t-k}
+$$
+
+| Short     | Long                                                                 |
+| --------- | -------------------------------------------------------------------- |
+| 5, 10, 20 | 60 (the quarter line), 120 (the half-year line), 240 (the year line) |
+
+The long lines are drawn thicker. The exponential average the MACD uses starts from the simple average of its first $$n$$ closes and weights each close after it by $$\alpha$$:
+
+$$
+\text{EMA}_t = \alpha\, C_t + (1 - \alpha)\, \text{EMA}_{t-1}
+\qquad
+\alpha = \frac{2}{n + 1}
+$$
+
+## Bollinger bands
+
+The 20-session simple average, with bands two standard deviations of the same 20 closes above and below it. The deviation is the population one, divided by $$n$$.
+
+$$
+\begin{aligned}
+\text{middle} &= \text{SMA}_{20}(C) \\
+\text{upper} &= \text{middle} + 2\sigma_{20} \\
+\text{lower} &= \text{middle} - 2\sigma_{20}
+\end{aligned}
+$$
+
+## VWAP
+
+The session's average price weighted by volume, starting over each exchange day:
+
+$$
+\text{VWAP} = \frac{\sum \frac{H + L + C}{3} \times V}{\sum V}
+$$
+
+It stays empty until the session has traded.
+
+## RSI
+
+Wilder's relative strength index over 14 sessions. The first 14 changes are averaged plainly, and each one after that is smoothed in:
+
+$$
+\begin{aligned}
+\overline{G}_t &= \frac{13\,\overline{G}_{t-1} + \text{gain}_t}{14}
+\qquad
+\overline{L}_t = \frac{13\,\overline{L}_{t-1} + \text{loss}_t}{14} \\
+\text{RSI}_t &= 100 - \frac{100}{1 + \overline{G}_t / \overline{L}_t}
+\end{aligned}
+$$
+
+With no losses RSI is 100; with neither gains nor losses it is 50. The pane rules lines at 30 and 70.
+
+## MACD
+
+12, 26 and 9, with Taiwan's names for the lines:
+
+$$
+\begin{aligned}
+\text{DIF} &= \text{EMA}_{12}(C) - \text{EMA}_{26}(C) \\
+\text{MACD} &= \text{EMA}_{9}(\text{DIF}) \\
+\text{OSC} &= \text{DIF} - \text{MACD}
+\end{aligned}
+$$
+
+The histogram is the plain difference, not doubled.
+
+## KD
+
+Taiwan's stochastic over 9 sessions, smoothed by thirds (9-3-3) rather than by the simple averages of the Western stochastic:
+
+$$
+\begin{aligned}
+\text{RSV}_t &= \frac{C_t - L_9}{H_9 - L_9} \times 100 \\
+K_t &= \tfrac{2}{3} K_{t-1} + \tfrac{1}{3} \text{RSV}_t \\
+D_t &= \tfrac{2}{3} D_{t-1} + \tfrac{1}{3} K_t
+\end{aligned}
+$$
+
+where $$H_9$$ and $$L_9$$ are the highest high and lowest low of the last 9 sessions.
+
+K and D start at 50, and RSV is 50 when the window's high and low are equal. The pane rules lines at 20 and 80.
+
+## Volume ratio
+
+The bar's volume against its 20-bar average, $$V \div \text{SMA}_{20}(V)$$. The pane marks a surge at 1.5 or more and a lull under 0.5, with guide lines at 1 and 1.5.
+
+## Relative strength
+
+How far a listing has outrun its market's index over 20, 60 and 120 sessions, in percentage points:
+
+$$
+\text{RS}_n = \left( \frac{P_t}{P_{t-n}} - \frac{B_t}{B_{t-n}} \right) \times 100
+$$
+
+where $$P$$ is the listing's close and $$B$$ the benchmark's.
+
+The benchmark is the TAIEX (`IX0001`) for a Taiwan listing and SPY for a US one, matched bar by bar by time.
+
+## What the agent reads
+
+The agent's indicator tool reports the same figures the chart draws: moving averages of 5, 10, 20, 60, 120 and 240 sessions, EMA 12 and 26, RSI 14, MACD 12/26/9, KD 9, Bollinger 20/2 and the volume ratio, together with the [levels](/docs/data/levels). The model cites them rather than working them out.

@@ -1,0 +1,89 @@
+---
+title: 券商
+description: 設定富邦證券的 SDK、憑證與 API 金鑰，再選擇委託要送往的帳戶。
+---
+
+除了模擬帳戶，Solyx 還能透過富邦自己的 SDK `fubon-neo` 交易富邦證券的帳戶。這個 SDK 絕不會跟著 Solyx 一起發布：你要自己從富邦下載，Solyx 會從你選的資料夾載入它，並在獨立的程序中執行。
+
+<Callout type="warn" title="買進需要支援的交割銀行">
+  富邦只讀得到交割銀行是台北富邦或 LINE Bank 的餘額。換成其他銀行，Solyx
+  無法得知你能動用多少錢，所以會拒絕買進，只能賣出。
+</Callout>
+
+## 在富邦 [#at-fubon]
+
+富邦的[事前準備](https://www.fbs.com.tw/TradeAPI/docs/trading/prepare/)有這些步驟的完整說明。
+
+<Steps>
+  <Step>
+    **開立富邦證券帳戶**；還沒有帳戶的話，可以[線上開戶](https://www.fubon.com/securities/open-now/)。
+  </Step>
+  <Step>
+    **簽署 API 使用風險暨聲明書，並通過連線測試**。富邦的[線上簽署 SOP](https://www.fbs.com.tw/wcm/new_web/operate_manual/operate_manual_01/API-SignSOP_guide.pdf) 會一步步說明。
+  </Step>
+  <Step>
+    **申請憑證並匯出**。在富邦的[金鑰管理與憑證匯出頁面](https://www.fbs.com.tw/TradeAPI/docs/key/)，用身分證字號與電子平台密碼登入，以富邦寄來的 OTP 申請網頁版憑證，再匯出成 `.pfx` 檔。除非你改過，憑證密碼就是你的身分證字號。
+
+    <Screenshot file="setup/fubon-certificate.png" alt="在富邦的金鑰管理與憑證匯出頁面匯出憑證" />
+
+  </Step>
+  <Step>
+    **建立 API 金鑰**：在同一頁按 **新增金鑰**。只有行情權限的金鑰不能下單，要交易的話也要給它交易權限。複製它的 Secret Key：富邦只會顯示一次。
+
+    <Screenshot file="setup/fubon-api-key.png" alt="在富邦的金鑰管理與憑證匯出頁面新增 API 金鑰並設定權限" />
+
+  </Step>
+  <Step>
+    **下載 Node.js SDK**：從富邦的 [SDK 下載頁面](https://www.fbs.com.tw/TradeAPI/docs/download/download-sdk)下載 `fubon-neo-<version>.tgz`，並解壓縮。
+  </Step>
+</Steps>
+
+解壓縮出來的資料夾裡是 SDK 的套件；Solyx 接受這個資料夾本身，或其中的 `package` 資料夾。
+
+<Files>
+  <Folder name="fubon-neo-2.4.0" defaultOpen>
+    <Folder name="package" defaultOpen>
+      <File name="package.json" />
+      <File name="trade.js" />
+      <File name="…" />
+    </Folder>
+  </Folder>
+</Files>
+
+## 在 Solyx [#in-solyx]
+
+<Steps>
+  <Step>
+    打開 **設定 → 券商 → 富邦證券**，填入：
+
+    | 欄位                 | 要填什麼                                                          |
+    | -------------------- | ----------------------------------------------------------------- |
+    | SDK 資料夾           | 你解壓縮出來的資料夾。Solyx 會顯示它找到的版本。                  |
+    | 憑證                 | 你匯出的 `.pfx` 檔。                                              |
+    | 身分證字號           | 開戶使用的身分證字號，例如 A123456789。                           |
+    | API 金鑰             | 在富邦金鑰頁面建立的金鑰。                                        |
+    | 憑證密碼             | 選填；和身分證字號相同時免填。                                    |
+
+    <Screenshot file="settings/brokers.png" alt="設定 → 券商，附富邦的 SDK 資料夾、憑證、身分證字號與 API 金鑰" />
+
+  </Step>
+  <Step>
+    **登入**。圖表或委託第一次需要富邦時，Solyx 會自己登入；你也可以在 **連線** 那一列按 **登入**。它會顯示登入了幾個帳戶。登入失敗後，要等你改了某項設定才會再試。
+  </Step>
+  <Step>
+    **選擇帳戶**：在 **設定 → 交易 → 下單帳戶** 選好後，重新啟動 Solyx。這時還在等模擬帳戶確認的提案會作廢。
+
+    <Screenshot file="settings/trading.png" alt="設定 → 交易，附下單帳戶" />
+
+  </Step>
+</Steps>
+
+富邦每發布一個版本，Solyx 都會測試；你的版本如果還沒測過，**設定 → 券商** 會提醒你。
+
+## 交易設定 [#trading-settings]
+
+在 **設定 → 交易**，帳戶旁邊還有：
+
+- **鎖定下單**：關閉前所有下單都會被拒絕，Agent 無法變更。標題列的鎖頭作用相同。
+- **每日虧損上限**，每個幣別各一個：當天賣出的虧損達到這個金額後，該幣別的買進都會被拒絕；賣出不受影響。
+- **交易授權**：讓落在你設定範圍內的提案不必等你確認就送出。[交易授權](/zh-TW/docs/orders/mandate)。

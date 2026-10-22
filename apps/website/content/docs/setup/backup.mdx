@@ -1,0 +1,101 @@
+---
+title: Backup
+description: Back up Solyx's data to an S3-compatible bucket, sealed under your passphrase, and restore it on any computer.
+---
+
+Solyx backs up its data to a bucket you name, on Cloudflare R2, Amazon S3 or any service that speaks S3's API. Each backup is sealed under your passphrase before it leaves the computer, and never holds a key.
+
+<Screenshot
+  file="settings/backup.png"
+  alt="Settings → Backup, with where backups go and how often"
+/>
+
+## Where backups go
+
+<Tabs items={["Cloudflare R2", "Amazon S3", "Another S3 service"]}>
+  <Tab value="Cloudflare R2">
+    <Steps>
+      <Step>
+        **Create a bucket** under R2 in the [Cloudflare dashboard](https://dash.cloudflare.com/?to=/:account/r2/overview).
+      </Step>
+      <Step>
+        **Create an API token.** Under **Account Details**, choose **Manage** beside **API Tokens**, then create a token with **Object Read & Write**, scoped to the bucket. Copy its **Access Key ID** and **Secret Access Key**; the secret is shown once. [Cloudflare's guide](https://developers.cloudflare.com/r2/api/tokens/).
+
+        <Screenshot file="setup/r2-api-token.png" alt="Creating an R2 API token with Object Read & Write" />
+      </Step>
+      <Step>
+        **Fill in Solyx:** **Server** `https://<account id>.r2.cloudflarestorage.com`, **Region** `auto`, the **Bucket**, and the token's two parts.
+      </Step>
+    </Steps>
+
+  </Tab>
+  <Tab value="Amazon S3">
+    <Steps>
+      <Step>
+        **Create a bucket** in the [S3 console](https://console.aws.amazon.com/s3/).
+      </Step>
+      <Step>
+        **Create an access key** in [IAM](https://console.aws.amazon.com/iam/) for a user allowed to list, read, write and delete objects in that bucket.
+      </Step>
+      <Step>
+        **Fill in Solyx:** leave **Server** empty (or press **Use AWS**), set the bucket's **Region** and the **Bucket**, and the key's two parts.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab value="Another S3 service">
+    Set **Server** to the service's S3 address, with its **Region**, **Bucket** and an access key that can list, read, write and delete objects. Solyx addresses buckets by path, as `https://server/bucket/…`.
+  </Tab>
+</Tabs>
+
+<Steps>
+  <Step>
+    **Choose a passphrase.** Backups are sealed with it (AES-256-GCM, with a key
+    drawn from it by scrypt). Solyx can't recover it, so keep a copy elsewhere.
+  </Step>
+  <Step>
+    **Pick a folder** in the bucket, optional; it is the app's name unless you
+    change it. Backups go under it, named by installation and time.
+  </Step>
+</Steps>
+
+## How often
+
+**Back up on its own** is on by default, every hour, or every 15 minutes, 6 hours or day under **How often**. It backs up only when something changed, and a failed backup tries again 15 minutes later. **Back up now** runs one at once.
+
+Solyx keeps the newest 4 backups, plus the last of each of the past 24 hours, 7 days and 4 weeks: 39 at most. It prunes only this installation's backups.
+
+## What a backup holds
+
+<Files>
+  <Folder name="In a backup" defaultOpen>
+    <File name="user.sqlite — watchlist, proposals, paper account, tasks, themes" />
+    <File name="research.sqlite, memory.sqlite, news.sqlite, agent.sqlite" />
+    <File name="config.json, mcp.json, AGENTS.md" />
+    <Folder name="skills" />
+    <Folder name="agent-workspaces" />
+  </Folder>
+  <Folder name="Never in a backup" defaultOpen>
+    <File name="Keys, sign-ins and the trading mandate" />
+    <File name="cache.sqlite — candles, which are downloaded again" />
+    <File name="Window layout and chart indicator choices" />
+  </Folder>
+</Files>
+
+## Restoring
+
+<Steps>
+  <Step>
+    **Show backups** lists this installation's backups and those of others in
+    the same bucket.
+  </Step>
+  <Step>
+    **Restore** one, then **Restore and restart**. The current files are kept
+    aside until the next restore.
+  </Step>
+  <Step>
+    **After the restart,** proposals that were waiting in the backup are
+    dismissed, since you may have confirmed them after it was made.
+  </Step>
+</Steps>
+
+On another computer, set the same bucket, access key and passphrase first, then enter your keys again after restoring.

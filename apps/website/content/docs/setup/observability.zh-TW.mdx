@@ -1,0 +1,43 @@
+---
+title: 可觀測性
+description: 把追蹤與日誌送到你指定的 OTLP 端點；當機報告只在你同意後才傳送。
+---
+
+Solyx 自己不寫日誌檔，在你要求之前也不會傳送追蹤、日誌或當機報告。你可以為它的追蹤與日誌指定一個端點，並同意傳送當機報告。其他會離開你電腦的資料，列在[隱私權政策](/zh-TW/privacy)中。
+
+## 透過 OTLP 傳送追蹤與日誌 [#traces-and-logs-over-otlp]
+
+在 **設定 → 關於 → OpenTelemetry** 中，**OTLP 端點** 的寫法同 `OTEL_EXPORTER_OTLP_ENDPOINT`：traces 送到它底下的 `/v1/traces`，logs 送到 `/v1/logs`。**OTLP headers** 填它需要的 headers，例如授權，寫成以逗號分隔的 `key=value`；它會和你的金鑰存在一起。**停止傳送** 會清除端點。
+
+每次 Agent 執行就是一個 trace：`invoke_agent Solyx`，每次模型呼叫有一個 `chat` span，每個工具有一個 `execute_tool` span，服務名稱是 `solyx`。Span 依循 OpenTelemetry 的 GenAI 慣例，記錄供應商與模型、工具名稱、token 數、快取使用與回覆的費用，但絕不包含對話內容，也不包含工具收到或傳回的內容。
+
+<Tabs items={["Grafana Cloud", "你自己的 Collector"]}>
+  <Tab value="Grafana Cloud">
+    <Steps>
+      <Step>
+        **登入** [Grafana Cloud 入口](https://grafana.com/auth/sign-in/)，並打開你的 stack。
+      </Step>
+      <Step>
+        **設定 OpenTelemetry**：在 stack 的 **OpenTelemetry** 方塊選擇 **Configure**，並產生權杖。頁面會顯示 `OTEL_EXPORTER_OTLP_ENDPOINT` 與 `OTEL_EXPORTER_OTLP_HEADERS`。[Grafana 的說明](https://grafana.com/docs/grafana-cloud/send-data/otlp/send-data-otlp/)。
+
+        <Screenshot file="setup/grafana-otlp.png" alt="Grafana Cloud 的 OpenTelemetry 方塊，顯示端點與 headers" />
+      </Step>
+      <Step>
+        **貼到 Solyx**：端點（例如 `https://otlp-gateway-<region>.grafana.net/otlp`）與 headers。貼上時帶著 `export OTEL_EXPORTER_OTLP_HEADERS=` 前綴或百分比編碼也沒關係。
+      </Step>
+    </Steps>
+
+  </Tab>
+  <Tab value="你自己的 Collector">
+    把 **OTLP 端點** 指向 OpenTelemetry Collector，或任何接受 OTLP over HTTP 的後端，例如 `http://127.0.0.1:4318`；只有它會檢查 headers 時才需要填。
+  </Tab>
+</Tabs>
+
+<Callout title="只送往你指定的端點">
+  在你設定端點之前什麼都不會送出，設定後也只送往那裡。Headers
+  和你的金鑰存在一起，絕不寫進設定檔。
+</Callout>
+
+## 當機報告 [#crash-reports]
+
+Solyx 當機時，可以把報告送到專案的 Sentry，讓問題得以修正。在你同意之前，它不會送出任何報告；你可以在首次啟動的設定中，或在 **設定 → 關於** 打開 **傳送當機報告** 來同意。報告絕不包含金鑰。開發版不會傳送任何報告。

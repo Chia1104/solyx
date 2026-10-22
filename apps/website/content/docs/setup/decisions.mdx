@@ -1,0 +1,69 @@
+---
+title: Decisions model
+description: The model that reads claims, news and commands and answers with probabilities, on TypeSafe, Cloudflare Workers AI or OpenAI.
+---
+
+A decisions model answers typed questions with probabilities, quickly and cheaply. Solyx asks it to:
+
+- check that a report's or forecast's quote says what its claim asserts;
+- read each news story's relevance, stance, kind, topic and speaker, and each theme's signposts;
+- read how a forecast's facts lean;
+- judge whether a shell command is harmless, so **Allow for me** can run it unasked.
+
+Without one, claims are kept unread, news has no sentiment, and **Allow for me** asks for every shell command.
+
+<Screenshot
+  file="settings/decisions.png"
+  alt="Settings → AI agent → Decisions model, with the provider in use"
+/>
+
+<Tabs items={["TypeSafe", "Cloudflare Workers AI", "OpenAI"]}>
+  <Tab value="TypeSafe">
+    [TypeSafe](https://typesafe.ai)'s System One model, Jev, is the default.
+
+    <Steps>
+      <Step>
+        **Create a key** in the [TypeSafe console](https://console.typesafe.ai/). Its [docs](https://docs.typesafe.ai/introduction) describe the models.
+
+        <Screenshot file="setup/typesafe-api-key.png" alt="Creating an API key in the TypeSafe console" />
+      </Step>
+      <Step>
+        **Enter it** under **Settings → AI agent → Decisions model → TypeSafe**. The model is `jev-1.13.0` unless you change it.
+      </Step>
+    </Steps>
+
+  </Tab>
+  <Tab value="Cloudflare Workers AI">
+    Cloudflare serves the Clef model, `clef` or the faster `clef-flash`, on Workers AI.
+
+    <Steps>
+      <Step>
+        **Open Workers AI** in the [Cloudflare dashboard](https://dash.cloudflare.com/?to=/:account/ai/workers-ai) and choose **Use REST API**.
+      </Step>
+      <Step>
+        **Create a Workers AI API token** and copy it. A custom token needs Workers AI Read and Edit.
+
+        <Screenshot file="setup/cloudflare-workers-ai-token.png" alt="Creating a Workers AI API token in the Cloudflare dashboard" />
+      </Step>
+      <Step>
+        **Copy the Account ID** shown on the same page, or on the account's overview.
+      </Step>
+      <Step>
+        **Enter both** under **Settings → AI agent → Decisions model → Cloudflare Workers AI**: the **API token** and the **Account ID**.
+      </Step>
+    </Steps>
+
+  </Tab>
+  <Tab value="OpenAI">
+    <Steps>
+      <Step>
+        **Create an API key** on the [OpenAI platform](https://platform.openai.com/api-keys). Signing in with ChatGPT doesn't cover the Decisions API.
+      </Step>
+      <Step>
+        **Enter it** under **Settings → AI agent → Decisions model → OpenAI**. The model is `gpt-6-luna` unless you change it.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+Each provider's **Model** and **Endpoint** can be changed, the endpoint for a gateway that speaks the same API.

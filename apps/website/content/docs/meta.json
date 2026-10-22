@@ -3,10 +3,18 @@
   "pages": [
     "index",
     "install",
-    "keys",
+    "---Setup---",
+    "...setup",
     "---Using Solyx---",
+    "workspace",
+    "charts",
     "orders",
     "agent",
-    "research"
+    "research",
+    "news",
+    "---Data and figures---",
+    "...data",
+    "---Reference---",
+    "files"
   ]
 }

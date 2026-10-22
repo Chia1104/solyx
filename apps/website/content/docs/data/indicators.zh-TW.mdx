@@ -1,0 +1,125 @@
+---
+title: 技術指標
+description: 圖表上每條線、每個副圖背後的公式，以及 Agent 讀到的數字。
+---
+
+每個技術指標都在你的電腦上，由圖表與 Agent 共用的同一套程式，以[實際成交](/zh-TW/docs/data/market-data#as-traded-or-adjusted)的 K 線算出。視窗還沒填滿之前，線的開頭幾根 K 線是空的。
+
+## 哪張圖顯示什麼 [#which-chart-shows-what]
+
+| 技術指標                              | 畫在哪裡       |
+| ------------------------------------- | -------------- |
+| 均線、布林通道                        | 每種週期       |
+| VWAP、日內參考價                      | 只在盤中 K 線  |
+| 相對強度、52 週高低、支撐區、成交分布 | 只在日 K       |
+| MACD、RSI、KD、量能比                 | 圖表下方的副圖 |
+| 籌碼                                  | 台股，日 K     |
+
+短期均線與 KD 預設開啟，直到你關掉為止。副圖由上而下依序是 MACD、RSI、KD、量能比、相對強度。
+
+## 均線 [#moving-averages]
+
+收盤價的簡單移動平均，採用台股慣用的週期：
+
+$$
+\text{SMA}_n = \frac{1}{n} \sum_{k=0}^{n-1} C_{t-k}
+$$
+
+| 短期      | 長期                                   |
+| --------- | -------------------------------------- |
+| 5、10、20 | 60（季線）、120（半年線）、240（年線） |
+
+長期均線畫得比較粗。MACD 使用的指數移動平均以前 $$n$$ 個收盤價的簡單平均作為起點，之後每個收盤價以 $$\alpha$$ 加權：
+
+$$
+\text{EMA}_t = \alpha\, C_t + (1 - \alpha)\, \text{EMA}_{t-1}
+\qquad
+\alpha = \frac{2}{n + 1}
+$$
+
+## 布林通道 [#bollinger-bands]
+
+以 20 日簡單平均為中線，上下軌是中線加減同樣 20 個收盤價的兩個標準差。標準差採母體標準差，除以 $$n$$。
+
+$$
+\begin{aligned}
+\text{middle} &= \text{SMA}_{20}(C) \\
+\text{upper} &= \text{middle} + 2\sigma_{20} \\
+\text{lower} &= \text{middle} - 2\sigma_{20}
+\end{aligned}
+$$
+
+## VWAP [#vwap]
+
+當日以成交量加權的平均價，每個交易日重新計算：
+
+$$
+\text{VWAP} = \frac{\sum \frac{H + L + C}{3} \times V}{\sum V}
+$$
+
+當天還沒成交之前，它都是空的。
+
+## RSI [#rsi]
+
+Wilder 的 14 日相對強弱指標。前 14 個漲跌直接平均，之後每一個都以平滑方式納入：
+
+$$
+\begin{aligned}
+\overline{G}_t &= \frac{13\,\overline{G}_{t-1} + \text{gain}_t}{14}
+\qquad
+\overline{L}_t = \frac{13\,\overline{L}_{t-1} + \text{loss}_t}{14} \\
+\text{RSI}_t &= 100 - \frac{100}{1 + \overline{G}_t / \overline{L}_t}
+\end{aligned}
+$$
+
+沒有下跌時 RSI 為 100；既沒有上漲也沒有下跌時為 50。副圖在 30 與 70 畫出參考線。
+
+## MACD [#macd]
+
+參數為 12、26、9，各條線採台股的名稱：
+
+$$
+\begin{aligned}
+\text{DIF} &= \text{EMA}_{12}(C) - \text{EMA}_{26}(C) \\
+\text{MACD} &= \text{EMA}_{9}(\text{DIF}) \\
+\text{OSC} &= \text{DIF} - \text{MACD}
+\end{aligned}
+$$
+
+柱狀圖就是兩者的差，不乘以 2。
+
+## KD [#kd]
+
+台股的 9 日 KD 隨機指標，以三分之一平滑（9-3-3），而不是西方隨機指標的簡單平均：
+
+$$
+\begin{aligned}
+\text{RSV}_t &= \frac{C_t - L_9}{H_9 - L_9} \times 100 \\
+K_t &= \tfrac{2}{3} K_{t-1} + \tfrac{1}{3} \text{RSV}_t \\
+D_t &= \tfrac{2}{3} D_{t-1} + \tfrac{1}{3} K_t
+\end{aligned}
+$$
+
+其中 $$H_9$$ 與 $$L_9$$ 是最近 9 個交易日的最高價與最低價。
+
+K 與 D 從 50 開始；視窗內最高價等於最低價時，RSV 為 50。副圖在 20 與 80 畫出參考線。
+
+## 量能比 [#volume-ratio]
+
+這根 K 線的成交量與它 20 根平均量的比值，$$V \div \text{SMA}_{20}(V)$$。副圖把 1.5 以上標為爆量、低於 0.5 標為量縮，並在 1 與 1.5 畫出參考線。
+
+## 相對強度 [#relative-strength]
+
+一檔股票在 20、60 與 120 個交易日內，領先所屬市場指數多少個百分點：
+
+$$
+\text{RS}_n = \left( \frac{P_t}{P_{t-n}} - \frac{B_t}{B_{t-n}} \right) \times 100
+$$
+
+其中 $$P$$ 是個股的收盤價，$$B$$ 是基準的收盤價。
+
+基準是台股的加權指數（`IX0001`）與美股的 SPY，依時間逐根 K 線對齊。
+
+## Agent 讀到什麼 [#what-the-agent-reads]
+
+Agent 的技術指標工具回報的，就是圖表畫出的同一批數字：5、10、20、60、120 與 240 日均線，EMA 12 與 26，RSI 14，MACD 12/26/9，KD 9，布林 20/2 與量能比，以及[關鍵價位](/zh-TW/docs/data/levels)。模型引用這些數字，而不是自己去算。

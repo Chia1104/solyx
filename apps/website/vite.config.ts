@@ -12,6 +12,8 @@ import { createGetUrl, getSlugs } from "fumadocs-core/source";
 import { pageSchema } from "fumadocs-core/source/schema";
 import { fumadocsMdx } from "fumadocs-mdx/vite";
 import { generateOGImage } from "fumadocs-ui/og/takumi";
+import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
 import { Renderer } from "takumi-js/node";
 import type { Plugin } from "vite-plus";
 import { defineConfig } from "vite-plus";
@@ -25,6 +27,7 @@ import {
   readReleases,
   releaseNotes,
 } from "./src/lib/releases.ts";
+import { readRemoteScreenshots } from "./src/lib/remote-screenshots.ts";
 import { socialCardPath } from "./src/lib/social-card.ts";
 
 const docsUrl = createGetUrl("/docs");
@@ -118,6 +121,35 @@ const releaseData = {
   },
 } satisfies Plugin;
 
+const REMOTE_SCREENSHOTS = "virtual:remote-screenshots";
+
+let remoteScreenshots: Promise<string[]> | undefined;
+
+// The asset host is asked once per build which screenshots it holds, so a page draws each shot, or
+// its pencilled frame, without the browser asking; a shot uploaded later shows from the next deploy.
+const screenshotData = {
+  name: "solyx:remote-screenshots",
+  resolveId: (id) =>
+    id === REMOTE_SCREENSHOTS ? `\0${REMOTE_SCREENSHOTS}` : undefined,
+  async load(id) {
+    if (id !== `\0${REMOTE_SCREENSHOTS}`) return undefined;
+
+    remoteScreenshots ??= readRemoteScreenshots(docsDir).then(
+      ({ offered, unanswered }) => {
+        if (unanswered.length > 0) {
+          this.warn(
+            `The asset host gave no answer for ${unanswered.length} screenshots, which their pages offer anyway: ${unanswered.join(", ")}`
+          );
+        }
+
+        return offered;
+      }
+    );
+
+    return `export default ${JSON.stringify(await remoteScreenshots)};`;
+  },
+} satisfies Plugin;
+
 const require = createRequire(import.meta.url);
 
 // TanStack Start's prerender writes a response as text, which breaks an image, and a card drawn in
@@ -177,7 +209,15 @@ export default defineConfig({
   // Fumadocs reads its content from the root, which the prerender's preview server does not pass on.
   root: import.meta.dirname,
   plugins: [
-    fumadocsMdx(),
+    fumadocsMdx({
+      // Math is written between `$$`, since prose quotes prices such as NT$20 and US$30,000.
+      globalOptions: {
+        mdxOptions: {
+          remarkPlugins: [[remarkMath, { singleDollarTextMath: false }]],
+          rehypePlugins: (plugins) => [rehypeKatex, ...plugins],
+        },
+      },
+    }),
     // Tests run in Node; the plugin would move them into the Workers runtime, which they do not need.
     !process.env.VITEST && voidPlugin(),
     // Void refuses a Worker that carries an image, and every page's assets reach the client build
@@ -195,6 +235,7 @@ export default defineConfig({
     }),
     react(),
     releaseData,
+    screenshotData,
     socialCards,
   ],
   environments: {

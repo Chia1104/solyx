@@ -1,0 +1,159 @@
+---
+title: Forecasts and reports
+description: How forecasts are checked, frozen and scored against base rates, how a report's claims are checked, and how the MAGI count a vote.
+---
+
+## A forecast's shape
+
+A forecast splits a listing's close a few sessions ahead into price bands, each with a probability.
+
+| Part      | Rule                                                                             |
+| --------- | -------------------------------------------------------------------------------- |
+| Horizon   | 1 to 20 sessions                                                                 |
+| Scenarios | 2 to 4, each a band with a whole-percent probability and a path of 1 to 5 points |
+| Bands     | Cover every price exactly once; a band includes its low and excludes its high    |
+| Claims    | Up to 8, each with its source's own words                                        |
+
+## Checks before it is kept
+
+<Steps>
+  <Step>
+    **A current report.** The listing needs a report, revised since the newest
+    quarter came out. One forecast per listing per session.
+  </Step>
+  <Step>
+    **Probabilities and paths.** The probabilities add up to exactly 100, and
+    each path climbs session by session to the horizon and ends inside its own
+    band.
+  </Step>
+  <Step>
+    **Direction against base rates.** A long or short must lean the way it says,
+    measured against how often the listing's history lands in each band (below).
+    A long under a bearish report, or a short under a bullish one, must say why.
+  </Step>
+  <Step>
+    **A plan that pays.** A neutral forecast takes no plan. Entry, stop and
+    target sit on the listing's ticks, and the reward is at least the risk.
+  </Step>
+  <Step>
+    **Claims that hold.** Each claim's quote passes the [provenance
+    check](#quotes-must-be-read) and the decisions model's reading.
+  </Step>
+</Steps>
+
+The desk stamps the anchor itself, the newest daily close, or the last price while the session trades, and the report's revision. After any reading and vote it checks the forecast once more, and only then freezes it.
+
+### The lean
+
+$$
+\text{lean} = \sum_i (p_i - b_i)\, s_i
+$$
+
+where $$p_i$$ is a band's probability, $$b_i$$ its base rate, and $$s_i$$ is +1 for a band wholly at or above the anchor, −1 for one wholly below it, and 0 for one that straddles it. A long needs a positive lean and a short a negative one.
+
+## Base rates
+
+A base rate is how often the listing's own history would have landed in a band:
+
+<Steps>
+  <Step>
+    Take every move over the forecast's horizon in the daily bars Solyx holds,
+    about two years: $$\text{close}_{t + h} \div \text{close}_t$$. Cash
+    dividends that went ex within each stretch are added back.
+  </Step>
+  <Step>Apply each move to the anchor price.</Step>
+  <Step>Count the share that lands in each band.</Step>
+</Steps>
+
+Fewer than 60 moves give no base rate. The agent also reads the 10th, 25th, 50th, 75th and 90th percentiles of those moves.
+
+## Judging at the horizon
+
+A forecast settles after the regular close of the session `h` daily bars after its anchor.
+
+- **Ex-dividend days.** Cash dividends that went ex after the anchor are added back to the bars before judging, so a dividend does not count as a fall. Stock dividends and splits are not adjusted. The record keeps the raw close beside the amount added back.
+- **No dividends, no verdict.** If the dividends cannot be read, the forecast waits, since a verdict is written once.
+
+### The score
+
+Each forecast is scored with the multi-category Brier score:
+
+$$
+\text{Brier} = \sum_i (p_i - o_i)^2
+$$
+
+where $$o_i$$ is 1 for the band the close landed in and 0 for the rest.
+
+0 is sure and right, 2 is sure and wrong, and three even bands always score 0.67.
+
+$$
+\text{skill} = 1 - \frac{\overline{\text{Brier}}}{\overline{\text{Brier}}_{\text{base rates}}}
+$$
+
+Above zero, the forecasts beat simply quoting history.
+
+### The plan, replayed
+
+- The entry fills once the price touches it, gaps included.
+- Ties go against the plan: the entry bar can stop out but not reach the target, and a later bar touching both counts as the stop.
+- The result is in R, the gain over the risk taken: $$\frac{\text{exit} - \text{entry}}{\text{entry} - \text{stop}}$$, signed for the side. A stop is −1R, and a plan that runs out is valued at the last close.
+
+### The record
+
+- The mean Brier score, the skill, and how many plans entered, stopped or reached target, with their mean R.
+- **Calibration**, in five bands of probability: 0–20, 20–40, 40–60, 60–80 and 80–100%. On the diagonal, bands came true as often as they were given.
+- How the MAGI's calls and the evidence's leaning fared, against what the base rates expected.
+
+## Reports
+
+A report's first revision needs a stance and a thesis. Each later revision changes only what it names, and the rest carries over.
+
+| Part                   | Limit                                       |
+| ---------------------- | ------------------------------------------- |
+| Thesis                 | 600 characters                              |
+| Drivers, risks, events | Up to 8 each                                |
+| Falsifiers             | Up to 6                                     |
+| A claim                | 300 characters, with a quote of up to 1,200 |
+
+An event dated before today is refused, and text that looks like a secret is refused anywhere.
+
+### Stance against the index
+
+Each stance runs from the revision that set it to the one that changed it:
+
+$$
+\begin{aligned}
+\text{change} &= \frac{\text{close}_{\text{end}}}{\text{close}_{\text{start}}} - 1 \\
+\text{benchmark} &= \frac{\text{index}_{\text{end}}}{\text{index}_{\text{start}}} - 1 \\
+\text{excess} &= \text{change} - \text{benchmark}
+\end{aligned}
+$$
+
+The excess is given in percentage points.
+
+Prices are as traded. The index is the TAIEX for Taiwan and SPY for the US.
+
+### Quotes must be read
+
+Every line of a quote must appear whole in something the conversation actually read: a tool's result or your own message. Both sides are compared after folding width and case, turning every dash into a hyphen and keeping only letters, digits, percent signs, decimal points and minus signs, so a reformatted figure still matches but an invented one does not. A quote the report already holds is exempt.
+
+### The decisions model's reading
+
+The decisions model then reads each claim beside its quote and answers whether the quote says what the claim asserts. A claim it supports with less than 0.6 is refused. Only the fact is checked, not the agent's reading of it. Without a decisions model, a claim is kept as unread.
+
+### Falsifier watch
+
+With a local embedder and a decisions model, Solyx watches each report's falsifiers, what would prove the view wrong. After each news collection it takes the three stories of the past week nearest each falsifier in meaning and has the decisions model read each pair once. A falsifier counts as met at support 0.6 or more.
+
+## The MAGI's vote
+
+| Unit        | Weighs                                         |
+| ----------- | ---------------------------------------------- |
+| MELCHIOR·1  | The data and the evidence                      |
+| BALTHASAR·2 | What could be lost before what could be gained |
+| CASPER·3    | Desire, the crowd's mood and the story         |
+
+- **Orders:** one motion, held only after every check has passed. A rejected order makes no proposal.
+- **Forecasts:** each scenario is its own motion, that the close is likelier to land in its band than its base rate says. No vote is held without base rates, and the forecast is kept whatever the result.
+- Each unit votes alone and in parallel. Two approvals carry a motion; a missing vote counts for neither side.
+- A unit sees the bands with their base rates, the rationale, the contrary case, the claims and their quotes, how the facts read, and the report's stance and risks, but not the author's probabilities, direction or plan. For an order it sees the order, its rationale, the cash and the holding.

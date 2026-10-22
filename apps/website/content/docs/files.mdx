@@ -1,0 +1,149 @@
+---
+title: Files and settings
+description: Where Solyx keeps its settings, data and keys, and what config.json holds.
+---
+
+Solyx keeps two folders: a config folder in your home, which you may edit by hand, and a data folder the app manages. **Settings → About** shows both, with **Show in Finder** or **Show in folder**.
+
+## Each channel apart
+
+A nightly and a development build keep folders of their own, so neither touches a stable install's settings, keys or databases.
+
+| Build       | Config folder      | Data folder, macOS                            | Data folder, Windows      |
+| ----------- | ------------------ | --------------------------------------------- | ------------------------- |
+| Stable      | `~/.solyx`         | `~/Library/Application Support/Solyx`         | `%APPDATA%\Solyx`         |
+| Nightly     | `~/.solyx-nightly` | `~/Library/Application Support/Solyx Nightly` | `%APPDATA%\Solyx Nightly` |
+| Development | `~/.solyx-dev`     | `~/Library/Application Support/Solyx Dev`     | `%APPDATA%\Solyx Dev`     |
+
+## The config folder
+
+<Files>
+  <Folder name="~/.solyx" defaultOpen>
+    <File name="config.json" />
+    <File name="config.schema.json" />
+    <File name="AGENTS.md" />
+    <File name="mcp.json" />
+    <Folder name="skills" />
+  </Folder>
+</Files>
+
+- **`config.json`** holds your settings. Solyx applies a saved edit without a restart, keeps entries it does not read, reads one that no longer parses as its default, and never overwrites a file with syntax errors.
+- **`config.schema.json`**, which `config.json` names as its `$schema`, describes every entry, so an editor can check and complete the file. Solyx writes it afresh at start.
+- **`AGENTS.md`**, **`mcp.json`** and **`skills/`** are what you write for the agent. [Extensions](/docs/agent/extensions).
+
+## The data folder
+
+<Files>
+  <Folder name="Solyx" defaultOpen>
+    <File name="user.sqlite" />
+    <File name="research.sqlite" />
+    <File name="memory.sqlite" />
+    <File name="news.sqlite" />
+    <File name="agent.sqlite" />
+    <File name="cache.sqlite" />
+    <File name="secrets.json" />
+    <Folder name="agent-workspaces" />
+    <Folder name="fubon" />
+    <Folder name="restore" />
+  </Folder>
+</Files>
+
+| File                | Holds                                                                                        |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `user.sqlite`       | The watchlist, proposals, the paper account and its fills, exits, scheduled tasks and themes |
+| `research.sqlite`   | Reports and forecasts                                                                        |
+| `memory.sqlite`     | The agent's memories                                                                         |
+| `news.sqlite`       | Collected news and its readings                                                              |
+| `agent.sqlite`      | Conversations                                                                                |
+| `cache.sqlite`      | Candles and providers' answers kept for a while; safe to clear                               |
+| `secrets.json`      | Keys, sign-ins and the trading mandate, encrypted by your operating system                   |
+| `agent-workspaces/` | Each conversation's folder for shell commands                                                |
+| `fubon/`            | Fubon's SDK logs                                                                             |
+| `restore/`          | A restore waiting for the next start, and the files it replaced                              |
+
+**Settings → Storage** shows how much each store holds and clears the candle cache, conversations, memory, news, research or the watchlist.
+
+Solyx writes no log file of its own; only Fubon's SDK keeps logs, in `fubon/`. Solyx's logs go to the terminal, and to an [OTLP endpoint](/docs/setup/observability) if you name one.
+
+## What config.json holds
+
+Every entry is optional; one left out takes its default. Keys never appear here.
+
+<TypeTable
+  type={{
+    appearance: {
+      description:
+        "The theme, the palette for light and dark, your own palettes, price colours, language and time zone.",
+      type: "object",
+    },
+    trading: {
+      description:
+        "The broker and account orders go to, the lock, and each currency's daily loss limit.",
+      type: "object",
+      default: '{ broker: "paper" }',
+    },
+    tray: {
+      description:
+        "Whether Solyx stays in the menu bar, and whether it leaves the Dock with no window open.",
+      type: "object",
+    },
+    marketData: {
+      description: "The source of each market's quotes and candles.",
+      type: "object",
+      default: '{ TW: "fugle" }',
+    },
+    providers: {
+      description:
+        "Fugle's and FinMind's plans, and the paths of Fubon's SDK and certificate.",
+      type: "object",
+    },
+    agent: {
+      description:
+        "The providers switched on, the default provider, model and thinking level, endpoints, shared skills, the shell, the decision mode and the MAGI's models, memory and MCP tools' policies.",
+      type: "object",
+    },
+    collection: {
+      description: "How often news and themes are collected.",
+      type: "object",
+    },
+    news: {
+      description: "How long press news and crowd posts are kept.",
+      type: "object",
+    },
+    updates: {
+      description: "Whether Solyx checks for updates.",
+      type: "object",
+    },
+    otlp: {
+      description: "The OTLP endpoint for traces and logs.",
+      type: "object",
+    },
+    backup: {
+      description:
+        "The bucket's server, region, name and folder, and how often to back up.",
+      type: "object",
+    },
+    crashReports: {
+      description: "Whether crash reports are sent.",
+      type: "object",
+      default: "{ send: false }",
+    },
+    webSearch: {
+      description: "The web search vendor in use.",
+      type: "object",
+      default: '{ provider: "firecrawl" }',
+    },
+    decisions: {
+      description:
+        "The decisions model in use, and each provider's model, endpoint and Cloudflare's account ID.",
+      type: "object",
+      default: '{ provider: "typesafe" }',
+    },
+    embeddings: {
+      description:
+        "Whether news is grouped by meaning, and the embedder's provider, model and endpoint.",
+      type: "object",
+      default: "{ enabled: false }",
+    },
+  }}
+/>

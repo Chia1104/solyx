@@ -1,0 +1,114 @@
+---
+title: 擴充
+description: 用 skills 加入操作手冊、在 AGENTS.md 寫固定指示、接上 MCP server 的工具，以及開放 shell。
+---
+
+你寫給 Agent 的東西都放在 Solyx 的設定資料夾 `~/.solyx`，每次執行都會重新讀取。
+
+<Files>
+  <Folder name="~/.solyx" defaultOpen>
+    <File name="AGENTS.md" />
+    <File name="mcp.json" />
+    <Folder name="skills" defaultOpen>
+      <Folder name="earnings-week" defaultOpen>
+        <File name="SKILL.md" />
+      </Folder>
+    </Folder>
+  </Folder>
+</Files>
+
+## Skills [#skills]
+
+Skill 是 Agent 需要時才讀的操作手冊，你也可以用 `/` 指令呼叫它。**設定 → Skills** 會列出你的、內建的與共用的 skills，並提供 **打開 skills 資料夾**。
+
+<Steps>
+  <Step>
+    **建立資料夾**：在 `~/.solyx/skills/` 底下建立，以 skill 的名稱命名：只用小寫英文字母、數字與單一連字號，最多 64 個字元。
+  </Step>
+  <Step>
+    **寫好它的 `SKILL.md`**，名稱與資料夾相同，並說明什麼時候該用它：
+
+    ```md title="~/.solyx/skills/earnings-week/SKILL.md"
+    ---
+    name: earnings-week
+    description: Review a listing ahead of its quarterly report. Use when results are due within a week.
+    ---
+
+    1. Read the last eight quarters' revenue, margins and EPS.
+    2. Compare the consensus the news reports with the trailing figures.
+    3. …
+    ```
+
+  </Step>
+  <Step>
+    **呼叫它**：在輸入框輸入 `/earnings-week`，或讓 Agent 在描述符合時自己讀取。
+  </Step>
+</Steps>
+
+| Frontmatter                      | 作用                            |
+| -------------------------------- | ------------------------------- |
+| `name`                           | 必須和資料夾名稱相同            |
+| `description`                    | 必填，最多 1,024 個字元         |
+| `user-invocable: false`          | 不出現在 `/`，只有 Agent 會讀它 |
+| `disable-model-invocation: true` | 停用這個 skill                  |
+
+你的 skill 會優先於同名的內建 skill。`~/.agents/skills` 裡與其他 agent 共用的 skills，要逐一開啟後才會提供。
+
+<Accordions>
+  <Accordion title="內建的 skills">
+
+    | Skill              | 用途                           |
+    | ------------------ | ------------------------------ |
+    | `order-proposal`   | 把想法變成提案                 |
+    | `exit-plan`        | 停損與停利                     |
+    | `technical-read`   | 跨週期解讀圖表                 |
+    | `backtest`         | 用樣本外資料測試規則並回報結果 |
+    | `portfolio-review` | 曝險、集中度與現金             |
+    | `watchlist-upkeep` | 巡一輪自選，最後給出簡報       |
+    | `deep-analysis`    | 一份報告與一筆會被評分的預測   |
+    | `fund-research`    | ETF 或 ETN 的成分、費用與折溢價 |
+    | `solyx-guide`      | 設定 Solyx，以及排除問題       |
+
+    Agent 也會自己讀取 `taiwan-market`、`us-market` 與 `canvas`。
+
+  </Accordion>
+</Accordions>
+
+## 固定指示 [#standing-instructions]
+
+`~/.solyx/AGENTS.md` 放著 Agent 每則訊息都會讀的指示，例如你怎麼決定部位大小，或哪些東西你絕不交易。它會顯示在 **設定 → Skills → 固定指示**。
+
+## MCP server [#mcp-servers]
+
+`~/.solyx/mcp.json` 用來連接 MCP server，格式與 Claude、Cursor、pi 使用的 `mcpServers` 相同。**設定 → MCP** 的 **打開 mcp.json** 會建立這個檔案。
+
+```json title="~/.solyx/mcp.json"
+{
+  "mcpServers": {
+    "notes": {
+      "command": "npx",
+      "args": ["-y", "@example/notes-mcp"],
+      "env": { "NOTES_TOKEN": "secret:NOTES_TOKEN" }
+    },
+    "docs": {
+      "url": "https://mcp.example.com/mcp",
+      "headers": { "Authorization": "secret:DOCS_KEY" }
+    }
+  }
+}
+```
+
+- **本機 server** 使用 `command`，需要時再加上 `args`、`env` 與 `cwd`。它只會從你的環境取得 `HOME`、`LOGNAME`、`PATH`、`SHELL`、`TERM` 與 `USER`。
+- **遠端 server** 使用 `url`，需要時加上 `headers`，或從 **設定 → MCP** 登入。
+- **`secret:NAME`** 代表你在 **設定 → MCP** 輸入的密鑰，它會和你的金鑰存在一起，而不是寫在檔案裡。
+
+每個工具可以設為 **關閉**、**詢問** 或 **自動**：關閉、每次都先詢問，或自行執行。工具一開始都是 **詢問**，只有 server 標為唯讀的工具才能設為 **自動**。Agent 會在需要時透過工具搜尋載入 server 的工具；工具搜尋比對的是英文字詞。
+
+<Screenshot
+  file="settings/mcp.png"
+  alt="設定 → MCP，顯示已連線的 server 與其工具的放行規則"
+/>
+
+## Shell [#the-shell]
+
+**設定 → Skills** 裡的 **允許 agent 使用 shell**，讓 Agent 能在你的電腦上以 bash 或 PowerShell 執行指令；每段對話各有自己的資料夾，對話刪除時資料夾也會一起刪除。它預設關閉，也只有在委託送往模擬帳戶時才提供。它沒有沙盒：指令擁有你對檔案與網路的存取權，所以除非在 **自動判斷** 下由決策模型判斷為無害，或對話設為 **不詢問**，否則都會先等你允許。

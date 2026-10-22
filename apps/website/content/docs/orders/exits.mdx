@@ -1,0 +1,27 @@
+---
+title: Stops and targets
+description: Sell shares you hold once the price falls to a stop or rises to a target.
+---
+
+To sell shares you hold once the price falls or rises far enough, set a stop, a target or both under **Stop and target** in the order panel, watched for up to 60 days. Like any proposal, it waits for you to confirm it; a [trading mandate](/docs/orders/mandate) never sends one.
+
+<Screenshot
+  file="orders/exit.png"
+  alt="Stop and target in the order panel, with the stop and target drawn dotted on the chart"
+/>
+
+## Who watches the price
+
+<Tabs items={["Fubon", "Paper account"]}>
+  <Tab value="Fubon">
+    Fubon watches the price itself, so an exit fires even while Solyx is closed: a stop sells at the day's lower limit, filling at what buyers bid, and a target sells at its price.
+
+    Once one sells, Solyx cancels the other the next time it runs. While Solyx is closed, both could sell if you hold more shares than the exit sells.
+
+  </Tab>
+  <Tab value="Paper account">
+    The paper account watches only while Solyx runs. It follows the live minute bars of each listing with an exit, which share your plan's live subscriptions with charts, and checks a listing the stream doesn't cover once a minute. A bar that reaches a leg sells the exit whole at the leg's price, or at the bar's open where it opened past it; a bar that reaches both sells at the stop, since nothing in it tells which came first.
+  </Tab>
+</Tabs>
+
+You can cancel an exit from its card while it is still watched.

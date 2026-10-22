@@ -1,0 +1,63 @@
+---
+title: Charts
+description: Intervals, indicators, levels, investor flows, forecasts and the rotation graph on a listing's chart.
+---
+
+Charts run from one-minute to monthly bars and follow the session live. Scroll left for older bars; they load as you near the oldest.
+
+<Screenshot
+  file="charts/daily.png"
+  alt="A daily chart with moving averages, support zones, the volume profile and a forecast"
+/>
+
+## Intervals
+
+The interval button above the chart offers 1, 5, 15, 30 and 60 minutes, days, weeks and months, and **Intraday**, which charts the newest session on minute bars around its reference price, with its average price and volume across the session's hours.
+
+## Indicators
+
+**Indicators** switches each one on or off. Your choices are kept for every chart.
+
+| Group          | Indicators                                                                       | On                            |
+| -------------- | -------------------------------------------------------------------------------- | ----------------------------- |
+| Lines          | Short MAs (5, 10, 20), Long MAs (60, 120, 240), BOLL                             | Every interval                |
+| Session        | VWAP, Session levels                                                             | Intraday bars                 |
+| Levels         | 52-week range, Support zones, Volume profile                                     | Daily bars                    |
+| Panes          | MACD, RSI, KD, Volume ratio                                                      | Every interval                |
+| Strength       | Relative strength                                                                | Daily bars                    |
+| Investor flows | Foreign, trust and dealer net buying, margin and short balances, foreign holding | Taiwan, daily and longer bars |
+
+Short MAs and KD are on until you turn them off. The long averages also mark where a close broke below the quarter or year line. [Every formula](/docs/data/indicators) and [how levels are found](/docs/data/levels).
+
+## What the account draws
+
+Your average cost, working orders and exits are drawn in ink, proposals still waiting in pencil, the session's limits, and an arrow on each bar where you bought or sold. [The order panel](/docs/orders/order-panel).
+
+## Forecasts
+
+On daily bars, a forecast's scenarios are drawn as dashed paths from its anchor, fainter the less likely, with its entry, stop and target. [Forecasts](/docs/research/forecasts).
+
+## Filed figures
+
+Under **Research**, **Filed figures** charts quarterly revenue, EPS, monthly revenue on the year (unaudited) and the gross, operating and net margins.
+
+## Sector rotation
+
+The overview's **Market** tab and a listing's research draw the rotation graph: where each sector or listing stands against a benchmark, and which way it is heading.
+
+<Screenshot
+  file="charts/rotation.png"
+  alt="The sector rotation graph with its quadrants, trails and timeline"
+/>
+
+- **Bars** reads sessions or weeks, and **Period** how many: 20, 60 or 120 sessions, or 13, 26 or 52 weeks.
+- **Groups** switch electronics, finance and other industries, or positions and watchlist, on and off.
+- **Pins.** Pointing at an entry lifts its trail over the rest and names it. Click a dot, or a row in a quadrant's list, to pin it so it stays lifted while you point at others. **Unpin all** clears them.
+- **As of** plays the graph back along a timeline, over up to the last 120 sessions, with **Play**, the previous and next session, and **Back to latest**.
+- **Benchmark,** on the sector graph, takes another TWSE code in place of the TAIEX.
+
+[How the graph is worked out](/docs/data/rotation).
+
+## Order book
+
+**Order book** shows the session's range between its limits, the best five bids and asks, the trial match while the auction runs, and your holding. Click a price to use it in the order panel.

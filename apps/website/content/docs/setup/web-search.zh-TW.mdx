@@ -1,0 +1,71 @@
+---
+title: 網路搜尋
+description: Firecrawl、Exa 或 Tavily 的金鑰，新聞收集與 Agent 都透過它搜尋與閱讀網路。
+---
+
+網路搜尋金鑰會為[新聞](/zh-TW/docs/news)找出媒體的報導，以及 Threads 與 X 上的貼文，也讓 Agent 能搜尋網路、閱讀網頁。沒有金鑰時，新聞只來自不需要金鑰的來源：公開資訊觀測站的重大訊息、內部人轉讓與 PTT，Agent 也沒有網路工具。
+
+<Screenshot
+  file="settings/web-search.png"
+  alt="設定 → AI Agent → 網路搜尋，顯示使用中的供應商"
+/>
+
+<Tabs items={["Firecrawl", "Exa", "Tavily"]}>
+  <Tab value="Firecrawl">
+    Firecrawl 搜尋的是 Google，是預設的供應商。
+
+    <Steps>
+      <Step>
+        **建立金鑰**：到 [Firecrawl 的 API 金鑰頁面](https://www.firecrawl.dev/app/api-keys)建立。免費帳號就附有額度。
+
+        <Screenshot file="setup/firecrawl-api-key.png" alt="Firecrawl 的 API 金鑰頁面" />
+      </Step>
+      <Step>
+        **填入金鑰**：填在 **設定 → AI Agent → 網路搜尋 → Firecrawl**。
+      </Step>
+    </Steps>
+
+  </Tab>
+  <Tab value="Exa">
+    Exa 搜尋的是它自己的索引。
+
+    <Steps>
+      <Step>
+        **建立金鑰**：到 [Exa 的後台](https://dashboard.exa.ai/api-keys)建立。
+
+        <Screenshot file="setup/exa-api-key.png" alt="Exa 的 API 金鑰頁面" />
+      </Step>
+      <Step>
+        **填入金鑰**：填在 **設定 → AI Agent → 網路搜尋 → Exa**。
+      </Step>
+    </Steps>
+
+  </Tab>
+  <Tab value="Tavily">
+    Tavily 搜尋新聞時，無法偏重市場所在的國家。
+
+    <Steps>
+      <Step>
+        **建立金鑰**：到 [Tavily 的後台](https://app.tavily.com/)建立。免費金鑰每月附 1,000 點額度。
+
+        <Screenshot file="setup/tavily-api-key.png" alt="Tavily 的後台與一把 API 金鑰" />
+      </Step>
+      <Step>
+        **填入金鑰**：填在 **設定 → AI Agent → 網路搜尋 → Tavily**。
+      </Step>
+    </Steps>
+
+  </Tab>
+</Tabs>
+
+存了不只一把金鑰時，用 **供應商** 選擇新聞與 Agent 透過哪一家搜尋。
+
+## 控制在免費額度內 [#staying-within-a-free-tier]
+
+庫存與自選的新聞預設每 72 小時收集一次，所以免費額度大約夠用在十檔左右的自選；每個主題則每 24 小時搜尋一次。兩者都可以在 **設定 → 排程 → App 自己收集的資料** 調整。[新聞如何收集](/zh-TW/docs/data/news#collection)。
+
+<Callout type="warn" title="Agent 讀的網頁會經過你的供應商">
+  讀取網頁時，會請你的供應商去抓取那個網址。在 **先詢問** 與 **自動判斷**
+  模式下，不是這段對話自己找到的網址都會先等你允許，因為 Agent
+  讀過的網頁可能正試圖把你的資料送出去。
+</Callout>

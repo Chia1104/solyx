@@ -1,0 +1,48 @@
+---
+title: Schedules
+description: Tasks that send the agent a message on their own, and the data the app collects on its own.
+---
+
+A scheduled task sends the agent a message on its own, each run in a conversation of its own that spends your model's tokens. Runs go on while Solyx sits in the menu bar.
+
+<Screenshot
+  file="settings/schedules.png"
+  alt="Settings → Schedules with a scheduled task and what the app collects"
+/>
+
+## Making a task
+
+Under **Settings → Schedules → Scheduled tasks**, or by asking the agent, give a task a **Name**, **What to send** and **When**.
+
+<Tabs items={["Every so often", "At a time of day", "When something changed"]}>
+  <Tab value="Every so often">
+    Every 30 minutes, hour, 2, 4, 6 or 12 hours, or day. A run counts from the
+    later of when the task was saved and when it last ran.
+  </Tab>
+  <Tab value="At a time of day">
+    At a time on your clock, every day, on the days Taiwan trades or on the days
+    the US trades. A time missed while Solyx was closed still runs within 12
+    hours; an older one is skipped.
+  </Tab>
+  <Tab value="When something changed">
+    When a report's falsifier is met, a report's date has gone by, or a theme's
+    signpost is met, across everything you hold and watch or the listings and
+    themes you pick. Solyx looks every half hour and runs the task at most once
+    in the interval you set.
+  </Tab>
+</Tabs>
+
+**Calls that must ask** picks **Wait for me**, the default, or **Allow what is judged harmless**. A scheduled run never runs in **Don't ask**. A task's runs are marked **Scheduled** among your conversations, and **Open its conversation** shows the latest. **Run now** runs one at once.
+
+The `watchlist-upkeep` skill makes a good task: a round over the watchlist ending in a briefing.
+
+## What the app collects
+
+Above the tasks, **What the app collects** sets how often Solyx collects on its own, with no model:
+
+| What                            | Default        |
+| ------------------------------- | -------------- |
+| News of what you hold and watch | Every 72 hours |
+| News for your themes            | Every 24 hours |
+
+Each can run every 6 or 12 hours, daily, every 3 or 7 days, or at a time of day, and **Collect now** runs it at once. [Web search](/docs/setup/web-search#staying-within-a-free-tier).

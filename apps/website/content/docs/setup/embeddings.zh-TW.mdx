@@ -1,0 +1,55 @@
+---
+title: 嵌入模型
+description: 用 Ollama 或 OpenAI 產生向量，依語意合併新聞、搜尋研究與記憶，並追蹤反證條件。
+---
+
+嵌入模型把文字轉成向量，讓 Solyx 認得出兩則用不同字眼講同一件事的新聞，並依語意搜尋它保存的內容。在你打開 **設定 → AI Agent → 依語意合併新聞（實驗功能）** 裡的 **依語意合併** 之前，它都是關閉的。
+
+開啟後：
+
+- 不同網站轉載的同一事件，會合併成一個[故事](/zh-TW/docs/data/news#stories-not-headlines)；
+- 新聞、研究、預測與記憶除了依字詞，也能依語意搜尋；
+- 有本機模型與決策模型時，Solyx 會在新聞中追蹤報告的[反證條件](/zh-TW/docs/research#falsifier-watch)。
+
+<Screenshot
+  file="settings/embeddings.png"
+  alt="設定 → AI Agent → 依語意合併新聞，Ollama 模型已就緒"
+/>
+
+<Tabs items={["Ollama", "LM Studio", "OpenAI"]}>
+  <Tab value="Ollama">
+    <Steps>
+      <Step>
+        **安裝 Ollama**：從 [ollama.com](https://ollama.com/download)
+        下載並啟動它。設定裡的 **取得 Ollama** 也會連到那裡。
+      </Step>
+      <Step>
+        **把向量來源設為 Ollama**：**端點** 是
+        `http://127.0.0.1:11434/v1`；要用另一台主機上的 Ollama 時再更改。
+      </Step>
+      <Step>
+        **下載模型**：**Ollama 模型** 會檢查有沒有
+        `qwen3-embedding:0.6b`，並提供 **下載**；也可以在終端機執行 `ollama pull
+        qwen3-embedding:0.6b`。
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab value="LM Studio">
+    [LM Studio](https://lmstudio.ai/) 也提供相同的 OpenAI 相容
+    API。啟動它的本機伺服器、載入一個嵌入模型，再把 **向量來源：Ollama** 的
+    **端點** 指向它，例如 `http://127.0.0.1:1234/v1`。**下載** 只適用於
+    Ollama，所以請自己在 LM Studio 載入模型。
+  </Tab>
+  <Tab value="OpenAI">
+    把 **向量來源** 設為 **OpenAI**，並填入 [OpenAI
+    平台](https://platform.openai.com/api-keys)的 API 金鑰；用 ChatGPT
+    登入無法使用嵌入模型。Solyx 使用 `text-embedding-3-large`，維度為 1,024。
+  </Tab>
+</Tabs>
+
+<Callout title="你自己寫的內容只交給本機的嵌入模型">
+  新聞可以由任一個供應商轉成向量。報告、反證條件、記憶與你的搜尋只交給 Ollama
+  端點，絕不送到 OpenAI。如果你把這個端點指向另一台主機，它們就會送到那台主機。
+</Callout>
+
+Ollama 底下的 API 金鑰，只有在它前面架了會檢查 bearer token 的代理時才需要。資料庫一次只保存一個模型的向量，所以換模型後，向量會從頭開始建立。

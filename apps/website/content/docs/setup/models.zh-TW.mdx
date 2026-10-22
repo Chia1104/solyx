@@ -1,0 +1,97 @@
+---
+title: 模型
+description: 為 Agent 啟用模型供應商，用 API 金鑰、你已經有的訂閱，或你電腦上的模型。
+---
+
+在 **設定 → AI Agent** 啟用你要的供應商，各自使用你自己的 API 金鑰或訂閱。**新增供應商** 可以搜尋目錄。每個供應商的卡片會標示它能不能用：**可以使用**、**需要 API 金鑰**、**需要登入**、**沒有可用模型** 或 **沒有回應**。
+
+<Screenshot
+  file="settings/agent.png"
+  alt="設定 → AI Agent，已啟用一個供應商並填入它的 API 金鑰"
+/>
+
+## 供應商 [#providers]
+
+Solyx 提供它的 Agent 執行環境 pi 能用金鑰連上的供應商，包括：
+
+<Cards>
+  <Card title="Anthropic" href="https://console.anthropic.com/settings/keys">
+    Claude，預設的模型。在 Claude Console 建立金鑰。
+  </Card>
+  <Card title="OpenAI" href="https://platform.openai.com/api-keys">
+    平台的 API 金鑰，或用 ChatGPT 登入。
+  </Card>
+  <Card title="Google" href="https://aistudio.google.com/apikey">
+    Gemini，使用 Google AI Studio 的金鑰。
+  </Card>
+  <Card title="OpenRouter" href="https://openrouter.ai/settings/keys">
+    一把金鑰就能用多家公司的模型，也可以登入來建立金鑰。
+  </Card>
+</Cards>
+
+其他還有 DeepSeek、Mistral、xAI、Meta、GitHub Copilot、Groq、Cerebras、Fireworks、Together、Hugging Face、Moonshot、MiniMax、Qwen、Z.ai、NVIDIA 與 Vercel AI Gateway，以及在你自己電腦上執行的 Ollama。
+
+## 金鑰或訂閱 [#a-key-or-a-subscription]
+
+<Tabs
+  items={[
+    "API 金鑰",
+    "使用 ChatGPT 登入",
+    "OpenRouter",
+    "Copilot、xAI 與 Meta",
+  ]}>
+  <Tab value="API 金鑰">
+    <Steps>
+      <Step>**建立金鑰**：在供應商自己的後台建立。</Step>
+      <Step>
+        **啟用供應商**：打開它的 **使用 … 的模型** 開關，並設定它的 **API
+        金鑰**。
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab value="使用 ChatGPT 登入">
+    OpenAI 可以把 **付費方式** 設為你的 ChatGPT 訂閱，再按 **使用 ChatGPT
+    登入**。瀏覽器會打開 OpenAI 的登入頁，Solyx 只在等它回來的期間監聽
+    `127.0.0.1`。用 ChatGPT
+    登入不涵蓋[決策模型](/zh-TW/docs/setup/decisions)與[嵌入模型](/zh-TW/docs/setup/embeddings)，這兩者需要平台的
+    API 金鑰。
+  </Tab>
+  <Tab value="OpenRouter">
+    按 **使用 OpenRouter 登入**，並在 OpenRouter
+    的頁面核准金鑰；它會建立一把標為 Solyx 的金鑰交回 App，App
+    會把它存成這個供應商的 API 金鑰。也可以直接貼上 [OpenRouter
+    金鑰頁面](https://openrouter.ai/settings/keys)上的金鑰。
+  </Tab>
+  <Tab value="Copilot、xAI 與 Meta">
+    GitHub Copilot、xAI 的 SuperGrok 或 X Premium，以及 Meta 的 Muse
+    都用代碼登入：Solyx
+    會顯示一組代碼並打開供應商的頁面，讓你在那裡輸入。這種登入不會開啟任何監聽。GitHub
+    Copilot 只能透過在 github.com 登入來使用。
+  </Tab>
+</Tabs>
+
+## 你自己的閘道 [#your-own-gateway]
+
+**API 端點** 會把供應商的請求送到另一個位址，例如你自己的閘道。只有在閘道支援這個供應商的原生 API 時才更改；你的金鑰也會送到那裡。它只在你用 API 金鑰付費時生效，也只提供給所有模型共用同一個位址的供應商。
+
+## Ollama [#ollama]
+
+用 [Ollama](https://ollama.com/download) 在你自己的電腦上執行模型。
+
+<Steps>
+  <Step>
+    **安裝 Ollama**，再用 `ollama pull <model>` 下載一個能呼叫工具、上下文至少 48K tokens 的模型。上下文較短的模型不會列出。
+  </Step>
+  <Step>
+    **啟用 Ollama**：在 **設定 → AI Agent** 打開它。它的 **API 端點** 是 `http://127.0.0.1:11434`；指向另一台主機時，你的對話會送到那台主機。
+  </Step>
+  <Step>
+    **檢查模型**：**可用模型** 這一列會列出符合條件的模型；下載新模型後按 **重新整理**。
+  </Step>
+</Steps>
+
+Solyx 每次請求會向 Ollama 要求最多 64K tokens 的上下文。只有 Ollama 前面架了會檢查 bearer token 的代理時，才需要 API 金鑰。
+
+## 預設模型 [#the-default-model]
+
+在供應商下方，選擇新對話一開始使用的 **供應商**、**模型** 與 **思考** 程度（關閉、低、中或高），以及 **決策模式**：**Agent 自行決定** 或 [MAGI](/zh-TW/docs/research/magi)，後者要為每個單元各選一個模型。每段對話都可以在輸入框改用其他模型與思考程度。

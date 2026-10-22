@@ -1,0 +1,70 @@
+---
+title: Market rules
+description: Tick sizes, lots, costs, settlement and price limits, as the risk checks apply them.
+---
+
+The [risk checks](/docs/orders#the-checks) apply each market's rules to every order before it is proposed and again before it is sent.
+
+## Taiwan
+
+### Tick sizes
+
+<Tabs items={["Stocks", "ETFs, REITs and ETNs"]}>
+  <Tab value="Stocks">
+
+    | Price          | Tick |
+    | -------------- | ---- |
+    | Under 10       | 0.01 |
+    | 10 – under 50  | 0.05 |
+    | 50 – under 100 | 0.1  |
+    | 100 – under 500 | 0.5 |
+    | 500 – under 1,000 | 1 |
+    | 1,000 and up   | 5    |
+
+  </Tab>
+  <Tab value="ETFs, REITs and ETNs">
+    Codes starting `00`, `01` or `02`:
+
+    | Price      | Tick |
+    | ---------- | ---- |
+    | Under 50   | 0.01 |
+    | 50 and up  | 0.05 |
+
+  </Tab>
+</Tabs>
+
+### Lots
+
+A board lot is 1,000 shares. An odd lot is 1 to 999 shares, and one order is either whole lots or an odd lot, never both. Odd lots must be limit orders.
+
+### Costs
+
+| Cost        | Rate                                                             |
+| ----------- | ---------------------------------------------------------------- |
+| Commission  | 0.1425% of the value, at least NT$20, rounded down to the dollar |
+| Tax on sale | 0.3%, or 0.1% for ETFs, REITs and ETNs                           |
+
+The order panel writes each order's commission and, on a sale, its tax beside its value.
+
+### Settlement
+
+Trades settle with your bank on the second trading day after (T+2). What you can spend on buys is the settlement bank's balance with every trade already made settled against it: earlier days' trades as the broker reckoned them, and today's fills and buys still on the book with the most commission and tax taken off, so it errs low.
+
+### Price limits
+
+The limit band is read from the exchanges' own figures for each session (TWSE and TPEx), not worked out as ±10%, and it applies only to the session after the one it was published for. A listing whose published limit-up is 9,999.95 has no limit. A market order is sized at the limit-up price, the most it could fill at, so it is refused while the band is not known.
+
+## US
+
+The tick is 0.0001 below one dollar and 0.01 from there. Orders are whole shares.
+
+## Limits Solyx sets
+
+| Limit                             | Value                                                        |
+| --------------------------------- | ------------------------------------------------------------ |
+| Largest order                     | NT$1,000,000 or US$30,000                                    |
+| The paper account's starting cash | NT$1,000,000 and US$30,000                                   |
+| Sessions a live account trades    | The regular session                                          |
+| Sessions the paper account trades | Every session                                                |
+| When a proposal goes stale        | Once its session has passed, or the price moved more than 3% |
+| Longest an exit is watched        | 60 days                                                      |

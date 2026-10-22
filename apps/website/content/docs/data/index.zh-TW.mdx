@@ -1,0 +1,41 @@
+---
+title: Solyx 怎麼計算
+description: 畫面上每個數字從哪裡來，以及 App 依什麼規則算出它。
+---
+
+Solyx 顯示的、或 Agent 引用的每個數字，都是在你的電腦上，由 App 自己的程式，從直接向各來源讀取的資料算出來的。
+
+- **App 計算，模型引用**。技術指標、關鍵價位、成長率、利潤率、估值倍數、籌碼與基準率都由程式算出，圖表和 Agent 用的是同一套，所以回覆引用的是你畫面上的數字，而不是模型自己算出來的。
+- **價格照實際成交**。圖表與技術指標顯示實際成交的價格，除權息與分割造成的缺口也照樣保留。只有跨越歷史的比較，也就是回測與類股輪動圖，才會還原。
+- **已收盤的交易日會保留**。供應商公布的已收盤交易日資料，會快取在你的電腦上，絕不重複下載；仍在交易中的部分則會重新讀取。
+- **不超出你的方案**。請求會依每把金鑰所屬方案的上限調整間隔，即時訂閱則由所有需要它的視窗共用。
+
+<Cards>
+  <Card title="K 線與交易時段" href="/zh-TW/docs/data/market-data">
+    週期、參考價、除權息還原、快取、即時 K 線與請求上限。
+  </Card>
+  <Card title="技術指標" href="/zh-TW/docs/data/indicators">
+    均線、布林通道、VWAP、RSI、MACD、KD、量能比與相對強度。
+  </Card>
+  <Card title="關鍵價位" href="/zh-TW/docs/data/levels">
+    支撐區、成交分布、52 週高低與日內參考價。
+  </Card>
+  <Card title="類股輪動與熱力圖" href="/zh-TW/docs/data/rotation">
+    類股與個股相對基準的位置，以及每一格的顏色怎麼來。
+  </Card>
+  <Card title="基本面與籌碼" href="/zh-TW/docs/data/fundamentals">
+    成長率、利潤率、估值倍數、ETF 折溢價、籌碼與總經數據公布。
+  </Card>
+  <Card title="預測與報告" href="/zh-TW/docs/data/forecasts">
+    基準率、Brier 分數、預測校準、主張查核與 MAGI 的表決。
+  </Card>
+  <Card title="新聞與情緒" href="/zh-TW/docs/data/news">
+    新聞事件、立場、情緒指標的衰減、重大消息排序與語意搜尋。
+  </Card>
+  <Card title="回測" href="/zh-TW/docs/data/backtests">
+    不偷看未來的成交、成本，以及一次回測回報的數字。
+  </Card>
+  <Card title="市場規則" href="/zh-TW/docs/data/market-rules">
+    跳動單位、交易單位、成本、交割與漲跌停。
+  </Card>
+</Cards>

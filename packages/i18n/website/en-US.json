@@ -291,6 +291,9 @@
     "on-github": "Release on GitHub",
     "pull-request": "Pull request {{number}}"
   },
+  "docs": {
+    "screenshot-pending": "Screenshot to come"
+  },
   "legal": {
     "updated": "Last updated {{date}}"
   },

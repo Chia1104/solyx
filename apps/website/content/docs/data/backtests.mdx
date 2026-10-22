@@ -1,0 +1,72 @@
+---
+title: Backtests
+description: How the agent's backtests fill orders, charge costs and avoid reading the future.
+---
+
+The agent can test a trading rule on a listing's history. A backtest runs on your computer, on the bars Solyx already reads, through the same engine every time.
+
+## No look-ahead
+
+<Steps>
+  <Step>
+    **Read the rule at a bar's close.** A crossing means the previous bar was at
+    or below and this bar is above. `highest` and `lowest` look only at the bars
+    before the current one.
+  </Step>
+  <Step>
+    **Act at the next bar's open,** moved against you by the slippage.
+  </Step>
+</Steps>
+
+A rule can never see the bar it trades on.
+
+## Prices
+
+Indicators, stops and the buy-and-hold comparison read [adjusted prices](/docs/data/market-data#as-traded-or-adjusted), rescaled to each bar's own terms, so a dividend never looks like a crash. Orders fill at the prices that actually traded, and shares held are scaled on a split or ex-dividend day.
+
+## Fills
+
+- **Long only.** A buy spends the cash on whole shares, keeping room for its commission; a sale sells everything.
+- **Slippage** is a number of ticks from the open, 1 unless set otherwise, up to 20.
+- **Locked limits.** A Taiwan bar whose high equals its low and that closed above its reference is taken as locked limit-up, so no buy fills; one locked limit-down fills no sale.
+
+## Costs
+
+<Tabs items={["Taiwan", "US"]}>
+  <Tab value="Taiwan">
+
+    | Cost        | Default                                                                            |
+    | ----------- | ---------------------------------------------------------------------------------- |
+    | Commission  | 0.1425% each way, at least NT$20                                                   |
+    | Tax on sale | 0.3% for stocks; 0.1% for codes starting `00`, `01` or `02` (ETFs, REITs and ETNs) |
+    | Slippage    | 1 tick                                                                             |
+
+  </Tab>
+  <Tab value="US">
+    No commission and no tax by default, with 1 tick of slippage.
+  </Tab>
+</Tabs>
+
+$$
+\begin{aligned}
+\text{commission} &= \max(\text{rate} \times \text{value},\ \text{minimum}) \\
+\text{proceeds} &= \text{value} - \text{commission} - \text{value} \times \text{tax}
+\end{aligned}
+$$
+
+Commission and tax rates can be set up to 1%. The starting capital is 1,000,000 unless set otherwise.
+
+## What it reports
+
+| Figure        | Meaning                                                                                                    |
+| ------------- | ---------------------------------------------------------------------------------------------------------- |
+| Total return  | The end value against the start                                                                            |
+| Annual return | $$\left( \frac{\text{end}}{\text{start}} \right)^{365.25 / \text{days}} - 1$$; none for runs under 28 days |
+| Max drawdown  | The deepest fall from a peak                                                                               |
+| Trades        | Closed trades; a position still open is not counted                                                        |
+| Win rate      | The share of closed trades that gained                                                                     |
+| Payoff ratio  | The average win against the average loss                                                                   |
+| Exposure      | The share of bars spent holding                                                                            |
+| Buy and hold  | The same stretch held throughout, with its own drawdown from the prior close                               |
+
+A run can be split at a date into an in-sample and an out-of-sample stretch, so a rule tuned on one is judged on the other. The agent treats fewer than 20 closed trades as saying little. Its scripts reach back at most 10 years, over at most 5 listings.

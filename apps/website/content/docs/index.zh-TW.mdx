@@ -7,35 +7,43 @@ Solyx 是交易台股與美股的個人桌面 App。Agent 分析市場並提出�
 
 它免費且開源，在你自己的電腦上、用你自己的金鑰運作，沒有付費方案。
 
-## 原則
+## 原則 [#principles]
 
 - **本機優先**。券商憑證、帳密與 API 金鑰都留在你的電腦上，沒有任何中繼伺服器。
 - **自備金鑰**。行情來源與模型都用你自己的帳號和金鑰，資料直接在它們與你的電腦之間往返。
 - **每筆委託都由你決定**。Agent 只能提出建議。委託在你確認時，或落在你自己設定的交易授權範圍內時，才會送往券商；送出前會再跑一次風控檢查。
 - **預設模擬交易**。在你自己開啟之前，真實交易都是關閉的。
 
-## 鉛筆與墨水
+## 鉛筆與墨水 [#pencil-and-ink]
 
 這個 App 畫得像一張製圖紙。斜線和虛線框是鉛筆：還不是真的東西，例如等你確認的提案或模擬帳戶。強調色是墨水：你簽下的東西。確認提案是唯一用墨水填滿的按鈕。
 
-## 目前狀態
+## 目前狀態 [#status]
 
 Solyx 仍在早期開發階段，以每晚建置版發布。
 
 - **只接一家券商**。除了模擬帳戶，目前只能交易富邦證券的帳戶；交割銀行要是台北富邦或 LINE Bank 才能買進。
 - **只有台股行情**。App 已經跟著美股的交易時段與規則運作，但還沒有接上任何美股資料來源。
 
+## 從哪裡開始 [#where-to-start]
+
 <Cards>
   <Card title="安裝" href="/zh-TW/docs/install">
     下載 macOS 或 Windows 的每晚建置版。
   </Card>
-  <Card title="金鑰與來源" href="/zh-TW/docs/keys">
-    Solyx 讀取哪些資料，以及各自需要你準備什麼。
+  <Card title="金鑰與來源" href="/zh-TW/docs/setup">
+    Solyx 讀取哪些資料，以及你自備的每個來源要怎麼設定。
+  </Card>
+  <Card title="工作區" href="/zh-TW/docs/workspace">
+    自選、總覽、個股頁與 Agent 窗格。
   </Card>
   <Card title="委託" href="/zh-TW/docs/orders">
     委託送到券商的唯一一條路。
   </Card>
   <Card title="Agent" href="/zh-TW/docs/agent">
     它讀什麼、可以做什麼，以及絕對不會做什麼。
+  </Card>
+  <Card title="Solyx 怎麼計算" href="/zh-TW/docs/data">
+    畫面上每個數字背後的公式與規則。
   </Card>
 </Cards>
