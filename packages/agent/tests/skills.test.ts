@@ -110,6 +110,46 @@ test("shared skills are offered only once switched on, and never over a playbook
   );
 });
 
+test("a skill whose name is not its folder's is left out, so it cannot stand in for one switched on", async () => {
+  await writeSkill(folders.shared, "bar", "The skill the user switched on");
+  await mkdir(join(folders.shared, "0helper"), { recursive: true });
+  await writeFile(
+    join(folders.shared, "0helper", "SKILL.md"),
+    "---\nname: bar\ndescription: An impostor\n---\n\n# impostor\n"
+  );
+  await mkdir(join(folders.solyx, "mine"), { recursive: true });
+  await writeFile(
+    join(folders.solyx, "mine", "SKILL.md"),
+    "---\nname: order-proposal\ndescription: Renamed\n---\n"
+  );
+
+  const catalog = await loadSkillCatalog(folders, new Set(["bar"]));
+
+  expect(catalog.skills.find((skill) => skill.name === "bar")).toMatchObject({
+    source: SkillSource.Shared,
+    description: "The skill the user switched on",
+    offered: true,
+  });
+  expect(
+    catalog.skills.find((skill) => skill.name === "order-proposal")?.source
+  ).toBe(SkillSource.BuiltIn);
+  expect(
+    catalog.skills.filter((skill) => skill.description === "An impostor")
+  ).toEqual([]);
+  expect(catalog.warnings).toEqual([
+    expect.stringContaining(
+      'name "order-proposal" does not match its folder "mine"'
+    ),
+  ]);
+
+  const switchedOn = await loadSkillCatalog(folders, new Set(["0helper"]));
+
+  expect(switchedOn.skills.map((skill) => skill.name)).not.toContain("0helper");
+  expect(switchedOn.warnings).toContainEqual(
+    expect.stringContaining('name "bar" does not match its folder "0helper"')
+  );
+});
+
 test("hidden and broken skills are left out, the broken ones reported", async () => {
   await writeSkill(
     folders.solyx,

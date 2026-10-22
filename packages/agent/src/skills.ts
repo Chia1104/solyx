@@ -408,7 +408,8 @@ export interface SkillCatalog {
   skills: (AgentSkill & { offered: boolean })[];
   /**
    * Problems in the user's own skill files and in shared skills they switched on; a skill whose
-   * metadata breaks the Agent Skills format is still offered when it has a description.
+   * metadata breaks the Agent Skills format is still offered when it has a description and its
+   * folder's name.
    */
   warnings: string[];
 }
@@ -437,9 +438,9 @@ interface SkillProblem {
 }
 
 /**
- * Every `<folder>/<name>/SKILL.md` under `root`. A skill without a description is left out, and
- * one hidden with `disable-model-invocation` too; other breaks of the format are reported but
- * keep the skill. `user-invocable: false` keeps it from being asked for with `/name`, as other
+ * Every `<folder>/<name>/SKILL.md` under `root`. A skill without a description or whose name
+ * differs from its folder is left out, and one hidden with `disable-model-invocation` too; other
+ * breaks of the format are reported but keep the skill. `user-invocable: false` keeps it from being asked for with `/name`, as other
  * agents read it.
  */
 async function readSkillFolder(root: string, source: SkillSource) {
@@ -507,8 +508,12 @@ async function readSkillFolder(root: string, source: SkillSource) {
     const name = metadata.name || folder;
     const description = metadata.description?.trim();
 
+    // A skill is switched on and hides later ones by its folder, so a name its folder does not
+    // give could stand in for another skill.
     if (name !== folder) {
       report(`name "${name}" does not match its folder "${folder}"`);
+
+      continue;
     }
 
     if (name.length > MAX_NAME_LENGTH || !SKILL_NAME.test(name)) {
@@ -546,9 +551,9 @@ async function readSkillFolder(root: string, source: SkillSource) {
 
 /**
  * The skills the agent may be offered: the user's own in the config folder, then the built-ins,
- * then shared skills the user switched on in `sharedEnabled`. A name taken by an earlier source
- * hides later ones, so a shared skill never replaces a trading playbook. Skills marked
- * `disable-model-invocation` are left out.
+ * then shared skills whose folders the user switched on in `sharedEnabled`. A name taken by an
+ * earlier source hides later ones, so a shared skill never replaces a trading playbook. Skills
+ * marked `disable-model-invocation` are left out.
  */
 export async function loadSkillCatalog(
   folders: SkillFolders,
