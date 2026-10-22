@@ -713,11 +713,11 @@ export class OrderDesk {
   }
 
   /**
-   * What the mandate covered in the market day of an order made at `at`, besides proposal `id`,
-   * with every order of that day `placed` under a tag no proposal it covered carries, the user's
-   * own confirmed orders among them: a restored backup or an edited store loses or changes
-   * proposals but not the broker's orders, so those count rather than let it send a day's worth
-   * again.
+   * What went out in the market day of an order made at `at`, besides proposal `id`: every order
+   * of that day `placed` under the desk's tag, the user's own confirmed ones among them, as the
+   * broker holds it, and each proposal the mandate covered that the broker does not list, as in
+   * shadow. A restored backup or an edited store loses or changes proposals but not the broker's
+   * orders, so a proposal never stands in for an order the broker lists.
    */
   #mandateDay(
     id: string,
@@ -734,27 +734,26 @@ export class OrderDesk {
       currencyOf(instrument.market) === currency &&
       exchangeDate(market, new Date(time)) === day;
 
-    const counted = proposals.filter(
-      (proposal) =>
-        proposal.id !== id &&
-        proposal.mandate?.violations.length === 0 &&
-        inDay(proposal.order, proposal.createdAt)
+    const judged = orderTag(id);
+
+    const sent = placed.filter(
+      ({ tag, order: made, placedAt }) =>
+        tag !== null && tag !== judged && inDay(made, placedAt)
     );
 
-    // Only a proposal that counts stands for its order, since one edited to count for nothing
-    // would otherwise hide its order too.
-    const kept = new Set(
-      [id, ...counted.map((proposal) => proposal.id)].map(orderTag)
-    );
+    const atBroker = new Set(sent.map(({ tag }) => tag));
 
     const covered = [
-      ...counted.map((proposal) => proposal.order),
-      ...placed
+      ...sent.map((made) => made.order),
+      ...proposals
         .filter(
-          ({ tag, order: made, placedAt }) =>
-            tag !== null && !kept.has(tag) && inDay(made, placedAt)
+          (proposal) =>
+            proposal.id !== id &&
+            proposal.mandate?.violations.length === 0 &&
+            inDay(proposal.order, proposal.createdAt) &&
+            !atBroker.has(orderTag(proposal.id))
         )
-        .map((lost) => lost.order),
+        .map((proposal) => proposal.order),
     ];
 
     return {

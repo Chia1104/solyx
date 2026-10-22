@@ -1139,6 +1139,37 @@ test("the mandate counts the day's orders of proposals it never covered, so a pr
   expect(placeOrder).toHaveBeenCalledTimes(1);
 });
 
+test("the mandate reads an order the broker lists as the broker holds it, not as the proposal kept it", async () => {
+  const { desk, getOrders, placeOrder } = setup(undefined, {
+    mandate: () => covering({ maxDayValue: { TWD: 2_500_000 } }),
+  });
+
+  const first = await proposeFromAgent(desk);
+
+  expect(first).toMatchObject({ status: ProposalStatus.Submitted });
+
+  // The proposal kept says less than the order the broker holds, as a store edited after it would.
+  getOrders.mockResolvedValue([
+    brokerOrder(first.id, {
+      order: { ...order, quantity: order.quantity * 2 },
+    }),
+  ]);
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    status: ProposalStatus.AwaitingConfirmation,
+    mandate: {
+      violations: [
+        {
+          code: MandateViolationCode.DayValue,
+          value: 2_940_000,
+          max: 2_500_000,
+        },
+      ],
+    },
+  });
+  expect(placeOrder).toHaveBeenCalledTimes(1);
+});
+
 test("the mandate counts the value of the day's orders the desk lost", async () => {
   const { desk, getOrders, placeOrder } = setup(undefined, {
     mandate: () => covering({ maxDayValue: { TWD: 1_500_000 } }),
