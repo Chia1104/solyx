@@ -26,7 +26,7 @@ export const ruleSeriesSchema = z.union([
   z.object({
     bollinger: period,
     band: z.enum(["upper", "middle", "lower"]),
-    width: z.number().positive().max(5).optional(),
+    width: z.number().min(0.5).max(5).multipleOf(0.1).optional(),
   }),
   z.object({ macd: z.enum(["macd", "signal", "histogram"]) }),
   z.object({ kd: z.enum(["k", "d"]) }),
@@ -40,6 +40,24 @@ export const ruleSeriesSchema = z.union([
 
 export type RuleSeries = z.infer<typeof ruleSeriesSchema>;
 
+/** Names a series as the engine works its line out once. */
+const seriesKey = (series: RuleSeries) => JSON.stringify(series);
+
+// A backtest runs on the caller's thread, the main process's for an agent's script, so a
+// strategy's work is bounded before it runs.
+
+/** How many `all` and `any` a condition may nest. */
+export const MAX_RULE_DEPTH = 4;
+
+/** How many conditions one `all` or `any` may hold. */
+export const MAX_RULE_BRANCHES = 16;
+
+/** How many comparisons a strategy's entry and exit may make between them. */
+export const MAX_RULE_COMPARISONS = 64;
+
+/** How many different series a strategy's entry and exit may read between them. */
+export const MAX_RULE_SERIES = 32;
+
 const pair = z.tuple([ruleSeriesSchema, ruleSeriesSchema]);
 
 /** Whether a rule holds at a bar's close, read from that bar and the ones before it alone. */
@@ -52,25 +70,97 @@ export type RuleCondition =
   | { any: RuleCondition[] };
 
 export const ruleConditionSchema: z.ZodType<RuleCondition> = z.lazy(() =>
-  z.union([
-    z.object({ above: pair }),
-    z.object({ below: pair }),
-    z.object({ crossesAbove: pair }),
-    z.object({ crossesBelow: pair }),
-    z.object({ all: z.array(ruleConditionSchema).min(1) }),
-    z.object({ any: z.array(ruleConditionSchema).min(1) }),
-  ])
+  z.union(
+    [
+      z.object({ above: pair }),
+      z.object({ below: pair }),
+      z.object({ crossesAbove: pair }),
+      z.object({ crossesBelow: pair }),
+      z.object({
+        all: z.array(ruleConditionSchema).min(1).max(MAX_RULE_BRANCHES),
+      }),
+      z.object({
+        any: z.array(ruleConditionSchema).min(1).max(MAX_RULE_BRANCHES),
+      }),
+    ],
+    {
+      error: `A condition is one of above, below, crossesAbove, crossesBelow, all and any, and all and any hold 1 to ${MAX_RULE_BRANCHES} conditions`,
+    }
+  )
 );
 
+/** How many `all` and `any` nest in a condition, and every series its comparisons read. */
+interface RuleReach {
+  depth: number;
+  series: RuleSeries[];
+}
+
+function ruleReach(condition: RuleCondition): RuleReach {
+  if ("all" in condition || "any" in condition) {
+    const parts = ("all" in condition ? condition.all : condition.any).map(
+      ruleReach
+    );
+
+    return {
+      depth: 1 + Math.max(...parts.map((part) => part.depth)),
+      series: parts.flatMap((part) => part.series),
+    };
+  }
+
+  const series =
+    "above" in condition
+      ? condition.above
+      : "below" in condition
+        ? condition.below
+        : "crossesAbove" in condition
+          ? condition.crossesAbove
+          : condition.crossesBelow;
+
+  return { depth: 0, series };
+}
+
 /** A long-only strategy: when to buy while holding nothing, and when to sell all of it. */
-export const ruleStrategySchema = z.object({
-  entry: ruleConditionSchema,
-  exit: ruleConditionSchema,
-  /** Sells once a close falls this fraction below the price paid. */
-  stopLoss: z.number().positive().max(1).optional(),
-  /** Sells once a close rises this fraction above the price paid. */
-  takeProfit: z.number().positive().optional(),
-});
+export const ruleStrategySchema = z
+  .object({
+    entry: ruleConditionSchema,
+    exit: ruleConditionSchema,
+    /** Sells once a close falls this fraction below the price paid. */
+    stopLoss: z.number().positive().max(1).optional(),
+    /** Sells once a close rises this fraction above the price paid. */
+    takeProfit: z.number().positive().optional(),
+  })
+  .superRefine(({ entry, exit }, context) => {
+    const reaches = { entry: ruleReach(entry), exit: ruleReach(exit) };
+
+    for (const [key, { depth }] of Object.entries(reaches)) {
+      if (depth > MAX_RULE_DEPTH) {
+        context.addIssue({
+          code: "custom",
+          path: [key],
+          message: `all and any nest ${MAX_RULE_DEPTH} deep at most, and this nests ${depth}`,
+        });
+      }
+    }
+
+    const series = [...reaches.entry.series, ...reaches.exit.series];
+    const comparisons = series.length / 2;
+
+    if (comparisons > MAX_RULE_COMPARISONS) {
+      context.addIssue({
+        code: "custom",
+        message: `A strategy makes ${MAX_RULE_COMPARISONS} comparisons at most between its entry and exit, and this makes ${comparisons}`,
+      });
+    }
+
+    const distinct = new Set(series.map(seriesKey)).size;
+
+    if (distinct > MAX_RULE_SERIES) {
+      context.addIssue({
+        code: "custom",
+        message: `A strategy reads ${MAX_RULE_SERIES} different series at most between its entry and exit, and this reads ${distinct}`,
+      });
+    }
+  });
 
 export type RuleStrategy = z.infer<typeof ruleStrategySchema>;
 
@@ -232,7 +322,7 @@ function conditionReader(
   const lines = new Map<string, IndicatorLine>();
 
   const line = (series: RuleSeries) => {
-    const key = JSON.stringify(series);
+    const key = seriesKey(series);
     const known = lines.get(key);
 
     if (known) return known;
