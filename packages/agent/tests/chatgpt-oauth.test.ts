@@ -151,11 +151,33 @@ test("the listener closes each connection it answers on, so none is kept to a po
   await expect(login).rejects.toThrow("Sign-in cancelled");
 });
 
+test("a refusal without the sign-in's state is turned away and the sign-in keeps waiting", async () => {
+  const { login, authorizeUrl, returnTo } = setup();
+  const state = (await authorizeUrl).searchParams.get("state") ?? "";
+
+  const forgeries: Record<string, string>[] = [
+    { error: "access_denied" },
+    { error: "access_denied", state: "forged" },
+  ];
+
+  for (const forged of forgeries) {
+    expect(await returnTo(forged)).toEqual({
+      status: 400,
+      body: `page:${SignInOutcome.Failed}:`,
+    });
+  }
+
+  await returnTo({ code: "code", state, client_id: "oaiapp_1" });
+
+  await expect(login).resolves.toMatchObject({ clientId: "oaiapp_1" });
+});
+
 test("a refusal from OpenAI ends the sign-in and shows its code", async () => {
-  const { login, returnTo } = setup();
+  const { login, authorizeUrl, returnTo } = setup();
+  const state = (await authorizeUrl).searchParams.get("state") ?? "";
 
   const [page] = await Promise.all([
-    returnTo({ error: "access_denied" }),
+    returnTo({ error: "access_denied", state }),
     expect(login).rejects.toThrow("access_denied"),
   ]);
 

@@ -112,13 +112,12 @@ export function chatgptOAuth(options: ChatGPTOAuthOptions): OAuthAuth {
       preferredPort: PREFERRED_PORT,
       page: options.callbackPage,
       signal: interaction.signal,
+      verify: (query) => query.get("state") === state,
       accept(query) {
         const code = query.get("code");
         const clientId = query.get("client_id");
 
-        return query.get("state") === state && code && clientId
-          ? { code, clientId }
-          : undefined;
+        return code && clientId ? { code, clientId } : undefined;
       },
     });
 

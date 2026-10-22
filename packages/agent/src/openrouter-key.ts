@@ -42,6 +42,7 @@ export async function createOpenRouterKey(
     path: `/auth/callback/${randomToken()}`,
     page: options.callbackPage,
     signal: options.signal,
+    verify: () => true,
     accept: (query) => query.get("code") || undefined,
   });
 

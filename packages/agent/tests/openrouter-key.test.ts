@@ -90,7 +90,7 @@ test("a request that does not know the path is turned away and the sign-in keeps
   const { key, callbackUrl, returnTo, exchanges } = setup();
 
   const guess = new URL(
-    "/auth/callback/guess?code=forged",
+    "/auth/callback/guess?error=access_denied",
     await callbackUrl()
   );
 
