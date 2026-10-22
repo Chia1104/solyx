@@ -1,7 +1,15 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { backtest, defaultCosts } from "../src/backtest.ts";
-import type { RuleStrategy } from "../src/backtest.ts";
+import {
+  backtest,
+  defaultCosts,
+  MAX_RULE_BRANCHES,
+  MAX_RULE_COMPARISONS,
+  MAX_RULE_DEPTH,
+  MAX_RULE_SERIES,
+  ruleStrategySchema,
+} from "../src/backtest.ts";
+import type { RuleCondition, RuleStrategy } from "../src/backtest.ts";
 import type { Candle } from "../src/candles.ts";
 import { Market } from "../src/market.ts";
 
@@ -514,5 +522,161 @@ describe("no rule sees a later price", () => {
         }
       }
     }
+  });
+});
+
+describe("a strategy's work is bounded before it runs", () => {
+  const CONDITION = `A condition is one of above, below, crossesAbove, crossesBelow, all and any; all and any hold 1 to ${MAX_RULE_BRANCHES} conditions and nest ${MAX_RULE_DEPTH} deep at most`;
+
+  const above = (value: number): RuleCondition => ({
+    above: [{ price: "close" }, { value }],
+  });
+
+  /** `condition` inside `depth` nested `all`. */
+  const nested = (depth: number, condition: RuleCondition): RuleCondition =>
+    depth === 0 ? condition : { all: [nested(depth - 1, condition)] };
+
+  const refusal = (strategy: RuleStrategy) => {
+    const parsed = ruleStrategySchema.safeParse(strategy);
+
+    return parsed.success
+      ? null
+      : parsed.error.issues.map(({ message }) => message).join("\n");
+  };
+
+  test("an ordinary strategy passes and runs", () => {
+    const strategy = ruleStrategySchema.parse({
+      entry: {
+        all: [
+          { crossesAbove: [{ sma: 5 }, { sma: 20 }] },
+          {
+            any: [
+              { below: [{ rsi: 14 }, { value: 70 }] },
+              {
+                above: [
+                  { price: "close" },
+                  { bollinger: 20, band: "upper", width: 2.5 },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      exit: { crossesBelow: [{ sma: 5 }, { sma: 20 }] },
+      stopLoss: 0.1,
+    });
+
+    const closes = Array.from(
+      { length: 120 },
+      (_, index) => 100 + 10 * Math.sin(index / 8)
+    );
+
+    expect(
+      backtest(TSMC, bars(closes), strategy, { costs: NO_COSTS }).trades.length
+    ).toBeGreaterThan(0);
+  });
+
+  test("a strategy at every limit passes", () => {
+    expect(
+      refusal({
+        entry: nested(MAX_RULE_DEPTH - 1, {
+          any: Array.from({ length: MAX_RULE_BRANCHES }, (_, index) =>
+            above(index)
+          ),
+        }),
+        exit: above(MAX_RULE_BRANCHES),
+      })
+    ).toBeNull();
+  });
+
+  test("an all or any holding too many conditions is refused", () => {
+    expect(
+      refusal({
+        entry: {
+          all: Array.from({ length: MAX_RULE_BRANCHES + 1 }, () => above(1)),
+        },
+        exit: above(1),
+      })
+    ).toBe(CONDITION);
+  });
+
+  test("conditions nested too deep are refused", () => {
+    expect(
+      refusal({ entry: above(1), exit: nested(MAX_RULE_DEPTH + 1, above(1)) })
+    ).toBe(CONDITION);
+  });
+
+  test("a tree far past the limits is refused without being read whole", () => {
+    // Shared branches keep it small here; as an agent's script sends it, it is a document of millions.
+    const tree = (depth: number): RuleCondition =>
+      depth === 0
+        ? above(1)
+        : { all: Array(MAX_RULE_BRANCHES).fill(tree(depth - 1)) };
+
+    const started = performance.now();
+
+    expect(refusal({ entry: tree(8), exit: tree(8) })).toContain(CONDITION);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  test("too many comparisons are refused, however few series they read", () => {
+    const wide = (count: number): RuleCondition => ({
+      any: Array.from({ length: count }, () => above(1)),
+    });
+
+    // Eight groups of eight in the entry and one in the exit: 65 comparisons of two series.
+    expect(
+      refusal({
+        entry: {
+          all: Array.from({ length: 8 }, () => wide(MAX_RULE_BRANCHES)),
+        },
+        exit: above(1),
+      })
+    ).toBe(
+      `A strategy makes ${MAX_RULE_COMPARISONS} comparisons at most between its entry and exit, and this makes ${MAX_RULE_COMPARISONS + 1}`
+    );
+  });
+
+  test("too many different series are refused, Bollinger widths among them", () => {
+    const widths = Array.from(
+      { length: MAX_RULE_SERIES },
+      (_, index): RuleCondition => ({
+        above: [
+          { price: "close" },
+          { bollinger: 20, band: "upper", width: (5 + index) / 10 },
+        ],
+      })
+    );
+
+    expect(
+      refusal({
+        entry: {
+          any: [{ any: widths.slice(0, 8) }, { any: widths.slice(8, 16) }],
+        },
+        exit: {
+          any: [{ any: widths.slice(16, 24) }, { any: widths.slice(24) }],
+        },
+      })
+    ).toBe(
+      `A strategy reads ${MAX_RULE_SERIES} different series at most between its entry and exit, and this reads ${MAX_RULE_SERIES + 1}`
+    );
+  });
+
+  test("a Bollinger width off its tenths or out of range is refused", () => {
+    const width = (value: number) =>
+      refusal({
+        entry: {
+          above: [
+            { price: "close" },
+            { bollinger: 20, band: "upper", width: value },
+          ],
+        },
+        exit: above(1),
+      });
+
+    expect(width(2.1)).toBeNull();
+    expect(width(2.000_001)).not.toBeNull();
+    expect(width(0.1)).not.toBeNull();
+    expect(width(50)).not.toBeNull();
   });
 });

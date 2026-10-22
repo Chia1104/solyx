@@ -81,6 +81,9 @@ const HISTORY_YEARS = 10;
 // answers sixty a minute, which a script's deadline is well inside.
 const HISTORY_LISTINGS = 5;
 
+/** The most bars a backtest runs over: daily ones over the furthest back a script may read. */
+const BACKTEST_BARS = HISTORY_YEARS * 366;
+
 const historyBudget = () =>
   listingBudget(
     HISTORY_LISTINGS,
@@ -282,7 +285,7 @@ const backtests: CodemodeTool[] = [
     input: z.tuple([
       z.object({
         symbol: symbolRefSchema,
-        bars: z.array(barSchema).min(2),
+        bars: z.array(barSchema).min(2).max(BACKTEST_BARS),
         strategy: ruleStrategySchema,
         capital: z.number().positive().optional(),
         costs: tradeCostsSchema.partial().optional(),
