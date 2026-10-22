@@ -8,7 +8,10 @@ export interface CommandJudgement {
   privileged: number;
 }
 
-/** Judges a shell command. One implementation per decisions model. */
+/**
+ * Judges a shell command. One implementation per decisions model. It rejects a command too long for
+ * its model to read whole rather than judge part of it.
+ */
 export interface CommandJudge {
   judge(
     input: { command: string; shell: string },

@@ -228,12 +228,16 @@ export function createCommandJudge(
 ): CommandJudge {
   return {
     async judge(input, { signal } = {}): Promise<CommandJudgement> {
+      // What a cut command leaves out would still run, so a command is judged whole or not at all.
+      if (input.command.length > MAX_TEXT_LENGTH) {
+        throw new Error(
+          `The decisions model reads commands of up to ${MAX_TEXT_LENGTH} characters, and this one has ${input.command.length}`
+        );
+      }
+
       const { model, answers: unread } = await ask(
         {
-          state: {
-            shell: input.shell,
-            command: input.command.slice(0, MAX_TEXT_LENGTH),
-          },
+          state: { shell: input.shell, command: input.command },
           questions,
         },
         signal
