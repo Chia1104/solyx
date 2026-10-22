@@ -10,6 +10,16 @@ files:
 publish:
   provider: generic
   url: https://download.usesolyx.trade/stable
+# The app's own binary unseals the secrets and the trading mandate, so its fuses refuse every way
+# another program could run code as it: Node mode, NODE_OPTIONS, the inspector, and app code that is
+# not the app.asar whose hash packaging records in the binary.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  enableCookieEncryption: true
 # A nightly's version names its channel, so the two channels' installers never share a name.
 artifactName: Solyx-${version}.${ext}
 mac:
@@ -17,11 +27,12 @@ mac:
   icon: icon.icon
   category: public.app-category.finance
   target: dmg
-  # Ad-hoc signed until there is a Developer ID. The hardened runtime only matters for notarization,
-  # and would then need the disable-library-validation entitlement to load a broker SDK the user
-  # downloaded.
+  # Ad-hoc signed until there is a Developer ID. The hardened runtime, on by default, keeps other
+  # programs from injecting code through DYLD_ variables or attaching a debugger.
   identity: "-"
-  hardenedRuntime: false
+  entitlements: build/entitlements.mac.plist
+  # Helpers load Electron's frameworks, and the utility process the broker SDK the user downloaded.
+  entitlementsInherit: build/entitlements.mac.plist
 win:
   # icon.ico, from buildResources, holds a full-bleed rendering per size; Windows does not pad icons.
   target: nsis
