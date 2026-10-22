@@ -25,7 +25,12 @@ export interface SignInCallbackOptions<T> {
   page: SignInPage;
   /** Ends the wait. */
   signal: AbortSignal;
-  /** What the sign-in's own return carries; `undefined` for a stray or replayed request. */
+  /**
+   * Whether a request is the provider's own return, as its state or a path only the provider knows
+   * proves. Any other, a refusal included, is stray and the sign-in keeps waiting.
+   */
+  verify(query: URLSearchParams): boolean;
+  /** What the provider's return carries; `undefined` when it lacks it. */
   accept(query: URLSearchParams): T | undefined;
 }
 
@@ -95,6 +100,13 @@ export async function listenForSignIn<T>(
       return;
     }
 
+    // A stray request fails on its own, so no other process or page can end the sign-in.
+    if (!options.verify(url.searchParams)) {
+      page(response, 400, SignInOutcome.Failed);
+
+      return;
+    }
+
     const error = url.searchParams.get("error");
 
     if (error) {
@@ -106,7 +118,6 @@ export async function listenForSignIn<T>(
 
     const accepted = options.accept(url.searchParams);
 
-    // A stray or replayed request fails on its own; the sign-in keeps waiting for the real one.
     if (accepted === undefined) {
       page(response, 400, SignInOutcome.Failed);
 
