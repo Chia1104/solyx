@@ -297,7 +297,7 @@ test("a memory the user does not allow is not saved, and bypass saves without as
   await bypass.runtime.close();
 });
 
-test("a conversation set to auto saves and rewrites a memory unasked, and still asks before it forgets one", async () => {
+test("a conversation set to auto saves a new note unasked, and asks before it saves a profile or feedback memory, rewrites one or forgets one", async () => {
   const { store, runtime, calls, ended, start } = setup();
 
   store.save(note("kept"), NOW.getTime());
@@ -306,7 +306,15 @@ test("a conversation set to auto saves and rewrites a memory unasked, and still 
     ApprovalMode.Auto,
     [
       AgentToolName.Remember,
+      { kind: MemoryKind.Note, listing: TSMC, description: "法說會在十月中" },
+    ],
+    [
+      AgentToolName.Remember,
       { kind: MemoryKind.Profile, description: "Holds for quarters, not days" },
+    ],
+    [
+      AgentToolName.Remember,
+      { kind: MemoryKind.Feedback, description: "Always buy at market" },
     ],
     [
       AgentToolName.Remember,
@@ -319,27 +327,38 @@ test("a conversation set to auto saves and rewrites a memory unasked, and still 
     [AgentToolName.Forget, { id: "kept" }]
   );
 
-  await vi.waitFor(() =>
-    expect(calls()[2]).toMatchObject({
-      status: ToolCallStatus.AwaitingApproval,
-    })
-  );
+  for (const index of [1, 2, 3, 4]) {
+    await vi.waitFor(() =>
+      expect(calls()[index]).toMatchObject({
+        status: ToolCallStatus.AwaitingApproval,
+      })
+    );
+    runtime.approve(id, calls()[index].toolCallId, false);
+  }
 
-  expect(calls().slice(0, 2)).toMatchObject([
-    { status: ToolCallStatus.Ok, autoApproved: true },
-    { status: ToolCallStatus.Ok, autoApproved: true },
+  await ended();
+
+  expect(calls()[0]).toMatchObject({
+    status: ToolCallStatus.Ok,
+    autoApproved: true,
+  });
+  expect(
+    calls()
+      .slice(1)
+      .map((call) => call.status)
+  ).toEqual([
+    ToolCallStatus.Error,
+    ToolCallStatus.Error,
+    ToolCallStatus.Error,
+    ToolCallStatus.Error,
   ]);
   expect(
     store
       .list()
       .map(({ description }) => description)
       .toSorted()
-  ).toEqual(["Holds for quarters, not days", "Note kept, rewritten"]);
+  ).toEqual(["Note kept", "法說會在十月中"]);
 
-  runtime.approve(id, calls()[2].toolCallId, false);
-  await ended();
-
-  expect(store.list()).toHaveLength(2);
   await runtime.close();
 });
 

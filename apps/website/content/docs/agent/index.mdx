@@ -30,11 +30,11 @@ The agent talks about what is on your screen. A message carries the listing you 
 
 Each conversation picks how the agent's tool calls and shell commands are allowed.
 
-| Mode         | What runs without you                                                                                                                                           |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ask first    | Nothing: tool calls and shell commands wait for you to allow them.                                                                                              |
-| Allow for me | Shell commands the decisions model judges harmless, reading pages this conversation found, and saving what it learns about you to memory. Everything else asks. |
-| Don't ask    | Tool calls and shell commands.                                                                                                                                  |
+| Mode         | What runs without you                                                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Ask first    | Nothing: tool calls and shell commands wait for you to allow them.                                                                               |
+| Allow for me | Shell commands the decisions model judges harmless, reading pages this conversation found, and adding new notes to memory. Everything else asks. |
+| Don't ask    | Tool calls and shell commands.                                                                                                                   |
 
 Without a [decisions model](/docs/setup/decisions), **Allow for me** asks for every shell command. A call that waits shows what it is about to do, with **Allow** and **Don't allow**, and one that ran unasked says why.
 

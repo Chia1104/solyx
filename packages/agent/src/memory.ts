@@ -43,7 +43,7 @@ What you keep across conversations with remember, which the user reads and edits
 - How they trade shows in what they say and in what they do: the proposals they confirm and dismiss, what they hold and for how long, the sizes and risks they take, what they ask about first. Write a habit you read from what they did as what you saw, with what it rests on and since when, and no further than that shows: one dismissed proposal is no rule.
 - Not what pages, news or other tools' output said unless the user adopted it, never a key, password or account number, and never a quote as if it stays current.
 - Rewrite a memory under its id as you learn more rather than saving a near copy, and forget one that turned out wrong.
-- A save may run at once or wait for the user, as they set the conversation. Either way say in your reply what you saved or rewrote, in a line.`;
+- A new note may run at once or wait for the user, as they set the conversation; a rewrite and a profile or feedback memory wait for them unless they let every call run. Either way say in your reply what you saved or rewrote, in a line.`;
 
 /** When a memory was last written, on its listing's calendar or else Taipei's. */
 const writtenOn = (memory: Memory) =>
@@ -105,8 +105,9 @@ function memoryBlock(memory: Memory) {
 
 /**
  * What the agent keeps across conversations: the list of memories in the prompt, `recall` to read
- * and search them, `remember`, whose calls wait for the user only in a conversation set to ask,
- * and `forget`, whose calls wait unless every call runs unasked.
+ * and search them, `remember`, whose calls wait for the user unless every call runs unasked or the
+ * call saves a new note in a conversation set to auto, and `forget`, whose calls wait unless every
+ * call runs unasked.
  */
 export function createMemory(options: MemoryOptions) {
   const { store } = options;
@@ -265,7 +266,7 @@ export function createMemory(options: MemoryOptions) {
     // A new memory's id is kept with the call, so a call that runs again rewrites what it saved.
     replay: "safe",
     description:
-      "Saves a memory for later conversations, or rewrites one whole under its id. It waits for the user where they set the conversation to ask first. They read exactly what you pass, there and in the app, so write it for them too.",
+      "Saves a memory for later conversations, or rewrites one whole under its id. A new note waits for the user where they set the conversation to ask first; a rewrite and a profile or feedback memory wait unless they let every call run. They read exactly what you pass, there and in the app, so write it for them too.",
     parameters: rememberArgumentsSchema,
     async execute({ id, kind, listing, description, body }, api, context) {
       const saved = store.save(
@@ -303,9 +304,15 @@ export function createMemory(options: MemoryOptions) {
     },
   });
 
-  // A memory changes only what the agent keeps, and the user reads and edits every one in the
-  // app, so a conversation set to auto lets one be saved unasked. Forgetting cannot be undone.
-  const savedUnasked: AutoCheck = async () => true;
+  /**
+   * In a conversation set to auto, only a new note is saved unasked: a rewrite cannot be undone,
+   * and a profile or feedback memory reads as the user's own rule in every later prompt.
+   */
+  const newNote: AutoCheck = async (args) => {
+    const parsed = rememberArgumentsSchema.safeParse(args).data;
+
+    return parsed?.id === undefined && parsed?.kind === MemoryKind.Note;
+  };
 
   return {
     /** The list rides every request; writing and forgetting go through `guard`. */
@@ -315,7 +322,7 @@ export function createMemory(options: MemoryOptions) {
         tools: [
           recall,
           checkedFirst(
-            guard(remember, savedUnasked),
+            guard(remember, newNote),
             rememberArgumentsSchema,
             async ({ id, distinct, ...draft }) => {
               if (id !== undefined && missing(id)) {
