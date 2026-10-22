@@ -91,6 +91,12 @@ test("holds an order, and the day's, to the values it sets per currency", () => 
   ]);
 });
 
+test("covers nothing while what it let go that day cannot be read", () => {
+  expect(ask(sale, { day: null })).toEqual([
+    { code: MandateViolationCode.DayUnknown },
+  ]);
+});
+
 test("covers no order in a currency it sets no value for", () => {
   expect(
     ask(

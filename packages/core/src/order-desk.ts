@@ -601,8 +601,16 @@ export class OrderDesk {
     ]);
 
     const passed = violations.length === 0;
-    const createdAt = now();
+    const fromAgent = passed && input.source === ProposalSource.Agent;
     const proposalId = id ?? createId();
+
+    // Nothing is awaited from here until the proposal is kept, so one made meanwhile counts in its day.
+    const placed =
+      fromAgent && this.#options.mandate?.()
+        ? await this.#placedThatDay(input.order.instrument.market)
+        : [];
+
+    const createdAt = now();
 
     const proposal: TradeProposal = {
       id: proposalId,
@@ -610,10 +618,9 @@ export class OrderDesk {
       ...input,
       basis: basis?.(input.order.instrument) ?? null,
       premise: { session, price, band },
-      mandate:
-        passed && input.source === ProposalSource.Agent
-          ? this.#verdict(proposalId, input.order, createdAt)
-          : null,
+      mandate: fromAgent
+        ? this.#verdict(proposalId, input.order, createdAt, placed)
+        : null,
       createdAt,
       status: passed
         ? ProposalStatus.AwaitingConfirmation
@@ -668,8 +675,26 @@ export class OrderDesk {
     return proposal;
   }
 
-  /** What the mandate makes of an agent's order now, or `null` while the user has none. */
-  #verdict(id: string, order: OrderRequest, at: number): MandateVerdict | null {
+  /** The orders the broker lists from the start of `market`'s day on; `null` where they could not be read. */
+  async #placedThatDay(market: Market): Promise<BrokerOrder[] | null> {
+    const { broker, now = Date.now } = this.#options;
+    const day = exchangeDate(market, new Date(now()));
+
+    return broker
+      .getOrders(exchangeMidnight(market, day) * 1000)
+      .catch(() => null);
+  }
+
+  /**
+   * What the mandate makes of an agent's order now, given the orders the broker lists for its day,
+   * or `null` while the user has none. Where those could not be read, it covers nothing.
+   */
+  #verdict(
+    id: string,
+    order: OrderRequest,
+    at: number,
+    placed: BrokerOrder[] | null
+  ): MandateVerdict | null {
     const mandate = this.#options.mandate?.();
 
     if (!mandate) return null;
@@ -682,30 +707,58 @@ export class OrderDesk {
         broker: this.#options.broker.id,
         currency: currencyOf(order.instrument.market),
         now: at,
-        day: this.#mandateDay(id, order, at),
+        day: placed && this.#mandateDay(id, order, at, placed),
       }),
     };
   }
 
-  /** What the mandate covered in the market day of an order made at `at`, besides proposal `id`. */
-  #mandateDay(id: string, order: OrderRequest, at: number): MandateDay {
+  /**
+   * What went out in the market day of an order made at `at`, besides proposal `id`: every order
+   * of that day `placed` under the desk's tag, the user's own confirmed ones among them, as the
+   * broker holds it, and each proposal the mandate covered that the broker does not list, as in
+   * shadow. A restored backup or an edited store loses or changes proposals but not the broker's
+   * orders, so a proposal never stands in for an order the broker lists.
+   */
+  #mandateDay(
+    id: string,
+    order: OrderRequest,
+    at: number,
+    placed: BrokerOrder[]
+  ): MandateDay {
     const { market } = order.instrument;
     const day = exchangeDate(market, new Date(at));
     const currency = currencyOf(market);
+    const proposals = this.#options.store.list();
 
-    const covered = this.#options.store
-      .list()
-      .filter(
-        (proposal) =>
-          proposal.id !== id &&
-          proposal.mandate?.violations.length === 0 &&
-          currencyOf(proposal.order.instrument.market) === currency &&
-          exchangeDate(market, new Date(proposal.createdAt)) === day
-      );
+    const inDay = ({ instrument }: OrderRequest, time: number) =>
+      currencyOf(instrument.market) === currency &&
+      exchangeDate(market, new Date(time)) === day;
+
+    const judged = orderTag(id);
+
+    const sent = placed.filter(
+      ({ tag, order: made, placedAt }) =>
+        tag !== null && tag !== judged && inDay(made, placedAt)
+    );
+
+    const atBroker = new Set(sent.map(({ tag }) => tag));
+
+    const covered = [
+      ...sent.map((made) => made.order),
+      ...proposals
+        .filter(
+          (proposal) =>
+            proposal.id !== id &&
+            proposal.mandate?.violations.length === 0 &&
+            inDay(proposal.order, proposal.createdAt) &&
+            !atBroker.has(orderTag(proposal.id))
+        )
+        .map((proposal) => proposal.order),
+    ];
 
     return {
       orders: covered.length,
-      value: sumBy(covered, ({ order: covering }) =>
+      value: sumBy(covered, (covering) =>
         covering.type === OrderType.Limit
           ? covering.limitPrice * covering.quantity
           : 0
@@ -749,8 +802,10 @@ export class OrderDesk {
     const { broker, now = Date.now } = this.#options;
 
     if (byMandate) {
+      const placed = await this.#placedThatDay(pending.order.instrument.market);
+
       // The user may have changed or revoked the mandate while the orders before it went.
-      const mandate = this.#verdict(pending.id, pending.order, now());
+      const mandate = this.#verdict(pending.id, pending.order, now(), placed);
 
       if (!mandate || mandate.shadow || mandate.violations.length > 0) {
         return this.#save({
