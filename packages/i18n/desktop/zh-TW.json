@@ -1159,7 +1159,7 @@
       "market-order": "市價單不在授權內",
       "order-value": "金額 {{value, number}} {{currency}} 超過單筆上限 {{max, number}}",
       "day-value": "今日累計 {{value, number}} {{currency}} 會超過單日上限 {{max, number}}",
-      "day-orders": "今日已自動送出 {{max}} 筆",
+      "day-orders": "今日委託已達 {{max}} 筆",
       "day-unknown": "無法向券商讀取今日的委託",
       "currency": "授權不涵蓋 {{currency}} 的委託"
     }

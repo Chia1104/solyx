@@ -714,9 +714,10 @@ export class OrderDesk {
 
   /**
    * What the mandate covered in the market day of an order made at `at`, besides proposal `id`,
-   * with every order of that day `placed` under a tag no kept proposal carries: a restored backup
-   * or an edited store loses proposals but not the broker's orders, so those count as the
-   * mandate's rather than let it send a day's worth again.
+   * with every order of that day `placed` under a tag no proposal it covered carries, the user's
+   * own confirmed orders among them: a restored backup or an edited store loses or changes
+   * proposals but not the broker's orders, so those count rather than let it send a day's worth
+   * again.
    */
   #mandateDay(
     id: string,
@@ -729,23 +730,25 @@ export class OrderDesk {
     const currency = currencyOf(market);
     const proposals = this.#options.store.list();
 
-    const kept = new Set(
-      [id, ...proposals.map((proposal) => proposal.id)].map(orderTag)
-    );
-
     const inDay = ({ instrument }: OrderRequest, time: number) =>
       currencyOf(instrument.market) === currency &&
       exchangeDate(market, new Date(time)) === day;
 
+    const counted = proposals.filter(
+      (proposal) =>
+        proposal.id !== id &&
+        proposal.mandate?.violations.length === 0 &&
+        inDay(proposal.order, proposal.createdAt)
+    );
+
+    // Only a proposal that counts stands for its order, since one edited to count for nothing
+    // would otherwise hide its order too.
+    const kept = new Set(
+      [id, ...counted.map((proposal) => proposal.id)].map(orderTag)
+    );
+
     const covered = [
-      ...proposals
-        .filter(
-          (proposal) =>
-            proposal.id !== id &&
-            proposal.mandate?.violations.length === 0 &&
-            inDay(proposal.order, proposal.createdAt)
-        )
-        .map((proposal) => proposal.order),
+      ...counted.map((proposal) => proposal.order),
       ...placed
         .filter(
           ({ tag, order: made, placedAt }) =>

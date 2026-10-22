@@ -1115,6 +1115,30 @@ test("the mandate counts the day's orders the broker lists under tags no kept pr
   expect(placeOrder).toHaveBeenCalledTimes(2);
 });
 
+test("the mandate counts the day's orders of proposals it never covered, so a proposal edited to count for nothing hides none", async () => {
+  const { desk, getOrders, placeOrder } = setup(undefined, {
+    mandate: () => covering({ maxDayOrders: 1 }),
+  });
+
+  const own = await desk.propose({
+    order,
+    source: ProposalSource.User,
+    rationale: "",
+  });
+
+  expect(await desk.confirm(own.id)).toMatchObject({
+    status: ProposalStatus.Submitted,
+  });
+
+  getOrders.mockResolvedValue([brokerOrder(own.id)]);
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    status: ProposalStatus.AwaitingConfirmation,
+    mandate: { violations: [{ code: MandateViolationCode.DayOrders, max: 1 }] },
+  });
+  expect(placeOrder).toHaveBeenCalledTimes(1);
+});
+
 test("the mandate counts the value of the day's orders the desk lost", async () => {
   const { desk, getOrders, placeOrder } = setup(undefined, {
     mandate: () => covering({ maxDayValue: { TWD: 1_500_000 } }),
