@@ -43,6 +43,8 @@ export const MandateViolationCode = {
   OrderValue: "order-value",
   DayValue: "day-value",
   DayOrders: "day-orders",
+  /** What it already let go that day could not be read from the broker, so neither limit can be held. */
+  DayUnknown: "day-unknown",
 } as const;
 
 export type MandateViolationCode =
@@ -57,7 +59,8 @@ export type MandateViolation =
         | typeof MandateViolationCode.NotAgent
         | typeof MandateViolationCode.Listing
         | typeof MandateViolationCode.Side
-        | typeof MandateViolationCode.MarketOrder;
+        | typeof MandateViolationCode.MarketOrder
+        | typeof MandateViolationCode.DayUnknown;
     }
   | {
       code:
@@ -86,7 +89,8 @@ export interface MandateDay {
 
 /**
  * Why `mandate` does not cover an order the agent or the user proposed to `broker` at `now`,
- * with what the mandate already covered in the order's market day; empty where it does.
+ * with what the mandate already covered in the order's market day, `null` where that could not be
+ * read; empty where it does.
  */
 export function mandateViolations(
   mandate: Mandate,
@@ -103,7 +107,7 @@ export function mandateViolations(
     broker: string;
     currency: Currency;
     now: number;
-    day: MandateDay;
+    day: MandateDay | null;
   }
 ): MandateViolation[] {
   const violations: MandateViolation[] = [];
@@ -147,6 +151,12 @@ export function mandateViolations(
       max: maxOrder,
       currency,
     });
+  }
+
+  if (!day) {
+    violations.push({ code: MandateViolationCode.DayUnknown });
+
+    return violations;
   }
 
   if (maxDay === null || day.value + value > maxDay) {

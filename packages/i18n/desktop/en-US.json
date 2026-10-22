@@ -1160,6 +1160,7 @@
       "order-value": "{{value, number}} {{currency}} is past its {{max, number}} an order",
       "day-value": "today's {{value, number}} {{currency}} would pass its {{max, number}} a day",
       "day-orders": "it already covered {{max}} orders today",
+      "day-unknown": "today's orders could not be read from the broker",
       "currency": "it covers no {{currency}} orders"
     }
   },

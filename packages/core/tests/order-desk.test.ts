@@ -1078,6 +1078,96 @@ test("the mandate counts what it covered in the market day, shadow included", as
   });
 });
 
+test("the mandate counts the day's orders the broker lists under tags no kept proposal carries, as after a restore", async () => {
+  const { desk, getOrders, placeOrder } = setup(undefined, {
+    restored: true,
+    mandate: () =>
+      covering({ maxDayOrders: 3, maxDayValue: { TWD: 10_000_000 } }),
+  });
+
+  const lost = brokerOrder("sent-before-the-restore");
+
+  getOrders.mockResolvedValue([
+    lost,
+    // Placed outside the app, or on an earlier day: neither is the mandate's.
+    brokerOrder("outside", { tag: null }),
+    brokerOrder("yesterday", { placedAt: DURING_SESSION - DAY_MS }),
+  ]);
+
+  const first = await proposeFromAgent(desk);
+
+  expect(first).toMatchObject({ status: ProposalStatus.Submitted });
+  expect(getOrders).toHaveBeenCalledWith(
+    Date.parse("2026-09-29T00:00:00+08:00")
+  );
+
+  // The broker now lists the first too, which counts once, as the proposal it keeps.
+  getOrders.mockResolvedValue([lost, brokerOrder(first.id)]);
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    status: ProposalStatus.Submitted,
+  });
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    status: ProposalStatus.AwaitingConfirmation,
+    mandate: { violations: [{ code: MandateViolationCode.DayOrders, max: 3 }] },
+  });
+  expect(placeOrder).toHaveBeenCalledTimes(2);
+});
+
+test("the mandate counts the value of the day's orders the desk lost", async () => {
+  const { desk, getOrders, placeOrder } = setup(undefined, {
+    mandate: () => covering({ maxDayValue: { TWD: 1_500_000 } }),
+  });
+
+  getOrders.mockResolvedValue([brokerOrder("sent-before-the-restore")]);
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    status: ProposalStatus.AwaitingConfirmation,
+    mandate: {
+      violations: [
+        {
+          code: MandateViolationCode.DayValue,
+          value: 1_960_000,
+          max: 1_500_000,
+        },
+      ],
+    },
+  });
+  expect(placeOrder).not.toHaveBeenCalled();
+});
+
+test("the mandate sends nothing while the broker's orders of the day cannot be read", async () => {
+  const { desk, getOrders, placeOrder } = setup(undefined, {
+    mandate: () => covering(),
+  });
+
+  getOrders.mockRejectedValue(new Error("offline"));
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    status: ProposalStatus.AwaitingConfirmation,
+    mandate: { violations: [{ code: MandateViolationCode.DayUnknown }] },
+  });
+  expect(placeOrder).not.toHaveBeenCalled();
+});
+
+test("the mandate reads the broker's orders again before it sends, and sends nothing where they cannot be read", async () => {
+  const { desk, getOrders, placeOrder } = setup(undefined, {
+    mandate: () => covering(),
+  });
+
+  // Read as it was proposed, then refused as it is about to go.
+  getOrders
+    .mockResolvedValueOnce([])
+    .mockRejectedValueOnce(new Error("offline"));
+
+  expect(await proposeFromAgent(desk)).toMatchObject({
+    status: ProposalStatus.AwaitingConfirmation,
+    mandate: { violations: [{ code: MandateViolationCode.DayUnknown }] },
+  });
+  expect(placeOrder).not.toHaveBeenCalled();
+});
+
 test("an order sent under the mandate that went unanswered locks orders", async () => {
   const { desk, placeOrder, lockOrders } = setup(undefined, {
     mandate: () => covering(),
