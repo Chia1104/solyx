@@ -124,6 +124,13 @@ export default defineConfig({
         dependsOn: ["build"],
         cache: false,
       },
+      // Unpacked, since it only runs on the computer it was built on.
+      "package:test": {
+        command:
+          "electron-builder --config build/electron-builder.test.yml --publish never --dir",
+        dependsOn: ["build"],
+        cache: false,
+      },
     },
   },
   build: {

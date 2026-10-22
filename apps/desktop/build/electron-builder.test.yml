@@ -1,0 +1,11 @@
+# A package for local smoke runs that drive the built app over the DevTools protocol, which only it
+# accepts. Its own name gives it its own data, config folder and secret store entry, so it never
+# reads what an installed Solyx keeps, and it is never published.
+extends: build/electron-builder.yml
+appId: dev.chia1104.solyx.test
+productName: Solyx Test
+extraMetadata:
+  productName: Solyx Test
+  # A packaged build's version names its channel.
+  version: 0.0.0-test
+publish: null

@@ -1,19 +1,25 @@
 import { app } from "electron";
 
-/** Which build of the app runs: a development run, or the channel a packaged build was released on. */
+/** Which build of the app runs: a development run, or the channel a packaged build was made for. */
 export const AppChannel = {
   Development: "development",
   Nightly: "nightly",
   Stable: "stable",
+  Test: "test",
 } as const;
 
 export type AppChannel = (typeof AppChannel)[keyof typeof AppChannel];
 
-/** A nightly's version names its channel, as the release workflow writes it. */
+/**
+ * A packaged build's version names its channel: the release workflow writes a nightly's, and the
+ * test package's config its own.
+ */
 export function appChannel(): AppChannel {
   if (!app.isPackaged) return AppChannel.Development;
 
-  return app.getVersion().includes("-nightly.")
-    ? AppChannel.Nightly
-    : AppChannel.Stable;
+  const version = app.getVersion();
+
+  if (version.includes("-nightly.")) return AppChannel.Nightly;
+
+  return version.endsWith("-test") ? AppChannel.Test : AppChannel.Stable;
 }
