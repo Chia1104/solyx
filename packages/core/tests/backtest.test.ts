@@ -526,6 +526,8 @@ describe("no rule sees a later price", () => {
 });
 
 describe("a strategy's work is bounded before it runs", () => {
+  const CONDITION = `A condition is one of above, below, crossesAbove, crossesBelow, all and any; all and any hold 1 to ${MAX_RULE_BRANCHES} conditions and nest ${MAX_RULE_DEPTH} deep at most`;
+
   const above = (value: number): RuleCondition => ({
     above: [{ price: "close" }, { value }],
   });
@@ -595,17 +597,26 @@ describe("a strategy's work is bounded before it runs", () => {
         },
         exit: above(1),
       })
-    ).toBe(
-      `A condition is one of above, below, crossesAbove, crossesBelow, all and any, and all and any hold 1 to ${MAX_RULE_BRANCHES} conditions`
-    );
+    ).toBe(CONDITION);
   });
 
   test("conditions nested too deep are refused", () => {
     expect(
       refusal({ entry: above(1), exit: nested(MAX_RULE_DEPTH + 1, above(1)) })
-    ).toBe(
-      `all and any nest ${MAX_RULE_DEPTH} deep at most, and this nests ${MAX_RULE_DEPTH + 1}`
-    );
+    ).toBe(CONDITION);
+  });
+
+  test("a tree far past the limits is refused without being read whole", () => {
+    // Shared branches keep it small here; as an agent's script sends it, it is a document of millions.
+    const tree = (depth: number): RuleCondition =>
+      depth === 0
+        ? above(1)
+        : { all: Array(MAX_RULE_BRANCHES).fill(tree(depth - 1)) };
+
+    const started = performance.now();
+
+    expect(refusal({ entry: tree(8), exit: tree(8) })).toContain(CONDITION);
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 
   test("too many comparisons are refused, however few series they read", () => {
@@ -613,11 +624,11 @@ describe("a strategy's work is bounded before it runs", () => {
       any: Array.from({ length: count }, () => above(1)),
     });
 
-    // Four groups of sixteen in the entry and one in the exit: 65 comparisons of two series.
+    // Eight groups of eight in the entry and one in the exit: 65 comparisons of two series.
     expect(
       refusal({
         entry: {
-          all: Array.from({ length: 4 }, () => wide(MAX_RULE_BRANCHES)),
+          all: Array.from({ length: 8 }, () => wide(MAX_RULE_BRANCHES)),
         },
         exit: above(1),
       })
@@ -639,8 +650,12 @@ describe("a strategy's work is bounded before it runs", () => {
 
     expect(
       refusal({
-        entry: { any: widths.slice(0, 16) },
-        exit: { any: widths.slice(16) },
+        entry: {
+          any: [{ any: widths.slice(0, 8) }, { any: widths.slice(8, 16) }],
+        },
+        exit: {
+          any: [{ any: widths.slice(16, 24) }, { any: widths.slice(24) }],
+        },
       })
     ).toBe(
       `A strategy reads ${MAX_RULE_SERIES} different series at most between its entry and exit, and this reads ${MAX_RULE_SERIES + 1}`

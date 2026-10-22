@@ -44,13 +44,14 @@ export type RuleSeries = z.infer<typeof ruleSeriesSchema>;
 const seriesKey = (series: RuleSeries) => JSON.stringify(series);
 
 // A backtest runs on the caller's thread, the main process's for an agent's script, so a
-// strategy's work is bounded before it runs.
+// strategy's work, reading it included, is bounded before it runs: depth and width together cap a
+// rule at MAX_RULE_BRANCHES ** MAX_RULE_DEPTH comparisons read before any other limit is checked.
 
 /** How many `all` and `any` a condition may nest. */
-export const MAX_RULE_DEPTH = 4;
+export const MAX_RULE_DEPTH = 3;
 
 /** How many conditions one `all` or `any` may hold. */
-export const MAX_RULE_BRANCHES = 16;
+export const MAX_RULE_BRANCHES = 8;
 
 /** How many comparisons a strategy's entry and exit may make between them. */
 export const MAX_RULE_COMPARISONS = 64;
@@ -69,54 +70,57 @@ export type RuleCondition =
   | { all: RuleCondition[] }
   | { any: RuleCondition[] };
 
-export const ruleConditionSchema: z.ZodType<RuleCondition> = z.lazy(() =>
-  z.union(
-    [
-      z.object({ above: pair }),
-      z.object({ below: pair }),
-      z.object({ crossesAbove: pair }),
-      z.object({ crossesBelow: pair }),
-      z.object({
-        all: z.array(ruleConditionSchema).min(1).max(MAX_RULE_BRANCHES),
-      }),
-      z.object({
-        any: z.array(ruleConditionSchema).min(1).max(MAX_RULE_BRANCHES),
-      }),
-    ],
-    {
-      error: `A condition is one of above, below, crossesAbove, crossesBelow, all and any, and all and any hold 1 to ${MAX_RULE_BRANCHES} conditions`,
-    }
-  )
+const conditionError = {
+  error: `A condition is one of above, below, crossesAbove, crossesBelow, all and any; all and any hold 1 to ${MAX_RULE_BRANCHES} conditions and nest ${MAX_RULE_DEPTH} deep at most`,
+};
+
+const comparisonSchema = z.union(
+  [
+    z.object({ above: pair }),
+    z.object({ below: pair }),
+    z.object({ crossesAbove: pair }),
+    z.object({ crossesBelow: pair }),
+  ],
+  conditionError
 );
 
-/** How many `all` and `any` nest in a condition, and every series its comparisons read. */
-interface RuleReach {
-  depth: number;
-  series: RuleSeries[];
+/**
+ * A condition nesting at most `depth` more `all` and `any`, one schema per level, so a deeper tree
+ * stops matching where it passes the limit rather than being read whole first.
+ */
+function conditionSchema(depth: number): z.ZodType<RuleCondition> {
+  if (depth === 0) return comparisonSchema;
+
+  const branches = z
+    .array(conditionSchema(depth - 1))
+    .min(1)
+    .max(MAX_RULE_BRANCHES);
+
+  return z.union(
+    [
+      comparisonSchema,
+      z.object({ all: branches }),
+      z.object({ any: branches }),
+    ],
+    conditionError
+  );
 }
 
-function ruleReach(condition: RuleCondition): RuleReach {
-  if ("all" in condition || "any" in condition) {
-    const parts = ("all" in condition ? condition.all : condition.any).map(
-      ruleReach
-    );
+export const ruleConditionSchema = conditionSchema(MAX_RULE_DEPTH);
 
-    return {
-      depth: 1 + Math.max(...parts.map((part) => part.depth)),
-      series: parts.flatMap((part) => part.series),
-    };
-  }
+/** Every series a condition's comparisons read. */
+function ruleSeries(condition: RuleCondition): RuleSeries[] {
+  if ("all" in condition) return condition.all.flatMap(ruleSeries);
 
-  const series =
-    "above" in condition
-      ? condition.above
-      : "below" in condition
-        ? condition.below
-        : "crossesAbove" in condition
-          ? condition.crossesAbove
-          : condition.crossesBelow;
+  if ("any" in condition) return condition.any.flatMap(ruleSeries);
 
-  return { depth: 0, series };
+  if ("above" in condition) return condition.above;
+
+  if ("below" in condition) return condition.below;
+
+  if ("crossesAbove" in condition) return condition.crossesAbove;
+
+  return condition.crossesBelow;
 }
 
 /** A long-only strategy: when to buy while holding nothing, and when to sell all of it. */
@@ -130,19 +134,7 @@ export const ruleStrategySchema = z
     takeProfit: z.number().positive().optional(),
   })
   .superRefine(({ entry, exit }, context) => {
-    const reaches = { entry: ruleReach(entry), exit: ruleReach(exit) };
-
-    for (const [key, { depth }] of Object.entries(reaches)) {
-      if (depth > MAX_RULE_DEPTH) {
-        context.addIssue({
-          code: "custom",
-          path: [key],
-          message: `all and any nest ${MAX_RULE_DEPTH} deep at most, and this nests ${depth}`,
-        });
-      }
-    }
-
-    const series = [...reaches.entry.series, ...reaches.exit.series];
+    const series = [...ruleSeries(entry), ...ruleSeries(exit)];
     const comparisons = series.length / 2;
 
     if (comparisons > MAX_RULE_COMPARISONS) {
