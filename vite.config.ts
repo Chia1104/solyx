@@ -68,7 +68,7 @@ export default defineConfig({
       ],
     },
     sortTailwindcss: {
-      stylesheet: "./apps/desktop/src/renderer/styles.css",
+      stylesheet: "./apps/webapp/src/styles.css",
       functions: ["clsx", "cn"],
       preserveWhitespace: true,
     },
@@ -128,16 +128,39 @@ export default defineConfig({
         },
       },
       {
+        // The backend reaches Electron only through its Host port, so it runs wherever a host runs it.
+        files: ["apps/desktop/src/{backend,worker}/**", "packages/**"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              paths: ["electron", "electron-updater"].map((name) => ({
+                name,
+                message:
+                  "Reach Electron through the Host port in backend/host.ts.",
+              })),
+              patterns: [
+                {
+                  group: ["@sentry/electron", "@sentry/electron/*"],
+                  message:
+                    "Reach Electron through the Host port in backend/host.ts.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
         // The one place a failure reaches the terminal, and command-line scripts that print results.
         files: [
-          "apps/desktop/src/main/modules/telemetry/diagnostics.ts",
+          "packages/backend/src/modules/telemetry/diagnostics.ts",
           "**/scripts/**",
         ],
         rules: { "no-console": "off" },
       },
       {
         files: [
-          "apps/desktop/src/renderer/**",
+          "apps/webapp/src/**",
           "apps/website/src/**",
           "packages/trading-chart/**",
         ],

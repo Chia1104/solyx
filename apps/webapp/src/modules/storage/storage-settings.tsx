@@ -1,0 +1,356 @@
+import { useState } from "react";
+import type { ReactNode } from "react";
+
+import { AlertDialog, Button } from "@heroui/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { QueryKey } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+
+import { NewsRetention, RETENTION_DAYS } from "@solyx/api/news";
+import { MarketDataSource } from "@solyx/api/settings";
+import { StoredData } from "@solyx/api/storage";
+import { NewsVoice } from "@solyx/core/news";
+import { formatBytes } from "@solyx/utils/format";
+import { isEnumValue } from "@solyx/utils/is";
+
+import { client, orpc } from "../../app/rpc.ts";
+import { ErrorAlert } from "../../components/error-alert.tsx";
+import { LoadError } from "../../components/load-error.tsx";
+import { LoadingState } from "../../components/loading-state.tsx";
+import { OptionSelect } from "../../components/option-select.tsx";
+import { Section } from "../../components/section.tsx";
+import { RailedColumn } from "../../components/sheet.tsx";
+import { agentQueryKeys } from "../agent/agent-query.ts";
+import { useAgentStore } from "../agent/agent-store.ts";
+import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
+import { newsRetentionQuery } from "../settings/settings-query.ts";
+
+import { storageUsageQuery } from "./storage-query.ts";
+
+/** What the rest of the workspace shows of each kind, read again once it is cleared. */
+const SHOWN_ELSEWHERE: Record<StoredData, QueryKey | null> = {
+  [StoredData.Candles]: orpc.market.candles.key(),
+  [StoredData.Conversations]: orpc.agent.sessions.key(),
+  // Memory and research push their own clearing.
+  [StoredData.Memory]: null,
+  [StoredData.News]: orpc.news.key(),
+  [StoredData.Research]: null,
+  [StoredData.Watchlist]: orpc.watchlist.key(),
+};
+
+/** Clearing one kind of data after a confirmation. */
+function ClearButton({
+  data,
+  isDisabled,
+}: {
+  data: StoredData;
+  isDisabled: boolean;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const select = useAgentStore((state) => state.select);
+  const [confirming, setConfirming] = useState(false);
+
+  const clear = useMutation({
+    mutationFn: () => client.storage.clear(data),
+    onSuccess: () => setConfirming(false),
+    onSettled: () => {
+      // The conversation on screen may be gone, even when clearing stopped partway.
+      if (data === StoredData.Conversations) {
+        select(null);
+        queryClient.removeQueries({ queryKey: agentQueryKeys.transcripts });
+      }
+
+      const shown = SHOWN_ELSEWHERE[data];
+
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.storage.key() }),
+        shown && queryClient.invalidateQueries({ queryKey: shown }),
+      ]);
+    },
+  });
+
+  return (
+    <AlertDialog isOpen={confirming} onOpenChange={setConfirming}>
+      <Button size="sm" variant="secondary" isDisabled={isDisabled}>
+        {t(`settings.storage.${data}.clear`)}
+      </Button>
+      <AlertDialog.Backdrop>
+        <AlertDialog.Container>
+          <AlertDialog.Dialog className="sm:max-w-100">
+            <AlertDialog.Header>
+              <AlertDialog.Heading>
+                {t(`settings.storage.${data}.confirm-title`)}
+              </AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body className="flex flex-col gap-3">
+              <p>{t(`settings.storage.${data}.confirm-body`)}</p>
+              {clear.error ? (
+                <ErrorAlert
+                  title={t(`settings.storage.${data}.clear-failed`)}
+                  description={clear.error.message}
+                />
+              ) : null}
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button slot="close" variant="tertiary">
+                {t("common.cancel")}
+              </Button>
+              {/* Only candles can be fetched again. */}
+              <Button
+                variant={data === StoredData.Candles ? "secondary" : "danger"}
+                isPending={clear.isPending}
+                onPress={() => clear.mutate()}>
+                {t(`settings.storage.${data}.confirm`)}
+              </Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+    </AlertDialog>
+  );
+}
+
+// Forever keeps more than any number of days.
+const keptDays = (retention: NewsRetention) =>
+  RETENTION_DAYS[retention] ?? Infinity;
+
+/** How long one voice's news is kept, asking first when a shorter time would delete some. */
+function RetentionRow({
+  voice,
+  retention,
+}: {
+  voice: NewsVoice;
+  retention: NewsRetention;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [shorter, setShorter] = useState<NewsRetention | null>(null);
+
+  const keep = useMutation(
+    orpc.settings.setNewsRetention.mutationOptions({
+      onSuccess: () => setShorter(null),
+      // What a shorter time deleted leaves the counts above.
+      onSettled: () =>
+        queryClient.invalidateQueries({ queryKey: orpc.storage.key() }),
+    })
+  );
+
+  const label = t(`settings.storage.news.kept.${voice}`);
+
+  return (
+    <SettingsRow
+      label={label}
+      description={t(`settings.storage.news.kept-description.${voice}`)}
+      actions={
+        <OptionSelect
+          aria-label={label}
+          className="w-32"
+          value={retention}
+          isDisabled={keep.isPending}
+          options={Object.values(NewsRetention).map((id) => ({
+            id,
+            label: t(`settings.storage.news.retention.${id}`),
+          }))}
+          onChange={(next) => {
+            if (keptDays(next) < keptDays(retention)) setShorter(next);
+            else keep.mutate({ voice, retention: next });
+          }}
+        />
+      }>
+      {keep.error && shorter === null ? (
+        <ErrorAlert
+          title={t("settings.storage.news.keep-failed")}
+          description={keep.error.message}
+        />
+      ) : null}
+      <AlertDialog
+        isOpen={shorter !== null}
+        onOpenChange={(open) => {
+          if (!open) setShorter(null);
+        }}>
+        <AlertDialog.Backdrop>
+          <AlertDialog.Container>
+            <AlertDialog.Dialog className="sm:max-w-100">
+              <AlertDialog.Header>
+                <AlertDialog.Heading>
+                  {t("settings.storage.news.shorten-title")}
+                </AlertDialog.Heading>
+              </AlertDialog.Header>
+              <AlertDialog.Body className="flex flex-col gap-3">
+                <p>
+                  {t("settings.storage.news.shorten-body", {
+                    kind: t(`settings.storage.news.kinds.${voice}`),
+                    days: shorter === null ? null : RETENTION_DAYS[shorter],
+                  })}
+                </p>
+                {keep.error ? (
+                  <ErrorAlert
+                    title={t("settings.storage.news.keep-failed")}
+                    description={keep.error.message}
+                  />
+                ) : null}
+              </AlertDialog.Body>
+              <AlertDialog.Footer>
+                <Button slot="close" variant="tertiary">
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  variant="danger"
+                  isPending={keep.isPending}
+                  onPress={() => {
+                    if (shorter) keep.mutate({ voice, retention: shorter });
+                  }}>
+                  {t("settings.storage.news.shorten")}
+                </Button>
+              </AlertDialog.Footer>
+            </AlertDialog.Dialog>
+          </AlertDialog.Container>
+        </AlertDialog.Backdrop>
+      </AlertDialog>
+    </SettingsRow>
+  );
+}
+
+/** One kind of data: what it holds, then clearing it, which waits while it holds nothing. */
+function StorageSection({
+  data,
+  isEmpty,
+  children,
+}: {
+  data: StoredData;
+  isEmpty: boolean;
+  children: ReactNode;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Section
+      title={t(`settings.storage.${data}.title`)}
+      description={t(`settings.storage.${data}.description`)}>
+      <div className="flex flex-col gap-3">
+        <SettingsList>{children}</SettingsList>
+        <div>
+          <ClearButton data={data} isDisabled={isEmpty} />
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+/** What each kind of data the app keeps takes up, each cleared on its own after a confirmation. */
+export function StorageSettings() {
+  const { t, i18n } = useTranslation();
+  const { data, error, refetch } = useQuery(storageUsageQuery());
+  const { data: retention } = useQuery(newsRetentionQuery());
+
+  if (error) {
+    return (
+      <RailedColumn className="px-6 py-5">
+        <LoadError error={error} onRetry={() => void refetch()} />
+      </RailedColumn>
+    );
+  }
+
+  if (!data) return <LoadingState />;
+
+  const { candles, conversations, memory, news, research, watchlist } = data;
+  const bytes = (value: number) => formatBytes(value, i18n.language);
+  const count = (value: number) => value.toLocaleString(i18n.language);
+
+  return (
+    <>
+      <StorageSection
+        data={StoredData.Candles}
+        isEmpty={candles.sources.length === 0}>
+        <SettingsRow
+          label={t("settings.storage.size")}
+          value={bytes(candles.bytes)}
+        />
+        {candles.sources.length === 0 ? (
+          <SettingsRow label={t("settings.storage.candles.empty")} />
+        ) : (
+          candles.sources.map((usage) => (
+            <SettingsRow
+              key={usage.source}
+              label={
+                isEnumValue(MarketDataSource, usage.source)
+                  ? t(`settings.market-data.sources.${usage.source}`)
+                  : usage.source
+              }
+              description={t("settings.storage.candles.series", {
+                count: usage.series,
+              })}
+              value={t("settings.storage.candles.bars", { count: usage.bars })}
+            />
+          ))
+        )}
+      </StorageSection>
+      <StorageSection
+        data={StoredData.Conversations}
+        isEmpty={conversations.conversations === 0}>
+        <SettingsRow
+          label={t("settings.storage.size")}
+          value={bytes(conversations.bytes)}
+        />
+        <SettingsRow
+          label={t("settings.storage.conversations.count")}
+          value={count(conversations.conversations)}
+        />
+      </StorageSection>
+      <StorageSection data={StoredData.Memory} isEmpty={memory.memories === 0}>
+        <SettingsRow
+          label={t("settings.storage.size")}
+          value={bytes(memory.bytes)}
+        />
+        <SettingsRow
+          label={t("settings.storage.memory.count")}
+          value={count(memory.memories)}
+        />
+      </StorageSection>
+      <StorageSection data={StoredData.News} isEmpty={news.items === 0}>
+        <SettingsRow
+          label={t("settings.storage.size")}
+          value={bytes(news.bytes)}
+        />
+        <SettingsRow
+          label={t("settings.storage.news.count")}
+          value={count(news.items)}
+        />
+        {retention
+          ? Object.values(NewsVoice).map((voice) => (
+              <RetentionRow
+                key={voice}
+                voice={voice}
+                retention={retention[voice]}
+              />
+            ))
+          : null}
+      </StorageSection>
+      <StorageSection
+        data={StoredData.Research}
+        isEmpty={research.reports === 0 && research.forecasts === 0}>
+        <SettingsRow
+          label={t("settings.storage.size")}
+          value={bytes(research.bytes)}
+        />
+        <SettingsRow
+          label={t("settings.storage.research.reports")}
+          value={count(research.reports)}
+        />
+        <SettingsRow
+          label={t("settings.storage.research.forecasts")}
+          value={count(research.forecasts)}
+        />
+      </StorageSection>
+      <StorageSection
+        data={StoredData.Watchlist}
+        isEmpty={watchlist.listings === 0}>
+        <SettingsRow
+          label={t("settings.storage.watchlist.count")}
+          value={count(watchlist.listings)}
+        />
+      </StorageSection>
+    </>
+  );
+}

@@ -1179,7 +1179,8 @@
       "memory": "Memory",
       "mcp": "MCP",
       "schedules": "Schedules",
-      "themes": "Themes"
+      "themes": "Themes",
+      "devices": "Devices"
     },
     "general": "General",
     "save-failed": "Couldn't save the setting",
@@ -2046,6 +2047,22 @@
       "show-description": "Solyx keeps running there after its last window closes, so scheduled work goes on.",
       "hide-dock": "Leave the Dock while no window is open",
       "hide-dock-description": "The icon in the menu bar opens Solyx again."
+    },
+    "devices": {
+      "title": "Devices",
+      "enabled": "Serve to paired browsers",
+      "enabled-description": "Serves the workspace on this computer's own address to browsers you pair. They can read and propose, and submit orders only with a passkey. They can't change settings.",
+      "listen-failed": "Couldn't start serving",
+      "address": "Address",
+      "address-description": "From another computer, forward it over SSH with ssh -L {{port}}:127.0.0.1:{{port}} and this computer's name, then open this address there.",
+      "pair": "Pair a browser",
+      "pair-description": "Open the address in that browser and enter the code. Each code works once.",
+      "show-code": "Show a code",
+      "new-code": "New code",
+      "code-expires": "Expires at {{time}}",
+      "paired-at": "Paired {{date}}",
+      "paired-with-passkey": "Paired {{date}} · Submits with a passkey",
+      "remove": "Unpair"
     }
   },
   "updates": {
@@ -2064,6 +2081,12 @@
       "ready": "{{version}} installs when Solyx restarts",
       "available": "{{version}} is out",
       "failed": "Couldn't check for updates"
+    }
+  },
+  "app": {
+    "backend-stopped": {
+      "title": "Solyx stopped unexpectedly",
+      "body": "The part of Solyx that keeps your data and runs your work stopped, so Solyx quits. Open it again to go on."
     }
   },
   "tray": {
@@ -2137,6 +2160,26 @@
         "title": "The MCP server was not connected",
         "body": "Return to Solyx and try signing in again."
       }
+    }
+  },
+  "devices": {
+    "confirm-on-computer": "Submit it on the computer running Solyx, or pair this browser again with a passkey.",
+    "answer-on-computer": "Answer it on the computer running Solyx."
+  },
+  "pairing": {
+    "title": "Pair this browser",
+    "description": "Enter the code Solyx shows under Settings, Devices, on your computer.",
+    "code": "Code",
+    "name": "Name this browser",
+    "default-name": "My browser",
+    "submit": "Pair",
+    "failed": "Couldn't pair",
+    "passkey": {
+      "title": "Submit orders from this browser?",
+      "description": "Add a passkey and this browser can submit and cancel orders, each after you unlock it. You can add one only now.",
+      "add": "Add passkey",
+      "skip": "Not now",
+      "failed": "Couldn't add the passkey"
     }
   }
 }

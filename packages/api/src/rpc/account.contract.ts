@@ -1,0 +1,34 @@
+import { oc, type } from "@orpc/contract";
+import * as z from "zod";
+
+import type { BrokerOrder } from "@solyx/core/broker";
+import { symbolRefSchema } from "@solyx/core/market";
+import type { Fill } from "@solyx/core/order";
+import type { RoundTrip } from "@solyx/core/review";
+
+import type { AccountSummary } from "../account.ts";
+import { passkeyAssertionSchema } from "../devices.ts";
+
+import { forDevices } from "./access.ts";
+
+export const accountContract = {
+  summary: oc.meta(forDevices(true)).output(type<AccountSummary>()),
+  /** Every round trip the account's fills close, oldest first. */
+  roundTrips: oc.meta(forDevices(true)).output(type<RoundTrip[]>()),
+  /** The account's fills, oldest first, of one listing where it is named. */
+  fills: oc
+    .meta(forDevices(true))
+    .input(symbolRefSchema.optional())
+    .output(type<Fill[]>()),
+  /** The orders of today's market days that may still fill, oldest first. */
+  working: oc.meta(forDevices(true)).output(type<BrokerOrder[]>()),
+  /** Asks the broker to cancel one of the account's orders, by its id. */
+  cancel: oc.input(z.string().min(1)).output(type<void>()),
+  /** `cancel` for a paired browser, whose passkey signed this one order's cancelling. */
+  cancelSigned: oc
+    .meta(forDevices(true))
+    .input(
+      z.object({ id: z.string().min(1), assertion: passkeyAssertionSchema })
+    )
+    .output(type<void>()),
+};

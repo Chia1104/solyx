@@ -1,6 +1,6 @@
 import type { CommandLine } from "electron";
 
-import { AppChannel } from "./app-channel.ts";
+import { AppChannel } from "@solyx/api/app-channel";
 
 /** Chromium's switches that open the DevTools protocol, on a port or on pipes, to whoever started the app. */
 const DEVTOOLS_PROTOCOL_SWITCHES = [

@@ -1,0 +1,235 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+
+/* Streamdown's elements carry their own utility classes; its stylesheet holds the fade keyframes. */
+@import "streamdown/styles.css";
+@source "../node_modules/streamdown/dist/*.js";
+
+/*
+ * Solyx is drawn like a drafting sheet: agents draft in pencil, the user signs in ink. Pencil
+ * (hatching, dashed rules) marks what is not real yet, such as paper trading or a proposal
+ * awaiting confirmation; ink (the accent) marks what is. The palette itself comes from
+ * `@solyx/api/palette`, which app/theme.ts writes as custom properties; these derive from it.
+ */
+:root,
+.light,
+[data-theme="light"],
+.dark,
+[data-theme="dark"] {
+  --surface-foreground: var(--foreground);
+  --overlay-foreground: var(--foreground);
+  --field-foreground: var(--foreground);
+  --field-placeholder: var(--muted);
+  --segment-foreground: var(--foreground);
+  --default-foreground: var(--foreground);
+  --focus: var(--accent);
+
+  --hatch: color-mix(in oklab, var(--muted) 40%, transparent);
+
+  --radius: 0.375rem;
+}
+
+.dark,
+[data-theme="dark"] {
+  --hatch: color-mix(in oklab, var(--muted) 35%, transparent);
+}
+
+/* Clear until app/theme.ts writes the palette, so the window's background, already in it, shows. */
+html:not([data-palette]) body {
+  background: none;
+}
+
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC",
+    "Microsoft JhengHei", "Noto Sans TC", system-ui, sans-serif;
+  /* The heavy Mincho the MAGI's display is set in. */
+  --font-mincho:
+    "Hiragino Mincho ProN", "Yu Mincho", "Songti TC", "PMingLiU",
+    "Noto Serif CJK TC", "Noto Serif TC", ui-serif, serif;
+}
+
+/* One corner radius for every surface, instead of HeroUI's scale up to pills; form fields keep HeroUI's own. */
+@theme inline {
+  --radius-xs: var(--radius);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+  --radius-3xl: var(--radius);
+  --radius-4xl: var(--radius);
+}
+
+@theme inline {
+  --color-hatch: var(--hatch);
+  --color-quote-red: var(--quote-red);
+  --color-quote-green: var(--quote-green);
+}
+
+/* Pencil hatching: 1px strokes on an 8px repeat. `--hatch-color` recolours it. */
+@utility hatch {
+  background-image: repeating-linear-gradient(
+    315deg,
+    var(--hatch-color, var(--hatch)) 0 1px,
+    transparent 0 50%
+  );
+  background-size: 8px 8px;
+}
+
+/* A pencilled box: hatching inside a dashed outline. */
+@utility pencil {
+  @apply border border-dashed border-border bg-background hatch;
+}
+
+/* Lets the user move the window by this area; controls inside it stay clickable. */
+@utility app-drag {
+  -webkit-app-region: drag;
+
+  & :is(a, button, input, [role="button"], [role="separator"]) {
+    -webkit-app-region: no-drag;
+  }
+}
+
+/*
+ * Moving to another kind of page crossfades the main view and settles the new page into place;
+ * the title bar and side panes around it stay still. Reduced motion keeps the fade, not the move.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+::view-transition-old(main) {
+  animation: fade-out 120ms var(--ease-out-quint) both;
+}
+
+::view-transition-new(main) {
+  animation: page-in 180ms var(--ease-out-quint) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-name: fade-in;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+html[data-pane-resizing] {
+  user-select: none;
+}
+
+html[data-pane-resizing="vertical"] {
+  cursor: col-resize;
+}
+
+html[data-pane-resizing="horizontal"] {
+  cursor: row-resize;
+}
+
+/*
+ * Desktop density: controls one step smaller than HeroUI's defaults, which are sized for touch.
+ * Default buttons and form fields are 32px tall, small buttons 28px. Fields change only in
+ * height and padding; their borders, shadows and invalid states stay HeroUI's.
+ */
+@layer components {
+  .button,
+  .toggle-button {
+    @apply h-8 px-3;
+  }
+
+  .button--sm,
+  .toggle-button--sm {
+    @apply h-7 px-2.5 text-[0.8125rem];
+  }
+
+  .button--lg,
+  .toggle-button--lg {
+    @apply h-9;
+  }
+
+  .button--icon-only,
+  .toggle-button--icon-only {
+    @apply w-8 p-0;
+  }
+
+  .button--icon-only.button--sm,
+  .toggle-button--icon-only.toggle-button--sm {
+    @apply w-7;
+  }
+
+  .input,
+  .search-field__input,
+  .number-field__input {
+    @apply py-1.5;
+  }
+
+  .search-field__group,
+  .number-field__group {
+    @apply h-8;
+  }
+
+  .select__trigger {
+    @apply min-h-8 py-1.5;
+  }
+
+  .kbd {
+    @apply h-5 px-1.5 text-xs;
+  }
+
+  /* A header stays on one line and a column keeps its width; a table wider than its pane scrolls sideways. */
+  .table__column {
+    @apply min-w-24 whitespace-nowrap;
+  }
+
+  /* Radios stay round under the unified radius. */
+  .radio__control,
+  .radio__indicator:empty::before {
+    @apply rounded-full;
+  }
+
+  /* Overlays arrive and leave on a strong ease-out instead of HeroUI's plain ease. */
+  :is(
+    .popover,
+    .dropdown__popover,
+    .select__popover,
+    .combo-box__popover,
+    .tooltip
+  ):is([data-entering="true"], [data-exiting="true"]) {
+    --tw-ease: var(--ease-out-quint);
+  }
+
+  /* A press springs back as fast as it went in; HeroUI's quarter second drags on controls pressed all day. */
+  .button,
+  .toggle-button {
+    transition:
+      transform 160ms var(--ease-out-quint),
+      background-color 100ms var(--ease-out),
+      box-shadow 100ms var(--ease-out);
+
+    @variant motion-reduce {
+      transition: none;
+    }
+  }
+}
+
+/* The root fills the window, so a fallback that replaces the whole app centers in it too. */
+#root {
+  height: 100dvh;
+}

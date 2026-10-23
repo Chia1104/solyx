@@ -1,6 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
-import { AppChannel } from "../src/main/shell/app-channel.ts";
+import { AppChannel } from "@solyx/api/app-channel";
+
 import { refusesRemoteDebugging } from "../src/main/shell/remote-debugging.ts";
 
 function commandLine(...switches: string[]) {

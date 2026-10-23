@@ -1,10 +1,11 @@
-// Renderer dev server + watched main/preload builds. Electron itself is (re)started by the
-// pack `onSuccess` hook in vite.config.ts once both bundles exist.
+// The renderer's dev server in `@solyx/webapp` + watched main, preload and backend builds. Electron
+// itself is (re)started by the pack `onSuccess` hook in vite.config.ts once those bundles exist.
 import { spawn } from "node:child_process";
+import { join } from "node:path";
 
 import { retry } from "es-toolkit";
 
-// vite.config.ts serves the renderer on this URL's port.
+// `@solyx/webapp`'s vite.config.ts serves the renderer on this URL's port.
 const RENDERER_URL = "http://localhost:5173";
 
 const env = { ...process.env, SOLYX_RENDERER_URL: RENDERER_URL };
@@ -13,8 +14,8 @@ const children = [];
 
 let shuttingDown = false;
 
-function start(args) {
-  const child = spawn("vp", args, { stdio: "inherit", env });
+function start(args, cwd = join(import.meta.dirname, "..")) {
+  const child = spawn("vp", args, { stdio: "inherit", env, cwd });
   child.on("exit", (code) => shutdown(code ?? 0));
   children.push(child);
 }
@@ -31,7 +32,7 @@ process.on("SIGINT", () => shutdown(0));
 
 process.on("SIGTERM", () => shutdown(0));
 
-start(["dev"]);
+start(["dev"], join(import.meta.dirname, "../../webapp"));
 
 // The dev server answers within seconds; give up after ~30s instead of hanging.
 try {

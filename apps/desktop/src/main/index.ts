@@ -1,23 +1,17 @@
 import { join } from "node:path";
 
-import { app, BrowserWindow, dialog, powerMonitor } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, powerMonitor } from "electron";
 import { kebabCase, withTimeout } from "es-toolkit";
 
-import { errorMessage } from "@solyx/utils/error";
+import { RPC_CONNECT } from "@solyx/api/rpc/connect";
+import { resolveLocale } from "@solyx/api/settings";
+import { CATALOGS } from "@solyx/backend/modules/settings/catalogs";
+import { createConfigFile } from "@solyx/backend/modules/settings/config-file";
 
-import { SettingsSection } from "#shared/settings-section.ts";
-import { resolveLocale } from "#shared/settings.ts";
-import { DestinationKind } from "#shared/workspace.ts";
-
-import { RestoreFailure } from "./modules/backup/staged-restore.ts";
-import { startCrashReports } from "./modules/crash-reports/crash-reports.ts";
-import { CATALOGS, fill } from "./modules/settings/catalogs.ts";
-import { createConfigFile } from "./modules/settings/config-file.ts";
-import { serveRpc } from "./rpc/serve.ts";
-import { createServices } from "./services.ts";
-import type { Services } from "./services.ts";
 import { appChannel } from "./shell/app-channel.ts";
-import { APP_ICON, createMainWindow } from "./shell/main-window.ts";
+import { startBackend } from "./shell/backend-process.ts";
+import { reportError, startCrashReports } from "./shell/crash-reports.ts";
+import { APP_ICON, createWindows } from "./shell/main-window.ts";
 import { refusesRemoteDebugging } from "./shell/remote-debugging.ts";
 
 // Before anything else runs, so a stable or nightly build never opens the DevTools protocol's port
@@ -39,6 +33,7 @@ const alone = app.requestSingleInstanceLock();
 if (!alone) app.quit();
 
 // Settings a person edits live in a dotfolder named after the app, so each channel keeps its own.
+// The backend writes it; the main process only reads it.
 const config = createConfigFile(
   join(app.getPath("home"), `.${kebabCase(app.getName())}`, "config.json")
 );
@@ -52,105 +47,105 @@ const CLOSE_TIMEOUT_MS = 3000;
 
 let quitting = false;
 
-/**
- * The services, or nothing once a restored backup could not be put in place: the app then says
- * so and exits rather than start on half of each, and tries again the next time it starts.
- */
-function startServices(): Services | undefined {
-  try {
-    return createServices(config);
-  } catch (error) {
-    if (!(error instanceof RestoreFailure)) throw error;
-
-    const copy =
-      CATALOGS[
-        resolveLocale(config.read().appearance.language, app.getLocale())
-      ].settings.backup["restore-stuck"];
-
-    dialog.showErrorBox(
-      copy.title,
-      fill(copy.body, {
-        reason: errorMessage(error.cause),
-        folder: error.folder,
-      })
-    );
-    app.exit(1);
-
-    return undefined;
-  }
+/** Says in a dialog why the app cannot go on, and exits. */
+function stop(reason: { title: string; body: string }) {
+  dialog.showErrorBox(reason.title, reason.body);
+  app.exit(1);
 }
 
-void app.whenReady().then(() => {
+void app.whenReady().then(async () => {
   if (!alone) return;
 
   // Unpackaged runs launch Electron's own app bundle, whose icon the Dock would show.
   if (!app.isPackaged) app.dock?.setIcon(APP_ICON);
 
-  const services = startServices();
+  const windows = createWindows();
+  const backend = startBackend(windows, config.file);
 
-  if (!services) return;
+  // The backend ending while the app runs leaves the windows nothing to ask, so the app quits.
+  backend.onExit((code) => {
+    if (quitting) return;
 
-  serveRpc(services);
-  createMainWindow(services.windowColors);
-  void services.tray.sync();
-
-  // The window opens where the restore was asked for, which says what became of it.
-  if (services.restored) {
-    services.workspace.open({
-      kind: DestinationKind.Settings,
-      section: SettingsSection.Backup,
+    reportError(new Error(`The backend exited with code ${code}`), {
+      event: "backend.exit",
     });
+
+    const copy =
+      CATALOGS[
+        resolveLocale(config.read().appearance.language, app.getLocale())
+      ].app["backend-stopped"];
+
+    stop(copy);
+  });
+
+  // A restored backup that could not be put in place stops the app rather than start on half
+  // of each; the next start tries again.
+  const refusal = await backend.started;
+
+  if (refusal) {
+    stop(refusal);
+
+    return;
   }
 
-  // The Dock follows whether a window is open.
-  app.on("browser-window-created", () => void services.tray.sync());
+  // Each window posts one end of a channel, which the backend serves the router on as that window.
+  ipcMain.on(RPC_CONNECT, (event) => {
+    const [port] = event.ports;
 
-  app.on("second-instance", () => services.workspace.open());
+    backend.connectWindow(event.sender.id, port);
+  });
 
-  // Runs the last session left unfinished continue where they stopped. A store that cannot open
-  // fails every agent call too, which the renderer shows.
-  services.agent
-    .resume()
-    .catch((error) =>
-      services.telemetry.diagnostics.report(error, "agent.resume")
+  // The tray reads whether a window is open, and the Dock follows it.
+  const countWindows = () =>
+    backend.send(
+      "windows",
+      backend.control.windows(
+        BrowserWindow.getAllWindows().filter((win) => !win.isDestroyed()).length
+      )
     );
 
-  services.scheduler.start();
+  app.on("browser-window-created", (_event, win) => {
+    countWindows();
+    win.once("closed", countWindows);
+  });
+
+  windows.open();
+
+  app.on("second-instance", () => windows.show());
 
   // Timers sleep with the computer, so what came due meanwhile starts as it wakes.
-  powerMonitor.on("resume", services.scheduler.tick);
+  powerMonitor.on("resume", () => backend.send("wake", backend.control.wake()));
 
-  // Runs still going are stored where they stopped and continue at the next start, and stdio MCP
-  // servers are shut down rather than left running without the app.
   app.on("before-quit", (event) => {
     if (quitting) return;
 
     quitting = true;
     event.preventDefault();
-    services.scheduler.stop();
-    services.tray.close();
 
-    // Traces last, so they hold how the runs stopped.
-    void withTimeout(async () => {
-      await services.agent.close();
-      await services.telemetry.close();
-    }, CLOSE_TIMEOUT_MS)
-      .catch((error) =>
-        services.telemetry.diagnostics.report(error, "app.close")
-      )
+    void withTimeout(() => backend.control.close(), CLOSE_TIMEOUT_MS)
+      .catch((error) => reportError(error, { event: "app.close" }))
       .finally(() => app.quit());
   });
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0)
-      createMainWindow(services.windowColors);
+    if (BrowserWindow.getAllWindows().length === 0) windows.open();
   });
 
   // The app goes on in the tray, or in the Dock as a macOS app does. A quit that a signal such as
   // SIGTERM started closes the windows but stops there once before-quit has deferred it, so
   // closing the last window finishes it.
   app.on("window-all-closed", () => {
-    if (quitting || !services.tray.staysOpen()) app.quit();
-    else void services.tray.sync();
+    if (quitting) {
+      app.quit();
+
+      return;
+    }
+
+    void backend.control.staysOpen().then(
+      (staysOpen) => {
+        if (!staysOpen) app.quit();
+      },
+      () => app.quit()
+    );
   });
 });

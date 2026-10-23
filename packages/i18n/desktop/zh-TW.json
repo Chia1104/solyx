@@ -1179,7 +1179,8 @@
       "memory": "記憶",
       "mcp": "MCP",
       "schedules": "排程",
-      "themes": "主題"
+      "themes": "主題",
+      "devices": "裝置"
     },
     "general": "一般",
     "save-failed": "無法儲存設定",
@@ -2046,6 +2047,22 @@
       "show-description": "關閉最後一個視窗後 Solyx 仍在背景執行，排程工作不會中斷。",
       "hide-dock": "沒有視窗時離開 Dock",
       "hide-dock-description": "從選單列的圖示可以再開啟 Solyx。"
+    },
+    "devices": {
+      "title": "裝置",
+      "enabled": "提供給已配對的瀏覽器",
+      "enabled-description": "在這台電腦自己的位址上，把工作區提供給你配對的瀏覽器。它們可以檢視和提案，有通行金鑰才能送出委託，且不能變更設定。",
+      "listen-failed": "無法開始提供",
+      "address": "位址",
+      "address-description": "從另一台電腦用 SSH 轉送：ssh -L {{port}}:127.0.0.1:{{port}} 加上這台電腦的名稱，再在那台電腦開啟這個位址。",
+      "pair": "配對瀏覽器",
+      "pair-description": "在那個瀏覽器開啟位址並輸入代碼。每組代碼只能用一次。",
+      "show-code": "顯示代碼",
+      "new-code": "新代碼",
+      "code-expires": "{{time}} 失效",
+      "paired-at": "{{date}} 配對",
+      "paired-with-passkey": "{{date}} 配對・以通行金鑰送出",
+      "remove": "解除配對"
     }
   },
   "updates": {
@@ -2064,6 +2081,12 @@
       "ready": "{{version}} 將在 Solyx 重新啟動時安裝",
       "available": "{{version}} 已推出",
       "failed": "無法檢查更新"
+    }
+  },
+  "app": {
+    "backend-stopped": {
+      "title": "Solyx 意外停止",
+      "body": "Solyx 負責保存資料與執行工作的部分停止了，因此 Solyx 會結束。重新開啟即可繼續。"
     }
   },
   "tray": {
@@ -2137,6 +2160,26 @@
         "title": "MCP server 沒有連接成功",
         "body": "請回到 Solyx 再登入一次。"
       }
+    }
+  },
+  "devices": {
+    "confirm-on-computer": "請在執行 Solyx 的電腦上送出，或以通行金鑰重新配對這個瀏覽器。",
+    "answer-on-computer": "請在執行 Solyx 的電腦上回覆。"
+  },
+  "pairing": {
+    "title": "配對這個瀏覽器",
+    "description": "輸入電腦上 Solyx 在「設定」的「裝置」裡顯示的代碼。",
+    "code": "代碼",
+    "name": "為這個瀏覽器命名",
+    "default-name": "我的瀏覽器",
+    "submit": "配對",
+    "failed": "無法配對",
+    "passkey": {
+      "title": "要從這個瀏覽器送出委託嗎？",
+      "description": "加入通行金鑰後，這個瀏覽器就能送出和取消委託，每次都要先解鎖金鑰。只能在現在加入。",
+      "add": "加入通行金鑰",
+      "skip": "先不要",
+      "failed": "無法加入通行金鑰"
     }
   }
 }

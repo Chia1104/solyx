@@ -1,0 +1,44 @@
+import { autoUpdater } from "electron-updater";
+
+import { AppChannel } from "@solyx/api/app-channel";
+import type { Updater } from "@solyx/backend/modules/updates/updates";
+
+import { appChannel } from "./app-channel.ts";
+
+/**
+ * electron-updater on the feed electron-builder wrote into the app (`app-update.yml`). Only Windows
+ * installs updates: macOS would install them through Squirrel.Mac, which needs a Developer ID
+ * signature, so there the feed only says which version is newer.
+ */
+export function createAppUpdater(): Updater | null {
+  const channel = appChannel();
+
+  // The test package is never published, so it has no feed.
+  if (
+    channel === AppChannel.Development ||
+    channel === AppChannel.Test ||
+    (process.platform !== "win32" && process.platform !== "darwin")
+  )
+    return null;
+
+  const installs = process.platform === "win32";
+
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = installs;
+
+  return {
+    installs,
+
+    async check() {
+      const result = await autoUpdater.checkForUpdates();
+
+      return result?.isUpdateAvailable ? result.updateInfo.version : null;
+    },
+
+    async download() {
+      await autoUpdater.downloadUpdate();
+    },
+
+    install: () => autoUpdater.quitAndInstall(),
+  };
+}

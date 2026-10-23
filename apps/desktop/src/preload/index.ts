@@ -2,7 +2,7 @@
 import "@sentry/electron/preload";
 import { ipcRenderer } from "electron";
 
-import { RPC_CONNECT } from "#shared/rpc/connect.ts";
+import { RPC_CONNECT } from "@solyx/api/rpc/connect";
 
 // The window keeps one end of its channel and posts the other here, which goes on to the main
 // process; the preload never holds a port itself and exposes nothing to the page.

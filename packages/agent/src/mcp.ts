@@ -37,7 +37,7 @@ import { errorMessage } from "@solyx/utils/error";
 import { parseJson } from "@solyx/utils/json";
 import { firstLine } from "@solyx/utils/text";
 
-import type { ToolGuard } from "./approval.ts";
+import type { ToolGuard, UnaskedGuard } from "./approval.ts";
 import {
   McpServerState,
   McpToolPolicy,
@@ -97,6 +97,8 @@ export interface McpToolOptions {
   policies: Readonly<Record<string, McpToolPolicy>>;
   /** Makes each call of a tool whose policy asks wait for the user to allow it. */
   guard: ToolGuard;
+  /** Lets each call of a tool whose policy lets it run do so, unless its run asks every call. */
+  unasked: UnaskedGuard;
 }
 
 interface Connection {
@@ -602,7 +604,7 @@ export function createMcpHub(options: McpHubOptions) {
      * `namespaces`, the servers as a script groups those tools. A call cut off by the app exiting
      * runs again only for a tool that may run without asking, which its server marks read-only.
      */
-    extensions({ policies, guard }: McpToolOptions): McpExtensions {
+    extensions({ policies, guard, unasked }: McpToolOptions): McpExtensions {
       const tools: ToolRegistration[] = [];
       const names = new Set<string>();
       const servers: ListedServer[] = [];
@@ -678,7 +680,7 @@ export function createMcpHub(options: McpHubOptions) {
           };
 
           // Guarding the tool itself asks before each call, the agent's and a script's alike.
-          tools.push(asks ? guard(registration) : registration);
+          tools.push(asks ? guard(registration) : unasked(registration));
         }
 
         if (tools.length > before) {

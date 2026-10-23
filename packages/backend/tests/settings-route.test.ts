@@ -1,0 +1,530 @@
+import { mkdtemp, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { MemoryPublisher } from "@orpc/publisher/memory";
+import { createRouterClient } from "@orpc/server";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+
+import {
+  McpServerState,
+  McpToolPolicy,
+  McpTransportKind,
+  mcpToolKey,
+} from "@solyx/agent/mcp-config";
+import { DEFAULT_MODEL } from "@solyx/agent/models";
+import type { AgentProvider } from "@solyx/agent/providers";
+import {
+  AppLocation,
+  Secret,
+  MANDATE_SECRET,
+  SecretState,
+  TradingBroker,
+  agentKeySecret,
+  mcpSecretKey,
+  webSearchKeySecret,
+} from "@solyx/api/settings";
+import { Currency, Market } from "@solyx/core/market";
+import { Side } from "@solyx/core/order";
+import { DAY_MS } from "@solyx/utils/date";
+import { WebSearchProvider } from "@solyx/web-search/provider";
+
+import { createAgentModels } from "../src/modules/agent/agent-models.ts";
+import type { McpServers } from "../src/modules/agent/mcp-servers.ts";
+import { createAppearance } from "../src/modules/settings/appearance.ts";
+import { createConfigFile } from "../src/modules/settings/config-file.ts";
+import { createMandateStore } from "../src/modules/settings/mandate-store.ts";
+import { createSecretStore } from "../src/modules/settings/secret-store.ts";
+import { settingsRouter } from "../src/modules/settings/settings.route.ts";
+import type { SettingsContext } from "../src/modules/settings/settings.route.ts";
+import { createWebSearch } from "../src/modules/web-search/web-search.ts";
+import { ClientKind } from "../src/rpc/context.ts";
+import { keepMessages } from "../src/rpc/messages.ts";
+import type { WindowEvents } from "../src/rpc/window-events.ts";
+
+import { fakeCipher } from "./fake-cipher.ts";
+
+let home: string;
+
+beforeEach(async () => {
+  home = await mkdtemp(join(tmpdir(), "solyx-settings-"));
+});
+
+afterEach(() => rm(home, { recursive: true, force: true }));
+
+function setup() {
+  const configDir = join(home, ".solyx");
+  const config = createConfigFile(join(configDir, "config.json"));
+
+  config.create();
+
+  const secrets = createSecretStore(
+    join(home, "data", "secrets.json"),
+    fakeCipher().cipher
+  );
+
+  const mcp = {
+    file: join(configDir, "mcp.json"),
+    policies: () => ({
+      [mcpToolKey("broker", "quote")]: McpToolPolicy.Auto,
+      [mcpToolKey("broker", "order")]: McpToolPolicy.Auto,
+    }),
+    status: vi.fn<McpServers["status"]>(async () => ({
+      error: undefined,
+      servers: [],
+    })),
+    reconnect: vi.fn<McpServers["reconnect"]>(),
+    signIn: vi.fn<McpServers["signIn"]>(),
+    cancelSignIn: vi.fn<McpServers["cancelSignIn"]>(),
+    signOut: vi.fn<McpServers["signOut"]>(),
+    create: vi.fn<McpServers["create"]>(async () => undefined),
+  };
+
+  const shell = {
+    chooseFubonFile: vi.fn(async () => null),
+    showItemInFolder: vi.fn<(path: string) => void>(),
+    about: () => ({
+      name: "Solyx Dev",
+      version: "0.0.0",
+      packaged: false,
+      electron: "40.0.0",
+      chromium: "140.0.0",
+      node: "24.0.0",
+      os: "macOS 26.0 (arm64)",
+    }),
+    canReportCrashes: true,
+    hasDock: true,
+  };
+
+  const skillFolders = {
+    solyx: join(configDir, "skills"),
+    shared: join(home, ".agents", "skills"),
+  };
+
+  const context: SettingsContext = {
+    config,
+    secrets,
+    appearance: createAppearance({ config, onChange: vi.fn() }),
+    marketData: {
+      status: vi.fn(),
+      signInFubon: vi.fn(),
+    },
+    agent: {
+      models: createAgentModels({
+        config,
+        secrets,
+        getDeviceId: () => "00000000-0000-4000-8000-000000000000",
+        openExternal: vi.fn(),
+        showSignInCode: vi.fn(),
+        modelsFile: join(home, "data", "agent-models.json"),
+        onModelsListed: vi.fn(),
+      }),
+      skills: async () => ({ skills: [], warnings: [] }),
+      instructions: async () => undefined,
+    },
+    mcp,
+    decisions: { settings: vi.fn() },
+    embeddings: { settings: vi.fn() },
+    webSearch: createWebSearch({ config, secrets }),
+    home,
+    locations: {
+      [AppLocation.Data]: join(home, "data"),
+      [AppLocation.Config]: config.file,
+      [AppLocation.Skills]: skillFolders.solyx,
+      [AppLocation.Mcp]: mcp.file,
+    },
+    skillFolders,
+    instructionsFile: join(configDir, "AGENTS.md"),
+    settingsShell: shell,
+    tradingBroker: TradingBroker.Paper,
+    mandates: createMandateStore(secrets),
+    restart: vi.fn(),
+    windowEvents: new MemoryPublisher<WindowEvents>(),
+    client: { kind: ClientKind.Window, window: 1 },
+  };
+
+  // As a window calls them, failures told as the main process words them.
+  const api = createRouterClient(settingsRouter, {
+    context,
+    interceptors: [keepMessages],
+  });
+
+  return { api, config, secrets, mcp, shell, restart: context.restart };
+}
+
+test("a web search vendor's key is saved under its id, and the vendor in use is a setting", async () => {
+  const { api, config, secrets } = setup();
+
+  expect(await api.webSearch()).toEqual({
+    provider: WebSearchProvider.Firecrawl,
+    keys: {
+      [WebSearchProvider.Firecrawl]: SecretState.Missing,
+      [WebSearchProvider.Exa]: SecretState.Missing,
+      [WebSearchProvider.Tavily]: SecretState.Missing,
+    },
+  });
+
+  await api.saveWebSearchKey({
+    provider: WebSearchProvider.Exa,
+    value: "exa-key",
+  });
+  await api.setWebSearchProvider(WebSearchProvider.Exa);
+
+  expect(await secrets.get(webSearchKeySecret(WebSearchProvider.Exa))).toBe(
+    "exa-key"
+  );
+  expect(config.read().webSearch.provider).toBe(WebSearchProvider.Exa);
+  expect(await api.webSearch()).toMatchObject({
+    provider: WebSearchProvider.Exa,
+    keys: { [WebSearchProvider.Exa]: SecretState.Saved },
+  });
+
+  await api.deleteWebSearchKey(WebSearchProvider.Exa);
+
+  expect(
+    await secrets.get(webSearchKeySecret(WebSearchProvider.Exa))
+  ).toBeUndefined();
+});
+
+test("switching the agent's provider starts from its default model, in one save", async () => {
+  const { api, config } = setup();
+  const saves = vi.fn();
+
+  config.onChange(saves);
+  await api.setAgentModel("claude-something-else");
+  saves.mockClear();
+  await api.setAgentProvider("openai");
+
+  expect(saves).toHaveBeenCalledOnce();
+  expect(config.read().agent).toMatchObject({
+    provider: "openai",
+    model: DEFAULT_MODEL.openai,
+  });
+  expect(await api.agent()).toMatchObject({
+    provider: "openai",
+    model: DEFAULT_MODEL.openai,
+  });
+});
+
+test("a provider is switched on once, and off again", async () => {
+  const { api, config } = setup();
+
+  await api.setAgentProviderEnabled({ provider: "google", enabled: true });
+  await api.setAgentProviderEnabled({ provider: "google", enabled: true });
+
+  expect(config.read().agent.providers).toEqual(["google"]);
+
+  await api.setAgentProviderEnabled({ provider: "google", enabled: false });
+
+  expect(config.read().agent.providers).toEqual([]);
+});
+
+test("a provider's endpoint is set and goes back to its own, except for one whose models use several", async () => {
+  const { api, config } = setup();
+  const gateway = "https://gateway.example/v1";
+
+  const endpointOf = async (provider: AgentProvider) =>
+    (await api.agent()).providers.find((each) => each.provider === provider)
+      ?.endpoint;
+
+  const own = (await endpointOf("openai"))?.default;
+
+  await api.setAgentEndpoint({ provider: "openai", endpoint: gateway });
+
+  expect(await endpointOf("openai")).toEqual({
+    url: gateway,
+    default: own,
+  });
+
+  await api.setAgentEndpoint({ provider: "openai", endpoint: null });
+
+  expect(config.read().agent.endpoints).toEqual({});
+  expect(await endpointOf("openai")).toEqual({
+    url: own,
+    default: own,
+  });
+
+  expect(await endpointOf("openrouter")).toBeNull();
+  await expect(
+    api.setAgentEndpoint({ provider: "openrouter", endpoint: gateway })
+  ).rejects.toThrow("several endpoints");
+});
+
+test("a provider's key is saved under its id, and a provider the app does not offer is refused", async () => {
+  const { api, secrets } = setup();
+
+  await api.saveAgentKey({ provider: "deepseek", value: "sk-deepseek" });
+
+  expect(await secrets.get(agentKeySecret("deepseek"))).toBe("sk-deepseek");
+
+  await api.deleteAgentKey("deepseek");
+
+  expect(await secrets.get(agentKeySecret("deepseek"))).toBeUndefined();
+
+  await expect(
+    api.saveAgentKey({ provider: "amazon-bedrock", value: "key" })
+  ).rejects.toThrow("not a provider the app offers");
+  await expect(
+    api.setAgentProviderEnabled({ provider: "amazon-bedrock", enabled: true })
+  ).rejects.toThrow("not a provider the app offers");
+  await expect(api.setAgentProvider("nowhere")).rejects.toThrow(
+    "not a provider the app offers"
+  );
+});
+
+test("a shared skill is switched on once, and off again", async () => {
+  const { api, config } = setup();
+
+  await api.setSharedSkill({ name: "breakout-watch", enabled: true });
+  await api.setSharedSkill({ name: "breakout-watch", enabled: true });
+
+  expect(config.read().agent.sharedSkills).toEqual(["breakout-watch"]);
+
+  await api.setSharedSkill({ name: "breakout-watch", enabled: false });
+
+  expect(config.read().agent.sharedSkills).toEqual([]);
+});
+
+test("the shell is off until the user switches it on", async () => {
+  const { api, config } = setup();
+
+  expect((await api.agentSkills()).shell).toBe(false);
+
+  await api.setAgentShell(true);
+
+  expect(config.read().agent.shell).toBe(true);
+  expect((await api.agentSkills()).shell).toBe(true);
+});
+
+test("traces and logs go nowhere until an endpoint is set, and their headers must parse before they are saved", async () => {
+  const { api, config, secrets } = setup();
+
+  expect(await api.otlp()).toEqual({ endpoint: null });
+
+  await api.setOtlpEndpoint("https://otlp-gateway.example.net/otlp");
+
+  expect(config.read().otlp.endpoint).toBe(
+    "https://otlp-gateway.example.net/otlp"
+  );
+
+  await expect(
+    api.saveSecret({ secret: Secret.OtlpHeaders, value: "glc_token" })
+  ).rejects.toThrow(/key=value/);
+  expect(await secrets.get(Secret.OtlpHeaders)).toBeUndefined();
+
+  await api.saveSecret({
+    secret: Secret.OtlpHeaders,
+    value: "Authorization=Basic%20abc",
+  });
+
+  expect(await secrets.get(Secret.OtlpHeaders)).toBe(
+    "Authorization=Basic%20abc"
+  );
+
+  await api.setOtlpEndpoint(null);
+
+  expect(await api.otlp()).toEqual({ endpoint: null });
+});
+
+test("crash reports stay unsent until the user agrees to send them", async () => {
+  const { api, config } = setup();
+
+  expect(await api.crashReports()).toEqual({ send: false, available: true });
+
+  await api.setCrashReports(true);
+
+  expect(config.read().crashReports.send).toBe(true);
+  expect(await api.crashReports()).toEqual({ send: true, available: true });
+});
+
+test("memory is on until the user switches it off", async () => {
+  const { api, config } = setup();
+
+  expect(await api.memory()).toEqual({ enabled: true });
+
+  await api.setMemoryEnabled(false);
+
+  expect(config.read().agent.memory).toBe(false);
+  expect(await api.memory()).toEqual({ enabled: false });
+});
+
+test("orders stay unlocked and without a daily loss limit until the user sets them", async () => {
+  const { api, config } = setup();
+
+  expect(await api.trading()).toMatchObject({
+    locked: false,
+    maxDailyLoss: {},
+  });
+
+  await api.setOrdersLocked(true);
+  await api.setMaxDailyLoss({ currency: Currency.TWD, amount: 50_000 });
+
+  expect(config.read().trading).toMatchObject({
+    locked: true,
+    maxDailyLoss: { TWD: 50_000 },
+  });
+  expect(await api.trading()).toMatchObject({
+    locked: true,
+    maxDailyLoss: { TWD: 50_000 },
+  });
+
+  await api.setMaxDailyLoss({ currency: Currency.TWD, amount: null });
+
+  expect(await api.trading()).toMatchObject({ locked: true, maxDailyLoss: {} });
+});
+
+test("a mandate covers the account the desk trades for the days the user gives it, sealed with the secrets", async () => {
+  const { api, secrets } = setup();
+
+  expect(await api.mandate()).toBeNull();
+
+  const before = Date.now();
+
+  const mandate = await api.setMandate({
+    shadow: true,
+    listings: [{ market: Market.TW, symbol: "2330" }],
+    sides: [Side.Sell],
+    maxOrderValue: { TWD: 500_000 },
+    maxDayValue: { TWD: 1_000_000 },
+    maxDayOrders: 4,
+    days: 7,
+  });
+
+  expect(mandate).toMatchObject({ broker: TradingBroker.Paper, shadow: true });
+  expect(mandate.expiresAt - before).toBeGreaterThanOrEqual(7 * DAY_MS);
+  expect(await api.mandate()).toEqual(mandate);
+  expect(JSON.parse((await secrets.get(MANDATE_SECRET)) ?? "")).toEqual(
+    mandate
+  );
+
+  await api.revokeMandate();
+
+  expect(await api.mandate()).toBeNull();
+  expect(await secrets.get(MANDATE_SECRET)).toBeUndefined();
+});
+
+test("a sealed mandate that does not parse reads as none", async () => {
+  const { api, secrets } = setup();
+
+  await secrets.save(MANDATE_SECRET, JSON.stringify({ broker: "paper" }));
+
+  await vi.waitFor(async () => expect(await api.mandate()).toBeNull());
+});
+
+test("orders go to the paper account until the user picks one of Fubon's, which the desk trades once the app starts again", async () => {
+  const { api, config, restart } = setup();
+
+  expect(await api.trading()).toMatchObject({
+    broker: TradingBroker.Paper,
+    account: null,
+    trading: TradingBroker.Paper,
+  });
+
+  await api.setTradingAccount({
+    broker: TradingBroker.Fubon,
+    account: "6460-28",
+  });
+
+  expect(config.read().trading).toMatchObject({
+    broker: TradingBroker.Fubon,
+    account: "6460-28",
+  });
+  expect(await api.trading()).toMatchObject({
+    broker: TradingBroker.Fubon,
+    account: "6460-28",
+    trading: TradingBroker.Paper,
+  });
+
+  await api.restart();
+
+  expect(restart).toHaveBeenCalledTimes(1);
+});
+
+test("MCP servers show each tool under the policy in force, which secrets are saved, and paths from home", async () => {
+  const { api, secrets, mcp } = setup();
+
+  mcp.status.mockResolvedValue({
+    error: undefined,
+    servers: [
+      {
+        name: "broker",
+        kind: McpTransportKind.Stdio,
+        target: join(home, "bin", "broker-mcp"),
+        state: McpServerState.Connected,
+        tools: [
+          { name: "quote", readOnly: true },
+          { name: "order", readOnly: false },
+          { name: "history", readOnly: true },
+        ],
+        secrets: ["BROKER_TOKEN", "BROKER_SECRET"],
+        signedIn: false,
+      },
+    ],
+  });
+  await secrets.save(mcpSecretKey("BROKER_TOKEN"), "token");
+
+  expect(await api.mcp()).toEqual({
+    path: "~/.solyx/mcp.json",
+    error: undefined,
+    servers: [
+      {
+        name: "broker",
+        kind: McpTransportKind.Stdio,
+        target: "~/bin/broker-mcp",
+        state: McpServerState.Connected,
+        error: undefined,
+        // Only a tool its server marks read-only runs without asking.
+        tools: [
+          { name: "quote", readOnly: true, policy: McpToolPolicy.Auto },
+          { name: "order", readOnly: false, policy: McpToolPolicy.Ask },
+          { name: "history", readOnly: true, policy: McpToolPolicy.Ask },
+        ],
+        secrets: [
+          { name: "BROKER_TOKEN", saved: true },
+          { name: "BROKER_SECRET", saved: false },
+        ],
+        signedIn: false,
+      },
+    ],
+  });
+});
+
+test("a changed MCP secret reconnects its server", async () => {
+  const { api, secrets, mcp } = setup();
+
+  await api.saveMcpSecret({
+    server: "broker",
+    name: "BROKER_TOKEN",
+    value: "token",
+  });
+
+  expect(await secrets.get(mcpSecretKey("BROKER_TOKEN"))).toBe("token");
+  expect(mcp.reconnect).toHaveBeenCalledWith("broker");
+});
+
+test("showing the skills folder creates it first, and mcp.json is written before it is shown", async () => {
+  const { api, mcp, shell } = setup();
+
+  await api.reveal(AppLocation.Skills);
+
+  expect((await stat(join(home, ".solyx", "skills"))).isDirectory()).toBe(true);
+  expect(shell.showItemInFolder).toHaveBeenLastCalledWith(
+    join(home, ".solyx", "skills")
+  );
+
+  await api.reveal(AppLocation.Mcp);
+
+  expect(mcp.create).toHaveBeenCalledOnce();
+  expect(shell.showItemInFolder).toHaveBeenLastCalledWith(mcp.file);
+});
+
+test("About shows paths from home", async () => {
+  const { api } = setup();
+
+  expect((await api.about()).locations).toEqual({
+    [AppLocation.Data]: "~/data",
+    [AppLocation.Config]: "~/.solyx/config.json",
+    [AppLocation.Skills]: "~/.solyx/skills",
+    [AppLocation.Mcp]: "~/.solyx/mcp.json",
+  });
+});

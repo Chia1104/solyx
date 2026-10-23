@@ -1,0 +1,126 @@
+import { uniqBy } from "es-toolkit";
+
+import { AppPlace } from "@solyx/agent/prompt";
+import type { ContextListing, TurnContext } from "@solyx/agent/prompt";
+import { messageTokens } from "@solyx/agent/wire";
+import { ScreenKind } from "@solyx/api/agent";
+import type { AgentScreen } from "@solyx/api/agent";
+import { ChartIndicator } from "@solyx/api/chart-indicator";
+import { OverviewTab } from "@solyx/api/overview-tab";
+import { symbolKey } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
+
+/** An indicator the chart draws, in the words the agent's tools use for it. */
+const INDICATOR_WORDS: Record<ChartIndicator, string> = {
+  [ChartIndicator.MovingAverage]: "short MAs",
+  [ChartIndicator.LongMovingAverage]: "long MAs",
+  [ChartIndicator.Bollinger]: "Bollinger Bands",
+  [ChartIndicator.Vwap]: "VWAP",
+  [ChartIndicator.Macd]: "MACD",
+  [ChartIndicator.Rsi]: "RSI",
+  [ChartIndicator.Kd]: "KD",
+  [ChartIndicator.VolumeRatio]: "volume over its average",
+  [ChartIndicator.RelativeStrength]: "relative strength",
+  [ChartIndicator.YearRange]: "52-week range",
+  [ChartIndicator.Zones]: "support zones",
+  [ChartIndicator.VolumeProfile]: "volume profile",
+  [ChartIndicator.SessionLevels]: "session levels",
+  [ChartIndicator.ForeignFlow]: "foreign net buying",
+  [ChartIndicator.TrustFlow]: "investment trust net buying",
+  [ChartIndicator.DealerFlow]: "dealer net buying",
+  [ChartIndicator.Margin]: "margin balances",
+  [ChartIndicator.Short]: "short balances",
+  [ChartIndicator.ForeignHolding]: "foreign holding ratio",
+};
+
+const PLACE_OF_TAB: Record<OverviewTab, AppPlace> = {
+  [OverviewTab.Today]: AppPlace.Moves,
+  [OverviewTab.News]: AppPlace.Headlines,
+  [OverviewTab.Calendar]: AppPlace.Calendar,
+  [OverviewTab.Market]: AppPlace.Market,
+};
+
+/** What a message's context says of the screen it was written at. */
+export function screenContext(
+  screen: AgentScreen | null
+): Pick<TurnContext, "focus" | "chart" | "place" | "settings"> {
+  switch (screen?.kind) {
+    case ScreenKind.Listing:
+      return {
+        focus: { symbol: screen.symbol, name: screen.name },
+        chart: {
+          interval: screen.interval,
+          indicators: screen.indicators.map(
+            (indicator) => INDICATOR_WORDS[indicator]
+          ),
+        },
+      };
+    case ScreenKind.Overview:
+      return { place: PLACE_OF_TAB[screen.tab] };
+    case ScreenKind.Settings:
+      return { settings: screen.section.replaceAll("-", " ") };
+    default:
+      return {};
+  }
+}
+
+export interface MessageContextSources {
+  /** The listing on screen, named as the renderer shows it. */
+  focus: ContextListing | null;
+  watchlist(): readonly SymbolRef[];
+  /** What the account holds, asked only for a code the screen and the watchlist miss, since a live broker answers over the network. */
+  holdings(): Promise<readonly SymbolRef[]>;
+  /** The exchange's name for a listing, when its source knows it. */
+  name(symbol: SymbolRef): Promise<string | undefined>;
+  /** The skills the user may ask for with `/name`. */
+  commands(): Promise<readonly string[]>;
+}
+
+/**
+ * The listings a message names with `@` and the skill its leading `/name` asks for, as far as
+ * the app knows them. A token naming neither stays the user's text, and a source that fails
+ * leaves out what only it knew rather than failing the message.
+ */
+export async function messageContext(
+  text: string,
+  sources: MessageContextSources
+) {
+  const { skill, codes } = messageTokens(text);
+
+  const near = [
+    ...(sources.focus ? [sources.focus.symbol] : []),
+    ...sources.watchlist(),
+  ];
+
+  const named = (listings: readonly SymbolRef[], code: string) =>
+    listings.find((listing) => listing.symbol.toUpperCase() === code);
+
+  const held = codes.some((code) => !named(near, code))
+    ? await sources.holdings().catch(() => [])
+    : [];
+
+  const symbols = uniqBy(
+    codes.flatMap((code) => named([...near, ...held], code) ?? []),
+    symbolKey
+  );
+
+  const focusKey = sources.focus && symbolKey(sources.focus.symbol);
+
+  const mentions = await Promise.all(
+    symbols.map(async (symbol): Promise<ContextListing> => {
+      const name =
+        symbolKey(symbol) === focusKey
+          ? sources.focus?.name
+          : await sources.name(symbol).catch(() => undefined);
+
+      return name ? { symbol, name } : { symbol };
+    })
+  );
+
+  const asked =
+    skill !== undefined && (await sources.commands()).includes(skill)
+      ? skill
+      : undefined;
+
+  return { mentions, skill: asked };
+}

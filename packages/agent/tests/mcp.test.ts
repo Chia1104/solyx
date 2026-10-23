@@ -32,6 +32,9 @@ const hubs: McpHub[] = [];
 const toolsOf = (hub: McpHub, options: McpToolOptions) =>
   hub.extensions(options).tools.tools ?? [];
 
+/** Lets a tool run as the gate does outside a run that asks every call. */
+const unasked: McpToolOptions["unasked"] = (tool) => tool;
+
 /** A guard whose calls ask `allow` in place of the user. */
 const guardWith =
   (allow: () => Promise<boolean>): McpToolOptions["guard"] =>
@@ -168,7 +171,13 @@ describe("a connected server", () => {
     ]);
 
     const allow = vi.fn(async () => true);
-    const tools = toolsOf(hub, { policies: {}, guard: guardWith(allow) });
+
+    const tools = toolsOf(hub, {
+      policies: {},
+      guard: guardWith(allow),
+      unasked,
+    });
+
     const quote = tools.find((tool) => tool.name === "mcp_fake_quote");
     const result = await call(quote, { symbol: "2330" });
 
@@ -189,6 +198,7 @@ describe("a connected server", () => {
     const { search, tools, namespaces } = hub.extensions({
       policies: {},
       guard: guardWith(async () => true),
+      unasked,
     });
 
     expect(tools.tools?.map((tool) => tool.name)).toEqual([
@@ -228,6 +238,7 @@ describe("a connected server", () => {
     const { search, namespaces } = hub.extensions({
       policies: {},
       guard: guardWith(async () => true),
+      unasked,
     });
 
     const [servers] = search.sections ?? [];
@@ -252,6 +263,7 @@ describe("a connected server", () => {
     const order = toolsOf(hub, {
       policies: {},
       guard: guardWith(async () => false),
+      unasked,
     }).find((tool) => tool.name === "mcp_fake_order");
 
     await expect(call(order, {})).rejects.toThrow("did not allow");
@@ -271,6 +283,7 @@ describe("a connected server", () => {
         "fake/order": McpToolPolicy.Auto,
       },
       guard: guardWith(allow),
+      unasked,
     });
 
     const quote = tools.find((tool) => tool.name === "mcp_fake_quote");
@@ -291,6 +304,7 @@ describe("a connected server", () => {
       toolsOf(hub, {
         policies: { "fake/order": McpToolPolicy.Off },
         guard: guardWith(allow),
+        unasked,
       }).map((tool) => tool.name)
     ).toEqual(["mcp_fake_quote"]);
   });
@@ -313,6 +327,7 @@ test("a server whose secret is not saved fails and names it", async () => {
   const { search, tools } = hub.extensions({
     policies: {},
     guard: guardWith(async () => true),
+    unasked,
   });
 
   expect(tools.tools).toEqual([]);
@@ -368,6 +383,7 @@ describe("a remote server that asks to sign in", () => {
     const [whoami] = toolsOf(setup.hub, {
       policies: { "remote/whoami": McpToolPolicy.Auto },
       guard: guardWith(async () => false),
+      unasked,
     });
 
     const callWhoami = async (id: string) =>

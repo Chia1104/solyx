@@ -153,7 +153,7 @@ function setup(vendor = fakeVendor()) {
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    tools: async (guard) => ({
+    tools: async ({ guard }) => ({
       offered: [trading, web.extension(guard)],
       deferred: [],
     }),

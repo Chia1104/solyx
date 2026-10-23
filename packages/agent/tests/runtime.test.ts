@@ -22,6 +22,7 @@ import type {
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
+import type { ToolGuards, UnaskedGuard } from "../src/approval.ts";
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
 import type { AgentConversationStore } from "../src/runtime.ts";
@@ -656,8 +657,14 @@ test("a compacted conversation still shows every message once", async () => {
   await third.runtime.close();
 });
 
-/** A run that loads an MCP tool the user must allow, as `tool_search` would, and calls it. */
-function approvalSetup(store = memoryStore()) {
+/**
+ * A run that loads an MCP tool, as `tool_search` would, and calls it: one the user must allow,
+ * unless `wrap` passes it the gate another way.
+ */
+function approvalSetup(
+  store = memoryStore(),
+  wrap: (guards: ToolGuards) => UnaskedGuard = ({ guard }) => guard
+) {
   const faux = fauxProvider();
   const models = createModels();
   const events: AgentWireEvent[] = [];
@@ -672,7 +679,7 @@ function approvalSetup(store = memoryStore()) {
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    tools: async (guard) => ({
+    tools: async (guards) => ({
       offered: [
         NO_TOOLS,
         defineExtension({
@@ -695,7 +702,7 @@ function approvalSetup(store = memoryStore()) {
         defineExtension({
           name: "broker",
           tools: [
-            guard({
+            wrap(guards)({
               name: "place_order",
               description: "Places an order",
               parameters: { type: "object", properties: {} },
@@ -752,7 +759,20 @@ function approvalSetup(store = memoryStore()) {
       expect(events.at(-1)).toMatchObject({ type: AgentEventType.RunEnd })
     );
 
-  return { runtime, events, placed, order, ask, ended };
+  /** Has the model call the loaded tool again in the conversation's next run. */
+  const again = () =>
+    faux.setResponses([
+      fauxAssistantMessage(fauxToolCall("place_order", {}), {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage("Done again."),
+    ]);
+
+  const asked = () =>
+    events.filter((event) => event.type === AgentEventType.ApprovalRequest)
+      .length;
+
+  return { runtime, events, placed, order, ask, ended, again, asked };
 }
 
 test("a call the user must allow waits in its conversation, which a reload shows, until they do", async () => {
@@ -861,6 +881,69 @@ test("a conversation the user set to bypass runs its guarded calls without askin
   expect(await runtime.sessions()).toMatchObject([
     { id, approvalMode: ApprovalMode.Bypass },
   ]);
+
+  await runtime.close();
+});
+
+test("a message that asks every call has its run ask in a conversation set to bypass, and the next one runs as the mode says", async () => {
+  const { runtime, placed, order, ended, again, asked } = approvalSetup();
+  const { id } = await runtime.create();
+
+  await runtime.setApprovalMode(id, ApprovalMode.Bypass);
+  await runtime.send(id, {
+    text: "Buy 2330",
+    context: "",
+    asksEveryCall: true,
+  });
+  await vi.waitFor(() =>
+    expect(order()).toMatchObject({ status: ToolCallStatus.AwaitingApproval })
+  );
+
+  const call = order();
+
+  if (call?.kind !== AgentItemKind.Tool) throw new Error("No call");
+
+  expect(placed).not.toHaveBeenCalled();
+
+  runtime.approve(id, call.toolCallId, true);
+  await ended();
+  again();
+  await runtime.send(id, { text: "Buy more", context: "" });
+  await vi.waitFor(() => expect(placed).toHaveBeenCalledTimes(2));
+
+  expect(asked()).toBe(1);
+
+  await runtime.close();
+});
+
+test("a tool the user lets run unasked asks only in a run that asks every call", async () => {
+  const { runtime, placed, order, ended, again, asked } = approvalSetup(
+    memoryStore(),
+    ({ unasked }) => unasked
+  );
+
+  const { id } = await runtime.create();
+
+  await runtime.send(id, {
+    text: "Buy 2330",
+    context: "",
+    asksEveryCall: true,
+  });
+  await vi.waitFor(() =>
+    expect(order()).toMatchObject({ status: ToolCallStatus.AwaitingApproval })
+  );
+
+  const call = order();
+
+  if (call?.kind !== AgentItemKind.Tool) throw new Error("No call");
+
+  runtime.approve(id, call.toolCallId, true);
+  await ended();
+  again();
+  await runtime.send(id, { text: "Buy more", context: "" });
+  await vi.waitFor(() => expect(placed).toHaveBeenCalledTimes(2));
+
+  expect(asked()).toBe(1);
 
   await runtime.close();
 });
