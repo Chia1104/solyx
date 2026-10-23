@@ -171,3 +171,32 @@ test("the passkey is sealed with the secrets, without the token", async () => {
 
   expect(sealed).toContain(registry.passkey(phone.device)?.publicKey);
 });
+
+test("what a browser signed is not taken once it is unpaired", async () => {
+  const { passkeys, phone, key, registry } = await signing();
+  const action = { kind: SignedActionKind.Confirm, id: "p1" };
+
+  const signature = key.sign(await passkeys.actionOptions(phone, action));
+
+  await registry.remove(phone.device);
+
+  await expect(
+    passkeys.verifyAction(phone, action, signature)
+  ).rejects.toThrow();
+  expect(registry.list()).toEqual([]);
+});
+
+test("a count kept as a browser is unpaired does not bring it back", async () => {
+  const { phone, registry } = await signing();
+  const passkey = registry.passkey(phone.device);
+
+  if (!passkey) throw new Error("No passkey");
+
+  const [, kept] = await Promise.allSettled([
+    registry.remove(phone.device),
+    registry.setPasskey(phone.device, { ...passkey, counter: 5 }),
+  ]);
+
+  expect(kept).toMatchObject({ status: "rejected" });
+  expect(registry.list()).toEqual([]);
+});

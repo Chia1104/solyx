@@ -140,13 +140,20 @@ export function createDeviceRegistry(secrets: SecretStore) {
     passkey: (id: string) =>
       devices.find((device) => device.id === id)?.passkey ?? null,
 
-    /** Keeps the passkey a device added, or the count its authenticator gave as it signed. */
+    /**
+     * Keeps the passkey a device added, or the count its authenticator gave as it signed. A device
+     * unpaired meanwhile is refused, so what it signed is not taken.
+     */
     async setPasskey(id: string, passkey: StoredPasskey) {
-      await store(
-        devices.map((device) =>
+      await change((current) => {
+        if (!current.some((device) => device.id === id)) {
+          throw new Error("This browser is no longer paired");
+        }
+
+        return current.map((device) =>
           device.id === id ? { ...device, passkey } : device
-        )
-      );
+        );
+      });
     },
 
     async remove(id: string) {
