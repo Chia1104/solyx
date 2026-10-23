@@ -4,9 +4,9 @@ import type { RouterContractClient } from "@orpc/contract";
 import { net } from "electron";
 import { noop } from "es-toolkit";
 
-import type { Host } from "../backend/host.ts";
-import { connectFubon } from "../backend/modules/market/fubon-client.ts";
-import type { ReportError } from "../backend/modules/telemetry/diagnostics.ts";
+import type { Host } from "@solyx/backend/host";
+import { connectFubon } from "@solyx/backend/modules/market/fubon-client";
+import type { ReportError } from "@solyx/backend/modules/telemetry/diagnostics";
 
 import type { BackendStart } from "./backend.contract.ts";
 import type { hostContract } from "./host.contract.ts";

@@ -7,7 +7,7 @@ import {
 } from "@sentry/electron/main";
 import { app } from "electron";
 
-import type { ReportError } from "../../backend/modules/telemetry/diagnostics.ts";
+import type { ReportError } from "@solyx/backend/modules/telemetry/diagnostics";
 
 import { appChannel } from "./app-channel.ts";
 import { scrubEvent } from "./scrub-event.ts";

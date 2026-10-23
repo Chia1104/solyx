@@ -8,16 +8,15 @@ import { captureException, init } from "@sentry/electron/utility";
 import { resolveLocale } from "@solyx/api/settings";
 import { SettingsSection } from "@solyx/api/settings-section";
 import { DestinationKind } from "@solyx/api/workspace";
+import { RestoreFailure } from "@solyx/backend/modules/backup/staged-restore";
+import { CATALOGS, fill } from "@solyx/backend/modules/settings/catalogs";
+import { createConfigFile } from "@solyx/backend/modules/settings/config-file";
+import type { ReportError } from "@solyx/backend/modules/telemetry/diagnostics";
+import { keepMessages } from "@solyx/backend/rpc/messages";
+import { serveClient } from "@solyx/backend/rpc/serve";
+import { createServices } from "@solyx/backend/services";
+import type { Services } from "@solyx/backend/services";
 import { errorMessage } from "@solyx/utils/error";
-
-import { RestoreFailure } from "../backend/modules/backup/staged-restore.ts";
-import { CATALOGS, fill } from "../backend/modules/settings/catalogs.ts";
-import { createConfigFile } from "../backend/modules/settings/config-file.ts";
-import type { ReportError } from "../backend/modules/telemetry/diagnostics.ts";
-import { keepMessages } from "../backend/rpc/messages.ts";
-import { serveClient } from "../backend/rpc/serve.ts";
-import { createServices } from "../backend/services.ts";
-import type { Services } from "../backend/services.ts";
 
 import { createBackendHost } from "./backend-host.ts";
 import type { BackendHost } from "./backend-host.ts";

@@ -15,12 +15,5 @@
     "erasableSyntaxOnly": true,
     "skipLibCheck": true
   },
-  "include": [
-    "src/backend",
-    "src/main",
-    "src/utility",
-    "src/worker",
-    "tests",
-    "vite.config.ts"
-  ]
+  "include": ["src/main", "src/utility", "tests", "vite.config.ts"]
 }
