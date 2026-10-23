@@ -7,6 +7,7 @@ import type { Fill } from "@solyx/core/order";
 import type { RoundTrip } from "@solyx/core/review";
 
 import type { AccountSummary } from "../account.ts";
+import { passkeyAssertionSchema } from "../devices.ts";
 
 import { forDevices } from "./access.ts";
 
@@ -23,4 +24,11 @@ export const accountContract = {
   working: oc.meta(forDevices(true)).output(type<BrokerOrder[]>()),
   /** Asks the broker to cancel one of the account's orders, by its id. */
   cancel: oc.input(z.string().min(1)).output(type<void>()),
+  /** `cancel` for a paired browser, whose passkey signed this one order's cancelling. */
+  cancelSigned: oc
+    .meta(forDevices(true))
+    .input(
+      z.object({ id: z.string().min(1), assertion: passkeyAssertionSchema })
+    )
+    .output(type<void>()),
 };

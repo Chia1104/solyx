@@ -2,17 +2,19 @@ import { Button, EmptyState, Table } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { SignedActionKind } from "@solyx/api/devices";
 import type { BrokerOrder } from "@solyx/core/broker";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderType } from "@solyx/core/order";
 
 import { inWindow } from "../../app/device.ts";
-import { orpc } from "../../app/rpc.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { PaneSection } from "../../components/pane-section.tsx";
+import { signAction, useCanTrade } from "../devices/device-signing.ts";
 import { numberFormats } from "../market/number-formats.ts";
 
 import { ListingLink } from "./listing-link.tsx";
@@ -20,7 +22,20 @@ import { ListingLink } from "./listing-link.tsx";
 /** Asks the broker to cancel one order; the account's orders then tell what came of it. */
 function CancelButton({ id }: { id: string }) {
   const { t } = useTranslation();
-  const cancel = useMutation(orpc.account.cancel.mutationOptions());
+  const canTrade = useCanTrade();
+
+  const cancel = useMutation({
+    mutationFn: async (order: string) =>
+      inWindow
+        ? client.account.cancel(order)
+        : client.account.cancelSigned({
+            id: order,
+            assertion: await signAction({
+              kind: SignedActionKind.CancelOrder,
+              id: order,
+            }),
+          }),
+  });
 
   return (
     <div className="flex flex-col items-end gap-2">
@@ -28,7 +43,7 @@ function CancelButton({ id }: { id: string }) {
         size="sm"
         variant="tertiary"
         isPending={cancel.isPending}
-        isDisabled={!inWindow}
+        isDisabled={!canTrade}
         onPress={() => cancel.mutate(id)}>
         {t("account.cancel")}
       </Button>

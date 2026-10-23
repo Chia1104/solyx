@@ -1,6 +1,8 @@
+import { SignedActionKind } from "@solyx/api/devices";
 import { symbolKey } from "@solyx/core/market";
 import { roundTrips } from "@solyx/core/review";
 
+import { askingDevice } from "../../rpc/access.ts";
 import { contractOS } from "../../rpc/context.ts";
 
 export const accountRouter = contractOS.account.router({
@@ -31,5 +33,16 @@ export const accountRouter = contractOS.account.router({
   // A user's own action; the agent's desk cannot cancel.
   cancel: contractOS.account.cancel.handler(({ context, input }) =>
     context.desk.cancel(input)
+  ),
+  cancelSigned: contractOS.account.cancelSigned.handler(
+    async ({ context, input }) => {
+      await context.devices.passkeys.verifyAction(
+        askingDevice(context.client),
+        { kind: SignedActionKind.CancelOrder, id: input.id },
+        input.assertion
+      );
+
+      await context.desk.cancel(input.id);
+    }
   ),
 });

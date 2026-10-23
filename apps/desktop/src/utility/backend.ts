@@ -142,10 +142,10 @@ function start(
   void client.ready();
 
   // Paired browsers reach the router through the edge, while the user has it on.
-  void services.devices.listen((socket, device) =>
+  void services.devices.listen((socket, device, origin) =>
     serveSocket(socket, {
       ...services,
-      client: { kind: ClientKind.Device, device: device.id },
+      client: { kind: ClientKind.Device, device: device.id, origin },
     })
   );
 

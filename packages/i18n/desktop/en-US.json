@@ -2051,7 +2051,7 @@
     "devices": {
       "title": "Devices",
       "enabled": "Serve to paired browsers",
-      "enabled-description": "Serves the workspace on this computer's own address to browsers you pair. They can read and propose, but not submit orders or change settings.",
+      "enabled-description": "Serves the workspace on this computer's own address to browsers you pair. They can read and propose, and submit orders only with a passkey. They can't change settings.",
       "listen-failed": "Couldn't start serving",
       "address": "Address",
       "address-description": "From another computer, forward it over SSH with ssh -L {{port}}:127.0.0.1:{{port}} and this computer's name, then open this address there.",
@@ -2061,6 +2061,7 @@
       "new-code": "New code",
       "code-expires": "Expires at {{time}}",
       "paired-at": "Paired {{date}}",
+      "paired-with-passkey": "Paired {{date}} · Submits with a passkey",
       "remove": "Unpair"
     }
   },
@@ -2162,7 +2163,7 @@
     }
   },
   "devices": {
-    "confirm-on-computer": "Submit it on the computer running Solyx.",
+    "confirm-on-computer": "Submit it on the computer running Solyx, or pair this browser again with a passkey.",
     "answer-on-computer": "Answer it on the computer running Solyx."
   },
   "pairing": {
@@ -2172,6 +2173,13 @@
     "name": "Name this browser",
     "default-name": "My browser",
     "submit": "Pair",
-    "failed": "Couldn't pair"
+    "failed": "Couldn't pair",
+    "passkey": {
+      "title": "Submit orders from this browser?",
+      "description": "Add a passkey and this browser can submit and cancel orders, each after you unlock it. You can add one only now.",
+      "add": "Add passkey",
+      "skip": "Not now",
+      "failed": "Couldn't add the passkey"
+    }
   }
 }

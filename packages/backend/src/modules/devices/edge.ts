@@ -29,6 +29,13 @@ function hostName(host: string) {
 const fromItsOwnPage = (c: Context) =>
   c.req.header("origin") === `http://${c.req.header("host")}`;
 
+/** Serves the router on a paired device's socket, opened from a page at `origin`. */
+export type ServeDevice = (
+  socket: WebSocket,
+  device: PairedDevice,
+  origin: string
+) => void;
+
 export interface EdgeOptions {
   port: number;
   /** The folder holding the renderer's build, which the edge serves. */
@@ -37,8 +44,7 @@ export interface EdgeOptions {
   verify: (token: string) => PairedDevice | null;
   /** Pairs a device with the code the desktop shows; `null` for a code that is not that one. */
   pair: (request: PairingRequest) => Promise<Pairing | null>;
-  /** Serves the router on a paired device's socket. */
-  serve: (socket: WebSocket, device: PairedDevice) => void;
+  serve: ServeDevice;
 }
 
 /**
@@ -95,6 +101,9 @@ export function startEdge(options: EdgeOptions) {
       const device =
         protocol === DEVICE_PROTOCOL && token ? options.verify(token) : null;
 
+      // The route took only a page the edge served, so its origin names this computer.
+      const origin = `http://${c.req.header("host")}`;
+
       return {
         onOpen(_event, ws) {
           // SAFETY: the server upgrades through `websockets`, a `ws` server, so every socket is `ws`'s.
@@ -110,7 +119,7 @@ export function startEdge(options: EdgeOptions) {
 
           held.add(socket);
           sockets.set(device.id, held);
-          options.serve(socket, device);
+          options.serve(socket, device, origin);
         },
         onClose(_event, ws) {
           // SAFETY: as in `onOpen`.

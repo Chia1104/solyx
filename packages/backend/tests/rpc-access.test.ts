@@ -41,3 +41,21 @@ test("what sends or cancels orders, unseals, widens reach or pairs is never for 
     expect(isForDevices(procedure), path).not.toBe(true);
   }
 });
+
+test("what sends or cancels at the broker reaches devices only with a passkey's signature", () => {
+  const signed = {
+    "proposals.confirmSigned": routerContract.proposals.confirmSigned,
+    "proposals.cancelExitSigned": routerContract.proposals.cancelExitSigned,
+    "account.cancelSigned": routerContract.account.cancelSigned,
+  };
+
+  for (const [path, procedure] of Object.entries(signed)) {
+    expect(isForDevices(procedure), path).toBe(true);
+    expect(
+      procedure["~orpc"].inputSchemas?.[0]?.["~standard"].validate({
+        id: "p1",
+      }),
+      path
+    ).toHaveProperty("issues");
+  }
+});

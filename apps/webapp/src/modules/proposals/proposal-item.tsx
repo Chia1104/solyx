@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { SignedActionKind } from "@solyx/api/devices";
 import { TradingBroker } from "@solyx/api/settings";
 import { brokerOfId } from "@solyx/core/broker";
 import { Interval } from "@solyx/core/candles";
@@ -21,9 +22,10 @@ import type { ProposalBasis, TradeProposal } from "@solyx/core/order-desk";
 import type { OrderPremise } from "@solyx/core/risk";
 
 import { inWindow } from "../../app/device.ts";
-import { orpc } from "../../app/rpc.ts";
+import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { HoldButton } from "../../components/hold-button.tsx";
+import { signAction, useCanTrade } from "../devices/device-signing.ts";
 import { ListingName } from "../market/listing-name.tsx";
 import { LowerView } from "../market/lower-view.ts";
 import { numberFormats } from "../market/number-formats.ts";
@@ -238,7 +240,20 @@ function ExitSummary({ quantity, exit }: { quantity: number; exit: Exit }) {
 /** Where the broker stands on an exit it was given: watching, or done and why. */
 function ExitState({ proposal }: { proposal: TradeProposal }) {
   const { t } = useTranslation();
-  const cancel = useMutation(orpc.proposals.cancelExit.mutationOptions());
+  const canTrade = useCanTrade();
+
+  const cancel = useMutation({
+    mutationFn: async (id: string) =>
+      inWindow
+        ? client.proposals.cancelExit(id)
+        : client.proposals.cancelExitSigned({
+            id,
+            assertion: await signAction({
+              kind: SignedActionKind.CancelExit,
+              id,
+            }),
+          }),
+  });
 
   if (exitWatched(proposal)) {
     return (
@@ -253,7 +268,7 @@ function ExitState({ proposal }: { proposal: TradeProposal }) {
             size="sm"
             variant="secondary"
             isPending={cancel.isPending}
-            isDisabled={!inWindow}
+            isDisabled={!canTrade}
             onPress={() => cancel.mutate(proposal.id)}>
             {t("proposals.exit.cancel")}
           </Button>
@@ -282,7 +297,22 @@ function ExitState({ proposal }: { proposal: TradeProposal }) {
 export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   const { t } = useTranslation();
 
-  const confirm = useMutation(orpc.proposals.confirm.mutationOptions());
+  const canTrade = useCanTrade();
+
+  // A paired browser has its passkey sign this one proposal before the backend takes it.
+  const confirm = useMutation({
+    mutationFn: async (id: string) =>
+      inWindow
+        ? client.proposals.confirm(id)
+        : client.proposals.confirmSigned({
+            id,
+            assertion: await signAction({
+              kind: SignedActionKind.Confirm,
+              id,
+            }),
+          }),
+  });
+
   const locked = useQuery(tradingSettingsQuery()).data?.locked ?? false;
 
   const dismiss = useMutation(orpc.proposals.dismiss.mutationOptions());
@@ -427,8 +457,8 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
             size="sm"
             isPending={confirm.isPending}
             // Locked orders would only be refused, which would end the proposal; a paired browser
-            // may not send one at all.
-            isDisabled={dismiss.isPending || locked || !inWindow}
+            // without a passkey may not send one at all.
+            isDisabled={dismiss.isPending || locked || !canTrade}
             onConfirm={() => confirm.mutate(proposal.id)}>
             {t("proposals.confirm")}
           </HoldButton>
@@ -442,7 +472,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
           </Button>
         </div>
       )}
-      {proposal.status === ProposalStatus.AwaitingConfirmation && !inWindow ? (
+      {proposal.status === ProposalStatus.AwaitingConfirmation && !canTrade ? (
         <p className="text-xs text-muted">{t("devices.confirm-on-computer")}</p>
       ) : null}
     </article>

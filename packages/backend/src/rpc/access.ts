@@ -8,7 +8,7 @@ import type {
 import { isForDevices } from "@solyx/api/rpc/access";
 
 import { ClientKind } from "./context.ts";
-import type { RpcClient } from "./context.ts";
+import type { DeviceClient, RpcClient } from "./context.ts";
 
 /**
  * Refuses a device every procedure its contract does not open to devices, before its input is
@@ -27,3 +27,14 @@ export const onlyWhatDevicesMayCall: ProcedureClientInterceptor<
 
   return next();
 };
+
+/** The paired device asking, for what only one does; refused to this computer's windows. */
+export function askingDevice(client: RpcClient): DeviceClient {
+  if (client.kind !== ClientKind.Device) {
+    throw new ORPCError("FORBIDDEN", {
+      message: "Only a paired browser signs with a passkey",
+    });
+  }
+
+  return client;
+}
