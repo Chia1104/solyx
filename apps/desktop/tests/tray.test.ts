@@ -1,17 +1,16 @@
 import { noop } from "es-toolkit";
 import { expect, test, vi } from "vite-plus/test";
 
+import { clock } from "@solyx/api/clock";
+import { Locale } from "@solyx/api/settings";
+import { SettingsSection } from "@solyx/api/settings-section";
+import { UpdateStatus } from "@solyx/api/updates";
+import { DestinationKind } from "@solyx/api/workspace";
+import type { Destination } from "@solyx/api/workspace";
 import { BrokerMode } from "@solyx/core/broker";
 import enUS from "@solyx/i18n/desktop/en-US.json" with { type: "json" };
 import zhTW from "@solyx/i18n/desktop/zh-TW.json" with { type: "json" };
 import { HOUR_MS } from "@solyx/utils/date";
-
-import { clock } from "#shared/clock.ts";
-import { SettingsSection } from "#shared/settings-section.ts";
-import { Locale } from "#shared/settings.ts";
-import { UpdateStatus } from "#shared/updates.ts";
-import { DestinationKind } from "#shared/workspace.ts";
-import type { Destination } from "#shared/workspace.ts";
 
 import { createTray } from "../src/backend/modules/tray/tray.ts";
 import type {

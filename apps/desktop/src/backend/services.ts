@@ -4,6 +4,15 @@ import { pathToFileURL } from "node:url";
 import { MemoryPublisher } from "@orpc/publisher/memory";
 import { debounce, kebabCase, omit, uniqBy } from "es-toolkit";
 
+import type { Approval } from "@solyx/api/inbox";
+import { ColorScheme } from "@solyx/api/palette";
+import {
+  AppLocation,
+  Secret,
+  TradingBroker,
+  resolveLocale,
+  resolveTimeZone,
+} from "@solyx/api/settings";
 import { createFubonBroker } from "@solyx/brokers/fubon";
 import { createPaperBroker } from "@solyx/brokers/paper";
 import { Interval } from "@solyx/core/candles";
@@ -25,16 +34,6 @@ import { createSitca } from "@solyx/fundamentals/sitca";
 import { createTwExchanges } from "@solyx/fundamentals/tw-exchanges";
 import { createDgbas } from "@solyx/macro/dgbas";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
-
-import type { Approval } from "#shared/inbox.ts";
-import { ColorScheme } from "#shared/palette.ts";
-import {
-  AppLocation,
-  Secret,
-  TradingBroker,
-  resolveLocale,
-  resolveTimeZone,
-} from "#shared/settings.ts";
 
 import type { Host } from "./host.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";

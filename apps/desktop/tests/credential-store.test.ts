@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { OAuthCredential } from "@earendil-works/pi-ai";
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
-import { agentKeySecret } from "#shared/settings.ts";
+import { agentKeySecret } from "@solyx/api/settings";
 
 import { createCredentialStore } from "../src/backend/modules/settings/credential-store.ts";
 import { installationId } from "../src/backend/modules/settings/installation-id.ts";

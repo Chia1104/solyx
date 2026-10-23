@@ -3,7 +3,7 @@ import { detectPlatform } from "@tanstack/react-hotkeys";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { AppLocation } from "#shared/settings.ts";
+import { AppLocation } from "@solyx/api/settings";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

@@ -6,12 +6,11 @@ import type { McpToolOptions } from "@solyx/agent/mcp";
 import { mcpToolPolicySchema, parseMcpFile } from "@solyx/agent/mcp-config";
 import type { McpToolPolicy } from "@solyx/agent/mcp-config";
 import { SignInOutcome } from "@solyx/agent/sign-in-callback";
+import { PRODUCT_NAME } from "@solyx/api/product";
+import { mcpSecretKey, mcpSignInKey } from "@solyx/api/settings";
+import type { Locale } from "@solyx/api/settings";
 import { errorMessage, isErrnoError } from "@solyx/utils/error";
 import { readTextIfExists, watchFile } from "@solyx/utils/server";
-
-import { PRODUCT_NAME } from "#shared/product.ts";
-import { mcpSecretKey, mcpSignInKey } from "#shared/settings.ts";
-import type { Locale } from "#shared/settings.ts";
 
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";

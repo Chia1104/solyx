@@ -4,19 +4,18 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { FUBON_SDK_VERSIONS } from "@solyx/brokers/fubon";
-import type { FubonSessionOptions } from "@solyx/brokers/fubon";
-import { Market } from "@solyx/core/market";
-import { openCache } from "@solyx/db/cache";
-import { FuglePlan } from "@solyx/market-data/fugle";
-
 import {
   FubonFile,
   FubonSessionState,
   MarketDataSource,
   Secret,
   agentKeySecret,
-} from "#shared/settings.ts";
+} from "@solyx/api/settings";
+import { FUBON_SDK_VERSIONS } from "@solyx/brokers/fubon";
+import type { FubonSessionOptions } from "@solyx/brokers/fubon";
+import { Market } from "@solyx/core/market";
+import { openCache } from "@solyx/db/cache";
+import { FuglePlan } from "@solyx/market-data/fugle";
 
 import type { FubonProcess } from "../src/backend/modules/market/fubon-client.ts";
 import { createMarketDataSources } from "../src/backend/modules/market/market-data-sources.ts";

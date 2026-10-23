@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, powerMonitor } from "electron";
 import { kebabCase, withTimeout } from "es-toolkit";
 
-import { RPC_CONNECT } from "#shared/rpc/connect.ts";
-import { resolveLocale } from "#shared/settings.ts";
+import { RPC_CONNECT } from "@solyx/api/rpc/connect";
+import { resolveLocale } from "@solyx/api/settings";
 
 import { CATALOGS } from "../backend/modules/settings/catalogs.ts";
 import { createConfigFile } from "../backend/modules/settings/config-file.ts";

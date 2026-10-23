@@ -1,8 +1,7 @@
+import { StoredData } from "@solyx/api/storage";
+import type { StorageUsage } from "@solyx/api/storage";
 import type { Cache } from "@solyx/db/cache";
 import type { NewsData } from "@solyx/db/news";
-
-import { StoredData } from "#shared/storage.ts";
-import type { StorageUsage } from "#shared/storage.ts";
 
 import type { AgentService } from "../agent/agent-service.ts";
 import type { Memories } from "../memory/memories.ts";

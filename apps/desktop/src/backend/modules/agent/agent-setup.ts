@@ -7,6 +7,25 @@ import type { SetupArea, SetupPort, SetupSetting } from "@solyx/agent/setup";
 import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillCatalog } from "@solyx/agent/skills";
 import type { SettingChange } from "@solyx/agent/wire";
+import { RETENTION_DAYS } from "@solyx/api/news";
+import { ColorScheme, Palette } from "@solyx/api/palette";
+import {
+  DECISIONS_SECRETS,
+  FubonFile,
+  FubonSessionState,
+  LanguagePreference,
+  MarketDataSource,
+  PriceColors,
+  Secret,
+  SecretState,
+  Theme,
+  isDecisionsReady,
+  isMarketDataReady,
+  isWebSearchReady,
+  mcpSecretKey,
+  timeZonePreferenceSchema,
+} from "@solyx/api/settings";
+import { SettingsSection, settingsLink } from "@solyx/api/settings-section";
 import { DecisionMode } from "@solyx/core/council";
 import type { Mandate } from "@solyx/core/mandate";
 import { Currency, Market, symbolLabel } from "@solyx/core/market";
@@ -23,26 +42,6 @@ import { HOUR_MINUTES } from "@solyx/utils/date";
 import { formatBytes } from "@solyx/utils/format";
 import { tildify, counted } from "@solyx/utils/text";
 import { WebSearchProvider } from "@solyx/web-search/provider";
-
-import { RETENTION_DAYS } from "#shared/news.ts";
-import { ColorScheme, Palette } from "#shared/palette.ts";
-import { SettingsSection, settingsLink } from "#shared/settings-section.ts";
-import {
-  DECISIONS_SECRETS,
-  FubonFile,
-  FubonSessionState,
-  LanguagePreference,
-  MarketDataSource,
-  PriceColors,
-  Secret,
-  SecretState,
-  Theme,
-  isDecisionsReady,
-  isMarketDataReady,
-  isWebSearchReady,
-  mcpSecretKey,
-  timeZonePreferenceSchema,
-} from "#shared/settings.ts";
 
 import type { Decisions } from "../decisions/decisions.ts";
 import type { Embeddings } from "../embeddings/embeddings.ts";

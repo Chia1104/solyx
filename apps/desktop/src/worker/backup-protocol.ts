@@ -1,4 +1,4 @@
-import type { StoredBackup } from "#shared/backup.ts";
+import type { StoredBackup } from "@solyx/api/backup";
 
 import type { DataFolders } from "../backend/modules/backup/backup-places.ts";
 import type { BackupLocation } from "../backend/modules/backup/backup-state.ts";

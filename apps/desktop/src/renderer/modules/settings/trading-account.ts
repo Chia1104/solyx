@@ -1,10 +1,9 @@
 import type { TFunction } from "i18next";
 
+import { FubonSessionState, TradingBroker } from "@solyx/api/settings";
+import type { FubonSessionStatus } from "@solyx/api/settings";
 import { brokerOfId } from "@solyx/core/broker";
 import { isEnumValue } from "@solyx/utils/is";
-
-import { FubonSessionState, TradingBroker } from "#shared/settings.ts";
-import type { FubonSessionStatus } from "#shared/settings.ts";
 
 /** The broker and account a `brokerId` names, as the user reads them: the paper account, or a Fubon account's number. */
 export function tradingAccountLabel(t: TFunction, id: string): string {

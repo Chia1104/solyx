@@ -9,11 +9,10 @@ import { useTranslation } from "react-i18next";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
 import type { McpToolPolicy } from "@solyx/agent/mcp-config";
+import { SecretState } from "@solyx/api/settings";
+import type { McpServerSetting, McpToolSetting } from "@solyx/api/settings";
+import { SettingsSection } from "@solyx/api/settings-section";
 import { matchesFilter } from "@solyx/utils/search";
-
-import { SettingsSection } from "#shared/settings-section.ts";
-import { SecretState } from "#shared/settings.ts";
-import type { McpServerSetting, McpToolSetting } from "#shared/settings.ts";
 
 import { currentLocale } from "../../app/i18n.ts";
 import { client, orpc } from "../../app/rpc.ts";

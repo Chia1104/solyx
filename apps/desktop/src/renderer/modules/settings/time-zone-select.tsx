@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import {
   TimeZonePreference,
   timeZonePreferenceSchema,
-} from "#shared/settings.ts";
+} from "@solyx/api/settings";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

@@ -4,6 +4,8 @@ import { Link } from "@tanstack/react-router";
 import { clamp } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
+import type { NewsCoverage } from "@solyx/api/news";
+import { SettingsSection } from "@solyx/api/settings-section";
 import { exchangeDate, exchangeTime } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import { NewsVoice } from "@solyx/core/news";
@@ -13,9 +15,6 @@ import type {
   SentimentReading,
 } from "@solyx/core/news";
 import { cssPercent } from "@solyx/utils/format";
-
-import type { NewsCoverage } from "#shared/news.ts";
-import { SettingsSection } from "#shared/settings-section.ts";
 
 import { NEWS_DAYS, newsCoverageQuery } from "./news-query.ts";
 

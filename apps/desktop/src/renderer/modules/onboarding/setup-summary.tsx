@@ -1,13 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { Market } from "@solyx/core/market";
-
 import {
   isDecisionsReady,
   isMarketDataReady,
   isWebSearchReady,
-} from "#shared/settings.ts";
+} from "@solyx/api/settings";
+import { Market } from "@solyx/core/market";
 
 import { orpc } from "../../app/rpc.ts";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";

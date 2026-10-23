@@ -1,8 +1,9 @@
 import { expect, test, vi } from "vite-plus/test";
 
+import { UpdateStatus } from "@solyx/api/updates";
+
 import { createUpdates } from "../src/backend/modules/updates/updates.ts";
 import type { Updater } from "../src/backend/modules/updates/updates.ts";
-import { UpdateStatus } from "../src/shared/updates.ts";
 
 function setup(updater: Partial<Updater> & Pick<Updater, "installs">) {
   const install = vi.fn();

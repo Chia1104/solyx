@@ -5,14 +5,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
+import { onThisComputer } from "@solyx/api/embeddings";
+import { Secret } from "@solyx/api/settings";
 import {
   EMBEDDINGS_DEFAULTS,
   EmbeddingsProvider,
 } from "@solyx/embeddings/provider";
 import { isEnumValue } from "@solyx/utils/is";
-
-import { onThisComputer } from "#shared/embeddings.ts";
-import { Secret } from "#shared/settings.ts";
 
 import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

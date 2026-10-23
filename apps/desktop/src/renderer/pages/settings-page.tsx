@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { SettingsSection } from "#shared/settings-section.ts";
+import { SettingsSection } from "@solyx/api/settings-section";
 
 import { Section } from "../components/section.tsx";
 import { Sheet } from "../components/sheet.tsx";

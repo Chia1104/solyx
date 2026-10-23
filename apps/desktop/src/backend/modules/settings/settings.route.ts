@@ -7,21 +7,20 @@ import { mapValues, uniq } from "es-toolkit";
 import { effectivePolicy, mcpToolKey } from "@solyx/agent/mcp-config";
 import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillFolders } from "@solyx/agent/skills";
-import { DecisionsProvider } from "@solyx/decisions/provider";
-import { EmbeddingsProvider } from "@solyx/embeddings/provider";
-import { FINMIND_PLANS } from "@solyx/fundamentals/finmind";
-import { DAY_MS } from "@solyx/utils/date";
-import { tildify } from "@solyx/utils/text";
-
-import { settingsContract } from "#shared/rpc/settings.contract.ts";
+import { settingsContract } from "@solyx/api/rpc/settings.contract";
 import {
   AppLocation,
   Secret,
   mcpSecretKey,
   webSearchKeySecret,
-} from "#shared/settings.ts";
-import { TradingBroker } from "#shared/settings.ts";
-import type { AppInfo, FubonFile } from "#shared/settings.ts";
+} from "@solyx/api/settings";
+import { TradingBroker } from "@solyx/api/settings";
+import type { AppInfo, FubonFile } from "@solyx/api/settings";
+import { DecisionsProvider } from "@solyx/decisions/provider";
+import { EmbeddingsProvider } from "@solyx/embeddings/provider";
+import { FINMIND_PLANS } from "@solyx/fundamentals/finmind";
+import { DAY_MS } from "@solyx/utils/date";
+import { tildify } from "@solyx/utils/text";
 
 import type { RpcClient } from "../../rpc/context.ts";
 import type { WindowEvents } from "../../rpc/window-events.ts";

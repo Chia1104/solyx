@@ -1,10 +1,9 @@
 import { Mutex, omit, zipObject } from "es-toolkit";
 import * as z from "zod";
 
+import { Secret, SecretState } from "@solyx/api/settings";
+import type { SecretKey } from "@solyx/api/settings";
 import { readJson, writeFileAtomic } from "@solyx/utils/server";
-
-import { Secret, SecretState } from "#shared/settings.ts";
-import type { SecretKey } from "#shared/settings.ts";
 
 interface Decrypted {
   plainText: string;

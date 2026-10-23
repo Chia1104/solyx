@@ -24,11 +24,10 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
+import { ColorScheme, PALETTES, PaletteToken } from "@solyx/api/palette";
+import type { CustomPalette, PaletteColors } from "@solyx/api/palette";
+import type { Appearance } from "@solyx/api/settings";
 import { isEnumValue } from "@solyx/utils/is";
-
-import { ColorScheme, PALETTES, PaletteToken } from "#shared/palette.ts";
-import type { CustomPalette, PaletteColors } from "#shared/palette.ts";
-import type { Appearance } from "#shared/settings.ts";
 
 import { client, orpc } from "../../app/rpc.ts";
 import { useColorScheme } from "../../app/theme.ts";

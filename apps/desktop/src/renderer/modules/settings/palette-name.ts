@@ -3,9 +3,8 @@ import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { Palette } from "@solyx/api/palette";
 import { isEnumValue } from "@solyx/utils/is";
-
-import { Palette } from "#shared/palette.ts";
 
 import { appearanceQuery } from "./settings-query.ts";
 

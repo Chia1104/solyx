@@ -7,10 +7,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { TabList, TabPanel, Tabs } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
+import { SecretState } from "@solyx/api/settings";
 import { isEnumValue } from "@solyx/utils/is";
 import { WebSearchProvider } from "@solyx/web-search/provider";
-
-import { SecretState } from "#shared/settings.ts";
 
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

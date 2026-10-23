@@ -3,9 +3,9 @@ import { fileURLToPath } from "node:url";
 
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
 
-import { ColorScheme } from "#shared/palette.ts";
-import type { PaletteColors } from "#shared/palette.ts";
-import { PRODUCT_NAME } from "#shared/product.ts";
+import { ColorScheme } from "@solyx/api/palette";
+import type { PaletteColors } from "@solyx/api/palette";
+import { PRODUCT_NAME } from "@solyx/api/product";
 
 import type { WindowPaint } from "../../backend/host.ts";
 

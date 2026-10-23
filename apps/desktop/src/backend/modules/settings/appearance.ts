@@ -1,26 +1,25 @@
 import { isEqual } from "es-toolkit";
 
-import { isEnumValue } from "@solyx/utils/is";
-
 import {
   ColorScheme,
   Palette,
   hasPalette,
   isCustomPalette,
   resolvePalette,
-} from "#shared/palette.ts";
+} from "@solyx/api/palette";
 import type {
   CustomPalette,
   PaletteColors,
   PaletteToken,
-} from "#shared/palette.ts";
+} from "@solyx/api/palette";
 import type {
   Appearance,
   LanguagePreference,
   PriceColors,
   Theme,
   TimeZonePreference,
-} from "#shared/settings.ts";
+} from "@solyx/api/settings";
+import { isEnumValue } from "@solyx/utils/is";
 
 import type { ConfigEntry, ConfigFile } from "./config-file.ts";
 

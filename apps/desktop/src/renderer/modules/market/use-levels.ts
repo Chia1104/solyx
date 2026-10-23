@@ -8,6 +8,7 @@ import type {
 } from "lightweight-charts";
 import { useTranslation } from "react-i18next";
 
+import { ChartIndicator } from "@solyx/api/chart-indicator";
 import { Interval, isIntraday } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { MOVING_AVERAGE_PERIODS, sma } from "@solyx/core/indicators";
@@ -23,8 +24,6 @@ import {
 } from "@solyx/core/levels";
 import type { Market } from "@solyx/core/market";
 import type { PriceBand } from "@solyx/trading-chart/price-bands";
-
-import { ChartIndicator } from "#shared/chart-indicator.ts";
 
 import { usePaletteColors } from "../../app/theme.ts";
 

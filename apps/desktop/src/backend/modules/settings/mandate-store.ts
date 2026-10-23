@@ -1,8 +1,7 @@
+import { MANDATE_SECRET } from "@solyx/api/settings";
 import { mandateSchema } from "@solyx/core/mandate";
 import type { Mandate } from "@solyx/core/mandate";
 import { parseJson } from "@solyx/utils/json";
-
-import { MANDATE_SECRET } from "#shared/settings.ts";
 
 import type { SecretStore } from "./secret-store.ts";
 

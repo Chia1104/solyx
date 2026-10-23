@@ -1,8 +1,7 @@
+import { UpdateStatus } from "@solyx/api/updates";
+import type { UpdateState } from "@solyx/api/updates";
 import { HOUR_MS, MINUTE_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
-
-import { UpdateStatus } from "#shared/updates.ts";
-import type { UpdateState } from "#shared/updates.ts";
 
 const RELEASES_URL = "https://github.com/Chia1104/solyx/releases/tag";
 

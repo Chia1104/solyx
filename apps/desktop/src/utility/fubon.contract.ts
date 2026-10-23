@@ -1,6 +1,7 @@
 import { asyncIteratorObject, oc, type } from "@orpc/contract";
 import * as z from "zod";
 
+import type { Change } from "@solyx/api/rpc/changes";
 import type {
   FubonAccount,
   FubonConditionLeg,
@@ -13,8 +14,6 @@ import type {
   FubonSessionOptions,
   FubonWatchedCondition,
 } from "@solyx/brokers/fubon";
-
-import type { Change } from "../shared/rpc/changes.ts";
 
 /** One of the sign-in's stock accounts, by its `fubonAccountId`. */
 const accountSchema = z.string().min(1);

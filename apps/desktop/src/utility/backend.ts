@@ -5,11 +5,10 @@ import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/message-port";
 import { captureException, init } from "@sentry/electron/utility";
 
+import { resolveLocale } from "@solyx/api/settings";
+import { SettingsSection } from "@solyx/api/settings-section";
+import { DestinationKind } from "@solyx/api/workspace";
 import { errorMessage } from "@solyx/utils/error";
-
-import { SettingsSection } from "#shared/settings-section.ts";
-import { resolveLocale } from "#shared/settings.ts";
-import { DestinationKind } from "#shared/workspace.ts";
 
 import { RestoreFailure } from "../backend/modules/backup/staged-restore.ts";
 import { CATALOGS, fill } from "../backend/modules/settings/catalogs.ts";

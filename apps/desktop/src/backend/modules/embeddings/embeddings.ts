@@ -1,5 +1,9 @@
 import { throttle } from "es-toolkit";
 
+import { LocalModelStatus } from "@solyx/api/embeddings";
+import type { LocalModelState } from "@solyx/api/embeddings";
+import { Secret } from "@solyx/api/settings";
+import type { EmbeddingsSettings } from "@solyx/api/settings";
 import type { Embedder } from "@solyx/core/embedding";
 import { STORY_LINES } from "@solyx/core/news";
 import { createOllama } from "@solyx/embeddings/ollama";
@@ -11,11 +15,6 @@ import {
   EmbeddingsProvider,
 } from "@solyx/embeddings/provider";
 import { errorMessage } from "@solyx/utils/error";
-
-import { LocalModelStatus } from "#shared/embeddings.ts";
-import type { LocalModelState } from "#shared/embeddings.ts";
-import { Secret } from "#shared/settings.ts";
-import type { EmbeddingsSettings } from "#shared/settings.ts";
 
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";

@@ -2,10 +2,9 @@ import { cn } from "@heroui/react";
 import { useQueries } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { Locale } from "@solyx/api/settings";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Listing } from "@solyx/core/market-data";
-
-import { Locale } from "#shared/settings.ts";
 
 import { useMarketSources } from "../settings/settings-query.ts";
 

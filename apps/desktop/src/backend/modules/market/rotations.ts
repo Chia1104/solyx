@@ -1,3 +1,4 @@
+import type { ListingRotationView } from "@solyx/api/market";
 import { Interval, adjustedCandles, lookbackRange } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import type { Company } from "@solyx/core/fundamentals";
@@ -34,8 +35,6 @@ import { TW_SECTOR_INDICES, sectorOfIndustry } from "@solyx/core/sectors";
 import { Session, getSession, weekdays } from "@solyx/core/session";
 import { MINUTE_MS } from "@solyx/utils/date";
 import { keepFresh, memoryAnswers } from "@solyx/utils/fresh";
-
-import type { ListingRotationView } from "#shared/market.ts";
 
 /** Through the regular session the newest bar still moves, so bars read then are read again this much later. */
 const LIVE_FRESH_MS = 5 * MINUTE_MS;

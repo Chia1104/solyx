@@ -3,9 +3,8 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
 import type { AgentModelRef, AgentProvider } from "@solyx/agent/providers";
-
-import { isDecisionsReady } from "#shared/settings.ts";
-import type { AgentSettings, MarketDataStatus } from "#shared/settings.ts";
+import { isDecisionsReady } from "@solyx/api/settings";
+import type { AgentSettings, MarketDataStatus } from "@solyx/api/settings";
 
 import { client, forEachEvent, orpc } from "../../app/rpc.ts";
 

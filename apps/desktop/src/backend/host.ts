@@ -1,8 +1,7 @@
+import type { AppChannel } from "@solyx/api/app-channel";
+import type { ColorScheme, PaletteColors } from "@solyx/api/palette";
+import type { Theme } from "@solyx/api/settings";
 import type { FubonSessionOptions } from "@solyx/brokers/fubon";
-
-import type { AppChannel } from "#shared/app-channel.ts";
-import type { ColorScheme, PaletteColors } from "#shared/palette.ts";
-import type { Theme } from "#shared/settings.ts";
 
 import type { FubonProcess } from "./modules/market/fubon-client.ts";
 import type { SecretCipher } from "./modules/settings/secret-store.ts";

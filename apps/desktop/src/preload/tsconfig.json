@@ -15,5 +15,5 @@
     "erasableSyntaxOnly": true,
     "skipLibCheck": true
   },
-  "include": [".", "../shared"]
+  "include": ["."]
 }

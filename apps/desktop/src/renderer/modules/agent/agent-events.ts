@@ -3,8 +3,7 @@ import { groupBy } from "es-toolkit";
 
 import { AgentEventType, applyEvent } from "@solyx/agent/wire";
 import type { AgentView } from "@solyx/agent/wire";
-
-import type { AgentUpdate } from "#shared/agent.ts";
+import type { AgentUpdate } from "@solyx/api/agent";
 
 import { client, forEachEvent, orpc } from "../../app/rpc.ts";
 

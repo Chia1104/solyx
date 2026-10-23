@@ -5,7 +5,7 @@ import { persist } from "zustand/middleware";
 import {
   ChartIndicator,
   chartIndicatorSchema,
-} from "#shared/chart-indicator.ts";
+} from "@solyx/api/chart-indicator";
 
 import { persistOptions } from "../../app/persist.ts";
 

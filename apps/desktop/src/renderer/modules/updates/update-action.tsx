@@ -3,7 +3,7 @@ import { buttonVariants } from "@heroui/styles";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { UpdateStatus } from "#shared/updates.ts";
+import { UpdateStatus } from "@solyx/api/updates";
 
 import { client } from "../../app/rpc.ts";
 

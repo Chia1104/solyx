@@ -3,9 +3,8 @@ import { buttonVariants } from "@heroui/styles";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { LocalModelStatus } from "@solyx/api/embeddings";
 import { formatBytes } from "@solyx/utils/format";
-
-import { LocalModelStatus } from "#shared/embeddings.ts";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

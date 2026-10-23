@@ -3,9 +3,9 @@ import { useCallback, useSyncExternalStore } from "react";
 import { QueryObserver, useSuspenseQuery } from "@tanstack/react-query";
 import { kebabCase } from "es-toolkit";
 
-import { ColorScheme, resolvePalette } from "#shared/palette.ts";
-import type { PaletteColors } from "#shared/palette.ts";
-import type { Appearance } from "#shared/settings.ts";
+import { ColorScheme, resolvePalette } from "@solyx/api/palette";
+import type { PaletteColors } from "@solyx/api/palette";
+import type { Appearance } from "@solyx/api/settings";
 
 import { appearanceQuery } from "../modules/settings/settings-query.ts";
 

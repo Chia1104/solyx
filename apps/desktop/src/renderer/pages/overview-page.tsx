@@ -6,12 +6,11 @@ import { getRouteApi } from "@tanstack/react-router";
 import { uniqBy } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
+import { OverviewTab } from "@solyx/api/overview-tab";
 import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { ROTATION_TRAIL } from "@solyx/core/rotation";
 import { isEnumValue } from "@solyx/utils/is";
-
-import { OverviewTab } from "#shared/overview-tab.ts";
 
 import { orpc } from "../app/rpc.ts";
 import { LoadingState } from "../components/loading-state.tsx";

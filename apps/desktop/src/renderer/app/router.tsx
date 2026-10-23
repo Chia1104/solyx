@@ -7,15 +7,14 @@ import {
 } from "@tanstack/react-router";
 import * as z from "zod";
 
-import { Interval, intervalSchema } from "@solyx/core/candles";
-import { symbolRefSchema } from "@solyx/core/market";
-
-import { OverviewTab, overviewTabSchema } from "#shared/overview-tab.ts";
+import { OverviewTab, overviewTabSchema } from "@solyx/api/overview-tab";
+import { isMarketDataReady } from "@solyx/api/settings";
 import {
   SettingsSection,
   settingsSectionSchema,
-} from "#shared/settings-section.ts";
-import { isMarketDataReady } from "#shared/settings.ts";
+} from "@solyx/api/settings-section";
+import { Interval, intervalSchema } from "@solyx/core/candles";
+import { symbolRefSchema } from "@solyx/core/market";
 
 import { ErrorFallback } from "../components/error-fallback.tsx";
 import { NotFound } from "../components/not-found.tsx";

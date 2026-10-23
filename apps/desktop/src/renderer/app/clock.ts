@@ -4,12 +4,11 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { memoize } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
+import { clock } from "@solyx/api/clock";
+import type { Clock } from "@solyx/api/clock";
+import { TimeZonePreference, resolveTimeZone } from "@solyx/api/settings";
+import type { Appearance, TimeZone } from "@solyx/api/settings";
 import { MINUTE_MS } from "@solyx/utils/date";
-
-import { clock } from "#shared/clock.ts";
-import type { Clock } from "#shared/clock.ts";
-import { TimeZonePreference, resolveTimeZone } from "#shared/settings.ts";
-import type { Appearance, TimeZone } from "#shared/settings.ts";
 
 import { appearanceQuery } from "../modules/settings/settings-query.ts";
 

@@ -2,16 +2,15 @@ import { QueryObserver } from "@tanstack/react-query";
 import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
 
-import enUS from "@solyx/i18n/desktop/en-US.json";
-import zhTW from "@solyx/i18n/desktop/zh-TW.json";
-
 import {
   LanguagePreference,
   Locale,
   localeSchema,
   resolveLocale,
-} from "#shared/settings.ts";
-import type { Appearance } from "#shared/settings.ts";
+} from "@solyx/api/settings";
+import type { Appearance } from "@solyx/api/settings";
+import enUS from "@solyx/i18n/desktop/en-US.json";
+import zhTW from "@solyx/i18n/desktop/zh-TW.json";
 
 import { appearanceQuery } from "../modules/settings/settings-query.ts";
 

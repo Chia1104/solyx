@@ -1,6 +1,6 @@
 import { app } from "electron";
 
-import { AppChannel } from "#shared/app-channel.ts";
+import { AppChannel } from "@solyx/api/app-channel";
 
 /**
  * A packaged build's version names its channel: the release workflow writes a nightly's, and the

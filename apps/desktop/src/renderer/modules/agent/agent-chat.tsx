@@ -4,12 +4,11 @@ import { Link, useMatch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { AgentView } from "@solyx/agent/wire";
+import { ScreenKind } from "@solyx/api/agent";
+import type { AgentScreen } from "@solyx/api/agent";
+import { ChartIndicator, offeredIndicators } from "@solyx/api/chart-indicator";
+import { SettingsSection } from "@solyx/api/settings-section";
 import { Interval } from "@solyx/core/candles";
-
-import { ScreenKind } from "#shared/agent.ts";
-import type { AgentScreen } from "#shared/agent.ts";
-import { ChartIndicator, offeredIndicators } from "#shared/chart-indicator.ts";
-import { SettingsSection } from "#shared/settings-section.ts";
 
 import { client } from "../../app/rpc.ts";
 import { ChartKind } from "../market/chart-kind.ts";

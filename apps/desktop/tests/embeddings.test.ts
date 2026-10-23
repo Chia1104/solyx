@@ -4,10 +4,9 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
+import { LocalModelStatus } from "@solyx/api/embeddings";
+import { Secret } from "@solyx/api/settings";
 import { EmbeddingsProvider } from "@solyx/embeddings/provider";
-
-import { LocalModelStatus } from "#shared/embeddings.ts";
-import { Secret } from "#shared/settings.ts";
 
 import { createEmbeddings } from "../src/backend/modules/embeddings/embeddings.ts";
 import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";

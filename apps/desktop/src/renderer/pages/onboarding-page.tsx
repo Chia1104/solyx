@@ -8,7 +8,7 @@ import {
   isDecisionsReady,
   isMarketDataReady,
   isWebSearchReady,
-} from "#shared/settings.ts";
+} from "@solyx/api/settings";
 
 import { Section } from "../components/section.tsx";
 import { CrashReportSection } from "../modules/crash-reports/crash-report-row.tsx";

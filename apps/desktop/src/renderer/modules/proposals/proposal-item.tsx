@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { TradingBroker } from "@solyx/api/settings";
 import { brokerOfId } from "@solyx/core/broker";
 import { Interval } from "@solyx/core/candles";
 import { exchangeDate } from "@solyx/core/market";
@@ -18,8 +19,6 @@ import {
 } from "@solyx/core/order-desk";
 import type { ProposalBasis, TradeProposal } from "@solyx/core/order-desk";
 import type { OrderPremise } from "@solyx/core/risk";
-
-import { TradingBroker } from "#shared/settings.ts";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

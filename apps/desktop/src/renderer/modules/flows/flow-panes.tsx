@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { HistogramSeries, LineSeries } from "lightweight-charts";
 import { useTranslation } from "react-i18next";
 
+import { ChartIndicator, FLOW_INDICATORS } from "@solyx/api/chart-indicator";
 import { candleDate } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { Investor, balanceByBar, netBuyingByBar } from "@solyx/core/flows";
@@ -11,8 +12,6 @@ import type { SymbolRef } from "@solyx/core/market";
 import { twLots } from "@solyx/core/rules/tw";
 import { Series } from "@solyx/trading-chart/series";
 import { utcTimestamp } from "@solyx/trading-chart/time-format";
-
-import { ChartIndicator, FLOW_INDICATORS } from "#shared/chart-indicator.ts";
 
 import { LINE_COLORS } from "../market/chart-palette.ts";
 import {

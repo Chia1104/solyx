@@ -1,3 +1,4 @@
+import type { ScheduledTaskView } from "@solyx/api/schedules";
 import type { Change, ChangeScope } from "@solyx/core/changes";
 import {
   ScheduleKind,
@@ -13,8 +14,6 @@ import type {
 } from "@solyx/core/schedule";
 import { MINUTE_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
-
-import type { ScheduledTaskView } from "#shared/schedules.ts";
 
 import type { ScheduledWork } from "../../scheduler.ts";
 import type { AgentService } from "../agent/agent-service.ts";

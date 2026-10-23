@@ -1,7 +1,7 @@
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { LanguagePreference } from "#shared/settings.ts";
+import { LanguagePreference } from "@solyx/api/settings";
 
 import { orpc } from "../../app/rpc.ts";
 import { OptionSelect } from "../../components/option-select.tsx";

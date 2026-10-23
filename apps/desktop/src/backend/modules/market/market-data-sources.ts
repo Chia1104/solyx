@@ -1,6 +1,17 @@
 import { isEqual } from "es-toolkit";
 
 import {
+  FubonSessionState,
+  MarketDataSource,
+  Secret,
+  SecretState,
+} from "@solyx/api/settings";
+import type {
+  FubonFile,
+  FubonSessionStatus,
+  MarketDataStatus,
+} from "@solyx/api/settings";
+import {
   FUBON_SDK_VERSIONS,
   fubonSdkVersion,
   fubonStockAccounts,
@@ -25,18 +36,6 @@ import {
 } from "@solyx/market-data/fugle";
 import type { FuglePlan } from "@solyx/market-data/fugle";
 import { errorMessage } from "@solyx/utils/error";
-
-import {
-  FubonSessionState,
-  MarketDataSource,
-  Secret,
-  SecretState,
-} from "#shared/settings.ts";
-import type {
-  FubonFile,
-  FubonSessionStatus,
-  MarketDataStatus,
-} from "#shared/settings.ts";
 
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";

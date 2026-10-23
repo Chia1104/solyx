@@ -4,13 +4,12 @@ import * as z from "zod";
 
 import type { ProviderCredentials } from "@solyx/agent/models";
 import type { AgentProvider } from "@solyx/agent/providers";
-import { parseJson } from "@solyx/utils/json";
-
 import {
   SecretState,
   agentKeySecret,
   agentSignInSecret,
-} from "#shared/settings.ts";
+} from "@solyx/api/settings";
+import { parseJson } from "@solyx/utils/json";
 
 import type { SecretStore } from "./secret-store.ts";
 

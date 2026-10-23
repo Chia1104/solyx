@@ -6,13 +6,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { NewsRetention, RETENTION_DAYS } from "@solyx/api/news";
+import { MarketDataSource } from "@solyx/api/settings";
+import { StoredData } from "@solyx/api/storage";
 import { NewsVoice } from "@solyx/core/news";
 import { formatBytes } from "@solyx/utils/format";
 import { isEnumValue } from "@solyx/utils/is";
-
-import { NewsRetention, RETENTION_DAYS } from "#shared/news.ts";
-import { MarketDataSource } from "#shared/settings.ts";
-import { StoredData } from "#shared/storage.ts";
 
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

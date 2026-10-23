@@ -7,11 +7,10 @@ import { TabList, TabPanel, Tabs } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
+import { DECISIONS_SECRETS, SecretState } from "@solyx/api/settings";
+import type { DecisionsProviderSettings } from "@solyx/api/settings";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 import { isEnumValue } from "@solyx/utils/is";
-
-import { DECISIONS_SECRETS, SecretState } from "#shared/settings.ts";
-import type { DecisionsProviderSettings } from "#shared/settings.ts";
 
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

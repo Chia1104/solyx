@@ -2,11 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { isWebSearchReady } from "@solyx/api/settings";
+import { SettingsSection } from "@solyx/api/settings-section";
 import { symbolKey } from "@solyx/core/market";
 import type { Development, ThemeWatch } from "@solyx/core/theme";
-
-import { SettingsSection } from "#shared/settings-section.ts";
-import { isWebSearchReady } from "#shared/settings.ts";
 
 import { useClock } from "../../app/clock.ts";
 import { LoadError } from "../../components/load-error.tsx";

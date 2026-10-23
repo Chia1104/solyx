@@ -5,13 +5,12 @@ import { buttonVariants } from "@heroui/styles";
 import { CatchBoundary, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import type { MarketDataSource } from "@solyx/api/settings";
+import { SettingsSection } from "@solyx/api/settings-section";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-
-import { SettingsSection } from "#shared/settings-section.ts";
-import type { MarketDataSource } from "#shared/settings.ts";
 
 import { ErrorFallback } from "../../components/error-fallback.tsx";
 import { FallbackFrame } from "../../components/fallback-frame.tsx";

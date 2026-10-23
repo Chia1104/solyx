@@ -11,11 +11,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { partition } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
+import { AppLocation } from "@solyx/api/settings";
+import type { AgentSkillInfo } from "@solyx/api/settings";
 import { isEnumValue } from "@solyx/utils/is";
 import { matchesFilter } from "@solyx/utils/search";
-
-import { AppLocation } from "#shared/settings.ts";
-import type { AgentSkillInfo } from "#shared/settings.ts";
 
 import { client, orpc } from "../../app/rpc.ts";
 import { FilterField } from "../../components/filter-field.tsx";

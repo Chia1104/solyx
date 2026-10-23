@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { LocalModelStatus } from "#shared/embeddings.ts";
+import { LocalModelStatus } from "@solyx/api/embeddings";
 
 import { client, forEachEvent, orpc } from "../../app/rpc.ts";
 

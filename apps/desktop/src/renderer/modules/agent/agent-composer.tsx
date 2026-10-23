@@ -31,13 +31,12 @@ import {
   messageCommand,
 } from "@solyx/agent/wire";
 import type { AgentView } from "@solyx/agent/wire";
+import { ScreenKind } from "@solyx/api/agent";
+import type { AgentScreen } from "@solyx/api/agent";
+import type { AgentSettings } from "@solyx/api/settings";
+import { SettingsSection } from "@solyx/api/settings-section";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-
-import { ScreenKind } from "#shared/agent.ts";
-import type { AgentScreen } from "#shared/agent.ts";
-import { SettingsSection } from "#shared/settings-section.ts";
-import type { AgentSettings } from "#shared/settings.ts";
 
 import { currentTimeZone } from "../../app/clock.ts";
 import { currentLocale } from "../../app/i18n.ts";

@@ -3,10 +3,6 @@ import { join } from "node:path";
 
 import { isEqual } from "es-toolkit";
 
-import { DEFAULT_REGION, awsEndpoint } from "@solyx/backup/s3";
-import { MINUTE_MS, HOUR_MS, DAY_MS } from "@solyx/utils/date";
-import { errorMessage } from "@solyx/utils/error";
-
 import {
   BackupActivity,
   BackupInterval,
@@ -14,13 +10,16 @@ import {
   backupBucketSchema,
   backupPrefixSchema,
   backupRegionSchema,
-} from "#shared/backup.ts";
+} from "@solyx/api/backup";
 import type {
   BackupSettings,
   BackupStatus,
   StoredBackup,
-} from "#shared/backup.ts";
-import { Secret, SecretState, endpointSchema } from "#shared/settings.ts";
+} from "@solyx/api/backup";
+import { Secret, SecretState, endpointSchema } from "@solyx/api/settings";
+import { DEFAULT_REGION, awsEndpoint } from "@solyx/backup/s3";
+import { MINUTE_MS, HOUR_MS, DAY_MS } from "@solyx/utils/date";
+import { errorMessage } from "@solyx/utils/error";
 
 import type {
   BackUpOptions,
