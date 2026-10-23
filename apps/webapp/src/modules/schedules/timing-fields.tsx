@@ -36,7 +36,7 @@ const DAY_CHOICES: (typeof EVERY_DAY | Market)[] = [
 ];
 
 /** A span as words: minutes below an hour, whole days where it is one, hours otherwise. */
-export function everyText(t: TFunction, minutes: number): string {
+function everyText(t: TFunction, minutes: number): string {
   if (minutes < HOUR_MINUTES) {
     return t("settings.schedules.every-minutes", { count: minutes });
   }

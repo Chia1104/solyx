@@ -66,4 +66,4 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>
 );
 
-followDestinations();
+followDestinations(router.navigate);

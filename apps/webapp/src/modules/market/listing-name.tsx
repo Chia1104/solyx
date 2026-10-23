@@ -24,7 +24,7 @@ export function listingName(
  * How the exchanges name listings, in their order; `null` until known. Each is asked for only once
  * its market's source has its settings, since a miss is kept for the rest of the session.
  */
-export function useListings(symbols: readonly SymbolRef[]): (Listing | null)[] {
+function useListings(symbols: readonly SymbolRef[]): (Listing | null)[] {
   const sources = useMarketSources();
 
   return useQueries({
@@ -33,10 +33,6 @@ export function useListings(symbols: readonly SymbolRef[]): (Listing | null)[] {
       enabled: sources.data?.[symbol.market]?.ready === true,
     })),
   }).map((listing) => listing.data ?? null);
-}
-
-export function useListing(symbol: SymbolRef): Listing | null {
-  return useListings([symbol])[0];
 }
 
 /** Listings' names in the app's language, in their order. */

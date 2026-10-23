@@ -2,7 +2,7 @@ import type * as z from "zod";
 import type { PersistOptions } from "zustand/middleware";
 
 /** The local storage key the renderer saves `name` under. */
-export const storageKey = (name: string) => `solyx.${name}`;
+const storageKey = (name: string) => `solyx.${name}`;
 
 /**
  * Saves a zustand store in local storage under `storageKey(name)`. Local storage outlives app

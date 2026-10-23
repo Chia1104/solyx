@@ -49,13 +49,13 @@ export const Vote = {
 export type Vote = (typeof Vote)[keyof typeof Vote];
 
 /** Why a MAGI unit voted as it did, by its key in the website's catalog. */
-export const VoteReason = {
+const VoteReason = {
   Dip: "dip",
   Paper: "paper",
   Flows: "flows",
 } as const;
 
-export type VoteReason = (typeof VoteReason)[keyof typeof VoteReason];
+type VoteReason = (typeof VoteReason)[keyof typeof VoteReason];
 
 export interface UnitVote {
   unit: string;

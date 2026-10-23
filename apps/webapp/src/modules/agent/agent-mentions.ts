@@ -12,13 +12,13 @@ import { agentSkillsQuery } from "../settings/settings-query.ts";
 import { watchlistQuery } from "../watchlist/watchlist-query.ts";
 
 /** Why a listing is one `@` offers. */
-export const ListingOrigin = {
+const ListingOrigin = {
   OnScreen: "on-screen",
   Held: "held",
   Watched: "watched",
 } as const;
 
-export type ListingOrigin = (typeof ListingOrigin)[keyof typeof ListingOrigin];
+type ListingOrigin = (typeof ListingOrigin)[keyof typeof ListingOrigin];
 
 export interface MentionableListing {
   symbol: SymbolRef;

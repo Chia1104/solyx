@@ -1,5 +1,5 @@
 /** HeroUI's `--ease-out-quint`, spelled out for the Web Animations API, which cannot read custom properties. */
-export const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
+const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
 
 const HIGHLIGHT_MS = 900;
 

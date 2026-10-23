@@ -195,5 +195,3 @@ export function createThemes({
     },
   };
 }
-
-export type Themes = ReturnType<typeof createThemes>;
