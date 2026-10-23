@@ -13,13 +13,12 @@ import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { LoadError } from "../../components/load-error.tsx";
+import { SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { LogoMark } from "../../components/logo-mark.tsx";
 import type { Logo } from "../../components/logo-mark.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
-import { RailedColumn } from "../../components/sheet.tsx";
 
 import {
   PROVIDER_GRID,
@@ -57,15 +56,12 @@ export function WebSearchSettings() {
 
   if (error) {
     return (
-      <RailedColumn className="px-6 py-5">
-        <LoadError
-          error={error}
-          onRetry={() => {
-            void settings.refetch();
-            void secrets.refetch();
-          }}
-        />
-      </RailedColumn>
+      <SectionLoadError
+        error={error}
+        onRetry={() =>
+          void Promise.all([settings.refetch(), secrets.refetch()])
+        }
+      />
     );
   }
 

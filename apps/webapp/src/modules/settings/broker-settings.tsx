@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { LoadError } from "../../components/load-error.tsx";
+import { SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
-import { RailedColumn } from "../../components/sheet.tsx";
 
 import { FubonSettings } from "./fubon-settings.tsx";
 import { marketDataQuery } from "./settings-query.ts";
@@ -15,11 +14,7 @@ export function BrokerSettings() {
   const { data, error, refetch } = useQuery(marketDataQuery());
 
   if (error) {
-    return (
-      <RailedColumn className="px-6 py-5">
-        <LoadError error={error} onRetry={() => void refetch()} />
-      </RailedColumn>
-    );
+    return <SectionLoadError error={error} onRetry={() => void refetch()} />;
   }
 
   if (!data) return <LoadingState />;

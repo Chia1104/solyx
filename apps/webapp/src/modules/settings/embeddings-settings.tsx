@@ -3,10 +3,9 @@ import { useMemo } from "react";
 import { Switch } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import * as z from "zod";
 
 import { onThisComputer } from "@solyx/api/embeddings";
-import { Secret } from "@solyx/api/settings";
+import { Secret, endpointSchema } from "@solyx/api/settings";
 import {
   EMBEDDINGS_DEFAULTS,
   EmbeddingsProvider,
@@ -15,13 +14,13 @@ import { isEnumValue } from "@solyx/utils/is";
 
 import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { LoadError } from "../../components/load-error.tsx";
+import { SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
-import { RailedColumn } from "../../components/sheet.tsx";
 import { LocalModelRow } from "../embeddings/local-model-row.tsx";
 
+import { matching } from "./matching.ts";
 import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { embeddingsSettingsQuery, secretsQuery } from "./settings-query.ts";
@@ -39,16 +38,7 @@ export function EmbeddingsSettings() {
 
   // Rebuilt per language so the field's error comes out localized.
   const baseURLSchema = useMemo(
-    () =>
-      z
-        .string()
-        .trim()
-        .pipe(
-          z.url({
-            protocol: /^https?$/,
-            error: t("settings.embeddings.base-url-invalid"),
-          })
-        ),
+    () => matching(endpointSchema, t("settings.embeddings.base-url-invalid")),
     [t]
   );
 
@@ -56,15 +46,12 @@ export function EmbeddingsSettings() {
 
   if (error) {
     return (
-      <RailedColumn className="px-6 py-5">
-        <LoadError
-          error={error}
-          onRetry={() => {
-            void settings.refetch();
-            void secrets.refetch();
-          }}
-        />
-      </RailedColumn>
+      <SectionLoadError
+        error={error}
+        onRetry={() =>
+          void Promise.all([settings.refetch(), secrets.refetch()])
+        }
+      />
     );
   }
 

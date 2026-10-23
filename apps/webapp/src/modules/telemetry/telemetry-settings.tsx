@@ -2,14 +2,14 @@ import { useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import * as z from "zod";
 
-import { Secret } from "@solyx/api/settings";
+import { Secret, endpointSchema } from "@solyx/api/settings";
 
 import { client } from "../../app/rpc.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
+import { matching } from "../settings/matching.ts";
 import { AppSecretRow, SecretsUnavailable } from "../settings/secret-row.tsx";
 import { SettingsList } from "../settings/settings-list.tsx";
 import { secretsQuery, otlpSettingsQuery } from "../settings/settings-query.ts";
@@ -22,17 +22,8 @@ export function TelemetrySettings() {
   const secrets = useQuery(secretsQuery());
 
   // Rebuilt per language so the field error comes out localized.
-  const endpointSchema = useMemo(
-    () =>
-      z
-        .string()
-        .trim()
-        .pipe(
-          z.url({
-            protocol: /^https?$/,
-            error: t("settings.telemetry.endpoint-invalid"),
-          })
-        ),
+  const endpointFieldSchema = useMemo(
+    () => matching(endpointSchema, t("settings.telemetry.endpoint-invalid")),
     [t]
   );
 
@@ -62,7 +53,7 @@ export function TelemetrySettings() {
               value={settings.data.endpoint ?? ""}
               isDefault={settings.data.endpoint === null}
               resetLabel={t("settings.telemetry.stop")}
-              schema={endpointSchema}
+              schema={endpointFieldSchema}
               onSave={(next) => client.settings.setOtlpEndpoint(next)}
             />
             <AppSecretRow
