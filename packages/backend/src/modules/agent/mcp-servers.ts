@@ -112,14 +112,14 @@ export function createMcpServers({
     },
 
     /**
-     * The tools of every connected server as the agent's extensions, each asking through `guard` as
-     * its policy says. Servers get a moment to connect first.
+     * The tools of every connected server as the agent's extensions, each passing the approval gate
+     * as its policy says. Servers get a moment to connect first.
      */
-    async extensions(guard: McpToolOptions["guard"]) {
+    async extensions(guards: Omit<McpToolOptions, "policies">) {
       await start();
       await hub.settled(CONNECT_WAIT_MS);
 
-      return hub.extensions({ policies: policies(), guard });
+      return hub.extensions({ policies: policies(), ...guards });
     },
 
     reconnect: (name: string) => hub.reconnect(name),

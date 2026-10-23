@@ -229,31 +229,25 @@ test("a paired device is refused what its contract keeps for windows, before the
   close();
 });
 
-test("a paired device starts only conversations that ask, and sends nothing to one set to bypass", async () => {
-  const modes = new Map([
-    ["s1", ApprovalMode.Bypass],
-    ["s2", ApprovalMode.Auto],
-  ]);
-
-  const sent: string[] = [];
+test("a paired device starts only conversations that ask, and its messages' runs ask every call", async () => {
+  const sent: { id: string; asksEveryCall: boolean }[] = [];
 
   const agent: Partial<AgentService> = {
     createSession: async (setup) => ({
-      id: "s3",
+      id: "s1",
       title: "",
       createdAt: 0,
       updatedAt: 0,
       ...setup,
       schedule: null,
     }),
-    approvalMode: async (id) => modes.get(id) ?? ApprovalMode.Ask,
-    send: async (id) => {
-      sent.push(id);
+    send: async (id, _text, _screen, _locale, _timeZone, asksEveryCall) => {
+      sent.push({ id, asksEveryCall });
     },
   };
 
-  // SAFETY: the device calls only the procedures that read these three.
-  const { client, close } = connect(
+  // SAFETY: the clients call only the procedures that read these two.
+  const device = connect(
     { agent: agent as AgentService },
     { kind: ClientKind.Device, device: "d1" }
   );
@@ -261,32 +255,43 @@ test("a paired device starts only conversations that ask, and sends nothing to o
   const setup = { model: null, thinking: null };
 
   await expect(
-    client.agent.createSession({ ...setup, approvalMode: ApprovalMode.Bypass })
+    device.client.agent.createSession({
+      ...setup,
+      approvalMode: ApprovalMode.Bypass,
+    })
   ).rejects.toMatchObject({ code: "FORBIDDEN" });
   await expect(
-    client.agent.createSession({ ...setup, approvalMode: ApprovalMode.Auto })
+    device.client.agent.createSession({
+      ...setup,
+      approvalMode: ApprovalMode.Auto,
+    })
   ).rejects.toMatchObject({ code: "FORBIDDEN" });
   await expect(
-    client.agent.createSession({ ...setup, approvalMode: ApprovalMode.Ask })
+    device.client.agent.createSession({
+      ...setup,
+      approvalMode: ApprovalMode.Ask,
+    })
   ).resolves.toMatchObject({ approvalMode: ApprovalMode.Ask });
 
   const message = {
+    id: "s1",
     text: "How did 2330 close?",
     screen: null,
     locale: "en-US",
     timeZone: "Asia/Taipei",
   } as const;
 
-  await expect(
-    client.agent.send({ ...message, id: "s1" })
-  ).rejects.toMatchObject({
-    code: "FORBIDDEN",
-    message:
-      "A conversation set to bypass takes messages only from this computer's windows",
-  });
-  await client.agent.send({ ...message, id: "s2" });
-  await client.agent.send({ ...message, id: "s3" });
-  expect(sent).toEqual(["s2", "s3"]);
+  await device.client.agent.send(message);
+  device.close();
 
-  close();
+  // SAFETY: as above.
+  const window = connect({ agent: agent as AgentService });
+
+  await window.client.agent.send(message);
+  window.close();
+
+  expect(sent).toEqual([
+    { id: "s1", asksEveryCall: true },
+    { id: "s1", asksEveryCall: false },
+  ]);
 });

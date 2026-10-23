@@ -2163,8 +2163,7 @@
   },
   "devices": {
     "confirm-on-computer": "請在執行 Solyx 的電腦上送出。",
-    "answer-on-computer": "請在執行 Solyx 的電腦上回覆。",
-    "bypass-on-computer": "這段對話的呼叫不詢問就執行，請在執行 Solyx 的電腦上繼續。"
+    "answer-on-computer": "請在執行 Solyx 的電腦上回覆。"
   },
   "pairing": {
     "title": "配對這個瀏覽器",

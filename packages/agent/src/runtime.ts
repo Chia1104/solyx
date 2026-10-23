@@ -36,13 +36,17 @@ import type {
   TaskId,
   Tx,
 } from "@earendil-works/pi-durable";
-import { maxBy, noop } from "es-toolkit";
+import { Mutex, maxBy, noop } from "es-toolkit";
 import * as z from "zod";
 
 import { firstLine } from "@solyx/utils/text";
 
-import { ApprovalDoc, createApprovalGate } from "./approval.ts";
-import type { ToolGuard } from "./approval.ts";
+import {
+  ApprovalDoc,
+  AskEveryCallDoc,
+  createApprovalGate,
+} from "./approval.ts";
+import type { ToolGuards } from "./approval.ts";
 import type {
   AgentModelPick,
   AgentModelRef,
@@ -97,9 +101,10 @@ export interface AgentRuntimeOptions {
   /**
    * The host's tools, built again before every run and before resuming, so a run sees the tools,
    * servers and policies of the moment it starts. A tool that must ask goes through `guard`, so
-   * each of its calls waits until the user answers through `approve`.
+   * each of its calls waits until the user answers through `approve`, and one the user lets run
+   * unasked through `unasked`.
    */
-  tools(guard: ToolGuard): Promise<Toolset>;
+  tools(guards: ToolGuards): Promise<Toolset>;
   /** Where a conversation's shell commands run; without it no tool has an environment. */
   env?: HarnessOptions["env"];
   onEvent(sessionId: string, event: AgentWireEvent): void;
@@ -116,6 +121,11 @@ export interface AgentTurn {
   text: string;
   /** The app's context for the model, from `formatContext`. */
   context: string;
+  /**
+   * Whether its run asks before every call that can ask, whatever the conversation's mode;
+   * otherwise it asks as the mode says.
+   */
+  asksEveryCall?: boolean;
 }
 
 const untunedSessionSchema = z.object({
@@ -382,8 +392,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     }
   });
 
+  const sending = new Mutex();
+
   const toolset = createToolsetLoader(registry, () =>
-    options.tools(gate.guard)
+    options.tools({ guard: gate.guard, unasked: gate.unasked })
   );
 
   /** The conversation a session id names, if it still names one. */
@@ -825,11 +837,6 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       }, BACKGROUND_CONTEXT);
     },
 
-    /** How the conversation's calls that must ask get past the gate. */
-    async approvalMode(sessionId: string) {
-      return (await approvalsOf((await conversationOf(sessionId)).id)).mode;
-    },
-
     /** Sets how the conversation's calls that must ask get past the gate, from its next call on. */
     async setApprovalMode(sessionId: string, mode: ApprovalMode) {
       const conversation = await conversationOf(sessionId);
@@ -890,43 +897,63 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         "The agent is still answering in this conversation"
       );
 
-      if (
-        (await harness.snapshot(LiveDoc, conversation.id, BACKGROUND_CONTEXT))
-          ?.run
-      ) {
-        throw busy;
-      }
-
-      const choice = await choiceOf(conversation.id);
-
-      await toolset.load();
-
-      await attach(conversation);
-
-      const at = Date.now();
-
-      // The model is the conversation's from here on, so it is set before the input can start a run.
-      await conversation.commit(async (tx) => {
-        await configureModel(tx, conversation.id, choice);
-        await toolset.offer(tx, conversation.id);
-
-        const session = await tx.doc(SessionDoc, conversation.id);
-
-        session.title ||= firstLine(turn.text, TITLE_LENGTH);
-        session.updatedAt = at;
-      }, BACKGROUND_CONTEXT);
+      // One message at a time, so another's turn never resets what this one's run asks.
+      await sending.acquire();
 
       try {
-        await conversation.submit(
-          {
-            type: "input",
-            content: userContent(turn.text, turn.context),
-            whenBusy: "reject",
-          },
-          BACKGROUND_CONTEXT
-        );
-      } catch (error) {
-        throw error instanceof ConversationBusy ? busy : error;
+        if (
+          (await harness.snapshot(LiveDoc, conversation.id, BACKGROUND_CONTEXT))
+            ?.run
+        ) {
+          throw busy;
+        }
+
+        const choice = await choiceOf(conversation.id);
+
+        await toolset.load();
+
+        await attach(conversation);
+
+        const at = Date.now();
+
+        // The model is the conversation's from here on, so it is set before the input can start a
+        // run. A run that asks every call does so before it starts; one refused as busy only makes
+        // the run under way ask more.
+        await conversation.commit(async (tx) => {
+          await configureModel(tx, conversation.id, choice);
+          await toolset.offer(tx, conversation.id);
+
+          const session = await tx.doc(SessionDoc, conversation.id);
+
+          session.title ||= firstLine(turn.text, TITLE_LENGTH);
+          session.updatedAt = at;
+
+          if (turn.asksEveryCall) {
+            (await tx.doc(AskEveryCallDoc, conversation.id)).asks = true;
+          }
+        }, BACKGROUND_CONTEXT);
+
+        try {
+          await conversation.submit(
+            {
+              type: "input",
+              content: userContent(turn.text, turn.context),
+              whenBusy: "reject",
+            },
+            BACKGROUND_CONTEXT
+          );
+        } catch (error) {
+          throw error instanceof ConversationBusy ? busy : error;
+        }
+
+        // Admitted, so no run that asks every call is going, and this one asks as its mode says.
+        if (!turn.asksEveryCall) {
+          await conversation.commit(async (tx) => {
+            (await tx.doc(AskEveryCallDoc, conversation.id)).asks = false;
+          }, BACKGROUND_CONTEXT);
+        }
+      } finally {
+        sending.release();
       }
     },
 

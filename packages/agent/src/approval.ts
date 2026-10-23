@@ -39,6 +39,19 @@ export const ApprovalDoc = defineDoc<{
   }),
 });
 
+/**
+ * Whether the run of the conversation's latest message asks before every call that can ask,
+ * whatever the conversation's mode, as the host has a message from outside its own windows do.
+ */
+export const AskEveryCallDoc = defineDoc<{ asks: boolean }>({
+  kind: "solyx.ask-every-call",
+  version: 1,
+  scope: "conversation",
+  history: "latest",
+  fork: "initial",
+  initial: () => ({ asks: false }),
+});
+
 /** What a guarded call tells its conversation: that it asks, then what the user answered. */
 export type ApprovalEvent = Extract<
   AgentWireEvent,
@@ -67,6 +80,15 @@ export type ToolGuard = (
   tool: ToolRegistration,
   auto?: AutoCheck
 ) => ToolRegistration;
+
+/** Lets every call of a tool the user lets run unasked do so, except in a run that asks every call. */
+export type UnaskedGuard = (tool: ToolRegistration) => ToolRegistration;
+
+/** How the host's tools pass the approval gate. */
+export interface ToolGuards {
+  guard: ToolGuard;
+  unasked: UnaskedGuard;
+}
 
 /**
  * Parses and checks a call's arguments before `guarded` asks, so the user is never asked about a
@@ -151,7 +173,10 @@ export function createApprovalGate(
     const signal = context.abortSignal;
 
     const mode = await api.commit(
-      async (tx) => (await tx.doc(ApprovalDoc, api.conversationId)).mode,
+      async (tx) =>
+        (await tx.doc(AskEveryCallDoc, api.conversationId)).asks
+          ? ApprovalMode.Ask
+          : (await tx.doc(ApprovalDoc, api.conversationId)).mode,
       context
     );
 
@@ -226,6 +251,23 @@ export function createApprovalGate(
       ...tool,
       async execute(params, api, context) {
         if (!(await ask(params, auto, api, context))) {
+          throw new Error("The user did not allow this call");
+        }
+
+        return tool.execute(params, api, context);
+      },
+    }),
+
+    unasked: (tool: ToolRegistration): ToolRegistration => ({
+      ...tool,
+      async execute(params, api, context) {
+        const asks = await api.commit(
+          async (tx) =>
+            (await tx.doc(AskEveryCallDoc, api.conversationId)).asks,
+          context
+        );
+
+        if (asks && !(await ask(params, undefined, api, context))) {
           throw new Error("The user did not allow this call");
         }
 

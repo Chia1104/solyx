@@ -2163,8 +2163,7 @@
   },
   "devices": {
     "confirm-on-computer": "Submit it on the computer running Solyx.",
-    "answer-on-computer": "Answer it on the computer running Solyx.",
-    "bypass-on-computer": "This conversation doesn't ask before its calls, so continue it on the computer running Solyx."
+    "answer-on-computer": "Answer it on the computer running Solyx."
   },
   "pairing": {
     "title": "Pair this browser",

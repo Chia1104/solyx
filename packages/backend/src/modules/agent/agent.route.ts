@@ -27,27 +27,17 @@ export const agentRouter = agent.router({
   transcript: agent.transcript.handler(({ context, input }) =>
     context.agent.transcript(input)
   ),
-  // A message to a conversation set to bypass runs whatever it asks for unasked, shell commands
-  // included, so only this computer's windows send one.
-  send: agent.send.handler(async ({ context, input }) => {
-    if (
-      context.client.kind === ClientKind.Device &&
-      (await context.agent.approvalMode(input.id)) === ApprovalMode.Bypass
-    ) {
-      throw new ORPCError("FORBIDDEN", {
-        message:
-          "A conversation set to bypass takes messages only from this computer's windows",
-      });
-    }
-
-    return context.agent.send(
+  // A device's message cannot have its run answer for the user, whatever the conversation's mode.
+  send: agent.send.handler(({ context, input }) =>
+    context.agent.send(
       input.id,
       input.text,
       input.screen,
       input.locale,
-      input.timeZone
-    );
-  }),
+      input.timeZone,
+      context.client.kind === ClientKind.Device
+    )
+  ),
   abort: agent.abort.handler(({ context, input }) =>
     context.agent.abort(input)
   ),

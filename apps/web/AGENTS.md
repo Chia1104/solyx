@@ -16,7 +16,7 @@ The workspace's React app, which each of the desktop's windows loads and the bac
 ## Paired browsers
 
 - `app/device.ts` tells a window, whose user agent names Electron, from a browser. A browser that holds no token shows only `pages/pairing-page.tsx` and loads nothing else, so it opens no socket until it pairs; its token lives in its own `localStorage`, and a socket closed as unpaired forgets it.
-- A browser changes no settings and sends nothing to the broker, as the backend refuses those to devices anyway: it skips first-run setup, settings and their pane, the update action and the lock on orders, and shows submitting a proposal, cancelling an order or exit, answering the agent's call, changing a conversation's approval mode and writing to one set to bypass as left to the computer.
+- A browser changes no settings and sends nothing to the broker, as the backend refuses those to devices anyway: it skips first-run setup, settings and their pane, the update action and the lock on orders, and shows submitting a proposal, cancelling an order or exit and answering the agent's call as left to the computer. It shows no approval mode, since a browser's messages ask before every call whatever the mode.
 - A socket that closes for any other reason reloads the page after a few seconds, so the streams the page followed start again.
 
 ## Stack

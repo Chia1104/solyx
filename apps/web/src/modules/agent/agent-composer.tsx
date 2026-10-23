@@ -279,9 +279,6 @@ export function AgentComposer({
       ? unstarted.approvalMode
       : (current?.approvalMode ?? ApprovalMode.Ask);
 
-  // The backend takes no message from a paired browser to a conversation that runs its calls unasked.
-  const withheld = !inWindow && approvalMode === ApprovalMode.Bypass;
-
   /**
    * The conversation on screen. A new one is created by its first message, on what was picked
    * for it, so picking alone leaves no empty conversation behind.
@@ -499,7 +496,7 @@ export function AgentComposer({
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
 
-                        if (!busy && !unavailable && !withheld) void submit();
+                        if (!busy && !unavailable) void submit();
                       }
                     }}
                   />
@@ -509,11 +506,14 @@ export function AgentComposer({
           />
           <div className="flex items-center justify-between gap-2 px-1.5 pb-1.5">
             <div className="flex min-w-0 items-center gap-1">
-              <ApprovalModeMenu
-                mode={approvalMode}
-                isDisabled={!inWindow || setApprovalMode.isPending}
-                onChange={pickApprovalMode}
-              />
+              {/* A browser's messages ask before every call, whatever the mode the computer set. */}
+              {inWindow ? (
+                <ApprovalModeMenu
+                  mode={approvalMode}
+                  isDisabled={setApprovalMode.isPending}
+                  onChange={pickApprovalMode}
+                />
+              ) : null}
               {settings ? (
                 <AgentModelPicker
                   // What it shows while saving belongs to the conversation it was picked in.
@@ -556,7 +556,7 @@ export function AgentComposer({
                   variant="secondary"
                   aria-label={t("agent.send")}
                   isPending={send.isPending}
-                  isDisabled={!text.trim() || unavailable !== null || withheld}>
+                  isDisabled={!text.trim() || unavailable !== null}>
                   <Icon icon={ArrowUp02Icon} />
                 </Button>
               )}
@@ -565,11 +565,6 @@ export function AgentComposer({
         </div>
       </div>
       {unavailable ? <ModelUnavailable {...unavailable} /> : null}
-      {withheld ? (
-        <p className="px-1 text-xs text-muted">
-          {t("devices.bypass-on-computer")}
-        </p>
-      ) : null}
       {compact.data === CompactionOutcome.NothingOld &&
       compact.variables.id === sessionId ? (
         <p className="px-1 text-xs text-muted">
