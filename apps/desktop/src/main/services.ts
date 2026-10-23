@@ -2,7 +2,6 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { MemoryPublisher } from "@orpc/publisher/memory";
-import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import { debounce, kebabCase, omit, uniqBy } from "es-toolkit";
 
 import { createFubonBroker } from "@solyx/brokers/fubon";
@@ -37,20 +36,19 @@ import {
   resolveTimeZone,
 } from "#shared/settings.ts";
 
+import type { Host } from "./host.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
 import { createBackupThreads } from "./modules/backup/backup-threads.ts";
 import { createBackups } from "./modules/backup/backups.ts";
 import { settleRestore, takeRestore } from "./modules/backup/staged-restore.ts";
 import { createCalendar } from "./modules/calendar/calendar.ts";
-import { reportError } from "./modules/crash-reports/crash-reports.ts";
 import { createDecisions } from "./modules/decisions/decisions.ts";
 import { createEmbeddings } from "./modules/embeddings/embeddings.ts";
 import { createFlows } from "./modules/flows/flows.ts";
 import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
 import { createInbox } from "./modules/inbox/inbox.ts";
 import { createMacro } from "./modules/macro/macro.ts";
-import { openFubonProcess } from "./modules/market/fubon-process.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
 import { createRotations } from "./modules/market/rotations.ts";
@@ -70,7 +68,6 @@ import { createCollections } from "./modules/schedules/collections.ts";
 import { createSchedules } from "./modules/schedules/schedules.ts";
 import { createAppearance } from "./modules/settings/appearance.ts";
 import type { ConfigFile } from "./modules/settings/config-file.ts";
-import { electronCipher } from "./modules/settings/electron-cipher.ts";
 import { installationId } from "./modules/settings/installation-id.ts";
 import { createMandateStore } from "./modules/settings/mandate-store.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
@@ -79,18 +76,12 @@ import { createTelemetry } from "./modules/telemetry/telemetry.ts";
 import { createThemes } from "./modules/themes/themes.ts";
 import { createTray } from "./modules/tray/tray.ts";
 import type { TrayState } from "./modules/tray/tray.ts";
-import { createAppUpdater } from "./modules/updates/app-updater.ts";
 import { createUpdates } from "./modules/updates/updates.ts";
 import { createWatchlist } from "./modules/watchlist/watchlist.ts";
 import { createWebSearch } from "./modules/web-search/web-search.ts";
 import { createWorkspace } from "./modules/workspace/workspace.ts";
 import type { WindowEvents } from "./rpc/window-events.ts";
 import { createScheduler } from "./scheduler.ts";
-import { appChannel } from "./shell/app-channel.ts";
-import { chromiumFetch } from "./shell/chromium-fetch.ts";
-import { paintWindow, showMainWindow } from "./shell/main-window.ts";
-import { settingsShell } from "./shell/settings-shell.ts";
-import { createTrayShell } from "./shell/tray-icon.ts";
 
 const PAPER_CASH = { [Currency.TWD]: 1_000_000, [Currency.USD]: 30_000 };
 
@@ -114,9 +105,9 @@ const LIVE_LIMITS: RiskLimits = {
 };
 
 /** Composition root. A live broker is only ever wired here after the user explicitly turns it on. */
-export function createServices(config: ConfigFile) {
-  const userDataDir = app.getPath("userData");
-  const home = app.getPath("home");
+export function createServices(config: ConfigFile, host: Host) {
+  const userDataDir = host.dataDir;
+  const home = host.homeDir;
   const configDir = dirname(config.file);
 
   const folders = {
@@ -221,7 +212,7 @@ export function createServices(config: ConfigFile) {
 
   const secrets = createSecretStore(
     join(userDataDir, "secrets.json"),
-    electronCipher
+    host.cipher
   );
 
   const mandates = createMandateStore(secrets);
@@ -237,9 +228,9 @@ export function createServices(config: ConfigFile) {
   const telemetry = createTelemetry({
     config,
     secrets,
-    version: app.getVersion(),
-    channel: appChannel(),
-    report: reportError,
+    version: host.version,
+    channel: host.channel,
+    report: host.reportError,
   });
 
   const { diagnostics } = telemetry;
@@ -249,7 +240,7 @@ export function createServices(config: ConfigFile) {
     secrets,
     candles: cache.candles,
     fubonLogDir: join(userDataDir, "fubon"),
-    openFubonProcess,
+    openFubonProcess: host.openFubonProcess,
     tradesFubon,
   });
 
@@ -270,14 +261,12 @@ export function createServices(config: ConfigFile) {
 
   const instructionsFile = join(configDir, "AGENTS.md");
 
-  const openExternal = (url: string) => void shell.openExternal(url);
-
   const mcp = createMcpServers({
     file: join(configDir, "mcp.json"),
     config,
     secrets,
-    version: app.getVersion(),
-    openExternal,
+    version: host.version,
+    openExternal: host.openExternal,
   });
 
   const decisions = createDecisions({ config, secrets });
@@ -374,7 +363,7 @@ export function createServices(config: ConfigFile) {
 
   // The statistics portal's server leaves its intermediate certificate out, which Node's fetch does not make up for.
   const macro = createMacro({
-    calendars: [createStatGovTw({ fetch: chromiumFetch })],
+    calendars: [createStatGovTw({ fetch: host.chromiumFetch })],
     figures: [createDgbas()],
     answers: cache.answers,
   });
@@ -387,26 +376,24 @@ export function createServices(config: ConfigFile) {
     answers: cache.answers,
   });
 
+  // The windows paint their chrome and pick their scheme from it; the rest is pushed to every
+  // renderer, so a hand edit applies as the settings page's does.
   const appearance = createAppearance({
     config,
-    // Windows and their renderers' prefers-color-scheme follow themeSource; the rest is pushed to
-    // every renderer, so a hand edit applies as the settings page's does.
     onChange(next) {
-      nativeTheme.themeSource = next.theme;
-
-      for (const window of BrowserWindow.getAllWindows()) {
-        paintWindow(window, windowColors());
-      }
-
+      paintWindows();
       void windowEvents.publish("settings:appearance", next);
     },
   });
 
-  /** The palette windows show now, in the scheme the theme or the computer picks. */
-  function windowColors() {
-    return appearance.colors(
-      nativeTheme.shouldUseDarkColors ? ColorScheme.Dark : ColorScheme.Light
-    );
+  function paintWindows() {
+    host.paintWindows({
+      theme: appearance.read().theme,
+      colors: {
+        [ColorScheme.Light]: appearance.colors(ColorScheme.Light),
+        [ColorScheme.Dark]: appearance.colors(ColorScheme.Dark),
+      },
+    });
   }
 
   const marketDays = createMarketDays({ tradingDays, diagnostics });
@@ -424,7 +411,7 @@ export function createServices(config: ConfigFile) {
 
   // What the main process writes itself is in the language and on the clock the windows show.
   const userLocale = () =>
-    resolveLocale(appearance.read().language, app.getLocale());
+    resolveLocale(appearance.read().language, host.locale);
 
   const userTimeZone = () =>
     resolveTimeZone(appearance.read().timeZone, Temporal.Now.timeZoneId());
@@ -436,7 +423,7 @@ export function createServices(config: ConfigFile) {
     secrets,
     tracer: telemetry.tracer,
     getDeviceId: deviceId,
-    openExternal,
+    openExternal: host.openExternal,
     showSignInCode: (code) =>
       void windowEvents.publish("settings:sign-in-code", code),
     modelsFile: join(userDataDir, "agent-models.json"),
@@ -496,7 +483,7 @@ export function createServices(config: ConfigFile) {
       // Built after the agent, whose conversations it counts, and read only as a tool is called.
       storage: { usage: () => storage.usage() },
       mandate: () => mandates.current(),
-      version: app.getVersion(),
+      version: host.version,
       home,
     },
     onActivity() {
@@ -516,12 +503,6 @@ export function createServices(config: ConfigFile) {
     watchlist,
   });
 
-  /** Quits the app and starts it again; quitting closes what is open first, as any quit does. */
-  function restart() {
-    app.relaunch();
-    app.quit();
-  }
-
   const backups = createBackups({
     config,
     secrets,
@@ -532,11 +513,11 @@ export function createServices(config: ConfigFile) {
     folders,
     // vp pack copies the migrations next to the bundle; see vite.config.ts.
     migrations: join(import.meta.dirname, "migrations"),
-    app: kebabCase(app.getName()),
-    version: app.getVersion(),
+    app: kebabCase(host.name),
+    version: host.version,
     installation: deviceId,
     restored,
-    restart,
+    restart: host.restart,
     timeZone: userTimeZone,
     diagnostics,
     onChange: () => void windowEvents.publish("backup:changed", {}),
@@ -580,7 +561,7 @@ export function createServices(config: ConfigFile) {
   });
 
   const updates = createUpdates({
-    updater: createAppUpdater(),
+    updater: host.updater,
     checkEnabled: () => config.read().updates.check,
     onChange() {
       void windowEvents.publish("updates:changed", {});
@@ -629,10 +610,8 @@ export function createServices(config: ConfigFile) {
     },
   });
 
-  const showWindow = () => showMainWindow(windowColors);
-
   const workspace = createWorkspace({
-    showWindow,
+    showWindow: host.showWindow,
     onDestination: () => void windowEvents.publish("workspace:changed", {}),
   });
 
@@ -679,7 +658,7 @@ export function createServices(config: ConfigFile) {
     state: trayState,
     open: (destination) => workspace.open(destination),
     installUpdate: () => updates.install(),
-    shell: createTrayShell(showWindow),
+    shell: host.tray,
     diagnostics,
   });
 
@@ -708,7 +687,7 @@ export function createServices(config: ConfigFile) {
     },
   });
 
-  nativeTheme.themeSource = appearance.read().theme;
+  paintWindows();
 
   config.onChange(() => void windowEvents.publish("settings:changed", {}));
   // A collection's plan lives in the config file, so whoever shows the plans hears of every edit.
@@ -761,7 +740,6 @@ export function createServices(config: ConfigFile) {
       [AppLocation.Mcp]: mcp.file,
     },
     appearance,
-    windowColors,
     marketData,
     rotations,
     userData,
@@ -793,9 +771,8 @@ export function createServices(config: ConfigFile) {
     workspace,
     inbox,
     windowEvents,
-    settingsShell,
-
-    restart,
+    settingsShell: host.settings,
+    restart: host.restart,
   };
 }
 

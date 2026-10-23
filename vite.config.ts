@@ -128,6 +128,36 @@ export default defineConfig({
         },
       },
       {
+        // Only the shell and the entry touch Electron, so the services run wherever a host runs them.
+        files: ["apps/desktop/src/{main,shared,utility,worker}/**"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              paths: ["electron", "electron-updater"].map((name) => ({
+                name,
+                message:
+                  "Reach Electron through the Host port in main/host.ts.",
+              })),
+              patterns: [
+                {
+                  group: ["@sentry/electron", "@sentry/electron/*"],
+                  message:
+                    "Reach Electron through the Host port in main/host.ts.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        files: [
+          "apps/desktop/src/main/index.ts",
+          "apps/desktop/src/main/shell/**",
+        ],
+        rules: { "no-restricted-imports": "off" },
+      },
+      {
         // The one place a failure reaches the terminal, and command-line scripts that print results.
         files: [
           "apps/desktop/src/main/modules/telemetry/diagnostics.ts",

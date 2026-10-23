@@ -3,8 +3,10 @@ import { fileURLToPath } from "node:url";
 
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
 
+import { ColorScheme } from "#shared/palette.ts";
 import type { PaletteColors } from "#shared/palette.ts";
 
+import type { WindowPaint } from "../host.ts";
 import { PRODUCT_NAME } from "../product.ts";
 
 // Main is bundled into dist/main, next to dist/preload and dist/renderer.
@@ -30,90 +32,117 @@ function titleBarOverlay(colors: PaletteColors) {
  * Paints the window's own background, which shows until the page paints, and the window
  * controls Windows and Linux draw.
  */
-export function paintWindow(win: BrowserWindow, colors: PaletteColors) {
+function paintWindow(win: BrowserWindow, colors: PaletteColors) {
   win.setBackgroundColor(colors.background);
 
   if (process.platform !== "darwin")
     win.setTitleBarOverlay(titleBarOverlay(colors));
 }
 
-/**
- * The renderer is sandboxed and can only reach the main process through the preload bridge.
- * `colors` gives the palette the window shows at the moment.
- */
-export function createMainWindow(colors: () => PaletteColors) {
-  const initial = colors();
+/** The app's windows, which show what the services last painted. */
+export function createWindows() {
+  let painted: WindowPaint | undefined;
 
-  const win = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    // Room for the watchlist, a readable chart and the agent pane side by side.
-    minWidth: 1024,
-    minHeight: 640,
-    title: PRODUCT_NAME,
-    // Windows shows the executable's icon and macOS the app's.
-    icon: process.platform === "linux" ? APP_ICON : undefined,
-    backgroundColor: initial.background,
-    titleBarStyle: "hidden",
-    titleBarOverlay: titleBarOverlay(initial),
-    // Centers the traffic lights in the title bar.
-    trafficLightPosition: { x: 14, y: 15 },
-    webPreferences: {
-      preload: join(bundleDir, "../preload/index.cjs"),
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
+  /** The palette windows show now, in the scheme the theme or the computer picks. */
+  function colors(): PaletteColors {
+    if (!painted)
+      throw new Error("The services paint windows before one opens");
+
+    return painted.colors[
+      nativeTheme.shouldUseDarkColors ? ColorScheme.Dark : ColorScheme.Light
+    ];
+  }
+
+  /** The renderer is sandboxed and can only reach the main process through the preload bridge. */
+  function open() {
+    const initial = colors();
+
+    const win = new BrowserWindow({
+      width: 1280,
+      height: 820,
+      // Room for the watchlist, a readable chart and the agent pane side by side.
+      minWidth: 1024,
+      minHeight: 640,
+      title: PRODUCT_NAME,
+      // Windows shows the executable's icon and macOS the app's.
+      icon: process.platform === "linux" ? APP_ICON : undefined,
+      backgroundColor: initial.background,
+      titleBarStyle: "hidden",
+      titleBarOverlay: titleBarOverlay(initial),
+      // Centers the traffic lights in the title bar.
+      trafficLightPosition: { x: 14, y: 15 },
+      webPreferences: {
+        preload: join(bundleDir, "../preload/index.cjs"),
+        contextIsolation: true,
+        sandbox: true,
+        nodeIntegration: false,
+      },
+    });
+
+    // The theme can change from settings as well as from the OS.
+    const followTheme = () => paintWindow(win, colors());
+
+    nativeTheme.on("updated", followTheme);
+    win.on("closed", () => nativeTheme.off("updated", followTheme));
+
+    // External links go to the system browser; the window itself never leaves the app UI.
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith("https://")) void shell.openExternal(url);
+
+      return { action: "deny" };
+    });
+
+    win.webContents.on("will-navigate", (event) => {
+      if (!rendererUrl || !event.url.startsWith(rendererUrl))
+        event.preventDefault();
+    });
+
+    // Frames hold only the views the agent draws, which stay on the markup they were given.
+    win.webContents.on("will-frame-navigate", (event) => {
+      if (!event.isMainFrame && event.url !== "about:srcdoc")
+        event.preventDefault();
+    });
+
+    if (rendererUrl) {
+      void win.loadURL(rendererUrl);
+      // Detached, since docked it would squeeze the workspace's panes.
+      win.webContents.openDevTools({ mode: "detach" });
+    } else {
+      void win.loadFile(join(bundleDir, "../renderer/index.html"));
+    }
+  }
+
+  return {
+    open,
+
+    /** Gives every window, and those opened later, the theme and palettes `paint` holds. */
+    paint(paint: WindowPaint) {
+      painted = paint;
+      // Windows and their renderers' prefers-color-scheme follow it.
+      nativeTheme.themeSource = paint.theme;
+
+      for (const win of BrowserWindow.getAllWindows()) {
+        paintWindow(win, colors());
+      }
     },
-  });
 
-  // The theme can change from settings as well as from the OS.
-  const followTheme = () => paintWindow(win, colors());
+    /** Brings the app's window to the front, opening one when none is. */
+    show() {
+      const [win] = BrowserWindow.getAllWindows();
 
-  nativeTheme.on("updated", followTheme);
-  win.on("closed", () => nativeTheme.off("updated", followTheme));
+      if (win) {
+        if (win.isMinimized()) win.restore();
 
-  // External links go to the system browser; the window itself never leaves the app UI.
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https://")) void shell.openExternal(url);
+        win.show();
+        win.focus();
+      } else {
+        open();
+      }
 
-    return { action: "deny" };
-  });
-
-  win.webContents.on("will-navigate", (event) => {
-    if (!rendererUrl || !event.url.startsWith(rendererUrl))
-      event.preventDefault();
-  });
-
-  // Frames hold only the views the agent draws, which stay on the markup they were given.
-  win.webContents.on("will-frame-navigate", (event) => {
-    if (!event.isMainFrame && event.url !== "about:srcdoc")
-      event.preventDefault();
-  });
-
-  if (rendererUrl) {
-    void win.loadURL(rendererUrl);
-    // Detached, since docked it would squeeze the workspace's panes.
-    win.webContents.openDevTools({ mode: "detach" });
-  } else {
-    void win.loadFile(join(bundleDir, "../renderer/index.html"));
-  }
-
-  return win;
+      // Asked for from the tray or by a second launch, the app is behind whatever the user was in.
+      app.focus({ steal: true });
+    },
+  };
 }
 
-/** Brings the app's window to the front, opening one when none is. */
-export function showMainWindow(colors: () => PaletteColors) {
-  const [win] = BrowserWindow.getAllWindows();
-
-  if (win) {
-    if (win.isMinimized()) win.restore();
-
-    win.show();
-    win.focus();
-  } else {
-    createMainWindow(colors);
-  }
-
-  // Asked for from the tray or by a second launch, the app is behind whatever the user was in.
-  app.focus({ steal: true });
-}
+export type Windows = ReturnType<typeof createWindows>;

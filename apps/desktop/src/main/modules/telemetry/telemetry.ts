@@ -22,7 +22,7 @@ import {
 
 import { Secret } from "#shared/settings.ts";
 
-import type { AppChannel } from "../../shell/app-channel.ts";
+import type { AppChannel } from "../../host.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
 

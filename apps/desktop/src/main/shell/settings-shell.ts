@@ -1,10 +1,11 @@
-import { BrowserWindow, app, dialog, shell } from "electron";
+import { BrowserWindow, app, dialog, shell, webContents } from "electron";
 import type { OpenDialogOptions } from "electron";
 
 import { FubonFile } from "#shared/settings.ts";
 
-import { canReportCrashes } from "../modules/crash-reports/crash-reports.ts";
 import type { SettingsShell } from "../modules/settings/settings.route.ts";
+
+import { canReportCrashes } from "./crash-reports.ts";
 
 // People know these by name rather than by Node's platform ids.
 const OS_NAME: Partial<Record<NodeJS.Platform, string>> = {
@@ -22,8 +23,9 @@ const FUBON_FILE_DIALOG: Record<FubonFile, OpenDialogOptions> = {
 };
 
 export const settingsShell: SettingsShell = {
-  async chooseFubonFile(file, sender) {
-    const window = BrowserWindow.fromWebContents(sender);
+  async chooseFubonFile(file, client) {
+    const page = webContents.fromId(client.window);
+    const window = page && BrowserWindow.fromWebContents(page);
     const options = FUBON_FILE_DIALOG[file];
 
     const { canceled, filePaths } = await (window

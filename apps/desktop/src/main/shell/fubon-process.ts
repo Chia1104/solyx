@@ -4,8 +4,8 @@ import { MessageChannelMain, utilityProcess } from "electron";
 
 import type { FubonSessionOptions } from "@solyx/brokers/fubon";
 
-import { connectFubon } from "./fubon-client.ts";
-import type { FubonProcess } from "./fubon-client.ts";
+import { connectFubon } from "../modules/market/fubon-client.ts";
+import type { FubonProcess } from "../modules/market/fubon-client.ts";
 
 // Main is bundled into dist/main, next to dist/utility.
 const FUBON_ENTRY = join(import.meta.dirname, "../utility/fubon.mjs");
