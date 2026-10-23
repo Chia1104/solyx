@@ -6,8 +6,7 @@ import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import { ColorScheme } from "@solyx/api/palette";
 import type { PaletteColors } from "@solyx/api/palette";
 import { PRODUCT_NAME } from "@solyx/api/product";
-
-import type { WindowPaint } from "../../backend/host.ts";
+import type { WindowPaint } from "@solyx/backend/host";
 
 // Main is bundled into dist/main, next to dist/preload and dist/renderer.
 const bundleDir = fileURLToPath(new URL(".", import.meta.url));

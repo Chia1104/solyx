@@ -1,6 +1,6 @@
 # Main process
 
-Electron's main process. It starts the backend ([`../backend/AGENTS.md`](../backend/AGENTS.md)) in a utility process, serves the backend's `Host` port, draws the windows and the tray, and hands each window's port to the backend. It builds no services of its own.
+Electron's main process. It starts the backend ([`packages/backend/AGENTS.md`](../../../../packages/backend/AGENTS.md)) in a utility process, serves the backend's `Host` port, draws the windows and the tray, and hands each window's port to the backend. It builds no services of its own.
 
 - The app runs as one instance per identity, since a second would run the clock and the order desk again over the same files; a second launch brings the first one's window forward and exits.
 - The backend runs in a utility process of this same binary, so the fuses and the code signature that guard the secrets guard it too. As it starts, the main process posts it the facts fixed for the run with two ports: on one it serves `utility/host.contract.ts`, and on the other it calls `utility/backend.contract.ts`. A port it hands over later, a window's or a Fubon process's, goes on the backend's parent port, tagged with what it is.

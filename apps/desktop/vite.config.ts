@@ -3,6 +3,7 @@ import type { ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
@@ -209,8 +210,12 @@ export default defineConfig({
     {
       ...nodeBundle,
       entry: {
-        script: "src/worker/script.ts",
-        backup: "src/worker/backup.ts",
+        script: fileURLToPath(
+          import.meta.resolve("@solyx/backend/worker/script")
+        ),
+        backup: fileURLToPath(
+          import.meta.resolve("@solyx/backend/worker/backup")
+        ),
       },
       outDir: "dist/worker",
       format: "esm",

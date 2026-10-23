@@ -5,9 +5,8 @@ import { kebabCase, withTimeout } from "es-toolkit";
 
 import { RPC_CONNECT } from "@solyx/api/rpc/connect";
 import { resolveLocale } from "@solyx/api/settings";
-
-import { CATALOGS } from "../backend/modules/settings/catalogs.ts";
-import { createConfigFile } from "../backend/modules/settings/config-file.ts";
+import { CATALOGS } from "@solyx/backend/modules/settings/catalogs";
+import { createConfigFile } from "@solyx/backend/modules/settings/config-file";
 
 import { appChannel } from "./shell/app-channel.ts";
 import { startBackend } from "./shell/backend-process.ts";

@@ -2,8 +2,7 @@ import { BrowserWindow, app, dialog, shell, webContents } from "electron";
 import type { OpenDialogOptions } from "electron";
 
 import { FubonFile } from "@solyx/api/settings";
-
-import type { SettingsShell } from "../../backend/modules/settings/settings.route.ts";
+import type { SettingsShell } from "@solyx/backend/modules/settings/settings.route";
 
 import { canReportCrashes } from "./crash-reports.ts";
 

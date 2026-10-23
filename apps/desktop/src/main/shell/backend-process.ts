@@ -8,7 +8,8 @@ import { RPCHandler } from "@orpc/server/message-port";
 import { MessageChannelMain, app, shell, utilityProcess } from "electron";
 import type { MessagePortMain, UtilityProcess } from "electron";
 
-import { keepMessages } from "../../backend/rpc/messages.ts";
+import { keepMessages } from "@solyx/backend/rpc/messages";
+
 import { BackendMessageKind } from "../../utility/backend.contract.ts";
 import type {
   BackendMessage,

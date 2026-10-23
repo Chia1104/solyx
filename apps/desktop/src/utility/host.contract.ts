@@ -2,8 +2,7 @@ import { oc, type } from "@orpc/contract";
 import * as z from "zod";
 
 import type { FubonFile } from "@solyx/api/settings";
-
-import type { WindowPaint } from "../backend/host.ts";
+import type { WindowPaint } from "@solyx/backend/host";
 
 /** A row of the tray's menu as the main process draws it; `null` for a rule between groups. */
 export type HostTrayRow = { label: string; selectable: boolean } | null;

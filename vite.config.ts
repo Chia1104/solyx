@@ -153,7 +153,7 @@ export default defineConfig({
       {
         // The one place a failure reaches the terminal, and command-line scripts that print results.
         files: [
-          "apps/desktop/src/backend/modules/telemetry/diagnostics.ts",
+          "packages/backend/src/modules/telemetry/diagnostics.ts",
           "**/scripts/**",
         ],
         rules: { "no-console": "off" },
