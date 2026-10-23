@@ -68,7 +68,7 @@ export default defineConfig({
       ],
     },
     sortTailwindcss: {
-      stylesheet: "./apps/desktop/src/renderer/styles.css",
+      stylesheet: "./apps/web/src/styles.css",
       functions: ["clsx", "cn"],
       preserveWhitespace: true,
     },
@@ -160,7 +160,7 @@ export default defineConfig({
       },
       {
         files: [
-          "apps/desktop/src/renderer/**",
+          "apps/web/src/**",
           "apps/website/src/**",
           "packages/trading-chart/**",
         ],

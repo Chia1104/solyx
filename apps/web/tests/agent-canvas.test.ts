@@ -7,7 +7,7 @@ import { expect, test } from "vite-plus/test";
 import { loadSkillCatalog } from "@solyx/agent/skills";
 
 const kit = await readFile(
-  new URL("../src/renderer/modules/agent/agent-canvas.css", import.meta.url),
+  new URL("../src/modules/agent/agent-canvas.css", import.meta.url),
   "utf8"
 );
 

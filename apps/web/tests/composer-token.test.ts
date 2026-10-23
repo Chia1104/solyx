@@ -4,7 +4,7 @@ import {
   ComposerTokenKind,
   replaceToken,
   tokenAt,
-} from "../src/renderer/modules/agent/composer-token.ts";
+} from "../src/modules/agent/composer-token.ts";
 
 test("@ asks for a listing where no letter or digit precedes it, and its query may be a name", () => {
   expect(tokenAt("比較@23", 5)).toEqual({

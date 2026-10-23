@@ -2,7 +2,7 @@ import { expect, test } from "vite-plus/test";
 
 import { FubonSessionState } from "@solyx/api/settings";
 
-import { fubonChoices } from "../src/renderer/modules/settings/trading-account.ts";
+import { fubonChoices } from "../src/modules/settings/trading-account.ts";
 
 const signedIn = {
   state: FubonSessionState.SignedIn,

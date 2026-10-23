@@ -4,7 +4,7 @@ import {
   RangeSide,
   forecastMarks,
   rangePlace,
-} from "../src/renderer/modules/research/research-figures.ts";
+} from "../src/modules/research/research-figures.ts";
 
 test("a price inside a range is placed between its ends, which keep clear of the scale's edges", () => {
   const place = rangePlace(900, 1100, 1000);
