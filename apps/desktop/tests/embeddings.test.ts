@@ -9,9 +9,9 @@ import { EmbeddingsProvider } from "@solyx/embeddings/provider";
 import { LocalModelStatus } from "#shared/embeddings.ts";
 import { Secret } from "#shared/settings.ts";
 
-import { createEmbeddings } from "../src/main/modules/embeddings/embeddings.ts";
-import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
-import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
+import { createEmbeddings } from "../src/backend/modules/embeddings/embeddings.ts";
+import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";
+import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 

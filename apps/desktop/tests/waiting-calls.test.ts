@@ -2,7 +2,7 @@ import { expect, test } from "vite-plus/test";
 
 import { AgentEventType, RunEndReason } from "@solyx/agent/wire";
 
-import { createWaitingCalls } from "../src/main/modules/agent/waiting-calls.ts";
+import { createWaitingCalls } from "../src/backend/modules/agent/waiting-calls.ts";
 
 const asks = (toolCallId: string) =>
   ({ type: AgentEventType.ApprovalRequest, toolCallId }) as const;

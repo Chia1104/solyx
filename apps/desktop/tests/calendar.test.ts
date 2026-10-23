@@ -12,8 +12,8 @@ import type { ClosuresProvider } from "@solyx/core/session";
 import { HOUR_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
-import { createCalendar } from "../src/main/modules/calendar/calendar.ts";
-import type { Macro } from "../src/main/modules/macro/macro.ts";
+import { createCalendar } from "../src/backend/modules/calendar/calendar.ts";
+import type { Macro } from "../src/backend/modules/macro/macro.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 

@@ -8,8 +8,8 @@ import { NewsChannel, NewsVoice } from "@solyx/core/news";
 import type { NewsData } from "@solyx/db/news";
 import { DAY_MS } from "@solyx/utils/date";
 
-import { createNewsRetention } from "../src/main/modules/news/news-retention.ts";
-import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
+import { createNewsRetention } from "../src/backend/modules/news/news-retention.ts";
+import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";
 import { NewsRetention } from "../src/shared/news.ts";
 
 let home: string;

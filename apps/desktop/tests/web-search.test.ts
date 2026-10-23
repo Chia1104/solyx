@@ -10,9 +10,9 @@ import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import { webSearchKeySecret } from "#shared/settings.ts";
 
-import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
-import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
-import { createWebSearch } from "../src/main/modules/web-search/web-search.ts";
+import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";
+import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";
+import { createWebSearch } from "../src/backend/modules/web-search/web-search.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 

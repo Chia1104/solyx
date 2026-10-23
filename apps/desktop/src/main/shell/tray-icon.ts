@@ -1,8 +1,8 @@
 import { dirname, join } from "node:path";
 
-import { BrowserWindow, Menu, Tray, app, nativeImage } from "electron";
+import { Menu, Tray, app, nativeImage } from "electron";
 
-import type { TrayShell } from "../modules/tray/tray.ts";
+import type { HostTrayRow } from "../../utility/host.contract.ts";
 
 import { APP_ICON } from "./main-window.ts";
 
@@ -29,16 +29,21 @@ const icon = () =>
 const label = (text: string) => (isMac ? text : text.replaceAll("&", "&&"));
 
 /** The tray's icon and the Dock; `openWindow` brings the app's window to the front. */
-export function createTrayShell(openWindow: () => void): TrayShell {
+export function createTrayIcon(openWindow: () => void) {
   const { dock } = app;
   let tray: Tray | undefined;
 
   return {
-    hasWindows: () => BrowserWindow.getAllWindows().length > 0,
+    /**
+     * Puts the icon in the tray with `rows` as its menu, or gives the icon there that menu; a pick
+     * calls `pick` with the row's place.
+     */
+    show(
+      view: { rows: HostTrayRow[]; waiting: number; hint?: string },
+      pick: (row: number) => void
+    ) {
+      const { rows, waiting, hint } = view;
 
-    quit: () => app.quit(),
-
-    show({ rows, waiting, hint }) {
       if (!tray) {
         tray = new Tray(icon());
 
@@ -48,11 +53,11 @@ export function createTrayShell(openWindow: () => void): TrayShell {
 
       tray.setContextMenu(
         Menu.buildFromTemplate(
-          rows.map((row) =>
+          rows.map((row, index) =>
             row === null
               ? { type: "separator" }
-              : row.select
-                ? { label: label(row.label), click: row.select }
+              : row.selectable
+                ? { label: label(row.label), click: () => pick(index) }
                 : { label: label(row.label), enabled: false }
           )
         )
@@ -73,13 +78,11 @@ export function createTrayShell(openWindow: () => void): TrayShell {
       app.setBadgeCount(0);
     },
 
-    dock: dock && {
-      setVisible(visible) {
-        if (visible === dock.isVisible()) return;
+    setDockVisible(visible: boolean) {
+      if (!dock || visible === dock.isVisible()) return;
 
-        if (visible) void dock.show();
-        else dock.hide();
-      },
+      if (visible) void dock.show();
+      else dock.hide();
     },
   };
 }

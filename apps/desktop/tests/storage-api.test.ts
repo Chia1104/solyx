@@ -4,7 +4,7 @@ import { Market } from "@solyx/core/market";
 
 import { StoredData } from "#shared/storage.ts";
 
-import { createStorageApi } from "../src/main/modules/storage/storage-api.ts";
+import { createStorageApi } from "../src/backend/modules/storage/storage-api.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 

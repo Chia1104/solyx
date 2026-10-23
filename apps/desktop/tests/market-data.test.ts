@@ -17,8 +17,8 @@ import { weekdays } from "@solyx/core/session";
 import { MINUTE_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
-import type { MarketDataSources } from "../src/main/modules/market/market-data-sources.ts";
-import { createMarketData } from "../src/main/modules/market/market-data.ts";
+import type { MarketDataSources } from "../src/backend/modules/market/market-data-sources.ts";
+import { createMarketData } from "../src/backend/modules/market/market-data.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 

@@ -18,10 +18,10 @@ import {
   agentKeySecret,
 } from "#shared/settings.ts";
 
-import type { FubonProcess } from "../src/main/modules/market/fubon-client.ts";
-import { createMarketDataSources } from "../src/main/modules/market/market-data-sources.ts";
-import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
-import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
+import type { FubonProcess } from "../src/backend/modules/market/fubon-client.ts";
+import { createMarketDataSources } from "../src/backend/modules/market/market-data-sources.ts";
+import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";
+import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 import { handEdit } from "./hand-edit.ts";

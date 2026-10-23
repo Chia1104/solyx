@@ -7,9 +7,9 @@ import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
 import { agentKeySecret } from "#shared/settings.ts";
 
-import { createCredentialStore } from "../src/main/modules/settings/credential-store.ts";
-import { installationId } from "../src/main/modules/settings/installation-id.ts";
-import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
+import { createCredentialStore } from "../src/backend/modules/settings/credential-store.ts";
+import { installationId } from "../src/backend/modules/settings/installation-id.ts";
+import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 

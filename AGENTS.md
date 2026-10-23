@@ -36,7 +36,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 
 ## Runtime boundaries
 
-- The desktop's main process is the only backend and owns all I/O: broker SDKs, market data, news, LLM calls and secrets. The renderer makes no network requests and holds no keys, so a package module it imports does neither.
+- The desktop's backend, a utility process its main process starts, is the only backend and owns all I/O: broker SDKs, market data, news, LLM calls and secrets. It reaches Electron only through a port the main process serves, which alone holds the OS key that seals the secrets. The renderer makes no network requests and holds no keys, so a package module it imports does neither.
 - Every key, model and endpoint comes from the user's settings. Modules pass every option an SDK would otherwise read from the environment.
 - There is no local HTTP server. The only listeners are sign-in callbacks on `127.0.0.1`, each open only while its sign-in waits for the browser. A host for external clients, if one is added, binds to localhost, stays a thin layer over the packages and never exposes `confirm`.
 - SQLite runs on the runtime's built-in `node:sqlite` through drizzle-orm, so the app ships no native modules.

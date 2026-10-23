@@ -9,11 +9,11 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { Secret } from "#shared/settings.ts";
 
-import { AppChannel } from "../src/main/host.ts";
-import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
-import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
-import { parseOtlpHeaders } from "../src/main/modules/telemetry/otlp-headers.ts";
-import { createTelemetry } from "../src/main/modules/telemetry/telemetry.ts";
+import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";
+import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";
+import { parseOtlpHeaders } from "../src/backend/modules/telemetry/otlp-headers.ts";
+import { createTelemetry } from "../src/backend/modules/telemetry/telemetry.ts";
+import { AppChannel } from "../src/shared/app-channel.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 

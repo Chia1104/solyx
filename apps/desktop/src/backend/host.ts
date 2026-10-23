@@ -1,5 +1,6 @@
 import type { FubonSessionOptions } from "@solyx/brokers/fubon";
 
+import type { AppChannel } from "#shared/app-channel.ts";
 import type { ColorScheme, PaletteColors } from "#shared/palette.ts";
 import type { Theme } from "#shared/settings.ts";
 
@@ -9,16 +10,6 @@ import type { SettingsShell } from "./modules/settings/settings.route.ts";
 import type { ReportError } from "./modules/telemetry/diagnostics.ts";
 import type { TrayShell } from "./modules/tray/tray.ts";
 import type { Updater } from "./modules/updates/updates.ts";
-
-/** Which build of the app runs: a development run, or the channel a packaged build was made for. */
-export const AppChannel = {
-  Development: "development",
-  Nightly: "nightly",
-  Stable: "stable",
-  Test: "test",
-} as const;
-
-export type AppChannel = (typeof AppChannel)[keyof typeof AppChannel];
 
 /** What the app's windows show: the theme, and the palette of each scheme the theme may pick. */
 export interface WindowPaint {

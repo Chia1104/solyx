@@ -30,17 +30,17 @@ import {
   webSearchKeySecret,
 } from "#shared/settings.ts";
 
-import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
-import type { McpServers } from "../src/main/modules/agent/mcp-servers.ts";
-import { createAppearance } from "../src/main/modules/settings/appearance.ts";
-import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
-import { createMandateStore } from "../src/main/modules/settings/mandate-store.ts";
-import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
-import { settingsRouter } from "../src/main/modules/settings/settings.route.ts";
-import type { SettingsContext } from "../src/main/modules/settings/settings.route.ts";
-import { createWebSearch } from "../src/main/modules/web-search/web-search.ts";
-import { keepMessages } from "../src/main/rpc/messages.ts";
-import type { WindowEvents } from "../src/main/rpc/window-events.ts";
+import { createAgentModels } from "../src/backend/modules/agent/agent-models.ts";
+import type { McpServers } from "../src/backend/modules/agent/mcp-servers.ts";
+import { createAppearance } from "../src/backend/modules/settings/appearance.ts";
+import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";
+import { createMandateStore } from "../src/backend/modules/settings/mandate-store.ts";
+import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";
+import { settingsRouter } from "../src/backend/modules/settings/settings.route.ts";
+import type { SettingsContext } from "../src/backend/modules/settings/settings.route.ts";
+import { createWebSearch } from "../src/backend/modules/web-search/web-search.ts";
+import { keepMessages } from "../src/backend/rpc/messages.ts";
+import type { WindowEvents } from "../src/backend/rpc/window-events.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 

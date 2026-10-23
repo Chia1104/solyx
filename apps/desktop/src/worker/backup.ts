@@ -5,7 +5,7 @@ import { parentPort, workerData } from "node:worker_threads";
 import {
   createBackupJobs,
   toJobFailure,
-} from "../main/modules/backup/backup-jobs.ts";
+} from "../backend/modules/backup/backup-jobs.ts";
 
 import { BackupJob } from "./backup-protocol.ts";
 import type {

@@ -16,12 +16,12 @@ import type {
   MinuteListener,
 } from "@solyx/core/market-data";
 
-import { createLiveCandles } from "../src/main/modules/market/live-candles.ts";
+import { createLiveCandles } from "../src/backend/modules/market/live-candles.ts";
 import type {
   LiveCandle,
   LiveSender,
-} from "../src/main/modules/market/live-candles.ts";
-import { createLiveStream } from "../src/main/modules/market/live-stream.ts";
+} from "../src/backend/modules/market/live-candles.ts";
+import { createLiveStream } from "../src/backend/modules/market/live-stream.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 

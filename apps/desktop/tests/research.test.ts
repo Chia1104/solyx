@@ -10,7 +10,7 @@ import { Session } from "@solyx/core/session";
 import { openResearch } from "@solyx/db/research";
 import type { ResearchData } from "@solyx/db/research";
 
-import { createResearch } from "../src/main/modules/research/research.ts";
+import { createResearch } from "../src/backend/modules/research/research.ts";
 
 const MIGRATIONS = fileURLToPath(
   new URL("../../../packages/db/migrations/research", import.meta.url)

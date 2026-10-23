@@ -14,8 +14,8 @@ import {
 } from "#shared/palette.ts";
 import { PriceColors, Theme } from "#shared/settings.ts";
 
-import { createAppearance } from "../src/main/modules/settings/appearance.ts";
-import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
+import { createAppearance } from "../src/backend/modules/settings/appearance.ts";
+import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";
 
 let directory: string;
 

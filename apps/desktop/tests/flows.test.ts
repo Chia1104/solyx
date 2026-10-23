@@ -5,7 +5,7 @@ import { Market } from "@solyx/core/market";
 import { HOUR_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
-import { createFlows } from "../src/main/modules/flows/flows.ts";
+import { createFlows } from "../src/backend/modules/flows/flows.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 

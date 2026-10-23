@@ -1,6 +1,6 @@
 # `@solyx/utils`
 
-Cross-runtime, domain-neutral utilities shared by the main process, the renderer and tests.
+Cross-runtime, domain-neutral utilities shared by the desktop's backend and main process, the renderer and tests.
 
 ## Boundaries
 
