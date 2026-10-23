@@ -2,7 +2,6 @@ import { mkdir } from "node:fs/promises";
 
 import type { MemoryPublisher } from "@orpc/publisher/memory";
 import { implement } from "@orpc/server";
-import type { WebContents } from "electron";
 import { mapValues, uniq } from "es-toolkit";
 
 import { effectivePolicy, mcpToolKey } from "@solyx/agent/mcp-config";
@@ -24,6 +23,7 @@ import {
 import { TradingBroker } from "#shared/settings.ts";
 import type { AppInfo, FubonFile } from "#shared/settings.ts";
 
+import type { RpcClient } from "../../rpc/context.ts";
 import type { WindowEvents } from "../../rpc/window-events.ts";
 import type { AgentService } from "../agent/agent-service.ts";
 import type { McpServers } from "../agent/mcp-servers.ts";
@@ -41,7 +41,7 @@ import type { SecretStore } from "./secret-store.ts";
 /** What only Electron does for the settings page. */
 export interface SettingsShell {
   /** Asks for one of Fubon's files in a dialog over the asking window; `null` when cancelled. */
-  chooseFubonFile(file: FubonFile, sender: WebContents): Promise<string | null>;
+  chooseFubonFile(file: FubonFile, client: RpcClient): Promise<string | null>;
   showItemInFolder(path: string): void;
   /** The app and the runtime it runs on, as About shows them. */
   about(): Omit<AppInfo, "locations">;
@@ -87,7 +87,7 @@ export interface SettingsContext {
   /** Quits the app and starts it again. */
   restart(): void;
   windowEvents: Pick<MemoryPublisher<WindowEvents>, "subscribe">;
-  sender: WebContents;
+  client: RpcClient;
 }
 
 const settings = implement(settingsContract).$context<SettingsContext>();
@@ -158,7 +158,7 @@ export const settingsRouter = settings.router({
     async ({ context, input }) => {
       const path = await context.settingsShell.chooseFubonFile(
         input,
-        context.sender
+        context.client
       );
 
       if (path !== null)

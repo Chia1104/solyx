@@ -4,7 +4,6 @@ import { join } from "node:path";
 
 import { MemoryPublisher } from "@orpc/publisher/memory";
 import { createRouterClient } from "@orpc/server";
-import type { WebContents } from "electron";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import {
@@ -141,8 +140,7 @@ function setup() {
     mandates: createMandateStore(secrets),
     restart: vi.fn(),
     windowEvents: new MemoryPublisher<WindowEvents>(),
-    // SAFETY: no procedure a test calls opens a dialog, the only use of the asking window.
-    sender: {} as WebContents,
+    client: { window: 1 },
   };
 
   // As a window calls them, failures told as the main process words them.

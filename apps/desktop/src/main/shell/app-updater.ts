@@ -1,8 +1,9 @@
 import { autoUpdater } from "electron-updater";
 
-import { AppChannel, appChannel } from "../../shell/app-channel.ts";
+import { AppChannel } from "../host.ts";
+import type { Updater } from "../modules/updates/updates.ts";
 
-import type { Updater } from "./updates.ts";
+import { appChannel } from "./app-channel.ts";
 
 /**
  * electron-updater on the feed electron-builder wrote into the app (`app-update.yml`). Only Windows

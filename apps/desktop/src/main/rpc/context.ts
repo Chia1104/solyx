@@ -1,13 +1,17 @@
 import { implement } from "@orpc/server";
-import type { WebContents } from "electron";
 
 import { routerContract } from "#shared/rpc/router.contract.ts";
 
 import type { Services } from "../services.ts";
 
-/** What every procedure is called with: the app's services and the window that asked. */
+/** Who asks: a window of the app, by its page's `webContents` id. */
+export interface RpcClient {
+  window: number;
+}
+
+/** What every procedure is called with: the app's services and the client that asked. */
 export interface RpcContext extends Services {
-  sender: WebContents;
+  client: RpcClient;
 }
 
 export const contractOS = implement(routerContract).$context<RpcContext>();

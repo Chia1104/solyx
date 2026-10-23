@@ -7,9 +7,9 @@ import {
 } from "@sentry/electron/main";
 import { app } from "electron";
 
-import { appChannel } from "../../shell/app-channel.ts";
-import type { ReportError } from "../telemetry/diagnostics.ts";
+import type { ReportError } from "../modules/telemetry/diagnostics.ts";
 
+import { appChannel } from "./app-channel.ts";
 import { scrubEvent } from "./scrub-event.ts";
 
 // Written into the bundle by `vp pack` from the release workflow, so development builds and forks

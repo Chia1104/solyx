@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { scrubEvent } from "../src/main/modules/crash-reports/scrub-event.ts";
+import { scrubEvent } from "../src/main/shell/scrub-event.ts";
 
 const HOME = "/Users/someone";
 

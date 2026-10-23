@@ -9,16 +9,18 @@ import { SettingsSection } from "#shared/settings-section.ts";
 import { resolveLocale } from "#shared/settings.ts";
 import { DestinationKind } from "#shared/workspace.ts";
 
+import type { Host } from "./host.ts";
 import { RestoreFailure } from "./modules/backup/staged-restore.ts";
-import { startCrashReports } from "./modules/crash-reports/crash-reports.ts";
 import { CATALOGS, fill } from "./modules/settings/catalogs.ts";
 import { createConfigFile } from "./modules/settings/config-file.ts";
-import { serveRpc } from "./rpc/serve.ts";
 import { createServices } from "./services.ts";
 import type { Services } from "./services.ts";
 import { appChannel } from "./shell/app-channel.ts";
-import { APP_ICON, createMainWindow } from "./shell/main-window.ts";
+import { startCrashReports } from "./shell/crash-reports.ts";
+import { createElectronHost } from "./shell/electron-host.ts";
+import { APP_ICON, createWindows } from "./shell/main-window.ts";
 import { refusesRemoteDebugging } from "./shell/remote-debugging.ts";
+import { serveWindows } from "./shell/window-ports.ts";
 
 // Before anything else runs, so a stable or nightly build never opens the DevTools protocol's port
 // or pipe, which Chromium opens as the app gets ready.
@@ -56,9 +58,9 @@ let quitting = false;
  * The services, or nothing once a restored backup could not be put in place: the app then says
  * so and exits rather than start on half of each, and tries again the next time it starts.
  */
-function startServices(): Services | undefined {
+function startServices(host: Host): Services | undefined {
   try {
-    return createServices(config);
+    return createServices(config, host);
   } catch (error) {
     if (!(error instanceof RestoreFailure)) throw error;
 
@@ -86,12 +88,13 @@ void app.whenReady().then(() => {
   // Unpackaged runs launch Electron's own app bundle, whose icon the Dock would show.
   if (!app.isPackaged) app.dock?.setIcon(APP_ICON);
 
-  const services = startServices();
+  const windows = createWindows();
+  const services = startServices(createElectronHost(windows));
 
   if (!services) return;
 
-  serveRpc(services);
-  createMainWindow(services.windowColors);
+  serveWindows(services);
+  windows.open();
   void services.tray.sync();
 
   // The window opens where the restore was asked for, which says what became of it.
@@ -142,8 +145,7 @@ void app.whenReady().then(() => {
   });
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0)
-      createMainWindow(services.windowColors);
+    if (BrowserWindow.getAllWindows().length === 0) windows.open();
   });
 
   // The app goes on in the tray, or in the Dock as a macOS app does. A quit that a signal such as

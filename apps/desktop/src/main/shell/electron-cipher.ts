@@ -1,6 +1,6 @@
 import { safeStorage } from "electron";
 
-import type { SecretCipher } from "./secret-store.ts";
+import type { SecretCipher } from "../modules/settings/secret-store.ts";
 
 /** Electron's safeStorage: its key lives in the Keychain on macOS, under DPAPI on Windows, and in libsecret or KWallet on Linux. */
 export const electronCipher: SecretCipher = {

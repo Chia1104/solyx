@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { AppChannel } from "../src/main/shell/app-channel.ts";
+import { AppChannel } from "../src/main/host.ts";
 import { refusesRemoteDebugging } from "../src/main/shell/remote-debugging.ts";
 
 function commandLine(...switches: string[]) {
