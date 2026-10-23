@@ -39,6 +39,7 @@ import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
 import { currentTimeZone } from "../../app/clock.ts";
+import { inWindow } from "../../app/device.ts";
 import { currentLocale } from "../../app/i18n.ts";
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
@@ -505,11 +506,14 @@ export function AgentComposer({
           />
           <div className="flex items-center justify-between gap-2 px-1.5 pb-1.5">
             <div className="flex min-w-0 items-center gap-1">
-              <ApprovalModeMenu
-                mode={approvalMode}
-                isDisabled={setApprovalMode.isPending}
-                onChange={pickApprovalMode}
-              />
+              {/* A browser's messages ask before every call, whatever the mode the computer set. */}
+              {inWindow ? (
+                <ApprovalModeMenu
+                  mode={approvalMode}
+                  isDisabled={setApprovalMode.isPending}
+                  onChange={pickApprovalMode}
+                />
+              ) : null}
               {settings ? (
                 <AgentModelPicker
                   // What it shows while saving belongs to the conversation it was picked in.

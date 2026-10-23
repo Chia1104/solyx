@@ -204,6 +204,18 @@ const configSchema = section(
         }),
       })
     ),
+    remote: section(
+      z.looseObject({
+        enabled: z.boolean().catch(false).meta({
+          description:
+            "Serves the workspace on this computer's own address, 127.0.0.1, to browsers you pair with it, such as one that reaches this computer over SSH. A paired browser can read and propose but not confirm orders or change settings.",
+        }),
+        port: z.number().int().min(1024).max(65535).catch(18321).meta({
+          description: "The port the workspace is served on while that is on.",
+          default: 18321,
+        }),
+      })
+    ),
     tray: section(
       z.looseObject({
         show: z.boolean().catch(true).meta({
@@ -540,6 +552,7 @@ type ConfigPath =
   | ["appearance", "palettes", string, "name"]
   | ["appearance", "palettes", string, ColorScheme, PaletteToken]
   | ["tray", "show" | "hideDock"]
+  | ["remote", "enabled"]
   | ["trading", "broker" | "account" | "locked"]
   | ["trading", "maxDailyLoss", Currency]
   | ["marketData", typeof Market.TW]

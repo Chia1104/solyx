@@ -29,6 +29,8 @@ export interface Host {
   locale: string;
   /** Where the app keeps its secrets, caches and databases. */
   dataDir: string;
+  /** The folder holding the renderer's build, which the edge serves to paired devices. */
+  webRoot: string;
   homeDir: string;
   cipher: SecretCipher;
   /** The channel's update feed; `null` where the build has none. */

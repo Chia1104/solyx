@@ -126,7 +126,7 @@ function setup() {
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    tools: async (guard) => ({
+    tools: async ({ guard }) => ({
       offered: [memory.extension(guard)],
       deferred: [],
     }),

@@ -31,6 +31,7 @@ import { OverviewPage } from "../pages/overview-page.tsx";
 import { SettingsPage } from "../pages/settings-page.tsx";
 import { SymbolPage } from "../pages/symbol-page.tsx";
 
+import { inWindow } from "./device.ts";
 import { queryClient } from "./query-client.ts";
 import { RootLayout } from "./root-layout.tsx";
 
@@ -41,7 +42,9 @@ const rootRoute = createRootRoute({
   beforeLoad: async ({ location }) => {
     const onboarding = useOnboardingStore.getState();
 
-    if (onboarding.finished || location.pathname === "/onboarding") return;
+    // A paired browser changes no settings, so it never sets the app up.
+    if (!inWindow || onboarding.finished || location.pathname === "/onboarding")
+      return;
 
     // A failed check never keeps anyone out of the app.
     const status = await queryClient
@@ -60,9 +63,15 @@ const rootRoute = createRootRoute({
   },
 });
 
+// Settings and first-run setup are this computer's own windows' to change.
+const keepToWindows = () => {
+  if (!inWindow) throw redirect({ to: "/" });
+};
+
 const onboardingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "onboarding",
+  beforeLoad: keepToWindows,
   validateSearch: z.object({
     step: onboardingStepSchema
       .default(OnboardingStep.Welcome)
@@ -112,6 +121,7 @@ const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "settings",
   validateSearch: settingsSearchSchema,
+  beforeLoad: keepToWindows,
   component: SettingsPage,
 });
 

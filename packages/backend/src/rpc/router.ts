@@ -2,6 +2,7 @@ import { accountRouter } from "../modules/account/account.route.ts";
 import { agentRouter } from "../modules/agent/agent.route.ts";
 import { backupRouter } from "../modules/backup/backup.route.ts";
 import { calendarRouter } from "../modules/calendar/calendar.route.ts";
+import { devicesRouter } from "../modules/devices/devices.route.ts";
 import { embeddingsRouter } from "../modules/embeddings/embeddings.route.ts";
 import { flowsRouter } from "../modules/flows/flows.route.ts";
 import { fundamentalsRouter } from "../modules/fundamentals/fundamentals.route.ts";
@@ -27,6 +28,7 @@ export const router = contractOS.router({
   agent: agentRouter,
   backup: backupRouter,
   calendar: calendarRouter,
+  devices: devicesRouter,
   embeddings: embeddingsRouter,
   flows: flowsRouter,
   fundamentals: fundamentalsRouter,

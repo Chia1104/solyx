@@ -1,14 +1,21 @@
 import type { SupportedMessagePort } from "@orpc/client/message-port";
-import { RPCHandler } from "@orpc/server/message-port";
+import { RPCHandler as MessagePortHandler } from "@orpc/server/message-port";
+import { RPCHandler as WebSocketHandler } from "@orpc/server/websocket";
+import type { WebSocket } from "ws";
 
+import { onlyWhatDevicesMayCall } from "./access.ts";
 import type { RpcContext } from "./context.ts";
 import { keepMessages } from "./messages.ts";
 import { router } from "./router.ts";
 
-/** Serves the router on clients' ports; built once, since each port keeps its own calls. */
-export const rpcHandler = new RPCHandler(router, {
-  clientInterceptors: [keepMessages],
+const clientInterceptors = [onlyWhatDevicesMayCall, keepMessages];
+
+/** Serves the router on windows' ports; built once, since each port keeps its own calls. */
+export const rpcHandler = new MessagePortHandler(router, {
+  clientInterceptors,
 });
+
+const socketHandler = new WebSocketHandler(router, { clientInterceptors });
 
 /**
  * Serves every procedure on `port` as the client it belongs to. A port closes with its page,
@@ -20,4 +27,9 @@ export function serveClient(
 ) {
   rpcHandler.upgrade(port, { context });
   port.start();
+}
+
+/** Serves the router on a paired device's socket, which ends its streams as it closes. */
+export function serveSocket(socket: WebSocket, context: RpcContext) {
+  socketHandler.upgrade(socket, { context });
 }

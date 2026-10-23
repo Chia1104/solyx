@@ -27,6 +27,7 @@ import { SymbolSearch } from "../modules/market/symbol-search.tsx";
 import { OrderLockToggle } from "../modules/proposals/order-lock.tsx";
 import { UpdateAction } from "../modules/updates/update-action.tsx";
 
+import { inWindow } from "./device.ts";
 import { BACK_HOTKEYS, PANE_HOTKEY } from "./hotkeys.ts";
 import { PANE_EDGE, Pane, paneId, useLayoutStore } from "./layout-store.ts";
 import { useHeldPane, useSettingsOpen } from "./settings-open.ts";
@@ -131,14 +132,14 @@ export function TitleBar({ searchRef }: { searchRef: Ref<HTMLInputElement> }) {
       </Link>
       <SymbolSearch inputRef={searchRef} />
       <div className="ml-auto flex items-center gap-4">
-        <UpdateAction />
+        {inWindow ? <UpdateAction /> : null}
         <MarketSessions />
         <div className="flex items-center gap-2">
-          <OrderLockToggle />
+          {inWindow ? <OrderLockToggle /> : null}
           <BrokerModeChip />
         </div>
         <div className="flex items-center gap-1">
-          <SettingsButton />
+          {inWindow ? <SettingsButton /> : null}
           <PaneToggle pane={Pane.Agent} />
         </div>
       </div>

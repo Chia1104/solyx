@@ -1,25 +1,41 @@
-import { contractOS } from "../../rpc/context.ts";
+import { ORPCError } from "@orpc/server";
+
+import { ApprovalMode } from "@solyx/agent/wire";
+
+import { ClientKind, contractOS } from "../../rpc/context.ts";
 
 const { agent } = contractOS;
 
 export const agentRouter = agent.router({
   sessions: agent.sessions.handler(({ context }) => context.agent.sessions()),
-  createSession: agent.createSession.handler(({ context, input }) =>
-    context.agent.createSession(input)
-  ),
+  // A device may not set how a conversation's calls are answered, so it starts one that asks.
+  createSession: agent.createSession.handler(({ context, input }) => {
+    if (
+      context.client.kind === ClientKind.Device &&
+      input.approvalMode !== ApprovalMode.Ask
+    ) {
+      throw new ORPCError("FORBIDDEN", {
+        message: "A paired device starts only conversations that ask",
+      });
+    }
+
+    return context.agent.createSession(input);
+  }),
   deleteSession: agent.deleteSession.handler(({ context, input }) =>
     context.agent.deleteSession(input)
   ),
   transcript: agent.transcript.handler(({ context, input }) =>
     context.agent.transcript(input)
   ),
+  // A device's message cannot have its run answer for the user, whatever the conversation's mode.
   send: agent.send.handler(({ context, input }) =>
     context.agent.send(
       input.id,
       input.text,
       input.screen,
       input.locale,
-      input.timeZone
+      input.timeZone,
+      context.client.kind === ClientKind.Device
     )
   ),
   abort: agent.abort.handler(({ context, input }) =>

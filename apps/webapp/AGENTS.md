@@ -1,6 +1,6 @@
 # `@solyx/webapp`
 
-The workspace's React app, which each of the desktop's windows loads. It reads everything from the backend through the oRPC client in `src/app/rpc.ts`; its crash reports reach the main process through the preload's Sentry bridge. Paths below are under `src/`.
+The workspace's React app, which each of the desktop's windows loads and the backend's edge serves to paired browsers. It reads everything from the backend through the oRPC client in `src/app/rpc.ts`: a window over the port its preload forwards, a paired browser over a WebSocket to the edge that served it. A window's crash reports reach the main process through the preload's Sentry bridge; a browser sends none. Paths below are under `src/`.
 
 ## Layout
 
@@ -12,6 +12,12 @@ The workspace's React app, which each of the desktop's windows loads. It reads e
 ## Build
 
 - `vp run build` builds into `dist/` with relative paths, since the desktop loads it from `file://`, and a content security policy that only builds carry. The package workflow's `SENTRY_AUTH_TOKEN` uploads hidden source maps under the desktop's release, `solyx@<version>`, and deletes them. The desktop serves the dev server on the port `SOLYX_RENDERER_URL` names.
+
+## Paired browsers
+
+- `app/device.ts` tells a window, whose user agent names Electron, from a browser. A browser that holds no token shows only `pages/pairing-page.tsx` and loads nothing else, so it opens no socket until it pairs; its token lives in its own `localStorage`, and a socket closed as unpaired forgets it.
+- A browser changes no settings and sends nothing to the broker, as the backend refuses those to devices anyway: it skips first-run setup, settings and their pane, the update action and the lock on orders, and shows submitting a proposal, cancelling an order or exit and answering the agent's call as left to the computer. It shows no approval mode, since a browser's messages ask before every call whatever the mode.
+- A socket that closes for any other reason reloads the page after a few seconds, so the streams the page followed start again.
 
 ## Stack
 

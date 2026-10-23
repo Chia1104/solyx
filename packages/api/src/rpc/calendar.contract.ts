@@ -4,9 +4,12 @@ import * as z from "zod";
 import type { UpcomingEvents } from "@solyx/core/calendar";
 import { symbolRefSchema } from "@solyx/core/market";
 
+import { forDevices } from "./access.ts";
+
 export const calendarContract = {
   /** The listings' events and their markets' releases over the next `days` days, each from today on its exchange's calendar. */
   upcoming: oc
+    .meta(forDevices(true))
     .input(
       z.object({
         symbols: z.array(symbolRefSchema).max(500),

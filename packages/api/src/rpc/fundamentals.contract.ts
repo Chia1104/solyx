@@ -7,9 +7,17 @@ import type { SectorMovers } from "@solyx/core/sectors";
 
 import type { FinancialTrends } from "../fundamentals.ts";
 
+import { forDevices } from "./access.ts";
+
 export const fundamentalsContract = {
   /** `null` for a listing whose market no source covers; empty for one that files none, as a fund does. */
-  trends: oc.input(symbolRefSchema).output(type<FinancialTrends | null>()),
+  trends: oc
+    .meta(forDevices(true))
+    .input(symbolRefSchema)
+    .output(type<FinancialTrends | null>()),
   /** `null` while no source lists the sector's companies. */
-  sectorMovers: oc.input(z.enum(TwSector)).output(type<SectorMovers | null>()),
+  sectorMovers: oc
+    .meta(forDevices(true))
+    .input(z.enum(TwSector))
+    .output(type<SectorMovers | null>()),
 };

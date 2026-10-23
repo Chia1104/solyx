@@ -7,17 +7,24 @@ import type { Headline, NewsReading } from "@solyx/core/news";
 
 import type { NewsCoverage } from "../news.ts";
 
+import { forDevices } from "./access.ts";
+
 const daysSchema = z.number().int().min(1).max(90);
 
 export const newsContract = {
   /** A listing's stories, gauge and daily stance over the last `days` days, grouped in the main process. */
   reading: oc
+    .meta(forDevices(true))
     .input(z.object({ symbol: symbolRefSchema, days: daysSchema }))
     .output(type<NewsReading>()),
   /** Where a listing's news comes from, so a quiet listing can be told from a broken source. */
-  coverage: oc.input(symbolRefSchema).output(type<NewsCoverage>()),
+  coverage: oc
+    .meta(forDevices(true))
+    .input(symbolRefSchema)
+    .output(type<NewsCoverage>()),
   /** The `limit` heaviest headlines about the listings over the last `days` days. */
   headlines: oc
+    .meta(forDevices(true))
     .input(
       z.object({
         symbols: z.array(symbolRefSchema).max(500),
@@ -27,5 +34,7 @@ export const newsContract = {
     )
     .output(type<Headline[]>()),
   /** Yields a listing whenever its news was collected, or some of it scored; source health may have changed with it. */
-  changes: oc.output(asyncIteratorObject(type<SymbolRef>())),
+  changes: oc
+    .meta(forDevices(true))
+    .output(asyncIteratorObject(type<SymbolRef>())),
 };

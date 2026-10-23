@@ -369,8 +369,8 @@ export function createAgentService(options: AgentServiceOptions) {
     store: options.conversations,
     models: models.models,
     model: (pick) => models.choice(pick),
-    async tools(guard) {
-      const mcp = await options.mcp.extensions(guard);
+    async tools({ guard, unasked }) {
+      const mcp = await options.mcp.extensions({ guard, unasked });
       const webOn = (await options.web()) !== undefined;
 
       // MCP tools wait until the agent finds them, so only the servers' names ride every request.
@@ -429,6 +429,7 @@ export function createAgentService(options: AgentServiceOptions) {
       timeZone,
       scheduled,
       changes,
+      asksEveryCall,
     }: {
       /** What the window showed as the message was written; `null` for one nobody was at the app for. */
       screen: AgentScreen | null;
@@ -437,6 +438,8 @@ export function createAgentService(options: AgentServiceOptions) {
       scheduled?: string;
       /** What the app saw change, for a task that ran because of it. */
       changes?: readonly Change[];
+      /** Whether its run asks before every call that can ask, as a paired device's message does. */
+      asksEveryCall: boolean;
     }
   ) {
     const now = new Date();
@@ -471,6 +474,7 @@ export function createAgentService(options: AgentServiceOptions) {
         scheduled,
         changes,
       }),
+      asksEveryCall,
     });
   }
 
@@ -545,8 +549,9 @@ export function createAgentService(options: AgentServiceOptions) {
       text: string,
       screen: AgentScreen | null,
       locale: Locale,
-      timeZone: TimeZone
-    ) => send(id, text, { screen, locale, timeZone }),
+      timeZone: TimeZone,
+      asksEveryCall: boolean
+    ) => send(id, text, { screen, locale, timeZone, asksEveryCall }),
 
     /** Whether a run is going in the conversation; one since deleted has none. */
     busy: (id: string) => runtime.busy(id),
@@ -590,6 +595,7 @@ export function createAgentService(options: AgentServiceOptions) {
           timeZone,
           scheduled: name,
           changes,
+          asksEveryCall: false,
         });
       } catch (error) {
         await deleteSession(session.id);

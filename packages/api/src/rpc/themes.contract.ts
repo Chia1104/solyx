@@ -4,13 +4,14 @@ import * as z from "zod";
 import { themeDraftSchema } from "@solyx/core/theme";
 import type { ThemeWatch } from "@solyx/core/theme";
 
+import { forDevices } from "./access.ts";
 import { changesContract } from "./changes.ts";
 
 const idSchema = z.string().min(1);
 
 export const themesContract = {
   /** Every theme with what watching it has found, the one with the newest development first. */
-  list: oc.output(type<ThemeWatch[]>()),
+  list: oc.meta(forDevices(true)).output(type<ThemeWatch[]>()),
   create: oc.input(themeDraftSchema).output(type<void>()),
   /** Writes the theme again; what was found for it stays. */
   update: oc

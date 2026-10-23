@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { join } from "node:path";
 
 import type { RouterContractClient } from "@orpc/contract";
 import { net } from "electron";
@@ -49,6 +50,8 @@ export function createBackendHost({
     channel: start.channel,
     locale: start.locale,
     dataDir: start.dataDir,
+    // The desktop's build puts the renderer beside the backend's bundle.
+    webRoot: join(import.meta.dirname, "../renderer"),
     homeDir: start.homeDir,
 
     cipher: {
@@ -155,8 +158,8 @@ export function createBackendHost({
     },
 
     settings: {
-      chooseFubonFile: (file, asking) =>
-        client.chooseFubonFile({ file, window: asking.window }),
+      chooseFubonFile: (file, window) =>
+        client.chooseFubonFile({ file, window }),
       showItemInFolder: (path) =>
         send("show-item-in-folder", client.showItemInFolder(path)),
       about: () => start.about,

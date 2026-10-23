@@ -103,8 +103,8 @@ async function setup(
       model: faux.getModel(),
       thinking: AgentThinking.Off,
     }),
-    async tools(guard) {
-      const mcp = hub.extensions({ policies, guard });
+    async tools(guards) {
+      const mcp = hub.extensions({ policies, ...guards });
 
       return {
         offered: [

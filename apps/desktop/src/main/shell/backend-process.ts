@@ -115,7 +115,7 @@ export function startBackend(windows: Windows, configFile: string) {
         quit: hosted.tray.quit.handler(() => app.quit()),
       },
       chooseFubonFile: hosted.chooseFubonFile.handler(({ input }) =>
-        settingsShell.chooseFubonFile(input.file, { window: input.window })
+        settingsShell.chooseFubonFile(input.file, input.window)
       ),
       showItemInFolder: hosted.showItemInFolder.handler(({ input }) =>
         settingsShell.showItemInFolder(input)

@@ -20,6 +20,7 @@ import {
 import type { ProposalBasis, TradeProposal } from "@solyx/core/order-desk";
 import type { OrderPremise } from "@solyx/core/risk";
 
+import { inWindow } from "../../app/device.ts";
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { HoldButton } from "../../components/hold-button.tsx";
@@ -252,6 +253,7 @@ function ExitState({ proposal }: { proposal: TradeProposal }) {
             size="sm"
             variant="secondary"
             isPending={cancel.isPending}
+            isDisabled={!inWindow}
             onPress={() => cancel.mutate(proposal.id)}>
             {t("proposals.exit.cancel")}
           </Button>
@@ -424,8 +426,9 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
           <HoldButton
             size="sm"
             isPending={confirm.isPending}
-            // Locked orders would only be refused, which would end the proposal.
-            isDisabled={dismiss.isPending || locked}
+            // Locked orders would only be refused, which would end the proposal; a paired browser
+            // may not send one at all.
+            isDisabled={dismiss.isPending || locked || !inWindow}
             onConfirm={() => confirm.mutate(proposal.id)}>
             {t("proposals.confirm")}
           </HoldButton>
@@ -439,6 +442,9 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
           </Button>
         </div>
       )}
+      {proposal.status === ProposalStatus.AwaitingConfirmation && !inWindow ? (
+        <p className="text-xs text-muted">{t("devices.confirm-on-computer")}</p>
+      ) : null}
     </article>
   );
 }

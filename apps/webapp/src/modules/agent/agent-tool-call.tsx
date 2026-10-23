@@ -41,6 +41,7 @@ import { ScheduleKind, scheduleSchema } from "@solyx/core/schedule";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { useClock } from "../../app/clock.ts";
+import { inWindow } from "../../app/device.ts";
 import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
@@ -330,7 +331,7 @@ function ApprovalCard({
           size="sm"
           variant="secondary"
           isPending={answer.isPending && answer.variables}
-          isDisabled={answer.isPending}
+          isDisabled={answer.isPending || !inWindow}
           onPress={() => answer.mutate(true)}>
           {t("agent.approval.allow")}
         </Button>
@@ -338,11 +339,14 @@ function ApprovalCard({
           size="sm"
           variant="tertiary"
           isPending={answer.isPending && !answer.variables}
-          isDisabled={answer.isPending}
+          isDisabled={answer.isPending || !inWindow}
           onPress={() => answer.mutate(false)}>
           {t("agent.approval.deny")}
         </Button>
       </div>
+      {inWindow ? null : (
+        <p className="text-xs text-muted">{t("devices.answer-on-computer")}</p>
+      )}
       {answer.error ? (
         <ErrorAlert
           title={t("agent.approval.failed")}

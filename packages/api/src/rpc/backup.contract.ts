@@ -4,10 +4,11 @@ import * as z from "zod";
 import { backupIntervalSchema, backupSettingSchema } from "../backup.ts";
 import type { BackupSettings, BackupStatus, StoredBackup } from "../backup.ts";
 
+import { forDevices } from "./access.ts";
 import { changesContract } from "./changes.ts";
 
 export const backupContract = {
-  settings: oc.output(type<BackupSettings>()),
+  settings: oc.meta(forDevices(true)).output(type<BackupSettings>()),
   /** `null` goes back to the default. */
   set: oc
     .input(
@@ -20,11 +21,11 @@ export const backupContract = {
     .output(type<void>()),
   setAutomatic: oc.input(z.boolean()).output(type<void>()),
   setEvery: oc.input(backupIntervalSchema).output(type<void>()),
-  status: oc.output(type<BackupStatus>()),
+  status: oc.meta(forDevices(true)).output(type<BackupStatus>()),
   /** Uploads a backup of what the app keeps now, sealed under the passphrase, then thins out this installation's older ones. */
   backUp: oc.output(type<StoredBackup>()),
   /** Every backup in the folder, newest first, whichever installation made it. */
-  list: oc.output(type<StoredBackup[]>()),
+  list: oc.meta(forDevices(true)).output(type<StoredBackup[]>()),
   /**
    * Downloads a backup, by its key, and checks it whole, then restarts the app, which puts it in
    * place of what this computer holds as it starts. Keys and sign-ins are not part of a backup.
