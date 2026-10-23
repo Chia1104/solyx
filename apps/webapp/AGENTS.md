@@ -1,4 +1,4 @@
-# `@solyx/web`
+# `@solyx/webapp`
 
 The workspace's React app, which each of the desktop's windows loads and the backend's edge serves to paired browsers. It reads everything from the backend through the oRPC client in `src/app/rpc.ts`: a window over the port its preload forwards, a paired browser over a WebSocket to the edge that served it. A window's crash reports reach the main process through the preload's Sentry bridge; a browser sends none. Paths below are under `src/`.
 
