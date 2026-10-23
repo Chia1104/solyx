@@ -11,8 +11,8 @@ import type {
   FubonSessionOptions,
 } from "@solyx/brokers/fubon";
 
-import { connectFubon } from "../src/main/modules/market/fubon-client.ts";
-import { keepMessages } from "../src/main/rpc/messages.ts";
+import { connectFubon } from "../src/backend/modules/market/fubon-client.ts";
+import { keepMessages } from "../src/backend/rpc/messages.ts";
 import type { Change } from "../src/shared/rpc/changes.ts";
 import { fubonContract } from "../src/utility/fubon.contract.ts";
 

@@ -11,7 +11,7 @@ import { TwSector } from "@solyx/core/sectors";
 import { HOUR_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
-import { createFundamentals } from "../src/main/modules/fundamentals/fundamentals.ts";
+import { createFundamentals } from "../src/backend/modules/fundamentals/fundamentals.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 

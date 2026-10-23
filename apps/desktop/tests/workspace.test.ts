@@ -3,7 +3,7 @@ import { expect, test, vi } from "vite-plus/test";
 import { DestinationKind } from "#shared/workspace.ts";
 import type { Destination } from "#shared/workspace.ts";
 
-import { createWorkspace } from "../src/main/modules/workspace/workspace.ts";
+import { createWorkspace } from "../src/backend/modules/workspace/workspace.ts";
 
 function setup() {
   const showWindow = vi.fn<() => void>();

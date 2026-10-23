@@ -7,7 +7,7 @@ import type {
 } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
 
-import { financialTrends } from "../src/main/modules/fundamentals/financial-trends.ts";
+import { financialTrends } from "../src/backend/modules/fundamentals/financial-trends.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 

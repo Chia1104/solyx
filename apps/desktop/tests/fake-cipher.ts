@@ -1,4 +1,4 @@
-import type { SecretCipher } from "../src/main/modules/settings/secret-store.ts";
+import type { SecretCipher } from "../src/backend/modules/settings/secret-store.ts";
 
 /** Tags ciphertext with a key id and reverses the text, so plain text never appears on disk. */
 export function fakeCipher() {

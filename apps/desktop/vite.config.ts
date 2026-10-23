@@ -18,6 +18,8 @@ const MAIN_BUNDLE = "dist/main/index.mjs";
 
 const PRELOAD_BUNDLE = "dist/preload/index.cjs";
 
+const BACKEND_BUNDLE = "dist/utility/backend.mjs";
+
 // Set by scripts/dev.mjs, which picks the dev server's port with it. Electron then loads the
 // renderer from the dev server and restarts after every successful main/preload build.
 const rendererUrl = process.env.SOLYX_RENDERER_URL;
@@ -50,7 +52,12 @@ let electron: ChildProcess | undefined;
 
 // Main and preload build in parallel; debounce so one change restarts Electron once.
 const restartElectron = debounce(() => {
-  if (!existsSync(MAIN_BUNDLE) || !existsSync(PRELOAD_BUNDLE)) return;
+  if (
+    ![MAIN_BUNDLE, PRELOAD_BUNDLE, BACKEND_BUNDLE].every((bundle) =>
+      existsSync(bundle)
+    )
+  )
+    return;
   electron?.kill();
   // SAFETY: outside Electron, the `electron` package's entry exports the path to its binary.
   const electronBinary = createRequire(import.meta.url)("electron") as string;
@@ -146,34 +153,8 @@ export default defineConfig({
       format: "esm",
       // Empty in development and forks, which then have nowhere to send crash reports.
       env: { SENTRY_DSN: process.env.SENTRY_DSN ?? "" },
-      // drizzle's migrator reads SQL files at runtime, so they ship beside the bundle.
+      // The tray and the windows read their icons beside the bundle.
       copy: [
-        {
-          from: "../../packages/db/migrations/cache",
-          to: "dist/main/migrations",
-          rename: "cache",
-        },
-        {
-          from: "../../packages/db/migrations/memory",
-          to: "dist/main/migrations",
-          rename: "memory",
-        },
-        {
-          from: "../../packages/db/migrations/news",
-          to: "dist/main/migrations",
-          rename: "news",
-        },
-        {
-          from: "../../packages/db/migrations/research",
-          to: "dist/main/migrations",
-          rename: "research",
-        },
-        {
-          from: "../../packages/db/migrations/user",
-          to: "dist/main/migrations",
-          rename: "user",
-        },
-        { from: quickjsWasm, to: "dist/main" },
         { from: "resources/icon.png", to: "dist/main" },
         { from: "resources/trayTemplate.png", to: "dist/main" },
         { from: "resources/trayTemplate@2x.png", to: "dist/main" },
@@ -188,9 +169,42 @@ export default defineConfig({
     },
     {
       ...nodeBundle,
-      entry: { fubon: "src/utility/fubon.ts" },
+      entry: {
+        backend: "src/utility/backend.ts",
+        fubon: "src/utility/fubon.ts",
+      },
       outDir: "dist/utility",
       format: "esm",
+      // drizzle's migrator reads SQL files and the agent's scripts QuickJS's wasm at runtime, so
+      // they ship beside the backend's bundle.
+      copy: [
+        {
+          from: "../../packages/db/migrations/cache",
+          to: "dist/utility/migrations",
+          rename: "cache",
+        },
+        {
+          from: "../../packages/db/migrations/memory",
+          to: "dist/utility/migrations",
+          rename: "memory",
+        },
+        {
+          from: "../../packages/db/migrations/news",
+          to: "dist/utility/migrations",
+          rename: "news",
+        },
+        {
+          from: "../../packages/db/migrations/research",
+          to: "dist/utility/migrations",
+          rename: "research",
+        },
+        {
+          from: "../../packages/db/migrations/user",
+          to: "dist/utility/migrations",
+          rename: "user",
+        },
+        { from: quickjsWasm, to: "dist/utility" },
+      ],
     },
     {
       ...nodeBundle,

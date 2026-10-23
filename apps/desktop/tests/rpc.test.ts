@@ -18,9 +18,9 @@ import { OrderDesk, ProposalSource } from "@solyx/core/order-desk";
 import type { TradeProposal } from "@solyx/core/order-desk";
 import { Session, weekdays } from "@solyx/core/session";
 
-import type { RpcContext } from "../src/main/rpc/context.ts";
-import { rpcHandler } from "../src/main/rpc/serve.ts";
-import type { WindowEvents } from "../src/main/rpc/window-events.ts";
+import type { RpcContext } from "../src/backend/rpc/context.ts";
+import { rpcHandler } from "../src/backend/rpc/serve.ts";
+import type { WindowEvents } from "../src/backend/rpc/window-events.ts";
 import type { routerContract } from "../src/shared/rpc/router.contract.ts";
 
 const ORDER: OrderRequest = {

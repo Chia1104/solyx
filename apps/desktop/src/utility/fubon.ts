@@ -5,7 +5,7 @@ import { RPCHandler } from "@orpc/server/message-port";
 import { openFubonSession } from "@solyx/brokers/fubon";
 import type { FubonSession } from "@solyx/brokers/fubon";
 
-import { keepMessages } from "../main/rpc/messages.ts";
+import { keepMessages } from "../backend/rpc/messages.ts";
 import type { Change } from "../shared/rpc/changes.ts";
 
 import { fubonContract } from "./fubon.contract.ts";

@@ -36,7 +36,7 @@ import {
 import {
   DEFAULT_COLLECTION_PLANS,
   createConfigFile,
-} from "../src/main/modules/settings/config-file.ts";
+} from "../src/backend/modules/settings/config-file.ts";
 
 import { handEdit } from "./hand-edit.ts";
 

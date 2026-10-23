@@ -13,13 +13,13 @@ import { dirname, join } from "node:path";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import type { DataFolders } from "../src/main/modules/backup/backup-places.ts";
+import type { DataFolders } from "../src/backend/modules/backup/backup-places.ts";
 import {
   RestoreFailure,
   restorePaths,
   stageRestore,
   takeRestore,
-} from "../src/main/modules/backup/staged-restore.ts";
+} from "../src/backend/modules/backup/staged-restore.ts";
 
 vi.mock("node:fs", async (importOriginal) => {
   const fs = await importOriginal<typeof NodeFs>();

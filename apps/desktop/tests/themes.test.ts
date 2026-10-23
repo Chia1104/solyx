@@ -15,7 +15,7 @@ import { WebSearchKind } from "@solyx/core/web-search";
 import type { WebResult, WebSearch } from "@solyx/core/web-search";
 import { HOUR_MS, DAY_MS, DAY_MINUTES } from "@solyx/utils/date";
 
-import { createThemes } from "../src/main/modules/themes/themes.ts";
+import { createThemes } from "../src/backend/modules/themes/themes.ts";
 
 const START = Date.parse("2026-10-10T09:00:00+08:00");
 

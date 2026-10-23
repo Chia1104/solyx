@@ -15,11 +15,11 @@ import { openUserData } from "@solyx/db/user";
 
 import { startFakeS3 } from "../../../packages/backup/tests/fixtures/fake-s3.ts";
 import type { FakeS3 } from "../../../packages/backup/tests/fixtures/fake-s3.ts";
-import { createBackupThreads } from "../src/main/modules/backup/backup-threads.ts";
+import { createBackupThreads } from "../src/backend/modules/backup/backup-threads.ts";
 import {
   restorePaths,
   takeRestore,
-} from "../src/main/modules/backup/staged-restore.ts";
+} from "../src/backend/modules/backup/staged-restore.ts";
 
 const MIGRATIONS = fileURLToPath(
   new URL("../../../packages/db/migrations", import.meta.url)

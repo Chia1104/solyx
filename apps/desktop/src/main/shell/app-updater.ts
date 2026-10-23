@@ -1,7 +1,8 @@
 import { autoUpdater } from "electron-updater";
 
-import { AppChannel } from "../host.ts";
-import type { Updater } from "../modules/updates/updates.ts";
+import { AppChannel } from "#shared/app-channel.ts";
+
+import type { Updater } from "../../backend/modules/updates/updates.ts";
 
 import { appChannel } from "./app-channel.ts";
 

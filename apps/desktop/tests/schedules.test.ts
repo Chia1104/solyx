@@ -14,7 +14,7 @@ import type {
 import { weekdays } from "@solyx/core/session";
 import { MINUTE_MS, HOUR_MS } from "@solyx/utils/date";
 
-import { createSchedules } from "../src/main/modules/schedules/schedules.ts";
+import { createSchedules } from "../src/backend/modules/schedules/schedules.ts";
 
 const taipei = (time: string) => Date.parse(`${time}+08:00`);
 

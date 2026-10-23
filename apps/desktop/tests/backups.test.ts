@@ -38,16 +38,16 @@ import {
   backupKey,
   createBackupJobs,
   readBackupKey,
-} from "../src/main/modules/backup/backup-jobs.ts";
-import { createBackups } from "../src/main/modules/backup/backups.ts";
+} from "../src/backend/modules/backup/backup-jobs.ts";
+import { createBackups } from "../src/backend/modules/backup/backups.ts";
 import {
   RestoreFailure,
   restorePaths,
   settleRestore,
   takeRestore,
-} from "../src/main/modules/backup/staged-restore.ts";
-import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
-import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
+} from "../src/backend/modules/backup/staged-restore.ts";
+import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";
+import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 

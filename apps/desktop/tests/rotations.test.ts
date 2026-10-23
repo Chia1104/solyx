@@ -14,7 +14,7 @@ import {
 import { SectorGroup, TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 import { MINUTE_MS } from "@solyx/utils/date";
 
-import { createRotations } from "../src/main/modules/market/rotations.ts";
+import { createRotations } from "../src/backend/modules/market/rotations.ts";
 
 const NOW = new Date("2026-09-29T10:00:00+08:00");
 

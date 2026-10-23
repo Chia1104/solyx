@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { Secret, SecretState } from "#shared/settings.ts";
 
-import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
+import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 

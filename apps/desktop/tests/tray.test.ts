@@ -13,12 +13,12 @@ import { UpdateStatus } from "#shared/updates.ts";
 import { DestinationKind } from "#shared/workspace.ts";
 import type { Destination } from "#shared/workspace.ts";
 
-import { createTray } from "../src/main/modules/tray/tray.ts";
+import { createTray } from "../src/backend/modules/tray/tray.ts";
 import type {
   TrayShell,
   TrayState,
   TrayView,
-} from "../src/main/modules/tray/tray.ts";
+} from "../src/backend/modules/tray/tray.ts";
 
 const TIME_ZONE = "Asia/Taipei";
 

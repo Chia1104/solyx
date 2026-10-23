@@ -1,6 +1,6 @@
 import { app } from "electron";
 
-import { AppChannel } from "../host.ts";
+import { AppChannel } from "#shared/app-channel.ts";
 
 /**
  * A packaged build's version names its channel: the release workflow writes a nightly's, and the

@@ -10,7 +10,7 @@ import {
   createMarketDays,
   createTradingCalendar,
   marketSessions,
-} from "../src/main/modules/market/trading-calendar.ts";
+} from "../src/backend/modules/market/trading-calendar.ts";
 
 function setup() {
   // 2026-10-07 10:00 in Taipei.

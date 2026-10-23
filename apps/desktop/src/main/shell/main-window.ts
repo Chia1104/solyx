@@ -5,9 +5,9 @@ import { BrowserWindow, app, nativeTheme, shell } from "electron";
 
 import { ColorScheme } from "#shared/palette.ts";
 import type { PaletteColors } from "#shared/palette.ts";
+import { PRODUCT_NAME } from "#shared/product.ts";
 
-import type { WindowPaint } from "../host.ts";
-import { PRODUCT_NAME } from "../product.ts";
+import type { WindowPaint } from "../../backend/host.ts";
 
 // Main is bundled into dist/main, next to dist/preload and dist/renderer.
 const bundleDir = fileURLToPath(new URL(".", import.meta.url));

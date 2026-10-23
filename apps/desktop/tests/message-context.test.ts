@@ -13,8 +13,8 @@ import { SettingsSection } from "#shared/settings-section.ts";
 import {
   messageContext,
   screenContext,
-} from "../src/main/modules/agent/message-context.ts";
-import type { MessageContextSources } from "../src/main/modules/agent/message-context.ts";
+} from "../src/backend/modules/agent/message-context.ts";
+import type { MessageContextSources } from "../src/backend/modules/agent/message-context.ts";
 
 const listing = (market: Market, symbol: string): SymbolRef => ({
   market,

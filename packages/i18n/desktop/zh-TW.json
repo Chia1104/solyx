@@ -2066,6 +2066,12 @@
       "failed": "無法檢查更新"
     }
   },
+  "app": {
+    "backend-stopped": {
+      "title": "Solyx 意外停止",
+      "body": "Solyx 負責保存資料與執行工作的部分停止了，因此 Solyx 會結束。重新開啟即可繼續。"
+    }
+  },
   "tray": {
     "open": "開啟 Solyx",
     "quit": "結束 Solyx",

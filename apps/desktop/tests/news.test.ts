@@ -22,7 +22,7 @@ import { openNews } from "@solyx/db/news";
 import type { NewsData } from "@solyx/db/news";
 import { HOUR_MS } from "@solyx/utils/date";
 
-import { createNews } from "../src/main/modules/news/news.ts";
+import { createNews } from "../src/backend/modules/news/news.ts";
 
 const MIGRATIONS = fileURLToPath(
   new URL("../../../packages/db/migrations/news", import.meta.url)

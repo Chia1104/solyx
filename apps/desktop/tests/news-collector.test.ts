@@ -7,7 +7,7 @@ import type { CollectionPlan } from "@solyx/core/schedule";
 import { weekdays } from "@solyx/core/session";
 import { HOUR_MS, DAY_MS } from "@solyx/utils/date";
 
-import { createNewsCollector } from "../src/main/modules/news/news-collector.ts";
+import { createNewsCollector } from "../src/backend/modules/news/news-collector.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 

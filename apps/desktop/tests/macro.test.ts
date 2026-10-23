@@ -8,7 +8,7 @@ import { Market } from "@solyx/core/market";
 import { HOUR_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
-import { createMacro } from "../src/main/modules/macro/macro.ts";
+import { createMacro } from "../src/backend/modules/macro/macro.ts";
 
 function setup() {
   // 2026-10-08 12:00 in Taipei.

@@ -24,15 +24,15 @@ import {
 import type { MarketDataStatus } from "#shared/settings.ts";
 import type { StorageUsage } from "#shared/storage.ts";
 
-import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
-import { createAgentSetup } from "../src/main/modules/agent/agent-setup.ts";
-import type { McpServers } from "../src/main/modules/agent/mcp-servers.ts";
-import { createDecisions } from "../src/main/modules/decisions/decisions.ts";
-import { createEmbeddings } from "../src/main/modules/embeddings/embeddings.ts";
-import { createAppearance } from "../src/main/modules/settings/appearance.ts";
-import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
-import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
-import { createWebSearch } from "../src/main/modules/web-search/web-search.ts";
+import { createAgentModels } from "../src/backend/modules/agent/agent-models.ts";
+import { createAgentSetup } from "../src/backend/modules/agent/agent-setup.ts";
+import type { McpServers } from "../src/backend/modules/agent/mcp-servers.ts";
+import { createDecisions } from "../src/backend/modules/decisions/decisions.ts";
+import { createEmbeddings } from "../src/backend/modules/embeddings/embeddings.ts";
+import { createAppearance } from "../src/backend/modules/settings/appearance.ts";
+import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";
+import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";
+import { createWebSearch } from "../src/backend/modules/web-search/web-search.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 

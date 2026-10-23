@@ -10,7 +10,7 @@ import { ReportStance } from "@solyx/core/report";
 import type { Report } from "@solyx/core/report";
 import type { ReportBacklog } from "@solyx/core/research";
 
-import { createInbox } from "../src/main/modules/inbox/inbox.ts";
+import { createInbox } from "../src/backend/modules/inbox/inbox.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 

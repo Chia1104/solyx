@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
-import { AppChannel } from "../src/main/host.ts";
 import { refusesRemoteDebugging } from "../src/main/shell/remote-debugging.ts";
+import { AppChannel } from "../src/shared/app-channel.ts";
 
 function commandLine(...switches: string[]) {
   return { hasSwitch: (name: string) => switches.includes(name) };

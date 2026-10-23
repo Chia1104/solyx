@@ -5,7 +5,7 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { MINUTE_MS } from "@solyx/utils/date";
 
-import { createScheduler } from "../src/main/scheduler.ts";
+import { createScheduler } from "../src/backend/scheduler.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();

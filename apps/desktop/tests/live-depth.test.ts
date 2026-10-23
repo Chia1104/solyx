@@ -7,8 +7,8 @@ import type { Depth, MarketDataStream } from "@solyx/core/market-data";
 import {
   DEPTH_POLL_MS,
   createLiveDepth,
-} from "../src/main/modules/market/live-depth.ts";
-import { createLiveStream } from "../src/main/modules/market/live-stream.ts";
+} from "../src/backend/modules/market/live-depth.ts";
+import { createLiveStream } from "../src/backend/modules/market/live-stream.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 

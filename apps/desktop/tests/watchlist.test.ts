@@ -2,7 +2,7 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { Market } from "@solyx/core/market";
 
-import { createWatchlist } from "../src/main/modules/watchlist/watchlist.ts";
+import { createWatchlist } from "../src/backend/modules/watchlist/watchlist.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
 

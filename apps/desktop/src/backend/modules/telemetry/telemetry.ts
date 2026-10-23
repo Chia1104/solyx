@@ -20,9 +20,9 @@ import {
   ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
 
+import type { AppChannel } from "#shared/app-channel.ts";
 import { Secret } from "#shared/settings.ts";
 
-import type { AppChannel } from "../../host.ts";
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
 

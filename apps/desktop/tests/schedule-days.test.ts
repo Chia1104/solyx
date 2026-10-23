@@ -4,8 +4,8 @@ import { Market } from "@solyx/core/market";
 import { ScheduleKind } from "@solyx/core/schedule";
 import { weekdays } from "@solyx/core/session";
 
-import { createScheduleDays } from "../src/main/modules/market/schedule-days.ts";
-import type { MarketDays } from "../src/main/modules/market/trading-calendar.ts";
+import { createScheduleDays } from "../src/backend/modules/market/schedule-days.ts";
+import type { MarketDays } from "../src/backend/modules/market/trading-calendar.ts";
 
 function setup() {
   const closedMonday = (date: string) =>

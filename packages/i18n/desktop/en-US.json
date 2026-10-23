@@ -2066,6 +2066,12 @@
       "failed": "Couldn't check for updates"
     }
   },
+  "app": {
+    "backend-stopped": {
+      "title": "Solyx stopped unexpectedly",
+      "body": "The part of Solyx that keeps your data and runs your work stopped, so Solyx quits. Open it again to go on."
+    }
+  },
   "tray": {
     "open": "Open Solyx",
     "quit": "Quit Solyx",

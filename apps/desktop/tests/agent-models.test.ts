@@ -26,9 +26,9 @@ import {
 } from "#shared/settings.ts";
 import type { SignInCode } from "#shared/settings.ts";
 
-import { createAgentModels } from "../src/main/modules/agent/agent-models.ts";
-import { createConfigFile } from "../src/main/modules/settings/config-file.ts";
-import { createSecretStore } from "../src/main/modules/settings/secret-store.ts";
+import { createAgentModels } from "../src/backend/modules/agent/agent-models.ts";
+import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";
+import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 

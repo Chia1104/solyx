@@ -3,7 +3,7 @@ import type { OpenDialogOptions } from "electron";
 
 import { FubonFile } from "#shared/settings.ts";
 
-import type { SettingsShell } from "../modules/settings/settings.route.ts";
+import type { SettingsShell } from "../../backend/modules/settings/settings.route.ts";
 
 import { canReportCrashes } from "./crash-reports.ts";
 
