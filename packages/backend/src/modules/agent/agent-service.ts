@@ -525,6 +525,8 @@ export function createAgentService(options: AgentServiceOptions) {
     approve: (id: string, toolCallId: string, approved: boolean) =>
       runtime.approve(id, toolCallId, approved),
 
+    approvalMode: (id: string) => runtime.approvalMode(id),
+
     setApprovalMode: (id: string, mode: ApprovalMode) =>
       runtime.setApprovalMode(id, mode),
 

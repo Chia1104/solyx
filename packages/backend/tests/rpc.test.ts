@@ -10,6 +10,7 @@ import { noop } from "es-toolkit";
 import { expect, test } from "vite-plus/test";
 import * as z from "zod";
 
+import { ApprovalMode } from "@solyx/agent/wire";
 import type { routerContract } from "@solyx/api/rpc/router.contract";
 import { BrokerMode } from "@solyx/core/broker";
 import { Market } from "@solyx/core/market";
@@ -19,6 +20,7 @@ import { OrderDesk, ProposalSource } from "@solyx/core/order-desk";
 import type { TradeProposal } from "@solyx/core/order-desk";
 import { Session, weekdays } from "@solyx/core/session";
 
+import type { AgentService } from "../src/modules/agent/agent-service.ts";
 import { ClientKind } from "../src/rpc/context.ts";
 import type { RpcClient, RpcContext } from "../src/rpc/context.ts";
 import { rpcHandler } from "../src/rpc/serve.ts";
@@ -223,6 +225,68 @@ test("a paired device is refused what its contract keeps for windows, before the
   expect(desk.list()[0]?.status).toBe(made.status);
   // What its contract opens to devices it may call.
   expect(await client.proposals.list()).toEqual(desk.list());
+
+  close();
+});
+
+test("a paired device starts only conversations that ask, and sends nothing to one set to bypass", async () => {
+  const modes = new Map([
+    ["s1", ApprovalMode.Bypass],
+    ["s2", ApprovalMode.Auto],
+  ]);
+
+  const sent: string[] = [];
+
+  const agent: Partial<AgentService> = {
+    createSession: async (setup) => ({
+      id: "s3",
+      title: "",
+      createdAt: 0,
+      updatedAt: 0,
+      ...setup,
+      schedule: null,
+    }),
+    approvalMode: async (id) => modes.get(id) ?? ApprovalMode.Ask,
+    send: async (id) => {
+      sent.push(id);
+    },
+  };
+
+  // SAFETY: the device calls only the procedures that read these three.
+  const { client, close } = connect(
+    { agent: agent as AgentService },
+    { kind: ClientKind.Device, device: "d1" }
+  );
+
+  const setup = { model: null, thinking: null };
+
+  await expect(
+    client.agent.createSession({ ...setup, approvalMode: ApprovalMode.Bypass })
+  ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  await expect(
+    client.agent.createSession({ ...setup, approvalMode: ApprovalMode.Auto })
+  ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  await expect(
+    client.agent.createSession({ ...setup, approvalMode: ApprovalMode.Ask })
+  ).resolves.toMatchObject({ approvalMode: ApprovalMode.Ask });
+
+  const message = {
+    text: "How did 2330 close?",
+    screen: null,
+    locale: "en-US",
+    timeZone: "Asia/Taipei",
+  } as const;
+
+  await expect(
+    client.agent.send({ ...message, id: "s1" })
+  ).rejects.toMatchObject({
+    code: "FORBIDDEN",
+    message:
+      "A conversation set to bypass takes messages only from this computer's windows",
+  });
+  await client.agent.send({ ...message, id: "s2" });
+  await client.agent.send({ ...message, id: "s3" });
+  expect(sent).toEqual(["s2", "s3"]);
 
   close();
 });

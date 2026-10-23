@@ -39,6 +39,7 @@ import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
 import { currentTimeZone } from "../../app/clock.ts";
+import { inWindow } from "../../app/device.ts";
 import { currentLocale } from "../../app/i18n.ts";
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
@@ -278,6 +279,9 @@ export function AgentComposer({
       ? unstarted.approvalMode
       : (current?.approvalMode ?? ApprovalMode.Ask);
 
+  // The backend takes no message from a paired browser to a conversation that runs its calls unasked.
+  const withheld = !inWindow && approvalMode === ApprovalMode.Bypass;
+
   /**
    * The conversation on screen. A new one is created by its first message, on what was picked
    * for it, so picking alone leaves no empty conversation behind.
@@ -495,7 +499,7 @@ export function AgentComposer({
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
 
-                        if (!busy && !unavailable) void submit();
+                        if (!busy && !unavailable && !withheld) void submit();
                       }
                     }}
                   />
@@ -507,7 +511,7 @@ export function AgentComposer({
             <div className="flex min-w-0 items-center gap-1">
               <ApprovalModeMenu
                 mode={approvalMode}
-                isDisabled={setApprovalMode.isPending}
+                isDisabled={!inWindow || setApprovalMode.isPending}
                 onChange={pickApprovalMode}
               />
               {settings ? (
@@ -552,7 +556,7 @@ export function AgentComposer({
                   variant="secondary"
                   aria-label={t("agent.send")}
                   isPending={send.isPending}
-                  isDisabled={!text.trim() || unavailable !== null}>
+                  isDisabled={!text.trim() || unavailable !== null || withheld}>
                   <Icon icon={ArrowUp02Icon} />
                 </Button>
               )}
@@ -561,6 +565,11 @@ export function AgentComposer({
         </div>
       </div>
       {unavailable ? <ModelUnavailable {...unavailable} /> : null}
+      {withheld ? (
+        <p className="px-1 text-xs text-muted">
+          {t("devices.bypass-on-computer")}
+        </p>
+      ) : null}
       {compact.data === CompactionOutcome.NothingOld &&
       compact.variables.id === sessionId ? (
         <p className="px-1 text-xs text-muted">

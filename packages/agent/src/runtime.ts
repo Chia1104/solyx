@@ -825,6 +825,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       }, BACKGROUND_CONTEXT);
     },
 
+    /** How the conversation's calls that must ask get past the gate. */
+    async approvalMode(sessionId: string) {
+      return (await approvalsOf((await conversationOf(sessionId)).id)).mode;
+    },
+
     /** Sets how the conversation's calls that must ask get past the gate, from its next call on. */
     async setApprovalMode(sessionId: string, mode: ApprovalMode) {
       const conversation = await conversationOf(sessionId);
