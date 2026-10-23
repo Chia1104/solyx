@@ -68,6 +68,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - Tests use synthetic payloads shaped like a source's responses; never commit recorded market data, pages, posts or articles.
 - Oxlint, Oxfmt and Vitest come from Vite+; their lint, format and staged rules live in the root `vite.config.ts` because Vite+ ignores nested configs.
 - `vp run` executes tasks in a clean environment, so most variables set outside it do not reach the task.
+- The commit gate's handlers in `.claude/settings.json` and `.codex/hooks.json` run the project's own `fallow-gate.sh` from the project's root, never a copy found by walking up from the shell's directory, which a dependency or a download could plant. `fallow agent install` writes the walking form, so restore them after it.
 - Commit subjects and pull request titles follow Conventional Commits, `type(scope): summary`. The scope is the package or app that owns the change, as in `feat(desktop): …`, and is left out when the change spans several. GitHub builds each release's notes from the titles of the pull requests merged since the previous one.
 - Work lands on `develop`, the default branch, through pull requests. `main` only points at the latest stable release; the release workflow moves it, and nothing is committed to it.
 
