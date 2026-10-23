@@ -838,13 +838,7 @@ export class OrderDesk {
       throw error;
     }
 
-    // The user may have locked orders while the checks waited on the broker and the quote.
-    if (
-      this.#options.locked?.() &&
-      !violations.some(({ code }) => code === RiskViolationCode.OrdersLocked)
-    ) {
-      violations = [{ code: RiskViolationCode.OrdersLocked }, ...violations];
-    }
+    violations = this.#lockedMeanwhile(violations);
 
     if (violations.length > 0) {
       return this.#save({
@@ -874,18 +868,7 @@ export class OrderDesk {
         brokerOrderId: orderId,
       });
     } catch (error) {
-      // Terminal on purpose: unless the broker refused it, it may hold the order, so never auto-retry.
-      const failed = this.#save({
-        ...sending,
-        status: ProposalStatus.Failed,
-        failure: {
-          code:
-            error instanceof OrderRefusedError
-              ? SubmissionFailureCode.Refused
-              : SubmissionFailureCode.Unknown,
-          message: errorMessage(error),
-        },
-      });
+      const failed = this.#failed(sending, error);
 
       if (mayBeHeld(failed)) {
         // Nothing more goes until the user has looked at what the account holds.
@@ -925,13 +908,7 @@ export class OrderDesk {
       throw error;
     }
 
-    // The user may have locked orders while the checks waited on the broker and the quote.
-    if (
-      this.#options.locked?.() &&
-      !violations.some(({ code }) => code === RiskViolationCode.OrdersLocked)
-    ) {
-      violations = [{ code: RiskViolationCode.OrdersLocked }, ...violations];
-    }
+    violations = this.#lockedMeanwhile(violations);
 
     if (violations.length > 0 || !broker.exits) {
       return this.#save({
@@ -963,23 +940,41 @@ export class OrderDesk {
         exitRefs: refs,
       });
     } catch (error) {
-      // As for an order: unless the broker refused it, it may watch the exit, so never place it again.
-      const failed = this.#save({
-        ...sending,
-        status: ProposalStatus.Failed,
-        failure: {
-          code:
-            error instanceof OrderRefusedError
-              ? SubmissionFailureCode.Refused
-              : SubmissionFailureCode.Unknown,
-          message: errorMessage(error),
-        },
-      });
+      const failed = this.#failed(sending, error);
 
       if (mayBeHeld(failed)) void this.reconcile().catch(noop);
 
       return failed;
     }
+  }
+
+  /** `violations`, led by `OrdersLocked` where the user locked orders while the checks waited on the broker and the quote. */
+  #lockedMeanwhile(violations: RiskViolation[]): RiskViolation[] {
+    const locked =
+      this.#options.locked?.() &&
+      !violations.some(({ code }) => code === RiskViolationCode.OrdersLocked);
+
+    return locked
+      ? [{ code: RiskViolationCode.OrdersLocked }, ...violations]
+      : violations;
+  }
+
+  /**
+   * Keeps a sending the broker did not take as failed, for good: unless the broker refused it, it
+   * may hold the order or watch the exit anyway, so nothing sends it again.
+   */
+  #failed(sending: TradeProposal, cause: unknown): TradeProposal {
+    return this.#save({
+      ...sending,
+      status: ProposalStatus.Failed,
+      failure: {
+        code:
+          cause instanceof OrderRefusedError
+            ? SubmissionFailureCode.Refused
+            : SubmissionFailureCode.Unknown,
+        message: errorMessage(cause),
+      },
+    });
   }
 
   /** The exit's checks, with the session it was made in and the price it was checked against. */

@@ -255,6 +255,60 @@ export function isOnTick(price: number, tick: number): boolean {
   return Math.abs(steps - Math.round(steps)) < 1e-6;
 }
 
+/** Why an order or exit cannot be for this listing: a market the broker does not trade, or a quantity its market does not take. */
+function listingViolations(
+  instrument: SymbolRef,
+  quantity: number,
+  markets: readonly Market[]
+): RiskViolation[] {
+  const violations: RiskViolation[] = [];
+
+  if (!markets.includes(instrument.market)) {
+    violations.push({
+      code: RiskViolationCode.UnsupportedMarket,
+      market: instrument.market,
+    });
+  }
+
+  const valid =
+    instrument.market === Market.TW
+      ? isValidTwQuantity(quantity)
+      : isValidUsQuantity(quantity);
+
+  if (!valid) {
+    violations.push({
+      code: RiskViolationCode.InvalidQuantity,
+      market: instrument.market,
+    });
+  }
+
+  return violations;
+}
+
+/** Why the listing cannot trade at `price`: it is not above zero, or not on the listing's tick. */
+function priceViolations(
+  instrument: SymbolRef,
+  price: number
+): RiskViolation[] {
+  const tick = tickSize(instrument, price);
+
+  return price > 0 && isOnTick(price, tick)
+    ? []
+    : [{ code: RiskViolationCode.InvalidPrice, price, tick }];
+}
+
+/** The shares of the listing the account holds that no working sale holds back already. */
+function sellableShares(
+  account: AccountSnapshot,
+  instrument: SymbolRef
+): number {
+  const position = account.positions.find(
+    (each) => symbolKey(each.instrument) === symbolKey(instrument)
+  );
+
+  return position?.sellable ?? position?.quantity ?? 0;
+}
+
 /** Deterministic pre-trade checks. An empty result means the order may be sent. */
 export function checkOrder(
   order: OrderRequest,
@@ -289,30 +343,10 @@ export function checkOrder(
     }
   }
 
-  if (!context.markets.includes(instrument.market)) {
-    violations.push({
-      code: RiskViolationCode.UnsupportedMarket,
-      market: instrument.market,
-    });
-  }
-
-  if (isTw ? !isValidTwQuantity(quantity) : !isValidUsQuantity(quantity)) {
-    violations.push({
-      code: RiskViolationCode.InvalidQuantity,
-      market: instrument.market,
-    });
-  }
+  violations.push(...listingViolations(instrument, quantity, context.markets));
 
   if (order.type === OrderType.Limit) {
-    const tick = tickSize(instrument, order.limitPrice);
-
-    if (!(order.limitPrice > 0) || !isOnTick(order.limitPrice, tick)) {
-      violations.push({
-        code: RiskViolationCode.InvalidPrice,
-        price: order.limitPrice,
-        tick,
-      });
-    }
+    violations.push(...priceViolations(instrument, order.limitPrice));
 
     const band = context.priceBand;
 
@@ -364,11 +398,7 @@ export function checkOrder(
   // The app makes no short sales, so a sale draws only on shares the account holds and no
   // working sale holds back already.
   if (order.side === Side.Sell) {
-    const position = context.account.positions.find(
-      (each) => symbolKey(each.instrument) === symbolKey(instrument)
-    );
-
-    const held = position?.sellable ?? position?.quantity ?? 0;
+    const held = sellableShares(context.account, instrument);
 
     if (quantity > held) {
       violations.push({
@@ -421,7 +451,6 @@ export function checkExit(
 ): RiskViolation[] {
   const violations: RiskViolation[] = [];
   const { instrument, quantity, stop, target, until } = request;
-  const isTw = instrument.market === Market.TW;
 
   if (context.locked) violations.push({ code: RiskViolationCode.OrdersLocked });
 
@@ -429,19 +458,7 @@ export function checkExit(
     violations.push({ code: RiskViolationCode.ExitsUnsupported });
   }
 
-  if (!context.markets.includes(instrument.market)) {
-    violations.push({
-      code: RiskViolationCode.UnsupportedMarket,
-      market: instrument.market,
-    });
-  }
-
-  if (isTw ? !isValidTwQuantity(quantity) : !isValidUsQuantity(quantity)) {
-    violations.push({
-      code: RiskViolationCode.InvalidQuantity,
-      market: instrument.market,
-    });
-  }
+  violations.push(...listingViolations(instrument, quantity, context.markets));
 
   const legs = exitLegs(request);
 
@@ -450,11 +467,7 @@ export function checkExit(
   }
 
   for (const { price } of legs) {
-    const tick = tickSize(instrument, price);
-
-    if (!(price > 0) || !isOnTick(price, tick)) {
-      violations.push({ code: RiskViolationCode.InvalidPrice, price, tick });
-    }
+    violations.push(...priceViolations(instrument, price));
   }
 
   const { price } = context;
@@ -496,12 +509,8 @@ export function checkExit(
     });
   }
 
-  const position = context.account.positions.find(
-    (each) => symbolKey(each.instrument) === symbolKey(instrument)
-  );
-
   const held = Math.max(
-    (position?.sellable ?? position?.quantity ?? 0) - context.covered,
+    sellableShares(context.account, instrument) - context.covered,
     0
   );
 
