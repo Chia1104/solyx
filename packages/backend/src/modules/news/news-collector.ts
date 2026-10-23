@@ -95,5 +95,3 @@ export function createNewsCollector(options: NewsCollectorOptions) {
     },
   };
 }
-
-export type NewsCollector = ReturnType<typeof createNewsCollector>;

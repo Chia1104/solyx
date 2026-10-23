@@ -89,7 +89,7 @@ function normal(random: () => number): number {
 }
 
 /** Decimal places a price at this level is quoted in. */
-export function tickDecimals(price: number, code: string): number {
+function tickDecimals(price: number, code: string): number {
   return Math.max(0, -Math.floor(Math.log10(twTickSize(price, code))));
 }
 

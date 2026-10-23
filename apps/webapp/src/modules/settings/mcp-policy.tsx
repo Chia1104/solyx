@@ -32,7 +32,7 @@ const SLOT = 4;
 /** Past this width a tally squeezes its bars instead of growing. */
 const TALLY_WIDTH = 128;
 
-export function PolicyMark({ policy }: { policy: McpToolPolicy }) {
+function PolicyMark({ policy }: { policy: McpToolPolicy }) {
   return (
     <span aria-hidden className="flex h-3 w-[3px] shrink-0 items-end">
       <span className={cn("w-full rounded-[1px]", MARK[policy])} />

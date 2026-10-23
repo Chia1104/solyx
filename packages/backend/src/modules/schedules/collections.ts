@@ -40,5 +40,3 @@ export function createCollections({
     collectNow: (job: CollectionJob) => collectors[job].collectNow(),
   };
 }
-
-export type Collections = ReturnType<typeof createCollections>;

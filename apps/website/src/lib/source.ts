@@ -18,7 +18,7 @@ export const source = loader({
 });
 
 /** A legal page's frontmatter: its title, its lede and the day it last changed. */
-export const legalPageSchema = pageSchema.extend({
+const legalPageSchema = pageSchema.extend({
   description: z.string(),
   updated: z.iso.date(),
 });

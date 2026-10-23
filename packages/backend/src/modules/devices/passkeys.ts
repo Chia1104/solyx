@@ -196,5 +196,3 @@ export function createPasskeys(registry: DeviceRegistry, onChange: () => void) {
     },
   };
 }
-
-export type Passkeys = ReturnType<typeof createPasskeys>;

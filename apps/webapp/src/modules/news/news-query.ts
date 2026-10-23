@@ -14,7 +14,7 @@ export const HEADLINE_DAYS = 7;
 const HEADLINE_COUNT = 8;
 
 /** Never stale: the main process says when what is stored about the listing changes. */
-export const newsReadingQuery = (symbol: SymbolRef) =>
+const newsReadingQuery = (symbol: SymbolRef) =>
   orpc.news.reading.queryOptions({
     input: { symbol: symbol, days: NEWS_DAYS },
     staleTime: Infinity,

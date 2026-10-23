@@ -458,5 +458,3 @@ export function createRotations({
     },
   };
 }
-
-export type Rotations = ReturnType<typeof createRotations>;

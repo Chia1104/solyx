@@ -35,5 +35,3 @@ export function createWorkspace({
     },
   };
 }
-
-export type Workspace = ReturnType<typeof createWorkspace>;

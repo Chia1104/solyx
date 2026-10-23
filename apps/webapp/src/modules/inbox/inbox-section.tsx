@@ -61,12 +61,15 @@ function Listing({ symbol }: { symbol: SymbolRef }) {
 
 function ProposalRow({ proposal: { order } }: { proposal: TradeProposal }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   return (
     <InboxRow
       title={<Listing symbol={order.instrument} />}
       action={t("inbox.open-proposals")}
-      onAction={() => showDestination({ kind: DestinationKind.Proposals })}>
+      onAction={() =>
+        showDestination({ kind: DestinationKind.Proposals }, navigate)
+      }>
       <span className="tabular-nums">
         {t("inbox.proposal", {
           summary: t("proposals.summary", {
@@ -122,6 +125,7 @@ function ReportRow({
  */
 export function InboxSection() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { data, error, refetch } = useQuery(inboxQuery());
 
   let body: ReactNode = <LoadingState />;
@@ -149,10 +153,10 @@ export function InboxSection() {
             title={title || t("agent.untitled")}
             action={t("inbox.open-conversation")}
             onAction={() =>
-              showDestination({
-                kind: DestinationKind.Conversation,
-                sessionId,
-              })
+              showDestination(
+                { kind: DestinationKind.Conversation, sessionId },
+                navigate
+              )
             }>
             {t("inbox.approval")}
           </InboxRow>

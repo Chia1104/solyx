@@ -1,13 +1,20 @@
+import type { NavigateFn } from "@tanstack/react-router";
+
 import { DestinationKind } from "@solyx/api/workspace";
 import type { Destination } from "@solyx/api/workspace";
 
 import { Pane, useLayoutStore } from "../../app/layout-store.ts";
-import { router } from "../../app/router.tsx";
 import { client, forEachEvent } from "../../app/rpc.ts";
 import { AgentTab, useAgentStore } from "../agent/agent-store.ts";
 
-/** Shows a place in the workspace, as one the main process asks for. */
-export function showDestination(destination: Destination) {
+/**
+ * Shows a place in the workspace, as one the main process asks for. It is handed `navigate`
+ * rather than importing the router, whose routes import the pages that show places.
+ */
+export function showDestination(
+  destination: Destination,
+  navigate: NavigateFn
+) {
   switch (destination.kind) {
     case DestinationKind.Proposals:
       useLayoutStore.getState().show(Pane.Agent);
@@ -19,7 +26,7 @@ export function showDestination(destination: Destination) {
       useAgentStore.getState().showTab(AgentTab.Chat);
       break;
     case DestinationKind.Settings:
-      void router.navigate({
+      void navigate({
         to: "/settings",
         search: { section: destination.section },
       });
@@ -27,11 +34,11 @@ export function showDestination(destination: Destination) {
 }
 
 /** Shows each place the main process asks for, such as the one a row of the tray's menu names. */
-export function followDestinations() {
+export function followDestinations(navigate: NavigateFn) {
   const take = async () => {
     const destination = await client.workspace.takeDestination();
 
-    if (destination) showDestination(destination);
+    if (destination) showDestination(destination, navigate);
   };
 
   void forEachEvent(client.workspace.changes(), () => void take());

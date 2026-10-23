@@ -196,5 +196,3 @@ export function createSchedules(options: SchedulesOptions) {
     },
   };
 }
-
-export type Schedules = ReturnType<typeof createSchedules>;

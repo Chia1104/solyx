@@ -301,5 +301,3 @@ export function createTray({
     close: hide,
   };
 }
-
-export type Tray = ReturnType<typeof createTray>;
