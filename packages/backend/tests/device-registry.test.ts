@@ -45,3 +45,21 @@ test("an unpaired device's token no longer reaches anything", async () => {
   expect(registry.verify(token)).toBeNull();
   expect(registry.list()).toEqual([]);
 });
+
+test("a device removed while another pairs stays removed", async () => {
+  const secrets = await secretStore();
+  const registry = createDeviceRegistry(secrets);
+  const first = await registry.pair("Phone");
+
+  const [, second] = await Promise.all([
+    registry.remove(first.device.id),
+    registry.pair("Tablet"),
+  ]);
+
+  expect(registry.list()).toEqual([second.device]);
+  expect(registry.verify(first.token)).toBeNull();
+
+  const reopened = createDeviceRegistry(secrets);
+
+  await expect.poll(() => reopened.list()).toEqual([second.device]);
+});
