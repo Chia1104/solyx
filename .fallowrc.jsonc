@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  // Run by hand, spawned by a test, or read by Void and the shaders CLI, so nothing imports them.
+  "entry": [
+    "packages/*/scripts/*.ts",
+    "packages/*/tests/fixtures/*.mjs",
+    "apps/website/{shaders,void}.config.ts",
+  ],
+  // fumadocs-mdx's macro loads the docs by directory.
+  "dynamicallyLoaded": ["apps/website/content/**/*.mdx"],
+  // The vendored anti-slop plugin, as `vite.config.ts` treats it.
+  "ignorePatterns": ["tools/oxlint/**"],
+  // Only that plugin imports `@oxlint/plugins`; the social cards resolve the font by a variable.
+  "ignoreDependencies": [
+    "@oxlint/plugins",
+    "@fontsource-variable/noto-sans-tc",
+  ],
+  // An enum exports its type beside its object, though other modules may import only the object.
+  "ignoreExportsUsedInFile": { "type": true },
+  // shadcn's components keep every part they export.
+  "ignoreExports": [
+    { "file": "apps/website/src/components/ui/**", "exports": ["*"] },
+  ],
+  // Coverage is only estimated from the import graph, so CRAP scores gate nothing.
+  "health": { "maxCrap": 0 },
+}
