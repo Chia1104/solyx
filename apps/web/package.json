@@ -18,6 +18,7 @@
     "@orpc/contract": "catalog:orpc",
     "@orpc/tanstack-query": "catalog:orpc",
     "@sentry/electron": "catalog:sentry",
+    "@simplewebauthn/browser": "catalog:webauthn",
     "@solyx/agent": "workspace:*",
     "@solyx/api": "workspace:*",
     "@solyx/core": "workspace:*",

@@ -10,6 +10,10 @@ export const remoteAccessQuery = () =>
 export const pairedDevicesQuery = () =>
   orpc.devices.list.queryOptions({ staleTime: Infinity });
 
+/** The paired browser this page runs in; it changes only as it pairs again, which reloads the page. */
+export const thisDeviceQuery = () =>
+  orpc.devices.thisDevice.queryOptions({ staleTime: Infinity });
+
 /** Refetches the devices whenever the edge, a pairing or a device changes; a device follows none of it. */
 export function followDevicesChanges(queryClient: QueryClient) {
   if (!inWindow) return;

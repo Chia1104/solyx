@@ -13,12 +13,24 @@ import { parseJson } from "@solyx/utils/json";
 
 import type { SecretStore } from "../settings/secret-store.ts";
 
+const storedPasskeySchema = z.object({
+  /** The credential's id, base64url. */
+  id: z.string(),
+  /** Its COSE public key, base64url. */
+  publicKey: z.string(),
+  /** How many times the authenticator says it has signed, which only rises unless it is always 0. */
+  counter: z.number().int().nonnegative(),
+});
+
+export type StoredPasskey = z.infer<typeof storedPasskeySchema>;
+
 const storedDeviceSchema = z.object({
   id: z.string(),
   name: z.string(),
   pairedAt: z.number(),
   /** SHA-256 of the device's token, which only the device keeps. */
   tokenHash: z.string().regex(/^[0-9a-f]{64}$/),
+  passkey: storedPasskeySchema.nullable(),
 });
 
 type StoredDevice = z.infer<typeof storedDeviceSchema>;
@@ -28,10 +40,16 @@ const storedDevicesSchema = z.array(storedDeviceSchema);
 const hashToken = (token: string) =>
   createHash("sha256").update(token).digest("hex");
 
-const withoutHash = ({ id, name, pairedAt }: StoredDevice): PairedDevice => ({
+const shown = ({
   id,
   name,
   pairedAt,
+  passkey,
+}: StoredDevice): PairedDevice => ({
+  id,
+  name,
+  pairedAt,
+  signs: passkey !== null,
 });
 
 /**
@@ -63,7 +81,7 @@ export function createDeviceRegistry(secrets: SecretStore) {
   void load();
 
   return {
-    list: (): PairedDevice[] => devices.map(withoutHash),
+    list: (): PairedDevice[] => devices.map(shown),
 
     /** Pairs a device named `name` and answers with the token it connects with, told only once. */
     async pair(name: string) {
@@ -74,11 +92,12 @@ export function createDeviceRegistry(secrets: SecretStore) {
         name,
         pairedAt: Date.now(),
         tokenHash: hashToken(token),
+        passkey: null,
       };
 
       await store([...devices, device]);
 
-      return { token, device: withoutHash(device) };
+      return { token, device: shown(device) };
     },
 
     /** The device `token` belongs to; `null` for a token no paired device holds. */
@@ -89,7 +108,25 @@ export function createDeviceRegistry(secrets: SecretStore) {
         timingSafeEqual(Buffer.from(each.tokenHash, "hex"), hash)
       );
 
-      return device ? withoutHash(device) : null;
+      return device ? shown(device) : null;
+    },
+
+    get(id: string): PairedDevice | null {
+      const device = devices.find((each) => each.id === id);
+
+      return device ? shown(device) : null;
+    },
+
+    passkey: (id: string) =>
+      devices.find((device) => device.id === id)?.passkey ?? null,
+
+    /** Keeps the passkey a device added, or the count its authenticator gave as it signed. */
+    async setPasskey(id: string, passkey: StoredPasskey) {
+      await store(
+        devices.map((device) =>
+          device.id === id ? { ...device, passkey } : device
+        )
+      );
     },
 
     async remove(id: string) {

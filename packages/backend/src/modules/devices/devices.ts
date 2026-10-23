@@ -1,13 +1,8 @@
 import { randomInt } from "node:crypto";
 
 import { Mutex, isEqual } from "es-toolkit";
-import type { WebSocket } from "ws";
 
-import type {
-  PairedDevice,
-  PairingCode,
-  RemoteAccess,
-} from "@solyx/api/devices";
+import type { PairingCode, RemoteAccess } from "@solyx/api/devices";
 import { errorMessage } from "@solyx/utils/error";
 
 import type { ConfigFile } from "../settings/config-file.ts";
@@ -15,7 +10,8 @@ import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 import type { DeviceRegistry } from "./device-registry.ts";
 import { startEdge } from "./edge.ts";
-import type { Edge } from "./edge.ts";
+import type { Edge, ServeDevice } from "./edge.ts";
+import { createPasskeys } from "./passkeys.ts";
 
 // Long enough to type on another device, short enough that a code seen over a shoulder soon goes.
 const CODE_TTL_MS = 5 * 60_000;
@@ -49,8 +45,9 @@ export function createDevices({
   onChange,
 }: DevicesOptions) {
   const mutex = new Mutex();
+  const passkeys = createPasskeys(registry, onChange);
 
-  let serve: ((socket: WebSocket, device: PairedDevice) => void) | undefined;
+  let serve: ServeDevice | undefined;
 
   let edge: Edge | undefined;
   let listening: { enabled: boolean; port: number } | undefined;
@@ -111,6 +108,7 @@ export function createDevices({
 
     const pairing = await registry.pair(name);
 
+    passkeys.paired(pairing.device.id);
     onChange();
 
     return pairing;
@@ -147,16 +145,19 @@ export function createDevices({
 
     list: () => registry.list(),
 
+    thisDevice: (id: string) => registry.get(id),
+
     async remove(id: string) {
       await registry.remove(id);
+      passkeys.forget(id);
       edge?.disconnect(id);
       onChange();
     },
 
+    passkeys,
+
     /** Has the edge serve the router to paired devices through `socket`, and start as the setting says. */
-    async listen(
-      serveDevice: (socket: WebSocket, device: PairedDevice) => void
-    ) {
+    async listen(serveDevice: ServeDevice) {
       serve = serveDevice;
       await follow();
     },

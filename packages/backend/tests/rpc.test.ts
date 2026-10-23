@@ -1,3 +1,6 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { MessageChannel } from "node:worker_threads";
 
 import { createORPCClient } from "@orpc/client";
@@ -11,6 +14,7 @@ import { expect, test } from "vite-plus/test";
 import * as z from "zod";
 
 import { ApprovalMode } from "@solyx/agent/wire";
+import { SignedActionKind } from "@solyx/api/devices";
 import type { routerContract } from "@solyx/api/rpc/router.contract";
 import { BrokerMode } from "@solyx/core/broker";
 import { Market } from "@solyx/core/market";
@@ -21,10 +25,27 @@ import type { TradeProposal } from "@solyx/core/order-desk";
 import { Session, weekdays } from "@solyx/core/session";
 
 import type { AgentService } from "../src/modules/agent/agent-service.ts";
+import { createDeviceRegistry } from "../src/modules/devices/device-registry.ts";
+import type { Devices } from "../src/modules/devices/devices.ts";
+import { createPasskeys } from "../src/modules/devices/passkeys.ts";
+import { createSecretStore } from "../src/modules/settings/secret-store.ts";
 import { ClientKind } from "../src/rpc/context.ts";
-import type { RpcClient, RpcContext } from "../src/rpc/context.ts";
+import type {
+  DeviceClient,
+  RpcClient,
+  RpcContext,
+} from "../src/rpc/context.ts";
 import { rpcHandler } from "../src/rpc/serve.ts";
 import type { WindowEvents } from "../src/rpc/window-events.ts";
+
+import { fakeCipher } from "./fake-cipher.ts";
+import { softwarePasskey } from "./software-passkey.ts";
+
+const PHONE: DeviceClient = {
+  kind: ClientKind.Device,
+  device: "d1",
+  origin: "http://localhost:18321",
+};
 
 const ORDER: OrderRequest = {
   instrument: { market: Market.TW, symbol: "2330" },
@@ -213,10 +234,7 @@ test("a paired device is refused what its contract keeps for windows, before the
     source: ProposalSource.User,
   });
 
-  const { client, close } = connect(
-    { desk },
-    { kind: ClientKind.Device, device: "d1" }
-  );
+  const { client, close } = connect({ desk }, PHONE);
 
   await expect(client.proposals.confirm(made.id)).rejects.toMatchObject({
     code: "FORBIDDEN",
@@ -247,10 +265,7 @@ test("a paired device starts only conversations that ask, and its messages' runs
   };
 
   // SAFETY: the clients call only the procedures that read these two.
-  const device = connect(
-    { agent: agent as AgentService },
-    { kind: ClientKind.Device, device: "d1" }
-  );
+  const device = connect({ agent: agent as AgentService }, PHONE);
 
   const setup = { model: null, thinking: null };
 
@@ -294,4 +309,78 @@ test("a paired device starts only conversations that ask, and its messages' runs
     { id: "s1", asksEveryCall: true },
     { id: "s1", asksEveryCall: false },
   ]);
+});
+
+test("a paired browser submits only what its passkey signed, and a window never takes the signed road", async () => {
+  const desk = paperDesk();
+
+  const made = await desk.propose({
+    order: ORDER,
+    rationale: "Earnings beat",
+    source: ProposalSource.User,
+  });
+
+  const dir = await mkdtemp(join(tmpdir(), "solyx-rpc-"));
+
+  const registry = createDeviceRegistry(
+    createSecretStore(join(dir, "secrets.json"), fakeCipher().cipher)
+  );
+
+  const passkeys = createPasskeys(registry, noop);
+  const { device } = await registry.pair("Phone");
+  const key = softwarePasskey(PHONE.origin);
+
+  passkeys.paired(device.id);
+
+  const devices: Partial<Devices> = { passkeys };
+
+  // SAFETY: the clients call only the procedures that read the desk and the passkeys.
+  const browser = connect(
+    { desk, devices: devices as Devices },
+    { ...PHONE, device: device.id }
+  );
+
+  await browser.client.devices.addPasskey(
+    key.register(await browser.client.devices.passkeyOptions())
+  );
+
+  const elsewhere = key.sign(
+    await browser.client.devices.actionOptions({
+      kind: SignedActionKind.Confirm,
+      id: "another",
+    })
+  );
+
+  await expect(
+    browser.client.proposals.confirmSigned({
+      id: made.id,
+      assertion: elsewhere,
+    })
+  ).rejects.toMatchObject({
+    message: "Sign this with the browser's passkey first",
+  });
+  expect(desk.list()[0]?.status).toBe(made.status);
+
+  const signed = key.sign(
+    await browser.client.devices.actionOptions({
+      kind: SignedActionKind.Confirm,
+      id: made.id,
+    })
+  );
+
+  const confirmed = await browser.client.proposals.confirmSigned({
+    id: made.id,
+    assertion: signed,
+  });
+
+  expect(confirmed.status).not.toBe(made.status);
+  browser.close();
+
+  // SAFETY: as above.
+  const window = connect({ desk, devices: devices as Devices });
+
+  await expect(
+    window.client.proposals.confirmSigned({ id: made.id, assertion: signed })
+  ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  window.close();
 });

@@ -40,6 +40,7 @@
     "@orpc/contract": "catalog:orpc",
     "@orpc/publisher": "catalog:orpc",
     "@orpc/server": "catalog:orpc",
+    "@simplewebauthn/server": "catalog:webauthn",
     "@solyx/agent": "workspace:*",
     "@solyx/api": "workspace:*",
     "@solyx/backup": "workspace:*",

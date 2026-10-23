@@ -58,6 +58,7 @@
   },
   "dependencies": {
     "@orpc/contract": "catalog:orpc",
+    "@simplewebauthn/browser": "catalog:webauthn",
     "@solyx/agent": "workspace:*",
     "@solyx/core": "workspace:*",
     "@solyx/decisions": "workspace:*",

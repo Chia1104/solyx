@@ -14,7 +14,12 @@ import type { PairedDevice } from "@solyx/api/devices";
 import { startEdge } from "../src/modules/devices/edge.ts";
 import type { Edge } from "../src/modules/devices/edge.ts";
 
-const DEVICE: PairedDevice = { id: "d1", name: "Phone", pairedAt: 1 };
+const DEVICE: PairedDevice = {
+  id: "d1",
+  name: "Phone",
+  pairedAt: 1,
+  signs: false,
+};
 
 const TOKEN = "token-of-d1";
 

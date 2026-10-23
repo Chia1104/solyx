@@ -103,9 +103,12 @@ export function DevicesSettings() {
           <SettingsRow
             key={device.id}
             label={device.name}
-            description={t("settings.devices.paired-at", {
-              date: clock.date(device.pairedAt),
-            })}
+            description={t(
+              device.signs
+                ? "settings.devices.paired-with-passkey"
+                : "settings.devices.paired-at",
+              { date: clock.date(device.pairedAt) }
+            )}
             actions={
               <Button
                 size="sm"
