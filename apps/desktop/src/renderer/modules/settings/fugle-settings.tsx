@@ -1,8 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { Secret } from "#shared/settings.ts";
-import type { MarketDataStatus } from "#shared/settings.ts";
+import { Secret } from "@solyx/api/settings";
+import type { MarketDataStatus } from "@solyx/api/settings";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

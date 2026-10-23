@@ -3,13 +3,12 @@ import { uniqBy } from "es-toolkit";
 import { AppPlace } from "@solyx/agent/prompt";
 import type { ContextListing, TurnContext } from "@solyx/agent/prompt";
 import { messageTokens } from "@solyx/agent/wire";
+import { ScreenKind } from "@solyx/api/agent";
+import type { AgentScreen } from "@solyx/api/agent";
+import { ChartIndicator } from "@solyx/api/chart-indicator";
+import { OverviewTab } from "@solyx/api/overview-tab";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-
-import { ScreenKind } from "#shared/agent.ts";
-import type { AgentScreen } from "#shared/agent.ts";
-import { ChartIndicator } from "#shared/chart-indicator.ts";
-import { OverviewTab } from "#shared/overview-tab.ts";
 
 /** An indicator the chart draws, in the words the agent's tools use for it. */
 const INDICATOR_WORDS: Record<ChartIndicator, string> = {

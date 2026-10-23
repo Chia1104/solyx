@@ -17,7 +17,7 @@ import type { IconSvgElement } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { SettingsSection } from "#shared/settings-section.ts";
+import { SettingsSection } from "@solyx/api/settings-section";
 
 import { Icon } from "../../components/icon.tsx";
 

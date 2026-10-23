@@ -44,6 +44,11 @@ import type {
   AgentSessionSetup,
   AgentWireEvent,
 } from "@solyx/agent/wire";
+import type { AgentScreen, AgentUpdate } from "@solyx/api/agent";
+import { OverviewTab, overviewLink } from "@solyx/api/overview-tab";
+import type { Locale, TimeZone } from "@solyx/api/settings";
+import type { ConversationsUsage } from "@solyx/api/storage";
+import { symbolLink } from "@solyx/api/symbol-link";
 import { BrokerMode } from "@solyx/core/broker";
 import type { Change } from "@solyx/core/changes";
 import { DecisionMode } from "@solyx/core/council";
@@ -61,12 +66,6 @@ import type { ThemeDesk } from "@solyx/core/theme";
 import type { WebReader, WebSearch } from "@solyx/core/web-search";
 import type { AgentStore } from "@solyx/db/agent";
 import { isErrnoError } from "@solyx/utils/error";
-
-import type { AgentScreen, AgentUpdate } from "#shared/agent.ts";
-import { OverviewTab, overviewLink } from "#shared/overview-tab.ts";
-import type { Locale, TimeZone } from "#shared/settings.ts";
-import type { ConversationsUsage } from "#shared/storage.ts";
-import { symbolLink } from "#shared/symbol-link.ts";
 
 import type { Calendar } from "../calendar/calendar.ts";
 import type { Macro } from "../macro/macro.ts";

@@ -1,5 +1,6 @@
 import { groupBy, mapAsync, omit, uniqBy } from "es-toolkit";
 
+import type { NewsCoverage } from "@solyx/api/news";
 import type { Embedder } from "@solyx/core/embedding";
 import type { Market, SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
@@ -19,8 +20,6 @@ import type { SentimentScorer } from "@solyx/core/sentiment";
 import { HOUR_MS, DAY_MS } from "@solyx/utils/date";
 import { errorMessage } from "@solyx/utils/error";
 import { fuseRankings } from "@solyx/utils/search";
-
-import type { NewsCoverage } from "#shared/news.ts";
 
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
 

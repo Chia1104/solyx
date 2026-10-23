@@ -1,7 +1,7 @@
 import { oc, type } from "@orpc/contract";
 import * as z from "zod";
 
-import type { FubonFile } from "#shared/settings.ts";
+import type { FubonFile } from "@solyx/api/settings";
 
 import type { WindowPaint } from "../backend/host.ts";
 

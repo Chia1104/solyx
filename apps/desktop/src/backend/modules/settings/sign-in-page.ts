@@ -1,9 +1,8 @@
 import { escape } from "es-toolkit";
 
 import type { SignInOutcome } from "@solyx/agent/sign-in-callback";
-
-import { PRODUCT_NAME } from "#shared/product.ts";
-import type { Locale } from "#shared/settings.ts";
+import { PRODUCT_NAME } from "@solyx/api/product";
+import type { Locale } from "@solyx/api/settings";
 
 import { CATALOGS } from "./catalogs.ts";
 

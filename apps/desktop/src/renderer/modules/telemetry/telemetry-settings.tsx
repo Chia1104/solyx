@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { Secret } from "#shared/settings.ts";
+import { Secret } from "@solyx/api/settings";
 
 import { client } from "../../app/rpc.ts";
 import { LoadError } from "../../components/load-error.tsx";

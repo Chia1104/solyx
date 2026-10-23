@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { Secret, SecretState } from "#shared/settings.ts";
+import { Secret, SecretState } from "@solyx/api/settings";
 
 import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";
 

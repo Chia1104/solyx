@@ -3,8 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AgentProvider } from "@solyx/agent/providers";
-
-import type { SignInCode } from "#shared/settings.ts";
+import type { SignInCode } from "@solyx/api/settings";
 
 import { currentLocale } from "../../app/i18n.ts";
 import { client, forEachEvent } from "../../app/rpc.ts";

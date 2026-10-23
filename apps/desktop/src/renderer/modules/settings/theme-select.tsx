@@ -4,9 +4,8 @@ import { Description, ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { Theme } from "@solyx/api/settings";
 import { isEnumValue } from "@solyx/utils/is";
-
-import { Theme } from "#shared/settings.ts";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

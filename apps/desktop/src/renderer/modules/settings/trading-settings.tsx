@@ -13,15 +13,14 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { brokerId } from "@solyx/core/broker";
-import { Currency } from "@solyx/core/market";
-
-import { SettingsSection } from "#shared/settings-section.ts";
-import { TradingBroker } from "#shared/settings.ts";
+import { TradingBroker } from "@solyx/api/settings";
 import type {
   TradingAccount,
   TradingSettings as Trading,
-} from "#shared/settings.ts";
+} from "@solyx/api/settings";
+import { SettingsSection } from "@solyx/api/settings-section";
+import { brokerId } from "@solyx/core/broker";
+import { Currency } from "@solyx/core/market";
 
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

@@ -17,6 +17,8 @@ import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
+import type { ScheduledTaskView, TaskDraft } from "@solyx/api/schedules";
+import { Locale } from "@solyx/api/settings";
 import { holdsSecret } from "@solyx/core/memory";
 import {
   SCHEDULE_NAME_LENGTH,
@@ -26,9 +28,6 @@ import {
 } from "@solyx/core/schedule";
 import type { ScheduledTaskDraft } from "@solyx/core/schedule";
 import { isEnumValue } from "@solyx/utils/is";
-
-import type { ScheduledTaskView, TaskDraft } from "#shared/schedules.ts";
-import { Locale } from "#shared/settings.ts";
 
 import { currentTimeZone, useClock } from "../../app/clock.ts";
 import { currentLocale } from "../../app/i18n.ts";

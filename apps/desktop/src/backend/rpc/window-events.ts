@@ -1,8 +1,7 @@
+import type { AgentUpdate } from "@solyx/api/agent";
+import type { Change } from "@solyx/api/rpc/changes";
+import type { Appearance, SignInCode } from "@solyx/api/settings";
 import type { SymbolRef } from "@solyx/core/market";
-
-import type { AgentUpdate } from "#shared/agent.ts";
-import type { Change } from "#shared/rpc/changes.ts";
-import type { Appearance, SignInCode } from "#shared/settings.ts";
 
 /**
  * What the main process tells every window of, by event, through the services' `windowEvents`.

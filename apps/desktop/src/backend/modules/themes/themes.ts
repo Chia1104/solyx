@@ -1,3 +1,4 @@
+import type { CollectionStatus } from "@solyx/api/schedules";
 import type { ClaimAuditor } from "@solyx/core/report";
 import { collectionDue, nextCollection } from "@solyx/core/schedule";
 import type { CollectionPlan } from "@solyx/core/schedule";
@@ -6,8 +7,6 @@ import type { Theme, ThemeDraft, ThemeStore } from "@solyx/core/theme";
 import { WebSearchKind } from "@solyx/core/web-search";
 import type { WebSearch } from "@solyx/core/web-search";
 import { HOUR_MS, DAY_MS } from "@solyx/utils/date";
-
-import type { CollectionStatus } from "#shared/schedules.ts";
 
 import type { ScheduledWork } from "../../scheduler.ts";
 import type { ScheduleDays } from "../market/schedule-days.ts";

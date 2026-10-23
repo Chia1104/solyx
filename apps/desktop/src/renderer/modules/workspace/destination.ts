@@ -1,5 +1,5 @@
-import { DestinationKind } from "#shared/workspace.ts";
-import type { Destination } from "#shared/workspace.ts";
+import { DestinationKind } from "@solyx/api/workspace";
+import type { Destination } from "@solyx/api/workspace";
 
 import { Pane, useLayoutStore } from "../../app/layout-store.ts";
 import { router } from "../../app/router.tsx";

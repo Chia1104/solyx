@@ -1,10 +1,9 @@
 import { ChartAverageIcon } from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
+import { offeredIndicators } from "@solyx/api/chart-indicator";
 import type { Interval } from "@solyx/core/candles";
 import type { Market } from "@solyx/core/market";
-
-import { offeredIndicators } from "#shared/chart-indicator.ts";
 
 import { ToggleMenu } from "../../components/toggle-menu.tsx";
 

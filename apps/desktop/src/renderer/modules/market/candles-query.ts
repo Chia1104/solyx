@@ -1,12 +1,11 @@
 import type { InfiniteData } from "@tanstack/react-query";
 import { isEqual } from "es-toolkit";
 
+import type { CandleSet } from "@solyx/api/market";
 import { isIntraday } from "@solyx/core/candles";
 import type { Interval } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
 import { MINUTE_MS } from "@solyx/utils/date";
-
-import type { CandleSet } from "#shared/market.ts";
 
 import { orpc } from "../../app/rpc.ts";
 

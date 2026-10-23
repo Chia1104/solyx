@@ -18,7 +18,6 @@
   "include": [
     "src/backend",
     "src/main",
-    "src/shared",
     "src/utility",
     "src/worker",
     "tests",

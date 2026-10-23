@@ -4,10 +4,9 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
-
-import { SettingsSection } from "#shared/settings-section.ts";
-import { AppLocation } from "#shared/settings.ts";
-import type { McpServerSetting } from "#shared/settings.ts";
+import { AppLocation } from "@solyx/api/settings";
+import type { McpServerSetting } from "@solyx/api/settings";
+import { SettingsSection } from "@solyx/api/settings-section";
 
 import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

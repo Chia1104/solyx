@@ -14,6 +14,7 @@ import { dirname, join, relative } from "node:path";
 import { sumBy } from "es-toolkit";
 import * as z from "zod";
 
+import type { StoredBackup } from "@solyx/api/backup";
 import {
   BUNDLE_EXTENSION,
   readBundle,
@@ -28,8 +29,6 @@ import {
   verifySnapshot,
 } from "@solyx/db/snapshot";
 import { errorMessage, isErrnoError } from "@solyx/utils/error";
-
-import type { StoredBackup } from "#shared/backup.ts";
 
 import type {
   BackUpOptions,

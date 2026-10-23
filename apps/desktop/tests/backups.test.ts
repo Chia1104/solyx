@@ -17,6 +17,12 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
+import {
+  BackupActivity,
+  BackupInterval,
+  BackupSetting,
+} from "@solyx/api/backup";
+import { Secret } from "@solyx/api/settings";
 import { createBucket } from "@solyx/backup/s3";
 import type { Bucket } from "@solyx/backup/s3";
 import { Market } from "@solyx/core/market";
@@ -26,13 +32,6 @@ import { openNews } from "@solyx/db/news";
 import { openResearch } from "@solyx/db/research";
 import { openUserData } from "@solyx/db/user";
 import { DAY_MS, HOUR_MS, MINUTE_MS } from "@solyx/utils/date";
-
-import {
-  BackupActivity,
-  BackupInterval,
-  BackupSetting,
-} from "#shared/backup.ts";
-import { Secret } from "#shared/settings.ts";
 
 import {
   backupKey,

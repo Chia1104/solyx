@@ -1,7 +1,7 @@
 import { BrowserWindow, app, dialog, shell, webContents } from "electron";
 import type { OpenDialogOptions } from "electron";
 
-import { FubonFile } from "#shared/settings.ts";
+import { FubonFile } from "@solyx/api/settings";
 
 import type { SettingsShell } from "../../backend/modules/settings/settings.route.ts";
 

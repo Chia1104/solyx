@@ -1,4 +1,4 @@
-import type { Destination } from "#shared/workspace.ts";
+import type { Destination } from "@solyx/api/workspace";
 
 export interface WorkspaceOptions {
   /** Brings the app's window to the front, opening one when none is. */

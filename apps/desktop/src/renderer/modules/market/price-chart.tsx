@@ -17,6 +17,7 @@ import type {
 } from "lightweight-charts";
 import { useTranslation } from "react-i18next";
 
+import { ChartIndicator, DAILY_INDICATORS } from "@solyx/api/chart-indicator";
 import { Interval, candleDate, isIntraday } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { MOVING_AVERAGE_PERIODS, sma, vwap } from "@solyx/core/indicators";
@@ -28,8 +29,6 @@ import {
   exchangeTimeFormat,
   utcTimestamp,
 } from "@solyx/trading-chart/time-format";
-
-import { ChartIndicator, DAILY_INDICATORS } from "#shared/chart-indicator.ts";
 
 import { usePaletteColors } from "../../app/theme.ts";
 

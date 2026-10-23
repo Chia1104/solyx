@@ -7,13 +7,13 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { Secret } from "#shared/settings.ts";
+import { AppChannel } from "@solyx/api/app-channel";
+import { Secret } from "@solyx/api/settings";
 
 import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";
 import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";
 import { parseOtlpHeaders } from "../src/backend/modules/telemetry/otlp-headers.ts";
 import { createTelemetry } from "../src/backend/modules/telemetry/telemetry.ts";
-import { AppChannel } from "../src/shared/app-channel.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 

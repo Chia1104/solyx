@@ -9,7 +9,7 @@
  * Solyx is drawn like a drafting sheet: agents draft in pencil, the user signs in ink. Pencil
  * (hatching, dashed rules) marks what is not real yet, such as paper trading or a proposal
  * awaiting confirmation; ink (the accent) marks what is. The palette itself comes from
- * `#shared/palette.ts`, which app/theme.ts writes as custom properties; these derive from it.
+ * `@solyx/api/palette`, which app/theme.ts writes as custom properties; these derive from it.
  */
 :root,
 .light,

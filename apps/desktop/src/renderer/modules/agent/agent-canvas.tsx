@@ -6,9 +6,8 @@ import { kebabCase } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 import { useIsCodeFenceIncomplete } from "streamdown";
 
+import { PaletteToken } from "@solyx/api/palette";
 import { Market } from "@solyx/core/market";
-
-import { PaletteToken } from "#shared/palette.ts";
 
 import { useColorScheme, usePaletteColors } from "../../app/theme.ts";
 import { useDirectionColors } from "../market/price-colors.ts";

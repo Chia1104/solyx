@@ -1,13 +1,12 @@
 import { zipObject } from "es-toolkit";
 
+import { webSearchKeySecret } from "@solyx/api/settings";
+import type { WebSearchSettings } from "@solyx/api/settings";
 import type { WebReader, WebSearch } from "@solyx/core/web-search";
 import { createExa } from "@solyx/web-search/exa";
 import { createFirecrawl } from "@solyx/web-search/firecrawl";
 import { WebSearchProvider } from "@solyx/web-search/provider";
 import { createTavily } from "@solyx/web-search/tavily";
-
-import { webSearchKeySecret } from "#shared/settings.ts";
-import type { WebSearchSettings } from "#shared/settings.ts";
 
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";

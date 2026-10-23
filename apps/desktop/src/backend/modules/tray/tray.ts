@@ -1,14 +1,13 @@
+import { clock } from "@solyx/api/clock";
+import type { Approval } from "@solyx/api/inbox";
+import type { Locale, TimeZone } from "@solyx/api/settings";
+import { SettingsSection } from "@solyx/api/settings-section";
+import { UpdateStatus } from "@solyx/api/updates";
+import type { UpdateState } from "@solyx/api/updates";
+import { DestinationKind } from "@solyx/api/workspace";
+import type { Destination } from "@solyx/api/workspace";
 import type { BrokerMode } from "@solyx/core/broker";
 import { truncate } from "@solyx/utils/text";
-
-import { clock } from "#shared/clock.ts";
-import type { Approval } from "#shared/inbox.ts";
-import { SettingsSection } from "#shared/settings-section.ts";
-import type { Locale, TimeZone } from "#shared/settings.ts";
-import { UpdateStatus } from "#shared/updates.ts";
-import type { UpdateState } from "#shared/updates.ts";
-import { DestinationKind } from "#shared/workspace.ts";
-import type { Destination } from "#shared/workspace.ts";
 
 import { CATALOGS, fill, plural } from "../settings/catalogs.ts";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";

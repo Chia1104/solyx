@@ -1,10 +1,9 @@
 import { isEqual, mapValues } from "es-toolkit";
 
+import { RETENTION_DAYS } from "@solyx/api/news";
 import { CHANNEL_VOICE } from "@solyx/core/news";
 import type { NewsData } from "@solyx/db/news";
 import { DAY_MS } from "@solyx/utils/date";
-
-import { RETENTION_DAYS } from "#shared/news.ts";
 
 import type { ScheduledWork } from "../../scheduler.ts";
 import type { ConfigFile } from "../settings/config-file.ts";

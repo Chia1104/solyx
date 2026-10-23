@@ -4,11 +4,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
+import { webSearchKeySecret } from "@solyx/api/settings";
 import { Market } from "@solyx/core/market";
 import { WebSearchKind } from "@solyx/core/web-search";
 import { WebSearchProvider } from "@solyx/web-search/provider";
-
-import { webSearchKeySecret } from "#shared/settings.ts";
 
 import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";
 import { createSecretStore } from "../src/backend/modules/settings/secret-store.ts";

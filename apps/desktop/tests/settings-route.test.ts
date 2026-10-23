@@ -14,11 +14,6 @@ import {
 } from "@solyx/agent/mcp-config";
 import { DEFAULT_MODEL } from "@solyx/agent/models";
 import type { AgentProvider } from "@solyx/agent/providers";
-import { Currency, Market } from "@solyx/core/market";
-import { Side } from "@solyx/core/order";
-import { DAY_MS } from "@solyx/utils/date";
-import { WebSearchProvider } from "@solyx/web-search/provider";
-
 import {
   AppLocation,
   Secret,
@@ -28,7 +23,11 @@ import {
   agentKeySecret,
   mcpSecretKey,
   webSearchKeySecret,
-} from "#shared/settings.ts";
+} from "@solyx/api/settings";
+import { Currency, Market } from "@solyx/core/market";
+import { Side } from "@solyx/core/order";
+import { DAY_MS } from "@solyx/utils/date";
+import { WebSearchProvider } from "@solyx/web-search/provider";
 
 import { createAgentModels } from "../src/backend/modules/agent/agent-models.ts";
 import type { McpServers } from "../src/backend/modules/agent/mcp-servers.ts";

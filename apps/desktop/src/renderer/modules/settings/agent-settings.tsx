@@ -8,10 +8,9 @@ import * as z from "zod";
 
 import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import type { AgentProvider } from "@solyx/agent/providers";
+import { SecretState } from "@solyx/api/settings";
+import type { AgentProviderSettings } from "@solyx/api/settings";
 import { DecisionMode, MagiUnit } from "@solyx/core/council";
-
-import { SecretState } from "#shared/settings.ts";
-import type { AgentProviderSettings } from "#shared/settings.ts";
 
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

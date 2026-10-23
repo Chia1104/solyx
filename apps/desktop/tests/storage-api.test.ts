@@ -1,8 +1,7 @@
 import { expect, test, vi } from "vite-plus/test";
 
+import { StoredData } from "@solyx/api/storage";
 import { Market } from "@solyx/core/market";
-
-import { StoredData } from "#shared/storage.ts";
 
 import { createStorageApi } from "../src/backend/modules/storage/storage-api.ts";
 

@@ -16,8 +16,8 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { SecretState } from "#shared/settings.ts";
-import type { EnteredSecret } from "#shared/settings.ts";
+import { SecretState } from "@solyx/api/settings";
+import type { EnteredSecret } from "@solyx/api/settings";
 
 import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

@@ -5,17 +5,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { formatBytes } from "@solyx/utils/format";
-
 import {
   BackupInterval,
   BackupSetting,
   backupBucketSchema,
   backupPrefixSchema,
   backupRegionSchema,
-} from "#shared/backup.ts";
-import type { BackupStatus, StoredBackup } from "#shared/backup.ts";
-import { Secret } from "#shared/settings.ts";
+} from "@solyx/api/backup";
+import type { BackupStatus, StoredBackup } from "@solyx/api/backup";
+import { Secret } from "@solyx/api/settings";
+import { formatBytes } from "@solyx/utils/format";
 
 import { useClock } from "../../app/clock.ts";
 import { client, orpc } from "../../app/rpc.ts";

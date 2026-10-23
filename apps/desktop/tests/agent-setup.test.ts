@@ -6,6 +6,15 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { McpServerState, McpTransportKind } from "@solyx/agent/mcp-config";
 import type { SetupArea } from "@solyx/agent/setup";
+import {
+  FubonFile,
+  FubonSessionState,
+  MarketDataSource,
+  Secret,
+  mcpSecretKey,
+} from "@solyx/api/settings";
+import type { MarketDataStatus } from "@solyx/api/settings";
+import type { StorageUsage } from "@solyx/api/storage";
 import { EVERY_CHANGE } from "@solyx/core/changes";
 import { Market } from "@solyx/core/market";
 import { ScheduleApproval, ScheduleKind } from "@solyx/core/schedule";
@@ -13,16 +22,6 @@ import type { ScheduledTask } from "@solyx/core/schedule";
 import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FUGLE_PLANS, FuglePlan } from "@solyx/market-data/fugle";
 import { DAY_MINUTES } from "@solyx/utils/date";
-
-import {
-  FubonFile,
-  FubonSessionState,
-  MarketDataSource,
-  Secret,
-  mcpSecretKey,
-} from "#shared/settings.ts";
-import type { MarketDataStatus } from "#shared/settings.ts";
-import type { StorageUsage } from "#shared/storage.ts";
 
 import { createAgentModels } from "../src/backend/modules/agent/agent-models.ts";
 import { createAgentSetup } from "../src/backend/modules/agent/agent-setup.ts";

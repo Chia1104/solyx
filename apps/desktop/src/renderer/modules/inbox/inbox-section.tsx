@@ -6,14 +6,13 @@ import { useNavigate } from "@tanstack/react-router";
 import { uniq } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
+import { DestinationKind } from "@solyx/api/workspace";
 import { Interval } from "@solyx/core/candles";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderType } from "@solyx/core/order";
 import type { TradeProposal } from "@solyx/core/order-desk";
 import type { ReportBacklog } from "@solyx/core/research";
-
-import { DestinationKind } from "#shared/workspace.ts";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";

@@ -17,8 +17,8 @@ import {
   Palette,
   isCustomPalette,
   resolvePalette,
-} from "#shared/palette.ts";
-import type { Appearance } from "#shared/settings.ts";
+} from "@solyx/api/palette";
+import type { Appearance } from "@solyx/api/settings";
 
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

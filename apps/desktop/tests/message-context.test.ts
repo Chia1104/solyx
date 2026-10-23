@@ -1,14 +1,13 @@
 import { expect, test, vi } from "vite-plus/test";
 
 import { AppPlace } from "@solyx/agent/prompt";
+import { ScreenKind } from "@solyx/api/agent";
+import { ChartIndicator } from "@solyx/api/chart-indicator";
+import { OverviewTab } from "@solyx/api/overview-tab";
+import { SettingsSection } from "@solyx/api/settings-section";
 import { Interval } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-
-import { ScreenKind } from "#shared/agent.ts";
-import { ChartIndicator } from "#shared/chart-indicator.ts";
-import { OverviewTab } from "#shared/overview-tab.ts";
-import { SettingsSection } from "#shared/settings-section.ts";
 
 import {
   messageContext,

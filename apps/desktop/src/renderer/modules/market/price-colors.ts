@@ -2,10 +2,9 @@ import { useMemo } from "react";
 
 import { useSuspenseQuery } from "@tanstack/react-query";
 
+import { PriceColors } from "@solyx/api/settings";
+import type { Appearance } from "@solyx/api/settings";
 import { Market } from "@solyx/core/market";
-
-import { PriceColors } from "#shared/settings.ts";
-import type { Appearance } from "#shared/settings.ts";
 
 import { usePaletteColors } from "../../app/theme.ts";
 import { appearanceQuery } from "../settings/settings-query.ts";

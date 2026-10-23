@@ -10,6 +10,7 @@ import { noop } from "es-toolkit";
 import { expect, test } from "vite-plus/test";
 import * as z from "zod";
 
+import type { routerContract } from "@solyx/api/rpc/router.contract";
 import { BrokerMode } from "@solyx/core/broker";
 import { Market } from "@solyx/core/market";
 import { OrderType, Side } from "@solyx/core/order";
@@ -21,7 +22,6 @@ import { Session, weekdays } from "@solyx/core/session";
 import type { RpcContext } from "../src/backend/rpc/context.ts";
 import { rpcHandler } from "../src/backend/rpc/serve.ts";
 import type { WindowEvents } from "../src/backend/rpc/window-events.ts";
-import type { routerContract } from "../src/shared/rpc/router.contract.ts";
 
 const ORDER: OrderRequest = {
   instrument: { market: Market.TW, symbol: "2330" },

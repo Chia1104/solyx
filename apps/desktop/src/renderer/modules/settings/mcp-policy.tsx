@@ -3,9 +3,8 @@ import { countBy, sortBy } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import { McpToolPolicy } from "@solyx/agent/mcp-config";
+import type { McpToolSetting } from "@solyx/api/settings";
 import { isEnumValue } from "@solyx/utils/is";
-
-import type { McpToolSetting } from "#shared/settings.ts";
 
 /*
  * A tool's policy is drawn as a bar: a stub while it is off, full height once the agent is offered

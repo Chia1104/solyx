@@ -7,7 +7,7 @@ import {
   hasPalette,
   isCustomPalette,
   resolvePalette,
-} from "#shared/palette.ts";
+} from "@solyx/api/palette";
 
 const custom = {
   dusk: {

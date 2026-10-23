@@ -8,10 +8,9 @@ import { FormProvider, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
+import type { CollectionView } from "@solyx/api/schedules";
 import { ScheduleKind, collectionScheduleSchema } from "@solyx/core/schedule";
 import type { CollectionJob, CollectionPlan } from "@solyx/core/schedule";
-
-import type { CollectionView } from "#shared/schedules.ts";
 
 import { currentTimeZone, useClock } from "../../app/clock.ts";
 import { client } from "../../app/rpc.ts";

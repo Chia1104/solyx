@@ -1,8 +1,8 @@
 import { oc, type } from "@orpc/contract";
 import * as z from "zod";
 
-import type { AppChannel } from "#shared/app-channel.ts";
-import type { AppInfo } from "#shared/settings.ts";
+import type { AppChannel } from "@solyx/api/app-channel";
+import type { AppInfo } from "@solyx/api/settings";
 
 /** What the main process tells the backend as it starts, which is fixed for the app's run. */
 export interface BackendStart {

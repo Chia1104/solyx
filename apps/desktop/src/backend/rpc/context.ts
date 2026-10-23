@@ -1,6 +1,6 @@
 import { implement } from "@orpc/server";
 
-import { routerContract } from "#shared/rpc/router.contract.ts";
+import { routerContract } from "@solyx/api/rpc/router.contract";
 
 import type { Services } from "../services.ts";
 

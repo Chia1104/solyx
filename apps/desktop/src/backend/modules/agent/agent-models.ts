@@ -8,15 +8,14 @@ import {
 import { AgentAuth, DEFAULT_PROVIDER } from "@solyx/agent/providers";
 import type { AgentModelPick, AgentProvider } from "@solyx/agent/providers";
 import type { AgentModelChoice } from "@solyx/agent/runtime";
-
-import { PRODUCT_NAME } from "#shared/product.ts";
-import { SecretState, agentKeySecret } from "#shared/settings.ts";
+import { PRODUCT_NAME } from "@solyx/api/product";
+import { SecretState, agentKeySecret } from "@solyx/api/settings";
 import type {
   AgentServerModels,
   AgentSettings,
   Locale,
   SignInCode,
-} from "#shared/settings.ts";
+} from "@solyx/api/settings";
 
 import type { ConfigFile } from "../settings/config-file.ts";
 import { createCredentialStore } from "../settings/credential-store.ts";

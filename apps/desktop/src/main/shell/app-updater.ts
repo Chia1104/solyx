@@ -1,6 +1,6 @@
 import { autoUpdater } from "electron-updater";
 
-import { AppChannel } from "#shared/app-channel.ts";
+import { AppChannel } from "@solyx/api/app-channel";
 
 import type { Updater } from "../../backend/modules/updates/updates.ts";
 

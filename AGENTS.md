@@ -26,6 +26,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - `packages/embeddings`: one module that speaks OpenAI's embeddings API, for OpenAI and for a model on this computer, and one that checks for and downloads Ollama's models
 - `packages/backup`: one module that speaks S3's API, and the sealed bundle a backup is kept as
 - `packages/agent`: the trading agent on pi, with its runtime, tools, prompt, skills and the wire events the renderer folds into a conversation
+- `packages/api`: the backend's oRPC contracts, and what the backend and its clients share besides them
 - `packages/db`: SQLite schemas, migrations and repositories
 - `packages/trading-chart`: domain-free React bindings for Lightweight Charts v5
 - `packages/utils`: cross-runtime, domain-neutral utilities

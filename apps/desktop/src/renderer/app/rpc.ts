@@ -3,8 +3,8 @@ import { RPCLink } from "@orpc/client/message-port";
 import type { RouterContractClient } from "@orpc/contract";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 
-import { RPC_CONNECT } from "#shared/rpc/connect.ts";
-import type { routerContract } from "#shared/rpc/router.contract.ts";
+import { RPC_CONNECT } from "@solyx/api/rpc/connect";
+import type { routerContract } from "@solyx/api/rpc/router.contract";
 
 const { port1: clientPort, port2: serverPort } = new MessageChannel();
 

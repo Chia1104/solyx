@@ -15,16 +15,15 @@ import {
 import { DEFAULT_MODEL } from "@solyx/agent/models";
 import { AgentAuth, AgentThinking } from "@solyx/agent/providers";
 import type { AgentProvider } from "@solyx/agent/providers";
-import { MINUTE_MS } from "@solyx/utils/date";
-
 import {
   Locale,
   Secret,
   SecretState,
   agentKeySecret,
   agentSignInSecret,
-} from "#shared/settings.ts";
-import type { SignInCode } from "#shared/settings.ts";
+} from "@solyx/api/settings";
+import type { SignInCode } from "@solyx/api/settings";
+import { MINUTE_MS } from "@solyx/utils/date";
 
 import { createAgentModels } from "../src/backend/modules/agent/agent-models.ts";
 import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";

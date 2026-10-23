@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vite-plus/test";
 
-import { DestinationKind } from "#shared/workspace.ts";
-import type { Destination } from "#shared/workspace.ts";
+import { DestinationKind } from "@solyx/api/workspace";
+import type { Destination } from "@solyx/api/workspace";
 
 import { createWorkspace } from "../src/backend/modules/workspace/workspace.ts";
 

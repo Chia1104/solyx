@@ -22,9 +22,8 @@ import type {
   AgentProvider,
   AgentThinking,
 } from "@solyx/agent/providers";
+import type { AgentSettings } from "@solyx/api/settings";
 import { matchesFilter } from "@solyx/utils/search";
-
-import type { AgentSettings } from "#shared/settings.ts";
 
 import { Icon } from "../../components/icon.tsx";
 import { isModelReady } from "../settings/settings-query.ts";

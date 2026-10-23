@@ -21,12 +21,11 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
+import { MAX_MANDATE_DAYS } from "@solyx/api/settings";
+import type { MandateDraft } from "@solyx/api/settings";
 import type { Mandate } from "@solyx/core/mandate";
 import { Currency, Market } from "@solyx/core/market";
 import { Side } from "@solyx/core/order";
-
-import { MAX_MANDATE_DAYS } from "#shared/settings.ts";
-import type { MandateDraft } from "#shared/settings.ts";
 
 import { useClock } from "../../app/clock.ts";
 import { orpc } from "../../app/rpc.ts";

@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { SettingsSection } from "@solyx/api/settings-section";
 import type { ForecastRecord } from "@solyx/core/forecast";
 import { BENCHMARK, exchangeDate } from "@solyx/core/market";
 import type { Market, SymbolRef } from "@solyx/core/market";
@@ -23,8 +24,6 @@ import type {
   FalsifierCheck,
   FalsifierWatch,
 } from "@solyx/core/research";
-
-import { SettingsSection } from "#shared/settings-section.ts";
 
 import { useClock } from "../../app/clock.ts";
 import { Pane, useLayoutStore } from "../../app/layout-store.ts";

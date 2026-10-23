@@ -2,11 +2,11 @@ import { MemoryPublisher } from "@orpc/publisher/memory";
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/message-port";
 
+import type { Change } from "@solyx/api/rpc/changes";
 import { openFubonSession } from "@solyx/brokers/fubon";
 import type { FubonSession } from "@solyx/brokers/fubon";
 
 import { keepMessages } from "../backend/rpc/messages.ts";
-import type { Change } from "../shared/rpc/changes.ts";
 
 import { fubonContract } from "./fubon.contract.ts";
 

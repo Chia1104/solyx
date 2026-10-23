@@ -5,6 +5,15 @@ import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { AgentThinking } from "@solyx/agent/providers";
+import { Palette } from "@solyx/api/palette";
+import {
+  LanguagePreference,
+  MarketDataSource,
+  PriceColors,
+  Theme,
+  TimeZonePreference,
+  TradingBroker,
+} from "@solyx/api/settings";
 import {
   CLOUDFLARE_BASE_URL,
   CLOUDFLARE_DEFAULT_MODEL,
@@ -22,16 +31,6 @@ import {
 import { FinMindPlan } from "@solyx/fundamentals/finmind";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { WebSearchProvider } from "@solyx/web-search/provider";
-
-import { Palette } from "#shared/palette.ts";
-import {
-  LanguagePreference,
-  MarketDataSource,
-  PriceColors,
-  Theme,
-  TimeZonePreference,
-  TradingBroker,
-} from "#shared/settings.ts";
 
 import {
   DEFAULT_COLLECTION_PLANS,

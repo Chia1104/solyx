@@ -13,6 +13,38 @@ import {
   agentThinkingSchema,
 } from "@solyx/agent/providers";
 import type { AgentModelRef, AgentProvider } from "@solyx/agent/providers";
+import {
+  BackupInterval,
+  backupBucketSchema,
+  backupIntervalSchema,
+  backupPrefixSchema,
+  backupRegionSchema,
+} from "@solyx/api/backup";
+import type { BackupSetting } from "@solyx/api/backup";
+import { NewsRetention, newsRetentionSchema } from "@solyx/api/news";
+import {
+  ColorScheme,
+  Palette,
+  customPalettesSchema,
+  hasPalette,
+} from "@solyx/api/palette";
+import type { CustomPalette, PaletteToken } from "@solyx/api/palette";
+import {
+  endpointSchema,
+  LanguagePreference,
+  MarketDataSource,
+  PriceColors,
+  Theme,
+  TimeZonePreference,
+  TradingBroker,
+  languagePreferenceSchema,
+  marketDataSourceSchema,
+  priceColorsSchema,
+  themeSchema,
+  tradingBrokerSchema,
+  timeZonePreferenceSchema,
+} from "@solyx/api/settings";
+import type { FubonFile } from "@solyx/api/settings";
 import { DEFAULT_REGION } from "@solyx/backup/s3";
 import {
   DecisionMode,
@@ -59,39 +91,6 @@ import {
   WebSearchProvider,
   webSearchProviderSchema,
 } from "@solyx/web-search/provider";
-
-import {
-  BackupInterval,
-  backupBucketSchema,
-  backupIntervalSchema,
-  backupPrefixSchema,
-  backupRegionSchema,
-} from "#shared/backup.ts";
-import type { BackupSetting } from "#shared/backup.ts";
-import { NewsRetention, newsRetentionSchema } from "#shared/news.ts";
-import {
-  ColorScheme,
-  Palette,
-  customPalettesSchema,
-  hasPalette,
-} from "#shared/palette.ts";
-import type { CustomPalette, PaletteToken } from "#shared/palette.ts";
-import {
-  endpointSchema,
-  LanguagePreference,
-  MarketDataSource,
-  PriceColors,
-  Theme,
-  TimeZonePreference,
-  TradingBroker,
-  languagePreferenceSchema,
-  marketDataSourceSchema,
-  priceColorsSchema,
-  themeSchema,
-  tradingBrokerSchema,
-  timeZonePreferenceSchema,
-} from "#shared/settings.ts";
-import type { FubonFile } from "#shared/settings.ts";
 
 // Text that is empty or of the wrong shape reads as missing.
 const unitModelSchema = agentModelRefSchema.nullable().catch(null);

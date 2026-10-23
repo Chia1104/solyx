@@ -2,10 +2,9 @@ import { Description, Radio, RadioGroup } from "@heroui/react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { MarketDataSource } from "@solyx/api/settings";
 import { Market } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
-
-import { MarketDataSource } from "#shared/settings.ts";
 
 import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

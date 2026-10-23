@@ -1,7 +1,7 @@
 import { buttonVariants } from "@heroui/styles";
 import { useTranslation } from "react-i18next";
 
-import { Locale } from "#shared/settings.ts";
+import { Locale } from "@solyx/api/settings";
 
 import { Section } from "../../components/section.tsx";
 

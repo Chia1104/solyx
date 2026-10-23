@@ -3,9 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { SettingsSection } from "#shared/settings-section.ts";
-import { FubonFile, FubonSessionState, Secret } from "#shared/settings.ts";
-import type { MarketDataStatus } from "#shared/settings.ts";
+import { FubonFile, FubonSessionState, Secret } from "@solyx/api/settings";
+import type { MarketDataStatus } from "@solyx/api/settings";
+import { SettingsSection } from "@solyx/api/settings-section";
 
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";

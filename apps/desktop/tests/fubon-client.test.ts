@@ -5,6 +5,7 @@ import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/message-port";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
+import type { Change } from "@solyx/api/rpc/changes";
 import type {
   FubonAccount,
   FubonRealtime,
@@ -13,7 +14,6 @@ import type {
 
 import { connectFubon } from "../src/backend/modules/market/fubon-client.ts";
 import { keepMessages } from "../src/backend/rpc/messages.ts";
-import type { Change } from "../src/shared/rpc/changes.ts";
 import { fubonContract } from "../src/utility/fubon.contract.ts";
 
 const OPTIONS = {

@@ -129,7 +129,7 @@ export default defineConfig({
       },
       {
         // The backend reaches Electron only through its Host port, so it runs wherever a host runs it.
-        files: ["apps/desktop/src/{backend,shared,worker}/**"],
+        files: ["apps/desktop/src/{backend,worker}/**", "packages/**"],
         rules: {
           "no-restricted-imports": [
             "error",

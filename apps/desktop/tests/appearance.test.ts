@@ -4,15 +4,14 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { FuglePlan } from "@solyx/market-data/fugle";
-
 import {
   ColorScheme,
   PALETTES,
   Palette,
   PaletteToken,
-} from "#shared/palette.ts";
-import { PriceColors, Theme } from "#shared/settings.ts";
+} from "@solyx/api/palette";
+import { PriceColors, Theme } from "@solyx/api/settings";
+import { FuglePlan } from "@solyx/market-data/fugle";
 
 import { createAppearance } from "../src/backend/modules/settings/appearance.ts";
 import { createConfigFile } from "../src/backend/modules/settings/config-file.ts";

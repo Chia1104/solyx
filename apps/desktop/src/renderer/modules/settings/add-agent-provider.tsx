@@ -5,9 +5,8 @@ import { Add01Icon } from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
 import type { AgentProvider } from "@solyx/agent/providers";
+import type { AgentProviderSettings } from "@solyx/api/settings";
 import { matchesFilter } from "@solyx/utils/search";
-
-import type { AgentProviderSettings } from "#shared/settings.ts";
 
 import { Icon } from "../../components/icon.tsx";
 import { ProviderMark } from "../agent/agent-provider-mark.tsx";
