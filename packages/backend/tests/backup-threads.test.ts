@@ -198,6 +198,7 @@ test("a failure crosses from the thread with its message and what kind it was", 
 
 test("a thread that cannot start fails the job rather than leaving it waiting", async () => {
   const missing = createBackupThreads(
+    // fallow-ignore-next-line unresolved-import
     new URL("../src/worker/no-such-entry.ts", import.meta.url)
   );
 

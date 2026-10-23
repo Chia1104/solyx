@@ -34,3 +34,25 @@ jobs:
       - run: vp run -r build
         env:
           GITHUB_TOKEN: ${{ github.token }}
+
+  # Fails a pull request on the dead code, complexity and duplication it introduces, not on what its
+  # base branch already has.
+  audit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The audit attributes each finding by comparing with the base branch's history.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: "26"
+          cache: true
+
+      - run: vp exec fallow audit --format github-annotations
+        env:
+          FALLOW_AUDIT_BASE: origin/${{ github.base_ref }}

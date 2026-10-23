@@ -67,6 +67,7 @@ catalogs:
     "@chiastack/oxlint": ^1.1.0
     # Pinned to the oxlint bundled by vite-plus; upgrade both together.
     "@oxlint/plugins": 1.88.0
+    fallow: 3.35.0
   markdown:
     "@streamdown/cjk": 1.0.4
     streamdown: 2.7.0
