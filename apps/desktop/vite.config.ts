@@ -14,7 +14,7 @@ const PRELOAD_BUNDLE = "dist/preload/index.cjs";
 
 const BACKEND_BUNDLE = "dist/utility/backend.mjs";
 
-// Set by scripts/dev.mjs, which serves `@solyx/web` on it. Electron then loads the renderer from
+// Set by scripts/dev.mjs, which serves `@solyx/webapp` on it. Electron then loads the renderer from
 // the dev server and restarts after every successful main, preload and backend build.
 const rendererUrl = process.env.SOLYX_RENDERER_URL;
 
@@ -58,7 +58,7 @@ export default defineConfig({
       // The package workflow's Sentry DSN is written into the main bundle, so it reaches the task.
       build: {
         command: "vp pack",
-        dependsOn: ["@solyx/web#build"],
+        dependsOn: ["@solyx/webapp#build"],
         cache: { env: ["SENTRY_DSN"] },
       },
       package: {
@@ -98,7 +98,7 @@ export default defineConfig({
         { from: "resources/trayTemplate@2x.png", to: "dist/main" },
         ...(isDev
           ? []
-          : [{ from: "../web/dist", to: "dist", rename: "renderer" }]),
+          : [{ from: "../webapp/dist", to: "dist", rename: "renderer" }]),
       ],
     },
     {

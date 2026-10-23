@@ -1,4 +1,4 @@
-# `@solyx/web`
+# `@solyx/webapp`
 
 The workspace's React app, which each of the desktop's windows loads. It reads everything from the backend through the oRPC client in `src/app/rpc.ts`; its crash reports reach the main process through the preload's Sentry bridge. Paths below are under `src/`.
 
