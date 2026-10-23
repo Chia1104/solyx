@@ -68,7 +68,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - Tests use synthetic payloads shaped like a source's responses; never commit recorded market data, pages, posts or articles.
 - Oxlint, Oxfmt and Vitest come from Vite+; their lint, format and staged rules live in the root `vite.config.ts` because Vite+ ignores nested configs.
 - `vp run` executes tasks in a clean environment, so most variables set outside it do not reach the task.
-- The commit gate's handlers in `.claude/settings.json` and `.codex/hooks.json` run the project's own `fallow-gate.sh` from the project's root, never a copy found by walking up from the shell's directory, which a dependency or a download could plant. `fallow agent install` writes the walking form, so restore them after it.
+- Fallow analyzes the repository for unused code and dependencies, import cycles, duplication and complexity; `.fallowrc.json` lists only what its plugins cannot see. Run `fallow audit` before a commit: CI's `audit` job fails a pull request on the findings it introduces. No hook runs it for agents, since a committed hook would run repository code on every shell call. The MCP registrations run `fallow-mcp` from `PATH`, because `npx` refuses the root's `devEngines`. So `fallow agent install` runs with `--without hooks --without guide --without mcp`.
 - Commit subjects and pull request titles follow Conventional Commits, `type(scope): summary`. The scope is the package or app that owns the change, as in `feat(desktop): …`, and is left out when the change spans several. GitHub builds each release's notes from the titles of the pull requests merged since the previous one.
 - Work lands on `develop`, the default branch, through pull requests. `main` only points at the latest stable release; the release workflow moves it, and nothing is committed to it.
 
@@ -99,39 +99,3 @@ release. Add a tool name to select part of the graph. For example, run
 - [ ] If setup, runtime, or package-manager behavior looks wrong, run `vp env doctor` and include its output when asking for help.
 
 <!--VITE PLUS END-->
-
----
-
-<!-- fallow:setup-hooks:start -->
-
-## Fallow checks
-
-Use fallow for code-quality, cleanup, and setup tasks in this repository. Fallow checks the changed code before each `git commit` and `git push`. In Claude Code and Codex, a PreToolUse hook from `fallow agent install` runs this check and blocks the command when the verdict is `fail`. Other agents run the check themselves: `fallow audit --format json --quiet --explain --gate-marker agent`. If the verdict is `fail`, fix the reported findings before you try again. A JSON runtime error such as `{ "error": true, ... }` does not block.
-
-Audit defaults to `gate=new-only`: only findings introduced by the current changeset affect the verdict. Inherited findings on touched files are reported under `attribution` and annotated with `introduced: false`, but do not block the commit. Set `[audit] gate = "all"` in `fallow.toml` to gate every finding in changed files.
-
-For non-skill agents, treat the task map below as the local onboarding source: run the listed fallow command before destructive edits, before commits, and before pull request handoff.
-
-## Fallow task map
-
-| When the agent is about to...                                        | Run                                                                                                                                                           |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| delete an "unused" export or file                                    | `fallow dead-code --trace <file>:<export>`                                                                                                                    |
-| prove a TypeScript symbol's exact consumers before refactoring       | `fallow dead-code --type-aware --symbol-impact <file>:<export-or-class.method>`                                                                               |
-| find how one module reaches another                                  | `fallow trace --path <from> <to>` (Reports `reachable: false` instead of failing when no import path exists; type-only hops are reported, not skipped.)       |
-| delete an "unused" dependency                                        | `fallow dead-code --trace-dependency <name>`                                                                                                                  |
-| migrate a dependency                                                 | `fallow trace --dependency <name> --sites` (Counts each imported name, follows one hop through project wrappers, and counts each use that it cannot resolve.) |
-| commit or open a PR                                                  | `fallow audit --base <ref>`                                                                                                                                   |
-| read a diff before approving it                                      | `fallow review --base <ref> --brief` (orientation, never gates: deterministic and always exit 0, unlike the audit row)                                        |
-| prioritize refactoring                                               | `fallow health --hotspots --targets`                                                                                                                          |
-| ask who owns code                                                    | `fallow health --ownership`                                                                                                                                   |
-| check untested-but-reachable code                                    | `fallow health --coverage-gaps`                                                                                                                               |
-| consolidate duplication                                              | `fallow dupes --trace dup:<fingerprint>`                                                                                                                      |
-| find feature flags                                                   | `fallow flags`                                                                                                                                                |
-| check which architecture rules apply to a file before changing it    | `fallow guard <files>`                                                                                                                                        |
-| check import cycles, boundaries and policy rules after changing code | `fallow architecture`                                                                                                                                         |
-| surface security candidates                                          | `fallow security`                                                                                                                                             |
-| understand a finding                                                 | `fallow explain <issue-type>`                                                                                                                                 |
-| scope a monorepo                                                     | `--workspace <glob> / --changed-workspaces <ref>` (global flags, prefix any command)                                                                          |
-
-<!-- fallow:setup-hooks:end -->
