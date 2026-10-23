@@ -22,8 +22,8 @@ const FUBON_FILE_DIALOG: Record<FubonFile, OpenDialogOptions> = {
 };
 
 export const settingsShell: SettingsShell = {
-  async chooseFubonFile(file, client) {
-    const page = webContents.fromId(client.window);
+  async chooseFubonFile(file, asking) {
+    const page = webContents.fromId(asking);
     const window = page && BrowserWindow.fromWebContents(page);
     const options = FUBON_FILE_DIALOG[file];
 

@@ -72,6 +72,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       locked: false,
       maxDailyLoss: {},
     },
+    remote: { enabled: false, port: 18321 },
     tray: { show: true, hideDock: false },
     marketData: { TW: MarketDataSource.Fugle },
     providers: {

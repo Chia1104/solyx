@@ -17,6 +17,12 @@ The app's backend, composed in `services.ts`. The desktop runs it in a utility p
 - Secrets (provider keys, and the OAuth tokens of subscription and remote MCP sign-ins) are saved as ciphertext in `userData` with Electron's async `safeStorage`, which the backend reaches through the main process, and decrypted only when a provider needs one. pi-ai and pi-mcp read and refresh them through a `CredentialStore` over the secret store. Where the OS has no secret store (Linux `basic_text`), nothing is saved.
 - The renderer can save or delete a key and start, cancel or end a sign-in, but never reads a key back or sees a token.
 
+## Devices and the edge
+
+- The edge (`modules/devices/edge.ts`) is Hono on Node, listening on `127.0.0.1` at `remote.port` only while `remote.enabled` is on, and following both as they change. It answers only a request whose `Host` names this computer (`localhost`, `127.0.0.1`, `[::1]`, at any port, since `ssh -L` picks one), so a page that rebinds its own name to this computer reaches nothing, and takes a pairing or a socket only from a page it served itself (`Origin`).
+- A browser pairs with a code the settings page shows, which lasts five minutes, works once and is gone after five wrong tries. The device's token is told only to that browser; the backend keeps its SHA-256, with each device's name, sealed in the secret store, so no edit of the app's files pairs one.
+- A paired browser opens `/rpc` with its token beside the `solyx` subprotocol, since a browser sets no header on a WebSocket, and is served the router as `client` `{ kind: device }`. One that is not paired, or is unpaired while connected, is closed with `UNPAIRED_CLOSE_CODE`. Every procedure is refused to a device unless its contract marks it for devices, checked before its input is read, so a device never confirms, cancels at the broker, answers the agent's calls, unseals or changes settings.
+
 ## Agent
 
 - MCP servers in `mcp.json` run as the backend's child processes or are reached over HTTP, and close when the app quits; `@solyx/agent` owns how they connect.

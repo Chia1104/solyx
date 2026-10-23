@@ -116,6 +116,12 @@ export function webSearchKeySecret(
  */
 export const MANDATE_SECRET = "trading-mandate";
 
+/**
+ * The devices paired with this computer, sealed like the mandate, since a paired device reaches the
+ * workspace and no edit of the app's files may add one.
+ */
+export const PAIRED_DEVICES_SECRET = "paired-devices";
+
 /** Every key the secret store saves under. */
 export type SecretKey =
   | Secret
@@ -124,7 +130,8 @@ export type SecretKey =
   | WebSearchKeySecret
   | McpSecretKey
   | McpSignInKey
-  | typeof MANDATE_SECRET;
+  | typeof MANDATE_SECRET
+  | typeof PAIRED_DEVICES_SECRET;
 
 export const SecretState = {
   Saved: "saved",

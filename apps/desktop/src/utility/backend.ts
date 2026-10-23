@@ -12,8 +12,9 @@ import { RestoreFailure } from "@solyx/backend/modules/backup/staged-restore";
 import { CATALOGS, fill } from "@solyx/backend/modules/settings/catalogs";
 import { createConfigFile } from "@solyx/backend/modules/settings/config-file";
 import type { ReportError } from "@solyx/backend/modules/telemetry/diagnostics";
+import { ClientKind } from "@solyx/backend/rpc/context";
 import { keepMessages } from "@solyx/backend/rpc/messages";
-import { serveClient } from "@solyx/backend/rpc/serve";
+import { serveClient, serveSocket } from "@solyx/backend/rpc/serve";
 import { createServices } from "@solyx/backend/services";
 import type { Services } from "@solyx/backend/services";
 import { errorMessage } from "@solyx/utils/error";
@@ -57,6 +58,7 @@ function serveBackend(
       close: backend.close.handler(async () => {
         services.scheduler.stop();
         services.tray.close();
+        await services.devices.close();
         await services.agent.close();
         await services.telemetry.close();
       }),
@@ -127,7 +129,10 @@ function start(
       if (!port) return;
 
       if (data.kind === BackendMessageKind.Window) {
-        serveClient(port, { ...services, client: { window: data.window } });
+        serveClient(port, {
+          ...services,
+          client: { kind: ClientKind.Window, window: data.window },
+        });
       } else if (data.kind === BackendMessageKind.Fubon) {
         backendHost.fubonPort(data.id, port);
       }
@@ -135,6 +140,14 @@ function start(
   );
 
   void client.ready();
+
+  // Paired browsers reach the router through the edge, while the user has it on.
+  void services.devices.listen((socket, device) =>
+    serveSocket(socket, {
+      ...services,
+      client: { kind: ClientKind.Device, device: device.id },
+    })
+  );
 
   // The window opens where the restore was asked for, which says what became of it.
   if (services.restored) {

@@ -43,6 +43,8 @@ import { createBackups } from "./modules/backup/backups.ts";
 import { settleRestore, takeRestore } from "./modules/backup/staged-restore.ts";
 import { createCalendar } from "./modules/calendar/calendar.ts";
 import { createDecisions } from "./modules/decisions/decisions.ts";
+import { createDeviceRegistry } from "./modules/devices/device-registry.ts";
+import { createDevices } from "./modules/devices/devices.ts";
 import { createEmbeddings } from "./modules/embeddings/embeddings.ts";
 import { createFlows } from "./modules/flows/flows.ts";
 import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
@@ -233,6 +235,14 @@ export function createServices(config: ConfigFile, host: Host) {
   });
 
   const { diagnostics } = telemetry;
+
+  const devices = createDevices({
+    config,
+    registry: createDeviceRegistry(secrets),
+    webRoot: host.webRoot,
+    diagnostics,
+    onChange: () => void windowEvents.publish("devices:changed", {}),
+  });
 
   const marketDataSources = createMarketDataSources({
     config,
@@ -725,6 +735,7 @@ export function createServices(config: ConfigFile, host: Host) {
     desk,
     tradingBroker: desk.brokerId,
     mandates,
+    devices,
     marketDays,
     secrets,
     config,

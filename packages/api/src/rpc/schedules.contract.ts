@@ -6,6 +6,7 @@ import { CollectionJob, collectionPlanSchema } from "@solyx/core/schedule";
 import { taskDraftSchema } from "../schedules.ts";
 import type { CollectionView, ScheduledTaskView } from "../schedules.ts";
 
+import { forDevices } from "./access.ts";
 import { changesContract } from "./changes.ts";
 
 const idSchema = z.string().min(1);
@@ -14,14 +15,14 @@ const jobSchema = z.enum(CollectionJob);
 
 export const schedulesContract = {
   /** What the app collects on its own, in a fixed order. */
-  collections: oc.output(type<CollectionView[]>()),
+  collections: oc.meta(forDevices(true)).output(type<CollectionView[]>()),
   setCollection: oc
     .input(z.object({ job: jobSchema, plan: collectionPlanSchema }))
     .output(type<void>()),
   /** Collects now, whatever its plan says, and resolves once it is done. */
   collectNow: oc.input(jobSchema).output(type<void>()),
   /** Oldest first. */
-  list: oc.output(type<ScheduledTaskView[]>()),
+  list: oc.meta(forDevices(true)).output(type<ScheduledTaskView[]>()),
   create: oc.input(taskDraftSchema).output(type<void>()),
   /** Saves the task again, so its next run counts from now. */
   update: oc

@@ -22,6 +22,7 @@ import type { Session } from "@solyx/core/session";
 
 import type { CandleSet, ListingRotationView } from "../market.ts";
 
+import { forDevices } from "./access.ts";
 import { changesContract } from "./changes.ts";
 
 const seriesSchema = z.object({
@@ -30,28 +31,36 @@ const seriesSchema = z.object({
 });
 
 export const marketContract = {
-  sessions: oc.output(type<Record<Market, Session>>()),
+  sessions: oc.meta(forDevices(true)).output(type<Record<Market, Session>>()),
   /** `null` when no source covers the market or the source does not list the symbol. */
-  listing: oc.input(symbolRefSchema).output(type<Listing | null>()),
+  listing: oc
+    .meta(forDevices(true))
+    .input(symbolRefSchema)
+    .output(type<Listing | null>()),
   /**
    * Bars oldest first: the interval's lookback window, or with `before` the page of history
    * before the bar opening then, which is empty once the source has nothing older.
    */
   candles: oc
+    .meta(forDevices(true))
     .input(seriesSchema.extend({ before: z.number().optional() }))
     .output(type<CandleSet>()),
   /**
    * The newest session's five-minute line against the close before it; `null` when no source
    * covers the market or the source has no bars for the symbol. It takes no stream slot.
    */
-  quote: oc.input(symbolRefSchema).output(type<SessionQuote | null>()),
+  quote: oc
+    .meta(forDevices(true))
+    .input(symbolRefSchema)
+    .output(type<SessionQuote | null>()),
   /** Every Taiwan sector index's session so far, one request each; `null` when no source covers Taiwan. */
-  sectors: oc.output(type<SectorQuote[] | null>()),
+  sectors: oc.meta(forDevices(true)).output(type<SectorQuote[] | null>()),
   /**
    * Every Taiwan sector index's rotation against the TAIEX across the sessions it may be played
    * back over, a daily-bar request each. `null` when no source covers Taiwan.
    */
   rotations: oc
+    .meta(forDevices(true))
     .input(
       z.object({
         /** A TWSE listing or index to read the sectors against in the TAIEX's place; rejects one that does not qualify. */
@@ -61,6 +70,7 @@ export const marketContract = {
     .output(type<RotationHistory<SectorHistory> | null>()),
   /** Each listing's rotation on adjusted bars across the sessions it may be played back over, a daily-bar request each; rejects while no source covers a market. */
   listingRotations: oc
+    .meta(forDevices(true))
     .input(
       z.object({
         symbols: z.array(symbolRefSchema).max(MAX_ROTATION_LISTINGS),
@@ -71,6 +81,7 @@ export const marketContract = {
     .output(type<RotationHistory<ListingHistory>>()),
   /** One listing against its market's index and, for a TWSE company in an industry with an index, against that index too. */
   listingRotation: oc
+    .meta(forDevices(true))
     .input(symbolRefSchema)
     .output(type<ListingRotationView>()),
   /**
@@ -79,6 +90,7 @@ export const marketContract = {
    * end at once, when none does. The symbol is watched until the window stops reading.
    */
   liveCandles: oc
+    .meta(forDevices(true))
     .input(seriesSchema)
     .output(asyncIteratorObject(type<Candle[]>())),
   /**
@@ -87,13 +99,17 @@ export const marketContract = {
    * where it takes the symbol and read every few seconds through the regular session where not.
    */
   depth: oc
+    .meta(forDevices(true))
     .input(symbolRefSchema)
     .output(asyncIteratorObject(type<Depth | null>())),
   /**
    * The prices the listing may trade between in the session an order placed now goes to; `null`
    * where it trades without limits or the exchange's list for that session is not out or not read.
    */
-  band: oc.input(symbolRefSchema).output(type<PriceBand | null>()),
+  band: oc
+    .meta(forDevices(true))
+    .input(symbolRefSchema)
+    .output(type<PriceBand | null>()),
   /** Where some market's bars come from changed, by the settings page or a hand edit: load and watch again. */
   sourceChanges: changesContract,
 };

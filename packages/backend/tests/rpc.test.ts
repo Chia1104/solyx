@@ -19,7 +19,8 @@ import { OrderDesk, ProposalSource } from "@solyx/core/order-desk";
 import type { TradeProposal } from "@solyx/core/order-desk";
 import { Session, weekdays } from "@solyx/core/session";
 
-import type { RpcContext } from "../src/rpc/context.ts";
+import { ClientKind } from "../src/rpc/context.ts";
+import type { RpcClient, RpcContext } from "../src/rpc/context.ts";
 import { rpcHandler } from "../src/rpc/serve.ts";
 import type { WindowEvents } from "../src/rpc/window-events.ts";
 
@@ -99,11 +100,16 @@ class CountedPublisher extends MemoryPublisher<WindowEvents> {
  * Serves the router on one end of a channel as the main process serves a window's, and returns a
  * window's link on the other end, its client and what closes it.
  */
-function connect(services: Partial<RpcContext>) {
+function connect(
+  services: Partial<RpcContext>,
+  asking: RpcClient = { kind: ClientKind.Window, window: 1 }
+) {
   const { port1: serverPort, port2: clientPort } = new MessageChannel();
 
   // SAFETY: each test calls only the procedures that read what it hands over.
-  rpcHandler.upgrade(serverPort, { context: services as RpcContext });
+  rpcHandler.upgrade(serverPort, {
+    context: { ...services, client: asking } as RpcContext,
+  });
   serverPort.start();
   clientPort.start();
 
@@ -194,4 +200,29 @@ test("a window's port closing lets go of what it followed", async () => {
   expect(windowEvents.listeners).toBe(0);
 
   await changes.return();
+});
+
+test("a paired device is refused what its contract keeps for windows, before the desk is reached", async () => {
+  const desk = paperDesk();
+
+  const made = await desk.propose({
+    order: ORDER,
+    rationale: "Earnings beat",
+    source: ProposalSource.User,
+  });
+
+  const { client, close } = connect(
+    { desk },
+    { kind: ClientKind.Device, device: "d1" }
+  );
+
+  await expect(client.proposals.confirm(made.id)).rejects.toMatchObject({
+    code: "FORBIDDEN",
+    message: "proposals.confirm is for this computer's own windows",
+  });
+  expect(desk.list()[0]?.status).toBe(made.status);
+  // What its contract opens to devices it may call.
+  expect(await client.proposals.list()).toEqual(desk.list());
+
+  close();
 });

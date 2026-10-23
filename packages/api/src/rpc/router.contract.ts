@@ -2,6 +2,7 @@ import { accountContract } from "./account.contract.ts";
 import { agentContract } from "./agent.contract.ts";
 import { backupContract } from "./backup.contract.ts";
 import { calendarContract } from "./calendar.contract.ts";
+import { devicesContract } from "./devices.contract.ts";
 import { embeddingsContract } from "./embeddings.contract.ts";
 import { flowsContract } from "./flows.contract.ts";
 import { fundamentalsContract } from "./fundamentals.contract.ts";
@@ -26,6 +27,7 @@ export const routerContract = {
   agent: agentContract,
   backup: backupContract,
   calendar: calendarContract,
+  devices: devicesContract,
   embeddings: embeddingsContract,
   flows: flowsContract,
   fundamentals: fundamentalsContract,

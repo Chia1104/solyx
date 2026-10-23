@@ -12,6 +12,7 @@ export const SettingsSection = {
   Themes: "themes",
   Memory: "memory",
   Mcp: "mcp",
+  Devices: "devices",
   Storage: "storage",
   Backup: "backup",
   About: "about",

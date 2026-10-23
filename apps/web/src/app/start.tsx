@@ -1,0 +1,69 @@
+// The workspace, for a window and for a paired browser.
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { RouterProvider } from "@tanstack/react-router";
+
+import { followAgentEvents } from "../modules/agent/agent-events.ts";
+import { followBackupChanges } from "../modules/backup/backup-query.ts";
+import { followDevicesChanges } from "../modules/devices/devices-query.ts";
+import { followEmbeddingsChanges } from "../modules/embeddings/embeddings-query.ts";
+import { followInboxChanges } from "../modules/inbox/inbox-query.ts";
+import { followMarketDataChanges } from "../modules/market/market-sessions-query.ts";
+import { followQuotes } from "../modules/market/quote-query.ts";
+import { followMemoryChanges } from "../modules/memory/memory-query.ts";
+import { followNewsChanges } from "../modules/news/news-query.ts";
+import { followProposalChanges } from "../modules/proposals/proposals-query.ts";
+import { followResearchChanges } from "../modules/research/research-query.ts";
+import { followScheduleChanges } from "../modules/schedules/schedules-query.ts";
+import { followSettingsChanges } from "../modules/settings/settings-query.ts";
+import { followThemeChanges } from "../modules/themes/themes-query.ts";
+import { followUpdateChanges } from "../modules/updates/updates-query.ts";
+import { followWatchlistChanges } from "../modules/watchlist/watchlist-query.ts";
+import { followDestinations } from "../modules/workspace/destination.ts";
+
+import { followLanguage } from "./language.ts";
+import { queryClient } from "./query-client.ts";
+import { router } from "./router.tsx";
+import { followAppearance } from "./theme.ts";
+
+// Followed for the window's whole life, so a query that never goes stale on its own hears of
+// every change, whichever page is open.
+for (const follow of [
+  followAgentEvents,
+  followBackupChanges,
+  followDevicesChanges,
+  followEmbeddingsChanges,
+  followInboxChanges,
+  followMarketDataChanges,
+  followMemoryChanges,
+  followNewsChanges,
+  followProposalChanges,
+  followQuotes,
+  followResearchChanges,
+  followScheduleChanges,
+  followSettingsChanges,
+  followThemeChanges,
+  followUpdateChanges,
+  followWatchlistChanges,
+]) {
+  void follow(queryClient);
+}
+
+await followAppearance();
+
+await followLanguage();
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+      {/* Renders nothing outside development, so builds drop it. Bottom left keeps it off the composer. */}
+      <ReactQueryDevtools buttonPosition="bottom-left" />
+    </QueryClientProvider>
+  </StrictMode>
+);
+
+followDestinations();

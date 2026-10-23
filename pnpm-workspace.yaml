@@ -101,6 +101,11 @@ catalogs:
   sentry:
     "@sentry/electron": 8.2.0
     "@sentry/vite-plugin": 11.8.0
+  server:
+    "@hono/node-server": 2.1.5
+    "@types/ws": 8.18.2
+    hono: 4.13.13
+    ws: 8.22.0
   tailwindcss:
     "@tailwindcss/vite": 4.3.3
     tailwindcss: 4.3.3

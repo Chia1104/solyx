@@ -22,6 +22,7 @@ import { FINMIND_PLANS } from "@solyx/fundamentals/finmind";
 import { DAY_MS } from "@solyx/utils/date";
 import { tildify } from "@solyx/utils/text";
 
+import { ClientKind } from "../../rpc/context.ts";
 import type { RpcClient } from "../../rpc/context.ts";
 import type { WindowEvents } from "../../rpc/window-events.ts";
 import type { AgentService } from "../agent/agent-service.ts";
@@ -40,7 +41,7 @@ import type { SecretStore } from "./secret-store.ts";
 /** What only Electron does for the settings page. */
 export interface SettingsShell {
   /** Asks for one of Fubon's files in a dialog over the asking window; `null` when cancelled. */
-  chooseFubonFile(file: FubonFile, client: RpcClient): Promise<string | null>;
+  chooseFubonFile(file: FubonFile, window: number): Promise<string | null>;
   showItemInFolder(path: string): void;
   /** The app and the runtime it runs on, as About shows them. */
   about(): Omit<AppInfo, "locations">;
@@ -155,9 +156,16 @@ export const settingsRouter = settings.router({
   }),
   chooseFubonFile: settings.chooseFubonFile.handler(
     async ({ context, input }) => {
+      const { client } = context;
+
+      // A dialog opens over the window that asked.
+      if (client.kind !== ClientKind.Window) {
+        throw new Error("Only a window of this computer chooses Fubon's files");
+      }
+
       const path = await context.settingsShell.chooseFubonFile(
         input,
-        context.client
+        client.window
       );
 
       if (path !== null)

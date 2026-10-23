@@ -64,6 +64,7 @@ import type {
   WebSearchSettings,
 } from "../settings.ts";
 
+import { forDevices } from "./access.ts";
 import { changesContract } from "./changes.ts";
 
 /** A key or token as the user pastes it. */
@@ -81,7 +82,7 @@ const paletteIdSchema = z.string().min(1).max(128);
 const paletteNameSchema = z.string().trim().min(1).max(60);
 
 export const settingsContract = {
-  appearance: oc.output(type<Appearance>()),
+  appearance: oc.meta(forDevices(true)).output(type<Appearance>()),
   /** Saves the theme; every window switches at once. */
   setTheme: oc.input(themeSchema).output(type<void>()),
   setPalette: oc
@@ -112,12 +113,12 @@ export const settingsContract = {
   setLanguage: oc.input(languagePreferenceSchema).output(type<void>()),
   /** Saves the clock the app's own times show on; every window and the tray's menu follow at once. */
   setTimeZone: oc.input(timeZonePreferenceSchema).output(type<void>()),
-  secrets: oc.output(type<SecretsStatus>()),
+  secrets: oc.meta(forDevices(true)).output(type<SecretsStatus>()),
   saveSecret: oc
     .input(z.object({ secret: enteredSecretSchema, value: keySchema }))
     .output(type<void>()),
   deleteSecret: oc.input(enteredSecretSchema).output(type<void>()),
-  marketData: oc.output(type<MarketDataStatus>()),
+  marketData: oc.meta(forDevices(true)).output(type<MarketDataStatus>()),
   /** Charts and the live stream switch to the source at once. */
   setMarketDataSource: oc
     .input(
@@ -133,7 +134,7 @@ export const settingsContract = {
   chooseFubonFile: oc.input(fubonFileSchema).output(type<string | null>()),
   /** Signs in to Fubon again with the saved settings; the market data status reports the outcome. */
   signInFubon: oc.output(type<void>()),
-  agent: oc.output(type<AgentSettings>()),
+  agent: oc.meta(forDevices(true)).output(type<AgentSettings>()),
   /** Lets conversations pick the provider's models, or stops offering them. */
   setAgentProviderEnabled: oc
     .input(z.object({ provider: agentProviderSchema, enabled: z.boolean() }))
@@ -201,7 +202,7 @@ export const settingsContract = {
     .input(z.object({ provider: webSearchProviderSchema, value: keySchema }))
     .output(type<void>()),
   deleteWebSearchKey: oc.input(webSearchProviderSchema).output(type<void>()),
-  decisions: oc.output(type<DecisionsSettings>()),
+  decisions: oc.meta(forDevices(true)).output(type<DecisionsSettings>()),
   /** Picks the provider whose model scores texts. */
   setDecisionsProvider: oc.input(decisionsProviderSchema).output(type<void>()),
   /** `null` goes back to the default. */
@@ -234,7 +235,7 @@ export const settingsContract = {
     .output(type<void>()),
   /** Points Ollama's embeddings at a host of the user's own; `null` goes back to this computer's. */
   setOllamaBaseURL: oc.input(endpointSchema.nullable()).output(type<void>()),
-  agentSkills: oc.output(type<AgentSkills>()),
+  agentSkills: oc.meta(forDevices(true)).output(type<AgentSkills>()),
   /** Offers a skill from ~/.agents/skills to the agent, or stops offering it. */
   setSharedSkill: oc
     .input(z.object({ name: z.string().min(1).max(64), enabled: z.boolean() }))
@@ -244,7 +245,7 @@ export const settingsContract = {
   memory: oc.output(type<MemorySettings>()),
   /** Gives the agent its memories from its next run on, or takes them away; they stay saved. */
   setMemoryEnabled: oc.input(z.boolean()).output(type<void>()),
-  trading: oc.output(type<TradingSettings>()),
+  trading: oc.meta(forDevices(true)).output(type<TradingSettings>()),
   /** Picks the account orders go to from the app's next start on. */
   setTradingAccount: oc.input(tradingAccountSchema).output(type<void>()),
   /** Quits the app and starts it again, as a change that waits for a restart needs. */
@@ -324,7 +325,9 @@ export const settingsContract = {
   /** Some setting or saved secret changed, here or by hand in the config file. */
   changes: changesContract,
   /** Yields the appearance on every change, whether saved here or by hand in the config file. */
-  appearanceChanges: oc.output(asyncIteratorObject(type<Appearance>())),
+  appearanceChanges: oc
+    .meta(forDevices(true))
+    .output(asyncIteratorObject(type<Appearance>())),
   /** Yields the code a sign-in under way has for the user to enter on the provider's page. */
   signInCodes: oc.output(asyncIteratorObject(type<SignInCode>())),
 };

@@ -7,6 +7,7 @@ import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderType } from "@solyx/core/order";
 
+import { inWindow } from "../../app/device.ts";
 import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
@@ -27,6 +28,7 @@ function CancelButton({ id }: { id: string }) {
         size="sm"
         variant="tertiary"
         isPending={cancel.isPending}
+        isDisabled={!inWindow}
         onPress={() => cancel.mutate(id)}>
         {t("account.cancel")}
       </Button>

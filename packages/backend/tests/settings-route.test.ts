@@ -38,6 +38,7 @@ import { createSecretStore } from "../src/modules/settings/secret-store.ts";
 import { settingsRouter } from "../src/modules/settings/settings.route.ts";
 import type { SettingsContext } from "../src/modules/settings/settings.route.ts";
 import { createWebSearch } from "../src/modules/web-search/web-search.ts";
+import { ClientKind } from "../src/rpc/context.ts";
 import { keepMessages } from "../src/rpc/messages.ts";
 import type { WindowEvents } from "../src/rpc/window-events.ts";
 
@@ -139,7 +140,7 @@ function setup() {
     mandates: createMandateStore(secrets),
     restart: vi.fn(),
     windowEvents: new MemoryPublisher<WindowEvents>(),
-    client: { window: 1 },
+    client: { kind: ClientKind.Window, window: 1 },
   };
 
   // As a window calls them, failures told as the main process words them.

@@ -14,6 +14,7 @@
     "./modules/settings/settings.route": "./src/modules/settings/settings.route.ts",
     "./modules/telemetry/diagnostics": "./src/modules/telemetry/diagnostics.ts",
     "./modules/updates/updates": "./src/modules/updates/updates.ts",
+    "./rpc/context": "./src/rpc/context.ts",
     "./rpc/messages": "./src/rpc/messages.ts",
     "./rpc/serve": "./src/rpc/serve.ts",
     "./services": "./src/services.ts",
@@ -26,6 +27,7 @@
   "dependencies": {
     "@earendil-works/pi-ai": "catalog:pi",
     "@earendil-works/pi-codemode": "catalog:pi",
+    "@hono/node-server": "catalog:server",
     "@opentelemetry/api": "catalog:otel",
     "@opentelemetry/api-logs": "catalog:otel",
     "@opentelemetry/exporter-logs-otlp-http": "catalog:otel",
@@ -54,10 +56,13 @@
     "@solyx/utils": "workspace:*",
     "@solyx/web-search": "workspace:*",
     "es-toolkit": "catalog:",
+    "hono": "catalog:server",
+    "ws": "catalog:server",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/ws": "catalog:server",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
   }

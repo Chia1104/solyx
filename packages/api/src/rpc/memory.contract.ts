@@ -4,11 +4,12 @@ import * as z from "zod";
 import { memoryChangeSchema } from "@solyx/core/memory";
 import type { Memory } from "@solyx/core/memory";
 
+import { forDevices } from "./access.ts";
 import { changesContract } from "./changes.ts";
 
 export const memoryContract = {
   /** Most recently written first. */
-  list: oc.output(type<Memory[]>()),
+  list: oc.meta(forDevices(true)).output(type<Memory[]>()),
   /** Rewrites a memory's description and body; rejects once it is forgotten. */
   update: oc
     .input(z.object({ id: z.string(), change: memoryChangeSchema }))

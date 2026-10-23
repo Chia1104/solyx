@@ -4,15 +4,17 @@ import * as z from "zod";
 import { symbolRefSchema } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
+import { forDevices } from "./access.ts";
 import { changesContract } from "./changes.ts";
 
 export const watchlistContract = {
   /** Watched listings in the user's order. */
-  list: oc.output(type<SymbolRef[]>()),
-  add: oc.input(symbolRefSchema).output(type<void>()),
-  remove: oc.input(symbolRefSchema).output(type<void>()),
+  list: oc.meta(forDevices(true)).output(type<SymbolRef[]>()),
+  add: oc.meta(forDevices(true)).input(symbolRefSchema).output(type<void>()),
+  remove: oc.meta(forDevices(true)).input(symbolRefSchema).output(type<void>()),
   /** Moves a watched listing to `index` among the others. */
   move: oc
+    .meta(forDevices(true))
     .input(
       z.object({
         symbol: symbolRefSchema,

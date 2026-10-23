@@ -11,6 +11,7 @@ import { PaneSplitter, SplitterEdge } from "../components/pane-splitter.tsx";
 import { BrokerModeRule } from "../modules/account/broker-mode-chip.tsx";
 
 import { AgentPane } from "./agent-pane.tsx";
+import { inWindow } from "./device.ts";
 import { useWorkspaceHotkeys } from "./hotkeys.ts";
 import {
   MAIN_MIN_WIDTH,
@@ -139,16 +140,18 @@ function SymbolsPaneViews() {
         )}>
         <SymbolsPane />
       </div>
-      <div
-        inert={!settings}
-        className={cn(
-          PANE_VIEW,
-          !settings && "invisible translate-x-6 opacity-0"
-        )}>
-        <SettingsPane
-          onLeave={() => void navigate({ href: lastPage.current })}
-        />
-      </div>
+      {inWindow ? (
+        <div
+          inert={!settings}
+          className={cn(
+            PANE_VIEW,
+            !settings && "invisible translate-x-6 opacity-0"
+          )}>
+          <SettingsPane
+            onLeave={() => void navigate({ href: lastPage.current })}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
