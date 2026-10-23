@@ -3,7 +3,7 @@ import { expect, test } from "vite-plus/test";
 import {
   columnScale,
   quarterOf,
-} from "../src/renderer/modules/fundamentals/trend-columns.ts";
+} from "../src/modules/fundamentals/trend-columns.ts";
 
 test("columns that all rise stand on zero at the plot's floor", () => {
   expect(columnScale([50, 100, 25])).toEqual({
