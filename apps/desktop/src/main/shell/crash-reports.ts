@@ -52,6 +52,9 @@ export function startCrashReports(sending: () => boolean) {
     },
     // Otherwise Sentry rewrites the message of every failed fetch, reported or not.
     enhanceFetchErrorMessages: false,
+    // Otherwise every request the app makes carries Sentry's trace headers, which tell each
+    // provider and the user's own servers the app's release and the project's key, agreed or not.
+    tracePropagationTargets: [],
     // A minidump holds the crashed process's memory, decrypted keys included; a renderer or
     // utility process that crashes is still reported as it ends, without one.
     integrations: (defaults) =>
