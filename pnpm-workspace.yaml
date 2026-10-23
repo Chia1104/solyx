@@ -114,6 +114,7 @@ catalogs:
   utils:
     fast-xml-parser: 5.11.2
     tar: 7.5.22
+    undici: 7.30.0
     yaml: 2.9.1
   website:
     "@base-ui/react": 1.9.0

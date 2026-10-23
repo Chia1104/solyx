@@ -426,6 +426,9 @@ catalogs:
     tar:
       specifier: 7.5.22
       version: 7.5.22
+    undici:
+      specifier: 7.30.0
+      version: 7.30.0
     yaml:
       specifier: 2.9.1
       version: 2.9.1
@@ -1100,6 +1103,9 @@ importers:
       ky:
         specifier: 'catalog:'
         version: 2.2.0
+      undici:
+        specifier: catalog:utils
+        version: 7.30.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7

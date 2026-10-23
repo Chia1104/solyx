@@ -8,6 +8,8 @@ import type { MacroCalendarProvider, MacroRelease } from "@solyx/core/macro";
 import { Market } from "@solyx/core/market";
 import { TW_ROC_YEAR_OFFSET } from "@solyx/core/rules/tw";
 
+import { fetchCompletingChain } from "./chain-fetch.ts";
+
 const STAT_GOV_TW_URL = "https://www.stat.gov.tw/";
 
 /** The calendar page's own node, which every agency's calendar is asked for through. */
@@ -164,7 +166,7 @@ function followedReleases(page: string): MacroRelease[] {
 }
 
 export interface StatGovTwOptions {
-  /** @default globalThis.fetch */
+  /** @default fetchCompletingChain, since the portal leaves its intermediate certificate out */
   fetch?: typeof globalThis.fetch;
 }
 
@@ -177,7 +179,7 @@ export function createStatGovTw(
 ): MacroCalendarProvider {
   const api = ky.create({
     baseUrl: STAT_GOV_TW_URL,
-    fetch: options.fetch,
+    fetch: options.fetch ?? fetchCompletingChain(new URL(STAT_GOV_TW_URL).host),
     hooks: {
       beforeError: [
         ({ error }) => {

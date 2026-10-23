@@ -87,7 +87,6 @@ import { createWorkspace } from "./modules/workspace/workspace.ts";
 import type { WindowEvents } from "./rpc/window-events.ts";
 import { createScheduler } from "./scheduler.ts";
 import { appChannel } from "./shell/app-channel.ts";
-import { chromiumFetch } from "./shell/chromium-fetch.ts";
 import { paintWindow, showMainWindow } from "./shell/main-window.ts";
 import { settingsShell } from "./shell/settings-shell.ts";
 import { createTrayShell } from "./shell/tray-icon.ts";
@@ -372,9 +371,8 @@ export function createServices(config: ConfigFile) {
     }
   );
 
-  // The statistics portal's server leaves its intermediate certificate out, which Node's fetch does not make up for.
   const macro = createMacro({
-    calendars: [createStatGovTw({ fetch: chromiumFetch })],
+    calendars: [createStatGovTw()],
     figures: [createDgbas()],
     answers: cache.answers,
   });
