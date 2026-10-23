@@ -5,6 +5,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 
+import { Mutex } from "es-toolkit";
 import * as z from "zod";
 
 import type { PairedDevice } from "@solyx/api/devices";
@@ -40,20 +41,39 @@ const withoutHash = ({ id, name, pairedAt }: StoredDevice): PairedDevice => ({
  * connects as the app starts is turned away. Follows the store, whoever changed it.
  */
 export function createDeviceRegistry(secrets: SecretStore) {
+  // One read or change at a time, each from what the one before kept, so none writes back a
+  // device another removed.
+  const mutex = new Mutex();
+
   let devices: StoredDevice[] = [];
 
   async function load() {
-    const sealed = await secrets.get(PAIRED_DEVICES_SECRET);
+    await mutex.acquire();
 
-    devices =
-      sealed === undefined
-        ? []
-        : (parseJson(sealed, storedDevicesSchema) ?? []);
+    try {
+      const sealed = await secrets.get(PAIRED_DEVICES_SECRET);
+
+      devices =
+        sealed === undefined
+          ? []
+          : (parseJson(sealed, storedDevicesSchema) ?? []);
+    } finally {
+      mutex.release();
+    }
   }
 
-  async function store(next: StoredDevice[]) {
-    await secrets.save(PAIRED_DEVICES_SECRET, JSON.stringify(next));
-    devices = next;
+  /** Keeps what `next` makes of the devices as every earlier change left them. */
+  async function change(next: (current: StoredDevice[]) => StoredDevice[]) {
+    await mutex.acquire();
+
+    try {
+      const changed = next(devices);
+
+      await secrets.save(PAIRED_DEVICES_SECRET, JSON.stringify(changed));
+      devices = changed;
+    } finally {
+      mutex.release();
+    }
   }
 
   secrets.onChange((secret) => {
@@ -76,7 +96,7 @@ export function createDeviceRegistry(secrets: SecretStore) {
         tokenHash: hashToken(token),
       };
 
-      await store([...devices, device]);
+      await change((current) => [...current, device]);
 
       return { token, device: withoutHash(device) };
     },
@@ -93,7 +113,7 @@ export function createDeviceRegistry(secrets: SecretStore) {
     },
 
     async remove(id: string) {
-      await store(devices.filter((device) => device.id !== id));
+      await change((current) => current.filter((device) => device.id !== id));
     },
   };
 }
