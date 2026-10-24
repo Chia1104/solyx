@@ -24,7 +24,11 @@ export const ENGINE_RUBRIC: Criterion[] = [
   },
   {
     id: "figures",
-    text: "Every return, drawdown, trade count, win rate and date it cites matches the engine's results given here; none is invented, misread or taken from the wrong stretch.",
+    text: "Every return, drawdown, Sharpe ratio, p-value, trade count, win rate and date it cites matches the engine's results given here; none is invented, misread or taken from the wrong stretch.",
+  },
+  {
+    id: "history",
+    text: "Where the request names no span of time, its daily backtests start about ten years before their last bar, or at the listing's first bar where it has less history; where the request names a span, they cover that span.",
   },
   {
     id: "thin-evidence",
