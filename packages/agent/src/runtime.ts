@@ -153,6 +153,7 @@ const SessionDoc = defineDoc<{
     model: null,
     thinking: null,
   }),
+  checkpointWhen: () => true,
   // Version 1 had no model of its own, so every conversation ran on the default.
   migrate: (value) => ({
     ...untunedSessionSchema.parse(value),
@@ -171,6 +172,7 @@ const OriginDoc = defineDoc<{
   history: "latest",
   fork: "initial",
   initial: () => ({ schedule: null }),
+  checkpointWhen: () => true,
 });
 
 /** A conversation on the user's default model that asks before every call that must ask. */

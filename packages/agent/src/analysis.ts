@@ -98,6 +98,7 @@ const AnalysisStoreDoc = defineDoc<{ values: Record<string, JsonValue> }>({
   history: "latest",
   fork: "initial",
   initial: () => ({ values: {} }),
+  checkpointWhen: (_value, _ops, { deltasSinceBase }) => deltasSinceBase >= 64,
 });
 
 const storedSchema = z.record(z.string(), z.json());

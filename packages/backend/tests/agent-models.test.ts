@@ -417,7 +417,7 @@ describe("paying by subscription", () => {
         access: "tid=1;exp=1;proxy-ep=proxy.individual.githubcopilot.com",
         refresh: "ghu_test",
         expires: Date.now() + 30 * MINUTE_MS,
-        availableModelIds: ["gpt-5.4"],
+        availableModelIds: ["gpt-6-sol"],
       })
     );
 
@@ -427,12 +427,12 @@ describe("paying by subscription", () => {
       settings.models
         .filter((model) => model.provider === "github-copilot")
         .map((model) => model.id)
-    ).toEqual(["gpt-5.4"]);
+    ).toEqual(["gpt-6-sol"]);
 
     await models.setDefaultProvider("github-copilot");
 
-    expect((await models.settings()).model).toBe("gpt-5.4");
-    expect((await models.choice()).model.id).toBe("gpt-5.4");
+    expect((await models.settings()).model).toBe("gpt-6-sol");
+    expect((await models.choice()).model.id).toBe("gpt-6-sol");
   });
 
   test("applies only to providers that offer it", async () => {

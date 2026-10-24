@@ -23,6 +23,7 @@ const NoteDoc = defineDoc<{ text: string }>({
   history: "latest",
   fork: "initial",
   initial: () => ({ text: "" }),
+  checkpointWhen: () => true,
 });
 
 // Never runs here, so a task made from it stays pending.

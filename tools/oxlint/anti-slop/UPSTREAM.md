@@ -8,7 +8,7 @@
 
 ## Local deviations
 
-- Plugin source is unmodified.
+- Plugin source imports the authoring API from `vite-plus/lint/plugins` instead of `@oxlint/plugins`, as `vp migrate` rewrites it, so it always matches the Oxlint that Vite+ bundles; it is otherwise unmodified.
 - `effect/` is copied but not registered: the repository has no direct `effect` dependency.
 - Registration lives in the root `vite.config.ts` (`lint.jsPlugins`, `lint.rules`); `oxc/no-accumulating-spread` and every generic rule are at `error`, except `no-array-filter-map`, which is off because its preferred iterator-helper form is not in the repository's es2023 `lib`.
 - Migrated from the configuration in `chia1104.dev/toolings/oxlint`, whose rule sources were an older, locally unmodified snapshot. Its test-file override that turned off `anti-slop/no-module-mocking` was not carried over.

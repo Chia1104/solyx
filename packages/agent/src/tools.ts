@@ -204,6 +204,7 @@ const ProposalClaimDoc = defineDoc<{
   history: "latest",
   fork: "initial",
   initial: () => ({ claim: null }),
+  checkpointWhen: () => true,
 });
 
 /**

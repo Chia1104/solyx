@@ -15,7 +15,6 @@
   },
   "devDependencies": {
     "@chiastack/oxlint": "catalog:lint",
-    "@oxlint/plugins": "catalog:lint",
     "@types/node": "catalog:",
     "fallow": "catalog:lint",
     "vite-plus": "catalog:"
