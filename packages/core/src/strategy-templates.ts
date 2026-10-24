@@ -23,6 +23,21 @@ export const StrategyTemplate = {
 export type StrategyTemplate =
   (typeof StrategyTemplate)[keyof typeof StrategyTemplate];
 
+/** The numbers templates take, each named as the rule it sets: lines' periods, bands' widths and levels. */
+export const TemplateParamName = {
+  Fast: "fast",
+  Slow: "slow",
+  Period: "period",
+  Width: "width",
+  Low: "low",
+  High: "high",
+  Entry: "entry",
+  Exit: "exit",
+} as const;
+
+export type TemplateParamName =
+  (typeof TemplateParamName)[keyof typeof TemplateParamName];
+
 /** A number a template takes, from `min` to `max` in steps of `step`. */
 export interface TemplateParam {
   min: number;
@@ -65,7 +80,7 @@ export const gridAxisSchema = z
 
 export type GridAxis = z.infer<typeof gridAxisSchema>;
 
-interface TemplateDefinition<Param extends string> {
+interface TemplateDefinition<Param extends TemplateParamName> {
   params: Record<Param, TemplateParam>;
   /**
    * Years of daily bars that hold about twenty of its trades each side of a split and a fall as
@@ -77,8 +92,15 @@ interface TemplateDefinition<Param extends string> {
   rules(params: Record<Param, number>): Pick<RuleStrategy, "entry" | "exit">;
 }
 
-const define = <Param extends string>(definition: TemplateDefinition<Param>) =>
-  definition;
+/** A template read by its numbers' names alone, which a setup's numbers are checked against. */
+interface WideDefinition {
+  params: Record<string, TemplateParam>;
+  rules(params: Record<string, number>): Pick<RuleStrategy, "entry" | "exit">;
+}
+
+const define = <Param extends TemplateParamName>(
+  definition: TemplateDefinition<Param>
+) => definition;
 
 const whole = (initial: number, min: number, max: number): TemplateParam => ({
   min,
@@ -226,10 +248,10 @@ export const STRATEGY_TEMPLATES = {
       exit: { below: [{ price: "close" }, { lowest: exit }] },
     }),
   }),
-} satisfies Record<StrategyTemplate, TemplateDefinition<string>>;
+} satisfies Record<StrategyTemplate, WideDefinition>;
 
 // Read through its widest type, which takes any template's numbers by their names.
-const definition = (template: StrategyTemplate): TemplateDefinition<string> =>
+const definition = (template: StrategyTemplate): WideDefinition =>
   STRATEGY_TEMPLATES[template];
 
 /** `name`'s bounds, one of `template`'s own numbers or an exit; `undefined` where it takes no such number. */

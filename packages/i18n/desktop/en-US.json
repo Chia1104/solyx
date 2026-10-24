@@ -1007,6 +1007,130 @@
       "r": "{{r}} R"
     }
   },
+  "backtests": {
+    "title": "Backtest",
+    "idle": "Pick a strategy and a span, then run it. Backtests run on this computer, not through the agent, and spend no model tokens.",
+    "form": {
+      "strategy": "Strategy",
+      "rules": "Written rules",
+      "rules-hint": "Written as the agent's backtest.rules takes them: entry and exit, with stopLoss and takeProfit if you like.",
+      "rules-label": "Rules (JSON)",
+      "rules-json": "This is not valid JSON.",
+      "rules-invalid": "The rules do not read: {{reason}}",
+      "required": "Enter a number.",
+      "positive": "Enter more than zero.",
+      "stopLoss": "Stop loss",
+      "takeProfit": "Take profit",
+      "exit-hint": "Empty for none.",
+      "interval": "Bars",
+      "years": "Span",
+      "years-option_one": "{{count}} year",
+      "years-option_other": "{{count}} years",
+      "split": "In-sample",
+      "split-hint": "The earlier sessions to fit on; the rest test it.",
+      "capital": "Capital",
+      "commission": "Commission",
+      "slippage": "Slippage (ticks)",
+      "run": "Run backtest"
+    },
+    "params": {
+      "fast": "Fast average",
+      "slow": "Slow average",
+      "period": "Period",
+      "width": "Width (σ)",
+      "low": "Low level",
+      "high": "High level",
+      "entry": "Breakout days",
+      "exit": "Breakdown days"
+    },
+    "templates": {
+      "movingAverageCross": {
+        "name": "Moving average cross",
+        "description": "Buys as the fast average crosses above the slow one, and sells as it crosses back."
+      },
+      "rsiRebound": {
+        "name": "RSI rebound",
+        "description": "Buys as RSI climbs back above the low level, and sells once it climbs above the high one."
+      },
+      "bollingerBreakout": {
+        "name": "Bollinger breakout",
+        "description": "Buys as the close breaks above the upper band, and sells as it falls back below the middle one."
+      },
+      "bollingerReversion": {
+        "name": "Bollinger reversion",
+        "description": "Buys as the close climbs back above the lower band, and sells once it is above the middle one."
+      },
+      "macdCross": {
+        "name": "MACD cross",
+        "description": "Buys as MACD(12, 26, 9) crosses above its signal line, and sells as it crosses below."
+      },
+      "kdCross": {
+        "name": "KD cross",
+        "description": "Buys on a golden cross with K under the low level, and sells on a dead cross with K over the high one."
+      },
+      "channelBreakout": {
+        "name": "Channel breakout",
+        "description": "Buys as the close passes the highest high of the breakout days, and sells as it falls under the lowest low of the breakdown days."
+      }
+    },
+    "report": {
+      "span": "{{from}} to {{to}} · {{bars}} {{interval}} bars",
+      "split": "out of sample from {{date}}",
+      "metrics-label": "Figures by stretch",
+      "metric": "Figure",
+      "stretches": {
+        "inSample": "In-sample",
+        "outOfSample": "Out of sample",
+        "all": "Whole span"
+      },
+      "metrics": {
+        "totalReturn": "Return",
+        "buyAndHold": "Buy and hold",
+        "annualReturn": "Annual return",
+        "maxDrawdown": "Max drawdown",
+        "buyAndHoldDrawdown": "Holding's drawdown",
+        "sharpe": "Sharpe ratio",
+        "pValue": "p-value",
+        "trades": "Trades",
+        "winRate": "Win rate",
+        "payoffRatio": "Payoff ratio",
+        "exposure": "Time held"
+      },
+      "warnings": {
+        "title": "Read these figures with care",
+        "stretch-trades_one": "{{stretch}} has {{count}} trade",
+        "stretch-trades_other": "{{stretch}} has {{count}} trades",
+        "separator": ", ",
+        "few-trades": "{{stretches}}: under {{enough}}, too few to tell whether the rules work.",
+        "read-longer_one": "Read {{count}} year",
+        "read-longer_other": "Read {{count}} years",
+        "untested": "Out of sample it held nothing to test, so whether its timing beat chance is unknown.",
+        "chance": "Out of sample, its timing did no better than random orderings of the bars (p = {{p}}).",
+        "behind-holding": "Out of sample it made {{strategy}}, behind buying and holding's {{holding}}."
+      },
+      "costs_one": "Costs: commission {{commission}} (at least {{minimum}}), tax on sales {{tax}}, slippage of {{count}} tick",
+      "costs_other": "Costs: commission {{commission}} (at least {{minimum}}), tax on sales {{tax}}, slippage of {{count}} ticks",
+      "equity": "Return on capital",
+      "strategy": "Strategy",
+      "holding": "Buy and hold",
+      "out-of-sample": "Out of sample",
+      "trades_one": "{{count}} trade",
+      "trades_other": "{{count}} trades",
+      "no-trades": "No trades over this span.",
+      "trade": {
+        "entry": "Bought",
+        "exit": "Sold",
+        "return": "Return",
+        "bars": "Bars",
+        "held": "Still held"
+      }
+    },
+    "chart": {
+      "on-chart": "Mark on chart",
+      "buy": "Test buy",
+      "sell": "Test sell"
+    }
+  },
   "magi": {
     "title": "MAGI",
     "motion": "Motion",

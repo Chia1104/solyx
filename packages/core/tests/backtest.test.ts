@@ -7,6 +7,7 @@ import {
   MAX_SCAN_SERIES,
   MAX_WALK_WINDOWS,
   backtest,
+  backtestBars,
   defaultCosts,
   MAX_RULE_BRANCHES,
   MAX_RULE_COMPARISONS,
@@ -307,6 +308,32 @@ test("buying and holding's drawdown is its deepest fall from a high, from the cl
   expect(result.outOfSample?.buyAndHoldDrawdown).toBeCloseTo(1 - 80 / 130);
   // Holding nothing loses nothing.
   expect(result.all.maxDrawdown).toBe(0);
+  expect(result.holding.map(({ value }) => value)).toEqual(
+    [100, 120, 130, 110, 80].map((close) => close * 1000)
+  );
+});
+
+test("holding's curve reads a split as no move, as its return does", async () => {
+  // Split one to four on the fourth bar.
+  const result = await backtest(
+    kernel,
+    TSMC,
+    bars([100, 100, 100, 25, 26], (index) =>
+      index === 3 ? { open: 25, high: 25.5, low: 25, reference: 25 } : {}
+    ),
+    {
+      entry: { above: [{ price: "close" }, { value: 1000 }] },
+      exit: { below: [{ price: "close" }, { value: 0 }] },
+    },
+    { capital: 10_000, costs: NO_COSTS }
+  );
+
+  expect(result.holding.map(({ value }) => value)).toEqual([
+    10_000, 10_000, 10_000, 10_000, 10_400,
+  ]);
+  expect(result.holding.at(-1)?.value).toBeCloseTo(
+    10_000 * (1 + result.all.buyAndHold)
+  );
 });
 
 describe("splits and what went ex", () => {
@@ -1102,5 +1129,45 @@ describe("a strategy's work is bounded before it runs", () => {
     expect(width(2.000_001)).not.toBeNull();
     expect(width(0.1)).not.toBeNull();
     expect(width(50)).not.toBeNull();
+  });
+});
+
+describe("a backtest's bars", () => {
+  const daily = bars([100, 101, 102, 103, 104, 105, 106, 107]);
+
+  const source = {
+    candles: async () => daily,
+    // As a source does, it reads at least its own lookback, before `since` too.
+    candlesSince: async () => daily,
+  };
+
+  test("start at since, whatever the source read before it", async () => {
+    const { bars: read, daily: references } = await backtestBars(
+      source,
+      TSMC,
+      Interval.OneDay,
+      "2026-01-08"
+    );
+
+    expect(read.map((bar) => candleDate(Market.TW, bar.time))).toEqual([
+      "2026-01-08",
+      "2026-01-09",
+      "2026-01-12",
+      "2026-01-13",
+      "2026-01-14",
+    ]);
+    expect(references).toBeUndefined();
+  });
+
+  test("are the app's own history without since", async () => {
+    const { bars: read } = await backtestBars(source, TSMC, Interval.OneDay);
+
+    expect(read).toHaveLength(8);
+  });
+
+  test("fail by the listing's name when too few are left", async () => {
+    await expect(
+      backtestBars(source, TSMC, Interval.OneDay, "2026-01-14")
+    ).rejects.toThrow("2330 has too few 1d bars to backtest");
   });
 });

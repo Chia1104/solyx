@@ -20,6 +20,7 @@ import {
   adjustedCandles,
   adjustmentFactors,
   barTime,
+  candleDate,
   candleDays,
   isIntraday,
   withSessionMoves,
@@ -242,6 +243,11 @@ export interface BacktestResult {
   trades: BacktestTrade[];
   /** The account's value at each session's close. */
   equity: { date: string; value: number }[];
+  /**
+   * What the capital would have been worth at each session's close had it bought the listing at
+   * the first close and held it, before costs, as `buyAndHold` reads it.
+   */
+  holding: { date: string; value: number }[];
   all: BacktestMetrics;
   /** Before `split`, the stretch a strategy may be fitted on; `null` without a split. */
   inSample: BacktestMetrics | null;
@@ -519,10 +525,13 @@ export async function backtestBars(
   interval: Interval,
   since?: string
 ) {
-  const read = (each: Interval) =>
+  // A source reads at least its own lookback, so bars before `since` are left out here.
+  const read = async (each: Interval) =>
     since === undefined
       ? source.candles(symbol, each)
-      : source.candlesSince(symbol, each, since);
+      : (await source.candlesSince(symbol, each, since)).filter(
+          (bar) => candleDate(symbol.market, bar.time) >= since
+        );
 
   const bars = await read(interval);
 
@@ -810,6 +819,7 @@ function prepare(
   return {
     interval,
     bars,
+    adjusted,
     days,
     capital,
     costs,
@@ -876,6 +886,14 @@ export async function backtest(
       last
     ),
     equity: sessionEquity(days, run.equity, 0),
+    holding: sessionEquity(
+      days,
+      Float64Array.from(
+        prepared.adjusted,
+        (bar) => (prepared.capital * bar.close) / prepared.adjusted[0].close
+      ),
+      0
+    ),
     ...prepared.stretches(run.stretches),
   };
 }

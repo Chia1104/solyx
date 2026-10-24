@@ -25,13 +25,15 @@ const NOW = new Date("2026-10-26T02:00:00Z");
 
 const DAY_SECONDS = 86_400;
 
-/** A bar a day from 2024-01-01 on, waving so moving averages cross. */
-function bars(count: number, seconds = DAY_SECONDS): Candle[] {
+const START = Date.UTC(2024, 0, 1) / 1000;
+
+/** A bar every `seconds` from `start` on, waving so moving averages cross. */
+function bars(count: number, seconds = DAY_SECONDS, start = START): Candle[] {
   return Array.from({ length: count }, (_, index) => {
     const close = 100 + 15 * Math.sin(index / 12);
 
     return {
-      time: Date.UTC(2024, 0, 1) / 1000 + index * seconds,
+      time: start + index * seconds,
       open: close,
       high: close + 1,
       low: close - 1,
@@ -84,7 +86,12 @@ test("a run reads the listing's bars from its years back on the exchange's calen
 });
 
 test("a run on bars shorter than a day reads the daily bars of the same years for their references", async () => {
-  const { marketData, run } = backtests();
+  // Minute bars from 09:00 in Taipei a week before, and daily bars over the year before.
+  const { marketData, run } = backtests((interval) =>
+    interval === Interval.OneDay
+      ? bars(400, DAY_SECONDS, Date.UTC(2025, 9, 1) / 1000)
+      : bars(270, 60, Date.UTC(2026, 9, 19, 1) / 1000)
+  );
 
   const result = await run.run(
     backtestSetupSchema.parse({
