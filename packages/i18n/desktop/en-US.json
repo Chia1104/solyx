@@ -176,6 +176,7 @@
       "crossed-from": "{{date}}, from {{from}}",
       "mark": "{{name}}: {{quadrant}}, level {{level}}, momentum {{momentum}}",
       "none": "Too few sessions of bars for a reading yet.",
+      "older": "Reading the older years of bars; the longer periods fill in shortly.",
       "quadrants": {
         "leading": "Leading",
         "weakening": "Weakening",
