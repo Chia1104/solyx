@@ -176,6 +176,7 @@
       "crossed-from": "{{date}}，自{{from}}",
       "mark": "{{name}}：{{quadrant}}，相對位置 {{level}}，動能 {{momentum}}",
       "none": "交易日還不夠，尚無法讀出位置。",
+      "older": "較早的 K 線讀取中，較長的期間稍後補齊。",
       "quadrants": {
         "leading": "領先",
         "weakening": "轉弱",

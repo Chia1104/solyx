@@ -347,8 +347,8 @@ export function createServices(config: ConfigFile, host: Host) {
   const flows = createFlows({ providers: [finMind], answers: cache.answers });
 
   const rotations = createRotations({
-    candlesSince: (symbol, since) =>
-      marketData.candlesSince(symbol, Interval.OneDay, since),
+    candlesBetween: (symbol, from, to) =>
+      marketData.candlesBetween(symbol, Interval.OneDay, from, to),
     sourceId: (market) => marketData.sourceId(market),
     company: (symbol) => fundamentals.company(symbol),
   });

@@ -53,6 +53,8 @@ export interface RotationGroup {
 export interface RotationPlayback {
   sessions: readonly string[];
   closes: readonly (number | null)[] | null;
+  /** `false` while the older bars are read, so the longer periods begin late or are empty. */
+  complete: boolean;
 }
 
 /** How far a plot's axes reach either way from the origin, in standard deviations. */
@@ -450,6 +452,41 @@ function QuadrantLists({
   );
 }
 
+/** That the older bars are still read, while they are. */
+function FillingIn({
+  playback,
+  loading,
+}: {
+  playback: RotationPlayback;
+  loading: boolean;
+}) {
+  const { t } = useTranslation();
+
+  if (!loading || playback.complete) return null;
+
+  return (
+    <p role="status" className="flex items-center gap-1.5 text-xs text-muted">
+      <Spinner size="sm" color="current" />
+      {t("heat-map.rotation.older")}
+    </p>
+  );
+}
+
+/** Why no entry has a reading, unless the older bars that would give one are still read. */
+function NoReadings({
+  playback,
+  loading,
+}: {
+  playback: RotationPlayback;
+  loading: boolean;
+}) {
+  const { t } = useTranslation();
+
+  if (loading && !playback.complete) return null;
+
+  return <p className="text-sm text-muted">{t("heat-map.rotation.none")}</p>;
+}
+
 /**
  * Entries on a relative rotation graph over a period picked here, in their group's colour, each
  * group shown or hidden by its own toggle where there are several; under the plot, the timeline
@@ -469,7 +506,7 @@ export function RotationGraph({
   playback: RotationPlayback;
   /** More controls beside the bars and period, such as the benchmark. */
   controls?: ReactNode;
-  /** The entries are the last read while another is on its way. */
+  /** The entries are the last read while another is on its way; while they are incomplete, what comes next only fills them in. */
   loading?: boolean;
 }) {
   const { t } = useTranslation();
@@ -585,6 +622,7 @@ export function RotationGraph({
             ))}
           </ToggleButtonGroup>
         ) : null}
+        <FillingIn playback={playback} loading={loading} />
         {pinned.size > 0 ? (
           <Button
             size="sm"
@@ -596,7 +634,7 @@ export function RotationGraph({
         ) : null}
       </div>
       {placed.length === 0 ? (
-        <p className="text-sm text-muted">{t("heat-map.rotation.none")}</p>
+        <NoReadings playback={playback} loading={loading} />
       ) : (
         <>
           <RotationPlot
@@ -605,7 +643,7 @@ export function RotationGraph({
             onFocus={setFocused}
             pinned={pinned}
             onPin={pin}
-            loading={loading}
+            loading={loading && playback.complete}
             reach={reachOf(stops)}
           />
           {frames.length > 1 ? (
