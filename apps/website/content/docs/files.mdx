@@ -48,18 +48,18 @@ A nightly and a development build keep folders of their own, so neither touches 
   </Folder>
 </Files>
 
-| File                | Holds                                                                                        |
-| ------------------- | -------------------------------------------------------------------------------------------- |
-| `user.sqlite`       | The watchlist, proposals, the paper account and its fills, exits, scheduled tasks and themes |
-| `research.sqlite`   | Reports and forecasts                                                                        |
-| `memory.sqlite`     | The agent's memories                                                                         |
-| `news.sqlite`       | Collected news and its readings                                                              |
-| `agent.sqlite`      | Conversations                                                                                |
-| `cache.sqlite`      | Candles and providers' answers kept for a while; safe to clear                               |
-| `secrets.json`      | Keys, sign-ins and the trading mandate, encrypted by your operating system                   |
-| `agent-workspaces/` | Each conversation's folder for shell commands                                                |
-| `fubon/`            | Fubon's SDK logs                                                                             |
-| `restore/`          | A restore waiting for the next start, and the files it replaced                              |
+| File                | Holds                                                                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `user.sqlite`       | The watchlist, proposals, the paper account and its fills, exits, scheduled tasks, themes and the backtest panel's history |
+| `research.sqlite`   | Reports and forecasts                                                                                                      |
+| `memory.sqlite`     | The agent's memories                                                                                                       |
+| `news.sqlite`       | Collected news and its readings                                                                                            |
+| `agent.sqlite`      | Conversations                                                                                                              |
+| `cache.sqlite`      | Candles and providers' answers kept for a while; safe to clear                                                             |
+| `secrets.json`      | Keys, sign-ins, the trading mandate and paired browsers, encrypted by your operating system                                |
+| `agent-workspaces/` | Each conversation's folder for shell commands                                                                              |
+| `fubon/`            | Fubon's SDK logs                                                                                                           |
+| `restore/`          | A restore waiting for the next start, and the files it replaced                                                            |
 
 **Settings → Storage** shows how much each store holds and clears the candle cache, conversations, memory, news, research or the watchlist.
 
@@ -81,6 +81,12 @@ Every entry is optional; one left out takes its default. Keys never appear here.
         "The broker and account orders go to, the lock, and each currency's daily loss limit.",
       type: "object",
       default: '{ broker: "paper" }',
+    },
+    remote: {
+      description:
+        "Whether the workspace is served to paired browsers, and on which port.",
+      type: "object",
+      default: "{ enabled: false, port: 18321 }",
     },
     tray: {
       description:

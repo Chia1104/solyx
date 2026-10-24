@@ -1,0 +1,89 @@
+---
+title: Backtesting
+description: Test a strategy on a listing's history from the panel under its chart, scan its numbers and walk it forward.
+---
+
+**Backtest**, under a listing's chart, tests a trading rule on that listing's history. It runs on your computer, on the engine the agent's backtests use, and spends no model tokens. [How the engine fills orders and what each figure means](/docs/data/backtests).
+
+<Screenshot
+  file="backtests/run.png"
+  alt="A moving average cross backtested under Hon Hai's chart, with its warnings, its figures by stretch and its trades marked on the chart"
+/>
+
+The panel has four modes: **Backtest** runs one setup, **Scan** runs a grid of them, **Walk forward** picks from that grid on each stretch of the past and tests the pick on what came next, and **History** keeps what you ran.
+
+## Setting one up
+
+**Strategy** picks a template, or **Written rules**.
+
+| Template             | Buys when                                          | Sells when                                     | Numbers it starts from         |
+| -------------------- | -------------------------------------------------- | ---------------------------------------------- | ------------------------------ |
+| Moving average cross | The fast average crosses above the slow one        | It crosses back                                | Fast 20, slow 60               |
+| RSI rebound          | RSI climbs back above the low level                | RSI climbs above the high level                | Period 14, low 30, high 70     |
+| Bollinger breakout   | The close breaks above the upper band              | It falls back below the middle band            | Period 20, width 2σ            |
+| Bollinger reversion  | The close climbs back above the lower band         | It is above the middle band                    | Period 20, width 2σ            |
+| MACD cross           | MACD(12, 26, 9) crosses above its signal line      | It crosses below                               | None                           |
+| KD cross             | A golden cross with K under the low level          | A dead cross with K over the high level        | Low 20, high 80                |
+| Channel breakout     | The close passes the highest high of the last days | It falls under the lowest low of the last days | Breakout 20, breakdown 10 days |
+
+Any template may add a **Stop loss** and a **Take profit**, each a share of the price paid. Leave them empty for none.
+
+**Written rules** takes JSON as the agent's `backtest.rules` takes it: `entry` and `exit`, with `stopLoss` and `takeProfit` if you like. Switching to it from a template writes that template's rules out, so you can start from them.
+
+- **Bars:** any interval, from 1 minute to monthly.
+- **Span:** 1, 3, 5 or 10 years of daily or longer bars, or 1 to 3 years of shorter ones. A template starts from the years that hold about 20 of its trades on each side of the split: 10 for the moving average cross, RSI rebound, Bollinger breakout and channel breakout, 5 for the rest, and 1 on bars shorter than a day.
+- **In-sample:** the earlier share of the sessions the rules are fitted on, from 50% to 80% and 67% unless you pick another. The rest tests them.
+- **Capital**, **Commission** and **Slippage (ticks)** start from the [market's costs](/docs/data/backtests#costs).
+
+## Reading a run
+
+A run shows its span and split, then its figures for the in-sample stretch, the out-of-sample stretch and the whole span, side by side with buying and holding the listing. Below them, its return on capital against holding, the split marked, and every trade.
+
+**Read these figures with care** leads the run when something keeps it from saying much:
+
+- a stretch with fewer than 20 trades, with a button to read more years where the span allows;
+- out of sample, timing no better than random orderings of the bars, a p-value of 0.05 or more;
+- out of sample, a return behind buying and holding.
+
+**Mark on chart** marks the run's trades on the chart above in pencil, since none of them traded, while the chart shows the run's interval.
+
+## Scanning a grid
+
+<Screenshot
+  file="backtests/scan.png"
+  alt="A scan of the moving average cross: in-sample Sharpe ratios by slow average down and fast average across, with the plateau outlined"
+/>
+
+**Scan** runs one template over a grid of two of its numbers, or its stop loss and take profit: one **Down** and one **Across**, each **From**, **To** and **By**. A template starts from a grid of its own. Each way takes 1 to 20 values, and the grid's lines may read up to 64 series.
+
+The heat map shows each setup's in-sample Sharpe ratio. Solyx outlines the **plateau**, the setup whose neighbourhood did best, since a lone peak among weak neighbours is more likely luck. When the plateau sits on the grid's edge, the best may lie past it, so extend the grid that way and scan again.
+
+Click a setup for its figures. Its out-of-sample figures stay hidden until you switch **Show out of sample** on: picking again after seeing them fits the setup to the very stretch meant to test it. **Backtest this setup** runs it alone. [How the plateau is picked](/docs/data/backtests#scans).
+
+## Walking forward
+
+<Screenshot
+  file="backtests/walk-forward.png"
+  alt="A walk forward of the moving average cross: its return on capital against holding, and its windows of training and test sessions"
+/>
+
+**Walk forward** asks whether picking from the grid would have worked when the future was unknown. Each window picks the plateau on its **Training sessions**, two fifths of the span unless you set them, then runs that pick on the **Test sessions** after it, a quarter of training unless you set them. The next window starts that many sessions later. The tests, run one after another as a single record, are what the picks earned on bars they had not seen.
+
+**Efficiency** is the out-of-sample Sharpe ratio over the mean of the picks' training ones. Well under 1 says the picks were fitted to their training. [The windows in detail](/docs/data/backtests#walk-forward).
+
+## History and comparing
+
+<Screenshot
+  file="backtests/history.png"
+  alt="The backtest history with two single runs ticked and compared side by side"
+/>
+
+**History** keeps every run the panel asked for, newest first, up to 200. **Every listing** shows other listings' runs as well. **Open** shows a run in its mode again, **Remove** drops one and **Clear all** drops them all.
+
+Tick up to 4 single backtests to compare their returns and figures side by side. Comparing runs them again on today's bars, so a figure can differ from what the run showed when it was kept.
+
+## With the agent
+
+While the panel shows a run, a message to the agent carries that run as the `backtest.rules` call that runs it, so the agent can run it as the panel did. **Ask the agent about this run** drafts the question for you, under the `/backtest` skill.
+
+When the agent's own script runs a single backtest, the tool call offers to open it in the panel, at the nearest span and split the panel offers.

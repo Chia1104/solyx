@@ -3,7 +3,7 @@ title: The agent
 description: What the agent reads, how its actions are allowed, and what it never does.
 ---
 
-The agent talks about what is on your screen. A message carries the listing you are looking at, with its chart's interval and indicators, or the overview's tab; **Don't attach** leaves the screen out of a message.
+The agent talks about what is on your screen. A message carries the listing you are looking at, with its chart's interval and indicators and the run the [backtest panel](/docs/backtests) shows, or the overview's tab; **Don't attach** leaves the screen out of a message.
 
 <Screenshot
   file="agent/conversation.png"
@@ -36,12 +36,18 @@ Each conversation picks how the agent's tool calls and shell commands are allowe
 | Allow for me | Shell commands the decisions model judges harmless, reading pages this conversation found, and adding new notes to memory. Everything else asks. |
 | Don't ask    | Tool calls and shell commands.                                                                                                                   |
 
-Without a [decisions model](/docs/setup/decisions), **Allow for me** asks for every shell command. A call that waits shows what it is about to do, with **Allow** and **Don't allow**, and one that ran unasked says why.
+Without a [decisions model](/docs/setup/decisions), **Allow for me** asks for every shell command. A call that waits shows what it is about to do, with **Allow** and **Don't allow**, and one that ran unasked says why. A message from a [paired browser](/docs/browsers) always runs as **Ask first**, and its calls are allowed on the computer running Solyx.
 
 <Callout type="warn" title="No mode confirms an order">
   Its tools only propose: your hold in the app confirms, or a [trading
   mandate](/docs/orders/mandate) you set sends what falls within it.
 </Callout>
+
+## If Solyx quits mid-run
+
+Every message, reply and tool call is stored as it happens, so a run that Solyx's exit cut off goes on from where it stopped at the next start. A tool call it cut off runs again only when running it twice changes nothing; otherwise the agent is told it was interrupted.
+
+If Solyx quits several times in a row while the agent works on the same message, that run may be what brings it down, so Solyx stops it there instead. The conversation says so: **Try again** runs it on from where it stopped, and stopping it, as you would any run, ends it. Only the computer running Solyx can try it again.
 
 ## What it can change
 
