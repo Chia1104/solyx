@@ -29,6 +29,9 @@ jobs:
           cache: true
 
       - run: vp check
+      # The kernel's tests and the app's build compile it with the Rust its rust-toolchain.toml names.
+      - run: rustup toolchain install
+        working-directory: packages/kernel
       - run: vp run -r test
       # The website's build reads the releases from GitHub's API, which limits callers without a token.
       - run: vp run -r build

@@ -25,6 +25,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - `packages/decisions`: decisions models, which answer typed questions with probabilities, one module per vendor
 - `packages/embeddings`: one module that speaks OpenAI's embeddings API, for OpenAI and for a model on this computer, and one that checks for and downloads Ollama's models
 - `packages/backup`: one module that speaks S3's API, and the sealed bundle a backup is kept as
+- `packages/kernel`: the backtests' native core, in Rust on napi-rs, which runs what `@solyx/core/backtest` prepares
 - `packages/agent`: the trading agent on pi, with its runtime, tools, prompt, skills and the wire events the renderer folds into a conversation
 - `packages/api`: the backend's oRPC contracts, and what the backend and its clients share besides them
 - `packages/backend`: the backend: the services, their procedures, the scheduler and the `Host` port through which it reaches the process that runs it
@@ -42,7 +43,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - The desktop's backend, a utility process its main process starts, is the only backend and owns all I/O: broker SDKs, market data, news, LLM calls and secrets. It reaches Electron only through a port the main process serves, which alone holds the OS key that seals the secrets. The renderer makes no network request but to the backend that serves it and holds no key but a paired browser's own token, so a package module it imports does neither.
 - Every key, model and endpoint comes from the user's settings. Modules pass every option an SDK would otherwise read from the environment.
 - The one HTTP server is the backend's edge, off until the user switches it on. It binds `127.0.0.1`, answers only requests that name this computer, serves the renderer's build and, to browsers the user paired, the router over a WebSocket, and a paired browser reaches only the procedures its contract marks for devices, which send or cancel an order only with a signature from the passkey it added as it paired. The only other listeners are sign-in callbacks on `127.0.0.1`, each open only while its sign-in waits for the browser.
-- SQLite runs on the runtime's built-in `node:sqlite` through drizzle-orm, so the app ships no native modules.
+- SQLite runs on the runtime's built-in `node:sqlite` through drizzle-orm. The one native module the app ships is `@solyx/kernel`, built from this repository and loaded only in a utility process of its own.
 
 ## Trading invariants
 
@@ -57,7 +58,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 
 - Write documentation and comments in English. UI copy lives in `@solyx/i18n` and reaches the renderer through `react-i18next`.
 - Put dependency versions in the appropriate catalog in `pnpm-workspace.yaml`; package manifests reference catalog keys. Internal dependencies use `workspace:*`.
-- `@solyx/*` packages export source and need no build step. Each `exports` key mirrors one module under `src/`; do not add a root export or sibling-only barrel.
+- `@solyx/*` packages export source and need no build step, except `@solyx/kernel`, whose Rust `vp run @solyx/kernel#build` compiles; a task that loads it depends on that build, and its crates are pinned in its `Cargo.lock`. Each `exports` key mirrors one module under `src/`; do not add a root export or sibling-only barrel.
 - Take general-purpose helpers (debounce, memoize, retry, groupBy, …) from `es-toolkit`, imported from its root; `@solyx/utils` holds only what es-toolkit lacks.
 - Import a symbol at the call site. Do not rename or re-export it through a local wrapper; wrap only when adding behavior.
 - An enum is a PascalCase const object with PascalCase keys plus a same-named type, `export type Foo = (typeof Foo)[keyof typeof Foo]`; no TS `enum`, bare string-literal unions or `as const` arrays. Schemas derive from it (`z.enum(Foo)`) and untyped input narrows with `isEnumValue` from `@solyx/utils/is`.

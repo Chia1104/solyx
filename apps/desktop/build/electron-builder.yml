@@ -5,6 +5,9 @@ directories:
   output: release
 files:
   - dist/**
+# A native module loads only from a file of its own, so the kernel's build is kept beside the asar.
+asarUnpack:
+  - dist/utility/*.node
 # The release workflows upload each channel's installers and update feed to its folder, where
 # electron-updater reads the feed of the channel it was built for.
 publish:

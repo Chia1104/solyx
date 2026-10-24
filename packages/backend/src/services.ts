@@ -49,6 +49,7 @@ import { createEmbeddings } from "./modules/embeddings/embeddings.ts";
 import { createFlows } from "./modules/flows/flows.ts";
 import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
 import { createInbox } from "./modules/inbox/inbox.ts";
+import { createKernel } from "./modules/kernel/kernel-client.ts";
 import { createMacro } from "./modules/macro/macro.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
@@ -481,6 +482,7 @@ export function createServices(config: ConfigFile, host: Host) {
     quote: (symbol) => marketData.quote(symbol),
     candlesSince: (symbol, interval, since) =>
       marketData.candlesSince(symbol, interval, since),
+    kernel: createKernel(host.openKernelProcess),
     setup: {
       appearance,
       marketData,

@@ -49,6 +49,7 @@ import { OverviewTab, overviewLink } from "@solyx/api/overview-tab";
 import type { Locale, TimeZone } from "@solyx/api/settings";
 import type { ConversationsUsage } from "@solyx/api/storage";
 import { symbolLink } from "@solyx/api/symbol-link";
+import type { BacktestKernel } from "@solyx/core/backtest";
 import { BrokerMode } from "@solyx/core/broker";
 import type { Change } from "@solyx/core/changes";
 import { DecisionMode } from "@solyx/core/council";
@@ -134,6 +135,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   quote: QuoteToolsOptions["quote"];
   /** A listing's bars from a day on, for a script that needs more than the lookback. */
   candlesSince: AnalysisPorts["candlesSince"];
+  /** Runs the backtests a script declares. */
+  kernel: BacktestKernel;
   /** What the agent reads of the rest of the app's settings. */
   setup: AgentSetupSources;
   /** A run started or ended, or one of its calls began or stopped waiting for the user. */
@@ -280,6 +283,7 @@ export function createAgentService(options: AgentServiceOptions) {
     flows: options.flows,
     fundamentals: options.fundamentals,
     scripts,
+    kernel: options.kernel,
   });
 
   const quotes = createQuoteTools({

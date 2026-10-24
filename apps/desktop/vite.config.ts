@@ -43,6 +43,11 @@ const quickjsWasm = createRequire(
   import.meta.resolve("@earendil-works/pi-codemode")
 ).resolve("quickjs-wasi/quickjs.wasm");
 
+// The kernel's process loads its native build from beside its bundle.
+const kernelBuild = fileURLToPath(
+  new URL("solyx-kernel.node", import.meta.resolve("@solyx/kernel/kernel"))
+);
+
 const nodeBundle: PackUserConfig = {
   platform: "node",
   // Workspace packages ship TS sources, so they are inlined; Electron is provided at runtime.
@@ -56,9 +61,15 @@ export default defineConfig({
   run: {
     tasks: {
       // The package workflow's Sentry DSN is written into the main bundle, so it reaches the task.
+      // The kernel's build ships beside the backend's bundle, so it is built first.
+      dev: {
+        command: "node scripts/dev.mjs",
+        dependsOn: ["@solyx/kernel#build"],
+        cache: false,
+      },
       build: {
         command: "vp pack",
-        dependsOn: ["@solyx/webapp#build"],
+        dependsOn: ["@solyx/webapp#build", "@solyx/kernel#build"],
         cache: { env: ["SENTRY_DSN"] },
       },
       package: {
@@ -113,11 +124,12 @@ export default defineConfig({
       entry: {
         backend: "src/utility/backend.ts",
         fubon: "src/utility/fubon.ts",
+        kernel: "src/utility/kernel.ts",
       },
       outDir: "dist/utility",
       format: "esm",
-      // drizzle's migrator reads SQL files and the agent's scripts QuickJS's wasm at runtime, so
-      // they ship beside the backend's bundle.
+      // drizzle's migrator reads SQL files, the agent's scripts QuickJS's wasm and the kernel's
+      // process its native build at runtime, so they ship beside the bundles.
       copy: [
         {
           from: "../../packages/db/migrations/cache",
@@ -145,6 +157,7 @@ export default defineConfig({
           rename: "user",
         },
         { from: quickjsWasm, to: "dist/utility" },
+        { from: kernelBuild, to: "dist/utility" },
       ],
     },
     {

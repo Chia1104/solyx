@@ -6,10 +6,12 @@ import { net } from "electron";
 import { noop } from "es-toolkit";
 
 import type { Host } from "@solyx/backend/host";
+import { connectKernel } from "@solyx/backend/modules/kernel/kernel-client";
 import { connectFubon } from "@solyx/backend/modules/market/fubon-client";
 import type { ReportError } from "@solyx/backend/modules/telemetry/diagnostics";
 
 import type { BackendStart } from "./backend.contract.ts";
+import { UtilityKind } from "./host.contract.ts";
 import type { hostContract } from "./host.contract.ts";
 
 interface BackendHostOptions {
@@ -21,7 +23,7 @@ interface BackendHostOptions {
 /**
  * The services' host in the backend's utility process: what the main process told it as it
  * started, and the rest asked of the main process over the host's port. It also takes what the
- * main process tells of windows, the tray's menu and Fubon's processes.
+ * main process tells of windows, the tray's menu and the processes it started for the backend.
  */
 export function createBackendHost({
   start,
@@ -37,12 +39,55 @@ export function createBackendHost({
   let menu = 0;
   let picks: (() => void)[] = [];
 
-  const fubonPorts = new Map<
+  const processPorts = new Map<
     string,
     (port: Electron.MessagePortMain) => void
   >();
 
-  const fubonExits = new Map<string, (code: number) => void>();
+  const processExits = new Map<string, (code: number) => void>();
+
+  /** Has the main process start a process of `kind`, which serves the backend on the port it hands over. */
+  async function openProcess(kind: UtilityKind) {
+    const id = randomUUID();
+
+    // The port comes on the parent port, which may beat or trail the call's answer.
+    const handed = new Promise<Electron.MessagePortMain>((resolve) =>
+      processPorts.set(id, resolve)
+    );
+
+    // Kept from before the process starts, so an end that comes before its client listens is told.
+    let exited: number | undefined;
+    let onExit: ((code: number) => void) | undefined;
+
+    processExits.set(id, (code) => {
+      exited = code;
+      onExit?.(code);
+    });
+
+    try {
+      await client.processes.open({ kind, id });
+    } catch (error) {
+      processPorts.delete(id);
+      processExits.delete(id);
+      throw error;
+    }
+
+    const port = await handed;
+
+    port.start();
+
+    return {
+      port,
+      child: {
+        on(_event: "exit", listener: (code: number) => void) {
+          onExit = listener;
+
+          if (exited !== undefined) listener(exited);
+        },
+        kill: () => send("processes.kill", client.processes.kill(id)),
+      },
+    };
+  }
 
   const host: Host = {
     name: start.name,
@@ -80,46 +125,15 @@ export function createBackendHost({
       }),
 
     async openFubonProcess(options) {
-      const id = randomUUID();
+      const { child, port } = await openProcess(UtilityKind.Fubon);
 
-      // The port comes on the parent port, which may beat or trail the call's answer.
-      const handed = new Promise<Electron.MessagePortMain>((resolve) =>
-        fubonPorts.set(id, resolve)
-      );
+      return connectFubon(child, port, options);
+    },
 
-      // Kept from before the process starts, so an end that comes before the session listens is told.
-      let exited: number | undefined;
-      let onExit: ((code: number) => void) | undefined;
+    async openKernelProcess() {
+      const { child, port } = await openProcess(UtilityKind.Kernel);
 
-      fubonExits.set(id, (code) => {
-        exited = code;
-        onExit?.(code);
-      });
-
-      try {
-        await client.fubon.open(id);
-      } catch (error) {
-        fubonPorts.delete(id);
-        fubonExits.delete(id);
-        throw error;
-      }
-
-      const port = await handed;
-
-      port.start();
-
-      return connectFubon(
-        {
-          on(_event, listener) {
-            onExit = listener;
-
-            if (exited !== undefined) listener(exited);
-          },
-          kill: () => send("fubon.kill", client.fubon.kill(id)),
-        },
-        port,
-        options
-      );
+      return connectKernel(child, port);
     },
 
     openExternal: (url) => send("open-external", client.openExternal(url)),
@@ -183,15 +197,15 @@ export function createBackendHost({
       if (drawn === menu) picks[row]?.();
     },
 
-    /** Hands Fubon's process `id` the port the main process posted for it. */
-    fubonPort(id: string, port: Electron.MessagePortMain) {
-      fubonPorts.get(id)?.(port);
-      fubonPorts.delete(id);
+    /** Hands process `id` the port the main process posted for it. */
+    processPort(id: string, port: Electron.MessagePortMain) {
+      processPorts.get(id)?.(port);
+      processPorts.delete(id);
     },
 
-    fubonExited(id: string, code: number) {
-      fubonExits.get(id)?.(code);
-      fubonExits.delete(id);
+    processExited(id: string, code: number) {
+      processExits.get(id)?.(code);
+      processExits.delete(id);
     },
   };
 }

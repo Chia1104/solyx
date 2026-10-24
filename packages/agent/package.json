@@ -36,9 +36,6 @@
     "./web": "./src/web.ts",
     "./wire": "./src/wire.ts"
   },
-  "scripts": {
-    "test": "vp test"
-  },
   "dependencies": {
     "@earendil-works/chord": "catalog:pi",
     "@earendil-works/pi-ai": "catalog:pi",
@@ -54,6 +51,7 @@
   },
   "devDependencies": {
     "@opentelemetry/sdk-trace": "catalog:otel",
+    "@solyx/kernel": "workspace:*",
     "@solyx/market-data": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",

@@ -3,6 +3,7 @@ import type { ColorScheme, PaletteColors } from "@solyx/api/palette";
 import type { Theme } from "@solyx/api/settings";
 import type { FubonSessionOptions } from "@solyx/brokers/fubon";
 
+import type { KernelProcess } from "./modules/kernel/kernel-client.ts";
 import type { FubonProcess } from "./modules/market/fubon-client.ts";
 import type { SecretCipher } from "./modules/settings/secret-store.ts";
 import type { SettingsShell } from "./modules/settings/settings.route.ts";
@@ -43,6 +44,8 @@ export interface Host {
    */
   chromiumFetch: typeof fetch;
   openFubonProcess(options: FubonSessionOptions): Promise<FubonProcess>;
+  /** Starts the kernel in a utility process of its own, which holds nothing of the backend's. */
+  openKernelProcess(): Promise<KernelProcess>;
   /** Opens `url` in the user's browser. */
   openExternal(url: string): void;
   /** Brings the app's window to the front, opening one when none is. */
