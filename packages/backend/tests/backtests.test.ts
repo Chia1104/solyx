@@ -146,6 +146,22 @@ test("a setup refuses years past what its interval's history reaches, and a grid
       split: 0.5,
     }).error?.issues[0]?.message
   ).toContain("tooManySeries");
+
+  // Counted rather than made, so an axis of a trillion steps is refused at once.
+  expect(
+    scanSetupSchema
+      .safeParse({
+        ...reach,
+        strategy: initialSetup(StrategyTemplate.MovingAverageCross),
+        rows: { param: "slow", from: 0, to: 1e12, step: 1e-6 },
+        columns: { param: "fast", from: -1.7e308, to: 1.7e308, step: 1 },
+        split: 0.5,
+      })
+      .error?.issues.map((issue) => `${issue.path.join(".")} ${issue.message}`)
+  ).toEqual([
+    "rows An axis takes 1 to 20 values",
+    "columns An axis takes 1 to 20 values",
+  ]);
 });
 
 test("too few bars fail the run with the listing's name", async () => {
