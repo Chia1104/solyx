@@ -560,6 +560,12 @@
       "description": "讀取或儲存對話時發生錯誤，Agent 已停止。請重新啟動 Solyx：已儲存的內容都還在，被中斷的執行會接著進行。",
       "restart": "重新啟動 Solyx"
     },
+    "parked": {
+      "description": "Agent 處理這段對話時，Solyx 連續關閉了好幾次，所以先停在這裡，不再自動重試。你可以重試，或停止它。",
+      "retry": "重試",
+      "retry-failed": "無法重試",
+      "retry-on-computer": "只有執行 Solyx 的電腦能重試。"
+    },
     "model-unavailable": "無法使用 {{model}}：{{provider}} 尚未設定金鑰或登入，或已關閉。請改選其他模型，或完成設定。",
     "setup-title": "設定 Agent",
     "setup-description": "選擇服務商並儲存它的 API 金鑰，或登入它的訂閱後即可開始。",

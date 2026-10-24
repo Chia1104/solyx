@@ -1,12 +1,14 @@
 import { memo, useLayoutEffect, useRef } from "react";
 
-import { ScrollShadow, Spinner } from "@heroui/react";
-import { useQuery } from "@tanstack/react-query";
+import { Button, ScrollShadow, Spinner } from "@heroui/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { AgentItemKind, RunEndReason, ToolCallStatus } from "@solyx/agent/wire";
 import type { AgentViewItem, NoticeView } from "@solyx/agent/wire";
 
+import { inWindow } from "../../app/device.ts";
+import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -46,6 +48,40 @@ function Notice({ notice }: { notice: NoticeView }) {
 
   return (
     <p className="text-xs text-muted">{t(`agent.notices.${notice.reason}`)}</p>
+  );
+}
+
+/** Stands where the run's progress would while it waits for the user to try it again or stop it. */
+function ParkedRun({ sessionId }: { sessionId: string }) {
+  const { t } = useTranslation();
+  const retry = useMutation(orpc.agent.retry.mutationOptions());
+
+  return (
+    <div
+      data-activity
+      role="status"
+      className="flex flex-col items-start gap-2">
+      <p className="text-xs text-muted">{t("agent.parked.description")}</p>
+      {inWindow ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          isPending={retry.isPending}
+          onPress={() => retry.mutate(sessionId)}>
+          {t("agent.parked.retry")}
+        </Button>
+      ) : (
+        <p className="text-xs text-muted">
+          {t("agent.parked.retry-on-computer")}
+        </p>
+      )}
+      {retry.error ? (
+        <ErrorAlert
+          title={t("agent.parked.retry-failed")}
+          description={retry.error.message}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -121,7 +157,8 @@ export function AgentThread({ sessionId }: { sessionId: string }) {
   const compacting = data.compactions.length > 0;
 
   const working =
-    compacting || (data.running && !showsProgress(data.items.at(-1)));
+    compacting ||
+    (data.running && !data.parked && !showsProgress(data.items.at(-1)));
 
   return (
     <ScrollShadow
@@ -140,6 +177,7 @@ export function AgentThread({ sessionId }: { sessionId: string }) {
         {data.items.map((item, index) => (
           <Item key={keyOf(item, index)} sessionId={sessionId} item={item} />
         ))}
+        {data.parked ? <ParkedRun sessionId={sessionId} /> : null}
         {working ? (
           <p
             data-activity
