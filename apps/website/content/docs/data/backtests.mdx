@@ -1,9 +1,9 @@
 ---
 title: Backtests
-description: How the agent's backtests fill orders, charge costs and avoid reading the future.
+description: How backtests fill orders, charge costs, avoid reading the future, and judge a run, a scan and a walk forward.
 ---
 
-The agent can test a trading rule on a listing's history. A backtest runs on your computer, on the bars Solyx already reads, through the same engine every time.
+A backtest tests a trading rule on a listing's history. The [backtest panel](/docs/backtests) and the agent's scripts run it through one engine, on your computer and on the bars Solyx already reads. Rules are data rather than code, so the engine, not the script, decides every fill.
 
 ## No look-ahead
 
@@ -14,7 +14,9 @@ The agent can test a trading rule on a listing's history. A backtest runs on you
     before the current one.
   </Step>
   <Step>
-    **Act at the next bar's open,** moved against you by the slippage.
+    **Act at the next bar's open,** moved against you by the slippage. On bars
+    shorter than a day, a session's first bar fills after the gap from the close
+    before.
   </Step>
 </Steps>
 
@@ -22,13 +24,13 @@ A rule can never see the bar it trades on.
 
 ## Prices
 
-Indicators, stops and the buy-and-hold comparison read [adjusted prices](/docs/data/market-data#as-traded-or-adjusted), rescaled to each bar's own terms, so a dividend never looks like a crash. Orders fill at the prices that actually traded, and shares held are scaled on a split or ex-dividend day.
+Indicators, stops and the buy-and-hold comparison read [adjusted prices](/docs/data/market-data#as-traded-or-adjusted), rescaled to each bar's own terms, so a dividend never looks like a crash. Orders fill at the prices that actually traded, and shares held are scaled on a split or ex-dividend day. Bars shorter than a day take each session's reference from the daily bars.
 
 ## Fills
 
 - **Long only.** A buy spends the cash on whole shares, keeping room for its commission; a sale sells everything.
 - **Slippage** is a number of ticks from the open, 1 unless set otherwise, up to 20.
-- **Locked limits.** A Taiwan bar whose high equals its low and that closed above its reference is taken as locked limit-up, so no buy fills; one locked limit-down fills no sale.
+- **Locked limits.** A Taiwan daily bar whose high equals its low and that closed above its reference is taken as locked limit-up, so no buy fills; one that closed below it is locked limit-down and fills no sale. A shorter bar is locked when it traded at one price, its session's limit.
 
 ## Costs
 
@@ -58,15 +60,65 @@ Commission and tax rates can be set up to 1%. The starting capital is 1,000,000 
 
 ## What it reports
 
-| Figure        | Meaning                                                                                                    |
-| ------------- | ---------------------------------------------------------------------------------------------------------- |
-| Total return  | The end value against the start                                                                            |
-| Annual return | $$\left( \frac{\text{end}}{\text{start}} \right)^{365.25 / \text{days}} - 1$$; none for runs under 28 days |
-| Max drawdown  | The deepest fall from a peak                                                                               |
-| Trades        | Closed trades; a position still open is not counted                                                        |
-| Win rate      | The share of closed trades that gained                                                                     |
-| Payoff ratio  | The average win against the average loss                                                                   |
-| Exposure      | The share of bars spent holding                                                                            |
-| Buy and hold  | The same stretch held throughout, with its own drawdown from the prior close                               |
+A run can be split at a date into an in-sample and an out-of-sample stretch, so a rule tuned on one is judged on the other. Each stretch, and the whole span, reports:
 
-A run can be split at a date into an in-sample and an out-of-sample stretch, so a rule tuned on one is judged on the other. The agent treats fewer than 20 closed trades as saying little. Its scripts reach back at most 10 years, over at most 5 listings.
+| Figure             | Meaning                                                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Return             | The end value against the start                                                                            |
+| Buy and hold       | The same stretch held throughout                                                                           |
+| Annual return      | $$\left( \frac{\text{end}}{\text{start}} \right)^{365.25 / \text{days}} - 1$$; none for runs under 28 days |
+| Max drawdown       | The deepest fall from a peak                                                                               |
+| Holding's drawdown | The deepest fall holding would have taken, from the prior close                                            |
+| Sharpe ratio       | The account's return per unit of its swings, a year's worth                                                |
+| p-value            | How often random orderings of the bars did as well as the rule's timing                                    |
+| Trades             | Closed trades; a position still open is not counted                                                        |
+| Win rate           | The share of closed trades that gained                                                                     |
+| Payoff ratio       | The average win against the average loss                                                                   |
+| Time held          | The share of bars spent holding                                                                            |
+
+The account is valued at each session's close, so a run on minute bars grows with its sessions, not its bars. Fewer than 20 closed trades in a stretch say little, and the panel and the agent both say so.
+
+### Sharpe ratio
+
+The mean of the account's returns from one session's close to the next, over their standard deviation, scaled to a year at the pace the stretch traded:
+
+$$
+\text{Sharpe} = \frac{\bar{r}}{s_r} \sqrt{\frac{n}{\text{days} / 365.25}}
+$$
+
+where $$n$$ is the number of session returns and days the stretch's calendar days. There is none for a stretch under 28 days, or one whose value never moved.
+
+### p-value
+
+The p-value tests the rule's timing alone. Each bar's two moves, from the close before to its open and from its open to its close, are shuffled into 1,000 random orders, while the run's holding and costs stay where they were. Each ordering is scored, as the run is, by the mean over the deviation of its bars' returns:
+
+$$
+p = \frac{1 + \#\{\text{orderings scoring at least the run}\}}{1 + 1000}
+$$
+
+Below 0.05, the timing beat chance. The orderings are seeded, so a run gives the same p-value each time. A stretch that held nothing has none.
+
+## Scans
+
+A scan runs every setup of a grid, each on its own over the same bars, and scores each by its in-sample Sharpe ratio, or its whole span's where there is no split. It picks the **plateau**: the setup whose neighbourhood, itself and the setups beside it, diagonals included, that have a Sharpe ratio, has the highest mean. A setup that stands out from weak neighbours is more likely luck than one in a field of good ones.
+
+A scan runs at most 400 setups, reading at most 64 series between them, and each way of the panel's grid takes 1 to 20 values.
+
+## Walk forward
+
+A walk forward picks on the past alone. With $$T$$ training and $$S$$ test sessions, window $$k$$ trains on sessions $$kS$$ to $$kS + T - 1$$ and tests on the $$S$$ after them; the last test runs to the newest bar.
+
+- **Training** is two fifths of the sessions unless set, and **testing** a quarter of the training.
+- **Each window** picks its grid's plateau by Sharpe ratio over its training alone.
+- **The tests** run as one record, each under its window's pick, and a holding carries over from one test to the next. That record is the out-of-sample stretch.
+- **At most 100 windows**: test more sessions at a time for a longer span.
+
+$$
+\text{efficiency} = \frac{\text{out-of-sample Sharpe}}{\text{mean of the picks' training Sharpe}}
+$$
+
+Well under 1 says the picks were fitted to their training.
+
+## Limits
+
+Daily and longer bars reach back 10 years, shorter ones 3. A run reads at most 300,000 bars. A rule nests `all` and `any` at most 3 deep, each holding at most 8 conditions; a strategy's entry and exit make at most 64 comparisons and read at most 32 series between them. The agent's scripts reach further back than the app's own history for at most 5 listings a script.

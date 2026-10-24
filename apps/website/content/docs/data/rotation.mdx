@@ -50,7 +50,7 @@ Weekly readings use closed weeks only, each dated by its last session, so the we
 - **Sectors** are read against the TAIEX (`IX0001`) unless you or the agent pick another benchmark.
 - **A listing** is read against its market's index, its own TWSE sector index, or another listing that traded steadily: at least 228 of the market's last 240 sessions, never missing 4 in a row.
 - Listings' bars are [adjusted](/docs/data/market-data#as-traded-or-adjusted) for dividends and splits; indices are used as published.
-- About three years of daily bars are read, at most 50 listings at a time, and the graph refreshes every 5 minutes during the regular session.
+- About three years of daily bars are read, at most 50 listings at a time, and the graph refreshes every 5 minutes during the regular session. The newest year is read first, so the graph shows its daily periods while the years before it load.
 
 ### Sector indices
 

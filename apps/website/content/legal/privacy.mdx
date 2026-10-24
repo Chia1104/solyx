@@ -1,7 +1,7 @@
 ---
 title: Privacy policy
 description: What Solyx keeps on your computer, what it sends and to whom, and what reaches the Solyx project itself.
-updated: 2026-10-21
+updated: 2026-10-25
 ---
 
 Solyx runs on your computer. The Solyx project runs no server that receives your conversations, keys, holdings or orders, there is no Solyx account, and neither the app nor this website carries analytics or advertising. What leaves your computer goes straight to the services you set up, on your own keys, or to the few places listed under [What reaches the Solyx project](#what-reaches-the-solyx-project).
@@ -12,9 +12,9 @@ This policy covers the Solyx desktop app, its update feed and this website, `use
 
 Solyx keeps its data in two folders on your computer: a data folder (`~/Library/Application Support/Solyx` on macOS, `%APPDATA%\Solyx` on Windows) and a config folder, `~/.solyx`. **Settings → About** shows both. They hold:
 
-- **Your data:** the watchlist, proposals, orders and fills of the paper account, scheduled tasks, themes, conversations, the agent's memories, reports and forecasts, collected news, and cached market data.
+- **Your data:** the watchlist, proposals, orders and fills of the paper account, scheduled tasks, themes, the backtests you ran, conversations, the agent's memories, reports and forecasts, collected news, and cached market data.
 - **Your settings,** in `~/.solyx/config.json`, with your skills, `AGENTS.md` and `mcp.json` beside it. The config holds the account number orders go to once you pick a broker account.
-- **Keys, sign-ins and your trading mandate,** encrypted by your operating system's secret store (Keychain on macOS, DPAPI on Windows, a keyring on Linux). They never reach the config file, a log or a backup.
+- **Keys, sign-ins, your trading mandate and the browsers you paired,** encrypted by your operating system's secret store (Keychain on macOS, DPAPI on Windows, a keyring on Linux). They never reach the config file, a log or a backup.
 - **Logs of your broker's SDK.** Fubon's SDK writes its own logs into the data folder, and they can include your ID number and account details.
 - **Two random identifiers:** one Solyx makes for the installation, and one its updater makes. Neither is derived from you or your computer.
 
@@ -46,6 +46,10 @@ Solyx also reads public data that needs no key: TWSE's and TPEx's open data, SIT
 ### Signing in
 
 When you sign in to a model provider (ChatGPT, OpenRouter, GitHub Copilot, xAI or Meta), you do so on the provider's own page. Solyx receives the resulting token or key on a listener bound to `127.0.0.1` that stays open only while the sign-in waits, and keeps it with your other keys. Signing in with ChatGPT tells OpenAI the installation identifier and that the client is Solyx.
+
+### Paired browsers
+
+**Serve to paired browsers** is off until you switch it on under **Settings → Devices**. While it is on, Solyx serves the workspace on `127.0.0.1` to the browsers you pair with it, and they see what the workspace shows: your account, conversations, research and the rest. It answers no other computer; a browser elsewhere reaches it only through a tunnel you open, such as SSH. For each browser, Solyx keeps its name, a hash of its token and its passkey's public key, with your other keys. The passkey itself stays with the browser or your password manager.
 
 ## What reaches the Solyx project
 

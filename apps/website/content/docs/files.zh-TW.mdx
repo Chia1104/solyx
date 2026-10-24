@@ -48,18 +48,18 @@ Solyx 有兩個資料夾：家目錄裡的設定資料夾，你可以手動編�
   </Folder>
 </Files>
 
-| 檔案                | 存放內容                                                 |
-| ------------------- | -------------------------------------------------------- |
-| `user.sqlite`       | 自選、提案、模擬帳戶與它的成交、停損停利、排程任務與主題 |
-| `research.sqlite`   | 報告與預測                                               |
-| `memory.sqlite`     | Agent 的記憶                                             |
-| `news.sqlite`       | 收集到的新聞與它們的判讀結果                             |
-| `agent.sqlite`      | 對話                                                     |
-| `cache.sqlite`      | 暫存一段時間的 K 線與供應商回應；可以放心清除            |
-| `secrets.json`      | 金鑰、登入資料與交易授權，由作業系統加密                 |
-| `agent-workspaces/` | 每段對話執行 shell 指令用的資料夾                        |
-| `fubon/`            | 富邦 SDK 的日誌                                          |
-| `restore/`          | 等下次啟動時套用的還原，以及被它取代的檔案               |
+| 檔案                | 存放內容                                                                 |
+| ------------------- | ------------------------------------------------------------------------ |
+| `user.sqlite`       | 自選、提案、模擬帳戶與它的成交、停損停利、排程任務、主題與回測面板的歷史 |
+| `research.sqlite`   | 報告與預測                                                               |
+| `memory.sqlite`     | Agent 的記憶                                                             |
+| `news.sqlite`       | 收集到的新聞與它們的判讀結果                                             |
+| `agent.sqlite`      | 對話                                                                     |
+| `cache.sqlite`      | 暫存一段時間的 K 線與供應商回應；可以放心清除                            |
+| `secrets.json`      | 金鑰、登入資料、交易授權與已配對的瀏覽器，由作業系統加密                 |
+| `agent-workspaces/` | 每段對話執行 shell 指令用的資料夾                                        |
+| `fubon/`            | 富邦 SDK 的日誌                                                          |
+| `restore/`          | 等下次啟動時套用的還原，以及被它取代的檔案                               |
 
 **設定 → 儲存空間** 會顯示每個儲存區佔了多少空間，並可清除 K 線快取、對話、記憶、新聞、研究或自選。
 
@@ -80,6 +80,11 @@ Solyx 自己不寫日誌檔，只有富邦的 SDK 會把日誌存在 `fubon/`。
       description: "委託送往的券商與帳戶、下單鎖定，以及各幣別的每日虧損上限。",
       type: "object",
       default: '{ broker: "paper" }',
+    },
+    remote: {
+      description: "是否把工作區提供給已配對的瀏覽器，以及用哪個連接埠。",
+      type: "object",
+      default: "{ enabled: false, port: 18321 }",
     },
     tray: {
       description: "Solyx 是否常駐選單列，以及沒有視窗時是否離開 Dock。",
