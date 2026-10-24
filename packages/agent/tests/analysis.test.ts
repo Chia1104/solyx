@@ -281,16 +281,17 @@ test("a script scans a grid of strategies and walks them forward over the same b
         });
       }
     }
-    const scan = await backtest.scan({ symbol, strategies, columns: 2 });
+    const scan = await backtest.scan({ symbol, strategies, columns: 2, split: 2 / 3 });
     const walked = await backtest.walkForward({ symbol, strategies, columns: 2, train: 20, test: 5 });
-    return [scan.cells.length, scan.cells[0].all.pValue, scan.plateau === null, walked.windows.length, walked.outOfSample.from];
+    return [scan.cells.length, scan.cells[0].all.pValue, scan.cells[0].outOfSample.from, walked.windows.length, walked.outOfSample.from];
   `);
 
   expect(candles).toHaveBeenCalledTimes(2);
   expect(results).toEqual([
     {
       status: ToolCallStatus.Ok,
-      output: 'Result: [4,null,false,2,"2025-07-05"]',
+      // Two thirds of the thirty sessions are twenty.
+      output: 'Result: [4,null,"2025-07-05",2,"2025-07-05"]',
     },
   ]);
   expect(description).toContain("scan(input: {");
@@ -470,7 +471,7 @@ test("bars from further back are refused on short intervals, past ten years and 
 
   const { results, candlesSince } = await analyze(
     read("2330", Interval.FiveMinutes, "2026-01-02"),
-    read("2330", Interval.OneDay, "2016-10-13"),
+    read("2330", Interval.OneDay, "2016-10-12"),
     ["2330", "2317", "2454", "2308", "2382", "2330", "2881"]
       .map((symbol) => read(symbol, Interval.OneWeek, "2020-01-02"))
       .join("\n")
@@ -483,7 +484,7 @@ test("bars from further back are refused on short intervals, past ten years and 
   ]);
   expect(results[0].output).toContain("since reaches back on 1d, 1w and 1mo");
   expect(results[1].output).toContain(
-    "since goes back 10 years at most on 1d bars, to 2016-10-15"
+    "since goes back 10 years at most on 1d bars, to 2016-10-13"
   );
   expect(results[2].output).toContain("for at most 5 listings");
   // Five listings and one of them again, then the sixth is refused before its source is asked.

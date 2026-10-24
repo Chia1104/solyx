@@ -293,12 +293,17 @@ export interface WalkForwardResult {
   equity: { date: string; value: number }[];
 }
 
+/**
+ * Where the out-of-sample stretch starts: on an exchange-local day, or after a share of the
+ * sessions, as 2/3 starts it about two thirds of the way through them.
+ */
+export type BacktestSplit = { day: string } | { share: number };
+
 export interface BacktestOptions {
   /** @default 1_000_000 in the market's currency */
   capital?: number;
   costs?: Partial<TradeCosts>;
-  /** The exchange-local day the out-of-sample stretch starts. */
-  split?: string;
+  split?: BacktestSplit;
   /** @default Interval.OneDay */
   interval?: Interval;
   /**
@@ -665,6 +670,23 @@ function timedTrades(
   });
 }
 
+/** The first bar of the out-of-sample stretch `split` starts; -1 where no bar is past it. */
+function splitIndex(days: Int32Array, split: BacktestSplit) {
+  if ("day" in split) {
+    const day = dateEpochDay(split.day);
+
+    return days.findIndex((each) => each >= day);
+  }
+
+  const sessions: number[] = [];
+
+  days.forEach((day, index) => {
+    if (index === 0 || day !== days[index - 1]) sessions.push(index);
+  });
+
+  return sessions[Math.floor(sessions.length * split.share)] ?? -1;
+}
+
 /**
  * A listing's bars as the kernel reads them, every strategy's lines among them, and what its
  * answers are read back with: each bar's session, the split and the stretches dated by them.
@@ -696,11 +718,7 @@ function prepare(
   const last = bars.length - 1;
   const rules = kernelStrategies(strategies, bars, adjusted, factors);
 
-  const splitDay =
-    options.split === undefined ? undefined : dateEpochDay(options.split);
-
-  const splitAt =
-    splitDay === undefined ? -1 : days.findIndex((day) => day >= splitDay);
+  const splitAt = options.split ? splitIndex(days, options.split) : -1;
 
   const kernelBars: KernelBars = {
     ...priceColumns(symbol, bars, adjusted, costs.slippageTicks),

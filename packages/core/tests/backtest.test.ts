@@ -223,7 +223,7 @@ describe("indicators and stretches", () => {
     const result = await backtest(kernel, TSMC, bars(closes), crossing, {
       capital: 100_000,
       costs: NO_COSTS,
-      split: "2026-02-02",
+      split: { day: "2026-02-02" },
     });
 
     expect(result.inSample).toMatchObject({
@@ -281,7 +281,7 @@ test("buying and holding a stretch starts from the close its return is measured 
       entry: { above: [{ price: "close" }, { value: 0 }] },
       exit: { below: [{ price: "close" }, { value: 0 }] },
     },
-    { capital: 100_000, costs: NO_COSTS, split: "2026-01-08" }
+    { capital: 100_000, costs: NO_COSTS, split: { day: "2026-01-08" } }
   );
 
   expect(result.outOfSample?.totalReturn).toBeCloseTo(1);
@@ -297,7 +297,7 @@ test("buying and holding's drawdown is its deepest fall from a high, from the cl
       entry: { above: [{ price: "close" }, { value: 1000 }] },
       exit: { below: [{ price: "close" }, { value: 0 }] },
     },
-    { capital: 100_000, costs: NO_COSTS, split: "2026-01-08" }
+    { capital: 100_000, costs: NO_COSTS, split: { day: "2026-01-08" } }
   );
 
   // The stretch from the fourth bar is measured from the close of 130, its high.
@@ -776,7 +776,7 @@ describe("telling an edge from chance", () => {
   test("a rule that times the moves beats the same bars in any other order", async () => {
     const result = await backtest(kernel, TSMC, bars(wave), aboveAverage, {
       costs: NO_COSTS,
-      split: waveDays[200],
+      split: { day: waveDays[200] },
     });
 
     expect(result.all.pValue).toBeLessThan(0.01);
@@ -803,6 +803,22 @@ describe("telling an edge from chance", () => {
 
     expect(result.all.pValue).toBeNull();
     expect(result.all.sharpe).toBeNull();
+  });
+
+  test("a split after a share of the sessions starts on the session that share reaches", async () => {
+    const shared = await backtest(kernel, TSMC, bars(wave), aboveAverage, {
+      costs: NO_COSTS,
+      split: { share: 2 / 3 },
+    });
+
+    const dated = await backtest(kernel, TSMC, bars(wave), aboveAverage, {
+      costs: NO_COSTS,
+      split: { day: waveDays[200] },
+    });
+
+    expect(shared.outOfSample?.from).toBe(waveDays[200]);
+    expect(shared.inSample).toEqual(dated.inSample);
+    expect(shared.outOfSample).toEqual(dated.outOfSample);
   });
 
   test("a scan runs each strategy as it runs alone, without testing its timing", async () => {

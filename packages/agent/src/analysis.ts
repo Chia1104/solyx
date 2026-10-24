@@ -44,7 +44,6 @@ import {
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import type { ProposingDesk } from "@solyx/core/order-desk";
-import { shiftDate } from "@solyx/utils/date";
 
 import {
   MAX_LISTINGS,
@@ -343,10 +342,9 @@ function historyReader(
   return (symbol, interval, since) => {
     const years = isIntraday(interval) ? INTRADAY_HISTORY_YEARS : HISTORY_YEARS;
 
-    const earliest = shiftDate(
-      exchangeDate(symbol.market, now()),
-      -years * 365
-    );
+    const earliest = Temporal.PlainDate.from(exchangeDate(symbol.market, now()))
+      .subtract({ years })
+      .toString();
 
     if (since < earliest) {
       throw new Error(
@@ -415,16 +413,28 @@ const backtests = (
 
   const sessionsSchema = z.number().int().positive().optional();
 
+  // Parsed into the split as core reads it: a day, or a share of the sessions.
+  const splitSchema = z
+    .union([
+      z.iso.date().transform((day) => ({ day })),
+      z
+        .number()
+        .gt(0)
+        .lt(1)
+        .transform((share) => ({ share })),
+    ])
+    .optional();
+
   const reading =
     "reads the listing's bars as backtest.rules does: interval's bars, daily unless named, over the app's own history or from since on";
 
   return [
     scriptFunction({
       name: "backtest.rules",
-      description: `Runs a long-only strategy over a listing's bars, which it reads itself: interval's bars, daily unless named, over the app's own history as tools.candles returns them, or from since on. since reaches back up to ${HISTORY_YEARS} years on daily and longer bars and ${INTRADAY_HISTORY_YEARS} on shorter ones, as far as the source keeps them, for the few listings a script tools.candles' since allows; a run takes ${BACKTEST_BARS} bars at most. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have, and a session's first bar fills after the gap from the close before: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules, stops, buyAndHold and buyAndHoldDrawdown read prices with splits and what went ex made up for from the sessions' references, which bars shorter than a day take from the daily bars; orders fill at prices as traded, and what goes ex while held is bought back in, so a trade's shares are those bought. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way, on every trade however often it trades; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing: a daily bar that traded at one price away from its reference, a shorter one that traded at one price, its session's limit. split, a YYYY-MM-DD, measures the sessions before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. A trade's times are its bars' times, and equity is the account at each session's close. sharpe is of the account's session returns, a year's worth at their pace. pValue is how often the stretch's bars put in a random order did as well as the rules' timing did on them, of ${BACKTEST_PERMUTATIONS} orders held as the run held and charged its costs: below 0.05 the timing beat chance, and it says nothing of whether holding the listing at all paid.`,
+      description: `Runs a long-only strategy over a listing's bars, which it reads itself: interval's bars, daily unless named, over the app's own history as tools.candles returns them, or from since on. since reaches back up to ${HISTORY_YEARS} years on daily and longer bars and ${INTRADAY_HISTORY_YEARS} on shorter ones, as far as the source keeps them, for the few listings a script tools.candles' since allows; a run takes ${BACKTEST_BARS} bars at most. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have, and a session's first bar fills after the gap from the close before: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules, stops, buyAndHold and buyAndHoldDrawdown read prices with splits and what went ex made up for from the sessions' references, which bars shorter than a day take from the daily bars; orders fill at prices as traded, and what goes ex while held is bought back in, so a trade's shares are those bought. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way, on every trade however often it trades; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing: a daily bar that traded at one price away from its reference, a shorter one that traded at one price, its session's limit. split, a YYYY-MM-DD or a share of the sessions such as 2/3, measures the sessions before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. A trade's times are its bars' times, and equity is the account at each session's close. sharpe is of the account's session returns, a year's worth at their pace. pValue is how often the stretch's bars put in a random order did as well as the rules' timing did on them, of ${BACKTEST_PERMUTATIONS} orders held as the run held and charged its costs: below 0.05 the timing beat chance, and it says nothing of whether holding the listing at all paid.`,
       spread: true,
       signature:
-        "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategy: Strategy; capital?: number; costs?: Partial<Costs>; split?: string }): Promise<Backtest>",
+        "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategy: Strategy; capital?: number; costs?: Partial<Costs>; split?: string | number }): Promise<Backtest>",
       input: z.tuple([
         z.object({
           symbol: symbolRefSchema,
@@ -433,7 +443,7 @@ const backtests = (
           strategy: ruleStrategySchema,
           capital: z.number().positive().optional(),
           costs: tradeCostsSchema.partial().optional(),
-          split: z.iso.date().optional(),
+          split: splitSchema,
         }),
       ]),
       output: backtestSchema,
@@ -454,7 +464,7 @@ const backtests = (
       description: `Runs each of up to ${MAX_SCAN_STRATEGIES} strategies on its own, as backtest.rules runs one, all at once: it ${reading}, and the strategies read up to ${MAX_SCAN_SERIES} different series between them. Each cell is that strategy's stretches, in the order given, with pValue null, since no timing is tested. Pass columns when the strategies make a grid of two parameters, row by row, one parameter's values down and the other's across: plateau is then the cell whose neighbourhood, it and the cells beside it, had the highest mean Sharpe ratio, in-sample where there is a split, so a cell that did well among neighbours that did not is not picked, and edge says it lies on the grid's border, past which the best may lie.`,
       spread: true,
       signature:
-        "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategies: Strategy[]; columns?: number; capital?: number; costs?: Partial<Costs>; split?: string }): Promise<Scan>",
+        "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategies: Strategy[]; columns?: number; capital?: number; costs?: Partial<Costs>; split?: string | number }): Promise<Scan>",
       input: z.tuple([
         z.object({
           symbol: symbolRefSchema,
@@ -464,7 +474,7 @@ const backtests = (
           columns: columnsSchema,
           capital: z.number().positive().optional(),
           costs: tradeCostsSchema.partial().optional(),
-          split: z.iso.date().optional(),
+          split: splitSchema,
         }),
       ]),
       output: scanSchema,
