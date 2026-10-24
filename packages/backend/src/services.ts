@@ -38,6 +38,7 @@ import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 import type { Host } from "./host.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
+import { createBacktests } from "./modules/backtests/backtests.ts";
 import { createBackupThreads } from "./modules/backup/backup-threads.ts";
 import { createBackups } from "./modules/backup/backups.ts";
 import { settleRestore, takeRestore } from "./modules/backup/staged-restore.ts";
@@ -263,6 +264,11 @@ export function createServices(config: ConfigFile, host: Host) {
     diagnostics,
   });
 
+  // One process runs the agent's backtests and the windows' alike.
+  const kernel = createKernel(host.openKernelProcess);
+
+  const backtests = createBacktests({ marketData, kernel });
+
   // The user's own skills and instructions sit beside the config file they edit.
   const skillFolders = {
     solyx: join(configDir, "skills"),
@@ -482,7 +488,7 @@ export function createServices(config: ConfigFile, host: Host) {
     quote: (symbol) => marketData.quote(symbol),
     candlesSince: (symbol, interval, since) =>
       marketData.candlesSince(symbol, interval, since),
-    kernel: createKernel(host.openKernelProcess),
+    kernel,
     setup: {
       appearance,
       marketData,
@@ -753,6 +759,7 @@ export function createServices(config: ConfigFile, host: Host) {
     },
     appearance,
     marketData,
+    backtests,
     rotations,
     userData,
     watchlist,

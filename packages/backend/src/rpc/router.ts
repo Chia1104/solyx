@@ -1,5 +1,6 @@
 import { accountRouter } from "../modules/account/account.route.ts";
 import { agentRouter } from "../modules/agent/agent.route.ts";
+import { backtestsRouter } from "../modules/backtests/backtests.route.ts";
 import { backupRouter } from "../modules/backup/backup.route.ts";
 import { calendarRouter } from "../modules/calendar/calendar.route.ts";
 import { devicesRouter } from "../modules/devices/devices.route.ts";
@@ -26,6 +27,7 @@ import { contractOS } from "./context.ts";
 export const router = contractOS.router({
   account: accountRouter,
   agent: agentRouter,
+  backtests: backtestsRouter,
   backup: backupRouter,
   calendar: calendarRouter,
   devices: devicesRouter,

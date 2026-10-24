@@ -7,21 +7,27 @@ import { omit } from "es-toolkit";
 import * as z from "zod";
 
 import {
+  BACKTEST_BARS,
   BACKTEST_PERMUTATIONS,
   MAX_SCAN_SERIES,
   MAX_SCAN_STRATEGIES,
   backtest,
+  backtestBars,
   ruleStrategySchema,
   scanBacktests,
   tradeCostsSchema,
   walkForward,
 } from "@solyx/core/backtest";
-import type { BacktestKernel } from "@solyx/core/backtest";
+import type { BacktestBarsSource, BacktestKernel } from "@solyx/core/backtest";
 import {
+  HISTORY_YEARS,
+  INTRADAY_HISTORY_YEARS,
   Interval,
   barTime,
+  historyYears,
   intervalSchema,
   isIntraday,
+  yearsBefore,
 } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import {
@@ -35,12 +41,7 @@ import {
   volumeRatio,
   vwap,
 } from "@solyx/core/indicators";
-import {
-  exchangeDate,
-  marketSchema,
-  symbolRefSchema,
-  symbolLabel,
-} from "@solyx/core/market";
+import { marketSchema, symbolRefSchema, symbolLabel } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import type { ProposingDesk } from "@solyx/core/order-desk";
@@ -81,18 +82,9 @@ export interface AnalysisOptions extends AnalysisPorts {
 
 const TIMEOUT_MS = 30_000;
 
-/** How far back a script may ask for daily and longer bars. */
-const HISTORY_YEARS = 10;
-
-/** How far back a backtest may ask for shorter bars, which each year costs its source a request for too. */
-const INTRADAY_HISTORY_YEARS = 3;
-
 // A listing's ten years of daily bars cost its source about a dozen requests, and the source
 // answers sixty a minute, which a script's deadline is well inside.
 const HISTORY_LISTINGS = 5;
-
-/** The most bars a backtest runs over: a session's minute bars over the furthest back it may read, with room. */
-const BACKTEST_BARS = 300_000;
 
 const historyBudget = () =>
   listingBudget(
@@ -343,11 +335,7 @@ function historyReader(
   now: () => Date
 ): HistoryReader {
   return (symbol, interval, since) => {
-    const years = isIntraday(interval) ? INTRADAY_HISTORY_YEARS : HISTORY_YEARS;
-
-    const earliest = Temporal.PlainDate.from(exchangeDate(symbol.market, now()))
-      .subtract({ years })
-      .toString();
+    const earliest = yearsBefore(symbol.market, historyYears(interval), now());
 
     admitHistory(symbol);
 
@@ -368,37 +356,16 @@ const backtests = (
   kernel: BacktestKernel,
   history: HistoryReader
 ): CodemodeTool[] => {
-  /** A listing's bars as a backtest reads them, and its daily bars where they are shorter. */
-  async function listingBars(
+  const source: BacktestBarsSource = {
+    candles: (symbol, interval) => ports.marketData.candles(symbol, interval),
+    candlesSince: history,
+  };
+
+  const listingBars = (
     symbol: SymbolRef,
     interval: Interval,
     since: string | undefined
-  ) {
-    const read = (each: Interval) =>
-      since === undefined
-        ? ports.marketData.candles(symbol, each)
-        : history(symbol, each, since);
-
-    const bars = await read(interval);
-
-    if (bars.length < 2) {
-      throw new Error(
-        `${symbolLabel(symbol)} has too few ${interval} bars to backtest`
-      );
-    }
-
-    if (bars.length > BACKTEST_BARS) {
-      throw new Error(
-        `${bars.length} ${interval} bars are more than a backtest takes (${BACKTEST_BARS}); start later or take a longer interval`
-      );
-    }
-
-    return {
-      bars,
-      interval,
-      daily: isIntraday(interval) ? await read(Interval.OneDay) : undefined,
-    };
-  }
+  ) => backtestBars(source, symbol, interval, since);
 
   const strategiesSchema = z
     .array(ruleStrategySchema)
