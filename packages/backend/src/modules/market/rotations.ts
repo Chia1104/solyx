@@ -22,6 +22,7 @@ import {
   playbackPath,
   readingThrough,
   rotationPaths,
+  weekUnderWay,
 } from "@solyx/core/rotation";
 import type {
   DatedBars,
@@ -159,7 +160,7 @@ export function createRotations({
     rotationPaths(
       dateOnce(symbol.market, bars),
       dateOnce(symbol.market, benchmark),
-      today(symbol.market)
+      weekUnderWay(symbol.market, now())
     );
 
   /** The sessions a set may be taken back to, from the benchmark's bars: the last `PLAYBACK_SESSIONS`. */

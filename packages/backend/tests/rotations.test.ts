@@ -329,6 +329,27 @@ test("the whole span reaches back as far as every period's playback and trail ne
   }
 });
 
+test("weekly readings take a week in once its last session has closed", async () => {
+  const { rotations, clock } = setup({ IX0001: SPAN, IX0028: wave(SPAN) });
+
+  const lastWeek = async () =>
+    (await rotations.sectors())?.entries
+      .find(({ symbol }) => symbol === "IX0028")
+      ?.readings.find(
+        ({ interval, period }) =>
+          interval === RotationInterval.Weekly && period === 13
+      )
+      ?.trail.at(-1)?.date;
+
+  // A Tuesday's session leaves its week out.
+  expect(await lastWeek()).toBe("2026-09-25");
+
+  clock.now = new Date("2026-10-03T10:00:00+08:00");
+
+  // By the Saturday that week has closed, dated by its last session in the bars.
+  expect(await lastWeek()).toBe("2026-09-29");
+});
+
 test("a history whose older years must come from the source shows the newest year first, then the whole span", async () => {
   let release: (() => void) | undefined;
 

@@ -19,7 +19,9 @@ import {
   rotationPath,
   rotationPaths,
   rotationSeries,
+  weekUnderWay,
 } from "../src/rotation.ts";
+import { weekdays } from "../src/session.ts";
 
 const taipei = (date: string) => Date.parse(`${date}T00:00:00+08:00`) / 1000;
 
@@ -163,7 +165,8 @@ describe("readingThrough", () => {
     125, 124.5, 124, 123.5, 123, 122.5,
   ];
 
-  const TODAY = "2026-02-02";
+  // The Monday after the bars, whose week is under way.
+  const OPEN_WEEK = "2026-02-02";
   const listing = bars(closes);
   const benchmark = bars(closes.map(() => 1000));
 
@@ -228,7 +231,7 @@ describe("readingThrough", () => {
     const paths = rotationPaths(
       dateBars(Market.TW, listing),
       dateBars(Market.TW, benchmark),
-      TODAY
+      OPEN_WEEK
     );
 
     expect(
@@ -249,7 +252,7 @@ describe("readEveryRotation as of a session", () => {
   const closes = Array.from({ length: 200 }, (_, i) => 100 + i * (i % 3));
   const listing = bars(closes);
   const benchmark = bars(closes.map(() => 1000));
-  const TODAY = "2026-10-12";
+  const AT = new Date("2026-10-12T10:00:00+08:00");
 
   const upTo = (candles: Candle[], through: string) =>
     dateBars(
@@ -265,13 +268,13 @@ describe("readEveryRotation as of a session", () => {
     const back = readEveryRotation(
       dateBars(Market.TW, listing),
       dateBars(Market.TW, benchmark),
-      { today: TODAY, through }
+      { at: AT, through }
     );
 
     const alone = readEveryRotation(
       upTo(listing, through),
       upTo(benchmark, through),
-      { today: then }
+      { at: new Date(`${then}T10:00:00+08:00`) }
     );
 
     expect(back.find(({ period }) => period === 20)?.trail.at(-1)?.date).toBe(
@@ -284,10 +287,34 @@ describe("readEveryRotation as of a session", () => {
     const [weekly] = readEveryRotation(
       dateBars(Market.TW, listing),
       dateBars(Market.TW, benchmark),
-      { today: TODAY, through: "2026-09-23" }
+      { at: AT, through: "2026-09-23" }
     ).filter(({ interval }) => interval === RotationInterval.Weekly);
 
     expect(weekly.trail.at(-1)?.date).toBe("2026-09-18");
+  });
+});
+
+describe("weekUnderWay", () => {
+  const at = (moment: string) => new Date(`${moment}+08:00`);
+
+  test.each([
+    ["Monday before the open", "2026-10-19T08:00:00", "2026-10-19"],
+    ["Thursday after the close", "2026-10-22T14:00:00", "2026-10-19"],
+    ["Friday through its session", "2026-10-23T13:00:00", "2026-10-19"],
+    ["Friday after the close", "2026-10-23T14:00:00", null],
+    ["Saturday", "2026-10-24T10:00:00", null],
+    ["Sunday", "2026-10-25T10:00:00", null],
+  ])("on %s", (_, moment, week) => {
+    expect(weekUnderWay(Market.TW, at(moment))).toBe(week);
+  });
+
+  test("closes the week with its last trading day's session", () => {
+    // The Friday is a holiday, so Thursday's close ends the week.
+    const trades = (date: string) => date !== "2026-10-23" && weekdays(date);
+
+    expect(
+      weekUnderWay(Market.TW, at("2026-10-22T14:00:00"), trades)
+    ).toBeNull();
   });
 });
 
