@@ -16,6 +16,7 @@ const handler = new RPCHandler(
     walkForward: served.walkForward.handler(({ input }) =>
       kernel.walkForward(input)
     ),
+    rolling: served.rolling.handler(({ input }) => kernel.rolling(input)),
   }),
   { clientInterceptors: [keepMessages], experimental_transfer: () => [] }
 );

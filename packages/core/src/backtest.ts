@@ -1,3 +1,4 @@
+import { median, percentile } from "es-toolkit";
 import * as z from "zod";
 
 import type {
@@ -6,14 +7,17 @@ import type {
   KernelBars,
   KernelCondition,
   KernelMetrics,
+  KernelSpan,
   KernelStrategy,
   KernelStretches,
+  RollingRequest,
+  RollingRun,
   ScanRequest,
   ScanRun,
   WalkForwardRequest,
   WalkForwardRun,
 } from "@solyx/kernel/native";
-import { dateEpochDay, epochDayDate } from "@solyx/utils/date";
+import { DAY_MS, dateEpochDay, epochDayDate } from "@solyx/utils/date";
 
 import {
   Interval,
@@ -305,6 +309,52 @@ export interface WalkForwardResult {
   holding: { date: string; value: number }[];
 }
 
+/** The tenth percentile of some windows' figures, their median and their ninetieth percentile. */
+export interface RollingSpread {
+  low: number;
+  median: number;
+  high: number;
+}
+
+/** What a strategy's rolling windows came to together. */
+export interface RollingSummary {
+  windows: number;
+  /**
+   * How many windows fit end to end over the months they span. Windows that overlap share sessions
+   * and move together, so however many there are, they stand for about this many apart.
+   */
+  apart: number;
+  /** The share of windows whose return, after costs, beat holding the listing through them before costs. */
+  beatHolding: number;
+  /** The share of windows whose return was above nothing. */
+  gained: number;
+  /** The windows' returns, holding's, and each window's less holding's. */
+  returns: RollingSpread;
+  holding: RollingSpread;
+  excess: RollingSpread;
+  /** The deepest fall any window took. */
+  worstDrawdown: number;
+  /** How many windows closed fewer than `ENOUGH_TRADES` trades. */
+  thin: number;
+}
+
+/**
+ * One strategy run over windows of the same months, each on its own from holding nothing, so how
+ * much its record owes to the day it started shows.
+ */
+export interface RollingResult {
+  interval: Interval;
+  bars: number;
+  capital: number;
+  /** Calendar months each window runs. */
+  months: number;
+  /** Months from one window's start to the next's. */
+  step: number;
+  /** Each window's figures from its first session to its last, measured from the close before its first, oldest first. */
+  windows: BacktestMetrics[];
+  summary: RollingSummary;
+}
+
 /**
  * Where the out-of-sample stretch starts: on an exchange-local day, or after a share of the
  * sessions, as 2/3 starts it about two thirds of the way through them.
@@ -479,6 +529,7 @@ export interface BacktestKernel {
   walkForward(
     request: WalkForwardRequest
   ): WalkForwardRun | Promise<WalkForwardRun>;
+  rolling(request: RollingRequest): RollingRun | Promise<RollingRun>;
 }
 
 /** How many orderings of each stretch's bars a backtest's timing is tested against. */
@@ -495,6 +546,9 @@ export const MAX_WALK_WINDOWS = 100;
 
 /** The most bars a backtest runs over: a session's minute bars over the furthest back it may read, with room. */
 export const BACKTEST_BARS = 300_000;
+
+/** A stretch of fewer trades than this says too little to conclude from. */
+export const ENOUGH_TRADES = 20;
 
 /** How many different series `strategies` read between them, which a scan holds to `MAX_SCAN_SERIES`. */
 export const distinctSeries = (strategies: readonly RuleStrategy[]) =>
@@ -1011,5 +1065,150 @@ export async function walkForward(
       holdingValues(prepared.adjusted, prepared.capital, first),
       first
     ),
+  };
+}
+
+export interface RollingOptions extends Omit<BacktestOptions, "split"> {
+  /** Calendar months each window runs. */
+  months: number;
+  /** Months from one window's start to the next's; @default 1 */
+  step?: number;
+}
+
+/** The month an epoch day falls in, counted from January of year 0. */
+function monthOf(day: number) {
+  const date = new Date(day * DAY_MS);
+
+  return date.getUTCFullYear() * 12 + date.getUTCMonth();
+}
+
+/**
+ * Windows of `months` that start on the first session of every `step`th month, from the first
+ * month after the bars' first, whose first session has a close before it, each running to its last
+ * session before the month after its last. Only windows the bars run past are taken, so each is as
+ * long as the next; a month without a session starts none.
+ */
+function rollingWindows(days: Int32Array, months: number, step: number) {
+  const sessions: { first: number; month: number }[] = [];
+
+  days.forEach((day, index) => {
+    if (index === 0 || day !== days[index - 1]) {
+      sessions.push({ first: index, month: monthOf(day) });
+    }
+  });
+
+  const starts: number[] = [];
+  const spans: KernelSpan[] = [];
+  const lastMonth = sessions[sessions.length - 1].month;
+
+  for (
+    let month = sessions[0].month + 1;
+    month + months <= lastMonth;
+    month += step
+  ) {
+    const opening = sessions.find((each) => each.month >= month);
+    const after = sessions.find((each) => each.month >= month + months);
+
+    if (
+      opening?.month !== month ||
+      !after ||
+      after.first - 1 <= opening.first
+    ) {
+      continue;
+    }
+
+    starts.push(month);
+    spans.push({ first: opening.first, last: after.first - 1 });
+  }
+
+  const apart =
+    starts.length === 0
+      ? 0
+      : Math.floor((starts[starts.length - 1] + months - starts[0]) / months);
+
+  return { spans, apart };
+}
+
+function rollingSummary(
+  windows: readonly BacktestMetrics[],
+  apart: number
+): RollingSummary {
+  const share = (holds: (window: BacktestMetrics) => boolean) =>
+    windows.filter(holds).length / windows.length;
+
+  const spread = (values: number[]): RollingSpread => ({
+    low: percentile(values, 10),
+    median: median(values),
+    high: percentile(values, 90),
+  });
+
+  return {
+    windows: windows.length,
+    apart,
+    beatHolding: share((window) => window.totalReturn > window.buyAndHold),
+    gained: share((window) => window.totalReturn > 0),
+    returns: spread(windows.map((window) => window.totalReturn)),
+    holding: spread(windows.map((window) => window.buyAndHold)),
+    excess: spread(
+      windows.map((window) => window.totalReturn - window.buyAndHold)
+    ),
+    worstDrawdown: Math.max(...windows.map((window) => window.maxDrawdown)),
+    thin: windows.filter((window) => window.trades < ENOUGH_TRADES).length,
+  };
+}
+
+/**
+ * Runs one strategy over windows of `months` calendar months, one starting on the first session of
+ * every `step`th month, each on its own from holding nothing at the close before it, so how much its
+ * record owes to the day it started shows. Every window is whole and measured beside holding the
+ * listing through it; no window tests its timing, since the windows share their bars.
+ */
+export async function rollingBacktest(
+  kernel: BacktestKernel,
+  symbol: SymbolRef,
+  candles: readonly Candle[],
+  strategy: RuleStrategy,
+  options: RollingOptions
+): Promise<RollingResult> {
+  const { months, step = 1 } = options;
+
+  if (
+    !Number.isInteger(months) ||
+    months < 1 ||
+    !Number.isInteger(step) ||
+    step < 1
+  ) {
+    throw new Error(
+      "Rolling windows run whole months, one at least, and start whole months apart, one at least"
+    );
+  }
+
+  const prepared = prepare(symbol, candles, [strategy], options);
+  const { spans, apart } = rollingWindows(prepared.days, months, step);
+
+  if (spans.length === 0) {
+    throw new Error(
+      `Bars from ${prepared.date(0)} to ${prepared.date(prepared.last)} hold no whole ${months}-month window after their first month; read further back or shorten the windows`
+    );
+  }
+
+  const run = await kernel.rolling({
+    bars: prepared.kernelBars,
+    strategy: prepared.strategies[0],
+    windows: spans,
+  });
+
+  const windows = run.windows.map((metrics, index) =>
+    prepared.stretch(spans[index].first, spans[index].last, metrics)
+  );
+
+  return {
+    interval: prepared.interval,
+    bars: prepared.bars.length,
+    capital: prepared.capital,
+    months,
+    step,
+    windows,
+    summary: rollingSummary(windows, apart),
   };
 }

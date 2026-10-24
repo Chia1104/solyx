@@ -3,6 +3,8 @@ import { oc, type } from "@orpc/contract";
 import type {
   BacktestRequest,
   BacktestRun,
+  RollingRequest,
+  RollingRun,
   ScanRequest,
   ScanRun,
   WalkForwardRequest,
@@ -16,4 +18,5 @@ export const kernelContract = {
   walkForward: oc
     .input(type<WalkForwardRequest>())
     .output(type<WalkForwardRun>()),
+  rolling: oc.input(type<RollingRequest>()).output(type<RollingRun>()),
 };

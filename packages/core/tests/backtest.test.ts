@@ -1,9 +1,11 @@
+import { median, percentile } from "es-toolkit";
 import { describe, expect, test } from "vite-plus/test";
 
 import { kernel } from "@solyx/kernel/kernel";
 
 import {
   BACKTEST_PERMUTATIONS,
+  ENOUGH_TRADES,
   MAX_SCAN_SERIES,
   MAX_WALK_WINDOWS,
   backtest,
@@ -13,6 +15,7 @@ import {
   MAX_RULE_COMPARISONS,
   MAX_RULE_DEPTH,
   MAX_RULE_SERIES,
+  rollingBacktest,
   ruleStrategySchema,
   scanBacktests,
   walkForward,
@@ -959,6 +962,133 @@ describe("telling an edge from chance", () => {
         waveDays[Math.min(window * 30 + 149, 299)],
       ])
     );
+  });
+
+  // The wave's sessions run from 2026-01-05 to 2027-02-26.
+  const monthOpens = waveDays.filter(
+    (day, index) =>
+      index > 0 && day.slice(0, 7) !== waveDays[index - 1].slice(0, 7)
+  );
+
+  test("each rolling window runs as the strategy would from holding nothing at the close before it", async () => {
+    const rolled = await rollingBacktest(kernel, TSMC, bars(wave), THRESHOLD, {
+      costs: NO_COSTS,
+      months: 3,
+    });
+
+    // From February, the first whole month, to November, the last with three whole months to run.
+    expect(rolled.windows.map(({ from }) => from)).toEqual(
+      monthOpens.slice(0, 10)
+    );
+    expect(rolled.windows.map(({ to }) => to)).toEqual(
+      monthOpens
+        .slice(3, 13)
+        .map((open) => waveDays[waveDays.indexOf(open) - 1])
+    );
+
+    for (const window of rolled.windows) {
+      const first = waveDays.indexOf(window.from);
+      const last = waveDays.indexOf(window.to);
+
+      // Its out-of-sample stretch starts holding nothing too, measured from the bar before it.
+      const alone = await backtest(
+        kernel,
+        TSMC,
+        bars(wave).slice(first - 1, last + 1),
+        THRESHOLD,
+        { costs: NO_COSTS, split: { day: window.from } }
+      );
+
+      expect(window).toEqual({ ...alone.outOfSample, pValue: null });
+    }
+  });
+
+  test("a rule read at the close before a window buys at its first open, so always holding returns what holding does", async () => {
+    const rolled = await rollingBacktest(
+      kernel,
+      TSMC,
+      bars(wave),
+      {
+        entry: { above: [{ price: "close" }, { value: 0 }] },
+        exit: { below: [{ price: "close" }, { value: 0 }] },
+      },
+      { costs: NO_COSTS, months: 2 }
+    );
+
+    // Each bar opens at the close before, so only the cash whole shares leave over sets them apart.
+    for (const window of rolled.windows) {
+      expect(window.totalReturn).toBeCloseTo(window.buyAndHold, 3);
+      expect(window.exposure).toBe(1);
+    }
+  });
+
+  test("rolling windows sum up as shares and spreads, and stand for as many as fit end to end", async () => {
+    const { windows, summary } = await rollingBacktest(
+      kernel,
+      TSMC,
+      bars(wave),
+      THRESHOLD,
+      { costs: NO_COSTS, months: 3 }
+    );
+
+    const returns = windows.map(({ totalReturn }) => totalReturn);
+
+    const excess = windows.map(
+      ({ totalReturn, buyAndHold }) => totalReturn - buyAndHold
+    );
+
+    expect(summary).toEqual({
+      windows: 10,
+      // The ten span twelve months from February on, which hold four of three months each.
+      apart: 4,
+      beatHolding: excess.filter((each) => each > 0).length / 10,
+      gained: returns.filter((each) => each > 0).length / 10,
+      returns: {
+        low: percentile(returns, 10),
+        median: median(returns),
+        high: percentile(returns, 90),
+      },
+      holding: expect.objectContaining({
+        median: median(windows.map(({ buyAndHold }) => buyAndHold)),
+      }),
+      excess: expect.objectContaining({ median: median(excess) }),
+      worstDrawdown: Math.max(...windows.map(({ maxDrawdown }) => maxDrawdown)),
+      thin: windows.filter(({ trades }) => trades < ENOUGH_TRADES).length,
+    });
+  });
+
+  test("rolling windows start a step of months apart", async () => {
+    const options = { costs: NO_COSTS, months: 3 };
+
+    const monthly = await rollingBacktest(
+      kernel,
+      TSMC,
+      bars(wave),
+      THRESHOLD,
+      options
+    );
+
+    const stepped = await rollingBacktest(kernel, TSMC, bars(wave), THRESHOLD, {
+      ...options,
+      step: 2,
+    });
+
+    expect(stepped.step).toBe(2);
+    expect(stepped.windows).toEqual(
+      monthly.windows.filter((_, index) => index % 2 === 0)
+    );
+  });
+
+  test("rolling windows run whole months, and bars too short for one fail the run", async () => {
+    const roll = (months: number, step?: number) =>
+      rollingBacktest(kernel, TSMC, bars(wave), THRESHOLD, { months, step });
+
+    await expect(roll(13)).rejects.toThrow(
+      "Bars from 2026-01-05 to 2027-02-26 hold no whole 13-month window after their first month"
+    );
+    await expect(roll(0)).rejects.toThrow("whole months, one at least");
+    await expect(roll(1.5)).rejects.toThrow("whole months, one at least");
+    await expect(roll(3, 0)).rejects.toThrow("whole months, one at least");
   });
 });
 

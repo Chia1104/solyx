@@ -108,6 +108,12 @@ export interface KernelPlateau {
   edge: boolean
 }
 
+/** The bars a window runs over, from its first to its last. */
+export interface KernelSpan {
+  first: number
+  last: number
+}
+
 /** A long-only strategy: when to buy while holding nothing, and when to sell all of it. */
 export interface KernelStrategy {
   entry: KernelCondition
@@ -152,6 +158,25 @@ export interface KernelWindow {
   cell: number | null
   /** The picked strategy's own Sharpe ratio over the training, not its neighbourhood's. */
   trainSharpe: number | null
+}
+
+/**
+ * Runs one strategy over each window on its own, all at once, holding nothing at the close before
+ * the window's first bar. Its rules are read from that close, so its first fill may come at the
+ * first bar's open, and its figures and holding's are measured from there; a window from the very
+ * first bar, which has no close before it, starts at that bar's close.
+ */
+export declare function rolling(request: RollingRequest): RollingRun
+
+export interface RollingRequest {
+  bars: KernelBars
+  strategy: KernelStrategy
+  windows: Array<KernelSpan>
+}
+
+export interface RollingRun {
+  /** Each window's figures, in the order they came. */
+  windows: Array<KernelMetrics>
 }
 
 /** Runs each strategy over every bar on its own, holding nothing at the first, all at once. */

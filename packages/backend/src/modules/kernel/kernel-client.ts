@@ -43,6 +43,7 @@ export function connectKernel(
     scan: (request) => call((signal) => kernel.scan(request, { signal })),
     walkForward: (request) =>
       call((signal) => kernel.walkForward(request, { signal })),
+    rolling: (request) => call((signal) => kernel.rolling(request, { signal })),
   };
 }
 
@@ -71,5 +72,6 @@ export function createKernel(
     backtest: async (request) => (await current()).backtest(request),
     scan: async (request) => (await current()).scan(request),
     walkForward: async (request) => (await current()).walkForward(request),
+    rolling: async (request) => (await current()).rolling(request),
   };
 }

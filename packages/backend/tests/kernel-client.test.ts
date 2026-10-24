@@ -116,6 +116,11 @@ function fakeChild(
           efficiency: null,
         };
       }),
+      rolling: served.rolling.handler(({ input }) => {
+        received.push(input.bars);
+
+        return { windows: input.windows.map(() => METRICS) };
+      }),
     }),
     { clientInterceptors: [keepMessages], experimental_transfer: () => [] }
   );
@@ -165,7 +170,7 @@ test("columns cross to the kernel as typed arrays, and its run comes back as the
   expect(kill).not.toHaveBeenCalled();
 });
 
-test("a scan and a walk forward cross to the same process", async () => {
+test("a scan, a walk forward and rolling windows cross to the same process", async () => {
   const { connect, received } = fakeChild();
   const kernel = connect();
 
@@ -182,9 +187,16 @@ test("a scan and a walk forward cross to the same process", async () => {
     permutations: 0,
   });
 
+  const rolled = await kernel.rolling({
+    bars: KERNEL_BARS,
+    strategy: STRATEGY,
+    windows: [{ first: 1, last: 2 }],
+  });
+
   expect(scanned.cells).toHaveLength(2);
   expect(walked.equity).toBeInstanceOf(Float64Array);
-  expect(received.map((bars) => bars.open)).toEqual([PRICES, PRICES]);
+  expect(rolled.windows).toEqual([METRICS]);
+  expect(received.map((bars) => bars.open)).toEqual([PRICES, PRICES, PRICES]);
 });
 
 test("a run the kernel does not answer in time ends the process, failing it and every later run", async () => {
