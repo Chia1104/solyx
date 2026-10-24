@@ -5,6 +5,7 @@ import { kernel } from "@solyx/kernel/kernel";
 import {
   BACKTEST_PERMUTATIONS,
   MAX_SCAN_SERIES,
+  MAX_WALK_WINDOWS,
   backtest,
   defaultCosts,
   MAX_RULE_BRANCHES,
@@ -892,6 +893,15 @@ describe("telling an edge from chance", () => {
       maxDrawdown: alone.all.maxDrawdown,
     });
     expect(walked.equity).toEqual(alone.equity);
+  });
+
+  test("a walk forward of more windows than it runs fails before any runs", async () => {
+    await expect(
+      walkForward(kernel, TSMC, bars(wave), [THRESHOLD], {
+        train: 60,
+        test: 1,
+      })
+    ).rejects.toThrow(`makes 240 windows, more than the ${MAX_WALK_WINDOWS}`);
   });
 
   test("each test follows its training, and the next window starts a test later", async () => {

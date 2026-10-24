@@ -31,13 +31,35 @@ export interface TemplateParam {
   initial: number;
 }
 
+/** The most values an axis of a grid takes, so a grid holds no more strategies than a scan runs. */
+export const MAX_AXIS_VALUES = 20;
+
+const STEP_TOLERANCE = 1e-9;
+
+interface AxisSpan {
+  from: number;
+  to: number;
+  step: number;
+}
+
+/** How many values an axis takes, worked out without making them. */
+const axisCount = ({ from, to, step }: AxisSpan) =>
+  Math.max(Math.floor((to - from) / step + STEP_TOLERANCE) + 1, 0);
+
+const axisFits = (axis: AxisSpan) =>
+  axisCount(axis) >= 1 && axisCount(axis) <= MAX_AXIS_VALUES;
+
 /** A parameter's values down or across a grid: from `from` to `to` in steps of `step`. */
-export const gridAxisSchema = z.strictObject({
-  param: z.string(),
-  from: z.number(),
-  to: z.number(),
-  step: z.number().positive(),
-});
+export const gridAxisSchema = z
+  .strictObject({
+    param: z.string(),
+    from: z.number(),
+    to: z.number(),
+    step: z.number().positive(),
+  })
+  .refine(axisFits, {
+    message: `An axis takes 1 to ${MAX_AXIS_VALUES} values`,
+  });
 
 export type GridAxis = z.infer<typeof gridAxisSchema>;
 
@@ -215,8 +237,6 @@ export function templateParam(template: StrategyTemplate, name: string) {
   return new Map(Object.entries(definition(template).params)).get(name);
 }
 
-const STEP_TOLERANCE = 1e-9;
-
 /** Whether `value` is one `param` takes: within its bounds and on one of its steps. */
 export function takesValue(param: TemplateParam, value: number) {
   const steps = (value - param.min) / param.step;
@@ -300,18 +320,22 @@ export function setupRules(setup: StrategySetup): RuleStrategy {
   };
 }
 
-/** The most values an axis of a grid takes, so a grid holds no more strategies than a scan runs. */
-export const MAX_AXIS_VALUES = 20;
-
 // Rounded so a step such as 0.1 adds up to the value a person would write.
 const DECIMALS = 6;
 
-/** The values `axis` takes, from its first to its last by its step. */
-export function axisValues({ from, to, step }: GridAxis) {
-  const count = Math.floor((to - from) / step + STEP_TOLERANCE) + 1;
+/**
+ * The values `axis` takes, from its first to its last by its step; one that would take more than
+ * `MAX_AXIS_VALUES` fails before any is made.
+ */
+export function axisValues(axis: GridAxis) {
+  const count = axisCount(axis);
 
-  return Array.from({ length: Math.max(count, 0) }, (_, index) =>
-    Number((from + index * step).toFixed(DECIMALS))
+  if (count > MAX_AXIS_VALUES) {
+    throw new Error(`An axis takes ${MAX_AXIS_VALUES} values at most`);
+  }
+
+  return Array.from({ length: count }, (_, index) =>
+    Number((axis.from + index * axis.step).toFixed(DECIMALS))
   );
 }
 
@@ -354,40 +378,38 @@ export const GridProblem = {
 
 export type GridProblem = (typeof GridProblem)[keyof typeof GridProblem];
 
-/** Why a grid over `setup` would not run; none where it would. */
-export function gridProblems(
+/** Why a grid over `setup` would not run; `undefined` where it would. */
+export function gridProblem(
   setup: TemplateSetup,
   rows: GridAxis,
   columns: GridAxis
-): GridProblem[] {
+): GridProblem | undefined {
   const axes = [rows, columns].map((axis) => ({
-    values: axisValues(axis),
+    axis,
     param: templateParam(setup.template, axis.param),
   }));
 
   if (axes.some(({ param }) => param === undefined)) {
-    return [GridProblem.UnknownParam];
+    return GridProblem.UnknownParam;
   }
 
-  if (rows.param === columns.param) return [GridProblem.SameParam];
+  if (rows.param === columns.param) return GridProblem.SameParam;
 
-  const problems = new Set<GridProblem>();
+  // Counted before any value is made, so a grid past what a scan runs never allocates.
+  if (axes.some(({ axis }) => !axisFits(axis))) return GridProblem.AxisSize;
 
-  for (const { values, param } of axes) {
-    if (values.length === 0 || values.length > MAX_AXIS_VALUES) {
-      problems.add(GridProblem.AxisSize);
-    }
-
-    if (param && values.some((value) => !takesValue(param, value))) {
-      problems.add(GridProblem.OffBounds);
-    }
+  if (
+    axes.some(
+      ({ axis, param }) =>
+        param && axisValues(axis).some((value) => !takesValue(param, value))
+    )
+  ) {
+    return GridProblem.OffBounds;
   }
-
-  if (problems.size > 0) return [...problems];
 
   const series = distinctSeries(
     gridSetups(setup, rows, columns).map(setupRules)
   );
 
-  return series > MAX_SCAN_SERIES ? [GridProblem.TooManySeries] : [];
+  return series > MAX_SCAN_SERIES ? GridProblem.TooManySeries : undefined;
 }

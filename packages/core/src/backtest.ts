@@ -481,6 +481,9 @@ export const MAX_SCAN_STRATEGIES = 400;
 /** The most different series a scan's or a walk forward's strategies read between them. */
 export const MAX_SCAN_SERIES = 64;
 
+/** The most windows a walk forward runs, each a training of every strategy. */
+export const MAX_WALK_WINDOWS = 100;
+
 /** The most bars a backtest runs over: a session's minute bars over the furthest back it may read, with room. */
 export const BACKTEST_BARS = 300_000;
 
@@ -935,6 +938,13 @@ export async function walkForward(
   const sessions = new Set(prepared.days).size;
   const train = options.train ?? Math.floor((sessions * 2) / 5);
   const test = options.test ?? Math.max(1, Math.floor(train / 4));
+  const windows = Math.ceil((sessions - train) / test);
+
+  if (windows > MAX_WALK_WINDOWS) {
+    throw new Error(
+      `Testing ${test} sessions at a time after ${train} of training makes ${windows} windows, more than the ${MAX_WALK_WINDOWS} a walk forward runs; test more sessions at a time`
+    );
+  }
 
   const run = await kernel.walkForward({
     bars: prepared.kernelBars,

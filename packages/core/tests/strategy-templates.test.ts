@@ -11,7 +11,7 @@ import {
   STRATEGY_TEMPLATES,
   StrategyTemplate,
   axisValues,
-  gridProblems,
+  gridProblem,
   gridSetups,
   initialSetup,
   setupRules,
@@ -39,7 +39,9 @@ describe("templates", () => {
     (template) => {
       const { rows, columns } = STRATEGY_TEMPLATES[template].grid;
 
-      expect(gridProblems(initialSetup(template), rows, columns)).toEqual([]);
+      expect(
+        gridProblem(initialSetup(template), rows, columns)
+      ).toBeUndefined();
     }
   );
 
@@ -101,6 +103,9 @@ describe("grids", () => {
       })
     ).toEqual([0.04, 0.06, 0.08, 0.1, 0.12, 0.14, 0.16]);
     expect(axisValues({ param: "fast", from: 5, to: 4, step: 1 })).toEqual([]);
+    expect(() =>
+      axisValues({ param: "fast", from: 0, to: 1e12, step: 1e-6 })
+    ).toThrow("20 values at most");
   });
 
   test("a grid's setups run row by row, its rows' values down and its columns' across", () => {
@@ -126,22 +131,20 @@ describe("grids", () => {
     const setup = initialSetup(StrategyTemplate.BollingerBreakout);
     const period = { param: "period", from: 10, to: 30, step: 5 };
 
-    expect(gridProblems(setup, period, { ...period, param: "fast" })).toEqual([
-      GridProblem.UnknownParam,
-    ]);
-    expect(gridProblems(setup, period, period)).toEqual([
-      GridProblem.SameParam,
-    ]);
+    expect(gridProblem(setup, period, { ...period, param: "fast" })).toBe(
+      GridProblem.UnknownParam
+    );
+    expect(gridProblem(setup, period, period)).toBe(GridProblem.SameParam);
     expect(
-      gridProblems(setup, period, {
+      gridProblem(setup, period, {
         param: "width",
         from: 1,
         to: 3.5,
         step: 0.5,
       })
-    ).toEqual([GridProblem.OffBounds]);
+    ).toBe(GridProblem.OffBounds);
     expect(
-      gridProblems(
+      gridProblem(
         setup,
         { ...period, from: 5, to: 60, step: 1 },
         {
@@ -151,15 +154,15 @@ describe("grids", () => {
           step: 1,
         }
       )
-    ).toEqual([GridProblem.AxisSize]);
+    ).toBe(GridProblem.AxisSize);
     // Every period and width reads two bands of its own.
     expect(
-      gridProblems(
+      gridProblem(
         setup,
         { ...period, from: 10, to: 40, step: 5 },
         { param: "width", from: 1, to: 3, step: 0.5 }
       )
-    ).toEqual([GridProblem.TooManySeries]);
+    ).toBe(GridProblem.TooManySeries);
   });
 
   test("a grid's strategies run as a scan in their order", async () => {

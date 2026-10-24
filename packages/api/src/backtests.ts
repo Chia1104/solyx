@@ -10,7 +10,7 @@ import type { Interval } from "@solyx/core/candles";
 import { symbolRefSchema } from "@solyx/core/market";
 import {
   gridAxisSchema,
-  gridProblems,
+  gridProblem,
   strategySetupSchema,
   templateSetupSchema,
 } from "@solyx/core/strategy-templates";
@@ -58,13 +58,13 @@ function runsAsGrid(
   }: { strategy: TemplateSetup; rows: GridAxis; columns: GridAxis },
   context: z.RefinementCtx
 ) {
-  const problems = gridProblems(strategy, rows, columns);
+  const problem = gridProblem(strategy, rows, columns);
 
-  if (problems.length > 0) {
+  if (problem) {
     context.addIssue({
       code: "custom",
       path: ["rows"],
-      message: `The grid does not run: ${problems.join(", ")}`,
+      message: `The grid does not run: ${problem}`,
     });
   }
 }
