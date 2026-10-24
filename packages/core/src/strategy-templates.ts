@@ -72,8 +72,10 @@ export const gridAxisSchema = z
     to: z.number(),
     step: z.number().positive(),
   })
+  // Aborting, so no check of the grid it belongs to reads an axis this long.
   .refine(axisFits, {
     message: `An axis takes 1 to ${MAX_AXIS_VALUES} values`,
+    abort: true,
   });
 
 export type GridAxis = z.infer<typeof gridAxisSchema>;
