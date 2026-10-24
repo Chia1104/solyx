@@ -10,6 +10,9 @@ export const backtestsRouter = contractOS.backtests.router({
   walkForward: contractOS.backtests.walkForward.handler(({ context, input }) =>
     context.backtests.walkForward(input)
   ),
+  rolling: contractOS.backtests.rolling.handler(({ context, input }) =>
+    context.backtests.rolling(input)
+  ),
   history: contractOS.backtests.history.handler(({ context }) =>
     context.backtests.history()
   ),

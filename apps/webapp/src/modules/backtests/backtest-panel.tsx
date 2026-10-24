@@ -22,6 +22,7 @@ import { BacktestForm } from "./backtest-form.tsx";
 import { BacktestHistory } from "./backtest-history.tsx";
 import {
   backtestQuery,
+  rollingQuery,
   scanQuery,
   walkForwardQuery,
 } from "./backtest-query.ts";
@@ -31,6 +32,7 @@ import type { ListingBacktests } from "./backtest-store.ts";
 import { BacktestTrades } from "./backtest-trades.tsx";
 import { EquityChart } from "./equity-chart.tsx";
 import { historyQuery } from "./history-query.ts";
+import { RollingReport } from "./rolling-report.tsx";
 import { ScanReport } from "./scan-report.tsx";
 import { WalkReport } from "./walk-report.tsx";
 
@@ -71,6 +73,7 @@ function useModeQueries(runs: Partial<ListingBacktests>) {
     [BacktestMode.WalkForward]: useQuery(
       walkForwardQuery(runs.walkForward ?? skipToken)
     ),
+    [BacktestMode.Rolling]: useQuery(rollingQuery(runs.rolling ?? skipToken)),
   };
 }
 
@@ -135,10 +138,16 @@ function ModeOutcome({
           {(setup, result) => <WalkReport setup={setup} walk={result} />}
         </Outcome>
       );
+    case BacktestMode.Rolling:
+      return (
+        <Outcome setup={runs.rolling} query={queries.rolling}>
+          {(_, result) => <RollingReport rolling={result} />}
+        </Outcome>
+      );
   }
 }
 
-/** The switch between running one setup, a scan, a walk forward and the runs kept. */
+/** The switch between running one setup, a scan, a walk forward, rolling windows and the runs kept. */
 function ViewSwitch({
   view,
   onChange,
@@ -243,7 +252,13 @@ function ModeView({
       <BacktestForm
         symbol={symbol}
         mode={mode}
-        setup={runs[mode] ?? runs.run ?? runs.scan ?? runs.walkForward}
+        setup={
+          runs[mode] ??
+          runs.run ??
+          runs.scan ??
+          runs.walkForward ??
+          runs.rolling
+        }
         isRunning={queries[mode].isFetching}
         onSubmit={submit}
       />
@@ -260,10 +275,11 @@ function ModeView({
 }
 
 /**
- * Backtests a listing without the agent: one setup, a grid of a template's numbers, or that grid
- * picked from as it walks forward, set up on one side and the last run of the mode shown on the
- * other, and the runs kept beside a comparison of those picked. The chart above marks the single
- * run's trades. Nothing it runs reaches a model.
+ * Backtests a listing without the agent: one setup, a grid of a template's numbers, that grid
+ * picked from as it walks forward, or one setup over windows that start month after month, set up
+ * on one side and the last run of the mode shown on the other, and the runs kept beside a
+ * comparison of those picked. The chart above marks the single run's trades. Nothing it runs
+ * reaches a model.
  */
 export function BacktestPanel({
   symbol,

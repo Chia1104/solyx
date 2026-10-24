@@ -2,6 +2,7 @@ import type { skipToken } from "@tanstack/react-query";
 
 import type {
   BacktestSetup,
+  RollingSetup,
   ScanSetup,
   WalkForwardSetup,
 } from "@solyx/api/backtests";
@@ -20,3 +21,6 @@ export const walkForwardQuery = (setup: WalkForwardSetup | typeof skipToken) =>
     input: setup,
     staleTime: Infinity,
   });
+
+export const rollingQuery = (setup: RollingSetup | typeof skipToken) =>
+  orpc.backtests.rolling.queryOptions({ input: setup, staleTime: Infinity });

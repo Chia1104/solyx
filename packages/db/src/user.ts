@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gte, inArray, max } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { clamp, omit } from "es-toolkit";
 
-import type { BacktestMetrics } from "@solyx/core/backtest";
+import type { BacktestMetrics, RollingSummary } from "@solyx/core/backtest";
 import type { WatchedExitLeg } from "@solyx/core/broker";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -388,7 +388,7 @@ export interface BacktestRun {
   id: string;
   ranAt: number;
   request: unknown;
-  headline: BacktestMetrics | null;
+  headline: BacktestMetrics | RollingSummary | null;
 }
 
 /** The backtests windows ran, newest first, at most as many as each recording keeps. */

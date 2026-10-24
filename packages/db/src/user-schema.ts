@@ -6,7 +6,7 @@ import {
   unique,
 } from "drizzle-orm/sqlite-core";
 
-import type { BacktestMetrics } from "@solyx/core/backtest";
+import type { BacktestMetrics, RollingSummary } from "@solyx/core/backtest";
 import type { MandateVerdict } from "@solyx/core/mandate";
 import type { Market } from "@solyx/core/market";
 import type { TimePrecision } from "@solyx/core/news";
@@ -197,5 +197,5 @@ export const backtestRuns = sqliteTable("backtest_runs", {
   key: text().notNull().unique(),
   ranAt: integer("ran_at").notNull(),
   request: text({ mode: "json" }).$type<unknown>().notNull(),
-  headline: text({ mode: "json" }).$type<BacktestMetrics>(),
+  headline: text({ mode: "json" }).$type<BacktestMetrics | RollingSummary>(),
 });

@@ -34,10 +34,13 @@ import { isEnumValue } from "@solyx/utils/is";
 import { OptionSelect } from "../../components/option-select.tsx";
 
 import {
+  ROLLING_STEPS,
   SPLITS,
   StrategyChoice,
+  fittingMonths,
   formRequest,
   formValues,
+  rollingMonthChoices,
   runSetup,
   templateYears,
   useFormSchema,
@@ -283,7 +286,49 @@ function GridFields({
   );
 }
 
-/** Where its stretches split, or a walk forward's sessions in their place. */
+/** How long each rolling window runs, as far as the years read hold one, and how far apart they start. */
+function RollingFields({ control }: { control: Control<FormValues> }) {
+  const { t } = useTranslation();
+  const years = useWatch({ control, name: "years" });
+
+  return (
+    <>
+      <Controller
+        control={control}
+        name="months"
+        render={({ field }) => (
+          <OptionSelect
+            label={t("backtests.rolling.months")}
+            description={t("backtests.rolling.months-hint")}
+            options={rollingMonthChoices(years).map((months) => ({
+              id: String(months),
+              label: t("backtests.rolling.months-option", { count: months }),
+            }))}
+            value={String(field.value)}
+            onChange={(next) => field.onChange(Number(next))}
+          />
+        )}
+      />
+      <Controller
+        control={control}
+        name="step"
+        render={({ field }) => (
+          <OptionSelect
+            label={t("backtests.rolling.step")}
+            options={ROLLING_STEPS.map((step) => ({
+              id: String(step),
+              label: t("backtests.rolling.step-option", { count: step }),
+            }))}
+            value={String(field.value)}
+            onChange={(next) => field.onChange(Number(next))}
+          />
+        )}
+      />
+    </>
+  );
+}
+
+/** Where its stretches split, or a walk forward's sessions or rolling windows in their place. */
 function StretchFields({
   control,
   mode,
@@ -297,6 +342,8 @@ function StretchFields({
     style: "percent",
     maximumFractionDigits: 0,
   });
+
+  if (mode === BacktestMode.Rolling) return <RollingFields control={control} />;
 
   if (mode === BacktestMode.WalkForward) {
     return (
@@ -341,9 +388,10 @@ function StretchFields({
 
 /**
  * Sets a backtest up for `symbol`: a template with its numbers or rules written out, the interval
- * and years of bars it reads, where its out-of-sample stretch starts and what trades cost, and in
- * a scan or a walk forward the grid of the template's numbers it runs. It starts from what the
- * panel ran last, and follows it as it changes elsewhere.
+ * and years of bars it reads, where its out-of-sample stretch starts and what trades cost, in a
+ * scan or a walk forward the grid of the template's numbers it runs, and for rolling windows how
+ * long each runs and how far apart they start. It starts from what the panel ran last, and follows
+ * it as it changes elsewhere.
  */
 export function BacktestForm({
   symbol,
@@ -360,7 +408,9 @@ export function BacktestForm({
 }) {
   const { t } = useTranslation();
   const schema = useFormSchema(mode);
-  const gridded = mode !== BacktestMode.Run;
+
+  const gridded =
+    mode === BacktestMode.Scan || mode === BacktestMode.WalkForward;
 
   const form = useForm({
     resolver: zodResolver(schema),
@@ -391,7 +441,7 @@ export function BacktestForm({
       const { grid } = STRATEGY_TEMPLATES[next];
 
       form.setValue("params", initialSetup(next).params);
-      form.setValue("years", templateYears(next, current.interval));
+      pickYears(templateYears(next, current.interval));
       form.setValue("rows", grid.rows);
       form.setValue("columns", grid.columns);
     } else if (template) {
@@ -412,14 +462,19 @@ export function BacktestForm({
     if (gridded && strategy === StrategyChoice.Rules) leaveRules();
   }, [gridded, strategy]);
 
+  // Fewer years may hold no window as long as the one picked.
+  function pickYears(years: number) {
+    form.setValue("years", years);
+    form.setValue("months", fittingMonths(years, form.getValues("months")));
+  }
+
   function pickInterval(next: Interval) {
     const years = form.getValues("years");
 
     form.setValue("interval", next);
 
     if (!yearChoices(next).includes(years)) {
-      form.setValue(
-        "years",
+      pickYears(
         template ? templateYears(template, next) : yearChoices(next)[0]
       );
     }
@@ -475,7 +530,7 @@ export function BacktestForm({
                 label: t("backtests.form.years-option", { count: years }),
               }))}
               value={String(field.value)}
-              onChange={(next) => field.onChange(Number(next))}
+              onChange={(next) => pickYears(Number(next))}
             />
           )}
         />

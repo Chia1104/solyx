@@ -1144,6 +1144,10 @@
       "walkForward": {
         "label": "Walk forward",
         "action": "Run walk forward"
+      },
+      "rolling": {
+        "label": "Rolling",
+        "action": "Run rolling windows"
       }
     },
     "grid": {
@@ -1193,15 +1197,55 @@
       "no-pick": "Nothing picked",
       "train-sharpe": "training Sharpe {{sharpe}}"
     },
+    "rolling": {
+      "months": "Window",
+      "months-hint": "Each starts holding nothing.",
+      "months-option_one": "{{count}} month",
+      "months-option_other": "{{count}} months",
+      "step": "Start every",
+      "step-option_one": "{{count}} month",
+      "step-option_other": "{{count}} months",
+      "span_one": "{{count}} window of {{months}}, starting {{from}} to {{to}} on {{interval}} bars · about {{apart}} apart",
+      "span_other": "{{count}} windows of {{months}}, starting {{from}} to {{to}} on {{interval}} bars · about {{apart}} apart",
+      "headlines": {
+        "beat-holding": "Starts that beat holding",
+        "gained": "Starts that gained",
+        "worst-drawdown": "Deepest fall in a window"
+      },
+      "spread-label": "Returns across windows",
+      "low": "10th percentile",
+      "median": "Median",
+      "high": "90th percentile",
+      "spreads": {
+        "returns": "Strategy",
+        "holding": "Buy and hold",
+        "excess": "Strategy less holding"
+      },
+      "chart_one": "Return over {{count}} month, by start",
+      "chart_other": "Return over {{count}} months, by start",
+      "windows": "Windows",
+      "window_one": "{{total}} · holding {{holding}} · drawdown {{drawdown}} · {{count}} trade",
+      "window_other": "{{total}} · holding {{holding}} · drawdown {{drawdown}} · {{count}} trades",
+      "warnings": {
+        "thin_one": "{{count}} of {{total}} windows closed under {{enough}} trades, so each of their returns rests on a few trades.",
+        "thin_other": "{{count}} of {{total}} windows closed under {{enough}} trades, so each of their returns rests on a few trades.",
+        "few-apart_one": "The windows overlap, so they stand for about {{count}} period apart and their shares rest on little.",
+        "few-apart_other": "The windows overlap, so they stand for about {{count}} periods apart and their shares rest on little.",
+        "behind-holding": "Most starts trailed holding: the median window made {{excess}} against it."
+      }
+    },
     "history": {
       "title": "History",
       "axis": "{{param}} {{from}}–{{to}}",
       "reach": "{{mode}} · {{interval}} bars · {{years}}",
+      "windows": "windows of {{months}}",
       "no-headline": "No figures to judge it by",
       "out-of-sample_one": "Out of sample {{total}} · holding {{holding}} · Sharpe {{sharpe}} · {{count}} trade",
       "out-of-sample_other": "Out of sample {{total}} · holding {{holding}} · Sharpe {{sharpe}} · {{count}} trades",
       "plateau_one": "Plateau in-sample {{total}} · Sharpe {{sharpe}} · {{count}} trade",
       "plateau_other": "Plateau in-sample {{total}} · Sharpe {{sharpe}} · {{count}} trades",
+      "rolling_one": "{{share}} of starts beat holding · median excess {{excess}} · {{count}} window",
+      "rolling_other": "{{share}} of starts beat holding · median excess {{excess}} · {{count}} windows",
       "pick": "Compare",
       "open": "Open",
       "remove": "Remove",

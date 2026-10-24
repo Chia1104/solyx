@@ -4,12 +4,14 @@ import * as z from "zod";
 import type {
   BacktestResult,
   BacktestScan,
+  RollingResult,
   WalkForwardResult,
 } from "@solyx/core/backtest";
 
 import {
   MAX_COMPARED,
   backtestSetupSchema,
+  rollingSetupSchema,
   scanSetupSchema,
   walkForwardSetupSchema,
 } from "../backtests.ts";
@@ -36,6 +38,11 @@ export const backtestsContract = {
     .meta(forDevices(true))
     .input(walkForwardSetupSchema)
     .output(type<WalkForwardResult>()),
+  /** One setup over windows of the same months, each from holding nothing, beside holding through each. */
+  rolling: oc
+    .meta(forDevices(true))
+    .input(rollingSetupSchema)
+    .output(type<RollingResult>()),
   /** The runs windows asked for, newest first, each with how it did when it last ran. */
   history: oc.meta(forDevices(true)).output(type<BacktestRecord[]>()),
   remove: oc.meta(forDevices(true)).input(z.string()).output(type<void>()),

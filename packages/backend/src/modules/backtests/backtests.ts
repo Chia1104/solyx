@@ -6,23 +6,22 @@ import {
   backtestRequestSchema,
 } from "@solyx/api/backtests";
 import type {
+  BacktestHeadline,
   BacktestRecord,
   BacktestRequest,
   BacktestSetup,
+  RollingSetup,
   ScanSetup,
   WalkForwardSetup,
 } from "@solyx/api/backtests";
 import {
   backtest,
   backtestBars,
+  rollingBacktest,
   scanBacktests,
   walkForward,
 } from "@solyx/core/backtest";
-import type {
-  BacktestBarsSource,
-  BacktestKernel,
-  BacktestMetrics,
-} from "@solyx/core/backtest";
+import type { BacktestBarsSource, BacktestKernel } from "@solyx/core/backtest";
 import { yearsBefore } from "@solyx/core/candles";
 import type { Interval } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
@@ -65,7 +64,7 @@ export function createBacktests({
       yearsBefore(symbol.market, years, now())
     );
 
-  function keep(request: BacktestRequest, headline: BacktestMetrics | null) {
+  function keep(request: BacktestRequest, headline: BacktestHeadline | null) {
     history.record(
       JSON.stringify(request),
       { id: randomUUID(), ranAt: now().getTime(), request, headline },
@@ -170,6 +169,23 @@ export function createBacktests({
       keep({ mode: BacktestMode.WalkForward, setup }, walked.outOfSample);
 
       return walked;
+    },
+
+    async rolling(setup: RollingSetup) {
+      const { symbol, interval, years, strategy, ...options } = setup;
+      const { bars, daily } = await listingBars(symbol, interval, years);
+
+      const rolled = await rollingBacktest(
+        kernel,
+        symbol,
+        bars,
+        setupRules(strategy),
+        { ...options, interval, daily }
+      );
+
+      keep({ mode: BacktestMode.Rolling, setup }, rolled.summary);
+
+      return rolled;
     },
 
     history: records,

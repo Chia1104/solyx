@@ -4,6 +4,7 @@ import { BacktestMode } from "@solyx/api/backtests";
 import type {
   BacktestRequest,
   BacktestSetup,
+  RollingSetup,
   ScanSetup,
   WalkForwardSetup,
 } from "@solyx/api/backtests";
@@ -21,6 +22,7 @@ export interface ListingBacktests {
   run?: BacktestSetup;
   scan?: ScanSetup;
   walkForward?: WalkForwardSetup;
+  rolling?: RollingSetup;
 }
 
 interface BacktestStore {
