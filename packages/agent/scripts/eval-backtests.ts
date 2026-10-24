@@ -251,7 +251,8 @@ const engineInputSchema = z.tuple([
   z.object({
     symbol: z.object({ market: z.enum(Market), symbol: z.string() }),
     since: z.string().optional(),
-    strategy: z.unknown(),
+    // Present on backtest.rules alone; zod reads an unknown key as one that must be there.
+    strategy: z.unknown().optional(),
     strategies: z.array(z.unknown()).optional(),
     columns: z.number().optional(),
     split: z.union([z.string(), z.number()]).optional(),

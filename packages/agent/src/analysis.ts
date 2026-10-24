@@ -333,7 +333,10 @@ type HistoryReader = (
   since: string
 ) => Promise<Candle[]>;
 
-/** Reads bars from `since` on as far back as their interval's history may be read, `admitHistory` asked first. */
+/**
+ * Reads bars from `since` on, `admitHistory` asked first, and from as far back as their interval's
+ * history may be read where `since` is earlier, as a day worked out on another clock can be.
+ */
 function historyReader(
   ports: AnalysisPorts,
   admitHistory: (symbol: SymbolRef) => void,
@@ -346,15 +349,13 @@ function historyReader(
       .subtract({ years })
       .toString();
 
-    if (since < earliest) {
-      throw new Error(
-        `since goes back ${years} years at most on ${interval} bars, to ${earliest}`
-      );
-    }
-
     admitHistory(symbol);
 
-    return ports.candlesSince(symbol, interval, since);
+    return ports.candlesSince(
+      symbol,
+      interval,
+      since < earliest ? earliest : since
+    );
   };
 }
 
@@ -431,7 +432,7 @@ const backtests = (
   return [
     scriptFunction({
       name: "backtest.rules",
-      description: `Runs a long-only strategy over a listing's bars, which it reads itself: interval's bars, daily unless named, over the app's own history as tools.candles returns them, or from since on. since reaches back up to ${HISTORY_YEARS} years on daily and longer bars and ${INTRADAY_HISTORY_YEARS} on shorter ones, as far as the source keeps them, for the few listings a script tools.candles' since allows; a run takes ${BACKTEST_BARS} bars at most. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have, and a session's first bar fills after the gap from the close before: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules, stops, buyAndHold and buyAndHoldDrawdown read prices with splits and what went ex made up for from the sessions' references, which bars shorter than a day take from the daily bars; orders fill at prices as traded, and what goes ex while held is bought back in, so a trade's shares are those bought. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way, on every trade however often it trades; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing: a daily bar that traded at one price away from its reference, a shorter one that traded at one price, its session's limit. split, a YYYY-MM-DD or a share of the sessions such as 2/3, measures the sessions before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. A trade's times are its bars' times, and equity is the account at each session's close. sharpe is of the account's session returns, a year's worth at their pace. pValue is how often the stretch's bars put in a random order did as well as the rules' timing did on them, of ${BACKTEST_PERMUTATIONS} orders held as the run held and charged its costs: below 0.05 the timing beat chance, and it says nothing of whether holding the listing at all paid.`,
+      description: `Runs a long-only strategy over a listing's bars, which it reads itself: interval's bars, daily unless named, over the app's own history as tools.candles returns them, or from since on. since reaches back up to ${HISTORY_YEARS} years on daily and longer bars and ${INTRADAY_HISTORY_YEARS} on shorter ones, an earlier one reading from there, as far as the source keeps them, for the few listings a script tools.candles' since allows; a run takes ${BACKTEST_BARS} bars at most. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have, and a session's first bar fills after the gap from the close before: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules, stops, buyAndHold and buyAndHoldDrawdown read prices with splits and what went ex made up for from the sessions' references, which bars shorter than a day take from the daily bars; orders fill at prices as traded, and what goes ex while held is bought back in, so a trade's shares are those bought. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way, on every trade however often it trades; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing: a daily bar that traded at one price away from its reference, a shorter one that traded at one price, its session's limit. split, a YYYY-MM-DD or a share of the sessions such as 2/3, measures the sessions before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. A trade's times are its bars' times, and equity is the account at each session's close. sharpe is of the account's session returns, a year's worth at their pace. pValue is how often the stretch's bars put in a random order did as well as the rules' timing did on them, of ${BACKTEST_PERMUTATIONS} orders held as the run held and charged its costs: below 0.05 the timing beat chance, and it says nothing of whether holding the listing at all paid.`,
       spread: true,
       signature:
         "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategy: Strategy; capital?: number; costs?: Partial<Costs>; split?: string | number }): Promise<Backtest>",
@@ -549,7 +550,7 @@ function dataFunctions(
   return [
     scriptFunction({
       name: "candles",
-      description: `Every OHLCV bar the app has for a listing, oldest first: about two years of daily bars, three of weekly and five of monthly. since reaches further back on those three intervals, up to ${HISTORY_YEARS} years, for at most ${HISTORY_LISTINGS} listings a script, since each year costs the source a request the first time. Prices are as traded, so a split or what goes ex reads as a fall; close / reference - 1 is a session's move without it, and backtest.rules makes up for it from the references itself. The latest bar is still forming while its session is open.`,
+      description: `Every OHLCV bar the app has for a listing, oldest first: about two years of daily bars, three of weekly and five of monthly. since reaches further back on those three intervals, up to ${HISTORY_YEARS} years, an earlier one reading from there, for at most ${HISTORY_LISTINGS} listings a script, since each year costs the source a request the first time. Prices are as traded, so a split or what goes ex reads as a fall; close / reference - 1 is a session's move without it, and backtest.rules makes up for it from the references itself. The latest bar is still forming while its session is open.`,
       input: z.object({
         symbol: symbolRefSchema,
         interval: intervalSchema,
