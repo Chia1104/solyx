@@ -10,11 +10,8 @@ import {
   LoggerProvider,
 } from "@opentelemetry/sdk-logs";
 import type { LogRecordProcessor } from "@opentelemetry/sdk-logs";
-import {
-  BasicTracerProvider,
-  BatchSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
-import type { SpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { BatchSpanProcessor, TracerProvider } from "@opentelemetry/sdk-trace";
+import type { SpanProcessor } from "@opentelemetry/sdk-trace";
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
@@ -77,7 +74,7 @@ export function createTelemetry({
     [ATTR_SERVICE_INSTANCE_ID]: randomUUID(),
   });
 
-  const tracerProvider = new BasicTracerProvider({
+  const tracerProvider = new TracerProvider({
     resource,
     spanProcessors: [
       {
@@ -135,9 +132,12 @@ export function createTelemetry({
       };
 
       exporting = {
-        spans: new BatchSpanProcessor(
-          new OTLPTraceExporter({ ...options, url: `${base}/v1/traces` })
-        ),
+        spans: new BatchSpanProcessor({
+          exporter: new OTLPTraceExporter({
+            ...options,
+            url: `${base}/v1/traces`,
+          }),
+        }),
         logs: new BatchLogRecordProcessor({
           exporter: new OTLPLogExporter({ ...options, url: `${base}/v1/logs` }),
         }),

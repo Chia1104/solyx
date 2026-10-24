@@ -6,7 +6,7 @@ import { openNodeSqliteDatabase } from "@earendil-works/pi-durable/storage/sqlit
 import { databaseBytes } from "./database-file.ts";
 
 /** The pi-durable schema version the deletion below is written against. */
-const DURABLE_SCHEMA_VERSION = 1;
+const DURABLE_SCHEMA_VERSION = 2;
 
 export interface AgentStore {
   /** pi-durable's storage, which its Harness owns and closes. */

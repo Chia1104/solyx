@@ -14,6 +14,7 @@ const FoundAddressesDoc = defineDoc<{ urls: string[] }>({
   history: "latest",
   fork: "current",
   initial: () => ({ urls: [] }),
+  checkpointWhen: (_value, _ops, { deltasSinceBase }) => deltasSinceBase >= 64,
 });
 
 /** Notes the addresses a tool's result shows the model. */

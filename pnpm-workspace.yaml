@@ -11,14 +11,14 @@ catalog:
   es-toolkit: 1.52.0
   ky: ^2.2.0
   typescript: ^7.0.2
-  vite: npm:@voidzero-dev/vite-plus-core@1.3.0
-  vite-plus: 1.3.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
+  vite-plus: 1.4.0
   zod: 4.6.7
 
 catalogs:
   ai:
     "@typesafe-ai/sdk": 0.7.0
-    openai: 7.34.0
+    openai: 7.43.0
   charts:
     "@types/d3-hierarchy": 3.1.7
     "@types/d3-scale": 4.0.9
@@ -28,28 +28,28 @@ catalogs:
     d3-shape: 3.2.0
     lightweight-charts: 5.2.1
   docs:
-    "@fumadocs/language": 0.2.15
+    "@fumadocs/language": 0.2.16
     "@types/mdx": 2.0.14
-    fumadocs-core: 16.17.5
-    fumadocs-mdx: 15.4.7
+    fumadocs-core: 16.17.7
+    fumadocs-mdx: 15.4.9
     # The examples' default build of Fumadocs' UI, on Base UI; the plain npm package is its Radix build.
-    fumadocs-ui: npm:@fumadocs/base-ui@16.17.5
+    fumadocs-ui: npm:@fumadocs/base-ui@16.17.7
     # rehype-katex renders with katex 0.16, so its stylesheet comes from the same version.
     katex: 0.16.47
-    lucide-react: 1.55.0
+    lucide-react: 1.61.0
     rehype-katex: 7.0.1
     remark-math: 6.0.0
-    takumi-js: 2.16.3
+    takumi-js: 2.17.1
   drizzle:
     # 1.0.0-rc.5 ships only as commit builds; drizzle-kit must match drizzle-orm exactly.
     drizzle-kit: 1.0.0-rc.5-5935859
     drizzle-orm: 1.0.0-rc.5-5935859
   electron:
-    electron: ^44.8.0
+    electron: ^45.0.0
     electron-builder: 26.17.0
     electron-updater: 6.8.10
   forms:
-    "@hookform/resolvers": ^5.9.1
+    "@hookform/resolvers": ^6.0.0
     react-hook-form: ^7.90.0
   heroui-v3:
     "@heroui/react": 3.2.6
@@ -57,20 +57,18 @@ catalogs:
     "@internationalized/date": 3.12.4
     react-aria-components: 1.22.1
   i18n:
-    i18next: 26.4.7
-    react-i18next: 17.0.19
+    i18next: 26.5.6
+    react-i18next: 17.1.3
   icons:
     "@hugeicons/core-free-icons": 4.3.5
     "@hugeicons/react": 1.1.10
-    "@lobehub/icons-static-svg": 1.95.1
+    "@lobehub/icons-static-svg": 1.98.0
   lint:
     "@chiastack/oxlint": ^1.1.0
-    # Pinned to the oxlint bundled by vite-plus; upgrade both together.
-    "@oxlint/plugins": 1.88.0
     fallow: 3.35.0
   markdown:
     "@streamdown/cjk": 1.0.4
-    streamdown: 2.7.0
+    streamdown: 2.7.1
   orpc:
     "@orpc/client": 2.0.0-beta.43
     "@orpc/contract": 2.0.0-beta.43
@@ -78,29 +76,28 @@ catalogs:
     "@orpc/server": 2.0.0-beta.43
     "@orpc/tanstack-query": 2.0.0-beta.43
   otel:
-    "@opentelemetry/api": 1.9.1
-    "@opentelemetry/api-logs": 0.223.0
-    "@opentelemetry/exporter-logs-otlp-http": 0.223.0
-    "@opentelemetry/exporter-trace-otlp-http": 0.223.0
-    "@opentelemetry/resources": 2.12.0
-    "@opentelemetry/sdk-logs": 0.223.0
-    "@opentelemetry/sdk-trace-base": 2.12.0
+    "@opentelemetry/api": 1.10.0
+    "@opentelemetry/exporter-logs-otlp-http": 0.300.0
+    "@opentelemetry/exporter-trace-otlp-http": 0.300.0
+    "@opentelemetry/resources": 3.0.0
+    "@opentelemetry/sdk-logs": 3.0.0
+    "@opentelemetry/sdk-trace": 3.0.0
     "@opentelemetry/semantic-conventions": 1.43.0
   pi:
-    "@earendil-works/chord": 1.3.0
-    "@earendil-works/pi-ai": 1.3.0
-    "@earendil-works/pi-codemode": 1.3.0
-    "@earendil-works/pi-durable": 1.3.0
-    "@earendil-works/pi-mcp": 1.3.0
+    "@earendil-works/chord": 1.4.0
+    "@earendil-works/pi-ai": 1.4.0
+    "@earendil-works/pi-codemode": 1.4.0
+    "@earendil-works/pi-durable": 1.4.0
+    "@earendil-works/pi-mcp": 1.4.0
   react:
     "@types/react": ^19.3.0
     "@types/react-dom": ^19.3.0
     "@vitejs/plugin-react": ^6.1.2
     react: ^19.3.1
     react-dom: ^19.3.1
-    zustand: 5.0.15
+    zustand: 5.0.16
   sentry:
-    "@sentry/electron": 8.2.0
+    "@sentry/electron": 8.3.0
     "@sentry/vite-plugin": 11.8.0
   server:
     "@hono/node-server": 2.1.5
@@ -111,12 +108,12 @@ catalogs:
     "@tailwindcss/vite": 4.3.3
     tailwindcss: 4.3.3
   tanstack:
-    "@tanstack/react-hotkeys": 0.14.3
-    "@tanstack/react-query": 5.104.3
-    "@tanstack/react-query-devtools": 5.104.3
-    "@tanstack/react-router": 1.170.44
+    "@tanstack/react-hotkeys": 0.16.0
+    "@tanstack/react-query": 5.104.5
+    "@tanstack/react-query-devtools": 5.104.5
+    "@tanstack/react-router": 1.170.46
     # react-start pins the router exactly; upgrade the two together.
-    "@tanstack/react-start": 1.169.2
+    "@tanstack/react-start": 1.169.4
   utils:
     fast-xml-parser: 5.11.2
     tar: 7.5.22
@@ -129,10 +126,10 @@ catalogs:
     "@fontsource-variable/archivo": 5.3.0
     "@fontsource-variable/noto-sans-tc": 5.3.1
     class-variance-authority: 0.7.1
-    cn: 0.4.0
-    shadcn: 4.22.0
-    shaders: 4.0.4
-    void: 1.1.11
+    cn: 0.5.0
+    shadcn: 4.22.1
+    shaders: 4.0.5
+    void: 1.2.1
 
 # esbuild (through drizzle-kit), sentry-cli (through Sentry's Vite plugin) and workerd (through Void)
 # run from their platform packages; their install scripts only verify them, or download one when it

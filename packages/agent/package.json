@@ -53,7 +53,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@opentelemetry/sdk-trace-base": "catalog:otel",
+    "@opentelemetry/sdk-trace": "catalog:otel",
     "@solyx/market-data": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",

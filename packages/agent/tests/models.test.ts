@@ -359,7 +359,7 @@ test("GitHub Copilot signs in to github.com and offers the models its account ha
     }
 
     return Response.json({
-      data: ["gpt-5.4", "gpt-5-mini"].map((id) => ({
+      data: ["gpt-6-sol", "gpt-5.4-nano"].map((id) => ({
         id,
         model_picker_enabled: true,
         policy: { state: "enabled" },
@@ -410,15 +410,18 @@ test("GitHub Copilot signs in to github.com and offers the models its account ha
 
   const options = await catalog.options("github-copilot");
 
-  expect(options.map((option) => option.id)).toEqual(["gpt-5-mini", "gpt-5.4"]);
+  expect(options.map((option) => option.id)).toEqual([
+    "gpt-5.4-nano",
+    "gpt-6-sol",
+  ]);
   // The preferred default is not one the account has, so its first model stands in.
-  expect(await catalog.defaultModel("github-copilot")).toBe("gpt-5-mini");
-  expect((await catalog.model("github-copilot", "gpt-5.4"))?.id).toBe(
-    "gpt-5.4"
+  expect(await catalog.defaultModel("github-copilot")).toBe("gpt-5.4-nano");
+  expect((await catalog.model("github-copilot", "gpt-6-sol"))?.id).toBe(
+    "gpt-6-sol"
   );
   expect(
     (await catalog.model("github-copilot", DEFAULT_MODEL["github-copilot"]))?.id
-  ).toBe("gpt-5-mini");
+  ).toBe("gpt-5.4-nano");
 });
 
 test("a page that is not https is shown with its code and never opened", async () => {

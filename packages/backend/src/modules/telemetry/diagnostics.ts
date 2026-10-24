@@ -1,7 +1,5 @@
-import { ROOT_CONTEXT, trace } from "@opentelemetry/api";
-import type { Span } from "@opentelemetry/api";
-import { SeverityNumber } from "@opentelemetry/api-logs";
-import type { LogAttributes, Logger } from "@opentelemetry/api-logs";
+import { ROOT_CONTEXT, SeverityNumber, trace } from "@opentelemetry/api";
+import type { Attributes, Logger, Span } from "@opentelemetry/api";
 import * as z from "zod";
 
 import { errorMessage } from "@solyx/utils/error";
@@ -35,14 +33,14 @@ const failureSchema = z.object({
   response: z.object({ status: z.number() }).optional().catch(undefined),
 });
 
-function failureAttributes(cause: unknown): LogAttributes {
+function failureAttributes(cause: unknown): Attributes {
   const failure = failureSchema.safeParse(cause);
 
   if (!failure.success) return { "exception.type": "unknown" };
 
   const { code, name, status, response } = failure.data;
 
-  const attributes: LogAttributes = {
+  const attributes: Attributes = {
     "exception.type": code ?? name ?? "unknown",
   };
 

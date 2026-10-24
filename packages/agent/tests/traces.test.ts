@@ -7,10 +7,10 @@ import {
 import { MemoryStorage, defineExtension } from "@earendil-works/pi-durable";
 import { SpanStatusCode } from "@opentelemetry/api";
 import {
-  BasicTracerProvider,
+  TracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
+} from "@opentelemetry/sdk-trace";
 import { expect, test, vi } from "vite-plus/test";
 
 import { AgentThinking } from "../src/providers.ts";
@@ -22,8 +22,8 @@ import type { AgentWireEvent } from "../src/wire.ts";
 function setup() {
   const exporter = new InMemorySpanExporter();
 
-  const provider = new BasicTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(exporter)],
+  const provider = new TracerProvider({
+    spanProcessors: [new SimpleSpanProcessor({ exporter })],
   });
 
   const traces = createRunTraces(provider.getTracer("test"));

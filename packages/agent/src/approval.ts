@@ -31,6 +31,7 @@ export const ApprovalDoc = defineDoc<{
   history: "latest",
   fork: "initial",
   initial: () => ({ mode: ApprovalMode.Ask, answers: {}, auto: [] }),
+  checkpointWhen: (_value, _ops, { deltasSinceBase }) => deltasSinceBase >= 64,
   // Version 1 held only the answers, and version 2 added the mode.
   migrate: (value) => ({
     mode: approvalModeSchema.catch(ApprovalMode.Ask).parse(value.mode),
@@ -50,6 +51,7 @@ export const AskEveryCallDoc = defineDoc<{ asks: boolean }>({
   history: "latest",
   fork: "initial",
   initial: () => ({ asks: false }),
+  checkpointWhen: () => true,
 });
 
 /** What a guarded call tells its conversation: that it asks, then what the user answered. */
