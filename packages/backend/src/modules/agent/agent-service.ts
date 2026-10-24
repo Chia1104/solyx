@@ -409,6 +409,23 @@ export function createAgentService(options: AgentServiceOptions) {
 
       options.onStoreFailed();
     },
+    onReport(cause, info) {
+      // The Harness fails only as its store does, which `onStoreFailure` reports.
+      if (info.type === "session_failed") return;
+
+      const about = Object.entries({
+        report: info.type,
+        task: "task" in info ? info.task?.kind : undefined,
+        extension: "extension" in info ? info.extension : undefined,
+        callback: info.type === "host_error" ? info.callback : undefined,
+      }).filter((entry): entry is [string, string] => entry[1] !== undefined);
+
+      options.diagnostics.report(
+        cause,
+        "agent.durable",
+        Object.fromEntries(about)
+      );
+    },
   });
 
   /** Erases the conversation, then the folder its shell commands worked in. */
@@ -522,6 +539,8 @@ export function createAgentService(options: AgentServiceOptions) {
     transcript: (id: string) => runtime.transcript(id),
 
     abort: (id: string) => runtime.abort(id),
+
+    retry: (id: string) => runtime.retry(id),
 
     compact: (id: string, instructions: string | null) =>
       runtime.compact(id, instructions ?? undefined),

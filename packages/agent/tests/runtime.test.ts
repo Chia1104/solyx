@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import {
   createModels,
@@ -16,6 +17,7 @@ import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { MemoryStorage, defineExtension } from "@earendil-works/pi-durable";
 import type {
   Extension,
+  HarnessOptions,
   HarnessSettings,
   ToolRegistration,
 } from "@earendil-works/pi-durable";
@@ -64,10 +66,12 @@ function setup({
   store = memoryStore(),
   faux = fauxProvider(),
   settings,
+  onReport,
 }: {
   store?: AgentConversationStore;
   faux?: ReturnType<typeof fauxProvider>;
   settings?: HarnessSettings;
+  onReport?: HarnessOptions["onReport"];
 } = {}) {
   const models = createModels();
 
@@ -102,6 +106,7 @@ function setup({
     ),
     onEvent: (_sessionId, event) => events.push(event),
     settings,
+    onReport,
   });
 
   /** Resolves once `count` runs have ended. */
@@ -494,6 +499,102 @@ test("a run the app's exit cut off continues when the app starts again", async (
     { kind: "tool", toolName: "get_watchlist", status: ToolCallStatus.Ok },
     { kind: "assistant", text: "You watch 2330." },
   ]);
+
+  await second.runtime.close();
+});
+
+/**
+ * A conversation whose run the app was cut off in, as a crash leaves its file, opened again on a
+ * limit of one restart, so pi-durable parks the run rather than run it again.
+ */
+async function parkedRun() {
+  const path = join(directory, "agent.sqlite");
+  const crashed = join(directory, "crashed.sqlite");
+
+  const fileStore = async (file: string): Promise<AgentConversationStore> => ({
+    storage: await openNodeSqliteStorage(file),
+    deleteConversation: vi.fn(async () => undefined),
+  });
+
+  const first = setup({ store: await fileStore(path) });
+  const { id } = await first.runtime.create();
+
+  first.faux.setResponses([
+    (_context, options) =>
+      new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () =>
+          reject(options.signal?.reason)
+        );
+      }),
+  ]);
+
+  await first.runtime.send(id, { text: "What do I watch?", context: "" });
+  await vi.waitFor(() => expect(first.faux.state.callCount).toBe(1));
+
+  // The file as it stood when the process died, its run still going.
+  const database = new DatabaseSync(path);
+
+  database.exec(`VACUUM INTO '${crashed}'`);
+  database.close();
+  await first.runtime.close();
+
+  const reported = vi.fn();
+
+  const second = setup({
+    store: await fileStore(crashed),
+    settings: { restartLimit: 1 },
+    onReport: reported,
+  });
+
+  await second.runtime.resume();
+
+  return { id, second, reported };
+}
+
+test("a run the app keeps being cut off in waits for the user, and runs again once retried", async () => {
+  const { id, second, reported } = await parkedRun();
+
+  expect(reported).toHaveBeenCalledExactlyOnceWith(
+    expect.any(Error),
+    expect.objectContaining({ type: "task_parked" })
+  );
+  expect(second.events).toContainEqual({ type: AgentEventType.RunParked });
+  expect(foldEvents(await second.runtime.transcript(id))).toMatchObject({
+    running: true,
+    parked: true,
+  });
+  expect(await second.runtime.busy(id)).toBe(true);
+  expect(second.faux.state.callCount).toBe(0);
+
+  second.faux.setResponses([fauxAssistantMessage("You watch 2330.")]);
+
+  await second.runtime.retry(id);
+  await second.ended();
+
+  expect(foldEvents(await second.runtime.transcript(id))).toMatchObject({
+    running: false,
+    parked: false,
+    items: [
+      { kind: AgentItemKind.User, text: "What do I watch?" },
+      { kind: AgentItemKind.Assistant, text: "You watch 2330." },
+    ],
+  });
+
+  await second.runtime.close();
+});
+
+test("stopping a parked run ends it, and the conversation takes a message again", async () => {
+  const { id, second } = await parkedRun();
+
+  await second.runtime.abort(id);
+  await second.ended();
+
+  expect(foldEvents(await second.runtime.transcript(id))).toMatchObject({
+    running: false,
+    parked: false,
+  });
+  expect(await second.runtime.busy(id)).toBe(false);
+  expect(second.faux.state.callCount).toBe(0);
 
   await second.runtime.close();
 });

@@ -560,6 +560,12 @@
       "description": "Reading or saving them failed, so the agent has stopped. Restart Solyx to carry on: what was saved is kept, and a run that was cut off continues.",
       "restart": "Restart Solyx"
     },
+    "parked": {
+      "description": "Solyx quit several times in a row while the agent worked on this, so it stopped here rather than try again. Try again, or stop it.",
+      "retry": "Try again",
+      "retry-failed": "Couldn't try again",
+      "retry-on-computer": "Only the computer running Solyx can try it again."
+    },
     "model-unavailable": "{{model}} can't run: {{provider}} needs a key or sign-in, or is switched off. Pick another model, or set it up.",
     "setup-title": "Set up the agent",
     "setup-description": "Pick a provider and save its API key, or sign in to its subscription, to start.",

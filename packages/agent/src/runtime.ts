@@ -34,6 +34,7 @@ import type {
   Storage,
   SubmissionRecord,
   TaskId,
+  TaskInspection,
   Tx,
 } from "@earendil-works/pi-durable";
 import { Mutex, maxBy, noop } from "es-toolkit";
@@ -114,6 +115,8 @@ export interface AgentRuntimeOptions {
    * ends went out.
    */
   onStoreFailure?(cause: unknown): void;
+  /** What pi-durable reports went wrong, such as a task that threw or a run it parked. */
+  onReport?: HarnessOptions["onReport"];
   settings?: HarnessSettings;
 }
 
@@ -306,6 +309,13 @@ function failureOf(
 }
 
 /**
+ * A task the app's exits cut off as often as pi-durable allows without it getting further, which
+ * runs again only once retried, since it may be what brought the app down.
+ */
+const isParked = (task: TaskInspection) =>
+  task.state.kind === "blocked" && task.state.reason === "restart_limit";
+
+/**
  * Runs conversations on pi-durable's Harness. Every message, reply in progress and tool call is
  * stored before its event goes out, and a run the app's exit cut off continues from where it
  * stopped once `resume` runs at the next start.
@@ -328,6 +338,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         registry,
         settings: options.settings,
         env: options.env,
+        onReport: options.onReport,
       },
       BACKGROUND_CONTEXT
     ),
@@ -730,12 +741,22 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
       const { tasks } = await harness.inspect(BACKGROUND_CONTEXT);
 
+      const parked = new Set(
+        tasks.filter(isParked).map((task) => task.record.conversationId)
+      );
+
       for (const id of new Set(
         tasks.map((task) => task.record.conversationId)
       )) {
         const conversation = await harness.conversation(id, BACKGROUND_CONTEXT);
 
-        if (conversation) await attach(conversation);
+        if (!conversation) continue;
+
+        const watch = await attach(conversation);
+
+        if (parked.has(id)) {
+          publish(watch, String(id), { type: AgentEventType.RunParked });
+        }
       }
 
       harness.resume();
@@ -1018,6 +1039,28 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         default:
           throw new Error(outcome.reason);
       }
+    },
+
+    /** Runs a parked run again from where it stopped; a run that is not parked is left as it is. */
+    async retry(sessionId: string) {
+      const conversation = await conversationOf(sessionId);
+      const { harness } = await opened;
+      const { tasks } = await harness.inspect(BACKGROUND_CONTEXT);
+
+      const parked = tasks.filter(
+        (task) =>
+          task.record.conversationId === conversation.id && isParked(task)
+      );
+
+      if (parked.length === 0) return;
+
+      for (const task of parked) {
+        await harness.retryTask(task.record.id, BACKGROUND_CONTEXT);
+      }
+
+      publish(await attach(conversation), sessionId, {
+        type: AgentEventType.RunRetried,
+      });
     },
 
     /** Stops a run; what it streamed so far is kept, ending as aborted. */

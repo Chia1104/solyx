@@ -41,6 +41,9 @@ export const agentRouter = agent.router({
   abort: agent.abort.handler(({ context, input }) =>
     context.agent.abort(input)
   ),
+  retry: agent.retry.handler(({ context, input }) =>
+    context.agent.retry(input)
+  ),
   compact: agent.compact.handler(({ context, input }) =>
     context.agent.compact(input.id, input.instructions)
   ),

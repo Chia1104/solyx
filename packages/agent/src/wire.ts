@@ -478,6 +478,13 @@ export const AgentEventType = {
   ApprovalRequest: "approval:request",
   ApprovalResolved: "approval:resolved",
   RunEnd: "run:end",
+  /**
+   * The app quit or crashed as often as pi-durable allows while the run went, without it getting
+   * further, so it waits until the user tries it again or stops it.
+   */
+  RunParked: "run:parked",
+  /** The user tried a parked run again, which goes on from where it stopped. */
+  RunRetried: "run:retried",
   /** What the conversation's next request holds, which changes with every message. */
   Context: "context",
   CompactionStart: "compaction:start",
@@ -649,6 +656,8 @@ export type AgentWireEvent =
       /** The provider's or the runtime's message when `reason` is `error`. */
       error?: string;
     }
+  | { type: typeof AgentEventType.RunParked }
+  | { type: typeof AgentEventType.RunRetried }
   | {
       type: typeof AgentEventType.Context;
       /** As pi estimates it: the latest reply's count, and what followed it guessed from its length. */
@@ -744,6 +753,8 @@ export type AgentViewItem =
 export interface AgentView {
   items: AgentViewItem[];
   running: boolean;
+  /** The run waits for the user to try it again or stop it; see `RunParked`. */
+  parked: boolean;
   /** Tokens the next request holds; unset until the conversation holds a message. */
   context?: number;
   /** Compactions under way. */
@@ -753,6 +764,7 @@ export interface AgentView {
 export const emptyAgentView = (): AgentView => ({
   items: [],
   running: false,
+  parked: false,
   compactions: [],
 });
 
@@ -774,7 +786,7 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
 
   switch (event.type) {
     case AgentEventType.RunStart:
-      return { ...view, items, running: true };
+      return { ...view, items, running: true, parked: false };
 
     case AgentEventType.User:
       items.push({
@@ -938,8 +950,14 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
         });
       }
 
-      return { ...view, items: settled, running: false };
+      return { ...view, items: settled, running: false, parked: false };
     }
+
+    case AgentEventType.RunParked:
+      return { ...view, parked: true };
+
+    case AgentEventType.RunRetried:
+      return { ...view, parked: false };
 
     case AgentEventType.Context:
       return { ...view, context: event.tokens };
