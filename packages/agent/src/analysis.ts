@@ -7,9 +7,14 @@ import { omit } from "es-toolkit";
 import * as z from "zod";
 
 import {
+  BACKTEST_PERMUTATIONS,
+  MAX_SCAN_SERIES,
+  MAX_SCAN_STRATEGIES,
   backtest,
   ruleStrategySchema,
+  scanBacktests,
   tradeCostsSchema,
+  walkForward,
 } from "@solyx/core/backtest";
 import type { BacktestKernel } from "@solyx/core/backtest";
 import {
@@ -240,12 +245,47 @@ const metricsSchema = z.object({
   totalReturn: z.number(),
   annualReturn: z.number().nullable(),
   maxDrawdown: z.number(),
+  sharpe: z.number().nullable(),
+  pValue: z.number().nullable(),
   trades: z.number(),
   winRate: z.number().nullable(),
   payoffRatio: z.number().nullable(),
   exposure: z.number(),
   buyAndHold: z.number(),
   buyAndHoldDrawdown: z.number(),
+});
+
+const stretchesSchema = z.object({
+  all: metricsSchema,
+  inSample: metricsSchema.nullable(),
+  outOfSample: metricsSchema.nullable(),
+});
+
+const scanSchema = z.object({
+  interval: intervalSchema,
+  bars: z.number(),
+  cells: z.array(stretchesSchema),
+  plateau: z
+    .object({ cell: z.number(), sharpe: z.number(), edge: z.boolean() })
+    .nullable(),
+});
+
+const periodSchema = z.object({ from: z.string(), to: z.string() });
+
+const walkForwardSchema = z.object({
+  interval: intervalSchema,
+  bars: z.number(),
+  windows: z.array(
+    z.object({
+      train: periodSchema,
+      test: periodSchema,
+      cell: z.number().nullable(),
+      trainSharpe: z.number().nullable(),
+    })
+  ),
+  outOfSample: metricsSchema,
+  efficiency: z.number().nullable(),
+  equity: z.array(z.object({ date: z.string(), value: z.number() })),
 });
 
 const backtestSchema = z.object({
@@ -280,9 +320,11 @@ export const BACKTEST_TYPES = [
   "type Condition = { above: [Series, Series] } | { below: [Series, Series] } | { crossesAbove: [Series, Series] } | { crossesBelow: [Series, Series] } | { all: Condition[] } | { any: Condition[] };",
   "type Strategy = { entry: Condition; exit: Condition; stopLoss?: number; takeProfit?: number };",
   "type Costs = { commissionRate: number; minCommission: number; sellTaxRate: number; slippageTicks: number };",
-  "type Metrics = { from: string; to: string; totalReturn: number; annualReturn: number | null; maxDrawdown: number; trades: number; winRate: number | null; payoffRatio: number | null; exposure: number; buyAndHold: number; buyAndHoldDrawdown: number };",
+  "type Metrics = { from: string; to: string; totalReturn: number; annualReturn: number | null; maxDrawdown: number; sharpe: number | null; pValue: number | null; trades: number; winRate: number | null; payoffRatio: number | null; exposure: number; buyAndHold: number; buyAndHoldDrawdown: number };",
   "type Trade = { entryTime: string; entryPrice: number; exitTime: string | null; exitPrice: number; shares: number; profit: number; return: number; bars: number };",
   "type Backtest = { interval: Interval; bars: number; capital: number; costs: Costs; trades: Trade[]; equity: { date: string; value: number }[]; all: Metrics; inSample: Metrics | null; outOfSample: Metrics | null };",
+  "type Scan = { interval: Interval; bars: number; cells: { all: Metrics; inSample: Metrics | null; outOfSample: Metrics | null }[]; plateau: { cell: number; sharpe: number; edge: boolean } | null };",
+  "type WalkForward = { interval: Interval; bars: number; windows: { train: { from: string; to: string }; test: { from: string; to: string }; cell: number | null; trainSharpe: number | null }[]; outOfSample: Metrics; efficiency: number | null; equity: { date: string; value: number }[] };",
 ].join("\n");
 
 /** A listing's bars from `since` (`YYYY-MM-DD`) on, which counts against the script's history budget. */
@@ -326,55 +368,154 @@ const backtests = (
   ports: AnalysisPorts,
   kernel: BacktestKernel,
   history: HistoryReader
-): CodemodeTool[] => [
-  scriptFunction({
-    name: "backtest.rules",
-    description: `Runs a long-only strategy over a listing's bars, which it reads itself: interval's bars, daily unless named, over the app's own history as tools.candles returns them, or from since on. since reaches back up to ${HISTORY_YEARS} years on daily and longer bars and ${INTRADAY_HISTORY_YEARS} on shorter ones, as far as the source keeps them, for the few listings a script tools.candles' since allows; a run takes ${BACKTEST_BARS} bars at most. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have, and a session's first bar fills after the gap from the close before: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules, stops, buyAndHold and buyAndHoldDrawdown read prices with splits and what went ex made up for from the sessions' references, which bars shorter than a day take from the daily bars; orders fill at prices as traded, and what goes ex while held is bought back in, so a trade's shares are those bought. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way, on every trade however often it trades; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing: a daily bar that traded at one price away from its reference, a shorter one that traded at one price, its session's limit. split, a YYYY-MM-DD, measures the sessions before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. A trade's times are its bars' times, and equity is the account at each session's close.`,
-    spread: true,
-    signature:
-      "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategy: Strategy; capital?: number; costs?: Partial<Costs>; split?: string }): Promise<Backtest>",
-    input: z.tuple([
-      z.object({
-        symbol: symbolRefSchema,
-        interval: intervalSchema.optional(),
-        since: z.iso.date().optional(),
-        strategy: ruleStrategySchema,
-        capital: z.number().positive().optional(),
-        costs: tradeCostsSchema.partial().optional(),
-        split: z.iso.date().optional(),
-      }),
-    ]),
-    output: backtestSchema,
-    async run([
-      { symbol, interval = Interval.OneDay, since, strategy, ...options },
-    ]) {
-      const read = (each: Interval) =>
-        since === undefined
-          ? ports.marketData.candles(symbol, each)
-          : history(symbol, each, since);
+): CodemodeTool[] => {
+  /** A listing's bars as a backtest reads them, and its daily bars where they are shorter. */
+  async function listingBars(
+    symbol: SymbolRef,
+    interval: Interval,
+    since: string | undefined
+  ) {
+    const read = (each: Interval) =>
+      since === undefined
+        ? ports.marketData.candles(symbol, each)
+        : history(symbol, each, since);
 
-      const bars = await read(interval);
+    const bars = await read(interval);
 
-      if (bars.length < 2) {
-        throw new Error(
-          `${symbolLabel(symbol)} has too few ${interval} bars to backtest`
-        );
-      }
+    if (bars.length < 2) {
+      throw new Error(
+        `${symbolLabel(symbol)} has too few ${interval} bars to backtest`
+      );
+    }
 
-      if (bars.length > BACKTEST_BARS) {
-        throw new Error(
-          `${bars.length} ${interval} bars are more than a backtest takes (${BACKTEST_BARS}); start later or take a longer interval`
-        );
-      }
+    if (bars.length > BACKTEST_BARS) {
+      throw new Error(
+        `${bars.length} ${interval} bars are more than a backtest takes (${BACKTEST_BARS}); start later or take a longer interval`
+      );
+    }
 
-      return backtest(kernel, symbol, bars, strategy, {
-        ...options,
-        interval,
-        daily: isIntraday(interval) ? await read(Interval.OneDay) : undefined,
-      });
-    },
-  }),
-];
+    return {
+      bars,
+      interval,
+      daily: isIntraday(interval) ? await read(Interval.OneDay) : undefined,
+    };
+  }
+
+  const strategiesSchema = z
+    .array(ruleStrategySchema)
+    .min(1)
+    .max(MAX_SCAN_STRATEGIES);
+
+  const columnsSchema = z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("How many strategies a row of their grid holds, row by row");
+
+  const sessionsSchema = z.number().int().positive().optional();
+
+  const reading =
+    "reads the listing's bars as backtest.rules does: interval's bars, daily unless named, over the app's own history or from since on";
+
+  return [
+    scriptFunction({
+      name: "backtest.rules",
+      description: `Runs a long-only strategy over a listing's bars, which it reads itself: interval's bars, daily unless named, over the app's own history as tools.candles returns them, or from since on. since reaches back up to ${HISTORY_YEARS} years on daily and longer bars and ${INTRADAY_HISTORY_YEARS} on shorter ones, as far as the source keeps them, for the few listings a script tools.candles' since allows; a run takes ${BACKTEST_BARS} bars at most. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have, and a session's first bar fills after the gap from the close before: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules, stops, buyAndHold and buyAndHoldDrawdown read prices with splits and what went ex made up for from the sessions' references, which bars shorter than a day take from the daily bars; orders fill at prices as traded, and what goes ex while held is bought back in, so a trade's shares are those bought. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way, on every trade however often it trades; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing: a daily bar that traded at one price away from its reference, a shorter one that traded at one price, its session's limit. split, a YYYY-MM-DD, measures the sessions before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. A trade's times are its bars' times, and equity is the account at each session's close. sharpe is of the account's session returns, a year's worth at their pace. pValue is how often the stretch's bars put in a random order did as well as the rules' timing did on them, of ${BACKTEST_PERMUTATIONS} orders held as the run held and charged its costs: below 0.05 the timing beat chance, and it says nothing of whether holding the listing at all paid.`,
+      spread: true,
+      signature:
+        "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategy: Strategy; capital?: number; costs?: Partial<Costs>; split?: string }): Promise<Backtest>",
+      input: z.tuple([
+        z.object({
+          symbol: symbolRefSchema,
+          interval: intervalSchema.optional(),
+          since: z.iso.date().optional(),
+          strategy: ruleStrategySchema,
+          capital: z.number().positive().optional(),
+          costs: tradeCostsSchema.partial().optional(),
+          split: z.iso.date().optional(),
+        }),
+      ]),
+      output: backtestSchema,
+      async run([
+        { symbol, interval = Interval.OneDay, since, strategy, ...options },
+      ]) {
+        const { bars, daily } = await listingBars(symbol, interval, since);
+
+        return backtest(kernel, symbol, bars, strategy, {
+          ...options,
+          interval,
+          daily,
+        });
+      },
+    }),
+    scriptFunction({
+      name: "backtest.scan",
+      description: `Runs each of up to ${MAX_SCAN_STRATEGIES} strategies on its own, as backtest.rules runs one, all at once: it ${reading}, and the strategies read up to ${MAX_SCAN_SERIES} different series between them. Each cell is that strategy's stretches, in the order given, with pValue null, since no timing is tested. Pass columns when the strategies make a grid of two parameters, row by row, one parameter's values down and the other's across: plateau is then the cell whose neighbourhood, it and the cells beside it, had the highest mean Sharpe ratio, in-sample where there is a split, so a cell that did well among neighbours that did not is not picked, and edge says it lies on the grid's border, past which the best may lie.`,
+      spread: true,
+      signature:
+        "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategies: Strategy[]; columns?: number; capital?: number; costs?: Partial<Costs>; split?: string }): Promise<Scan>",
+      input: z.tuple([
+        z.object({
+          symbol: symbolRefSchema,
+          interval: intervalSchema.optional(),
+          since: z.iso.date().optional(),
+          strategies: strategiesSchema,
+          columns: columnsSchema,
+          capital: z.number().positive().optional(),
+          costs: tradeCostsSchema.partial().optional(),
+          split: z.iso.date().optional(),
+        }),
+      ]),
+      output: scanSchema,
+      async run([
+        { symbol, interval = Interval.OneDay, since, strategies, ...options },
+      ]) {
+        const { bars, daily } = await listingBars(symbol, interval, since);
+
+        return scanBacktests(kernel, symbol, bars, strategies, {
+          ...options,
+          interval,
+          daily,
+        });
+      },
+    }),
+    scriptFunction({
+      name: "backtest.walkForward",
+      description: `Walks strategies forward: it ${reading}, and each window picks one of the strategies on its train sessions, by the plateau where columns makes them a grid as backtest.scan picks it and else by the highest Sharpe ratio, then runs it on the test sessions after; the next window starts test sessions later. train defaults to two fifths of the sessions and test to a quarter of train, and a training needs a month of sessions for a Sharpe ratio, without which its test holds nothing. The tests run as one, the holding carried from one to the next, so outOfSample is what picking on the past alone did, its timing tested as backtest.rules tests a stretch. efficiency is its Sharpe ratio over the picks' mean training one: well under 1 says the picks were fitted to their training. equity is the account at each session's close from the first test on.`,
+      spread: true,
+      signature:
+        "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategies: Strategy[]; columns?: number; train?: number; test?: number; capital?: number; costs?: Partial<Costs> }): Promise<WalkForward>",
+      input: z.tuple([
+        z.object({
+          symbol: symbolRefSchema,
+          interval: intervalSchema.optional(),
+          since: z.iso.date().optional(),
+          strategies: strategiesSchema,
+          columns: columnsSchema,
+          train: sessionsSchema.describe("Sessions each window trains on"),
+          test: sessionsSchema.describe(
+            "Sessions each window then tests on, and moves on by"
+          ),
+          capital: z.number().positive().optional(),
+          costs: tradeCostsSchema.partial().optional(),
+        }),
+      ]),
+      output: walkForwardSchema,
+      async run([
+        { symbol, interval = Interval.OneDay, since, strategies, ...options },
+      ]) {
+        const { bars, daily } = await listingBars(symbol, interval, since);
+
+        return walkForward(kernel, symbol, bars, strategies, {
+          ...options,
+          interval,
+          daily,
+        });
+      },
+    }),
+  ];
+};
 
 /**
  * The functions a script calls as `tools.<name>`. `admitHistory` is asked before a listing's bars

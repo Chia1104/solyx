@@ -1,5 +1,7 @@
-use napi::{Error, Result, Status};
+use napi::Result;
 use napi_derive::napi;
+
+use crate::bars::invalid;
 
 /// A rule as `@solyx/core/backtest` declares it, each series named by its place in the lines.
 #[napi(object)]
@@ -19,10 +21,6 @@ pub enum Rule {
     Below(usize, usize),
     CrossesAbove(usize, usize),
     CrossesBelow(usize, usize),
-}
-
-fn invalid(reason: &str) -> Error {
-    Error::new(Status::InvalidArg, reason.to_owned())
 }
 
 fn pair(series: &[u32], lines: usize) -> Result<(usize, usize)> {
@@ -88,5 +86,46 @@ impl Rule {
                     && lines[*left][index] < lines[*right][index]
             }
         }
+    }
+}
+
+/// A long-only strategy: when to buy while holding nothing, and when to sell all of it.
+#[napi(object)]
+pub struct KernelStrategy {
+    pub entry: KernelCondition,
+    pub exit: KernelCondition,
+    /// Sells once an adjusted close falls this fraction below the price paid.
+    pub stop_loss: Option<f64>,
+    /// Sells once an adjusted close rises this fraction above the price paid.
+    pub take_profit: Option<f64>,
+}
+
+/// A strategy whose rules were read once against the lines.
+pub struct Strategy {
+    pub entry: Rule,
+    pub exit: Rule,
+    pub stop_loss: Option<f64>,
+    pub take_profit: Option<f64>,
+}
+
+impl Strategy {
+    pub fn read(strategy: &KernelStrategy, lines: usize) -> Result<Strategy> {
+        Ok(Strategy {
+            entry: Rule::read(&strategy.entry, lines)?,
+            exit: Rule::read(&strategy.exit, lines)?,
+            stop_loss: strategy.stop_loss,
+            take_profit: strategy.take_profit,
+        })
+    }
+
+    pub fn read_all(strategies: &[KernelStrategy], lines: usize) -> Result<Vec<Strategy>> {
+        if strategies.is_empty() {
+            return Err(invalid("A run takes one strategy at least"));
+        }
+
+        strategies
+            .iter()
+            .map(|strategy| Strategy::read(strategy, lines))
+            .collect()
     }
 }

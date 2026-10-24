@@ -269,6 +269,34 @@ test("a script backtests rules over the listing's bars, which the engine reads a
   expect(description).toContain("declare const backtest: {");
 });
 
+test("a script scans a grid of strategies and walks them forward over the same bars", async () => {
+  const { results, candles, description } = await analyze(`
+    const symbol = { market: "${Market.TW}", symbol: "2330" };
+    const strategies = [];
+    for (const entry of [105, 110]) {
+      for (const exit of [0, 120]) {
+        strategies.push({
+          entry: { above: [{ price: "close" }, { value: entry }] },
+          exit: { below: [{ price: "close" }, { value: exit }] },
+        });
+      }
+    }
+    const scan = await backtest.scan({ symbol, strategies, columns: 2 });
+    const walked = await backtest.walkForward({ symbol, strategies, columns: 2, train: 20, test: 5 });
+    return [scan.cells.length, scan.cells[0].all.pValue, scan.plateau === null, walked.windows.length, walked.outOfSample.from];
+  `);
+
+  expect(candles).toHaveBeenCalledTimes(2);
+  expect(results).toEqual([
+    {
+      status: ToolCallStatus.Ok,
+      output: 'Result: [4,null,false,2,"2025-07-05"]',
+    },
+  ]);
+  expect(description).toContain("scan(input: {");
+  expect(description).toContain("walkForward(input: {");
+});
+
 test("a backtest on minute bars reads them from further back with the daily bars, but not past three years", async () => {
   const run = (since: string) => `
     const result = await backtest.rules({

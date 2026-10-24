@@ -9,6 +9,10 @@ export default defineConfig({
         command: "napi build --release --output-dir src --no-dts-header",
         cache: false,
       },
+      test: {
+        command: "cargo test --quiet",
+        cache: false,
+      },
     },
   },
 });
