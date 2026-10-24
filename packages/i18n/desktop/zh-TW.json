@@ -1129,6 +1129,68 @@
       "on-chart": "標在 K 線圖",
       "buy": "測買",
       "sell": "測賣"
+    },
+    "modes": {
+      "label": "回測方式",
+      "run": {
+        "label": "單次回測",
+        "action": "執行回測"
+      },
+      "scan": {
+        "label": "掃參數",
+        "action": "執行掃描"
+      },
+      "walkForward": {
+        "label": "前進分析",
+        "action": "執行前進分析"
+      }
+    },
+    "grid": {
+      "rows": "縱軸",
+      "columns": "橫軸",
+      "from": "從",
+      "to": "到",
+      "step": "間隔",
+      "size_one": "{{count}} 組參數 · {{series}} 條線（上限 {{max}}）",
+      "size_other": "{{count}} 組參數 · {{series}} 條線（上限 {{max}}）",
+      "problems": {
+        "unknownParam": "請選這個範本有的參數。",
+        "sameParam": "縱軸和橫軸要選不同的參數。",
+        "offBounds": "有數值超出參數的範圍或間隔。",
+        "axisSize": "每一軸要有 1 到 {{values}} 個數值。",
+        "tooManySeries": "這些參數要讀超過 {{series}} 條線，請縮小網格。"
+      }
+    },
+    "scan": {
+      "span_one": "{{count}} 組參數 · {{bars}} 根{{interval}} K",
+      "span_other": "{{count}} 組參數 · {{bars}} 根{{interval}} K",
+      "heat-map": "樣本內 Sharpe：縱軸 {{row}}、橫軸 {{column}}",
+      "cell": "{{row}} {{rowValue}} · {{column}} {{columnValue}}",
+      "cell-sharpe": "樣本內 Sharpe {{sharpe}}",
+      "cell-figures": "報酬 {{total}} · {{trades}} 筆 · 回撤 {{drawdown}}",
+      "plateau": "平台：連同周圍的格子表現最好",
+      "no-plateau": "沒有一組參數有足夠的交易算出 Sharpe，請讀更久或放寬網格。",
+      "edge": "平台落在網格邊上，最好的參數可能在範圍外，請往那一側延伸再掃一次。",
+      "show-out-of-sample": "顯示樣本外",
+      "out-of-sample-hint": "先只看樣本內挑定參數；看過樣本外再換參數，就等於用樣本外挑參數。",
+      "run-cell": "用這組跑單次回測"
+    },
+    "walk": {
+      "train": "訓練交易日",
+      "train-hint": "留空為全部交易日的 2/5。",
+      "test": "測試交易日",
+      "test-hint": "留空為訓練的 1/4。",
+      "span_one": "{{count}} 個視窗，測試期 {{from}} 至 {{to}}（{{interval}} K）",
+      "span_other": "{{count}} 個視窗，測試期 {{from}} 至 {{to}}（{{interval}} K）",
+      "efficiency": "效率：樣本外 Sharpe 除以訓練期的。遠低於 1 表示參數是配適出來的。",
+      "fitted": "樣本外只保留訓練期 Sharpe 的 {{efficiency}}，挑出的參數像是配適訓練期的結果。",
+      "no-picks": "沒有一個視窗挑得出有 Sharpe 的參數。",
+      "windows": "視窗",
+      "training": "訓練",
+      "testing": "測試",
+      "window": "訓練 {{trainFrom}} 至 {{trainTo}}，測試 {{testFrom}} 至 {{testTo}}",
+      "no-pick": "沒有挑出參數",
+      "train-sharpe": "訓練 Sharpe {{sharpe}}"
     }
   },
   "magi": {

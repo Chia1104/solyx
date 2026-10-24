@@ -113,7 +113,10 @@ export function BacktestOverlay({
   interval: Interval;
   candles: Candle[];
 }) {
-  const setup = useBacktestStore((state) => state.runs[symbolKey(symbol)]);
+  const setup = useBacktestStore(
+    (state) => state.listings[symbolKey(symbol)]?.run
+  );
+
   const onChart = useBacktestStore((state) => state.onChart);
 
   if (!setup || !onChart || setup.interval !== interval) return null;
