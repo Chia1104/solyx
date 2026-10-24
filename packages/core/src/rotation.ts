@@ -4,8 +4,11 @@ import { Interval, candleDate, mergeCandles, periodStart } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import { RELATIVE_STRENGTH_PERIODS } from "./indicators.ts";
 import type { IndicatorLine } from "./indicators.ts";
+import { exchangeDate } from "./market.ts";
 import type { Market, SymbolRef } from "./market.ts";
 import type { SectorIndex } from "./sectors.ts";
+import { nextTradingDay, regularHours, weekdays } from "./session.ts";
+import type { TradingDays } from "./session.ts";
 
 /**
  * Where a listing stands on its rotation against a benchmark: ahead of it and still gaining
@@ -424,20 +427,43 @@ export function rotationPath(
 }
 
 /**
+ * The day that opens the week under way at `at`: the week of a regular session yet to close,
+ * today's or a later day's of that week on the days `trades` says the market trades. `null` once
+ * the week's last session has closed, so a weekly reading takes the week in from then on.
+ */
+export function weekUnderWay(
+  market: Market,
+  at: Date,
+  trades: TradingDays = weekdays
+): string | null {
+  const today = exchangeDate(market, at);
+  const week = periodStart(today, Interval.OneWeek);
+
+  if (
+    trades(today) &&
+    at.getTime() / 1000 < regularHours(market, today).close
+  ) {
+    return week;
+  }
+
+  const next = periodStart(nextTradingDay(today, trades), Interval.OneWeek);
+
+  return next === week ? week : null;
+}
+
+/**
  * Every path of `daily` against `benchmark`, each interval's periods in `ROTATION_PERIODS` order,
- * the week of `today` left out of the weekly ones since it is under way. A week is dated by its
- * last session, so a reading as of a session within it leaves it out too.
+ * the week starting `openWeek` left out of the weekly ones since it is under way (`weekUnderWay`).
+ * A week is dated by its last session, so a reading as of a session within it leaves it out too.
  */
 export function rotationPaths(
   daily: DatedBars,
   benchmark: DatedBars,
-  today: string
+  openWeek: string | null
 ): RotationPath[] {
-  const open = periodStart(today, Interval.OneWeek);
-
   return Object.values(RotationInterval).flatMap((interval) => {
-    const own = rotationSeries(daily, interval, open);
-    const other = rotationSeries(benchmark, interval, open);
+    const own = rotationSeries(daily, interval, openWeek);
+    const other = rotationSeries(benchmark, interval, openWeek);
 
     return ROTATION_PERIODS[interval].map((period) =>
       rotationPath(own, other, period)
@@ -445,9 +471,9 @@ export function rotationPaths(
   });
 }
 
-/** When a rotation is read: the exchange's day now, and the session it is taken back to where it is. */
+/** When a rotation is read: the moment, which tells the week under way, and the session it is taken back to where it is. */
 export interface RotationClock {
-  today: string;
+  at: Date;
   /** The last session read, as the graph stood at its close; the newest where left out. */
   through?: string;
 }
@@ -456,9 +482,9 @@ export interface RotationClock {
 export const readEveryRotation = (
   daily: DatedBars,
   benchmark: DatedBars,
-  { today, through }: RotationClock
+  { at, through }: RotationClock
 ): RotationReading[] =>
-  rotationPaths(daily, benchmark, today).map((path) =>
+  rotationPaths(daily, benchmark, weekUnderWay(daily.market, at)).map((path) =>
     readingThrough(path, through)
   );
 
