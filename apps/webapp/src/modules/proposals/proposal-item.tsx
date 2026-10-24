@@ -294,9 +294,115 @@ function ExitState({ proposal }: { proposal: TradeProposal }) {
   );
 }
 
-export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
+/** The listing, where the proposal came from and where it stands. */
+function ProposalHeader({ proposal }: { proposal: TradeProposal }) {
+  const { t } = useTranslation();
+  const { order, exit } = proposal;
+
+  // A placed exit reads by whether the broker still watches it rather than as submitted.
+  const exitChip =
+    exit && proposal.status === ProposalStatus.Submitted
+      ? exitWatched(proposal)
+        ? {
+            color: STATUS_COLOR[proposal.status],
+            label: t("proposals.exit.chip-watching"),
+          }
+        : {
+            color: STATUS_COLOR[ProposalStatus.Dismissed],
+            label: t("proposals.exit.chip-ended"),
+          }
+      : null;
+
+  return (
+    <header className="flex items-center gap-2">
+      <h3 className="flex min-w-0 items-baseline gap-1.5">
+        <span className="shrink-0 font-semibold">
+          {order.instrument.symbol}
+        </span>
+        <ListingName symbol={order.instrument} className="text-sm" />
+        <span className="shrink-0 text-xs text-muted">
+          {t(`market.${order.instrument.market}`)}
+        </span>
+      </h3>
+      <span className="text-xs text-muted">
+        {t(`source.${proposal.source}`)}
+      </span>
+      <Chip
+        className="ml-auto"
+        color={exitChip?.color ?? STATUS_COLOR[proposal.status]}
+        size="sm">
+        {exitChip?.label ?? t(`status.${proposal.status}`)}
+      </Chip>
+    </header>
+  );
+}
+
+/** The order's side, size and price. */
+function OrderSummary({ order }: { order: OrderRequest }) {
   const { t } = useTranslation();
 
+  return (
+    <p className="text-sm tabular-nums">
+      {t("proposals.summary", {
+        side: t(`side.${order.side}`),
+        quantity: order.quantity,
+        price:
+          order.type === OrderType.Limit
+            ? order.limitPrice
+            : t("proposals.market-price"),
+      })}
+    </p>
+  );
+}
+
+/** What the user weighs before confirming: the market then and now, and what the order or exit does. */
+function AwaitingLines({ proposal }: { proposal: TradeProposal }) {
+  const { t } = useTranslation();
+  const { order, premise, exit } = proposal;
+
+  return (
+    <>
+      {premise ? (
+        <PremiseLine symbol={order.instrument} premise={premise} />
+      ) : null}
+      {exit ? (
+        <p className="text-xs text-muted">
+          {brokerOfId(proposal.broker).broker === TradingBroker.Paper
+            ? t("proposals.exit.paper-hint")
+            : t("proposals.exit.broker-hint")}
+        </p>
+      ) : (
+        <OrderImpactLines order={order} premise={premise} />
+      )}
+    </>
+  );
+}
+
+/** The checks the proposal failed. */
+function ViolationsAlert({ proposal }: { proposal: TradeProposal }) {
+  const { t } = useTranslation();
+
+  return (
+    <Alert status="danger">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Title>{t("proposals.violations-title")}</Alert.Title>
+        <ul className="list-disc pl-4 text-sm text-muted">
+          {proposal.violations.map((violation) => (
+            <li key={violation.code}>{violationMessage(t, violation)}</li>
+          ))}
+        </ul>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
+/**
+ * What the user can do with the proposal: confirm or dismiss it while it waits, and look for an
+ * order the broker may hold once a sending went unanswered.
+ */
+function ProposalActions({ proposal }: { proposal: TradeProposal }) {
+  const { t } = useTranslation();
   const canTrade = useCanTrade();
 
   // A paired browser has its passkey sign this one proposal before the backend takes it.
@@ -318,121 +424,17 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   const dismiss = useMutation(orpc.proposals.dismiss.mutationOptions());
   const reconcile = useMutation(orpc.proposals.reconcile.mutationOptions());
 
-  const { order, failure, exit } = proposal;
+  const { failure } = proposal;
   const actionError = confirm.error ?? dismiss.error ?? reconcile.error;
-
-  // A placed exit reads by whether the broker still watches it rather than as submitted.
-  const exitChip =
-    exit && proposal.status === ProposalStatus.Submitted
-      ? exitWatched(proposal)
-        ? {
-            color: STATUS_COLOR[proposal.status],
-            label: t("proposals.exit.chip-watching"),
-          }
-        : {
-            color: STATUS_COLOR[ProposalStatus.Dismissed],
-            label: t("proposals.exit.chip-ended"),
-          }
-      : null;
+  const awaiting = proposal.status === ProposalStatus.AwaitingConfirmation;
 
   // Only a failure the broker did not answer leaves an order it may hold to look for.
   const unanswered =
     failure?.code === SubmissionFailureCode.Unknown ||
     failure?.code === SubmissionFailureCode.Interrupted;
 
-  const summary = exit ? (
-    <ExitSummary quantity={order.quantity} exit={exit} />
-  ) : (
-    <p className="text-sm tabular-nums">
-      {t("proposals.summary", {
-        side: t(`side.${order.side}`),
-        quantity: order.quantity,
-        price:
-          order.type === OrderType.Limit
-            ? order.limitPrice
-            : t("proposals.market-price"),
-      })}
-    </p>
-  );
-
   return (
-    <article className="relative flex flex-col gap-2 border-b border-separator py-3 pr-4 pl-6">
-      <span
-        aria-hidden
-        className={cn(
-          "absolute inset-y-3 left-2.5 w-1.5",
-          STATUS_RULE[proposal.status]
-        )}
-      />
-      <header className="flex items-center gap-2">
-        <h3 className="flex min-w-0 items-baseline gap-1.5">
-          <span className="shrink-0 font-semibold">
-            {order.instrument.symbol}
-          </span>
-          <ListingName symbol={order.instrument} className="text-sm" />
-          <span className="shrink-0 text-xs text-muted">
-            {t(`market.${order.instrument.market}`)}
-          </span>
-        </h3>
-        <span className="text-xs text-muted">
-          {t(`source.${proposal.source}`)}
-        </span>
-        <Chip
-          className="ml-auto"
-          color={exitChip?.color ?? STATUS_COLOR[proposal.status]}
-          size="sm">
-          {exitChip?.label ?? t(`status.${proposal.status}`)}
-        </Chip>
-      </header>
-      {summary}
-      {proposal.status === ProposalStatus.AwaitingConfirmation ? (
-        <>
-          {proposal.premise ? (
-            <PremiseLine symbol={order.instrument} premise={proposal.premise} />
-          ) : null}
-          {exit ? (
-            <p className="text-xs text-muted">
-              {brokerOfId(proposal.broker).broker === TradingBroker.Paper
-                ? t("proposals.exit.paper-hint")
-                : t("proposals.exit.broker-hint")}
-            </p>
-          ) : (
-            <OrderImpactLines order={order} premise={proposal.premise} />
-          )}
-        </>
-      ) : null}
-      {exit ? <ExitState proposal={proposal} /> : null}
-      {proposal.rationale ? (
-        <ProposalRationale proposal={proposal} summary={summary} />
-      ) : null}
-      {proposal.basis ? (
-        <BasisLine symbol={order.instrument} basis={proposal.basis} />
-      ) : null}
-      <MandateLine proposal={proposal} />
-      {proposal.violations.length > 0 ? (
-        <Alert status="danger">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>{t("proposals.violations-title")}</Alert.Title>
-            <ul className="list-disc pl-4 text-sm text-muted">
-              {proposal.violations.map((violation) => (
-                <li key={violation.code}>{violationMessage(t, violation)}</li>
-              ))}
-            </ul>
-          </Alert.Content>
-        </Alert>
-      ) : null}
-      {/* A failed submission is terminal: unless the broker refused it, it may have taken the order, so no retry is offered. */}
-      {failure ? (
-        <ErrorAlert
-          title={t(`proposals.failure.${failure.code}`)}
-          description={
-            "message" in failure
-              ? failure.message
-              : t(`proposals.failure.${failure.code}-detail`)
-          }
-        />
-      ) : null}
+    <>
       {actionError ? (
         <ErrorAlert
           title={t("common.error-title")}
@@ -450,7 +452,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
           </Button>
         </div>
       ) : null}
-      {proposal.status === ProposalStatus.AwaitingConfirmation && (
+      {awaiting && (
         <div className="flex gap-2 pt-1">
           {/* The app's only button that fills with ink, and only as it is held: signing is the one act that makes a trade real. */}
           <HoldButton
@@ -472,9 +474,60 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
           </Button>
         </div>
       )}
-      {proposal.status === ProposalStatus.AwaitingConfirmation && !canTrade ? (
+      {awaiting && !canTrade ? (
         <p className="text-xs text-muted">{t("devices.confirm-on-computer")}</p>
       ) : null}
+    </>
+  );
+}
+
+export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
+  const { t } = useTranslation();
+  const { order, failure, exit } = proposal;
+
+  const summary = exit ? (
+    <ExitSummary quantity={order.quantity} exit={exit} />
+  ) : (
+    <OrderSummary order={order} />
+  );
+
+  return (
+    <article className="relative flex flex-col gap-2 border-b border-separator py-3 pr-4 pl-6">
+      <span
+        aria-hidden
+        className={cn(
+          "absolute inset-y-3 left-2.5 w-1.5",
+          STATUS_RULE[proposal.status]
+        )}
+      />
+      <ProposalHeader proposal={proposal} />
+      {summary}
+      {proposal.status === ProposalStatus.AwaitingConfirmation ? (
+        <AwaitingLines proposal={proposal} />
+      ) : null}
+      {exit ? <ExitState proposal={proposal} /> : null}
+      {proposal.rationale ? (
+        <ProposalRationale proposal={proposal} summary={summary} />
+      ) : null}
+      {proposal.basis ? (
+        <BasisLine symbol={order.instrument} basis={proposal.basis} />
+      ) : null}
+      <MandateLine proposal={proposal} />
+      {proposal.violations.length > 0 ? (
+        <ViolationsAlert proposal={proposal} />
+      ) : null}
+      {/* A failed submission is terminal: unless the broker refused it, it may have taken the order, so no retry is offered. */}
+      {failure ? (
+        <ErrorAlert
+          title={t(`proposals.failure.${failure.code}`)}
+          description={
+            "message" in failure
+              ? failure.message
+              : t(`proposals.failure.${failure.code}-detail`)
+          }
+        />
+      ) : null}
+      <ProposalActions proposal={proposal} />
     </article>
   );
 }

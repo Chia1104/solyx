@@ -6,6 +6,7 @@ import {
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
@@ -36,8 +37,11 @@ import {
   symbolRefSchema,
   symbolLabel,
 } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import type { Memory } from "@solyx/core/memory";
 import { ScheduleKind, scheduleSchema } from "@solyx/core/schedule";
+import type { ScheduledTaskDraft } from "@solyx/core/schedule";
+import type { ThemeDraft } from "@solyx/core/theme";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { useClock } from "../../app/clock.ts";
@@ -155,6 +159,214 @@ function memoryChange(tool: ToolCallView, memories: readonly Memory[]) {
   return undefined;
 }
 
+/** A theme the agent asks to save, as the user reads it on the themes page. */
+function themeText(theme: ThemeDraft) {
+  return [
+    theme.title,
+    theme.thesis,
+    ...theme.signposts.map((signpost) => `· ${signpost}`),
+    theme.queries.join(" / "),
+    ...theme.listings.map(
+      ({ symbol, exposure }) => `${symbolLabel(symbol)}: ${exposure}`
+    ),
+  ].join("\n");
+}
+
+/** A task as the schedules list it: its name, when it runs and how it asks, any `notes`, then what it sends. */
+function taskText(
+  t: TFunction,
+  scopeText: ReturnType<typeof useScopeText>,
+  task: Pick<
+    ScheduledTaskDraft,
+    "name" | "schedule" | "timeZone" | "approval" | "prompt"
+  >,
+  notes: readonly string[]
+) {
+  const { schedule } = task;
+
+  return [
+    task.name,
+    scheduleText(t, schedule, task.timeZone),
+    ...(schedule.kind === ScheduleKind.OnChange
+      ? [scopeText(schedule.scope)]
+      : []),
+    t(`settings.schedules.approvals.${task.approval}`),
+    ...notes,
+    "",
+    task.prompt,
+  ].join("\n");
+}
+
+/** Listings the agent asks to add to or take off the watchlist, each by its name too. */
+function WatchlistChange({
+  add,
+  remove,
+}: {
+  add: readonly SymbolRef[];
+  remove: readonly SymbolRef[];
+}) {
+  return (
+    <>
+      {[
+        ...add.map((symbol) => ({ sign: "+", symbol })),
+        ...remove.map((symbol) => ({ sign: "−", symbol })),
+      ].map(({ sign, symbol }) => (
+        <span key={`${sign}${symbolKey(symbol)}`} className="flex gap-1">
+          {sign} {symbol.market} {symbol.symbol}
+          <ListingName symbol={symbol} />
+        </span>
+      ))}
+    </>
+  );
+}
+
+/**
+ * What a call that waits for the user is about to do: a sentence saying so, and what it sends as
+ * the user would read it. A shell command is shown whole, as the user would type it, a page by its
+ * address, a setting with the value it would take and a memory as the agent wrote it; a call whose
+ * arguments do not parse shows them as sent.
+ */
+function useApprovalRequest(tool: ToolCallView) {
+  const { t } = useTranslation();
+  const { timeZone } = useClock();
+  const scopeText = useScopeText();
+
+  // Forgetting names a memory by its id, which the card shows by its description.
+  const memories = useQuery({
+    ...memoryQuery(),
+    enabled: tool.toolName === AgentToolName.Forget,
+  });
+
+  const run =
+    tool.toolName === AgentToolName.RunTask
+      ? runTaskArgumentsSchema.safeParse(tool.args).data
+      : undefined;
+
+  // The call names a task by its id, which the card shows as the user wrote it.
+  const tasks = useQuery({ ...schedulesQuery(), enabled: run !== undefined });
+
+  switch (tool.toolName) {
+    case AgentToolName.Bash: {
+      const command = bashArgumentsSchema.safeParse(tool.args).data?.command;
+
+      if (command !== undefined) {
+        return {
+          description: t("agent.approval.shell-description"),
+          body: command,
+        };
+      }
+
+      break;
+    }
+
+    case AgentToolName.ReadPage: {
+      const address = readPageArgumentsSchema.safeParse(tool.args).data?.url;
+
+      if (address !== undefined) {
+        return {
+          description: t("agent.approval.read-page-description"),
+          body: address,
+        };
+      }
+
+      break;
+    }
+
+    case AgentToolName.ChangeSetting: {
+      const change = changeSettingArgumentsSchema.safeParse(tool.args).data;
+
+      if (change) {
+        return {
+          description: t("agent.approval.change-setting-description"),
+          body: `${change.setting} → ${change.value}`,
+        };
+      }
+
+      break;
+    }
+
+    case AgentToolName.SaveTheme: {
+      const theme = saveThemeArgumentsSchema.safeParse(tool.args).data;
+
+      if (theme) {
+        return {
+          description: t("agent.approval.save-theme-description"),
+          body: themeText(theme),
+        };
+      }
+
+      break;
+    }
+
+    case AgentToolName.SaveTask: {
+      const task = saveTaskArgumentsSchema.safeParse(tool.args).data;
+      // A part the kind needs may be missing, which the call is refused for before it asks.
+      const timed = task && scheduleSchema.safeParse(taskSchedule(task)).data;
+
+      if (task && timed) {
+        return {
+          description: t("agent.approval.save-task-description"),
+          body: taskText(
+            t,
+            scopeText,
+            { ...task, schedule: timed, timeZone },
+            task.enabled ? [] : [t("agent.approval.save-task-off")]
+          ),
+        };
+      }
+
+      break;
+    }
+
+    case AgentToolName.RunTask: {
+      if (!run) break;
+
+      const due = tasks.data?.find((each) => each.id === run.id);
+
+      return {
+        description: t("agent.approval.run-task-description"),
+        body: due ? taskText(t, scopeText, due, []) : run.id,
+      };
+    }
+
+    case AgentToolName.ChangeWatchlist: {
+      const listings = changeWatchlistArgumentsSchema.safeParse(tool.args).data;
+
+      if (listings) {
+        return {
+          description: t("agent.approval.change-watchlist-description"),
+          body: <WatchlistChange add={listings.add} remove={listings.remove} />,
+        };
+      }
+
+      break;
+    }
+
+    case AgentToolName.Remember:
+    case AgentToolName.Forget: {
+      const memory = memoryChange(tool, memories.data ?? []);
+
+      if (memory !== undefined) {
+        return {
+          description: t(
+            tool.toolName === AgentToolName.Forget
+              ? "agent.approval.forget-description"
+              : "agent.approval.remember-description"
+          ),
+          body: memory,
+        };
+      }
+
+      break;
+    }
+  }
+
+  return {
+    description: t("agent.approval.description", { tool: tool.toolName }),
+    body: JSON.stringify(tool.args, null, 2),
+  };
+}
+
 /**
  * A call that waits for the user, with what it is about to send. Neither answer is ink: only
  * confirming a proposal makes anything real.
@@ -167,8 +379,7 @@ function ApprovalCard({
   tool: ToolCallView;
 }) {
   const { t } = useTranslation();
-  const { timeZone } = useClock();
-  const scopeText = useScopeText();
+  const { description, body } = useApprovalRequest(tool);
 
   const answer = useMutation({
     mutationFn: (approved: boolean) =>
@@ -179,152 +390,12 @@ function ApprovalCard({
       }),
   });
 
-  // Forgetting names a memory by its id, which the card shows by its description.
-  const memories = useQuery({
-    ...memoryQuery(),
-    enabled: tool.toolName === AgentToolName.Forget,
-  });
-
-  // A shell command is shown as the user would type it, whole, a page by its address, a setting
-  // with the value it would take and a memory as the agent wrote it.
-  const command =
-    tool.toolName === AgentToolName.Bash
-      ? bashArgumentsSchema.safeParse(tool.args).data?.command
-      : undefined;
-
-  const address =
-    tool.toolName === AgentToolName.ReadPage
-      ? readPageArgumentsSchema.safeParse(tool.args).data?.url
-      : undefined;
-
-  const memory = memoryChange(tool, memories.data ?? []);
-
-  const change =
-    tool.toolName === AgentToolName.ChangeSetting
-      ? changeSettingArgumentsSchema.safeParse(tool.args).data
-      : undefined;
-
-  const setting = change && `${change.setting} → ${change.value}`;
-
-  const theme =
-    tool.toolName === AgentToolName.SaveTheme
-      ? saveThemeArgumentsSchema.safeParse(tool.args).data
-      : undefined;
-
-  const listings =
-    tool.toolName === AgentToolName.ChangeWatchlist
-      ? changeWatchlistArgumentsSchema.safeParse(tool.args).data
-      : undefined;
-
-  const watching = listings && (
-    <>
-      {[
-        ...listings.add.map((symbol) => ({ sign: "+", symbol })),
-        ...listings.remove.map((symbol) => ({ sign: "−", symbol })),
-      ].map(({ sign, symbol }) => (
-        <span key={`${sign}${symbolKey(symbol)}`} className="flex gap-1">
-          {sign} {symbol.market} {symbol.symbol}
-          <ListingName symbol={symbol} />
-        </span>
-      ))}
-    </>
-  );
-
-  const task =
-    tool.toolName === AgentToolName.SaveTask
-      ? saveTaskArgumentsSchema.safeParse(tool.args).data
-      : undefined;
-
-  // A part the kind needs may be missing, which the call is refused for before it asks.
-  const timed = task && scheduleSchema.safeParse(taskSchedule(task)).data;
-
-  const scheduled =
-    task &&
-    timed &&
-    [
-      task.name,
-      scheduleText(t, timed, timeZone),
-      ...(timed.kind === ScheduleKind.OnChange ? [scopeText(timed.scope)] : []),
-      t(`settings.schedules.approvals.${task.approval}`),
-      ...(task.enabled ? [] : [t("agent.approval.save-task-off")]),
-      "",
-      task.prompt,
-    ].join("\n");
-
-  const run =
-    tool.toolName === AgentToolName.RunTask
-      ? runTaskArgumentsSchema.safeParse(tool.args).data
-      : undefined;
-
-  // The call names a task by its id, which the card shows as the user wrote it.
-  const tasks = useQuery({ ...schedulesQuery(), enabled: run !== undefined });
-  const due = tasks.data?.find((each) => each.id === run?.id);
-
-  const started =
-    run &&
-    (due
-      ? [
-          due.name,
-          scheduleText(t, due.schedule, due.timeZone),
-          ...(due.schedule.kind === ScheduleKind.OnChange
-            ? [scopeText(due.schedule.scope)]
-            : []),
-          t(`settings.schedules.approvals.${due.approval}`),
-          "",
-          due.prompt,
-        ].join("\n")
-      : run.id);
-
-  const watched =
-    theme &&
-    [
-      theme.title,
-      theme.thesis,
-      ...theme.signposts.map((signpost) => `· ${signpost}`),
-      theme.queries.join(" / "),
-      ...theme.listings.map(
-        ({ symbol, exposure }) => `${symbolLabel(symbol)}: ${exposure}`
-      ),
-    ].join("\n");
-
-  let description = t("agent.approval.description", { tool: tool.toolName });
-
-  if (command !== undefined) {
-    description = t("agent.approval.shell-description");
-  } else if (address !== undefined) {
-    description = t("agent.approval.read-page-description");
-  } else if (setting !== undefined) {
-    description = t("agent.approval.change-setting-description");
-  } else if (watched !== undefined) {
-    description = t("agent.approval.save-theme-description");
-  } else if (scheduled !== undefined) {
-    description = t("agent.approval.save-task-description");
-  } else if (started !== undefined) {
-    description = t("agent.approval.run-task-description");
-  } else if (watching !== undefined) {
-    description = t("agent.approval.change-watchlist-description");
-  } else if (memory !== undefined) {
-    description = t(
-      tool.toolName === AgentToolName.Forget
-        ? "agent.approval.forget-description"
-        : "agent.approval.remember-description"
-    );
-  }
-
   return (
     <div className="flex flex-col gap-2 rounded-sm border border-dashed border-separator p-3">
       <p className="text-sm font-medium">{t("agent.approval.title")}</p>
       <p className="text-xs text-muted">{description}</p>
       <pre className="max-h-40 overflow-auto rounded-sm bg-surface-secondary p-2 font-mono text-xs whitespace-pre-wrap">
-        {command ??
-          address ??
-          setting ??
-          watched ??
-          scheduled ??
-          started ??
-          watching ??
-          memory ??
-          JSON.stringify(tool.args, null, 2)}
+        {body}
       </pre>
       <div className="flex gap-2">
         <Button

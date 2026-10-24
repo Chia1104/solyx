@@ -28,10 +28,9 @@ import { useClock } from "../../app/clock.ts";
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { FilterField } from "../../components/filter-field.tsx";
-import { LoadError } from "../../components/load-error.tsx";
+import { SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
-import { RailedColumn } from "../../components/sheet.tsx";
 import { ListingName } from "../market/listing-name.tsx";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 import { memorySettingsQuery } from "../settings/settings-query.ts";
@@ -203,14 +202,12 @@ export function MemorySettings() {
 
   if (error) {
     return (
-      <RailedColumn className="px-6 py-5">
-        <LoadError
-          error={error}
-          onRetry={() =>
-            void Promise.all([memories.refetch(), settings.refetch()])
-          }
-        />
-      </RailedColumn>
+      <SectionLoadError
+        error={error}
+        onRetry={() =>
+          void Promise.all([memories.refetch(), settings.refetch()])
+        }
+      />
     );
   }
 

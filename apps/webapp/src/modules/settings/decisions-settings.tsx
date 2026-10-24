@@ -7,21 +7,25 @@ import { TabList, TabPanel, Tabs } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { DECISIONS_SECRETS, SecretState } from "@solyx/api/settings";
+import {
+  DECISIONS_SECRETS,
+  SecretState,
+  endpointSchema,
+} from "@solyx/api/settings";
 import type { DecisionsProviderSettings } from "@solyx/api/settings";
 import { DecisionsProvider } from "@solyx/decisions/provider";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { LoadError } from "../../components/load-error.tsx";
+import { SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { LogoMark } from "../../components/logo-mark.tsx";
 import type { Logo } from "../../components/logo-mark.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
-import { RailedColumn } from "../../components/sheet.tsx";
 
+import { matching } from "./matching.ts";
 import {
   PROVIDER_GRID,
   PROVIDER_PANEL,
@@ -62,15 +66,10 @@ export function DecisionsSettings() {
         .trim()
         .min(1, { error: t("settings.decisions.model-required") })
         .max(200),
-      baseURL: z
-        .string()
-        .trim()
-        .pipe(
-          z.url({
-            protocol: /^https?$/,
-            error: t("settings.decisions.base-url-invalid"),
-          })
-        ),
+      baseURL: matching(
+        endpointSchema,
+        t("settings.decisions.base-url-invalid")
+      ),
       accountId: z
         .string()
         .trim()
@@ -84,15 +83,12 @@ export function DecisionsSettings() {
 
   if (error) {
     return (
-      <RailedColumn className="px-6 py-5">
-        <LoadError
-          error={error}
-          onRetry={() => {
-            void settings.refetch();
-            void secrets.refetch();
-          }}
-        />
-      </RailedColumn>
+      <SectionLoadError
+        error={error}
+        onRetry={() =>
+          void Promise.all([settings.refetch(), secrets.refetch()])
+        }
+      />
     );
   }
 

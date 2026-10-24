@@ -18,10 +18,9 @@ import { matchesFilter } from "@solyx/utils/search";
 
 import { client, orpc } from "../../app/rpc.ts";
 import { FilterField } from "../../components/filter-field.tsx";
-import { LoadError } from "../../components/load-error.tsx";
+import { SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
-import { RailedColumn } from "../../components/sheet.tsx";
 
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { agentSkillsQuery } from "./settings-query.ts";
@@ -107,11 +106,7 @@ export function AgentSkills() {
   });
 
   if (error) {
-    return (
-      <RailedColumn className="px-6 py-5">
-        <LoadError error={error} onRetry={() => void refetch()} />
-      </RailedColumn>
-    );
+    return <SectionLoadError error={error} onRetry={() => void refetch()} />;
   }
 
   if (!data) return <LoadingState />;

@@ -19,11 +19,12 @@ import { formatBytes } from "@solyx/utils/format";
 import { useClock } from "../../app/clock.ts";
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
-import { LoadError } from "../../components/load-error.tsx";
+import { LoadError, SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
 import { RailedColumn } from "../../components/sheet.tsx";
+import { matching } from "../settings/matching.ts";
 import { AppSecretRow, SecretsUnavailable } from "../settings/secret-row.tsx";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
 import { secretsQuery } from "../settings/settings-query.ts";
@@ -34,13 +35,6 @@ import {
   backupStatusQuery,
   storedBackupsQuery,
 } from "./backup-query.ts";
-
-/** Entered text that must pass the schema the main process saves it under, with a localized message. */
-const matching = (schema: z.ZodType<string>, error: string) =>
-  z
-    .string()
-    .trim()
-    .refine((value) => schema.safeParse(value).success, { error });
 
 /** The bucket backups go to, the access key that reaches it and the passphrase that seals them. */
 function BackupDestination() {
@@ -80,10 +74,9 @@ function BackupDestination() {
       {failed ? (
         <LoadError
           error={failed}
-          onRetry={() => {
-            void settings.refetch();
-            void secrets.refetch();
-          }}
+          onRetry={() =>
+            void Promise.all([settings.refetch(), secrets.refetch()])
+          }
         />
       ) : !settings.data || !secrets.data ? (
         <LoadingState />
@@ -430,11 +423,7 @@ export function BackupSettings() {
   const { data, error, refetch } = useQuery(backupStatusQuery());
 
   if (error) {
-    return (
-      <RailedColumn className="px-6 py-5">
-        <LoadError error={error} onRetry={() => void refetch()} />
-      </RailedColumn>
-    );
+    return <SectionLoadError error={error} onRetry={() => void refetch()} />;
   }
 
   if (!data) return <LoadingState />;

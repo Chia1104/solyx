@@ -28,6 +28,7 @@ import { OrderType, Side } from "@solyx/core/order";
 import type { OrderRequest } from "@solyx/core/order";
 import { ProposalStatus } from "@solyx/core/order-desk";
 import { tickSize } from "@solyx/core/risk";
+import type { PriceBand } from "@solyx/core/risk";
 import { TW_BOARD_LOT, twTradeCosts } from "@solyx/core/rules/tw";
 import { isEnumValue } from "@solyx/utils/is";
 
@@ -409,6 +410,259 @@ function Draft({
   );
 }
 
+/** One of an enum's values, as a row of toggles. */
+function EnumToggle<T extends string>({
+  options,
+  value,
+  label,
+  labelOf,
+  className,
+  onChange,
+}: {
+  options: readonly T[];
+  value: T;
+  label: string;
+  labelOf: (option: T) => string;
+  className: string;
+  onChange: (option: T) => void;
+}) {
+  return (
+    <ToggleButtonGroup
+      aria-label={label}
+      selectionMode="single"
+      disallowEmptySelection
+      size="sm"
+      className={className}
+      selectedKeys={[value]}
+      onSelectionChange={(keys) => {
+        const [key] = keys;
+        const next = options.find((option) => option === key);
+
+        if (next !== undefined) onChange(next);
+      }}>
+      {options.map((option) => (
+        <ToggleButton key={option} id={option} className="flex-1">
+          {labelOf(option)}
+        </ToggleButton>
+      ))}
+    </ToggleButtonGroup>
+  );
+}
+
+/** Calls `take` with each price picked elsewhere on the page for `symbol`, such as from the book. */
+function usePickedPrice(symbol: SymbolRef, take: (price: number) => void) {
+  const picked = useTicketStore((state) => state.picked);
+  const seenPick = useRef(picked?.count);
+
+  useEffect(() => {
+    if (!picked || picked.count === seenPick.current) return;
+
+    seenPick.current = picked.count;
+
+    if (picked.key === symbolKey(symbol)) take(picked.price);
+  });
+}
+
+/** Calls `take` with the shares of a sale of `symbol` asked for elsewhere in `tab`, such as from a position. */
+function useTicketRequest(
+  symbol: SymbolRef,
+  tab: TicketTab,
+  take: (shares: number) => void
+) {
+  const request = useTicketStore((state) => state.request);
+  const takeRequest = useTicketStore((state) => state.takeRequest);
+
+  useEffect(() => {
+    if (request?.key !== symbolKey(symbol) || request.tab !== tab) return;
+
+    takeRequest();
+    take(request.shares);
+  });
+}
+
+/** The shares `quantity` makes in `unit`. */
+function sharesIn(unit: TicketUnit | undefined, quantity: number) {
+  return unit === TicketUnit.Lots ? quantity * TW_BOARD_LOT : quantity;
+}
+
+/** How many of `sellable` shares a sale in `unit` can take: whole board lots, or the odd shares a Taiwan account has left over. */
+function sellableIn(
+  unit: TicketUnit | undefined,
+  sellable: number,
+  taiwan: boolean
+) {
+  if (unit === TicketUnit.Lots) return Math.floor(sellable / TW_BOARD_LOT);
+
+  return taiwan ? sellable % TW_BOARD_LOT : sellable;
+}
+
+/**
+ * What the draft comes to: its price where one is set, its value at that price or, for a market
+ * order, at the session's limit it could fill furthest at, a Taiwan trade's costs, and how many
+ * the account could sell in the unit.
+ */
+function orderFigures(
+  { side, unit, type, price, quantity }: Partial<OrderTicketValues>,
+  band: PriceBand | null | undefined,
+  sellable: number,
+  symbol: SymbolRef
+) {
+  const taiwan = symbol.market === Market.TW;
+  const marketOrder = type === OrderType.Market;
+
+  const priced =
+    price !== undefined && !Number.isNaN(price) && price > 0 ? price : null;
+
+  const shares =
+    quantity === undefined || Number.isNaN(quantity)
+      ? null
+      : sharesIn(unit, quantity);
+
+  // A market order is sized at the session's limit, the furthest it could fill.
+  const sizedAt = marketOrder
+    ? side === Side.Buy
+      ? band?.high
+      : band?.low
+    : (priced ?? undefined);
+
+  const value =
+    shares !== null && sizedAt !== undefined ? sizedAt * shares : null;
+
+  return {
+    marketOrder,
+    priced,
+    value,
+    costs:
+      value !== null && taiwan && side
+        ? twTradeCosts(value, side, symbol.symbol)
+        : null,
+    all: sellableIn(unit, sellable, taiwan),
+    // Board lots and odd shares sell as separate orders, so a sale in lots leaves the odd ones.
+    oddLeft:
+      side === Side.Sell && unit === TicketUnit.Lots
+        ? sellable % TW_BOARD_LOT
+        : 0,
+  };
+}
+
+/** The session's limits, the reference and the last trade, to set the price to in one press. */
+function PricePicks({
+  band,
+  depth,
+  isDisabled,
+  onPick,
+}: {
+  band: PriceBand | null | undefined;
+  depth: Depth | null | undefined;
+  isDisabled: boolean;
+  onPick: (price: number) => void;
+}) {
+  const { t } = useTranslation();
+
+  const quickPrices = [
+    { id: "limit-down", price: band?.low },
+    { id: "reference", price: depth?.reference },
+    { id: "last", price: depth?.last ?? undefined },
+    { id: "limit-up", price: band?.high },
+  ] as const;
+
+  return (
+    <Picks label={t("order-form.price")}>
+      {quickPrices.map((quick) => (
+        <Button
+          key={quick.id}
+          isDisabled={isDisabled || quick.price === undefined}
+          onPress={() => {
+            if (quick.price !== undefined) onPick(quick.price);
+          }}>
+          {t(`order-form.prices.${quick.id}`)}
+        </Button>
+      ))}
+    </Picks>
+  );
+}
+
+/** Sizes to set the quantity to in one press, and on a sale every one the account can sell. */
+function QuantityPicks({
+  market,
+  unit,
+  all,
+  onPick,
+}: {
+  market: Market;
+  unit: TicketUnit;
+  /** How many the account can sell in `unit`; `null` where the draft buys. */
+  all: number | null;
+  onPick: (quantity: number) => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const format = numberFormats(i18n.language);
+
+  return (
+    <Picks label={t(`order-form.quantity.${unit}`)}>
+      {QUANTITY_PRESETS[unit][market].map((preset) => (
+        <Button key={preset} onPress={() => onPick(preset)}>
+          {format.amount.format(preset)}
+        </Button>
+      ))}
+      {all !== null && all > 0 ? (
+        <Button onPress={() => onPick(all)}>
+          {t("order-form.all", { count: all })}
+        </Button>
+      ) : null}
+    </Picks>
+  );
+}
+
+/** What the draft would cost or bring in: its value and, for a Taiwan trade, commission, tax and the total. */
+function OrderCosts({
+  value,
+  costs,
+  side,
+  marketOrder,
+}: {
+  value: number;
+  costs: ReturnType<typeof twTradeCosts> | null;
+  side: Side;
+  marketOrder: boolean;
+}) {
+  const { t, i18n } = useTranslation();
+  const format = numberFormats(i18n.language);
+
+  return (
+    <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 text-xs tabular-nums">
+      <dt className="text-muted">
+        {marketOrder
+          ? t(`order-form.costs.value-${side}-market`)
+          : t("order-form.costs.value")}
+      </dt>
+      <dd className="text-right">{format.amount.format(value)}</dd>
+      {costs ? (
+        <>
+          <dt className="text-muted">{t("order-form.costs.commission")}</dt>
+          <dd className="text-right">
+            {format.amount.format(costs.commission)}
+          </dd>
+          {side === Side.Sell ? (
+            <>
+              <dt className="text-muted">{t("order-form.costs.tax")}</dt>
+              <dd className="text-right">{format.amount.format(costs.tax)}</dd>
+            </>
+          ) : null}
+          <dt className="font-medium">{t(`order-form.costs.total-${side}`)}</dt>
+          <dd className="text-right font-medium">
+            {format.amount.format(
+              side === Side.Sell
+                ? value - costs.commission - costs.tax
+                : value + costs.commission
+            )}
+          </dd>
+        </>
+      ) : null}
+    </dl>
+  );
+}
+
 function OrderPanel({
   symbol,
   depth,
@@ -440,10 +694,9 @@ function OrderPanel({
     },
   });
 
-  const { side, unit, type, price, quantity } = useWatch({
-    control: form.control,
-  });
-
+  const values = useWatch({ control: form.control });
+  const side = values.side ?? Side.Buy;
+  const unit = values.unit ?? TicketUnit.Shares;
   const quoted = depth ? (depth.last ?? depth.reference) : null;
 
   useEffect(() => {
@@ -463,108 +716,49 @@ function OrderPanel({
     form.clearErrors("quantity");
   }
 
-  const picked = useTicketStore((state) => state.picked);
-  const seenPick = useRef(picked?.count);
-
-  useEffect(() => {
-    if (!picked || picked.count === seenPick.current) return;
-
-    seenPick.current = picked.count;
-
-    if (picked.key === symbolKey(symbol)) setPrice(picked.price);
-  });
-
-  const request = useTicketStore((state) => state.request);
-  const takeRequest = useTicketStore((state) => state.takeRequest);
+  usePickedPrice(symbol, setPrice);
 
   // A sale of shares held, asked for from a position, replaces the draft: a limit at the last price
   // that the price follows again, in board lots where they make one, else odd shares.
-  useEffect(() => {
-    if (request?.key !== symbolKey(symbol) || request.tab !== TicketTab.Order) {
-      return;
-    }
-
-    takeRequest();
+  useTicketRequest(symbol, TicketTab.Order, (shares) => {
     withdraw();
     priceSet.current = false;
 
-    const lots = taiwan && request.shares >= TW_BOARD_LOT;
+    const lots = taiwan && shares >= TW_BOARD_LOT;
 
     form.reset({
       side: Side.Sell,
       unit: lots ? TicketUnit.Lots : TicketUnit.Shares,
       type: OrderType.Limit,
       price: quoted ?? Number.NaN,
-      quantity: lots
-        ? Math.floor(request.shares / TW_BOARD_LOT)
-        : request.shares,
+      quantity: lots ? Math.floor(shares / TW_BOARD_LOT) : shares,
     });
   });
 
-  const marketOrder = type === OrderType.Market;
-  const hasPrice = price !== undefined && !Number.isNaN(price) && price > 0;
+  const { marketOrder, priced, value, costs, all, oddLeft } = orderFigures(
+    values,
+    band,
+    sellable,
+    symbol
+  );
 
-  const shares =
-    quantity === undefined || Number.isNaN(quantity)
-      ? null
-      : unit === TicketUnit.Lots
-        ? quantity * TW_BOARD_LOT
-        : quantity;
-
-  // A market order is sized at the session's limit, the furthest it could fill.
-  const sizedAt = marketOrder
-    ? side === Side.Buy
-      ? band?.high
-      : band?.low
-    : hasPrice
-      ? price
-      : undefined;
-
-  const value =
-    shares !== null && sizedAt !== undefined ? sizedAt * shares : null;
-
-  const costs =
-    value !== null && taiwan && side
-      ? twTradeCosts(value, side, symbol.symbol)
-      : null;
-
-  const all =
-    unit === TicketUnit.Lots
-      ? Math.floor(sellable / TW_BOARD_LOT)
-      : taiwan
-        ? sellable % TW_BOARD_LOT
-        : sellable;
-
-  // Board lots and odd shares sell as separate orders, so a sale in lots leaves the odd ones.
-  const oddLeft =
-    side === Side.Sell && unit === TicketUnit.Lots
-      ? sellable % TW_BOARD_LOT
-      : 0;
-
-  const submit = form.handleSubmit((values: OrderTicketValues) => {
+  const submit = form.handleSubmit((submitted: OrderTicketValues) => {
     priceSet.current = true;
-    propose.mutate({ order: toOrder(symbol, values), rationale: "" });
+    propose.mutate({ order: toOrder(symbol, submitted), rationale: "" });
   });
 
-  const quickPrices = [
-    { id: "limit-down", price: band?.low },
-    { id: "reference", price: depth?.reference },
-    { id: "last", price: depth?.last ?? undefined },
-    { id: "limit-up", price: band?.high },
-  ] as const;
-
-  const amount =
-    quantity === undefined || Number.isNaN(quantity)
-      ? "–"
-      : t(`order-form.count.${unit ?? TicketUnit.Shares}`, { count: quantity });
+  const { quantity } = values;
 
   const sentence = t(
     marketOrder ? "order-form.draft-market" : "order-form.draft",
     {
-      side: t(`side.${side ?? Side.Buy}`),
-      quantity: amount,
+      side: t(`side.${side}`),
+      quantity:
+        quantity === undefined || Number.isNaN(quantity)
+          ? "–"
+          : t(`order-form.count.${unit}`, { count: quantity }),
       name,
-      price: hasPrice ? format.quotePrice.format(price) : "–",
+      price: priced === null ? "–" : format.quotePrice.format(priced),
     }
   );
 
@@ -578,55 +772,35 @@ function OrderPanel({
           control={form.control}
           name="side"
           render={({ field }) => (
-            <ToggleButtonGroup
-              aria-label={t("order-form.side")}
-              selectionMode="single"
-              disallowEmptySelection
-              size="sm"
+            <EnumToggle
+              label={t("order-form.side")}
+              options={Object.values(Side)}
+              value={field.value}
+              labelOf={(option) => t(`side.${option}`)}
               className="min-w-0 flex-[2]"
-              selectedKeys={[field.value]}
-              onSelectionChange={(keys) => {
-                const [next] = keys;
-
-                if (isEnumValue(Side, next)) {
-                  withdraw();
-                  field.onChange(next);
-                }
-              }}>
-              {Object.values(Side).map((option) => (
-                <ToggleButton key={option} id={option} className="flex-1">
-                  {t(`side.${option}`)}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
+              onChange={(next) => {
+                withdraw();
+                field.onChange(next);
+              }}
+            />
           )}
         />
         <Controller
           control={form.control}
           name="type"
           render={({ field }) => (
-            <ToggleButtonGroup
-              aria-label={t("order-form.type")}
-              selectionMode="single"
-              disallowEmptySelection
-              size="sm"
+            <EnumToggle
+              label={t("order-form.type")}
+              options={Object.values(OrderType)}
+              value={field.value}
+              labelOf={(option) => t(`order-type.${option}`)}
               className="min-w-0 flex-1"
-              selectedKeys={[field.value]}
-              onSelectionChange={(keys) => {
-                const [next] = keys;
-
-                if (isEnumValue(OrderType, next)) {
-                  withdraw();
-                  field.onChange(next);
-                  form.clearErrors("price");
-                }
-              }}>
-              {Object.values(OrderType).map((option) => (
-                <ToggleButton key={option} id={option} className="flex-1">
-                  {t(`order-type.${option}`)}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
+              onChange={(next) => {
+                withdraw();
+                field.onChange(next);
+                form.clearErrors("price");
+              }}
+            />
           )}
         />
       </div>
@@ -639,7 +813,7 @@ function OrderPanel({
               label={t("order-form.price")}
               value={field.value}
               // Each step is the tick at the price shown, so every price it lands on is one the exchange takes.
-              step={tickSize(symbol, hasPrice ? price : (quoted ?? 1))}
+              step={tickSize(symbol, priced ?? quoted ?? 1)}
               isDisabled={marketOrder}
               invalid={fieldState.error?.message}
               onChange={(next) => {
@@ -652,18 +826,12 @@ function OrderPanel({
             />
           )}
         />
-        <Picks label={t("order-form.price")}>
-          {quickPrices.map((quick) => (
-            <Button
-              key={quick.id}
-              isDisabled={marketOrder || quick.price === undefined}
-              onPress={() => {
-                if (quick.price !== undefined) setPrice(quick.price);
-              }}>
-              {t(`order-form.prices.${quick.id}`)}
-            </Button>
-          ))}
-        </Picks>
+        <PricePicks
+          band={band}
+          depth={depth}
+          isDisabled={marketOrder}
+          onPick={setPrice}
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         {taiwan ? (
@@ -671,28 +839,18 @@ function OrderPanel({
             control={form.control}
             name="unit"
             render={({ field }) => (
-              <ToggleButtonGroup
-                aria-label={t("order-form.unit")}
-                selectionMode="single"
-                disallowEmptySelection
-                size="sm"
+              <EnumToggle
+                label={t("order-form.unit")}
+                options={Object.values(TicketUnit)}
+                value={field.value}
+                labelOf={(option) => t(`order-form.units.${option}`)}
                 className="w-full"
-                selectedKeys={[field.value]}
-                onSelectionChange={(keys) => {
-                  const [next] = keys;
-
-                  if (isEnumValue(TicketUnit, next)) {
-                    withdraw();
-                    field.onChange(next);
-                    form.setValue("quantity", QUANTITY_PRESETS[next].TW[0]);
-                  }
-                }}>
-                {Object.values(TicketUnit).map((option) => (
-                  <ToggleButton key={option} id={option} className="flex-1">
-                    {t(`order-form.units.${option}`)}
-                  </ToggleButton>
-                ))}
-              </ToggleButtonGroup>
+                onChange={(next) => {
+                  withdraw();
+                  field.onChange(next);
+                  form.setValue("quantity", QUANTITY_PRESETS[next].TW[0]);
+                }}
+              />
             )}
           />
         ) : null}
@@ -701,7 +859,7 @@ function OrderPanel({
           name="quantity"
           render={({ field, fieldState }) => (
             <StepField
-              label={t(`order-form.quantity.${unit ?? TicketUnit.Shares}`)}
+              label={t(`order-form.quantity.${unit}`)}
               value={field.value}
               step={1}
               invalid={fieldState.error?.message}
@@ -714,59 +872,21 @@ function OrderPanel({
             />
           )}
         />
-        <Picks label={t(`order-form.quantity.${unit ?? TicketUnit.Shares}`)}>
-          {QUANTITY_PRESETS[unit ?? TicketUnit.Shares][symbol.market].map(
-            (preset) => (
-              <Button key={preset} onPress={() => setQuantity(preset)}>
-                {format.amount.format(preset)}
-              </Button>
-            )
-          )}
-          {side === Side.Sell && all > 0 ? (
-            <Button onPress={() => setQuantity(all)}>
-              {t("order-form.all", { count: all })}
-            </Button>
-          ) : null}
-        </Picks>
+        <QuantityPicks
+          market={symbol.market}
+          unit={unit}
+          all={side === Side.Sell ? all : null}
+          onPick={setQuantity}
+        />
       </div>
       <Draft sentence={sentence}>
         {value === null ? null : (
-          <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 text-xs tabular-nums">
-            <dt className="text-muted">
-              {marketOrder
-                ? t(`order-form.costs.value-${side ?? Side.Buy}-market`)
-                : t("order-form.costs.value")}
-            </dt>
-            <dd className="text-right">{format.amount.format(value)}</dd>
-            {costs ? (
-              <>
-                <dt className="text-muted">
-                  {t("order-form.costs.commission")}
-                </dt>
-                <dd className="text-right">
-                  {format.amount.format(costs.commission)}
-                </dd>
-                {side === Side.Sell ? (
-                  <>
-                    <dt className="text-muted">{t("order-form.costs.tax")}</dt>
-                    <dd className="text-right">
-                      {format.amount.format(costs.tax)}
-                    </dd>
-                  </>
-                ) : null}
-                <dt className="font-medium">
-                  {t(`order-form.costs.total-${side ?? Side.Buy}`)}
-                </dt>
-                <dd className="text-right font-medium">
-                  {format.amount.format(
-                    side === Side.Sell
-                      ? value - costs.commission - costs.tax
-                      : value + costs.commission
-                  )}
-                </dd>
-              </>
-            ) : null}
-          </dl>
+          <OrderCosts
+            value={value}
+            costs={costs}
+            side={side}
+            marketOrder={marketOrder}
+          />
         )}
         {oddLeft > 0 ? (
           <p className="text-xs text-muted">
@@ -904,17 +1024,9 @@ function ExitPanel({ symbol }: { symbol: SymbolRef }) {
     }
   }, [sellable, form]);
 
-  const request = useTicketStore((state) => state.request);
-  const takeRequest = useTicketStore((state) => state.takeRequest);
-
-  useEffect(() => {
-    if (request?.key !== symbolKey(symbol) || request.tab !== TicketTab.Exit) {
-      return;
-    }
-
-    takeRequest();
+  useTicketRequest(symbol, TicketTab.Exit, (shares) => {
     withdraw();
-    form.setValue("quantity", request.shares, { shouldDirty: true });
+    form.setValue("quantity", shares, { shouldDirty: true });
     form.clearErrors("quantity");
   });
 

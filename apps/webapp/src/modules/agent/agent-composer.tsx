@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { ComponentProps, KeyboardEvent, RefObject } from "react";
 
 import {
   Button,
@@ -159,6 +160,211 @@ function ModelUnavailable({
 }
 
 /**
+ * What the window shows, as a message sends it: a listing's page named in the app's language, or
+ * nothing of it once the user detached the listing.
+ */
+function sentScreen(
+  screen: AgentScreen | null,
+  attached: SymbolRef | null,
+  nameOf: (symbol: SymbolRef) => string | undefined
+): AgentScreen | null {
+  if (screen?.kind !== ScreenKind.Listing) return screen;
+
+  return attached && { ...screen, name: nameOf(attached) };
+}
+
+/** What the composer has to say under the input: a model that cannot run, a summary with nothing to fold, a change that failed. */
+function ComposerNotes({
+  unavailable,
+  nothingOld,
+  errors,
+}: {
+  unavailable: ComponentProps<typeof ModelUnavailable> | null;
+  nothingOld: boolean;
+  errors: readonly { title: string; error: Error | null }[];
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <>
+      {unavailable ? <ModelUnavailable {...unavailable} /> : null}
+      {nothingOld ? (
+        <p className="px-1 text-xs text-muted">
+          {t("agent.compaction.nothing-old")}
+        </p>
+      ) : null}
+      {errors.map(({ title, error }) =>
+        error ? (
+          <ErrorAlert key={title} title={title} description={error.message} />
+        ) : null
+      )}
+    </>
+  );
+}
+
+/** Where the caret stands in `input`, which a completion moves too. */
+function useCaret(input: RefObject<HTMLTextAreaElement | null>) {
+  const [caret, setCaret] = useState(0);
+
+  // Chromium fires `selectionchange` at a textarea without bubbling, so React's `onSelect` misses it.
+  useEffect(() => {
+    const element = input.current;
+
+    if (!element) return;
+
+    const follow = () => setCaret(element.selectionStart);
+
+    element.addEventListener("selectionchange", follow);
+
+    return () => element.removeEventListener("selectionchange", follow);
+  }, [input]);
+
+  return [caret, setCaret] as const;
+}
+
+/**
+ * Takes a key pressed while the suggestions are open: Escape closes them through `dismiss`, Tab
+ * picks the option in focus and Enter is left to the Autocomplete. Says whether the key was theirs.
+ */
+function menuKey(
+  event: KeyboardEvent<HTMLTextAreaElement>,
+  dismiss: () => void
+): boolean {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    dismiss();
+
+    return true;
+  }
+
+  // Enter picks through the Autocomplete; Tab picks the same option.
+  if (event.key === "Tab") {
+    event.preventDefault();
+
+    // The active descendant trails typing by design, so the focused option is read instead.
+    const list = event.currentTarget.getAttribute("aria-controls");
+
+    document
+      .getElementById(list ?? "")
+      ?.querySelector<HTMLElement>("[data-focused]")
+      ?.click();
+
+    return true;
+  }
+
+  if (event.key === "Enter") {
+    event.preventDefault();
+
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * What the conversation on screen runs on and how it asks, or what a new one would, and the way to
+ * change either. A new conversation is created by its first message (`session`), on what was
+ * picked for it, so picking alone leaves no empty conversation behind.
+ */
+function useConversationSetup(sessionId: string | null) {
+  const queryClient = useQueryClient();
+  const select = useAgentStore((state) => state.select);
+  const unstarted = useAgentStore((state) => state.unstarted);
+  const setUnstarted = useAgentStore((state) => state.setUnstarted);
+  const { data: sessions } = useQuery(agentSessionsQuery());
+  const { data: settings } = useQuery(agentSettingsQuery());
+  const current = sessions?.find((each) => each.id === sessionId);
+
+  const pick: AgentModelPick =
+    sessionId === null
+      ? unstarted.pick
+      : { model: current?.model ?? null, thinking: current?.thinking ?? null };
+
+  const model =
+    settings &&
+    (pick.model ?? { provider: settings.provider, id: settings.model });
+
+  const setModel = useMutation(
+    orpc.agent.setModel.mutationOptions({
+      onSettled: () =>
+        queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
+    })
+  );
+
+  const setApprovalMode = useMutation(
+    orpc.agent.setApprovalMode.mutationOptions({
+      onSettled: () =>
+        queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
+    })
+  );
+
+  async function session() {
+    if (sessionId !== null) return sessionId;
+
+    const { pick, approvalMode } = useAgentStore.getState().unstarted;
+
+    const created = await client.agent.createSession({
+      ...pick,
+      approvalMode,
+    });
+
+    // Seeded before it is shown, so the run's first events fold in without a fetch and the
+    // picker keeps showing what was picked.
+    queryClient.setQueryData(
+      agentQueryKeys.transcript(created.id),
+      emptyAgentView()
+    );
+    queryClient.setQueryData(agentSessionsQuery().queryKey, (old) => [
+      created,
+      ...(old ?? []),
+    ]);
+    select(created.id);
+    setUnstarted({ approvalMode: ApprovalMode.Ask });
+
+    return created.id;
+  }
+
+  async function pickModel(next: AgentModelPick) {
+    setUnstarted({ pick: next });
+
+    if (sessionId !== null) {
+      await setModel.mutateAsync({ id: sessionId, pick: next });
+    }
+  }
+
+  function pickApprovalMode(mode: ApprovalMode) {
+    if (sessionId === null) setUnstarted({ approvalMode: mode });
+    else setApprovalMode.mutate({ id: sessionId, mode });
+  }
+
+  return {
+    settings,
+    pick,
+    // The next run's model, whose window the context has to fit.
+    contextWindow:
+      settings &&
+      model &&
+      settings.models.find(
+        (each) => each.provider === model.provider && each.id === model.id
+      )?.contextWindow,
+    // Until the settings load, the model is taken to run rather than flash the notice.
+    unavailable:
+      settings && model && !isModelReady(settings, model)
+        ? { settings, model }
+        : null,
+    approvalMode:
+      sessionId === null
+        ? unstarted.approvalMode
+        : (current?.approvalMode ?? ApprovalMode.Ask),
+    session,
+    setModel,
+    setApprovalMode,
+    pickModel,
+    pickApprovalMode,
+  };
+}
+
+/**
  * Writes to the conversation on screen, starting one when there is none, on a model that can run. Enter sends and
  * Shift+Enter breaks the line; Enter that confirms an input method's composition does neither. `@` suggests a
  * listing and a leading `/` a skill: while the list is open, Enter and Tab pick and Escape closes it.
@@ -178,12 +384,22 @@ export function AgentComposer({
 
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const select = useAgentStore((state) => state.select);
   const detachedFocus = useAgentStore((state) => state.detachedFocus);
   const draft = useAgentStore((state) => state.draft);
   const setDraft = useAgentStore((state) => state.setDraft);
-  const unstarted = useAgentStore((state) => state.unstarted);
-  const setUnstarted = useAgentStore((state) => state.setUnstarted);
+
+  const {
+    settings,
+    pick,
+    contextWindow,
+    unavailable,
+    approvalMode,
+    session,
+    setModel,
+    setApprovalMode,
+    pickModel,
+    pickApprovalMode,
+  } = useConversationSetup(sessionId);
 
   const form = useForm({
     resolver: zodResolver(composerSchema),
@@ -193,22 +409,9 @@ export function AgentComposer({
   const text = useWatch({ control: form.control, name: "text" });
 
   const input = useRef<HTMLTextAreaElement | null>(null);
-  const [caret, setCaret] = useState(0);
+  const [caret, setCaret] = useCaret(input);
   // The token Escape closed the menu on, which stays closed until the caret leaves it.
   const [dismissed, setDismissed] = useState<number | null>(null);
-
-  // Chromium fires `selectionchange` at a textarea without bubbling, so React's `onSelect` misses it.
-  useEffect(() => {
-    const element = input.current;
-
-    if (!element) return;
-
-    const follow = () => setCaret(element.selectionStart);
-
-    element.addEventListener("selectionchange", follow);
-
-    return () => element.removeEventListener("selectionchange", follow);
-  }, []);
 
   const token = tokenAt(text, caret);
   const suggestions = useComposerSuggestions(token, focus);
@@ -242,99 +445,10 @@ export function AgentComposer({
     setDraft(null);
   }, [draft, form, setDraft]);
 
-  const { data: sessions } = useQuery(agentSessionsQuery());
-  const { data: settings } = useQuery(agentSettingsQuery());
-  const current = sessions?.find((each) => each.id === sessionId);
-
-  const pick: AgentModelPick =
-    sessionId === null
-      ? unstarted.pick
-      : { model: current?.model ?? null, thinking: current?.thinking ?? null };
-
-  const model =
-    settings &&
-    (pick.model ?? { provider: settings.provider, id: settings.model });
-
-  // The next run's model, whose window the context has to fit.
-  const contextWindow =
-    settings &&
-    model &&
-    settings.models.find(
-      (each) => each.provider === model.provider && each.id === model.id
-    )?.contextWindow;
-
   const progress = useQuery({
     ...transcriptQuery(sessionId),
     select: progressOf,
   });
-
-  // Until the settings load, the model is taken to run rather than flash the notice.
-  const unavailable =
-    settings && model && !isModelReady(settings, model)
-      ? { settings, model }
-      : null;
-
-  const approvalMode =
-    sessionId === null
-      ? unstarted.approvalMode
-      : (current?.approvalMode ?? ApprovalMode.Ask);
-
-  /**
-   * The conversation on screen. A new one is created by its first message, on what was picked
-   * for it, so picking alone leaves no empty conversation behind.
-   */
-  async function session() {
-    if (sessionId !== null) return sessionId;
-
-    const { pick, approvalMode } = useAgentStore.getState().unstarted;
-
-    const created = await client.agent.createSession({
-      ...pick,
-      approvalMode,
-    });
-
-    // Seeded before it is shown, so the run's first events fold in without a fetch and the
-    // picker keeps showing what was picked.
-    queryClient.setQueryData(
-      agentQueryKeys.transcript(created.id),
-      emptyAgentView()
-    );
-    queryClient.setQueryData(agentSessionsQuery().queryKey, (old) => [
-      created,
-      ...(old ?? []),
-    ]);
-    select(created.id);
-    setUnstarted({ approvalMode: ApprovalMode.Ask });
-
-    return created.id;
-  }
-
-  const setModel = useMutation(
-    orpc.agent.setModel.mutationOptions({
-      onSettled: () =>
-        queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
-    })
-  );
-
-  const setApprovalMode = useMutation(
-    orpc.agent.setApprovalMode.mutationOptions({
-      onSettled: () =>
-        queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
-    })
-  );
-
-  async function pickModel(next: AgentModelPick) {
-    setUnstarted({ pick: next });
-
-    if (sessionId !== null) {
-      await setModel.mutateAsync({ id: sessionId, pick: next });
-    }
-  }
-
-  function pickApprovalMode(mode: ApprovalMode) {
-    if (sessionId === null) setUnstarted({ approvalMode: mode });
-    else setApprovalMode.mutate({ id: sessionId, mode });
-  }
 
   const compact = useMutation({
     mutationFn: ({
@@ -362,19 +476,13 @@ export function AgentComposer({
       await client.agent.send({
         id,
         text: message,
-        screen:
-          screen?.kind === ScreenKind.Listing
-            ? attachedFocus && {
-                ...screen,
-                // The attachment above the input has already asked for it.
-                name: listingName(
-                  queryClient.getQueryData(
-                    listingQuery(attachedFocus).queryKey
-                  ),
-                  locale
-                ),
-              }
-            : screen,
+        screen: sentScreen(screen, attachedFocus, (symbol) =>
+          // The attachment above the input has already asked for it.
+          listingName(
+            queryClient.getQueryData(listingQuery(symbol).queryKey),
+            locale
+          )
+        ),
         locale,
         timeZone: currentTimeZone(),
       });
@@ -398,6 +506,18 @@ export function AgentComposer({
       send.mutate(text);
     }
   });
+
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.nativeEvent.isComposing) return;
+
+    if (menuOpen && menuKey(event, () => setDismissed(token.start))) return;
+
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+
+      if (!busy && !unavailable) void submit();
+    }
+  }
 
   return (
     <Form
@@ -459,46 +579,7 @@ export function AgentComposer({
                     // The Autocomplete turns spell checking off as for a search field; a message keeps it.
                     spellCheck
                     onBlur={field.onBlur}
-                    onKeyDown={(event) => {
-                      if (event.nativeEvent.isComposing) return;
-
-                      if (menuOpen) {
-                        if (event.key === "Escape") {
-                          event.preventDefault();
-                          setDismissed(token.start);
-
-                          return;
-                        }
-
-                        // Enter picks through the Autocomplete; Tab picks the same option.
-                        if (event.key === "Tab") {
-                          event.preventDefault();
-
-                          // The active descendant trails typing by design, so the focused option is read instead.
-                          const list =
-                            event.currentTarget.getAttribute("aria-controls");
-
-                          document
-                            .getElementById(list ?? "")
-                            ?.querySelector<HTMLElement>("[data-focused]")
-                            ?.click();
-
-                          return;
-                        }
-
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-
-                          return;
-                        }
-                      }
-
-                      if (event.key === "Enter" && !event.shiftKey) {
-                        event.preventDefault();
-
-                        if (!busy && !unavailable) void submit();
-                      }
-                    }}
+                    onKeyDown={onKeyDown}
                   />
                 </TextField>
               </Autocomplete>
@@ -564,25 +645,20 @@ export function AgentComposer({
           </div>
         </div>
       </div>
-      {unavailable ? <ModelUnavailable {...unavailable} /> : null}
-      {compact.data === CompactionOutcome.NothingOld &&
-      compact.variables.id === sessionId ? (
-        <p className="px-1 text-xs text-muted">
-          {t("agent.compaction.nothing-old")}
-        </p>
-      ) : null}
-      {setModel.error ? (
-        <ErrorAlert
-          title={t("agent.model-picker.failed")}
-          description={setModel.error.message}
-        />
-      ) : null}
-      {setApprovalMode.error ? (
-        <ErrorAlert
-          title={t("agent.approval-mode.failed")}
-          description={setApprovalMode.error.message}
-        />
-      ) : null}
+      <ComposerNotes
+        unavailable={unavailable}
+        nothingOld={
+          compact.data === CompactionOutcome.NothingOld &&
+          compact.variables.id === sessionId
+        }
+        errors={[
+          { title: t("agent.model-picker.failed"), error: setModel.error },
+          {
+            title: t("agent.approval-mode.failed"),
+            error: setApprovalMode.error,
+          },
+        ]}
+      />
     </Form>
   );
 }
