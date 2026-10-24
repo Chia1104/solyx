@@ -57,7 +57,8 @@ export const marketContract = {
   sectors: oc.meta(forDevices(true)).output(type<SectorQuote[] | null>()),
   /**
    * Every Taiwan sector index's rotation against the TAIEX across the sessions it may be played
-   * back over, a daily-bar request each. `null` when no source covers Taiwan.
+   * back over, daily-bar requests each: once, or over the newest year and then whole where the
+   * older years must come from the source. `null` when no source covers Taiwan.
    */
   rotations: oc
     .meta(forDevices(true))
@@ -67,8 +68,8 @@ export const marketContract = {
         benchmark: symbolRefSchema.optional(),
       })
     )
-    .output(type<RotationHistory<SectorHistory> | null>()),
-  /** Each listing's rotation on adjusted bars across the sessions it may be played back over, a daily-bar request each; rejects while no source covers a market. */
+    .output(asyncIteratorObject(type<RotationHistory<SectorHistory> | null>())),
+  /** Each listing's rotation on adjusted bars across the sessions it may be played back over, read as the sectors' are; rejects while no source covers a market. */
   listingRotations: oc
     .meta(forDevices(true))
     .input(
@@ -78,7 +79,7 @@ export const marketContract = {
         against: rotationAgainstSchema.optional(),
       })
     )
-    .output(type<RotationHistory<ListingHistory>>()),
+    .output(asyncIteratorObject(type<RotationHistory<ListingHistory>>())),
   /** One listing against its market's index and, for a TWSE company in an industry with an index, against that index too. */
   listingRotation: oc
     .meta(forDevices(true))

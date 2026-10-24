@@ -486,6 +486,8 @@ export interface RotationHistory<Entry> {
   closes: (number | null)[] | null;
   /** Each entry's paths, cut to what a reading as of the first session or a later one draws on (`playbackPath`). */
   entries: Entry[];
+  /** `false` while the older bars are still read: the longer periods' paths then begin late or hold no stops yet. */
+  complete: boolean;
 }
 
 /** A sector index's rotation against the set's benchmark, one reading per interval and period. */

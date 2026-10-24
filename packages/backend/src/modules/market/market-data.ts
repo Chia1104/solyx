@@ -154,6 +154,14 @@ export function createMarketData({
       return read(symbol, interval, { from: since < from ? since : from, to });
     },
 
+    /** Bars from `from` through `to` (`YYYY-MM-DD` on the exchange's calendar), whatever the lookback. */
+    candlesBetween: (
+      symbol: SymbolRef,
+      interval: Interval,
+      from: string,
+      to: string
+    ) => read(symbol, interval, { from, to }),
+
     /** The page of history before the bar opening at `before`; empty once the source has nothing older. */
     olderCandles: (symbol: SymbolRef, interval: Interval, before: number) =>
       read(symbol, interval, olderRange(symbol.market, interval, before)),
