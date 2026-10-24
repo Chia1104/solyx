@@ -294,12 +294,15 @@ export interface WalkForwardWindow {
 export interface WalkForwardResult {
   interval: Interval;
   bars: number;
+  capital: number;
   windows: WalkForwardWindow[];
   outOfSample: BacktestMetrics;
   /** The out-of-sample Sharpe ratio over the mean of the picks' training ones; well under 1 says the picks were fitted. */
   efficiency: number | null;
   /** The account's value at each session's close from the first test on. */
   equity: { date: string; value: number }[];
+  /** What holding the listing from the close before the first test would have been worth at each of those closes, before costs. */
+  holding: { date: string; value: number }[];
 }
 
 /**
@@ -696,6 +699,23 @@ function priceColumns(
 }
 
 /** The account's value at each session's close, from `equity`, which starts at bar `first`. */
+/**
+ * What `capital` in the listing would be worth at each bar from `first` on, bought at the close
+ * before it, or at its own on the first bar, as `buyAndHold` reads a stretch.
+ */
+function holdingValues(
+  adjusted: readonly Candle[],
+  capital: number,
+  first: number
+) {
+  const from = adjusted[Math.max(first - 1, 0)].close;
+
+  return Float64Array.from(
+    adjusted.slice(first),
+    (bar) => (capital * bar.close) / from
+  );
+}
+
 function sessionEquity(
   days: Int32Array,
   equity: Float64Array,
@@ -888,10 +908,7 @@ export async function backtest(
     equity: sessionEquity(days, run.equity, 0),
     holding: sessionEquity(
       days,
-      Float64Array.from(
-        prepared.adjusted,
-        (bar) => (prepared.capital * bar.close) / prepared.adjusted[0].close
-      ),
+      holdingValues(prepared.adjusted, prepared.capital, 0),
       0
     ),
     ...prepared.stretches(run.stretches),
@@ -979,6 +996,7 @@ export async function walkForward(
   return {
     interval: prepared.interval,
     bars: prepared.bars.length,
+    capital: prepared.capital,
     windows: run.windows.map((window) => ({
       train: { from: date(window.trainFirst), to: date(window.trainLast) },
       test: { from: date(window.testFirst), to: date(window.testLast) },
@@ -988,5 +1006,10 @@ export async function walkForward(
     outOfSample: prepared.stretch(first, last, run.outOfSample),
     efficiency: run.efficiency,
     equity: sessionEquity(days, run.equity, first),
+    holding: sessionEquity(
+      days,
+      holdingValues(prepared.adjusted, prepared.capital, first),
+      first
+    ),
   };
 }

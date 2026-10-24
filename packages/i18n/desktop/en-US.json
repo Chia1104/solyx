@@ -1129,6 +1129,68 @@
       "on-chart": "Mark on chart",
       "buy": "Test buy",
       "sell": "Test sell"
+    },
+    "modes": {
+      "label": "What to run",
+      "run": {
+        "label": "Backtest",
+        "action": "Run backtest"
+      },
+      "scan": {
+        "label": "Scan",
+        "action": "Run scan"
+      },
+      "walkForward": {
+        "label": "Walk forward",
+        "action": "Run walk forward"
+      }
+    },
+    "grid": {
+      "rows": "Down",
+      "columns": "Across",
+      "from": "From",
+      "to": "To",
+      "step": "By",
+      "size_one": "{{count}} setup · {{series}} of {{max}} series",
+      "size_other": "{{count}} setups · {{series}} of {{max}} series",
+      "problems": {
+        "unknownParam": "Pick numbers this template takes.",
+        "sameParam": "Pick a different number for each way.",
+        "offBounds": "A value falls outside its number's range or steps.",
+        "axisSize": "Each way takes 1 to {{values}} values.",
+        "tooManySeries": "These setups read more than {{series}} series; narrow the grid."
+      }
+    },
+    "scan": {
+      "span_one": "{{count}} setup over {{bars}} {{interval}} bars",
+      "span_other": "{{count}} setups over {{bars}} {{interval}} bars",
+      "heat-map": "In-sample Sharpe ratio: {{row}} down, {{column}} across",
+      "cell": "{{row}} {{rowValue}} · {{column}} {{columnValue}}",
+      "cell-sharpe": "In-sample Sharpe {{sharpe}}",
+      "cell-figures": "Return {{total}} · {{trades}} trades · drawdown {{drawdown}}",
+      "plateau": "Plateau: best with its neighbours",
+      "no-plateau": "No setup made enough trades for a Sharpe ratio; read further back or widen the grid.",
+      "edge": "The plateau is on the grid's edge, so the best may lie past it; extend the grid that way and scan again.",
+      "show-out-of-sample": "Show out of sample",
+      "out-of-sample-hint": "Pick on the in-sample figures first. Picking again after seeing out of sample fits the setup to it.",
+      "run-cell": "Backtest this setup"
+    },
+    "walk": {
+      "train": "Training sessions",
+      "train-hint": "Empty for two fifths of the sessions.",
+      "test": "Test sessions",
+      "test-hint": "Empty for a quarter of training.",
+      "span_one": "{{count}} window, tested {{from}} to {{to}} on {{interval}} bars",
+      "span_other": "{{count}} windows, tested {{from}} to {{to}} on {{interval}} bars",
+      "efficiency": "Efficiency: out-of-sample Sharpe over training's. Well under 1 says the picks were fitted.",
+      "fitted": "Out of sample it kept {{efficiency}} of its training's Sharpe ratio, so the picks look fitted to their training.",
+      "no-picks": "No window had a setup with a Sharpe ratio to pick.",
+      "windows": "Windows",
+      "training": "Training",
+      "testing": "Test",
+      "window": "Trained {{trainFrom}} to {{trainTo}}, tested {{testFrom}} to {{testTo}}",
+      "no-pick": "Nothing picked",
+      "train-sharpe": "training Sharpe {{sharpe}}"
     }
   },
   "magi": {

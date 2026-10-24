@@ -920,6 +920,13 @@ describe("telling an edge from chance", () => {
       maxDrawdown: alone.all.maxDrawdown,
     });
     expect(walked.equity).toEqual(alone.equity);
+    // Held from the close before the first test, as the out-of-sample stretch's own return is.
+    expect(walked.holding.at(-1)?.value).toBeCloseTo(
+      1_000_000 * (1 + walked.outOfSample.buyAndHold)
+    );
+    expect(walked.holding.map(({ date }) => date)).toEqual(
+      walked.equity.map(({ date }) => date)
+    );
   });
 
   test("a walk forward of more windows than it runs fails before any runs", async () => {
