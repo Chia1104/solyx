@@ -16,6 +16,7 @@ import type {
   RuleCondition,
   RuleStrategy,
 } from "../src/backtest.ts";
+import { Interval } from "../src/candles.ts";
 import type { Candle } from "../src/candles.ts";
 import { Market } from "../src/market.ts";
 
@@ -77,9 +78,9 @@ test("a rule read at a bar's close fills at the next bar's open, never at a pric
   // The close of 102 on the third bar buys at the fourth's open, 102; the close of 99 sells at the sixth's open, 99.
   expect(result.trades).toEqual([
     {
-      entryDate: "2026-01-08",
+      entryTime: "2026-01-08",
       entryPrice: 102,
-      exitDate: "2026-01-12",
+      exitTime: "2026-01-12",
       exitPrice: 99,
       shares: 100,
       profit: -300,
@@ -163,7 +164,7 @@ test("a stop sells once a close falls past it, and a position held at the end co
   );
 
   expect(
-    result.trades.map(({ entryDate, exitDate }) => [entryDate, exitDate])
+    result.trades.map(({ entryTime, exitTime }) => [entryTime, exitTime])
   ).toEqual([
     // Bought at 102; the close of 97 is not yet 5% down, that of 96 is, so it sells at the next open.
     ["2026-01-07", "2026-01-12"],
@@ -186,7 +187,7 @@ test("a Taiwan bar locked at its limit fills no buy, and the rule is read again 
   );
 
   expect(result.trades[0]).toMatchObject({
-    entryDate: "2026-01-09",
+    entryTime: "2026-01-09",
     entryPrice: 112.2,
   });
 });
@@ -210,8 +211,8 @@ describe("indicators and stretches", () => {
     });
 
     expect(result.trades).toHaveLength(1);
-    expect(result.trades[0].exitDate).toBeNull();
-    expect(result.trades[0].entryDate > "2026-02-02").toBe(true);
+    expect(result.trades[0].exitTime).toBeNull();
+    expect(result.trades[0].entryTime > "2026-02-02").toBe(true);
   });
 
   test("a split measures the stretch before it apart from the one after", async () => {
@@ -244,7 +245,7 @@ describe("indicators and stretches", () => {
       { capital: 100_000, costs: NO_COSTS }
     );
 
-    expect(result.trades[0].entryDate > "2026-02-02").toBe(true);
+    expect(result.trades[0].entryTime > "2026-02-02").toBe(true);
   });
 });
 
@@ -325,9 +326,9 @@ describe("splits and what went ex", () => {
 
     expect(result.trades).toEqual([
       {
-        entryDate: "2026-01-06",
+        entryTime: "2026-01-06",
         entryPrice: 100,
-        exitDate: null,
+        exitTime: null,
         exitPrice: 26,
         shares: 100,
         profit: 400,
@@ -390,7 +391,7 @@ describe("splits and what went ex", () => {
       { capital: 10_000, costs: NO_COSTS }
     );
 
-    expect(split.trades[0].entryDate).toBe(asTraded.trades[0].entryDate);
+    expect(split.trades[0].entryTime).toBe(asTraded.trades[0].entryTime);
   });
 
   test("a bar locked at its limit is read against its reference", async () => {
@@ -410,7 +411,7 @@ describe("splits and what went ex", () => {
 
     // The third close buys; the locked fourth bar fills nothing, and its close buys again at the fifth's open.
     expect(result.trades[0]).toMatchObject({
-      entryDate: "2026-01-09",
+      entryTime: "2026-01-09",
       entryPrice: 99,
     });
   });
@@ -480,14 +481,14 @@ describe("no rule sees a later price", () => {
 
   const filled = (result: BacktestResult, through: string) =>
     result.trades
-      .filter(({ entryDate }) => entryDate <= through)
+      .filter(({ entryTime }) => entryTime <= through)
       .map((trade) => ({
-        entryDate: trade.entryDate,
+        entryTime: trade.entryTime,
         entryPrice: trade.entryPrice,
         shares: trade.shares,
         exit:
-          trade.exitDate !== null && trade.exitDate <= through
-            ? [trade.exitDate, trade.exitPrice]
+          trade.exitTime !== null && trade.exitTime <= through
+            ? [trade.exitTime, trade.exitPrice]
             : null,
       }));
 
@@ -551,6 +552,167 @@ describe("no rule sees a later price", () => {
         }
       }
     }
+  });
+});
+
+describe("bars shorter than a day", () => {
+  /** Minute bars from 09:00, a session a weekday from 2026-01-05 on, each opening at the close before unless told otherwise. */
+  function minutes(
+    sessions: readonly (readonly number[])[],
+    override: (session: number, index: number) => Partial<Candle> = () => ({})
+  ): Candle[] {
+    let day = Temporal.PlainDate.from("2026-01-05");
+    let before: number | undefined;
+
+    return sessions.flatMap((closes, session) => {
+      while (day.dayOfWeek > 5) day = day.add({ days: 1 });
+
+      const opening = day.toZonedDateTime({
+        timeZone: "Asia/Taipei",
+        plainTime: "09:00",
+      });
+
+      day = day.add({ days: 1 });
+
+      return closes.map((close, index) => {
+        const open = before ?? close;
+
+        before = close;
+
+        return {
+          time: opening.add({ minutes: index }).epochMilliseconds / 1000,
+          open,
+          high: Math.max(open, close),
+          low: Math.min(open, close),
+          close,
+          volume: 1000,
+          ...override(session, index),
+        };
+      });
+    });
+  }
+
+  /** Those sessions' daily bars, each moving from the close before unless `reference` gives another. */
+  const daily = (
+    sessions: readonly (readonly number[])[],
+    reference: (session: number) => number | undefined = () => undefined
+  ) => {
+    const closes = sessions.map((closes) => closes[closes.length - 1]);
+
+    return bars(closes, (index) =>
+      index === 0 ? {} : { reference: reference(index) ?? closes[index - 1] }
+    );
+  };
+
+  const MINUTE = {
+    interval: Interval.OneMinute,
+    capital: 10_000,
+    costs: NO_COSTS,
+  };
+
+  const above = (value: number): RuleStrategy => ({
+    entry: { above: [{ price: "close" }, { value }] },
+    exit: { below: [{ price: "close" }, { value: 0 }] },
+  });
+
+  test("a rule read at a session's last close fills at the next session's first open", async () => {
+    const sessions = [
+      [99, 99, 101],
+      [104, 105],
+    ];
+
+    const result = await backtest(
+      kernel,
+      TSMC,
+      minutes(sessions, (session, index) =>
+        session === 1 && index === 0 ? { open: 103 } : {}
+      ),
+      THRESHOLD,
+      { ...MINUTE, daily: daily(sessions) }
+    );
+
+    expect(result.trades[0]).toMatchObject({
+      entryTime: "2026-01-06 09:00",
+      entryPrice: 103,
+    });
+  });
+
+  test("a minute that traded at one price fills, unless that price is its session's limit", async () => {
+    const flat = (price: number) => ({
+      open: price,
+      high: price,
+      low: price,
+      close: price,
+    });
+
+    // From the close of 100 the second session's limit up is 110.
+    const locked = [[100], [101, 110, 109]];
+
+    const atLimit = await backtest(
+      kernel,
+      TSMC,
+      minutes(locked, (session, index) =>
+        session === 1 && index === 1
+          ? flat(110)
+          : session === 1 && index === 2
+            ? { open: 109.5 }
+            : {}
+      ),
+      above(100.5),
+      { ...MINUTE, daily: daily(locked) }
+    );
+
+    expect(atLimit.trades[0]).toMatchObject({
+      entryTime: "2026-01-06 09:02",
+      entryPrice: 109.5,
+    });
+
+    // A quiet minute above the one before it, as a daily bar locked up would read.
+    const quiet = [[100], [101, 105, 106]];
+
+    const belowLimit = await backtest(
+      kernel,
+      TSMC,
+      minutes(quiet, (session, index) =>
+        session === 1 && index === 1 ? flat(105) : {}
+      ),
+      above(100.5),
+      { ...MINUTE, daily: daily(quiet) }
+    );
+
+    expect(belowLimit.trades[0]).toMatchObject({
+      entryTime: "2026-01-06 09:01",
+      entryPrice: 105,
+    });
+  });
+
+  test("what went ex between sessions reads as no move, and the holding is bought back in", async () => {
+    // Went ex of 10 at the second session, which opens at its reference.
+    const sessions = [
+      [100, 100],
+      [90, 91],
+    ];
+
+    const result = await backtest(
+      kernel,
+      TSMC,
+      minutes(sessions, (session, index) =>
+        session === 1 && index === 0 ? { open: 90, low: 90 } : {}
+      ),
+      { ...above(0), stopLoss: 0.05 },
+      {
+        ...MINUTE,
+        daily: daily(sessions, (session) => (session === 1 ? 90 : undefined)),
+      }
+    );
+
+    expect(result.trades[0].exitTime).toBeNull();
+    expect(result.interval).toBe(Interval.OneMinute);
+    expect(result.bars).toBe(4);
+    expect(result.equity).toEqual([
+      { date: "2026-01-05", value: 10_000 },
+      { date: "2026-01-06", value: expect.closeTo((10_000 / 90) * 91) },
+    ]);
   });
 });
 

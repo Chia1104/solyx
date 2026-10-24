@@ -1,4 +1,3 @@
-import { maxBy, minBy } from "es-toolkit";
 import * as z from "zod";
 
 import type {
@@ -7,9 +6,17 @@ import type {
   KernelCondition,
   KernelMetrics,
 } from "@solyx/kernel/native";
-import { epochDayDate } from "@solyx/utils/date";
+import { dateEpochDay, epochDayDate } from "@solyx/utils/date";
 
-import { adjustedCandles, adjustmentFactors, candleDays } from "./candles.ts";
+import {
+  Interval,
+  adjustedCandles,
+  adjustmentFactors,
+  barTime,
+  candleDays,
+  isIntraday,
+  withSessionMoves,
+} from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import { bollinger, ema, kd, macd, rsi, sma } from "./indicators.ts";
 import type { IndicatorLine } from "./indicators.ts";
@@ -19,6 +26,7 @@ import { tickSize } from "./risk.ts";
 import {
   TW_COMMISSION_RATE,
   TW_MIN_COMMISSION,
+  twPriceLimits,
   twSellTaxRate,
 } from "./rules/tw.ts";
 
@@ -191,11 +199,11 @@ export function defaultCosts({ market, symbol }: SymbolRef): TradeCosts {
 }
 
 export interface BacktestTrade {
-  /** Exchange-local days of the fills. */
-  entryDate: string;
+  /** When the fill that bought was, on the exchange's clock: the session's day on daily and longer bars, the minute on shorter ones. */
+  entryTime: string;
   entryPrice: number;
-  /** `null` while the position is still held at the last bar. */
-  exitDate: string | null;
+  /** When the fill that sold was; `null` while the position is still held at the last bar. */
+  exitTime: string | null;
   /** The last close for a position still held. */
   exitPrice: number;
   /** The shares bought; a split or what went ex while held changes how many are sold. */
@@ -235,10 +243,13 @@ export interface BacktestMetrics {
 }
 
 export interface BacktestResult {
+  interval: Interval;
+  /** How many bars it ran over. */
+  bars: number;
   capital: number;
   costs: TradeCosts;
   trades: BacktestTrade[];
-  /** The account's value at each bar's close. */
+  /** The account's value at each session's close. */
   equity: { date: string; value: number }[];
   all: BacktestMetrics;
   /** Before `split`, the stretch a strategy may be fitted on; `null` without a split. */
@@ -253,6 +264,13 @@ export interface BacktestOptions {
   costs?: Partial<TradeCosts>;
   /** The exchange-local day the out-of-sample stretch starts. */
   split?: string;
+  /** @default Interval.OneDay */
+  interval?: Interval;
+  /**
+   * The listing's daily bars over the same sessions, for bars shorter than a day: each session's
+   * reference, its limits and what went ex or split at it come from them.
+   */
+  daily?: readonly Candle[];
 }
 
 /**
@@ -294,19 +312,51 @@ function seriesLine(
 
   if ("macd" in series) return priced(macd(closes)[series.macd]);
 
-  const span = "highest" in series ? series.highest : series.lowest;
-
   return priced(
-    adjusted.map((_, index) => {
-      if (index < span) return null;
-
-      const before = adjusted.slice(index - span, index);
-
-      return "highest" in series
-        ? (maxBy(before, (bar) => bar.high)?.high ?? null)
-        : (minBy(before, (bar) => bar.low)?.low ?? null);
-    })
+    "highest" in series
+      ? extremeBefore(
+          adjusted.map((bar) => bar.high),
+          series.highest,
+          (kept, joining) => kept > joining
+        )
+      : extremeBefore(
+          adjusted.map((bar) => bar.low),
+          series.lowest,
+          (kept, joining) => kept < joining
+        )
   );
+}
+
+/**
+ * The value of the `span` bars before each one that `beats` every other, `null` until there are
+ * that many, in one pass over a window of the bars no later one in it beats.
+ */
+function extremeBefore(
+  values: readonly number[],
+  span: number,
+  beats: (kept: number, joining: number) => boolean
+): IndicatorLine {
+  const kept: number[] = [];
+  let first = 0;
+
+  return values.map((_, index) => {
+    if (index > 0) {
+      const joining = values[index - 1];
+
+      while (
+        kept.length > first &&
+        !beats(values[kept[kept.length - 1]], joining)
+      ) {
+        kept.pop();
+      }
+
+      kept.push(index - 1);
+    }
+
+    while (kept[first] < index - span) first++;
+
+    return index < span ? null : values[kept[first]];
+  });
 }
 
 /** The lines a strategy's rules read, each series once, and its rules naming them by their place. */
@@ -325,13 +375,15 @@ function kernelRules(
 
     if (known !== undefined) return known;
 
+    const line = seriesLine(series, bars, adjusted, factors);
+    const column = new Float64Array(line.length);
+
+    for (let index = 0; index < line.length; index++) {
+      column[index] = line[index] ?? Number.NaN;
+    }
+
     places.set(key, lines.length);
-    lines.push(
-      Float64Array.from(
-        seriesLine(series, bars, adjusted, factors),
-        (value) => value ?? Number.NaN
-      )
-    );
+    lines.push(column);
 
     return lines.length - 1;
   };
@@ -360,77 +412,232 @@ export interface BacktestKernel {
   backtest(columns: BacktestColumns): BacktestRun | Promise<BacktestRun>;
 }
 
+// A price read as at a limit within this of it, so a limit rebuilt from ticks matches the bar's.
+const PRICE_TOLERANCE = 1e-6;
+
+/** Each session's reference by its day, from its daily bar: the exchange's where it has one, else the close before. */
+function sessionReferences(market: Market, daily: readonly Candle[]) {
+  const days = candleDays(market, daily);
+  const references = new Map<number, number>();
+
+  daily.forEach((bar, index) => {
+    const reference = bar.reference ?? daily[index - 1]?.close;
+
+    if (reference !== undefined) references.set(days[index], reference);
+  });
+
+  return references;
+}
+
+/** Where a daily bar is locked at its limit: it traded at one price, away from its reference. */
+function dailyLocks(bars: readonly Candle[]) {
+  const up = new Uint8Array(bars.length);
+  const down = new Uint8Array(bars.length);
+
+  for (let index = 1; index < bars.length; index++) {
+    const bar = bars[index];
+    const reference = bar.reference ?? bars[index - 1].close;
+
+    if (bar.high !== bar.low) continue;
+
+    up[index] = Number(bar.close > reference);
+    down[index] = Number(bar.close < reference);
+  }
+
+  return { up, down };
+}
+
+/** Where a shorter bar is locked at its limit: it traded at one price, its session's limit. */
+function intradayLocks(
+  symbol: SymbolRef,
+  bars: readonly Candle[],
+  days: Int32Array,
+  daily: readonly Candle[]
+) {
+  const up = new Uint8Array(bars.length);
+  const down = new Uint8Array(bars.length);
+  const references = sessionReferences(symbol.market, daily);
+
+  const limitsOf = (index: number) => {
+    const reference = references.get(days[index]) ?? bars[index - 1]?.close;
+
+    return reference === undefined
+      ? undefined
+      : twPriceLimits(reference, symbol.symbol);
+  };
+
+  let limits = limitsOf(0);
+
+  for (let index = 1; index < bars.length; index++) {
+    const bar = bars[index];
+
+    if (days[index] !== days[index - 1]) limits = limitsOf(index);
+
+    if (!limits || bar.high !== bar.low) continue;
+
+    up[index] = Number(bar.close > limits.high - PRICE_TOLERANCE);
+    down[index] = Number(bar.close < limits.low + PRICE_TOLERANCE);
+  }
+
+  return { up, down };
+}
+
+/**
+ * Where a bar is locked at its limit and fills nothing on that side, the first bar never: only
+ * Taiwan's listings have limits, and bars shorter than a day read theirs from `daily`.
+ */
+function limitLocks(
+  symbol: SymbolRef,
+  bars: readonly Candle[],
+  days: Int32Array,
+  daily: readonly Candle[] | undefined
+) {
+  if (symbol.market !== Market.TW) {
+    return {
+      up: new Uint8Array(bars.length),
+      down: new Uint8Array(bars.length),
+    };
+  }
+
+  return daily ? intradayLocks(symbol, bars, days, daily) : dailyLocks(bars);
+}
+
+/**
+ * What the kernel reads of each bar's prices: its close as traded and adjusted, what a holding's
+ * shares are carried over by at it, and what a buy and a sale fill at on its open.
+ */
+function priceColumns(
+  symbol: SymbolRef,
+  bars: readonly Candle[],
+  adjusted: readonly Candle[],
+  slippageTicks: number
+) {
+  const slipped = (price: number, up: boolean) => {
+    const tick = tickSize(symbol, price);
+    const moved = price + (up ? 1 : -1) * tick * slippageTicks;
+
+    return Math.max(moved, tick);
+  };
+
+  const close = new Float64Array(bars.length);
+  const adjustedClose = new Float64Array(bars.length);
+  const carry = new Float64Array(bars.length);
+  const buyPrice = new Float64Array(bars.length);
+  const sellPrice = new Float64Array(bars.length);
+
+  for (let index = 0; index < bars.length; index++) {
+    const bar = bars[index];
+    const { reference } = bar;
+
+    close[index] = bar.close;
+    adjustedClose[index] = adjusted[index].close;
+    carry[index] =
+      index > 0 && reference !== undefined
+        ? bars[index - 1].close / reference
+        : 1;
+    buyPrice[index] = slipped(bar.open, true);
+    sellPrice[index] = slipped(bar.open, false);
+  }
+
+  return { close, adjustedClose, carry, buyPrice, sellPrice };
+}
+
+/** The last bar of each session, whose close the account is valued at. */
+function sessionCloses(days: Int32Array) {
+  const closes: number[] = [];
+
+  for (let index = 0; index < days.length; index++) {
+    if (index === days.length - 1 || days[index + 1] !== days[index]) {
+      closes.push(index);
+    }
+  }
+
+  return closes;
+}
+
+/** The kernel's trades, each timed by its bars as the exchange's clock reads them. */
+function timedTrades(
+  {
+    entry,
+    exit,
+    entryPrice,
+    exitPrice,
+    shares,
+    profit,
+    return: gain,
+  }: BacktestRun["trades"],
+  time: (index: number) => string,
+  last: number
+): BacktestTrade[] {
+  return Array.from(entry, (bought, index) => {
+    const sold = exit[index];
+
+    return {
+      entryTime: time(bought),
+      entryPrice: entryPrice[index],
+      exitTime: sold === -1 ? null : time(sold),
+      exitPrice: exitPrice[index],
+      shares: shares[index],
+      profit: profit[index],
+      return: gain[index],
+      bars: (sold === -1 ? last : sold) - bought,
+    };
+  });
+}
+
 /**
  * Runs a long-only strategy over a listing's bars, oldest first, on `kernel`. Each rule is read at a
  * bar's close from that bar and the ones before it, and acted on at the next bar's open, so no
- * decision sees a price it could not have. A buy spends what the account holds on whole shares; a
- * sale sells them all. A Taiwan bar that opened and closed at one price, up from its reference, is
- * read as locked at its limit and fills no buy, and one locked down fills no sale.
+ * decision sees a price it could not have; a session's first bar fills after the gap from the close
+ * before. A buy spends what the account holds on whole shares; a sale sells them all. A Taiwan bar
+ * locked at its limit fills nothing on that side: a daily one that traded at one price away from its
+ * reference, a shorter one that traded at one price, its session's limit.
  *
  * Indicators, stops and buying and holding read prices adjusted from the bars' references, so a
  * split or what went ex reads as no move, each bar's on its own terms so no later one changes it,
  * while orders fill at prices as traded. A holding carries over a split or what went ex at the
  * session's reference, as though what went ex bought more shares then, which is what those prices
- * assume.
+ * assume. Bars shorter than a day take their sessions' references from `options.daily`.
  */
 export async function backtest(
   kernel: BacktestKernel,
   symbol: SymbolRef,
-  bars: readonly Candle[],
+  candles: readonly Candle[],
   strategy: RuleStrategy,
   options: BacktestOptions = {}
 ): Promise<BacktestResult> {
-  if (bars.length < 2) throw new Error("A backtest needs two bars at least");
+  if (candles.length < 2) {
+    throw new Error("A backtest needs two bars at least");
+  }
+
+  const interval = options.interval ?? Interval.OneDay;
+  const daily = isIntraday(interval) ? (options.daily ?? []) : undefined;
+
+  const bars = daily
+    ? withSessionMoves(symbol.market, candles, daily)
+    : candles;
 
   const capital = options.capital ?? 1_000_000;
   const costs = { ...defaultCosts(symbol), ...options.costs };
   const adjusted = adjustedCandles(bars);
   const factors = adjustmentFactors(bars);
   const days = candleDays(symbol.market, bars);
-  const dates = Array.from(days, epochDayDate);
+  const locks = limitLocks(symbol, bars, days, daily);
   const last = bars.length - 1;
 
-  const slipped = (price: number, up: boolean) => {
-    const tick = tickSize(symbol, price);
-    const moved = price + (up ? 1 : -1) * tick * costs.slippageTicks;
-
-    return Math.max(moved, tick);
-  };
-
-  // No order fills on the first bar, so it is never read as locked.
-  const locked = (index: number, up: boolean) => {
-    if (index === 0) return 0;
-
-    const bar = bars[index];
-    const reference = bar.reference ?? bars[index - 1].close;
-
-    return symbol.market === Market.TW &&
-      bar.high === bar.low &&
-      (up ? bar.close > reference : bar.close < reference)
-      ? 1
-      : 0;
-  };
-
-  const { split: splitDay } = options;
+  const splitDay =
+    options.split === undefined ? undefined : dateEpochDay(options.split);
 
   const splitAt =
-    splitDay === undefined ? -1 : dates.findIndex((date) => date >= splitDay);
+    splitDay === undefined ? -1 : days.findIndex((day) => day >= splitDay);
 
   const split = splitAt > 0 && splitAt <= last;
 
   const run = await kernel.backtest({
-    close: Float64Array.from(bars, (bar) => bar.close),
-    adjustedClose: Float64Array.from(adjusted, (bar) => bar.close),
+    ...priceColumns(symbol, bars, adjusted, costs.slippageTicks),
     factor: Float64Array.from(factors),
-    carry: Float64Array.from(bars, (bar, index) =>
-      index > 0 && bar.reference !== undefined
-        ? bars[index - 1].close / bar.reference
-        : 1
-    ),
-    buyPrice: Float64Array.from(bars, (bar) => slipped(bar.open, true)),
-    sellPrice: Float64Array.from(bars, (bar) => slipped(bar.open, false)),
-    buyLocked: Uint8Array.from(bars, (_, index) => locked(index, true)),
-    sellLocked: Uint8Array.from(bars, (_, index) => locked(index, false)),
+    buyLocked: locks.up,
+    sellLocked: locks.down,
     day: days,
     ...kernelRules(strategy, bars, adjusted, factors),
     stopLoss: strategy.stopLoss,
@@ -442,39 +649,31 @@ export async function backtest(
     splitAt: split ? splitAt : undefined,
   });
 
+  const date = (index: number) => epochDayDate(days[index]);
+
   const stretch = (
     first: number,
     end: number,
-    metrics: KernelMetrics
-  ): BacktestMetrics => ({ from: dates[first], to: dates[end], ...metrics });
-
-  const { trades } = run;
+    metrics: KernelMetrics | null
+  ): BacktestMetrics | null =>
+    metrics && { from: date(first), to: date(end), ...metrics };
 
   return {
+    interval,
+    bars: bars.length,
     capital,
     costs,
-    trades: Array.from(trades.entry, (entry, index) => {
-      const exit = trades.exit[index];
-
-      return {
-        entryDate: dates[entry],
-        entryPrice: trades.entryPrice[index],
-        exitDate: exit === -1 ? null : dates[exit],
-        exitPrice: trades.exitPrice[index],
-        shares: trades.shares[index],
-        profit: trades.profit[index],
-        return: trades.return[index],
-        bars: (exit === -1 ? last : exit) - entry,
-      };
-    }),
-    equity: Array.from(run.equity, (value, index) => ({
-      date: dates[index],
-      value,
+    trades: timedTrades(
+      run.trades,
+      (index) => barTime(symbol.market, interval, bars[index].time),
+      last
+    ),
+    equity: sessionCloses(days).map((index) => ({
+      date: date(index),
+      value: run.equity[index],
     })),
-    all: stretch(0, last, run.all),
-    inSample:
-      split && run.inSample ? stretch(0, splitAt - 1, run.inSample) : null,
-    outOfSample:
-      split && run.outOfSample ? stretch(splitAt, last, run.outOfSample) : null,
+    all: { from: date(0), to: date(last), ...run.all },
+    inSample: split ? stretch(0, splitAt - 1, run.inSample) : null,
+    outOfSample: split ? stretch(splitAt, last, run.outOfSample) : null,
   };
 }

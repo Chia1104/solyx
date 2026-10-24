@@ -77,15 +77,18 @@ export interface AnalysisOptions extends AnalysisPorts {
 
 const TIMEOUT_MS = 30_000;
 
-/** How far back a script may ask for bars. */
+/** How far back a script may ask for daily and longer bars. */
 const HISTORY_YEARS = 10;
+
+/** How far back a backtest may ask for shorter bars, which each year costs its source a request for too. */
+const INTRADAY_HISTORY_YEARS = 3;
 
 // A listing's ten years of daily bars cost its source about a dozen requests, and the source
 // answers sixty a minute, which a script's deadline is well inside.
 const HISTORY_LISTINGS = 5;
 
-/** The most bars a backtest runs over: daily ones over the furthest back a script may read. */
-const BACKTEST_BARS = HISTORY_YEARS * 366;
+/** The most bars a backtest runs over: a session's minute bars over the furthest back it may read, with room. */
+const BACKTEST_BARS = 300_000;
 
 const historyBudget = () =>
   listingBudget(
@@ -246,13 +249,15 @@ const metricsSchema = z.object({
 });
 
 const backtestSchema = z.object({
+  interval: intervalSchema,
+  bars: z.number(),
   capital: z.number(),
   costs: tradeCostsSchema,
   trades: z.array(
     z.object({
-      entryDate: z.string(),
+      entryTime: z.string(),
       entryPrice: z.number(),
-      exitDate: z.string().nullable(),
+      exitTime: z.string().nullable(),
       exitPrice: z.number(),
       shares: z.number(),
       profit: z.number(),
@@ -268,43 +273,106 @@ const backtestSchema = z.object({
 
 /** The rule language a backtest reads, declared for the model by hand, since a condition nests in itself. */
 export const BACKTEST_TYPES = [
+  `type Interval = ${Object.values(Interval)
+    .map((interval) => JSON.stringify(interval))
+    .join(" | ")};`,
   'type Series = { price: "open" | "high" | "low" | "close" | "volume" } | { value: number } | { sma: number } | { ema: number } | { rsi: number } | { bollinger: number; band: "upper" | "middle" | "lower"; width?: number } | { macd: "macd" | "signal" | "histogram" } | { kd: "k" | "d" } | { highest: number } | { lowest: number };',
   "type Condition = { above: [Series, Series] } | { below: [Series, Series] } | { crossesAbove: [Series, Series] } | { crossesBelow: [Series, Series] } | { all: Condition[] } | { any: Condition[] };",
   "type Strategy = { entry: Condition; exit: Condition; stopLoss?: number; takeProfit?: number };",
   "type Costs = { commissionRate: number; minCommission: number; sellTaxRate: number; slippageTicks: number };",
   "type Metrics = { from: string; to: string; totalReturn: number; annualReturn: number | null; maxDrawdown: number; trades: number; winRate: number | null; payoffRatio: number | null; exposure: number; buyAndHold: number; buyAndHoldDrawdown: number };",
-  "type Trade = { entryDate: string; entryPrice: number; exitDate: string | null; exitPrice: number; shares: number; profit: number; return: number; bars: number };",
-  "type Backtest = { capital: number; costs: Costs; trades: Trade[]; equity: { date: string; value: number }[]; all: Metrics; inSample: Metrics | null; outOfSample: Metrics | null };",
+  "type Trade = { entryTime: string; entryPrice: number; exitTime: string | null; exitPrice: number; shares: number; profit: number; return: number; bars: number };",
+  "type Backtest = { interval: Interval; bars: number; capital: number; costs: Costs; trades: Trade[]; equity: { date: string; value: number }[]; all: Metrics; inSample: Metrics | null; outOfSample: Metrics | null };",
 ].join("\n");
 
-/** The app's backtest, so a strategy's fills and costs follow its rules rather than a script's own arithmetic. */
-const backtests = (kernel: BacktestKernel): CodemodeTool[] => [
+/** A listing's bars from `since` (`YYYY-MM-DD`) on, which counts against the script's history budget. */
+type HistoryReader = (
+  symbol: SymbolRef,
+  interval: Interval,
+  since: string
+) => Promise<Candle[]>;
+
+/** Reads bars from `since` on as far back as their interval's history may be read, `admitHistory` asked first. */
+function historyReader(
+  ports: AnalysisPorts,
+  admitHistory: (symbol: SymbolRef) => void,
+  now: () => Date
+): HistoryReader {
+  return (symbol, interval, since) => {
+    const years = isIntraday(interval) ? INTRADAY_HISTORY_YEARS : HISTORY_YEARS;
+
+    const earliest = shiftDate(
+      exchangeDate(symbol.market, now()),
+      -years * 365
+    );
+
+    if (since < earliest) {
+      throw new Error(
+        `since goes back ${years} years at most on ${interval} bars, to ${earliest}`
+      );
+    }
+
+    admitHistory(symbol);
+
+    return ports.candlesSince(symbol, interval, since);
+  };
+}
+
+/**
+ * The app's backtest over bars it reads itself, so a strategy's fills and costs follow its rules,
+ * on the listing's own bars, rather than a script's arithmetic or bars a script made.
+ */
+const backtests = (
+  ports: AnalysisPorts,
+  kernel: BacktestKernel,
+  history: HistoryReader
+): CodemodeTool[] => [
   scriptFunction({
     name: "backtest.rules",
-    description:
-      "Runs a long-only strategy over a listing's bars, oldest first, as tools.candles returns them. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules, stops, buyAndHold and buyAndHoldDrawdown read prices with splits and what went ex made up for from the bars' references, so pass the bars as they are; orders fill at prices as traded, and what goes ex while held is bought back in, so a trade's shares are those bought. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing. split, a YYYY-MM-DD, measures the bars before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. Reads nothing.",
+    description: `Runs a long-only strategy over a listing's bars, which it reads itself: interval's bars, daily unless named, over the app's own history as tools.candles returns them, or from since on. since reaches back up to ${HISTORY_YEARS} years on daily and longer bars and ${INTRADAY_HISTORY_YEARS} on shorter ones, as far as the source keeps them, for the few listings a script tools.candles' since allows; a run takes ${BACKTEST_BARS} bars at most. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have, and a session's first bar fills after the gap from the close before: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules, stops, buyAndHold and buyAndHoldDrawdown read prices with splits and what went ex made up for from the sessions' references, which bars shorter than a day take from the daily bars; orders fill at prices as traded, and what goes ex while held is bought back in, so a trade's shares are those bought. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way, on every trade however often it trades; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing: a daily bar that traded at one price away from its reference, a shorter one that traded at one price, its session's limit. split, a YYYY-MM-DD, measures the sessions before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. A trade's times are its bars' times, and equity is the account at each session's close.`,
     spread: true,
     signature:
-      "(input: { symbol: SymbolRef; bars: Bar[]; strategy: Strategy; capital?: number; costs?: Partial<Costs>; split?: string }): Promise<Backtest>",
+      "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategy: Strategy; capital?: number; costs?: Partial<Costs>; split?: string }): Promise<Backtest>",
     input: z.tuple([
       z.object({
         symbol: symbolRefSchema,
-        bars: z.array(barSchema).min(2).max(BACKTEST_BARS),
+        interval: intervalSchema.optional(),
+        since: z.iso.date().optional(),
         strategy: ruleStrategySchema,
         capital: z.number().positive().optional(),
         costs: tradeCostsSchema.partial().optional(),
-        split: z.string().optional(),
+        split: z.iso.date().optional(),
       }),
     ]),
     output: backtestSchema,
-    run: ([{ symbol, bars, strategy, ...options }]) =>
-      backtest(
-        kernel,
-        symbol,
-        bars.map((bar) => ({ ...omit(bar, ["epoch"]), time: bar.epoch })),
-        strategy,
-        options
-      ),
+    async run([
+      { symbol, interval = Interval.OneDay, since, strategy, ...options },
+    ]) {
+      const read = (each: Interval) =>
+        since === undefined
+          ? ports.marketData.candles(symbol, each)
+          : history(symbol, each, since);
+
+      const bars = await read(interval);
+
+      if (bars.length < 2) {
+        throw new Error(
+          `${symbolLabel(symbol)} has too few ${interval} bars to backtest`
+        );
+      }
+
+      if (bars.length > BACKTEST_BARS) {
+        throw new Error(
+          `${bars.length} ${interval} bars are more than a backtest takes (${BACKTEST_BARS}); start later or take a longer interval`
+        );
+      }
+
+      return backtest(kernel, symbol, bars, strategy, {
+        ...options,
+        interval,
+        daily: isIntraday(interval) ? await read(Interval.OneDay) : undefined,
+      });
+    },
   }),
 ];
 
@@ -314,31 +382,17 @@ const backtests = (kernel: BacktestKernel): CodemodeTool[] => [
  */
 function dataFunctions(
   ports: AnalysisPorts,
-  admitHistory: (symbol: SymbolRef) => void,
-  now: () => Date
+  history: HistoryReader
 ): CodemodeTool[] {
-  /** Bars from `since` on, for the intervals whose history is cheap enough to read back. */
-  function history(symbol: SymbolRef, interval: Interval, since: string) {
+  /** Bars from `since` on, for the intervals whose history is cheap enough to hand a script. */
+  function readSince(symbol: SymbolRef, interval: Interval, since: string) {
     if (isIntraday(interval)) {
       throw new Error(
         `since reaches back on ${Interval.OneDay}, ${Interval.OneWeek} and ${Interval.OneMonth} bars only; ${interval} bars go as far as they do without it`
       );
     }
 
-    const earliest = shiftDate(
-      exchangeDate(symbol.market, now()),
-      -HISTORY_YEARS * 365
-    );
-
-    if (since < earliest) {
-      throw new Error(
-        `since goes back ${HISTORY_YEARS} years at most, to ${earliest}`
-      );
-    }
-
-    admitHistory(symbol);
-
-    return ports.candlesSince(symbol, interval, since);
+    return history(symbol, interval, since);
   }
 
   return [
@@ -358,7 +412,7 @@ function dataFunctions(
         const candles =
           since === undefined
             ? await ports.marketData.candles(symbol, interval)
-            : await history(symbol, interval, since);
+            : await readSince(symbol, interval, since);
 
         if (candles.length === 0) {
           throw new Error(`No ${interval} bars for ${symbolLabel(symbol)}`);
@@ -423,21 +477,23 @@ function dataFunctions(
 export function createAnalysis(options: AnalysisOptions): Extension {
   const now = options.now ?? (() => new Date());
 
+  // Declared with budgets nothing is counted against.
+  const declared = historyReader(options, () => undefined, now);
+
   const tool: ToolRegistration = {
     name: AgentToolName.RunAnalysis,
     description: [
       "Runs JavaScript you write, to compute over market data: backtests, statistics, comparisons and screens across listings. `code` is the body of an async function, so `await` and `return` work.",
       "It can call only the functions declared below; there is no network, file, timer or module. Print with text(value) or console.log, or return a JSON value. store(key, value) and load(key) keep JSON values for this conversation's later scripts.",
-      "What a script fetches stays in the script, so fetch every bar you need there and return only the result. `type Bar` is one item of what tools.candles returns.",
+      "What a script fetches stays in the script, so fetch every bar you need there and return only the result. `type Bar` is one item of what tools.candles returns; backtest.rules reads its bars itself.",
       `market, flows and fundamentals read the app's other sources, which count every request against limits the rest of the app shares: a script reads at most ${MAX_LISTINGS} listings through them, so screen the listings that matter rather than every one you can name.`,
       SOURCE_TYPES,
       BACKTEST_TYPES,
-      // Declared with budgets nothing is counted against.
       renderDeclarations({
-        tools: dataFunctions(options, () => undefined, now),
+        tools: dataFunctions(options, declared),
         globals: [
           ...indicators,
-          ...backtests(options.kernel),
+          ...backtests(options, options.kernel, declared),
           ...sourceFunctions(options, () => undefined),
         ],
       }),
@@ -465,11 +521,14 @@ export function createAnalysis(options: AnalysisOptions): Extension {
         context
       );
 
+      // The bars a script reads itself and those its backtests read count against one budget.
+      const history = historyReader(options, historyBudget(), now);
+
       const result = await options.scripts.run(parsed.data.code, {
-        tools: dataFunctions(options, historyBudget(), now),
+        tools: dataFunctions(options, history),
         globals: [
           ...indicators,
-          ...backtests(options.kernel),
+          ...backtests(options, options.kernel, history),
           ...sourceFunctions(options, sourceBudget()),
         ],
         timeoutMs: TIMEOUT_MS,

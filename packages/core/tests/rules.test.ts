@@ -7,10 +7,27 @@ import {
   twLots,
   twRocDaySchema,
   twSpendable,
+  twPriceLimits,
   twTickSize,
   twTradeCosts,
 } from "../src/rules/tw.ts";
 import { usTickSize } from "../src/rules/us.ts";
+
+describe("twPriceLimits", () => {
+  test.each([
+    [100, { high: 110, low: 90 }],
+    // 500.5 is cut to the tick of 1 it takes, while 409.5 is on its tick of 0.5.
+    [455, { high: 500, low: 409.5 }],
+    [9.98, { high: 10.95, low: 8.99 }],
+    [1005, { high: 1105, low: 905 }],
+  ])("a stock from %d moves between its limits", (reference, limits) => {
+    expect(twPriceLimits(reference, "2330")).toEqual(limits);
+  });
+
+  test("a fund keeps to its own ticks", () => {
+    expect(twPriceLimits(45.67, "0050")).toEqual({ high: 50.2, low: 41.11 });
+  });
+});
 
 describe("twTickSize", () => {
   test.each([
