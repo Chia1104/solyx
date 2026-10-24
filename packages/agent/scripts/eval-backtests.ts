@@ -5,8 +5,9 @@
  *
  *   node --env-file=.env packages/agent/scripts/eval-backtests.ts
  *
- * ANTHROPIC_API_KEY runs the agent and the judge on EVAL_MODEL (claude-opus-5-5 unless set), at
- * EVAL_THINKING (medium unless set), and FUGLE_API_KEY reads the bars. EVAL_REQUESTS=a,b runs only
+ * The agent and the judge run on EVAL_MODEL (claude-opus-5-5 unless set), at EVAL_THINKING (medium
+ * unless set), through the proxy at EVAL_PROXY_BASE_URL that serves Anthropic's API, on its key
+ * EVAL_PROXY_API_KEY; FUGLE_API_KEY reads the bars. EVAL_REQUESTS=a,b runs only
  * those requests, each EVAL_REPEATS times (once unless set), EVAL_AT_ONCE at a time (three unless
  * set, within the provider's rate limits). Each run's transcript and grades are written to
  * EVAL_OUT, a JSON file under the system's temporary folder unless set; it holds market data, so it
@@ -20,10 +21,15 @@ import { join } from "node:path";
 import { InMemoryModelsStore, contentText } from "@earendil-works/pi-ai";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { MemoryStorage } from "@earendil-works/pi-durable";
-import { sumBy } from "es-toolkit";
+import { omit, pick, sumBy } from "es-toolkit";
 import * as z from "zod";
 
-import type { BacktestMetrics, BacktestResult } from "@solyx/core/backtest";
+import type {
+  BacktestMetrics,
+  BacktestResult,
+  BacktestScan,
+  WalkForwardResult,
+} from "@solyx/core/backtest";
 import { BrokerMode } from "@solyx/core/broker";
 import {
   Interval,
@@ -76,12 +82,16 @@ const SCRIPT_CHARS = 6000;
 
 const CALLS_SHOWN = 80;
 
-const apiKey = process.env.ANTHROPIC_API_KEY;
+const apiKey = process.env.EVAL_PROXY_API_KEY;
+
+const baseUrl = process.env.EVAL_PROXY_BASE_URL;
 
 const fugleKey = process.env.FUGLE_API_KEY;
 
-if (!apiKey || !fugleKey) {
-  throw new Error("Set ANTHROPIC_API_KEY and FUGLE_API_KEY, as in .env");
+if (!apiKey || !baseUrl || !fugleKey) {
+  throw new Error(
+    "Set EVAL_PROXY_API_KEY, EVAL_PROXY_BASE_URL and FUGLE_API_KEY, as in .env"
+  );
 }
 
 const catalog = createModelCatalog({
@@ -96,7 +106,7 @@ const catalog = createModelCatalog({
   appName: "Solyx",
   getDeviceId: () => "00000000-0000-4000-8000-000000000000",
   openExternal: () => undefined,
-  endpoint: () => undefined,
+  endpoint: (provider) => (provider === "anthropic" ? baseUrl : undefined),
   modelsStore: new InMemoryModelsStore(),
 });
 
@@ -191,13 +201,15 @@ const LINKS = {
   },
 };
 
-/** A backtest a script ran: what it asked the engine and what came of it. */
+/** A backtest a script ran, alone or as a cell of a scan: what it asked the engine and what came of it. */
 interface EngineCall {
+  /** The function that ran it. */
+  via: string;
   symbol: string;
   interval: Interval;
   since: string | null;
   strategy: unknown;
-  split: string | null;
+  split: string | number | null;
   costs: unknown;
   bars: number;
   from: string;
@@ -205,18 +217,51 @@ interface EngineCall {
   result: Pick<BacktestResult, "all" | "inSample" | "outOfSample">;
 }
 
+/** A scan a script ran, whose cells are among the backtests, and the plateau it picked. */
+interface ScanRecord {
+  symbol: string;
+  cells: number;
+  columns: number | null;
+  plateau: BacktestScan["plateau"];
+}
+
+/** A walk forward a script ran. */
+interface WalkRecord {
+  symbol: string;
+  interval: Interval;
+  strategies: number;
+  columns: number | null;
+  result: Omit<WalkForwardResult, "equity">;
+}
+
+/** What the engine ran for a request's scripts, recorded as each call returned. */
+interface EngineRecord {
+  calls: EngineCall[];
+  scans: ScanRecord[];
+  walks: WalkRecord[];
+}
+
+const ENGINE_FUNCTIONS = new Set([
+  "backtest.rules",
+  "backtest.scan",
+  "backtest.walkForward",
+]);
+
 const engineInputSchema = z.tuple([
   z.object({
     symbol: z.object({ market: z.enum(Market), symbol: z.string() }),
     since: z.string().optional(),
-    strategy: z.unknown(),
-    split: z.string().optional(),
+    // Present on backtest.rules alone; zod reads an unknown key as one that must be there.
+    strategy: z.unknown().optional(),
+    strategies: z.array(z.unknown()).optional(),
+    columns: z.number().optional(),
+    split: z.union([z.string(), z.number()]).optional(),
     costs: z.unknown().optional(),
   }),
 ]);
 
 /** The script runner, with every call to the engine recorded as it returns. */
-function recordingScripts(calls: EngineCall[]): ScriptRunner {
+function recordingScripts(record: EngineRecord): ScriptRunner {
   const runner = createScriptRunner();
 
   return {
@@ -225,34 +270,69 @@ function recordingScripts(calls: EngineCall[]): ScriptRunner {
       runner.run(code, {
         ...scope,
         globals: scope.globals?.map((fn) =>
-          fn.name === "backtest.rules"
+          ENGINE_FUNCTIONS.has(fn.name)
             ? {
                 ...fn,
                 async execute(args, context) {
-                  // SAFETY: the engine's own function returns its BacktestResult as it parsed it.
-                  const result = (await fn.execute(
-                    args,
-                    context
-                  )) as BacktestResult;
-
+                  const result = await fn.execute(args, context);
                   const [input] = engineInputSchema.parse(args);
+                  const symbol = input.symbol.symbol;
+                  const columns = input.columns ?? null;
 
-                  calls.push({
-                    symbol: input.symbol.symbol,
-                    interval: result.interval,
+                  const asked = {
+                    via: fn.name,
+                    symbol,
                     since: input.since ?? null,
-                    strategy: input.strategy,
                     split: input.split ?? null,
                     costs: input.costs ?? null,
-                    bars: result.bars,
-                    from: result.all.from,
-                    to: result.all.to,
-                    result: {
-                      all: result.all,
-                      inSample: result.inSample,
-                      outOfSample: result.outOfSample,
-                    },
-                  });
+                  };
+
+                  if (fn.name === "backtest.walkForward") {
+                    // SAFETY: the engine's own function returns its WalkForwardResult as it parsed it.
+                    const walked = result as WalkForwardResult;
+
+                    record.walks.push({
+                      symbol,
+                      interval: walked.interval,
+                      strategies: input.strategies?.length ?? 0,
+                      columns,
+                      result: omit(walked, ["equity"]),
+                    });
+                  } else if (fn.name === "backtest.scan") {
+                    // SAFETY: the engine's own function returns its BacktestScan as it parsed it.
+                    const scan = result as BacktestScan;
+
+                    scan.cells.forEach((cell, index) =>
+                      record.calls.push({
+                        ...asked,
+                        interval: scan.interval,
+                        strategy: input.strategies?.[index],
+                        bars: scan.bars,
+                        from: cell.all.from,
+                        to: cell.all.to,
+                        result: cell,
+                      })
+                    );
+                    record.scans.push({
+                      symbol,
+                      cells: scan.cells.length,
+                      columns,
+                      plateau: scan.plateau,
+                    });
+                  } else {
+                    // SAFETY: the engine's own function returns its BacktestResult as it parsed it.
+                    const run = result as BacktestResult;
+
+                    record.calls.push({
+                      ...asked,
+                      interval: run.interval,
+                      strategy: input.strategy,
+                      bars: run.bars,
+                      from: run.all.from,
+                      to: run.all.to,
+                      result: pick(run, ["all", "inSample", "outOfSample"]),
+                    });
+                  }
 
                   return result;
                 },
@@ -306,12 +386,14 @@ interface Run {
   items: ReturnType<typeof foldEvents>["items"];
   ended: string;
   calls: EngineCall[];
+  scans: ScanRecord[];
+  walks: WalkRecord[];
   proposals: TradeProposal[];
   seconds: number;
 }
 
 async function runRequest(request: BacktestRequest): Promise<Run> {
-  const calls: EngineCall[] = [];
+  const record: EngineRecord = { calls: [], scans: [], walks: [] };
   const proposals: TradeProposal[] = [];
   const desk = recordingDesk(proposals);
   const events: AgentWireEvent[] = [];
@@ -353,7 +435,7 @@ async function runRequest(request: BacktestRequest): Promise<Run> {
       read(symbol, interval, since, exchangeDate(symbol.market, now)),
     watchlist: () => [],
     desk,
-    scripts: recordingScripts(calls),
+    scripts: recordingScripts(record),
     kernel,
   });
 
@@ -413,7 +495,7 @@ async function runRequest(request: BacktestRequest): Promise<Run> {
     request,
     items: foldEvents(events).items,
     ended: reason,
-    calls,
+    ...record,
     proposals,
     seconds: (performance.now() - started) / 1000,
   };
@@ -463,11 +545,11 @@ const percent = (value: number | null) =>
 const stretchText = (metrics: BacktestMetrics | null) =>
   metrics === null
     ? "none"
-    : `${metrics.from} to ${metrics.to}: return ${percent(metrics.totalReturn)}, a year ${percent(metrics.annualReturn)}, drawdown ${percent(metrics.maxDrawdown)}, ${metrics.trades} trades closed, win rate ${percent(metrics.winRate)}, payoff ${metrics.payoffRatio?.toFixed(2) ?? "n/a"}, exposure ${percent(metrics.exposure)}, buying and holding ${percent(metrics.buyAndHold)} with a drawdown of ${percent(metrics.buyAndHoldDrawdown)}`;
+    : `${metrics.from} to ${metrics.to}: return ${percent(metrics.totalReturn)}, a year ${percent(metrics.annualReturn)}, drawdown ${percent(metrics.maxDrawdown)}, Sharpe ${metrics.sharpe?.toFixed(2) ?? "n/a"}, p-value ${metrics.pValue?.toFixed(3) ?? "n/a"}, ${metrics.trades} trades closed, win rate ${percent(metrics.winRate)}, payoff ${metrics.payoffRatio?.toFixed(2) ?? "n/a"}, exposure ${percent(metrics.exposure)}, buying and holding ${percent(metrics.buyAndHold)} with a drawdown of ${percent(metrics.buyAndHoldDrawdown)}`;
 
 const callText = (call: EngineCall, index: number) =>
   [
-    `${index + 1}. ${call.symbol}, ${call.bars} ${call.interval} bars from ${call.from} to ${call.to}, split ${call.split ?? "none"}, costs ${call.costs === null ? "the app's defaults" : JSON.stringify(call.costs)}`,
+    `${index + 1}. ${call.symbol} through ${call.via}, ${call.bars} ${call.interval} bars from ${call.from} to ${call.to}, split ${call.split ?? "none"}, costs ${call.costs === null ? "the app's defaults" : JSON.stringify(call.costs)}`,
     `strategy ${JSON.stringify(call.strategy)}`,
     `all: ${stretchText(call.result.all)}`,
     `in-sample: ${stretchText(call.result.inSample)}`,
@@ -495,10 +577,31 @@ function judgeInput(run: Run, rubric: Criterion[]): string {
 
   const calls = run.calls.slice(0, CALLS_SHOWN).map(callText);
 
+  const grid = (columns: number | null) =>
+    columns === null ? "not laid out as a grid" : `in rows of ${columns}`;
+
+  const scans = run.scans.map(
+    (scan, index) =>
+      `${index + 1}. ${scan.symbol}, ${scan.cells} strategies ${grid(scan.columns)}: ${scan.plateau === null ? "no plateau" : `plateau at cell ${scan.plateau.cell + 1}, its neighbourhood's mean Sharpe ${scan.plateau.sharpe.toFixed(2)}${scan.plateau.edge ? ", on the grid's edge" : ""}`}`
+  );
+
+  const walks = run.walks.map((walk, index) =>
+    [
+      `${index + 1}. ${walk.symbol}, ${walk.strategies} strategies ${grid(walk.columns)}, efficiency ${walk.result.efficiency?.toFixed(2) ?? "n/a"}`,
+      ...walk.result.windows.map(
+        (window) =>
+          `trained ${window.train.from} to ${window.train.to}, tested ${window.test.from} to ${window.test.to}: ${window.cell === null ? "picked none" : `picked strategy ${window.cell + 1}, training Sharpe ${window.trainSharpe?.toFixed(2) ?? "n/a"}`}`
+      ),
+      `out-of-sample: ${stretchText(walk.result.outOfSample)}`,
+    ].join("\n   ")
+  );
+
   return [
     `# Request\n${run.request.text}`,
     `# Scripts the agent ran, with what each gave it (${scripts.length})\n${scripts.join("\n") || "none"}`,
-    `# Backtests the engine ran (${run.calls.length}${run.calls.length > CALLS_SHOWN ? `, the first ${CALLS_SHOWN} shown` : ""})\n${calls.join("\n") || "none"}`,
+    `# Backtests the engine ran, a scan's cells among them (${run.calls.length}${run.calls.length > CALLS_SHOWN ? `, the first ${CALLS_SHOWN} shown` : ""})\n${calls.join("\n") || "none"}`,
+    `# Scans' plateaus (${scans.length})\n${scans.join("\n") || "none"}`,
+    `# Walk forwards (${walks.length})\n${walks.join("\n") || "none"}`,
     `# Order proposals the agent made\n${run.proposals.length === 0 ? "none" : JSON.stringify(run.proposals.map(({ order, rationale }) => ({ order, rationale })))}`,
     `# The agent's messages, oldest first\n${replies(run)
       .map((reply) => reply.text)

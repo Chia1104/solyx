@@ -3,6 +3,8 @@ import { describe, expect, test } from "vite-plus/test";
 import { kernel } from "@solyx/kernel/kernel";
 
 import {
+  BACKTEST_PERMUTATIONS,
+  MAX_SCAN_SERIES,
   backtest,
   defaultCosts,
   MAX_RULE_BRANCHES,
@@ -10,13 +12,15 @@ import {
   MAX_RULE_DEPTH,
   MAX_RULE_SERIES,
   ruleStrategySchema,
+  scanBacktests,
+  walkForward,
 } from "../src/backtest.ts";
 import type {
   BacktestResult,
   RuleCondition,
   RuleStrategy,
 } from "../src/backtest.ts";
-import { Interval } from "../src/candles.ts";
+import { Interval, candleDate } from "../src/candles.ts";
 import type { Candle } from "../src/candles.ts";
 import { Market } from "../src/market.ts";
 
@@ -219,7 +223,7 @@ describe("indicators and stretches", () => {
     const result = await backtest(kernel, TSMC, bars(closes), crossing, {
       capital: 100_000,
       costs: NO_COSTS,
-      split: "2026-02-02",
+      split: { day: "2026-02-02" },
     });
 
     expect(result.inSample).toMatchObject({
@@ -277,7 +281,7 @@ test("buying and holding a stretch starts from the close its return is measured 
       entry: { above: [{ price: "close" }, { value: 0 }] },
       exit: { below: [{ price: "close" }, { value: 0 }] },
     },
-    { capital: 100_000, costs: NO_COSTS, split: "2026-01-08" }
+    { capital: 100_000, costs: NO_COSTS, split: { day: "2026-01-08" } }
   );
 
   expect(result.outOfSample?.totalReturn).toBeCloseTo(1);
@@ -293,7 +297,7 @@ test("buying and holding's drawdown is its deepest fall from a high, from the cl
       entry: { above: [{ price: "close" }, { value: 1000 }] },
       exit: { below: [{ price: "close" }, { value: 0 }] },
     },
-    { capital: 100_000, costs: NO_COSTS, split: "2026-01-08" }
+    { capital: 100_000, costs: NO_COSTS, split: { day: "2026-01-08" } }
   );
 
   // The stretch from the fourth bar is measured from the close of 130, its high.
@@ -716,6 +720,204 @@ describe("bars shorter than a day", () => {
   });
 });
 
+describe("telling an edge from chance", () => {
+  // A wave rises and falls every fifty bars or so, so a rule that holds its rises has real timing.
+  const wave = Array.from(
+    { length: 300 },
+    (_, index) => 100 + 10 * Math.sin(index / 8)
+  );
+
+  const waveDays = bars(wave).map(({ time }) => candleDate(Market.TW, time));
+
+  const aboveAverage: RuleStrategy = {
+    entry: { crossesAbove: [{ price: "close" }, { sma: 10 }] },
+    exit: { crossesBelow: [{ price: "close" }, { sma: 10 }] },
+  };
+
+  test("the Sharpe ratio is of the account's session returns, a year's worth at their pace", async () => {
+    const closes = Array.from({ length: 30 }, (_, index) =>
+      index % 3 === 2 ? 100 + index : 100 + index * 1.5
+    );
+
+    const result = await backtest(
+      kernel,
+      TSMC,
+      bars(closes),
+      {
+        entry: { above: [{ price: "close" }, { value: 0 }] },
+        exit: { below: [{ price: "close" }, { value: 0 }] },
+      },
+      { capital: 10_000, costs: NO_COSTS }
+    );
+
+    const values = [10_000, ...result.equity.map(({ value }) => value)];
+
+    const returns = values
+      .slice(1)
+      .map((value, index) => value / values[index] - 1);
+
+    const mean =
+      returns.reduce((sum, value) => sum + value, 0) / returns.length;
+
+    const deviation = Math.sqrt(
+      returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
+        (returns.length - 1)
+    );
+
+    const days = Temporal.PlainDate.from(result.all.from).until(
+      result.all.to
+    ).days;
+
+    expect(result.all.sharpe).toBeCloseTo(
+      (mean / deviation) * Math.sqrt(returns.length / (days / 365.25))
+    );
+  });
+
+  test("a rule that times the moves beats the same bars in any other order", async () => {
+    const result = await backtest(kernel, TSMC, bars(wave), aboveAverage, {
+      costs: NO_COSTS,
+      split: { day: waveDays[200] },
+    });
+
+    expect(result.all.pValue).toBeLessThan(0.01);
+    // Each stretch is tested on its own bars.
+    expect(result.inSample?.pValue).toBeLessThan(0.05);
+    expect(result.outOfSample?.pValue).toBeLessThan(0.05);
+    // The test counts the run itself among the orderings, so it never says zero.
+    expect(result.all.pValue).toBeGreaterThanOrEqual(
+      1 / (BACKTEST_PERMUTATIONS + 1)
+    );
+  });
+
+  test("a run that never holds has nothing to test", async () => {
+    const result = await backtest(
+      kernel,
+      TSMC,
+      bars(wave),
+      {
+        entry: { above: [{ price: "close" }, { value: 1_000 }] },
+        exit: { below: [{ price: "close" }, { value: 0 }] },
+      },
+      { costs: NO_COSTS }
+    );
+
+    expect(result.all.pValue).toBeNull();
+    expect(result.all.sharpe).toBeNull();
+  });
+
+  test("a split after a share of the sessions starts on the session that share reaches", async () => {
+    const shared = await backtest(kernel, TSMC, bars(wave), aboveAverage, {
+      costs: NO_COSTS,
+      split: { share: 2 / 3 },
+    });
+
+    const dated = await backtest(kernel, TSMC, bars(wave), aboveAverage, {
+      costs: NO_COSTS,
+      split: { day: waveDays[200] },
+    });
+
+    expect(shared.outOfSample?.from).toBe(waveDays[200]);
+    expect(shared.inSample).toEqual(dated.inSample);
+    expect(shared.outOfSample).toEqual(dated.outOfSample);
+  });
+
+  test("a scan runs each strategy as it runs alone, without testing its timing", async () => {
+    const strategies = [THRESHOLD, aboveAverage];
+
+    const scan = await scanBacktests(kernel, TSMC, bars(wave), strategies, {
+      costs: NO_COSTS,
+      columns: 2,
+    });
+
+    for (const [index, strategy] of strategies.entries()) {
+      const alone = await backtest(kernel, TSMC, bars(wave), strategy, {
+        costs: NO_COSTS,
+      });
+
+      expect(scan.cells[index].all).toEqual({ ...alone.all, pValue: null });
+    }
+
+    // Two cells in one row are each other's neighbours, so the first stands for both.
+    expect(scan.plateau).toMatchObject({ cell: 0, edge: true });
+    expect(scan.plateau?.sharpe).toBeCloseTo(
+      ((scan.cells[0].all.sharpe ?? 0) + (scan.cells[1].all.sharpe ?? 0)) / 2
+    );
+
+    const unordered = await scanBacktests(kernel, TSMC, bars(wave), strategies);
+
+    expect(unordered.plateau).toBeNull();
+  });
+
+  test("a scan's strategies read a bounded number of series between them", async () => {
+    const strategies = Array.from(
+      { length: MAX_SCAN_SERIES + 1 },
+      (_, index): RuleStrategy => ({
+        entry: { above: [{ price: "close" }, { sma: index + 2 }] },
+        exit: { below: [{ price: "close" }, { value: 0 }] },
+      })
+    );
+
+    await expect(
+      scanBacktests(kernel, TSMC, bars(wave), strategies)
+    ).rejects.toThrow(`read ${MAX_SCAN_SERIES} different series at most`);
+  });
+
+  test("with one strategy, walking forward runs it from the first test on", async () => {
+    const walked = await walkForward(kernel, TSMC, bars(wave), [THRESHOLD], {
+      costs: NO_COSTS,
+      train: 60,
+      test: 20,
+    });
+
+    const alone = await backtest(
+      kernel,
+      TSMC,
+      bars(wave).slice(60),
+      THRESHOLD,
+      {
+        costs: NO_COSTS,
+      }
+    );
+
+    // Windows start every twenty sessions while sixty are left to train on before the last.
+    expect(walked.windows).toHaveLength(12);
+    expect(walked.windows.map(({ cell }) => cell)).toEqual(Array(12).fill(0));
+    expect(walked.windows[0].test.from).toBe(alone.all.from);
+    expect(walked.windows.at(-1)?.test.to).toBe(alone.all.to);
+    expect(walked.outOfSample).toMatchObject({
+      from: alone.all.from,
+      to: alone.all.to,
+      trades: alone.all.trades,
+      totalReturn: alone.all.totalReturn,
+      maxDrawdown: alone.all.maxDrawdown,
+    });
+    expect(walked.equity).toEqual(alone.equity);
+  });
+
+  test("each test follows its training, and the next window starts a test later", async () => {
+    const walked = await walkForward(
+      kernel,
+      TSMC,
+      bars(wave),
+      [THRESHOLD, aboveAverage],
+      {
+        costs: NO_COSTS,
+      }
+    );
+
+    // Two fifths of the 300 sessions train each window, and a quarter of that tests it.
+    expect(
+      walked.windows.map(({ train, test }) => [train.from, test.from, test.to])
+    ).toEqual(
+      Array.from({ length: 6 }, (_, window) => [
+        waveDays[window * 30],
+        waveDays[window * 30 + 120],
+        waveDays[Math.min(window * 30 + 149, 299)],
+      ])
+    );
+  });
+});
+
 describe("a strategy's work is bounded before it runs", () => {
   const CONDITION = `A condition is one of above, below, crossesAbove, crossesBelow, all and any; all and any hold 1 to ${MAX_RULE_BRANCHES} conditions and nest ${MAX_RULE_DEPTH} deep at most`;
 
@@ -769,6 +971,23 @@ describe("a strategy's work is bounded before it runs", () => {
         })
       ).trades.length
     ).toBeGreaterThan(0);
+  });
+
+  test("a key a strategy does not know is refused, not left out", () => {
+    const misspelt = ruleStrategySchema.safeParse({
+      ...THRESHOLD,
+      stoploss: 0.1,
+    });
+
+    const unknownSeries = ruleStrategySchema.safeParse({
+      ...THRESHOLD,
+      entry: { above: [{ sma: 20, length: 5 }, { value: 100 }] },
+    });
+
+    expect(misspelt.error?.issues.map(({ message }) => message)).toEqual([
+      'Unrecognized key: "stoploss"',
+    ]);
+    expect(unknownSeries.success).toBe(false);
   });
 
   test("a strategy at every limit passes", () => {

@@ -1,5 +1,7 @@
 mod backtest;
+mod bars;
+mod metrics;
 mod rule;
-
-pub use backtest::{BacktestColumns, BacktestRun, KernelMetrics, KernelTrades, backtest};
-pub use rule::KernelCondition;
+mod scan;
+mod simulate;
+mod walk;

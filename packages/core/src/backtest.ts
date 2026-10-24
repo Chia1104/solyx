@@ -1,10 +1,17 @@
 import * as z from "zod";
 
 import type {
-  BacktestColumns,
+  BacktestRequest,
   BacktestRun,
+  KernelBars,
   KernelCondition,
   KernelMetrics,
+  KernelStrategy,
+  KernelStretches,
+  ScanRequest,
+  ScanRun,
+  WalkForwardRequest,
+  WalkForwardRun,
 } from "@solyx/kernel/native";
 import { dateEpochDay, epochDayDate } from "@solyx/utils/date";
 
@@ -32,24 +39,27 @@ import {
 
 const period = z.number().int().min(1).max(500);
 
+// Every shape a strategy is written in refuses a key it does not know, so a misspelt one, such as a
+// stop, fails the backtest rather than leaving it out.
+
 /** A line a rule reads at each bar: one of the bar's own figures, a constant, or an indicator over the bars up to it. */
 export const ruleSeriesSchema = z.union([
-  z.object({ price: z.enum(["open", "high", "low", "close", "volume"]) }),
-  z.object({ value: z.number() }),
-  z.object({ sma: period }),
-  z.object({ ema: period }),
-  z.object({ rsi: period }),
-  z.object({
+  z.strictObject({ price: z.enum(["open", "high", "low", "close", "volume"]) }),
+  z.strictObject({ value: z.number() }),
+  z.strictObject({ sma: period }),
+  z.strictObject({ ema: period }),
+  z.strictObject({ rsi: period }),
+  z.strictObject({
     bollinger: period,
     band: z.enum(["upper", "middle", "lower"]),
     width: z.number().min(0.5).max(5).multipleOf(0.1).optional(),
   }),
-  z.object({ macd: z.enum(["macd", "signal", "histogram"]) }),
-  z.object({ kd: z.enum(["k", "d"]) }),
-  z.object({
+  z.strictObject({ macd: z.enum(["macd", "signal", "histogram"]) }),
+  z.strictObject({ kd: z.enum(["k", "d"]) }),
+  z.strictObject({
     highest: period.describe("The highest high of the bars before this one"),
   }),
-  z.object({
+  z.strictObject({
     lowest: period.describe("The lowest low of the bars before this one"),
   }),
 ]);
@@ -93,10 +103,10 @@ const conditionError = {
 
 const comparisonSchema = z.union(
   [
-    z.object({ above: pair }),
-    z.object({ below: pair }),
-    z.object({ crossesAbove: pair }),
-    z.object({ crossesBelow: pair }),
+    z.strictObject({ above: pair }),
+    z.strictObject({ below: pair }),
+    z.strictObject({ crossesAbove: pair }),
+    z.strictObject({ crossesBelow: pair }),
   ],
   conditionError
 );
@@ -116,8 +126,8 @@ function conditionSchema(depth: number): z.ZodType<RuleCondition> {
   return z.union(
     [
       comparisonSchema,
-      z.object({ all: branches }),
-      z.object({ any: branches }),
+      z.strictObject({ all: branches }),
+      z.strictObject({ any: branches }),
     ],
     conditionError
   );
@@ -142,7 +152,7 @@ function ruleSeries(condition: RuleCondition): RuleSeries[] {
 
 /** A long-only strategy: when to buy while holding nothing, and when to sell all of it. */
 export const ruleStrategySchema = z
-  .object({
+  .strictObject({
     entry: ruleConditionSchema,
     exit: ruleConditionSchema,
     /** Sells once a close falls this fraction below the price paid. */
@@ -174,7 +184,7 @@ export const ruleStrategySchema = z
 export type RuleStrategy = z.infer<typeof ruleStrategySchema>;
 
 /** What a trade costs, each a fraction of its value but the minimum commission and the slippage. */
-export const tradeCostsSchema = z.object({
+export const tradeCostsSchema = z.strictObject({
   commissionRate: z.number().min(0).max(0.01),
   /** In the market's currency. */
   minCommission: z.number().min(0),
@@ -216,30 +226,11 @@ export interface BacktestTrade {
   bars: number;
 }
 
-/** How a stretch of the run went. */
-export interface BacktestMetrics {
+/** How a stretch of the run went, dated by its first and last sessions. */
+export interface BacktestMetrics extends KernelMetrics {
   /** Exchange-local days of its first and last bars. */
   from: string;
   to: string;
-  totalReturn: number;
-  /** The return a year at that pace, `null` over a stretch shorter than a month. */
-  annualReturn: number | null;
-  /** The deepest fall of the account's value from a high before it, as a fraction. */
-  maxDrawdown: number;
-  /** Trades closed within it; one still held is not counted. */
-  trades: number;
-  winRate: number | null;
-  /** The average gain over the size of the average loss; `null` without both. */
-  payoffRatio: number | null;
-  /** The part of its bars a position was held through. */
-  exposure: number;
-  /**
-   * What holding the listing through it would have returned, from the close its return is measured
-   * from to its last, before costs, with what went ex bought back in as the rules' prices have it.
-   */
-  buyAndHold: number;
-  /** The deepest fall holding it would have taken from a high before it, as a fraction, on the closes `buyAndHold` reads. */
-  buyAndHoldDrawdown: number;
 }
 
 export interface BacktestResult {
@@ -258,12 +249,64 @@ export interface BacktestResult {
   outOfSample: BacktestMetrics | null;
 }
 
+/** A strategy's figures over all the bars, and before and from the split where there is one. */
+export interface BacktestStretches {
+  all: BacktestMetrics;
+  inSample: BacktestMetrics | null;
+  outOfSample: BacktestMetrics | null;
+}
+
+/** Strategies run each on its own over one listing's bars. */
+export interface BacktestScan {
+  interval: Interval;
+  bars: number;
+  /** Each strategy's figures, in the order they came; none tests its timing. */
+  cells: BacktestStretches[];
+  /**
+   * Where the strategies make a grid, row by row, the cell whose neighbourhood, it and the cells
+   * beside it, had the highest mean Sharpe ratio, in-sample where there is a split, so a cell that
+   * did well alone among neighbours that did not is not picked; `edge` says it lies on the grid's
+   * border, past which the best may lie. `null` without a grid or a cell with a Sharpe ratio.
+   */
+  plateau: { cell: number; sharpe: number; edge: boolean } | null;
+}
+
+/** A window of a walk forward: the sessions it trained and tested on, and the strategy it picked. */
+export interface WalkForwardWindow {
+  train: { from: string; to: string };
+  test: { from: string; to: string };
+  /** `null` where no strategy had a Sharpe ratio over the training, and the test then held nothing. */
+  cell: number | null;
+  /** The pick's own Sharpe ratio over its training, not its neighbourhood's. */
+  trainSharpe: number | null;
+}
+
+/**
+ * Strategies picked on each window's sessions and run on the sessions after, those tests run as one
+ * with the holding carried from one to the next, so the record is of picking on the past alone.
+ */
+export interface WalkForwardResult {
+  interval: Interval;
+  bars: number;
+  windows: WalkForwardWindow[];
+  outOfSample: BacktestMetrics;
+  /** The out-of-sample Sharpe ratio over the mean of the picks' training ones; well under 1 says the picks were fitted. */
+  efficiency: number | null;
+  /** The account's value at each session's close from the first test on. */
+  equity: { date: string; value: number }[];
+}
+
+/**
+ * Where the out-of-sample stretch starts: on an exchange-local day, or after a share of the
+ * sessions, as 2/3 starts it about two thirds of the way through them.
+ */
+export type BacktestSplit = { day: string } | { share: number };
+
 export interface BacktestOptions {
   /** @default 1_000_000 in the market's currency */
   capital?: number;
   costs?: Partial<TradeCosts>;
-  /** The exchange-local day the out-of-sample stretch starts. */
-  split?: string;
+  split?: BacktestSplit;
   /** @default Interval.OneDay */
   interval?: Interval;
   /**
@@ -359,9 +402,9 @@ function extremeBefore(
   });
 }
 
-/** The lines a strategy's rules read, each series once, and its rules naming them by their place. */
-function kernelRules(
-  strategy: RuleStrategy,
+/** The lines strategies' rules read, each series once among them all, and their rules naming them by their place. */
+function kernelStrategies(
+  strategies: readonly RuleStrategy[],
   bars: readonly Candle[],
   adjusted: readonly Candle[],
   factors: readonly number[]
@@ -404,13 +447,39 @@ function kernelRules(
     return { crossesBelow: condition.crossesBelow.map(place) };
   };
 
-  return { entry: rule(strategy.entry), exit: rule(strategy.exit), lines };
+  const ruled = strategies.map((strategy): KernelStrategy => ({
+    entry: rule(strategy.entry),
+    exit: rule(strategy.exit),
+    stopLoss: strategy.stopLoss,
+    takeProfit: strategy.takeProfit,
+  }));
+
+  if (lines.length > MAX_SCAN_SERIES) {
+    throw new Error(
+      `Strategies read ${MAX_SCAN_SERIES} different series at most between them, and these read ${lines.length}`
+    );
+  }
+
+  return { lines, strategies: ruled };
 }
 
-/** Runs a backtest's columns, here or on the process that holds the kernel. */
+/** Runs backtests' columns, here or on the process that holds the kernel. */
 export interface BacktestKernel {
-  backtest(columns: BacktestColumns): BacktestRun | Promise<BacktestRun>;
+  backtest(request: BacktestRequest): BacktestRun | Promise<BacktestRun>;
+  scan(request: ScanRequest): ScanRun | Promise<ScanRun>;
+  walkForward(
+    request: WalkForwardRequest
+  ): WalkForwardRun | Promise<WalkForwardRun>;
 }
+
+/** How many orderings of each stretch's bars a backtest's timing is tested against. */
+export const BACKTEST_PERMUTATIONS = 1000;
+
+/** The most strategies a scan or a walk forward runs. */
+export const MAX_SCAN_STRATEGIES = 400;
+
+/** The most different series a scan's or a walk forward's strategies read between them. */
+export const MAX_SCAN_SERIES = 64;
 
 // A price read as at a limit within this of it, so a limit rebuilt from ticks matches the bar's.
 const PRICE_TOLERANCE = 1e-6;
@@ -503,8 +572,8 @@ function limitLocks(
 }
 
 /**
- * What the kernel reads of each bar's prices: its close as traded and adjusted, what a holding's
- * shares are carried over by at it, and what a buy and a sale fill at on its open.
+ * What the kernel reads of each bar's prices: its open and close as traded and adjusted, what a
+ * holding's shares are carried over by at it, and what a buy and a sale fill at on its open.
  */
 function priceColumns(
   symbol: SymbolRef,
@@ -519,7 +588,9 @@ function priceColumns(
     return Math.max(moved, tick);
   };
 
+  const open = new Float64Array(bars.length);
   const close = new Float64Array(bars.length);
+  const adjustedOpen = new Float64Array(bars.length);
   const adjustedClose = new Float64Array(bars.length);
   const carry = new Float64Array(bars.length);
   const buyPrice = new Float64Array(bars.length);
@@ -529,7 +600,9 @@ function priceColumns(
     const bar = bars[index];
     const { reference } = bar;
 
+    open[index] = bar.open;
     close[index] = bar.close;
+    adjustedOpen[index] = adjusted[index].open;
     adjustedClose[index] = adjusted[index].close;
     carry[index] =
       index > 0 && reference !== undefined
@@ -539,16 +612,31 @@ function priceColumns(
     sellPrice[index] = slipped(bar.open, false);
   }
 
-  return { close, adjustedClose, carry, buyPrice, sellPrice };
+  return {
+    open,
+    close,
+    adjustedOpen,
+    adjustedClose,
+    carry,
+    buyPrice,
+    sellPrice,
+  };
 }
 
-/** The last bar of each session, whose close the account is valued at. */
-function sessionCloses(days: Int32Array) {
-  const closes: number[] = [];
+/** The account's value at each session's close, from `equity`, which starts at bar `first`. */
+function sessionEquity(
+  days: Int32Array,
+  equity: Float64Array,
+  first: number
+): { date: string; value: number }[] {
+  const closes: { date: string; value: number }[] = [];
 
-  for (let index = 0; index < days.length; index++) {
+  for (let index = first; index < days.length; index++) {
     if (index === days.length - 1 || days[index + 1] !== days[index]) {
-      closes.push(index);
+      closes.push({
+        date: epochDayDate(days[index]),
+        value: equity[index - first],
+      });
     }
   }
 
@@ -585,27 +673,34 @@ function timedTrades(
   });
 }
 
+/** The first bar of the out-of-sample stretch `split` starts; -1 where no bar is past it. */
+function splitIndex(days: Int32Array, split: BacktestSplit) {
+  if ("day" in split) {
+    const day = dateEpochDay(split.day);
+
+    return days.findIndex((each) => each >= day);
+  }
+
+  const sessions: number[] = [];
+
+  days.forEach((day, index) => {
+    if (index === 0 || day !== days[index - 1]) sessions.push(index);
+  });
+
+  return sessions[Math.floor(sessions.length * split.share)] ?? -1;
+}
+
 /**
- * Runs a long-only strategy over a listing's bars, oldest first, on `kernel`. Each rule is read at a
- * bar's close from that bar and the ones before it, and acted on at the next bar's open, so no
- * decision sees a price it could not have; a session's first bar fills after the gap from the close
- * before. A buy spends what the account holds on whole shares; a sale sells them all. A Taiwan bar
- * locked at its limit fills nothing on that side: a daily one that traded at one price away from its
- * reference, a shorter one that traded at one price, its session's limit.
- *
- * Indicators, stops and buying and holding read prices adjusted from the bars' references, so a
- * split or what went ex reads as no move, each bar's on its own terms so no later one changes it,
- * while orders fill at prices as traded. A holding carries over a split or what went ex at the
- * session's reference, as though what went ex bought more shares then, which is what those prices
- * assume. Bars shorter than a day take their sessions' references from `options.daily`.
+ * A listing's bars as the kernel reads them, every strategy's lines among them, and what its
+ * answers are read back with: each bar's session, the split and the stretches dated by them.
+ * Bars shorter than a day take their sessions' references from `options.daily`.
  */
-export async function backtest(
-  kernel: BacktestKernel,
+function prepare(
   symbol: SymbolRef,
   candles: readonly Candle[],
-  strategy: RuleStrategy,
-  options: BacktestOptions = {}
-): Promise<BacktestResult> {
+  strategies: readonly RuleStrategy[],
+  options: BacktestOptions
+) {
   if (candles.length < 2) {
     throw new Error("A backtest needs two bars at least");
   }
@@ -624,56 +719,186 @@ export async function backtest(
   const days = candleDays(symbol.market, bars);
   const locks = limitLocks(symbol, bars, days, daily);
   const last = bars.length - 1;
+  const rules = kernelStrategies(strategies, bars, adjusted, factors);
 
-  const splitDay =
-    options.split === undefined ? undefined : dateEpochDay(options.split);
+  const splitAt = options.split ? splitIndex(days, options.split) : -1;
 
-  const splitAt =
-    splitDay === undefined ? -1 : days.findIndex((day) => day >= splitDay);
-
-  const split = splitAt > 0 && splitAt <= last;
-
-  const run = await kernel.backtest({
+  const kernelBars: KernelBars = {
     ...priceColumns(symbol, bars, adjusted, costs.slippageTicks),
     factor: Float64Array.from(factors),
     buyLocked: locks.up,
     sellLocked: locks.down,
     day: days,
-    ...kernelRules(strategy, bars, adjusted, factors),
-    stopLoss: strategy.stopLoss,
-    takeProfit: strategy.takeProfit,
+    lines: rules.lines,
     capital,
     commissionRate: costs.commissionRate,
     minCommission: costs.minCommission,
     sellTaxRate: costs.sellTaxRate,
-    splitAt: split ? splitAt : undefined,
-  });
+  };
 
   const date = (index: number) => epochDayDate(days[index]);
 
   const stretch = (
     first: number,
     end: number,
-    metrics: KernelMetrics | null
-  ): BacktestMetrics | null =>
-    metrics && { from: date(first), to: date(end), ...metrics };
+    metrics: KernelMetrics
+  ): BacktestMetrics => ({ from: date(first), to: date(end), ...metrics });
+
+  return {
+    interval,
+    bars,
+    days,
+    capital,
+    costs,
+    last,
+    kernelBars,
+    strategies: rules.strategies,
+    splitAt: splitAt > 0 && splitAt <= last ? splitAt : undefined,
+    date,
+    stretch,
+
+    /** A run's stretches, dated. */
+    stretches({ all, inSample, outOfSample }: KernelStretches) {
+      const at = this.splitAt;
+
+      return {
+        all: stretch(0, last, all),
+        inSample: at && inSample ? stretch(0, at - 1, inSample) : null,
+        outOfSample: at && outOfSample ? stretch(at, last, outOfSample) : null,
+      };
+    },
+  };
+}
+
+/**
+ * Runs a long-only strategy over a listing's bars, oldest first, on `kernel`. Each rule is read at a
+ * bar's close from that bar and the ones before it, and acted on at the next bar's open, so no
+ * decision sees a price it could not have; a session's first bar fills after the gap from the close
+ * before. A buy spends what the account holds on whole shares; a sale sells them all. A Taiwan bar
+ * locked at its limit fills nothing on that side: a daily one that traded at one price away from its
+ * reference, a shorter one that traded at one price, its session's limit. Each stretch's timing is
+ * tested against `BACKTEST_PERMUTATIONS` orderings of its bars.
+ *
+ * Indicators, stops and buying and holding read prices adjusted from the bars' references, so a
+ * split or what went ex reads as no move, each bar's on its own terms so no later one changes it,
+ * while orders fill at prices as traded. A holding carries over a split or what went ex at the
+ * session's reference, as though what went ex bought more shares then, which is what those prices
+ * assume.
+ */
+export async function backtest(
+  kernel: BacktestKernel,
+  symbol: SymbolRef,
+  candles: readonly Candle[],
+  strategy: RuleStrategy,
+  options: BacktestOptions = {}
+): Promise<BacktestResult> {
+  const prepared = prepare(symbol, candles, [strategy], options);
+  const { bars, days, last, interval } = prepared;
+
+  const run = await kernel.backtest({
+    bars: prepared.kernelBars,
+    strategy: prepared.strategies[0],
+    splitAt: prepared.splitAt,
+    permutations: BACKTEST_PERMUTATIONS,
+  });
 
   return {
     interval,
     bars: bars.length,
-    capital,
-    costs,
+    capital: prepared.capital,
+    costs: prepared.costs,
     trades: timedTrades(
       run.trades,
       (index) => barTime(symbol.market, interval, bars[index].time),
       last
     ),
-    equity: sessionCloses(days).map((index) => ({
-      date: date(index),
-      value: run.equity[index],
+    equity: sessionEquity(days, run.equity, 0),
+    ...prepared.stretches(run.stretches),
+  };
+}
+
+export interface ScanOptions extends BacktestOptions {
+  /** How many strategies a row of the grid they make holds, row by row. */
+  columns?: number;
+}
+
+/**
+ * Runs each of `strategies` on its own over a listing's bars as `backtest` runs one, all at once and
+ * with no timing tested, and where they make a grid picks the plateau of its Sharpe ratios.
+ */
+export async function scanBacktests(
+  kernel: BacktestKernel,
+  symbol: SymbolRef,
+  candles: readonly Candle[],
+  strategies: readonly RuleStrategy[],
+  options: ScanOptions = {}
+): Promise<BacktestScan> {
+  const prepared = prepare(symbol, candles, strategies, options);
+
+  const run = await kernel.scan({
+    bars: prepared.kernelBars,
+    strategies: prepared.strategies,
+    splitAt: prepared.splitAt,
+    columns: options.columns,
+  });
+
+  return {
+    interval: prepared.interval,
+    bars: prepared.bars.length,
+    cells: run.cells.map((cell) => prepared.stretches(cell)),
+    plateau: run.plateau,
+  };
+}
+
+export interface WalkForwardOptions extends Omit<BacktestOptions, "split"> {
+  /** How many strategies a row of the grid they make holds, row by row. */
+  columns?: number;
+  /** Sessions each window trains on; @default two fifths of the sessions */
+  train?: number;
+  /** Sessions each window then tests on, and moves on by; @default a quarter of `train` */
+  test?: number;
+}
+
+/**
+ * Picks one of `strategies` on each window's training, by the plateau of their Sharpe ratios where
+ * they make a grid and else the best, runs it over the sessions that follow, and runs those tests as
+ * one, so what the picks did out of sample is measured, its timing tested as `backtest` tests one.
+ */
+export async function walkForward(
+  kernel: BacktestKernel,
+  symbol: SymbolRef,
+  candles: readonly Candle[],
+  strategies: readonly RuleStrategy[],
+  options: WalkForwardOptions = {}
+): Promise<WalkForwardResult> {
+  const prepared = prepare(symbol, candles, strategies, options);
+  const sessions = new Set(prepared.days).size;
+  const train = options.train ?? Math.floor((sessions * 2) / 5);
+  const test = options.test ?? Math.max(1, Math.floor(train / 4));
+
+  const run = await kernel.walkForward({
+    bars: prepared.kernelBars,
+    strategies: prepared.strategies,
+    columns: options.columns,
+    train,
+    test,
+    permutations: BACKTEST_PERMUTATIONS,
+  });
+
+  const { date, days, last } = prepared;
+  const first = run.windows[0].testFirst;
+
+  return {
+    interval: prepared.interval,
+    bars: prepared.bars.length,
+    windows: run.windows.map((window) => ({
+      train: { from: date(window.trainFirst), to: date(window.trainLast) },
+      test: { from: date(window.testFirst), to: date(window.testLast) },
+      cell: window.cell,
+      trainSharpe: window.trainSharpe,
     })),
-    all: { from: date(0), to: date(last), ...run.all },
-    inSample: split ? stretch(0, splitAt - 1, run.inSample) : null,
-    outOfSample: split ? stretch(splitAt, last, run.outOfSample) : null,
+    outOfSample: prepared.stretch(first, last, run.outOfSample),
+    efficiency: run.efficiency,
+    equity: sessionEquity(days, run.equity, first),
   };
 }

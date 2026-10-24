@@ -269,7 +269,36 @@ test("a script backtests rules over the listing's bars, which the engine reads a
   expect(description).toContain("declare const backtest: {");
 });
 
-test("a backtest on minute bars reads them from further back with the daily bars, but not past three years", async () => {
+test("a script scans a grid of strategies and walks them forward over the same bars", async () => {
+  const { results, candles, description } = await analyze(`
+    const symbol = { market: "${Market.TW}", symbol: "2330" };
+    const strategies = [];
+    for (const entry of [105, 110]) {
+      for (const exit of [0, 120]) {
+        strategies.push({
+          entry: { above: [{ price: "close" }, { value: entry }] },
+          exit: { below: [{ price: "close" }, { value: exit }] },
+        });
+      }
+    }
+    const scan = await backtest.scan({ symbol, strategies, columns: 2, split: 2 / 3 });
+    const walked = await backtest.walkForward({ symbol, strategies, columns: 2, train: 20, test: 5 });
+    return [scan.cells.length, scan.cells[0].all.pValue, scan.cells[0].outOfSample.from, walked.windows.length, walked.outOfSample.from];
+  `);
+
+  expect(candles).toHaveBeenCalledTimes(2);
+  expect(results).toEqual([
+    {
+      status: ToolCallStatus.Ok,
+      // Two thirds of the thirty sessions are twenty.
+      output: 'Result: [4,null,"2025-07-05",2,"2025-07-05"]',
+    },
+  ]);
+  expect(description).toContain("scan(input: {");
+  expect(description).toContain("walkForward(input: {");
+});
+
+test("a backtest on minute bars reads them from further back with the daily bars, from three years back at most", async () => {
   const run = (since: string) => `
     const result = await backtest.rules({
       symbol: { market: "${Market.TW}", symbol: "2330" },
@@ -288,18 +317,17 @@ test("a backtest on minute bars reads them from further back with the daily bars
     run("2023-01-02")
   );
 
+  // Minute bars reach back three years from NOW, and the daily bars beside them ten.
   expect(candlesSince.mock.calls).toEqual([
     [{ market: Market.TW, symbol: "2330" }, Interval.OneMinute, "2024-01-02"],
     [{ market: Market.TW, symbol: "2330" }, Interval.OneDay, "2024-01-02"],
+    [{ market: Market.TW, symbol: "2330" }, Interval.OneMinute, "2023-10-13"],
+    [{ market: Market.TW, symbol: "2330" }, Interval.OneDay, "2023-01-02"],
   ]);
-  expect(results[0]).toEqual({
-    status: ToolCallStatus.Ok,
-    output: `Result: ["${Interval.OneMinute}",30]`,
-  });
-  expect(results[1].status).toBe(ToolCallStatus.Error);
-  expect(results[1].output).toContain(
-    "since goes back 3 years at most on 1m bars"
-  );
+  expect(results.map((result) => result.output)).toEqual([
+    `Result: ["${Interval.OneMinute}",30]`,
+    `Result: ["${Interval.OneMinute}",30]`,
+  ]);
 });
 
 test("what a script stores is there for the conversation's next script", async () => {
@@ -436,13 +464,13 @@ test("a script reads daily bars from further back and adds back the cash that we
   ]);
 });
 
-test("bars from further back are refused on short intervals, past ten years and for more than a few listings", async () => {
+test("bars from further back are refused on short intervals and for more than a few listings, and read from ten years back at most", async () => {
   const read = (symbol: string, interval: Interval, since: string) =>
     `await tools.candles({ symbol: { market: "${Market.TW}", symbol: "${symbol}" }, interval: "${interval}", since: "${since}" });`;
 
   const { results, candlesSince } = await analyze(
     read("2330", Interval.FiveMinutes, "2026-01-02"),
-    read("2330", Interval.OneDay, "2016-10-13"),
+    read("2330", Interval.OneDay, "2016-10-12"),
     ["2330", "2317", "2454", "2308", "2382", "2330", "2881"]
       .map((symbol) => read(symbol, Interval.OneWeek, "2020-01-02"))
       .join("\n")
@@ -450,14 +478,18 @@ test("bars from further back are refused on short intervals, past ten years and 
 
   expect(results.map((result) => result.status)).toEqual([
     ToolCallStatus.Error,
-    ToolCallStatus.Error,
+    ToolCallStatus.Ok,
     ToolCallStatus.Error,
   ]);
   expect(results[0].output).toContain("since reaches back on 1d, 1w and 1mo");
-  expect(results[1].output).toContain(
-    "since goes back 10 years at most on 1d bars, to 2016-10-15"
+  // A day past ten years before NOW, on Taipei's calendar, reads from ten years back.
+  expect(candlesSince).toHaveBeenNthCalledWith(
+    1,
+    { market: Market.TW, symbol: "2330" },
+    Interval.OneDay,
+    "2016-10-13"
   );
   expect(results[2].output).toContain("for at most 5 listings");
   // Five listings and one of them again, then the sixth is refused before its source is asked.
-  expect(candlesSince).toHaveBeenCalledTimes(6);
+  expect(candlesSince).toHaveBeenCalledTimes(7);
 });

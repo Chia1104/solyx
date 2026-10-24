@@ -12,6 +12,10 @@ const served = implement(kernelContract);
 const handler = new RPCHandler(
   served.router({
     backtest: served.backtest.handler(({ input }) => kernel.backtest(input)),
+    scan: served.scan.handler(({ input }) => kernel.scan(input)),
+    walkForward: served.walkForward.handler(({ input }) =>
+      kernel.walkForward(input)
+    ),
   }),
   { clientInterceptors: [keepMessages], experimental_transfer: () => [] }
 );

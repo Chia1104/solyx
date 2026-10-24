@@ -38,8 +38,11 @@ export function connectKernel(
 
   return {
     ended,
-    backtest: (columns) =>
-      call((signal) => kernel.backtest(columns, { signal })),
+    backtest: (request) =>
+      call((signal) => kernel.backtest(request, { signal })),
+    scan: (request) => call((signal) => kernel.scan(request, { signal })),
+    walkForward: (request) =>
+      call((signal) => kernel.walkForward(request, { signal })),
   };
 }
 
@@ -65,6 +68,8 @@ export function createKernel(
   }
 
   return {
-    backtest: async (columns) => (await current()).backtest(columns),
+    backtest: async (request) => (await current()).backtest(request),
+    scan: async (request) => (await current()).scan(request),
+    walkForward: async (request) => (await current()).walkForward(request),
   };
 }

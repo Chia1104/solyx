@@ -24,7 +24,11 @@ export const ENGINE_RUBRIC: Criterion[] = [
   },
   {
     id: "figures",
-    text: "Every return, drawdown, trade count, win rate and date it cites matches the engine's results given here; none is invented, misread or taken from the wrong stretch.",
+    text: "Every return, drawdown, Sharpe ratio, p-value, trade count, win rate and date it cites matches the engine's results given here; none is invented, misread or taken from the wrong stretch.",
+  },
+  {
+    id: "history",
+    text: "Where the request names a span of time, its backtests cover that span. Where it names none, they read back far enough that each stretch can close about twenty trades: a span that left a stretch under twenty passes only where it already reached ten years of daily bars or the listing's first bar, so a rule that trades often may read less and one that trades rarely must read more.",
   },
   {
     id: "thin-evidence",

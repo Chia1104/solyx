@@ -32,6 +32,10 @@ jobs:
       # The kernel's tests and the app's build compile it with the Rust its rust-toolchain.toml names.
       - run: rustup toolchain install
         working-directory: packages/kernel
+      # Compiled before the tests, so compiling the kernel does not slow the tests that run beside it.
+      - run: vp run @solyx/kernel#build
+      - run: cargo test --no-run --quiet
+        working-directory: packages/kernel
       - run: vp run -r test
       # The website's build reads the releases from GitHub's API, which limits callers without a token.
       - run: vp run -r build
