@@ -242,13 +242,11 @@ test("a script reads bars and computes with the app's indicators", async () => {
   ]);
 });
 
-test("a script backtests rules over the bars it read, filled at the next open by the app's own engine", async () => {
-  const { results, description } = await analyze(`
+test("a script backtests rules over the listing's bars, which the engine reads and fills at the next open", async () => {
+  const { results, description, candles } = await analyze(`
     const symbol = { market: "${Market.TW}", symbol: "2330" };
-    const bars = await tools.candles({ symbol, interval: "${Interval.OneDay}" });
     const result = await backtest.rules({
       symbol,
-      bars,
       strategy: {
         entry: { above: [{ price: "close" }, { value: 110 }] },
         exit: { below: [{ price: "close" }, { sma: 5 }] },
@@ -256,15 +254,52 @@ test("a script backtests rules over the bars it read, filled at the next open by
       costs: { commissionRate: 0, minCommission: 0, sellTaxRate: 0, slippageTicks: 0 },
     });
     const [trade] = result.trades;
-    return [result.trades.length, trade.entryPrice, trade.exitDate, result.all.trades];
+    return [result.trades.length, trade.entryPrice, trade.exitTime, result.all.trades];
   `);
 
+  expect(candles).toHaveBeenCalledWith(
+    { market: Market.TW, symbol: "2330" },
+    Interval.OneDay
+  );
   // The close of 111 is the first past 110, so the next bar's open of 111 buys; nothing sells.
   expect(results).toEqual([
     { status: ToolCallStatus.Ok, output: "Result: [1,111,null,0]" },
   ]);
   expect(description).toContain("type Strategy = { entry: Condition;");
   expect(description).toContain("declare const backtest: {");
+});
+
+test("a backtest on minute bars reads them from further back with the daily bars, but not past three years", async () => {
+  const run = (since: string) => `
+    const result = await backtest.rules({
+      symbol: { market: "${Market.TW}", symbol: "2330" },
+      interval: "${Interval.OneMinute}",
+      since: "${since}",
+      strategy: {
+        entry: { above: [{ price: "close" }, { value: 110 }] },
+        exit: { below: [{ price: "close" }, { value: 0 }] },
+      },
+    });
+    return [result.interval, result.bars];
+  `;
+
+  const { results, candlesSince } = await analyze(
+    run("2024-01-02"),
+    run("2023-01-02")
+  );
+
+  expect(candlesSince.mock.calls).toEqual([
+    [{ market: Market.TW, symbol: "2330" }, Interval.OneMinute, "2024-01-02"],
+    [{ market: Market.TW, symbol: "2330" }, Interval.OneDay, "2024-01-02"],
+  ]);
+  expect(results[0]).toEqual({
+    status: ToolCallStatus.Ok,
+    output: `Result: ["${Interval.OneMinute}",30]`,
+  });
+  expect(results[1].status).toBe(ToolCallStatus.Error);
+  expect(results[1].output).toContain(
+    "since goes back 3 years at most on 1m bars"
+  );
 });
 
 test("what a script stores is there for the conversation's next script", async () => {
@@ -420,7 +455,7 @@ test("bars from further back are refused on short intervals, past ten years and 
   ]);
   expect(results[0].output).toContain("since reaches back on 1d, 1w and 1mo");
   expect(results[1].output).toContain(
-    "since goes back 10 years at most, to 2016-10-15"
+    "since goes back 10 years at most on 1d bars, to 2016-10-15"
   );
   expect(results[2].output).toContain("for at most 5 listings");
   // Five listings and one of them again, then the sixth is refused before its source is asked.

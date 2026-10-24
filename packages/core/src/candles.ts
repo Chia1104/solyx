@@ -213,6 +213,43 @@ export function adjustmentFactors(candles: readonly Candle[]): number[] {
 }
 
 /**
+ * Intraday bars with each split or what went ex their daily bars tell of, on the first bar of its
+ * session: that bar's reference stands to the close before it as the daily reference stands to the
+ * daily close before it, so the bars adjust as daily ones do whatever their own last close was.
+ */
+export function withSessionMoves(
+  market: Market,
+  intraday: readonly Candle[],
+  daily: readonly Candle[]
+): Candle[] {
+  const dailyDays = candleDays(market, daily);
+  const moves = new Map<number, number>();
+
+  for (let index = 1; index < daily.length; index++) {
+    const { reference } = daily[index];
+
+    const move =
+      reference === undefined ? 1 : reference / daily[index - 1].close;
+
+    // A reference a rounding away from the close before moved nothing.
+    if (Math.abs(move - 1) > 1e-9) moves.set(dailyDays[index], move);
+  }
+
+  const days = candleDays(market, intraday);
+
+  return intraday.map((bar, index) => {
+    const move =
+      index > 0 && days[index] !== days[index - 1]
+        ? moves.get(days[index])
+        : undefined;
+
+    return move === undefined
+      ? bar
+      : { ...bar, reference: intraday[index - 1].close * move };
+  });
+}
+
+/**
  * Bars on the first one's terms, so a split or what went ex reads as no move, and their volume
  * the other way, so the value traded stays as it traded. Each reads only it and the bars before.
  */

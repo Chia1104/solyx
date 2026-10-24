@@ -1,4 +1,4 @@
-import { sum } from "es-toolkit";
+import { round, sum } from "es-toolkit";
 import * as z from "zod";
 
 import { Side } from "../order.ts";
@@ -97,6 +97,34 @@ export function twTickSize(price: number, code: string): number {
   if (price < 1000) return 1;
 
   return 5;
+}
+
+/** How far a Taiwan listing's price may move from its session's reference. */
+const TW_LIMIT_RATE = 0.1;
+
+// More than any tick has, so a price rebuilt from whole ticks reads as the exchange writes it.
+const TICK_DECIMALS = 4;
+
+/**
+ * The prices a Taiwan listing trades between in a session that moves from `reference`: 10% either
+ * way, kept to the tick each price takes, the upper rounded down and the lower up. The few listings
+ * the exchanges exempt, such as some funds of foreign shares, are not known from their code.
+ */
+export function twPriceLimits(reference: number, code: string) {
+  const bound = (price: number, toTick: (ticks: number) => number) => {
+    const tick = twTickSize(price, code);
+
+    // Counted in whole ticks first, so a product a hair off one is not moved a tick.
+    return round(
+      toTick(round(price / tick, TICK_DECIMALS)) * tick,
+      TICK_DECIMALS
+    );
+  };
+
+  return {
+    high: bound(reference * (1 + TW_LIMIT_RATE), Math.floor),
+    low: bound(reference * (1 - TW_LIMIT_RATE), Math.ceil),
+  };
 }
 
 // The day by which a listed company files each quarter's statements, first quarter first; the

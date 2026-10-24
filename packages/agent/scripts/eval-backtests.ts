@@ -27,7 +27,6 @@ import type { BacktestMetrics, BacktestResult } from "@solyx/core/backtest";
 import { BrokerMode } from "@solyx/core/broker";
 import {
   Interval,
-  candleDate,
   isCalendarInterval,
   lookbackRange,
   periodStart,
@@ -195,6 +194,8 @@ const LINKS = {
 /** A backtest a script ran: what it asked the engine and what came of it. */
 interface EngineCall {
   symbol: string;
+  interval: Interval;
+  since: string | null;
   strategy: unknown;
   split: string | null;
   costs: unknown;
@@ -207,7 +208,7 @@ interface EngineCall {
 const engineInputSchema = z.tuple([
   z.object({
     symbol: z.object({ market: z.enum(Market), symbol: z.string() }),
-    bars: z.array(z.object({ epoch: z.number() })),
+    since: z.string().optional(),
     strategy: z.unknown(),
     split: z.string().optional(),
     costs: z.unknown().optional(),
@@ -236,17 +237,16 @@ function recordingScripts(calls: EngineCall[]): ScriptRunner {
 
                   const [input] = engineInputSchema.parse(args);
 
-                  const day = (bar: { epoch: number } | undefined) =>
-                    bar ? candleDate(input.symbol.market, bar.epoch) : "";
-
                   calls.push({
                     symbol: input.symbol.symbol,
+                    interval: result.interval,
+                    since: input.since ?? null,
                     strategy: input.strategy,
                     split: input.split ?? null,
                     costs: input.costs ?? null,
-                    bars: input.bars.length,
-                    from: day(input.bars[0]),
-                    to: day(input.bars.at(-1)),
+                    bars: result.bars,
+                    from: result.all.from,
+                    to: result.all.to,
                     result: {
                       all: result.all,
                       inSample: result.inSample,
@@ -467,7 +467,7 @@ const stretchText = (metrics: BacktestMetrics | null) =>
 
 const callText = (call: EngineCall, index: number) =>
   [
-    `${index + 1}. ${call.symbol}, ${call.bars} bars from ${call.from} to ${call.to}, split ${call.split ?? "none"}, costs ${call.costs === null ? "the app's defaults" : JSON.stringify(call.costs)}`,
+    `${index + 1}. ${call.symbol}, ${call.bars} ${call.interval} bars from ${call.from} to ${call.to}, split ${call.split ?? "none"}, costs ${call.costs === null ? "the app's defaults" : JSON.stringify(call.costs)}`,
     `strategy ${JSON.stringify(call.strategy)}`,
     `all: ${stretchText(call.result.all)}`,
     `in-sample: ${stretchText(call.result.inSample)}`,

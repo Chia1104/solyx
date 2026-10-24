@@ -24,6 +24,9 @@ export const shiftDate = (date: string, days: number) =>
 export const epochDayDate = (day: number) =>
   new Date(day * DAY_MS).toISOString().slice(0, 10);
 
+/** The day counted from 1970-01-01 of a `YYYY-MM-DD` calendar date. */
+export const dateEpochDay = (date: string) => Date.parse(date) / DAY_MS;
+
 /** Moves a `YYYY-MM` month by whole months. */
 export const shiftMonth = (month: string, months: number) =>
   Temporal.PlainYearMonth.from(month).add({ months }).toString();
