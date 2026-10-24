@@ -2,7 +2,7 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { candleDate } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
-import { Market } from "@solyx/core/market";
+import { Market, exchangeDate } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import {
   PLAYBACK_SESSIONS,
@@ -12,6 +12,7 @@ import {
   RotationInterval,
   readingThrough,
 } from "@solyx/core/rotation";
+import type { RotationReading } from "@solyx/core/rotation";
 import { SectorGroup, TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 import { MINUTE_MS, shiftDate } from "@solyx/utils/date";
 
@@ -116,8 +117,32 @@ function setup(
 
   const clock = { now: NOW };
 
+  // Each index's quote is of its newest session up to now, as the exchange's quotes are.
+  const sectorQuotes = vi.fn(async () =>
+    TW_SECTOR_INDICES.map((index) => {
+      const today = exchangeDate(Market.TW, clock.now);
+
+      const held = (bars[index.symbol] ?? []).filter(
+        ({ time }) => candleDate(Market.TW, time) <= today
+      );
+
+      const [before, last] = held.slice(-2);
+
+      return {
+        ...index,
+        quote: last && {
+          date: candleDate(Market.TW, last.time),
+          last: last.close,
+          reference: before.close,
+          tradeValue: 0,
+        },
+      };
+    })
+  );
+
   const rotations = createRotations({
     candlesBetween,
+    sectorQuotes,
     sourceId: async (market) => (market === Market.TW ? "fake" : null),
     company: async ({ symbol }) =>
       symbol === "2330"
@@ -126,7 +151,7 @@ function setup(
     now: () => clock.now,
   });
 
-  return { rotations, candlesBetween, clock };
+  return { rotations, candlesBetween, sectorQuotes, clock };
 }
 
 test("sectors read the TAIEX's and each index's daily bars once, the newest year and then the two before it, and keep them a minute", async () => {
@@ -148,6 +173,12 @@ test("sectors read the TAIEX's and each index's daily bars once, the newest year
     { market: Market.TW, symbol: "IX0001" },
     SPAN_FROM,
     shiftDate(RECENT_FROM, -1)
+  );
+  // The sector indices' sessions are their quotes, so their bars are read through yesterday.
+  expect(candlesBetween).toHaveBeenCalledWith(
+    { market: Market.TW, symbol: "IX0028" },
+    RECENT_FROM,
+    "2026-09-28"
   );
   expect(set?.asOf).toBe("2026-09-29");
   expect(set?.sessions).toEqual([
@@ -329,6 +360,47 @@ test("the whole span reaches back as far as every period's playback and trail ne
   }
 });
 
+test("the sector indices read together take today's session from their quotes, and read as their own bars would", async () => {
+  const semis = { market: Market.TW, symbol: "IX0028" };
+
+  const { rotations, candlesBetween, clock } = setup({
+    IX0001: SPAN,
+    IX0028: wave(SPAN),
+  });
+
+  const daily = (readings: RotationReading[] = []) =>
+    readings.find(
+      ({ interval, period }) =>
+        interval === RotationInterval.Daily && period === 20
+    )?.trail ?? [];
+
+  const sectors = await rotations.sectors();
+  const read = sectors?.entries.find(({ symbol }) => symbol === "IX0028");
+
+  expect(candlesBetween).not.toHaveBeenCalledWith(
+    semis,
+    expect.any(String),
+    "2026-09-29"
+  );
+  expect(daily(read?.readings).at(-1)?.date).toBe("2026-09-29");
+
+  const [own] = (await rotations.listings([semis])).entries;
+
+  expect(read?.readings).toEqual(own.readings);
+
+  // On a Saturday the quote is of the session the closed bars end with, which counts once.
+  clock.now = new Date("2026-10-03T10:00:00+08:00");
+
+  const dates = daily(
+    (await rotations.sectors())?.entries.find(
+      ({ symbol }) => symbol === "IX0028"
+    )?.readings
+  ).map(({ date }) => date);
+
+  expect(dates.at(-1)).toBe("2026-09-29");
+  expect(new Set(dates).size).toBe(dates.length);
+});
+
 test("weekly readings take a week in once its last session has closed", async () => {
   const { rotations, clock } = setup({ IX0001: SPAN, IX0028: wave(SPAN) });
 
@@ -397,6 +469,7 @@ test("a history that fails for its older years fails after showing the newest ye
 test("sectors are null while no source covers Taiwan", async () => {
   const rotations = createRotations({
     candlesBetween: async () => [],
+    sectorQuotes: async () => null,
     sourceId: async () => null,
     company: async () => null,
   });
