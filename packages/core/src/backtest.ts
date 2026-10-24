@@ -27,7 +27,7 @@ import {
 import type { Candle } from "./candles.ts";
 import { bollinger, ema, kd, macd, rsi, sma } from "./indicators.ts";
 import type { IndicatorLine } from "./indicators.ts";
-import { Market } from "./market.ts";
+import { Market, symbolLabel } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { tickSize } from "./risk.ts";
 import {
@@ -481,6 +481,69 @@ export const MAX_SCAN_STRATEGIES = 400;
 /** The most different series a scan's or a walk forward's strategies read between them. */
 export const MAX_SCAN_SERIES = 64;
 
+/** The most windows a walk forward runs, each a training of every strategy. */
+export const MAX_WALK_WINDOWS = 100;
+
+/** The most bars a backtest runs over: a session's minute bars over the furthest back it may read, with room. */
+export const BACKTEST_BARS = 300_000;
+
+/** How many different series `strategies` read between them, which a scan holds to `MAX_SCAN_SERIES`. */
+export const distinctSeries = (strategies: readonly RuleStrategy[]) =>
+  new Set(
+    strategies.flatMap((strategy) =>
+      [...ruleSeries(strategy.entry), ...ruleSeries(strategy.exit)].map(
+        seriesKey
+      )
+    )
+  ).size;
+
+/** Where a backtest reads a listing's bars: the app's own history, or from a day on. */
+export interface BacktestBarsSource {
+  candles(symbol: SymbolRef, interval: Interval): Promise<Candle[]>;
+  /** From `since`, `YYYY-MM-DD` on the exchange's calendar, on. */
+  candlesSince(
+    symbol: SymbolRef,
+    interval: Interval,
+    since: string
+  ): Promise<Candle[]>;
+}
+
+/**
+ * A listing's `interval` bars as a backtest reads them, over the app's own history or from `since`
+ * on, and where they are shorter than a day its daily bars over the same reach, which their
+ * sessions' references come from.
+ */
+export async function backtestBars(
+  source: BacktestBarsSource,
+  symbol: SymbolRef,
+  interval: Interval,
+  since?: string
+) {
+  const read = (each: Interval) =>
+    since === undefined
+      ? source.candles(symbol, each)
+      : source.candlesSince(symbol, each, since);
+
+  const bars = await read(interval);
+
+  if (bars.length < 2) {
+    throw new Error(
+      `${symbolLabel(symbol)} has too few ${interval} bars to backtest`
+    );
+  }
+
+  if (bars.length > BACKTEST_BARS) {
+    throw new Error(
+      `${bars.length} ${interval} bars are more than a backtest takes (${BACKTEST_BARS}); start later or take a longer interval`
+    );
+  }
+
+  return {
+    bars,
+    daily: isIntraday(interval) ? await read(Interval.OneDay) : undefined,
+  };
+}
+
 // A price read as at a limit within this of it, so a limit rebuilt from ticks matches the bar's.
 const PRICE_TOLERANCE = 1e-6;
 
@@ -875,6 +938,13 @@ export async function walkForward(
   const sessions = new Set(prepared.days).size;
   const train = options.train ?? Math.floor((sessions * 2) / 5);
   const test = options.test ?? Math.max(1, Math.floor(train / 4));
+  const windows = Math.ceil((sessions - train) / test);
+
+  if (windows > MAX_WALK_WINDOWS) {
+    throw new Error(
+      `Testing ${test} sessions at a time after ${train} of training makes ${windows} windows, more than the ${MAX_WALK_WINDOWS} a walk forward runs; test more sessions at a time`
+    );
+  }
 
   const run = await kernel.walkForward({
     bars: prepared.kernelBars,

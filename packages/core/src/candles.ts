@@ -78,6 +78,26 @@ export function isIntraday(interval: Interval): interval is IntradayInterval {
   return interval !== Interval.OneDay && !isCalendarInterval(interval);
 }
 
+/** How many years back past its lookback the app reads a listing's daily and longer bars. */
+export const HISTORY_YEARS = 10;
+
+/** How many years back it reads shorter bars, of which each year costs a source a request too. */
+export const INTRADAY_HISTORY_YEARS = 3;
+
+/** The most years back the app reads a listing's `interval` bars. */
+export const historyYears = (interval: Interval) =>
+  isIntraday(interval) ? INTRADAY_HISTORY_YEARS : HISTORY_YEARS;
+
+/** The exchange-local day `years` before the one `at` falls on, `YYYY-MM-DD`. */
+export const yearsBefore = (
+  market: Market,
+  years: number,
+  at: Date = new Date()
+) =>
+  Temporal.PlainDate.from(exchangeDate(market, at))
+    .subtract({ years })
+    .toString();
+
 export interface Candle {
   /** Bar open time in UTC seconds; daily and longer bars open at midnight exchange time. */
   time: number;

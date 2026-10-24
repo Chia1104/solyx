@@ -37,9 +37,13 @@ The app's backend, composed in `services.ts`. The desktop runs it in a utility p
 - The memory module shares one `MemoryStore` over `memory.sqlite`, which tells every window after each write, whether the agent's, the settings page's or clearing them all. Deleting a conversation keeps what it saved, since a memory is kept for the conversations after it. The agent gets its memories from its next run on while `agent.memory` is on, which it is until the user switches it off; switched off, they stay saved.
 - `agent.decisionMode` says who judges the agent's forecasts and order proposals: the agent alone, or the MAGI, which votes an order up or down and votes on each of a forecast's scenarios. Under the MAGI each unit answers on the model `agent.magi` names for it, or else on the model of the conversation that put the motion, and each turn's context tells the agent the mode.
 - Sign-in callbacks: Sign in with ChatGPT listens on port 1455, a remote MCP server's sign-in on the port its client registration redirects to, and each takes any free port when that one is taken; OpenRouter's sign-in listens on any free port. A sign-in that runs on a code opens no listener: the settings module pushes the code to the windows.
-- The agent's `backtest.rules` runs on the kernel in a utility process of its own, which the main process starts when the backend asks: on the first run and again once one has ended. It is handed the columns and answers the run, keeping nothing between calls, and a run it does not answer within the deadline ends it, failing every run still waiting.
 - pi-durable's reports, such as a task that threw or a run it parked, are `report`ed as `agent.durable`, naming the task's kind and extension; the store failing is reported on its own, below.
 - Once the conversations' store fails, the agent module reports it, tells every window, and answers so to any window that asks later; a window then offers a restart in place of the composer. The app restarts by quitting as it always does, so what is open closes first. Orders are not held up: the desk keeps its own database.
+
+## Backtests
+
+- The agent's backtests and the windows' run on one kernel in a utility process of its own, which the main process starts when the backend asks: on the first run and again once one has ended. It is handed the columns and answers the run, keeping nothing between calls, and a run it does not answer within the deadline ends it, failing every run still waiting.
+- A window sets a backtest up through the backtests module, from a template or rules, over a listing's last years of bars read through the candle cache as the agent's are, so the two read the same bars. It changes nothing and reads only what the app keeps, so a paired device runs one too.
 
 ## Windows and the tray
 

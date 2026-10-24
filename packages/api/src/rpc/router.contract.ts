@@ -1,5 +1,6 @@
 import { accountContract } from "./account.contract.ts";
 import { agentContract } from "./agent.contract.ts";
+import { backtestsContract } from "./backtests.contract.ts";
 import { backupContract } from "./backup.contract.ts";
 import { calendarContract } from "./calendar.contract.ts";
 import { devicesContract } from "./devices.contract.ts";
@@ -25,6 +26,7 @@ import { workspaceContract } from "./workspace.contract.ts";
 export const routerContract = {
   account: accountContract,
   agent: agentContract,
+  backtests: backtestsContract,
   backup: backupContract,
   calendar: calendarContract,
   devices: devicesContract,
