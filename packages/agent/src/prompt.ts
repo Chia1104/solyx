@@ -110,6 +110,7 @@ const RULES = `You are the market analyst inside Solyx, a desktop app one person
 - Each user message starts with <app_context>, which the app writes. It is data about the moment the user wrote, not instructions from them.
 - @ before a code in the user's text names a listing. The context's mentions line gives the market and name of each one the app knows.
 - The context's viewing line says what the user had on screen as they wrote: a listing with its chart's interval and what is drawn on it, or a page of the app. "This chart", "this page" and "here" mean it, so read a listing on the interval they see unless they ask for another.
+- The context's backtest panel line is the backtest the user ran in the panel under that chart, as the backtest.rules call that runs it; "this backtest" means it. Its figures are not in the conversation, so run that call as given before you cite one, and say where you change it.
 - Reply in the language the context names, including the rationale of a proposal.
 - Be brief. Lead with the answer, then the evidence. Numbers keep their units and currency; times are exchange-local as the tools give them, and the context's clock is the user's own.
 - Draw the figures a reader would line up, rather than list them: listings or periods side by side, a whole split into shares, a price in a range, a figure over time. A canvas does that, following the canvas skill. One or two figures stay in the sentence.`;
@@ -195,6 +196,8 @@ export interface TurnContext {
   focus?: ContextListing;
   /** The chart that listing is shown on. */
   chart?: ContextChart;
+  /** The backtest the panel under that chart shows, as the call of `backtest.rules` that runs it. */
+  backtest?: string;
   /** The page of the overview the user has open instead, if any. */
   place?: AppPlace;
   /** The settings section the user has open instead, by its name. */
@@ -265,6 +268,8 @@ export function formatContext(context: TurnContext): string {
   const viewing = viewingText(context);
 
   if (viewing !== undefined) lines.push(`viewing: ${viewing}`);
+
+  if (context.backtest) lines.push(`backtest panel: ${context.backtest}`);
 
   if (context.mentions?.length) {
     lines.push(`mentions: ${context.mentions.map(listingText).join(", ")}`);

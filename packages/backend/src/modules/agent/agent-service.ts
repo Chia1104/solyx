@@ -464,7 +464,7 @@ export function createAgentService(options: AgentServiceOptions) {
     }
   ) {
     const now = new Date();
-    const shown = screenContext(screen);
+    const shown = screenContext(screen, now);
 
     const { mentions, skill } = await messageContext(text, {
       focus: shown.focus ?? null,

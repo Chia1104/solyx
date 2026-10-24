@@ -1217,6 +1217,13 @@
       "out-of-sample": "{{index}} · out of sample",
       "all": "{{index}} · whole span",
       "again": "Compared on today's bars, so a figure can differ from the one the run had when it was kept."
+    },
+    "bridge": {
+      "ran": "Backtests this script ran",
+      "open": "Open {{symbol}} #{{index}} in the backtest panel",
+      "nearest": "The panel reads whole years back and splits by share, so it runs the nearest it offers.",
+      "ask": "Ask the agent about this run",
+      "ask-prompt": "/backtest Read the backtest on my panel: what do its figures say, and how far can I trust them?"
     }
   },
   "magi": {

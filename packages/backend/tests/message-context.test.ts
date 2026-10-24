@@ -8,6 +8,7 @@ import { SettingsSection } from "@solyx/api/settings-section";
 import { Interval } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import { StrategyTemplate } from "@solyx/core/strategy-templates";
 
 import {
   messageContext,
@@ -76,15 +77,21 @@ test("a skill the user may not ask for is not named, and failing sources leave o
   });
 });
 
+// 10:00 in Taipei on 2026-10-26.
+const NOW = new Date("2026-10-26T02:00:00Z");
+
 test("the screen reaches the context as a listing with its chart, or as the page it shows", () => {
   expect(
-    screenContext({
-      kind: ScreenKind.Listing,
-      symbol: listing(Market.TW, "2317"),
-      name: "鴻海",
-      interval: Interval.FiveMinutes,
-      indicators: [ChartIndicator.MovingAverage, ChartIndicator.ForeignFlow],
-    })
+    screenContext(
+      {
+        kind: ScreenKind.Listing,
+        symbol: listing(Market.TW, "2317"),
+        name: "鴻海",
+        interval: Interval.FiveMinutes,
+        indicators: [ChartIndicator.MovingAverage, ChartIndicator.ForeignFlow],
+      },
+      NOW
+    )
   ).toEqual({
     focus: { symbol: listing(Market.TW, "2317"), name: "鴻海" },
     chart: {
@@ -93,13 +100,52 @@ test("the screen reaches the context as a listing with its chart, or as the page
     },
   });
   expect(
-    screenContext({ kind: ScreenKind.Overview, tab: OverviewTab.News })
+    screenContext({ kind: ScreenKind.Overview, tab: OverviewTab.News }, NOW)
   ).toEqual({ place: AppPlace.Headlines });
   expect(
-    screenContext({
-      kind: ScreenKind.Settings,
-      section: SettingsSection.MarketData,
-    })
+    screenContext(
+      { kind: ScreenKind.Settings, section: SettingsSection.MarketData },
+      NOW
+    )
   ).toEqual({ settings: "market data" });
-  expect(screenContext(null)).toEqual({});
+  expect(screenContext(null, NOW)).toEqual({});
+});
+
+test("the backtest the panel shows reaches the context as the call that runs it", () => {
+  const { backtest } = screenContext(
+    {
+      kind: ScreenKind.Listing,
+      symbol: listing(Market.TW, "2330"),
+      interval: Interval.OneDay,
+      indicators: [],
+      backtest: {
+        symbol: listing(Market.TW, "2330"),
+        interval: Interval.OneDay,
+        years: 5,
+        strategy: {
+          template: StrategyTemplate.MovingAverageCross,
+          params: { fast: 5, slow: 20 },
+          stopLoss: 0.08,
+        },
+        split: 0.75,
+        capital: 1_000_000,
+      },
+    },
+    NOW
+  );
+
+  expect(backtest).toBe(
+    `backtest.rules(${JSON.stringify({
+      symbol: listing(Market.TW, "2330"),
+      interval: Interval.OneDay,
+      since: "2021-10-26",
+      strategy: {
+        entry: { crossesAbove: [{ sma: 5 }, { sma: 20 }] },
+        exit: { crossesBelow: [{ sma: 5 }, { sma: 20 }] },
+        stopLoss: 0.08,
+      },
+      split: 0.75,
+      capital: 1_000_000,
+    })})`
+  );
 });

@@ -26,10 +26,9 @@ import type {
 } from "@solyx/core/research";
 
 import { useClock } from "../../app/clock.ts";
-import { Pane, useLayoutStore } from "../../app/layout-store.ts";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
-import { useAgentStore } from "../agent/agent-store.ts";
+import { useAgentDraft } from "../agent/agent-draft.ts";
 import { timedDay } from "../calendar/upcoming-events.tsx";
 import { FinancialTrends } from "../fundamentals/financial-trends.tsx";
 import { ListingRotation } from "../market/listing-rotation.tsx";
@@ -47,21 +46,15 @@ import { ValuationRange } from "./valuation-range.tsx";
 /** Hands the agent's composer a request for a deep analysis, in a new conversation the user sends. */
 function DeepAnalysisButton({ symbol }: { symbol: SymbolRef }) {
   const { t } = useTranslation();
-  const select = useAgentStore((state) => state.select);
-  const setDraft = useAgentStore((state) => state.setDraft);
-  const agentOpen = useLayoutStore((state) => state.panes[Pane.Agent].open);
-  const toggle = useLayoutStore((state) => state.toggle);
+  const draft = useAgentDraft();
 
   return (
     <Button
       size="sm"
       variant="secondary"
-      onPress={() => {
-        if (!agentOpen) toggle(Pane.Agent);
-
-        select(null);
-        setDraft(t("research.deep-analysis-prompt", { symbol: symbol.symbol }));
-      }}>
+      onPress={() =>
+        draft(t("research.deep-analysis-prompt", { symbol: symbol.symbol }))
+      }>
       {t("research.deep-analysis")}
     </Button>
   );

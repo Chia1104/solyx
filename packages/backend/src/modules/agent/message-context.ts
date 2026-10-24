@@ -5,10 +5,13 @@ import type { ContextListing, TurnContext } from "@solyx/agent/prompt";
 import { messageTokens } from "@solyx/agent/wire";
 import { ScreenKind } from "@solyx/api/agent";
 import type { AgentScreen } from "@solyx/api/agent";
+import type { BacktestSetup } from "@solyx/api/backtests";
 import { ChartIndicator } from "@solyx/api/chart-indicator";
 import { OverviewTab } from "@solyx/api/overview-tab";
+import { yearsBefore } from "@solyx/core/candles";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import { setupRules } from "@solyx/core/strategy-templates";
 
 /** An indicator the chart draws, in the words the agent's tools use for it. */
 const INDICATOR_WORDS: Record<ChartIndicator, string> = {
@@ -40,10 +43,30 @@ const PLACE_OF_TAB: Record<OverviewTab, AppPlace> = {
   [OverviewTab.Market]: AppPlace.Market,
 };
 
+/**
+ * The call of the agent's `backtest.rules` that runs what the panel ran: its years back from `now`
+ * as the day they start, and its template as the rules it writes.
+ */
+function backtestCall(
+  { symbol, interval, years, strategy, ...options }: BacktestSetup,
+  now: Date
+) {
+  const input = {
+    symbol,
+    interval,
+    since: yearsBefore(symbol.market, years, now),
+    strategy: setupRules(strategy),
+    ...options,
+  };
+
+  return `backtest.rules(${JSON.stringify(input)})`;
+}
+
 /** What a message's context says of the screen it was written at. */
 export function screenContext(
-  screen: AgentScreen | null
-): Pick<TurnContext, "focus" | "chart" | "place" | "settings"> {
+  screen: AgentScreen | null,
+  now: Date
+): Pick<TurnContext, "focus" | "chart" | "backtest" | "place" | "settings"> {
   switch (screen?.kind) {
     case ScreenKind.Listing:
       return {
@@ -54,6 +77,7 @@ export function screenContext(
             (indicator) => INDICATOR_WORDS[indicator]
           ),
         },
+        backtest: screen.backtest && backtestCall(screen.backtest, now),
       };
     case ScreenKind.Overview:
       return { place: PLACE_OF_TAB[screen.tab] };

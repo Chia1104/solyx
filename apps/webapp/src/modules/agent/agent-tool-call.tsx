@@ -49,6 +49,7 @@ import { inWindow } from "../../app/device.ts";
 import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
+import { RanBacktests } from "../backtests/agent-bridge.tsx";
 import { ListingName } from "../market/listing-name.tsx";
 import { SectorMap } from "../market/sector-heat-map.tsx";
 import { memoryQuery } from "../memory/memory-query.ts";
@@ -467,6 +468,32 @@ function CodeCard({
   );
 }
 
+/** A script the agent wrote with what it printed, and the single backtests an analysis ran. */
+function ScriptCard({ tool }: { tool: ToolCallView }) {
+  const { t } = useTranslation();
+  const code = scriptArgumentsSchema.safeParse(tool.args).data?.code;
+
+  const details =
+    tool.toolName === AgentToolName.RunAnalysis
+      ? runAnalysisDetailsSchema.safeParse(tool.details).data
+      : undefined;
+
+  if (!code) return null;
+
+  return (
+    <>
+      <CodeCard
+        label={t("agent.analysis.code")}
+        code={code}
+        output={details ? details.output : tool.output}
+      />
+      {details?.backtests ? (
+        <RanBacktests backtests={details.backtests} />
+      ) : null}
+    </>
+  );
+}
+
 /** The script or command behind a call, for the tools that run one. */
 function RanCode({ tool }: { tool: ToolCallView }) {
   const { t } = useTranslation();
@@ -475,16 +502,7 @@ function RanCode({ tool }: { tool: ToolCallView }) {
     tool.toolName === AgentToolName.RunAnalysis ||
     tool.toolName === AgentToolName.Codemode
   ) {
-    const code = scriptArgumentsSchema.safeParse(tool.args).data?.code;
-
-    const output =
-      tool.toolName === AgentToolName.RunAnalysis
-        ? runAnalysisDetailsSchema.safeParse(tool.details).data?.output
-        : tool.output;
-
-    return code ? (
-      <CodeCard label={t("agent.analysis.code")} code={code} output={output} />
-    ) : null;
+    return <ScriptCard tool={tool} />;
   }
 
   // While it waits for the user, the approval card shows the command instead.

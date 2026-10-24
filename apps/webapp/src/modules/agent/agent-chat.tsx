@@ -9,10 +9,13 @@ import type { AgentScreen } from "@solyx/api/agent";
 import { ChartIndicator, offeredIndicators } from "@solyx/api/chart-indicator";
 import { SettingsSection } from "@solyx/api/settings-section";
 import { Interval } from "@solyx/core/candles";
+import { symbolKey } from "@solyx/core/market";
 
 import { client } from "../../app/rpc.ts";
+import { PanelView, useBacktestStore } from "../backtests/backtest-store.ts";
 import { ChartKind } from "../market/chart-kind.ts";
 import { useIndicatorStore } from "../market/indicator-store.ts";
+import { LowerView } from "../market/lower-view.ts";
 import { agentSettingsQuery } from "../settings/settings-query.ts";
 
 import { AgentComposer } from "./agent-composer.tsx";
@@ -33,6 +36,16 @@ function useScreen(): AgentScreen | null {
   const settings = useMatch({ from: "/settings", shouldThrow: false });
   const enabled = useIndicatorStore((state) => state.enabled);
 
+  // The single run the backtest panel under the chart shows, which the agent can run as it ran.
+  const backtest = useBacktestStore((state) => {
+    const shown = listing && state.listings[symbolKey(listing.params)];
+
+    return listing?.search.view === LowerView.Backtest &&
+      shown?.view === PanelView.Run
+      ? shown.run
+      : undefined;
+  });
+
   if (listing) {
     const { market, symbol } = listing.params;
     const { interval, chart } = listing.search;
@@ -45,6 +58,7 @@ function useScreen(): AgentScreen | null {
         symbol: { market, symbol },
         interval: Interval.OneMinute,
         indicators: [ChartIndicator.Vwap],
+        backtest,
       };
     }
 
@@ -54,6 +68,7 @@ function useScreen(): AgentScreen | null {
       interval,
       // An indicator the chart cannot draw on this interval stays switched on but is not shown.
       indicators: enabled.filter((indicator) => offered.includes(indicator)),
+      backtest,
     };
   }
 

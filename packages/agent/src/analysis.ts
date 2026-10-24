@@ -3,7 +3,7 @@ import { renderDeclarations } from "@earendil-works/pi-codemode";
 import type { CodemodeTool } from "@earendil-works/pi-codemode";
 import { defineDoc, defineExtension } from "@earendil-works/pi-durable";
 import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
-import { omit } from "es-toolkit";
+import { isEqual, omit } from "es-toolkit";
 import * as z from "zod";
 
 import {
@@ -56,8 +56,12 @@ import {
 import type { AnalysisSources } from "./analysis-sources.ts";
 import { scriptFunction } from "./script-runner.ts";
 import type { ScriptRunner } from "./script-runner.ts";
-import { AgentToolName, scriptArgumentsSchema } from "./wire.ts";
-import type { RunAnalysisDetails } from "./wire.ts";
+import {
+  AgentToolName,
+  MAX_RAN_BACKTESTS,
+  scriptArgumentsSchema,
+} from "./wire.ts";
+import type { RanBacktest, RunAnalysisDetails } from "./wire.ts";
 
 /** What a script may read. Nothing here changes anything, and the desk's `propose` is left out. */
 export interface AnalysisPorts extends AnalysisSources {
@@ -354,7 +358,9 @@ function historyReader(
 const backtests = (
   ports: AnalysisPorts,
   kernel: BacktestKernel,
-  history: HistoryReader
+  history: HistoryReader,
+  /** Told of each single backtest a script ran, as it asked for it. */
+  onRan: (backtest: RanBacktest) => void = () => undefined
 ): CodemodeTool[] => {
   const source: BacktestBarsSource = {
     candles: (symbol, interval) => ports.marketData.candles(symbol, interval),
@@ -420,11 +426,15 @@ const backtests = (
       ]) {
         const { bars, daily } = await listingBars(symbol, interval, since);
 
-        return backtest(kernel, symbol, bars, strategy, {
+        const result = await backtest(kernel, symbol, bars, strategy, {
           ...options,
           interval,
           daily,
         });
+
+        onRan({ symbol, interval, since, strategy, ...options });
+
+        return result;
       },
     }),
     scriptFunction({
@@ -643,11 +653,23 @@ export function createAnalysis(options: AnalysisOptions): Extension {
       // The bars a script reads itself and those its backtests read count against one budget.
       const history = historyReader(options, historyBudget(), now);
 
+      // Kept with the call, so the thread opens each in the backtest panel.
+      const ran: RanBacktest[] = [];
+
+      const keepRan = (backtest: RanBacktest) => {
+        if (
+          ran.length < MAX_RAN_BACKTESTS &&
+          !ran.some((each) => isEqual(each, backtest))
+        ) {
+          ran.push(backtest);
+        }
+      };
+
       const result = await options.scripts.run(parsed.data.code, {
         tools: dataFunctions(options, history),
         globals: [
           ...indicators,
-          ...backtests(options, options.kernel, history),
+          ...backtests(options, options.kernel, history, keepRan),
           ...sourceFunctions(options, sourceBudget()),
         ],
         timeoutMs: TIMEOUT_MS,
@@ -670,6 +692,8 @@ export function createAnalysis(options: AnalysisOptions): Extension {
       }
 
       const details: RunAnalysisDetails = { output: result.output };
+
+      if (ran.length > 0) details.backtests = ran;
 
       return {
         output: [{ type: "text", text: result.output }],
