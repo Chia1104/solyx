@@ -39,24 +39,27 @@ import {
 
 const period = z.number().int().min(1).max(500);
 
+// Every shape a strategy is written in refuses a key it does not know, so a misspelt one, such as a
+// stop, fails the backtest rather than leaving it out.
+
 /** A line a rule reads at each bar: one of the bar's own figures, a constant, or an indicator over the bars up to it. */
 export const ruleSeriesSchema = z.union([
-  z.object({ price: z.enum(["open", "high", "low", "close", "volume"]) }),
-  z.object({ value: z.number() }),
-  z.object({ sma: period }),
-  z.object({ ema: period }),
-  z.object({ rsi: period }),
-  z.object({
+  z.strictObject({ price: z.enum(["open", "high", "low", "close", "volume"]) }),
+  z.strictObject({ value: z.number() }),
+  z.strictObject({ sma: period }),
+  z.strictObject({ ema: period }),
+  z.strictObject({ rsi: period }),
+  z.strictObject({
     bollinger: period,
     band: z.enum(["upper", "middle", "lower"]),
     width: z.number().min(0.5).max(5).multipleOf(0.1).optional(),
   }),
-  z.object({ macd: z.enum(["macd", "signal", "histogram"]) }),
-  z.object({ kd: z.enum(["k", "d"]) }),
-  z.object({
+  z.strictObject({ macd: z.enum(["macd", "signal", "histogram"]) }),
+  z.strictObject({ kd: z.enum(["k", "d"]) }),
+  z.strictObject({
     highest: period.describe("The highest high of the bars before this one"),
   }),
-  z.object({
+  z.strictObject({
     lowest: period.describe("The lowest low of the bars before this one"),
   }),
 ]);
@@ -100,10 +103,10 @@ const conditionError = {
 
 const comparisonSchema = z.union(
   [
-    z.object({ above: pair }),
-    z.object({ below: pair }),
-    z.object({ crossesAbove: pair }),
-    z.object({ crossesBelow: pair }),
+    z.strictObject({ above: pair }),
+    z.strictObject({ below: pair }),
+    z.strictObject({ crossesAbove: pair }),
+    z.strictObject({ crossesBelow: pair }),
   ],
   conditionError
 );
@@ -123,8 +126,8 @@ function conditionSchema(depth: number): z.ZodType<RuleCondition> {
   return z.union(
     [
       comparisonSchema,
-      z.object({ all: branches }),
-      z.object({ any: branches }),
+      z.strictObject({ all: branches }),
+      z.strictObject({ any: branches }),
     ],
     conditionError
   );
@@ -149,7 +152,7 @@ function ruleSeries(condition: RuleCondition): RuleSeries[] {
 
 /** A long-only strategy: when to buy while holding nothing, and when to sell all of it. */
 export const ruleStrategySchema = z
-  .object({
+  .strictObject({
     entry: ruleConditionSchema,
     exit: ruleConditionSchema,
     /** Sells once a close falls this fraction below the price paid. */
@@ -181,7 +184,7 @@ export const ruleStrategySchema = z
 export type RuleStrategy = z.infer<typeof ruleStrategySchema>;
 
 /** What a trade costs, each a fraction of its value but the minimum commission and the slippage. */
-export const tradeCostsSchema = z.object({
+export const tradeCostsSchema = z.strictObject({
   commissionRate: z.number().min(0).max(0.01),
   /** In the market's currency. */
   minCommission: z.number().min(0),

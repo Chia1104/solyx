@@ -973,6 +973,23 @@ describe("a strategy's work is bounded before it runs", () => {
     ).toBeGreaterThan(0);
   });
 
+  test("a key a strategy does not know is refused, not left out", () => {
+    const misspelt = ruleStrategySchema.safeParse({
+      ...THRESHOLD,
+      stoploss: 0.1,
+    });
+
+    const unknownSeries = ruleStrategySchema.safeParse({
+      ...THRESHOLD,
+      entry: { above: [{ sma: 20, length: 5 }, { value: 100 }] },
+    });
+
+    expect(misspelt.error?.issues.map(({ message }) => message)).toEqual([
+      'Unrecognized key: "stoploss"',
+    ]);
+    expect(unknownSeries.success).toBe(false);
+  });
+
   test("a strategy at every limit passes", () => {
     expect(
       refusal({

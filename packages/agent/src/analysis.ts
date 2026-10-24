@@ -437,7 +437,7 @@ const backtests = (
       signature:
         "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategy: Strategy; capital?: number; costs?: Partial<Costs>; split?: string | number }): Promise<Backtest>",
       input: z.tuple([
-        z.object({
+        z.strictObject({
           symbol: symbolRefSchema,
           interval: intervalSchema.optional(),
           since: z.iso.date().optional(),
@@ -467,7 +467,7 @@ const backtests = (
       signature:
         "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategies: Strategy[]; columns?: number; capital?: number; costs?: Partial<Costs>; split?: string | number }): Promise<Scan>",
       input: z.tuple([
-        z.object({
+        z.strictObject({
           symbol: symbolRefSchema,
           interval: intervalSchema.optional(),
           since: z.iso.date().optional(),
@@ -498,7 +498,7 @@ const backtests = (
       signature:
         "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategies: Strategy[]; columns?: number; train?: number; test?: number; capital?: number; costs?: Partial<Costs> }): Promise<WalkForward>",
       input: z.tuple([
-        z.object({
+        z.strictObject({
           symbol: symbolRefSchema,
           interval: intervalSchema.optional(),
           since: z.iso.date().optional(),
