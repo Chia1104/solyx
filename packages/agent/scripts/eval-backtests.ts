@@ -28,6 +28,7 @@ import type {
   BacktestMetrics,
   BacktestResult,
   BacktestScan,
+  RollingResult,
   WalkForwardResult,
 } from "@solyx/core/backtest";
 import { BrokerMode } from "@solyx/core/broker";
@@ -234,17 +235,25 @@ interface WalkRecord {
   result: Omit<WalkForwardResult, "equity">;
 }
 
+/** Rolling windows a script ran. */
+interface RollingRecord {
+  symbol: string;
+  result: RollingResult;
+}
+
 /** What the engine ran for a request's scripts, recorded as each call returned. */
 interface EngineRecord {
   calls: EngineCall[];
   scans: ScanRecord[];
   walks: WalkRecord[];
+  rollings: RollingRecord[];
 }
 
 const ENGINE_FUNCTIONS = new Set([
   "backtest.rules",
   "backtest.scan",
   "backtest.walkForward",
+  "backtest.rolling",
 ]);
 
 const engineInputSchema = z.tuple([
@@ -287,7 +296,13 @@ function recordingScripts(record: EngineRecord): ScriptRunner {
                     costs: input.costs ?? null,
                   };
 
-                  if (fn.name === "backtest.walkForward") {
+                  if (fn.name === "backtest.rolling") {
+                    // SAFETY: the engine's own function returns its RollingResult as it parsed it.
+                    record.rollings.push({
+                      symbol,
+                      result: result as RollingResult,
+                    });
+                  } else if (fn.name === "backtest.walkForward") {
                     // SAFETY: the engine's own function returns its WalkForwardResult as it parsed it.
                     const walked = result as WalkForwardResult;
 
@@ -388,12 +403,19 @@ interface Run {
   calls: EngineCall[];
   scans: ScanRecord[];
   walks: WalkRecord[];
+  rollings: RollingRecord[];
   proposals: TradeProposal[];
   seconds: number;
 }
 
 async function runRequest(request: BacktestRequest): Promise<Run> {
-  const record: EngineRecord = { calls: [], scans: [], walks: [] };
+  const record: EngineRecord = {
+    calls: [],
+    scans: [],
+    walks: [],
+    rollings: [],
+  };
+
   const proposals: TradeProposal[] = [];
   const desk = recordingDesk(proposals);
   const events: AgentWireEvent[] = [];
@@ -596,12 +618,33 @@ function judgeInput(run: Run, rubric: Criterion[]): string {
     ].join("\n   ")
   );
 
+  const spreadText = ({
+    low,
+    median,
+    high,
+  }: RollingResult["summary"]["returns"]) =>
+    `10th percentile ${percent(low)}, median ${percent(median)}, 90th ${percent(high)}`;
+
+  const rollings = run.rollings.map(({ symbol, result }, index) =>
+    [
+      `${index + 1}. ${symbol}, ${result.windows.length} windows of ${result.months} months starting every ${result.step}, ${result.interval} bars: beat holding ${percent(result.summary.beatHolding)}, gained ${percent(result.summary.gained)}, about ${result.summary.apart} apart, worst drawdown ${percent(result.summary.worstDrawdown)}, ${result.summary.thin} under 20 trades`,
+      `returns: ${spreadText(result.summary.returns)}`,
+      `holding: ${spreadText(result.summary.holding)}`,
+      `return less holding: ${spreadText(result.summary.excess)}`,
+      ...result.windows.map(
+        (window) =>
+          `${window.from} to ${window.to}: return ${percent(window.totalReturn)}, holding ${percent(window.buyAndHold)}, drawdown ${percent(window.maxDrawdown)}, ${window.trades} trades`
+      ),
+    ].join("\n   ")
+  );
+
   return [
     `# Request\n${run.request.text}`,
     `# Scripts the agent ran, with what each gave it (${scripts.length})\n${scripts.join("\n") || "none"}`,
     `# Backtests the engine ran, a scan's cells among them (${run.calls.length}${run.calls.length > CALLS_SHOWN ? `, the first ${CALLS_SHOWN} shown` : ""})\n${calls.join("\n") || "none"}`,
     `# Scans' plateaus (${scans.length})\n${scans.join("\n") || "none"}`,
     `# Walk forwards (${walks.length})\n${walks.join("\n") || "none"}`,
+    `# Rolling windows (${rollings.length})\n${rollings.join("\n") || "none"}`,
     `# Order proposals the agent made\n${run.proposals.length === 0 ? "none" : JSON.stringify(run.proposals.map(({ order, rationale }) => ({ order, rationale })))}`,
     `# The agent's messages, oldest first\n${replies(run)
       .map((reply) => reply.text)

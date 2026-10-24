@@ -35,15 +35,18 @@ const DAY = 24 * 60 * 60;
 // 2026-10-13 10:42 in Taipei.
 const NOW = new Date("2026-10-13T02:42:00Z");
 
-// Thirty daily bars closing at 101, 102, … 130.
-const BARS: Candle[] = Array.from({ length: 30 }, (_, index) => ({
-  time: 1_750_000_000 + index * DAY,
-  open: 100 + index,
-  high: 102 + index,
-  low: 99 + index,
-  close: 101 + index,
-  volume: 1000,
-}));
+/** `count` daily bars from 2025-06-15 on, closing at 101, 102, and so on. */
+const risingBars = (count: number): Candle[] =>
+  Array.from({ length: count }, (_, index) => ({
+    time: 1_750_000_000 + index * DAY,
+    open: 100 + index,
+    high: 102 + index,
+    low: 99 + index,
+    close: 101 + index,
+    volume: 1000,
+  }));
+
+const BARS = risingBars(30);
 
 const trade = (
   date: string,
@@ -140,13 +143,13 @@ afterEach(async () => {
   await Promise.all(closers.splice(0).map((close) => close()));
 });
 
-/** The agent on the analysis tool alone, running each of `scripts` in one conversation. */
-async function analyze(...scripts: string[]) {
+/** The agent on the analysis tool alone over `bars`, running each of `scripts` in one conversation. */
+async function analyzeOver(bars: Candle[], ...scripts: string[]) {
   const faux = fauxProvider();
   const models = createModels();
   const events: AgentWireEvent[] = [];
-  const candles = vi.fn(async () => BARS);
-  const candlesSince = vi.fn(async () => BARS);
+  const candles = vi.fn(async () => bars);
+  const candlesSince = vi.fn(async () => bars);
   const sources = fakeSources();
 
   models.setProvider(faux.provider);
@@ -221,6 +224,8 @@ async function analyze(...scripts: string[]) {
     description: analysis.tools?.[0].description,
   };
 }
+
+const analyze = (...scripts: string[]) => analyzeOver(BARS, ...scripts);
 
 test("a script reads bars and computes with the app's indicators", async () => {
   const { results, candles } = await analyze(`
@@ -325,6 +330,33 @@ test("a script scans a grid of strategies and walks them forward over the same b
   ]);
   expect(description).toContain("scan(input: {");
   expect(description).toContain("walkForward(input: {");
+});
+
+test("a script runs one strategy over rolling windows of whole months", async () => {
+  // From 2025-06-15 to 2025-10-12: July, August and September start a whole month each.
+  const { results, description } = await analyzeOver(
+    risingBars(120),
+    `
+    const rolled = await backtest.rolling({
+      symbol: { market: "${Market.TW}", symbol: "2330" },
+      strategy: {
+        entry: { above: [{ price: "close" }, { value: 0 }] },
+        exit: { below: [{ price: "close" }, { value: 0 }] },
+      },
+      months: 1,
+    });
+    return [rolled.windows.map((window) => window.from), rolled.summary.apart, rolled.summary.gained];
+  `
+  );
+
+  expect(results).toEqual([
+    {
+      status: ToolCallStatus.Ok,
+      output: 'Result: [["2025-07-01","2025-08-01","2025-09-01"],3,1]',
+    },
+  ]);
+  expect(description).toContain("rolling(input: {");
+  expect(description).toContain("type Rolling = {");
 });
 
 test("a backtest on minute bars reads them from further back with the daily bars, from three years back at most", async () => {
