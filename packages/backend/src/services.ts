@@ -351,6 +351,7 @@ export function createServices(config: ConfigFile, host: Host) {
       marketData.candlesBetween(symbol, Interval.OneDay, from, to),
     sourceId: (market) => marketData.sourceId(market),
     company: (symbol) => fundamentals.company(symbol),
+    sectorQuotes: () => marketData.sectors(),
   });
 
   const tradingDays = createTradingCalendar({

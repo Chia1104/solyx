@@ -8,11 +8,13 @@ import {
   BENCHMARK,
   Market,
   exchangeDate,
+  exchangeMidnight,
   isTwIndex,
   symbolKey,
   symbolLabel,
 } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import type { Quote } from "@solyx/core/market-data";
 import {
   BENCHMARK_SESSIONS,
   PLAYBACK_SESSIONS,
@@ -35,6 +37,7 @@ import type {
   SectorRotation,
 } from "@solyx/core/rotation";
 import { TW_SECTOR_INDICES, sectorOfIndustry } from "@solyx/core/sectors";
+import type { SectorQuote } from "@solyx/core/sectors";
 import { Session, getSession, weekdays } from "@solyx/core/session";
 import { MINUTE_MS, shiftDate } from "@solyx/utils/date";
 import { keepFresh, memoryAnswers } from "@solyx/utils/fresh";
@@ -102,6 +105,20 @@ async function* newestFirst<Answer>(
 /** A listing's or index's daily bars, as one of the module's readers keeps them. */
 type ReadBars = (symbol: SymbolRef) => Promise<Candle[]>;
 
+/** A session's quote as its daily bar, at its last price throughout, since a rotation reads only the close. */
+const quoteBar = (
+  market: Market,
+  { date, last, reference }: Quote
+): Candle => ({
+  time: exchangeMidnight(market, date),
+  open: last,
+  high: last,
+  low: last,
+  close: last,
+  volume: 0,
+  reference,
+});
+
 interface RotationsOptions {
   /** A listing's daily bars from `from` through `to`, through the candle cache; rejects while no source covers its market. */
   candlesBetween(
@@ -113,6 +130,8 @@ interface RotationsOptions {
   sourceId(market: Market): Promise<string | null>;
   /** Which company a Taiwan listing is, for its industry; `null` where the exchange's list has none. */
   company(symbol: SymbolRef): Promise<Company | null>;
+  /** Every Taiwan sector index's quote, the read the overview's map shares; `null` while no source covers Taiwan. */
+  sectorQuotes(): Promise<SectorQuote[] | null>;
   /** @default () => new Date() */
   now?: () => Date;
 }
@@ -123,14 +142,17 @@ interface RotationsOptions {
  * period, as readings as of the newest session or any of the last `PLAYBACK_SESSIONS`, or as the
  * paths across those sessions a graph plays back, over the newest year first where the years
  * before it must come from the source. Listings' bars are adjusted for splits and what went ex; an
- * index's need no adjusting. Every listing's and index's bars are kept in memory while the session
- * they were read in lasts, since every path is worked out from them afresh and a change of
- * benchmark should cost no request.
+ * index's need no adjusting. A listing's or index's session is its own intraday bars, but for the
+ * sector indices read together, whose sessions are the quotes the overview's map reads anyway, so
+ * the sectors cost the plan's intraday budget no request of their own. Every listing's and index's
+ * bars are kept in memory while the session they were read in lasts, since every path is worked
+ * out from them afresh and a change of benchmark should cost no request.
  */
 export function createRotations({
   candlesBetween,
   sourceId,
   company,
+  sectorQuotes,
   now = () => new Date(),
 }: RotationsOptions) {
   const today = (market: Market) => exchangeDate(market, now());
@@ -191,38 +213,72 @@ export function createRotations({
   const fresh = ({ market }: SymbolRef, askedAt: number, at: number) =>
     barsFresh(market, askedAt, at);
 
-  /** The newest `RECENT_DAYS` of daily bars. */
-  const recentBars = keepFresh<SymbolRef, Candle[]>({
-    store: answers("market:rotation-recent-bars"),
-    id: symbolKey,
-    ask: (symbol) =>
-      candlesBetween(
-        symbol,
-        daysBack(symbol.market, RECENT_DAYS),
-        today(symbol.market)
-      ),
-    fresh,
-    now: () => now().getTime(),
-  });
+  /**
+   * Daily bars kept under `scope`: `recent`, the newest `RECENT_DAYS` through today as `newest`
+   * reads them from a first day, and `span`, the whole `SPAN_DAYS`, the years before read after.
+   */
+  function spanReaders(
+    scope: string,
+    newest: (symbol: SymbolRef, from: string) => Promise<Candle[]>
+  ) {
+    const recent = keepFresh<SymbolRef, Candle[]>({
+      store: answers(`${scope}:recent`),
+      id: symbolKey,
+      ask: (symbol) => newest(symbol, daysBack(symbol.market, RECENT_DAYS)),
+      fresh,
+      now: () => now().getTime(),
+    });
 
-  /** The whole `SPAN_DAYS` of daily bars, the newest year read first. */
-  const spanBars = keepFresh<SymbolRef, Candle[]>({
-    store: answers("market:rotation-bars"),
-    id: symbolKey,
-    async ask(symbol) {
-      const recent = await recentBars(symbol);
+    const span = keepFresh<SymbolRef, Candle[]>({
+      store: answers(scope),
+      id: symbolKey,
+      async ask(symbol) {
+        const kept = await recent(symbol);
 
-      const older = await candlesBetween(
-        symbol,
-        daysBack(symbol.market, SPAN_DAYS),
-        daysBack(symbol.market, RECENT_DAYS + 1)
-      );
+        const older = await candlesBetween(
+          symbol,
+          daysBack(symbol.market, SPAN_DAYS),
+          daysBack(symbol.market, RECENT_DAYS + 1)
+        );
 
-      return [...older, ...recent];
-    },
-    fresh,
-    now: () => now().getTime(),
-  });
+        return [...older, ...kept];
+      },
+      fresh,
+      now: () => now().getTime(),
+    });
+
+    return { recent, span };
+  }
+
+  /** Each listing's and index's bars, today's session from its own intraday bars. */
+  const bars = spanReaders("market:rotation-bars", (symbol, from) =>
+    candlesBetween(symbol, from, today(symbol.market))
+  );
+
+  /** The sector indices' bars as the sectors are read together: the sessions closed, then each one's quote. */
+  const sectorBars = spanReaders(
+    "market:rotation-sector-bars",
+    async (symbol, from) => {
+      const [closed, quotes] = await Promise.all([
+        candlesBetween(symbol, from, daysBack(symbol.market, 1)),
+        sectorQuotes(),
+      ]);
+
+      const quote = quotes?.find(
+        (each) => each.symbol === symbol.symbol
+      )?.quote;
+
+      const session = quote && quoteBar(symbol.market, quote);
+
+      return session && session.time > (closed.at(-1)?.time ?? -Infinity)
+        ? [...closed, session]
+        : closed;
+    }
+  );
+
+  /** What the reads of the newest year take their bars from, and the reads of the whole span. */
+  const newestYear = { bars: bars.recent, sectors: sectorBars.recent };
+  const wholeSpan = { bars: bars.span, sectors: sectorBars.span };
 
   /** Whether `symbol` is its market's own index, which needs no adjusting and always qualifies as a benchmark. */
   const isMarketIndex = (symbol: SymbolRef) =>
@@ -351,7 +407,7 @@ export function createRotations({
 
   /** The sectors' paths against `benchmark`, or the TAIEX, with the sessions they may be read as of; `null` when no source covers Taiwan. */
   async function sectorPaths(
-    read: ReadBars,
+    read: typeof wholeSpan,
     through?: string,
     benchmark?: SymbolRef
   ) {
@@ -370,11 +426,11 @@ export function createRotations({
       symbol: { market: Market.TW, symbol: index.symbol },
     }));
 
-    const [calendar, bars, other] = await Promise.all([
-      read(taiex),
-      Promise.all(indices.map(({ symbol }) => read(symbol))),
+    const [calendar, each, other] = await Promise.all([
+      read.bars(taiex),
+      Promise.all(indices.map(({ symbol }) => read.sectors(symbol))),
       benchmark && !isMarketIndex(benchmark)
-        ? benchmarkBars(benchmark, through, read)
+        ? benchmarkBars(benchmark, through, read.bars)
         : null,
     ]);
 
@@ -386,7 +442,7 @@ export function createRotations({
       sessions: sessions(Market.TW, calendar),
       entries: indices.map(({ index, symbol }, i) => ({
         ...index,
-        paths: paths(symbol, bars[i], against),
+        paths: paths(symbol, each[i], against),
       })),
     };
   }
@@ -401,7 +457,7 @@ export function createRotations({
       through?: string,
       benchmark?: SymbolRef
     ): Promise<RotationSet<SectorRotation> | null> {
-      const read = await sectorPaths(spanBars, through, benchmark);
+      const read = await sectorPaths(wholeSpan, through, benchmark);
 
       if (read === null) return null;
 
@@ -420,8 +476,8 @@ export function createRotations({
     async *sectorHistory(
       benchmark?: SymbolRef
     ): AsyncGenerator<RotationHistory<SectorHistory> | null> {
-      const history = async (bars: ReadBars) => {
-        const read = await sectorPaths(bars, undefined, benchmark);
+      const history = async (reads: typeof wholeSpan) => {
+        const read = await sectorPaths(reads, undefined, benchmark);
 
         return (
           read && {
@@ -437,8 +493,8 @@ export function createRotations({
       };
 
       for await (const { answer, complete } of newestFirst(
-        history(recentBars),
-        history(spanBars)
+        history(newestYear),
+        history(wholeSpan)
       )) {
         yield answer && { ...answer, complete };
       }
@@ -449,7 +505,7 @@ export function createRotations({
       symbols: readonly SymbolRef[],
       options: ListingsOptions = {}
     ): Promise<RotationSet<ListingRotation>> {
-      const read = await listingPaths(symbols, options, spanBars);
+      const read = await listingPaths(symbols, options, wholeSpan.bars);
 
       return {
         benchmark: options.benchmark ?? null,
@@ -467,8 +523,8 @@ export function createRotations({
       symbols: readonly SymbolRef[],
       options: Omit<ListingsOptions, "through"> = {}
     ): AsyncGenerator<RotationHistory<ListingHistory>> {
-      const history = async (bars: ReadBars) => {
-        const read = await listingPaths(symbols, options, bars);
+      const history = async (each: ReadBars) => {
+        const read = await listingPaths(symbols, options, each);
         const one = read.entries[0]?.benchmark;
 
         const shared =
@@ -484,7 +540,7 @@ export function createRotations({
           closes: shared
             ? closesOn(
                 one.market,
-                await benchmarkBars(one, undefined, bars),
+                await benchmarkBars(one, undefined, each),
                 read.sessions
               )
             : null,
@@ -496,8 +552,8 @@ export function createRotations({
       };
 
       for await (const { answer, complete } of newestFirst(
-        history(recentBars),
-        history(spanBars)
+        history(newestYear.bars),
+        history(wholeSpan.bars)
       )) {
         yield { ...answer, complete };
       }
@@ -509,7 +565,7 @@ export function createRotations({
      */
     async listing(symbol: SymbolRef): Promise<ListingRotationView> {
       const [own, index] = await Promise.all([
-        listingPaths([symbol], {}, spanBars),
+        listingPaths([symbol], {}, wholeSpan.bars),
         sectorIndexOf(symbol),
       ]);
 
@@ -524,8 +580,8 @@ export function createRotations({
               readings: readingsOf(
                 await against(
                   symbol,
-                  spanBars({ market: Market.TW, symbol: index.symbol }),
-                  spanBars
+                  wholeSpan.bars({ market: Market.TW, symbol: index.symbol }),
+                  wholeSpan.bars
                 )
               ),
             }
