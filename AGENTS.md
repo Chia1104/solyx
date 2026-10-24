@@ -68,6 +68,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 - Tests use synthetic payloads shaped like a source's responses; never commit recorded market data, pages, posts or articles.
 - Oxlint, Oxfmt and Vitest come from Vite+; their lint, format and staged rules live in the root `vite.config.ts` because Vite+ ignores nested configs.
 - `vp run` executes tasks in a clean environment, so most variables set outside it do not reach the task.
+- Fallow analyzes the repository for unused code and dependencies, import cycles, duplication and complexity; `.fallowrc.jsonc` says why each setting departs from its defaults. Run `fallow audit` before a commit: CI's `audit` job fails a pull request on the findings it introduces. No hook runs it for agents, since a committed hook would run repository code on every shell call. The MCP registrations run `fallow-mcp` from `PATH`, because `npx` refuses the root's `devEngines`. So `fallow agent install` runs with `--without hooks --without guide --without mcp`.
 - Commit subjects and pull request titles follow Conventional Commits, `type(scope): summary`. The scope is the package or app that owns the change, as in `feat(desktop): …`, and is left out when the change spans several. GitHub builds each release's notes from the titles of the pull requests merged since the previous one.
 - Work lands on `develop`, the default branch, through pull requests. `main` only points at the latest stable release; the release workflow moves it, and nothing is committed to it.
 
