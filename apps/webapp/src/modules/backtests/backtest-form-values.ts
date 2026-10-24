@@ -3,7 +3,9 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
+import { BacktestMode } from "@solyx/api/backtests";
 import type {
+  BacktestRequest,
   BacktestSetup,
   ScanSetup,
   WalkForwardSetup,
@@ -32,8 +34,6 @@ import type {
   TemplateSetup,
 } from "@solyx/core/strategy-templates";
 import { isEnumValue } from "@solyx/utils/is";
-
-import { BacktestMode } from "./backtest-store.ts";
 
 /** What the strategy select picks: one of the templates, or rules written out whole. */
 export const StrategyChoice = { ...StrategyTemplate, Rules: "rules" } as const;
@@ -287,17 +287,12 @@ export function runSetup(symbol: SymbolRef, values: FormValues): BacktestSetup {
   };
 }
 
-/** What the form asks the panel to run in its mode. */
-export type FormRequest =
-  | { mode: typeof BacktestMode.Run; setup: BacktestSetup }
-  | { mode: typeof BacktestMode.Scan; setup: ScanSetup }
-  | { mode: typeof BacktestMode.WalkForward; setup: WalkForwardSetup };
-
+/** What the form asks the panel to run in `mode`. */
 export function formRequest(
   mode: BacktestMode,
   symbol: SymbolRef,
   values: FormValues
-): FormRequest {
+): BacktestRequest {
   const strategy = templateSetup(values);
 
   if (mode === BacktestMode.Run || !strategy) {

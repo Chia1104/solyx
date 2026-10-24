@@ -24,6 +24,7 @@ import type { ScheduledTask } from "@solyx/core/schedule";
 import type { Theme, ThemeItem } from "@solyx/core/theme";
 
 import {
+  backtestRuns,
   paperAccount,
   proposals,
   scheduledTasks,
@@ -94,6 +95,7 @@ describe("openUserData", () => {
   // A schema change committed without `db:generate` fails here.
   test.each([
     watchlist,
+    backtestRuns,
     proposals,
     paperAccount,
     scheduledTasks,
@@ -676,5 +678,50 @@ describe("theme store", () => {
     expect(store.list()).toEqual([]);
     expect(store.items("outbreak", 10)).toEqual([]);
     expect(store.readings("outbreak")).toEqual([]);
+  });
+});
+
+describe("backtest run store", () => {
+  const run = (id: string, ranAt: number, headline = null) => ({
+    id,
+    ranAt,
+    request: { mode: "run", setup: { years: ranAt } },
+    headline,
+  });
+
+  test("a request run again keeps its row and takes the newer time", () => {
+    const { backtestRuns: store } = open();
+
+    store.record("a", run("first", 1), 10);
+    store.record("b", run("second", 2), 10);
+
+    expect(store.record("a", run("third", 3), 10).id).toBe("first");
+    expect(store.list().map(({ id, ranAt }) => [id, ranAt])).toEqual([
+      ["first", 3],
+      ["second", 2],
+    ]);
+  });
+
+  test("past what it keeps, the oldest runs go", () => {
+    const { backtestRuns: store } = open();
+
+    for (const at of [1, 2, 3, 4]) store.record(`${at}`, run(`${at}`, at), 3);
+
+    expect(store.list().map(({ id }) => id)).toEqual(["4", "3", "2"]);
+    expect(store.get("1")).toBeUndefined();
+  });
+
+  test("a run is removed alone, or all of them at once", () => {
+    const { backtestRuns: store } = open();
+
+    store.record("a", run("first", 1), 10);
+    store.record("b", run("second", 2), 10);
+    store.remove("first");
+
+    expect(store.list().map(({ id }) => id)).toEqual(["second"]);
+
+    store.clear();
+
+    expect(store.list()).toEqual([]);
   });
 });

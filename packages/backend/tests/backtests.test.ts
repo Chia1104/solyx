@@ -1,6 +1,12 @@
-import { expect, test, vi } from "vite-plus/test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import {
+  BacktestMode,
   backtestSetupSchema,
   scanSetupSchema,
   walkForwardSetupSchema,
@@ -14,6 +20,8 @@ import {
   StrategyTemplate,
   initialSetup,
 } from "@solyx/core/strategy-templates";
+import { openUserData } from "@solyx/db/user";
+import type { UserData } from "@solyx/db/user";
 import { kernel } from "@solyx/kernel/kernel";
 
 import { createBacktests } from "../src/modules/backtests/backtests.ts";
@@ -54,11 +62,47 @@ function backtests(
     ),
   };
 
+  const user = openUserData(
+    join(directory, "user.sqlite"),
+    join(MIGRATIONS, "user")
+  );
+
+  opened.push(user);
+
+  const onHistoryChange = vi.fn();
+  // A second on with each read, so the runs kept fall in the order they ran.
+  let at = NOW.getTime();
+
   return {
     marketData,
-    run: createBacktests({ marketData, kernel, now: () => NOW }),
+    onHistoryChange,
+    run: createBacktests({
+      marketData,
+      kernel,
+      history: user.backtestRuns,
+      onHistoryChange,
+      now: () => new Date((at += 1000)),
+    }),
   };
 }
+
+const MIGRATIONS = fileURLToPath(
+  new URL("../../db/migrations", import.meta.url)
+);
+
+let directory: string;
+
+let opened: UserData[];
+
+beforeEach(async () => {
+  directory = await mkdtemp(join(tmpdir(), "solyx-backtests-"));
+  opened = [];
+});
+
+afterEach(async () => {
+  for (const user of opened) user.close();
+  await rm(directory, { recursive: true, force: true });
+});
 
 const reach = { symbol: TSMC, interval: Interval.OneDay, years: 5 };
 
@@ -183,4 +227,38 @@ test("too few bars fail the run with the listing's name", async () => {
       })
     )
   ).rejects.toThrow("too few 1d bars");
+});
+
+test("each run a window asks for is kept once, with the stretch it is judged by, and compared again on today's bars", async () => {
+  const { run, onHistoryChange } = backtests();
+  const strategy = initialSetup(StrategyTemplate.MovingAverageCross);
+  const setup = backtestSetupSchema.parse({ ...reach, strategy, split: 0.5 });
+  const { rows, columns } = STRATEGY_TEMPLATES[strategy.template].grid;
+
+  const result = await run.run(setup);
+
+  await run.run(setup);
+  await run.scan(
+    scanSetupSchema.parse({ ...reach, strategy, rows, columns, split: 0.5 })
+  );
+
+  const [scanned, ran] = run.history();
+
+  expect(run.history()).toHaveLength(2);
+  expect(onHistoryChange).toHaveBeenCalledTimes(3);
+  expect(ran.request).toEqual({ mode: BacktestMode.Run, setup });
+  expect(ran.headline).toEqual(result.outOfSample);
+  expect(scanned.request.mode).toBe(BacktestMode.Scan);
+
+  const [compared] = await run.compare([ran.id]);
+
+  expect(compared).toEqual({ id: ran.id, result });
+  expect(run.history()).toHaveLength(2);
+  await expect(run.compare([scanned.id])).rejects.toThrow(
+    "No single backtest is kept"
+  );
+
+  run.remove(ran.id);
+
+  expect(run.history().map(({ id }) => id)).toEqual([scanned.id]);
 });

@@ -1191,6 +1191,32 @@
       "window": "訓練 {{trainFrom}} 至 {{trainTo}}，測試 {{testFrom}} 至 {{testTo}}",
       "no-pick": "沒有挑出參數",
       "train-sharpe": "訓練 Sharpe {{sharpe}}"
+    },
+    "history": {
+      "title": "歷史",
+      "axis": "{{param}} {{from}}–{{to}}",
+      "reach": "{{mode}} · {{interval}} K · {{years}}",
+      "no-headline": "沒有可評估的數字",
+      "out-of-sample_one": "樣本外 {{total}} · 持有 {{holding}} · Sharpe {{sharpe}} · {{count}} 筆",
+      "out-of-sample_other": "樣本外 {{total}} · 持有 {{holding}} · Sharpe {{sharpe}} · {{count}} 筆",
+      "plateau_one": "平台樣本內 {{total}} · Sharpe {{sharpe}} · {{count}} 筆",
+      "plateau_other": "平台樣本內 {{total}} · Sharpe {{sharpe}} · {{count}} 筆",
+      "pick": "比較",
+      "open": "開啟",
+      "remove": "刪除",
+      "clear": "全部清除",
+      "clear-confirm": "確定清除全部？",
+      "every-listing": "所有個股",
+      "pick-hint_one": "勾選最多 {{count}} 筆單次回測來比較。",
+      "pick-hint_other": "勾選最多 {{count}} 筆單次回測來比較。",
+      "empty": "在這裡跑過的回測會留在這個清單。"
+    },
+    "compare": {
+      "idle": "在清單勾選單次回測，就能並排比較。",
+      "returns": "報酬曲線",
+      "out-of-sample": "{{index}} · 樣本外",
+      "all": "{{index}} · 全期",
+      "again": "比較時用今天的 K 線重跑，數字可能和當初記錄的略有不同。"
     }
   },
   "magi": {

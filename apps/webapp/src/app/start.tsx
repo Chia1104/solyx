@@ -7,6 +7,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { RouterProvider } from "@tanstack/react-router";
 
 import { followAgentEvents } from "../modules/agent/agent-events.ts";
+import { followBacktestChanges } from "../modules/backtests/history-query.ts";
 import { followBackupChanges } from "../modules/backup/backup-query.ts";
 import { followDevicesChanges } from "../modules/devices/devices-query.ts";
 import { followEmbeddingsChanges } from "../modules/embeddings/embeddings-query.ts";
@@ -33,6 +34,7 @@ import { followAppearance } from "./theme.ts";
 // every change, whichever page is open.
 for (const follow of [
   followAgentEvents,
+  followBacktestChanges,
   followBackupChanges,
   followDevicesChanges,
   followEmbeddingsChanges,

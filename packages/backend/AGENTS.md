@@ -43,7 +43,8 @@ The app's backend, composed in `services.ts`. The desktop runs it in a utility p
 ## Backtests
 
 - The agent's backtests and the windows' run on one kernel in a utility process of its own, which the main process starts when the backend asks: on the first run and again once one has ended. It is handed the columns and answers the run, keeping nothing between calls, and a run it does not answer within the deadline ends it, failing every run still waiting.
-- A window sets a backtest up through the backtests module, from a template or rules, over a listing's last years of bars read through the candle cache as the agent's are, so the two read the same bars. It changes nothing and reads only what the app keeps, so a paired device runs one too.
+- A window sets a backtest up through the backtests module, from a template or rules, over a listing's last years of bars read through the candle cache as the agent's are, so the two read the same bars. It reads only what the app keeps and changes only the workspace's own history of runs, so a paired device runs one too.
+- The module keeps each run a window asks for in the user's database, its request with the stretch it is judged by, a row a request, so asking again only updates its row, the newest `BACKTEST_HISTORY` kept, and tells windows of every change. A request kept is read back through its schema, so one that no longer reads is left out of the list rather than failing it. Comparing kept single runs runs them again over today's bars and keeps nothing, so runs made on different days read side by side. The agent's backtests are not kept: they live in its conversation.
 
 ## Windows and the tray
 

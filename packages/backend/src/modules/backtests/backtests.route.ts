@@ -10,4 +10,19 @@ export const backtestsRouter = contractOS.backtests.router({
   walkForward: contractOS.backtests.walkForward.handler(({ context, input }) =>
     context.backtests.walkForward(input)
   ),
+  history: contractOS.backtests.history.handler(({ context }) =>
+    context.backtests.history()
+  ),
+  remove: contractOS.backtests.remove.handler(({ context, input }) =>
+    context.backtests.remove(input)
+  ),
+  clear: contractOS.backtests.clear.handler(({ context }) =>
+    context.backtests.clear()
+  ),
+  compare: contractOS.backtests.compare.handler(({ context, input }) =>
+    context.backtests.compare(input)
+  ),
+  changes: contractOS.backtests.changes.handler(({ context, signal }) =>
+    context.windowEvents.subscribe("backtests:changed", { signal })
+  ),
 });

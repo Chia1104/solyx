@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { Switch, ToggleButton, ToggleButtonGroup } from "@heroui/react";
@@ -6,6 +7,8 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { isEqual } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
+import { BacktestMode } from "@solyx/api/backtests";
+import type { BacktestRequest, BacktestSetup } from "@solyx/api/backtests";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
@@ -13,18 +16,20 @@ import { isEnumValue } from "@solyx/utils/is";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
-import type { FormRequest } from "./backtest-form-values.ts";
+import { BacktestCompare } from "./backtest-compare.tsx";
 import { BacktestForm } from "./backtest-form.tsx";
+import { BacktestHistory } from "./backtest-history.tsx";
 import {
   backtestQuery,
   scanQuery,
   walkForwardQuery,
 } from "./backtest-query.ts";
 import { BacktestReport } from "./backtest-report.tsx";
-import { BacktestMode, useBacktestStore } from "./backtest-store.ts";
+import { PanelView, useBacktestStore } from "./backtest-store.ts";
 import type { ListingBacktests } from "./backtest-store.ts";
 import { BacktestTrades } from "./backtest-trades.tsx";
 import { EquityChart } from "./equity-chart.tsx";
+import { historyQuery } from "./history-query.ts";
 import { ScanReport } from "./scan-report.tsx";
 import { WalkReport } from "./walk-report.tsx";
 
@@ -80,7 +85,9 @@ function ModeOutcome({
   runs: Partial<ListingBacktests>;
   queries: ReturnType<typeof useModeQueries>;
 }) {
-  const run = useBacktestStore((state) => state.run);
+  const ask = useBacktestStore((state) => state.ask);
+
+  const run = (setup: BacktestSetup) => ask({ mode: BacktestMode.Run, setup });
 
   switch (mode) {
     case BacktestMode.Run:
@@ -127,13 +134,13 @@ function ModeOutcome({
   }
 }
 
-/** The switch between running one setup, a scan and a walk forward. */
-function ModeSwitch({
-  mode,
+/** The switch between running one setup, a scan, a walk forward and the runs kept. */
+function ViewSwitch({
+  view,
   onChange,
 }: {
-  mode: BacktestMode;
-  onChange: (mode: BacktestMode) => void;
+  view: PanelView;
+  onChange: (view: PanelView) => void;
 }) {
   const { t } = useTranslation();
 
@@ -144,15 +151,17 @@ function ModeSwitch({
       disallowEmptySelection
       size="sm"
       className="w-full [&>*]:flex-1"
-      selectedKeys={[mode]}
+      selectedKeys={[view]}
       onSelectionChange={(keys) => {
         const [next] = keys;
 
-        if (isEnumValue(BacktestMode, next)) onChange(next);
+        if (isEnumValue(PanelView, next)) onChange(next);
       }}>
-      {Object.values(BacktestMode).map((each) => (
+      {Object.values(PanelView).map((each) => (
         <ToggleButton key={each} id={each}>
-          {t(`backtests.modes.${each}.label`)}
+          {each === PanelView.History
+            ? t("backtests.history.title")
+            : t(`backtests.modes.${each}.label`)}
         </ToggleButton>
       ))}
     </ToggleButtonGroup>
@@ -183,10 +192,74 @@ function ChartSwitch() {
   );
 }
 
+/** The runs kept beside a comparison of those picked from them. */
+function HistoryView({ symbol }: { symbol: SymbolRef }) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const { data } = useQuery(historyQuery());
+
+  // In the order they were picked, leaving out any removed meanwhile.
+  const records = picked.flatMap(
+    (id) => data?.filter((record) => record.id === id) ?? []
+  );
+
+  return (
+    <>
+      <BacktestHistory symbol={symbol} picked={picked} onPick={setPicked} />
+      <div className="min-w-0">
+        <BacktestCompare records={records} />
+      </div>
+    </>
+  );
+}
+
+/** A mode's setup beside the last run of it. */
+function ModeView({
+  symbol,
+  mode,
+  runs,
+}: {
+  symbol: SymbolRef;
+  mode: BacktestMode;
+  runs: Partial<ListingBacktests>;
+}) {
+  const ask = useBacktestStore((state) => state.ask);
+  const queries = useModeQueries(runs);
+
+  // The same setup again asks again, since the bars may have moved on.
+  function submit(request: BacktestRequest) {
+    if (isEqual(request.setup, runs[request.mode])) {
+      void queries[request.mode].refetch();
+    } else {
+      ask(request);
+    }
+  }
+
+  return (
+    <>
+      <BacktestForm
+        symbol={symbol}
+        mode={mode}
+        setup={runs[mode] ?? runs.run ?? runs.scan ?? runs.walkForward}
+        isRunning={queries[mode].isFetching}
+        onSubmit={submit}
+      />
+      <div className="min-w-0">
+        <ModeOutcome
+          symbol={symbol}
+          mode={mode}
+          runs={runs}
+          queries={queries}
+        />
+      </div>
+    </>
+  );
+}
+
 /**
  * Backtests a listing without the agent: one setup, a grid of a template's numbers, or that grid
  * picked from as it walks forward, set up on one side and the last run of the mode shown on the
- * other. The chart above marks the single run's trades. Nothing it runs reaches a model.
+ * other, and the runs kept beside a comparison of those picked. The chart above marks the single
+ * run's trades. Nothing it runs reaches a model.
  */
 export function BacktestPanel({
   symbol,
@@ -199,23 +272,9 @@ export function BacktestPanel({
   const { t } = useTranslation();
   const key = symbolKey(symbol);
   const listing = useBacktestStore((state) => state.listings[key]);
-  const store = useBacktestStore();
+  const setView = useBacktestStore((state) => state.setView);
   const runs: Partial<ListingBacktests> = listing ?? {};
-  const mode = runs.mode ?? BacktestMode.Run;
-  const queries = useModeQueries(runs);
-
-  // The same setup again asks again, since the bars may have moved on.
-  function submit(request: FormRequest) {
-    if (isEqual(request.setup, runs[request.mode])) {
-      void queries[request.mode].refetch();
-    } else if (request.mode === BacktestMode.Run) {
-      store.run(request.setup);
-    } else if (request.mode === BacktestMode.Scan) {
-      store.scan(request.setup);
-    } else {
-      store.walkForward(request.setup);
-    }
-  }
+  const view = runs.view ?? PanelView.Run;
 
   return (
     <section
@@ -226,30 +285,16 @@ export function BacktestPanel({
         <ChartSwitch />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-3 px-6 pt-4">
+          <ViewSwitch view={view} onChange={(next) => setView(symbol, next)} />
+        </div>
         {/* Side by side where the main view is wide; narrower, the run follows its setup. */}
         <div className="grid items-start gap-6 px-6 py-4 @min-[56rem]/main:grid-cols-[20rem_minmax(0,1fr)]">
-          <div className="flex flex-col gap-3">
-            <ModeSwitch
-              mode={mode}
-              onChange={(next) => store.setMode(symbol, next)}
-            />
-            <BacktestForm
-              key={key}
-              symbol={symbol}
-              mode={mode}
-              setup={runs[mode] ?? runs.run ?? runs.scan ?? runs.walkForward}
-              isRunning={queries[mode].isFetching}
-              onSubmit={submit}
-            />
-          </div>
-          <div className="min-w-0">
-            <ModeOutcome
-              symbol={symbol}
-              mode={mode}
-              runs={runs}
-              queries={queries}
-            />
-          </div>
+          {view === PanelView.History ? (
+            <HistoryView symbol={symbol} />
+          ) : (
+            <ModeView key={key} symbol={symbol} mode={view} runs={runs} />
+          )}
         </div>
       </div>
     </section>
