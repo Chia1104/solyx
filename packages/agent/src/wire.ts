@@ -8,6 +8,8 @@
 import { uniq } from "es-toolkit";
 import * as z from "zod";
 
+import { ruleStrategySchema, tradeCostsSchema } from "@solyx/core/backtest";
+import { intervalSchema } from "@solyx/core/candles";
 import { EVERY_CHANGE, changeScopeSchema } from "@solyx/core/changes";
 import { councilSchema } from "@solyx/core/council";
 import { marketSchema, symbolRefSchema } from "@solyx/core/market";
@@ -269,9 +271,29 @@ export const scriptArgumentsSchema = z.object({
   code: z.string().min(1).describe("The body of an async function"),
 });
 
+/** The most single backtests a script's call keeps, so the thread can open each in the backtest panel. */
+export const MAX_RAN_BACKTESTS = 20;
+
+/** A single backtest a script ran with `backtest.rules`, as it asked for it. */
+export const ranBacktestSchema = z.object({
+  symbol: symbolRefSchema,
+  interval: intervalSchema,
+  since: z.string().optional(),
+  strategy: ruleStrategySchema,
+  capital: z.number().optional(),
+  costs: tradeCostsSchema.partial().optional(),
+  split: z
+    .union([z.object({ day: z.string() }), z.object({ share: z.number() })])
+    .optional(),
+});
+
+export type RanBacktest = z.infer<typeof ranBacktestSchema>;
+
 export const runAnalysisDetailsSchema = z.object({
   /** What the script printed and returned, or how it failed. */
   output: z.string(),
+  /** The different single backtests it ran, in the order it ran them. */
+  backtests: z.array(ranBacktestSchema).max(MAX_RAN_BACKTESTS).optional(),
 });
 
 export type RunAnalysisDetails = z.infer<typeof runAnalysisDetailsSchema>;

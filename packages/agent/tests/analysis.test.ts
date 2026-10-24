@@ -207,7 +207,7 @@ async function analyze(...scripts: string[]) {
       ? [
           {
             status: event.status,
-            output: runAnalysisDetailsSchema.parse(event.details).output,
+            ...runAnalysisDetailsSchema.parse(event.details),
           },
         ]
       : []
@@ -254,6 +254,15 @@ test("a script backtests rules over the listing's bars, which the engine reads a
       costs: { commissionRate: 0, minCommission: 0, sellTaxRate: 0, slippageTicks: 0 },
     });
     const [trade] = result.trades;
+    // Run again as it was, which the call keeps once.
+    await backtest.rules({
+      symbol,
+      strategy: {
+        entry: { above: [{ price: "close" }, { value: 110 }] },
+        exit: { below: [{ price: "close" }, { sma: 5 }] },
+      },
+      costs: { commissionRate: 0, minCommission: 0, sellTaxRate: 0, slippageTicks: 0 },
+    });
     return [result.trades.length, trade.entryPrice, trade.exitTime, result.all.trades];
   `);
 
@@ -263,7 +272,27 @@ test("a script backtests rules over the listing's bars, which the engine reads a
   );
   // The close of 111 is the first past 110, so the next bar's open of 111 buys; nothing sells.
   expect(results).toEqual([
-    { status: ToolCallStatus.Ok, output: "Result: [1,111,null,0]" },
+    {
+      status: ToolCallStatus.Ok,
+      output: "Result: [1,111,null,0]",
+      // Kept as it asked for it, so the thread opens it in the backtest panel.
+      backtests: [
+        {
+          symbol: { market: Market.TW, symbol: "2330" },
+          interval: Interval.OneDay,
+          strategy: {
+            entry: { above: [{ price: "close" }, { value: 110 }] },
+            exit: { below: [{ price: "close" }, { sma: 5 }] },
+          },
+          costs: {
+            commissionRate: 0,
+            minCommission: 0,
+            sellTaxRate: 0,
+            slippageTicks: 0,
+          },
+        },
+      ],
+    },
   ]);
   expect(description).toContain("type Strategy = { entry: Condition;");
   expect(description).toContain("declare const backtest: {");

@@ -4,6 +4,7 @@ import type { AgentWireEvent } from "@solyx/agent/wire";
 import { intervalSchema } from "@solyx/core/candles";
 import { symbolRefSchema } from "@solyx/core/market";
 
+import { backtestSetupSchema } from "./backtests.ts";
 import { chartIndicatorSchema } from "./chart-indicator.ts";
 import { overviewTabSchema } from "./overview-tab.ts";
 import { settingsSectionSchema } from "./settings-section.ts";
@@ -26,6 +27,8 @@ export const agentScreenSchema = z.discriminatedUnion("kind", [
     interval: intervalSchema,
     /** What its chart draws with its bars on that interval. */
     indicators: z.array(chartIndicatorSchema),
+    /** The single backtest the panel under its chart shows, as the panel ran it. */
+    backtest: backtestSetupSchema.optional(),
   }),
   z.object({ kind: z.literal(ScreenKind.Overview), tab: overviewTabSchema }),
   z.object({
