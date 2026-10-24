@@ -69,6 +69,8 @@ catalogs:
   markdown:
     "@streamdown/cjk": 1.0.4
     streamdown: 2.7.1
+  native:
+    "@napi-rs/cli": 3.10.9
   orpc:
     "@orpc/client": 2.0.0-beta.43
     "@orpc/contract": 2.0.0-beta.43

@@ -27,8 +27,8 @@ export const BackendMessageKind = {
   Start: "start",
   /** With a window's port, which the backend serves the router on. */
   Window: "window",
-  /** With a Fubon process's port. */
-  Fubon: "fubon",
+  /** With the port of a process the backend asked for. */
+  Process: "process",
 } as const;
 
 export type BackendMessageKind =
@@ -37,7 +37,7 @@ export type BackendMessageKind =
 export type BackendMessage =
   | { kind: typeof BackendMessageKind.Start; start: BackendStart }
   | { kind: typeof BackendMessageKind.Window; window: number }
-  | { kind: typeof BackendMessageKind.Fubon; id: string };
+  | { kind: typeof BackendMessageKind.Process; id: string };
 
 /** What the main process tells the backend of what only it sees. */
 export const backendContract = {
@@ -51,8 +51,8 @@ export const backendContract = {
   wake: oc.output(type<void>()),
   /** Whether the app stays open once its last window closes. */
   staysOpen: oc.output(type<boolean>()),
-  /** A Fubon process ended with `code`. */
-  fubonExited: oc
+  /** A process the backend asked for ended with `code`. */
+  processExited: oc
     .input(z.object({ id: z.uuid(), code: z.number().int() }))
     .output(type<void>()),
   /** Stores runs where they stopped and closes what is open, before the app quits. */

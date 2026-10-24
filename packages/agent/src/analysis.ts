@@ -11,6 +11,7 @@ import {
   ruleStrategySchema,
   tradeCostsSchema,
 } from "@solyx/core/backtest";
+import type { BacktestKernel } from "@solyx/core/backtest";
 import {
   Interval,
   barTime,
@@ -68,6 +69,8 @@ export interface AnalysisPorts extends AnalysisSources {
 
 export interface AnalysisOptions extends AnalysisPorts {
   scripts: ScriptRunner;
+  /** Runs what `backtest.rules` declares. */
+  kernel: BacktestKernel;
   /** @default () => new Date() */
   now?: () => Date;
 }
@@ -275,7 +278,7 @@ export const BACKTEST_TYPES = [
 ].join("\n");
 
 /** The app's backtest, so a strategy's fills and costs follow its rules rather than a script's own arithmetic. */
-const backtests: CodemodeTool[] = [
+const backtests = (kernel: BacktestKernel): CodemodeTool[] => [
   scriptFunction({
     name: "backtest.rules",
     description:
@@ -296,6 +299,7 @@ const backtests: CodemodeTool[] = [
     output: backtestSchema,
     run: ([{ symbol, bars, strategy, ...options }]) =>
       backtest(
+        kernel,
         symbol,
         bars.map((bar) => ({ ...omit(bar, ["epoch"]), time: bar.epoch })),
         strategy,
@@ -433,7 +437,7 @@ export function createAnalysis(options: AnalysisOptions): Extension {
         tools: dataFunctions(options, () => undefined, now),
         globals: [
           ...indicators,
-          ...backtests,
+          ...backtests(options.kernel),
           ...sourceFunctions(options, () => undefined),
         ],
       }),
@@ -465,7 +469,7 @@ export function createAnalysis(options: AnalysisOptions): Extension {
         tools: dataFunctions(options, historyBudget(), now),
         globals: [
           ...indicators,
-          ...backtests,
+          ...backtests(options.kernel),
           ...sourceFunctions(options, sourceBudget()),
         ],
         timeoutMs: TIMEOUT_MS,

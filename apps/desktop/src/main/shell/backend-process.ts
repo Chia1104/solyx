@@ -22,10 +22,10 @@ import { appChannel } from "./app-channel.ts";
 import { createAppUpdater } from "./app-updater.ts";
 import { reportError } from "./crash-reports.ts";
 import { electronCipher } from "./electron-cipher.ts";
-import { forkFubon } from "./fubon-process.ts";
 import type { Windows } from "./main-window.ts";
 import { settingsShell } from "./settings-shell.ts";
 import { createTrayIcon } from "./tray-icon.ts";
+import { forkUtility } from "./utility-process.ts";
 
 // Main is bundled into dist/main, next to dist/utility.
 const BACKEND_ENTRY = join(import.meta.dirname, "../utility/backend.mjs");
@@ -39,7 +39,8 @@ export interface Refusal {
 /**
  * Starts the backend in a utility process of its own, a process of this same binary, so the fuses
  * and the code signature that guard the secrets guard it too, and serves it what only the main
- * process can do: the secret store's key, the windows, the tray, dialogs and Fubon's processes.
+ * process can do: the secret store's key, the windows, the tray, dialogs and the processes it asks
+ * for, Fubon's and the kernel's.
  */
 export function startBackend(windows: Windows, configFile: string) {
   const child = utilityProcess.fork(BACKEND_ENTRY, [], {
@@ -64,7 +65,7 @@ export function startBackend(windows: Windows, configFile: string) {
 
   const updater = createAppUpdater();
   const tray = createTrayIcon(() => windows.show());
-  const fubons = new Map<string, UtilityProcess>();
+  const processes = new Map<string, UtilityProcess>();
 
   let settle: (refusal: Refusal | null) => void = () => undefined;
 
@@ -124,20 +125,20 @@ export function startBackend(windows: Windows, configFile: string) {
         app.relaunch();
         app.quit();
       }),
-      fubon: {
-        open: hosted.fubon.open.handler(({ input: id }) => {
-          const { child: fubon, port } = forkFubon();
+      processes: {
+        open: hosted.processes.open.handler(({ input: { kind, id } }) => {
+          const { child, port } = forkUtility(kind);
 
-          fubons.set(id, fubon);
-          fubon.on("exit", (code) => {
-            fubons.delete(id);
-            send("fubon-exited", control.fubonExited({ id, code }));
+          processes.set(id, child);
+          child.on("exit", (code) => {
+            processes.delete(id);
+            send("process-exited", control.processExited({ id, code }));
           });
 
-          post({ kind: BackendMessageKind.Fubon, id }, [port]);
+          post({ kind: BackendMessageKind.Process, id }, [port]);
         }),
-        kill: hosted.fubon.kill.handler(({ input: id }) => {
-          fubons.get(id)?.kill();
+        kill: hosted.processes.kill.handler(({ input: id }) => {
+          processes.get(id)?.kill();
         }),
       },
     }),

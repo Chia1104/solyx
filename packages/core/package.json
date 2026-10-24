@@ -39,10 +39,8 @@
     "./theme": "./src/theme.ts",
     "./web-search": "./src/web-search.ts"
   },
-  "scripts": {
-    "test": "vp test"
-  },
   "dependencies": {
+    "@solyx/kernel": "workspace:*",
     "@solyx/utils": "workspace:*",
     "es-toolkit": "catalog:",
     "zod": "catalog:"

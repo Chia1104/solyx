@@ -41,5 +41,9 @@ dist-ssr
 fubon-neo*
 fubon_neo*
 
+# The kernel's Rust build and the native module napi copies beside its loader
+packages/kernel/target
+packages/kernel/src/*.node
+
 # AI agent worktrees
 .claude/worktrees/

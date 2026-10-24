@@ -4,6 +4,16 @@ import * as z from "zod";
 import type { FubonFile } from "@solyx/api/settings";
 import type { WindowPaint } from "@solyx/backend/host";
 
+/** What the backend has the main process run in a utility process of its own, apart from it. */
+export const UtilityKind = {
+  /** One Fubon sign-in's SDK. */
+  Fubon: "fubon",
+  /** The kernel the backtests run on. */
+  Kernel: "kernel",
+} as const;
+
+export type UtilityKind = (typeof UtilityKind)[keyof typeof UtilityKind];
+
 /** A row of the tray's menu as the main process draws it; `null` for a rule between groups. */
 export type HostTrayRow = { label: string; selectable: boolean } | null;
 
@@ -54,9 +64,11 @@ export const hostContract = {
     .output(type<string | null>()),
   showItemInFolder: oc.input(z.string()).output(type<void>()),
   restart: oc.output(type<void>()),
-  fubon: {
-    /** Starts a Fubon process and posts the backend its port, tagged with `id`, on the parent port. */
-    open: oc.input(z.uuid()).output(type<void>()),
+  processes: {
+    /** Starts a process of `kind` and posts the backend its port, tagged with `id`, on the parent port. */
+    open: oc
+      .input(z.object({ kind: z.enum(UtilityKind), id: z.uuid() }))
+      .output(type<void>()),
     kill: oc.input(z.uuid()).output(type<void>()),
   },
 };

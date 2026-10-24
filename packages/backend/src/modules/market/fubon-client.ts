@@ -11,6 +11,9 @@ import type {
   FubonSessionOptions,
 } from "@solyx/brokers/fubon";
 
+import { processCalls } from "../../rpc/process-calls.ts";
+import type { UtilityChild } from "../../rpc/process-calls.ts";
+
 import type { fubonContract } from "./fubon.contract.ts";
 
 // Long enough for Fubon to answer a sign-in; past it the process is ended, so a stalled SDK
@@ -31,19 +34,13 @@ export interface FubonProcess extends FubonTrading {
   close(): void;
 }
 
-/** The part of Electron's `UtilityProcess` the session needs besides its port, so tests stand in for it. */
-export interface FubonChild {
-  on(event: "exit", listener: (code: number) => void): void;
-  kill(): void;
-}
-
 /**
  * Signs in to Fubon through `child`, calling it over `port`, and holds the session it keeps. A
  * call Fubon does not answer in time ends the process, and an ended process fails every call
  * still waiting and every later one, so nothing signs in again behind the user's back.
  */
 export async function connectFubon(
-  child: FubonChild,
+  child: UtilityChild,
   port: SupportedMessagePort,
   options: FubonSessionOptions,
   answerTimeoutMs = ANSWER_TIMEOUT_MS
@@ -52,43 +49,11 @@ export async function connectFubon(
     new RPCLink({ port })
   );
 
-  // Aborts every call still waiting once the process is ended.
-  const ending = new AbortController();
-
-  let stopped: Error | undefined;
-
-  function stop(reason: Error) {
-    stopped ??= reason;
-    ending.abort(stopped);
-    child.kill();
-  }
-
-  child.on("exit", (code) =>
-    stop(new Error(`The Fubon SDK exited with code ${code}`))
+  const { call, signal: ending } = processCalls(
+    child,
+    "The Fubon SDK",
+    answerTimeoutMs
   );
-
-  async function call<T>(send: (signal: AbortSignal) => Promise<T>) {
-    if (stopped) throw stopped;
-
-    const timer = setTimeout(
-      () =>
-        stop(
-          new Error(
-            `Fubon did not answer within ${answerTimeoutMs / 1000} seconds`
-          )
-        ),
-      answerTimeoutMs
-    );
-
-    try {
-      return await send(ending.signal);
-    } catch (error) {
-      // A call the process ended under fails with why it ended.
-      throw stopped ?? error;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
 
   try {
     const accounts = await call((signal) => fubon.open(options, { signal }));
@@ -119,7 +84,7 @@ export async function connectFubon(
         // it ends with the process, whose end every call reports.
         void (async () => {
           const changes = await fubon.changes(undefined, {
-            signal: ending.signal,
+            signal: ending,
           });
 
           for await (const _change of changes) listener();

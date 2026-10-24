@@ -40,6 +40,7 @@ import type { SymbolRef } from "@solyx/core/market";
 import { ProposalSource, ProposalStatus } from "@solyx/core/order-desk";
 import type { ProposingDesk, TradeProposal } from "@solyx/core/order-desk";
 import { getSession, weekdays } from "@solyx/core/session";
+import { kernel } from "@solyx/kernel/kernel";
 import { createFugleMarketData } from "@solyx/market-data/fugle";
 
 import type { AnalysisSources } from "../src/analysis-sources.ts";
@@ -353,6 +354,7 @@ async function runRequest(request: BacktestRequest): Promise<Run> {
     watchlist: () => [],
     desk,
     scripts: recordingScripts(calls),
+    kernel,
   });
 
   let end: (reason: string) => void = () => undefined;

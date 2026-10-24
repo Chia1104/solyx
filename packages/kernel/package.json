@@ -1,0 +1,19 @@
+{
+  "name": "@solyx/kernel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./kernel": "./src/kernel.ts",
+    "./native": "./src/index.d.ts"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "catalog:native",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "napi": {
+    "binaryName": "solyx-kernel"
+  }
+}

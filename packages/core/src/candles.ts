@@ -1,9 +1,14 @@
 import { groupBy, sumBy } from "es-toolkit";
 import * as z from "zod";
 
-import { shiftDate } from "@solyx/utils/date";
+import { DAY_MS, shiftDate } from "@solyx/utils/date";
 
-import { exchangeDate, exchangeMidnight, exchangeTime } from "./market.ts";
+import {
+  exchangeClock,
+  exchangeDate,
+  exchangeMidnight,
+  exchangeTime,
+} from "./market.ts";
 import type { Market } from "./market.ts";
 
 export const Interval = {
@@ -93,6 +98,38 @@ export interface Candle {
 /** The exchange-local date, `YYYY-MM-DD`, of the session a bar opening at `time` belongs to. */
 export function candleDate(market: Market, time: Candle["time"]): string {
   return exchangeDate(market, new Date(time * 1000));
+}
+
+/**
+ * The session of each bar as `candleDate` reads it, as days counted from 1970-01-01, reading the
+ * exchange's offset from UTC again only once a bar passes the change after the one read last.
+ */
+export function candleDays(
+  market: Market,
+  bars: readonly Candle[]
+): Int32Array {
+  const days = new Int32Array(bars.length);
+
+  let offset = 0;
+  let from = Infinity;
+  let until = -Infinity;
+
+  for (let index = 0; index < bars.length; index++) {
+    const at = bars[index].time * 1000;
+
+    if (at < from || at >= until) {
+      const clock = exchangeClock(market, new Date(at));
+
+      offset = clock.offsetNanoseconds / 1e6;
+      from = at;
+      until =
+        clock.getTimeZoneTransition("next")?.epochMilliseconds ?? Infinity;
+    }
+
+    days[index] = Math.floor((at + offset) / DAY_MS);
+  }
+
+  return days;
 }
 
 /** When a bar opening at `time` traded, on its exchange's clock: to the minute for a bar shorter than a day, else its session's date. */

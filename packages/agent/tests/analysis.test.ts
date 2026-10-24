@@ -14,6 +14,7 @@ import { Investor } from "@solyx/core/flows";
 import type { InvestorTrades } from "@solyx/core/flows";
 import { Market } from "@solyx/core/market";
 import { SectorGroup, TwSector } from "@solyx/core/sectors";
+import { kernel } from "@solyx/kernel/kernel";
 
 import { MAX_LISTINGS } from "../src/analysis-sources.ts";
 import type { AnalysisSources } from "../src/analysis-sources.ts";
@@ -162,6 +163,7 @@ async function analyze(...scripts: string[]) {
     candlesSince,
     ...sources,
     scripts: runner,
+    kernel,
     now: () => NOW,
   });
 

@@ -58,6 +58,10 @@ jobs:
             fs.writeFileSync("package.json", `${JSON.stringify(manifest, null, 2)}\n`);
           '
 
+      # The app ships the kernel built here, with the Rust its rust-toolchain.toml names.
+      - run: rustup toolchain install
+        working-directory: packages/kernel
+
       # The DSN only lets the app send to the project's Sentry, so it is a variable, not a secret.
       - name: Package
         env:

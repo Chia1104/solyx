@@ -33,6 +33,8 @@ export default defineConfig({
       ".vscode",
       ".idea",
       "**/routeTree.gen.ts",
+      // napi writes the kernel's types from its Rust source.
+      "packages/kernel/src/index.d.ts",
     ],
     sortImports: {
       groups: [

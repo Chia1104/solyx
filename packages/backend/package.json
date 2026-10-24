@@ -6,6 +6,8 @@
   "exports": {
     "./host": "./src/host.ts",
     "./modules/backup/staged-restore": "./src/modules/backup/staged-restore.ts",
+    "./modules/kernel/kernel-client": "./src/modules/kernel/kernel-client.ts",
+    "./modules/kernel/kernel.contract": "./src/modules/kernel/kernel.contract.ts",
     "./modules/market/fubon-client": "./src/modules/market/fubon-client.ts",
     "./modules/market/fubon.contract": "./src/modules/market/fubon.contract.ts",
     "./modules/settings/catalogs": "./src/modules/settings/catalogs.ts",
@@ -50,6 +52,7 @@
     "@solyx/embeddings": "workspace:*",
     "@solyx/fundamentals": "workspace:*",
     "@solyx/i18n": "workspace:*",
+    "@solyx/kernel": "workspace:*",
     "@solyx/macro": "workspace:*",
     "@solyx/market-data": "workspace:*",
     "@solyx/news": "workspace:*",

@@ -1,7 +1,15 @@
-import { maxBy, minBy, sumBy } from "es-toolkit";
+import { maxBy, minBy } from "es-toolkit";
 import * as z from "zod";
 
-import { adjustedCandles, adjustmentFactors, candleDate } from "./candles.ts";
+import type {
+  BacktestColumns,
+  BacktestRun,
+  KernelCondition,
+  KernelMetrics,
+} from "@solyx/kernel/native";
+import { epochDayDate } from "@solyx/utils/date";
+
+import { adjustedCandles, adjustmentFactors, candleDays } from "./candles.ts";
 import type { Candle } from "./candles.ts";
 import { bollinger, ema, kd, macd, rsi, sma } from "./indicators.ts";
 import type { IndicatorLine } from "./indicators.ts";
@@ -43,9 +51,10 @@ export type RuleSeries = z.infer<typeof ruleSeriesSchema>;
 /** Names a series as the engine works its line out once. */
 const seriesKey = (series: RuleSeries) => JSON.stringify(series);
 
-// A backtest runs on the caller's thread, the main process's for an agent's script, so a
-// strategy's work, reading it included, is bounded before it runs: depth and width together cap a
-// rule at MAX_RULE_BRANCHES ** MAX_RULE_DEPTH comparisons read before any other limit is checked.
+// A backtest's lines are worked out on the caller's thread, the backend's for an agent's script,
+// and its rules read at every bar, so a strategy's work, reading it included, is bounded before it
+// runs: depth and width together cap a rule at MAX_RULE_BRANCHES ** MAX_RULE_DEPTH comparisons
+// read before any other limit is checked.
 
 /** How many `all` and `any` a condition may nest. */
 export const MAX_RULE_DEPTH = 3;
@@ -246,11 +255,6 @@ export interface BacktestOptions {
   split?: string;
 }
 
-const DAYS_A_YEAR = 365.25;
-
-// A stretch shorter than this has no yearly pace worth naming.
-const SHORTEST_ANNUALIZED_DAYS = 28;
-
 /**
  * A line of `series`, `null` where it has nothing yet, each value read from its bar and those
  * before on that bar's own terms: a bar's own figures as traded, and an indicator over the bars
@@ -305,160 +309,63 @@ function seriesLine(
   );
 }
 
-/** Reads each condition at a bar from lines worked out once per series. */
-function conditionReader(
+/** The lines a strategy's rules read, each series once, and its rules naming them by their place. */
+function kernelRules(
+  strategy: RuleStrategy,
   bars: readonly Candle[],
   adjusted: readonly Candle[],
   factors: readonly number[]
 ) {
-  const lines = new Map<string, IndicatorLine>();
+  const places = new Map<string, number>();
+  const lines: Float64Array[] = [];
 
-  const line = (series: RuleSeries) => {
+  const place = (series: RuleSeries) => {
     const key = seriesKey(series);
-    const known = lines.get(key);
+    const known = places.get(key);
 
-    if (known) return known;
+    if (known !== undefined) return known;
 
-    const made = seriesLine(series, bars, adjusted, factors);
-
-    lines.set(key, made);
-
-    return made;
-  };
-
-  const compare = (
-    [a, b]: [RuleSeries, RuleSeries],
-    index: number,
-    holds: (left: number, right: number) => boolean
-  ) => {
-    const left = line(a)[index];
-    const right = line(b)[index];
-
-    return left !== null && right !== null && holds(left, right);
-  };
-
-  const holds = (condition: RuleCondition, index: number): boolean => {
-    if ("all" in condition) {
-      return condition.all.every((each) => holds(each, index));
-    }
-
-    if ("any" in condition) {
-      return condition.any.some((each) => holds(each, index));
-    }
-
-    if ("above" in condition) {
-      return compare(condition.above, index, (left, right) => left > right);
-    }
-
-    if ("below" in condition) {
-      return compare(condition.below, index, (left, right) => left < right);
-    }
-
-    const crossing =
-      "crossesAbove" in condition
-        ? condition.crossesAbove
-        : condition.crossesBelow;
-
-    const upward = "crossesAbove" in condition;
-
-    return (
-      index > 0 &&
-      compare(crossing, index - 1, (left, right) =>
-        upward ? left <= right : left >= right
-      ) &&
-      compare(crossing, index, (left, right) =>
-        upward ? left > right : left < right
+    places.set(key, lines.length);
+    lines.push(
+      Float64Array.from(
+        seriesLine(series, bars, adjusted, factors),
+        (value) => value ?? Number.NaN
       )
     );
+
+    return lines.length - 1;
   };
 
-  return holds;
+  const rule = (condition: RuleCondition): KernelCondition => {
+    if ("all" in condition) return { all: condition.all.map(rule) };
+
+    if ("any" in condition) return { any: condition.any.map(rule) };
+
+    if ("above" in condition) return { above: condition.above.map(place) };
+
+    if ("below" in condition) return { below: condition.below.map(place) };
+
+    if ("crossesAbove" in condition) {
+      return { crossesAbove: condition.crossesAbove.map(place) };
+    }
+
+    return { crossesBelow: condition.crossesBelow.map(place) };
+  };
+
+  return { entry: rule(strategy.entry), exit: rule(strategy.exit), lines };
 }
 
-/** How the bars from `first` to `last` went, against the account's value at the close before them. */
-function metrics(
-  symbol: SymbolRef,
-  bars: readonly Candle[],
-  equity: readonly number[],
-  held: readonly boolean[],
-  trades: readonly (BacktestTrade & { exitIndex: number | null })[],
-  first: number,
-  last: number,
-  capital: number
-): BacktestMetrics {
-  const start = first === 0 ? capital : equity[first - 1];
-  const end = equity[last];
-  const from = candleDate(symbol.market, bars[first].time);
-  const to = candleDate(symbol.market, bars[last].time);
-  const totalReturn = (end - start) / start;
-
-  const days = Temporal.PlainDate.from(from).until(
-    Temporal.PlainDate.from(to)
-  ).days;
-
-  // From the close the account's value is measured from, so both start on one price; no order
-  // fills on the first bar, so the first stretch's start is its first close.
-  const holdFrom = bars[Math.max(first - 1, 0)].close;
-
-  let peak = start;
-  let maxDrawdown = 0;
-  let holdPeak = holdFrom;
-  let buyAndHoldDrawdown = 0;
-
-  for (let index = first; index <= last; index++) {
-    peak = Math.max(peak, equity[index]);
-    maxDrawdown = Math.max(maxDrawdown, 1 - equity[index] / peak);
-    holdPeak = Math.max(holdPeak, bars[index].close);
-    buyAndHoldDrawdown = Math.max(
-      buyAndHoldDrawdown,
-      1 - bars[index].close / holdPeak
-    );
-  }
-
-  const closed = trades.filter(
-    ({ exitIndex }) =>
-      exitIndex !== null && exitIndex >= first && exitIndex <= last
-  );
-
-  const wins = closed.filter((trade) => trade.profit > 0);
-  const losses = closed.filter((trade) => trade.profit < 0);
-
-  const averageWin =
-    wins.length > 0 ? sumBy(wins, (trade) => trade.profit) / wins.length : null;
-
-  const averageLoss =
-    losses.length > 0
-      ? sumBy(losses, (trade) => trade.profit) / losses.length
-      : null;
-
-  return {
-    from,
-    to,
-    totalReturn,
-    annualReturn:
-      days < SHORTEST_ANNUALIZED_DAYS || end <= 0
-        ? null
-        : (end / start) ** (DAYS_A_YEAR / days) - 1,
-    maxDrawdown,
-    trades: closed.length,
-    winRate: closed.length > 0 ? wins.length / closed.length : null,
-    payoffRatio:
-      averageWin !== null && averageLoss !== null
-        ? averageWin / -averageLoss
-        : null,
-    exposure:
-      held.slice(first, last + 1).filter(Boolean).length / (last - first + 1),
-    buyAndHold: bars[last].close / holdFrom - 1,
-    buyAndHoldDrawdown,
-  };
+/** Runs a backtest's columns, here or on the process that holds the kernel. */
+export interface BacktestKernel {
+  backtest(columns: BacktestColumns): BacktestRun | Promise<BacktestRun>;
 }
 
 /**
- * Runs a long-only strategy over a listing's bars, oldest first. Each rule is read at a bar's
- * close from that bar and the ones before it, and acted on at the next bar's open, so no decision
- * sees a price it could not have. A buy spends what the account holds on whole shares; a sale
- * sells them all. A Taiwan bar that opened and closed at one price, up from its reference, is read
- * as locked at its limit and fills no buy, and one locked down fills no sale.
+ * Runs a long-only strategy over a listing's bars, oldest first, on `kernel`. Each rule is read at a
+ * bar's close from that bar and the ones before it, and acted on at the next bar's open, so no
+ * decision sees a price it could not have. A buy spends what the account holds on whole shares; a
+ * sale sells them all. A Taiwan bar that opened and closed at one price, up from its reference, is
+ * read as locked at its limit and fills no buy, and one locked down fills no sale.
  *
  * Indicators, stops and buying and holding read prices adjusted from the bars' references, so a
  * split or what went ex reads as no move, each bar's on its own terms so no later one changes it,
@@ -466,22 +373,22 @@ function metrics(
  * session's reference, as though what went ex bought more shares then, which is what those prices
  * assume.
  */
-export function backtest(
+export async function backtest(
+  kernel: BacktestKernel,
   symbol: SymbolRef,
   bars: readonly Candle[],
   strategy: RuleStrategy,
   options: BacktestOptions = {}
-): BacktestResult {
+): Promise<BacktestResult> {
   if (bars.length < 2) throw new Error("A backtest needs two bars at least");
 
   const capital = options.capital ?? 1_000_000;
   const costs = { ...defaultCosts(symbol), ...options.costs };
   const adjusted = adjustedCandles(bars);
   const factors = adjustmentFactors(bars);
-  const holds = conditionReader(bars, adjusted, factors);
-
-  const commission = (value: number) =>
-    Math.max(value * costs.commissionRate, value > 0 ? costs.minCommission : 0);
+  const days = candleDays(symbol.market, bars);
+  const dates = Array.from(days, epochDayDate);
+  const last = bars.length - 1;
 
   const slipped = (price: number, up: boolean) => {
     const tick = tickSize(symbol, price);
@@ -490,146 +397,84 @@ export function backtest(
     return Math.max(moved, tick);
   };
 
+  // No order fills on the first bar, so it is never read as locked.
   const locked = (index: number, up: boolean) => {
+    if (index === 0) return 0;
+
     const bar = bars[index];
     const reference = bar.reference ?? bars[index - 1].close;
 
-    return (
-      symbol.market === Market.TW &&
+    return symbol.market === Market.TW &&
       bar.high === bar.low &&
       (up ? bar.close > reference : bar.close < reference)
-    );
+      ? 1
+      : 0;
   };
-
-  let cash = capital;
-
-  let position: {
-    /** Fractional once a split or what went ex has carried it over. */
-    shares: number;
-    bought: number;
-    price: number;
-    cost: number;
-    index: number;
-  } | null = null;
-
-  let pending: "buy" | "sell" | null = null;
-  const trades: (BacktestTrade & { exitIndex: number | null })[] = [];
-  const equity: number[] = [];
-  const held: boolean[] = [];
-
-  for (let index = 0; index < bars.length; index++) {
-    const bar = bars[index];
-
-    if (position && bar.reference !== undefined) {
-      position.shares *= bars[index - 1].close / bar.reference;
-    }
-
-    if (pending === "buy" && !position && !locked(index, true)) {
-      const price = slipped(bar.open, true);
-
-      // The most shares whose price and commission, at its rate or its minimum, the cash covers.
-      const shares = Math.max(
-        Math.min(
-          Math.floor(cash / (price * (1 + costs.commissionRate))),
-          Math.floor((cash - costs.minCommission) / price)
-        ),
-        0
-      );
-
-      const fee = commission(price * shares);
-
-      if (shares > 0 && price * shares + fee <= cash) {
-        cash -= price * shares + fee;
-        position = {
-          shares,
-          bought: shares,
-          price,
-          cost: price * shares + fee,
-          index,
-        };
-      }
-    } else if (pending === "sell" && position && !locked(index, false)) {
-      const price = slipped(bar.open, false);
-      const value = price * position.shares;
-      const proceeds = value - commission(value) - value * costs.sellTaxRate;
-
-      cash += proceeds;
-      trades.push({
-        entryDate: candleDate(symbol.market, bars[position.index].time),
-        entryPrice: position.price,
-        exitDate: candleDate(symbol.market, bar.time),
-        exitPrice: price,
-        shares: position.bought,
-        profit: proceeds - position.cost,
-        return: (proceeds - position.cost) / position.cost,
-        bars: index - position.index,
-        exitIndex: index,
-      });
-      position = null;
-    }
-
-    pending = null;
-    held.push(position !== null);
-    equity.push(cash + (position ? position.shares * bar.close : 0));
-
-    if (!position) {
-      if (holds(strategy.entry, index)) pending = "buy";
-    } else {
-      const change =
-        adjusted[index].close / (position.price / factors[position.index]) - 1;
-
-      if (
-        holds(strategy.exit, index) ||
-        (strategy.stopLoss !== undefined && change <= -strategy.stopLoss) ||
-        (strategy.takeProfit !== undefined && change >= strategy.takeProfit)
-      ) {
-        pending = "sell";
-      }
-    }
-  }
-
-  const last = bars.length - 1;
-
-  if (position) {
-    const value = position.shares * bars[last].close;
-
-    trades.push({
-      entryDate: candleDate(symbol.market, bars[position.index].time),
-      entryPrice: position.price,
-      exitDate: null,
-      exitPrice: bars[last].close,
-      shares: position.bought,
-      profit: value - position.cost,
-      return: (value - position.cost) / position.cost,
-      bars: last - position.index,
-      exitIndex: null,
-    });
-  }
-
-  const stretch = (first: number, end: number) =>
-    metrics(symbol, adjusted, equity, held, trades, first, end, capital);
 
   const { split: splitDay } = options;
 
   const splitAt =
-    splitDay === undefined
-      ? -1
-      : bars.findIndex(
-          (bar) => candleDate(symbol.market, bar.time) >= splitDay
-        );
+    splitDay === undefined ? -1 : dates.findIndex((date) => date >= splitDay);
 
   const split = splitAt > 0 && splitAt <= last;
+
+  const run = await kernel.backtest({
+    close: Float64Array.from(bars, (bar) => bar.close),
+    adjustedClose: Float64Array.from(adjusted, (bar) => bar.close),
+    factor: Float64Array.from(factors),
+    carry: Float64Array.from(bars, (bar, index) =>
+      index > 0 && bar.reference !== undefined
+        ? bars[index - 1].close / bar.reference
+        : 1
+    ),
+    buyPrice: Float64Array.from(bars, (bar) => slipped(bar.open, true)),
+    sellPrice: Float64Array.from(bars, (bar) => slipped(bar.open, false)),
+    buyLocked: Uint8Array.from(bars, (_, index) => locked(index, true)),
+    sellLocked: Uint8Array.from(bars, (_, index) => locked(index, false)),
+    day: days,
+    ...kernelRules(strategy, bars, adjusted, factors),
+    stopLoss: strategy.stopLoss,
+    takeProfit: strategy.takeProfit,
+    capital,
+    commissionRate: costs.commissionRate,
+    minCommission: costs.minCommission,
+    sellTaxRate: costs.sellTaxRate,
+    splitAt: split ? splitAt : undefined,
+  });
+
+  const stretch = (
+    first: number,
+    end: number,
+    metrics: KernelMetrics
+  ): BacktestMetrics => ({ from: dates[first], to: dates[end], ...metrics });
+
+  const { trades } = run;
 
   return {
     capital,
     costs,
-    trades: trades.map(({ exitIndex: _, ...trade }) => trade),
-    equity: bars.map((bar, index) => ({
-      date: candleDate(symbol.market, bar.time),
-      value: equity[index],
+    trades: Array.from(trades.entry, (entry, index) => {
+      const exit = trades.exit[index];
+
+      return {
+        entryDate: dates[entry],
+        entryPrice: trades.entryPrice[index],
+        exitDate: exit === -1 ? null : dates[exit],
+        exitPrice: trades.exitPrice[index],
+        shares: trades.shares[index],
+        profit: trades.profit[index],
+        return: trades.return[index],
+        bars: (exit === -1 ? last : exit) - entry,
+      };
+    }),
+    equity: Array.from(run.equity, (value, index) => ({
+      date: dates[index],
+      value,
     })),
-    all: stretch(0, last),
-    inSample: split ? stretch(0, splitAt - 1) : null,
-    outOfSample: split ? stretch(splitAt, last) : null,
+    all: stretch(0, last, run.all),
+    inSample:
+      split && run.inSample ? stretch(0, splitAt - 1, run.inSample) : null,
+    outOfSample:
+      split && run.outOfSample ? stretch(splitAt, last, run.outOfSample) : null,
   };
 }

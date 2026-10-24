@@ -49,8 +49,8 @@ function serveBackend(
       ),
       wake: backend.wake.handler(() => services.scheduler.tick()),
       staysOpen: backend.staysOpen.handler(() => services.tray.staysOpen()),
-      fubonExited: backend.fubonExited.handler(({ input }) =>
-        backendHost.fubonExited(input.id, input.code)
+      processExited: backend.processExited.handler(({ input }) =>
+        backendHost.processExited(input.id, input.code)
       ),
       // Runs still going are stored where they stopped and continue at the next start, and stdio
       // MCP servers are shut down rather than left running without the app. Traces last, so they
@@ -133,8 +133,8 @@ function start(
           ...services,
           client: { kind: ClientKind.Window, window: data.window },
         });
-      } else if (data.kind === BackendMessageKind.Fubon) {
-        backendHost.fubonPort(data.id, port);
+      } else if (data.kind === BackendMessageKind.Process) {
+        backendHost.processPort(data.id, port);
       }
     }
   );
