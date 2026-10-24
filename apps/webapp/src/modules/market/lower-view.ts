@@ -6,6 +6,7 @@ export const LowerView = {
   Research: "research",
   Flows: "flows",
   Orders: "orders",
+  Backtest: "backtest",
 } as const;
 
 export type LowerView = (typeof LowerView)[keyof typeof LowerView];

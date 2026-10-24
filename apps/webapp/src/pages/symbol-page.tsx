@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 
 import { ToggleButton, ToggleButtonGroup, Tooltip } from "@heroui/react";
 import {
@@ -11,6 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import { Interval, isIntraday } from "@solyx/core/candles";
 import { Market, symbolKey } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
 
 import {
@@ -28,6 +30,8 @@ import {
 } from "../components/pane-splitter.tsx";
 import { ListingOrdersPanel } from "../modules/account/listing-orders.tsx";
 import { ListingPosition } from "../modules/account/listing-position.tsx";
+import { BacktestOverlay } from "../modules/backtests/backtest-overlay.tsx";
+import { BacktestPanel } from "../modules/backtests/backtest-panel.tsx";
 import { FlowPanes } from "../modules/flows/flow-panes.tsx";
 import { ListingFlowsPanel } from "../modules/flows/listing-flows.tsx";
 import { ChartKind } from "../modules/market/chart-kind.ts";
@@ -67,6 +71,30 @@ const ChartTool = {
 } as const;
 
 type ChartTool = (typeof ChartTool)[keyof typeof ChartTool];
+
+/** The pane under a listing's chart, led by the switch between its views. */
+function LowerPanel({
+  view,
+  symbol,
+  heading,
+}: {
+  view: LowerView;
+  symbol: SymbolRef;
+  heading: ReactNode;
+}) {
+  switch (view) {
+    case LowerView.News:
+      return <NewsList symbol={symbol} heading={heading} />;
+    case LowerView.Research:
+      return <ResearchPanel symbol={symbol} heading={heading} />;
+    case LowerView.Flows:
+      return <ListingFlowsPanel symbol={symbol} heading={heading} />;
+    case LowerView.Orders:
+      return <ListingOrdersPanel symbol={symbol} heading={heading} />;
+    case LowerView.Backtest:
+      return <BacktestPanel symbol={symbol} heading={heading} />;
+  }
+}
 
 export function SymbolPage() {
   const { t } = useTranslation();
@@ -136,6 +164,9 @@ export function SymbolPage() {
         <ToggleButton id={LowerView.Flows}>{t("flows.title")}</ToggleButton>
       ) : null}
       <ToggleButton id={LowerView.Orders}>{t("account.orders")}</ToggleButton>
+      <ToggleButton id={LowerView.Backtest}>
+        {t("backtests.title")}
+      </ToggleButton>
     </ToggleButtonGroup>
   );
 
@@ -217,6 +248,13 @@ export function SymbolPage() {
                     <ForecastOverlay symbol={symbol} candles={candles} />
                   ) : null}
                   <TradeOverlay symbol={symbol} candles={candles} />
+                  {session ? null : (
+                    <BacktestOverlay
+                      symbol={symbol}
+                      interval={interval}
+                      candles={candles}
+                    />
+                  )}
                 </>
               )}
               // Flows come a session at a time, so they are drawn on daily bars and longer.
@@ -297,18 +335,7 @@ export function SymbolPage() {
             onCommit={setNewsHeight}
             onReset={() => setNewsHeight(NEWS_HEIGHT.default)}
           />
-          {lowerView === LowerView.News ? (
-            <NewsList symbol={symbol} heading={lowerViews} />
-          ) : null}
-          {lowerView === LowerView.Research ? (
-            <ResearchPanel symbol={symbol} heading={lowerViews} />
-          ) : null}
-          {lowerView === LowerView.Flows ? (
-            <ListingFlowsPanel symbol={symbol} heading={lowerViews} />
-          ) : null}
-          {lowerView === LowerView.Orders ? (
-            <ListingOrdersPanel symbol={symbol} heading={lowerViews} />
-          ) : null}
+          <LowerPanel view={lowerView} symbol={symbol} heading={lowerViews} />
         </div>
       </div>
     </div>

@@ -1007,6 +1007,130 @@
       "r": "{{r}} R"
     }
   },
+  "backtests": {
+    "title": "回測",
+    "idle": "選好策略和期間後執行。回測在這台電腦上跑，不經過 Agent，也不花模型 token。",
+    "form": {
+      "strategy": "策略",
+      "rules": "自訂規則",
+      "rules-hint": "寫法和 Agent 的 backtest.rules 相同：entry、exit，可另加 stopLoss、takeProfit。",
+      "rules-label": "規則（JSON）",
+      "rules-json": "這不是有效的 JSON。",
+      "rules-invalid": "規則讀不懂：{{reason}}",
+      "required": "請輸入數字。",
+      "positive": "請輸入大於零的數字。",
+      "stopLoss": "停損",
+      "takeProfit": "停利",
+      "exit-hint": "留空表示不設。",
+      "interval": "K 線",
+      "years": "期間",
+      "years-option_one": "{{count}} 年",
+      "years-option_other": "{{count}} 年",
+      "split": "樣本內",
+      "split-hint": "前段用來挑參數，其餘用來驗證。",
+      "capital": "本金",
+      "commission": "手續費率",
+      "slippage": "滑價（檔）",
+      "run": "執行回測"
+    },
+    "params": {
+      "fast": "短均線",
+      "slow": "長均線",
+      "period": "週期",
+      "width": "寬度（標準差）",
+      "low": "低檔",
+      "high": "高檔",
+      "entry": "突破天數",
+      "exit": "跌破天數"
+    },
+    "templates": {
+      "movingAverageCross": {
+        "name": "均線交叉",
+        "description": "短均線向上穿越長均線時買進，向下穿越時賣出。"
+      },
+      "rsiRebound": {
+        "name": "RSI 超賣反彈",
+        "description": "RSI 從低檔向上穿越時買進，漲過高檔時賣出。"
+      },
+      "bollingerBreakout": {
+        "name": "布林通道突破",
+        "description": "收盤突破上軌時買進，跌回中軌以下時賣出。"
+      },
+      "bollingerReversion": {
+        "name": "布林通道回歸",
+        "description": "收盤從下軌下方站回時買進，回到中軌以上時賣出。"
+      },
+      "macdCross": {
+        "name": "MACD 交叉",
+        "description": "MACD(12, 26, 9) 的 DIF 向上穿越訊號線時買進，向下穿越時賣出。"
+      },
+      "kdCross": {
+        "name": "KD 交叉",
+        "description": "K 在低檔以下黃金交叉時買進，在高檔以上死亡交叉時賣出。"
+      },
+      "channelBreakout": {
+        "name": "通道突破",
+        "description": "收盤高過「突破天數」內的最高價時買進，跌破「跌破天數」內的最低價時賣出。"
+      }
+    },
+    "report": {
+      "span": "{{from}} 至 {{to}} · {{bars}} 根{{interval}} K",
+      "split": "樣本外自 {{date}} 起",
+      "metrics-label": "各段績效",
+      "metric": "指標",
+      "stretches": {
+        "inSample": "樣本內",
+        "outOfSample": "樣本外",
+        "all": "全期"
+      },
+      "metrics": {
+        "totalReturn": "策略報酬",
+        "buyAndHold": "買進持有",
+        "annualReturn": "年化報酬",
+        "maxDrawdown": "最大回撤",
+        "buyAndHoldDrawdown": "買進持有回撤",
+        "sharpe": "Sharpe",
+        "pValue": "p 值",
+        "trades": "交易筆數",
+        "winRate": "勝率",
+        "payoffRatio": "賺賠比",
+        "exposure": "持有時間"
+      },
+      "warnings": {
+        "title": "這些數字要小心讀",
+        "stretch-trades_one": "{{stretch}} {{count}} 筆",
+        "stretch-trades_other": "{{stretch}} {{count}} 筆",
+        "separator": "、",
+        "few-trades": "交易太少（{{stretches}}，不到 {{enough}} 筆），看不出規則有沒有用。",
+        "read-longer_one": "改讀 {{count}} 年",
+        "read-longer_other": "改讀 {{count}} 年",
+        "untested": "樣本外沒有持有可以檢定，看不出進出時機有沒有勝過隨機。",
+        "chance": "樣本外的進出時機沒有勝過隨機排列的 K 線（p = {{p}}）。",
+        "behind-holding": "樣本外報酬 {{strategy}}，輸給買進持有的 {{holding}}。"
+      },
+      "costs_one": "成本：手續費 {{commission}}（最低 {{minimum}}）、賣出交易稅 {{tax}}、滑價 {{count}} 檔",
+      "costs_other": "成本：手續費 {{commission}}（最低 {{minimum}}）、賣出交易稅 {{tax}}、滑價 {{count}} 檔",
+      "equity": "報酬曲線",
+      "strategy": "策略",
+      "holding": "買進持有",
+      "out-of-sample": "樣本外",
+      "trades_one": "{{count}} 筆交易",
+      "trades_other": "{{count}} 筆交易",
+      "no-trades": "這段期間沒有交易。",
+      "trade": {
+        "entry": "買進",
+        "exit": "賣出",
+        "return": "報酬",
+        "bars": "K 數",
+        "held": "持有中"
+      }
+    },
+    "chart": {
+      "on-chart": "標在 K 線圖",
+      "buy": "測買",
+      "sell": "測賣"
+    }
+  },
   "magi": {
     "title": "MAGI",
     "motion": "提訴",
