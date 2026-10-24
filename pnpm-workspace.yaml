@@ -145,8 +145,12 @@ allowBuilds:
   protobufjs: false
   workerd: false
 
+# Vitest takes the OpenTelemetry API as an optional peer, so each version of it in the graph makes
+# another copy of Vite+, and a test that imports another package's module would reach one whose
+# Vitest is not running it. Every package therefore gets the API the OpenTelemetry SDK takes.
 overrides:
   vite@*: "catalog:"
+  "@opentelemetry/api": "catalog:otel"
 peerDependencyRules:
   allowAny:
     - vite
