@@ -6,6 +6,7 @@ import {
   unique,
 } from "drizzle-orm/sqlite-core";
 
+import type { BacktestMetrics } from "@solyx/core/backtest";
 import type { MandateVerdict } from "@solyx/core/mandate";
 import type { Market } from "@solyx/core/market";
 import type { TimePrecision } from "@solyx/core/news";
@@ -185,3 +186,16 @@ export const themeReadings = sqliteTable(
   },
   (table) => [unique().on(table.themeId, table.signpost, table.itemKey)]
 );
+
+/**
+ * The backtests a window ran, a row a setup, each with how it did when it last ran. The request is
+ * kept as the JSON its owner wrote, and read back through its own schema.
+ */
+export const backtestRuns = sqliteTable("backtest_runs", {
+  id: text().primaryKey(),
+  /** The request as one string, so running it again updates its row. */
+  key: text().notNull().unique(),
+  ranAt: integer("ran_at").notNull(),
+  request: text({ mode: "json" }).$type<unknown>().notNull(),
+  headline: text({ mode: "json" }).$type<BacktestMetrics>(),
+});

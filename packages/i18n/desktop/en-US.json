@@ -1191,6 +1191,32 @@
       "window": "Trained {{trainFrom}} to {{trainTo}}, tested {{testFrom}} to {{testTo}}",
       "no-pick": "Nothing picked",
       "train-sharpe": "training Sharpe {{sharpe}}"
+    },
+    "history": {
+      "title": "History",
+      "axis": "{{param}} {{from}}–{{to}}",
+      "reach": "{{mode}} · {{interval}} bars · {{years}}",
+      "no-headline": "No figures to judge it by",
+      "out-of-sample_one": "Out of sample {{total}} · holding {{holding}} · Sharpe {{sharpe}} · {{count}} trade",
+      "out-of-sample_other": "Out of sample {{total}} · holding {{holding}} · Sharpe {{sharpe}} · {{count}} trades",
+      "plateau_one": "Plateau in-sample {{total}} · Sharpe {{sharpe}} · {{count}} trade",
+      "plateau_other": "Plateau in-sample {{total}} · Sharpe {{sharpe}} · {{count}} trades",
+      "pick": "Compare",
+      "open": "Open",
+      "remove": "Remove",
+      "clear": "Clear all",
+      "clear-confirm": "Clear every run?",
+      "every-listing": "Every listing",
+      "pick-hint_one": "Tick up to {{count}} single backtest to compare.",
+      "pick-hint_other": "Tick up to {{count}} single backtests to compare.",
+      "empty": "Backtests you run here are kept in this list."
+    },
+    "compare": {
+      "idle": "Tick single backtests in the list to compare them side by side.",
+      "returns": "Return on capital",
+      "out-of-sample": "{{index}} · out of sample",
+      "all": "{{index}} · whole span",
+      "again": "Compared on today's bars, so a figure can differ from the one the run had when it was kept."
     }
   },
   "magi": {

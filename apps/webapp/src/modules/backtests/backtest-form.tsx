@@ -15,6 +15,8 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import type { Control } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
+import { BacktestMode } from "@solyx/api/backtests";
+import type { BacktestRequest } from "@solyx/api/backtests";
 import { MAX_SCAN_SERIES } from "@solyx/core/backtest";
 import { Interval } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
@@ -42,12 +44,7 @@ import {
   useGridSize,
   writtenOut,
 } from "./backtest-form-values.ts";
-import type {
-  FormRequest,
-  FormValues,
-  PanelSetup,
-} from "./backtest-form-values.ts";
-import { BacktestMode } from "./backtest-store.ts";
+import type { FormValues, PanelSetup } from "./backtest-form-values.ts";
 import { yearChoices } from "./backtest-years.ts";
 import { GridAxisFields, GridSummary } from "./grid-fields.tsx";
 
@@ -359,7 +356,7 @@ export function BacktestForm({
   mode: BacktestMode;
   setup: PanelSetup | undefined;
   isRunning: boolean;
-  onSubmit: (request: FormRequest) => void;
+  onSubmit: (request: BacktestRequest) => void;
 }) {
   const { t } = useTranslation();
   const schema = useFormSchema(mode);

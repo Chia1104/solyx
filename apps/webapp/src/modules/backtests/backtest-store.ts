@@ -1,6 +1,8 @@
 import { create } from "zustand";
 
+import { BacktestMode } from "@solyx/api/backtests";
 import type {
+  BacktestRequest,
   BacktestSetup,
   ScanSetup,
   WalkForwardSetup,
@@ -8,18 +10,14 @@ import type {
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 
-/** What the panel runs: one setup, a grid of them, or a grid picked from as it walks forward. */
-export const BacktestMode = {
-  Run: "run",
-  Scan: "scan",
-  WalkForward: "walkForward",
-} as const;
+/** What the panel shows: a mode to run in, or the runs kept. */
+export const PanelView = { ...BacktestMode, History: "history" } as const;
 
-export type BacktestMode = (typeof BacktestMode)[keyof typeof BacktestMode];
+export type PanelView = (typeof PanelView)[keyof typeof PanelView];
 
 /** What a listing's panel shows and ran last in each mode. */
 export interface ListingBacktests {
-  mode: BacktestMode;
+  view: PanelView;
   run?: BacktestSetup;
   scan?: ScanSetup;
   walkForward?: WalkForwardSetup;
@@ -28,10 +26,9 @@ export interface ListingBacktests {
 interface BacktestStore {
   /** By the listing's `symbolKey`, for the window's life. */
   listings: Partial<Record<string, ListingBacktests>>;
-  setMode(symbol: SymbolRef, mode: BacktestMode): void;
-  run(setup: BacktestSetup): void;
-  scan(setup: ScanSetup): void;
-  walkForward(setup: WalkForwardSetup): void;
+  setView(symbol: SymbolRef, view: PanelView): void;
+  /** Runs a request in its mode, shown on its listing's panel. */
+  ask(request: BacktestRequest): void;
   /** Whether a listing's chart marks the trades of the run its panel shows. */
   onChart: boolean;
   setOnChart(onChart: boolean): void;
@@ -45,23 +42,19 @@ export const useBacktestStore = create<BacktestStore>()((set) => {
       return {
         listings: {
           ...state.listings,
-          [key]: {
-            mode: BacktestMode.Run,
-            ...state.listings[key],
-            ...change,
-          },
+          [key]: { view: PanelView.Run, ...state.listings[key], ...change },
         },
       };
     });
 
   return {
     listings: {},
-    setMode: (symbol, mode) => update(symbol, { mode }),
-    // Running one shows it, so a scan's cell run alone opens on its run.
-    run: (setup) =>
-      update(setup.symbol, { mode: BacktestMode.Run, run: setup }),
-    scan: (setup) => update(setup.symbol, { scan: setup }),
-    walkForward: (setup) => update(setup.symbol, { walkForward: setup }),
+    setView: (symbol, view) => update(symbol, { view }),
+    ask: (request) =>
+      update(request.setup.symbol, {
+        view: request.mode,
+        [request.mode]: request.setup,
+      }),
     onChart: true,
     setOnChart: (onChart) => set({ onChart }),
   };

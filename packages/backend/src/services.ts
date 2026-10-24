@@ -267,7 +267,12 @@ export function createServices(config: ConfigFile, host: Host) {
   // One process runs the agent's backtests and the windows' alike.
   const kernel = createKernel(host.openKernelProcess);
 
-  const backtests = createBacktests({ marketData, kernel });
+  const backtests = createBacktests({
+    marketData,
+    kernel,
+    history: userData.backtestRuns,
+    onHistoryChange: () => void windowEvents.publish("backtests:changed", {}),
+  });
 
   // The user's own skills and instructions sit beside the config file they edit.
   const skillFolders = {

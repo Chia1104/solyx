@@ -1,6 +1,7 @@
 import * as z from "zod";
 
 import { tradeCostsSchema } from "@solyx/core/backtest";
+import type { BacktestMetrics } from "@solyx/core/backtest";
 import {
   HISTORY_YEARS,
   historyYears,
@@ -98,3 +99,43 @@ export const walkForwardSetupSchema = z
   .superRefine(runsAsGrid);
 
 export type WalkForwardSetup = z.infer<typeof walkForwardSetupSchema>;
+
+/** What a window runs: one setup, a grid of them, or a grid picked from as it walks forward. */
+export const BacktestMode = {
+  Run: "run",
+  Scan: "scan",
+  WalkForward: "walkForward",
+} as const;
+
+export type BacktestMode = (typeof BacktestMode)[keyof typeof BacktestMode];
+
+/** A run a window asked for, by its mode, as the history keeps it. */
+export const backtestRequestSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal(BacktestMode.Run), setup: backtestSetupSchema }),
+  z.object({ mode: z.literal(BacktestMode.Scan), setup: scanSetupSchema }),
+  z.object({
+    mode: z.literal(BacktestMode.WalkForward),
+    setup: walkForwardSetupSchema,
+  }),
+]);
+
+export type BacktestRequest = z.infer<typeof backtestRequestSchema>;
+
+/** The most runs the history keeps; the oldest go first. */
+export const BACKTEST_HISTORY = 200;
+
+/** The most single runs compared at once. */
+export const MAX_COMPARED = 4;
+
+/** A run a window asked for, as the history keeps it: what it set up and how it did when it last ran. */
+export interface BacktestRecord {
+  id: string;
+  /** When it last ran, in milliseconds since the epoch. */
+  ranAt: number;
+  request: BacktestRequest;
+  /**
+   * The stretch it is judged by: out of sample for a run and a walk forward, and the plateau's
+   * in-sample stretch for a scan; `null` where it has none.
+   */
+  headline: BacktestMetrics | null;
+}

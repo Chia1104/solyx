@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, inArray, max } from "drizzle-orm";
 import type { NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { clamp, omit } from "es-toolkit";
 
+import type { BacktestMetrics } from "@solyx/core/backtest";
 import type { WatchedExitLeg } from "@solyx/core/broker";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -12,6 +13,7 @@ import type { ThemeItem, ThemeStore } from "@solyx/core/theme";
 
 import { connect } from "./connection.ts";
 import {
+  backtestRuns,
   paperAccount,
   paperExitLegs,
   paperFills,
@@ -381,6 +383,83 @@ function themeStore(db: NodeSQLiteDatabase): ThemeStore {
   };
 }
 
+/** A backtest a window ran, its request as its owner wrote it. */
+export interface BacktestRun {
+  id: string;
+  ranAt: number;
+  request: unknown;
+  headline: BacktestMetrics | null;
+}
+
+/** The backtests windows ran, newest first, at most as many as each recording keeps. */
+function backtestRunStore(db: NodeSQLiteDatabase) {
+  return {
+    list: (): BacktestRun[] =>
+      db
+        .select()
+        .from(backtestRuns)
+        .orderBy(desc(backtestRuns.ranAt))
+        .all()
+        .map((row) => omit(row, ["key"])),
+
+    get(id: string): BacktestRun | undefined {
+      const row = db
+        .select()
+        .from(backtestRuns)
+        .where(eq(backtestRuns.id, id))
+        .get();
+
+      return row && omit(row, ["key"]);
+    },
+
+    /**
+     * Keeps a run under `key`, its request as one string: a request run before keeps its id and
+     * takes the new time and headline. Past `keep` runs, the oldest go, in the same transaction.
+     */
+    record(key: string, run: BacktestRun, keep: number): BacktestRun {
+      return db.transaction((tx) => {
+        tx.insert(backtestRuns)
+          .values({ ...run, key })
+          .onConflictDoUpdate({
+            target: backtestRuns.key,
+            set: { ranAt: run.ranAt, headline: run.headline },
+          })
+          .run();
+
+        const stale = tx
+          .select({ id: backtestRuns.id })
+          .from(backtestRuns)
+          .orderBy(desc(backtestRuns.ranAt))
+          .all()
+          .slice(keep)
+          .map(({ id }) => id);
+
+        if (stale.length > 0) {
+          tx.delete(backtestRuns).where(inArray(backtestRuns.id, stale)).run();
+        }
+
+        const kept = tx
+          .select()
+          .from(backtestRuns)
+          .where(eq(backtestRuns.key, key))
+          .get();
+
+        return kept ? omit(kept, ["key"]) : run;
+      });
+    },
+
+    remove(id: string) {
+      db.delete(backtestRuns).where(eq(backtestRuns.id, id)).run();
+    },
+
+    clear() {
+      db.delete(backtestRuns).run();
+    },
+  };
+}
+
+export type BacktestRunStore = ReturnType<typeof backtestRunStore>;
+
 /**
  * The user's database, holding what cannot be fetched again. It is never deleted, so a
  * file its migrations cannot open is an error. `migrationsFolder` is `migrations/user`
@@ -397,6 +476,7 @@ export function openUserData(path: string, migrationsFolder: string) {
     paperAccount: paperAccountStore(connection.db),
     schedules: scheduleStore(connection.db),
     themes: themeStore(connection.db),
+    backtestRuns: backtestRunStore(connection.db),
     close: () => connection.client.close(),
   };
 }

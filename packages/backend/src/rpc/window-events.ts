@@ -9,6 +9,7 @@ import type { SymbolRef } from "@solyx/core/market";
  */
 export type WindowEvents = Record<
   | "agent:store-failed"
+  | "backtests:changed"
   | "backup:changed"
   | "devices:changed"
   | "embeddings:changed"

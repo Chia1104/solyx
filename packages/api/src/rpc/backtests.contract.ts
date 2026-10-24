@@ -1,4 +1,5 @@
 import { oc, type } from "@orpc/contract";
+import * as z from "zod";
 
 import type {
   BacktestResult,
@@ -7,14 +8,18 @@ import type {
 } from "@solyx/core/backtest";
 
 import {
+  MAX_COMPARED,
   backtestSetupSchema,
   scanSetupSchema,
   walkForwardSetupSchema,
 } from "../backtests.ts";
+import type { BacktestRecord } from "../backtests.ts";
 
 import { forDevices } from "./access.ts";
+import { changesContract } from "./changes.ts";
 
-// A backtest reads bars the app keeps and changes nothing, so a paired device runs one too.
+// A backtest reads bars the app keeps and changes nothing but the history of the workspace's own
+// runs, so a paired device runs one too.
 export const backtestsContract = {
   /** A strategy over a listing's last years of bars, its timing tested in and out of sample. */
   run: oc
@@ -31,4 +36,15 @@ export const backtestsContract = {
     .meta(forDevices(true))
     .input(walkForwardSetupSchema)
     .output(type<WalkForwardResult>()),
+  /** The runs windows asked for, newest first, each with how it did when it last ran. */
+  history: oc.meta(forDevices(true)).output(type<BacktestRecord[]>()),
+  remove: oc.meta(forDevices(true)).input(z.string()).output(type<void>()),
+  clear: oc.meta(forDevices(true)).output(type<void>()),
+  /** Single runs from the history run again over the bars as they are now, in the order asked. */
+  compare: oc
+    .meta(forDevices(true))
+    .input(z.array(z.string()).min(1).max(MAX_COMPARED))
+    .output(type<{ id: string; result: BacktestResult }[]>()),
+  /** A run was kept, or one or all of them removed. */
+  changes: changesContract,
 };

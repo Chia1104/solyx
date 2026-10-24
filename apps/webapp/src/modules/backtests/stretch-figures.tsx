@@ -74,8 +74,15 @@ function useMetricFormat() {
   };
 }
 
-/** Each stretch's figures beside holding the listing through it, a column a stretch. */
-export function MetricsTable({ stretches }: { stretches: StretchFigures[] }) {
+/** A column of figures: one stretch of one run, under its title and the dates it ran over. */
+export interface FiguresColumn {
+  id: string;
+  title: string;
+  metrics: BacktestMetrics;
+}
+
+/** Each column's figures beside holding the listing through its stretch. */
+export function FiguresTable({ columns }: { columns: FiguresColumn[] }) {
   const { t } = useTranslation();
   const formatted = useMetricFormat();
 
@@ -89,10 +96,10 @@ export function MetricsTable({ stretches }: { stretches: StretchFigures[] }) {
             <Table.Column isRowHeader>
               {t("backtests.report.metric")}
             </Table.Column>
-            {stretches.map(({ stretch, metrics }) => (
-              <Table.Column key={stretch} className={NUMBER}>
+            {columns.map(({ id, title, metrics }) => (
+              <Table.Column key={id} className={NUMBER}>
                 <span className="flex flex-col items-end">
-                  {t(`backtests.report.stretches.${stretch}`)}
+                  {title}
                   <span className="text-xs font-normal text-muted">
                     {metrics.from} – {metrics.to}
                   </span>
@@ -106,8 +113,8 @@ export function MetricsTable({ stretches }: { stretches: StretchFigures[] }) {
                 <Table.Cell>
                   {t(`backtests.report.metrics.${metric}`)}
                 </Table.Cell>
-                {stretches.map(({ stretch, metrics }) => (
-                  <Table.Cell key={stretch} className={NUMBER}>
+                {columns.map(({ id, metrics }) => (
+                  <Table.Cell key={id} className={NUMBER}>
                     {formatted(metric, metrics)}
                   </Table.Cell>
                 ))}
@@ -117,5 +124,20 @@ export function MetricsTable({ stretches }: { stretches: StretchFigures[] }) {
         </Table.Content>
       </Table.ScrollContainer>
     </Table>
+  );
+}
+
+/** Each stretch's figures beside holding the listing through it, a column a stretch. */
+export function MetricsTable({ stretches }: { stretches: StretchFigures[] }) {
+  const { t } = useTranslation();
+
+  return (
+    <FiguresTable
+      columns={stretches.map(({ stretch, metrics }) => ({
+        id: stretch,
+        title: t(`backtests.report.stretches.${stretch}`),
+        metrics,
+      }))}
+    />
   );
 }
