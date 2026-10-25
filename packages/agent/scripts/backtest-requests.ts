@@ -123,6 +123,25 @@ export const BACKTEST_REQUESTS: BacktestRequest[] = [
     ],
   },
   {
+    id: "start-luck",
+    text: "2330 用 20 日和 60 日均線交叉，如果我在不同時間點開始用，結果會差很多嗎？",
+    runsEngine: true,
+    rubric: [
+      {
+        id: "rolling-run",
+        text: "It runs the rule over rolling windows with backtest.rolling rather than over a few starts it picked itself.",
+      },
+      {
+        id: "apart-said",
+        text: "It gives the share of starts that beat holding together with how many periods the overlapping windows stand for, and does not treat each window as a sample of its own.",
+      },
+      {
+        id: "rolling-figures",
+        text: "The shares, spreads, drawdowns and window counts it cites from the rolling windows match the engine's results given here.",
+      },
+    ],
+  },
+  {
     id: "range",
     text: "幫我測 2330 的均線交叉：短均線用 5、10、20，長均線用 60、120，全部組合都跑，告訴我樣本外報酬最好和最差的差多少。",
     runsEngine: true,
