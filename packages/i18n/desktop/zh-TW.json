@@ -1213,9 +1213,9 @@
         "worst-drawdown": "單段最深回撤"
       },
       "spread-label": "各段報酬分布",
-      "low": "第 10 百分位",
+      "p10": "第 10 百分位",
       "median": "中位數",
-      "high": "第 90 百分位",
+      "p90": "第 90 百分位",
       "spreads": {
         "returns": "策略報酬",
         "holding": "買進持有",

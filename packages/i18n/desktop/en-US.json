@@ -1213,9 +1213,9 @@
         "worst-drawdown": "Deepest fall in a window"
       },
       "spread-label": "Returns across windows",
-      "low": "10th percentile",
+      "p10": "10th percentile",
       "median": "Median",
-      "high": "90th percentile",
+      "p90": "90th percentile",
       "spreads": {
         "returns": "Strategy",
         "holding": "Buy and hold",
