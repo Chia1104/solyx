@@ -191,13 +191,14 @@ const outputSchema = z.record(
 const NOT_A_NUMBER = /(?<=[[,:]\s*)(?:NaN|-?Infinity)(?=\s*[,\]}])/g;
 
 /**
- * Each job's lines from what a strategy's code wrote, `NaN` and `Infinity` read as no value. A job
- * it left out, or a line with other than one value for each of its job's bars, fails the run.
+ * Each job's lines from what a strategy's code wrote, in the jobs' order, `NaN` and `Infinity` read
+ * as no value. A job it left out, or a line with other than one value for each of its job's bars,
+ * fails the run.
  */
 export function readStrategyOutput(
   text: string,
   input: Pick<StrategyInput, "jobs">
-): Map<string, StrategyLines> {
+): StrategyLines[] {
   let json: unknown;
 
   try {
@@ -218,25 +219,23 @@ export function readStrategyOutput(
 
   const output = parsed.data;
 
-  return new Map(
-    input.jobs.map((job) => {
-      const lines = Object.hasOwn(output, job.id) ? output[job.id] : undefined;
+  return input.jobs.map((job) => {
+    const lines = Object.hasOwn(output, job.id) ? output[job.id] : undefined;
 
-      if (lines === undefined) {
-        throw new Error(`The strategy's code wrote no lines for ${job.id}`);
+    if (lines === undefined) {
+      throw new Error(`The strategy's code wrote no lines for ${job.id}`);
+    }
+
+    for (const [name, values] of Object.entries(lines)) {
+      if (values.length !== job.bars) {
+        throw new Error(
+          `The strategy's code gave ${job.id} ${values.length} values of ${name} for ${job.bars} bars`
+        );
       }
+    }
 
-      for (const [name, values] of Object.entries(lines)) {
-        if (values.length !== job.bars) {
-          throw new Error(
-            `The strategy's code gave ${job.id} ${values.length} values of ${name} for ${job.bars} bars`
-          );
-        }
-      }
-
-      return [job.id, lines];
-    })
-  );
+    return lines;
+  });
 }
 
 /** Where a strategy's code read bars after one it worked a line out for. */

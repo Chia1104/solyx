@@ -169,11 +169,10 @@ describe("what a strategy's code writes", () => {
       { jobs }
     );
 
-    expect(lines.get("run0")).toEqual({
-      upper: [null, 1.5, null],
-      NaN: [1, 2, 3],
-    });
-    expect(lines.get("cut0")).toEqual({ upper: [null, null] });
+    expect(lines).toEqual([
+      { upper: [null, 1.5, null], NaN: [1, 2, 3] },
+      { upper: [null, null] },
+    ]);
   });
 
   test("fails a run that leaves a job out, gives a line other than a value a bar, or is not JSON", () => {
