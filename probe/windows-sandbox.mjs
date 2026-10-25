@@ -407,6 +407,64 @@ async function checks() {
   server.close();
 }
 
+/** Why a command cannot enter a workspace under %APPDATA%: the ACL of every folder above it, and other places. */
+async function cwdDiagnosis() {
+  log("\n### Entering a workspace\n");
+
+  const chain = [];
+  for (let path = conv1; path.length > 3; path = join(path, ".."))
+    chain.push(path);
+  for (const path of chain.reverse()) {
+    const acl = spawnSync("icacls", [path], { encoding: "utf8" })
+      .stdout.replace(/\s+/g, " ")
+      .replace("Successfully processed 1 files; Failed processing 0 files", "")
+      .trim();
+    const attributes = spawnSync(
+      PS,
+      [
+        "-NoProfile",
+        "-Command",
+        `(Get-Item -Force -LiteralPath ${q(path)}).Attributes`,
+      ],
+      { encoding: "utf8" }
+    ).stdout.trim();
+    log(
+      `- \`${path}\` [${attributes}]: ${acl.slice(path.length).trim().slice(0, 700)}`
+    );
+  }
+
+  const roots = [
+    ["%APPDATA%", join(process.env.APPDATA, "SolyxCwd", "agent-workspaces")],
+    [
+      "%LOCALAPPDATA%",
+      join(process.env.LOCALAPPDATA, "SolyxCwd", "agent-workspaces"),
+    ],
+    ["profile", join(profile, "SolyxCwd", "agent-workspaces")],
+  ];
+  log(
+    "\n| root | starting location | Set-Location | cmd cd | .NET SetCurrentDirectory | Directory.Exists |"
+  );
+  log("|---|---|---|---|---|---|");
+
+  for (const [label, root] of roots) {
+    const conversation = join(root, "conv");
+    mkdirSync(conversation, { recursive: true });
+    await SandboxManager.reset();
+    await SandboxManager.initialize(policy([root]));
+    const cell = async (command) => {
+      const r = await inside(command, undefined, conversation).catch(
+        (error) => ({ code: "threw", out: String(error.message) })
+      );
+      return `${r.code}: ${r.out.slice(0, 80).replaceAll("|", "/")}`;
+    };
+    log(
+      `| ${label} | ${await cell("(Get-Location).Path")} | ${await cell(`Set-Location -LiteralPath ${q(conversation)}; 'ok'`)} | ${await cell(`cmd /c "cd /d ${conversation} && cd"`)} | ${await cell(`[IO.Directory]::SetCurrentDirectory(${q(conversation)}); [IO.Directory]::GetCurrentDirectory()`)} | ${await cell(`[IO.Directory]::Exists(${q(conversation)})`)} |`
+    );
+  }
+
+  await SandboxManager.reset();
+}
+
 /** Where a write root may sit, and whether a command in it can enter, write and read back. */
 async function workspaceMatrix() {
   log("\n### Where the write root sits\n");
@@ -515,6 +573,7 @@ if (install) {
   log(`- srt-sandbox's profile exists after it: ${existsSync(sandboxProfile)}`);
   await checks();
   await step("reset", () => SandboxManager.reset().then(() => "ok"));
+  await step("cwd diagnosis", () => cwdDiagnosis().then(() => "done"));
 
   log("\n### Initializing again\n");
   await step("initialize (same policy)", () =>
@@ -557,6 +616,9 @@ for (const path of [
   programData,
   join(profile, "solyx-ws"),
   "C:\\solyx-ws",
+  join(process.env.APPDATA, "SolyxCwd"),
+  join(process.env.LOCALAPPDATA, "SolyxCwd"),
+  join(profile, "SolyxCwd"),
 ])
   if (existsSync(path)) rmSync(path, { recursive: true, force: true });
 
