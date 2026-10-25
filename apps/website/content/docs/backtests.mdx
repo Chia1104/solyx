@@ -1,6 +1,6 @@
 ---
 title: Backtesting
-description: Test a strategy on a listing's history from the panel under its chart, scan its numbers and walk it forward.
+description: Test a strategy on a listing's history from the panel under its chart, scan its numbers, walk it forward and run it from many starts.
 ---
 
 **Backtest**, under a listing's chart, tests a trading rule on that listing's history. It runs on your computer, on the engine the agent's backtests use, and spends no model tokens. [How the engine fills orders and what each figure means](/docs/data/backtests).
@@ -10,7 +10,7 @@ description: Test a strategy on a listing's history from the panel under its cha
   alt="A moving average cross backtested under Hon Hai's chart, with its warnings, its figures by stretch and its trades marked on the chart"
 />
 
-The panel has four modes: **Backtest** runs one setup, **Scan** runs a grid of them, **Walk forward** picks from that grid on each stretch of the past and tests the pick on what came next, and **History** keeps what you ran.
+The panel has five modes: **Backtest** runs one setup, **Scan** runs a grid of them, **Walk forward** picks from that grid on each stretch of the past and tests the pick on what came next, **Rolling** runs one setup from many starts, and **History** keeps what you ran.
 
 ## Setting one up
 
@@ -71,6 +71,28 @@ Click a setup for its figures. Its out-of-sample figures stay hidden until you s
 
 **Efficiency** is the out-of-sample Sharpe ratio over the mean of the picks' training ones. Well under 1 says the picks were fitted to their training. [The windows in detail](/docs/data/backtests#walk-forward).
 
+## Rolling windows
+
+<Screenshot
+  file="backtests/rolling.png"
+  alt="Rolling windows of the moving average cross: the share of starts that beat holding, the spread of their returns, and each start's return against holding"
+/>
+
+**Rolling** asks how much a run owes to the day it started. A single backtest has one start. Rolling runs one setup, a template or written rules, over windows of the same length, one starting on the first session of each month or every few months, and each starting with nothing held.
+
+- **Window:** 3, 6, 12, 24, 36 or 60 months, as long as the span read can hold, and 36 unless you pick another. Reading fewer years shortens it.
+- **Start every:** 1, 3, 6 or 12 months.
+
+The run leads with the share of starts that beat buying and holding through the same window, the share that made money, and the deepest fall any window took. A table gives the 10th percentile, the median and the 90th percentile of the strategy's returns, holding's and the strategy's less holding's. The chart draws each start's return against holding's, and every window's figures follow.
+
+**Read these figures with care** leads the run when:
+
+- windows closed fewer than 20 trades, so each of their returns rests on a few trades;
+- the windows stand for fewer than 3 periods apart;
+- the median window trailed holding.
+
+Windows that overlap share most of their bars and move together. Ten years read as 36-month windows make 84 windows, but only about 3 periods that share none, and the run says how many. [How the windows are laid out](/docs/data/backtests#rolling-windows).
+
 ## History and comparing
 
 <Screenshot
@@ -86,4 +108,4 @@ Tick up to 4 single backtests to compare their returns and figures side by side.
 
 While the panel shows a run, a message to the agent carries that run as the `backtest.rules` call that runs it, so the agent can run it as the panel did. **Ask the agent about this run** drafts the question for you, under the `/backtest` skill.
 
-When the agent's own script runs a single backtest, the tool call offers to open it in the panel, at the nearest span and split the panel offers.
+When the agent's own script runs a single backtest, the tool call offers to open it in the panel, at the nearest span and split the panel offers. Its scripts run rolling windows too, through `backtest.rolling`, when you ask how much a result owes to when it started.
