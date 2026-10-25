@@ -223,24 +223,20 @@ function WatchlistChange({
 }
 
 /**
- * What a call that waits for the user is about to do: a sentence saying so, and what it sends as
- * the user would read it. A shell command is shown whole, as the user would type it, a page by its
- * address, a setting with the value it would take and a memory as the agent wrote it; a call whose
- * arguments do not parse shows them as sent.
- */
-/**
  * What the card says a shell command reaches: a command runs with the user's access unless the
  * sandbox is on and can start, which only a window may read, so anywhere else it says so.
  */
 function useShellDescription(enabled: boolean) {
   const { t } = useTranslation();
 
-  const { data } = useQuery({
+  const { data, isFetching } = useQuery({
     ...agentSkillsQuery(),
     enabled: enabled && inWindow,
   });
 
+  // A settings change refetches it, and until then what it held may no longer hold.
   const sandboxed =
+    !isFetching &&
     data?.sandbox.supported === true &&
     data.sandbox.enabled &&
     data.sandbox.problems.length === 0;
@@ -252,6 +248,12 @@ function useShellDescription(enabled: boolean) {
   );
 }
 
+/**
+ * What a call that waits for the user is about to do: a sentence saying so, and what it sends as
+ * the user would read it. A shell command is shown whole, as the user would type it, a page by its
+ * address, a setting with the value it would take and a memory as the agent wrote it; a call whose
+ * arguments do not parse shows them as sent.
+ */
 function useApprovalRequest(tool: ToolCallView) {
   const { t } = useTranslation();
   const { timeZone } = useClock();

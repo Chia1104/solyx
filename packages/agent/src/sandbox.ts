@@ -50,7 +50,10 @@ interface SandboxPlaces {
 /** The home and the places no folder a command reads may open, as real paths. */
 interface Bounds {
   home: string;
+  /** The app's folders and the secret stores, which a tool's folder may not lie in either. */
   closed: string[];
+  /** The system's denials, which a folder may lie in, as a test's home in `/tmp` does. */
+  system: string[];
 }
 
 const literal = (path: string) => ({ path, literal: true as const });
@@ -61,10 +64,13 @@ const within = (folder: string, path: string) => {
   return rest === "" || (!rest.startsWith("..") && !isAbsolute(rest));
 };
 
-/** A folder a command reads lifts the denials beneath it, so it must hold neither the home nor a closed place. */
+/**
+ * A folder a command reads lifts a denial on that same place, though sandbox-runtime keeps those
+ * deeper in it, so it may neither be nor hold the home or a closed place.
+ */
 const opens = (folder: string, bounds: Bounds) =>
   folder === bounds.home ||
-  bounds.closed.some((place) => within(folder, place));
+  [...bounds.closed, ...bounds.system].some((place) => within(folder, place));
 
 const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
 
@@ -270,11 +276,13 @@ export function createSandbox(options: SandboxOptions) {
 
       const denials = await start();
 
-      const [realHome, ...realClosed] = await Promise.all(
-        [home, ...closed].map(real)
-      );
+      const [realHome, realClosed, realSystem] = await Promise.all([
+        real(home),
+        Promise.all(closed.map(real)),
+        Promise.all([...denials, ...SHARED_TEMP].map(real)),
+      ]);
 
-      const bounds = { home: realHome, closed: realClosed };
+      const bounds = { home: realHome, closed: realClosed, system: realSystem };
 
       // A skill's folder may be a link the user made, so it is held to the bounds as a tool's is.
       const skills = await Promise.all(places.readable.map(real));

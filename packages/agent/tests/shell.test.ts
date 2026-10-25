@@ -6,6 +6,7 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { realpath } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -53,14 +54,15 @@ const supported = test.runIf(SANDBOX_SUPPORTED);
 let directory: string;
 
 /**
- * Stands in for the user's home, the app's settings, a skill offered inside them and a shared
- * skill that is a link to the whole home.
+ * Stands in for the user's home, the app's settings, a skill offered inside them, and two shared
+ * skills that are links, one to the whole home and one to `/var/tmp`.
  */
 const placesIn = (directory: string) => ({
   home: join(directory, "home"),
   app: join(directory, "home", ".solyx"),
   skill: join(directory, "home", ".solyx", "skills", "notes"),
   link: join(directory, "home", ".agents", "skills", "everything"),
+  system: join(directory, "home", ".agents", "skills", "system"),
 });
 
 let places: ReturnType<typeof placesIn>;
@@ -76,6 +78,7 @@ beforeEach(async () => {
   await writeFile(join(places.skill, "SKILL.md"), "skill-body");
   await mkdir(join(places.link, ".."), { recursive: true });
   await symlink(places.home, places.link);
+  await symlink(await realpath("/var/tmp"), places.system);
   vi.stubEnv("SOLYX_TEST_KEY", "leaked");
 });
 
@@ -117,7 +120,7 @@ function setup({
       home: places.home,
       appFolders: [places.app],
       enabled: sandbox,
-      readable: async () => [places.skill, places.link],
+      readable: async () => [places.skill, places.link, places.system],
     },
   });
 
@@ -477,12 +480,15 @@ sandboxed(
   "a sandboxed command reads no other app's file in the system's temporary folders",
   async () => {
     const other = join("/tmp", `solyx-shell-other-${process.pid}.txt`);
+    const otherVar = join("/var/tmp", `solyx-shell-other-${process.pid}.txt`);
 
     await writeFile(other, "other-app-secret");
+    await writeFile(otherVar, "other-app-secret");
 
     const { runtime, call, ended, start } = setup({ sandbox: () => true });
 
-    await start(`cat ${other}; ls /var/tmp`, ApprovalMode.Bypass);
+    // A shared skill links to `/var/tmp`, which must not open it again.
+    await start(`cat ${other}; cat ${otherVar}`, ApprovalMode.Bypass);
     await ended();
 
     const ran = call();
@@ -493,6 +499,7 @@ sandboxed(
     expect(ran).toMatchObject({ status: ToolCallStatus.Error });
 
     await rm(other, { force: true });
+    await rm(otherVar, { force: true });
     await runtime.close();
   }
 );
