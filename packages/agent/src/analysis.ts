@@ -286,9 +286,9 @@ const walkForwardSchema = z.object({
 });
 
 const spreadSchema = z.object({
-  low: z.number(),
+  p10: z.number(),
   median: z.number(),
-  high: z.number(),
+  p90: z.number(),
 });
 
 const rollingSchema = z.object({
@@ -348,7 +348,7 @@ export const BACKTEST_TYPES = [
   "type Backtest = { interval: Interval; bars: number; capital: number; costs: Costs; trades: Trade[]; equity: { date: string; value: number }[]; all: Metrics; inSample: Metrics | null; outOfSample: Metrics | null };",
   "type Scan = { interval: Interval; bars: number; cells: { all: Metrics; inSample: Metrics | null; outOfSample: Metrics | null }[]; plateau: { cell: number; sharpe: number; edge: boolean } | null };",
   "type WalkForward = { interval: Interval; bars: number; windows: { train: { from: string; to: string }; test: { from: string; to: string }; cell: number | null; trainSharpe: number | null }[]; outOfSample: Metrics; efficiency: number | null; equity: { date: string; value: number }[] };",
-  "type Spread = { low: number; median: number; high: number };",
+  "type Spread = { p10: number; median: number; p90: number };",
   "type Rolling = { interval: Interval; bars: number; capital: number; months: number; step: number; windows: Metrics[]; summary: { windows: number; apart: number; beatHolding: number; gained: number; returns: Spread; holding: Spread; excess: Spread; worstDrawdown: number; thin: number } };",
 ].join("\n");
 
@@ -534,7 +534,7 @@ const backtests = (
     }),
     scriptFunction({
       name: "backtest.rolling",
-      description: `Runs one strategy over windows of months calendar months: it ${reading}, and a window starts on the first session of every step-th month, 1 unless named, from the first whole month the bars hold, each holding nothing at the close before it, where its rules are first read. Only whole windows run, so each is as long as the next. Each window's figures are a stretch as backtest.rules measures one, with pValue null, since the windows share their bars and none is tested alone. summary.beatHolding and summary.gained are the shares of windows whose return beat their buyAndHold and was above nothing; returns, holding and excess, a window's return less its buyAndHold, are the windows' 10th percentile, median and 90th; worstDrawdown is the deepest any window fell; thin counts windows that closed under ${ENOUGH_TRADES} trades; apart is how many windows fit end to end over the months they span, about how many periods they stand for, since windows that overlap move together.`,
+      description: `Runs one strategy over windows of months calendar months: it ${reading}, and a window starts on the first session of every step-th month, 1 unless named, from the first whole month the bars hold, each holding nothing at the close before it, where its rules are first read. Only whole windows run, so each is as long as the next. Each window's figures are a stretch as backtest.rules measures one, with pValue null, since the windows share their bars and none is tested alone. summary.beatHolding and summary.gained are the shares of windows whose return beat their buyAndHold and was above nothing; returns, holding and excess, a window's return less its buyAndHold, are the windows' 10th percentile, median and 90th, which are not the worst and best windows: those are in windows; worstDrawdown is the deepest any window fell; thin counts windows that closed under ${ENOUGH_TRADES} trades; apart is how many windows fit end to end over the months they span, about how many periods they stand for, since windows that overlap move together.`,
       spread: true,
       signature:
         "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategy: Strategy; months: number; step?: number; capital?: number; costs?: Partial<Costs> }): Promise<Rolling>",
