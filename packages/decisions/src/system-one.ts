@@ -21,6 +21,7 @@ import type {
   SentimentScorer,
 } from "@solyx/core/sentiment";
 
+import type { CodeJudge, CodeJudgement } from "./code.ts";
 import type { CommandJudge, CommandJudgement } from "./command.ts";
 
 /** A kind of question every vendor's model answers; System One's `box` has no counterpart elsewhere. */
@@ -145,6 +146,44 @@ export const COMMAND_QUESTIONS = {
   ),
 };
 
+// Asked of a strategy's code and the command that runs it; measured with `scripts/eval-code.ts`.
+// Each asks for what the code does, as the command questions do; code is harmless only when every
+// answer is unlikely.
+const CODE_QUESTIONS = {
+  files: noul(
+    "Does the program in `code`, run by `command`, read, write, move or delete any file or folder other than its input file, its output file and the files beside its own code?",
+    {
+      true: "At least one part of it opens, lists, writes, renames or deletes a place elsewhere: the user's home, another application's folder, the temporary folder, or a path it builds from the user's name or that starts outside its own folder.",
+      false:
+        "Every file it touches is the input file or the output file its environment names, or a file beside its own code named from its own folder.",
+    }
+  ),
+  network: noul(
+    "Does the program in `code`, run by `command`, send or receive anything over the network?",
+    {
+      true: "At least one part of it contacts another computer, or this one over a socket: a web address, an HTTP client, a download, an upload, a database server, or a library function handed a URL to read.",
+      false:
+        "Every part of it works only with the bars in its input file and the files beside its own code.",
+    }
+  ),
+  secrets: noul(
+    "Does the program in `code`, run by `command`, read passwords, keys, tokens, credentials, environment variables besides SOLYX_STRATEGY_INPUT and SOLYX_STRATEGY_OUTPUT, or another application's private data?",
+    {
+      true: "At least one part of it reads the whole environment or a variable other than those two, SSH or cloud credentials, .env files, the keychain, a browser's data, or an application's support folder or database.",
+      false:
+        "From its environment it reads only SOLYX_STRATEGY_INPUT and SOLYX_STRATEGY_OUTPUT, and from the files only its input and its own.",
+    }
+  ),
+  runs: noul(
+    "Does the program in `code`, run by `command`, start another program or a shell, or run code it builds from text or data as it runs?",
+    {
+      true: "At least one part of it starts a process or a shell, or runs code its own text does not show: eval, exec, compile, a module imported by a name made at run time, decoded or downloaded code, native code it loads, or a function looked up by a name built from strings.",
+      false:
+        "Every part of it is code its own text shows, calling the language and its libraries by name, and `command` only starts that code.",
+    }
+  ),
+};
+
 // Asked of a claim and the quote it rests on; measured with `scripts/eval-claims.ts`.
 const CLAIM_QUESTIONS = {
   supported: noul(
@@ -252,6 +291,49 @@ export function createCommandJudge(
         secrets: answers.secrets.noul,
         runs: answers.runs.noul,
         privileged: answers.privileged.noul,
+      };
+    },
+  };
+}
+
+const codeAnswersSchema = z.object({
+  files: noulSchema,
+  network: noulSchema,
+  secrets: noulSchema,
+  runs: noulSchema,
+});
+
+/** A strategy's files as the model reads them, each under a line naming its path. */
+const codeText = (files: readonly { path: string; text: string }[]) =>
+  files.map((file) => `--- ${file.path} ---\n${file.text}`).join("\n");
+
+/** Judges strategies' code with the model `ask` reaches. */
+export function createCodeJudge(ask: Ask): CodeJudge {
+  return {
+    async judge(input, { signal } = {}): Promise<CodeJudgement> {
+      const code = codeText(input.files);
+      const length = input.command.length + code.length;
+
+      // What a cut leaves out would still run, so code is judged whole or not at all.
+      if (length > MAX_TEXT_LENGTH) {
+        throw new Error(
+          `The decisions model reads code of up to ${MAX_TEXT_LENGTH} characters, and this has ${length}`
+        );
+      }
+
+      const { model, answers: unread } = await ask(
+        { state: { command: input.command, code }, questions: CODE_QUESTIONS },
+        signal
+      );
+
+      const answers = codeAnswersSchema.parse(unread);
+
+      return {
+        model,
+        files: answers.files.noul,
+        network: answers.network.noul,
+        secrets: answers.secrets.noul,
+        runs: answers.runs.noul,
       };
     },
   };

@@ -9,9 +9,11 @@ import type { FactReader } from "@solyx/core/forecast";
 import type { ClaimAuditor } from "@solyx/core/report";
 import type { SentimentScorer } from "@solyx/core/sentiment";
 
+import type { CodeJudge } from "./code.ts";
 import type { CommandJudge } from "./command.ts";
 import {
   createClaimAuditor,
+  createCodeJudge,
   createCommandJudge,
   createFactReader,
   createScorer,
@@ -140,6 +142,10 @@ function openAI(options: OpenAIOptions): Ask {
     };
   };
 }
+
+/** Judges strategies' code with OpenAI's decisions model, on the user's own key. */
+export const createOpenAICodeJudge = (options: OpenAIOptions): CodeJudge =>
+  createCodeJudge(openAI(options));
 
 /** Judges shell commands with OpenAI's decisions model, on the user's own key. */
 export const createOpenAICommandJudge = (

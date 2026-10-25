@@ -7,15 +7,18 @@ import {
   CLOUDFLARE_BASE_URL,
   CLOUDFLARE_DEFAULT_MODEL,
   createCloudflareClaimAuditor,
+  createCloudflareCodeJudge,
   createCloudflareCommandJudge,
   createCloudflareFactReader,
   createCloudflareScorer,
 } from "@solyx/decisions/cloudflare";
+import type { CodeJudge } from "@solyx/decisions/code";
 import type { CommandJudge } from "@solyx/decisions/command";
 import {
   OPENAI_BASE_URL,
   OPENAI_DEFAULT_MODEL,
   createOpenAIClaimAuditor,
+  createOpenAICodeJudge,
   createOpenAICommandJudge,
   createOpenAIFactReader,
   createOpenAIScorer,
@@ -25,6 +28,7 @@ import {
   TYPESAFE_BASE_URL,
   TYPESAFE_DEFAULT_MODEL,
   createTypeSafeClaimAuditor,
+  createTypeSafeCodeJudge,
   createTypeSafeCommandJudge,
   createTypeSafeFactReader,
   createTypeSafeScorer,
@@ -110,6 +114,7 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
     | {
         scorer: SentimentScorer;
         judge: CommandJudge;
+        code: CodeJudge;
         auditor: ClaimAuditor;
         reader: FactReader;
       }
@@ -125,6 +130,7 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
         return {
           scorer: createTypeSafeScorer({ apiKey, ...typesafe }),
           judge: createTypeSafeCommandJudge({ apiKey, ...typesafe }),
+          code: createTypeSafeCodeJudge({ apiKey, ...typesafe }),
           auditor: createTypeSafeClaimAuditor({ apiKey, ...typesafe }),
           reader: createTypeSafeFactReader({ apiKey, ...typesafe }),
         };
@@ -136,6 +142,11 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
         return {
           scorer: createCloudflareScorer({ apiKey, accountId, ...endpoint }),
           judge: createCloudflareCommandJudge({
+            apiKey,
+            accountId,
+            ...endpoint,
+          }),
+          code: createCloudflareCodeJudge({
             apiKey,
             accountId,
             ...endpoint,
@@ -157,6 +168,7 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
         return {
           scorer: createOpenAIScorer({ apiKey, ...openai }),
           judge: createOpenAICommandJudge({ apiKey, ...openai }),
+          code: createOpenAICodeJudge({ apiKey, ...openai }),
           auditor: createOpenAIClaimAuditor({ apiKey, ...openai }),
           reader: createOpenAIFactReader({ apiKey, ...openai }),
         };
@@ -171,6 +183,9 @@ export function createDecisions({ config, secrets }: DecisionsOptions) {
 
     /** Judges the agent's shell commands; `undefined` until the user saves a key, and for Cloudflare an account. */
     commandJudge: async () => (await model())?.judge,
+
+    /** Judges the code of the user's strategies; `undefined` until the user saves a key, and for Cloudflare an account. */
+    codeJudge: async () => (await model())?.code,
 
     /** Reads the agent's claims against their quotes; `undefined` until the user saves a key, and for Cloudflare an account. */
     claimAuditor: async () => (await model())?.auditor,
