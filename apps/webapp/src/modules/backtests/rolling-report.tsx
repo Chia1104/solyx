@@ -96,13 +96,13 @@ function SpreadTable({ summary }: { summary: RollingSummary }) {
               {t("backtests.report.metric")}
             </Table.Column>
             <Table.Column className={NUMBER}>
-              {t("backtests.rolling.low")}
+              {t("backtests.rolling.p10")}
             </Table.Column>
             <Table.Column className={NUMBER}>
               {t("backtests.rolling.median")}
             </Table.Column>
             <Table.Column className={NUMBER}>
-              {t("backtests.rolling.high")}
+              {t("backtests.rolling.p90")}
             </Table.Column>
           </Table.Header>
           <Table.Body>
@@ -110,13 +110,13 @@ function SpreadTable({ summary }: { summary: RollingSummary }) {
               <Table.Row key={id} id={id}>
                 <Table.Cell>{label}</Table.Cell>
                 <Table.Cell className={NUMBER}>
-                  {format.percentChange.format(spread.low)}
+                  {format.percentChange.format(spread.p10)}
                 </Table.Cell>
                 <Table.Cell className={NUMBER}>
                   {format.percentChange.format(spread.median)}
                 </Table.Cell>
                 <Table.Cell className={NUMBER}>
-                  {format.percentChange.format(spread.high)}
+                  {format.percentChange.format(spread.p90)}
                 </Table.Cell>
               </Table.Row>
             ))}

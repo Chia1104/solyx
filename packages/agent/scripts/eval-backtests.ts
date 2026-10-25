@@ -619,11 +619,11 @@ function judgeInput(run: Run, rubric: Criterion[]): string {
   );
 
   const spreadText = ({
-    low,
+    p10,
     median,
-    high,
+    p90,
   }: RollingResult["summary"]["returns"]) =>
-    `10th percentile ${percent(low)}, median ${percent(median)}, 90th ${percent(high)}`;
+    `10th percentile ${percent(p10)}, median ${percent(median)}, 90th ${percent(p90)}`;
 
   const rollings = run.rollings.map(({ symbol, result }, index) =>
     [
