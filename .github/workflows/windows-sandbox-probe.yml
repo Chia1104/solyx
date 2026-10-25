@@ -1,0 +1,31 @@
+# Probes sandbox-runtime's Windows sandbox on a hosted runner. Lives only on its own branch.
+name: Windows sandbox probe
+
+on:
+  push:
+    branches: [probe/windows-sandbox]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install sandbox-runtime
+        working-directory: probe
+        run: npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Probe
+        working-directory: probe
+        run: node windows-sandbox.mjs
