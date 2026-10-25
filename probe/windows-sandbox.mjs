@@ -20,8 +20,13 @@ import {
   getWindowsSandboxUserStatusAsync,
   grantWindowsProfileRead,
   installWindowsSandboxAsync,
+  resolveSrtWin,
   uninstallWindowsSandbox,
+  VENDORED_SRT_WIN_EXE,
 } from "@anthropic-ai/sandbox-runtime";
+
+// srt looks for no helper of its own accord; an app names the binary it ships.
+const srtWin = resolveSrtWin({ path: VENDORED_SRT_WIN_EXE });
 
 const PS = join(
   process.env.SystemRoot ?? "C:\\Windows",
@@ -184,6 +189,7 @@ function fixtures() {
 }
 
 const sessionConfig = {
+  windows: { srtWin: { path: VENDORED_SRT_WIN_EXE } },
   network: { allowedDomains: [], deniedDomains: [] },
   filesystem: {
     denyRead: [userData, configDir],
@@ -392,12 +398,12 @@ async function checks(title) {
 
 fixtures();
 log(
-  `## Windows sandbox probe\n\nNode ${process.version}, profile ${profile}, user ${process.env.USERNAME}\n`
+  `## Windows sandbox probe\n\nNode ${process.version}, profile ${profile}, user ${process.env.USERNAME}, srt-win ${VENDORED_SRT_WIN_EXE}\n`
 );
 
 log("### Before install\n");
 await step("status", async () => {
-  const status = await checkWindowsSandboxStatusAsync();
+  const status = await checkWindowsSandboxStatusAsync({ srtWin });
   return { user: status.user.provisioned, wfp: status.wfp };
 });
 await step("initialize without an install", async () => {
@@ -414,6 +420,7 @@ const install = await step(
     const result = await installWindowsSandboxAsync({
       skipProfileGrant: true,
       timeoutMs: 10 * 60_000,
+      srtWin,
     });
     return {
       cancelled: result.cancelled ?? false,
@@ -439,6 +446,7 @@ if (install) {
       grantWindowsProfileRead({
         exclude: [userData, configDir],
         timeoutMs: 20 * 60_000,
+        srtWin,
       })
   );
   if (grant) {
@@ -448,21 +456,23 @@ if (install) {
     await checks("With the profile grant");
     await step("reset", () => SandboxManager.reset().then(() => "ok"));
     await step("forget the profile grant", () =>
-      forgetWindowsProfileReadAsync({ timeoutMs: 20 * 60_000 }).then(() => "ok")
+      forgetWindowsProfileReadAsync({ timeoutMs: 20 * 60_000, srtWin }).then(
+        () => "ok"
+      )
     );
   }
 
   log("\n### Uninstall\n");
   await step("uninstallWindowsSandbox()", () =>
-    uninstallWindowsSandbox({ timeoutMs: 20 * 60_000 })
+    uninstallWindowsSandbox({ timeoutMs: 20 * 60_000, srtWin })
   );
   await step("sandbox user after uninstall", async () => {
-    const user = await getWindowsSandboxUserStatusAsync();
+    const user = await getWindowsSandboxUserStatusAsync({ srtWin });
     return { provisioned: user.provisioned, group: user.groupExists };
   });
   await step(
     "status after uninstall",
-    async () => (await checkWindowsSandboxStatusAsync()).wfp
+    async () => (await checkWindowsSandboxStatusAsync({ srtWin })).wfp
   );
   await step(
     "net user srt-sandbox",
