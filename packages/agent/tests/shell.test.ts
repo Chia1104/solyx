@@ -473,6 +473,30 @@ sandboxed(
   }
 );
 
+sandboxed(
+  "a sandboxed command reads no other app's file in the system's temporary folders",
+  async () => {
+    const other = join("/tmp", `solyx-shell-other-${process.pid}.txt`);
+
+    await writeFile(other, "other-app-secret");
+
+    const { runtime, call, ended, start } = setup({ sandbox: () => true });
+
+    await start(`cat ${other}; ls /var/tmp`, ApprovalMode.Bypass);
+    await ended();
+
+    const ran = call();
+
+    expect(ran?.kind === AgentItemKind.Tool && ran.output).not.toMatch(
+      /other-app-secret/
+    );
+    expect(ran).toMatchObject({ status: ToolCallStatus.Error });
+
+    await rm(other, { force: true });
+    await runtime.close();
+  }
+);
+
 supported(
   "with the sandbox switched off, a command runs with the user's access",
   async () => {

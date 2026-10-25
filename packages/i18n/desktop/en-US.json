@@ -715,7 +715,8 @@
     "approval": {
       "title": "Allow this call?",
       "description": "{{tool}} comes from an MCP server outside Solyx. Check what it's about to send.",
-      "shell-description": "This command runs on your computer. Check it before you allow it.",
+      "shell-description": "This command runs in a sandbox, in this conversation's folder and off the network. Check it before you allow it.",
+      "shell-description-unsandboxed": "This command runs on your computer with your access to its files and the network. Check it before you allow it.",
       "read-page-description": "Your web search vendor will fetch this address. One you didn't expect could be a page the agent read trying to send your data out, so check it before you allow it.",
       "remember-description": "The agent wants to keep this for later conversations, and reads it in every one. Check it says what you mean.",
       "forget-description": "The agent wants to forget this memory, so later conversations won't know it.",

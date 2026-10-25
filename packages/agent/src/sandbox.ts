@@ -74,18 +74,26 @@ const real = (path: string) => realpath(path).catch(() => path);
 const execFileAsync = promisify(execFile);
 
 /**
- * Places beside the home no command reads: on macOS the folder every app keeps its temporary files
- * and caches in for this user (TMPDIR's parent) and mounted volumes; on Linux the user's runtime
- * folder, which holds the session bus and keyring sockets, and mounted media.
+ * Places beside the home no command reads: the system's temporary folders, where every app leaves
+ * files, on macOS also the folder each app keeps its temporary files and caches in for this user
+ * (TMPDIR's parent) and mounted volumes, on Linux the user's runtime folder, which holds the session
+ * bus and keyring sockets, and mounted media. A command's own temporary folder is in its workspace.
  */
 async function systemDenials(): Promise<string[]> {
+  // By their real paths: on macOS `/tmp` is a link, and denying the link would deny every path
+  // spelled through it, the allowed ones too. On Linux this also hides the proxies' sockets, which
+  // sandbox-runtime keeps in the host's temporary folder; with no host allowed, that only changes
+  // how a refused connection fails, but allowing one would need them bound back.
+  const temp = await Promise.all(["/tmp", "/var/tmp"].map(real));
+
   if (MAC) {
     const { stdout } = await execFileAsync("getconf", ["DARWIN_USER_TEMP_DIR"]);
 
-    return [dirname(stdout.trim()), "/Volumes"];
+    return [...temp, dirname(stdout.trim()), "/Volumes"];
   }
 
   return [
+    ...temp,
     process.env.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid?.()}`,
     "/media",
     "/mnt",
