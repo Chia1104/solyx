@@ -557,6 +557,133 @@ async function workspaceMatrix() {
   await SandboxManager.reset();
 }
 
+/** Ways to let Windows PowerShell work in a workspace whose folders above it the sandbox cannot read. */
+async function candidates() {
+  log("\n### Entering a workspace: candidate fixes\n");
+  log(
+    "| candidate | starting location | Set-Location | relative write + read | native child's cwd | python's cwd |"
+  );
+  log("|---|---|---|---|---|---|");
+
+  const pwsh = "C:\\Program Files\\PowerShell\\7\\pwsh.exe";
+  const group = "sandbox-runtime-users";
+  const ancestors = [
+    profile,
+    join(profile, "AppData"),
+    process.env.APPDATA,
+    userData,
+  ];
+  const junctionParent = join(process.env.ProgramData, "SolyxJ");
+  const junction = join(junctionParent, "conv");
+  const dataRoot = join(programData, "ws");
+  const dataConv = join(dataRoot, "conv");
+  mkdirSync(dataConv, { recursive: true });
+
+  const shellRun = async (binShell, command, cwd) => {
+    const r = await SandboxManager.wrapWithSandboxArgv(
+      `$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; ${command}`,
+      binShell,
+      undefined,
+      undefined,
+      cwd
+    )
+      .then(({ argv, env }) => run(argv[0], argv.slice(1), { cwd, env }))
+      .catch((error) => ({ code: "threw", out: String(error.message) }));
+    return `${r.code}: ${r.out.slice(0, 110).replaceAll("|", "/")}`;
+  };
+
+  // `enter` is the PowerShell that brings a command to the workspace; `cwd` is where it is spawned.
+  const row = async (label, { binShell = "powershell", root, cwd, enter }) => {
+    await SandboxManager.reset();
+    await SandboxManager.initialize(policy([root]));
+    const cells = [
+      await shellRun(binShell, "(Get-Location).Path", cwd),
+      await shellRun(binShell, `${enter}; (Get-Location).Path`, cwd),
+      await shellRun(
+        binShell,
+        `${enter}; Set-Content -LiteralPath rel.txt -Value ok; Get-Content -LiteralPath rel.txt`,
+        cwd
+      ),
+      await shellRun(binShell, `${enter}; cmd /d /c cd`, cwd),
+      await shellRun(
+        binShell,
+        `${enter}; python -c "import os; print(os.getcwd())"`,
+        cwd
+      ),
+    ];
+    log(`| ${label} | ${cells.join(" | ")} |`);
+  };
+
+  const enterConv1 = `Set-Location -LiteralPath ${q(conv1)}`;
+
+  await row("baseline: %APPDATA% workspace", {
+    root: workspaces,
+    cwd: conv1,
+    enter: enterConv1,
+  });
+  await row("PSDrive over the workspace", {
+    root: workspaces,
+    cwd: conv1,
+    enter: `New-PSDrive -Name W -PSProvider FileSystem -Root ${q(conv1)} -Scope Global | Out-Null; Set-Location W:\\`,
+  });
+  await row("pwsh 7 by absolute path", {
+    binShell: pwsh,
+    root: workspaces,
+    cwd: conv1,
+    enter: enterConv1,
+  });
+
+  for (const dir of ancestors)
+    spawnSync("icacls", [dir, "/grant", `${group}:(RD,RA,X,S)`]);
+  await row("list+traverse ACE on each folder above (not inherited)", {
+    root: workspaces,
+    cwd: conv1,
+    enter: enterConv1,
+  });
+  await row("same, pwsh 7", {
+    binShell: pwsh,
+    root: workspaces,
+    cwd: conv1,
+    enter: enterConv1,
+  });
+  for (const dir of ancestors) spawnSync("icacls", [dir, "/remove:g", group]);
+
+  mkdirSync(junctionParent, { recursive: true });
+  spawnSync("cmd", ["/d", "/c", "mklink", "/J", junction, conv1]);
+  await row("junction from ProgramData to the workspace", {
+    root: workspaces,
+    cwd: junction,
+    enter: `Set-Location -LiteralPath ${q(junction)}`,
+  });
+
+  await row("workspace under ProgramData", {
+    root: dataRoot,
+    cwd: dataConv,
+    enter: `Set-Location -LiteralPath ${q(dataConv)}`,
+  });
+
+  log("\n### Output encoding\n");
+  await SandboxManager.reset();
+  await SandboxManager.initialize(policy([workspaces]));
+  const text = "'測試 ✓ café'";
+  log(
+    `- Windows PowerShell, default console encoding: \`${await shellRun("powershell", text, conv1)}\``
+  );
+  log(
+    `- Windows PowerShell, UTF-8 console encoding: \`${await shellRun("powershell", `[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); ${text}`, conv1)}\``
+  );
+  log(`- pwsh 7, default: \`${await shellRun(pwsh, text, conv1)}\``);
+  log(
+    `- Windows PowerShell \`>\` redirection writes: \`${await shellRun("powershell", `'x' > ${q(join(conv1, "redir.txt"))}; [BitConverter]::ToString([IO.File]::ReadAllBytes(${q(join(conv1, "redir.txt"))}))`, conv1)}\``
+  );
+  log(
+    `- system code page: \`${spawnSync("cmd", ["/d", "/c", "chcp"], { encoding: "utf8" }).stdout.trim()}\``
+  );
+
+  spawnSync("cmd", ["/d", "/c", "rmdir", junction]);
+  await SandboxManager.reset();
+}
+
 fixtures();
 log(
   `## Windows sandbox probe\n\nNode ${process.version}, profile ${profile}, user ${process.env.USERNAME}\n`
@@ -588,9 +715,9 @@ if (install) {
     SandboxManager.initialize(policy([workspaces])).then(() => "ok")
   );
   log(`- srt-sandbox's profile exists after it: ${existsSync(sandboxProfile)}`);
-  await checks();
+  if (process.env.PROBE_CHECKS) await checks();
   await step("reset", () => SandboxManager.reset().then(() => "ok"));
-  await step("cwd diagnosis", () => cwdDiagnosis().then(() => "done"));
+  await step("candidates", () => candidates().then(() => "done"));
 
   log("\n### Initializing again\n");
   await step("initialize (same policy)", () =>
@@ -634,6 +761,7 @@ for (const path of [
   join(profile, "solyx-ws"),
   "C:\\solyx-ws",
   join(process.env.APPDATA, "SolyxCwd"),
+  join(process.env.ProgramData, "SolyxJ"),
   join(process.env.LOCALAPPDATA, "SolyxCwd"),
   join(profile, "SolyxCwd"),
 ])
