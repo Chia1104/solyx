@@ -228,6 +228,12 @@ export function createSandbox(options: SandboxOptions) {
     readable: readonly string[]
   ): SandboxRuntimeConfig => ({
     network: { allowedDomains: [], deniedDomains: [] },
+    // sandbox-runtime keeps its shared temporary folder writable whatever the read rules say, and
+    // on Linux binds it back over the read denial, so only a credential denial, applied after those
+    // binds, keeps another embedder's files there unread.
+    credentials: {
+      files: SHARED_TEMP.map((path) => ({ path, mode: "deny" as const })),
+    },
     // Every entry stands whether or not its place exists: Seatbelt matches a path as spelled, and
     // sandbox-runtime keeps a missing one from being made under bubblewrap, so a command cannot
     // make a place it may not read, such as the shared temporary folder, and write there.

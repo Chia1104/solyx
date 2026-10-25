@@ -477,6 +477,32 @@ sandboxed(
 );
 
 sandboxed(
+  "a sandboxed command reads nothing another embedder left in sandbox-runtime's shared temporary folder",
+  async () => {
+    const made = !(await exists("/tmp/claude"));
+    const left = join("/tmp/claude", `solyx-shell-${process.pid}.txt`);
+
+    await mkdir("/tmp/claude", { recursive: true });
+    await writeFile(left, "embedder-secret");
+
+    const { runtime, call, ended, start } = setup({ sandbox: () => true });
+
+    await start(`cat ${left}`, ApprovalMode.Bypass);
+    await ended();
+
+    const ran = call();
+
+    expect(ran?.kind === AgentItemKind.Tool && ran.output).not.toMatch(
+      /embedder-secret/
+    );
+    expect(ran).toMatchObject({ status: ToolCallStatus.Error });
+
+    await rm(made ? "/tmp/claude" : left, { recursive: true, force: true });
+    await runtime.close();
+  }
+);
+
+sandboxed(
   "a sandboxed command reads no other app's file in the system's temporary folders",
   async () => {
     const other = join("/tmp", `solyx-shell-other-${process.pid}.txt`);
