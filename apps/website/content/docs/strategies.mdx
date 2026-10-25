@@ -1,0 +1,176 @@
+---
+title: Your strategies
+description: Write a strategy in any language, run it in the backtest panel and through the agent, and allow each version of its code before it runs.
+---
+
+A strategy is code you write that works out lines from a listing's bars, and rules over those lines that Solyx's engine trades on. The code can be in any language your computer runs. The engine fills, prices and costs every trade, as it does for a [template](/docs/backtests), so a strategy is measured exactly as a template is.
+
+Strategies live in `strategies/` in the [config folder](/docs/files#the-config-folder), one folder each. Solyx reads them afresh every time, so an edit shows the next time you look.
+
+## Writing one
+
+<Files>
+  <Folder name="strategies" defaultOpen>
+    <Folder name="atr-breakout" defaultOpen>
+      <File name="STRATEGY.md" />
+      <File name="strategy.py" />
+    </Folder>
+  </Folder>
+</Files>
+
+`STRATEGY.md` opens with frontmatter that says what the strategy is, and may go on with notes for you and the agent:
+
+```md title="STRATEGY.md"
+---
+name: atr-breakout
+description: Buys a close above the last highs plus k average ranges, sells one under the average
+run: python3 strategy.py
+params:
+  period: { min: 10, max: 60, step: 5, initial: 20 }
+  k: { min: 0.5, max: 3, step: 0.5, initial: 1.5 }
+rules:
+  entry:
+    crossesAbove: [{ line: close }, { line: upper }]
+  exit:
+    below: [{ line: close }, { line: trend }]
+  stopLoss: 0.08
+---
+
+What the idea is, when it works and where it fails.
+```
+
+- **`name`**: the folder's name, up to 64 lowercase letters, digits and single hyphens.
+- **`description`**: what it does, in a sentence.
+- **`run`**: the command that runs the code, in the strategy's folder.
+- **`params`**: up to 8 numbers the code takes, each from `min` to `max` in steps of `step`, starting from `initial`.
+- **`rules`**: `entry` and `exit`, written as the agent's `backtest.rules` takes them, with `stopLoss` and `takeProfit` if you like. `{ line: name }` reads a line the code works out.
+
+A rule compares one of the strategy's lines only with another of its lines or with a `value`. The code works on prices adjusted for splits and what went ex on the first bar's terms, while a bar's own prices are as traded, so the two would part at every split. To compare with the close, give the close as a line of its own.
+
+## What the code reads and writes
+
+The code reads JSON from the file `$SOLYX_STRATEGY_INPUT` names and writes JSON to the file `$SOLYX_STRATEGY_OUTPUT` names.
+
+The input holds the listing, its bars as columns, and the jobs, each a set of numbers over the first so many bars. A bar's `time` is its session's date, or for bars shorter than a day its minute on the exchange's clock, as `2026-10-26 09:01`.
+
+```json
+{
+  "symbol": { "market": "TW", "symbol": "2330" },
+  "interval": "1d",
+  "bars": {
+    "time": ["2016-10-26", "…"],
+    "open": [],
+    "high": [],
+    "low": [],
+    "close": [],
+    "volume": []
+  },
+  "jobs": [{ "id": "run0", "params": { "period": 20, "k": 1.5 }, "bars": 2529 }]
+}
+```
+
+The output holds each job's lines by its `id`, one value a bar, `null` where a line has nothing yet. A NaN, as Python's `json` writes it, reads as no value too. The strategy above, in Python with `run: python3 strategy.py` or in Node with `run: node strategy.mjs`:
+
+<Tabs items={["Python", "Node"]}>
+<Tab value="Python">
+
+```py title="strategy.py"
+import json, os
+
+data = json.load(open(os.environ["SOLYX_STRATEGY_INPUT"]))
+output = {}
+
+for job in data["jobs"]:
+    n, k = int(job["params"]["period"]), job["params"]["k"]
+    high = data["bars"]["high"][: job["bars"]]
+    low = data["bars"]["low"][: job["bars"]]
+    close = data["bars"]["close"][: job["bars"]]
+    upper, trend = [], []
+
+    for i in range(len(close)):
+        if i < 2 * n:
+            upper.append(None)
+            trend.append(None)
+            continue
+        ranges = [high[j] - low[j] for j in range(i - n, i)]
+        upper.append(max(high[i - n : i]) + k * sum(ranges) / n)
+        trend.append(sum(close[i - 2 * n + 1 : i + 1]) / (2 * n))
+
+    output[job["id"]] = {"close": close, "upper": upper, "trend": trend}
+
+json.dump(output, open(os.environ["SOLYX_STRATEGY_OUTPUT"], "w"))
+```
+
+</Tab>
+<Tab value="Node">
+
+```js title="strategy.mjs"
+import { readFileSync, writeFileSync } from "node:fs";
+
+const data = JSON.parse(readFileSync(process.env.SOLYX_STRATEGY_INPUT, "utf8"));
+const mean = (values) =>
+  values.reduce((sum, value) => sum + value, 0) / values.length;
+const output = {};
+
+for (const job of data.jobs) {
+  const { period: n, k } = job.params;
+  const high = data.bars.high.slice(0, job.bars);
+  const low = data.bars.low.slice(0, job.bars);
+  const close = data.bars.close.slice(0, job.bars);
+  const upper = [];
+  const trend = [];
+
+  for (let i = 0; i < close.length; i++) {
+    if (i < 2 * n) {
+      upper.push(null);
+      trend.push(null);
+      continue;
+    }
+    const ranges = high
+      .slice(i - n, i)
+      .map((value, j) => value - low[i - n + j]);
+    upper.push(Math.max(...high.slice(i - n, i)) + k * mean(ranges));
+    trend.push(mean(close.slice(i - 2 * n + 1, i + 1)));
+  }
+
+  output[job.id] = { close, upper, trend };
+}
+
+writeFileSync(process.env.SOLYX_STRATEGY_OUTPUT, JSON.stringify(output));
+```
+
+</Tab>
+</Tabs>
+
+A scan hands the code every set of numbers in one run, so work each job out on its own and write them all.
+
+## Where the code runs
+
+A run copies the strategy's files into a folder of its own and runs the copy, so what runs is the version that was allowed, whatever the folder holds by then. It has 2 minutes for all its jobs.
+
+- **In the sandbox**, on macOS and Linux while **Settings → Skills → Sandbox** is on, which it is unless you turn it off: the code reads and writes only its run's folder, reads the tools on your `PATH`, and reaches no network, not even your own computer. Keep the packages your code needs in an environment on your `PATH`, such as a venv or uv's, since the sandbox hides the rest of your home folder.
+- **Outside it**, on Windows or with the sandbox off: the code runs with your access to your files and the network.
+
+A strategy's folder may hold up to 1,000 files and 32 MB, and no links, since what a link points to could change while the version stays.
+
+## Allowing a version
+
+A version is what the strategy's files hold: any change to any file is another version, and each runs only once allowed. **Backtest** under a listing's chart shows a version not yet allowed with **Read what changed**, which shows each file's lines added and removed since the version allowed before, and **Allow this version**. A paired browser leaves allowing to the computer.
+
+When the agent runs a version not yet allowed, its call asks you first and its card shows the same changes. In a conversation set to **Allow for me**, the decisions model judges the code: a version runs unasked only when every risk it scores is unlikely, that the code touches files outside its own, reaches the network, reads secrets or starts other programs.
+
+Beside a live account, a strategy's code outside the sandbox runs only on a version you allowed yourself: neither the decisions model nor **Don't ask** allows one there. Approvals are sealed with your keys, so no edit of the app's files allows a version.
+
+The code is yours, and so is how healthy it is: Solyx keeps it to the sandbox where it can and checks what it can, but it does not read your code for bugs.
+
+## The look-ahead check
+
+A rule is read at a bar's close and acted on at the next bar's open, so a line must come from its bar and the ones before it. Your code is handed every bar at once, so Solyx checks: it runs the first set of numbers again over the first fifth, two fifths, three and four of the bars, and compares each line with the whole run's.
+
+Where a line differs, the code read later bars for it, as `shift(-1)`, a centred window or the whole span's mean would. The run leads with a warning that names the line and the first bar, since every figure then rests on prices it could not have known. It is a warning, not a refusal.
+
+## Running one
+
+- **In the panel:** **Strategy → My strategies**, then the strategy, then its numbers. A scan or a walk forward runs a grid along two of its numbers. [Backtesting](/docs/backtests).
+- **Through the agent:** the agent's scripts run a strategy with `strategies.backtest`, `strategies.scan`, `strategies.walkForward` and `strategies.rolling`, as the panel does, and `strategies.signal` says whether its entry or exit holds at the newest bar's close, beside the position a backtest of the same bars holds there.
+- **Trading on one:** a [scheduled task](/docs/agent/schedules) can read a strategy's signal after each session and have the agent propose the order. It is still a proposal: you confirm it, or your trading mandate sends it.
