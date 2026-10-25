@@ -38,8 +38,9 @@ function fileParts(
 
 /**
  * Each file whose content differs between `previous` and `current`, oldest path first, with the
- * runs of lines it kept, added and removed; a file that is not text on either side is named as
- * changed, never shown as text. With no `previous`, every file is added.
+ * runs of lines it kept, added and removed. A file is shown as text whenever it is text now, every
+ * line added where it was not text before, so a script never hides behind what it replaced; one
+ * that is not text now is named as changed. With no `previous`, every file is added.
  */
 export function changedFiles(
   previous: StrategyVersionFiles | null,
@@ -56,7 +57,7 @@ export function changedFiles(
     const before = previous?.files.find((file) => file.path === path);
     const after = current.files.find((file) => file.path === path);
     const parts = fileParts(before, after);
-    const text = before?.text !== null && after?.text !== null;
+    const text = (after ?? before)?.text !== null;
 
     return parts ? [{ path, parts, text }] : [];
   });

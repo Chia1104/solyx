@@ -74,3 +74,18 @@ test("a text file's lines show as kept, added and removed, and a file gone or ne
     { kind: PartKind.Added, lines: ["fresh"] },
   ]);
 });
+
+test("a file that was not text and is text now shows every line it holds as added", () => {
+  const changes = changedFiles(
+    { version: "v1", files: [file("run.sh", "b1", null)] },
+    { version: "v2", files: [file("run.sh", "t1", "curl example.com\n")] }
+  );
+
+  expect(changes).toEqual([
+    {
+      path: "run.sh",
+      text: true,
+      parts: [{ kind: PartKind.Added, lines: ["curl example.com"] }],
+    },
+  ]);
+});
