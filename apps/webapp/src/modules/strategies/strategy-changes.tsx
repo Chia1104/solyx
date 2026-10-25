@@ -1,56 +1,19 @@
 import { cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
-import { diffLines } from "diff";
 import { useTranslation } from "react-i18next";
-
-import type { StrategyVersionFiles } from "@solyx/api/strategies";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
 import { strategyReviewQuery } from "./strategies-query.ts";
+import { PartKind, changedFiles } from "./strategy-diff.ts";
+import type { Part } from "./strategy-diff.ts";
 
 /** The first characters of a version, as a person tells versions apart. */
 export const shortVersion = (version: string) => version.slice(0, 8);
 
 // Unchanged lines kept on each side of a change, so a change reads in its place.
 const CONTEXT = 3;
-
-type FileFiles = StrategyVersionFiles["files"][number];
-
-/** What became of a run of a file's lines between two versions. */
-const PartKind = {
-  Kept: "kept",
-  Added: "added",
-  Removed: "removed",
-} as const;
-
-type PartKind = (typeof PartKind)[keyof typeof PartKind];
-
-/** One run of lines a file kept, added or removed between two versions. */
-interface Part {
-  kind: PartKind;
-  lines: string[];
-}
-
-/** What changed in `path` between `before` and `after`, `null` where nothing did. */
-function fileParts(
-  before: FileFiles | undefined,
-  after: FileFiles | undefined
-): Part[] | null {
-  if (before?.text === after?.text && before?.bytes === after?.bytes) {
-    return null;
-  }
-
-  return diffLines(before?.text ?? "", after?.text ?? "").map((change) => ({
-    kind: change.added
-      ? PartKind.Added
-      : change.removed
-        ? PartKind.Removed
-        : PartKind.Kept,
-    lines: change.value.replace(/\n$/, "").split("\n"),
-  }));
-}
 
 /** A part as it is shown: kept lines far from any change folded to how many they are. */
 function shownLines(part: Part, first: boolean, last: boolean) {
@@ -151,20 +114,7 @@ export function StrategyChanges({
     );
   }
 
-  const paths = [
-    ...new Set([
-      ...(previous?.files ?? []).map((file) => file.path),
-      ...current.files.map((file) => file.path),
-    ]),
-  ].toSorted();
-
-  const changes = paths.flatMap((path) => {
-    const before = previous?.files.find((file) => file.path === path);
-    const after = current.files.find((file) => file.path === path);
-    const parts = fileParts(before, after);
-
-    return parts ? [{ path, parts, text: after?.text !== null }] : [];
-  });
+  const changes = changedFiles(previous, current);
 
   return (
     <div className="flex max-h-96 flex-col gap-3 overflow-auto">

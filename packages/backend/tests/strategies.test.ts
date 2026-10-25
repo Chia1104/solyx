@@ -167,8 +167,16 @@ describe("a strategy's folder", () => {
       },
     ]);
     expect(strategyFiles(strategies[0])).toEqual([
-      { path: "STRATEGY.md", bytes: MANIFEST.length },
-      { path: "strategy.mjs", bytes: CROSSING.length },
+      {
+        path: "STRATEGY.md",
+        bytes: MANIFEST.length,
+        digest: expect.any(String),
+      },
+      {
+        path: "strategy.mjs",
+        bytes: CROSSING.length,
+        digest: expect.any(String),
+      },
     ]);
   });
 
@@ -441,13 +449,24 @@ describe("a strategy's review", () => {
     expect(review.current.files[1]).toEqual({
       path: "strategy.mjs",
       bytes: 11,
+      digest: expect.any(String),
       text: "// changed\n",
     });
     expect(review.previous).toEqual({
       version: first.version,
       files: [
-        { path: "STRATEGY.md", bytes: MANIFEST.length, text: MANIFEST },
-        { path: "strategy.mjs", bytes: CROSSING.length, text: CROSSING },
+        {
+          path: "STRATEGY.md",
+          bytes: MANIFEST.length,
+          digest: expect.any(String),
+          text: MANIFEST,
+        },
+        {
+          path: "strategy.mjs",
+          bytes: CROSSING.length,
+          digest: expect.any(String),
+          text: CROSSING,
+        },
       ],
     });
 

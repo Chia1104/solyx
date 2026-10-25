@@ -12,6 +12,8 @@ export interface StrategyFile {
   /** From the strategy's folder, with `/` between folders. */
   path: string;
   bytes: number;
+  /** A digest of what it holds, which tells two versions of a file apart whether or not it is text. */
+  digest: string;
 }
 
 /** A strategy as a window lists it. */

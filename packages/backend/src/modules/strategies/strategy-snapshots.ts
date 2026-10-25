@@ -15,6 +15,7 @@ const snapshotSchema = z.object({
     z.object({
       path: z.string(),
       bytes: z.number(),
+      digest: z.string(),
       text: z.string().nullable(),
     })
   ),

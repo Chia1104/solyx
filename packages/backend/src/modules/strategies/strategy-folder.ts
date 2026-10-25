@@ -50,12 +50,17 @@ export const strategyTexts = (strategy: Strategy) =>
   strategy.code.map(({ path, data }) => ({
     path,
     bytes: data.length,
+    digest: digest(data),
     text: textOf(data),
   }));
 
 /** What a window is told of a strategy's files. */
 export const strategyFiles = (strategy: Strategy): StrategyFile[] =>
-  strategy.code.map(({ path, data }) => ({ path, bytes: data.length }));
+  strategy.code.map(({ path, data }) => ({
+    path,
+    bytes: data.length,
+    digest: digest(data),
+  }));
 
 /** The most files a strategy's folder holds, so its version can be told on every run. */
 const MAX_STRATEGY_FILES = 1000;
