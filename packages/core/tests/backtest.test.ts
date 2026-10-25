@@ -1044,9 +1044,9 @@ describe("telling an edge from chance", () => {
       beatHolding: excess.filter((each) => each > 0).length / 10,
       gained: returns.filter((each) => each > 0).length / 10,
       returns: {
-        low: percentile(returns, 10),
+        p10: percentile(returns, 10),
         median: median(returns),
-        high: percentile(returns, 90),
+        p90: percentile(returns, 90),
       },
       holding: expect.objectContaining({
         median: median(windows.map(({ buyAndHold }) => buyAndHold)),

@@ -309,11 +309,11 @@ export interface WalkForwardResult {
   holding: { date: string; value: number }[];
 }
 
-/** The tenth percentile of some windows' figures, their median and their ninetieth percentile. */
+/** Some windows' figures at their tenth percentile, median and ninetieth percentile, which are not their worst and best. */
 export interface RollingSpread {
-  low: number;
+  p10: number;
   median: number;
-  high: number;
+  p90: number;
 }
 
 /** What a strategy's rolling windows came to together. */
@@ -1137,9 +1137,9 @@ function rollingSummary(
     windows.filter(holds).length / windows.length;
 
   const spread = (values: number[]): RollingSpread => ({
-    low: percentile(values, 10),
+    p10: percentile(values, 10),
     median: median(values),
-    high: percentile(values, 90),
+    p90: percentile(values, 90),
   });
 
   return {
