@@ -1,6 +1,6 @@
 ---
 title: Backtests
-description: How backtests fill orders, charge costs, avoid reading the future, and judge a run, a scan and a walk forward.
+description: How backtests fill orders, charge costs, avoid reading the future, and judge a run, a scan, a walk forward and rolling windows.
 ---
 
 A backtest tests a trading rule on a listing's history. The [backtest panel](/docs/backtests) and the agent's scripts run it through one engine, on your computer and on the bars Solyx already reads. Rules are data rather than code, so the engine, not the script, decides every fill.
@@ -119,6 +119,32 @@ $$
 
 Well under 1 says the picks were fitted to their training.
 
+## Rolling windows
+
+Rolling windows run one strategy from many starts. With windows of $$M$$ months that start every $$S$$ months:
+
+- **Starts.** The first window starts on the first session of the month after the one the bars start in, so a close comes before it. Each next one starts $$S$$ months later. A month without a session starts none.
+- **Ends.** A window runs to its last session before the month $$M$$ months after its start. Only windows the bars run past are taken, so each is as long as the next.
+- **Each window** holds nothing at the close before its first session, where its rules are first read, so its first fill can come at that session's open. Its figures and buying and holding's are measured from that close.
+- **Indicators** are worked out once over every bar read, not from each window's start, so a window's rules read what a single run over all the bars reads. Only the earliest windows can start while a long indicator is still warming up.
+
+What the windows came to together:
+
+| Figure                   | Meaning                                                                                                                           |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Starts that beat holding | The share of windows whose return, after costs, beat buying and holding through them, before costs                                |
+| Starts that gained       | The share of windows whose return was above zero                                                                                  |
+| Spread                   | The 10th percentile, median and 90th percentile of the windows' returns, holding's and the first less the second, by nearest rank |
+| Deepest fall in a window | The deepest drawdown any window took                                                                                              |
+| Thin windows             | Windows that closed fewer than 20 trades                                                                                          |
+| Periods apart            | How many windows fit end to end over the months they span                                                                         |
+
+$$
+\text{apart} = \left\lfloor \frac{\text{last start} - \text{first start} + M}{M} \right\rfloor
+$$
+
+with the starts counted in months. Windows that overlap share their bars, so their shares rest on about that many periods, not on the count of windows. For the same reason no window's timing is tested, and none has a p-value.
+
 ## Limits
 
-Daily and longer bars reach back 10 years, shorter ones 3. A run reads at most 300,000 bars. A rule nests `all` and `any` at most 3 deep, each holding at most 8 conditions; a strategy's entry and exit make at most 64 comparisons and read at most 32 series between them. The agent's scripts reach further back than the app's own history for at most 5 listings a script.
+Daily and longer bars reach back 10 years, shorter ones 3. A run reads at most 300,000 bars. Rolling windows run up to 60 months in the panel and 120 in the agent's scripts, and start 1 to 12 months apart. A rule nests `all` and `any` at most 3 deep, each holding at most 8 conditions; a strategy's entry and exit make at most 64 comparisons and read at most 32 series between them. The agent's scripts reach further back than the app's own history for at most 5 listings a script.
