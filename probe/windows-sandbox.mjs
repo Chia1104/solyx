@@ -442,9 +442,9 @@ async function cwdDiagnosis() {
     ["profile", join(profile, "SolyxCwd", "agent-workspaces")],
   ];
   log(
-    "\n| root | starting location | Set-Location | cmd cd | .NET SetCurrentDirectory | Directory.Exists |"
+    "\n| root | starting location | Set-Location | cmd cd, then Windows PowerShell | pwsh 7 |"
   );
-  log("|---|---|---|---|---|---|");
+  log("|---|---|---|---|---|");
 
   for (const [label, root] of roots) {
     const conversation = join(root, "conv");
@@ -457,8 +457,25 @@ async function cwdDiagnosis() {
       );
       return `${r.code}: ${r.out.slice(0, 80).replaceAll("|", "/")}`;
     };
+    // Each in its own shell, run as srt hands it to that shell.
+    const shell = async (binShell, command) => {
+      const r = await SandboxManager.wrapWithSandboxArgv(
+        command,
+        binShell,
+        undefined,
+        undefined,
+        conversation
+      )
+        .then(({ argv, env }) =>
+          run(argv[0], argv.slice(1), { cwd: conversation, env })
+        )
+        .catch((error) => ({ code: "threw", out: String(error.message) }));
+      return `${r.code}: ${r.out.slice(0, 120).replaceAll("|", "/")}`;
+    };
+    const relative =
+      "(Get-Location).Path; Set-Content -LiteralPath rel.txt -Value ok; Get-Content -LiteralPath rel.txt";
     log(
-      `| ${label} | ${await cell("(Get-Location).Path")} | ${await cell(`Set-Location -LiteralPath ${q(conversation)}; 'ok'`)} | ${await cell(`cmd /c "cd /d ${conversation} && cd"`)} | ${await cell(`[IO.Directory]::SetCurrentDirectory(${q(conversation)}); [IO.Directory]::GetCurrentDirectory()`)} | ${await cell(`[IO.Directory]::Exists(${q(conversation)})`)} |`
+      `| ${label} | ${await cell("(Get-Location).Path")} | ${await cell(`Set-Location -LiteralPath ${q(conversation)}; 'ok'`)} | ${await shell("cmd", `cd /d "${conversation}" && "${PS}" -NoProfile -NonInteractive -Command "${relative}"`)} | ${await shell("pwsh", `Set-Location -LiteralPath ${q(conversation)}; ${relative}`)} |`
     );
   }
 
