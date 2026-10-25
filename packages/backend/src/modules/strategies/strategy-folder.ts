@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstat, readFile, readdir, readlink, stat } from "node:fs/promises";
+import { lstat, readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import { parse } from "yaml";
@@ -10,7 +10,17 @@ import { strategyManifestSchema } from "@solyx/core/strategy";
 import type { StrategyManifest } from "@solyx/core/strategy";
 import { errorMessage, isErrnoError } from "@solyx/utils/error";
 
-/** A strategy as its folder holds it now. */
+/** One file of a strategy's folder, as it was read. */
+interface CodeFile {
+  /** From the strategy's folder, with `/` between folders. */
+  path: string;
+  data: Buffer;
+}
+
+/**
+ * A strategy as its folder held it when it was read. A run copies `code` and runs the copy, so the
+ * files its version was told from are the files that run, whatever the folder holds by then.
+ */
 export interface Strategy {
   manifest: StrategyManifest;
   /** What its STRATEGY.md says below the frontmatter. */
@@ -18,8 +28,12 @@ export interface Strategy {
   folder: string;
   /** Its files' paths and contents taken together, so a change to any of them is another version. */
   version: string;
-  files: StrategyFile[];
+  code: readonly CodeFile[];
 }
+
+/** What a window is told of a strategy's files. */
+export const strategyFiles = (strategy: Strategy): StrategyFile[] =>
+  strategy.code.map(({ path, data }) => ({ path, bytes: data.length }));
 
 /** The most files a strategy's folder holds, so its version can be told on every run. */
 const MAX_STRATEGY_FILES = 1000;
@@ -27,7 +41,7 @@ const MAX_STRATEGY_FILES = 1000;
 /** The most its files hold between them. */
 const MAX_STRATEGY_BYTES = 32 * 1024 * 1024;
 
-// What a tool keeps beside the code, which no run reads as code.
+// What a tool keeps beside the code, which a run neither copies nor reads.
 const LEFT_OUT = new Set([".git", "__pycache__", ".DS_Store"]);
 
 const FRONTMATTER = /^---\n([\s\S]*?)\n---(?:\n|$)/;
@@ -36,12 +50,11 @@ const digest = (data: string | Buffer) =>
   createHash("sha256").update(data).digest("hex");
 
 /**
- * Every file under `folder`, each by its path from it and a digest of what it holds, oldest path
- * first. A link counts by where it points, not by what it reaches, since the sandbox reads only
- * the folder.
+ * Every file under `folder`, each by its path from it and what it holds, oldest path first. A link
+ * is refused, since what it points to could change while the version stays.
  */
 async function folderFiles(folder: string) {
-  const files: (StrategyFile & { digest: string })[] = [];
+  const files: CodeFile[] = [];
   let bytes = 0;
 
   async function walk(path: string, relative: string) {
@@ -51,6 +64,12 @@ async function folderFiles(folder: string) {
       const full = join(path, name);
       const inside = relative ? `${relative}/${name}` : name;
       const entry = await lstat(full);
+
+      if (entry.isSymbolicLink()) {
+        throw new Error(
+          `holds a link at ${inside}; copy what it points to into the folder instead`
+        );
+      }
 
       if (entry.isDirectory()) {
         await walk(full, inside);
@@ -72,11 +91,7 @@ async function folderFiles(folder: string) {
         );
       }
 
-      const content = entry.isSymbolicLink()
-        ? `link:${await readlink(full)}`
-        : await readFile(full);
-
-      files.push({ path: inside, bytes: entry.size, digest: digest(content) });
+      files.push({ path: inside, data: await readFile(full) });
     }
   }
 
@@ -86,16 +101,22 @@ async function folderFiles(folder: string) {
 }
 
 /** One version for the files of a strategy, each by its path and what it holds. */
-const versionOf = (files: readonly { path: string; digest: string }[]) =>
-  digest(files.map((file) => `${file.path}\0${file.digest}\n`).join(""));
+const versionOf = (files: readonly CodeFile[]) =>
+  digest(files.map((file) => `${file.path}\0${digest(file.data)}\n`).join(""));
 
 /** The strategy `STRATEGY.md` names in `folder`, which must take the folder's name. */
 async function readStrategy(folder: string, name: string): Promise<Strategy> {
-  const text = (await readFile(join(folder, "STRATEGY.md"), "utf8")).replace(
-    /\r\n?/g,
-    "\n"
-  );
+  // A folder without STRATEGY.md holds no strategy, and fails here as not found.
+  await stat(join(folder, "STRATEGY.md"));
 
+  // The manifest is read from the same bytes the version is told from, so the command that runs is
+  // the one allowed.
+  const code = await folderFiles(folder);
+  const own = code.find((file) => file.path === "STRATEGY.md");
+
+  if (own === undefined) throw new Error("STRATEGY.md is gone");
+
+  const text = own.data.toString("utf8").replace(/\r\n?/g, "\n");
   const match = FRONTMATTER.exec(text);
 
   if (!match) {
@@ -114,14 +135,12 @@ async function readStrategy(folder: string, name: string): Promise<Strategy> {
     );
   }
 
-  const files = await folderFiles(folder);
-
   return {
     manifest: parsed.data,
     notes: text.slice(match[0].length).trim(),
     folder,
-    version: versionOf(files),
-    files: files.map(({ path, bytes }) => ({ path, bytes })),
+    version: versionOf(code),
+    code,
   };
 }
 

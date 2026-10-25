@@ -8,7 +8,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { inheritedEnv } from "@solyx/agent/process-env";
 import type { Sandbox } from "@solyx/agent/sandbox";
@@ -147,10 +147,10 @@ function execute(
 }
 
 /**
- * Runs strategies' code, each run in its strategy's folder with the environment a shell command
- * gets and where its input and output go, in the sandbox while the user keeps it on: there it
- * writes only its run's folder, reads only its strategy's folder and the tools on its PATH, and
- * reaches no network.
+ * Runs strategies' code, each run on a copy of its strategy's files in a folder of its own, with
+ * the environment a shell command gets and where its input and output go, in the sandbox while the
+ * user keeps it on: there it reads and writes only its run's folder, reads the tools on its PATH,
+ * and reaches no network.
  */
 export function createStrategyRunner(options: StrategyRunnerOptions) {
   const timeoutMs = options.timeoutMs ?? STRATEGY_TIMEOUT_MS;
@@ -170,10 +170,20 @@ export function createStrategyRunner(options: StrategyRunnerOptions) {
 
       try {
         const tmp = join(folder, ".tmp");
+        const code = join(folder, "code");
         const inputFile = join(folder, "input.json");
         const outputFile = join(folder, "output.json");
 
         await mkdir(tmp);
+
+        // The copy holds the very bytes its version was told from, so what runs is what was allowed.
+        for (const file of strategy.code) {
+          const place = join(code, ...file.path.split("/"));
+
+          await mkdir(dirname(place), { recursive: true });
+          await writeFile(place, file.data);
+        }
+
         await writeFile(inputFile, JSON.stringify(input));
 
         const path = await options.path();
@@ -191,12 +201,12 @@ export function createStrategyRunner(options: StrategyRunnerOptions) {
         const command = sandbox
           ? await sandbox.wrap(
               strategy.manifest.run,
-              { workspace: folder, tmp, readable: [strategy.folder], path },
+              { workspace: folder, tmp, readable: [], path },
               signal
             )
           : strategy.manifest.run;
 
-        await execute(command, strategy.folder, env, timeoutMs, signal);
+        await execute(command, code, env, timeoutMs, signal);
 
         let bytes: number;
 

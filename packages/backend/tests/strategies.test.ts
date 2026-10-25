@@ -29,7 +29,10 @@ import {
   KEPT_VERSIONS,
   createStrategyApprovals,
 } from "../src/modules/strategies/strategy-approvals.ts";
-import { readStrategies } from "../src/modules/strategies/strategy-folder.ts";
+import {
+  readStrategies,
+  strategyFiles,
+} from "../src/modules/strategies/strategy-folder.ts";
 import { createStrategyRunner } from "../src/modules/strategies/strategy-runner.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
@@ -159,11 +162,11 @@ describe("a strategy's folder", () => {
       {
         manifest: { name: "crossing", run: "node strategy.mjs" },
         notes: "Reads the close against its mean.",
-        files: [
-          { path: "STRATEGY.md", bytes: MANIFEST.length },
-          { path: "strategy.mjs", bytes: CROSSING.length },
-        ],
       },
+    ]);
+    expect(strategyFiles(strategies[0])).toEqual([
+      { path: "STRATEGY.md", bytes: MANIFEST.length },
+      { path: "strategy.mjs", bytes: CROSSING.length },
     ]);
   });
 
@@ -197,16 +200,17 @@ describe("a strategy's folder", () => {
     expect(await version()).not.toBe(second);
   });
 
-  test("counts a link by where it points", async () => {
+  test("refuses a link, since what it points to could change while the version stays", async () => {
     await writeStrategy();
     await writeFile(join(directory, "a.txt"), "a");
     await symlink(join(directory, "a.txt"), join(folder, "crossing", "data"));
 
-    const before = (await readStrategies(folder)).strategies[0].version;
-
-    await writeFile(join(directory, "a.txt"), "changed");
-
-    expect((await readStrategies(folder)).strategies[0].version).toBe(before);
+    expect(await readStrategies(folder)).toEqual({
+      strategies: [],
+      problems: [
+        `${join(folder, "crossing", "STRATEGY.md")}: holds a link at data; copy what it points to into the folder instead`,
+      ],
+    });
   });
 
   test("whose STRATEGY.md does not read, or names another strategy, is a problem rather than a strategy", async () => {
@@ -456,6 +460,22 @@ describe("a strategy's run", () => {
         "The strategy's code exited with 3; it printed:\nno data for this listing"
       );
       expect(await readdir(join(directory, "runs"))).toEqual([]);
+    }
+  );
+
+  posix(
+    "runs the files as they were read, whatever the folder holds by then",
+    async () => {
+      const read = await strategy(
+        `import { writeFileSync } from "node:fs"; writeFileSync(process.env.SOLYX_STRATEGY_OUTPUT, JSON.stringify({ run0: {} }));`
+      );
+
+      await writeFile(
+        join(folder, "crossing", "strategy.mjs"),
+        "process.exit(5);"
+      );
+
+      await expect(runner().run(read, input)).resolves.toEqual([{}]);
     }
   );
 

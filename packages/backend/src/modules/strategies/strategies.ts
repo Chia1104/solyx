@@ -21,7 +21,7 @@ import {
 import type { StrategyParams } from "@solyx/core/strategy";
 
 import type { StrategyApprovals } from "./strategy-approvals.ts";
-import { readStrategies } from "./strategy-folder.ts";
+import { readStrategies, strategyFiles } from "./strategy-folder.ts";
 import type { Strategy } from "./strategy-folder.ts";
 import type { StrategyRunner } from "./strategy-runner.ts";
 
@@ -103,7 +103,7 @@ export function createStrategies(options: StrategiesOptions) {
           ...strategy.manifest,
           notes: strategy.notes,
           version: strategy.version,
-          files: strategy.files,
+          files: strategyFiles(strategy),
           allowed: allowing(approvals, strategy, reach),
         })),
         reach,
