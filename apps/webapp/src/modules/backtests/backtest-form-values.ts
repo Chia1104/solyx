@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { omit } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
@@ -7,6 +8,7 @@ import { BacktestMode } from "@solyx/api/backtests";
 import type {
   BacktestRequest,
   BacktestSetup,
+  RollingSetup,
   ScanSetup,
   WalkForwardSetup,
 } from "@solyx/api/backtests";
@@ -47,6 +49,27 @@ export const SPLITS = [0.5, 0.6, 2 / 3, 0.7, 0.75, 0.8];
 const DEFAULT_SPLIT = 2 / 3;
 
 const DEFAULT_CAPITAL = 1_000_000;
+
+/** The months a rolling window may run, and those its starts may lie apart. */
+const ROLLING_MONTHS = [3, 6, 12, 24, 36, 60];
+
+export const ROLLING_STEPS = [1, 3, 6, 12];
+
+const DEFAULT_ROLLING = { months: 36, step: 1 };
+
+/**
+ * The months a rolling window may run over `years` of bars: the first month read is part of one and
+ * the month under way is not over, so two fewer than they hold at most.
+ */
+export const rollingMonthChoices = (years: number) =>
+  ROLLING_MONTHS.filter((months) => months <= years * 12 - 2);
+
+/** `months` where a window that long fits `years` of bars, else the longest that does. */
+export function fittingMonths(years: number, months: number) {
+  const choices = rollingMonthChoices(years);
+
+  return choices.includes(months) ? months : (choices.at(-1) ?? months);
+}
 
 /** The years a template reads unless the user picks others, as far as `interval` reaches. */
 export const templateYears = (
@@ -114,6 +137,8 @@ export function useFormSchema(mode: BacktestMode) {
         columns: axisSchema,
         train: optional,
         test: optional,
+        months: z.number(),
+        step: z.number(),
       })
       .superRefine((values, context) => {
         const read =
@@ -135,10 +160,13 @@ export function useFormSchema(mode: BacktestMode) {
 
         const setup = templateSetup(values);
 
+        const gridded =
+          mode === BacktestMode.Scan || mode === BacktestMode.WalkForward;
+
         const problem =
-          mode === BacktestMode.Run || !setup
-            ? undefined
-            : gridProblem(setup, values.rows, values.columns);
+          gridded && setup
+            ? gridProblem(setup, values.rows, values.columns)
+            : undefined;
 
         if (problem) {
           context.addIssue({
@@ -160,7 +188,11 @@ const presentNumber = (value: number) =>
   Number.isNaN(value) ? undefined : value;
 
 /** What a panel ran in any of its modes, which the form starts from. */
-export type PanelSetup = BacktestSetup | ScanSetup | WalkForwardSetup;
+export type PanelSetup =
+  | BacktestSetup
+  | ScanSetup
+  | WalkForwardSetup
+  | RollingSetup;
 
 /** What the panel runs for `symbol` before the user has run anything. */
 function initialRun(symbol: SymbolRef): BacktestSetup {
@@ -219,7 +251,9 @@ export function formValues(
   const grid = "rows" in setup ? setup : STRATEGY_TEMPLATES[template].grid;
 
   const walk: Partial<Pick<WalkForwardSetup, "train" | "test">> =
-    "split" in setup ? {} : setup;
+    "train" in setup || "test" in setup ? setup : {};
+
+  const rolling = "months" in setup ? setup : DEFAULT_ROLLING;
 
   return {
     ...values,
@@ -233,6 +267,8 @@ export function formValues(
     columns: grid.columns,
     train: optionalNumber(walk.train),
     test: optionalNumber(walk.test),
+    months: fittingMonths(setup.years, rolling.months),
+    step: rolling.step,
   };
 }
 
@@ -293,6 +329,17 @@ export function formRequest(
   symbol: SymbolRef,
   values: FormValues
 ): BacktestRequest {
+  if (mode === BacktestMode.Rolling) {
+    return {
+      mode,
+      setup: {
+        ...omit(runSetup(symbol, values), ["split"]),
+        months: values.months,
+        step: values.step,
+      },
+    };
+  }
+
   const strategy = templateSetup(values);
 
   if (mode === BacktestMode.Run || !strategy) {

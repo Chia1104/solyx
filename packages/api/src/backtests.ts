@@ -1,7 +1,7 @@
 import * as z from "zod";
 
 import { tradeCostsSchema } from "@solyx/core/backtest";
-import type { BacktestMetrics } from "@solyx/core/backtest";
+import type { BacktestMetrics, RollingSummary } from "@solyx/core/backtest";
 import {
   HISTORY_YEARS,
   historyYears,
@@ -100,11 +100,34 @@ export const walkForwardSetupSchema = z
 
 export type WalkForwardSetup = z.infer<typeof walkForwardSetupSchema>;
 
-/** What a window runs: one setup, a grid of them, or a grid picked from as it walks forward. */
+/** The longest a rolling window runs, in months, and the most months between two windows' starts. */
+export const MAX_ROLLING_MONTHS = 60;
+
+export const MAX_ROLLING_STEP = 12;
+
+/** One setup run over windows of the same months, each starting a step of months after the one before. */
+export const rollingSetupSchema = z
+  .strictObject({
+    ...reach,
+    strategy: strategySetupSchema,
+    /** Calendar months each window runs. */
+    months: z.number().int().min(1).max(MAX_ROLLING_MONTHS),
+    /** Months from one window's start to the next's. */
+    step: z.number().int().min(1).max(MAX_ROLLING_STEP),
+  })
+  .superRefine(withinHistory);
+
+export type RollingSetup = z.infer<typeof rollingSetupSchema>;
+
+/**
+ * What a window runs: one setup, a grid of them, a grid picked from as it walks forward, or one
+ * setup over windows that start month after month.
+ */
 export const BacktestMode = {
   Run: "run",
   Scan: "scan",
   WalkForward: "walkForward",
+  Rolling: "rolling",
 } as const;
 
 export type BacktestMode = (typeof BacktestMode)[keyof typeof BacktestMode];
@@ -117,6 +140,10 @@ export const backtestRequestSchema = z.discriminatedUnion("mode", [
     mode: z.literal(BacktestMode.WalkForward),
     setup: walkForwardSetupSchema,
   }),
+  z.object({
+    mode: z.literal(BacktestMode.Rolling),
+    setup: rollingSetupSchema,
+  }),
 ]);
 
 export type BacktestRequest = z.infer<typeof backtestRequestSchema>;
@@ -127,15 +154,18 @@ export const BACKTEST_HISTORY = 200;
 /** The most single runs compared at once. */
 export const MAX_COMPARED = 4;
 
+/**
+ * What a run is judged by: the stretch out of sample for a run and a walk forward, the plateau's
+ * in-sample stretch for a scan, and what the windows came to together for rolling ones.
+ */
+export type BacktestHeadline = BacktestMetrics | RollingSummary;
+
 /** A run a window asked for, as the history keeps it: what it set up and how it did when it last ran. */
 export interface BacktestRecord {
   id: string;
   /** When it last ran, in milliseconds since the epoch. */
   ranAt: number;
   request: BacktestRequest;
-  /**
-   * The stretch it is judged by: out of sample for a run and a walk forward, and the plateau's
-   * in-sample stretch for a scan; `null` where it has none.
-   */
-  headline: BacktestMetrics | null;
+  /** `null` where it has none, as a scan without a plateau. */
+  headline: BacktestHeadline | null;
 }

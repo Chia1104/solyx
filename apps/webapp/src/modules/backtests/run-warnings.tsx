@@ -1,14 +1,12 @@
 import { Alert, Button } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
+import { ENOUGH_TRADES } from "@solyx/core/backtest";
 import type { BacktestMetrics } from "@solyx/core/backtest";
 
 import { numberFormats } from "../market/number-formats.ts";
 
 import type { StretchFigures } from "./stretch-figures.tsx";
-
-/** A stretch of fewer trades than this says too little to conclude from, as the agent's backtest skill holds. */
-const ENOUGH_TRADES = 20;
 
 /** Below it, the rules' timing beat its bars put in a random order. */
 const P_VALUE_LINE = 0.05;

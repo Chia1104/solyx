@@ -8,6 +8,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import {
   BacktestMode,
   backtestSetupSchema,
+  rollingSetupSchema,
   scanSetupSchema,
   walkForwardSetupSchema,
 } from "@solyx/api/backtests";
@@ -171,6 +172,33 @@ test("a scan runs its grid's setups row by row, and a walk forward picks among t
 
   expect(walked.windows.length).toBeGreaterThan(0);
   expect(walked.windows.every((window) => (window.cell ?? 0) < 54)).toBe(true);
+});
+
+test("rolling windows run a setup from each month's first session and are kept with what they came to", async () => {
+  const { run } = backtests();
+
+  const setup = rollingSetupSchema.parse({
+    ...reach,
+    strategy: initialSetup(StrategyTemplate.MovingAverageCross),
+    months: 6,
+    step: 1,
+  });
+
+  const rolled = await run.rolling(setup);
+
+  // The bars run from 2024-01-01 to 2025-08-22: windows start from February 2024, the first whole
+  // month, to February 2025, the last with six whole months after it.
+  expect(rolled.windows).toHaveLength(13);
+  expect(rolled.windows[0]).toMatchObject({
+    from: "2024-02-01",
+    to: "2024-07-31",
+  });
+  expect(rolled.windows.at(-1)?.from).toBe("2025-02-01");
+
+  const [kept] = run.history();
+
+  expect(kept.request).toEqual({ mode: BacktestMode.Rolling, setup });
+  expect(kept.headline).toEqual(rolled.summary);
 });
 
 test("a setup refuses years past what its interval's history reaches, and a grid that would not run", () => {

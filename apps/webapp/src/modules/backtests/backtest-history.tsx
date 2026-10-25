@@ -43,7 +43,10 @@ export function useRecordWords() {
           ? t("backtests.form.rules")
           : t(`backtests.templates.${strategy.template}.name`);
 
-      if (request.mode !== BacktestMode.Run) {
+      if (
+        request.mode === BacktestMode.Scan ||
+        request.mode === BacktestMode.WalkForward
+      ) {
         return `${name} · ${span(request.setup.rows)} × ${span(request.setup.columns)}`;
       }
 
@@ -65,15 +68,31 @@ export function useRecordWords() {
     reach({ request }: BacktestRecord) {
       const { setup } = request;
 
-      return t("backtests.history.reach", {
+      const reach = t("backtests.history.reach", {
         mode: t(`backtests.modes.${request.mode}.label`),
         interval: t(`chart.intervals.${setup.interval}`),
         years: t("backtests.form.years-option", { count: setup.years }),
       });
+
+      return request.mode === BacktestMode.Rolling
+        ? `${reach} · ${t("backtests.history.windows", {
+            months: t("backtests.rolling.months-option", {
+              count: request.setup.months,
+            }),
+          })}`
+        : reach;
     },
 
     headline({ request, headline }: BacktestRecord) {
       if (!headline) return t("backtests.history.no-headline");
+
+      if ("beatHolding" in headline) {
+        return t("backtests.history.rolling", {
+          share: format.percent.format(headline.beatHolding),
+          excess: format.percentChange.format(headline.excess.median),
+          count: headline.windows,
+        });
+      }
 
       return t(
         request.mode === BacktestMode.Scan
