@@ -17,6 +17,7 @@ import { researchRouter } from "../modules/research/research.route.ts";
 import { schedulesRouter } from "../modules/schedules/schedules.route.ts";
 import { settingsRouter } from "../modules/settings/settings.route.ts";
 import { storageRouter } from "../modules/storage/storage.route.ts";
+import { strategiesRouter } from "../modules/strategies/strategies.route.ts";
 import { themesRouter } from "../modules/themes/themes.route.ts";
 import { updatesRouter } from "../modules/updates/updates.route.ts";
 import { watchlistRouter } from "../modules/watchlist/watchlist.route.ts";
@@ -44,6 +45,7 @@ export const router = contractOS.router({
   schedules: schedulesRouter,
   settings: settingsRouter,
   storage: storageRouter,
+  strategies: strategiesRouter,
   themes: themesRouter,
   updates: updatesRouter,
   watchlist: watchlistRouter,

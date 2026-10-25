@@ -12,8 +12,7 @@ import { createBashTool } from "@earendil-works/pi-durable/tools";
 
 import type { AutoCheck, ToolGuard } from "./approval.ts";
 import { inheritedEnv } from "./process-env.ts";
-import { SANDBOX_SUPPORTED, createSandbox } from "./sandbox.ts";
-import type { SandboxOptions } from "./sandbox.ts";
+import type { Sandbox } from "./sandbox.ts";
 import { bashArgumentsSchema } from "./wire.ts";
 
 export interface ShellOptions {
@@ -29,8 +28,10 @@ export interface ShellOptions {
     input: { command: string; shell: string },
     signal: AbortSignal | undefined
   ): Promise<CommandRisks | undefined>;
-  /** What a sandboxed command may not read, and the folders it may read besides its own. */
-  sandbox: SandboxOptions & {
+  /** Where commands run sandboxed, and the folders they may read besides their own. */
+  sandbox: {
+    /** The app's one sandbox, `undefined` where the system has none. */
+    box: Sandbox | undefined;
     /** Whether the user keeps commands sandboxed, read for every command where the system can. */
     enabled(): boolean;
     /** Such as the folders of the skills offered, whose scripts it runs. */
@@ -46,8 +47,8 @@ const AUTO_THRESHOLD = 0.2;
 
 const WINDOWS = process.platform === "win32";
 
-// pi-durable passes the command after `-c`, which PowerShell reads as `-Command`.
-const POWERSHELL = join(
+/** Windows' own PowerShell, which reads a command after `-c` as `-Command`, as pi-durable passes it. */
+export const POWERSHELL = join(
   process.env.SystemRoot ?? "C:\\Windows",
   "System32",
   "WindowsPowerShell",
@@ -81,9 +82,7 @@ const shellText = (cwd: string | undefined, sandboxed: boolean) => {
  * so keys the app's process holds stay out.
  */
 export function createShell(options: ShellOptions) {
-  const sandbox = SANDBOX_SUPPORTED
-    ? createSandbox(options.sandbox)
-    : undefined;
+  const sandbox = options.sandbox.box;
 
   const sandboxed = () => sandbox !== undefined && options.sandbox.enabled();
 
@@ -155,8 +154,5 @@ export function createShell(options: ShellOptions) {
 
     /** Where each conversation's commands run, for the runtime's `env`. */
     env,
-
-    /** Stops what the sandbox keeps running, as the app quits. */
-    close: async () => sandbox?.close(),
   };
 }

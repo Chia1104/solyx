@@ -15,6 +15,7 @@
     "./mcp-script": "./src/mcp-script.ts",
     "./memory": "./src/memory.ts",
     "./models": "./src/models.ts",
+    "./process-env": "./src/process-env.ts",
     "./prompt": "./src/prompt.ts",
     "./providers": "./src/providers.ts",
     "./quotes": "./src/quotes.ts",

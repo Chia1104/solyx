@@ -17,6 +17,7 @@ import { researchContract } from "./research.contract.ts";
 import { schedulesContract } from "./schedules.contract.ts";
 import { settingsContract } from "./settings.contract.ts";
 import { storageContract } from "./storage.contract.ts";
+import { strategiesContract } from "./strategies.contract.ts";
 import { themesContract } from "./themes.contract.ts";
 import { updatesContract } from "./updates.contract.ts";
 import { watchlistContract } from "./watchlist.contract.ts";
@@ -43,6 +44,7 @@ export const routerContract = {
   schedules: schedulesContract,
   settings: settingsContract,
   storage: storageContract,
+  strategies: strategiesContract,
   themes: themesContract,
   updates: updatesContract,
   watchlist: watchlistContract,

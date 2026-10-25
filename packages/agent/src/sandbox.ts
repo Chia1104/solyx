@@ -311,3 +311,6 @@ export function createSandbox(options: SandboxOptions) {
     },
   };
 }
+
+/** The app's one sandbox, which its shell commands and the strategies' code run in. */
+export type Sandbox = ReturnType<typeof createSandbox>;

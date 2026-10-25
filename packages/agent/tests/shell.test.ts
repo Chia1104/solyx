@@ -28,7 +28,11 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
-import { SANDBOX_SUPPORTED, sandboxProblems } from "../src/sandbox.ts";
+import {
+  SANDBOX_SUPPORTED,
+  createSandbox,
+  sandboxProblems,
+} from "../src/sandbox.ts";
 import { createShell } from "../src/shell.ts";
 import type { ShellOptions } from "../src/shell.ts";
 import {
@@ -112,19 +116,22 @@ function setup({
 
   models.setProvider(faux.provider);
 
+  const box = SANDBOX_SUPPORTED
+    ? createSandbox({ home: places.home, appFolders: [places.app] })
+    : undefined;
+
   const shell = createShell({
     workspace: (id) => join(directory, id),
     path,
     judge,
     sandbox: {
-      home: places.home,
-      appFolders: [places.app],
+      box,
       enabled: sandbox,
       readable: async () => [places.skill, places.link, places.system],
     },
   });
 
-  closers.push(shell.close);
+  if (box) closers.push(box.close);
 
   const runtime = createAgentRuntime({
     store: Promise.resolve({

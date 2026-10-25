@@ -43,6 +43,7 @@
     "./rpc/schedules.contract": "./src/rpc/schedules.contract.ts",
     "./rpc/settings.contract": "./src/rpc/settings.contract.ts",
     "./rpc/storage.contract": "./src/rpc/storage.contract.ts",
+    "./rpc/strategies.contract": "./src/rpc/strategies.contract.ts",
     "./rpc/themes.contract": "./src/rpc/themes.contract.ts",
     "./rpc/updates.contract": "./src/rpc/updates.contract.ts",
     "./rpc/watchlist.contract": "./src/rpc/watchlist.contract.ts",
@@ -51,6 +52,7 @@
     "./settings": "./src/settings.ts",
     "./settings-section": "./src/settings-section.ts",
     "./storage": "./src/storage.ts",
+    "./strategies": "./src/strategies.ts",
     "./symbol-link": "./src/symbol-link.ts",
     "./updates": "./src/updates.ts",
     "./workspace": "./src/workspace.ts"
