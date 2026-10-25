@@ -1900,8 +1900,12 @@
       "instructions-missing": "Not written",
       "warnings-title": "Some skill files don't follow the Agent Skills format",
       "shell": "Shell",
-      "shell-description": "Lets the agent run commands on this computer, which skills need for their scripts. Each one waits for you unless a conversation is set not to ask. Commands run in a sandbox that keeps them to the conversation's folder, away from the rest of your files and off the network. Paper accounts only.",
-      "shell-description-unsandboxed": "Lets the agent run commands on this computer, which skills need for their scripts. Each one waits for you unless a conversation is set not to ask. Commands aren't sandboxed, so one you allow can read and change your files and reach the network. Paper accounts only.",
+      "sandbox": "Sandbox",
+      "sandbox-description": "Keeps each command to its conversation's folder, away from your other files and off the network. Off, a command you allow can read and change your files and reach the network.",
+      "sandbox-label": "Run commands in a sandbox",
+      "sandbox-problems": "The sandbox can't start, so no command runs: {{problems}}. Fix that, or switch the sandbox off.",
+      "sandbox-unsupported": "Not available on Windows yet. Commands run with your access, so each waits for you unless the decisions model judges it harmless in Allow for me.",
+      "shell-description": "Lets the agent run commands on this computer, which skills need for their scripts. Each one waits for you unless a conversation is set not to ask. Paper accounts only.",
       "shell-label": "Let the agent use the shell"
     },
     "memory": {

@@ -9,6 +9,7 @@
     "test": "vp test"
   },
   "devDependencies": {
+    "@anthropic-ai/sandbox-runtime": "catalog:sandbox",
     "@earendil-works/pi-codemode": "catalog:pi",
     "@orpc/client": "catalog:orpc",
     "@orpc/contract": "catalog:orpc",

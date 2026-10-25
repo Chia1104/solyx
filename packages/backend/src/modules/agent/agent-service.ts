@@ -227,6 +227,7 @@ export function createAgentService(options: AgentServiceOptions) {
     sandbox: {
       home: options.home,
       appFolders: options.appFolders,
+      enabled: () => options.config.read().agent.shellSandbox,
       // A command runs the scripts of the skills offered, which `read_skill` names.
       readable: async () =>
         (await skills()).skills.flatMap((skill) =>

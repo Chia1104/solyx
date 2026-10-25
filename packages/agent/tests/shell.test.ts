@@ -18,13 +18,16 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai";
 import type { FauxResponseFactory } from "@earendil-works/pi-ai";
-import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
+import {
+  getCurrentSystemPrompt,
+  getCurrentTools,
+} from "@earendil-works/pi-ai/utils/transcript";
 import { MemoryStorage } from "@earendil-works/pi-durable";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
-import { SANDBOXED } from "../src/sandbox.ts";
+import { SANDBOX_SUPPORTED, sandboxProblems } from "../src/sandbox.ts";
 import { createShell } from "../src/shell.ts";
 import type { ShellOptions } from "../src/shell.ts";
 import {
@@ -40,8 +43,12 @@ import type { AgentWireEvent } from "../src/wire.ts";
 // The commands below are bash; Windows runs PowerShell.
 const posix = test.skipIf(process.platform === "win32");
 
-// Commands run sandboxed only on macOS.
-const sandboxed = test.runIf(SANDBOXED);
+// The sandbox runs where the system has one and what it needs is there, as CI may not have it.
+const sandboxed = test.runIf(
+  SANDBOX_SUPPORTED && (await sandboxProblems()).length === 0
+);
+
+const supported = test.runIf(SANDBOX_SUPPORTED);
 
 let directory: string;
 
@@ -79,18 +86,26 @@ afterEach(async () => {
 });
 
 /**
- * The agent on the shell alone, while `on` says the user has it switched on. `judge` stands in
- * for the decisions model, which no one has set up unless a test says so.
+ * The agent on the shell alone, while `on` says the user has it switched on and `sandbox` that
+ * they keep its sandbox on, which the tests not about the sandbox leave off. `judge` stands in for
+ * the decisions model, which no one has set up unless a test says so.
  */
-function setup(
-  on: () => boolean = () => true,
-  judge: ShellOptions["judge"] = async () => undefined,
-  path: ShellOptions["path"] = async () => process.env.PATH
-) {
+function setup({
+  on = () => true,
+  sandbox = () => false,
+  judge = async () => undefined,
+  path = async () => process.env.PATH,
+}: {
+  on?: () => boolean;
+  sandbox?: () => boolean;
+  judge?: ShellOptions["judge"];
+  path?: ShellOptions["path"];
+} = {}) {
   const faux = fauxProvider();
   const models = createModels();
   const events: AgentWireEvent[] = [];
   const offered: string[][] = [];
+  const prompts: string[] = [];
 
   models.setProvider(faux.provider);
 
@@ -101,6 +116,7 @@ function setup(
     sandbox: {
       home: places.home,
       appFolders: [places.app],
+      enabled: sandbox,
       readable: async () => [places.skill, places.link],
     },
   });
@@ -128,6 +144,7 @@ function setup(
   // Answers "Done.", noting which tools the request offered.
   const done: FauxResponseFactory = (context) => {
     offered.push(getCurrentTools(context.messages).map((tool) => tool.name));
+    prompts.push(getCurrentSystemPrompt(context.messages));
 
     return fauxAssistantMessage("Done.");
   };
@@ -174,7 +191,18 @@ function setup(
     return { id, toolCallId: waiting.toolCallId };
   }
 
-  return { faux, runtime, events, offered, done, call, ended, start, ask };
+  return {
+    faux,
+    runtime,
+    events,
+    offered,
+    prompts,
+    done,
+    call,
+    ended,
+    start,
+    ask,
+  };
 }
 
 const exists = (path: string) =>
@@ -227,7 +255,7 @@ posix(
   "in a conversation set to auto, a command the model judges harmless runs unasked, and the transcript says who allowed it",
   async () => {
     const judge = vi.fn(async () => ({ changes: 0.04, network: 0.02 }));
-    const { runtime, events, call, ended, start } = setup(() => true, judge);
+    const { runtime, events, call, ended, start } = setup({ judge });
     const id = await start("printf ok", ApprovalMode.Auto);
 
     await ended();
@@ -268,7 +296,7 @@ posix.each([
 ] satisfies [string, ShellOptions["judge"]][])(
   "in a conversation set to auto, a command still asks when %s",
   async (_case, judge) => {
-    const { runtime, call, ended, ask } = setup(() => true, judge);
+    const { runtime, call, ended, ask } = setup({ judge });
     const { id, toolCallId } = await ask("printf ok", ApprovalMode.Auto);
 
     runtime.approve(id, toolCallId, true);
@@ -283,7 +311,7 @@ posix.each([
 
 test("the shell is offered only while it is switched on", async () => {
   let on = true;
-  const { faux, runtime, offered, done, ended } = setup(() => on);
+  const { faux, runtime, offered, done, ended } = setup({ on: () => on });
   const { id } = await runtime.create();
 
   faux.setResponses([done, done]);
@@ -304,7 +332,7 @@ test("the shell is offered only while it is switched on", async () => {
 sandboxed(
   "a sandboxed command reads the skills offered but nothing else of the home or the app's folders, and writes only in its own",
   async () => {
-    const { runtime, call, ended, start } = setup();
+    const { runtime, call, ended, start } = setup({ sandbox: () => true });
 
     const id = await start(
       [
@@ -344,7 +372,7 @@ sandboxed(
 
     // SAFETY: a server listening on a TCP port has an address with a port.
     const { port } = server.address() as AddressInfo;
-    const { runtime, call, ended, start } = setup();
+    const { runtime, call, ended, start } = setup({ sandbox: () => true });
 
     await start(
       [
@@ -369,7 +397,7 @@ sandboxed(
 sandboxed(
   "a sandboxed command keeps its settings and temporary files in its own folder",
   async () => {
-    const { runtime, call, ended, start } = setup();
+    const { runtime, call, ended, start } = setup({ sandbox: () => true });
 
     const id = await start(
       `printf '%s|%s|' "$HOME" "$TMPDIR"; mktemp "$TMPDIR/test.XXXXXX"`,
@@ -408,11 +436,10 @@ sandboxed(
     await symlink(join(tool, "bin", "greet"), join(bin, "greet"));
     await symlink(join(places.app, "config.json"), join(bin, "config"));
 
-    const { runtime, call, ended, start } = setup(
-      () => true,
-      undefined,
-      async () => `${bin}:${process.env.PATH}`
-    );
+    const { runtime, call, ended, start } = setup({
+      sandbox: () => true,
+      path: async () => `${bin}:${process.env.PATH}`,
+    });
 
     await start(`greet; cat ${bin}/config`, ApprovalMode.Bypass);
     await ended();
@@ -427,3 +454,45 @@ sandboxed(
     await runtime.close();
   }
 );
+
+supported(
+  "with the sandbox switched off, a command runs with the user's access",
+  async () => {
+    const { runtime, call, ended, start } = setup();
+
+    await start(`cat ${places.home}/diary.txt`, ApprovalMode.Bypass);
+    await ended();
+
+    expect(call()).toMatchObject({
+      status: ToolCallStatus.Ok,
+      output: "diary-secret",
+    });
+
+    await runtime.close();
+  }
+);
+
+supported("the prompt tells how commands run as the switch is", async () => {
+  let sandbox = true;
+
+  const { faux, runtime, prompts, done, ended } = setup({
+    sandbox: () => sandbox,
+  });
+
+  const { id } = await runtime.create();
+
+  faux.setResponses([done, done]);
+
+  await runtime.send(id, { text: "Hello", context: "" });
+  await ended(1);
+
+  sandbox = false;
+
+  await runtime.send(id, { text: "Again", context: "" });
+  await ended(2);
+
+  expect(prompts[0]).toMatch(/in a sandbox/);
+  expect(prompts[1]).toMatch(/with their access to its files and the network/);
+
+  await runtime.close();
+});

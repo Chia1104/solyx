@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { lstat, readdir, realpath } from "node:fs/promises";
 import {
   basename,
@@ -14,15 +15,19 @@ import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { once } from "es-toolkit";
 
+const MAC = process.platform === "darwin";
+
 /**
- * Whether shell commands run sandboxed: only on macOS, through Seatbelt. sandbox-runtime's Windows
- * sandbox needs an install as administrator, and the app ships no Linux build.
+ * Whether this system can sandbox shell commands: macOS through Seatbelt, Linux through bubblewrap
+ * and seccomp. sandbox-runtime's Windows sandbox needs an install as administrator, so there is none.
  */
-export const SANDBOXED = process.platform === "darwin";
+export const SANDBOX_SUPPORTED = MAC || process.platform === "linux";
 
 // sandbox-runtime keeps this folder writable as every embedder's temporary folder, so another
 // app's sandboxed commands, Claude Code's among them, leave files there.
-const SHARED_TEMP = ["/tmp/claude", "/private/tmp/claude"];
+const SHARED_TEMP = MAC
+  ? ["/tmp/claude", "/private/tmp/claude"]
+  : ["/tmp/claude"];
 
 export interface SandboxOptions {
   /** The user's home, which a command reads only where its places say. */
@@ -69,11 +74,73 @@ const real = (path: string) => realpath(path).catch(() => path);
 
 const execFileAsync = promisify(execFile);
 
-/** The folder macOS keeps every app's temporary files and caches in for this user, TMPDIR's parent. */
-async function userTemp(): Promise<string> {
-  const { stdout } = await execFileAsync("getconf", ["DARWIN_USER_TEMP_DIR"]);
+/**
+ * Places beside the home no command reads: on macOS the folder every app keeps its temporary files
+ * and caches in for this user (TMPDIR's parent) and mounted volumes; on Linux the user's runtime
+ * folder, which holds the session bus and keyring sockets, and mounted media.
+ */
+async function systemDenials(): Promise<string[]> {
+  if (MAC) {
+    const { stdout } = await execFileAsync("getconf", ["DARWIN_USER_TEMP_DIR"]);
 
-  return dirname(stdout.trim());
+    return [dirname(stdout.trim()), "/Volumes"];
+  }
+
+  return [
+    process.env.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid?.()}`,
+    "/media",
+    "/mnt",
+    "/run/media",
+  ];
+}
+
+/** Where the system keeps the user's secrets, which no folder a command may read opens. */
+const secretStores = (home: string) =>
+  MAC
+    ? [join(home, "Library", "Keychains")]
+    : [
+        join(home, ".local", "share", "keyrings"),
+        join(home, ".local", "share", "kwalletd"),
+      ];
+
+// sandbox-runtime's own warning: without its seccomp filter a command may open Unix sockets, the
+// session bus among them, through which the keyring hands out the app's key.
+const NO_SECCOMP = "seccomp not available";
+
+/**
+ * What keeps the sandbox from starting on this system, such as bubblewrap missing on Linux or a
+ * system that forbids it user namespaces; empty when it can start.
+ */
+export async function sandboxProblems(): Promise<string[]> {
+  if (!SANDBOX_SUPPORTED) return ["this system has no sandbox"];
+
+  const { errors, warnings } = SandboxManager.checkDependencies();
+
+  const problems = [
+    ...errors,
+    ...warnings.filter((warning) => warning.startsWith(NO_SECCOMP)),
+  ];
+
+  if (MAC || problems.length > 0) return problems;
+
+  // Ubuntu's AppArmor, among others, can forbid the user namespace bubblewrap needs.
+  try {
+    await execFileAsync("bwrap", [
+      "--ro-bind",
+      "/",
+      "/",
+      "--unshare-user",
+      "--unshare-net",
+      "true",
+    ]);
+  } catch (error) {
+    const said =
+      error instanceof Error && "stderr" in error ? error.stderr : error;
+
+    problems.push(`bubblewrap cannot start: ${String(said).trim()}`);
+  }
+
+  return problems;
 }
 
 /**
@@ -131,30 +198,30 @@ async function toolFolders(
 }
 
 /**
- * Wraps a shell command in sandbox-runtime's Seatbelt profile: it writes only in its workspace,
- * which is also where its temporary files go, reads nothing of the home, the app's folders, other
- * apps' temporary files or mounted volumes but the folders its places name, and reaches no network,
- * this computer's included, since sandbox-runtime's proxies refuse every host.
+ * Wraps a shell command in sandbox-runtime's profile, Seatbelt's on macOS and bubblewrap's on
+ * Linux: it writes only in its workspace, which is also where its temporary files go, reads nothing
+ * of the home, the app's folders and `systemDenials` but the folders its places name, and reaches no
+ * network, this computer's included, since sandbox-runtime's proxies refuse every host.
  */
 export function createSandbox(options: SandboxOptions) {
   const { home, appFolders } = options;
 
   // A folder a command reads may sit under the home, but must never open these.
-  const closed = [...appFolders, join(home, "Library", "Keychains")];
+  const closed = [...appFolders, ...secretStores(home)];
 
   const policy = (
     places: SandboxPlaces,
-    temp: string,
+    denials: readonly string[],
     readable: readonly string[]
   ): SandboxRuntimeConfig => ({
     network: { allowedDomains: [], deniedDomains: [] },
     filesystem: {
-      denyRead: [home, temp, "/Volumes", ...appFolders, ...SHARED_TEMP].map(
-        literal
-      ),
+      denyRead: [home, ...denials, ...appFolders, ...SHARED_TEMP]
+        .filter(existsSync)
+        .map(literal),
       allowRead: [places.workspace, ...readable].map(literal),
       allowWrite: [literal(places.workspace)],
-      denyWrite: SHARED_TEMP.map(literal),
+      denyWrite: SHARED_TEMP.filter(existsSync).map(literal),
     },
   });
 
@@ -169,8 +236,11 @@ export function createSandbox(options: SandboxOptions) {
       filesystem: { denyRead: [literal(home)], allowWrite: [], denyWrite: [] },
     });
 
-    return userTemp();
+    return systemDenials();
   });
+
+  // Once the sandbox has started, what it needs stays in place for the life of the app.
+  let ready = false;
 
   return {
     /** `command` as it runs in the sandbox. */
@@ -179,7 +249,18 @@ export function createSandbox(options: SandboxOptions) {
       places: SandboxPlaces,
       signal: AbortSignal | undefined
     ): Promise<string> {
-      const temp = await start();
+      if (!ready) {
+        const problems = await sandboxProblems();
+
+        if (problems.length > 0)
+          throw new Error(
+            `The sandbox cannot start (${problems.join("; ")}), so the command did not run. Ask the user to fix that, or to switch the sandbox off in Settings → Skills.`
+          );
+
+        ready = true;
+      }
+
+      const denials = await start();
 
       const [realHome, ...realClosed] = await Promise.all(
         [home, ...closed].map(real)
@@ -194,7 +275,7 @@ export function createSandbox(options: SandboxOptions) {
         // sandbox-runtime points TMPDIR at the shared folder, so the command points it back.
         `export TMPDIR=${quote(places.tmp)}\n${command}`,
         undefined,
-        policy(places, temp, [
+        policy(places, denials, [
           ...skills.filter((folder) => !opens(folder, bounds)),
           ...(await toolFolders(places.path, bounds)),
         ]),

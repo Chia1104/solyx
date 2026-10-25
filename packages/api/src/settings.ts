@@ -566,8 +566,17 @@ export interface AgentSkills {
   paths: { skills: string; shared: string; instructions: string };
   /** The agent may run shell commands on this computer, each once the user allows it. */
   shell: boolean;
-  /** Its commands run in a sandbox on this computer, kept to their folder and off the network. */
-  shellSandboxed: boolean;
+  sandbox: ShellSandbox;
+}
+
+/** The shell's sandbox, which keeps a command to its folder and off the network. */
+export interface ShellSandbox {
+  /** This system has one: macOS and Linux do, Windows does not. */
+  supported: boolean;
+  /** The user keeps it on. */
+  enabled: boolean;
+  /** What keeps it from starting while it is on, so no command runs. */
+  problems: string[];
 }
 
 export interface McpToolSetting {

@@ -500,6 +500,9 @@ importers:
 
   apps/desktop:
     devDependencies:
+      '@anthropic-ai/sandbox-runtime':
+        specifier: catalog:sandbox
+        version: 0.0.81
       '@earendil-works/pi-codemode':
         specifier: catalog:pi
         version: 1.4.0

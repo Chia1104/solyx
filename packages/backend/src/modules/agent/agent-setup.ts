@@ -3,6 +3,7 @@ import * as z from "zod";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
 import { AgentThinking } from "@solyx/agent/providers";
+import { SANDBOX_SUPPORTED } from "@solyx/agent/sandbox";
 import type { SetupArea, SetupPort, SetupSetting } from "@solyx/agent/setup";
 import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillCatalog } from "@solyx/agent/skills";
@@ -578,6 +579,12 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
             ? "true, but kept off while the account is live"
             : String(shell)
         ),
+        entry(
+          ["agent", "shellSandbox"],
+          SANDBOX_SUPPORTED
+            ? String(config.read().agent.shellSandbox)
+            : "this system has no sandbox, so commands run with the user's access"
+        ),
       ],
     };
   }
@@ -771,8 +778,8 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
 
   /**
    * The settings the agent may change, through the writers the settings page uses. A key, a
-   * sign-in, a provider switched on, an endpoint, the shell, MCP tools, shared skills, memory and
-   * the tray stay the user's alone, since each would widen what the agent reaches.
+   * sign-in, a provider switched on, an endpoint, the shell and its sandbox, MCP tools, shared
+   * skills, memory and the tray stay the user's alone, since each would widen what the agent reaches.
    */
   async function changeables(): Promise<Map<string, Changeable>> {
     const models = await options.models.settings();
