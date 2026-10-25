@@ -78,9 +78,8 @@ function run(file, args, options) {
   });
 }
 
-// Every command starts in its workspace and stops at its first error.
-const script = (command, cd = true) =>
-  `$ErrorActionPreference='Stop'; ${cd ? `Set-Location -LiteralPath ${q(conv1)}; ` : ""}${command}`;
+// Every command stops at its first error.
+const script = (command) => `$ErrorActionPreference='Stop'; ${command}`;
 
 const outside = (command) =>
   run(PS, ["-NoProfile", "-NonInteractive", "-Command", script(command)], {
@@ -88,16 +87,16 @@ const outside = (command) =>
     env: process.env,
   });
 
-async function inside(command, custom, cd = true) {
+async function inside(command, custom, cwd = conv1) {
   const { argv, env } = await SandboxManager.wrapWithSandboxArgv(
-    script(command, cd),
+    script(command),
     "powershell",
     custom,
     undefined,
-    conv1
+    cwd
   );
 
-  return run(argv[0], argv.slice(1), { cwd: conv1, env });
+  return run(argv[0], argv.slice(1), { cwd, env });
 }
 
 async function step(name, fn) {
@@ -142,11 +141,7 @@ async function check(name, expect, command, options = {}) {
   let got;
 
   try {
-    got = await inside(
-      command,
-      options.custom ?? perExec(),
-      options.cd ?? true
-    );
+    got = await inside(command, options.custom ?? perExec());
   } catch (error) {
     got = {
       code: "wrap threw",
@@ -246,15 +241,10 @@ async function checks() {
   const { port } = server.address();
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
-  const unique = "(New-Guid).Guid";
+  const unique = "[guid]::NewGuid().ToString()";
 
   await check("whoami", "info", "whoami");
-  await check(
-    "starting location without Set-Location",
-    "info",
-    "(Get-Location).Path",
-    { cd: false }
-  );
+  await check("starting location", "info", "(Get-Location).Path");
   await check(
     "read the app's sealed secret",
     "deny",
@@ -298,7 +288,7 @@ async function checks() {
   await check(
     "write and read back in its workspace",
     "allow",
-    `Set-Content -LiteralPath out.txt -Value ok; Get-Content out.txt`
+    `Set-Content -LiteralPath ${q(join(conv1, "out.txt"))} -Value ok; Get-Content -LiteralPath ${q(join(conv1, "out.txt"))}`
   );
   await check(
     "write in the profile",
@@ -412,6 +402,81 @@ async function checks() {
   server.close();
 }
 
+/** Where a write root may sit, and whether a command in it can enter, write and read back. */
+async function workspaceMatrix() {
+  log("\n### Where the write root sits\n");
+  log(
+    "| root | per-command denies | enter + write + read back | absolute write + read back | list the root | starting location |"
+  );
+  log("|---|---|---|---|---|---|");
+
+  const roots = [
+    ["under a read-denied folder", workspaces],
+    ["in the profile", join(profile, "solyx-ws")],
+    ["outside the profile", "C:\\solyx-ws"],
+  ];
+  const attempt = (command, custom, cwd) =>
+    inside(command, custom, cwd).catch((error) => ({
+      code: "threw",
+      out: String(error.message),
+    }));
+  const cell = (r) => `${r.code}: ${r.out.slice(0, 90).replaceAll("|", "/")}`;
+  const acl = (path) =>
+    spawnSync("icacls", [path], { encoding: "utf8" })
+      .stdout.replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 900);
+
+  for (const [label, root] of roots) {
+    const conversation = join(root, "conv-m");
+    const sibling = join(root, "conv-s");
+    mkdirSync(conversation, { recursive: true });
+    mkdirSync(sibling, { recursive: true });
+
+    await SandboxManager.reset();
+    const started = Date.now();
+    await SandboxManager.initialize(policy([root]));
+    const initMs = Date.now() - started;
+
+    for (const denies of [false, true]) {
+      const custom = denies
+        ? {
+            filesystem: {
+              denyRead: [sibling],
+              allowWrite: [],
+              denyWrite: [sibling],
+            },
+          }
+        : undefined;
+      const file = join(conversation, `m-${denies}.txt`);
+      const enter = await attempt(
+        `Set-Location -LiteralPath ${q(conversation)}; Set-Content -LiteralPath e.txt -Value ok; Get-Content e.txt`,
+        custom,
+        conversation
+      );
+      const absolute = await attempt(
+        `Set-Content -LiteralPath ${q(file)} -Value ok; Get-Content -LiteralPath ${q(file)}`,
+        custom,
+        conversation
+      );
+      const list = await attempt(
+        `Get-ChildItem -LiteralPath ${q(root)} | Out-Null; 'listed'`,
+        custom,
+        conversation
+      );
+      const where = await attempt("(Get-Location).Path", custom, conversation);
+      log(
+        `| ${label} (init ${initMs} ms) | ${denies} | ${cell(enter)} | ${cell(absolute)} | ${cell(list)} | ${cell(where)} |`
+      );
+    }
+
+    log(`\n\`icacls ${root}\`: ${acl(root)}\n`);
+    log(`\`icacls ${conversation}\`: ${acl(conversation)}\n`);
+  }
+
+  await SandboxManager.reset();
+}
+
 fixtures();
 log(
   `## Windows sandbox probe\n\nNode ${process.version}, profile ${profile}, user ${process.env.USERNAME}\n`
@@ -440,6 +505,7 @@ if (install) {
   );
   await checks();
   await step("reset", () => SandboxManager.reset().then(() => "ok"));
+  await step("workspace matrix", () => workspaceMatrix().then(() => "done"));
 
   log("\n### Initializing again\n");
   await step("initialize (same policy)", () =>
@@ -474,7 +540,15 @@ if (install) {
   );
 }
 
-for (const path of [userData, configDir, diary, sshKey, programData])
+for (const path of [
+  userData,
+  configDir,
+  diary,
+  sshKey,
+  programData,
+  join(profile, "solyx-ws"),
+  "C:\\solyx-ws",
+])
   if (existsSync(path)) rmSync(path, { recursive: true, force: true });
 
 if (process.env.GITHUB_STEP_SUMMARY)
