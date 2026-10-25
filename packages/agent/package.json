@@ -20,6 +20,7 @@
     "./quotes": "./src/quotes.ts",
     "./research": "./src/research.ts",
     "./runtime": "./src/runtime.ts",
+    "./sandbox": "./src/sandbox.ts",
     "./script-runner": "./src/script-runner.ts",
     "./sectors": "./src/sectors.ts",
     "./setup": "./src/setup.ts",
@@ -37,6 +38,7 @@
     "./wire": "./src/wire.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sandbox-runtime": "catalog:sandbox",
     "@earendil-works/chord": "catalog:pi",
     "@earendil-works/pi-ai": "catalog:pi",
     "@earendil-works/pi-codemode": "catalog:pi",

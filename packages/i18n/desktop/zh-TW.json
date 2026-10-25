@@ -715,7 +715,7 @@
     "approval": {
       "title": "要允許這次呼叫嗎？",
       "description": "{{tool}} 來自 Solyx 以外的 MCP server，請先確認它要送出的內容。",
-      "shell-description": "這個指令會在你的電腦上執行，能存取你的檔案與網路。允許前請先確認內容。",
+      "shell-description": "這個指令會在你的電腦上執行。允許前請先確認內容。",
       "read-page-description": "你的網路搜尋供應商會讀取這個網址。如果不是你預期的網址，可能是 agent 讀過的網頁想藉此把你的資料送出去，允許前請先確認。",
       "remember-description": "Agent 想把這段內容留到之後的對話，而且每次對話都會讀取。允許前請確認它寫的是你的意思。",
       "forget-description": "Agent 想遺忘這筆記憶，之後的對話將不再知道它。",
@@ -1900,7 +1900,8 @@
       "instructions-missing": "尚未建立",
       "warnings-title": "有些 skill 檔案不符合 Agent Skills 格式",
       "shell": "Shell",
-      "shell-description": "讓 Agent 在這台電腦上執行指令，skill 需要它來執行腳本。除非對話設為不詢問，每個指令都會先等你允許。指令沒有沙箱隔離，你允許的指令可以讀寫你的檔案並連上網路。僅限模擬帳戶。",
+      "shell-description": "讓 Agent 在這台電腦上執行指令，skill 需要它來執行腳本。除非對話設為不詢問，每個指令都會先等你允許。指令在沙箱裡執行，只能動對話自己的資料夾，碰不到你其他的檔案，也連不上網路。僅限模擬帳戶。",
+      "shell-description-unsandboxed": "讓 Agent 在這台電腦上執行指令，skill 需要它來執行腳本。除非對話設為不詢問，每個指令都會先等你允許。指令沒有沙箱隔離，你允許的指令可以讀寫你的檔案並連上網路。僅限模擬帳戶。",
       "shell-label": "允許 agent 使用 shell"
     },
     "memory": {

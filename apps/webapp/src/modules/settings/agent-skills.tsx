@@ -172,7 +172,11 @@ export function AgentSkills() {
           />
           <SettingsRow
             label={t("settings.skills.shell")}
-            description={t("settings.skills.shell-description")}
+            description={t(
+              data.shellSandboxed
+                ? "settings.skills.shell-description"
+                : "settings.skills.shell-description-unsandboxed"
+            )}
             actions={
               <Switch
                 isSelected={data.shell}

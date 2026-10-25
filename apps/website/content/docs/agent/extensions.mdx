@@ -111,4 +111,6 @@ Each tool is **Off**, **Ask** or **Auto**: off, asks each time, or runs on its o
 
 ## The shell
 
-**Let the agent use the shell**, under **Settings → Skills**, lets the agent run commands on your computer, in bash or PowerShell, in a folder of its own for each conversation that goes when the conversation does. It is off by default and offered only while orders go to the paper account. There is no sandbox: a command has your access to your files and the network, so it waits for you unless the decisions model judges it harmless in **Allow for me**, or the conversation is in **Don't ask**.
+**Let the agent use the shell**, under **Settings → Skills**, lets the agent run commands on your computer, in bash or PowerShell, in a folder of its own for each conversation that goes when the conversation does. It is off by default and offered only while orders go to the paper account. Each command waits for you unless the decisions model judges it harmless in **Allow for me**, or the conversation is in **Don't ask**.
+
+On macOS, commands run in a sandbox. A command can change only its conversation's folder, which also holds its settings and temporary files. It can't read the rest of your home folder, Solyx's own data and settings, other apps' temporary files or external drives, except the folders of the skills offered and of the tools on your `PATH`, and it has no network, not even to your own computer. On Windows there is no sandbox: a command has your access to your files and the network.

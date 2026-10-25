@@ -454,6 +454,8 @@ export function createServices(config: ConfigFile, host: Host) {
     instructionsFile,
     mcp,
     workspaces: folders.workspaces,
+    home,
+    appFolders: [userDataDir, configDir],
     async judgeCommand(input, signal) {
       const judgement = await (
         await decisions.commandJudge()

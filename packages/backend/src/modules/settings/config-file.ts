@@ -305,7 +305,7 @@ const configSchema = section(
         }),
         shell: z.boolean().catch(false).meta({
           description:
-            "Lets the agent run shell commands on this computer, each only after you allow it. They are not sandboxed.",
+            "Lets the agent run shell commands on this computer, each only after you allow it. On macOS they run in a sandbox that keeps them to their conversation's folder and off the network; elsewhere they are not sandboxed.",
         }),
         decisionMode: decisionModeSchema.catch(DecisionMode.Single).meta({
           description:

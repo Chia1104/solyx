@@ -566,6 +566,8 @@ export interface AgentSkills {
   paths: { skills: string; shared: string; instructions: string };
   /** The agent may run shell commands on this computer, each once the user allows it. */
   shell: boolean;
+  /** Its commands run in a sandbox on this computer, kept to their folder and off the network. */
+  shellSandboxed: boolean;
 }
 
 export interface McpToolSetting {

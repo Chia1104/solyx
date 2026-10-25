@@ -98,6 +98,9 @@ catalogs:
     react: ^19.3.1
     react-dom: ^19.3.1
     zustand: 5.0.16
+  sandbox:
+    # A research preview whose API may change between releases, so it is pinned.
+    "@anthropic-ai/sandbox-runtime": 0.0.81
   sentry:
     "@sentry/electron": 8.3.0
     "@sentry/vite-plugin": 11.8.0

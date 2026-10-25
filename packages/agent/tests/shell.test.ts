@@ -1,4 +1,13 @@
-import { access, mkdtemp, rm } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -15,6 +24,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
+import { SANDBOXED } from "../src/sandbox.ts";
 import { createShell } from "../src/shell.ts";
 import type { ShellOptions } from "../src/shell.ts";
 import {
@@ -30,15 +40,41 @@ import type { AgentWireEvent } from "../src/wire.ts";
 // The commands below are bash; Windows runs PowerShell.
 const posix = test.skipIf(process.platform === "win32");
 
+// Commands run sandboxed only on macOS.
+const sandboxed = test.runIf(SANDBOXED);
+
 let directory: string;
+
+/**
+ * Stands in for the user's home, the app's settings, a skill offered inside them and a shared
+ * skill that is a link to the whole home.
+ */
+const placesIn = (directory: string) => ({
+  home: join(directory, "home"),
+  app: join(directory, "home", ".solyx"),
+  skill: join(directory, "home", ".solyx", "skills", "notes"),
+  link: join(directory, "home", ".agents", "skills", "everything"),
+});
+
+let places: ReturnType<typeof placesIn>;
+
+const closers: (() => Promise<void>)[] = [];
 
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "solyx-shell-"));
+  places = placesIn(directory);
+  await mkdir(places.skill, { recursive: true });
+  await writeFile(join(places.home, "diary.txt"), "diary-secret");
+  await writeFile(join(places.app, "config.json"), "config-secret");
+  await writeFile(join(places.skill, "SKILL.md"), "skill-body");
+  await mkdir(join(places.link, ".."), { recursive: true });
+  await symlink(places.home, places.link);
   vi.stubEnv("SOLYX_TEST_KEY", "leaked");
 });
 
 afterEach(async () => {
   vi.unstubAllEnvs();
+  await Promise.all(closers.splice(0).map((close) => close()));
   await rm(directory, { recursive: true, force: true });
 });
 
@@ -48,7 +84,8 @@ afterEach(async () => {
  */
 function setup(
   on: () => boolean = () => true,
-  judge: ShellOptions["judge"] = async () => undefined
+  judge: ShellOptions["judge"] = async () => undefined,
+  path: ShellOptions["path"] = async () => process.env.PATH
 ) {
   const faux = fauxProvider();
   const models = createModels();
@@ -59,9 +96,16 @@ function setup(
 
   const shell = createShell({
     workspace: (id) => join(directory, id),
-    path: async () => process.env.PATH,
+    path,
     judge,
+    sandbox: {
+      home: places.home,
+      appFolders: [places.app],
+      readable: async () => [places.skill, places.link],
+    },
   });
+
+  closers.push(shell.close);
 
   const runtime = createAgentRuntime({
     store: Promise.resolve({
@@ -256,3 +300,130 @@ test("the shell is offered only while it is switched on", async () => {
 
   await runtime.close();
 });
+
+sandboxed(
+  "a sandboxed command reads the skills offered but nothing else of the home or the app's folders, and writes only in its own",
+  async () => {
+    const { runtime, call, ended, start } = setup();
+
+    const id = await start(
+      [
+        `cat ${places.skill}/SKILL.md`,
+        `cat ${places.home}/diary.txt`,
+        `cat ${places.link}/diary.txt`,
+        `cat ${places.app}/config.json`,
+        `touch ${places.home}/made`,
+        "touch made",
+      ].join("; "),
+      ApprovalMode.Bypass
+    );
+
+    await ended();
+
+    const ran = call();
+    const output = ran?.kind === AgentItemKind.Tool ? (ran.output ?? "") : "";
+
+    expect(output).toMatch(/^skill-body/);
+    expect(output).not.toMatch(/secret/);
+    expect(output.match(/Operation not permitted/g)).toHaveLength(4);
+    expect(await exists(join(places.home, "made"))).toBe(false);
+    expect(await exists(join(directory, id, "made"))).toBe(true);
+
+    await runtime.close();
+  }
+);
+
+sandboxed(
+  "a sandboxed command reaches no network, this computer included",
+  async () => {
+    const server = createServer((_request, response) => response.end("served"));
+
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve)
+    );
+
+    // SAFETY: a server listening on a TCP port has an address with a port.
+    const { port } = server.address() as AddressInfo;
+    const { runtime, call, ended, start } = setup();
+
+    await start(
+      [
+        `curl -sS -m 5 http://127.0.0.1:${port}/`,
+        `curl -sS -m 5 --noproxy '*' http://127.0.0.1:${port}/`,
+      ].join("; "),
+      ApprovalMode.Bypass
+    );
+    await ended();
+
+    const ran = call();
+
+    expect(ran?.kind === AgentItemKind.Tool && ran.output).not.toMatch(
+      /served/
+    );
+
+    server.close();
+    await runtime.close();
+  }
+);
+
+sandboxed(
+  "a sandboxed command keeps its settings and temporary files in its own folder",
+  async () => {
+    const { runtime, call, ended, start } = setup();
+
+    const id = await start(
+      `printf '%s|%s|' "$HOME" "$TMPDIR"; mktemp "$TMPDIR/test.XXXXXX"`,
+      ApprovalMode.Bypass
+    );
+
+    await ended();
+
+    const ran = call();
+    const folder = join(directory, id);
+
+    expect(ran).toMatchObject({ status: ToolCallStatus.Ok });
+    expect(ran?.kind === AgentItemKind.Tool && ran.output).toMatch(
+      new RegExp(`^${folder}\\|${folder}/\\.tmp\\|${folder}/\\.tmp/test\\.`)
+    );
+
+    await runtime.close();
+  }
+);
+
+sandboxed(
+  "a sandboxed command runs the tools on its PATH under the home with what they link to, but no link opens the app's folders",
+  async () => {
+    const bin = join(places.home, ".local", "bin");
+    const tool = join(places.home, ".tools", "greet");
+
+    await mkdir(join(tool, "bin"), { recursive: true });
+    await mkdir(join(tool, "share"), { recursive: true });
+    await mkdir(bin, { recursive: true });
+    await writeFile(join(tool, "share", "greeting"), "hello");
+    await writeFile(
+      join(tool, "bin", "greet"),
+      `#!/bin/sh\ncat "$(dirname "$(realpath "$0")")/../share/greeting"\n`,
+      { mode: 0o755 }
+    );
+    await symlink(join(tool, "bin", "greet"), join(bin, "greet"));
+    await symlink(join(places.app, "config.json"), join(bin, "config"));
+
+    const { runtime, call, ended, start } = setup(
+      () => true,
+      undefined,
+      async () => `${bin}:${process.env.PATH}`
+    );
+
+    await start(`greet; cat ${bin}/config`, ApprovalMode.Bypass);
+    await ended();
+
+    const ran = call();
+    const output = ran?.kind === AgentItemKind.Tool ? (ran.output ?? "") : "";
+
+    expect(output).toMatch(/^hello/);
+    expect(output).not.toMatch(/secret/);
+    expect(output).toMatch(/Operation not permitted/);
+
+    await runtime.close();
+  }
+);

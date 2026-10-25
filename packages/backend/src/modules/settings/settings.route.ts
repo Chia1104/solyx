@@ -5,6 +5,7 @@ import { implement } from "@orpc/server";
 import { mapValues, uniq } from "es-toolkit";
 
 import { effectivePolicy, mcpToolKey } from "@solyx/agent/mcp-config";
+import { SANDBOXED } from "@solyx/agent/sandbox";
 import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillFolders } from "@solyx/agent/skills";
 import { settingsContract } from "@solyx/api/rpc/settings.contract";
@@ -337,6 +338,7 @@ export const settingsRouter = settings.router({
         instructions: tildify(instructionsFile, home),
       },
       shell: config.read().agent.shell,
+      shellSandboxed: SANDBOXED,
     };
   }),
   setSharedSkill: settings.setSharedSkill.handler(({ context, input }) => {

@@ -94,6 +94,10 @@ interface AgentServiceOptions extends AgentModelsOptions {
   instructionsFile: string;
   /** The folder holding one folder per conversation, where its shell commands run. */
   workspaces: string;
+  /** The user's home, which sandboxed shell commands may not read. */
+  home: string;
+  /** The app's own folders, its data and settings, which no shell command may read. */
+  appFolders: readonly string[];
   /** What the decisions model makes of a shell command, for conversations set to auto. */
   judgeCommand: ShellOptions["judge"];
   /** Where conversations persist, opening as the app starts. */
@@ -209,7 +213,8 @@ export function createAgentService(options: AgentServiceOptions) {
     if (waitingCalls.follow(sessionId, event)) options.onActivity();
   };
 
-  // Unsandboxed commands could reach the app's own files, so the shell stays off beside real money.
+  // A command still reaches what the sandbox leaves it, and on Windows, where it runs unsandboxed,
+  // the app's own files, so the shell stays off beside real money.
   const shellOn = () =>
     options.config.read().agent.shell && options.desk.mode === BrokerMode.Paper;
 
@@ -219,6 +224,15 @@ export function createAgentService(options: AgentServiceOptions) {
     workspace,
     path: loginShellPath(),
     judge: options.judgeCommand,
+    sandbox: {
+      home: options.home,
+      appFolders: options.appFolders,
+      // A command runs the scripts of the skills offered, which `read_skill` names.
+      readable: async () =>
+        (await skills()).skills.flatMap((skill) =>
+          skill.offered && skill.folder !== undefined ? [skill.folder] : []
+        ),
+    },
   });
 
   const decisionMode = () => options.config.read().agent.decisionMode;
@@ -560,10 +574,11 @@ export function createAgentService(options: AgentServiceOptions) {
     /** Whether the store failed, so no conversation is read or written until the app restarts. */
     storeFailed: () => storeFailed,
 
-    /** Closes the conversations, then the scripts and MCP servers their runs used, as the app quits. */
+    /** Closes the conversations, then the scripts, shell and MCP servers their runs used, as the app quits. */
     async close() {
       await runtime.close();
       await scripts.close();
+      await shell.close();
       await options.mcp.close();
     },
 
