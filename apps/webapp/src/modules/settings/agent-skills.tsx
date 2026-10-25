@@ -12,7 +12,7 @@ import { partition } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
 import { AppLocation } from "@solyx/api/settings";
-import type { AgentSkillInfo } from "@solyx/api/settings";
+import type { AgentSkillInfo, ShellSandbox } from "@solyx/api/settings";
 import { isEnumValue } from "@solyx/utils/is";
 import { matchesFilter } from "@solyx/utils/search";
 
@@ -189,6 +189,7 @@ export function AgentSkills() {
               </Switch>
             }
           />
+          <ShellSandboxRow sandbox={data.sandbox} />
         </SettingsList>
         <div className="flex flex-wrap items-center gap-3">
           {shared.length > 0 && !filtering ? (
@@ -241,5 +242,44 @@ export function AgentSkills() {
         </div>
       </div>
     </Section>
+  );
+}
+
+/** The switch for the shell's sandbox, saying why it cannot start or that the system has none. */
+function ShellSandboxRow({ sandbox }: { sandbox: ShellSandbox }) {
+  const { t } = useTranslation();
+
+  const save = useMutation(
+    orpc.settings.setAgentShellSandbox.mutationOptions()
+  );
+
+  const description = !sandbox.supported
+    ? t("settings.skills.sandbox-unsupported")
+    : sandbox.problems.length > 0
+      ? t("settings.skills.sandbox-problems", {
+          problems: sandbox.problems.join("; "),
+        })
+      : t("settings.skills.sandbox-description");
+
+  return (
+    <SettingsRow
+      label={t("settings.skills.sandbox")}
+      description={description}
+      actions={
+        <Switch
+          isSelected={sandbox.supported && sandbox.enabled}
+          isDisabled={!sandbox.supported || save.isPending}
+          onChange={(enabled) => save.mutate(enabled)}>
+          <Switch.Content>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <span className="sr-only">
+              {t("settings.skills.sandbox-label")}
+            </span>
+          </Switch.Content>
+        </Switch>
+      }
+    />
   );
 }

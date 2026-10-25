@@ -5,6 +5,7 @@ import { implement } from "@orpc/server";
 import { mapValues, uniq } from "es-toolkit";
 
 import { effectivePolicy, mcpToolKey } from "@solyx/agent/mcp-config";
+import { SANDBOX_SUPPORTED, sandboxProblems } from "@solyx/agent/sandbox";
 import { SkillSource } from "@solyx/agent/skill-source";
 import type { SkillFolders } from "@solyx/agent/skills";
 import { settingsContract } from "@solyx/api/rpc/settings.contract";
@@ -318,6 +319,8 @@ export const settingsRouter = settings.router({
       agent.instructions(),
     ]);
 
+    const sandbox = config.read().agent.shellSandbox;
+
     return {
       skills: catalog.skills.map(
         ({ name, description, source, offered, userInvocable }) => ({
@@ -337,6 +340,11 @@ export const settingsRouter = settings.router({
         instructions: tildify(instructionsFile, home),
       },
       shell: config.read().agent.shell,
+      sandbox: {
+        supported: SANDBOX_SUPPORTED,
+        enabled: sandbox,
+        problems: SANDBOX_SUPPORTED && sandbox ? await sandboxProblems() : [],
+      },
     };
   }),
   setSharedSkill: settings.setSharedSkill.handler(({ context, input }) => {
@@ -352,6 +360,11 @@ export const settingsRouter = settings.router({
   setAgentShell: settings.setAgentShell.handler(({ context, input }) => {
     context.config.set(["agent", "shell"], input);
   }),
+  setAgentShellSandbox: settings.setAgentShellSandbox.handler(
+    ({ context, input }) => {
+      context.config.set(["agent", "shellSandbox"], input);
+    }
+  ),
 
   memory: settings.memory.handler(({ context }) => ({
     enabled: context.config.read().agent.memory,

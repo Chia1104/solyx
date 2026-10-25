@@ -88,6 +88,7 @@ test("a missing file reads as the defaults, which a new file's template holds be
       endpoints: {},
       sharedSkills: [],
       shell: false,
+      shellSandbox: true,
       decisionMode: "single",
       magi: { melchior: null, balthasar: null, casper: null },
       memory: true,

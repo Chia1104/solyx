@@ -242,6 +242,8 @@ export const settingsContract = {
     .output(type<void>()),
   /** Gives the agent the shell from its next run on, or takes it away. */
   setAgentShell: oc.input(z.boolean()).output(type<void>()),
+  /** Runs the shell's commands in the sandbox from the next one on, or with the user's access. */
+  setAgentShellSandbox: oc.input(z.boolean()).output(type<void>()),
   memory: oc.output(type<MemorySettings>()),
   /** Gives the agent its memories from its next run on, or takes them away; they stay saved. */
   setMemoryEnabled: oc.input(z.boolean()).output(type<void>()),

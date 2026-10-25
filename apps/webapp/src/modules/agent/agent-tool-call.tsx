@@ -59,6 +59,7 @@ import { ForecastCard } from "../research/forecast-card.tsx";
 import { useScopeText } from "../schedules/change-scope-fields.tsx";
 import { schedulesQuery } from "../schedules/schedules-query.ts";
 import { scheduleText } from "../schedules/timing-fields.tsx";
+import { agentSkillsQuery } from "../settings/settings-query.ts";
 
 import { ActivityMark } from "./agent-activity.tsx";
 import { MagiPanel } from "./magi-panel.tsx";
@@ -222,6 +223,32 @@ function WatchlistChange({
 }
 
 /**
+ * What the card says a shell command reaches: a command runs with the user's access unless the
+ * sandbox is on and can start, which only a window may read, so anywhere else it says so.
+ */
+function useShellDescription(enabled: boolean) {
+  const { t } = useTranslation();
+
+  const { data, isFetching } = useQuery({
+    ...agentSkillsQuery(),
+    enabled: enabled && inWindow,
+  });
+
+  // A settings change refetches it, and until then what it held may no longer hold.
+  const sandboxed =
+    !isFetching &&
+    data?.sandbox.supported === true &&
+    data.sandbox.enabled &&
+    data.sandbox.problems.length === 0;
+
+  return t(
+    sandboxed
+      ? "agent.approval.shell-description"
+      : "agent.approval.shell-description-unsandboxed"
+  );
+}
+
+/**
  * What a call that waits for the user is about to do: a sentence saying so, and what it sends as
  * the user would read it. A shell command is shown whole, as the user would type it, a page by its
  * address, a setting with the value it would take and a memory as the agent wrote it; a call whose
@@ -246,13 +273,17 @@ function useApprovalRequest(tool: ToolCallView) {
   // The call names a task by its id, which the card shows as the user wrote it.
   const tasks = useQuery({ ...schedulesQuery(), enabled: run !== undefined });
 
+  const shellDescription = useShellDescription(
+    tool.toolName === AgentToolName.Bash
+  );
+
   switch (tool.toolName) {
     case AgentToolName.Bash: {
       const command = bashArgumentsSchema.safeParse(tool.args).data?.command;
 
       if (command !== undefined) {
         return {
-          description: t("agent.approval.shell-description"),
+          description: shellDescription,
           body: command,
         };
       }

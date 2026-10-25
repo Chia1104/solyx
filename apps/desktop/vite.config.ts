@@ -48,6 +48,15 @@ const kernelBuild = fileURLToPath(
   new URL("solyx-kernel.node", import.meta.resolve("@solyx/kernel/kernel"))
 );
 
+// On Linux the shell's sandbox finds its seccomp filter in `vendor` beside the backend's bundle;
+// without it a command could reach the session bus and the keyring behind it.
+const seccompFilters = fileURLToPath(
+  new URL(
+    "../vendor/seccomp",
+    import.meta.resolve("@anthropic-ai/sandbox-runtime")
+  )
+);
+
 const nodeBundle: PackUserConfig = {
   platform: "node",
   // Workspace packages ship TS sources, so they are inlined; Electron is provided at runtime.
@@ -158,6 +167,9 @@ export default defineConfig({
         },
         { from: quickjsWasm, to: "dist/utility" },
         { from: kernelBuild, to: "dist/utility" },
+        ...(process.platform === "linux"
+          ? [{ from: seccompFilters, to: "dist/utility/vendor" }]
+          : []),
       ],
     },
     {

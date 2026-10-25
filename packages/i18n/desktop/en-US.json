@@ -715,7 +715,8 @@
     "approval": {
       "title": "Allow this call?",
       "description": "{{tool}} comes from an MCP server outside Solyx. Check what it's about to send.",
-      "shell-description": "This command runs on your computer with your access to its files and the network. Check it before you allow it.",
+      "shell-description": "This command runs in a sandbox, in this conversation's folder and off the network. Check it before you allow it.",
+      "shell-description-unsandboxed": "This command runs on your computer with your access to its files and the network. Check it before you allow it.",
       "read-page-description": "Your web search vendor will fetch this address. One you didn't expect could be a page the agent read trying to send your data out, so check it before you allow it.",
       "remember-description": "The agent wants to keep this for later conversations, and reads it in every one. Check it says what you mean.",
       "forget-description": "The agent wants to forget this memory, so later conversations won't know it.",
@@ -1900,7 +1901,12 @@
       "instructions-missing": "Not written",
       "warnings-title": "Some skill files don't follow the Agent Skills format",
       "shell": "Shell",
-      "shell-description": "Lets the agent run commands on this computer, which skills need for their scripts. Each one waits for you unless a conversation is set not to ask. Commands aren't sandboxed, so one you allow can read and change your files and reach the network. Paper accounts only.",
+      "sandbox": "Sandbox",
+      "sandbox-description": "Keeps each command to its conversation's folder, away from your other files and off the network. Off, a command you allow can read and change your files and reach the network.",
+      "sandbox-label": "Run commands in a sandbox",
+      "sandbox-problems": "The sandbox can't start, so no command runs: {{problems}}. Fix that, or switch the sandbox off.",
+      "sandbox-unsupported": "Not available on Windows yet. Commands run with your access, so each waits for you unless the decisions model judges it harmless in Allow for me.",
+      "shell-description": "Lets the agent run commands on this computer, which skills need for their scripts. Each one waits for you unless a conversation is set not to ask. Paper accounts only.",
       "shell-label": "Let the agent use the shell"
     },
     "memory": {

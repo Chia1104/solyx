@@ -305,7 +305,11 @@ const configSchema = section(
         }),
         shell: z.boolean().catch(false).meta({
           description:
-            "Lets the agent run shell commands on this computer, each only after you allow it. They are not sandboxed.",
+            "Lets the agent run shell commands on this computer, each only after you allow it.",
+        }),
+        shellSandbox: z.boolean().catch(true).meta({
+          description:
+            "Runs the agent's shell commands in a sandbox that keeps them to their conversation's folder, away from your other files and off the network. macOS and Linux only; on Windows commands run with your access.",
         }),
         decisionMode: decisionModeSchema.catch(DecisionMode.Single).meta({
           description:
@@ -567,6 +571,7 @@ type ConfigPath =
         | "thinking"
         | "sharedSkills"
         | "shell"
+        | "shellSandbox"
         | "decisionMode"
         | "memory"
       ),
