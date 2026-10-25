@@ -195,7 +195,7 @@ const policy = (writeRoots) => ({
   windows: { srtWin: { path: VENDORED_SRT_WIN_EXE } },
   network: { allowedDomains: [], deniedDomains: [] },
   filesystem: {
-    denyRead: [userData, configDir],
+    denyRead: [],
     allowRead: [skill],
     allowWrite: writeRoots,
     denyWrite: [],
@@ -241,10 +241,15 @@ async function checks() {
   const { port } = server.address();
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
-  const unique = "[guid]::NewGuid().ToString()";
+  const unique = "([guid]::NewGuid().ToString())";
 
   await check("whoami", "info", "whoami");
   await check("starting location", "info", "(Get-Location).Path");
+  await check(
+    "enter its workspace",
+    "allow",
+    `Set-Location -LiteralPath ${q(conv1)}; (Get-Location).Path`
+  );
   await check(
     "read the app's sealed secret",
     "deny",
@@ -500,12 +505,16 @@ const install = await step(
 );
 
 if (install) {
+  const sandboxProfile = "C:\\Users\\srt-sandbox";
+  log(
+    `- srt-sandbox's profile exists before the first initialize: ${existsSync(sandboxProfile)}`
+  );
   await step("initialize (first, one write root)", () =>
     SandboxManager.initialize(policy([workspaces])).then(() => "ok")
   );
+  log(`- srt-sandbox's profile exists after it: ${existsSync(sandboxProfile)}`);
   await checks();
   await step("reset", () => SandboxManager.reset().then(() => "ok"));
-  await step("workspace matrix", () => workspaceMatrix().then(() => "done"));
 
   log("\n### Initializing again\n");
   await step("initialize (same policy)", () =>
