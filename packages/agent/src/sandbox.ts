@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
 import { lstat, readdir, realpath } from "node:fs/promises";
 import {
   basename,
@@ -215,13 +214,14 @@ export function createSandbox(options: SandboxOptions) {
     readable: readonly string[]
   ): SandboxRuntimeConfig => ({
     network: { allowedDomains: [], deniedDomains: [] },
+    // Every entry stands whether or not its place exists: Seatbelt matches a path as spelled, and
+    // sandbox-runtime keeps a missing one from being made under bubblewrap, so a command cannot
+    // make a place it may not read, such as the shared temporary folder, and write there.
     filesystem: {
-      denyRead: [home, ...denials, ...appFolders, ...SHARED_TEMP]
-        .filter(existsSync)
-        .map(literal),
+      denyRead: [home, ...denials, ...appFolders, ...SHARED_TEMP].map(literal),
       allowRead: [places.workspace, ...readable].map(literal),
       allowWrite: [literal(places.workspace)],
-      denyWrite: SHARED_TEMP.filter(existsSync).map(literal),
+      denyWrite: SHARED_TEMP.map(literal),
     },
   });
 

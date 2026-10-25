@@ -455,6 +455,24 @@ sandboxed(
   }
 );
 
+sandboxed(
+  "a sandboxed command can neither make nor write the temporary folder every sandbox-runtime embedder shares",
+  async () => {
+    const { runtime, call, ended, start } = setup({ sandbox: () => true });
+
+    await start(
+      "mkdir -p /tmp/claude && touch /tmp/claude/solyx-shell-test",
+      ApprovalMode.Bypass
+    );
+    await ended();
+
+    expect(call()).toMatchObject({ status: ToolCallStatus.Error });
+    expect(await exists("/tmp/claude/solyx-shell-test")).toBe(false);
+
+    await runtime.close();
+  }
+);
+
 supported(
   "with the sandbox switched off, a command runs with the user's access",
   async () => {
