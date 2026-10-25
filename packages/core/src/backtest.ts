@@ -44,10 +44,21 @@ import {
 
 const period = z.number().int().min(1).max(500);
 
+/** What a strategy's own code names a line it works out, which its rules read it by. */
+export const lineNameSchema = z
+  .string()
+  .regex(
+    /^[A-Za-z_][A-Za-z0-9_]{0,63}$/,
+    "A line's name is a letter or an underscore, then up to 63 letters, digits and underscores"
+  );
+
 // Every shape a strategy is written in refuses a key it does not know, so a misspelt one, such as a
 // stop, fails the backtest rather than leaving it out.
 
-/** A line a rule reads at each bar: one of the bar's own figures, a constant, or an indicator over the bars up to it. */
+/**
+ * A line a rule reads at each bar: one of the bar's own figures, a constant, an indicator over the
+ * bars up to it, or a line a strategy's own code worked out.
+ */
 export const ruleSeriesSchema = z.union([
   z.strictObject({ price: z.enum(["open", "high", "low", "close", "volume"]) }),
   z.strictObject({ value: z.number() }),
@@ -66,6 +77,11 @@ export const ruleSeriesSchema = z.union([
   }),
   z.strictObject({
     lowest: period.describe("The lowest low of the bars before this one"),
+  }),
+  z.strictObject({
+    line: lineNameSchema.describe(
+      "A line the strategy's own code worked out, on the terms its code works in"
+    ),
   }),
 ]);
 
@@ -140,20 +156,31 @@ function conditionSchema(depth: number): z.ZodType<RuleCondition> {
 
 export const ruleConditionSchema = conditionSchema(MAX_RULE_DEPTH);
 
-/** Every series a condition's comparisons read. */
-function ruleSeries(condition: RuleCondition): RuleSeries[] {
-  if ("all" in condition) return condition.all.flatMap(ruleSeries);
+/** Every comparison a condition makes, as the two series it reads. */
+function rulePairs(condition: RuleCondition): [RuleSeries, RuleSeries][] {
+  if ("all" in condition) return condition.all.flatMap(rulePairs);
 
-  if ("any" in condition) return condition.any.flatMap(ruleSeries);
+  if ("any" in condition) return condition.any.flatMap(rulePairs);
 
-  if ("above" in condition) return condition.above;
+  if ("above" in condition) return [condition.above];
 
-  if ("below" in condition) return condition.below;
+  if ("below" in condition) return [condition.below];
 
-  if ("crossesAbove" in condition) return condition.crossesAbove;
+  if ("crossesAbove" in condition) return [condition.crossesAbove];
 
-  return condition.crossesBelow;
+  return [condition.crossesBelow];
 }
+
+const ruleSeries = (condition: RuleCondition) => rulePairs(condition).flat();
+
+/**
+ * Whether a comparison reads a strategy's line against what is on other terms: its lines are on
+ * the terms its code works in, the first bar's adjusted, where the bar's figures are as traded and
+ * the indicators on each bar's own terms, so the two part at every split and every day cash goes ex.
+ */
+const mixesTerms = ([left, right]: [RuleSeries, RuleSeries]) =>
+  ("line" in left || "line" in right) &&
+  ![left, right].every((series) => "line" in series || "value" in series);
 
 /** A long-only strategy: when to buy while holding nothing, and when to sell all of it. */
 export const ruleStrategySchema = z
@@ -166,8 +193,17 @@ export const ruleStrategySchema = z
     takeProfit: z.number().positive().optional(),
   })
   .superRefine(({ entry, exit }, context) => {
-    const series = [...ruleSeries(entry), ...ruleSeries(exit)];
-    const comparisons = series.length / 2;
+    const pairs = [...rulePairs(entry), ...rulePairs(exit)];
+    const series = pairs.flat();
+    const comparisons = pairs.length;
+
+    if (pairs.some(mixesTerms)) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "A strategy's line is compared only with another of its lines or a value: its lines are on the terms its code works in, so give a price or an indicator as a line of its own",
+      });
+    }
 
     if (comparisons > MAX_RULE_COMPARISONS) {
       context.addIssue({
@@ -373,7 +409,36 @@ export interface BacktestOptions {
    * reference, its limits and what went ex or split at it come from them.
    */
   daily?: readonly Candle[];
+  /** What the strategy's own code worked out over `strategyBars` of the same bars, which its rules read as `line`. */
+  lines?: StrategyLines;
 }
+
+/** Where the strategies of a run each have lines of their own, theirs in their order. */
+interface EachLines {
+  lines?: readonly StrategyLines[];
+}
+
+/** The bars a backtest runs over, those shorter than a day with their sessions' references from the daily ones. */
+function runBars(
+  symbol: SymbolRef,
+  candles: readonly Candle[],
+  options: Pick<BacktestOptions, "interval" | "daily">
+) {
+  return isIntraday(options.interval ?? Interval.OneDay)
+    ? withSessionMoves(symbol.market, candles, options.daily ?? [])
+    : candles;
+}
+
+/**
+ * The bars a strategy's own code works its lines out over: those a backtest of the same bars runs
+ * over, adjusted for splits and what went ex on the first bar's terms, so no later bar changes an
+ * earlier one, and one value a bar for each line it gives.
+ */
+export const strategyBars = (
+  symbol: SymbolRef,
+  candles: readonly Candle[],
+  options: Pick<BacktestOptions, "interval" | "daily"> = {}
+) => adjustedCandles(runBars(symbol, candles, options));
 
 /**
  * A line of `series`, `null` where it has nothing yet, each value read from its bar and those
@@ -381,7 +446,7 @@ export interface BacktestOptions {
  * adjusted for splits and what went ex, carried to the terms of the bar it is read at.
  */
 function seriesLine(
-  series: RuleSeries,
+  series: Exclude<RuleSeries, { line: string }>,
   bars: readonly Candle[],
   adjusted: readonly Candle[],
   factors: readonly number[]
@@ -461,61 +526,136 @@ function extremeBefore(
   });
 }
 
-/** The lines strategies' rules read, each series once among them all, and their rules naming them by their place. */
+/**
+ * Lines a strategy's own code worked out, by the names its rules read them by: one value a bar,
+ * `null` where it has nothing yet, on the terms its code works in.
+ */
+export type StrategyLines = Readonly<
+  Record<string, readonly (number | null)[]>
+>;
+
+/** The most values strategies' own lines may hold between them in one run, every line's bars added up. */
+export const MAX_LINE_VALUES = 4_000_000;
+
+const column = (line: readonly (number | null)[]) =>
+  Float64Array.from(line, (value) =>
+    value !== null && Number.isFinite(value) ? value : Number.NaN
+  );
+
+/**
+ * The lines strategies' rules read, each series once among them all and each strategy's own lines
+ * from `own`, in the strategies' order, and their rules naming them by their place.
+ */
 function kernelStrategies(
   strategies: readonly RuleStrategy[],
   bars: readonly Candle[],
   adjusted: readonly Candle[],
-  factors: readonly number[]
+  factors: readonly number[],
+  own: readonly (StrategyLines | undefined)[]
 ) {
   const places = new Map<string, number>();
   const lines: Float64Array[] = [];
+  let engineSeries = 0;
+  let ownValues = 0;
 
-  const place = (series: RuleSeries) => {
-    const key = seriesKey(series);
+  // Strategies handed one set of lines between them read each of its lines once.
+  const sets = new Map<StrategyLines, number>();
+
+  const add = (key: string, make: () => Float64Array) => {
     const known = places.get(key);
 
     if (known !== undefined) return known;
 
-    const line = seriesLine(series, bars, adjusted, factors);
-    const column = new Float64Array(line.length);
-
-    for (let index = 0; index < line.length; index++) {
-      column[index] = line[index] ?? Number.NaN;
-    }
-
     places.set(key, lines.length);
-    lines.push(column);
+    lines.push(make());
 
     return lines.length - 1;
   };
 
-  const rule = (condition: RuleCondition): KernelCondition => {
-    if ("all" in condition) return { all: condition.all.map(rule) };
-
-    if ("any" in condition) return { any: condition.any.map(rule) };
-
-    if ("above" in condition) return { above: condition.above.map(place) };
-
-    if ("below" in condition) return { below: condition.below.map(place) };
-
-    if ("crossesAbove" in condition) {
-      return { crossesAbove: condition.crossesAbove.map(place) };
+  const ownLine = (set: StrategyLines | undefined, name: string) => {
+    if (set === undefined) {
+      throw new Error(
+        `A rule reads the line ${name}, which only a strategy's own code gives`
+      );
     }
 
-    return { crossesBelow: condition.crossesBelow.map(place) };
+    // Read as the set's own, so a name such as `constructor` finds no object's method.
+    const values = Object.hasOwn(set, name) ? set[name] : undefined;
+
+    if (values === undefined) {
+      throw new Error(`The strategy's code gave no line named ${name}`);
+    }
+
+    if (values.length !== bars.length) {
+      throw new Error(
+        `The strategy's line ${name} holds ${values.length} values for ${bars.length} bars`
+      );
+    }
+
+    ownValues += values.length;
+
+    if (ownValues > MAX_LINE_VALUES) {
+      throw new Error(
+        `Strategies' own lines hold ${MAX_LINE_VALUES} values at most between them, every line's bars added up; run fewer strategies or fewer bars at a time`
+      );
+    }
+
+    return column(values);
   };
 
-  const ruled = strategies.map((strategy): KernelStrategy => ({
-    entry: rule(strategy.entry),
-    exit: rule(strategy.exit),
-    stopLoss: strategy.stopLoss,
-    takeProfit: strategy.takeProfit,
-  }));
+  const place = (set: StrategyLines | undefined) => (series: RuleSeries) => {
+    if ("line" in series) {
+      const id = set === undefined ? -1 : (sets.get(set) ?? sets.size);
 
-  if (lines.length > MAX_SCAN_SERIES) {
+      if (set !== undefined) sets.set(set, id);
+
+      return add(`${id}\0${series.line}`, () => ownLine(set, series.line));
+    }
+
+    return add(seriesKey(series), () => {
+      engineSeries++;
+
+      return column(seriesLine(series, bars, adjusted, factors));
+    });
+  };
+
+  const rule = (
+    condition: RuleCondition,
+    read: (series: RuleSeries) => number
+  ): KernelCondition => {
+    if ("all" in condition) {
+      return { all: condition.all.map((each) => rule(each, read)) };
+    }
+
+    if ("any" in condition) {
+      return { any: condition.any.map((each) => rule(each, read)) };
+    }
+
+    if ("above" in condition) return { above: condition.above.map(read) };
+
+    if ("below" in condition) return { below: condition.below.map(read) };
+
+    if ("crossesAbove" in condition) {
+      return { crossesAbove: condition.crossesAbove.map(read) };
+    }
+
+    return { crossesBelow: condition.crossesBelow.map(read) };
+  };
+
+  const ruled = strategies.map((strategy, index): KernelStrategy => {
+    const read = place(own[index]);
+
+    return {
+      entry: rule(strategy.entry, read),
+      exit: rule(strategy.exit, read),
+      stopLoss: strategy.stopLoss,
+      takeProfit: strategy.takeProfit,
+    };
+  });
+
+  if (engineSeries > MAX_SCAN_SERIES) {
     throw new Error(
-      `Strategies read ${MAX_SCAN_SERIES} different series at most between them, and these read ${lines.length}`
+      `Strategies read ${MAX_SCAN_SERIES} different series at most between them, and these read ${engineSeries}`
     );
   }
 
@@ -845,7 +985,8 @@ function prepare(
   symbol: SymbolRef,
   candles: readonly Candle[],
   strategies: readonly RuleStrategy[],
-  options: BacktestOptions
+  options: Omit<BacktestOptions, "lines">,
+  own: readonly (StrategyLines | undefined)[]
 ) {
   if (candles.length < 2) {
     throw new Error("A backtest needs two bars at least");
@@ -853,11 +994,7 @@ function prepare(
 
   const interval = options.interval ?? Interval.OneDay;
   const daily = isIntraday(interval) ? (options.daily ?? []) : undefined;
-
-  const bars = daily
-    ? withSessionMoves(symbol.market, candles, daily)
-    : candles;
-
+  const bars = runBars(symbol, candles, options);
   const capital = options.capital ?? 1_000_000;
   const costs = { ...defaultCosts(symbol), ...options.costs };
   const adjusted = adjustedCandles(bars);
@@ -865,7 +1002,7 @@ function prepare(
   const days = candleDays(symbol.market, bars);
   const locks = limitLocks(symbol, bars, days, daily);
   const last = bars.length - 1;
-  const rules = kernelStrategies(strategies, bars, adjusted, factors);
+  const rules = kernelStrategies(strategies, bars, adjusted, factors, own);
 
   const splitAt = options.split ? splitIndex(days, options.split) : -1;
 
@@ -937,9 +1074,9 @@ export async function backtest(
   symbol: SymbolRef,
   candles: readonly Candle[],
   strategy: RuleStrategy,
-  options: BacktestOptions = {}
+  { lines, ...options }: BacktestOptions = {}
 ): Promise<BacktestResult> {
-  const prepared = prepare(symbol, candles, [strategy], options);
+  const prepared = prepare(symbol, candles, [strategy], options, [lines]);
   const { bars, days, last, interval } = prepared;
 
   const run = await kernel.backtest({
@@ -969,7 +1106,7 @@ export async function backtest(
   };
 }
 
-export interface ScanOptions extends BacktestOptions {
+export interface ScanOptions extends Omit<BacktestOptions, "lines">, EachLines {
   /** How many strategies a row of the grid they make holds, row by row. */
   columns?: number;
 }
@@ -983,9 +1120,9 @@ export async function scanBacktests(
   symbol: SymbolRef,
   candles: readonly Candle[],
   strategies: readonly RuleStrategy[],
-  options: ScanOptions = {}
+  { lines = [], ...options }: ScanOptions = {}
 ): Promise<BacktestScan> {
-  const prepared = prepare(symbol, candles, strategies, options);
+  const prepared = prepare(symbol, candles, strategies, options, lines);
 
   const run = await kernel.scan({
     bars: prepared.kernelBars,
@@ -1002,7 +1139,8 @@ export async function scanBacktests(
   };
 }
 
-export interface WalkForwardOptions extends Omit<BacktestOptions, "split"> {
+export interface WalkForwardOptions
+  extends Omit<BacktestOptions, "split" | "lines">, EachLines {
   /** How many strategies a row of the grid they make holds, row by row. */
   columns?: number;
   /** Sessions each window trains on; @default two fifths of the sessions */
@@ -1021,9 +1159,9 @@ export async function walkForward(
   symbol: SymbolRef,
   candles: readonly Candle[],
   strategies: readonly RuleStrategy[],
-  options: WalkForwardOptions = {}
+  { lines = [], ...options }: WalkForwardOptions = {}
 ): Promise<WalkForwardResult> {
-  const prepared = prepare(symbol, candles, strategies, options);
+  const prepared = prepare(symbol, candles, strategies, options, lines);
   const sessions = new Set(prepared.days).size;
   const train = options.train ?? Math.floor((sessions * 2) / 5);
   const test = options.test ?? Math.max(1, Math.floor(train / 4));
@@ -1183,7 +1321,10 @@ export async function rollingBacktest(
     );
   }
 
-  const prepared = prepare(symbol, candles, [strategy], options);
+  const prepared = prepare(symbol, candles, [strategy], options, [
+    options.lines,
+  ]);
+
   const { spans, apart } = rollingWindows(prepared.days, months, step);
 
   if (spans.length === 0) {
