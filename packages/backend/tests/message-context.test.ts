@@ -149,3 +149,33 @@ test("the backtest the panel shows reaches the context as the call that runs it"
     })})`
   );
 });
+
+test("a strategy the user wrote reaches the context as the agent's call for it", () => {
+  const { backtest } = screenContext(
+    {
+      kind: ScreenKind.Listing,
+      symbol: listing(Market.TW, "2330"),
+      interval: Interval.OneDay,
+      indicators: [],
+      backtest: {
+        symbol: listing(Market.TW, "2330"),
+        interval: Interval.OneDay,
+        years: 5,
+        strategy: { name: "atr-breakout", params: { period: 20 } },
+        split: 0.75,
+      },
+    },
+    NOW
+  );
+
+  expect(backtest).toBe(
+    `strategies.backtest(${JSON.stringify({
+      strategy: "atr-breakout",
+      symbol: listing(Market.TW, "2330"),
+      interval: Interval.OneDay,
+      since: "2021-10-26",
+      params: { period: 20 },
+      split: 0.75,
+    })})`
+  );
+});

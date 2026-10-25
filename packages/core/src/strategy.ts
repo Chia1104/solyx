@@ -296,6 +296,13 @@ export interface LookAhead {
   bar: number;
 }
 
+/** Where a strategy's code read later bars, at the time of the first bar it did, as a result tells it. */
+export interface LookAheadAt {
+  line: string;
+  /** That bar's time on the exchange's clock, as the code was handed it. */
+  time: string;
+}
+
 // Two values within this share of the larger are the same, as arithmetic in another order leaves them.
 const SAME_VALUE = 1e-9;
 

@@ -31,6 +31,28 @@ export interface Strategy {
   code: readonly CodeFile[];
 }
 
+// Text the decisions model and a window read; a file with a NUL or bytes that are no UTF-8 is not.
+const textDecoder = new TextDecoder("utf-8", { fatal: true });
+
+/** What `data` says as text, `null` where it is not text. */
+function textOf(data: Buffer) {
+  if (data.includes(0)) return null;
+
+  try {
+    return textDecoder.decode(data);
+  } catch {
+    return null;
+  }
+}
+
+/** A strategy's files with what each says, as a window and the agent read them. */
+export const strategyTexts = (strategy: Strategy) =>
+  strategy.code.map(({ path, data }) => ({
+    path,
+    bytes: data.length,
+    text: textOf(data),
+  }));
+
 /** What a window is told of a strategy's files. */
 export const strategyFiles = (strategy: Strategy): StrategyFile[] =>
   strategy.code.map(({ path, data }) => ({ path, bytes: data.length }));

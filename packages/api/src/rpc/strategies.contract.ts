@@ -4,7 +4,7 @@ import { strategyNameSchema } from "@solyx/core/strategy";
 import type { StrategyApproval } from "@solyx/core/strategy";
 
 import { strategyApproveSchema } from "../strategies.ts";
-import type { StrategyCatalog } from "../strategies.ts";
+import type { StrategyCatalog, StrategyReview } from "../strategies.ts";
 
 import { forDevices } from "./access.ts";
 import { changesContract } from "./changes.ts";
@@ -17,6 +17,11 @@ export const strategiesContract = {
    * device may not, since it lets the code run.
    */
   approve: oc.input(strategyApproveSchema).output(type<StrategyApproval>()),
+  /**
+   * A strategy's files as they are now beside the version allowed before them, which a window shows
+   * as what changed before the user allows it.
+   */
+  review: oc.input(strategyNameSchema).output(type<StrategyReview>()),
   /** Takes back every version of a strategy allowed so far. */
   revoke: oc.input(strategyNameSchema).output(type<void>()),
   /** Each time a version is allowed or taken back. */

@@ -34,6 +34,7 @@ import {
   strategyFiles,
 } from "../src/modules/strategies/strategy-folder.ts";
 import { createStrategyRunner } from "../src/modules/strategies/strategy-runner.ts";
+import { createStrategySnapshots } from "../src/modules/strategies/strategy-snapshots.ts";
 
 import { fakeCipher } from "./fake-cipher.ts";
 
@@ -143,6 +144,7 @@ function setup(reach: StrategyReach = { sandboxed: false, live: false }) {
       path: async () => process.env.PATH,
     }),
     approvals,
+    snapshots: createStrategySnapshots(join(directory, "versions")),
     reach: () => reach,
     onChange: () => changes.push(1),
     now: () => new Date("2026-10-26T02:00:00Z"),
@@ -416,6 +418,43 @@ describe("a strategy's lines", () => {
     await expect(
       strategies.lines("missing", TSMC, bars(10), {}, [{}])
     ).rejects.toThrow("No strategy is named missing");
+  });
+});
+
+describe("a strategy's review", () => {
+  test("shows its files beside those of the version allowed before, until every version is taken back", async () => {
+    await writeStrategy();
+
+    const { strategies } = setup();
+
+    expect((await strategies.review("crossing")).previous).toBeNull();
+
+    const {
+      strategies: [first],
+    } = await strategies.catalog();
+
+    await strategies.approve("crossing", first.version, StrategyApprover.User);
+    await writeFile(join(folder, "crossing", "strategy.mjs"), "// changed\n");
+
+    const review = await strategies.review("crossing");
+
+    expect(review.current.files[1]).toEqual({
+      path: "strategy.mjs",
+      bytes: 11,
+      text: "// changed\n",
+    });
+    expect(review.previous).toEqual({
+      version: first.version,
+      files: [
+        { path: "STRATEGY.md", bytes: MANIFEST.length, text: MANIFEST },
+        { path: "strategy.mjs", bytes: CROSSING.length, text: CROSSING },
+      ],
+    });
+
+    await strategies.revoke("crossing");
+
+    expect((await strategies.review("crossing")).previous).toBeNull();
+    expect(await readdir(join(directory, "versions", "crossing"))).toEqual([]);
   });
 });
 

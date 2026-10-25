@@ -1,16 +1,22 @@
 import { Label, NumberField } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
-import { ExitParam, templateParam } from "@solyx/core/strategy-templates";
-import type {
-  GridAxis,
-  StrategyTemplate,
-} from "@solyx/core/strategy-templates";
+import { ExitParam } from "@solyx/core/strategy-templates";
+import type { GridAxis, TemplateParam } from "@solyx/core/strategy-templates";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { OptionSelect } from "../../components/option-select.tsx";
 
-import { defaultAxis, gridParams, useParamWords } from "./backtest-params.ts";
+import { useParamWords } from "./backtest-params.ts";
+
+/** The numbers a grid may run along, each with its bounds and the axis it starts from. */
+export interface GridNumbers {
+  names: readonly string[];
+  /** A strategy the user wrote, which names its numbers itself. */
+  own: boolean;
+  bounds(param: string): TemplateParam | undefined;
+  axis(param: string): GridAxis;
+}
 
 /** One of an axis's numbers, snapped to the steps of the number it runs along. */
 function AxisNumber({
@@ -56,18 +62,18 @@ function AxisNumber({
  */
 export function GridAxisFields({
   label,
-  template,
+  numbers,
   axis,
   onChange,
 }: {
   label: string;
-  template: StrategyTemplate;
+  numbers: GridNumbers;
   axis: GridAxis;
   onChange: (axis: GridAxis) => void;
 }) {
   const { t } = useTranslation();
   const words = useParamWords();
-  const bounds = templateParam(template, axis.param);
+  const bounds = numbers.bounds(axis.param);
 
   if (!bounds) return null;
 
@@ -78,12 +84,12 @@ export function GridAxisFields({
     <fieldset className="grid grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))] items-end gap-2">
       <OptionSelect
         label={label}
-        options={gridParams(template).map((id) => ({
+        options={numbers.names.map((id) => ({
           id,
-          label: words.label(id),
+          label: words.label(id, numbers.own),
         }))}
         value={axis.param}
-        onChange={(param) => onChange(defaultAxis(template, param))}
+        onChange={(param) => onChange(numbers.axis(param))}
       />
       <AxisNumber
         label={t("backtests.grid.from")}
@@ -124,7 +130,8 @@ export function GridSummary({
   problem,
 }: {
   cells: number;
-  series: number;
+  /** `null` for a strategy the user wrote, whose code gives its own lines. */
+  series: number | null;
   maxSeries: number;
   problem: string | undefined;
 }) {
@@ -140,7 +147,9 @@ export function GridSummary({
 
   return (
     <p className="text-xs text-muted tabular-nums">
-      {t("backtests.grid.size", { count: cells, series, max: maxSeries })}
+      {series === null
+        ? t("backtests.grid.size-own", { count: cells })
+        : t("backtests.grid.size", { count: cells, series, max: maxSeries })}
     </p>
   );
 }

@@ -733,7 +733,8 @@
       "auto-allowed": "由決策模型放行",
       "auto-allowed-found": "已放行：本對話找到的網址",
       "auto-allowed-memory": "未經詢問即存下，本對話允許這麼做",
-      "failed": "無法送出你的回覆"
+      "failed": "無法送出你的回覆",
+      "allow-strategy-description": "讓 {{name}} 的這個版本執行。允許前請先看改了什麼。"
     }
   },
   "onboarding": {
@@ -1035,7 +1036,12 @@
       "capital": "本金",
       "commission": "手續費率",
       "slippage": "滑價（檔）",
-      "run": "執行回測"
+      "run": "執行回測",
+      "own": "我的策略",
+      "own-pick": "你的策略",
+      "own-hint": "你寫在策略資料夾裡的程式；依它算出的線、照它的規則交易。",
+      "own-none": "還沒有策略：在 App 設定資料夾的 strategies 裡加一個含 STRATEGY.md 的資料夾。",
+      "own-grid": "網格要沿策略的兩個數字跑，這個策略不到兩個。"
     },
     "params": {
       "fast": "短均線",
@@ -1110,7 +1116,8 @@
         "read-longer_other": "改讀 {{count}} 年",
         "untested": "樣本外沒有持有可以檢定，看不出進出時機有沒有勝過隨機。",
         "chance": "樣本外的進出時機沒有勝過隨機排列的 K 線（p = {{p}}）。",
-        "behind-holding": "樣本外報酬 {{strategy}}，輸給買進持有的 {{holding}}。"
+        "behind-holding": "樣本外報酬 {{strategy}}，輸給買進持有的 {{holding}}。",
+        "look-ahead": "策略程式在算 {{line}} 這條線時讀了之後的 K 棒，從 {{time}} 起，所以這些數字建立在當時不可能知道的價格上。"
       },
       "costs_one": "成本：手續費 {{commission}}（最低 {{minimum}}）、賣出交易稅 {{tax}}、滑價 {{count}} 檔",
       "costs_other": "成本：手續費 {{commission}}（最低 {{minimum}}）、賣出交易稅 {{tax}}、滑價 {{count}} 檔",
@@ -1167,7 +1174,9 @@
         "offBounds": "有數值超出參數的範圍或間隔。",
         "axisSize": "每一軸要有 1 到 {{values}} 個數值。",
         "tooManySeries": "這些參數要讀超過 {{series}} 條線，請縮小網格。"
-      }
+      },
+      "size-own_one": "{{count}} 組參數",
+      "size-own_other": "{{count}} 組參數"
     },
     "scan": {
       "span_one": "{{count}} 組參數 · {{bars}} 根{{interval}} K",
@@ -2458,6 +2467,28 @@
       "add": "加入通行金鑰",
       "skip": "先不要",
       "failed": "無法加入通行金鑰"
+    }
+  },
+  "strategies": {
+    "changes": {
+      "folded_one": "{{count}} 行未變",
+      "folded_other": "{{count}} 行未變",
+      "moved-on": "檔案在這之後又改了，請以現在的內容重新詢問。",
+      "since_one": "自上次允許的版本 {{version}} 以來，改了 {{count}} 個檔案：",
+      "since_other": "自上次允許的版本 {{version}} 以來，改了 {{count}} 個檔案：",
+      "first_one": "之前沒有允許過任何版本。共 {{count}} 個檔案：",
+      "first_other": "之前沒有允許過任何版本。共 {{count}} 個檔案：",
+      "not-text": "{{path}} 不是文字檔，不顯示。"
+    },
+    "allow": {
+      "title": "版本 {{version}} 尚未允許執行",
+      "sandboxed": "程式在沙箱裡執行：只讀得到自己的檔案，也連不上網路。",
+      "outside": "程式在沙箱外執行，能存取你的檔案與網路。",
+      "read": "看改了什麼",
+      "hide": "收起變更",
+      "allow": "允許這個版本",
+      "on-computer": "請在電腦上允許。",
+      "failed": "無法允許"
     }
   }
 }

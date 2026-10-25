@@ -310,6 +310,9 @@ catalogs:
     '@streamdown/cjk':
       specifier: 1.0.4
       version: 1.0.4
+    diff:
+      specifier: 9.0.0
+      version: 9.0.0
     streamdown:
       specifier: 2.7.1
       version: 2.7.1
@@ -653,6 +656,9 @@ importers:
       d3-shape:
         specifier: catalog:charts
         version: 3.2.0
+      diff:
+        specifier: catalog:markdown
+        version: 9.0.0
       es-toolkit:
         specifier: 'catalog:'
         version: 1.52.0

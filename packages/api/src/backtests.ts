@@ -9,9 +9,14 @@ import {
 } from "@solyx/core/candles";
 import type { Interval } from "@solyx/core/candles";
 import { symbolRefSchema } from "@solyx/core/market";
+import { strategyNameSchema } from "@solyx/core/strategy";
+import type { LookAheadAt } from "@solyx/core/strategy";
 import {
+  GridProblem,
+  axisValues,
   gridAxisSchema,
   gridProblem,
+  gridSetups,
   strategySetupSchema,
   templateSetupSchema,
 } from "@solyx/core/strategy-templates";
@@ -31,9 +36,46 @@ const reach = {
 /** The share of the sessions before the out-of-sample stretch starts, such as 2/3. */
 const splitSchema = z.number().gt(0).lt(1);
 
-/** A grid of one template's numbers, one down and another across. */
+/**
+ * A strategy the user wrote, by its name, with the numbers its code runs with; one it does not
+ * take, or off its steps, is refused as it runs, since only its folder says what it takes.
+ */
+export const ownSetupSchema = z.strictObject({
+  name: strategyNameSchema,
+  params: z.record(z.string(), z.number()),
+});
+
+export type OwnSetup = z.infer<typeof ownSetupSchema>;
+
+/**
+ * The setups of a grid over `strategy`, row by row: `rows`' values down and `columns`' across, a
+ * template's numbers or a strategy's.
+ */
+export function gridCellSetups(
+  strategy: TemplateSetup | OwnSetup,
+  rows: GridAxis,
+  columns: GridAxis
+): (TemplateSetup | OwnSetup)[] {
+  if ("template" in strategy) return gridSetups(strategy, rows, columns);
+
+  return axisValues(rows).flatMap((row) =>
+    axisValues(columns).map((column) => ({
+      name: strategy.name,
+      params: {
+        ...strategy.params,
+        [rows.param]: row,
+        [columns.param]: column,
+      },
+    }))
+  );
+}
+
+/** What a single run runs: a template, rules written out whole or a strategy the user wrote. */
+const runSchema = z.union([strategySetupSchema, ownSetupSchema]);
+
+/** A grid of one template's numbers, or one strategy's, one down and another across. */
 const grid = {
-  strategy: templateSetupSchema,
+  strategy: z.union([templateSetupSchema, ownSetupSchema]),
   rows: gridAxisSchema,
   columns: gridAxisSchema,
 };
@@ -56,10 +98,15 @@ function runsAsGrid(
     strategy,
     rows,
     columns,
-  }: { strategy: TemplateSetup; rows: GridAxis; columns: GridAxis },
+  }: { strategy: TemplateSetup | OwnSetup; rows: GridAxis; columns: GridAxis },
   context: z.RefinementCtx
 ) {
-  const problem = gridProblem(strategy, rows, columns);
+  const problem =
+    "template" in strategy
+      ? gridProblem(strategy, rows, columns)
+      : rows.param === columns.param
+        ? GridProblem.SameParam
+        : undefined;
 
   if (problem) {
     context.addIssue({
@@ -72,7 +119,7 @@ function runsAsGrid(
 
 /** A strategy run over a listing's last years, its record before and from the split apart. */
 export const backtestSetupSchema = z
-  .strictObject({ ...reach, strategy: strategySetupSchema, split: splitSchema })
+  .strictObject({ ...reach, strategy: runSchema, split: splitSchema })
   .superRefine(withinHistory);
 
 export type BacktestSetup = z.infer<typeof backtestSetupSchema>;
@@ -109,7 +156,7 @@ export const MAX_ROLLING_STEP = 12;
 export const rollingSetupSchema = z
   .strictObject({
     ...reach,
-    strategy: strategySetupSchema,
+    strategy: runSchema,
     /** Calendar months each window runs. */
     months: z.number().int().min(1).max(MAX_ROLLING_MONTHS),
     /** Months from one window's start to the next's. */
@@ -147,6 +194,13 @@ export const backtestRequestSchema = z.discriminatedUnion("mode", [
 ]);
 
 export type BacktestRequest = z.infer<typeof backtestRequestSchema>;
+
+/**
+ * A run's result, with where a strategy's code read later bars, at the time of the first bar it
+ * did, which leaves every figure resting on prices it could not have known; `null` for templates
+ * and rules, whose lines the engine works out.
+ */
+export type Warned<Result> = Result & { lookAhead: LookAheadAt | null };
 
 /** The most runs the history keeps; the oldest go first. */
 export const BACKTEST_HISTORY = 200;

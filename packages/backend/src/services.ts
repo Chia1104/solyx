@@ -82,6 +82,7 @@ import { createStrategies } from "./modules/strategies/strategies.ts";
 import { createStrategyApprovals } from "./modules/strategies/strategy-approvals.ts";
 import { createStrategyPort } from "./modules/strategies/strategy-port.ts";
 import { createStrategyRunner } from "./modules/strategies/strategy-runner.ts";
+import { createStrategySnapshots } from "./modules/strategies/strategy-snapshots.ts";
 import { createTelemetry } from "./modules/telemetry/telemetry.ts";
 import { createThemes } from "./modules/themes/themes.ts";
 import { createTray } from "./modules/tray/tray.ts";
@@ -274,10 +275,33 @@ export function createServices(config: ConfigFile, host: Host) {
   // One process runs the agent's backtests and the windows' alike.
   const kernel = createKernel(host.openKernelProcess);
 
+  // Shell commands and the strategies' code run in one, whose proxies serve the whole process.
+  const sandbox = SANDBOX_SUPPORTED
+    ? createSandbox({ home, appFolders: [userDataDir, configDir] })
+    : undefined;
+
+  const strategies = createStrategies({
+    folder: join(configDir, "strategies"),
+    runner: createStrategyRunner({
+      runs: join(userDataDir, "strategy-runs"),
+      sandbox,
+      sandboxed: () => config.read().agent.shellSandbox,
+      path: loginShellPath(),
+    }),
+    approvals: createStrategyApprovals(secrets),
+    snapshots: createStrategySnapshots(join(userDataDir, "strategy-versions")),
+    reach: () => ({
+      sandboxed: sandbox !== undefined && config.read().agent.shellSandbox,
+      live: desk.mode !== BrokerMode.Paper,
+    }),
+    onChange: () => void windowEvents.publish("strategies:changed", {}),
+  });
+
   const backtests = createBacktests({
     marketData,
     kernel,
     history: userData.backtestRuns,
+    strategies,
     onHistoryChange: () => void windowEvents.publish("backtests:changed", {}),
   });
 
@@ -446,27 +470,6 @@ export function createServices(config: ConfigFile, host: Host) {
     resolveTimeZone(appearance.read().timeZone, Temporal.Now.timeZoneId());
 
   const deviceId = installationId(join(userDataDir, "installation-id"));
-
-  // Shell commands and the strategies' code run in one, whose proxies serve the whole process.
-  const sandbox = SANDBOX_SUPPORTED
-    ? createSandbox({ home, appFolders: [userDataDir, configDir] })
-    : undefined;
-
-  const strategies = createStrategies({
-    folder: join(configDir, "strategies"),
-    runner: createStrategyRunner({
-      runs: join(userDataDir, "strategy-runs"),
-      sandbox,
-      sandboxed: () => config.read().agent.shellSandbox,
-      path: loginShellPath(),
-    }),
-    approvals: createStrategyApprovals(secrets),
-    reach: () => ({
-      sandboxed: sandbox !== undefined && config.read().agent.shellSandbox,
-      live: desk.mode !== BrokerMode.Paper,
-    }),
-    onChange: () => void windowEvents.publish("strategies:changed", {}),
-  });
 
   const agent = createAgentService({
     config,

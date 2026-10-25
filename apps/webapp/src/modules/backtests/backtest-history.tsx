@@ -27,11 +27,14 @@ export function useRecordWords() {
   const words = useParamWords();
   const format = numberFormats(i18n.language);
 
-  const span = (axis: { param: string; from: number; to: number }) =>
+  const span = (
+    axis: { param: string; from: number; to: number },
+    own: boolean
+  ) =>
     t("backtests.history.axis", {
-      param: words.label(axis.param),
-      from: words.value(axis.param, axis.from),
-      to: words.value(axis.param, axis.to),
+      param: words.label(axis.param, own),
+      from: words.value(axis.param, axis.from, own),
+      to: words.value(axis.param, axis.to, own),
     });
 
   return {
@@ -41,25 +44,35 @@ export function useRecordWords() {
       const name =
         "rules" in strategy
           ? t("backtests.form.rules")
-          : t(`backtests.templates.${strategy.template}.name`);
+          : "name" in strategy
+            ? strategy.name
+            : t(`backtests.templates.${strategy.template}.name`);
 
       if (
         request.mode === BacktestMode.Scan ||
         request.mode === BacktestMode.WalkForward
       ) {
-        return `${name} · ${span(request.setup.rows)} × ${span(request.setup.columns)}`;
+        const own = "name" in strategy;
+
+        return `${name} · ${span(request.setup.rows, own)} × ${span(request.setup.columns, own)}`;
       }
 
       if ("rules" in strategy) return name;
 
-      const numbers = Object.entries({
-        ...strategy.params,
-        stopLoss: strategy.stopLoss,
-        takeProfit: strategy.takeProfit,
-      }).flatMap(([param, value]) =>
+      const numbers = Object.entries(
+        "name" in strategy
+          ? strategy.params
+          : {
+              ...strategy.params,
+              stopLoss: strategy.stopLoss,
+              takeProfit: strategy.takeProfit,
+            }
+      ).flatMap(([param, value]) =>
         value === undefined
           ? []
-          : [`${words.label(param)} ${words.value(param, value)}`]
+          : [
+              `${words.label(param, "name" in strategy)} ${words.value(param, value, "name" in strategy)}`,
+            ]
       );
 
       return [name, ...numbers].join(" · ");

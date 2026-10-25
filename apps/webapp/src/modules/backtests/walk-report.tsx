@@ -1,7 +1,7 @@
 import { scaleLinear } from "d3-scale";
 import { useTranslation } from "react-i18next";
 
-import type { WalkForwardSetup } from "@solyx/api/backtests";
+import type { Warned, WalkForwardSetup } from "@solyx/api/backtests";
 import type { WalkForwardResult } from "@solyx/core/backtest";
 import { axisValues } from "@solyx/core/strategy-templates";
 import { dateEpochDay } from "@solyx/utils/date";
@@ -12,7 +12,11 @@ import { numberFormats } from "../market/number-formats.ts";
 
 import { useParamWords } from "./backtest-params.ts";
 import { EquityChart } from "./equity-chart.tsx";
-import { RunWarnings, useStretchWarnings } from "./run-warnings.tsx";
+import {
+  RunWarnings,
+  useLookAheadWarning,
+  useStretchWarnings,
+} from "./run-warnings.tsx";
 import { MetricsTable, Stretch } from "./stretch-figures.tsx";
 
 /** Below it, the picks did far worse after their training than in it. */
@@ -28,17 +32,22 @@ export function WalkReport({
   walk,
 }: {
   setup: WalkForwardSetup;
-  walk: WalkForwardResult;
+  walk: Warned<WalkForwardResult>;
 }) {
   const { t, i18n } = useTranslation();
   const colors = usePaletteColors();
   const words = useParamWords();
   const format = numberFormats(i18n.language);
   const stretchWarnings = useStretchWarnings();
+  const lookAheadWarning = useLookAheadWarning();
   const rows = axisValues(setup.rows);
   const columns = axisValues(setup.columns);
   const stretch = { stretch: Stretch.OutOfSample, metrics: walk.outOfSample };
-  const warnings = stretchWarnings([stretch], walk.outOfSample);
+
+  const warnings = [
+    ...lookAheadWarning(walk.lookAhead),
+    ...stretchWarnings([stretch], walk.outOfSample),
+  ];
 
   if (walk.efficiency === null) {
     warnings.push({ id: "no-picks", text: t("backtests.walk.no-picks") });
@@ -67,15 +76,17 @@ export function WalkReport({
     cell === null
       ? t("backtests.walk.no-pick")
       : t("backtests.scan.cell", {
-          row: words.label(setup.rows.param),
+          row: words.label(setup.rows.param, "name" in setup.strategy),
           rowValue: words.value(
             setup.rows.param,
-            rows[Math.floor(cell / columns.length)]
+            rows[Math.floor(cell / columns.length)],
+            "name" in setup.strategy
           ),
-          column: words.label(setup.columns.param),
+          column: words.label(setup.columns.param, "name" in setup.strategy),
           columnValue: words.value(
             setup.columns.param,
-            columns[cell % columns.length]
+            columns[cell % columns.length],
+            "name" in setup.strategy
           ),
         });
 

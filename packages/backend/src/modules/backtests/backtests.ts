@@ -4,12 +4,14 @@ import {
   BACKTEST_HISTORY,
   BacktestMode,
   backtestRequestSchema,
+  gridCellSetups,
 } from "@solyx/api/backtests";
 import type {
   BacktestHeadline,
   BacktestRecord,
   BacktestRequest,
   BacktestSetup,
+  OwnSetup,
   RollingSetup,
   ScanSetup,
   WalkForwardSetup,
@@ -21,16 +23,22 @@ import {
   scanBacktests,
   walkForward,
 } from "@solyx/core/backtest";
-import type { BacktestBarsSource, BacktestKernel } from "@solyx/core/backtest";
+import type {
+  BacktestBarsSource,
+  BacktestKernel,
+  BacktestOptions,
+  RuleStrategy,
+  StrategyLines,
+} from "@solyx/core/backtest";
 import { yearsBefore } from "@solyx/core/candles";
-import type { Interval } from "@solyx/core/candles";
+import type { Candle, Interval } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
-import {
-  axisValues,
-  gridSetups,
-  setupRules,
-} from "@solyx/core/strategy-templates";
+import type { LookAheadAt } from "@solyx/core/strategy";
+import { axisValues, setupRules } from "@solyx/core/strategy-templates";
+import type { StrategySetup } from "@solyx/core/strategy-templates";
 import type { BacktestRunStore } from "@solyx/db/user";
+
+import type { Strategies } from "../strategies/strategies.ts";
 
 export interface BacktestsOptions {
   /** Read through the candle cache, as the agent's backtests read them. */
@@ -38,6 +46,8 @@ export interface BacktestsOptions {
   kernel: BacktestKernel;
   /** Where the windows' runs are kept. */
   history: BacktestRunStore;
+  /** The user's strategies, whose code works out the lines their rules read. */
+  strategies: Pick<Strategies, "lines">;
   /** Each time a run is kept, removed or cleared. */
   onHistoryChange(): void;
   /** @default () => new Date() */
@@ -53,6 +63,7 @@ export function createBacktests({
   marketData,
   kernel,
   history,
+  strategies,
   onHistoryChange,
   now = () => new Date(),
 }: BacktestsOptions) {
@@ -73,6 +84,68 @@ export function createBacktests({
     onHistoryChange();
   }
 
+  /**
+   * What each of a run's strategies trades on: its rules, and where a strategy the user wrote runs
+   * them, the lines its code worked out for each set of `params`, with where it read later bars.
+   */
+  async function ruled(
+    { symbol, interval }: { symbol: SymbolRef; interval: Interval },
+    read: { bars: Candle[]; daily: Candle[] | undefined },
+    strategy: StrategySetup | OwnSetup,
+    params: OwnSetup["params"][]
+  ): Promise<{
+    rules: RuleStrategy[];
+    lines: StrategyLines[] | undefined;
+    lookAhead: LookAheadAt | null;
+  }> {
+    if (!("name" in strategy)) {
+      return {
+        rules: [setupRules(strategy)],
+        lines: undefined,
+        lookAhead: null,
+      };
+    }
+
+    const worked = await strategies.lines(
+      strategy.name,
+      symbol,
+      read.bars,
+      { interval, daily: read.daily },
+      params
+    );
+
+    return {
+      rules: worked.params.map(() => worked.rules),
+      lines: worked.lines,
+      lookAhead: worked.lookAhead,
+    };
+  }
+
+  /** A grid's rules and lines over `read`, its cells row by row. */
+  async function gridRules(
+    setup: ScanSetup | WalkForwardSetup,
+    read: { bars: Candle[]; daily: Candle[] | undefined }
+  ) {
+    const cells = gridCellSetups(setup.strategy, setup.rows, setup.columns);
+
+    if ("template" in setup.strategy) {
+      return {
+        rules: cells.flatMap((cell) =>
+          "template" in cell ? [setupRules(cell)] : []
+        ),
+        lines: undefined,
+        lookAhead: null,
+      };
+    }
+
+    return ruled(
+      setup,
+      read,
+      setup.strategy,
+      cells.map((cell) => cell.params)
+    );
+  }
+
   async function runOnce({
     symbol,
     interval,
@@ -81,14 +154,27 @@ export function createBacktests({
     split,
     ...options
   }: BacktestSetup) {
-    const { bars, daily } = await listingBars(symbol, interval, years);
+    const read = await listingBars(symbol, interval, years);
 
-    return backtest(kernel, symbol, bars, setupRules(strategy), {
+    const { rules, lines, lookAhead } = await ruled(
+      { symbol, interval },
+      read,
+      strategy,
+      ["name" in strategy ? strategy.params : {}]
+    );
+
+    const run: BacktestOptions = {
       ...options,
       interval,
-      daily,
+      daily: read.daily,
       split: { share: split },
-    });
+      lines: lines?.[0],
+    };
+
+    return {
+      ...(await backtest(kernel, symbol, read.bars, rules[0], run)),
+      lookAhead,
+    };
   }
 
   /** The runs kept, newest first, leaving out any whose request no longer reads. */
@@ -110,32 +196,19 @@ export function createBacktests({
     },
 
     async scan(setup: ScanSetup) {
-      const {
-        symbol,
+      const { symbol, interval, years, capital, costs, columns, split } = setup;
+      const read = await listingBars(symbol, interval, years);
+      const grid = await gridRules(setup, read);
+
+      const scan = await scanBacktests(kernel, symbol, read.bars, grid.rules, {
+        capital,
+        costs,
         interval,
-        years,
-        strategy,
-        rows,
-        columns,
-        split,
-        ...options
-      } = setup;
-
-      const { bars, daily } = await listingBars(symbol, interval, years);
-
-      const scan = await scanBacktests(
-        kernel,
-        symbol,
-        bars,
-        gridSetups(strategy, rows, columns).map(setupRules),
-        {
-          ...options,
-          interval,
-          daily,
-          split: { share: split },
-          columns: axisValues(columns).length,
-        }
-      );
+        daily: read.daily,
+        split: { share: split },
+        columns: axisValues(columns).length,
+        lines: grid.lines,
+      });
 
       const plateau = scan.plateau ? scan.cells[scan.plateau.cell] : null;
 
@@ -144,48 +217,56 @@ export function createBacktests({
         plateau ? (plateau.inSample ?? plateau.all) : null
       );
 
-      return scan;
+      return { ...scan, lookAhead: grid.lookAhead };
     },
 
     async walkForward(setup: WalkForwardSetup) {
-      const { symbol, interval, years, strategy, rows, columns, ...options } =
+      const { symbol, interval, years, capital, costs, columns, train, test } =
         setup;
 
-      const { bars, daily } = await listingBars(symbol, interval, years);
+      const read = await listingBars(symbol, interval, years);
+      const grid = await gridRules(setup, read);
 
-      const walked = await walkForward(
-        kernel,
-        symbol,
-        bars,
-        gridSetups(strategy, rows, columns).map(setupRules),
-        {
-          ...options,
-          interval,
-          daily,
-          columns: axisValues(columns).length,
-        }
-      );
+      const walked = await walkForward(kernel, symbol, read.bars, grid.rules, {
+        capital,
+        costs,
+        train,
+        test,
+        interval,
+        daily: read.daily,
+        columns: axisValues(columns).length,
+        lines: grid.lines,
+      });
 
       keep({ mode: BacktestMode.WalkForward, setup }, walked.outOfSample);
 
-      return walked;
+      return { ...walked, lookAhead: grid.lookAhead };
     },
 
     async rolling(setup: RollingSetup) {
       const { symbol, interval, years, strategy, ...options } = setup;
-      const { bars, daily } = await listingBars(symbol, interval, years);
+      const read = await listingBars(symbol, interval, years);
+
+      const { rules, lines, lookAhead } = await ruled(setup, read, strategy, [
+        "name" in strategy ? strategy.params : {},
+      ]);
 
       const rolled = await rollingBacktest(
         kernel,
         symbol,
-        bars,
-        setupRules(strategy),
-        { ...options, interval, daily }
+        read.bars,
+        rules[0],
+        {
+          ...options,
+          interval,
+          daily: read.daily,
+          lines: lines?.[0],
+        }
       );
 
       keep({ mode: BacktestMode.Rolling, setup }, rolled.summary);
 
-      return rolled;
+      return { ...rolled, lookAhead };
     },
 
     history: records,

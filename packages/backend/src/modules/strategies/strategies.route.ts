@@ -9,6 +9,9 @@ export const strategiesRouter = contractOS.strategies.router({
   approve: contractOS.strategies.approve.handler(({ context, input }) =>
     context.strategies.approve(input.name, input.version, StrategyApprover.User)
   ),
+  review: contractOS.strategies.review.handler(({ context, input }) =>
+    context.strategies.review(input)
+  ),
   revoke: contractOS.strategies.revoke.handler(({ context, input }) =>
     context.strategies.revoke(input)
   ),

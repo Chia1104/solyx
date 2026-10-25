@@ -11,12 +11,15 @@ import {
   TextField,
 } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
+import type { TFunction } from "i18next";
 import { Controller, useForm, useWatch } from "react-hook-form";
-import type { Control } from "react-hook-form";
+import type { Control, UseFormReturn } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { BacktestMode } from "@solyx/api/backtests";
 import type { BacktestRequest } from "@solyx/api/backtests";
+import type { StrategyEntry } from "@solyx/api/strategies";
 import { MAX_SCAN_SERIES } from "@solyx/core/backtest";
 import { Interval } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
@@ -27,11 +30,14 @@ import {
   StrategyTemplate,
   TemplateParamName,
   initialSetup,
+  templateParam,
 } from "@solyx/core/strategy-templates";
 import type { TemplateParam } from "@solyx/core/strategy-templates";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { OptionSelect } from "../../components/option-select.tsx";
+import { strategiesQuery } from "../strategies/strategies-query.ts";
+import { StrategyAllow } from "../strategies/strategy-allow.tsx";
 
 import {
   ROLLING_STEPS,
@@ -48,8 +54,10 @@ import {
   writtenOut,
 } from "./backtest-form-values.ts";
 import type { FormValues, PanelSetup } from "./backtest-form-values.ts";
+import { defaultAxis, gridParams, paramAxis } from "./backtest-params.ts";
 import { yearChoices } from "./backtest-years.ts";
 import { GridAxisFields, GridSummary } from "./grid-fields.tsx";
+import type { GridNumbers } from "./grid-fields.tsx";
 
 /** A number's bounds, as a field snaps to them. */
 type Bounds = Omit<TemplateParam, "initial">;
@@ -165,15 +173,53 @@ function NumberControl({
   );
 }
 
-/** A template's own numbers and its exits, or the rules written out in their place. */
+/** The numbers a grid over a template runs along: its own, then its exits. */
+const templateNumbers = (template: StrategyTemplate): GridNumbers => ({
+  names: gridParams(template),
+  own: false,
+  bounds: (param) => templateParam(template, param),
+  axis: (param) => defaultAxis(template, param),
+});
+
+/** The numbers a grid over a strategy of the user's runs along: those its code takes. */
+const ownNumbers = (strategy: StrategyEntry): GridNumbers => ({
+  names: Object.keys(strategy.params),
+  own: true,
+  bounds: (param) =>
+    Object.hasOwn(strategy.params, param) ? strategy.params[param] : undefined,
+  axis: (param) => paramAxis(param, strategy.params[param]),
+});
+
+/**
+ * A template's own numbers and its exits, a strategy of the user's with the numbers its code
+ * takes, or the rules written out in their place.
+ */
 function StrategyFields({
   control,
   template,
+  own,
 }: {
   control: Control<FormValues>;
   template: StrategyTemplate | null;
+  own: StrategyEntry | null;
 }) {
   const { t } = useTranslation();
+
+  if (own) {
+    return (
+      <div className={FIELDS}>
+        {Object.entries(own.params).map(([name, param]) => (
+          <NumberControl
+            key={`${own.name}.${name}`}
+            control={control}
+            name={`params.${name}`}
+            label={name}
+            param={param}
+          />
+        ))}
+      </div>
+    );
+  }
 
   if (!template) {
     return (
@@ -230,20 +276,30 @@ function StrategyFields({
 /** The grid a scan or a walk forward runs: one number down, another across, and its size. */
 function GridFields({
   control,
-  template,
+  numbers,
 }: {
   control: Control<FormValues>;
-  template: StrategyTemplate;
+  numbers: GridNumbers;
 }) {
   const { t } = useTranslation();
 
-  const [strategy, params, stopLoss, takeProfit, rows, columns] = useWatch({
-    control,
-    name: ["strategy", "params", "stopLoss", "takeProfit", "rows", "columns"],
-  });
+  const [strategy, own, params, stopLoss, takeProfit, rows, columns] = useWatch(
+    {
+      control,
+      name: [
+        "strategy",
+        "own",
+        "params",
+        "stopLoss",
+        "takeProfit",
+        "rows",
+        "columns",
+      ],
+    }
+  );
 
   const size = useGridSize(
-    { strategy, params, stopLoss, takeProfit },
+    { strategy, own, params, stopLoss, takeProfit },
     rows,
     columns
   );
@@ -256,7 +312,7 @@ function GridFields({
         render={({ field }) => (
           <GridAxisFields
             label={t("backtests.grid.rows")}
-            template={template}
+            numbers={numbers}
             axis={field.value}
             onChange={field.onChange}
           />
@@ -268,7 +324,7 @@ function GridFields({
         render={({ field }) => (
           <GridAxisFields
             label={t("backtests.grid.columns")}
-            template={template}
+            numbers={numbers}
             axis={field.value}
             onChange={field.onChange}
           />
@@ -387,6 +443,208 @@ function StretchFields({
 }
 
 /**
+ * The user's strategies the form may set up: those a grid can run along two numbers of where it
+ * runs one, the one picked, and how picking one starts it.
+ */
+function useOwnStrategy(form: BacktestFormApi, gridded: boolean) {
+  const [strategy, ownName] = useWatch({
+    control: form.control,
+    name: ["strategy", "own"],
+  });
+
+  const catalog = useQuery(strategiesQuery());
+
+  const offered = (catalog.data?.strategies ?? []).filter(
+    (each) => !gridded || Object.keys(each.params).length >= 2
+  );
+
+  const own =
+    strategy === StrategyChoice.Own
+      ? (offered.find((each) => each.name === ownName) ?? null)
+      : null;
+
+  /** Starts `name` from its numbers' initial values and its first two as the grid. */
+  function pickOwn(name: string) {
+    const picked = offered.find((each) => each.name === name);
+
+    if (!picked) return;
+
+    const numbers = ownNumbers(picked);
+    const [down, across] = numbers.names;
+
+    form.setValue("own", name);
+    form.setValue(
+      "params",
+      Object.fromEntries(
+        Object.entries(picked.params).map(([param, { initial }]) => [
+          param,
+          initial,
+        ])
+      )
+    );
+
+    if (down !== undefined && across !== undefined) {
+      form.setValue("rows", numbers.axis(down));
+      form.setValue("columns", numbers.axis(across));
+    }
+
+    form.clearErrors();
+  }
+
+  return {
+    /** Picked, but not allowed to run as its files are now. */
+    blocked: strategy === StrategyChoice.Own && !own?.allowed,
+    ready: catalog.isSuccess,
+    reach: catalog.data?.reach,
+    offered,
+    own,
+    ownName,
+    pickOwn,
+  };
+}
+
+/** The numbers a grid over what is picked runs along; `null` for written rules. */
+function gridNumbers(
+  template: StrategyTemplate | null,
+  own: StrategyEntry | null
+) {
+  if (own) return ownNumbers(own);
+
+  return template ? templateNumbers(template) : null;
+}
+
+/** The strategies the select offers: the templates, rules but in a grid, and the user's where any fit. */
+function strategyOptions(t: TFunction, gridded: boolean, owned: boolean) {
+  return Object.values(StrategyChoice)
+    .filter((id) => !gridded || id !== StrategyChoice.Rules)
+    .filter((id) => id !== StrategyChoice.Own || owned)
+    .map((id) => ({
+      id,
+      label:
+        id === StrategyChoice.Rules
+          ? t("backtests.form.rules")
+          : id === StrategyChoice.Own
+            ? t("backtests.form.own")
+            : t(`backtests.templates.${id}.name`),
+    }));
+}
+
+/** What the strategy select says of what it picked. */
+function strategyDescription(
+  t: TFunction,
+  template: StrategyTemplate | null,
+  strategy: StrategyChoice
+) {
+  if (template) return t(`backtests.templates.${template}.description`);
+
+  return strategy === StrategyChoice.Own
+    ? t("backtests.form.own-hint")
+    : t("backtests.form.rules-hint");
+}
+
+/** Which of the user's strategies the form sets up, and the version to allow where it has not been. */
+function OwnStrategyPicker({
+  owned,
+}: {
+  owned: ReturnType<typeof useOwnStrategy>;
+}) {
+  const { t } = useTranslation();
+  const { own, offered, ownName, reach, pickOwn } = owned;
+
+  return (
+    <>
+      <OptionSelect
+        label={t("backtests.form.own-pick")}
+        description={own?.description ?? t("backtests.form.own-none")}
+        options={offered.map((each) => ({ id: each.name, label: each.name }))}
+        value={ownName}
+        onChange={pickOwn}
+      />
+      {own && !own.allowed && reach ? (
+        <StrategyAllow strategy={own} reach={reach} />
+      ) : null}
+    </>
+  );
+}
+
+type BacktestFormApi = UseFormReturn<FormValues>;
+
+// Fewer years may hold no window as long as the one picked.
+function pickYearsOf(form: BacktestFormApi, years: number) {
+  form.setValue("years", years);
+  form.setValue("months", fittingMonths(years, form.getValues("months")));
+}
+
+/** Reads `next`'s bars, over the years its template reads where those it read are past what it reaches. */
+function pickIntervalOf(
+  form: BacktestFormApi,
+  template: StrategyTemplate | null,
+  next: Interval
+) {
+  const years = form.getValues("years");
+
+  form.setValue("interval", next);
+
+  if (yearChoices(next).includes(years)) return;
+
+  pickYearsOf(
+    form,
+    template ? templateYears(template, next) : yearChoices(next)[0]
+  );
+}
+
+/**
+ * Sets `next` up: a template from its own numbers, years and grid, the first of the user's
+ * strategies, or rules written out from the template shown.
+ */
+function pickStrategyOf(
+  form: BacktestFormApi,
+  {
+    symbol,
+    template,
+    owned,
+  }: {
+    symbol: SymbolRef;
+    template: StrategyTemplate | null;
+    owned: ReturnType<typeof useOwnStrategy>;
+  },
+  next: StrategyChoice
+) {
+  const current = form.getValues();
+
+  if (next === StrategyChoice.Own) {
+    const [first] = owned.offered;
+
+    if (first) owned.pickOwn(first.name);
+  } else if (isEnumValue(StrategyTemplate, next)) {
+    const { grid } = STRATEGY_TEMPLATES[next];
+
+    form.setValue("params", initialSetup(next).params);
+    pickYearsOf(form, templateYears(next, current.interval));
+    form.setValue("rows", grid.rows);
+    form.setValue("columns", grid.columns);
+  } else if (template) {
+    const shown = runSetup(symbol, current).strategy;
+
+    // Written out from the template shown, so editing it starts from what it ran.
+    if (!("name" in shown)) form.setValue("rules", writtenOut(shown));
+  }
+
+  form.setValue("strategy", next);
+  form.clearErrors();
+}
+
+/** Whether what is picked cannot run as a grid: written rules, or a strategy with too few numbers. */
+const strandedInGrid = (
+  gridded: boolean,
+  strategy: StrategyChoice,
+  owned: ReturnType<typeof useOwnStrategy>
+) =>
+  gridded &&
+  (strategy === StrategyChoice.Rules ||
+    (strategy === StrategyChoice.Own && owned.ready && !owned.own));
+
+/**
  * Sets a backtest up for `symbol`: a template with its numbers or rules written out, the interval
  * and years of bars it reads, where its out-of-sample stretch starts and what trades cost, in a
  * scan or a walk forward the grid of the template's numbers it runs, and for rolling windows how
@@ -429,56 +687,32 @@ export function BacktestForm({
   });
 
   const template = isEnumValue(StrategyTemplate, strategy) ? strategy : null;
+  const owned = useOwnStrategy(form, gridded);
+  const { own } = owned;
+  const numbers = gridded ? gridNumbers(template, own) : null;
 
   const submit = form.handleSubmit((values) =>
     onSubmit(formRequest(mode, symbol, values))
   );
 
-  function pickStrategy(next: StrategyChoice) {
-    const current = form.getValues();
-
-    if (isEnumValue(StrategyTemplate, next)) {
-      const { grid } = STRATEGY_TEMPLATES[next];
-
-      form.setValue("params", initialSetup(next).params);
-      pickYears(templateYears(next, current.interval));
-      form.setValue("rows", grid.rows);
-      form.setValue("columns", grid.columns);
-    } else if (template) {
-      // Written out from the template shown, so editing it starts from what it ran.
-      form.setValue("rules", writtenOut(runSetup(symbol, current).strategy));
-    }
-
-    form.setValue("strategy", next);
-    form.clearErrors();
-  }
+  const pickStrategy = (next: StrategyChoice) =>
+    pickStrategyOf(form, { symbol, template, owned }, next);
 
   const leaveRules = useEffectEvent(() =>
     pickStrategy(StrategyTemplate.MovingAverageCross)
   );
 
-  // A grid runs a template's numbers, so written rules give way to one in a scan or a walk.
+  const stranded = strandedInGrid(gridded, strategy, owned);
+
+  // A grid runs a template's numbers or a strategy's, so written rules give way to one in a scan or
+  // a walk, and so does a strategy of the user's that takes too few numbers to run along.
   useEffect(() => {
-    if (gridded && strategy === StrategyChoice.Rules) leaveRules();
-  }, [gridded, strategy]);
+    if (stranded) leaveRules();
+  }, [stranded]);
 
-  // Fewer years may hold no window as long as the one picked.
-  function pickYears(years: number) {
-    form.setValue("years", years);
-    form.setValue("months", fittingMonths(years, form.getValues("months")));
-  }
+  const pickYears = (years: number) => pickYearsOf(form, years);
 
-  function pickInterval(next: Interval) {
-    const years = form.getValues("years");
-
-    form.setValue("interval", next);
-
-    if (!yearChoices(next).includes(years)) {
-      pickYears(
-        template ? templateYears(template, next) : yearChoices(next)[0]
-      );
-    }
-  }
+  const pickInterval = (next: Interval) => pickIntervalOf(form, template, next);
 
   return (
     <Form
@@ -488,27 +722,16 @@ export function BacktestForm({
       onSubmit={(event) => void submit(event)}>
       <OptionSelect
         label={t("backtests.form.strategy")}
-        description={
-          template
-            ? t(`backtests.templates.${template}.description`)
-            : t("backtests.form.rules-hint")
-        }
-        options={Object.values(StrategyChoice)
-          .filter((id) => !gridded || id !== StrategyChoice.Rules)
-          .map((id) => ({
-            id,
-            label:
-              id === StrategyChoice.Rules
-                ? t("backtests.form.rules")
-                : t(`backtests.templates.${id}.name`),
-          }))}
+        description={strategyDescription(t, template, strategy)}
+        options={strategyOptions(t, gridded, owned.offered.length > 0)}
         value={strategy}
         onChange={pickStrategy}
       />
-      <StrategyFields control={form.control} template={template} />
-      {gridded && template ? (
-        <GridFields control={form.control} template={template} />
+      {strategy === StrategyChoice.Own ? (
+        <OwnStrategyPicker owned={owned} />
       ) : null}
+      <StrategyFields control={form.control} template={template} own={own} />
+      {numbers ? <GridFields control={form.control} numbers={numbers} /> : null}
       <div className={FIELDS}>
         <OptionSelect
           label={t("backtests.form.interval")}
@@ -555,7 +778,11 @@ export function BacktestForm({
           param={SLIPPAGE}
         />
       </div>
-      <Button type="submit" variant="secondary" isPending={isRunning}>
+      <Button
+        type="submit"
+        variant="secondary"
+        isPending={isRunning}
+        isDisabled={owned.blocked}>
         {t(`backtests.modes.${mode}.action`)}
       </Button>
     </Form>

@@ -4,9 +4,10 @@ import { Button, Switch, cn } from "@heroui/react";
 import { scaleLinear } from "d3-scale";
 import { useTranslation } from "react-i18next";
 
-import type { BacktestSetup, ScanSetup } from "@solyx/api/backtests";
+import { gridCellSetups } from "@solyx/api/backtests";
+import type { BacktestSetup, ScanSetup, Warned } from "@solyx/api/backtests";
 import type { BacktestScan, BacktestStretches } from "@solyx/core/backtest";
-import { axisValues, gridSetups } from "@solyx/core/strategy-templates";
+import { axisValues } from "@solyx/core/strategy-templates";
 
 import { usePaletteColors } from "../../app/theme.ts";
 import { ChartMark } from "../../components/chart-mark.tsx";
@@ -14,7 +15,7 @@ import { faded } from "../market/chart-palette.ts";
 import { numberFormats } from "../market/number-formats.ts";
 
 import { useParamWords } from "./backtest-params.ts";
-import { RunWarnings } from "./run-warnings.tsx";
+import { RunWarnings, useLookAheadWarning } from "./run-warnings.tsx";
 import type { RunWarning } from "./run-warnings.tsx";
 import { MetricsTable, Stretch } from "./stretch-figures.tsx";
 import type { StretchFigures } from "./stretch-figures.tsx";
@@ -31,15 +32,17 @@ function useCellName(setup: ScanSetup) {
 
   return (cell: number) =>
     t("backtests.scan.cell", {
-      row: words.label(setup.rows.param),
+      row: words.label(setup.rows.param, "name" in setup.strategy),
       rowValue: words.value(
         setup.rows.param,
-        rows[Math.floor(cell / columns.length)]
+        rows[Math.floor(cell / columns.length)],
+        "name" in setup.strategy
       ),
-      column: words.label(setup.columns.param),
+      column: words.label(setup.columns.param, "name" in setup.strategy),
       columnValue: words.value(
         setup.columns.param,
-        columns[cell % columns.length]
+        columns[cell % columns.length],
+        "name" in setup.strategy
       ),
     });
 }
@@ -143,8 +146,8 @@ function ScanHeatMap({
     <figure className="flex flex-col gap-1.5">
       <figcaption className="text-xs text-muted">
         {t("backtests.scan.heat-map", {
-          row: words.label(setup.rows.param),
-          column: words.label(setup.columns.param),
+          row: words.label(setup.rows.param, "name" in setup.strategy),
+          column: words.label(setup.columns.param, "name" in setup.strategy),
         })}
       </figcaption>
       <div
@@ -246,7 +249,7 @@ export function ScanReport({
   onRunCell,
 }: {
   setup: ScanSetup;
-  scan: BacktestScan;
+  scan: Warned<BacktestScan>;
   onRunCell: (setup: BacktestSetup) => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -254,7 +257,8 @@ export function ScanReport({
   const cellName = useCellName(setup);
   const [picked, setPicked] = useState(scan.plateau?.cell ?? 0);
   const figures = scan.cells[picked];
-  const warnings: RunWarning[] = [];
+  const lookAheadWarning = useLookAheadWarning();
+  const warnings: RunWarning[] = lookAheadWarning(scan.lookAhead);
 
   if (!scan.plateau) {
     warnings.push({ id: "no-plateau", text: t("backtests.scan.no-plateau") });
@@ -269,7 +273,9 @@ export function ScanReport({
       years: setup.years,
       capital: setup.capital,
       costs: setup.costs,
-      strategy: gridSetups(setup.strategy, setup.rows, setup.columns)[picked],
+      strategy: gridCellSetups(setup.strategy, setup.rows, setup.columns)[
+        picked
+      ],
       split: setup.split,
     });
 

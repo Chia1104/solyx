@@ -68,6 +68,7 @@ catalogs:
     fallow: 3.35.0
   markdown:
     "@streamdown/cjk": 1.0.4
+    diff: 9.0.0
     streamdown: 2.7.1
   native:
     "@napi-rs/cli": 3.10.9

@@ -36,6 +36,7 @@
     "d3-hierarchy": "catalog:charts",
     "d3-scale": "catalog:charts",
     "d3-shape": "catalog:charts",
+    "diff": "catalog:markdown",
     "es-toolkit": "catalog:",
     "i18next": "catalog:i18n",
     "lightweight-charts": "catalog:charts",

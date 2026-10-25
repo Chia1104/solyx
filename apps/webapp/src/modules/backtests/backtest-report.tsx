@@ -1,12 +1,16 @@
 import { useTranslation } from "react-i18next";
 
-import type { BacktestSetup } from "@solyx/api/backtests";
+import type { BacktestSetup, Warned } from "@solyx/api/backtests";
 import type { BacktestResult } from "@solyx/core/backtest";
 
 import { numberFormats } from "../market/number-formats.ts";
 
 import { yearChoices } from "./backtest-years.ts";
-import { RunWarnings, useStretchWarnings } from "./run-warnings.tsx";
+import {
+  RunWarnings,
+  useLookAheadWarning,
+  useStretchWarnings,
+} from "./run-warnings.tsx";
 import { MetricsTable, Stretch, runStretches } from "./stretch-figures.tsx";
 
 /**
@@ -19,12 +23,13 @@ export function BacktestReport({
   onReadLonger,
 }: {
   setup: BacktestSetup;
-  result: BacktestResult;
+  result: Warned<BacktestResult>;
   onReadLonger: (years: number) => void;
 }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
   const stretchWarnings = useStretchWarnings();
+  const lookAheadWarning = useLookAheadWarning();
   const stretches = runStretches(result);
 
   const fine = new Intl.NumberFormat(i18n.language, {
@@ -33,7 +38,7 @@ export function BacktestReport({
   });
 
   // The whole span adds nothing to how thin its halves are.
-  const warnings = stretchWarnings(
+  const stretched = stretchWarnings(
     stretches.filter(({ stretch }) => stretch !== Stretch.All),
     result.outOfSample
   ).map((warning) =>
@@ -46,6 +51,8 @@ export function BacktestReport({
         }
       : warning
   );
+
+  const warnings = [...lookAheadWarning(result.lookAhead), ...stretched];
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
