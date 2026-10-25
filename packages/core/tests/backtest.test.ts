@@ -17,6 +17,7 @@ import {
   MAX_RULE_DEPTH,
   MAX_RULE_SERIES,
   rollingBacktest,
+  ruleSignal,
   ruleStrategySchema,
   scanBacktests,
   strategyBars,
@@ -1427,5 +1428,63 @@ describe("a strategy's own lines", () => {
         }
       )
     ).rejects.toThrow(`hold ${MAX_LINE_VALUES} values at most`);
+  });
+});
+
+describe("a strategy's signal", () => {
+  const crossing: RuleStrategy = {
+    entry: { crossesAbove: [{ sma: 5 }, { sma: 20 }] },
+    exit: { crossesBelow: [{ sma: 5 }, { sma: 20 }] },
+  };
+
+  test("says the rules held at the close before every fill a backtest of the same bars made", async () => {
+    for (let seed = 1; seed <= 4; seed++) {
+      const whole = walk(seed, 300);
+      const dates = whole.map((bar) => candleDate(Market.TW, bar.time));
+      const result = await backtest(kernel, TSMC, whole, crossing);
+
+      expect(result.trades.length).toBeGreaterThan(0);
+
+      for (const trade of result.trades) {
+        const bought = dates.indexOf(trade.entryTime);
+        const before = ruleSignal(TSMC, whole.slice(0, bought), crossing);
+
+        expect(before).toMatchObject({ time: dates[bought - 1], entry: true });
+
+        if (trade.exitTime !== null) {
+          const sold = dates.indexOf(trade.exitTime);
+
+          expect(ruleSignal(TSMC, whole.slice(0, sold), crossing).exit).toBe(
+            true
+          );
+        }
+      }
+    }
+  });
+
+  test("reads a strategy's own lines as its backtest does", () => {
+    const six = bars([95, 98, 102, 110, 99, 97]);
+
+    const level = {
+      close: [95, 98, 102, 110, 99, 97],
+      level: six.map(() => 100),
+    };
+
+    const own: RuleStrategy = {
+      entry: { crossesAbove: [{ line: "close" }, { line: "level" }] },
+      exit: { crossesBelow: [{ line: "close" }, { line: "level" }] },
+    };
+
+    const at = (bars: number) =>
+      ruleSignal(TSMC, six.slice(0, bars), own, {
+        lines: {
+          close: level.close.slice(0, bars),
+          level: level.level.slice(0, bars),
+        },
+      });
+
+    expect(at(2)).toEqual({ time: "2026-01-06", entry: false, exit: false });
+    expect(at(3)).toEqual({ time: "2026-01-07", entry: true, exit: false });
+    expect(at(5)).toEqual({ time: "2026-01-09", entry: false, exit: true });
   });
 });

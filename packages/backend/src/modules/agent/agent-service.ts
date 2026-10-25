@@ -31,6 +31,8 @@ import { createShell } from "@solyx/agent/shell";
 import type { ShellOptions } from "@solyx/agent/shell";
 import { loadInstructions, loadSkillCatalog } from "@solyx/agent/skills";
 import type { SkillFolders } from "@solyx/agent/skills";
+import { createStrategyTools } from "@solyx/agent/strategies";
+import type { StrategiesPort } from "@solyx/agent/strategies";
 import { createTaskTools } from "@solyx/agent/tasks";
 import type { TaskPort } from "@solyx/agent/tasks";
 import { createThemeTools } from "@solyx/agent/themes";
@@ -99,6 +101,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   sandbox: Sandbox | undefined;
   /** What the decisions model makes of a shell command, for conversations set to auto. */
   judgeCommand: ShellOptions["judge"];
+  /** The user's strategies, which the agent backtests and asks to run. */
+  strategies: StrategiesPort;
   /** Where conversations persist, opening as the app starts. */
   conversations: Promise<AgentStore>;
   diagnostics: Pick<Diagnostics, "report">;
@@ -295,9 +299,12 @@ export function createAgentService(options: AgentServiceOptions) {
     sectors: options.sectors,
     flows: options.flows,
     fundamentals: options.fundamentals,
+    strategies: options.strategies,
     scripts,
     kernel: options.kernel,
   });
+
+  const strategyTools = createStrategyTools(options.strategies);
 
   const quotes = createQuoteTools({
     quote: options.quote,
@@ -390,6 +397,9 @@ export function createAgentService(options: AgentServiceOptions) {
       const mcp = await options.mcp.extensions({ guard, unasked });
       const webOn = (await options.web()) !== undefined;
 
+      const strategiesOn =
+        (await options.strategies.catalog()).strategies.length > 0;
+
       // MCP tools wait until the agent finds them, so only the servers' names ride every request.
       return {
         offered: [
@@ -406,6 +416,7 @@ export function createAgentService(options: AgentServiceOptions) {
           tasks.extension(guard),
           watched.extension(guard),
           createSetupTools({ setup, guard }),
+          ...(strategiesOn ? [strategyTools.extension(guard)] : []),
           ...(shellOn() ? [shell.extension(guard)] : []),
           ...(webOn ? [web.extension(guard)] : []),
           ...(options.config.read().agent.memory

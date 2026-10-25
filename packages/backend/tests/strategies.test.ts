@@ -16,11 +16,11 @@ import {
   createSandbox,
   sandboxProblems,
 } from "@solyx/agent/sandbox";
-import { StrategyApprover, approvalAllows } from "@solyx/api/strategies";
-import type { StrategyApproval, StrategyReach } from "@solyx/api/strategies";
 import { backtest } from "@solyx/core/backtest";
 import type { Candle } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
+import { StrategyApprover, approvalAllows } from "@solyx/core/strategy";
+import type { StrategyApproval, StrategyReach } from "@solyx/core/strategy";
 import { kernel } from "@solyx/kernel/kernel";
 
 import { createSecretStore } from "../src/modules/settings/secret-store.ts";

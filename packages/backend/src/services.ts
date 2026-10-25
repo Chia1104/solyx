@@ -80,6 +80,7 @@ import { createSecretStore } from "./modules/settings/secret-store.ts";
 import { createStorageApi } from "./modules/storage/storage-api.ts";
 import { createStrategies } from "./modules/strategies/strategies.ts";
 import { createStrategyApprovals } from "./modules/strategies/strategy-approvals.ts";
+import { createStrategyPort } from "./modules/strategies/strategy-port.ts";
 import { createStrategyRunner } from "./modules/strategies/strategy-runner.ts";
 import { createTelemetry } from "./modules/telemetry/telemetry.ts";
 import { createThemes } from "./modules/themes/themes.ts";
@@ -482,6 +483,7 @@ export function createServices(config: ConfigFile, host: Host) {
     mcp,
     workspaces: folders.workspaces,
     sandbox,
+    strategies: createStrategyPort(strategies, () => decisions.codeJudge()),
     async judgeCommand(input, signal) {
       const judgement = await (
         await decisions.commandJudge()

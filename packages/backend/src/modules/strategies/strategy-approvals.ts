@@ -1,8 +1,8 @@
 import * as z from "zod";
 
 import { STRATEGY_APPROVALS_SECRET } from "@solyx/api/settings";
-import { strategyApprovalSchema } from "@solyx/api/strategies";
-import type { StrategyApproval } from "@solyx/api/strategies";
+import { strategyApprovalSchema } from "@solyx/core/strategy";
+import type { StrategyApproval } from "@solyx/core/strategy";
 import { parseJson } from "@solyx/utils/json";
 
 import type { SecretStore } from "../settings/secret-store.ts";

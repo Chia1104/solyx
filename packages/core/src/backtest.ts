@@ -1353,3 +1353,86 @@ export async function rollingBacktest(
     summary: rollingSummary(windows, apart),
   };
 }
+
+/** Whether `condition` holds at bar `index`, as the kernel reads it: a line with no value yet holds nothing. */
+function holdsAt(
+  condition: KernelCondition,
+  lines: readonly Float64Array[],
+  index: number
+): boolean {
+  if (condition.all) {
+    return condition.all.every((each) => holdsAt(each, lines, index));
+  }
+
+  if (condition.any) {
+    return condition.any.some((each) => holdsAt(each, lines, index));
+  }
+
+  const read = ([left, right]: number[], at: number) => [
+    lines[left][at],
+    lines[right][at],
+  ];
+
+  if (condition.above) {
+    const [left, right] = read(condition.above, index);
+
+    return left > right;
+  }
+
+  if (condition.below) {
+    const [left, right] = read(condition.below, index);
+
+    return left < right;
+  }
+
+  // A cross holds where the bar before was not yet past the other line, which NaN never is.
+  const crossing = condition.crossesAbove ?? condition.crossesBelow;
+
+  if (!crossing || index === 0) return false;
+
+  const [left, right] = read(crossing, index);
+  const [wasLeft, wasRight] = read(crossing, index - 1);
+
+  return condition.crossesAbove
+    ? wasLeft <= wasRight && left > right
+    : wasLeft >= wasRight && left < right;
+}
+
+/** What a strategy's rules say at a listing's last bar's close. */
+export interface RuleSignal {
+  /** That bar's time on the exchange's clock. */
+  time: string;
+  /** The entry holds: holding nothing, the strategy buys at the next bar's open. */
+  entry: boolean;
+  /** The exit holds: holding, the strategy sells at the next bar's open. */
+  exit: boolean;
+}
+
+/**
+ * What `strategy`'s rules say at the last bar's close, read over the same lines a backtest of the
+ * same bars reads, so what it says next is what the backtest would do. Its stops are the
+ * backtest's alone: they hang on what was paid, which only a run over the bars before knows.
+ */
+export function ruleSignal(
+  symbol: SymbolRef,
+  candles: readonly Candle[],
+  strategy: RuleStrategy,
+  options: Pick<BacktestOptions, "interval" | "daily" | "lines"> = {}
+): RuleSignal {
+  const prepared = prepare(symbol, candles, [strategy], options, [
+    options.lines,
+  ]);
+
+  const { lines } = prepared.kernelBars;
+  const [ruled] = prepared.strategies;
+
+  return {
+    time: barTime(
+      symbol.market,
+      prepared.interval,
+      prepared.bars[prepared.last].time
+    ),
+    entry: holdsAt(ruled.entry, lines, prepared.last),
+    exit: holdsAt(ruled.exit, lines, prepared.last),
+  };
+}

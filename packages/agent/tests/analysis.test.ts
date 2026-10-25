@@ -19,6 +19,7 @@ import { kernel } from "@solyx/kernel/kernel";
 import { MAX_LISTINGS } from "../src/analysis-sources.ts";
 import type { AnalysisSources } from "../src/analysis-sources.ts";
 import { createAnalysis } from "../src/analysis.ts";
+import type { AnalysisPorts } from "../src/analysis.ts";
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
 import { createScriptRunner } from "../src/script-runner.ts";
@@ -144,7 +145,17 @@ afterEach(async () => {
 });
 
 /** The agent on the analysis tool alone over `bars`, running each of `scripts` in one conversation. */
-async function analyzeOver(bars: Candle[], ...scripts: string[]) {
+const analyzeOver = (bars: Candle[], ...scripts: string[]) =>
+  analyzeWith({ bars }, ...scripts);
+
+/** As `analyzeOver`, with the user's strategies where `strategies` gives them. */
+async function analyzeWith(
+  {
+    bars,
+    strategies,
+  }: { bars: Candle[]; strategies?: AnalysisPorts["strategies"] },
+  ...scripts: string[]
+) {
   const faux = fauxProvider();
   const models = createModels();
   const events: AgentWireEvent[] = [];
@@ -165,6 +176,7 @@ async function analyzeOver(bars: Candle[], ...scripts: string[]) {
     },
     candlesSince,
     ...sources,
+    strategies,
     scripts: runner,
     kernel,
     now: () => NOW,
@@ -553,4 +565,65 @@ test("bars from further back are refused on short intervals and for more than a 
   expect(results[2].output).toContain("for at most 5 listings");
   // Five listings and one of them again, then the sixth is refused before its source is asked.
   expect(candlesSince).toHaveBeenCalledTimes(7);
+});
+
+test("a script backtests a strategy the user wrote on the lines its code worked out, the engine filling its rules", async () => {
+  const lines = vi.fn<NonNullable<AnalysisPorts["strategies"]>["lines"]>(
+    async (_name, _symbol, candles, _bars, params) => ({
+      rules: {
+        entry: { crossesAbove: [{ line: "close" }, { line: "level" }] },
+        exit: { crossesBelow: [{ line: "close" }, { line: "level" }] },
+      },
+      params: params.map((each) => ({ level: 115, ...each })),
+      lines: params.map((each) => ({
+        close: candles.map((bar) => bar.close),
+        level: candles.map(() => each.level ?? 115),
+      })),
+      lookAhead: { line: "level", time: "2025-06-20" },
+    })
+  );
+
+  const { results, description } = await analyzeWith(
+    { bars: BARS, strategies: { lines } },
+    `
+    const symbol = { market: "${Market.TW}", symbol: "2330" };
+    const costs = { commissionRate: 0, minCommission: 0, sellTaxRate: 0, slippageTicks: 0 };
+    const run = await strategies.backtest({ strategy: "crossing", symbol, costs });
+    const scan = await strategies.scan({ strategy: "crossing", symbol, params: [{ level: 110 }, { level: 120 }, { level: 200 }] });
+    const signal = await strategies.signal({ strategy: "crossing", symbol });
+    return [run.trades[0].entryPrice, run.params, run.lookAhead.line, scan.cells.map((cell) => cell.all.trades), scan.params.length, signal];
+  `
+  );
+
+  expect(lines).toHaveBeenCalledWith(
+    "crossing",
+    { market: Market.TW, symbol: "2330" },
+    BARS,
+    { interval: Interval.OneDay, daily: undefined },
+    [{}]
+  );
+  // The close of 116 is the first past 115, so the next bar's open of 116 buys and nothing sells.
+  expect(results).toEqual([
+    {
+      status: ToolCallStatus.Ok,
+      output: `Result: [116,{"level":115},"level",[0,0,0],3,${JSON.stringify({
+        time: "2025-07-14",
+        entry: false,
+        exit: false,
+        // The signal's backtest pays a tick of slippage, as the app's costs have it.
+        holding: { since: "2025-07-01", price: 116.5 },
+        params: { level: 115 },
+        lookAhead: { line: "level", time: "2025-06-20" },
+      })}]`,
+    },
+  ]);
+  expect(description).toContain("type LookAhead = {");
+  expect(description).toContain("declare const strategies: {");
+});
+
+test("without the user's strategies the tool declares none of their functions", async () => {
+  const { description } = await analyze("return 1");
+
+  expect(description).not.toContain("declare const strategies");
+  expect(description).not.toContain("type LookAhead");
 });

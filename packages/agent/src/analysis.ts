@@ -15,6 +15,7 @@ import {
   backtest,
   backtestBars,
   rollingBacktest,
+  ruleSignal,
   ruleStrategySchema,
   scanBacktests,
   tradeCostsSchema,
@@ -58,6 +59,7 @@ import {
 import type { AnalysisSources } from "./analysis-sources.ts";
 import { scriptFunction } from "./script-runner.ts";
 import type { ScriptRunner } from "./script-runner.ts";
+import type { StrategiesPort } from "./strategies.ts";
 import {
   AgentToolName,
   MAX_RAN_BACKTESTS,
@@ -76,6 +78,8 @@ export interface AnalysisPorts extends AnalysisSources {
   ): Promise<Candle[]>;
   watchlist(): SymbolRef[];
   desk: Pick<ProposingDesk, "account" | "mode">;
+  /** The user's strategies, whose code works out the lines their rules read; none where the host has none. */
+  strategies?: Pick<StrategiesPort, "lines">;
 }
 
 export interface AnalysisOptions extends AnalysisPorts {
@@ -334,6 +338,12 @@ const backtestSchema = z.object({
   outOfSample: metricsSchema.nullable(),
 });
 
+const paramsSchema = z.record(z.string(), z.number());
+
+const lookAheadSchema = z
+  .object({ line: z.string(), time: z.string() })
+  .nullable();
+
 /** The rule language a backtest reads, declared for the model by hand, since a condition nests in itself. */
 export const BACKTEST_TYPES = [
   `type Interval = ${Object.values(Interval)
@@ -350,6 +360,13 @@ export const BACKTEST_TYPES = [
   "type WalkForward = { interval: Interval; bars: number; windows: { train: { from: string; to: string }; test: { from: string; to: string }; cell: number | null; trainSharpe: number | null }[]; outOfSample: Metrics; efficiency: number | null; equity: { date: string; value: number }[] };",
   "type Spread = { p10: number; median: number; p90: number };",
   "type Rolling = { interval: Interval; bars: number; capital: number; months: number; step: number; windows: Metrics[]; summary: { windows: number; apart: number; beatHolding: number; gained: number; returns: Spread; holding: Spread; excess: Spread; worstDrawdown: number; thin: number } };",
+].join("\n");
+
+/** What a strategy the user wrote takes and gives, beside the backtests' types. */
+const STRATEGY_TYPES = [
+  "type Params = Record<string, number>;",
+  "type LookAhead = { line: string; time: string } | null;",
+  "type Signal = { time: string; entry: boolean; exit: boolean; holding: { since: string; price: number } | null; params: Params; lookAhead: LookAhead };",
 ].join("\n");
 
 /** A listing's bars from `since` (`YYYY-MM-DD`) on, which counts against the script's history budget. */
@@ -574,8 +591,296 @@ const backtests = (
         });
       },
     }),
+    ...(ports.strategies
+      ? strategyBacktests(ports.strategies, kernel, listingBars, {
+          columnsSchema,
+          sessionsSchema,
+          splitSchema,
+          reading,
+        })
+      : []),
   ];
 };
+
+/** What `backtests` shares with the strategies' functions. */
+interface Shared {
+  columnsSchema: z.ZodType<number | undefined>;
+  sessionsSchema: z.ZodOptional<z.ZodNumber>;
+  splitSchema: z.ZodType<
+    { day: string } | { share: number } | undefined,
+    string | number | undefined
+  >;
+  reading: string;
+}
+
+/**
+ * The backtests of the user's strategies: each reads the listing's bars as `backtest.rules` does,
+ * has the strategy's code work out its lines over them, and has the engine trade its rules on
+ * those lines, so the fills and costs stay the app's whatever the code is.
+ */
+function strategyBacktests(
+  strategies: Pick<StrategiesPort, "lines">,
+  kernel: BacktestKernel,
+  listingBars: (
+    symbol: SymbolRef,
+    interval: Interval,
+    since: string | undefined
+  ) => ReturnType<typeof backtestBars>,
+  { columnsSchema, sessionsSchema, splitSchema, reading }: Shared
+): CodemodeTool[] {
+  const listed = {
+    strategy: z.string().describe("A strategy's name, as the prompt lists it"),
+    symbol: symbolRefSchema,
+    interval: intervalSchema.optional(),
+    since: z.iso.date().optional(),
+  };
+
+  const paramsListSchema = z
+    .array(paramsSchema)
+    .min(1)
+    .max(MAX_SCAN_STRATEGIES);
+
+  /** The bars and what the strategy's code worked out over them for each of `params`. */
+  async function worked(
+    {
+      strategy,
+      symbol,
+      interval = Interval.OneDay,
+      since,
+    }: {
+      strategy: string;
+      symbol: SymbolRef;
+      interval?: Interval;
+      since?: string;
+    },
+    params: Record<string, number>[]
+  ) {
+    const { bars, daily } = await listingBars(symbol, interval, since);
+
+    const lines = await strategies.lines(
+      strategy,
+      symbol,
+      bars,
+      { interval, daily },
+      params
+    );
+
+    return { bars, daily, interval, ...lines };
+  }
+
+  const own = `it ${reading}, and has the strategy's code work its lines out over them for each set of numbers, those not given at their initial values; params says them all. The engine trades the strategy's rules on those lines, its fills and costs as backtest.rules has them. A version of the strategy's files runs only once allowed. lookAhead names a line and the time of the first bar where the code read bars after the one it worked a value out for, which leaves every figure resting on prices it could not have known; null where it did not`;
+
+  return [
+    scriptFunction({
+      name: "strategies.backtest",
+      description: `Backtests a strategy the user wrote, as backtest.rules backtests rules: ${own}.`,
+      spread: true,
+      signature:
+        "(input: { strategy: string; symbol: SymbolRef; interval?: Interval; since?: string; params?: Params; capital?: number; costs?: Partial<Costs>; split?: string | number }): Promise<Backtest & { params: Params; lookAhead: LookAhead }>",
+      input: z.tuple([
+        z.strictObject({
+          ...listed,
+          params: paramsSchema.optional(),
+          capital: z.number().positive().optional(),
+          costs: tradeCostsSchema.partial().optional(),
+          split: splitSchema,
+        }),
+      ]),
+      output: backtestSchema.extend({
+        params: paramsSchema,
+        lookAhead: lookAheadSchema,
+      }),
+      async run([{ strategy, symbol, interval, since, params, ...options }]) {
+        const run = await worked({ strategy, symbol, interval, since }, [
+          params ?? {},
+        ]);
+
+        const result = await backtest(kernel, symbol, run.bars, run.rules, {
+          ...options,
+          interval: run.interval,
+          daily: run.daily,
+          lines: run.lines[0],
+        });
+
+        return { ...result, params: run.params[0], lookAhead: run.lookAhead };
+      },
+    }),
+    scriptFunction({
+      name: "strategies.scan",
+      description: `Runs a strategy the user wrote once for each set of numbers in params, as backtest.scan runs strategies: ${own}, for the first set. Pass columns where the sets make a grid, row by row, as backtest.scan reads one.`,
+      spread: true,
+      signature:
+        "(input: { strategy: string; symbol: SymbolRef; interval?: Interval; since?: string; params: Params[]; columns?: number; capital?: number; costs?: Partial<Costs>; split?: string | number }): Promise<Scan & { params: Params[]; lookAhead: LookAhead }>",
+      input: z.tuple([
+        z.strictObject({
+          ...listed,
+          params: paramsListSchema,
+          columns: columnsSchema,
+          capital: z.number().positive().optional(),
+          costs: tradeCostsSchema.partial().optional(),
+          split: splitSchema,
+        }),
+      ]),
+      output: scanSchema.extend({
+        params: z.array(paramsSchema),
+        lookAhead: lookAheadSchema,
+      }),
+      async run([{ strategy, symbol, interval, since, params, ...options }]) {
+        const run = await worked({ strategy, symbol, interval, since }, params);
+
+        const scan = await scanBacktests(
+          kernel,
+          symbol,
+          run.bars,
+          run.params.map(() => run.rules),
+          {
+            ...options,
+            interval: run.interval,
+            daily: run.daily,
+            lines: run.lines,
+          }
+        );
+
+        return { ...scan, params: run.params, lookAhead: run.lookAhead };
+      },
+    }),
+    scriptFunction({
+      name: "strategies.walkForward",
+      description: `Walks a strategy the user wrote forward over the sets of numbers in params, as backtest.walkForward walks strategies: ${own}, for the first set.`,
+      spread: true,
+      signature:
+        "(input: { strategy: string; symbol: SymbolRef; interval?: Interval; since?: string; params: Params[]; columns?: number; train?: number; test?: number; capital?: number; costs?: Partial<Costs> }): Promise<WalkForward & { params: Params[]; lookAhead: LookAhead }>",
+      input: z.tuple([
+        z.strictObject({
+          ...listed,
+          params: paramsListSchema,
+          columns: columnsSchema,
+          train: sessionsSchema.describe("Sessions each window trains on"),
+          test: sessionsSchema.describe(
+            "Sessions each window then tests on, and moves on by"
+          ),
+          capital: z.number().positive().optional(),
+          costs: tradeCostsSchema.partial().optional(),
+        }),
+      ]),
+      output: walkForwardSchema.extend({
+        params: z.array(paramsSchema),
+        lookAhead: lookAheadSchema,
+      }),
+      async run([{ strategy, symbol, interval, since, params, ...options }]) {
+        const run = await worked({ strategy, symbol, interval, since }, params);
+
+        const walked = await walkForward(
+          kernel,
+          symbol,
+          run.bars,
+          run.params.map(() => run.rules),
+          {
+            ...options,
+            interval: run.interval,
+            daily: run.daily,
+            lines: run.lines,
+          }
+        );
+
+        return { ...walked, params: run.params, lookAhead: run.lookAhead };
+      },
+    }),
+    scriptFunction({
+      name: "strategies.rolling",
+      description: `Runs a strategy the user wrote over rolling windows of months, as backtest.rolling runs rules: ${own}.`,
+      spread: true,
+      signature:
+        "(input: { strategy: string; symbol: SymbolRef; interval?: Interval; since?: string; params?: Params; months: number; step?: number; capital?: number; costs?: Partial<Costs> }): Promise<Rolling & { params: Params; lookAhead: LookAhead }>",
+      input: z.tuple([
+        z.strictObject({
+          ...listed,
+          params: paramsSchema.optional(),
+          months: z
+            .number()
+            .int()
+            .min(1)
+            .max(HISTORY_YEARS * 12),
+          step: z.number().int().min(1).max(12).optional(),
+          capital: z.number().positive().optional(),
+          costs: tradeCostsSchema.partial().optional(),
+        }),
+      ]),
+      output: rollingSchema.extend({
+        params: paramsSchema,
+        lookAhead: lookAheadSchema,
+      }),
+      async run([{ strategy, symbol, interval, since, params, ...options }]) {
+        const run = await worked({ strategy, symbol, interval, since }, [
+          params ?? {},
+        ]);
+
+        const rolled = await rollingBacktest(
+          kernel,
+          symbol,
+          run.bars,
+          run.rules,
+          {
+            ...options,
+            interval: run.interval,
+            daily: run.daily,
+            lines: run.lines[0],
+          }
+        );
+
+        return { ...rolled, params: run.params[0], lookAhead: run.lookAhead };
+      },
+    }),
+    scriptFunction({
+      name: "strategies.signal",
+      description: `What a strategy the user wrote says at the listing's last bar: ${own}. entry and exit say whether its rules hold at that bar's close, which a backtest acts on at the next bar's open: entry buys while nothing is held, exit sells what is. holding is the position a backtest of the same bars holds at the last bar, from the fill that bought it, or null, so with entry or exit it says what the strategy does next; its stops are the backtest's alone, and a live position's are an exit the user confirms. While the session is open the last bar is still forming, so its close is not yet the one the rules read.`,
+      spread: true,
+      signature:
+        "(input: { strategy: string; symbol: SymbolRef; interval?: Interval; since?: string; params?: Params }): Promise<Signal>",
+      input: z.tuple([
+        z.strictObject({ ...listed, params: paramsSchema.optional() }),
+      ]),
+      output: z.object({
+        time: z.string(),
+        entry: z.boolean(),
+        exit: z.boolean(),
+        holding: z.object({ since: z.string(), price: z.number() }).nullable(),
+        params: paramsSchema,
+        lookAhead: lookAheadSchema,
+      }),
+      async run([{ strategy, symbol, interval, since, params }]) {
+        const run = await worked({ strategy, symbol, interval, since }, [
+          params ?? {},
+        ]);
+
+        const bars = {
+          interval: run.interval,
+          daily: run.daily,
+          lines: run.lines[0],
+        };
+
+        const result = await backtest(
+          kernel,
+          symbol,
+          run.bars,
+          run.rules,
+          bars
+        );
+
+        const open = result.trades.findLast((trade) => trade.exitTime === null);
+
+        return {
+          ...ruleSignal(symbol, run.bars, run.rules, bars),
+          holding: open
+            ? { since: open.entryTime, price: open.entryPrice }
+            : null,
+          params: run.params[0],
+          lookAhead: run.lookAhead,
+        };
+      },
+    }),
+  ];
+}
 
 /**
  * The functions a script calls as `tools.<name>`. `admitHistory` is asked before a listing's bars
@@ -690,6 +995,7 @@ export function createAnalysis(options: AnalysisOptions): Extension {
       `market, flows and fundamentals read the app's other sources, which count every request against limits the rest of the app shares: a script reads at most ${MAX_LISTINGS} listings through them, so screen the listings that matter rather than every one you can name.`,
       SOURCE_TYPES,
       BACKTEST_TYPES,
+      ...(options.strategies ? [STRATEGY_TYPES] : []),
       renderDeclarations({
         tools: dataFunctions(options, declared),
         globals: [

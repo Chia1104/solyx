@@ -1,24 +1,24 @@
 import { join } from "node:path";
 
-import { approvalAllows } from "@solyx/api/strategies";
-import type {
-  StrategyApproval,
-  StrategyApprover,
-  StrategyCatalog,
-  StrategyReach,
-} from "@solyx/api/strategies";
+import type { StrategyCatalog } from "@solyx/api/strategies";
 import { strategyBars } from "@solyx/core/backtest";
 import type { BacktestOptions } from "@solyx/core/backtest";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
 import {
+  approvalAllows,
   lookAhead,
   strategyInput,
   strategyJobs,
   strategyParams,
 } from "@solyx/core/strategy";
-import type { StrategyParams } from "@solyx/core/strategy";
+import type {
+  StrategyApproval,
+  StrategyApprover,
+  StrategyParams,
+  StrategyReach,
+} from "@solyx/core/strategy";
 
 import type { StrategyApprovals } from "./strategy-approvals.ts";
 import { readStrategies, strategyFiles } from "./strategy-folder.ts";
@@ -76,6 +76,24 @@ function refusal(name: string, reach: StrategyReach) {
 export function createStrategies(options: StrategiesOptions) {
   const now = options.now ?? (() => new Date());
 
+  async function read() {
+    const [{ strategies, problems }, approvals] = await Promise.all([
+      readStrategies(options.folder),
+      options.approvals.list(),
+    ]);
+
+    const reach = options.reach();
+
+    return {
+      strategies: strategies.map((strategy) => ({
+        strategy,
+        allowed: allowing(approvals, strategy, reach),
+      })),
+      reach,
+      problems,
+    };
+  }
+
   async function find(name: string) {
     const { strategies, problems } = await readStrategies(options.folder);
     const strategy = strategies.find((each) => each.manifest.name === name);
@@ -90,21 +108,19 @@ export function createStrategies(options: StrategiesOptions) {
 
   return {
     /** Every strategy as its folder is now, each with the approval that lets it run where it would. */
-    async catalog(): Promise<StrategyCatalog> {
-      const [{ strategies, problems }, approvals] = await Promise.all([
-        readStrategies(options.folder),
-        options.approvals.list(),
-      ]);
+    read,
 
-      const reach = options.reach();
+    /** What a window is told of the strategies. */
+    async catalog(): Promise<StrategyCatalog> {
+      const { strategies, reach, problems } = await read();
 
       return {
-        strategies: strategies.map((strategy) => ({
+        strategies: strategies.map(({ strategy, allowed }) => ({
           ...strategy.manifest,
           notes: strategy.notes,
           version: strategy.version,
           files: strategyFiles(strategy),
-          allowed: allowing(approvals, strategy, reach),
+          allowed,
         })),
         reach,
         problems,
@@ -195,3 +211,5 @@ export function createStrategies(options: StrategiesOptions) {
     },
   };
 }
+
+export type Strategies = ReturnType<typeof createStrategies>;

@@ -1,4 +1,4 @@
-import { StrategyApprover } from "@solyx/api/strategies";
+import { StrategyApprover } from "@solyx/core/strategy";
 
 import { contractOS } from "../../rpc/context.ts";
 
