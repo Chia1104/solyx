@@ -24,12 +24,14 @@ A nightly and a development build keep folders of their own, so neither touches 
     <File name="AGENTS.md" />
     <File name="mcp.json" />
     <Folder name="skills" />
+    <Folder name="strategies" />
   </Folder>
 </Files>
 
 - **`config.json`** holds your settings. Solyx applies a saved edit without a restart, keeps entries it does not read, reads one that no longer parses as its default, and never overwrites a file with syntax errors.
 - **`config.schema.json`**, which `config.json` names as its `$schema`, describes every entry, so an editor can check and complete the file. Solyx writes it afresh at start.
 - **`AGENTS.md`**, **`mcp.json`** and **`skills/`** are what you write for the agent. [Extensions](/docs/agent/extensions).
+- **`strategies/`** holds the strategies you write, a folder each. [Your strategies](/docs/strategies).
 
 ## The data folder
 
@@ -43,23 +45,27 @@ A nightly and a development build keep folders of their own, so neither touches 
     <File name="cache.sqlite" />
     <File name="secrets.json" />
     <Folder name="agent-workspaces" />
+    <Folder name="strategy-runs" />
+    <Folder name="strategy-versions" />
     <Folder name="fubon" />
     <Folder name="restore" />
   </Folder>
 </Files>
 
-| File                | Holds                                                                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `user.sqlite`       | The watchlist, proposals, the paper account and its fills, exits, scheduled tasks, themes and the backtest panel's history |
-| `research.sqlite`   | Reports and forecasts                                                                                                      |
-| `memory.sqlite`     | The agent's memories                                                                                                       |
-| `news.sqlite`       | Collected news and its readings                                                                                            |
-| `agent.sqlite`      | Conversations                                                                                                              |
-| `cache.sqlite`      | Candles and providers' answers kept for a while; safe to clear                                                             |
-| `secrets.json`      | Keys, sign-ins, the trading mandate and paired browsers, encrypted by your operating system                                |
-| `agent-workspaces/` | Each conversation's folder for shell commands                                                                              |
-| `fubon/`            | Fubon's SDK logs                                                                                                           |
-| `restore/`          | A restore waiting for the next start, and the files it replaced                                                            |
+| File                 | Holds                                                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `user.sqlite`        | The watchlist, proposals, the paper account and its fills, exits, scheduled tasks, themes and the backtest panel's history     |
+| `research.sqlite`    | Reports and forecasts                                                                                                          |
+| `memory.sqlite`      | The agent's memories                                                                                                           |
+| `news.sqlite`        | Collected news and its readings                                                                                                |
+| `agent.sqlite`       | Conversations                                                                                                                  |
+| `cache.sqlite`       | Candles and providers' answers kept for a while; safe to clear                                                                 |
+| `secrets.json`       | Keys, sign-ins, the trading mandate, the strategy versions you allowed and paired browsers, encrypted by your operating system |
+| `agent-workspaces/`  | Each conversation's folder for shell commands                                                                                  |
+| `strategy-runs/`     | Each strategy run's copy of its code, its input and its lines, removed as it ends                                              |
+| `strategy-versions/` | The files of the strategy versions allowed, so the panel shows what changed since                                              |
+| `fubon/`             | Fubon's SDK logs                                                                                                               |
+| `restore/`           | A restore waiting for the next start, and the files it replaced                                                                |
 
 **Settings → Storage** shows how much each store holds and clears the candle cache, conversations, memory, news, research or the watchlist.
 

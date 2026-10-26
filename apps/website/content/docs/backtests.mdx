@@ -14,7 +14,7 @@ The panel has five modes: **Backtest** runs one setup, **Scan** runs a grid of t
 
 ## Setting one up
 
-**Strategy** picks a template, or **Written rules**.
+**Strategy** picks a template, **Written rules**, or under **My strategies** a [strategy you wrote](/docs/strategies), with the numbers its code takes.
 
 | Template             | Buys when                                          | Sells when                                     | Numbers it starts from         |
 | -------------------- | -------------------------------------------------- | ---------------------------------------------- | ------------------------------ |
@@ -41,6 +41,7 @@ A run shows its span and split, then its figures for the in-sample stretch, the 
 
 **Read these figures with care** leads the run when something keeps it from saying much:
 
+- your strategy's code read later bars for one of its lines, which leads the rest, as [the look-ahead check](/docs/strategies#the-look-ahead-check) finds;
 - a stretch with fewer than 20 trades, with a button to read more years where the span allows;
 - out of sample, timing no better than random orderings of the bars, a p-value of 0.05 or more;
 - out of sample, a return behind buying and holding.

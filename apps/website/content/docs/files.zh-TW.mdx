@@ -24,12 +24,14 @@ Solyx 有兩個資料夾：家目錄裡的設定資料夾，你可以手動編�
     <File name="AGENTS.md" />
     <File name="mcp.json" />
     <Folder name="skills" />
+    <Folder name="strategies" />
   </Folder>
 </Files>
 
 - **`config.json`** 存放你的設定。Solyx 不需重新啟動就會套用存檔的修改，會保留它不讀的項目，某個項目解析不了時就改用它的預設值，且絕不會覆寫有語法錯誤的檔案。
 - **`config.schema.json`** 是 `config.json` 指定的 `$schema`，描述每個項目，讓編輯器可以檢查並自動完成這個檔案。Solyx 每次啟動都會重新寫入它。
 - **`AGENTS.md`**、**`mcp.json`** 與 **`skills/`** 是你寫給 Agent 的東西。[擴充](/zh-TW/docs/agent/extensions)。
+- **`strategies/`** 放你寫的策略，一個策略一個資料夾。[你的策略](/zh-TW/docs/strategies)。
 
 ## App 資料夾 [#the-data-folder]
 
@@ -43,23 +45,27 @@ Solyx 有兩個資料夾：家目錄裡的設定資料夾，你可以手動編�
     <File name="cache.sqlite" />
     <File name="secrets.json" />
     <Folder name="agent-workspaces" />
+    <Folder name="strategy-runs" />
+    <Folder name="strategy-versions" />
     <Folder name="fubon" />
     <Folder name="restore" />
   </Folder>
 </Files>
 
-| 檔案                | 存放內容                                                                 |
-| ------------------- | ------------------------------------------------------------------------ |
-| `user.sqlite`       | 自選、提案、模擬帳戶與它的成交、停損停利、排程任務、主題與回測面板的歷史 |
-| `research.sqlite`   | 報告與預測                                                               |
-| `memory.sqlite`     | Agent 的記憶                                                             |
-| `news.sqlite`       | 收集到的新聞與它們的判讀結果                                             |
-| `agent.sqlite`      | 對話                                                                     |
-| `cache.sqlite`      | 暫存一段時間的 K 線與供應商回應；可以放心清除                            |
-| `secrets.json`      | 金鑰、登入資料、交易授權與已配對的瀏覽器，由作業系統加密                 |
-| `agent-workspaces/` | 每段對話執行 shell 指令用的資料夾                                        |
-| `fubon/`            | 富邦 SDK 的日誌                                                          |
-| `restore/`          | 等下次啟動時套用的還原，以及被它取代的檔案                               |
+| 檔案                 | 存放內容                                                                   |
+| -------------------- | -------------------------------------------------------------------------- |
+| `user.sqlite`        | 自選、提案、模擬帳戶與它的成交、停損停利、排程任務、主題與回測面板的歷史   |
+| `research.sqlite`    | 報告與預測                                                                 |
+| `memory.sqlite`      | Agent 的記憶                                                               |
+| `news.sqlite`        | 收集到的新聞與它們的判讀結果                                               |
+| `agent.sqlite`       | 對話                                                                       |
+| `cache.sqlite`       | 暫存一段時間的 K 線與供應商回應；可以放心清除                              |
+| `secrets.json`       | 金鑰、登入資料、交易授權、你允許的策略版本與已配對的瀏覽器，由作業系統加密 |
+| `agent-workspaces/`  | 每段對話執行 shell 指令用的資料夾                                          |
+| `strategy-runs/`     | 每次執行策略時複製的程式、輸入與算出的線，執行結束就刪除                   |
+| `strategy-versions/` | 已允許的策略版本的檔案，讓面板能顯示之後改了什麼                           |
+| `fubon/`             | 富邦 SDK 的日誌                                                            |
+| `restore/`           | 等下次啟動時套用的還原，以及被它取代的檔案                                 |
 
 **設定 → 儲存空間** 會顯示每個儲存區佔了多少空間，並可清除 K 線快取、對話、記憶、新聞、研究或自選。
 

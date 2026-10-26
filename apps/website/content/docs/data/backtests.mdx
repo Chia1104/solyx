@@ -26,6 +26,12 @@ A rule can never see the bar it trades on.
 
 Indicators, stops and the buy-and-hold comparison read [adjusted prices](/docs/data/market-data#as-traded-or-adjusted), rescaled to each bar's own terms, so a dividend never looks like a crash. Orders fill at the prices that actually traded, and shares held are scaled on a split or ex-dividend day. Bars shorter than a day take each session's reference from the daily bars.
 
+## A strategy's own lines
+
+A [strategy you wrote](/docs/strategies) hands the engine lines of its own, worked out from the run's bars adjusted on the first bar's terms, so a later split or dividend changes no earlier value. A bar's own prices and the indicators are on other terms, so a rule compares such a line only with another of the strategy's lines or with a value. The engine still fills every order at prices as traded and charges every cost.
+
+To tell whether the code read later bars, the engine runs its first set of numbers again over the first fifth, two fifths, three and four of the bars, and compares each line with the whole run's. Where one differs, the run warns from the first bar it does.
+
 ## Fills
 
 - **Long only.** A buy spends the cash on whole shares, keeping room for its commission; a sale sells everything.
@@ -147,4 +153,4 @@ with the starts counted in months. Windows that overlap share their bars, so the
 
 ## Limits
 
-Daily and longer bars reach back 10 years, shorter ones 3. A run reads at most 300,000 bars. Rolling windows run up to 60 months in the panel and 120 in the agent's scripts, and start 1 to 12 months apart. A rule nests `all` and `any` at most 3 deep, each holding at most 8 conditions; a strategy's entry and exit make at most 64 comparisons and read at most 32 series between them. The agent's scripts reach further back than the app's own history for at most 5 listings a script.
+Daily and longer bars reach back 10 years, shorter ones 3. A run reads at most 300,000 bars. Rolling windows run up to 60 months in the panel and 120 in the agent's scripts, and start 1 to 12 months apart. A rule nests `all` and `any` at most 3 deep, each holding at most 8 conditions; a strategy's entry and exit make at most 64 comparisons and read at most 32 series between them. A strategy's own lines hold at most 4,000,000 values a run between them, every line's bars added up, apart from those series. The agent's scripts reach further back than the app's own history for at most 5 listings a script.
