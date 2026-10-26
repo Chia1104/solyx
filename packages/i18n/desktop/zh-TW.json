@@ -736,7 +736,9 @@
       "auto-allowed-found": "已放行：本對話找到的網址",
       "auto-allowed-memory": "未經詢問即存下，本對話允許這麼做",
       "failed": "無法送出你的回覆",
-      "allow-strategy-description": "讓 {{name}} 的這個版本執行。允許前請先看改了什麼。"
+      "allow-strategy-description": "讓 {{name}} 的這個版本執行。允許前請先看改了什麼。",
+      "save-strategy-description": "寫入新策略 {{name}}，並讓它執行。允許前請先看它的檔案。",
+      "save-strategy-change-description": "修改 {{name}} 的檔案，並讓改好的版本執行。允許前請先看改了什麼。"
     }
   },
   "onboarding": {
@@ -1042,7 +1044,7 @@
       "own": "我的策略",
       "own-pick": "你的策略",
       "own-hint": "你寫在策略資料夾裡的程式；依它算出的線、照它的規則交易。",
-      "own-none": "還沒有策略：在 App 設定資料夾的 strategies 裡加一個含 STRATEGY.md 的資料夾。",
+      "own-none": "還沒有策略。可以請 Agent 一起寫，或在 App 設定資料夾的 strategies 裡加一個含 STRATEGY.md 的資料夾。",
       "own-grid": "網格要沿策略的兩個數字跑，這個策略不到兩個。"
     },
     "params": {
@@ -1282,7 +1284,11 @@
       "open": "在回測面板開啟 {{symbol}} 第 {{index}} 組",
       "nearest": "面板以整年回溯、按比例切分，會用最接近的設定重跑。",
       "ask": "請 Agent 解讀",
-      "ask-prompt": "/backtest 幫我解讀面板上的這次回測：數字代表什麼？可信度如何？"
+      "ask-prompt": "/backtest 幫我解讀面板上的這次回測：數字代表什麼？可信度如何？",
+      "keep": "存成我的策略",
+      "keep-prompt": "/strategy 把面板上這次回測寫成我的策略，參數照舊，讓我之後能保留和修改。",
+      "write": "請 Agent 一起寫",
+      "write-prompt": "/strategy 幫我寫一個策略，在 {{symbol}} 上回測："
     }
   },
   "magi": {
