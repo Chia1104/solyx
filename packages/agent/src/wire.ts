@@ -25,6 +25,7 @@ import {
   scheduledTaskDraftSchema,
 } from "@solyx/core/schedule";
 import { sectorQuoteSchema } from "@solyx/core/sectors";
+import { strategyChangeSchema, strategyNameSchema } from "@solyx/core/strategy";
 import { themeDraftSchema } from "@solyx/core/theme";
 import { isEnumValue } from "@solyx/utils/is";
 
@@ -232,6 +233,8 @@ export const AgentToolName = {
   ChangeSetting: "change_setting",
   GetStrategy: "get_strategy",
   AllowStrategy: "allow_strategy",
+  SaveStrategy: "save_strategy",
+  GetRuntimes: "get_runtimes",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
   Bash: "bash",
 } as const;
@@ -253,6 +256,26 @@ export const allowStrategyArgumentsSchema = getStrategyArgumentsSchema.extend({
 export type AllowStrategyArguments = z.infer<
   typeof allowStrategyArgumentsSchema
 >;
+
+export const saveStrategyArgumentsSchema = strategyChangeSchema.extend({
+  name: strategyNameSchema.describe(
+    "The strategy's name, its folder's: lowercase letters, digits and single hyphens"
+  ),
+  version: z
+    .string()
+    .optional()
+    .describe(
+      "The version get_strategy gave, to change a strategy the files must still be; left out for a new one"
+    ),
+  files: strategyChangeSchema.shape.files.describe(
+    "Each file to write whole, by its path from the strategy's folder: STRATEGY.md and the code for a new one, only those that change for another"
+  ),
+  remove: strategyChangeSchema.shape.remove.describe(
+    "Files to remove, by their paths from the strategy's folder"
+  ),
+});
+
+export type SaveStrategyArguments = z.infer<typeof saveStrategyArgumentsSchema>;
 
 /** What a proposal's call left: the proposal, unless a vote rejected it, and the vote where one was held. */
 export const proposeOrderDetailsSchema = z.object({

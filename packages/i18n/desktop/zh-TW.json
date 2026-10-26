@@ -667,7 +667,9 @@
       "run_task": "執行排程任務",
       "change_watchlist": "變更自選",
       "get_strategy": "讀取策略",
-      "allow_strategy": "允許策略執行"
+      "allow_strategy": "允許策略執行",
+      "save_strategy": "寫入策略",
+      "get_runtimes": "檢查策略程式的執行環境"
     },
     "tool-status": {
       "running": "執行中",

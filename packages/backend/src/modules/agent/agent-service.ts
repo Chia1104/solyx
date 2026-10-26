@@ -101,7 +101,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   sandbox: Sandbox | undefined;
   /** What the decisions model makes of a shell command, for conversations set to auto. */
   judgeCommand: ShellOptions["judge"];
-  /** The user's strategies, which the agent backtests and asks to run. */
+  /** The user's strategies, which the agent writes, backtests and asks to run. */
   strategies: StrategiesPort;
   /** Where conversations persist, opening as the app starts. */
   conversations: Promise<AgentStore>;
@@ -416,7 +416,7 @@ export function createAgentService(options: AgentServiceOptions) {
           tasks.extension(guard),
           watched.extension(guard),
           createSetupTools({ setup, guard }),
-          ...(strategiesOn ? [strategyTools.extension(guard)] : []),
+          strategyTools.extension(guard, strategiesOn),
           ...(shellOn() ? [shell.extension(guard)] : []),
           ...(webOn ? [web.extension(guard)] : []),
           ...(options.config.read().agent.memory

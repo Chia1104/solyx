@@ -667,7 +667,9 @@
       "run_task": "Run scheduled task",
       "change_watchlist": "Changed your watchlist",
       "get_strategy": "Read a strategy",
-      "allow_strategy": "Allowed a strategy to run"
+      "allow_strategy": "Allowed a strategy to run",
+      "save_strategy": "Wrote a strategy",
+      "get_runtimes": "Checked what a strategy's code can run on"
     },
     "tool-status": {
       "running": "Running",
