@@ -12,6 +12,8 @@ export interface StrategyFile {
   /** From the strategy's folder, with `/` between folders. */
   path: string;
   bytes: number;
+  /** A digest of what it holds, which tells two versions of a file apart whether or not it is text. */
+  digest: string;
 }
 
 /** A strategy as a window lists it. */
@@ -30,6 +32,19 @@ export interface StrategyCatalog {
   reach: StrategyReach;
   /** Each a folder and why it holds no strategy the app can run. */
   problems: string[];
+}
+
+/** One version of a strategy's files, each with what it says where it is text. */
+export interface StrategyVersionFiles {
+  version: string;
+  files: (StrategyFile & { text: string | null })[];
+}
+
+/** A strategy's files as they are now, beside those of the version allowed before them, if any. */
+export interface StrategyReview {
+  name: string;
+  current: StrategyVersionFiles;
+  previous: StrategyVersionFiles | null;
 }
 
 /** Allowing one version of a strategy from a window, as the user. */

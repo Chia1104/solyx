@@ -4,19 +4,7 @@ import type { StrategiesPort, StrategyView } from "@solyx/agent/strategies";
 import type { CodeJudge } from "@solyx/decisions/code";
 
 import type { Strategies } from "./strategies.ts";
-
-// Text the decisions model reads; a file with a NUL or bytes that are no UTF-8 is not.
-const textDecoder = new TextDecoder("utf-8", { fatal: true });
-
-function textOf(data: Buffer) {
-  if (data.includes(0)) return null;
-
-  try {
-    return textDecoder.decode(data);
-  } catch {
-    return null;
-  }
-}
+import { strategyTexts } from "./strategy-folder.ts";
 
 /**
  * The user's strategies as the agent reads, allows and runs them: each with its files' text, and
@@ -35,11 +23,7 @@ export function createStrategyPort(
           ...strategy.manifest,
           notes: strategy.notes,
           version: strategy.version,
-          files: strategy.code.map(({ path, data }) => ({
-            path,
-            bytes: data.length,
-            text: textOf(data),
-          })),
+          files: strategyTexts(strategy),
           allowed,
         })),
         reach,

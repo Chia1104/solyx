@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { Table } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
+import type { Warned } from "@solyx/api/backtests";
 import { ENOUGH_TRADES } from "@solyx/core/backtest";
 import type {
   BacktestMetrics,
@@ -16,7 +17,7 @@ import { LINE_COLORS } from "../market/chart-palette.ts";
 import { numberFormats } from "../market/number-formats.ts";
 
 import { ReturnChart } from "./equity-chart.tsx";
-import { RunWarnings } from "./run-warnings.tsx";
+import { RunWarnings, useLookAheadWarning } from "./run-warnings.tsx";
 import type { RunWarning } from "./run-warnings.tsx";
 
 /** Below it, overlapping windows stand for too few periods apart for their shares to say much. */
@@ -180,11 +181,16 @@ function StartsChart({
  * and that gained, how their returns spread beside holding's, each start's return against holding
  * through it, and every window's own figures.
  */
-export function RollingReport({ rolling }: { rolling: RollingResult }) {
+export function RollingReport({ rolling }: { rolling: Warned<RollingResult> }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
   const { summary, windows } = rolling;
-  const warnings = useRollingWarnings(summary);
+  const lookAheadWarning = useLookAheadWarning();
+
+  const warnings = [
+    ...lookAheadWarning(rolling.lookAhead),
+    ...useRollingWarnings(summary),
+  ];
 
   const headlines = [
     {

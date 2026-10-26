@@ -44,22 +44,25 @@ const PLACE_OF_TAB: Record<OverviewTab, AppPlace> = {
 };
 
 /**
- * The call of the agent's `backtest.rules` that runs what the panel ran: its years back from `now`
- * as the day they start, and its template as the rules it writes.
+ * The call of the agent's that runs what the panel ran, its years back from `now` as the day they
+ * start: `backtest.rules` with its template as the rules it writes, or `strategies.backtest` for a
+ * strategy the user wrote.
  */
 function backtestCall(
   { symbol, interval, years, strategy, ...options }: BacktestSetup,
   now: Date
 ) {
-  const input = {
+  const reach = {
     symbol,
     interval,
     since: yearsBefore(symbol.market, years, now),
-    strategy: setupRules(strategy),
-    ...options,
   };
 
-  return `backtest.rules(${JSON.stringify(input)})`;
+  if ("name" in strategy) {
+    return `strategies.backtest(${JSON.stringify({ strategy: strategy.name, ...reach, params: strategy.params, ...options })})`;
+  }
+
+  return `backtest.rules(${JSON.stringify({ ...reach, strategy: setupRules(strategy), ...options })})`;
 }
 
 /** What a message's context says of the screen it was written at. */

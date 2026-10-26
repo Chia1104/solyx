@@ -20,6 +20,7 @@ import { followProposalChanges } from "../modules/proposals/proposals-query.ts";
 import { followResearchChanges } from "../modules/research/research-query.ts";
 import { followScheduleChanges } from "../modules/schedules/schedules-query.ts";
 import { followSettingsChanges } from "../modules/settings/settings-query.ts";
+import { followStrategyChanges } from "../modules/strategies/strategies-query.ts";
 import { followThemeChanges } from "../modules/themes/themes-query.ts";
 import { followUpdateChanges } from "../modules/updates/updates-query.ts";
 import { followWatchlistChanges } from "../modules/watchlist/watchlist-query.ts";
@@ -47,6 +48,7 @@ for (const follow of [
   followResearchChanges,
   followScheduleChanges,
   followSettingsChanges,
+  followStrategyChanges,
   followThemeChanges,
   followUpdateChanges,
   followWatchlistChanges,

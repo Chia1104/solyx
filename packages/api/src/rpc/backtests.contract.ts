@@ -15,7 +15,7 @@ import {
   scanSetupSchema,
   walkForwardSetupSchema,
 } from "../backtests.ts";
-import type { BacktestRecord } from "../backtests.ts";
+import type { BacktestRecord, Warned } from "../backtests.ts";
 
 import { forDevices } from "./access.ts";
 import { changesContract } from "./changes.ts";
@@ -27,22 +27,22 @@ export const backtestsContract = {
   run: oc
     .meta(forDevices(true))
     .input(backtestSetupSchema)
-    .output(type<BacktestResult>()),
+    .output(type<Warned<BacktestResult>>()),
   /** Every setup of a grid over the same bars, and the plateau of their in-sample Sharpe ratios. */
   scan: oc
     .meta(forDevices(true))
     .input(scanSetupSchema)
-    .output(type<BacktestScan>()),
+    .output(type<Warned<BacktestScan>>()),
   /** A grid picked from on each window's training and run on the sessions after, as one record. */
   walkForward: oc
     .meta(forDevices(true))
     .input(walkForwardSetupSchema)
-    .output(type<WalkForwardResult>()),
+    .output(type<Warned<WalkForwardResult>>()),
   /** One setup over windows of the same months, each from holding nothing, beside holding through each. */
   rolling: oc
     .meta(forDevices(true))
     .input(rollingSetupSchema)
-    .output(type<RollingResult>()),
+    .output(type<Warned<RollingResult>>()),
   /** The runs windows asked for, newest first, each with how it did when it last ran. */
   history: oc.meta(forDevices(true)).output(type<BacktestRecord[]>()),
   remove: oc.meta(forDevices(true)).input(z.string()).output(type<void>()),
@@ -51,7 +51,7 @@ export const backtestsContract = {
   compare: oc
     .meta(forDevices(true))
     .input(z.array(z.string()).min(1).max(MAX_COMPARED))
-    .output(type<{ id: string; result: BacktestResult }[]>()),
+    .output(type<{ id: string; result: Warned<BacktestResult> }[]>()),
   /** A run was kept, or one or all of them removed. */
   changes: changesContract,
 };

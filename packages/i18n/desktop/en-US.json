@@ -733,7 +733,8 @@
       "auto-allowed": "allowed by the decisions model",
       "auto-allowed-found": "allowed: an address this conversation found",
       "auto-allowed-memory": "saved without asking, as this conversation allows",
-      "failed": "Couldn't send your answer"
+      "failed": "Couldn't send your answer",
+      "allow-strategy-description": "Lets this version of {{name}} run. Read what changed before you allow it."
     }
   },
   "onboarding": {
@@ -1035,7 +1036,12 @@
       "capital": "Capital",
       "commission": "Commission",
       "slippage": "Slippage (ticks)",
-      "run": "Run backtest"
+      "run": "Run backtest",
+      "own": "My strategies",
+      "own-pick": "Your strategy",
+      "own-hint": "Code you wrote in the strategies folder; its rules trade on the lines it works out.",
+      "own-none": "No strategies yet: add a folder with a STRATEGY.md to strategies in the app's config folder.",
+      "own-grid": "A grid runs along two of a strategy's numbers, and this one takes fewer."
     },
     "params": {
       "fast": "Fast average",
@@ -1110,7 +1116,8 @@
         "read-longer_other": "Read {{count}} years",
         "untested": "Out of sample it held nothing to test, so whether its timing beat chance is unknown.",
         "chance": "Out of sample, its timing did no better than random orderings of the bars (p = {{p}}).",
-        "behind-holding": "Out of sample it made {{strategy}}, behind buying and holding's {{holding}}."
+        "behind-holding": "Out of sample it made {{strategy}}, behind buying and holding's {{holding}}.",
+        "look-ahead": "The strategy's code read later bars for its {{line}} line, from {{time}} on, so its figures rest on prices it could not have known."
       },
       "costs_one": "Costs: commission {{commission}} (at least {{minimum}}), tax on sales {{tax}}, slippage of {{count}} tick",
       "costs_other": "Costs: commission {{commission}} (at least {{minimum}}), tax on sales {{tax}}, slippage of {{count}} ticks",
@@ -1167,7 +1174,9 @@
         "offBounds": "A value falls outside its number's range or steps.",
         "axisSize": "Each way takes 1 to {{values}} values.",
         "tooManySeries": "These setups read more than {{series}} series; narrow the grid."
-      }
+      },
+      "size-own_one": "{{count}} setup",
+      "size-own_other": "{{count}} setups"
     },
     "scan": {
       "span_one": "{{count}} setup over {{bars}} {{interval}} bars",
@@ -1904,10 +1913,10 @@
       "warnings-title": "Some skill files don't follow the Agent Skills format",
       "shell": "Shell",
       "sandbox": "Sandbox",
-      "sandbox-description": "Keeps each command to its conversation's folder, away from your other files and off the network. Off, a command you allow can read and change your files and reach the network.",
-      "sandbox-label": "Run commands in a sandbox",
-      "sandbox-problems": "The sandbox can't start, so no command runs: {{problems}}. Fix that, or switch the sandbox off.",
-      "sandbox-unsupported": "Not available on Windows yet. Commands run with your access, so each waits for you unless the decisions model judges it harmless in Allow for me.",
+      "sandbox-description": "Keeps each command, and the code of your strategies, to a folder of its own, away from your other files and off the network. Off, what you allow can read and change your files and reach the network.",
+      "sandbox-label": "Run commands and strategies in a sandbox",
+      "sandbox-problems": "The sandbox can't start, so no command or strategy runs: {{problems}}. Fix that, or switch the sandbox off.",
+      "sandbox-unsupported": "Not available on Windows yet. Commands and strategies run with your access, so each waits for you unless the decisions model judges it harmless in Allow for me; beside a live account, a strategy runs only once you allow it yourself.",
       "shell-description": "Lets the agent run commands on this computer, which skills need for their scripts. Each one waits for you unless a conversation is set not to ask. Paper accounts only.",
       "shell-label": "Let the agent use the shell"
     },
@@ -2458,6 +2467,28 @@
       "add": "Add passkey",
       "skip": "Not now",
       "failed": "Couldn't add the passkey"
+    }
+  },
+  "strategies": {
+    "changes": {
+      "folded_one": "{{count}} unchanged line",
+      "folded_other": "{{count}} unchanged lines",
+      "moved-on": "The files changed after this was asked, so ask again on what they hold now.",
+      "since_one": "{{count}} file changed since version {{version}}, the last allowed:",
+      "since_other": "{{count}} files changed since version {{version}}, the last allowed:",
+      "first_one": "No version was allowed before. Its {{count}} file:",
+      "first_other": "No version was allowed before. Its {{count}} files:",
+      "not-text": "{{path}} is not text, so it is not shown."
+    },
+    "allow": {
+      "title": "Version {{version}} hasn't been allowed to run",
+      "sandboxed": "Its code runs in the sandbox, which reads only its own files and reaches no network.",
+      "outside": "Its code runs outside the sandbox, with your access to your files and the network.",
+      "read": "Read what changed",
+      "hide": "Hide the changes",
+      "allow": "Allow this version",
+      "on-computer": "Allow it on the computer.",
+      "failed": "Couldn't allow it"
     }
   }
 }

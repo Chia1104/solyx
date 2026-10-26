@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import type { StrategyCatalog } from "@solyx/api/strategies";
+import type { StrategyCatalog, StrategyReview } from "@solyx/api/strategies";
 import { strategyBars } from "@solyx/core/backtest";
 import type { BacktestOptions } from "@solyx/core/backtest";
 import { Interval } from "@solyx/core/candles";
@@ -14,6 +14,7 @@ import {
   strategyParams,
 } from "@solyx/core/strategy";
 import type {
+  LookAheadAt,
   StrategyApproval,
   StrategyApprover,
   StrategyParams,
@@ -21,28 +22,28 @@ import type {
 } from "@solyx/core/strategy";
 
 import type { StrategyApprovals } from "./strategy-approvals.ts";
-import { readStrategies, strategyFiles } from "./strategy-folder.ts";
+import {
+  readStrategies,
+  strategyFiles,
+  strategyTexts,
+} from "./strategy-folder.ts";
 import type { Strategy } from "./strategy-folder.ts";
 import type { StrategyRunner } from "./strategy-runner.ts";
+import type { StrategySnapshots } from "./strategy-snapshots.ts";
 
 export interface StrategiesOptions {
   /** `strategies/` in the config folder, read afresh every time. */
   folder: string;
   runner: StrategyRunner;
   approvals: StrategyApprovals;
+  /** The files of the versions allowed, for showing what changed since. */
+  snapshots: StrategySnapshots;
   /** Where strategies' code would run now. */
   reach(): StrategyReach;
   /** Each time a version is allowed or taken back. */
   onChange(): void;
   /** @default () => new Date() */
   now?: () => Date;
-}
-
-/** Where a strategy's code read later bars, at the time of the first bar it did. */
-export interface LookAheadAt {
-  line: string;
-  /** That bar's time on the exchange's clock, as the code was handed it. */
-  time: string;
 }
 
 /** The approval among `approvals` that lets `strategy` run as it is now where `reach` says. */
@@ -93,6 +94,14 @@ export function createStrategies(options: StrategiesOptions) {
       problems,
     };
   }
+
+  /** The versions of `name` some approval still names. */
+  const allowedVersions = async (name: string) =>
+    new Set(
+      (await options.approvals.list())
+        .filter((each) => each.name === name)
+        .map((each) => each.version)
+    );
 
   async function find(name: string) {
     const { strategies, problems } = await readStrategies(options.folder);
@@ -149,6 +158,8 @@ export function createStrategies(options: StrategiesOptions) {
       };
 
       await options.approvals.approve(approval);
+      await options.snapshots.keep(strategy);
+      await options.snapshots.keepOnly(name, await allowedVersions(name));
       options.onChange();
 
       return approval;
@@ -156,7 +167,25 @@ export function createStrategies(options: StrategiesOptions) {
 
     async revoke(name: string) {
       await options.approvals.revoke(name);
+      await options.snapshots.keepOnly(name, new Set());
       options.onChange();
+    },
+
+    /** `name`'s files as they are now, beside those of the newest other version allowed. */
+    async review(name: string): Promise<StrategyReview> {
+      const strategy = await find(name);
+
+      const before = (await options.approvals.list()).find(
+        (each) => each.name === name && each.version !== strategy.version
+      );
+
+      return {
+        name,
+        current: { version: strategy.version, files: strategyTexts(strategy) },
+        previous: before
+          ? await options.snapshots.read(name, before.version)
+          : null,
+      };
     },
 
     /**

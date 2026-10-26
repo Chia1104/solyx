@@ -12,6 +12,7 @@ import {
   scanSetupSchema,
   walkForwardSetupSchema,
 } from "@solyx/api/backtests";
+import type { BacktestOptions, RuleStrategy } from "@solyx/core/backtest";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
@@ -70,17 +71,43 @@ function backtests(
 
   opened.push(user);
 
+  // A strategy whose code gives the close and a level its numbers set, warning of a look ahead.
+  const strategies = {
+    lines: vi.fn(
+      async (
+        _name: string,
+        _symbol: SymbolRef,
+        candles: readonly Candle[],
+        _bars: Pick<BacktestOptions, "interval" | "daily">,
+        params: readonly Record<string, number>[]
+      ) => ({
+        rules: {
+          entry: { crossesAbove: [{ line: "close" }, { line: "level" }] },
+          exit: { crossesBelow: [{ line: "close" }, { line: "level" }] },
+        } satisfies RuleStrategy,
+        params: params.map((each) => ({ level: 100, ...each })),
+        lines: params.map((each) => ({
+          close: candles.map((bar) => bar.close),
+          level: candles.map(() => each.level ?? 100),
+        })),
+        lookAhead: { line: "level", time: "2024-03-01" },
+      })
+    ),
+  };
+
   const onHistoryChange = vi.fn();
   // A second on with each read, so the runs kept fall in the order they ran.
   let at = NOW.getTime();
 
   return {
     marketData,
+    strategies,
     onHistoryChange,
     run: createBacktests({
       marketData,
       kernel,
       history: user.backtestRuns,
+      strategies,
       onHistoryChange,
       now: () => new Date((at += 1000)),
     }),
@@ -289,4 +316,78 @@ test("each run a window asks for is kept once, with the stretch it is judged by,
   run.remove(ran.id);
 
   expect(run.history().map(({ id }) => id)).toEqual([scanned.id]);
+});
+
+test("a strategy the user wrote runs on the lines its code worked out, a grid over its own numbers, with the look-ahead warning", async () => {
+  const { run, strategies } = backtests();
+  const own = { name: "level", params: { level: 105 } };
+
+  const single = await run.run(
+    backtestSetupSchema.parse({
+      symbol: TSMC,
+      interval: Interval.OneDay,
+      years: 2,
+      strategy: own,
+      split: 0.5,
+    })
+  );
+
+  expect(single.trades.length).toBeGreaterThan(0);
+  expect(single.lookAhead).toEqual({ line: "level", time: "2024-03-01" });
+  expect(strategies.lines).toHaveBeenLastCalledWith(
+    "level",
+    TSMC,
+    expect.any(Array),
+    { interval: Interval.OneDay, daily: undefined },
+    [{ level: 105 }]
+  );
+
+  const scan = await run.scan(
+    scanSetupSchema.parse({
+      symbol: TSMC,
+      interval: Interval.OneDay,
+      years: 2,
+      strategy: own,
+      rows: { param: "level", from: 95, to: 105, step: 5 },
+      columns: { param: "width", from: 1, to: 2, step: 1 },
+      split: 0.5,
+    })
+  );
+
+  expect(scan.cells).toHaveLength(6);
+  expect(scan.lookAhead).toEqual({ line: "level", time: "2024-03-01" });
+  expect(strategies.lines.mock.lastCall?.[4]).toEqual([
+    { level: 95, width: 1 },
+    { level: 95, width: 2 },
+    { level: 100, width: 1 },
+    { level: 100, width: 2 },
+    { level: 105, width: 1 },
+    { level: 105, width: 2 },
+  ]);
+
+  const template = await run.run(
+    backtestSetupSchema.parse({
+      symbol: TSMC,
+      interval: Interval.OneDay,
+      years: 2,
+      strategy: initialSetup(StrategyTemplate.MovingAverageCross),
+      split: 0.5,
+    })
+  );
+
+  expect(template.lookAhead).toBeNull();
+});
+
+test("a grid over a strategy the user wrote runs along two of its numbers", () => {
+  expect(
+    scanSetupSchema.safeParse({
+      symbol: TSMC,
+      interval: Interval.OneDay,
+      years: 2,
+      strategy: { name: "level", params: {} },
+      rows: { param: "level", from: 95, to: 105, step: 5 },
+      columns: { param: "level", from: 95, to: 105, step: 5 },
+      split: 0.5,
+    }).success
+  ).toBe(false);
 });

@@ -6,7 +6,11 @@ import {
   TemplateParamName,
   templateParam,
 } from "@solyx/core/strategy-templates";
-import type { StrategyTemplate } from "@solyx/core/strategy-templates";
+import type {
+  GridAxis,
+  StrategyTemplate,
+  TemplateParam,
+} from "@solyx/core/strategy-templates";
 import { isEnumValue } from "@solyx/utils/is";
 
 /** The numbers a grid over `template` may run along: its own, then its exits. */
@@ -15,16 +19,8 @@ export const gridParams = (template: StrategyTemplate) => [
   ...Object.values(ExitParam),
 ];
 
-/** Ten steps of `param` from a little below where it starts, or the template's own axis for it. */
-export function defaultAxis(template: StrategyTemplate, param: string) {
-  const { rows, columns } = STRATEGY_TEMPLATES[template].grid;
-  const own = [rows, columns].find((axis) => axis.param === param);
-  const bounds = templateParam(template, param);
-
-  if (own) return own;
-
-  if (!bounds) return { ...rows, param };
-
+/** Ten steps of `param` from a little below where it starts. */
+export function paramAxis(param: string, bounds: TemplateParam): GridAxis {
   const from = Math.max(bounds.min, bounds.initial - 4 * bounds.step);
   const to = Math.min(bounds.max, from + 9 * bounds.step);
 
@@ -34,7 +30,21 @@ export function defaultAxis(template: StrategyTemplate, param: string) {
   return { param, from: round(from), to: round(to), step: bounds.step };
 }
 
-/** A template's numbers and exits by their names in the window's language, and their values as those numbers read. */
+/** The template's own axis for `param`, or ten steps of it from a little below where it starts. */
+export function defaultAxis(template: StrategyTemplate, param: string) {
+  const { rows, columns } = STRATEGY_TEMPLATES[template].grid;
+  const own = [rows, columns].find((axis) => axis.param === param);
+  const bounds = templateParam(template, param);
+
+  if (own) return own;
+
+  return bounds ? paramAxis(param, bounds) : { ...rows, param };
+}
+
+/**
+ * A template's numbers and exits by their names in the window's language, and their values as those
+ * numbers read; a strategy the user wrote (`own`) names its numbers itself.
+ */
 export function useParamWords() {
   const { t, i18n } = useTranslation();
 
@@ -48,15 +58,17 @@ export function useParamWords() {
   });
 
   return {
-    label(name: string) {
+    label(name: string, own = false) {
+      if (own) return name;
+
       if (isEnumValue(TemplateParamName, name)) {
         return t(`backtests.params.${name}`);
       }
 
       return isEnumValue(ExitParam, name) ? t(`backtests.form.${name}`) : name;
     },
-    value: (name: string, value: number) =>
-      isEnumValue(ExitParam, name)
+    value: (name: string, value: number, own = false) =>
+      !own && isEnumValue(ExitParam, name)
         ? percent.format(value)
         : plain.format(value),
   };

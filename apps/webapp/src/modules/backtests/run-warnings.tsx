@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { ENOUGH_TRADES } from "@solyx/core/backtest";
 import type { BacktestMetrics } from "@solyx/core/backtest";
+import type { LookAheadAt } from "@solyx/core/strategy";
 
 import { numberFormats } from "../market/number-formats.ts";
 
@@ -79,6 +80,27 @@ export function useStretchWarnings() {
 
     return warnings;
   };
+}
+
+/**
+ * That a strategy's code read bars after one it worked a line out for, which leaves every figure
+ * resting on prices it could not have known, so it leads whatever else is said of the run.
+ */
+export function useLookAheadWarning() {
+  const { t } = useTranslation();
+
+  return (lookAhead: LookAheadAt | null): RunWarning[] =>
+    lookAhead
+      ? [
+          {
+            id: "look-ahead",
+            text: t("backtests.report.warnings.look-ahead", {
+              line: lookAhead.line,
+              time: lookAhead.time,
+            }),
+          },
+        ]
+      : [];
 }
 
 /** What keeps a run from saying much, offering to read further back where that would help. */

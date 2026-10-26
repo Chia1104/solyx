@@ -16,6 +16,7 @@ import type { Candle } from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
 import { StrategyApprover } from "@solyx/core/strategy";
 import type {
+  LookAheadAt,
   StrategyApproval,
   StrategyManifest,
   StrategyParams,
@@ -50,8 +51,7 @@ export interface WorkedLines {
   params: StrategyParams[];
   /** Each set's lines, in the same order. */
   lines: StrategyLines[];
-  /** Where the code read bars after one it worked a line out for, at the time of the first. */
-  lookAhead: { line: string; time: string } | null;
+  lookAhead: LookAheadAt | null;
 }
 
 /** How likely a strategy's code does each thing that makes it unsafe to allow unasked, each from 0 to 1. */

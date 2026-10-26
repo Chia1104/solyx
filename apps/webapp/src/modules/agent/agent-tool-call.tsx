@@ -13,6 +13,7 @@ import * as z from "zod";
 import {
   AgentToolName,
   ToolCallStatus,
+  allowStrategyArgumentsSchema,
   bashArgumentsSchema,
   changeSettingArgumentsSchema,
   changeWatchlistArgumentsSchema,
@@ -60,6 +61,10 @@ import { useScopeText } from "../schedules/change-scope-fields.tsx";
 import { schedulesQuery } from "../schedules/schedules-query.ts";
 import { scheduleText } from "../schedules/timing-fields.tsx";
 import { agentSkillsQuery } from "../settings/settings-query.ts";
+import {
+  StrategyChanges,
+  shortVersion,
+} from "../strategies/strategy-changes.tsx";
 
 import { ActivityMark } from "./agent-activity.tsx";
 import { MagiPanel } from "./magi-panel.tsx";
@@ -374,6 +379,24 @@ function useApprovalRequest(tool: ToolCallView) {
       break;
     }
 
+    case AgentToolName.AllowStrategy: {
+      const allowing = allowStrategyArgumentsSchema.safeParse(tool.args).data;
+
+      if (allowing) {
+        return {
+          description: t("agent.approval.allow-strategy-description", {
+            name: allowing.name,
+          }),
+          body: `${allowing.name} · ${shortVersion(allowing.version)}`,
+          review: (
+            <StrategyChanges name={allowing.name} version={allowing.version} />
+          ),
+        };
+      }
+
+      break;
+    }
+
     case AgentToolName.Remember:
     case AgentToolName.Forget: {
       const memory = memoryChange(tool, memories.data ?? []);
@@ -411,7 +434,7 @@ function ApprovalCard({
   tool: ToolCallView;
 }) {
   const { t } = useTranslation();
-  const { description, body } = useApprovalRequest(tool);
+  const { description, body, review } = useApprovalRequest(tool);
 
   const answer = useMutation({
     mutationFn: (approved: boolean) =>
@@ -429,6 +452,7 @@ function ApprovalCard({
       <pre className="max-h-40 overflow-auto rounded-sm bg-surface-secondary p-2 font-mono text-xs whitespace-pre-wrap">
         {body}
       </pre>
+      {review}
       <div className="flex gap-2">
         <Button
           size="sm"

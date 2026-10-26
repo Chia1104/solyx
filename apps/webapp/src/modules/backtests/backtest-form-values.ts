@@ -8,6 +8,7 @@ import { BacktestMode } from "@solyx/api/backtests";
 import type {
   BacktestRequest,
   BacktestSetup,
+  OwnSetup,
   RollingSetup,
   ScanSetup,
   WalkForwardSetup,
@@ -25,6 +26,8 @@ import {
   MAX_AXIS_VALUES,
   STRATEGY_TEMPLATES,
   StrategyTemplate,
+  axisValues,
+  gridAxisSchema,
   gridProblem,
   gridSetups,
   initialSetup,
@@ -37,8 +40,12 @@ import type {
 } from "@solyx/core/strategy-templates";
 import { isEnumValue } from "@solyx/utils/is";
 
-/** What the strategy select picks: one of the templates, or rules written out whole. */
-export const StrategyChoice = { ...StrategyTemplate, Rules: "rules" } as const;
+/** What the strategy select picks: one of the templates, rules written out whole, or one of the user's. */
+export const StrategyChoice = {
+  ...StrategyTemplate,
+  Rules: "rules",
+  Own: "own",
+} as const;
 
 export type StrategyChoice =
   (typeof StrategyChoice)[keyof typeof StrategyChoice];
@@ -123,6 +130,8 @@ export function useFormSchema(mode: BacktestMode) {
     return z
       .object({
         strategy: z.enum(StrategyChoice),
+        /** The user's strategy picked, by its name, while `strategy` is `own`. */
+        own: z.string(),
         params: z.record(z.string(), number),
         stopLoss: optional,
         takeProfit: optional,
@@ -163,10 +172,11 @@ export function useFormSchema(mode: BacktestMode) {
         const gridded =
           mode === BacktestMode.Scan || mode === BacktestMode.WalkForward;
 
-        const problem =
-          gridded && setup
+        const problem = gridded
+          ? setup
             ? gridProblem(setup, values.rows, values.columns)
-            : undefined;
+            : ownGridProblem(values)
+          : undefined;
 
         if (problem) {
           context.addIssue({
@@ -210,16 +220,31 @@ function initialRun(symbol: SymbolRef): BacktestSetup {
 }
 
 /** The strategy's fields as a setup ran it, and the template its grid starts from. */
-function strategyValues(strategy: StrategySetup) {
+function strategyValues(strategy: StrategySetup | OwnSetup) {
+  const template = StrategyTemplate.MovingAverageCross;
+
+  if ("name" in strategy) {
+    return {
+      template,
+      values: {
+        strategy: StrategyChoice.Own,
+        own: strategy.name,
+        params: strategy.params,
+        stopLoss: Number.NaN,
+        takeProfit: Number.NaN,
+        rules: writtenOut(initialSetup(template)),
+      },
+    };
+  }
+
   const rules = writtenOut(strategy);
 
   if ("rules" in strategy) {
-    const template = StrategyTemplate.MovingAverageCross;
-
     return {
       template,
       values: {
         strategy: StrategyChoice.Rules,
+        own: "",
         params: initialSetup(template).params,
         stopLoss: Number.NaN,
         takeProfit: Number.NaN,
@@ -232,6 +257,7 @@ function strategyValues(strategy: StrategySetup) {
     template: strategy.template,
     values: {
       strategy: strategy.template,
+      own: "",
       params: strategy.params,
       stopLoss: optionalNumber(strategy.stopLoss),
       takeProfit: optionalNumber(strategy.takeProfit),
@@ -272,12 +298,35 @@ export function formValues(
   };
 }
 
-/** The fields a template's setup is read from. */
+/** The fields a template's setup, or a strategy of the user's, is read from. */
 export interface TemplateValues {
   strategy: StrategyChoice;
+  own: string;
   params: Record<string, number>;
   stopLoss: number;
   takeProfit: number;
+}
+
+/** The user's strategy the form sets up, with its numbers; `null` for a template or rules. */
+function ownSetup(values: TemplateValues): OwnSetup | null {
+  return values.strategy === StrategyChoice.Own
+    ? { name: values.own, params: values.params }
+    : null;
+}
+
+/** Why a grid over the user's strategy would not run; its numbers are its folder's to check. */
+function ownGridProblem({
+  rows,
+  columns,
+}: {
+  rows: GridAxis;
+  columns: GridAxis;
+}): GridProblem | undefined {
+  if (rows.param === columns.param) return GridProblem.SameParam;
+
+  return [rows, columns].every((axis) => gridAxisSchema.safeParse(axis).success)
+    ? undefined
+    : GridProblem.AxisSize;
 }
 
 /** The template the form sets up, with only the numbers it takes; `null` for written rules. */
@@ -316,9 +365,10 @@ const reach = (symbol: SymbolRef, values: FormValues) => ({
 export function runSetup(symbol: SymbolRef, values: FormValues): BacktestSetup {
   return {
     ...reach(symbol, values),
-    strategy: templateSetup(values) ?? {
-      rules: ruleStrategySchema.parse(JSON.parse(values.rules)),
-    },
+    strategy: templateSetup(values) ??
+      ownSetup(values) ?? {
+        rules: ruleStrategySchema.parse(JSON.parse(values.rules)),
+      },
     split: values.split,
   };
 }
@@ -340,7 +390,7 @@ export function formRequest(
     };
   }
 
-  const strategy = templateSetup(values);
+  const strategy = templateSetup(values) ?? ownSetup(values);
 
   if (mode === BacktestMode.Run || !strategy) {
     return { mode: BacktestMode.Run, setup: runSetup(symbol, values) };
@@ -380,6 +430,16 @@ export function useGridSize(
 ) {
   const problemText = useGridProblemText();
   const setup = templateSetup(values);
+
+  if (ownSetup(values)) {
+    const problem = ownGridProblem({ rows, columns });
+
+    return {
+      cells: problem ? 0 : axisValues(rows).length * axisValues(columns).length,
+      series: null,
+      problem: problem ? problemText(problem) : undefined,
+    };
+  }
 
   if (!setup) return null;
 
