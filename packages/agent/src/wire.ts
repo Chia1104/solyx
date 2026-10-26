@@ -230,11 +230,29 @@ export const AgentToolName = {
   ChangeWatchlist: "change_watchlist",
   GetSetup: "get_setup",
   ChangeSetting: "change_setting",
+  GetStrategy: "get_strategy",
+  AllowStrategy: "allow_strategy",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
   Bash: "bash",
 } as const;
 
 export type AgentToolName = (typeof AgentToolName)[keyof typeof AgentToolName];
+
+export const getStrategyArgumentsSchema = z.object({
+  name: z
+    .string()
+    .describe("The strategy's name, as its folder and the prompt give it"),
+});
+
+export const allowStrategyArgumentsSchema = getStrategyArgumentsSchema.extend({
+  version: z
+    .string()
+    .describe("The version get_strategy gave, which the files must still be"),
+});
+
+export type AllowStrategyArguments = z.infer<
+  typeof allowStrategyArgumentsSchema
+>;
 
 /** What a proposal's call left: the proposal, unless a vote rejected it, and the vote where one was held. */
 export const proposeOrderDetailsSchema = z.object({

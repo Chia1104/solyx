@@ -1,9 +1,10 @@
 import { oc, type } from "@orpc/contract";
 
 import { strategyNameSchema } from "@solyx/core/strategy";
+import type { StrategyApproval } from "@solyx/core/strategy";
 
 import { strategyApproveSchema } from "../strategies.ts";
-import type { StrategyApproval, StrategyCatalog } from "../strategies.ts";
+import type { StrategyCatalog } from "../strategies.ts";
 
 import { forDevices } from "./access.ts";
 import { changesContract } from "./changes.ts";

@@ -29,6 +29,7 @@
     "./sign-in-callback": "./src/sign-in-callback.ts",
     "./skill-source": "./src/skill-source.ts",
     "./skills": "./src/skills.ts",
+    "./strategies": "./src/strategies.ts",
     "./tasks": "./src/tasks.ts",
     "./themes": "./src/themes.ts",
     "./tools": "./src/tools.ts",
