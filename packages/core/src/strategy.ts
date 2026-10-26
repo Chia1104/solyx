@@ -63,6 +63,47 @@ export const strategyManifestSchema = z.strictObject({
 
 export type StrategyManifest = z.infer<typeof strategyManifestSchema>;
 
+/** What tools keep beside a strategy's code, which is no part of its version and never runs. */
+export const STRATEGY_LEFT_OUT: readonly string[] = [
+  ".git",
+  "__pycache__",
+  ".DS_Store",
+];
+
+// Names Windows keeps for its devices, whatever follows them after a dot.
+const WINDOWS_DEVICE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i;
+
+/**
+ * One folder's or file's name on a strategy's path. What tools keep is refused whatever its case,
+ * since macOS and Windows read `.GIT` as `.git`, whose hooks would run outside any version.
+ */
+const pathPartFits = (part: string) =>
+  /^[\w.-]{1,128}$/.test(part) &&
+  part !== "." &&
+  part !== ".." &&
+  !part.endsWith(".") &&
+  !WINDOWS_DEVICE.test(part) &&
+  !STRATEGY_LEFT_OUT.some((kept) => kept.toLowerCase() === part.toLowerCase());
+
+/** A file's place in a strategy's folder, from it, with `/` between folders. */
+export const strategyPathSchema = z
+  .string()
+  .max(255)
+  .refine(
+    (path) => path.split("/").every(pathPartFits),
+    `A file's path runs from the strategy's folder with / between folders, each name made of letters, digits, _, - and ., and none of them . or .., ending in a dot, a name Windows keeps for a device or one of ${STRATEGY_LEFT_OUT.join(", ")}`
+  );
+
+/** A change to a strategy's files: whole text files to write, and files to remove. */
+export const strategyChangeSchema = z.strictObject({
+  files: z.array(
+    z.strictObject({ path: strategyPathSchema, text: z.string() })
+  ),
+  remove: z.array(strategyPathSchema).default([]),
+});
+
+export type StrategyChange = z.infer<typeof strategyChangeSchema>;
+
 export type StrategyParams = Record<string, number>;
 
 /**
@@ -129,6 +170,16 @@ export interface StrategyReach {
   sandboxed: boolean;
   /** Beside a live account at a broker. */
   live: boolean;
+}
+
+/** An interpreter a strategy's code finds on its PATH where it would run now. */
+export interface StrategyRuntime {
+  /** What a strategy's `run` names it by. */
+  command: string;
+  /** The first line it prints of its version. */
+  version: string;
+  /** The packages strategies use most that a Python has installed, each by name with its version. */
+  packages: Record<string, string>;
 }
 
 /**

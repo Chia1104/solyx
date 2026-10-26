@@ -15,7 +15,7 @@ import type { Sandbox } from "@solyx/agent/sandbox";
 import { POWERSHELL } from "@solyx/agent/shell";
 import type { StrategyLines } from "@solyx/core/backtest";
 import { readStrategyOutput } from "@solyx/core/strategy";
-import type { StrategyInput } from "@solyx/core/strategy";
+import type { StrategyInput, StrategyRuntime } from "@solyx/core/strategy";
 import { isErrnoError } from "@solyx/utils/error";
 
 import type { Strategy } from "./strategy-folder.ts";
@@ -68,8 +68,8 @@ const printedTail = (printed: string) =>
   printed.trim() ? `; it printed:\n${printed.trim()}` : "";
 
 /**
- * Runs `command` in `cwd` until it ends, failing once it exits other than with 0, runs past
- * `timeoutMs` or `signal` stops it, each with the end of what it printed.
+ * Runs `command` in `cwd` until it ends, with the end of what it printed, failing once it exits
+ * other than with 0, runs past `timeoutMs` or `signal` stops it, each with that end too.
  */
 function execute(
   command: string,
@@ -78,7 +78,7 @@ function execute(
   timeoutMs: number,
   signal: AbortSignal | undefined
 ) {
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     const child = WINDOWS
       ? spawn(
           POWERSHELL,
@@ -134,7 +134,7 @@ function execute(
           new Error(`The strategy's code ${stopped}${printedTail(printed)}`)
         );
       } else if (code === 0) {
-        resolve();
+        resolve(printed);
       } else {
         reject(
           new Error(
@@ -146,6 +146,59 @@ function execute(
   });
 }
 
+// What the probe looks for: the interpreters strategies are written for most, by their commands.
+// On Windows Python is `python`, and `python3` is often the Store's stand-in.
+const PROBED = WINDOWS
+  ? ["python", "python3", "node", "deno", "bun", "uv", "Rscript"]
+  : ["python3", "node", "deno", "bun", "uv", "Rscript"];
+
+// The packages of Python's the probe asks for, by the names they are installed under.
+const PYTHON_PACKAGES = ["numpy", "pandas", "polars", "scipy", "TA-Lib"];
+
+/** How long one interpreter has to say its version, past which it counts as missing. */
+const PROBE_TIMEOUT_MS = 10_000;
+
+const PYTHON_PROBE = `import importlib.metadata as metadata
+
+for name in ${JSON.stringify(PYTHON_PACKAGES)}:
+    try:
+        print(name + "\\t" + metadata.version(name))
+    except Exception:
+        pass
+`;
+
+/**
+ * Prints `tool`'s version, failing where it is not on the PATH. macOS's own python3 asks to install
+ * Apple's developer tools when they are missing, and Windows' python and python3 under WindowsApps
+ * open the Microsoft Store, so neither counts.
+ */
+const versionCommand = (tool: string) =>
+  WINDOWS
+    ? `$found = Get-Command ${tool} -CommandType Application -ErrorAction Stop | Select-Object -First 1; if ($found.Source -like '*\\WindowsApps\\*') { exit 1 }; & $found.Source --version`
+    : tool === "python3"
+      ? `where=$(command -v python3) && { [ "$where" != /usr/bin/python3 ] || [ "$(uname)" != Darwin ] || xcode-select -p >/dev/null 2>&1; } && python3 --version`
+      : `command -v ${tool} >/dev/null && ${tool} --version`;
+
+/**
+ * The line of `printed` that gives a version, `undefined` where none does. macOS's own python3
+ * prints xcrun's complaints about its cache ahead of it in the sandbox, which it may not write.
+ */
+const versionLine = (printed: string) =>
+  printed
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => /\d+\.\d+/.test(line) && !/\berror\b/i.test(line));
+
+/** Each `name<TAB>version` line `printed` holds. */
+const versionsOf = (printed: string) =>
+  Object.fromEntries(
+    printed
+      .split(/\r?\n/)
+      .map((line) => line.split("\t"))
+      .filter((parts) => parts.length === 2)
+      .map(([name, version]) => [name, version.trim()])
+  );
+
 /**
  * Runs strategies' code, each run on a copy of its strategy's files in a folder of its own, with
  * the environment a shell command gets and where its input and output go, in the sandbox while the
@@ -155,26 +208,71 @@ function execute(
 export function createStrategyRunner(options: StrategyRunnerOptions) {
   const timeoutMs = options.timeoutMs ?? STRATEGY_TIMEOUT_MS;
 
+  /** `work` in a folder of its own under `runs`, erased once it ends. */
+  async function inFolder<T>(
+    prefix: string,
+    work: (folder: string) => Promise<T>
+  ) {
+    await mkdir(options.runs, { recursive: true });
+
+    const folder = await mkdtemp(join(options.runs, `${prefix}-`));
+
+    try {
+      return await work(folder);
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
+  }
+
+  /**
+   * Runs `command` from `cwd` with the environment a shell command gets and `own`, in the sandbox
+   * while the user keeps it on, where `folder` is its HOME and the one place it writes.
+   */
+  async function start(
+    folder: string,
+    cwd: string,
+    command: string,
+    own: Record<string, string>,
+    timeout: number,
+    signal: AbortSignal | undefined
+  ) {
+    const tmp = join(folder, ".tmp");
+
+    await mkdir(tmp, { recursive: true });
+
+    const path = await options.path();
+    const sandbox = options.sandboxed() ? options.sandbox : undefined;
+
+    const env = {
+      ...inheritedEnv(),
+      ...(path && { PATH: path }),
+      // Tools read and keep their settings in HOME, which the sandbox hides.
+      ...(sandbox && { HOME: folder, TMPDIR: tmp }),
+      ...own,
+    };
+
+    const wrapped = sandbox
+      ? await sandbox.wrap(
+          command,
+          { workspace: folder, tmp, readable: [], path },
+          signal
+        )
+      : command;
+
+    return execute(wrapped, cwd, env, timeout, signal);
+  }
+
   return {
     /** Each of `input`'s jobs' lines as `strategy`'s code works them out, in the jobs' order. */
-    async run(
+    run: (
       strategy: Strategy,
       input: StrategyInput,
       signal?: AbortSignal
-    ): Promise<StrategyLines[]> {
-      await mkdir(options.runs, { recursive: true });
-
-      const folder = await mkdtemp(
-        join(options.runs, `${strategy.manifest.name}-`)
-      );
-
-      try {
-        const tmp = join(folder, ".tmp");
+    ): Promise<StrategyLines[]> =>
+      inFolder(strategy.manifest.name, async (folder) => {
         const code = join(folder, "code");
         const inputFile = join(folder, "input.json");
         const outputFile = join(folder, "output.json");
-
-        await mkdir(tmp);
 
         // The copy holds the very bytes its version was told from, so what runs is what was allowed.
         for (const file of strategy.code) {
@@ -186,27 +284,17 @@ export function createStrategyRunner(options: StrategyRunnerOptions) {
 
         await writeFile(inputFile, JSON.stringify(input));
 
-        const path = await options.path();
-        const sandbox = options.sandboxed() ? options.sandbox : undefined;
-
-        const env = {
-          ...inheritedEnv(),
-          ...(path && { PATH: path }),
-          // Tools read and keep their settings in HOME, which the sandbox hides.
-          ...(sandbox && { HOME: folder, TMPDIR: tmp }),
-          SOLYX_STRATEGY_INPUT: inputFile,
-          SOLYX_STRATEGY_OUTPUT: outputFile,
-        };
-
-        const command = sandbox
-          ? await sandbox.wrap(
-              strategy.manifest.run,
-              { workspace: folder, tmp, readable: [], path },
-              signal
-            )
-          : strategy.manifest.run;
-
-        await execute(command, code, env, timeoutMs, signal);
+        await start(
+          folder,
+          code,
+          strategy.manifest.run,
+          {
+            SOLYX_STRATEGY_INPUT: inputFile,
+            SOLYX_STRATEGY_OUTPUT: outputFile,
+          },
+          timeoutMs,
+          signal
+        );
 
         let bytes: number;
 
@@ -228,10 +316,58 @@ export function createStrategyRunner(options: StrategyRunnerOptions) {
         }
 
         return readStrategyOutput(await readFile(outputFile, "utf8"), input);
-      } finally {
-        await rm(folder, { recursive: true, force: true });
-      }
-    },
+      }),
+
+    /**
+     * The interpreters a strategy's code finds on its PATH where it would run now, each with its
+     * version, and the packages strategies use most that the first Python among them has. Each is
+     * asked on its own, so one that does not answer counts as missing and holds up no other.
+     */
+    probe: (signal?: AbortSignal) =>
+      inFolder("probe", async (folder) => {
+        const ask = async (command: string) => {
+          try {
+            return await start(
+              folder,
+              folder,
+              command,
+              {},
+              PROBE_TIMEOUT_MS,
+              signal
+            );
+          } catch {
+            return undefined;
+          }
+        };
+
+        await writeFile(join(folder, "probe.py"), PYTHON_PROBE);
+
+        const found = await Promise.all(
+          PROBED.map(async (command) => {
+            const version = versionLine(
+              (await ask(versionCommand(command))) ?? ""
+            );
+
+            return version ? { command, version } : undefined;
+          })
+        );
+
+        const runtimes: StrategyRuntime[] = found
+          .filter((runtime) => runtime !== undefined)
+          .map((runtime) => ({ ...runtime, packages: {} }));
+
+        const python = runtimes.find((runtime) =>
+          runtime.command.startsWith("python")
+        );
+
+        if (python) {
+          python.packages = versionsOf(
+            (await ask(`${python.command} probe.py`)) ?? ""
+          );
+        }
+
+        return runtimes;
+      }),
   };
 }
 
