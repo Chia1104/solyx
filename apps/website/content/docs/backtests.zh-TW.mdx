@@ -107,6 +107,6 @@ description: 在個股圖表下方的面板，用這檔的歷史測試策略、�
 
 ## 和 Agent 一起用 [#with-the-agent]
 
-面板顯示一次回測時，你傳給 Agent 的訊息會帶著跑這次回測的 `backtest.rules` 呼叫，讓 Agent 能照面板的方式重跑。**請 Agent 解讀** 會用 `/backtest` 技能幫你擬好問題。
+面板顯示一次回測時，你傳給 Agent 的訊息會帶著跑這次回測的 `backtest.rules` 呼叫，讓 Agent 能照面板的方式重跑。**請 Agent 解讀** 會用 `/backtest` 技能幫你擬好問題；範本或自訂規則的回測，**存成我的策略** 會擬好請求，把它寫成[你的策略](/zh-TW/docs/strategies#writing-one-with-the-agent)。
 
 Agent 自己的程式跑了單次回測時，工具呼叫會提供在面板開啟它的選項，期間與切分點會用面板提供的最接近設定。你問到結果有多少取決於起點時，它的程式也會透過 `backtest.rolling` 跑滾動區間。
