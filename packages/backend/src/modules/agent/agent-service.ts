@@ -22,6 +22,7 @@ import { createQuoteTools } from "@solyx/agent/quotes";
 import type { QuoteToolsOptions } from "@solyx/agent/quotes";
 import { createResearch } from "@solyx/agent/research";
 import { createAgentRuntime } from "@solyx/agent/runtime";
+import type { Sandbox } from "@solyx/agent/sandbox";
 import { createScriptRunner } from "@solyx/agent/script-runner";
 import { createSectorTools } from "@solyx/agent/sectors";
 import type { SectorToolsOptions } from "@solyx/agent/sectors";
@@ -94,10 +95,8 @@ interface AgentServiceOptions extends AgentModelsOptions {
   instructionsFile: string;
   /** The folder holding one folder per conversation, where its shell commands run. */
   workspaces: string;
-  /** The user's home, which sandboxed shell commands may not read. */
-  home: string;
-  /** The app's own folders, its data and settings, which no shell command may read. */
-  appFolders: readonly string[];
+  /** The app's one sandbox, which shell commands run in while the user keeps it on; none on Windows. */
+  sandbox: Sandbox | undefined;
   /** What the decisions model makes of a shell command, for conversations set to auto. */
   judgeCommand: ShellOptions["judge"];
   /** Where conversations persist, opening as the app starts. */
@@ -225,8 +224,7 @@ export function createAgentService(options: AgentServiceOptions) {
     path: loginShellPath(),
     judge: options.judgeCommand,
     sandbox: {
-      home: options.home,
-      appFolders: options.appFolders,
+      box: options.sandbox,
       enabled: () => options.config.read().agent.shellSandbox,
       // A command runs the scripts of the skills offered, which `read_skill` names.
       readable: async () =>
@@ -575,11 +573,10 @@ export function createAgentService(options: AgentServiceOptions) {
     /** Whether the store failed, so no conversation is read or written until the app restarts. */
     storeFailed: () => storeFailed,
 
-    /** Closes the conversations, then the scripts, shell and MCP servers their runs used, as the app quits. */
+    /** Closes the conversations, then the scripts and MCP servers their runs used, as the app quits. */
     async close() {
       await runtime.close();
       await scripts.close();
-      await shell.close();
       await options.mcp.close();
     },
 

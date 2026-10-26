@@ -61,6 +61,7 @@
     "es-toolkit": "catalog:",
     "hono": "catalog:server",
     "ws": "catalog:server",
+    "yaml": "catalog:utils",
     "zod": "catalog:"
   },
   "devDependencies": {

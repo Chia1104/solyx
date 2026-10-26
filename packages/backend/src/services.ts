@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { MemoryPublisher } from "@orpc/publisher/memory";
 import { debounce, kebabCase, omit, uniqBy } from "es-toolkit";
 
+import { SANDBOX_SUPPORTED, createSandbox } from "@solyx/agent/sandbox";
 import type { Approval } from "@solyx/api/inbox";
 import { ColorScheme } from "@solyx/api/palette";
 import {
@@ -15,6 +16,7 @@ import {
 } from "@solyx/api/settings";
 import { createFubonBroker } from "@solyx/brokers/fubon";
 import { createPaperBroker } from "@solyx/brokers/paper";
+import { BrokerMode } from "@solyx/core/broker";
 import { Interval } from "@solyx/core/candles";
 import { changesSince, watchesListings } from "@solyx/core/changes";
 import { Currency, symbolKey, symbolLabel } from "@solyx/core/market";
@@ -38,6 +40,7 @@ import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 import type { Host } from "./host.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
 import { createMcpServers } from "./modules/agent/mcp-servers.ts";
+import { loginShellPath } from "./modules/agent/shell-path.ts";
 import { createBacktests } from "./modules/backtests/backtests.ts";
 import { createBackupThreads } from "./modules/backup/backup-threads.ts";
 import { createBackups } from "./modules/backup/backups.ts";
@@ -75,6 +78,9 @@ import { installationId } from "./modules/settings/installation-id.ts";
 import { createMandateStore } from "./modules/settings/mandate-store.ts";
 import { createSecretStore } from "./modules/settings/secret-store.ts";
 import { createStorageApi } from "./modules/storage/storage-api.ts";
+import { createStrategies } from "./modules/strategies/strategies.ts";
+import { createStrategyApprovals } from "./modules/strategies/strategy-approvals.ts";
+import { createStrategyRunner } from "./modules/strategies/strategy-runner.ts";
 import { createTelemetry } from "./modules/telemetry/telemetry.ts";
 import { createThemes } from "./modules/themes/themes.ts";
 import { createTray } from "./modules/tray/tray.ts";
@@ -440,6 +446,27 @@ export function createServices(config: ConfigFile, host: Host) {
 
   const deviceId = installationId(join(userDataDir, "installation-id"));
 
+  // Shell commands and the strategies' code run in one, whose proxies serve the whole process.
+  const sandbox = SANDBOX_SUPPORTED
+    ? createSandbox({ home, appFolders: [userDataDir, configDir] })
+    : undefined;
+
+  const strategies = createStrategies({
+    folder: join(configDir, "strategies"),
+    runner: createStrategyRunner({
+      runs: join(userDataDir, "strategy-runs"),
+      sandbox,
+      sandboxed: () => config.read().agent.shellSandbox,
+      path: loginShellPath(),
+    }),
+    approvals: createStrategyApprovals(secrets),
+    reach: () => ({
+      sandboxed: sandbox !== undefined && config.read().agent.shellSandbox,
+      live: desk.mode !== BrokerMode.Paper,
+    }),
+    onChange: () => void windowEvents.publish("strategies:changed", {}),
+  });
+
   const agent = createAgentService({
     config,
     secrets,
@@ -454,8 +481,7 @@ export function createServices(config: ConfigFile, host: Host) {
     instructionsFile,
     mcp,
     workspaces: folders.workspaces,
-    home,
-    appFolders: [userDataDir, configDir],
+    sandbox,
     async judgeCommand(input, signal) {
       const judgement = await (
         await decisions.commandJudge()
@@ -778,6 +804,9 @@ export function createServices(config: ConfigFile, host: Host) {
     flows,
     fundamentals,
     agent,
+    /** The app's one sandbox, which shell commands and strategies' code run in; none on Windows. */
+    sandbox,
+    strategies,
     backups,
     /** The backup the app started on, when it was restored as it started. */
     restored,

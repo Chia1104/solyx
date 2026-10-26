@@ -60,6 +60,7 @@ function serveBackend(
         services.tray.close();
         await services.devices.close();
         await services.agent.close();
+        await services.sandbox?.close();
         await services.telemetry.close();
       }),
     }),

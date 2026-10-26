@@ -20,6 +20,7 @@ export type WindowEvents = Record<
   | "research:changed"
   | "schedules:changed"
   | "settings:changed"
+  | "strategies:changed"
   | "themes:changed"
   | "updates:changed"
   | "watchlist:changed"

@@ -1061,6 +1061,9 @@ importers:
       ws:
         specifier: catalog:server
         version: 8.22.0
+      yaml:
+        specifier: catalog:utils
+        version: 2.9.1
       zod:
         specifier: 'catalog:'
         version: 4.6.7

@@ -40,10 +40,12 @@ export const filePlaces = ({
   configDir,
   workspaces,
 }: DataFolders): BackupPlace[] => [
-  ...["config.json", "mcp.json", "AGENTS.md", "skills"].map((name) => ({
-    part: join("config", name),
-    path: join(configDir, name),
-  })),
+  ...["config.json", "mcp.json", "AGENTS.md", "skills", "strategies"].map(
+    (name) => ({
+      part: join("config", name),
+      path: join(configDir, name),
+    })
+  ),
   { part: "workspaces", path: workspaces },
 ];
 

@@ -122,6 +122,13 @@ export const MANDATE_SECRET = "trading-mandate";
  */
 export const PAIRED_DEVICES_SECRET = "paired-devices";
 
+/**
+ * The versions of the user's strategies allowed to run, sealed like the mandate, since a version
+ * the user allowed may run outside the sandbox beside a live account and no edit of the app's
+ * files may allow one.
+ */
+export const STRATEGY_APPROVALS_SECRET = "strategy-approvals";
+
 /** Every key the secret store saves under. */
 export type SecretKey =
   | Secret
@@ -131,7 +138,8 @@ export type SecretKey =
   | McpSecretKey
   | McpSignInKey
   | typeof MANDATE_SECRET
-  | typeof PAIRED_DEVICES_SECRET;
+  | typeof PAIRED_DEVICES_SECRET
+  | typeof STRATEGY_APPROVALS_SECRET;
 
 export const SecretState = {
   Saved: "saved",
