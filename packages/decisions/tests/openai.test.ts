@@ -12,6 +12,7 @@ import {
 import {
   OPENAI_DEFAULT_MODEL,
   createOpenAIClaimAuditor,
+  createOpenAICodeJudge,
   createOpenAICommandJudge,
   createOpenAIScorer,
 } from "../src/openai.ts";
@@ -297,6 +298,64 @@ test("refuses a command too long to read whole, without sending any of it", asyn
   await expect(judge.judge({ command, shell: "bash" })).rejects.toThrow(
     "reads commands of up to 12000 characters"
   );
+  expect(requests).toHaveLength(0);
+});
+
+test("judges a strategy's code with its command, each file under its path", async () => {
+  const { fetch, requests } = fakeOpenAI([
+    yes("files", 0.01),
+    yes("network", 0.02),
+    yes("secrets", 0.03),
+    yes("runs", 0.04),
+  ]);
+
+  const judge = createOpenAICodeJudge({ ...OPTIONS, fetch });
+
+  expect(
+    await judge.judge({
+      command: "python3 strategy.py",
+      files: [
+        { path: "strategy.py", text: "from indicators import rsi" },
+        { path: "indicators.py", text: "def rsi(values, period): ..." },
+      ],
+    })
+  ).toEqual({
+    model: "gpt-6-luna",
+    files: 0.01,
+    network: 0.02,
+    secrets: 0.03,
+    runs: 0.04,
+  });
+
+  const body = z
+    .object({
+      input: z.string(),
+      questions: z.array(noulSchema.extend({ name: z.string() })),
+    })
+    .parse(await requests[0].json());
+
+  expect(JSON.parse(body.input)).toEqual({
+    command: "python3 strategy.py",
+    code: "--- strategy.py ---\nfrom indicators import rsi\n--- indicators.py ---\ndef rsi(values, period): ...",
+  });
+  expect(body.questions.map((question) => question.name)).toEqual([
+    "files",
+    "network",
+    "secrets",
+    "runs",
+  ]);
+});
+
+test("refuses code too long to read whole, without sending any of it", async () => {
+  const { fetch, requests } = fakeOpenAI([]);
+  const judge = createOpenAICodeJudge({ ...OPTIONS, fetch });
+
+  await expect(
+    judge.judge({
+      command: "python3 strategy.py",
+      files: [{ path: "strategy.py", text: "x = 1\n".repeat(2400) }],
+    })
+  ).rejects.toThrow("reads code of up to 12000 characters");
   expect(requests).toHaveLength(0);
 });
 

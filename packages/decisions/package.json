@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./cloudflare": "./src/cloudflare.ts",
+    "./code": "./src/code.ts",
     "./command": "./src/command.ts",
     "./openai": "./src/openai.ts",
     "./provider": "./src/provider.ts",

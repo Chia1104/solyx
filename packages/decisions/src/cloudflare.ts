@@ -5,10 +5,12 @@ import type { FactReader } from "@solyx/core/forecast";
 import type { ClaimAuditor } from "@solyx/core/report";
 import type { SentimentScorer } from "@solyx/core/sentiment";
 
+import type { CodeJudge } from "./code.ts";
 import type { CommandJudge } from "./command.ts";
 import {
   COMMAND_QUESTIONS,
   createClaimAuditor,
+  createCodeJudge,
   createCommandJudge,
   createFactReader,
   createScorer,
@@ -79,6 +81,11 @@ function cloudflare(options: CloudflareOptions): Ask {
     return resultSchema.parse(body).result;
   };
 }
+
+/** Judges strategies' code with a Clef model on Workers AI, on the user's own token. */
+export const createCloudflareCodeJudge = (
+  options: CloudflareOptions
+): CodeJudge => createCodeJudge(cloudflare(options));
 
 /** Judges shell commands with a Clef model on Workers AI, on the user's own token. */
 export const createCloudflareCommandJudge = (

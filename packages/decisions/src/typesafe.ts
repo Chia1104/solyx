@@ -5,9 +5,11 @@ import type { FactReader } from "@solyx/core/forecast";
 import type { ClaimAuditor } from "@solyx/core/report";
 import type { SentimentScorer } from "@solyx/core/sentiment";
 
+import type { CodeJudge } from "./code.ts";
 import type { CommandJudge } from "./command.ts";
 import {
   createClaimAuditor,
+  createCodeJudge,
   createCommandJudge,
   createFactReader,
   createScorer,
@@ -42,6 +44,10 @@ function typeSafe(options: TypeSafeOptions): Ask {
   return (request, signal) =>
     client.systemOne({ ...request, model: options.model }, { signal });
 }
+
+/** Judges strategies' code with a TypeSafe System One model, such as Jev, on the user's own key. */
+export const createTypeSafeCodeJudge = (options: TypeSafeOptions): CodeJudge =>
+  createCodeJudge(typeSafe(options));
 
 /** Judges shell commands with a TypeSafe System One model, such as Jev, on the user's own key. */
 export const createTypeSafeCommandJudge = (
