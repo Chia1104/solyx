@@ -6,6 +6,7 @@ import { kernel } from "@solyx/kernel/kernel";
 import {
   BACKTEST_PERMUTATIONS,
   ENOUGH_TRADES,
+  MAX_LINE_VALUES,
   MAX_SCAN_SERIES,
   MAX_WALK_WINDOWS,
   backtest,
@@ -18,15 +19,18 @@ import {
   rollingBacktest,
   ruleStrategySchema,
   scanBacktests,
+  strategyBars,
   walkForward,
 } from "../src/backtest.ts";
 import type {
   BacktestResult,
   RuleCondition,
+  RuleSeries,
   RuleStrategy,
 } from "../src/backtest.ts";
 import { Interval, candleDate } from "../src/candles.ts";
 import type { Candle } from "../src/candles.ts";
+import { sma } from "../src/indicators.ts";
 import { Market } from "../src/market.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
@@ -452,46 +456,44 @@ describe("splits and what went ex", () => {
   });
 });
 
-describe("no rule sees a later price", () => {
-  /** Taiwan daily bars of a seeded walk from 100, with a day locked up, a split and what went ex now and then. */
-  function walk(seed: number, length: number): Candle[] {
-    let state = seed;
+/** Taiwan daily bars of a seeded walk from 100, with a day locked up, a split and what went ex now and then. */
+function walk(seed: number, length: number): Candle[] {
+  let state = seed;
 
-    const random = () => {
-      state = (state * 1_664_525 + 1_013_904_223) % 2 ** 32;
+  const random = () => {
+    state = (state * 1_664_525 + 1_013_904_223) % 2 ** 32;
 
-      return state / 2 ** 32;
+    return state / 2 ** 32;
+  };
+
+  const tick = (price: number) => Math.max(Math.round(price * 20) / 20, 0.05);
+  let close = 100;
+
+  return bars(Array.from({ length }, () => 0)).map((bar) => {
+    const draw = random();
+    const event = draw < 0.01 ? 0.5 : draw < 0.04 ? 0.97 : 1;
+    const reference = tick(close * event);
+    const move = (random() + random() + random() - 1.5) * 0.03;
+    const lockedUp = random() < 0.01;
+    const next = tick(reference * (lockedUp ? 1.1 : 1 + move));
+    const open = lockedUp ? next : tick(reference * (1 + move / 3));
+
+    close = next;
+
+    return {
+      ...bar,
+      open,
+      high: lockedUp
+        ? next
+        : tick(Math.max(open, next) * (1 + random() * 0.01)),
+      low: lockedUp ? next : tick(Math.min(open, next) * (1 - random() * 0.01)),
+      close: next,
+      reference,
     };
+  });
+}
 
-    const tick = (price: number) => Math.max(Math.round(price * 20) / 20, 0.05);
-    let close = 100;
-
-    return bars(Array.from({ length }, () => 0)).map((bar) => {
-      const draw = random();
-      const event = draw < 0.01 ? 0.5 : draw < 0.04 ? 0.97 : 1;
-      const reference = tick(close * event);
-      const move = (random() + random() + random() - 1.5) * 0.03;
-      const lockedUp = random() < 0.01;
-      const next = tick(reference * (lockedUp ? 1.1 : 1 + move));
-      const open = lockedUp ? next : tick(reference * (1 + move / 3));
-
-      close = next;
-
-      return {
-        ...bar,
-        open,
-        high: lockedUp
-          ? next
-          : tick(Math.max(open, next) * (1 + random() * 0.01)),
-        low: lockedUp
-          ? next
-          : tick(Math.min(open, next) * (1 - random() * 0.01)),
-        close: next,
-        reference,
-      };
-    });
-  }
-
+describe("no rule sees a later price", () => {
   const strategies: RuleStrategy[] = [
     {
       entry: { crossesAbove: [{ sma: 5 }, { sma: 20 }] },
@@ -1306,5 +1308,124 @@ describe("a backtest's bars", () => {
     await expect(
       backtestBars(source, TSMC, Interval.OneDay, "2026-01-14")
     ).rejects.toThrow("2330 has too few 1d bars to backtest");
+  });
+});
+
+describe("a strategy's own lines", () => {
+  // The engine's own average, so only the terms the lines are on differ from its indicators'.
+  const average = sma;
+
+  const crossing: RuleStrategy = {
+    entry: { crossesAbove: [{ line: "fast" }, { line: "slow" }] },
+    exit: { crossesBelow: [{ line: "fast" }, { line: "slow" }] },
+  };
+
+  test("trade as the engine's indicators do, worked out on the first bar's terms across splits and what went ex", async () => {
+    for (let seed = 1; seed <= 4; seed++) {
+      const whole = walk(seed, 300);
+      const closes = strategyBars(TSMC, whole).map((bar) => bar.close);
+
+      const own = await backtest(kernel, TSMC, whole, crossing, {
+        lines: { fast: average(closes, 5), slow: average(closes, 20) },
+      });
+
+      const engine = await backtest(kernel, TSMC, whole, {
+        entry: { crossesAbove: [{ sma: 5 }, { sma: 20 }] },
+        exit: { crossesBelow: [{ sma: 5 }, { sma: 20 }] },
+      });
+
+      expect(engine.trades.length).toBeGreaterThan(0);
+      expect(own.trades).toEqual(engine.trades);
+    }
+  });
+
+  test("are compared only with each other or a value, since a price and an indicator are on other terms", () => {
+    const rules = (other: RuleSeries) =>
+      ruleStrategySchema.safeParse({
+        entry: { above: [{ line: "signal" }, other] },
+        exit: { below: [{ line: "signal" }, { value: 0 }] },
+      }).success;
+
+    expect(rules({ value: 0.5 })).toBe(true);
+    expect(rules({ line: "level" })).toBe(true);
+    expect(rules({ price: "close" })).toBe(false);
+    expect(rules({ sma: 20 })).toBe(false);
+  });
+
+  test("fail a run that reads a line no code gave, or one of other than a value a bar", async () => {
+    const six = bars([95, 98, 102, 110, 99, 97]);
+    const signal = { entry: [0, 1, 1, 0, 0, 0], exit: [1, 0, 0, 1, 1, 1] };
+
+    const run = (lines?: Record<string, number[]>) =>
+      backtest(
+        kernel,
+        TSMC,
+        six,
+        {
+          entry: { above: [{ line: "entry" }, { value: 0.5 }] },
+          exit: { above: [{ line: "exit" }, { value: 0.5 }] },
+        },
+        { lines }
+      );
+
+    await expect(run()).rejects.toThrow(
+      "A rule reads the line entry, which only a strategy's own code gives"
+    );
+    await expect(run({ entry: signal.entry })).rejects.toThrow(
+      "The strategy's code gave no line named exit"
+    );
+    await expect(run({ ...signal, exit: [1, 0, 0] })).rejects.toThrow(
+      "The strategy's line exit holds 3 values for 6 bars"
+    );
+    await expect(run({ ...signal, constructor: [] })).resolves.toMatchObject({
+      trades: [{ entryTime: "2026-01-07", exitTime: "2026-01-09" }],
+    });
+  });
+
+  test("of each strategy in a scan are its own, and count apart from the engine's series", async () => {
+    const whole = walk(3, 300);
+    const closes = strategyBars(TSMC, whole).map((bar) => bar.close);
+
+    const sets = Array.from({ length: MAX_SCAN_SERIES + 6 }, (_, index) => ({
+      fast: average(closes, 2 + (index % 9)),
+      slow: average(closes, 12 + Math.floor(index / 9)),
+    }));
+
+    const scan = await scanBacktests(
+      kernel,
+      TSMC,
+      whole,
+      sets.map(() => crossing),
+      { lines: sets }
+    );
+
+    for (const index of [0, 37, sets.length - 1]) {
+      const alone = await backtest(kernel, TSMC, whole, crossing, {
+        lines: sets[index],
+      });
+
+      expect(scan.cells[index].all).toEqual({ ...alone.all, pValue: null });
+    }
+  });
+
+  test(`hold ${MAX_LINE_VALUES} values at most between them`, async () => {
+    const long = bars(Array.from({ length: 2000 }, (_, index) => 100 + index));
+    const values = long.map(() => 0);
+    const count = Math.floor(MAX_LINE_VALUES / (2 * long.length)) + 1;
+
+    await expect(
+      scanBacktests(
+        kernel,
+        TSMC,
+        long,
+        Array.from({ length: count }, () => crossing),
+        {
+          lines: Array.from({ length: count }, () => ({
+            fast: [...values],
+            slow: [...values],
+          })),
+        }
+      )
+    ).rejects.toThrow(`hold ${MAX_LINE_VALUES} values at most`);
   });
 });
