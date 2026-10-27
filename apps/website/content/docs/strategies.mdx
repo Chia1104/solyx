@@ -47,6 +47,17 @@ What the idea is, when it works and where it fails.
 
 A rule compares one of the strategy's lines only with another of its lines or with a `value`. The code works on prices adjusted for splits and what went ex on the first bar's terms, while a bar's own prices are as traded, so the two would part at every split. To compare with the close, give the close as a line of its own.
 
+## Writing one with the agent
+
+Ask the agent for a strategy in words, or start from the backtest panel: **Write one with the agent** under **My strategies** while you have none, or **Keep as my strategy** beside a run of a template or written rules. The `/strategy` skill has the agent:
+
+- settle the idea and the range of each number with you before it reads any result;
+- check what the code can run on where it would run: the interpreters on the `PATH`, and which of numpy, pandas, polars, scipy and TA-Lib its Python has;
+- write the folder, then check the lines its code works out, against the app's own indicators where it has the same one, and fix any line [the look-ahead check](#the-look-ahead-check) names before any backtest;
+- test it as `/backtest` does, and say how many versions it saved and tested, since every version tried on the same bars uses up their out-of-sample stretch.
+
+Allowing the agent's save allows the version it makes, so its card shows that version's files beside the version you allowed before, or every file of a new one. In a conversation set to **Allow for me**, a new strategy, or one the conversation wrote itself and nobody changed since, is saved unasked once the decisions model judges its code harmless; a change to a strategy you wrote always asks, and beside a live account outside the sandbox only you allow a version. The agent writes only text files inside the strategy's folder, never into what tools keep beside the code, and its save is refused where the files changed since it read them.
+
 ## What the code reads and writes
 
 The code reads JSON from the file `$SOLYX_STRATEGY_INPUT` names and writes JSON to the file `$SOLYX_STRATEGY_OUTPUT` names.
