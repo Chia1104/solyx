@@ -78,13 +78,13 @@ export async function keepAttachments(
   if (kept.length > 0) {
     await mkdir(join(workspace, ATTACHMENTS), { recursive: true });
 
-    // A new folder and a new file each, so nothing already there, a link among it, is written through.
-    const real = join(
-      await insideWorkspace(workspace, ATTACHMENTS),
-      String(at)
+    // A new folder and a new file each, so nothing already there, a link among it, is written
+    // through; the folder is checked again once made, against a link swapped in meanwhile.
+    await mkdir(
+      join(await insideWorkspace(workspace, ATTACHMENTS), String(at))
     );
 
-    await mkdir(real);
+    const real = await insideWorkspace(workspace, folder);
 
     await Promise.all(
       kept.map(({ bytes, attachment }) =>
