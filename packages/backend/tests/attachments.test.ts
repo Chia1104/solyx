@@ -14,7 +14,10 @@ import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
 import { AttachmentKind } from "@solyx/agent/attachment";
 
-import { keepAttachments } from "../src/modules/agent/attachments.ts";
+import {
+  keepAttachments,
+  keptAttachment,
+} from "../src/modules/agent/attachments.ts";
 
 let workspace: string;
 
@@ -67,6 +70,17 @@ test("a message's files are kept as attached, in a folder of the message's own",
     PNG
   );
 
+  const shown = await keptAttachment(
+    workspace,
+    "attachments/1700000000000/_收盤.csv"
+  );
+
+  expect([shown.name, shown.type, await shown.text()]).toEqual([
+    "_收盤.csv",
+    "text/csv",
+    "date,close\n",
+  ]);
+
   // A message that was not sent takes its files away again.
   await kept.remove();
 
@@ -112,4 +126,14 @@ test("nothing already at a message's place is written over", async () => {
   await expect(
     keepAttachments(workspace, [new File(["a,b\n"], "fills.csv")], 1)
   ).rejects.toThrow(/EEXIST/);
+});
+
+test("a kept file is read only where it really is in the conversation's folder", async () => {
+  await mkdir(join(workspace, "attachments", "2"), { recursive: true });
+  // A command leaves a link where a kept file would be, to a file outside the folder.
+  await symlink("/etc/hosts", join(workspace, "attachments", "2", "hosts.txt"));
+
+  await expect(
+    keptAttachment(workspace, "attachments/2/hosts.txt")
+  ).rejects.toThrow("not in its conversation's folder");
 });

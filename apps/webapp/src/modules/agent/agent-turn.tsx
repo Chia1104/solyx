@@ -211,7 +211,9 @@ export const AgentTurn = memo(function AgentTurn({
 }) {
   return (
     <>
-      {turn.user ? <UserMessage message={turn.user} /> : null}
+      {turn.user ? (
+        <UserMessage sessionId={sessionId} message={turn.user} />
+      ) : null}
       <TurnWork sessionId={sessionId} turn={turn} live={live} />
       {turn.cards.map((tool) => (
         <AgentToolCall

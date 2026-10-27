@@ -1,7 +1,8 @@
-import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
-import { join, sep } from "node:path";
+import { constants } from "node:fs";
+import { mkdir, open, realpath, rm, writeFile } from "node:fs/promises";
+import { basename, join, sep } from "node:path";
 
-import { readAttachment } from "@solyx/agent/attachment";
+import { MAX_ATTACHMENT_BYTES, readAttachment } from "@solyx/agent/attachment";
 import type { AgentAttachment } from "@solyx/agent/runtime";
 
 /** The folder of a conversation's folder that keeps the files its messages carried. */
@@ -97,4 +98,31 @@ export async function keepAttachments(
     attachments: kept.map(({ attachment }) => attachment),
     remove: () => rm(join(workspace, folder), { recursive: true, force: true }),
   };
+}
+
+/** A file a message carried, as `keepAttachments` kept it at `path` in the conversation's folder. */
+export async function keptAttachment(workspace: string, path: string) {
+  // Opened without following a link, and only as a file no larger than any attached, so what a
+  // command left at the place is never read in its stead.
+  const handle = await open(
+    await insideWorkspace(workspace, path),
+    constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)
+  );
+
+  try {
+    const stats = await handle.stat();
+
+    if (!stats.isFile() || stats.size > MAX_ATTACHMENT_BYTES) {
+      throw new Error(`${path} is not a file a message carried`);
+    }
+
+    const bytes = new Uint8Array(await handle.readFile());
+    const name = basename(path);
+
+    return new File([bytes], name, {
+      type: readAttachment(name, bytes).mimeType,
+    });
+  } finally {
+    await handle.close();
+  }
 }

@@ -181,3 +181,8 @@ minimumReleaseAgeExclude:
   - '@earendil-works/pi-codemode@1.2.0'
   - openai@7.30.0
   - '@fumadocs/language@0.2.15'
+# oRPC's peer transports (a window's port, a paired browser's socket) send a FormData body's
+# type from its blob, which browsers lowercase with its multipart boundary, so a message carrying
+# a file could not be read. Still so in 0.13.0; drop the patch once upstream takes the header's.
+patchedDependencies:
+  '@standard-server/peer@0.10.3': patches/@standard-server__peer@0.10.3.patch

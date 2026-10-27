@@ -14,6 +14,7 @@ import { ActivityMark } from "./agent-activity.tsx";
 import { AgentMarkdown } from "./agent-markdown.tsx";
 import { CopyAction, EditAction } from "./agent-message-actions.tsx";
 import { ReplyUsageMark } from "./agent-usage.tsx";
+import { SentAttachments } from "./composer-attachments.tsx";
 import { MessageText } from "./message-text.tsx";
 
 // Taller messages fold down to this until the user opens them.
@@ -56,9 +57,21 @@ function MessageMeta({
   );
 }
 
-export function UserMessage({ message }: { message: MessageView }) {
+export function UserMessage({
+  sessionId,
+  message,
+}: {
+  sessionId: string;
+  message: MessageView;
+}) {
   return (
     <div className="group/message flex flex-col items-end gap-1">
+      {message.attachments?.length ? (
+        <SentAttachments
+          sessionId={sessionId}
+          attachments={message.attachments}
+        />
+      ) : null}
       <Expandable
         maxHeight={USER_MESSAGE_MAX_HEIGHT}
         className="max-w-[85%] rounded-sm bg-surface-secondary px-3 py-2 text-sm leading-6"

@@ -6,11 +6,16 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowUp02Icon, StopIcon } from "@hugeicons/core-free-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Autocomplete } from "react-aria-components";
+import {
+  Autocomplete,
+  DIRECTORY_DRAG_TYPE,
+  DropZone,
+} from "react-aria-components";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
+import { AttachmentImageType } from "@solyx/agent/attachment";
 import type { AgentModelPick, AgentModelRef } from "@solyx/agent/providers";
 import {
   AgentCommand,
@@ -49,10 +54,9 @@ import {
 } from "./agent-query.ts";
 import { useAgentStore } from "./agent-store.ts";
 import { ContextMeter } from "./agent-usage.tsx";
-import {
-  ComposerAttachments,
-  FocusAttachment,
-} from "./composer-attachments.tsx";
+import { AttachButton, MessageAttachments } from "./composer-attachments.tsx";
+import { useComposerFiles } from "./composer-files.ts";
+import type { RefusedFile } from "./composer-files.ts";
 import {
   ComposerMenu,
   suggests,
@@ -60,6 +64,16 @@ import {
 } from "./composer-menu.tsx";
 import type { ComposerSuggestion } from "./composer-menu.tsx";
 import { ComposerTokenKind, replaceToken, tokenAt } from "./composer-token.ts";
+
+// What the file picker offers; whatever is picked or dropped is read by its bytes all the same.
+const ACCEPTED_FILES = [
+  ...Object.values(AttachmentImageType),
+  "text/*",
+  ".csv",
+  ".tsv",
+  ".md",
+  ".json",
+];
 
 // An empty message only disables sending, so it needs no message of its own.
 const composerSchema = z.object({ text: z.string().trim().min(1) });
@@ -117,13 +131,21 @@ function sentScreen(
   return attached && { ...screen, name: nameOf(attached) };
 }
 
-/** What the composer has to say under the input: a model that cannot run, a summary with nothing to fold, a change that failed. */
+/**
+ * What the composer has to say under the input: a model that cannot run or see the images
+ * attached, files it would not take, a summary with nothing to fold, a change that failed.
+ */
 function ComposerNotes({
   unavailable,
+  unreadable,
+  refused,
   nothingOld,
   errors,
 }: {
   unavailable: ComponentProps<typeof ModelUnavailable> | null;
+  /** The model that sees no images the message carries, by its name. */
+  unreadable: string | null;
+  refused: readonly RefusedFile[];
   nothingOld: boolean;
   errors: readonly { title: string; error: Error | null }[];
 }) {
@@ -132,6 +154,16 @@ function ComposerNotes({
   return (
     <>
       {unavailable ? <ModelUnavailable {...unavailable} /> : null}
+      {unreadable ? (
+        <p className="px-1 text-xs text-warning">
+          {t("agent.attachments.no-images", { model: unreadable })}
+        </p>
+      ) : null}
+      {refused.map(({ name, reason }) => (
+        <p key={name} className="px-1 text-xs text-warning">
+          {t(`agent.attachments.refused.${reason}`, { name })}
+        </p>
+      ))}
       {nothingOld ? (
         <p className="px-1 text-xs text-muted">
           {t("agent.compaction.nothing-old")}
@@ -281,16 +313,20 @@ function useConversationSetup(sessionId: string | null) {
     else setApprovalMode.mutate({ id: sessionId, mode });
   }
 
+  // The next run's model, whose window the context has to fit and which may see no images.
+  const option =
+    settings &&
+    model &&
+    settings.models.find(
+      (each) => each.provider === model.provider && each.id === model.id
+    );
+
   return {
     settings,
     pick,
-    // The next run's model, whose window the context has to fit.
-    contextWindow:
-      settings &&
-      model &&
-      settings.models.find(
-        (each) => each.provider === model.provider && each.id === model.id
-      )?.contextWindow,
+    contextWindow: option?.contextWindow,
+    /** The next run's model by its name where it sees no images; until the settings load, it is taken to. */
+    blind: option && !option.images ? option.name : null,
     // Until the settings load, the model is taken to run rather than flash the notice.
     unavailable:
       settings && model && !isModelReady(settings, model)
@@ -336,6 +372,7 @@ export function AgentComposer({
     settings,
     pick,
     contextWindow,
+    blind,
     unavailable,
     approvalMode,
     session,
@@ -354,6 +391,18 @@ export function AgentComposer({
 
   const input = useRef<HTMLTextAreaElement | null>(null);
   const [caret, setCaret] = useCaret(input);
+
+  const files = useComposerFiles({
+    insertText: (words) =>
+      form.setValue("text", text.slice(0, caret) + words + text.slice(caret)),
+  });
+
+  const unreadable = files.holdsImages && blind !== null;
+
+  // What keeps a message from going besides a run under way: a model that cannot run or see its
+  // images, or files still being read.
+  const held = unavailable !== null || unreadable || files.reading;
+
   // The token Escape closed the menu on, which stays closed until the caret leaves it.
   const [dismissed, setDismissed] = useState<number | null>(null);
 
@@ -413,14 +462,20 @@ export function AgentComposer({
 
   const send = useMutation({
     onMutate: () => compact.reset(),
-    mutationFn: async (message: string) => {
+    mutationFn: async ({
+      message,
+      attachments,
+    }: {
+      message: string;
+      attachments: File[];
+    }) => {
       const id = await session();
       const locale = currentLocale();
 
       await client.agent.send({
         id,
         text: message,
-        attachments: [],
+        attachments,
         screen: sentScreen(screen, attachedFocus, (symbol) =>
           // The attachment above the input has already asked for it.
           listingName(
@@ -432,7 +487,10 @@ export function AgentComposer({
         timeZone: currentTimeZone(),
       });
     },
-    onSuccess: () => form.reset(),
+    onSuccess: () => {
+      form.reset();
+      files.clear();
+    },
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: orpc.agent.sessions.key() }),
   });
@@ -448,7 +506,10 @@ export function AgentComposer({
         { onSuccess: () => form.reset() }
       );
     } else {
-      send.mutate(text);
+      send.mutate({
+        message: text,
+        attachments: files.files.map((pending) => pending.file),
+      });
     }
   });
 
@@ -460,7 +521,7 @@ export function AgentComposer({
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
 
-      if (!busy && !unavailable) void submit();
+      if (!busy && !held) void submit();
     }
   }
 
@@ -482,12 +543,19 @@ export function AgentComposer({
         />
       ) : null}
       {/* It holds its attachments a gap inside its edge, so it rounds wider by the gap, as the board does. */}
-      <div className="relative rounded-board border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus">
-        {focus ? (
-          <ComposerAttachments>
-            <FocusAttachment focus={focus} />
-          </ComposerAttachments>
-        ) : null}
+      <DropZone
+        aria-label={t("agent.attachments.drop")}
+        getDropOperation={(types) =>
+          types.has(DIRECTORY_DRAG_TYPE) ? "cancel" : "copy"
+        }
+        onDrop={(event) => void files.drop(event.items)}
+        className="relative rounded-board border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus data-drop-target:border-accent">
+        <MessageAttachments
+          focus={focus}
+          files={files.files}
+          blind={blind !== null}
+          onRemove={files.remove}
+        />
         <Controller
           control={form.control}
           name="text"
@@ -523,6 +591,12 @@ export function AgentComposer({
                   spellCheck
                   onBlur={field.onBlur}
                   onKeyDown={onKeyDown}
+                  // A screenshot pasted rides with the message rather than as its name.
+                  onPaste={(event) => {
+                    if (files.paste(event.clipboardData)) {
+                      event.preventDefault();
+                    }
+                  }}
                 />
               </TextField>
             </Autocomplete>
@@ -530,6 +604,10 @@ export function AgentComposer({
         />
         <div className="flex items-center justify-between gap-2 px-2 pb-2">
           <div className="flex min-w-0 items-center gap-1">
+            <AttachButton
+              accepts={ACCEPTED_FILES}
+              onPick={(picked) => void files.add(picked)}
+            />
             {/* A browser's messages ask before every call, whatever the mode the computer set. */}
             {inWindow ? (
               <ApprovalModeMenu
@@ -580,15 +658,17 @@ export function AgentComposer({
                 variant="secondary"
                 aria-label={t("agent.send")}
                 isPending={send.isPending}
-                isDisabled={!text.trim() || unavailable !== null}>
+                isDisabled={!text.trim() || held}>
                 <Icon icon={ArrowUp02Icon} />
               </Button>
             )}
           </div>
         </div>
-      </div>
+      </DropZone>
       <ComposerNotes
         unavailable={unavailable}
+        unreadable={unreadable ? blind : null}
+        refused={files.refused}
         nothingOld={
           compact.data === CompactionOutcome.NothingOld &&
           compact.variables.id === sessionId

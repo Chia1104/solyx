@@ -1,0 +1,14 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index a187e73779cdae12c46d14a5b5e754245add921a..030490f6983bae8fc9b9bb8714c5a9fc20728bfc 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -263,7 +263,8 @@ async function encodeAtomicStandardBody(body, headers) {
+     const res = new Response(body);
+     const blob = await res.blob();
+     headers["standard-server"] = "form-data";
+-    headers["content-type"] = blob.type;
++    // A blob's type is lowercased, multipart's boundary with it, while the body keeps its case.
++    headers["content-type"] = res.headers.get("content-type") ?? blob.type;
+     headers["content-length"] = blob.size.toString();
+     return { jsonBody: void 0, headers, binary: blob };
+   }

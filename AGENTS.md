@@ -57,7 +57,7 @@ Every package and app has its own `AGENTS.md`; read it before changing code ther
 ## Repository rules
 
 - Write documentation and comments in English. UI copy lives in `@solyx/i18n` and reaches the renderer through `react-i18next`.
-- Put dependency versions in the appropriate catalog in `pnpm-workspace.yaml`; package manifests reference catalog keys. Internal dependencies use `workspace:*`.
+- Put dependency versions in the appropriate catalog in `pnpm-workspace.yaml`; package manifests reference catalog keys. Internal dependencies use `workspace:*`. A dependency's own bug is fixed with `pnpm patch` only until upstream fixes it, with why beside `patchedDependencies`.
 - `@solyx/*` packages export source and need no build step, except `@solyx/kernel`, whose Rust `vp run @solyx/kernel#build` compiles; a task that loads it depends on that build, and its crates are pinned in its `Cargo.lock`. Each `exports` key mirrors one module under `src/`; do not add a root export or sibling-only barrel.
 - Take general-purpose helpers (debounce, memoize, retry, groupBy, …) from `es-toolkit`, imported from its root; `@solyx/utils` holds only what es-toolkit lacks.
 - Import a symbol at the call site. Do not rename or re-export it through a local wrapper; wrap only when adding behavior.
