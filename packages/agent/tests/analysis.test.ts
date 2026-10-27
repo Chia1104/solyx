@@ -621,6 +621,44 @@ test("a script backtests a strategy the user wrote on the lines its code worked 
   expect(description).toContain("declare const strategies: {");
 });
 
+test("a script reads the lines a strategy's code worked out beside the bars as the code was handed them", async () => {
+  const lines = vi.fn<NonNullable<AnalysisPorts["strategies"]>["lines"]>(
+    async (_name, _symbol, candles, _bars, params) => ({
+      rules: {
+        entry: { crossesAbove: [{ line: "close" }, { line: "level" }] },
+        exit: { crossesBelow: [{ line: "close" }, { line: "level" }] },
+      },
+      params: params.map((each) => ({ level: 115, ...each })),
+      lines: params.map(() => ({
+        level: candles.map((_, index) => (index === 0 ? null : 115)),
+      })),
+      lookAhead: null,
+    })
+  );
+
+  const { results } = await analyzeWith(
+    { bars: BARS, strategies: { lines } },
+    `
+    const run = await strategies.lines({ strategy: "crossing", symbol: { market: "${Market.TW}", symbol: "2330" }, params: { level: 120 } });
+    return [run.bars.time.length === run.lines.level.length, run.bars.time[0], run.bars.close[0] === ${BARS[0].close}, run.lines.level.slice(0, 2), run.params, run.lookAhead];
+  `
+  );
+
+  expect(lines).toHaveBeenCalledWith(
+    "crossing",
+    { market: Market.TW, symbol: "2330" },
+    BARS,
+    { interval: Interval.OneDay, daily: undefined },
+    [{ level: 120 }]
+  );
+  expect(results).toEqual([
+    {
+      status: ToolCallStatus.Ok,
+      output: `Result: [true,"${new Date(BARS[0].time * 1000).toISOString().slice(0, 10)}",true,[null,115],{"level":120},null]`,
+    },
+  ]);
+});
+
 test("without the user's strategies the tool declares none of their functions", async () => {
   const { description } = await analyze("return 1");
 

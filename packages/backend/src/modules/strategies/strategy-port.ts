@@ -35,6 +35,24 @@ export function createStrategyPort(
 
     approve: (...args) => strategies.approve(...args),
 
+    async draft(name, basedOn, change) {
+      const { current, draft } = await strategies.draft(name, basedOn, change);
+
+      return {
+        current: current?.version ?? null,
+        draft: {
+          name,
+          run: draft.manifest.run,
+          version: draft.version,
+          files: strategyTexts(draft),
+        },
+      };
+    },
+
+    save: (...args) => strategies.save(...args),
+
+    runtimes: (signal) => strategies.runtimes(signal),
+
     async judge(strategy, signal) {
       const judge = await codeJudge();
 

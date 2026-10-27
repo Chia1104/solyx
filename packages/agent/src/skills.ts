@@ -112,6 +112,31 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
     ),
   },
   {
+    name: "strategy",
+    source: SkillSource.BuiltIn,
+    userInvocable: true,
+    description:
+      "Writing or changing a strategy the user keeps in the app: code in any language that works out lines from a listing's bars, which rules the engine trades on read. What the code reads and writes, what it may never look at, and how to check and test it. Read before calling save_strategy.",
+    body: lines(
+      "# Strategy",
+      "",
+      "A strategy is a folder in the user's config folder: STRATEGY.md, which names the command its code runs by, the numbers it takes and the rules the engine trades on, and the code, which only works out the lines those rules read. The engine fills, prices and costs every trade, so the code never does.",
+      "",
+      "1. Put the idea in words with the user first: what buys, what sells, on which bars, the numbers it takes and the range of each worth trying. Settle the idea, its ranges and the listings before you read any result. Where the user asks for a strategy, write one even where backtest.rules could say the same with the engine's own series, and say that it could: a strategy is kept, listed in the backtest panel and read by scheduled tasks. Where they only ask to test an idea the engine's series can say, test it with backtest.rules as the backtest skill says, and offer to keep it as a strategy.",
+      "2. Call get_runtimes and write for what it lists: in Python where there is one, with numpy or pandas only where it lists them and otherwise its standard library alone, else in the next language it lists. Where the user names a language it lacks, say so. run names the interpreter as get_runtimes does and the file, such as python3 strategy.py: never an absolute path, a file run as a program, or a command that installs or downloads (pip install, uv run --with, npx), since a file the app writes cannot be run as a program and the sandbox reaches no network.",
+      "3. The code reads JSON from the file $SOLYX_STRATEGY_INPUT names: symbol, interval, bars as columns (time, open, high, low, close, volume) and jobs, each { id, params, bars }. For every job it works each line out over the first job.bars bars alone, with job.params, and writes { [job.id]: { [line]: values } } as JSON to the file $SOLYX_STRATEGY_OUTPUT names, one value a bar and null while a line has none yet. It answers every job: a scan hands it many at once, and the app runs the first again over shorter spans to check what it read.",
+      "4. A line's value at a bar comes from that bar and the ones before it alone: no shift(-1), no centred window, no mean, rank, scale or fit over the whole span. The engine reads the rules at a bar's close and acts at the next bar's open, and the app runs the code again over the first fifths of the bars and warns of any line that changes.",
+      "5. The bars come adjusted for splits and what went ex on the first bar's terms, and a rule compares a line only with another of the strategy's lines or a value. To compare with the close, give the close as a line of its own.",
+      "6. STRATEGY.md opens with frontmatter between --- lines: name, the folder's, of lowercase letters, digits and single hyphens; description, in a sentence; run; params, up to 8, each { min, max, step, initial }, initial on a step from min; rules, entry and exit written as backtest.rules' Condition over { line: name } and { value: number }, with stopLoss and takeProfit as fractions if they belong to the idea. Below it, notes: the idea, when it should work and where it should fail.",
+      "7. Keep the folder to the code: a few small text files, no data, environments, packages or links.",
+      "8. save_strategy writes it. Leave version out for a new strategy; to change one, read it with get_strategy, pass its version and send only the files that change and those to remove. The user reads every change before it runs unless the conversation lets it through, so say in a few lines what you wrote and why.",
+      "9. Check the lines before any backtest: in run_analysis, run strategies.lines over the listing and print how many values each line leaves null at the start, its last few values, and, where the engine has the same indicator, how far the line strays from it over bars.close (indicators.sma for a moving average). A run that fails says what the code printed: fix the code and save it again. Where lookAhead names a line, fix that line before you report anything, and say what it was.",
+      "10. Then test it as the backtest skill says, with strategies.backtest, strategies.scan over the ranges settled in step 1, strategies.walkForward and strategies.rolling in place of their backtest namesakes: the same split, costs and figures, and the same caution.",
+      "11. Every version you save and test on the same bars spends their out-of-sample stretch: changing the code until the results look good fits it to that stretch as surely as a scan does. Beside the results, say how many versions you saved and tested for the question, and once there were several, read the out-of-sample stretch as fitted too.",
+      "12. A strategy trades only through a scheduled task that reads strategies.signal after each session and proposes the order, which the user still confirms unless their trading mandate covers it. Offer one only once the backtests hold up, and never propose an order from a strategy's signal alone."
+    ),
+  },
+  {
     name: "taiwan-market",
     source: SkillSource.BuiltIn,
     userInvocable: false,

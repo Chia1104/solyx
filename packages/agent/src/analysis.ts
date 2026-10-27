@@ -18,6 +18,7 @@ import {
   ruleSignal,
   ruleStrategySchema,
   scanBacktests,
+  strategyBars,
   tradeCostsSchema,
   walkForward,
 } from "@solyx/core/backtest";
@@ -48,6 +49,7 @@ import { marketSchema, symbolRefSchema, symbolLabel } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketData } from "@solyx/core/market-data";
 import type { ProposingDesk } from "@solyx/core/order-desk";
+import { strategyInput } from "@solyx/core/strategy";
 
 import {
   MAX_LISTINGS,
@@ -671,6 +673,46 @@ function strategyBacktests(
   const own = `it ${reading}, and has the strategy's code work its lines out over them for each set of numbers, those not given at their initial values; params says them all. The engine trades the strategy's rules on those lines, its fills and costs as backtest.rules has them. A version of the strategy's files runs only once allowed. lookAhead names a line and the time of the first bar where the code read bars after the one it worked a value out for, which leaves every figure resting on prices it could not have known; null where it did not`;
 
   return [
+    scriptFunction({
+      name: "strategies.lines",
+      description: `What a strategy the user wrote works out over a listing's bars, for checking its code before any backtest: it ${reading}, and has the strategy's code work its lines out over them with one set of numbers, those not given at their initial values; params says them all. bars are the bars as the code was handed them, adjusted for splits and what went ex on the first bar's terms, so a line can be set beside the app's indicator over bars.close, and lines hold each value it gave, null where it gave none. A version of the strategy's files runs only once allowed. lookAhead names a line and the time of the first bar where the code read bars after the one it worked a value out for; null where it did not.`,
+      spread: true,
+      signature:
+        "(input: { strategy: string; symbol: SymbolRef; interval?: Interval; since?: string; params?: Params }): Promise<{ bars: { time: string[]; open: number[]; high: number[]; low: number[]; close: number[]; volume: number[] }; lines: Record<string, (number | null)[]>; params: Params; lookAhead: LookAhead }>",
+      input: z.tuple([
+        z.strictObject({ ...listed, params: paramsSchema.optional() }),
+      ]),
+      output: z.object({
+        bars: z.object({
+          time: z.array(z.string()),
+          open: z.array(z.number()),
+          high: z.array(z.number()),
+          low: z.array(z.number()),
+          close: z.array(z.number()),
+          volume: z.array(z.number()),
+        }),
+        lines: z.record(z.string(), z.array(z.number().nullable()).readonly()),
+        params: paramsSchema,
+        lookAhead: lookAheadSchema,
+      }),
+      async run([{ strategy, symbol, interval, since, params }]) {
+        const run = await worked({ strategy, symbol, interval, since }, [
+          params ?? {},
+        ]);
+
+        const handed = strategyBars(symbol, run.bars, {
+          interval: run.interval,
+          daily: run.daily,
+        });
+
+        return {
+          bars: strategyInput(symbol, run.interval, handed, []).bars,
+          lines: run.lines[0],
+          params: run.params[0],
+          lookAhead: run.lookAhead,
+        };
+      },
+    }),
     scriptFunction({
       name: "strategies.backtest",
       description: `Backtests a strategy the user wrote, as backtest.rules backtests rules: ${own}.`,
