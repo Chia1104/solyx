@@ -118,5 +118,9 @@ test("the context says what the user had on screen: a listing's chart, or a page
   expect(viewing({ settings: "market data" })).toEqual([
     "viewing: the settings, market data",
   ]);
+  expect(viewing({ strategies: {} })).toEqual(["viewing: the strategies page"]);
+  expect(viewing({ strategies: { name: "close-mean" } })).toEqual([
+    "viewing: the page of the strategy close-mean",
+  ]);
   expect(viewing({})).toEqual([]);
 });

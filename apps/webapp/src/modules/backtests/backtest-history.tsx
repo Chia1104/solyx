@@ -125,6 +125,26 @@ export function useRecordWords() {
   };
 }
 
+/** Opens a kept run in its mode on its listing's panel, going to that listing's page where it is another's. */
+export function useOpenRecord(onListing?: SymbolRef) {
+  const navigate = useNavigate();
+  const ask = useBacktestStore((state) => state.ask);
+
+  return ({ request }: BacktestRecord) => {
+    const listing = request.setup.symbol;
+
+    ask(request);
+
+    if (onListing && symbolKey(listing) === symbolKey(onListing)) return;
+
+    void navigate({
+      to: "/symbol/$market/$symbol",
+      params: listing,
+      search: { interval: request.setup.interval, view: LowerView.Backtest },
+    });
+  };
+}
+
 function HistoryRow({
   record,
   symbol,
@@ -144,25 +164,9 @@ function HistoryRow({
   const { t } = useTranslation();
   const clock = useClock();
   const recordWords = useRecordWords();
-  const navigate = useNavigate();
-  const ask = useBacktestStore((state) => state.ask);
+  const open = useOpenRecord(symbol);
   const remove = useMutation(orpc.backtests.remove.mutationOptions());
   const listing = record.request.setup.symbol;
-
-  function open() {
-    ask(record.request);
-
-    if (symbolKey(listing) !== symbolKey(symbol)) {
-      void navigate({
-        to: "/symbol/$market/$symbol",
-        params: listing,
-        search: {
-          interval: record.request.setup.interval,
-          view: LowerView.Backtest,
-        },
-      });
-    }
-  }
 
   return (
     <li className="flex items-start gap-3 border-b border-separator py-2">
@@ -195,7 +199,7 @@ function HistoryRow({
         </span>
       </div>
       <div className="flex shrink-0 gap-1">
-        <Button size="sm" variant="tertiary" onPress={open}>
+        <Button size="sm" variant="tertiary" onPress={() => open(record)}>
           {t("backtests.history.open")}
         </Button>
         <Button

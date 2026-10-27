@@ -15,6 +15,7 @@ import {
 } from "@solyx/api/settings-section";
 import { Interval, intervalSchema } from "@solyx/core/candles";
 import { symbolRefSchema } from "@solyx/core/market";
+import { strategyNameSchema } from "@solyx/core/strategy";
 
 import { ErrorFallback } from "../components/error-fallback.tsx";
 import { NotFound } from "../components/not-found.tsx";
@@ -29,6 +30,8 @@ import { marketDataQuery } from "../modules/settings/settings-query.ts";
 import { OnboardingPage } from "../pages/onboarding-page.tsx";
 import { OverviewPage } from "../pages/overview-page.tsx";
 import { SettingsPage } from "../pages/settings-page.tsx";
+import { StrategiesPage } from "../pages/strategies-page.tsx";
+import { StrategyPage } from "../pages/strategy-page.tsx";
 import { SymbolPage } from "../pages/symbol-page.tsx";
 
 import { inWindow } from "./device.ts";
@@ -108,6 +111,24 @@ const symbolRoute = createRoute({
   component: SymbolPage,
 });
 
+// The strategies read only what the workspace keeps, so a paired browser opens them too.
+const strategiesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "strategies",
+  component: StrategiesPage,
+});
+
+const strategyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "strategies/$name",
+  // A name no strategy could take matches no route, so it lands on the not-found page.
+  params: {
+    parse: (params) =>
+      z.object({ name: strategyNameSchema }).safeParse(params).data ?? false,
+  },
+  component: StrategyPage,
+});
+
 // An unknown section falls back to the first rather than failing the page.
 const settingsSearchSchema = z.object({
   section: settingsSectionSchema
@@ -126,13 +147,15 @@ const settingsRoute = createRoute({
 });
 
 /** Builds load from file://, so routes live in the hash to survive reloads and open in new windows. */
-/** A path's first segment names its kind of page: the overview, a listing, settings or onboarding. */
+/** A path's first segment names its kind of page: the overview, a listing, the strategies, settings or onboarding. */
 const pageOf = (pathname: string) => pathname.split("/")[1];
 
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     overviewRoute,
     symbolRoute,
+    strategiesRoute,
+    strategyRoute,
     settingsRoute,
     onboardingRoute,
   ]),

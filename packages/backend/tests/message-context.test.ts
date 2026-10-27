@@ -108,6 +108,9 @@ test("the screen reaches the context as a listing with its chart, or as the page
       NOW
     )
   ).toEqual({ settings: "market data" });
+  expect(
+    screenContext({ kind: ScreenKind.Strategies, name: "close-mean" }, NOW)
+  ).toEqual({ strategies: { name: "close-mean" } });
   expect(screenContext(null, NOW)).toEqual({});
 });
 

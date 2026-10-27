@@ -15,6 +15,10 @@ export const strategiesQuery = () =>
 export const strategyReviewQuery = (name: string) =>
   orpc.strategies.review.queryOptions({ input: name, staleTime: 0 });
 
+// Each read starts every interpreter on the PATH, so what it found stands for a few minutes.
+export const strategyRuntimesQuery = () =>
+  orpc.strategies.runtimes.queryOptions({ staleTime: 5 * 60_000 });
+
 export const strategyDraftQuery = (saving: SaveStrategyArguments) =>
   orpc.strategies.draft.queryOptions({ input: saving, staleTime: 0 });
 
