@@ -522,7 +522,7 @@ export function AgentComposer({
   return (
     <Form
       validationBehavior="aria"
-      className="flex shrink-0 flex-col gap-2 px-3 pt-2 pb-3"
+      className="flex shrink-0 flex-col gap-2 pt-2"
       onSubmit={(event) => void submit(event)}>
       {send.error ? (
         <ErrorAlert

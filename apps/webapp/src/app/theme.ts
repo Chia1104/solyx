@@ -3,7 +3,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { QueryObserver, useSuspenseQuery } from "@tanstack/react-query";
 import { kebabCase } from "es-toolkit";
 
-import { ColorScheme, resolvePalette } from "@solyx/api/palette";
+import { ColorScheme, resolvePalette, tableColor } from "@solyx/api/palette";
 import type { PaletteColors } from "@solyx/api/palette";
 import type { Appearance } from "@solyx/api/settings";
 
@@ -39,7 +39,7 @@ function applyScheme() {
   if (applied) root.dataset.palette = applied.palette[scheme];
 }
 
-/** Writes each scheme's palette as the custom properties HeroUI and styles.css read. */
+/** Writes each scheme's palette, and the table the window paints, as the custom properties HeroUI and styles.css read. */
 function applyPalettes(appearance: Appearance) {
   applied = appearance;
 
@@ -52,7 +52,10 @@ function applyPalettes(appearance: Appearance) {
           scheme
         );
 
-        const properties = Object.entries(colors)
+        const properties = [
+          ...Object.entries(colors),
+          ["table", tableColor(colors, scheme)],
+        ]
           .map(([token, color]) => `--${kebabCase(token)}: ${color};`)
           .join(" ");
 

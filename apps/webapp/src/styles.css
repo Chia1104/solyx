@@ -6,8 +6,9 @@
 @source "../node_modules/streamdown/dist/*.js";
 
 /*
- * Solyx is drawn like a drafting table: the window is the table, and what a page shows lies on
- * sheets. Agents draft in pencil and the user signs in ink. Pencil (hatching, dashed rules)
+ * Solyx is drawn like a drafting table: the window is the table, the page is a board on it,
+ * and what the page shows lies on sheets on the board. Agents draft in pencil and the user
+ * signs in ink. Pencil (hatching, dashed rules)
  * marks what is not real yet, such as paper trading or a proposal awaiting confirmation; ink
  * (the accent) marks what is. The palette itself comes from `@solyx/api/palette`, which
  * app/theme.ts writes as custom properties; these derive from it.
@@ -56,7 +57,8 @@ html:not([data-palette]) body {
 
 /*
  * One corner radius for controls and what sits inside a sheet, instead of HeroUI's scale up to
- * pills; form fields keep HeroUI's own. Only a sheet, and one floating over the page, rounds wider.
+ * pills; form fields keep HeroUI's own. Only a sheet rounds wider, and the board, or a pane
+ * floating over it, wider by the gap around its sheets, so their corners nest.
  */
 @theme inline {
   --radius-xs: var(--radius);
@@ -68,10 +70,12 @@ html:not([data-palette]) body {
   --radius-3xl: var(--radius);
   --radius-4xl: var(--radius);
   --radius-sheet: 0.625rem;
-  --radius-floating: 0.875rem;
+  --radius-board: 1.125rem;
 }
 
 @theme inline {
+  /* The window's own colour, which app/theme.ts writes beside the palette and the window paints too. */
+  --color-table: var(--table);
   --color-hatch: var(--hatch);
   --color-quote-red: var(--quote-red);
   --color-quote-green: var(--quote-green);
@@ -93,7 +97,7 @@ html:not([data-palette]) body {
 }
 
 /*
- * A sheet on the table: no shadow, since it lies flat, and an edge drawn inside it, so a view
+ * A sheet on the board: no shadow, since it lies flat, and an edge drawn inside it, so a view
  * that clips its overflow never cuts the edge off.
  */
 @utility sheet {
@@ -102,9 +106,16 @@ html:not([data-palette]) body {
   outline-offset: -1px;
 }
 
-/* A sheet lifted over the page, such as a closed pane shown while the pointer rests on it. */
+/* The board the page lies on, between the side panes: a shade over the table and under its sheets. */
+@utility board {
+  @apply rounded-board bg-background;
+  outline: 1px solid var(--sheet-edge);
+  outline-offset: -1px;
+}
+
+/* A pane lifted over the board, as a closed one shows while the pointer rests on it. */
 @utility floating {
-  @apply rounded-floating bg-overlay;
+  @apply rounded-board bg-overlay;
   box-shadow: var(--floating-shadow);
 }
 

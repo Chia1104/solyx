@@ -72,7 +72,7 @@ function SectionLink({ section }: { section: SettingsSection }) {
       to="/settings"
       search={{ section }}
       replace
-      className="group mx-2 flex items-center gap-3 rounded-sheet px-3 py-2 text-sm outline-none hover:bg-default/60 focus-visible:bg-default data-[status=active]:sheet data-[status=active]:font-medium">
+      className="group flex items-center gap-3 rounded-sheet px-4 py-2 text-sm outline-none hover:bg-default/60 focus-visible:bg-default data-[status=active]:sheet data-[status=active]:font-medium">
       <Icon
         icon={SECTION_ICON[section]}
         className="shrink-0 text-muted group-data-[status=active]:text-foreground"
@@ -124,7 +124,7 @@ export function SettingsNav() {
             <Disclosure.Heading>
               <Disclosure.Trigger
                 className={cn(
-                  "mx-2 mt-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded-sheet px-3 pt-2 pb-1 text-xs font-medium text-muted outline-none hover:text-foreground focus-visible:bg-default",
+                  "mt-2 flex w-full items-center gap-3 rounded-sheet px-4 pt-2 pb-1 text-xs font-medium text-muted outline-none hover:text-foreground focus-visible:bg-default",
                   // A folded group's heading lies on the open section's sheet.
                   closed.includes(group) &&
                     section !== undefined &&

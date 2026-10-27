@@ -70,7 +70,7 @@ function StoryRow({
     <GridListItem
       textValue={item.title}
       className={cn(
-        "grid items-start gap-x-3 gap-y-0.5 border-b border-separator px-6 py-2 outline-none data-focus-visible:bg-default",
+        "grid items-start gap-x-3 gap-y-0.5 border-b border-separator px-4 py-2 outline-none data-focus-visible:bg-default",
         scored
           ? "grid-cols-[minmax(0,1fr)_auto] @min-[48rem]/main:grid-cols-[6rem_2.5rem_minmax(0,1fr)_auto_5rem]"
           : "grid-cols-[minmax(0,1fr)] @min-[48rem]/main:grid-cols-[6rem_2.5rem_minmax(0,1fr)_auto]"
@@ -169,14 +169,14 @@ export function NewsList({
 
   if (error) {
     body = (
-      <div className="px-6 py-4">
+      <div className="px-4 py-4">
         <LoadError error={error} onRetry={() => void refetch()} />
       </div>
     );
   } else if (!reading) {
     body = <LoadingState />;
   } else if (stories.length === 0) {
-    body = <p className="px-6 py-4 text-sm text-muted">{t("news.empty")}</p>;
+    body = <p className="px-4 py-4 text-sm text-muted">{t("news.empty")}</p>;
   }
 
   return (
@@ -184,7 +184,7 @@ export function NewsList({
       aria-label={t("news.title")}
       className="flex h-full flex-col overflow-hidden">
       {/* 40px, so the news collapses to this row and its readout. */}
-      <div className="flex h-10 shrink-0 items-center gap-3 px-6">
+      <div className="flex h-10 shrink-0 items-center gap-3 px-4">
         {heading ?? (
           <h2 className="shrink-0 text-sm font-medium">{t("news.title")}</h2>
         )}

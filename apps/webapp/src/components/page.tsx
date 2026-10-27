@@ -33,7 +33,7 @@ export function Page({
 }) {
   return (
     <PageColumn>
-      <ColumnHeader className="gap-4 px-5">
+      <ColumnHeader className="gap-4">
         <h1 className="shrink-0 text-sm font-semibold">{title}</h1>
         {header}
       </ColumnHeader>

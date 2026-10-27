@@ -26,7 +26,7 @@ export function LoadError({
 /** A section's load that failed, on the sheet its content would fill. */
 export function SectionLoadError(props: ComponentProps<typeof LoadError>) {
   return (
-    <div className="sheet px-5 py-4">
+    <div className="sheet p-4">
       <LoadError {...props} />
     </div>
   );

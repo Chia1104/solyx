@@ -99,7 +99,7 @@ function SidePane({
           WIDTH_CLASS[pane],
           edge === SplitterEdge.Start ? "right-2" : "left-2",
           !open &&
-            "z-30 floating transition-[translate,visibility] duration-200 ease-out-quint motion-reduce:transition-[opacity,visibility] [html[data-pane-at-once]_&]:transition-none",
+            "z-30 floating p-2 transition-[translate,visibility] duration-200 ease-out-quint motion-reduce:transition-[opacity,visibility] [html[data-pane-at-once]_&]:transition-none",
           !open && !peeking && "invisible motion-reduce:opacity-0",
           // Out of the window while closed, it moves in over the gap at the window's edge.
           peeking &&
@@ -236,7 +236,8 @@ function Workspace() {
           workspace={workspace}>
           <SymbolsPaneViews />
         </SidePane>
-        <main className="@container/main min-w-0 overflow-y-auto [view-transition-name:main]">
+        {/* The board pads its sheets on every side but the top, where its header lines up with the panes'. */}
+        <main className="@container/main min-w-0 overflow-y-auto board px-2 pb-2 [view-transition-name:main]">
           <Outlet />
         </main>
         <SidePane

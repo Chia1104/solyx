@@ -22,7 +22,7 @@ export function PositionList() {
 
   if (error) {
     return (
-      <div className="px-2">
+      <div>
         <LoadError error={error} onRetry={() => void refetch()} />
       </div>
     );
@@ -32,7 +32,7 @@ export function PositionList() {
 
   if (data.positions.length === 0) {
     return (
-      <p className="px-5 text-xs text-muted">{t("account.no-positions")}</p>
+      <p className="px-4 text-xs text-muted">{t("account.no-positions")}</p>
     );
   }
 
