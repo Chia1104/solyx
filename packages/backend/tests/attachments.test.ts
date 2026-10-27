@@ -17,7 +17,13 @@ beforeEach(async () => {
 
 afterEach(() => rm(workspace, { recursive: true, force: true }));
 
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+// One transparent pixel.
+const PNG = new Uint8Array(
+  Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+    "base64"
+  )
+);
 
 test("a message's files are kept as attached, in a folder of the message's own", async () => {
   const kept = await keepAttachments(

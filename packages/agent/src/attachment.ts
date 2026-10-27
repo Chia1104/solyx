@@ -13,6 +13,12 @@ export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 /** The most text a file adds to its message, since the model reads all of it with every request. */
 export const MAX_TEXT_ATTACHMENT_BYTES = 100 * 1024;
 
+/**
+ * The most pixels an image may hold, since scaling it decodes every pixel first: a few megabytes
+ * of PNG can declare billions of them.
+ */
+export const MAX_IMAGE_PIXELS = 50_000_000;
+
 /** The images a message carries to its model, told apart by their first bytes rather than their names. */
 export const AttachmentImageType = {
   Png: "image/png",
@@ -63,6 +69,8 @@ export const AttachmentRefusal = {
   Unsupported: "unsupported",
   /** Text longer than a message holds. */
   TooLong: "too-long",
+  /** An image of more pixels than it is safe to decode. */
+  TooManyPixels: "too-many-pixels",
   /** A private key or a certificate, which would be kept with the conversation and its backups. */
   Secret: "secret",
 } as const;
@@ -75,6 +83,7 @@ const REFUSAL_TEXT: Record<AttachmentRefusal, string> = {
   [AttachmentRefusal.Unsupported]:
     "is neither a PNG, JPEG, GIF or WebP image nor text",
   [AttachmentRefusal.TooLong]: `holds more than ${MAX_TEXT_ATTACHMENT_BYTES / 1024} KB of text`,
+  [AttachmentRefusal.TooManyPixels]: `holds more than ${MAX_IMAGE_PIXELS / 1_000_000} million pixels`,
   [AttachmentRefusal.Secret]: "holds a private key or a certificate",
 };
 
@@ -114,6 +123,97 @@ const IMAGE_SIGNATURES: readonly [
       startsWith(bytes.subarray(8), [0x57, 0x45, 0x42, 0x50]),
   ],
 ];
+
+const view = (bytes: Uint8Array) =>
+  new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+const ascii = (bytes: Uint8Array, at: number, length: number) =>
+  String.fromCharCode(...bytes.subarray(at, at + length));
+
+// JPEG's start-of-frame markers, which carry its size; the others in their range do not.
+const JPEG_FRAMES = new Set([
+  0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf,
+]);
+
+function jpegSize(bytes: Uint8Array) {
+  const data = view(bytes);
+
+  // Segments follow the start of image, each a marker and, but for a few, its length.
+  for (let at = 2; at + 9 < bytes.byteLength;) {
+    if (bytes[at] !== 0xff) return undefined;
+
+    const marker = bytes[at + 1];
+
+    if (marker === 0xff) {
+      at += 1;
+    } else if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) {
+      at += 2;
+    } else if (JPEG_FRAMES.has(marker)) {
+      return {
+        height: data.getUint16(at + 5),
+        width: data.getUint16(at + 7),
+      };
+    } else {
+      at += 2 + data.getUint16(at + 2);
+    }
+  }
+
+  return undefined;
+}
+
+function webpSize(bytes: Uint8Array) {
+  const data = view(bytes);
+
+  switch (ascii(bytes, 12, 4)) {
+    case "VP8 ":
+      return {
+        width: data.getUint16(26, true) & 0x3fff,
+        height: data.getUint16(28, true) & 0x3fff,
+      };
+    case "VP8L": {
+      const bits = data.getUint32(21, true);
+
+      return {
+        width: (bits & 0x3fff) + 1,
+        height: ((bits >>> 14) & 0x3fff) + 1,
+      };
+    }
+
+    case "VP8X":
+      // Two 24-bit fields, the last ending at the header's thirtieth byte.
+      return {
+        width: (data.getUint16(24, true) | (bytes[26] << 16)) + 1,
+        height: (data.getUint16(27, true) | (bytes[29] << 16)) + 1,
+      };
+    default:
+      return undefined;
+  }
+}
+
+/** An image's size as its header declares it, read before anything decodes it. */
+export function imageSize(
+  bytes: Uint8Array,
+  type: AttachmentImageType
+): { width: number; height: number } | undefined {
+  // Each header's size sits within its first 30 bytes; JPEG's is found by walking its segments.
+  if (bytes.byteLength < 30) return undefined;
+
+  const data = view(bytes);
+
+  switch (type) {
+    case AttachmentImageType.Png:
+      return { width: data.getUint32(16), height: data.getUint32(20) };
+    case AttachmentImageType.Gif:
+      return {
+        width: data.getUint16(6, true),
+        height: data.getUint16(8, true),
+      };
+    case AttachmentImageType.Jpeg:
+      return jpegSize(bytes);
+    case AttachmentImageType.Webp:
+      return webpSize(bytes);
+  }
+}
 
 // PEM's armour, OpenSSH's and PuTTY's keys; a binary key or certificate never reads as text.
 const SECRET =
@@ -179,6 +279,14 @@ export function readAttachment(
   const image = IMAGE_SIGNATURES.find(([, matches]) => matches(bytes));
 
   if (image) {
+    const size = imageSize(bytes, image[0]);
+
+    if (!size) throw new AttachmentRefused(kept, AttachmentRefusal.Unsupported);
+
+    if (size.width * size.height > MAX_IMAGE_PIXELS) {
+      throw new AttachmentRefused(kept, AttachmentRefusal.TooManyPixels);
+    }
+
     return {
       kind: AttachmentKind.Image,
       name: kept,

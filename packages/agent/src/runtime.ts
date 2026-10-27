@@ -532,44 +532,48 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     }
 
     const limits = imageLimits(model);
+    const carried: MessageAttachment[] = [];
 
-    return Promise.all(
-      attachments.map(async (attachment): Promise<MessageAttachment> => {
-        const { path, mimeType, size } = attachment;
+    // One image at a time, since each decodes every pixel it holds before it is scaled.
+    for (const attachment of attachments) {
+      const { path, mimeType, size } = attachment;
 
-        if (attachment.kind === AttachmentKind.Text) {
-          return {
-            kind: attachment.kind,
-            path,
-            mimeType,
-            size,
-            text: attachment.text,
-          };
-        }
-
-        const prepared = await options.images?.prepare(
-          attachment.data,
-          mimeType,
-          limits
-        );
-
-        if (!prepared) {
-          throw new Error(`${attachment.name} could not be read as an image`);
-        }
-
-        return {
+      if (attachment.kind === AttachmentKind.Text) {
+        carried.push({
           kind: attachment.kind,
           path,
           mimeType,
           size,
-          image: {
-            type: "image",
-            data: prepared.data,
-            mimeType: prepared.mimeType,
-          },
-        };
-      })
-    );
+          text: attachment.text,
+        });
+
+        continue;
+      }
+
+      const prepared = await options.images?.prepare(
+        attachment.data,
+        mimeType,
+        limits
+      );
+
+      if (!prepared) {
+        throw new Error(`${attachment.name} could not be read as an image`);
+      }
+
+      carried.push({
+        kind: attachment.kind,
+        path,
+        mimeType,
+        size,
+        image: {
+          type: "image",
+          data: prepared.data,
+          mimeType: prepared.mimeType,
+        },
+      });
+    }
+
+    return carried;
   }
 
   /** The model and thinking the conversation's next request runs on, once the host resolves them. */

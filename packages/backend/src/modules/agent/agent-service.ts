@@ -1,5 +1,5 @@
 import { lstat, readdir, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { Tracer } from "@opentelemetry/api";
@@ -230,7 +230,14 @@ export function createAgentService(options: AgentServiceOptions) {
   const shellOn = () =>
     options.config.read().agent.shell && options.desk.mode === BrokerMode.Paper;
 
-  const workspace = (id: string) => join(options.workspaces, id);
+  // A conversation's id names its folder, so one that would reach past the folders names none.
+  const workspace = (id: string) => {
+    if (id !== basename(id) || id === "." || id === "..") {
+      throw new Error(`Conversation ${id} not found`);
+    }
+
+    return join(options.workspaces, id);
+  };
 
   const shell = createShell({
     workspace,
