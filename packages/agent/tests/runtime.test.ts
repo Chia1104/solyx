@@ -142,6 +142,18 @@ test("a run stores every message and streams the same conversation it replays", 
 
   const live = foldEvents(events);
 
+  // The call shows as the reply writes it, before it runs.
+  const draft = events.findIndex(
+    (event) =>
+      event.type === AgentEventType.ToolDraft &&
+      event.toolName === "get_watchlist"
+  );
+
+  expect(draft).toBeGreaterThan(-1);
+  expect(
+    events.findIndex((event) => event.type === AgentEventType.ToolStart)
+  ).toBeGreaterThan(draft);
+
   expect(live.running).toBe(false);
   expect(live.items).toMatchObject([
     { kind: "user", text: "What do I watch?" },

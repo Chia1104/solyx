@@ -1,11 +1,10 @@
-import { memo, useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 import { Button, ScrollShadow, Spinner } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { AgentItemKind, RunEndReason, ToolCallStatus } from "@solyx/agent/wire";
-import type { AgentViewItem, NoticeView } from "@solyx/agent/wire";
+import type { AgentView } from "@solyx/agent/wire";
 
 import { inWindow } from "../../app/device.ts";
 import { orpc } from "../../app/rpc.ts";
@@ -14,42 +13,13 @@ import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
 import { ActivityMark } from "./agent-activity.tsx";
-import { CompactionDivider } from "./agent-compaction.tsx";
-import { AssistantMessage, UserMessage } from "./agent-message.tsx";
 import { transcriptQuery } from "./agent-query.ts";
-import { AgentToolCall } from "./agent-tool-call.tsx";
+import { AgentTurn } from "./agent-turn.tsx";
+import { threadTurns } from "./agent-turns.ts";
+import type { Turn } from "./agent-turns.ts";
 
 // Within this distance of the end, new content keeps the thread scrolled to it.
 const PIN_THRESHOLD = 32;
-
-/** Whether the item at the end of a running thread already shows the run moving. */
-function showsProgress(item: AgentViewItem | undefined): boolean {
-  switch (item?.kind) {
-    case AgentItemKind.Assistant:
-      return item.streaming && Boolean(item.text || item.thinking);
-    case AgentItemKind.Tool:
-      return (
-        item.status === ToolCallStatus.Running ||
-        item.status === ToolCallStatus.AwaitingApproval
-      );
-    default:
-      return false;
-  }
-}
-
-function Notice({ notice }: { notice: NoticeView }) {
-  const { t } = useTranslation();
-
-  if (notice.reason === RunEndReason.Error) {
-    return (
-      <ErrorAlert title={t("agent.notices.error")} description={notice.error} />
-    );
-  }
-
-  return (
-    <p className="text-xs text-muted">{t(`agent.notices.${notice.reason}`)}</p>
-  );
-}
 
 /** Stands where the run's progress would while it waits for the user to try it again or stop it. */
 function ParkedRun({ sessionId }: { sessionId: string }) {
@@ -85,39 +55,6 @@ function ParkedRun({ sessionId }: { sessionId: string }) {
   );
 }
 
-function keyOf(item: AgentViewItem, index: number): string {
-  switch (item.kind) {
-    case AgentItemKind.Tool:
-      return item.toolCallId;
-    case AgentItemKind.Notice:
-      return `notice-${index}`;
-    default:
-      return item.messageId;
-  }
-}
-
-/** Renders again only when its item changes, since applying an event keeps every other item. */
-const Item = memo(function Item({
-  sessionId,
-  item,
-}: {
-  sessionId: string;
-  item: AgentViewItem;
-}) {
-  switch (item.kind) {
-    case AgentItemKind.User:
-      return <UserMessage message={item} />;
-    case AgentItemKind.Assistant:
-      return <AssistantMessage message={item} />;
-    case AgentItemKind.Tool:
-      return <AgentToolCall sessionId={sessionId} tool={item} />;
-    case AgentItemKind.Compaction:
-      return <CompactionDivider compaction={item} />;
-    default:
-      return <Notice notice={item} />;
-  }
-});
-
 export function EmptyThread() {
   const { t } = useTranslation();
 
@@ -129,9 +66,61 @@ export function EmptyThread() {
   );
 }
 
+/**
+ * What a run with no turn of its own yet is doing, such as one resumed before the user wrote, or a
+ * summary being written, which has no heading of its own.
+ */
+function RunActivity({ compacting }: { compacting: boolean }) {
+  const { t } = useTranslation();
+
+  return (
+    <p
+      data-activity
+      className="flex min-h-5 items-center gap-2 text-xs text-muted">
+      <ActivityMark>
+        <Spinner size="sm" color="current" className="size-3" />
+      </ActivityMark>
+      {compacting ? t("agent.compacting") : t("agent.working")}
+    </p>
+  );
+}
+
+/** The conversation's turns, the one the run works on live, and what else the run is doing. */
+function ThreadTurns({
+  sessionId,
+  view,
+}: {
+  sessionId: string;
+  view: AgentView;
+}) {
+  const turns = useRef<Turn[]>([]);
+
+  turns.current = threadTurns(view.items, turns.current);
+
+  const last = turns.current.at(-1);
+  const live = view.running && !view.parked;
+  const compacting = view.compactions.length > 0;
+
+  return (
+    <>
+      {turns.current.map((turn) => (
+        <AgentTurn
+          key={turn.key}
+          sessionId={sessionId}
+          turn={turn}
+          live={live && turn === last}
+        />
+      ))}
+      {view.parked ? <ParkedRun sessionId={sessionId} /> : null}
+      {compacting || (live && !last) ? (
+        <RunActivity compacting={compacting} />
+      ) : null}
+    </>
+  );
+}
+
 /** One conversation, kept scrolled to its end while the user reads there. */
 export function AgentThread({ sessionId }: { sessionId: string }) {
-  const { t } = useTranslation();
   const { data, error, refetch } = useQuery(transcriptQuery(sessionId));
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
@@ -154,12 +143,6 @@ export function AgentThread({ sessionId }: { sessionId: string }) {
 
   if (data.items.length === 0 && !data.running) return <EmptyThread />;
 
-  const compacting = data.compactions.length > 0;
-
-  const working =
-    compacting ||
-    (data.running && !data.parked && !showsProgress(data.items.at(-1)));
-
   return (
     <ScrollShadow
       ref={scroller}
@@ -174,20 +157,7 @@ export function AgentThread({ sessionId }: { sessionId: string }) {
       }}>
       {/* Messages stand apart; the rows the agent works through (`data-activity`) run together. */}
       <div className="flex flex-col p-4 [&>*+*]:mt-4 [&>[data-activity]+[data-activity]]:mt-1.5">
-        {data.items.map((item, index) => (
-          <Item key={keyOf(item, index)} sessionId={sessionId} item={item} />
-        ))}
-        {data.parked ? <ParkedRun sessionId={sessionId} /> : null}
-        {working ? (
-          <p
-            data-activity
-            className="flex min-h-5 items-center gap-2 text-xs text-muted">
-            <ActivityMark>
-              <Spinner size="sm" color="current" className="size-3" />
-            </ActivityMark>
-            {compacting ? t("agent.compacting") : t("agent.working")}
-          </p>
-        ) : null}
+        <ThreadTurns sessionId={sessionId} view={data} />
       </div>
     </ScrollShadow>
   );

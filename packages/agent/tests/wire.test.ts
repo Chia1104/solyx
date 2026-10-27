@@ -51,6 +51,71 @@ test("a run that ends while a call waits leaves the call stopped", () => {
   expect(view.running).toBe(false);
 });
 
+test("a call shows as the reply writes it, then runs where it was drafted", () => {
+  const drafted: AgentWireEvent[] = [
+    { type: AgentEventType.RunStart },
+    { type: AgentEventType.AssistantStart, messageId: "m1" },
+    {
+      type: AgentEventType.ToolDraft,
+      toolCallId: "c1",
+      toolName: "revise_report",
+    },
+  ];
+
+  expect(foldEvents(drafted).items[1]).toMatchObject({
+    toolCallId: "c1",
+    status: ToolCallStatus.Drafting,
+  });
+
+  const started = foldEvents([
+    ...drafted,
+    {
+      type: AgentEventType.AssistantEnd,
+      messageId: "m1",
+      text: "",
+      at: 1,
+    },
+    {
+      type: AgentEventType.ToolStart,
+      toolCallId: "c1",
+      toolName: "revise_report",
+      args: { symbol: "2330" },
+    },
+  ]);
+
+  expect(started.items).toHaveLength(2);
+  expect(started.items[1]).toMatchObject({
+    toolCallId: "c1",
+    status: ToolCallStatus.Running,
+    args: { symbol: "2330" },
+  });
+});
+
+test("a call drafted by a reply that was given up goes when the next reply starts", () => {
+  const view = foldEvents([
+    { type: AgentEventType.RunStart },
+    { type: AgentEventType.AssistantStart, messageId: "m1" },
+    { type: AgentEventType.ToolDraft, toolCallId: "c1", toolName: "bash" },
+    { type: AgentEventType.AssistantStart, messageId: "m2" },
+  ]);
+
+  expect(view.items).toMatchObject([
+    { kind: "assistant", messageId: "m1" },
+    { kind: "assistant", messageId: "m2" },
+  ]);
+});
+
+test("a run that ends while a call is drafted leaves the call stopped", () => {
+  const view = foldEvents([
+    { type: AgentEventType.RunStart },
+    { type: AgentEventType.AssistantStart, messageId: "m1" },
+    { type: AgentEventType.ToolDraft, toolCallId: "c1", toolName: "bash" },
+    { type: AgentEventType.RunEnd, reason: RunEndReason.Aborted },
+  ]);
+
+  expect(view.items[1]).toMatchObject({ status: ToolCallStatus.Aborted });
+});
+
 test("a script's calls sit under it, after those it made before, while its round runs on", () => {
   const start = (toolCallId: string, parentToolCallId?: string) => ({
     type: AgentEventType.ToolStart,
