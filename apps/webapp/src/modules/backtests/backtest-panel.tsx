@@ -16,7 +16,7 @@ import { isEnumValue } from "@solyx/utils/is";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
-import { AskAgent } from "./agent-bridge.tsx";
+import { AskAgent, KeepAsStrategy } from "./agent-bridge.tsx";
 import { BacktestCompare } from "./backtest-compare.tsx";
 import { BacktestForm } from "./backtest-form.tsx";
 import { BacktestHistory } from "./backtest-history.tsx";
@@ -99,7 +99,8 @@ function ModeOutcome({
         <Outcome setup={runs.run} query={queries.run}>
           {(setup, result) => (
             <div className="flex min-w-0 flex-col gap-5">
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                {"name" in setup.strategy ? null : <KeepAsStrategy />}
                 <AskAgent />
               </div>
               <BacktestReport

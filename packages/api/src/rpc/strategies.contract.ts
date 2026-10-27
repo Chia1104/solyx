@@ -1,5 +1,6 @@
 import { oc, type } from "@orpc/contract";
 
+import { saveStrategyArgumentsSchema } from "@solyx/agent/wire";
 import { strategyNameSchema } from "@solyx/core/strategy";
 import type { StrategyApproval } from "@solyx/core/strategy";
 
@@ -22,8 +23,13 @@ export const strategiesContract = {
    * as what changed before the user allows it.
    */
   review: oc.input(strategyNameSchema).output(type<StrategyReview>()),
+  /**
+   * What the agent's call to save a strategy would make of its files beside the newest version
+   * allowed, which a window shows before the user allows the call; refused as the call would be.
+   */
+  draft: oc.input(saveStrategyArgumentsSchema).output(type<StrategyReview>()),
   /** Takes back every version of a strategy allowed so far. */
   revoke: oc.input(strategyNameSchema).output(type<void>()),
-  /** Each time a version is allowed or taken back. */
+  /** Each time a strategy is written, or a version allowed or taken back. */
   changes: changesContract,
 };

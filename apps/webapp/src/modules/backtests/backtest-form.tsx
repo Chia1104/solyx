@@ -39,6 +39,7 @@ import { OptionSelect } from "../../components/option-select.tsx";
 import { strategiesQuery } from "../strategies/strategies-query.ts";
 import { StrategyAllow } from "../strategies/strategy-allow.tsx";
 
+import { WriteStrategy } from "./agent-bridge.tsx";
 import {
   ROLLING_STEPS,
   SPLITS,
@@ -192,18 +193,23 @@ const ownNumbers = (strategy: StrategyEntry): GridNumbers => ({
 
 /**
  * A template's own numbers and its exits, a strategy of the user's with the numbers its code
- * takes, or the rules written out in their place.
+ * takes, or the rules written out in their place; nothing while the user's own are picked and
+ * there is none to pick.
  */
 function StrategyFields({
   control,
+  choice,
   template,
   own,
 }: {
   control: Control<FormValues>;
+  choice: StrategyChoice;
   template: StrategyTemplate | null;
   own: StrategyEntry | null;
 }) {
   const { t } = useTranslation();
+
+  if (choice === StrategyChoice.Own && !own) return null;
 
   if (own) {
     return (
@@ -513,11 +519,14 @@ function gridNumbers(
   return template ? templateNumbers(template) : null;
 }
 
-/** The strategies the select offers: the templates, rules but in a grid, and the user's where any fit. */
+/**
+ * The strategies the select offers: the templates, rules but in a grid, and the user's where any
+ * fit, or with none written outside a grid, so they can write one.
+ */
 function strategyOptions(t: TFunction, gridded: boolean, owned: boolean) {
   return Object.values(StrategyChoice)
     .filter((id) => !gridded || id !== StrategyChoice.Rules)
-    .filter((id) => id !== StrategyChoice.Own || owned)
+    .filter((id) => id !== StrategyChoice.Own || owned || !gridded)
     .map((id) => ({
       id,
       label:
@@ -542,20 +551,34 @@ function strategyDescription(
     : t("backtests.form.rules-hint");
 }
 
-/** Which of the user's strategies the form sets up, and the version to allow where it has not been. */
+/**
+ * Which of the user's strategies the form sets up, and the version to allow where it has not been;
+ * with none written, a way to write one with the agent.
+ */
 function OwnStrategyPicker({
+  symbol,
   owned,
 }: {
+  symbol: SymbolRef;
   owned: ReturnType<typeof useOwnStrategy>;
 }) {
   const { t } = useTranslation();
-  const { own, offered, ownName, reach, pickOwn } = owned;
+  const { own, offered, ownName, reach, ready, pickOwn } = owned;
+
+  if (ready && offered.length === 0) {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <p className="text-xs text-muted">{t("backtests.form.own-none")}</p>
+        <WriteStrategy symbol={symbol} />
+      </div>
+    );
+  }
 
   return (
     <>
       <OptionSelect
         label={t("backtests.form.own-pick")}
-        description={own?.description ?? t("backtests.form.own-none")}
+        description={own?.description}
         options={offered.map((each) => ({ id: each.name, label: each.name }))}
         value={ownName}
         onChange={pickOwn}
@@ -728,9 +751,14 @@ export function BacktestForm({
         onChange={pickStrategy}
       />
       {strategy === StrategyChoice.Own ? (
-        <OwnStrategyPicker owned={owned} />
+        <OwnStrategyPicker symbol={symbol} owned={owned} />
       ) : null}
-      <StrategyFields control={form.control} template={template} own={own} />
+      <StrategyFields
+        control={form.control}
+        choice={strategy}
+        template={template}
+        own={own}
+      />
       {numbers ? <GridFields control={form.control} numbers={numbers} /> : null}
       <div className={FIELDS}>
         <OptionSelect

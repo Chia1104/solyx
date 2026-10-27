@@ -12,6 +12,10 @@ export const strategiesRouter = contractOS.strategies.router({
   review: contractOS.strategies.review.handler(({ context, input }) =>
     context.strategies.review(input)
   ),
+  draft: contractOS.strategies.draft.handler(
+    ({ context, input: { name, version, files, remove } }) =>
+      context.strategies.reviewDraft(name, version, { files, remove })
+  ),
   revoke: contractOS.strategies.revoke.handler(({ context, input }) =>
     context.strategies.revoke(input)
   ),

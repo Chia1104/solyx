@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { Button, Disclosure, Spinner, cn } from "@heroui/react";
 import {
   Cancel01Icon,
@@ -23,6 +25,7 @@ import {
   readPageArgumentsSchema,
   rememberArgumentsSchema,
   runTaskArgumentsSchema,
+  saveStrategyArgumentsSchema,
   saveTaskArgumentsSchema,
   saveThemeArgumentsSchema,
   runAnalysisDetailsSchema,
@@ -63,6 +66,7 @@ import { scheduleText } from "../schedules/timing-fields.tsx";
 import { agentSkillsQuery } from "../settings/settings-query.ts";
 import {
   StrategyChanges,
+  StrategyDraftChanges,
   shortVersion,
 } from "../strategies/strategy-changes.tsx";
 
@@ -253,13 +257,67 @@ function useShellDescription(enabled: boolean) {
   );
 }
 
+/** What a call that waits for the user says it would do. */
+interface ApprovalRequest {
+  description: string;
+  body: ReactNode;
+  /** What to read before allowing it, such as what it changes in a strategy's files. */
+  review?: ReactNode;
+}
+
+/**
+ * What a call to allow or save a strategy would let run, with the files it would let run beside the
+ * version allowed before; `undefined` where its arguments do not parse.
+ */
+function strategyRequest(
+  t: TFunction,
+  tool: ToolCallView
+): ApprovalRequest | undefined {
+  const allowing =
+    tool.toolName === AgentToolName.AllowStrategy
+      ? allowStrategyArgumentsSchema.safeParse(tool.args).data
+      : undefined;
+
+  if (allowing) {
+    return {
+      description: t("agent.approval.allow-strategy-description", {
+        name: allowing.name,
+      }),
+      body: `${allowing.name} · ${shortVersion(allowing.version)}`,
+      review: (
+        <StrategyChanges name={allowing.name} version={allowing.version} />
+      ),
+    };
+  }
+
+  const saving =
+    tool.toolName === AgentToolName.SaveStrategy
+      ? saveStrategyArgumentsSchema.safeParse(tool.args).data
+      : undefined;
+
+  if (!saving) return undefined;
+
+  return {
+    description: t(
+      saving.version
+        ? "agent.approval.save-strategy-change-description"
+        : "agent.approval.save-strategy-description",
+      { name: saving.name }
+    ),
+    body: saving.version
+      ? `${saving.name} · ${shortVersion(saving.version)}`
+      : saving.name,
+    review: <StrategyDraftChanges saving={saving} />,
+  };
+}
+
 /**
  * What a call that waits for the user is about to do: a sentence saying so, and what it sends as
  * the user would read it. A shell command is shown whole, as the user would type it, a page by its
  * address, a setting with the value it would take and a memory as the agent wrote it; a call whose
  * arguments do not parse shows them as sent.
  */
-function useApprovalRequest(tool: ToolCallView) {
+function useApprovalRequest(tool: ToolCallView): ApprovalRequest {
   const { t } = useTranslation();
   const { timeZone } = useClock();
   const scopeText = useScopeText();
@@ -379,20 +437,11 @@ function useApprovalRequest(tool: ToolCallView) {
       break;
     }
 
-    case AgentToolName.AllowStrategy: {
-      const allowing = allowStrategyArgumentsSchema.safeParse(tool.args).data;
+    case AgentToolName.AllowStrategy:
+    case AgentToolName.SaveStrategy: {
+      const request = strategyRequest(t, tool);
 
-      if (allowing) {
-        return {
-          description: t("agent.approval.allow-strategy-description", {
-            name: allowing.name,
-          }),
-          body: `${allowing.name} · ${shortVersion(allowing.version)}`,
-          review: (
-            <StrategyChanges name={allowing.name} version={allowing.version} />
-          ),
-        };
-      }
+      if (request) return request;
 
       break;
     }

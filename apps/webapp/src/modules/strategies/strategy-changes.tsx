@@ -2,10 +2,13 @@ import { cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import type { SaveStrategyArguments } from "@solyx/agent/wire";
+import type { StrategyReview } from "@solyx/api/strategies";
+
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
-import { strategyReviewQuery } from "./strategies-query.ts";
+import { strategyDraftQuery, strategyReviewQuery } from "./strategies-query.ts";
 import { PartKind, changedFiles } from "./strategy-diff.ts";
 import type { Part } from "./strategy-diff.ts";
 
@@ -81,39 +84,9 @@ function FileChange({ path, parts }: { path: string; parts: Part[] }) {
   );
 }
 
-/**
- * What changed in a strategy's files since the version allowed before them, each file's lines added
- * and removed, or every file where none was; one that is not text is named alone. It shows the
- * files as they are now, so a version they have left since is said so.
- */
-export function StrategyChanges({
-  name,
-  version,
-}: {
-  name: string;
-  version: string;
-}) {
+/** Each file's lines added and removed between a review's two versions, or every file where none was before. */
+function ChangeList({ current, previous }: Omit<StrategyReview, "name">) {
   const { t } = useTranslation();
-  const review = useQuery(strategyReviewQuery(name));
-
-  if (review.isPending) return <LoadingState />;
-
-  if (review.error) {
-    return (
-      <LoadError error={review.error} onRetry={() => void review.refetch()} />
-    );
-  }
-
-  const { current, previous } = review.data;
-
-  if (current.version !== version) {
-    return (
-      <p role="alert" className="text-xs text-danger">
-        {t("strategies.changes.moved-on")}
-      </p>
-    );
-  }
-
   const changes = changedFiles(previous, current);
 
   return (
@@ -137,4 +110,61 @@ export function StrategyChanges({
       )}
     </div>
   );
+}
+
+/**
+ * What changed in a strategy's files since the version allowed before them, each file's lines added
+ * and removed, or every file where none was; one that is not text is named alone. It shows the
+ * files as they are now, so a version they have left since is said so.
+ */
+export function StrategyChanges({
+  name,
+  version,
+}: {
+  name: string;
+  version: string;
+}) {
+  const { t } = useTranslation();
+  const review = useQuery(strategyReviewQuery(name));
+
+  if (review.isPending) return <LoadingState />;
+
+  if (review.error) {
+    return (
+      <LoadError error={review.error} onRetry={() => void review.refetch()} />
+    );
+  }
+
+  if (review.data.current.version !== version) {
+    return (
+      <p role="alert" className="text-xs text-danger">
+        {t("strategies.changes.moved-on")}
+      </p>
+    );
+  }
+
+  return <ChangeList {...review.data} />;
+}
+
+/**
+ * What the agent's save would make of a strategy's files beside the newest version allowed, so
+ * allowing the save, which allows the version it makes, comes after reading all it would let run.
+ * A save the files have since moved past is refused, which the backend says.
+ */
+export function StrategyDraftChanges({
+  saving,
+}: {
+  saving: SaveStrategyArguments;
+}) {
+  const review = useQuery(strategyDraftQuery(saving));
+
+  if (review.isPending) return <LoadingState />;
+
+  if (review.error) {
+    return (
+      <LoadError error={review.error} onRetry={() => void review.refetch()} />
+    );
+  }
+
+  return <ChangeList {...review.data} />;
 }

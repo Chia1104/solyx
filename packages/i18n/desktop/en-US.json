@@ -736,7 +736,9 @@
       "auto-allowed-found": "allowed: an address this conversation found",
       "auto-allowed-memory": "saved without asking, as this conversation allows",
       "failed": "Couldn't send your answer",
-      "allow-strategy-description": "Lets this version of {{name}} run. Read what changed before you allow it."
+      "allow-strategy-description": "Lets this version of {{name}} run. Read what changed before you allow it.",
+      "save-strategy-description": "Writes {{name}}, a new strategy, and lets it run. Read its files before you allow it.",
+      "save-strategy-change-description": "Changes {{name}}'s files and lets the version that makes run. Read what changed before you allow it."
     }
   },
   "onboarding": {
@@ -1042,7 +1044,7 @@
       "own": "My strategies",
       "own-pick": "Your strategy",
       "own-hint": "Code you wrote in the strategies folder; its rules trade on the lines it works out.",
-      "own-none": "No strategies yet: add a folder with a STRATEGY.md to strategies in the app's config folder.",
+      "own-none": "No strategies yet. Write one with the agent, or add a folder with a STRATEGY.md to strategies in the app's config folder.",
       "own-grid": "A grid runs along two of a strategy's numbers, and this one takes fewer."
     },
     "params": {
@@ -1282,7 +1284,11 @@
       "open": "Open {{symbol}} #{{index}} in the backtest panel",
       "nearest": "The panel reads whole years back and splits by share, so it runs the nearest it offers.",
       "ask": "Ask the agent about this run",
-      "ask-prompt": "/backtest Read the backtest on my panel: what do its figures say, and how far can I trust them?"
+      "ask-prompt": "/backtest Read the backtest on my panel: what do its figures say, and how far can I trust them?",
+      "keep": "Keep as my strategy",
+      "keep-prompt": "/strategy Write the backtest on my panel as one of my strategies, taking the same numbers, so I can keep it and change it.",
+      "write": "Write one with the agent",
+      "write-prompt": "/strategy Help me write a strategy to backtest on {{symbol}}: "
     }
   },
   "magi": {

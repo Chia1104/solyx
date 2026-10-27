@@ -6,6 +6,7 @@ import type { RanBacktest } from "@solyx/agent/wire";
 import { BacktestMode } from "@solyx/api/backtests";
 import type { BacktestSetup } from "@solyx/api/backtests";
 import { symbolLabel } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 
 import { useAgentDraft } from "../agent/agent-draft.ts";
 import { LowerView } from "../market/lower-view.ts";
@@ -71,6 +72,43 @@ export function AskAgent() {
       variant="secondary"
       onPress={() => draft(t("backtests.bridge.ask-prompt"))}>
       {t("backtests.bridge.ask")}
+    </Button>
+  );
+}
+
+/**
+ * Hands the agent's composer a request to write the backtest the panel shows as one of the user's
+ * strategies, which the message's context carries as the panel ran it.
+ */
+export function KeepAsStrategy() {
+  const { t } = useTranslation();
+  const draft = useAgentDraft();
+
+  return (
+    <Button
+      size="sm"
+      variant="tertiary"
+      onPress={() => draft(t("backtests.bridge.keep-prompt"))}>
+      {t("backtests.bridge.keep")}
+    </Button>
+  );
+}
+
+/** Hands the agent's composer the start of a request to write a strategy to backtest on `symbol`. */
+export function WriteStrategy({ symbol }: { symbol: SymbolRef }) {
+  const { t } = useTranslation();
+  const draft = useAgentDraft();
+
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      onPress={() =>
+        draft(
+          t("backtests.bridge.write-prompt", { symbol: symbolLabel(symbol) })
+        )
+      }>
+      {t("backtests.bridge.write")}
     </Button>
   );
 }
