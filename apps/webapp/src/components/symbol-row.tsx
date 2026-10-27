@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { SymbolRef } from "@solyx/core/market";
 
 /**
- * A listing in a side list that opens its chart; the open one is marked with an ink rule. The
+ * A listing in a side list that opens its chart; the open one lies on a sheet of its own. The
  * code, name and price share the first line, and a chart runs the width of the second beside
  * its detail. The market gives way first when the symbols pane is narrow, then the name.
  */
@@ -37,7 +37,7 @@ export function SymbolRow({
       activeOptions={{ includeSearch: false }}
       // A row in a list the user reorders drags as a whole rather than as a link.
       draggable={false}
-      className="flex flex-col gap-1 px-4 py-2 outline-none hover:bg-default/60 focus-visible:bg-default data-[status=active]:bg-default data-[status=active]:shadow-[inset_2px_0_0_var(--accent)]">
+      className="flex flex-col gap-1 rounded-sheet px-4 py-2 outline-none hover:bg-default/60 focus-visible:bg-default data-[status=active]:sheet">
       <span className="flex min-w-0 items-baseline gap-2 text-sm">
         <span className="shrink-0 font-medium">{symbol.symbol}</span>
         {name}

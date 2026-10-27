@@ -6,10 +6,12 @@
 @source "../node_modules/streamdown/dist/*.js";
 
 /*
- * Solyx is drawn like a drafting sheet: agents draft in pencil, the user signs in ink. Pencil
- * (hatching, dashed rules) marks what is not real yet, such as paper trading or a proposal
- * awaiting confirmation; ink (the accent) marks what is. The palette itself comes from
- * `@solyx/api/palette`, which app/theme.ts writes as custom properties; these derive from it.
+ * Solyx is drawn like a drafting table: the window is the table, the page is a board on it,
+ * and what the page shows lies on sheets on the board. Agents draft in pencil and the user
+ * signs in ink. Pencil (hatching, dashed rules)
+ * marks what is not real yet, such as paper trading or a proposal awaiting confirmation; ink
+ * (the accent) marks what is. The palette itself comes from `@solyx/api/palette`, which
+ * app/theme.ts writes as custom properties; these derive from it.
  */
 :root,
 .light,
@@ -25,6 +27,7 @@
   --focus: var(--accent);
 
   --hatch: color-mix(in oklab, var(--muted) 40%, transparent);
+  --sheet-edge: color-mix(in oklab, var(--foreground) 8%, transparent);
 
   --radius: 0.375rem;
 }
@@ -49,7 +52,11 @@ html:not([data-palette]) body {
     "Noto Serif CJK TC", "Noto Serif TC", ui-serif, serif;
 }
 
-/* One corner radius for every surface, instead of HeroUI's scale up to pills; form fields keep HeroUI's own. */
+/*
+ * One corner radius for controls and what sits inside a sheet, instead of HeroUI's scale up to
+ * pills; form fields keep HeroUI's own. Only a sheet rounds wider, and the board wider by the
+ * gap around its sheets, so their corners nest.
+ */
 @theme inline {
   --radius-xs: var(--radius);
   --radius-sm: var(--radius);
@@ -59,9 +66,13 @@ html:not([data-palette]) body {
   --radius-2xl: var(--radius);
   --radius-3xl: var(--radius);
   --radius-4xl: var(--radius);
+  --radius-sheet: 0.625rem;
+  --radius-board: 1.125rem;
 }
 
 @theme inline {
+  /* The window's own colour, which app/theme.ts writes beside the palette and the window paints too. */
+  --color-table: var(--table);
   --color-hatch: var(--hatch);
   --color-quote-red: var(--quote-red);
   --color-quote-green: var(--quote-green);
@@ -80,6 +91,23 @@ html:not([data-palette]) body {
 /* A pencilled box: hatching inside a dashed outline. */
 @utility pencil {
   @apply border border-dashed border-border bg-background hatch;
+}
+
+/*
+ * A sheet on the board: no shadow, since it lies flat, and an edge drawn inside it, so a view
+ * that clips its overflow never cuts the edge off.
+ */
+@utility sheet {
+  @apply rounded-sheet bg-surface;
+  outline: 1px solid var(--sheet-edge);
+  outline-offset: -1px;
+}
+
+/* The board the page lies on, between the side panes: a shade over the table and under its sheets. */
+@utility board {
+  @apply rounded-board bg-background;
+  outline: 1px solid var(--sheet-edge);
+  outline-offset: -1px;
 }
 
 /* Lets the user move the window by this area; controls inside it stay clickable. */
@@ -202,6 +230,11 @@ html[data-pane-resizing="horizontal"] {
   .radio__control,
   .radio__indicator:empty::before {
     @apply rounded-full;
+  }
+
+  /* A tab list's track nests its tabs' corners: theirs plus the padding around them. */
+  .tabs__list-container {
+    border-radius: calc(var(--radius) + var(--spacing));
   }
 
   /* Overlays arrive and leave on a strong ease-out instead of HeroUI's plain ease. */

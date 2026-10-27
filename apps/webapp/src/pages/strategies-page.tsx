@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 
+import { Page } from "../components/page.tsx";
 import { Section } from "../components/section.tsx";
-import { Sheet } from "../components/sheet.tsx";
 import {
   StrategyList,
   StrategyProblems,
@@ -16,7 +16,7 @@ export function StrategiesPage() {
   const { t } = useTranslation();
 
   return (
-    <Sheet title={t("nav.strategies")}>
+    <Page title={t("nav.strategies")}>
       <Section
         title={t("strategies.page.list")}
         description={t("strategies.page.list-description")}>
@@ -28,6 +28,6 @@ export function StrategiesPage() {
         description={t("strategies.page.runtimes-description")}>
         <StrategyRuntimes />
       </Section>
-    </Sheet>
+    </Page>
   );
 }

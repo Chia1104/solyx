@@ -1,7 +1,7 @@
 import { useId } from "react";
 import type { ReactNode } from "react";
 
-/** A titled run of a side pane's rows, closed by a hairline, with how many it holds where it says. */
+/** A titled run of a side pane's rows, with how many it holds where it says. */
 export function PaneSection({
   title,
   count,
@@ -14,7 +14,7 @@ export function PaneSection({
   const titleId = useId();
 
   return (
-    <section aria-labelledby={titleId} className="border-b border-separator">
+    <section aria-labelledby={titleId} className="pb-2">
       <h3
         id={titleId}
         className="flex items-center gap-2 px-4 pt-3 pb-1 text-xs font-medium text-muted">

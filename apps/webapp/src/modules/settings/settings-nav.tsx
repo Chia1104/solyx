@@ -72,7 +72,7 @@ function SectionLink({ section }: { section: SettingsSection }) {
       to="/settings"
       search={{ section }}
       replace
-      className="group flex items-center gap-3 px-4 py-2 text-sm outline-none hover:bg-default/60 focus-visible:bg-default data-[status=active]:bg-default data-[status=active]:font-medium data-[status=active]:shadow-[inset_2px_0_0_var(--accent)]">
+      className="group flex items-center gap-3 rounded-sheet px-4 py-2 text-sm outline-none hover:bg-default/60 focus-visible:bg-default data-[status=active]:sheet data-[status=active]:font-medium">
       <Icon
         icon={SECTION_ICON[section]}
         className="shrink-0 text-muted group-data-[status=active]:text-foreground"
@@ -124,12 +124,12 @@ export function SettingsNav() {
             <Disclosure.Heading>
               <Disclosure.Trigger
                 className={cn(
-                  "mt-2 flex w-full items-center gap-3 px-4 pt-2 pb-1 text-xs font-medium text-muted outline-none hover:text-foreground focus-visible:bg-default",
-                  // A folded group's heading carries the open section's ink rule.
+                  "mt-2 flex w-full items-center gap-3 rounded-sheet px-4 pt-2 pb-1 text-xs font-medium text-muted outline-none hover:text-foreground focus-visible:bg-default",
+                  // A folded group's heading lies on the open section's sheet.
                   closed.includes(group) &&
                     section !== undefined &&
                     GROUP_SECTIONS[group].includes(section) &&
-                    "text-foreground shadow-[inset_2px_0_0_var(--accent)]"
+                    "sheet pb-2 text-foreground"
                 )}>
                 <span className="truncate">
                   {t(`settings.groups.${group}`)}
@@ -145,7 +145,7 @@ export function SettingsNav() {
           </Disclosure>
         ))}
       </DisclosureGroup>
-      <div className="mt-2 border-t border-separator pt-2">
+      <div className="mt-4">
         {FOOT_SECTIONS.map((each) => (
           <SectionLink key={each} section={each} />
         ))}

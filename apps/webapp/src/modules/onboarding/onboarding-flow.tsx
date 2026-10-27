@@ -4,7 +4,7 @@ import { Button, cn } from "@heroui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { RailedColumn } from "../../components/sheet.tsx";
+import { PageColumn } from "../../components/page.tsx";
 import { WindowTitleBar } from "../../components/window-title-bar.tsx";
 import { BrokerModeRule } from "../account/broker-mode-chip.tsx";
 
@@ -87,16 +87,14 @@ export function OnboardingFlow({
         </Button>
       </WindowTitleBar>
       <BrokerModeRule />
-      <div className="@container/main min-h-0 flex-1 overflow-y-auto">
-        <div className="flex min-h-full flex-col">
-          <div className="border-b border-separator">
-            <RailedColumn className="px-6 py-3">
+      <div className="flex min-h-0 flex-1 p-2">
+        <div className="@container/main min-w-0 flex-1 overflow-y-auto board px-2 pb-2">
+          <PageColumn>
+            <div className="px-4 py-3">
               <OnboardingProgress current={step} />
-            </RailedColumn>
-          </div>
-          {children}
-          <div className="border-b border-separator">
-            <RailedColumn className="flex items-center gap-2 px-6 py-4">
+            </div>
+            {children}
+            <div className="flex items-center gap-2 px-4 py-3">
               {previous ? (
                 <Button variant="tertiary" onPress={() => go(previous)}>
                   {t("onboarding.back")}
@@ -123,9 +121,8 @@ export function OnboardingFlow({
                   </Button>
                 )}
               </div>
-            </RailedColumn>
-          </div>
-          <RailedColumn className="flex-1" />
+            </div>
+          </PageColumn>
         </div>
       </div>
     </div>

@@ -522,7 +522,7 @@ export function AgentComposer({
   return (
     <Form
       validationBehavior="aria"
-      className="flex shrink-0 flex-col gap-2 px-3 pt-2 pb-3"
+      className="flex shrink-0 flex-col gap-2 pt-2"
       onSubmit={(event) => void submit(event)}>
       {send.error ? (
         <ErrorAlert
@@ -538,11 +538,11 @@ export function AgentComposer({
       ) : null}
       <div className="relative flex flex-col">
         {focus ? (
-          <div className="mx-2 rounded-t-sm border border-b-0 border-border bg-surface-secondary">
+          <div className="mx-3 rounded-t-sm border border-b-0 border-border bg-surface-secondary">
             <FocusAttachment focus={focus} />
           </div>
         ) : null}
-        <div className="rounded-sm border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus">
+        <div className="rounded-sheet border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus">
           <Controller
             control={form.control}
             name="text"

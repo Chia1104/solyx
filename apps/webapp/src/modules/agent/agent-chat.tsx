@@ -95,7 +95,7 @@ function AgentSetup() {
   const { t } = useTranslation();
 
   return (
-    <div className="flex shrink-0 flex-col items-start gap-2 border-t border-separator p-4">
+    <div className="flex shrink-0 flex-col items-start gap-2 p-4">
       <p className="text-sm font-medium">{t("agent.setup-title")}</p>
       <p className="text-xs text-muted">{t("agent.setup-description")}</p>
       <Link
@@ -117,9 +117,7 @@ function AgentStoreFailed() {
   });
 
   return (
-    <div
-      role="alert"
-      className="flex shrink-0 flex-col items-start gap-2 border-t border-separator p-4">
+    <div role="alert" className="flex shrink-0 flex-col items-start gap-2 p-4">
       <p className="text-sm font-medium text-danger">
         {t("agent.store-failed.title")}
       </p>

@@ -93,13 +93,13 @@ function ListingFlowsView({ flows }: { flows: ListingFlows }) {
 
   if (flows.trades.length === 0 && rows.length === 0) {
     return (
-      <p className="px-6 py-4 text-sm text-muted">{t("flows.listing-empty")}</p>
+      <p className="px-4 py-4 text-sm text-muted">{t("flows.listing-empty")}</p>
     );
   }
 
   return (
     // Side by side where the main view is wide; narrower, the balances follow the net buying.
-    <div className="grid gap-6 px-6 py-4 @min-[56rem]/main:grid-cols-2">
+    <div className="grid gap-6 px-4 py-4 @min-[56rem]/main:grid-cols-2">
       <div className="flex flex-col gap-1.5">
         <NetBuyingTable
           title={t("flows.net-lots")}
@@ -140,7 +140,7 @@ export function ListingFlowsPanel({
 
   if (error) {
     body = (
-      <div className="px-6 py-4">
+      <div className="px-4 py-4">
         <LoadError error={error} onRetry={() => void refetch()} />
       </div>
     );
@@ -152,7 +152,7 @@ export function ListingFlowsPanel({
     <section
       aria-label={t("flows.title")}
       className="flex h-full flex-col overflow-hidden">
-      <div className="flex h-10 shrink-0 items-center gap-3 border-b border-separator px-6">
+      <div className="flex h-10 shrink-0 items-center gap-3 px-4">
         {heading}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>

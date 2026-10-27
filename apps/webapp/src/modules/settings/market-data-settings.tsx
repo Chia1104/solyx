@@ -7,7 +7,6 @@ import { Market } from "@solyx/core/market";
 import { SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Section } from "../../components/section.tsx";
-import { RailedColumn } from "../../components/sheet.tsx";
 
 import { FinMindSettings } from "./finmind-settings.tsx";
 import { FubonConnectionRow, FubonSettings } from "./fubon-settings.tsx";
@@ -62,9 +61,9 @@ export function MarketDataSettings({
         description={t("settings.fundamentals.description")}>
         <FinMindSettings />
       </Section>
-      <RailedColumn className="px-6 py-4 text-xs text-muted">
+      <p className="px-4 py-2 text-xs text-muted">
         {t("settings.market-data.description")}
-      </RailedColumn>
+      </p>
     </>
   );
 }

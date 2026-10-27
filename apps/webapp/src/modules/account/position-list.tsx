@@ -22,7 +22,7 @@ export function PositionList() {
 
   if (error) {
     return (
-      <div className="px-4">
+      <div>
         <LoadError error={error} onRetry={() => void refetch()} />
       </div>
     );

@@ -5,8 +5,8 @@ import { useTranslation } from "react-i18next";
 
 import { SettingsSection } from "@solyx/api/settings-section";
 
+import { Page } from "../components/page.tsx";
 import { Section } from "../components/section.tsx";
-import { Sheet } from "../components/sheet.tsx";
 import { BackupSettings } from "../modules/backup/backup-settings.tsx";
 import { DevicesSettings } from "../modules/devices/devices-settings.tsx";
 import { MemorySettings } from "../modules/memory/memory-settings.tsx";
@@ -75,5 +75,5 @@ export function SettingsPage() {
     [SettingsSection.About]: <AboutSettings />,
   };
 
-  return <Sheet title={t("settings.title")}>{content[section]}</Sheet>;
+  return <Page title={t("settings.title")}>{content[section]}</Page>;
 }
