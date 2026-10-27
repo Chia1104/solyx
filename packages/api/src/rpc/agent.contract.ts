@@ -1,6 +1,7 @@
 import { asyncIteratorObject, oc, type } from "@orpc/contract";
 import * as z from "zod";
 
+import { MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES } from "@solyx/agent/attachment";
 import { agentModelPickSchema } from "@solyx/agent/providers";
 import { agentSessionSetupSchema, approvalModeSchema } from "@solyx/agent/wire";
 import type {
@@ -38,7 +39,8 @@ export const agentContract = {
   /**
    * Starts a run and resolves once it is under way; its progress arrives through `events`.
    * `locale` is the app's language, which the agent replies in, and `timeZone` the user's own
-   * clock, which the agent is told the time on.
+   * clock, which the agent is told the time on. Each file in `attachments` is read again as it
+   * arrives, as `readAttachment` reads it, so a file the renderer let through may still be refused.
    */
   send: oc
     .meta(forDevices(true))
@@ -46,6 +48,9 @@ export const agentContract = {
       z.object({
         id: idSchema,
         text: textSchema,
+        attachments: z
+          .array(z.file().max(MAX_ATTACHMENT_BYTES))
+          .max(MAX_ATTACHMENTS),
         screen: agentScreenSchema.nullable(),
         locale: localeSchema,
         timeZone: timeZoneSchema,

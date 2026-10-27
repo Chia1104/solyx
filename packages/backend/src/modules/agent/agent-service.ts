@@ -1,5 +1,5 @@
 import { lstat, readdir, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { Tracer } from "@opentelemetry/api";
@@ -85,6 +85,8 @@ import { createAgentModels } from "./agent-models.ts";
 import type { AgentModelsOptions } from "./agent-models.ts";
 import { createAgentSetup } from "./agent-setup.ts";
 import type { AgentSetupSources } from "./agent-setup.ts";
+import { keepAttachments } from "./attachments.ts";
+import { createImageThreads } from "./image-threads.ts";
 import type { McpServers } from "./mcp-servers.ts";
 import { messageContext, screenContext } from "./message-context.ts";
 import { loginShellPath } from "./shell-path.ts";
@@ -161,6 +163,12 @@ const SCRIPT_FILES = {
   worker: pathToFileURL(join(import.meta.dirname, "../worker/script.mjs")),
 };
 
+// The same for Photon, which scales the images a message carries.
+const IMAGE_FILES = {
+  wasm: join(import.meta.dirname, "photon_rs_bg.wasm"),
+  worker: pathToFileURL(join(import.meta.dirname, "../worker/images.mjs")),
+};
+
 // A scheduled task names no way to let every call run, so no run nobody watches is set to bypass.
 const UNATTENDED_MODE: Record<ScheduleApproval, ApprovalMode> = {
   [ScheduleApproval.Ask]: ApprovalMode.Ask,
@@ -222,7 +230,14 @@ export function createAgentService(options: AgentServiceOptions) {
   const shellOn = () =>
     options.config.read().agent.shell && options.desk.mode === BrokerMode.Paper;
 
-  const workspace = (id: string) => join(options.workspaces, id);
+  // A conversation's id names its folder, so one that would reach past the folders names none.
+  const workspace = (id: string) => {
+    if (id !== basename(id) || id === "." || id === "..") {
+      throw new Error(`Conversation ${id} not found`);
+    }
+
+    return join(options.workspaces, id);
+  };
 
   const shell = createShell({
     workspace,
@@ -432,6 +447,7 @@ export function createAgentService(options: AgentServiceOptions) {
       };
     },
     env: shell.env,
+    images: createImageThreads(IMAGE_FILES),
     onEvent,
     onStoreFailure(cause) {
       storeFailed = true;
@@ -477,6 +493,7 @@ export function createAgentService(options: AgentServiceOptions) {
       scheduled,
       changes,
       asksEveryCall,
+      attachments = [],
     }: {
       /** What the window showed as the message was written; `null` for one nobody was at the app for. */
       screen: AgentScreen | null;
@@ -487,10 +504,18 @@ export function createAgentService(options: AgentServiceOptions) {
       changes?: readonly Change[];
       /** Whether its run asks before every call that can ask, as a paired device's message does. */
       asksEveryCall: boolean;
+      /** The files the user attached, which only a message they wrote carries. */
+      attachments?: readonly File[];
     }
   ) {
     const now = new Date();
     const shown = screenContext(screen, now);
+
+    const kept = await keepAttachments(
+      workspace(id),
+      attachments,
+      now.getTime()
+    );
 
     const { mentions, skill } = await messageContext(text, {
       focus: shown.focus ?? null,
@@ -506,23 +531,30 @@ export function createAgentService(options: AgentServiceOptions) {
           .map((each) => each.name),
     });
 
-    return runtime.send(id, {
-      text,
-      context: formatContext({
-        now,
-        sessions: await marketSessions(options.marketDays, now),
-        brokerMode: options.desk.mode,
-        ...shown,
-        mentions,
-        skill,
-        locale,
-        timeZone,
-        decisionMode: decisionMode(),
-        scheduled,
-        changes,
-      }),
-      asksEveryCall,
-    });
+    try {
+      await runtime.send(id, {
+        text,
+        context: formatContext({
+          now,
+          sessions: await marketSessions(options.marketDays, now),
+          brokerMode: options.desk.mode,
+          ...shown,
+          mentions,
+          skill,
+          locale,
+          timeZone,
+          decisionMode: decisionMode(),
+          scheduled,
+          changes,
+        }),
+        asksEveryCall,
+        attachments: kept.attachments,
+      });
+    } catch (error) {
+      await kept.remove();
+
+      throw error;
+    }
   }
 
   return {
@@ -596,11 +628,19 @@ export function createAgentService(options: AgentServiceOptions) {
     send: (
       id: string,
       text: string,
+      attachments: readonly File[],
       screen: AgentScreen | null,
       locale: Locale,
       timeZone: TimeZone,
       asksEveryCall: boolean
-    ) => send(id, text, { screen, locale, timeZone, asksEveryCall }),
+    ) =>
+      send(id, text, {
+        screen,
+        locale,
+        timeZone,
+        asksEveryCall,
+        attachments,
+      }),
 
     /** Whether a run is going in the conversation; one since deleted has none. */
     busy: (id: string) => runtime.busy(id),

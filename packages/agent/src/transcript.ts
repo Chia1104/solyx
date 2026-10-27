@@ -1,6 +1,7 @@
 import { contentText } from "@earendil-works/pi-ai";
 import type {
   AssistantMessage,
+  ImageContent,
   ToolResultMessage,
   UserMessage,
 } from "@earendil-works/pi-ai";
@@ -15,11 +16,14 @@ import type {
   EntryRecord,
   NestedToolExecutionResult,
 } from "@earendil-works/pi-durable";
+import { escape, unescape } from "es-toolkit";
 
 import { firstLine } from "@solyx/utils/text";
 
 import { approvalEvents } from "./approval.ts";
 import type { ApprovalEvent, ApprovalRecord } from "./approval.ts";
+import { AttachmentKind } from "./attachment.ts";
+import type { AttachmentView } from "./attachment.ts";
 import {
   AgentEventType,
   AgentToolName,
@@ -43,22 +47,82 @@ const CONTEXT_OPEN = "<app_context>";
 
 const CONTEXT_CLOSE = "</app_context>";
 
-const CONTEXT_BLOCK = /^<app_context>\n[\s\S]*?\n<\/app_context>\n/;
+/** A file as its user message carries it to the model. */
+export type MessageAttachment = Omit<AttachmentView, "name"> &
+  (
+    | { kind: typeof AttachmentKind.Image; image: ImageContent }
+    | { kind: typeof AttachmentKind.Text; text: string }
+  );
 
-/** What the user typed, preceded by the app's context for the model. */
+const ATTACHMENT_CLOSE = "</attachment>";
+
+// Opens each file the user attached, so the thread lists what a stored message carried.
+const ATTACHMENT_TAG =
+  /^<attachment path="([^"]*)" type="([^"]*)" size="(\d+)"/;
+
+function attachmentContent(
+  attachment: MessageAttachment
+): Exclude<UserMessage["content"], string> {
+  const tag = `<attachment path="${escape(attachment.path)}" type="${escape(attachment.mimeType)}" size="${attachment.size}"`;
+
+  if (attachment.kind === AttachmentKind.Image) {
+    return [{ type: "text", text: `${tag}/>` }, attachment.image];
+  }
+
+  // A file that closes the tag itself would end its own data early.
+  const text = attachment.text.replaceAll(ATTACHMENT_CLOSE, "<\\/attachment>");
+
+  return [{ type: "text", text: `${tag}>\n${text}\n${ATTACHMENT_CLOSE}` }];
+}
+
+/** What the user typed, preceded by the app's context for the model and the files they attached. */
 export function userContent(
   text: string,
-  context: string
+  context: string,
+  attachments: readonly MessageAttachment[] = []
 ): UserMessage["content"] {
   return [
     { type: "text", text: `${CONTEXT_OPEN}\n${context}\n${CONTEXT_CLOSE}` },
+    ...attachments.flatMap(attachmentContent),
     { type: "text", text },
   ];
 }
 
-/** What the user typed, without the context the app attached. */
+// pi-ai lets a user message be one string, which the app never writes.
+const partsOf = ({ content }: UserMessage) =>
+  Array.isArray(content) ? content : [{ type: "text" as const, text: content }];
+
+/** What the user typed, without the context and the files the app attached. */
 export function userText(message: UserMessage): string {
-  return contentText(message.content).replace(CONTEXT_BLOCK, "");
+  return partsOf(message)
+    .flatMap((part) =>
+      part.type === "text" &&
+      !part.text.startsWith(CONTEXT_OPEN) &&
+      !ATTACHMENT_TAG.test(part.text)
+        ? [part.text]
+        : []
+    )
+    .join("\n");
+}
+
+/** The files a user message carried, as their tags name them. */
+export function userAttachments(message: UserMessage): AttachmentView[] {
+  return partsOf(message).flatMap((part) => {
+    const tag = part.type === "text" ? ATTACHMENT_TAG.exec(part.text) : null;
+
+    if (!tag) return [];
+
+    const path = unescape(tag[1]);
+
+    return [
+      {
+        path,
+        name: path.slice(path.lastIndexOf("/") + 1),
+        mimeType: unescape(tag[2]),
+        size: Number(tag[3]),
+      },
+    ];
+  });
 }
 
 /** The wire id of a stored message, live and replayed alike. */
@@ -329,6 +393,7 @@ export function createTranscriber(approvals: ApprovalRecord) {
           type: AgentEventType.User,
           messageId: id,
           text: userText(stored),
+          attachments: userAttachments(stored),
           at: stored.timestamp,
         },
       ];

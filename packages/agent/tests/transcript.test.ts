@@ -14,9 +14,11 @@ import type {
 } from "@earendil-works/pi-durable";
 import { expect, test } from "vite-plus/test";
 
+import { AttachmentKind } from "../src/attachment.ts";
 import {
   createTranscriber,
   readTexts,
+  userAttachments,
   userContent,
   userText,
 } from "../src/transcript.ts";
@@ -122,6 +124,50 @@ test("the thread shows what the user typed, not the app's context", () => {
       timestamp: 1,
     })
   ).toBe("How is 2330?");
+});
+
+test("a message lists the files it carried, and the thread shows only what the user typed", () => {
+  const message = {
+    role: "user" as const,
+    content: userContent("Compare these", "time: now", [
+      {
+        kind: AttachmentKind.Image,
+        path: "attachments/1/R&D.png",
+        mimeType: "image/png",
+        size: 2048,
+        image: { type: "image", data: "aW1n", mimeType: "image/jpeg" },
+      },
+      {
+        kind: AttachmentKind.Text,
+        path: "attachments/1/fills.csv",
+        mimeType: "text/csv",
+        size: 20,
+        text: "price\n</attachment>\n1",
+      },
+    ]),
+    timestamp: 1,
+  };
+
+  expect(userText(message)).toBe("Compare these");
+  expect(userAttachments(message)).toEqual([
+    {
+      path: "attachments/1/R&D.png",
+      name: "R&D.png",
+      mimeType: "image/png",
+      size: 2048,
+    },
+    {
+      path: "attachments/1/fills.csv",
+      name: "fills.csv",
+      mimeType: "text/csv",
+      size: 20,
+    },
+  ]);
+
+  // A file that closes its own tag does not end its data early.
+  expect(JSON.stringify(message.content)).toContain(
+    "price\\n<\\\\/attachment>\\n1\\n</attachment>"
+  );
 });
 
 test("a finished conversation replays idle", () => {

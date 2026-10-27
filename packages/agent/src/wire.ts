@@ -29,6 +29,7 @@ import { strategyChangeSchema, strategyNameSchema } from "@solyx/core/strategy";
 import { themeDraftSchema } from "@solyx/core/theme";
 import { isEnumValue } from "@solyx/utils/is";
 
+import type { AttachmentView } from "./attachment.ts";
 import { agentModelPickSchema } from "./providers.ts";
 import type { AgentModelRef, AgentThinking } from "./providers.ts";
 
@@ -667,6 +668,7 @@ export type AgentWireEvent =
       messageId: string;
       /** What the user typed, without the context the app attached for the model. */
       text: string;
+      attachments: AttachmentView[];
       /** Epoch ms. */
       at: number;
     }
@@ -780,6 +782,8 @@ export interface MessageView {
   kind: typeof AgentItemKind.User | typeof AgentItemKind.Assistant;
   messageId: string;
   text: string;
+  /** What a user message carried beside its text. */
+  attachments?: AttachmentView[];
   thinking?: string;
   /** Epoch ms; unset while an assistant message is still streaming. */
   at?: number;
@@ -867,6 +871,7 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
         kind: AgentItemKind.User,
         messageId: event.messageId,
         text: event.text,
+        attachments: event.attachments,
         at: event.at,
         streaming: false,
       });

@@ -187,6 +187,8 @@ test("Ollama lists the models its server holds there, keeps them for the next st
       name: "qwen3.8:9b",
       reasoning: true,
       contextWindow: 65_536,
+      // The server lists no vision among what it can do.
+      images: false,
     },
   ]);
   expect((await catalog.model("ollama", undefined))?.baseUrl).toBe(

@@ -11,6 +11,7 @@
   "devDependencies": {
     "@anthropic-ai/sandbox-runtime": "catalog:sandbox",
     "@earendil-works/pi-codemode": "catalog:pi",
+    "@earendil-works/pi-durable": "catalog:pi",
     "@orpc/client": "catalog:orpc",
     "@orpc/contract": "catalog:orpc",
     "@orpc/publisher": "catalog:orpc",

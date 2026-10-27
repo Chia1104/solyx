@@ -420,6 +420,7 @@ export function AgentComposer({
       await client.agent.send({
         id,
         text: message,
+        attachments: [],
         screen: sentScreen(screen, attachedFocus, (symbol) =>
           // The attachment above the input has already asked for it.
           listingName(

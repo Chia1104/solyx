@@ -37,6 +37,11 @@ import type {
   TaskInspection,
   Tx,
 } from "@earendil-works/pi-durable";
+import { DEFAULT_IMAGE_LIMITS } from "@earendil-works/pi-durable/tools";
+import type {
+  ImageLimits,
+  ImageProcessor,
+} from "@earendil-works/pi-durable/tools";
 import { Mutex, maxBy, noop } from "es-toolkit";
 import * as z from "zod";
 
@@ -48,6 +53,8 @@ import {
   createApprovalGate,
 } from "./approval.ts";
 import type { ToolGuards } from "./approval.ts";
+import { AttachmentKind } from "./attachment.ts";
+import type { ReadAttachment } from "./attachment.ts";
 import type {
   AgentModelPick,
   AgentModelRef,
@@ -62,7 +69,7 @@ import {
   scriptCallEnd,
   userContent,
 } from "./transcript.ts";
-import type { Transcriber } from "./transcript.ts";
+import type { MessageAttachment, Transcriber } from "./transcript.ts";
 import {
   AgentEventType,
   ApprovalMode,
@@ -118,7 +125,12 @@ export interface AgentRuntimeOptions {
   /** What pi-durable reports went wrong, such as a task that threw or a run it parked. */
   onReport?: HarnessOptions["onReport"];
   settings?: HarnessSettings;
+  /** Scales and re-encodes the images a message carries to fit its model; without it, none rides. */
+  images?: ImageProcessor;
 }
+
+/** A file a message carries, where the host keeps it in the conversation's folder. */
+export type AgentAttachment = ReadAttachment & { path: string };
 
 export interface AgentTurn {
   text: string;
@@ -129,6 +141,18 @@ export interface AgentTurn {
    * otherwise it asks as the mode says.
    */
   asksEveryCall?: boolean;
+  attachments?: readonly AgentAttachment[];
+}
+
+/** pi-durable's limits for an image, narrowed where the model's provider takes less. */
+function imageLimits(model: Model<Api>): ImageLimits {
+  const resize = model.inputLimits?.images?.resize;
+
+  return {
+    maxWidth: resize?.maxWidth ?? DEFAULT_IMAGE_LIMITS.maxWidth,
+    maxHeight: resize?.maxHeight ?? DEFAULT_IMAGE_LIMITS.maxHeight,
+    maxBytes: resize?.maxBytes ?? DEFAULT_IMAGE_LIMITS.maxBytes,
+  };
 }
 
 const untunedSessionSchema = z.object({
@@ -481,6 +505,75 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     );
 
     return entries.reverse();
+  }
+
+  /**
+   * A message's files as the model takes them. An image is refused for a model that reads none,
+   * rather than handed it as a placeholder the user would take for the image.
+   */
+  async function messageAttachments(
+    attachments: readonly AgentAttachment[],
+    model: Model<Api>
+  ): Promise<MessageAttachment[]> {
+    const images = attachments.filter(
+      (attachment) => attachment.kind === AttachmentKind.Image
+    ).length;
+
+    if (images > 0 && !model.input.includes("image")) {
+      throw new Error(
+        `${model.name} cannot read images, so pick a model that can before attaching one`
+      );
+    }
+
+    const most = model.inputLimits?.images?.maxPerMessage;
+
+    if (most !== undefined && images > most) {
+      throw new Error(`${model.name} reads at most ${most} images a message`);
+    }
+
+    const limits = imageLimits(model);
+    const carried: MessageAttachment[] = [];
+
+    // One image at a time, since each decodes every pixel it holds before it is scaled.
+    for (const attachment of attachments) {
+      const { path, mimeType, size } = attachment;
+
+      if (attachment.kind === AttachmentKind.Text) {
+        carried.push({
+          kind: attachment.kind,
+          path,
+          mimeType,
+          size,
+          text: attachment.text,
+        });
+
+        continue;
+      }
+
+      const prepared = await options.images?.prepare(
+        attachment.data,
+        mimeType,
+        limits
+      );
+
+      if (!prepared) {
+        throw new Error(`${attachment.name} could not be read as an image`);
+      }
+
+      carried.push({
+        kind: attachment.kind,
+        path,
+        mimeType,
+        size,
+        image: {
+          type: "image",
+          data: prepared.data,
+          mimeType: prepared.mimeType,
+        },
+      });
+    }
+
+    return carried;
   }
 
   /** The model and thinking the conversation's next request runs on, once the host resolves them. */
@@ -970,6 +1063,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
         const choice = await choiceOf(conversation.id);
 
+        const attachments = await messageAttachments(
+          turn.attachments ?? [],
+          choice.model
+        );
+
         await toolset.load();
 
         await attach(conversation);
@@ -997,7 +1095,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
           await conversation.submit(
             {
               type: "input",
-              content: userContent(turn.text, turn.context),
+              content: userContent(turn.text, turn.context, attachments),
               whenBusy: "reject",
             },
             BACKGROUND_CONTEXT

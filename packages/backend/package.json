@@ -21,6 +21,7 @@
     "./rpc/serve": "./src/rpc/serve.ts",
     "./services": "./src/services.ts",
     "./worker/backup": "./src/worker/backup.ts",
+    "./worker/images": "./src/worker/images.ts",
     "./worker/script": "./src/worker/script.ts"
   },
   "scripts": {
@@ -29,6 +30,7 @@
   "dependencies": {
     "@earendil-works/pi-ai": "catalog:pi",
     "@earendil-works/pi-codemode": "catalog:pi",
+    "@earendil-works/pi-durable": "catalog:pi",
     "@hono/node-server": "catalog:server",
     "@opentelemetry/api": "catalog:otel",
     "@opentelemetry/exporter-logs-otlp-http": "catalog:otel",
