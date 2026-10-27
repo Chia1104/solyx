@@ -11,7 +11,7 @@ const ATTACHMENTS = "attachments";
  * Where `path` really is under `workspace`, which the conversation's commands may write in: a link
  * they made that would take it out of the folder is refused rather than followed.
  */
-export async function insideWorkspace(workspace: string, path: string) {
+async function insideWorkspace(workspace: string, path: string) {
   const [root, real] = await Promise.all([
     realpath(workspace),
     realpath(join(workspace, path)),
