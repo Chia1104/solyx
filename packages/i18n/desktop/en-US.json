@@ -574,8 +574,10 @@
     "setup-description": "Pick a provider and save its API key, or sign in to its subscription, to start.",
     "open-settings": "Open settings",
     "context": {
-      "detached": "Not attached: {{label}}",
+      "attachments": "Attachments",
+      "detached": "Not sent with your message",
       "attach": "Attach",
+      "attach-label": "Attach {{label}}",
       "detach": "Don't attach {{label}}"
     },
     "composer-menu": {

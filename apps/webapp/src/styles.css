@@ -57,8 +57,9 @@ html:not([data-palette]) body {
 
 /*
  * One corner radius for controls and what sits inside a sheet, instead of HeroUI's scale up to
- * pills; form fields keep HeroUI's own. Only a sheet rounds wider, and the board, or a pane
- * floating over it, wider by the gap around its sheets, so their corners nest.
+ * pills; form fields keep HeroUI's own. Only a sheet rounds wider, and what holds sheets a gap
+ * inside its edge (the board, a pane floating over it, the composer) wider by that gap, so their
+ * corners nest.
  */
 @theme inline {
   --radius-xs: var(--radius);

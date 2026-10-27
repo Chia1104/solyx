@@ -1,21 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { ComponentProps, KeyboardEvent, RefObject } from "react";
 
-import {
-  Button,
-  Chip,
-  CloseButton,
-  Form,
-  TextArea,
-  TextField,
-  cn,
-} from "@heroui/react";
+import { Button, Form, TextArea, TextField } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ArrowUp02Icon,
-  ChartCandlestickIcon,
-  StopIcon,
-} from "@hugeicons/core-free-icons";
+import { ArrowUp02Icon, StopIcon } from "@hugeicons/core-free-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Autocomplete } from "react-aria-components";
@@ -45,7 +33,7 @@ import { currentLocale } from "../../app/i18n.ts";
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
-import { listingName, useListingName } from "../market/listing-name.tsx";
+import { listingName } from "../market/listing-name.tsx";
 import { listingQuery } from "../market/listing-query.ts";
 import {
   agentSettingsQuery,
@@ -61,6 +49,10 @@ import {
 } from "./agent-query.ts";
 import { useAgentStore } from "./agent-store.ts";
 import { ContextMeter } from "./agent-usage.tsx";
+import {
+  ComposerAttachments,
+  FocusAttachment,
+} from "./composer-attachments.tsx";
 import {
   ComposerMenu,
   suggests,
@@ -78,54 +70,6 @@ const progressOf = (view: AgentView) => ({
   /** A summary the user asked for is being written. */
   compacting: view.compactions.some((each) => each.manual),
 });
-
-/** The listing on screen, sent with each message unless the user detaches it. */
-function FocusAttachment({ focus }: { focus: SymbolRef }) {
-  const { t } = useTranslation();
-  const name = useListingName(focus);
-  const detachedFocus = useAgentStore((state) => state.detachedFocus);
-  const setDetachedFocus = useAgentStore((state) => state.setDetachedFocus);
-
-  const key = symbolKey(focus);
-  const attached = key !== detachedFocus;
-  const label = [focus.symbol, name].filter(Boolean).join(" ");
-
-  return (
-    <div
-      className={cn(
-        "flex h-7 items-center gap-2 px-2 text-xs",
-        !attached && "text-muted"
-      )}>
-      <Icon
-        icon={ChartCandlestickIcon}
-        className="size-3.5 shrink-0 text-muted"
-      />
-      <span className="min-w-0 flex-1 truncate">
-        {attached ? label : t("agent.context.detached", { label })}
-      </span>
-      {attached ? (
-        <>
-          <Chip size="sm" variant="soft">
-            {t(`market.${focus.market}`)}
-          </Chip>
-          <CloseButton
-            aria-label={t("agent.context.detach", { label })}
-            className="size-5"
-            onPress={() => setDetachedFocus(key)}
-          />
-        </>
-      ) : (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-5 px-1.5 text-xs"
-          onPress={() => setDetachedFocus(null)}>
-          {t("agent.context.attach")}
-        </Button>
-      )}
-    </div>
-  );
-}
 
 /** Why the conversation's model cannot run, with the way to the settings that would let it. */
 function ModelUnavailable({
@@ -536,112 +480,109 @@ export function AgentComposer({
           description={compact.error.message}
         />
       ) : null}
-      <div className="relative flex flex-col">
+      {/* It holds its attachments a gap inside its edge, so it rounds wider by the gap, as the board does. */}
+      <div className="relative rounded-board border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus">
         {focus ? (
-          <div className="mx-3 rounded-t-sm border border-b-0 border-border bg-surface-secondary">
+          <ComposerAttachments>
             <FocusAttachment focus={focus} />
-          </div>
+          </ComposerAttachments>
         ) : null}
-        <div className="rounded-sheet border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus">
-          <Controller
-            control={form.control}
-            name="text"
-            render={({ field }) => (
-              <Autocomplete
-                inputValue={field.value}
-                onInputChange={field.onChange}
-                filter={(keywords) =>
-                  token !== null && suggests(keywords, token.query)
-                }>
-                {menuOpen ? (
-                  <ComposerMenu
-                    label={t(
-                      token.kind === ComposerTokenKind.Skill
-                        ? "agent.composer-menu.skills"
-                        : "agent.composer-menu.listings"
-                    )}
-                    suggestions={suggestions}
-                    onPick={complete}
-                  />
-                ) : null}
-                <TextField
-                  aria-label={t("agent.placeholder")}
-                  className="w-full">
-                  <TextArea
-                    name={field.name}
-                    ref={(element) => {
-                      field.ref(element);
-                      input.current = element;
-                    }}
-                    rows={1}
-                    className="block field-sizing-content max-h-50 min-h-10 w-full resize-none rounded-none border-0 bg-transparent px-3 pt-2 pb-1 text-sm leading-6 shadow-none ring-0"
-                    placeholder={t("agent.placeholder")}
-                    // The Autocomplete turns spell checking off as for a search field; a message keeps it.
-                    spellCheck
-                    onBlur={field.onBlur}
-                    onKeyDown={onKeyDown}
-                  />
-                </TextField>
-              </Autocomplete>
+        <Controller
+          control={form.control}
+          name="text"
+          render={({ field }) => (
+            <Autocomplete
+              inputValue={field.value}
+              onInputChange={field.onChange}
+              filter={(keywords) =>
+                token !== null && suggests(keywords, token.query)
+              }>
+              {menuOpen ? (
+                <ComposerMenu
+                  label={t(
+                    token.kind === ComposerTokenKind.Skill
+                      ? "agent.composer-menu.skills"
+                      : "agent.composer-menu.listings"
+                  )}
+                  suggestions={suggestions}
+                  onPick={complete}
+                />
+              ) : null}
+              <TextField aria-label={t("agent.placeholder")} className="w-full">
+                <TextArea
+                  name={field.name}
+                  ref={(element) => {
+                    field.ref(element);
+                    input.current = element;
+                  }}
+                  rows={1}
+                  className="block field-sizing-content max-h-50 min-h-10 w-full resize-none rounded-none border-0 bg-transparent px-3 pt-2 pb-1 text-sm leading-6 shadow-none ring-0"
+                  placeholder={t("agent.placeholder")}
+                  // The Autocomplete turns spell checking off as for a search field; a message keeps it.
+                  spellCheck
+                  onBlur={field.onBlur}
+                  onKeyDown={onKeyDown}
+                />
+              </TextField>
+            </Autocomplete>
+          )}
+        />
+        <div className="flex items-center justify-between gap-2 px-2 pb-2">
+          <div className="flex min-w-0 items-center gap-1">
+            {/* A browser's messages ask before every call, whatever the mode the computer set. */}
+            {inWindow ? (
+              <ApprovalModeMenu
+                mode={approvalMode}
+                isDisabled={setApprovalMode.isPending}
+                onChange={pickApprovalMode}
+              />
+            ) : null}
+            {settings ? (
+              <AgentModelPicker
+                // What it shows while saving belongs to the conversation it was picked in.
+                key={sessionId}
+                settings={settings}
+                pick={pick}
+                // A run keeps the model it started on, so the next one takes the change.
+                isDisabled={busy}
+                onChange={pickModel}
+              />
+            ) : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {progress.data?.context !== undefined && contextWindow ? (
+              <ContextMeter
+                used={progress.data.context}
+                window={contextWindow}
+                compacting={compacting}
+                canCompact={!busy && unavailable === null}
+                onCompact={() =>
+                  compact.mutate({ id: sessionId, instructions: null })
+                }
+              />
+            ) : null}
+            {busy && sessionId !== null ? (
+              <Button
+                isIconOnly
+                size="sm"
+                variant="tertiary"
+                aria-label={t("agent.stop")}
+                isPending={abort.isPending}
+                onPress={() => abort.mutate(sessionId)}>
+                <Icon icon={StopIcon} />
+              </Button>
+            ) : (
+              <Button
+                isIconOnly
+                type="submit"
+                size="sm"
+                variant="secondary"
+                aria-label={t("agent.send")}
+                isPending={send.isPending}
+                isDisabled={!text.trim() || unavailable !== null}>
+                <Icon icon={ArrowUp02Icon} />
+              </Button>
             )}
-          />
-          <div className="flex items-center justify-between gap-2 px-1.5 pb-1.5">
-            <div className="flex min-w-0 items-center gap-1">
-              {/* A browser's messages ask before every call, whatever the mode the computer set. */}
-              {inWindow ? (
-                <ApprovalModeMenu
-                  mode={approvalMode}
-                  isDisabled={setApprovalMode.isPending}
-                  onChange={pickApprovalMode}
-                />
-              ) : null}
-              {settings ? (
-                <AgentModelPicker
-                  // What it shows while saving belongs to the conversation it was picked in.
-                  key={sessionId}
-                  settings={settings}
-                  pick={pick}
-                  // A run keeps the model it started on, so the next one takes the change.
-                  isDisabled={busy}
-                  onChange={pickModel}
-                />
-              ) : null}
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              {progress.data?.context !== undefined && contextWindow ? (
-                <ContextMeter
-                  used={progress.data.context}
-                  window={contextWindow}
-                  compacting={compacting}
-                  canCompact={!busy && unavailable === null}
-                  onCompact={() =>
-                    compact.mutate({ id: sessionId, instructions: null })
-                  }
-                />
-              ) : null}
-              {busy && sessionId !== null ? (
-                <Button
-                  isIconOnly
-                  size="sm"
-                  variant="tertiary"
-                  aria-label={t("agent.stop")}
-                  isPending={abort.isPending}
-                  onPress={() => abort.mutate(sessionId)}>
-                  <Icon icon={StopIcon} />
-                </Button>
-              ) : (
-                <Button
-                  isIconOnly
-                  type="submit"
-                  size="sm"
-                  variant="secondary"
-                  aria-label={t("agent.send")}
-                  isPending={send.isPending}
-                  isDisabled={!text.trim() || unavailable !== null}>
-                  <Icon icon={ArrowUp02Icon} />
-                </Button>
-              )}
-            </div>
           </div>
         </div>
       </div>

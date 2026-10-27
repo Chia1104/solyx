@@ -574,8 +574,10 @@
     "setup-description": "選擇服務商並儲存它的 API 金鑰，或登入它的訂閱後即可開始。",
     "open-settings": "開啟設定",
     "context": {
-      "detached": "未附加：{{label}}",
+      "attachments": "附件",
+      "detached": "不隨訊息送出",
       "attach": "附加",
+      "attach-label": "附加 {{label}}",
       "detach": "不附加 {{label}}"
     },
     "composer-menu": {
