@@ -121,6 +121,9 @@ export function startBackend(windows: Windows, configFile: string) {
       showItemInFolder: hosted.showItemInFolder.handler(({ input }) =>
         settingsShell.showItemInFolder(input)
       ),
+      trashItem: hosted.trashItem.handler(({ input }) =>
+        shell.trashItem(input)
+      ),
       restart: hosted.restart.handler(() => {
         app.relaunch();
         app.quit();

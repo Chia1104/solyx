@@ -1,3 +1,4 @@
+import { mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { StrategyCatalog, StrategyReview } from "@solyx/api/strategies";
@@ -43,6 +44,10 @@ export interface StrategiesOptions {
   snapshots: StrategySnapshots;
   /** Where strategies' code would run now. */
   reach(): StrategyReach;
+  /** Shows a file or folder in the file manager. */
+  showItemInFolder(path: string): void;
+  /** Moves a file or folder to the computer's trash. */
+  trashItem(path: string): Promise<void>;
   /** Each time a strategy is written, or a version allowed or taken back. */
   onChange(): void;
   /** @default () => new Date() */
@@ -92,6 +97,9 @@ export function createStrategies(options: StrategiesOptions) {
       strategies: strategies.map((strategy) => ({
         strategy,
         allowed: allowing(approvals, strategy, reach),
+        approvals: approvals.filter(
+          (each) => each.name === strategy.manifest.name
+        ),
       })),
       reach,
       problems,
@@ -162,12 +170,13 @@ export function createStrategies(options: StrategiesOptions) {
       const { strategies, reach, problems } = await read();
 
       return {
-        strategies: strategies.map(({ strategy, allowed }) => ({
+        strategies: strategies.map(({ strategy, allowed, approvals }) => ({
           ...strategy.manifest,
           notes: strategy.notes,
           version: strategy.version,
           files: strategyFiles(strategy),
           allowed,
+          approvals,
         })),
         reach,
         problems,
@@ -269,6 +278,37 @@ export function createStrategies(options: StrategiesOptions) {
       await options.approvals.revoke(name);
       await options.snapshots.keepOnly(name, new Set());
       options.onChange();
+    },
+
+    /**
+     * Moves `name`'s folder to the computer's trash, whether or not it reads as a strategy, and
+     * takes back every version allowed, so one put back from the trash asks again before it runs.
+     */
+    async trash(name: string) {
+      const folder = join(options.folder, name);
+
+      if (!(await stat(folder)).isDirectory()) {
+        throw new Error(`${name} in the strategies folder is not a folder`);
+      }
+
+      await options.trashItem(folder);
+      await options.approvals.revoke(name);
+      await options.snapshots.keepOnly(name, new Set());
+      options.onChange();
+    },
+
+    /** Shows `name`'s folder in the file manager, or the strategies folder, made first, for `null`. */
+    async reveal(name: string | null) {
+      if (name === null) {
+        await mkdir(options.folder, { recursive: true });
+        options.showItemInFolder(options.folder);
+
+        return;
+      }
+
+      // A strategy found is a folder there, so a name never shows what lies elsewhere.
+      await find(name);
+      options.showItemInFolder(join(options.folder, name));
     },
 
     /** `name`'s files as they are now, beside those of the newest other version allowed. */

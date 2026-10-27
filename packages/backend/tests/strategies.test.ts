@@ -137,6 +137,8 @@ function setup(reach: StrategyReach = { sandboxed: false, live: false }) {
 
   const approvals = createStrategyApprovals(secrets);
   const changes: number[] = [];
+  const shown: string[] = [];
+  const trashed: string[] = [];
 
   const strategies = createStrategies({
     folder,
@@ -149,11 +151,16 @@ function setup(reach: StrategyReach = { sandboxed: false, live: false }) {
     approvals,
     snapshots: createStrategySnapshots(join(directory, "versions")),
     reach: () => reach,
+    showItemInFolder: (path) => shown.push(path),
+    async trashItem(path) {
+      trashed.push(path);
+      await rm(path, { recursive: true });
+    },
     onChange: () => changes.push(1),
     now: () => new Date("2026-10-26T02:00:00Z"),
   });
 
-  return { strategies, approvals, secrets, changes, reach };
+  return { strategies, approvals, secrets, changes, reach, shown, trashed };
 }
 
 describe("a strategy's folder", () => {
@@ -703,6 +710,62 @@ describe("a strategy's change", () => {
     // The hand edit was never allowed, so the review reaches back past it to what was.
     expect(review.previous?.version).toBe(first);
     expect(review.current.files[1].text).toBe("// edited\n");
+  });
+});
+
+describe("a strategy's place", () => {
+  test("lists every approval of its versions, newest first", async () => {
+    await writeStrategy();
+
+    const { strategies } = setup();
+    const [{ version, approvals }] = (await strategies.catalog()).strategies;
+
+    expect(approvals).toEqual([]);
+
+    await strategies.approve("crossing", version, StrategyApprover.User);
+
+    expect((await strategies.catalog()).strategies[0].approvals).toEqual([
+      {
+        name: "crossing",
+        version,
+        by: StrategyApprover.User,
+        outside: true,
+        at: Date.parse("2026-10-26T02:00:00Z"),
+      },
+    ]);
+  });
+
+  test("goes to the trash with every version taken back, a folder that does not read too", async () => {
+    await writeStrategy();
+    await writeStrategy("broken", "", "no frontmatter");
+
+    const { strategies, approvals, trashed, changes } = setup();
+    const [{ version }] = (await strategies.catalog()).strategies;
+
+    await strategies.approve("crossing", version, StrategyApprover.User);
+    await strategies.trash("crossing");
+    await strategies.trash("broken");
+
+    expect(trashed).toEqual([join(folder, "crossing"), join(folder, "broken")]);
+    expect(await approvals.list()).toEqual([]);
+    expect(await readdir(join(directory, "versions", "crossing"))).toEqual([]);
+    expect(changes).toHaveLength(3);
+    await expect(strategies.trash("crossing")).rejects.toThrow();
+  });
+
+  test("shows a strategy's folder, or the strategies folder made first, and nothing a name does not find", async () => {
+    await rm(folder, { recursive: true });
+
+    const { strategies, shown } = setup();
+
+    await strategies.reveal(null);
+    await writeStrategy();
+    await strategies.reveal("crossing");
+    await expect(strategies.reveal("missing")).rejects.toThrow(
+      "No strategy is named missing"
+    );
+
+    expect(shown).toEqual([folder, join(folder, "crossing")]);
   });
 });
 

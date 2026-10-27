@@ -182,6 +182,7 @@ export function createBackendHost({
     },
 
     restart: () => send("restart", client.restart()),
+    trashItem: (path) => client.trashItem(path),
   };
 
   return {

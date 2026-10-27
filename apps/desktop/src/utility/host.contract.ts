@@ -63,6 +63,7 @@ export const hostContract = {
     .input(type<{ file: FubonFile; window: number }>())
     .output(type<string | null>()),
   showItemInFolder: oc.input(z.string()).output(type<void>()),
+  trashItem: oc.input(z.string()).output(type<void>()),
   restart: oc.output(type<void>()),
   processes: {
     /** Starts a process of `kind` and posts the backend its port, tagged with `id`, on the parent port. */

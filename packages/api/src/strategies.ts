@@ -24,6 +24,8 @@ export interface StrategyEntry extends StrategyManifest {
   files: StrategyFile[];
   /** Whether its code may run where it would now, and the approval that lets it. */
   allowed: StrategyApproval | null;
+  /** Every approval of its versions kept, newest first, whether or not one lets it run now. */
+  approvals: StrategyApproval[];
 }
 
 /** The strategies the user wrote, and what keeps any other folder from being one. */
@@ -46,6 +48,10 @@ export interface StrategyReview {
   current: StrategyVersionFiles;
   previous: StrategyVersionFiles | null;
 }
+
+/** The strategies page in the router's hash, or one strategy's, which the agent's replies link to. */
+export const strategiesLink = (name?: string) =>
+  name === undefined ? "#/strategies" : `#/strategies/${name}`;
 
 /** Allowing one version of a strategy from a window, as the user. */
 export const strategyApproveSchema = z.strictObject({

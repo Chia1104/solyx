@@ -31,6 +31,8 @@ export interface AppLinks {
   /** A listing's page, its chart on `interval`. */
   listing(symbol: SymbolRef, interval: Interval): string;
   overview: Record<AppPlace, string>;
+  /** A strategy the user wrote, with its files, the versions allowed and its backtests. */
+  strategy(name: string): string;
 }
 
 export interface PromptSources {
@@ -115,7 +117,7 @@ const RULES = `You are the market analyst inside Solyx, a desktop app one person
 - Be brief. Lead with the answer, then the evidence. Numbers keep their units and currency; times are exchange-local as the tools give them, and the context's clock is the user's own.
 - Draw the figures a reader would line up, rather than list them: listings or periods side by side, a whole split into shares, a price in a range, a figure over time. A canvas does that, following the canvas skill. One or two figures stay in the sentence.`;
 
-function placesText({ listing, overview }: AppLinks): string {
+function placesText({ listing, overview, strategy }: AppLinks): string {
   const example = { market: Market.TW, symbol: "2330" };
 
   return `# Places in the app
@@ -125,7 +127,8 @@ A markdown link whose address starts with #/ opens that place in the app when th
 - The headlines about them, which get_headlines reads: ${overview[AppPlace.Headlines]}
 - The dates ahead, which get_calendar reads: ${overview[AppPlace.Calendar]}
 - The market's sectors and who trades it, which get_sectors and get_flows read: ${overview[AppPlace.Market]}
-Link a listing's code to its page the first time a reply names it, on the interval the reply is about, and link the place a reply's figures show where the user may want to look. Write no other #/ address but a settings tab's from get_setup: one the app does not know opens an empty page.`;
+- A strategy the user wrote, with its files, the versions allowed and its backtests: ${strategy("atr-breakout")} is atr-breakout's. Put the strategy's name in its place.
+Link a listing's code to its page the first time a reply names it, on the interval the reply is about, a strategy to its page once you saved it or the first time a reply names it, and the place a reply's figures show where the user may want to look. Write no other #/ address but a settings tab's from get_setup: one the app does not know opens an empty page.`;
 }
 
 function skillsText(skills: readonly AgentSkill[]): string {
