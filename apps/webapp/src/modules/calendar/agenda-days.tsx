@@ -1,6 +1,5 @@
-import { cn } from "@heroui/react";
+import { ToggleButton, ToggleButtonGroup, cn } from "@heroui/react";
 import { range } from "es-toolkit";
-import { ToggleButton, ToggleButtonGroup } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
 /** What falls on a day, by how surely: in ink where someone set the day, in pencil where it is only the latest or an expected one. */
@@ -98,7 +97,7 @@ export function AgendaDays({
   return (
     <div className="flex flex-col gap-2">
       <div>
-        <div aria-hidden className="grid grid-cols-7 text-xs text-muted">
+        <div aria-hidden className="grid grid-cols-7 gap-1 text-xs text-muted">
           {slots.slice(0, 7).map(({ day }) => (
             <span key={day} className="truncate px-2 pb-1">
               {weekday.format(utcDay(day))}
@@ -106,6 +105,7 @@ export function AgendaDays({
           ))}
         </div>
         <ToggleButtonGroup
+          isDetached
           aria-labelledby={labelledBy}
           selectionMode="single"
           selectedKeys={picked === null ? [] : [picked]}
@@ -114,7 +114,7 @@ export function AgendaDays({
 
             onPick(slots.find(({ day }) => day === key)?.day ?? null);
           }}
-          className="grid grid-cols-7 border-t border-l border-separator">
+          className="grid w-full grid-cols-7">
           {slots.map(({ day, shown }) => {
             const dayMarks = marks.get(day);
 
@@ -127,7 +127,7 @@ export function AgendaDays({
                   day,
                   (dayMarks?.inked ?? 0) + (dayMarks?.pencilled ?? 0)
                 )}
-                className="flex h-14 min-w-0 cursor-pointer flex-col items-start gap-1.5 border-r border-b border-separator px-2 py-1.5 -outline-offset-2 outline-(--focus) data-[disabled]:cursor-default data-[disabled]:text-muted/50 data-[focus-visible]:outline-2 data-[hovered]:bg-default/60 data-[selected]:bg-default data-[selected]:shadow-[inset_0_2px_0_var(--accent)]">
+                className="h-14 w-full min-w-0 flex-col items-start justify-start gap-1.5 px-2 py-1.5 font-normal">
                 <span
                   className={cn(
                     "text-xs tabular-nums",
@@ -138,7 +138,7 @@ export function AgendaDays({
                 {dayMarks ? <Marks {...dayMarks} /> : null}
               </ToggleButton>
             ) : (
-              <span key={day} className="border-r border-b border-separator" />
+              <span key={day} />
             );
           })}
         </ToggleButtonGroup>

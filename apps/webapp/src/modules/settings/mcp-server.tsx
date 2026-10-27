@@ -286,7 +286,7 @@ export function McpServer({ server }: { server: McpServerSetting }) {
 
   return (
     // The modal's title heads the first list, so that list draws no rule above it.
-    <Modal.Body className="flex flex-col gap-6 text-foreground [&>ul:first-child]:border-t-0">
+    <Modal.Body className="flex flex-col gap-6 text-foreground">
       <SettingsList>
         <ConnectionRow server={server} />
         {server.state === McpServerState.NeedsSignIn || server.signedIn ? (

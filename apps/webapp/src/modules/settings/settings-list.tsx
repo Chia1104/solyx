@@ -1,12 +1,8 @@
 import type { ReactNode } from "react";
 
-/** Settings as rows under a hairline, with one between each; the section's rule closes the list. */
+/** Settings as rows, which space alone parts, since the section's sheet holds them together. */
 export function SettingsList({ children }: { children: ReactNode }) {
-  return (
-    <ul className="flex flex-col divide-y divide-separator border-t border-separator">
-      {children}
-    </ul>
-  );
+  return <ul className="flex flex-col">{children}</ul>;
 }
 
 /**

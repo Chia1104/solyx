@@ -513,7 +513,7 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
           <h3 className="text-xs font-medium text-muted">
             {t("calendar.released")}
           </h3>
-          <ul className="divide-y divide-separator">
+          <ul className="flex flex-col">
             {released.toReversed().map((release) => (
               <ReleaseRow
                 key={releaseKey(release)}
@@ -540,9 +540,7 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
 
             if (shown.length > 0) {
               return (
-                <ul className="divide-y divide-separator">
-                  {shown.map(({ row }) => row)}
-                </ul>
+                <ul className="flex flex-col">{shown.map(({ row }) => row)}</ul>
               );
             }
 

@@ -172,7 +172,7 @@ export function SymbolChart({
       ) : null}
       {isPlaceholderData ? (
         // Shows only once loading takes a moment, so bars that arrive at once never flash it.
-        <div className="absolute inset-0 z-20 flex animate-[fade-in_150ms_var(--ease-out-quint)_150ms_both] items-center justify-center bg-background/50">
+        <div className="absolute inset-0 z-20 flex animate-[fade-in_150ms_var(--ease-out-quint)_150ms_both] items-center justify-center bg-surface/50">
           <Spinner />
         </div>
       ) : null}

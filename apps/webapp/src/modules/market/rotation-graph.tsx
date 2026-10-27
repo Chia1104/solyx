@@ -185,7 +185,7 @@ export function RotationPlot({
         <span
           role="status"
           aria-label={t("common.loading")}
-          className="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-background/50">
+          className="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-surface/50">
           <Spinner size="sm" color="current" className="text-muted" />
         </span>
       ) : null}
@@ -322,7 +322,7 @@ export function RotationPlot({
                   </>
                 }
                 className={cn(
-                  "inset-auto -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-background transition-[opacity,width,height]",
+                  "inset-auto -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-surface transition-[opacity,width,height]",
                   lifted(id) ? "size-3.5" : "size-2.5",
                   anyLifted && !lifted(id) && "opacity-30"
                 )}
@@ -336,7 +336,7 @@ export function RotationPlot({
                 <span
                   aria-hidden
                   className={cn(
-                    "pointer-events-none absolute -translate-y-1/2 rounded-sm bg-background/80 px-1 text-[11px] leading-4 font-medium whitespace-nowrap",
+                    "pointer-events-none absolute -translate-y-1/2 rounded-sm bg-surface/80 px-1 text-[11px] leading-4 font-medium whitespace-nowrap",
                     // Named on the side away from the nearer edge.
                     x(last.level) > 70
                       ? "-translate-x-[calc(100%+0.625rem)]"

@@ -260,7 +260,7 @@ function MarginLines({
                     return value === null ? null : (
                       <span
                         key={key}
-                        className="absolute hidden size-1.5 -translate-1/2 rounded-full ring-2 ring-background group-hover/mark:block group-focus-visible/mark:block"
+                        className="absolute hidden size-1.5 -translate-1/2 rounded-full ring-2 ring-surface group-hover/mark:block group-focus-visible/mark:block"
                         style={{
                           left: cssPercent(at),
                           top: cssPercent(y(value) / 100),

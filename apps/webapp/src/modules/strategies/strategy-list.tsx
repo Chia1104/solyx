@@ -113,7 +113,7 @@ function StrategyCard({
   const last = kept.data?.at(0);
 
   return (
-    <li className="flex flex-col gap-2 border-b border-separator py-4 last:border-b-0">
+    <li className="flex flex-col gap-2 well p-4">
       <header className="flex flex-wrap items-center gap-2">
         <Link
           to="/strategies/$name"
@@ -205,7 +205,7 @@ export function StrategyList() {
         <WriteWithAgent />
         <RevealStrategy name={null} />
       </div>
-      <ul className="flex flex-col">
+      <ul className="flex flex-col gap-2">
         {strategies.map((strategy) => (
           <StrategyCard key={strategy.name} strategy={strategy} reach={reach} />
         ))}

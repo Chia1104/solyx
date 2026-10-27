@@ -54,8 +54,7 @@ export function PendingProposals() {
           {t("proposals.none-pending")}
         </p>
       ) : (
-        // The section's own hairline closes the last one.
-        <div className="[&>article:last-child]:border-b-0">
+        <div className="flex flex-col gap-2">
           {data.map((proposal) => (
             <ProposalItem key={proposal.id} proposal={proposal} />
           ))}
@@ -91,7 +90,7 @@ export function ProposalHistory() {
   if (!data?.length) return null;
 
   return (
-    <div ref={history} className="border-b border-separator">
+    <div ref={history}>
       <Disclosure>
         <Disclosure.Heading>
           <Disclosure.Trigger
@@ -103,7 +102,7 @@ export function ProposalHistory() {
           </Disclosure.Trigger>
         </Disclosure.Heading>
         <Disclosure.Content>
-          <div className="border-t border-separator [&>article:last-child]:border-b-0">
+          <div className="flex flex-col gap-2">
             {data.map((proposal) => (
               <ProposalItem key={proposal.id} proposal={proposal} />
             ))}

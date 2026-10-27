@@ -31,7 +31,7 @@ export function SignInCode({ code, url }: { code: string; url: string }) {
     <div className="flex flex-col items-start gap-1.5 text-xs text-muted">
       <p>{t("settings.sign-in.enter-code")}</p>
       <Button
-        className="flex items-stretch rounded border border-dashed border-border bg-background ring-offset-2 ring-offset-background outline-none data-focus-visible:ring-2 data-focus-visible:ring-focus data-hovered:border-muted"
+        className="flex items-stretch rounded border border-dashed border-border bg-background ring-offset-2 ring-offset-surface outline-none data-focus-visible:ring-2 data-focus-visible:ring-focus data-hovered:border-muted"
         onPress={() =>
           void navigator.clipboard.writeText(code).then(() => setCopied(true))
         }>

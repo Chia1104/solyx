@@ -492,7 +492,7 @@ export function ProposalItem({ proposal }: { proposal: TradeProposal }) {
   );
 
   return (
-    <article className="relative flex flex-col gap-2 border-b border-separator py-3 pr-4 pl-6">
+    <article className="relative flex flex-col gap-2 sheet py-3 pr-4 pl-6">
       <span
         aria-hidden
         className={cn(

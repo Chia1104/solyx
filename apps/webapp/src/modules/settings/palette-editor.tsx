@@ -384,7 +384,7 @@ export function PaletteEditor({
   return (
     <section
       aria-labelledby={headingId}
-      className="flex flex-col gap-4 rounded border border-border bg-surface p-4">
+      className="flex flex-col gap-4 well p-4">
       <div className="flex items-center justify-between gap-2">
         <h3 id={headingId} className="text-sm font-medium">
           {t("settings.palette-editor.title", { name })}

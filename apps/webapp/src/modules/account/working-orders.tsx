@@ -171,7 +171,7 @@ export function WorkingOrderList() {
           {t("account.no-working")}
         </p>
       ) : (
-        <ul className="divide-y divide-separator">
+        <ul className="flex flex-col">
           {data.map((working) => (
             <li
               key={working.id}

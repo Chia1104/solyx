@@ -37,7 +37,7 @@ export function ListingPosition({ symbol }: { symbol: SymbolRef }) {
   return (
     <section
       aria-label={t("account.held")}
-      className="flex flex-col gap-3 border-t border-separator pt-4">
+      className="flex flex-col gap-3 well p-4">
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
         <div className="flex flex-col">
           <dt className="text-muted">{t("account.held")}</dt>

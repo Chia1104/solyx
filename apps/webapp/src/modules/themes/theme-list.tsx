@@ -158,7 +158,7 @@ export function ThemeList() {
       ) : (
         <>
           <WatchGaps />
-          <ul className="divide-y divide-separator">
+          <ul className="flex flex-col">
             {data.map((watch) => (
               <ThemeRow key={watch.theme.id} watch={watch} />
             ))}

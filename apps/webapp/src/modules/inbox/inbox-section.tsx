@@ -143,7 +143,7 @@ export function InboxSection() {
     );
   } else if (data) {
     body = (
-      <ul className="divide-y divide-separator">
+      <ul className="flex flex-col">
         {data.proposals.map((proposal) => (
           <ProposalRow key={proposal.id} proposal={proposal} />
         ))}

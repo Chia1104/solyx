@@ -295,7 +295,7 @@ export function ProfitLoss() {
             {t("account.no-positions")}
           </p>
         ) : (
-          <ul className="divide-y divide-separator">
+          <ul className="flex flex-col">
             {data.positions.map((position) => (
               <HoldingRow
                 key={symbolKey(position.instrument)}
