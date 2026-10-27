@@ -425,7 +425,7 @@ function CoverageView({
   // A listing's filings are the app's to show whether or not the agent has written of it.
   if (!report && forecasts.length === 0) {
     return (
-      <div className="flex flex-col gap-4 px-6 py-4 text-sm">
+      <div className="flex flex-col gap-4 px-4 py-4 text-sm">
         <p className="text-muted">{t("research.empty")}</p>
         <ListingRotation symbol={symbol} />
         <FinancialTrends symbol={symbol} />
@@ -435,7 +435,7 @@ function CoverageView({
 
   return (
     // Side by side where the main view is wide; narrower, the forecasts follow the report.
-    <div className="grid gap-6 px-6 py-4 @min-[56rem]/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+    <div className="grid gap-6 px-4 py-4 @min-[56rem]/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <div className="@min-[56rem]/main:col-span-2">
         <ListingRotation symbol={symbol} />
       </div>
@@ -503,7 +503,7 @@ export function ResearchPanel({
 
   if (error) {
     body = (
-      <div className="px-6 py-4">
+      <div className="px-4 py-4">
         <LoadError error={error} onRetry={() => void refetch()} />
       </div>
     );
@@ -515,7 +515,7 @@ export function ResearchPanel({
     <section
       aria-label={t("research.title")}
       className="flex h-full flex-col overflow-hidden">
-      <div className="flex h-10 shrink-0 items-center gap-3 px-6">
+      <div className="flex h-10 shrink-0 items-center gap-3 px-4">
         {heading}
         <div className="ml-auto flex">
           <DeepAnalysisButton symbol={symbol} />

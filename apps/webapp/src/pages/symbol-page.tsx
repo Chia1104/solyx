@@ -172,7 +172,7 @@ export function SymbolPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ColumnHeader className="gap-2 px-6">
+      <ColumnHeader className="gap-2">
         <SymbolQuote symbol={symbol} depth={depth} />
         <WatchToggle symbol={symbol} />
         <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -233,7 +233,7 @@ export function SymbolPage() {
       <div ref={split} className="flex min-h-0 flex-1 flex-col">
         {/* The book stands beside the chart alone, so the news below runs the page's full width. */}
         <div ref={upper} className="flex min-h-40 flex-1">
-          <div className="min-w-0 flex-1 sheet p-3">
+          <div className="min-w-0 flex-1 sheet p-4">
             <SymbolChart
               symbol={symbol}
               interval={interval}

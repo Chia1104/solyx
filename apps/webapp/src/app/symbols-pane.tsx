@@ -14,7 +14,7 @@ export function SymbolsPane() {
 
   return (
     <div className="@container/symbols flex h-full flex-col">
-      <ColumnHeader className="px-5">
+      <ColumnHeader>
         <h2 id={watchlistId} className="text-sm font-semibold">
           {t("watchlist.title")}
         </h2>
@@ -24,7 +24,7 @@ export function SymbolsPane() {
           <Watchlist />
         </section>
         <section aria-labelledby={positionsId} className="flex flex-col gap-1">
-          <h2 id={positionsId} className="px-5 text-xs font-medium text-muted">
+          <h2 id={positionsId} className="px-4 text-xs font-medium text-muted">
             {t("account.positions")}
           </h2>
           <PositionList />

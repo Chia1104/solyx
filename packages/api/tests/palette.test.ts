@@ -7,6 +7,7 @@ import {
   hasPalette,
   isCustomPalette,
   resolvePalette,
+  tableColor,
 } from "@solyx/api/palette";
 
 const custom = {
@@ -44,4 +45,12 @@ test("only the user's own palettes are custom", () => {
   expect(hasPalette("toString", custom)).toBe(false);
   expect(isCustomPalette("dusk", custom)).toBe(true);
   expect(isCustomPalette(Palette.Sepia, custom)).toBe(false);
+});
+
+test("the table sits a shade behind the background in either scheme", () => {
+  const light = PALETTES[Palette.Blueprint][ColorScheme.Light];
+  const dark = PALETTES[Palette.Blueprint][ColorScheme.Dark];
+
+  expect(tableColor(light, ColorScheme.Light)).toBe("#e7e9ec");
+  expect(tableColor(dark, ColorScheme.Dark)).toBe("#0a0d12");
 });

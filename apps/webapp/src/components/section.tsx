@@ -16,7 +16,7 @@ export function Section({
   return (
     <section
       aria-labelledby={titleId}
-      className="flex flex-col gap-4 sheet px-5 py-4">
+      className="flex flex-col gap-4 sheet p-4">
       <header className="flex max-w-prose flex-col gap-1">
         <h2 id={titleId} className="text-base font-semibold">
           {title}

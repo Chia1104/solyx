@@ -61,7 +61,7 @@ export function MarketDataSettings({
         description={t("settings.fundamentals.description")}>
         <FinMindSettings />
       </Section>
-      <p className="px-5 py-2 text-xs text-muted">
+      <p className="px-4 py-2 text-xs text-muted">
         {t("settings.market-data.description")}
       </p>
     </>

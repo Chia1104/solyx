@@ -136,7 +136,7 @@ export function Watchlist() {
 
   if (error) {
     return (
-      <div className="px-2">
+      <div>
         <LoadError error={error} onRetry={() => void refetch()} />
       </div>
     );
@@ -146,7 +146,7 @@ export function Watchlist() {
 
   if (data.length === 0) {
     return (
-      <p className="mx-2 rounded-sm pencil px-3 py-3 text-xs text-muted">
+      <p className="rounded-sm pencil px-4 py-3 text-xs text-muted">
         {t("watchlist.empty")}
       </p>
     );
@@ -190,7 +190,7 @@ export function Watchlist() {
                   symbol: symbol.symbol,
                 })}
                 isDisabled={remove.isPending}
-                className="absolute top-1 right-3 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none"
+                className="absolute top-1 right-2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none"
                 onPress={() => remove.mutate(symbol)}
               />
             </GridListItem>
@@ -198,7 +198,7 @@ export function Watchlist() {
         </GridList>
       </Virtualizer>
       {actionError ? (
-        <div className="px-2 pt-2">
+        <div className="pt-2">
           <ErrorAlert
             title={t("watchlist.update-failed")}
             description={actionError.message}

@@ -3,8 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
 
-import { ColorScheme } from "@solyx/api/palette";
-import type { PaletteColors } from "@solyx/api/palette";
+import { ColorScheme, tableColor } from "@solyx/api/palette";
 import { PRODUCT_NAME } from "@solyx/api/product";
 import type { WindowPaint } from "@solyx/backend/host";
 
@@ -19,42 +18,52 @@ export const APP_ICON = join(bundleDir, "icon.png");
 /** The renderer's title bar height; it lays itself out around the controls through `env(titlebar-area-*)`. */
 const TITLE_BAR_HEIGHT = 44;
 
-function titleBarOverlay(colors: PaletteColors) {
+/** What a window draws itself: the table the page lies on, and its controls' symbols. */
+interface WindowChrome {
+  table: string;
+  symbols: string;
+}
+
+function titleBarOverlay(chrome: WindowChrome) {
   return {
-    color: colors.background,
-    symbolColor: colors.foreground,
+    color: chrome.table,
+    symbolColor: chrome.symbols,
     height: TITLE_BAR_HEIGHT,
   };
 }
 
 /**
- * Paints the window's own background, which shows until the page paints, and the window
- * controls Windows and Linux draw.
+ * Paints the window's own background, which shows until the page paints and is the table the
+ * page lies on, and the window controls Windows and Linux draw on it.
  */
-function paintWindow(win: BrowserWindow, colors: PaletteColors) {
-  win.setBackgroundColor(colors.background);
+function paintWindow(win: BrowserWindow, chrome: WindowChrome) {
+  win.setBackgroundColor(chrome.table);
 
   if (process.platform !== "darwin")
-    win.setTitleBarOverlay(titleBarOverlay(colors));
+    win.setTitleBarOverlay(titleBarOverlay(chrome));
 }
 
 /** The app's windows, which show what the services last painted. */
 export function createWindows() {
   let painted: WindowPaint | undefined;
 
-  /** The palette windows show now, in the scheme the theme or the computer picks. */
-  function colors(): PaletteColors {
+  /** The chrome of the palette windows show now, in the scheme the theme or the computer picks. */
+  function chrome(): WindowChrome {
     if (!painted)
       throw new Error("The services paint windows before one opens");
 
-    return painted.colors[
-      nativeTheme.shouldUseDarkColors ? ColorScheme.Dark : ColorScheme.Light
-    ];
+    const scheme = nativeTheme.shouldUseDarkColors
+      ? ColorScheme.Dark
+      : ColorScheme.Light;
+
+    const colors = painted.colors[scheme];
+
+    return { table: tableColor(colors, scheme), symbols: colors.foreground };
   }
 
   /** The renderer is sandboxed and can only reach the main process through the preload bridge. */
   function open() {
-    const initial = colors();
+    const initial = chrome();
 
     const win = new BrowserWindow({
       width: 1280,
@@ -65,7 +74,7 @@ export function createWindows() {
       title: PRODUCT_NAME,
       // Windows shows the executable's icon and macOS the app's.
       icon: process.platform === "linux" ? APP_ICON : undefined,
-      backgroundColor: initial.background,
+      backgroundColor: initial.table,
       titleBarStyle: "hidden",
       titleBarOverlay: titleBarOverlay(initial),
       // Centers the traffic lights in the title bar.
@@ -79,7 +88,7 @@ export function createWindows() {
     });
 
     // The theme can change from settings as well as from the OS.
-    const followTheme = () => paintWindow(win, colors());
+    const followTheme = () => paintWindow(win, chrome());
 
     nativeTheme.on("updated", followTheme);
     win.on("closed", () => nativeTheme.off("updated", followTheme));
@@ -121,7 +130,7 @@ export function createWindows() {
       nativeTheme.themeSource = paint.theme;
 
       for (const win of BrowserWindow.getAllWindows()) {
-        paintWindow(win, colors());
+        paintWindow(win, chrome());
       }
     },
 

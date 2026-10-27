@@ -301,16 +301,16 @@ export function BacktestPanel({
     <section
       aria-label={t("backtests.title")}
       className="flex h-full flex-col overflow-hidden">
-      <div className="flex h-10 shrink-0 items-center gap-3 px-6">
+      <div className="flex h-10 shrink-0 items-center gap-3 px-4">
         {heading}
         <ChartSwitch />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-3 px-6 pt-4">
+        <div className="flex flex-col gap-3 px-4 pt-4">
           <ViewSwitch view={view} onChange={(next) => setView(symbol, next)} />
         </div>
         {/* Side by side where the main view is wide; narrower, the run follows its setup. */}
-        <div className="grid items-start gap-6 px-6 py-4 @min-[56rem]/main:grid-cols-[20rem_minmax(0,1fr)]">
+        <div className="grid items-start gap-6 px-4 py-4 @min-[56rem]/main:grid-cols-[20rem_minmax(0,1fr)]">
           {view === PanelView.History ? (
             <HistoryView symbol={symbol} />
           ) : (
