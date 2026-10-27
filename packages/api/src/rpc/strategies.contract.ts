@@ -2,7 +2,7 @@ import { oc, type } from "@orpc/contract";
 
 import { saveStrategyArgumentsSchema } from "@solyx/agent/wire";
 import { strategyNameSchema } from "@solyx/core/strategy";
-import type { StrategyApproval } from "@solyx/core/strategy";
+import type { StrategyApproval, StrategyRuntime } from "@solyx/core/strategy";
 
 import { strategyApproveSchema } from "../strategies.ts";
 import type { StrategyCatalog, StrategyReview } from "../strategies.ts";
@@ -30,6 +30,15 @@ export const strategiesContract = {
   draft: oc.input(saveStrategyArgumentsSchema).output(type<StrategyReview>()),
   /** Takes back every version of a strategy allowed so far. */
   revoke: oc.input(strategyNameSchema).output(type<void>()),
+  /**
+   * Moves a strategy's folder to the computer's trash, where the user can take it back, and takes
+   * back every version allowed; a folder that holds no strategy that reads goes too.
+   */
+  trash: oc.input(strategyNameSchema).output(type<void>()),
+  /** Shows a strategy's folder in the file manager, or the strategies folder, made first, for `null`. */
+  reveal: oc.input(strategyNameSchema.nullable()).output(type<void>()),
+  /** The interpreters a strategy's code finds where it would run now, each with its version. */
+  runtimes: oc.output(type<StrategyRuntime[]>()),
   /** Each time a strategy is written, or a version allowed or taken back. */
   changes: changesContract,
 };

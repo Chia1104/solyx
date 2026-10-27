@@ -56,4 +56,6 @@ export interface Host {
   settings: SettingsShell;
   /** Quits the app and starts it again; quitting closes what is open first, as any quit does. */
   restart(): void;
+  /** Moves a file or folder to the computer's trash, where the user can take it back. */
+  trashItem(path: string): Promise<void>;
 }

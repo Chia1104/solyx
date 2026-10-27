@@ -10,4 +10,5 @@ export const LINKS: AppLinks = {
     calendar: "#/?tab=calendar",
     market: "#/?tab=market",
   },
+  strategy: (name) => `#/strategies/${name}`,
 };

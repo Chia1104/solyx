@@ -51,6 +51,7 @@ import type { AgentScreen, AgentUpdate } from "@solyx/api/agent";
 import { OverviewTab, overviewLink } from "@solyx/api/overview-tab";
 import type { Locale, TimeZone } from "@solyx/api/settings";
 import type { ConversationsUsage } from "@solyx/api/storage";
+import { strategiesLink } from "@solyx/api/strategies";
 import { symbolLink } from "@solyx/api/symbol-link";
 import type { BacktestKernel } from "@solyx/core/backtest";
 import { BrokerMode } from "@solyx/core/broker";
@@ -279,6 +280,7 @@ export function createAgentService(options: AgentServiceOptions) {
         [AppPlace.Calendar]: overviewLink(OverviewTab.Calendar),
         [AppPlace.Market]: overviewLink(OverviewTab.Market),
       },
+      strategy: strategiesLink,
     },
     // A skill's folder is told only while the shell that could run its scripts is on.
     skills: async () =>

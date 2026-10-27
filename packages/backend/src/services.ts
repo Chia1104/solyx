@@ -294,6 +294,8 @@ export function createServices(config: ConfigFile, host: Host) {
       sandboxed: sandbox !== undefined && config.read().agent.shellSandbox,
       live: desk.mode !== BrokerMode.Paper,
     }),
+    showItemInFolder: (path) => host.settings.showItemInFolder(path),
+    trashItem: (path) => host.trashItem(path),
     onChange: () => void windowEvents.publish("strategies:changed", {}),
   });
 

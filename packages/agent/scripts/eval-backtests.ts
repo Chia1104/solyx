@@ -200,6 +200,7 @@ const LINKS = {
     calendar: "#/?tab=calendar",
     market: "#/?tab=market",
   },
+  strategy: (name: string) => `#/strategies/${name}`,
 };
 
 /** A backtest a script ran, alone or as a cell of a scan: what it asked the engine and what came of it. */

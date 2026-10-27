@@ -269,6 +269,8 @@ async function runRequest(request: StrategyRequest) {
     ),
     snapshots: createStrategySnapshots(join(directory, "versions")),
     reach: () => ({ sandboxed: sandbox !== undefined, live: false }),
+    showItemInFolder: () => undefined,
+    trashItem: async () => undefined,
     onChange: () => undefined,
   });
 
@@ -308,6 +310,7 @@ async function runRequest(request: StrategyRequest) {
         calendar: "#/?tab=calendar",
         market: "#/?tab=market",
       },
+      strategy: (name) => `#/strategies/${name}`,
     },
     skills,
     instructions: async () => undefined,

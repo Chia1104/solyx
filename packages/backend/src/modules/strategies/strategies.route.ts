@@ -19,6 +19,15 @@ export const strategiesRouter = contractOS.strategies.router({
   revoke: contractOS.strategies.revoke.handler(({ context, input }) =>
     context.strategies.revoke(input)
   ),
+  trash: contractOS.strategies.trash.handler(({ context, input }) =>
+    context.strategies.trash(input)
+  ),
+  reveal: contractOS.strategies.reveal.handler(({ context, input }) =>
+    context.strategies.reveal(input)
+  ),
+  runtimes: contractOS.strategies.runtimes.handler(({ context, signal }) =>
+    context.strategies.runtimes(signal)
+  ),
   changes: contractOS.strategies.changes.handler(({ context, signal }) =>
     context.windowEvents.subscribe("strategies:changed", { signal })
   ),
