@@ -1,6 +1,5 @@
-import { cn } from "@heroui/react";
+import { ToggleButton, ToggleButtonGroup, cn } from "@heroui/react";
 import { range } from "es-toolkit";
-import { ToggleButton, ToggleButtonGroup } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
 /** What falls on a day, by how surely: in ink where someone set the day, in pencil where it is only the latest or an expected one. */
@@ -106,6 +105,7 @@ export function AgendaDays({
           ))}
         </div>
         <ToggleButtonGroup
+          isDetached
           aria-labelledby={labelledBy}
           selectionMode="single"
           selectedKeys={picked === null ? [] : [picked]}
@@ -114,7 +114,7 @@ export function AgendaDays({
 
             onPick(slots.find(({ day }) => day === key)?.day ?? null);
           }}
-          className="grid grid-cols-7 gap-1">
+          className="grid w-full grid-cols-7">
           {slots.map(({ day, shown }) => {
             const dayMarks = marks.get(day);
 
@@ -127,7 +127,7 @@ export function AgendaDays({
                   day,
                   (dayMarks?.inked ?? 0) + (dayMarks?.pencilled ?? 0)
                 )}
-                className="flex h-14 min-w-0 cursor-pointer flex-col items-start gap-1.5 well px-2 py-1.5 -outline-offset-2 outline-(--focus) data-[disabled]:cursor-default data-[disabled]:text-muted/50 data-[focus-visible]:outline-2 data-[hovered]:bg-default data-[selected]:bg-default data-[selected]:shadow-[inset_0_2px_0_var(--accent)]">
+                className="h-14 w-full min-w-0 flex-col items-start justify-start gap-1.5 px-2 py-1.5 font-normal">
                 <span
                   className={cn(
                     "text-xs tabular-nums",
