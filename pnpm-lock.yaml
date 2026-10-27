@@ -484,6 +484,9 @@ overrides:
   vite@*: npm:@voidzero-dev/vite-plus-core@1.4.0
   '@opentelemetry/api': 1.10.0
 
+patchedDependencies:
+  '@standard-server/peer@0.10.3': 1a19db43e118a0d1c69810c39009ab2f289c843d6c7a2ae14fc0c0d8f008d30d
+
 importers:
 
   .:
@@ -12014,7 +12017,7 @@ snapshots:
       '@orpc/shared': 2.0.0-beta.43
       '@standard-server/core': 0.10.3
       '@standard-server/fetch': 0.10.3
-      '@standard-server/peer': 0.10.3
+      '@standard-server/peer': 0.10.3(patch_hash=1a19db43e118a0d1c69810c39009ab2f289c843d6c7a2ae14fc0c0d8f008d30d)
 
   '@orpc/contract@2.0.0-beta.43':
     dependencies:
@@ -12066,7 +12069,7 @@ snapshots:
       '@standard-server/fastify': 0.10.3
       '@standard-server/fetch': 0.10.3
       '@standard-server/node': 0.10.3
-      '@standard-server/peer': 0.10.3
+      '@standard-server/peer': 0.10.3(patch_hash=1a19db43e118a0d1c69810c39009ab2f289c843d6c7a2ae14fc0c0d8f008d30d)
       cookie: 2.0.1
 
   '@orpc/shared@2.0.0-beta.43':
@@ -12926,7 +12929,7 @@ snapshots:
       '@standard-server/fetch': 0.10.3
       '@standard-server/shared': 0.10.3
 
-  '@standard-server/peer@0.10.3':
+  '@standard-server/peer@0.10.3(patch_hash=1a19db43e118a0d1c69810c39009ab2f289c843d6c7a2ae14fc0c0d8f008d30d)':
     dependencies:
       '@standard-server/core': 0.10.3
       '@standard-server/shared': 0.10.3

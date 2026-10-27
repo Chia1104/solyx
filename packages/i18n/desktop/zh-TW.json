@@ -580,6 +580,22 @@
       "attach-label": "附加 {{label}}",
       "detach": "不附加 {{label}}"
     },
+    "attachments": {
+      "add": "附加檔案",
+      "drop": "拖放檔案以附加",
+      "remove": "移除 {{name}}",
+      "text": "文字",
+      "unreadable": "這個模型看不到圖片",
+      "no-images": "{{model}} 看不到圖片。請移除圖片，或換一個能讀圖的模型。",
+      "refused": {
+        "too-large": "{{name}} 超過 20 MB。",
+        "unsupported": "{{name}} 不是圖片（PNG、JPEG、GIF、WebP）或文字檔。",
+        "too-long": "{{name}} 的文字超過 100 KB。",
+        "too-many-pixels": "{{name}} 超過 5,000 萬像素。",
+        "secret": "{{name}} 含有私鑰或憑證，不能附加。",
+        "too-many": "{{name}} 沒有附加：一則訊息最多 5 個檔案。"
+      }
+    },
     "composer-menu": {
       "listings": "標的",
       "skills": "指令與技能",

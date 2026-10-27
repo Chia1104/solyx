@@ -39,6 +39,9 @@ export const agentRouter = agent.router({
       context.client.kind === ClientKind.Device
     )
   ),
+  attachment: agent.attachment.handler(({ context, input }) =>
+    context.agent.attachment(input.id, input.path)
+  ),
   abort: agent.abort.handler(({ context, input }) =>
     context.agent.abort(input)
   ),

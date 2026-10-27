@@ -34,7 +34,8 @@ const uploadSourceMaps = sentryAuthToken
 
 // Dev needs inline React Refresh and the HMR socket, so the CSP only ships with builds.
 // Inline styles are allowed because react-aria injects a <style> element and a static
-// file:// build cannot mint per-load nonces; scripts stay restricted to the bundle.
+// file:// build cannot mint per-load nonces; scripts stay restricted to the bundle. Images may
+// also be `blob:`, which only this page can mint, for the files a message carries.
 const contentSecurityPolicy: Plugin = {
   name: "solyx:csp",
   apply: "build",
@@ -43,7 +44,8 @@ const contentSecurityPolicy: Plugin = {
       tag: "meta",
       attrs: {
         "http-equiv": "Content-Security-Policy",
-        content: "default-src 'self'; style-src 'self' 'unsafe-inline'",
+        content:
+          "default-src 'self'; img-src 'self' blob:; style-src 'self' 'unsafe-inline'",
       },
       injectTo: "head-prepend",
     },

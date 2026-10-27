@@ -85,7 +85,7 @@ import { createAgentModels } from "./agent-models.ts";
 import type { AgentModelsOptions } from "./agent-models.ts";
 import { createAgentSetup } from "./agent-setup.ts";
 import type { AgentSetupSources } from "./agent-setup.ts";
-import { keepAttachments } from "./attachments.ts";
+import { keepAttachments, keptAttachment } from "./attachments.ts";
 import { createImageThreads } from "./image-threads.ts";
 import type { McpServers } from "./mcp-servers.ts";
 import { messageContext, screenContext } from "./message-context.ts";
@@ -641,6 +641,9 @@ export function createAgentService(options: AgentServiceOptions) {
         asksEveryCall,
         attachments,
       }),
+
+    attachment: (id: string, path: string) =>
+      keptAttachment(workspace(id), path),
 
     /** Whether a run is going in the conversation; one since deleted has none. */
     busy: (id: string) => runtime.busy(id),
