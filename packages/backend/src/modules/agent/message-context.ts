@@ -69,7 +69,10 @@ function backtestCall(
 export function screenContext(
   screen: AgentScreen | null,
   now: Date
-): Pick<TurnContext, "focus" | "chart" | "backtest" | "place" | "settings"> {
+): Pick<
+  TurnContext,
+  "focus" | "chart" | "backtest" | "place" | "settings" | "strategies"
+> {
   switch (screen?.kind) {
     case ScreenKind.Listing:
       return {
@@ -86,6 +89,8 @@ export function screenContext(
       return { place: PLACE_OF_TAB[screen.tab] };
     case ScreenKind.Settings:
       return { settings: screen.section.replaceAll("-", " ") };
+    case ScreenKind.Strategies:
+      return { strategies: { name: screen.name } };
     default:
       return {};
   }

@@ -205,6 +205,8 @@ export interface TurnContext {
   place?: AppPlace;
   /** The settings section the user has open instead, by its name. */
   settings?: string;
+  /** The strategies page the user has open instead, and the strategy whose page it is, where one is. */
+  strategies?: { name?: string };
   /** The listings the user named with `@`, as the app resolved them. */
   mentions?: readonly ContextListing[];
   /** The skill the user asked for by starting the message with `/name`. */
@@ -238,6 +240,7 @@ function viewingText({
   chart,
   place,
   settings,
+  strategies,
 }: TurnContext): string | undefined {
   if (focus) {
     if (!chart) return listingText(focus);
@@ -249,6 +252,12 @@ function viewingText({
   }
 
   if (place) return `the overview, ${PLACE_NAME[place]}`;
+
+  if (strategies) {
+    return strategies.name === undefined
+      ? "the strategies page"
+      : `the page of the strategy ${strategies.name}`;
+  }
 
   return settings === undefined ? undefined : `the settings, ${settings}`;
 }

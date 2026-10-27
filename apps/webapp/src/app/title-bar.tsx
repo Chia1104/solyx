@@ -8,11 +8,13 @@ import {
   SidebarLeftIcon,
   SidebarRight01Icon,
   SidebarRightIcon,
+  StrategyIcon,
 } from "@hugeicons/core-free-icons";
 import { formatForDisplay } from "@tanstack/react-hotkeys";
 import {
   Link,
   useCanGoBack,
+  useMatchRoute,
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
@@ -98,6 +100,29 @@ function BackButton() {
   );
 }
 
+/** Opens the strategies page, marked while it or a strategy's page is open. */
+function StrategiesButton() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  const open = useMatchRoute()({ to: "/strategies", fuzzy: true }) !== false;
+
+  return (
+    <Tooltip delay={TOOLTIP_DELAY}>
+      <Button
+        isIconOnly
+        size="sm"
+        variant="ghost"
+        aria-label={t("nav.strategies")}
+        className={cn(open && "bg-default")}
+        onPress={() => void navigate({ to: "/strategies" })}>
+        <Icon icon={StrategyIcon} />
+      </Button>
+      <Tooltip.Content>{t("nav.strategies")}</Tooltip.Content>
+    </Tooltip>
+  );
+}
+
 function SettingsButton() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -119,7 +144,7 @@ function SettingsButton() {
   );
 }
 
-/** The workspace's title bar: the pane toggles, back, search, a waiting update, market sessions and settings. */
+/** The workspace's title bar: the pane toggles, back, search, a waiting update, market sessions, the strategies and settings. */
 export function TitleBar({ searchRef }: { searchRef: Ref<HTMLInputElement> }) {
   const { t } = useTranslation();
 
@@ -139,6 +164,7 @@ export function TitleBar({ searchRef }: { searchRef: Ref<HTMLInputElement> }) {
           <BrokerModeChip />
         </div>
         <div className="flex items-center gap-1">
+          <StrategiesButton />
           {inWindow ? <SettingsButton /> : null}
           <PaneToggle pane={Pane.Agent} />
         </div>

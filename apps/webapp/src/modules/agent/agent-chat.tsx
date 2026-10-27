@@ -34,6 +34,13 @@ function useScreen(): AgentScreen | null {
 
   const overview = useMatch({ from: "/", shouldThrow: false });
   const settings = useMatch({ from: "/settings", shouldThrow: false });
+  const strategies = useMatch({ from: "/strategies", shouldThrow: false });
+
+  const strategy = useMatch({
+    from: "/strategies/$name",
+    shouldThrow: false,
+  });
+
   const enabled = useIndicatorStore((state) => state.enabled);
 
   // The single run the backtest panel under the chart shows, which the agent can run as it ran.
@@ -73,6 +80,11 @@ function useScreen(): AgentScreen | null {
   }
 
   if (overview) return { kind: ScreenKind.Overview, tab: overview.search.tab };
+
+  if (strategy)
+    return { kind: ScreenKind.Strategies, name: strategy.params.name };
+
+  if (strategies) return { kind: ScreenKind.Strategies };
 
   return settings
     ? { kind: ScreenKind.Settings, section: settings.search.section }

@@ -12,6 +12,7 @@ import {
 } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import type { Control, UseFormReturn } from "react-hook-form";
@@ -569,7 +570,14 @@ function OwnStrategyPicker({
     return (
       <div className="flex flex-col items-start gap-2">
         <p className="text-xs text-muted">{t("backtests.form.own-none")}</p>
-        <WriteStrategy symbol={symbol} />
+        <div className="flex flex-wrap items-center gap-2">
+          <WriteStrategy symbol={symbol} />
+          <Link
+            to="/strategies"
+            className="text-xs text-accent underline underline-offset-2">
+            {t("backtests.form.own-manage")}
+          </Link>
+        </div>
       </div>
     );
   }
@@ -586,6 +594,11 @@ function OwnStrategyPicker({
       {own && !own.allowed && reach ? (
         <StrategyAllow strategy={own} reach={reach} />
       ) : null}
+      <Link
+        to="/strategies"
+        className="self-start text-xs text-accent underline underline-offset-2">
+        {t("backtests.form.own-manage")}
+      </Link>
     </>
   );
 }

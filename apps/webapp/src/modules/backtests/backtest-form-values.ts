@@ -19,7 +19,12 @@ import {
   distinctSeries,
   ruleStrategySchema,
 } from "@solyx/core/backtest";
-import { Interval, intervalSchema, isIntraday } from "@solyx/core/candles";
+import {
+  HISTORY_YEARS,
+  Interval,
+  intervalSchema,
+  isIntraday,
+} from "@solyx/core/candles";
 import type { SymbolRef } from "@solyx/core/market";
 import {
   GridProblem,
@@ -212,6 +217,22 @@ function initialRun(symbol: SymbolRef): BacktestSetup {
     symbol,
     interval: Interval.OneDay,
     years: STRATEGY_TEMPLATES[strategy.template].years,
+    strategy,
+    split: DEFAULT_SPLIT,
+    capital: DEFAULT_CAPITAL,
+    costs: defaultCosts(symbol),
+  };
+}
+
+/**
+ * A single run of `strategy`, one of the user's, on `symbol` at the numbers `params` gives: daily
+ * bars over the most years the panel reads, so each stretch holds as many trades as it can.
+ */
+export function ownRun(symbol: SymbolRef, strategy: OwnSetup): BacktestSetup {
+  return {
+    symbol,
+    interval: Interval.OneDay,
+    years: HISTORY_YEARS,
     strategy,
     split: DEFAULT_SPLIT,
     capital: DEFAULT_CAPITAL,

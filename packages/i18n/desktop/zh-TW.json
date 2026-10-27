@@ -2,7 +2,8 @@
   "nav": {
     "back": "返回",
     "overview": "總覽",
-    "settings": "設定"
+    "settings": "設定",
+    "strategies": "策略"
   },
   "workspace": {
     "symbols": "自選與庫存",
@@ -1045,7 +1046,8 @@
       "own-pick": "你的策略",
       "own-hint": "你寫在策略資料夾裡的程式；依它算出的線、照它的規則交易。",
       "own-none": "還沒有策略。可以請 Agent 一起寫，或在 App 設定資料夾的 strategies 裡加一個含 STRATEGY.md 的資料夾。",
-      "own-grid": "網格要沿策略的兩個數字跑，這個策略不到兩個。"
+      "own-grid": "網格要沿策略的兩個數字跑，這個策略不到兩個。",
+      "own-manage": "管理你的策略"
     },
     "params": {
       "fast": "短均線",
@@ -2497,6 +2499,113 @@
       "allow": "允許這個版本",
       "on-computer": "請在電腦上允許。",
       "failed": "無法允許"
+    },
+    "rules": {
+      "price": {
+        "open": "開盤價",
+        "high": "最高價",
+        "low": "最低價",
+        "close": "收盤價",
+        "volume": "成交量"
+      },
+      "band": {
+        "upper": "布林上軌（{{period}}, {{width}}）",
+        "middle": "布林中軌（{{period}}, {{width}}）",
+        "lower": "布林下軌（{{period}}, {{width}}）"
+      },
+      "highest_one": "前 {{count}} 根的最高價",
+      "highest_other": "前 {{count}} 根的最高價",
+      "lowest_one": "前 {{count}} 根的最低價",
+      "lowest_other": "前 {{count}} 根的最低價",
+      "and": " 且 ",
+      "or": " 或 ",
+      "above": "{{left}} 高於 {{right}}",
+      "below": "{{left}} 低於 {{right}}",
+      "crossesAbove": "{{left}} 向上穿越 {{right}}",
+      "crossesBelow": "{{left}} 向下穿越 {{right}}",
+      "entry": "進場：{{condition}}",
+      "exit": "出場：{{condition}}",
+      "stop-loss": "停損 {{value}}",
+      "take-profit": "停利 {{value}}"
+    },
+    "standing": {
+      "allowed": {
+        "user": "你允許，{{at}}",
+        "check": "決策模型允許，{{at}}",
+        "mode": "對話設定允許，{{at}}"
+      },
+      "elsewhere-only": "這個版本允許過，但不是在現在的執行環境",
+      "elsewhere-only-live": "有實盤帳戶又在沙箱外時，只跑你親自允許的版本",
+      "changed": "改過了，這個版本還沒允許",
+      "new": "還沒允許"
+    },
+    "approver": {
+      "user": "你",
+      "check": "決策模型",
+      "mode": "對話設定"
+    },
+    "page": {
+      "list": "你的策略",
+      "list-description": "放在 App 設定資料夾的 strategies 裡。任何檔案一改就是新版本，要允許後才會執行。",
+      "list-joiner": "；",
+      "param": "{{name}} {{min}}–{{max}}，間隔 {{step}}，從 {{initial}} 開始",
+      "last-run": "最近一次回測",
+      "details": "詳細",
+      "details-allow": "檢查並允許",
+      "backtest": "回測",
+      "backtest-on": "回測於",
+      "backtest-code": "代號",
+      "backtest-blocked": "允許這個版本後才能回測。",
+      "change": "請 Agent 修改",
+      "change-prompt": "/strategy 修改我的策略 {{name}}：",
+      "write": "請 Agent 一起寫",
+      "write-prompt": "/strategy 幫我寫一個策略：",
+      "reveal": "開啟資料夾",
+      "revoke": "撤銷所有允許",
+      "revoke-confirm": "再按一次撤銷",
+      "revoke-failed": "無法撤銷允許",
+      "trash": "移到垃圾桶",
+      "trash-confirm": "再按一次移到垃圾桶",
+      "trash-failed": "無法移到垃圾桶",
+      "empty-lines": "策略是你寫的程式，用個股的 K 線算出幾條線，任何你電腦能跑的語言都可以。",
+      "empty-engine": "Solyx 的引擎照它對這些線定的規則交易，和範本一樣由引擎成交並計算成本。",
+      "empty-allowed": "電腦有沙箱時，程式就在沙箱裡執行，每個版本都要你允許後才會跑。",
+      "problems": "讀不了的資料夾",
+      "problems-description": "strategies 裡的這些資料夾，沒有 Solyx 能執行的策略，原因如下。",
+      "runtimes": "執行環境",
+      "runtimes-description": "策略的程式在它執行的地方，能在 PATH 上找到的直譯器。",
+      "sandboxed": "策略的程式在沙箱裡執行：只讀得到自己的檔案和 PATH 上的工具，只能寫入這次執行的資料夾，也連不上網路。",
+      "outside": "策略的程式在沙箱外執行，能存取你的檔案與網路。",
+      "outside-live": "策略的程式在沙箱外執行，能存取你的檔案與網路；有實盤帳戶時，只跑你親自允許的版本。",
+      "sandbox-setting": "沙箱設定",
+      "no-runtimes": "找不到任何直譯器。請先安裝一個，例如 Python，策略才能執行。",
+      "runtimes-on-computer": "執行環境只能在電腦上查看。",
+      "missing": "沒有名為 {{name}} 的策略",
+      "missing-description": "它可能已經移到垃圾桶或改了名。",
+      "back": "回到你的策略",
+      "version": "版本 {{version}}",
+      "run": "執行指令",
+      "rules": "規則",
+      "params": "數字",
+      "no-params": "沒有可調的數字。",
+      "files": "檔案",
+      "files-description": "每個檔案現在的內容。",
+      "files-on-computer": "檔案內容只能在電腦上查看。",
+      "bytes_one": "{{bytes}} 位元組",
+      "bytes_other": "{{bytes}} 位元組",
+      "versions": "允許過的版本",
+      "versions-description": "保留最近允許的版本，新的在前；改回其中一個版本時，不必再允許就能執行。",
+      "no-versions": "還沒有允許過任何版本。",
+      "current": "目前的檔案",
+      "version-sandboxed": "{{by}}，{{at}}，沙箱內",
+      "version-outside": "{{by}}，{{at}}，沙箱外",
+      "runs": "回測紀錄",
+      "runs-description": "回測面板保留的這個策略的紀錄，涵蓋所有個股，新的在前。",
+      "no-runs": "還沒有它的回測紀錄。",
+      "live-title": "用在實盤",
+      "live-description": "排程任務可以在每個交易日收盤後讀它的訊號，再由 Agent 提議下單；除非你的交易授權涵蓋，否則仍要你確認。",
+      "live": "用它的訊號交易",
+      "live-prompt": "/strategy 幫我建一個排程任務：每個交易日收盤後，在我持有和自選的個股上讀 {{name}} 的訊號，該買或該賣時就提議下單。"
     }
   }
 }

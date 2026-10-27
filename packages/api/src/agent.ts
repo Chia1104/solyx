@@ -3,6 +3,7 @@ import * as z from "zod";
 import type { AgentWireEvent } from "@solyx/agent/wire";
 import { intervalSchema } from "@solyx/core/candles";
 import { symbolRefSchema } from "@solyx/core/market";
+import { strategyNameSchema } from "@solyx/core/strategy";
 
 import { backtestSetupSchema } from "./backtests.ts";
 import { chartIndicatorSchema } from "./chart-indicator.ts";
@@ -13,6 +14,7 @@ export const ScreenKind = {
   Listing: "listing",
   Overview: "overview",
   Settings: "settings",
+  Strategies: "strategies",
 } as const;
 
 export type ScreenKind = (typeof ScreenKind)[keyof typeof ScreenKind];
@@ -34,6 +36,11 @@ export const agentScreenSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal(ScreenKind.Settings),
     section: settingsSectionSchema,
+  }),
+  z.object({
+    kind: z.literal(ScreenKind.Strategies),
+    /** The strategy whose page is open, where one is. */
+    name: strategyNameSchema.optional(),
   }),
 ]);
 

@@ -2,7 +2,8 @@
   "nav": {
     "back": "Back",
     "overview": "Overview",
-    "settings": "Settings"
+    "settings": "Settings",
+    "strategies": "Strategies"
   },
   "workspace": {
     "symbols": "Watchlist and positions",
@@ -1045,7 +1046,8 @@
       "own-pick": "Your strategy",
       "own-hint": "Code you wrote in the strategies folder; its rules trade on the lines it works out.",
       "own-none": "No strategies yet. Write one with the agent, or add a folder with a STRATEGY.md to strategies in the app's config folder.",
-      "own-grid": "A grid runs along two of a strategy's numbers, and this one takes fewer."
+      "own-grid": "A grid runs along two of a strategy's numbers, and this one takes fewer.",
+      "own-manage": "Manage your strategies"
     },
     "params": {
       "fast": "Fast average",
@@ -2497,6 +2499,113 @@
       "allow": "Allow this version",
       "on-computer": "Allow it on the computer.",
       "failed": "Couldn't allow it"
+    },
+    "rules": {
+      "price": {
+        "open": "the open",
+        "high": "the high",
+        "low": "the low",
+        "close": "the close",
+        "volume": "the volume"
+      },
+      "band": {
+        "upper": "the upper Bollinger band ({{period}}, {{width}})",
+        "middle": "the middle Bollinger band ({{period}}, {{width}})",
+        "lower": "the lower Bollinger band ({{period}}, {{width}})"
+      },
+      "highest_one": "the highest high of the last {{count}} bar",
+      "highest_other": "the highest high of the last {{count}} bars",
+      "lowest_one": "the lowest low of the last {{count}} bar",
+      "lowest_other": "the lowest low of the last {{count}} bars",
+      "and": " and ",
+      "or": " or ",
+      "above": "{{left}} is above {{right}}",
+      "below": "{{left}} is below {{right}}",
+      "crossesAbove": "{{left}} crosses above {{right}}",
+      "crossesBelow": "{{left}} crosses below {{right}}",
+      "entry": "Buys when {{condition}}",
+      "exit": "Sells when {{condition}}",
+      "stop-loss": "Stop loss {{value}}",
+      "take-profit": "Take profit {{value}}"
+    },
+    "standing": {
+      "allowed": {
+        "user": "Allowed by you, {{at}}",
+        "check": "Allowed by the decisions model, {{at}}",
+        "mode": "Allowed by a conversation's setting, {{at}}"
+      },
+      "elsewhere-only": "This version is allowed, but not where its code runs now",
+      "elsewhere-only-live": "Beside a live account outside the sandbox, only a version you allowed yourself runs",
+      "changed": "Changed since the version allowed",
+      "new": "Not allowed yet"
+    },
+    "approver": {
+      "user": "You",
+      "check": "The decisions model",
+      "mode": "A conversation's setting"
+    },
+    "page": {
+      "list": "Your strategies",
+      "list-description": "Kept in strategies in the app's config folder. Any change to a file is a new version, which runs only once allowed.",
+      "list-joiner": "; ",
+      "param": "{{name}} {{min}}–{{max}} by {{step}}, from {{initial}}",
+      "last-run": "Last backtest",
+      "details": "Details",
+      "details-allow": "Review and allow",
+      "backtest": "Backtest",
+      "backtest-on": "Backtest on",
+      "backtest-code": "Code",
+      "backtest-blocked": "Allow this version to backtest it.",
+      "change": "Change with the agent",
+      "change-prompt": "/strategy Change my strategy {{name}}: ",
+      "write": "Write one with the agent",
+      "write-prompt": "/strategy Help me write a strategy: ",
+      "reveal": "Open folder",
+      "revoke": "Take back every version",
+      "revoke-confirm": "Press again to take them back",
+      "revoke-failed": "Couldn't take the versions back",
+      "trash": "Move to Trash",
+      "trash-confirm": "Press again to move it to the Trash",
+      "trash-failed": "Couldn't move it to the Trash",
+      "empty-lines": "A strategy is code you write, in any language your computer runs, that works out lines from a listing's bars.",
+      "empty-engine": "Solyx's engine trades on its rules over those lines, filling and costing every trade as it does for a template.",
+      "empty-allowed": "Its code runs in the sandbox where the computer has one, and each version runs only once you allow it.",
+      "problems": "Folders that don't read",
+      "problems-description": "These folders in strategies hold no strategy Solyx can run, for the reason given.",
+      "runtimes": "What its code runs on",
+      "runtimes-description": "The interpreters a strategy's code finds on its PATH where it runs.",
+      "sandboxed": "A strategy's code runs in the sandbox: it reads its own files and the tools on its PATH, writes only its run's folder and reaches no network.",
+      "outside": "A strategy's code runs outside the sandbox, with your access to your files and the network.",
+      "outside-live": "A strategy's code runs outside the sandbox, with your access to your files and the network, and beside a live account only a version you allowed yourself runs.",
+      "sandbox-setting": "Sandbox setting",
+      "no-runtimes": "No interpreter was found. Install one, such as Python, before a strategy can run.",
+      "runtimes-on-computer": "What the code runs on is read on the computer.",
+      "missing": "No strategy is named {{name}}",
+      "missing-description": "It may have moved to the Trash or been renamed.",
+      "back": "Back to your strategies",
+      "version": "Version {{version}}",
+      "run": "Runs by",
+      "rules": "Rules",
+      "params": "Numbers",
+      "no-params": "It takes no numbers.",
+      "files": "Files",
+      "files-description": "Each file as it is now.",
+      "files-on-computer": "A file's text is read on the computer.",
+      "bytes_one": "{{bytes}} byte",
+      "bytes_other": "{{bytes}} bytes",
+      "versions": "Versions allowed",
+      "versions-description": "The newest versions allowed are kept, newest first, so editing back to one runs it again without asking.",
+      "no-versions": "No version has been allowed yet.",
+      "current": "the files now",
+      "version-sandboxed": "{{by}}, {{at}}, in the sandbox",
+      "version-outside": "{{by}}, {{at}}, outside the sandbox",
+      "runs": "Backtests",
+      "runs-description": "The runs the backtest panel kept of it, on every listing, newest first.",
+      "no-runs": "No backtest of it is kept yet.",
+      "live-title": "Trading on it",
+      "live-description": "A scheduled task can read its signal after each session and have the agent propose the order, which you still confirm unless your trading mandate covers it.",
+      "live": "Trade on its signals",
+      "live-prompt": "/strategy Set up a scheduled task that reads {{name}}'s signal after each session on the listings I hold and watch, and proposes the order when it says to buy or sell."
     }
   }
 }
