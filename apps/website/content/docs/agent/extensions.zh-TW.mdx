@@ -106,7 +106,7 @@ Skill 是 Agent 需要時才讀的操作手冊，你也可以用 `/` 指令呼�
 每個工具可以設為 **關閉**、**詢問** 或 **自動**：關閉、每次都先詢問，或自行執行。工具一開始都是 **詢問**，只有 server 標為唯讀的工具才能設為 **自動**。Agent 會在需要時透過工具搜尋載入 server 的工具；工具搜尋比對的是英文字詞。
 
 <Screenshot
-  file="settings/mcp.png"
+  file="settings/agent/mcp.png"
   alt="設定 → MCP，顯示已連線的 server 與其工具的放行規則"
 />
 
@@ -117,3 +117,8 @@ Skill 是 Agent 需要時才讀的操作手冊，你也可以用 `/` 指令呼�
 下方的 **沙箱** 會在 macOS 與 Linux 上讓指令在沙盒裡執行，除非你關閉，否則預設開啟。指令只能修改自己對話的資料夾，它的設定與暫存檔也放在那裡。除了提供的 skills 與 `PATH` 上工具所在的資料夾，它讀不到家目錄裡的其他內容、Solyx 自己的資料與設定、其他 app 的暫存檔或外接磁碟，也連不上任何網路，連你自己的電腦都不行。Linux 上的沙盒需要 bubblewrap、socat 與 ripgrep；缺少其中之一時，設定會列出缺少的項目，並且在你安裝或關閉沙盒之前不會執行任何指令。Windows 目前沒有沙盒，關閉沙盒的電腦也一樣：這時指令擁有你對檔案與網路的存取權。
 
 同一個開關也管[你的策略](/zh-TW/docs/strategies)的程式，每次執行都只能動自己的資料夾。
+
+<Screenshot
+  file="settings/security/code-execution.png"
+  alt="設定 → 程式執行，shell 與沙箱都已開啟"
+/>

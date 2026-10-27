@@ -106,7 +106,7 @@ Yours win over a built-in skill of the same name. Skills in `~/.agents/skills`, 
 Each tool is **Off**, **Ask** or **Auto**: off, asks each time, or runs on its own. Tools start on **Ask**, and only those a server marks read-only can be set to **Auto**. The agent loads servers' tools as it needs them through a tool search, which matches English words.
 
 <Screenshot
-  file="settings/mcp.png"
+  file="settings/agent/mcp.png"
   alt="Settings → MCP with a connected server and its tools' policies"
 />
 
@@ -117,3 +117,8 @@ Each tool is **Off**, **Ask** or **Auto**: off, asks each time, or runs on its o
 **Sandbox**, below it, runs commands in a sandbox on macOS and Linux, and is on unless you turn it off. A command can change only its conversation's folder, which also holds its settings and temporary files. It can't read the rest of your home folder, Solyx's own data and settings, other apps' temporary files or external drives, except the folders of the skills offered and of the tools on your `PATH`, and it has no network, not even to your own computer. On Linux the sandbox needs bubblewrap, socat and ripgrep; while one is missing, the setting names it and no command runs until you install it or turn the sandbox off. Windows has no sandbox yet, and neither does a computer where you turned it off: a command then has your access to your files and the network.
 
 The same switch holds [your strategies](/docs/strategies)' code, each run to a folder of its own.
+
+<Screenshot
+  file="settings/security/code-execution.png"
+  alt="Settings → Code execution with the shell and its sandbox switched on"
+/>
