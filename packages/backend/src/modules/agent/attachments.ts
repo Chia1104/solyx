@@ -1,11 +1,28 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { join, sep } from "node:path";
 
 import { readAttachment } from "@solyx/agent/attachment";
 import type { AgentAttachment } from "@solyx/agent/runtime";
 
 /** The folder of a conversation's folder that keeps the files its messages carried. */
 const ATTACHMENTS = "attachments";
+
+/**
+ * Where `path` really is under `workspace`, which the conversation's commands may write in: a link
+ * they made that would take it out of the folder is refused rather than followed.
+ */
+export async function insideWorkspace(workspace: string, path: string) {
+  const [root, real] = await Promise.all([
+    realpath(workspace),
+    realpath(join(workspace, path)),
+  ]);
+
+  if (!real.startsWith(root + sep)) {
+    throw new Error(`${path} is not in its conversation's folder`);
+  }
+
+  return real;
+}
 
 /** `name`, or the first of `name (2)`, `name (3)`, … that `taken` does not hold. */
 function unique(name: string, taken: ReadonlySet<string>) {
@@ -59,11 +76,19 @@ export async function keepAttachments(
   });
 
   if (kept.length > 0) {
-    await mkdir(join(workspace, folder), { recursive: true });
+    await mkdir(join(workspace, ATTACHMENTS), { recursive: true });
+
+    // A new folder and a new file each, so nothing already there, a link among it, is written through.
+    const real = join(
+      await insideWorkspace(workspace, ATTACHMENTS),
+      String(at)
+    );
+
+    await mkdir(real);
 
     await Promise.all(
       kept.map(({ bytes, attachment }) =>
-        writeFile(join(workspace, folder, attachment.name), bytes)
+        writeFile(join(real, attachment.name), bytes, { flag: "wx" })
       )
     );
   }

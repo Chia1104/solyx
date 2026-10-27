@@ -1,5 +1,12 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  symlink,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -79,4 +86,30 @@ test("a file that cannot ride with a message keeps none of them", async () => {
   ).rejects.toThrow("fubon.pem holds a private key or a certificate");
 
   expect(await readdir(workspace)).toEqual([]);
+});
+
+test("files are never written through a link the conversation's commands made", async () => {
+  const elsewhere = await mkdtemp(join(tmpdir(), "solyx-elsewhere-"));
+
+  try {
+    // A command in the conversation's folder points its attachments somewhere else.
+    await symlink(elsewhere, join(workspace, "attachments"));
+
+    await expect(
+      keepAttachments(workspace, [new File(["a,b\n"], "fills.csv")], 1)
+    ).rejects.toThrow("not in its conversation's folder");
+
+    expect(await readdir(elsewhere)).toEqual([]);
+  } finally {
+    await rm(elsewhere, { recursive: true, force: true });
+  }
+});
+
+test("nothing already at a message's place is written over", async () => {
+  await mkdir(join(workspace, "attachments", "1"), { recursive: true });
+  await symlink("/etc/hosts", join(workspace, "attachments", "1", "fills.csv"));
+
+  await expect(
+    keepAttachments(workspace, [new File(["a,b\n"], "fills.csv")], 1)
+  ).rejects.toThrow(/EEXIST/);
 });
