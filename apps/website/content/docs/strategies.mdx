@@ -165,7 +165,7 @@ A scan hands the code every set of numbers in one run, so work each job out on i
 
 A run copies the strategy's files into a folder of its own and runs the copy, so what runs is the version that was allowed, whatever the folder holds by then. It has 2 minutes for all its jobs.
 
-- **In the sandbox**, on macOS and Linux while **Settings → Skills → Sandbox** is on, which it is unless you turn it off: the code reads and writes only its run's folder, reads the tools on your `PATH`, and reaches no network, not even your own computer. Keep the packages your code needs in an environment on your `PATH`, such as a venv or uv's, since the sandbox hides the rest of your home folder.
+- **In the sandbox**, on macOS and Linux while **Settings → Code execution → Sandbox** is on, which it is unless you turn it off: the code reads and writes only its run's folder, reads the tools on your `PATH`, and reaches no network, not even your own computer. Keep the packages your code needs in an environment on your `PATH`, such as a venv or uv's, since the sandbox hides the rest of your home folder.
 - **Outside it**, on Windows or with the sandbox off: the code runs with your access to your files and the network.
 
 A strategy's folder may hold up to 1,000 files and 32 MB, and no links, since what a link points to could change while the version stays.

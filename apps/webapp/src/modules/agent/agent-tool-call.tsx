@@ -63,7 +63,7 @@ import { ForecastCard } from "../research/forecast-card.tsx";
 import { useScopeText } from "../schedules/change-scope-fields.tsx";
 import { schedulesQuery } from "../schedules/schedules-query.ts";
 import { scheduleText } from "../schedules/timing-fields.tsx";
-import { agentSkillsQuery } from "../settings/settings-query.ts";
+import { codeExecutionQuery } from "../settings/settings-query.ts";
 import {
   StrategyChanges,
   StrategyDraftChanges,
@@ -239,7 +239,7 @@ function useShellDescription(enabled: boolean) {
   const { t } = useTranslation();
 
   const { data, isFetching } = useQuery({
-    ...agentSkillsQuery(),
+    ...codeExecutionQuery(),
     enabled: enabled && inWindow,
   });
 

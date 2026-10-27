@@ -7,11 +7,17 @@ import {
   Form,
   Input,
   Label,
+  Modal,
   Switch,
   TextArea,
   TextField,
 } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  MessageQuestionIcon,
+  SecurityCheckIcon,
+} from "@hugeicons/core-free-icons";
+import type { IconSvgElement } from "@hugeicons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -33,7 +39,9 @@ import { currentTimeZone, useClock } from "../../app/clock.ts";
 import { currentLocale } from "../../app/i18n.ts";
 import { Pane, useLayoutStore } from "../../app/layout-store.ts";
 import { client, orpc } from "../../app/rpc.ts";
+import { EditorFooter, EditorModal } from "../../components/editor-modal.tsx";
 import { ErrorAlert } from "../../components/error-alert.tsx";
+import { Icon } from "../../components/icon.tsx";
 import { SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
@@ -60,6 +68,11 @@ import {
 
 // The spans a task may recur at, in minutes.
 const INTERVALS = [30, 60, 120, 240, 360, 720, 1440];
+
+const APPROVAL_ICON: Record<ScheduleApproval, IconSvgElement> = {
+  [ScheduleApproval.Ask]: MessageQuestionIcon,
+  [ScheduleApproval.Auto]: SecurityCheckIcon,
+};
 
 /** A task as its form holds it; rebuilt per language so field errors come out localized. */
 function useTaskFormSchema() {
@@ -163,90 +176,85 @@ function TaskEditor({
   );
 
   const submit = form.handleSubmit((values) => save.mutate(values));
-  const pending = save.isPending || remove.isPending;
   const error = save.error ?? remove.error;
 
   return (
     <Form
       validationBehavior="aria"
-      className="flex flex-col gap-3"
+      className="contents"
       onSubmit={(event) => void submit(event)}>
-      <Controller
-        control={form.control}
-        name="name"
-        render={({ field, fieldState }) => (
-          <TextField isRequired autoFocus isInvalid={fieldState.invalid}>
-            <Label>{t("settings.schedules.name")}</Label>
-            <Input {...field} autoComplete="off" />
-            <FieldError>{fieldState.error?.message}</FieldError>
-          </TextField>
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="prompt"
-        render={({ field, fieldState }) => (
-          <TextField isRequired isInvalid={fieldState.invalid}>
-            <Label>{t("settings.schedules.prompt")}</Label>
-            <TextArea {...field} rows={3} />
-            <Description>
-              {t("settings.schedules.prompt-description")}
-            </Description>
-            <FieldError>{fieldState.error?.message}</FieldError>
-          </TextField>
-        )}
-      />
-      <FormProvider {...form}>
-        <TimingFields
-          kinds={Object.values(ScheduleKind)}
-          intervals={INTERVALS}
+      <Modal.Body className="flex flex-col gap-3 text-foreground">
+        <Controller
+          control={form.control}
+          name="name"
+          render={({ field, fieldState }) => (
+            <TextField isRequired autoFocus isInvalid={fieldState.invalid}>
+              <Label>{t("settings.schedules.name")}</Label>
+              <Input {...field} autoComplete="off" />
+              <FieldError>{fieldState.error?.message}</FieldError>
+            </TextField>
+          )}
         />
-        {kind === ScheduleKind.OnChange ? (
-          <ChangeScopeFields kept={opened} />
-        ) : null}
-      </FormProvider>
-      <Controller
-        control={form.control}
-        name="approval"
-        render={({ field }) => (
-          <OptionSelect
-            label={t("settings.schedules.approval")}
-            description={t(
-              `settings.schedules.approval-descriptions.${approval}`
-            )}
-            options={Object.values(ScheduleApproval).map((id) => ({
-              id,
-              label: t(`settings.schedules.approvals.${id}`),
-            }))}
-            value={field.value}
-            onChange={field.onChange}
+        <Controller
+          control={form.control}
+          name="prompt"
+          render={({ field, fieldState }) => (
+            <TextField isRequired isInvalid={fieldState.invalid}>
+              <Label>{t("settings.schedules.prompt")}</Label>
+              <TextArea {...field} rows={3} />
+              <Description>
+                {t("settings.schedules.prompt-description")}
+              </Description>
+              <FieldError>{fieldState.error?.message}</FieldError>
+            </TextField>
+          )}
+        />
+        <FormProvider {...form}>
+          <TimingFields
+            kinds={Object.values(ScheduleKind)}
+            intervals={INTERVALS}
           />
-        )}
-      />
-      <div className="flex gap-2">
-        <Button type="submit" variant="secondary" isPending={save.isPending}>
-          {t("settings.save")}
-        </Button>
-        <Button variant="tertiary" isDisabled={pending} onPress={onDone}>
-          {t("common.cancel")}
-        </Button>
-        {task ? (
-          <Button
-            variant="tertiary"
-            className="ml-auto"
-            isPending={remove.isPending}
-            isDisabled={save.isPending}
-            onPress={() => remove.mutate(task.id)}>
-            {t("settings.schedules.delete")}
-          </Button>
-        ) : null}
-      </div>
-      {error ? (
-        <ErrorAlert
-          title={t("settings.schedules.change-failed")}
-          description={error.message}
+          {kind === ScheduleKind.OnChange ? (
+            <ChangeScopeFields kept={opened} />
+          ) : null}
+        </FormProvider>
+        <Controller
+          control={form.control}
+          name="approval"
+          render={({ field }) => (
+            <OptionSelect
+              label={t("settings.schedules.approval")}
+              description={t(
+                `settings.schedules.approval-descriptions.${approval}`
+              )}
+              options={Object.values(ScheduleApproval).map((id) => ({
+                id,
+                label: t(`settings.schedules.approvals.${id}`),
+                icon: <Icon icon={APPROVAL_ICON[id]} />,
+              }))}
+              value={field.value}
+              onChange={field.onChange}
+            />
+          )}
         />
-      ) : null}
+        {error ? (
+          <ErrorAlert
+            title={t("settings.schedules.change-failed")}
+            description={error.message}
+          />
+        ) : null}
+      </Modal.Body>
+      <EditorFooter
+        saving={save.isPending}
+        onCancel={onDone}
+        remove={
+          task && {
+            label: t("settings.schedules.delete"),
+            pending: remove.isPending,
+            onPress: () => remove.mutate(task.id),
+          }
+        }
+      />
     </Form>
   );
 }
@@ -297,7 +305,7 @@ function LastRun({ task }: { task: ScheduledTaskView }) {
   );
 }
 
-/** One task: when it runs, when it next will and what its last run came to, edited below the row. */
+/** One task: when it runs, when it next will and what its last run came to, edited in a modal. */
 function TaskRow({ task }: { task: ScheduledTaskView }) {
   const { t } = useTranslation();
   const clock = useClock();
@@ -349,63 +357,61 @@ function TaskRow({ task }: { task: ScheduledTaskView }) {
         </span>
       }
       actions={
-        editing ? null : (
-          <>
-            <Button
-              size="sm"
-              variant="tertiary"
-              isPending={run.isPending}
-              isDisabled={task.running}
-              onPress={() => run.mutate()}>
-              {t("settings.schedules.run-now")}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onPress={() => {
-                enable.reset();
-                run.reset();
-                setEditing(true);
-              }}>
-              {t("settings.edit")}
-            </Button>
-            <Switch
-              isSelected={task.enabled}
-              isDisabled={enable.isPending}
-              onChange={(enabled) => enable.mutate(enabled)}>
-              <Switch.Content>
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-                <span className="sr-only">
-                  {t("settings.schedules.enabled", { name: task.name })}
-                </span>
-              </Switch.Content>
-            </Switch>
-          </>
-        )
-      }>
-      {editing ? (
-        <TaskEditor task={task} onDone={() => setEditing(false)} />
-      ) : (
         <>
-          <p className="line-clamp-2 text-xs whitespace-pre-wrap text-muted">
-            {task.prompt}
-          </p>
-          {task.lastRun && task.lastRun.changes.length > 0 ? (
-            <div className="text-xs text-muted">
-              <p>{t("settings.schedules.scope.ran-for")}</p>
-              <ul className="list-disc pl-4">
-                {task.lastRun.changes.map((change) => {
-                  const line = changeLine(t, change);
-
-                  return <li key={line}>{line}</li>;
-                })}
-              </ul>
-            </div>
-          ) : null}
+          <Button
+            size="sm"
+            variant="tertiary"
+            isPending={run.isPending}
+            isDisabled={task.running}
+            onPress={() => run.mutate()}>
+            {t("settings.schedules.run-now")}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onPress={() => {
+              enable.reset();
+              run.reset();
+              setEditing(true);
+            }}>
+            {t("settings.edit")}
+          </Button>
+          <Switch
+            isSelected={task.enabled}
+            isDisabled={enable.isPending}
+            onChange={(enabled) => enable.mutate(enabled)}>
+            <Switch.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              <span className="sr-only">
+                {t("settings.schedules.enabled", { name: task.name })}
+              </span>
+            </Switch.Content>
+          </Switch>
         </>
-      )}
+      }>
+      <p className="line-clamp-2 text-xs whitespace-pre-wrap text-muted">
+        {task.prompt}
+      </p>
+      {task.lastRun && task.lastRun.changes.length > 0 ? (
+        <div className="text-xs text-muted">
+          <p>{t("settings.schedules.scope.ran-for")}</p>
+          <ul className="list-disc pl-4">
+            {task.lastRun.changes.map((change) => {
+              const line = changeLine(t, change);
+
+              return <li key={line}>{line}</li>;
+            })}
+          </ul>
+        </div>
+      ) : null}
+      <EditorModal
+        title={task.name}
+        isOpen={editing}
+        onClose={() => setEditing(false)}>
+        <TaskEditor task={task} onDone={() => setEditing(false)} />
+      </EditorModal>
       {error ? (
         <ErrorAlert
           title={t("settings.schedules.change-failed")}
@@ -469,16 +475,18 @@ function TaskList({
             ))}
           </SettingsList>
         )}
-        {adding ? (
+        <Button
+          variant="secondary"
+          className="self-start"
+          onPress={() => setAdding(true)}>
+          {t("settings.schedules.add")}
+        </Button>
+        <EditorModal
+          title={t("settings.schedules.add")}
+          isOpen={adding}
+          onClose={() => setAdding(false)}>
           <TaskEditor onDone={() => setAdding(false)} />
-        ) : (
-          <Button
-            variant="secondary"
-            className="self-start"
-            onPress={() => setAdding(true)}>
-            {t("settings.schedules.add")}
-          </Button>
-        )}
+        </EditorModal>
       </div>
     </Section>
   );

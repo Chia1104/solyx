@@ -228,10 +228,19 @@ export function DecisionsSettings() {
                   className="w-56"
                   value={provider}
                   isDisabled={setProvider.isPending}
-                  options={providers.map((each) => ({
-                    id: each.provider,
-                    label: t(`settings.decisions.providers.${each.provider}`),
-                  }))}
+                  options={providers.map((each) => {
+                    const label = t(
+                      `settings.decisions.providers.${each.provider}`
+                    );
+
+                    return {
+                      id: each.provider,
+                      label,
+                      icon: (
+                        <LogoMark logo={LOGOS[each.provider]} name={label} />
+                      ),
+                    };
+                  })}
                   onChange={(next) => setProvider.mutate(next)}
                 />
               }

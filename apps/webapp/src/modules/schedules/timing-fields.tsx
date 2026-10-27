@@ -1,6 +1,14 @@
 import { useContext, useEffect } from "react";
 
 import { Description, FieldError, Label, TimeField } from "@heroui/react";
+import {
+  Calendar03Icon,
+  ChartCandlestickIcon,
+  Clock01Icon,
+  FlashIcon,
+  RepeatIcon,
+} from "@hugeicons/core-free-icons";
+import type { IconSvgElement } from "@hugeicons/react";
 import { parseTime } from "@internationalized/date";
 import type { TFunction } from "i18next";
 import { TimeFieldStateContext } from "react-aria-components";
@@ -20,6 +28,7 @@ import type { Schedule } from "@solyx/core/schedule";
 import { HOUR_MINUTES, DAY_MINUTES } from "@solyx/utils/date";
 
 import { useClock } from "../../app/clock.ts";
+import { Icon } from "../../components/icon.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 
 const EVERY_DAY = "every-day";
@@ -30,6 +39,12 @@ const TIME_OF_DAY = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const twoDigits = (value: number) => String(value).padStart(2, "0");
 
 // Every day, or only the days one market trades.
+const KIND_ICON: Record<ScheduleKind, IconSvgElement> = {
+  [ScheduleKind.Interval]: RepeatIcon,
+  [ScheduleKind.FixedTime]: Clock01Icon,
+  [ScheduleKind.OnChange]: FlashIcon,
+};
+
 const DAY_CHOICES: (typeof EVERY_DAY | Market)[] = [
   EVERY_DAY,
   ...Object.values(Market),
@@ -247,6 +262,7 @@ export function TimingFields({
             options={kinds.map((id) => ({
               id,
               label: t(`settings.schedules.kinds.${id}`),
+              icon: <Icon icon={KIND_ICON[id]} />,
             }))}
             value={field.value}
             onChange={field.onChange}
@@ -297,6 +313,14 @@ export function TimingFields({
                 options={DAY_CHOICES.map((id) => ({
                   id,
                   label: t(`settings.schedules.days.${id}`),
+                  // A market's trading days, against every day of the week.
+                  icon: (
+                    <Icon
+                      icon={
+                        id === EVERY_DAY ? Calendar03Icon : ChartCandlestickIcon
+                      }
+                    />
+                  ),
                 }))}
                 value={field.value}
                 onChange={field.onChange}

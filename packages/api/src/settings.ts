@@ -572,13 +572,17 @@ export interface AgentSkills {
   instructions: { characters: number } | null;
   /** Shown with the home folder as `~`. */
   paths: { skills: string; shared: string; instructions: string };
-  /** The agent may run shell commands on this computer, each once the user allows it. */
-  shell: boolean;
-  sandbox: ShellSandbox;
 }
 
-/** The shell's sandbox, which keeps a command to its folder and off the network. */
-export interface ShellSandbox {
+/** What may run code on this computer: the agent's shell, and the sandbox it and the strategies' code run in. */
+export interface CodeExecution {
+  /** The agent may run shell commands on this computer, each once the user allows it. */
+  shell: boolean;
+  sandbox: SandboxStatus;
+}
+
+/** The sandbox that keeps a command, or a strategy's code, to its folder and off the network. */
+export interface SandboxStatus {
   /** This system has one: macOS and Linux do, Windows does not. */
   supported: boolean;
   /** The user keeps it on. */

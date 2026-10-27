@@ -158,6 +158,12 @@ export const agentSkillsQuery = () =>
     staleTime: 0,
   });
 
+/** Always stale, since what keeps the sandbox from starting is the system's, not a setting's. */
+export const codeExecutionQuery = () =>
+  orpc.settings.codeExecution.queryOptions({
+    staleTime: 0,
+  });
+
 /** Polled while a server is still connecting, since connecting happens in the main process. */
 export const mcpQuery = () =>
   orpc.settings.mcp.queryOptions({

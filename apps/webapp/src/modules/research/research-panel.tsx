@@ -18,7 +18,7 @@ import type {
   ReportEvent,
   StanceSpell,
 } from "@solyx/core/report";
-import { FALSIFIER_FLOORS } from "@solyx/core/research";
+import { FALSIFIER_FLOORS, WatchGap } from "@solyx/core/research";
 import type {
   Coverage,
   FalsifierCheck,
@@ -149,6 +149,13 @@ function Falsifier({
   );
 }
 
+/** The settings section where a gap is closed. */
+const GAP_SECTION: Record<WatchGap, SettingsSection> = {
+  [WatchGap.NoLocalEmbedder]: SettingsSection.Embeddings,
+  [WatchGap.Unmeasured]: SettingsSection.Embeddings,
+  [WatchGap.NoAuditor]: SettingsSection.Decisions,
+};
+
 /** Whether the news is read against the falsifiers, so a quiet report is not taken for an unread one. */
 function WatchStatus({
   watch: { gaps, pass },
@@ -160,21 +167,22 @@ function WatchStatus({
 }) {
   const { t } = useTranslation();
   const clock = useClock();
+  const [gap] = gaps;
 
-  if (gaps.length > 0) {
+  if (gap !== undefined) {
     return (
       <p className="rounded-sm border border-dashed border-separator px-3 py-2 text-xs text-muted">
         {[
           t("research.watch.off"),
-          ...gaps.map((gap) =>
-            t(`research.watch.gaps.${gap}`, {
+          ...gaps.map((each) =>
+            t(`research.watch.gaps.${each}`, {
               models: [...FALSIFIER_FLOORS.keys()].join(", "),
             })
           ),
         ].join(" ")}{" "}
         <Link
           to="/settings"
-          search={{ section: SettingsSection.Agent }}
+          search={{ section: GAP_SECTION[gap] }}
           className="text-foreground underline">
           {t("research.watch.settings")}
         </Link>

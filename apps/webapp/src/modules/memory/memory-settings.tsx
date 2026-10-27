@@ -6,6 +6,7 @@ import {
   Form,
   Input,
   Label,
+  Modal,
   Switch,
   TextArea,
   TextField,
@@ -26,6 +27,7 @@ import { matchesFilter } from "@solyx/utils/search";
 
 import { useClock } from "../../app/clock.ts";
 import { client, orpc } from "../../app/rpc.ts";
+import { EditorFooter, EditorModal } from "../../components/editor-modal.tsx";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { FilterField } from "../../components/filter-field.tsx";
 import { SectionLoadError } from "../../components/load-error.tsx";
@@ -60,7 +62,7 @@ function useMemoryChangeSchema() {
   }, [t]);
 }
 
-/** One memory: its description, what it is about and when it was written, edited below the row. */
+/** One memory: its description, what it is about and when it was written, edited in a modal. */
 function MemoryRow({ memory }: { memory: Memory }) {
   const { t } = useTranslation();
   const clock = useClock();
@@ -90,7 +92,7 @@ function MemoryRow({ memory }: { memory: Memory }) {
     setEditing(true);
   };
 
-  const error = save.error ?? forget.error;
+  const error = forget.error;
 
   return (
     <SettingsRow
@@ -110,68 +112,24 @@ function MemoryRow({ memory }: { memory: Memory }) {
         </span>
       }
       actions={
-        editing ? null : (
-          <>
-            <Button
-              size="sm"
-              variant="secondary"
-              isDisabled={forget.isPending}
-              onPress={edit}>
-              {t("settings.edit")}
-            </Button>
-            <Button
-              size="sm"
-              variant="tertiary"
-              isPending={forget.isPending}
-              onPress={() => forget.mutate()}>
-              {t("settings.memory.forget")}
-            </Button>
-          </>
-        )
+        <>
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={forget.isPending}
+            onPress={edit}>
+            {t("settings.edit")}
+          </Button>
+          <Button
+            size="sm"
+            variant="tertiary"
+            isPending={forget.isPending}
+            onPress={() => forget.mutate()}>
+            {t("settings.memory.forget")}
+          </Button>
+        </>
       }>
-      {editing ? (
-        <Form
-          validationBehavior="aria"
-          className="flex flex-col gap-3"
-          onSubmit={(event) => void submit(event)}>
-          <Controller
-            control={form.control}
-            name="description"
-            render={({ field, fieldState }) => (
-              <TextField isRequired autoFocus isInvalid={fieldState.invalid}>
-                <Label>{t("settings.memory.description")}</Label>
-                <Input {...field} autoComplete="off" />
-                <FieldError>{fieldState.error?.message}</FieldError>
-              </TextField>
-            )}
-          />
-          <Controller
-            control={form.control}
-            name="body"
-            render={({ field, fieldState }) => (
-              <TextField isInvalid={fieldState.invalid}>
-                <Label>{t("settings.memory.body")}</Label>
-                <TextArea {...field} rows={4} />
-                <FieldError>{fieldState.error?.message}</FieldError>
-              </TextField>
-            )}
-          />
-          <div className="flex gap-2">
-            <Button
-              type="submit"
-              variant="secondary"
-              isPending={save.isPending}>
-              {t("settings.save")}
-            </Button>
-            <Button
-              variant="tertiary"
-              isDisabled={save.isPending}
-              onPress={() => setEditing(false)}>
-              {t("common.cancel")}
-            </Button>
-          </div>
-        </Form>
-      ) : memory.body ? (
+      {memory.body ? (
         <p className="line-clamp-3 text-xs whitespace-pre-wrap text-muted">
           {memory.body}
         </p>
@@ -182,6 +140,50 @@ function MemoryRow({ memory }: { memory: Memory }) {
           description={error.message}
         />
       ) : null}
+      <EditorModal
+        title={t("settings.memory.edit-title")}
+        isOpen={editing}
+        onClose={() => setEditing(false)}>
+        <Form
+          validationBehavior="aria"
+          className="contents"
+          onSubmit={(event) => void submit(event)}>
+          <Modal.Body className="flex flex-col gap-3 text-foreground">
+            <Controller
+              control={form.control}
+              name="description"
+              render={({ field, fieldState }) => (
+                <TextField isRequired autoFocus isInvalid={fieldState.invalid}>
+                  <Label>{t("settings.memory.description")}</Label>
+                  <Input {...field} autoComplete="off" />
+                  <FieldError>{fieldState.error?.message}</FieldError>
+                </TextField>
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="body"
+              render={({ field, fieldState }) => (
+                <TextField isInvalid={fieldState.invalid}>
+                  <Label>{t("settings.memory.body")}</Label>
+                  <TextArea {...field} rows={4} />
+                  <FieldError>{fieldState.error?.message}</FieldError>
+                </TextField>
+              )}
+            />
+            {save.error ? (
+              <ErrorAlert
+                title={t("settings.memory.change-failed")}
+                description={save.error.message}
+              />
+            ) : null}
+          </Modal.Body>
+          <EditorFooter
+            saving={save.isPending}
+            onCancel={() => setEditing(false)}
+          />
+        </Form>
+      </EditorModal>
     </SettingsRow>
   );
 }

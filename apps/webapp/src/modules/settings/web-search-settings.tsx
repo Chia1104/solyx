@@ -159,10 +159,15 @@ export function WebSearchSettings() {
                   className="w-56"
                   value={provider}
                   isDisabled={setProvider.isPending}
-                  options={providers.map((each) => ({
-                    id: each,
-                    label: t(`settings.web-search.providers.${each}`),
-                  }))}
+                  options={providers.map((each) => {
+                    const label = t(`settings.web-search.providers.${each}`);
+
+                    return {
+                      id: each,
+                      label,
+                      icon: <LogoMark logo={LOGOS[each]} name={label} />,
+                    };
+                  })}
                   onChange={(next) => setProvider.mutate(next)}
                 />
               }

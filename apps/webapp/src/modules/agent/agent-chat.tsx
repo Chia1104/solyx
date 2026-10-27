@@ -100,7 +100,7 @@ function AgentSetup() {
       <p className="text-xs text-muted">{t("agent.setup-description")}</p>
       <Link
         to="/settings"
-        search={{ section: SettingsSection.Agent }}
+        search={{ section: SettingsSection.Models }}
         className="text-sm text-accent underline underline-offset-2">
         {t("agent.open-settings")}
       </Link>

@@ -275,7 +275,7 @@ function RunsWhere() {
       {inWindow ? (
         <Link
           to="/settings"
-          search={{ section: SettingsSection.Skills }}
+          search={{ section: SettingsSection.CodeExecution }}
           className="text-accent underline underline-offset-2">
           {t("strategies.page.sandbox-setting")}
         </Link>

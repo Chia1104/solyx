@@ -1,9 +1,8 @@
 import { useState } from "react";
 
-import { Alert, Button, Chip } from "@heroui/react";
+import { Alert, Button, Chip, Modal } from "@heroui/react";
 import type { ChipProps } from "@heroui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { uniq } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
@@ -11,13 +10,11 @@ import { McpServerState } from "@solyx/agent/mcp-config";
 import type { McpToolPolicy } from "@solyx/agent/mcp-config";
 import { SecretState } from "@solyx/api/settings";
 import type { McpServerSetting, McpToolSetting } from "@solyx/api/settings";
-import { SettingsSection } from "@solyx/api/settings-section";
 import { matchesFilter } from "@solyx/utils/search";
 
 import { currentLocale } from "../../app/i18n.ts";
 import { client, orpc } from "../../app/rpc.ts";
 import { FilterField } from "../../components/filter-field.tsx";
-import { Section } from "../../components/section.tsx";
 
 import { PolicyTally, PolicyToggle } from "./mcp-policy.tsx";
 import { SecretRow } from "./secret-row.tsx";
@@ -283,47 +280,32 @@ function ToolList({ server }: { server: McpServerSetting }) {
   );
 }
 
-/** One server from mcp.json: how it connects, the keys and account it runs on and its tools. */
+/** One server from mcp.json, as its modal's body: how it connects, the keys and account it runs on and its tools. */
 export function McpServer({ server }: { server: McpServerSetting }) {
   const { t } = useTranslation();
 
   return (
-    <Section
-      title={
-        <span className="flex min-w-0 items-baseline gap-2">
-          <Link
-            to="/settings"
-            search={{ section: SettingsSection.Mcp }}
-            className="shrink-0 font-normal text-muted outline-none hover:text-foreground hover:underline focus-visible:underline">
-            {t("settings.mcp.title")}
-          </Link>
-          <span aria-hidden className="text-muted">
-            /
-          </span>
-          <span className="truncate">{server.name}</span>
-        </span>
-      }>
-      <div className="flex flex-col gap-6">
-        <SettingsList>
-          <ConnectionRow server={server} />
-          {server.state === McpServerState.NeedsSignIn || server.signedIn ? (
-            <McpSignInRow server={server} />
-          ) : null}
-          {server.secrets.map((secret) => (
-            <McpSecretRow
-              key={secret.name}
-              server={server.name}
-              name={secret.name}
-              saved={secret.saved}
-            />
-          ))}
-        </SettingsList>
-        {server.tools.length > 0 ? (
-          <ToolList server={server} />
-        ) : server.state === McpServerState.Connected ? (
-          <p className="text-xs text-muted">{t("settings.mcp.no-tools")}</p>
+    // The modal's title heads the first list, so that list draws no rule above it.
+    <Modal.Body className="flex flex-col gap-6 text-foreground [&>ul:first-child]:border-t-0">
+      <SettingsList>
+        <ConnectionRow server={server} />
+        {server.state === McpServerState.NeedsSignIn || server.signedIn ? (
+          <McpSignInRow server={server} />
         ) : null}
-      </div>
-    </Section>
+        {server.secrets.map((secret) => (
+          <McpSecretRow
+            key={secret.name}
+            server={server.name}
+            name={secret.name}
+            saved={secret.saved}
+          />
+        ))}
+      </SettingsList>
+      {server.tools.length > 0 ? (
+        <ToolList server={server} />
+      ) : server.state === McpServerState.Connected ? (
+        <p className="text-xs text-muted">{t("settings.mcp.no-tools")}</p>
+      ) : null}
+    </Modal.Body>
   );
 }

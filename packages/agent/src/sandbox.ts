@@ -274,7 +274,7 @@ export function createSandbox(options: SandboxOptions) {
 
         if (problems.length > 0)
           throw new Error(
-            `The sandbox cannot start (${problems.join("; ")}), so the command did not run. Ask the user to fix that, or to switch the sandbox off in Settings → Skills.`
+            `The sandbox cannot start (${problems.join("; ")}), so the command did not run. Ask the user to fix that, or to switch the sandbox off in Settings → Code execution.`
           );
 
         ready = true;

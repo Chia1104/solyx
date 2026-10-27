@@ -1419,7 +1419,6 @@
     "edit": "Change",
     "revoke": "Revoke",
     "save": "Save mandate",
-    "cancel": "Cancel",
     "listings": "Listings",
     "listings-hint": "Taiwan codes, separated by commas.",
     "sides": "Orders",
@@ -1462,17 +1461,29 @@
       "general": "General",
       "market-data": "Market data",
       "brokers": "Brokers",
-      "trading": "Trading",
+      "orders": "Orders",
+      "models": "Models",
+      "skills": "Skills",
+      "mcp": "MCP",
+      "memory": "Memory",
+      "schedules": "Schedules",
+      "web-search": "Web search",
+      "decisions": "Decisions model",
+      "embeddings": "News grouping",
+      "themes": "Themes",
+      "code-execution": "Code execution",
+      "devices": "Devices",
       "storage": "Storage",
       "backup": "Backup",
-      "about": "About",
-      "agent": "AI agent",
-      "skills": "Skills",
-      "memory": "Memory",
-      "mcp": "MCP",
-      "schedules": "Schedules",
-      "themes": "Themes",
-      "devices": "Devices"
+      "observability": "Observability",
+      "about": "About"
+    },
+    "groups": {
+      "trading": "Trading",
+      "agent": "Agent",
+      "research": "News & research",
+      "security": "Security",
+      "data": "Data"
     },
     "general": "General",
     "save-failed": "Couldn't save the setting",
@@ -1717,7 +1728,7 @@
       "sign-in-failed": "Couldn't sign in to Fubon"
     },
     "agent": {
-      "title": "AI agent",
+      "title": "Models",
       "description": "Switch on the providers you want, each on your own API key or subscription. Every conversation can pick its own model.",
       "providers-description": "Providers",
       "add-provider": "Add provider",
@@ -1920,15 +1931,17 @@
       "instructions-description": "Rules the agent keeps in every conversation, such as your risk budget, written in {{path}}. The whole file is sent with every message.",
       "instructions-found": "{{count, number}} characters",
       "instructions-missing": "Not written",
-      "warnings-title": "Some skill files don't follow the Agent Skills format",
+      "warnings-title": "Some skill files don't follow the Agent Skills format"
+    },
+    "code-execution": {
       "shell": "Shell",
+      "shell-description": "Lets the agent run commands on this computer, which skills need for their scripts. Each one waits for you unless a conversation is set not to ask. Paper accounts only.",
+      "shell-label": "Let the agent use the shell",
       "sandbox": "Sandbox",
       "sandbox-description": "Keeps each command, and the code of your strategies, to a folder of its own, away from your other files and off the network. Off, what you allow can read and change your files and reach the network.",
       "sandbox-label": "Run commands and strategies in a sandbox",
       "sandbox-problems": "The sandbox can't start, so no command or strategy runs: {{problems}}. Fix that, or switch the sandbox off.",
-      "sandbox-unsupported": "Not available on Windows yet. Commands and strategies run with your access, so each waits for you unless the decisions model judges it harmless in Allow for me; beside a live account, a strategy runs only once you allow it yourself.",
-      "shell-description": "Lets the agent run commands on this computer, which skills need for their scripts. Each one waits for you unless a conversation is set not to ask. Paper accounts only.",
-      "shell-label": "Let the agent use the shell"
+      "sandbox-unsupported": "Not available on Windows yet. Commands and strategies run with your access, so each waits for you unless the decisions model judges it harmless in Allow for me; beside a live account, a strategy runs only once you allow it yourself."
     },
     "memory": {
       "title": "Memory",
@@ -1944,6 +1957,7 @@
         "note": "Note"
       },
       "forget": "Forget",
+      "edit-title": "Edit memory",
       "description": "Description",
       "body": "Details",
       "description-required": "Describe what the memory holds",

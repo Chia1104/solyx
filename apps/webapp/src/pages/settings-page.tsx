@@ -16,6 +16,7 @@ import { AboutSettings } from "../modules/settings/about-settings.tsx";
 import { AgentSettings } from "../modules/settings/agent-settings.tsx";
 import { AgentSkills } from "../modules/settings/agent-skills.tsx";
 import { BrokerSettings } from "../modules/settings/broker-settings.tsx";
+import { CodeExecutionSettings } from "../modules/settings/code-execution-settings.tsx";
 import { DecisionsSettings } from "../modules/settings/decisions-settings.tsx";
 import { EmbeddingsSettings } from "../modules/settings/embeddings-settings.tsx";
 import { LanguageSelect } from "../modules/settings/language-select.tsx";
@@ -56,29 +57,22 @@ export function SettingsPage() {
     ),
     [SettingsSection.MarketData]: <MarketDataSettings />,
     [SettingsSection.Brokers]: <BrokerSettings />,
-    [SettingsSection.Trading]: <TradingSettings />,
-    [SettingsSection.Agent]: (
-      <>
-        <AgentSettings />
-        <WebSearchSettings />
-        <DecisionsSettings />
-        <EmbeddingsSettings />
-      </>
-    ),
+    [SettingsSection.Orders]: <TradingSettings />,
+    [SettingsSection.Models]: <AgentSettings />,
     [SettingsSection.Skills]: <AgentSkills />,
-    [SettingsSection.Schedules]: <ScheduleSettings />,
-    [SettingsSection.Themes]: <ThemeSettings />,
-    [SettingsSection.Memory]: <MemorySettings />,
     [SettingsSection.Mcp]: <McpSettings server={server} />,
+    [SettingsSection.Memory]: <MemorySettings />,
+    [SettingsSection.Schedules]: <ScheduleSettings />,
+    [SettingsSection.WebSearch]: <WebSearchSettings />,
+    [SettingsSection.Decisions]: <DecisionsSettings />,
+    [SettingsSection.Embeddings]: <EmbeddingsSettings />,
+    [SettingsSection.Themes]: <ThemeSettings />,
+    [SettingsSection.CodeExecution]: <CodeExecutionSettings />,
     [SettingsSection.Devices]: <DevicesSettings />,
     [SettingsSection.Storage]: <StorageSettings />,
     [SettingsSection.Backup]: <BackupSettings />,
-    [SettingsSection.About]: (
-      <>
-        <AboutSettings />
-        <TelemetrySettings />
-      </>
-    ),
+    [SettingsSection.Observability]: <TelemetrySettings />,
+    [SettingsSection.About]: <AboutSettings />,
   };
 
   return <Sheet title={t("settings.title")}>{content[section]}</Sheet>;

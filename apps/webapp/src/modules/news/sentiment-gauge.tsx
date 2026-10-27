@@ -251,7 +251,7 @@ export function SentimentGauge({
       ) : (
         <Link
           to="/settings"
-          search={{ section: SettingsSection.Agent }}
+          search={{ section: SettingsSection.Decisions }}
           title={t("news.gauge.unscored")}
           className="underline underline-offset-2 hover:text-foreground">
           <span className="@min-[52rem]/main:hidden">

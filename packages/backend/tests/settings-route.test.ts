@@ -288,12 +288,12 @@ test("a shared skill is switched on once, and off again", async () => {
 test("the shell is off until the user switches it on", async () => {
   const { api, config } = setup();
 
-  expect((await api.agentSkills()).shell).toBe(false);
+  expect((await api.codeExecution()).shell).toBe(false);
 
   await api.setAgentShell(true);
 
   expect(config.read().agent.shell).toBe(true);
-  expect((await api.agentSkills()).shell).toBe(true);
+  expect((await api.codeExecution()).shell).toBe(true);
 });
 
 test("traces and logs go nowhere until an endpoint is set, and their headers must parse before they are saved", async () => {

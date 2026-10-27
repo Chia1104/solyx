@@ -7,7 +7,7 @@ Solyx writes no log file of its own and sends no traces, logs or crash reports u
 
 ## Traces and logs over OTLP
 
-Under **Settings → About → OpenTelemetry**, set **OTLP endpoint** as `OTEL_EXPORTER_OTLP_ENDPOINT` names it: traces go to `/v1/traces` and logs to `/v1/logs` beneath it. **OTLP headers** holds the headers it needs, such as an authorization, as comma-separated `key=value` pairs; it is saved with your keys. **Stop sending** clears the endpoint.
+Under **Settings → Observability**, set **OTLP endpoint** as `OTEL_EXPORTER_OTLP_ENDPOINT` names it: traces go to `/v1/traces` and logs to `/v1/logs` beneath it. **OTLP headers** holds the headers it needs, such as an authorization, as comma-separated `key=value` pairs; it is saved with your keys. **Stop sending** clears the endpoint.
 
 Each agent run is a trace: `invoke_agent Solyx`, with a `chat` span for each model call and an `execute_tool` span for each tool, under the service name `solyx`. Spans carry the provider and model, the tool's name, token counts, cache use and the reply's cost, following OpenTelemetry's GenAI conventions, never what a conversation says or what a tool was given or returned.
 

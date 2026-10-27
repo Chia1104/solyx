@@ -1,8 +1,12 @@
+import type { ReactNode } from "react";
+
 import { Description, FieldError, Label, ListBox, Select } from "@heroui/react";
 
 interface Option<Id extends string> {
   id: Id;
   label: string;
+  /** Drawn before the label, in the list and in the field once chosen. */
+  icon?: ReactNode;
 }
 
 /**
@@ -64,7 +68,14 @@ export function OptionSelect<Id extends string>({
               key={option.id}
               id={option.id}
               textValue={option.label}>
-              {option.label}
+              {option.icon === undefined ? (
+                option.label
+              ) : (
+                <span className="flex min-w-0 items-center gap-2">
+                  {option.icon}
+                  <span className="truncate">{option.label}</span>
+                </span>
+              )}
               <ListBox.ItemIndicator />
             </ListBox.Item>
           ))}

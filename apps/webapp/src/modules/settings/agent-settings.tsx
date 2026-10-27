@@ -1,6 +1,9 @@
 import { useId, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 import { Switch, cn } from "@heroui/react";
+import { BotIcon, Key01Icon, UserCircleIcon } from "@hugeicons/core-free-icons";
+import type { IconSvgElement } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TabList, TabPanel, Tabs } from "react-aria-components";
 import { useTranslation } from "react-i18next";
@@ -13,8 +16,10 @@ import { DecisionMode, MagiUnit } from "@solyx/core/council";
 
 import { client, orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
+import { Icon } from "../../components/icon.tsx";
 import { SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
+import { LogoMark } from "../../components/logo-mark.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
 import { AgentModelPicker } from "../agent/agent-model-picker.tsx";
@@ -23,6 +28,7 @@ import { ProviderMark } from "../agent/agent-provider-mark.tsx";
 import { AddAgentProvider } from "./add-agent-provider.tsx";
 import { KeySignIn } from "./key-sign-in.tsx";
 import { matching } from "./matching.ts";
+import nerv from "./nerv.svg?no-inline";
 import {
   PROVIDER_GRID,
   PROVIDER_PANEL,
@@ -35,6 +41,19 @@ import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { agentSettingsQuery, secretsQuery } from "./settings-query.ts";
 import { SubscriptionSignIn } from "./subscription-sign-in.tsx";
 import { TextSettingRow } from "./text-setting-row.tsx";
+
+const AUTH_ICON: Record<AgentAuth, IconSvgElement> = {
+  [AgentAuth.ApiKey]: Key01Icon,
+  [AgentAuth.Subscription]: UserCircleIcon,
+};
+
+// The MAGI are NERV's, so they carry its leaf, in the text's colour like the agent beside them.
+const DECISION_MODE_ICON: Record<DecisionMode, ReactNode> = {
+  [DecisionMode.Single]: <Icon icon={BotIcon} />,
+  [DecisionMode.Magi]: (
+    <LogoMark logo={{ src: nerv, colored: false }} name="MAGI" />
+  ),
+};
 
 /**
  * A provider's tile: drawn quiet while switched off, in pencil while switched on but unable to run
@@ -195,12 +214,14 @@ export function AgentSettings() {
                   {
                     id: AgentAuth.ApiKey,
                     label: t("settings.agent.auths.api-key"),
+                    icon: <Icon icon={AUTH_ICON[AgentAuth.ApiKey]} />,
                   },
                   {
                     id: AgentAuth.Subscription,
                     label: t("settings.agent.auths.subscription", {
                       plan: each.subscription.plan,
                     }),
+                    icon: <Icon icon={AUTH_ICON[AgentAuth.Subscription]} />,
                   },
                 ]}
                 onChange={(next) =>
@@ -380,6 +401,7 @@ export function AgentSettings() {
                     .map((each) => ({
                       id: each.provider,
                       label: each.name,
+                      icon: <ProviderMark provider={each.provider} />,
                     }))}
                   onChange={(next) =>
                     save.mutate(() => client.settings.setAgentProvider(next))
@@ -437,6 +459,7 @@ export function AgentSettings() {
                   options={Object.values(DecisionMode).map((id) => ({
                     id,
                     label: t(`settings.agent.decision-modes.${id}`),
+                    icon: DECISION_MODE_ICON[id],
                   }))}
                   onChange={(next) =>
                     save.mutate(() =>

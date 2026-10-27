@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { Button, Form, Switch } from "@heroui/react";
+import { Button, Form, Modal, Switch } from "@heroui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { uniq } from "es-toolkit";
@@ -14,6 +14,7 @@ import type { CollectionJob, CollectionPlan } from "@solyx/core/schedule";
 
 import { currentTimeZone, useClock } from "../../app/clock.ts";
 import { client } from "../../app/rpc.ts";
+import { EditorFooter, EditorModal } from "../../components/editor-modal.tsx";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -84,32 +85,24 @@ function CollectionEditor({
     <FormProvider {...form}>
       <Form
         validationBehavior="aria"
-        className="flex flex-col gap-3"
+        className="contents"
         onSubmit={(event) => void submit(event)}>
-        <TimingFields kinds={KINDS} intervals={intervals} />
-        <div className="flex gap-2">
-          <Button type="submit" variant="secondary" isPending={save.isPending}>
-            {t("settings.save")}
-          </Button>
-          <Button
-            variant="tertiary"
-            isDisabled={save.isPending}
-            onPress={onDone}>
-            {t("common.cancel")}
-          </Button>
-        </div>
-        {save.error ? (
-          <ErrorAlert
-            title={t("settings.schedules.collections.change-failed")}
-            description={save.error.message}
-          />
-        ) : null}
+        <Modal.Body className="flex flex-col gap-3 text-foreground">
+          <TimingFields kinds={KINDS} intervals={intervals} />
+          {save.error ? (
+            <ErrorAlert
+              title={t("settings.schedules.collections.change-failed")}
+              description={save.error.message}
+            />
+          ) : null}
+        </Modal.Body>
+        <EditorFooter saving={save.isPending} onCancel={onDone} />
       </Form>
     </FormProvider>
   );
 }
 
-/** One of the app's collections: when it runs, when it last did and next will, edited below the row. */
+/** One of the app's collections: when it runs, when it last did and next will, edited in a modal. */
 function CollectionRow({ view }: { view: CollectionView }) {
   const { t } = useTranslation();
   const clock = useClock();
@@ -155,48 +148,48 @@ function CollectionRow({ view }: { view: CollectionView }) {
         </span>
       }
       actions={
-        editing ? null : (
-          <>
-            <Button
-              size="sm"
-              variant="tertiary"
-              isPending={collect.isPending}
-              onPress={() => collect.mutate()}>
-              {t("settings.schedules.collections.collect-now")}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onPress={() => {
-                enable.reset();
-                collect.reset();
-                setEditing(true);
-              }}>
-              {t("settings.edit")}
-            </Button>
-            <Switch
-              isSelected={plan.enabled}
-              isDisabled={enable.isPending}
-              onChange={(enabled) => enable.mutate(enabled)}>
-              <Switch.Content>
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-                <span className="sr-only">
-                  {t("settings.schedules.collections.enabled", { name })}
-                </span>
-              </Switch.Content>
-            </Switch>
-          </>
-        )
+        <>
+          <Button
+            size="sm"
+            variant="tertiary"
+            isPending={collect.isPending}
+            onPress={() => collect.mutate()}>
+            {t("settings.schedules.collections.collect-now")}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onPress={() => {
+              enable.reset();
+              collect.reset();
+              setEditing(true);
+            }}>
+            {t("settings.edit")}
+          </Button>
+          <Switch
+            isSelected={plan.enabled}
+            isDisabled={enable.isPending}
+            onChange={(enabled) => enable.mutate(enabled)}>
+            <Switch.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              <span className="sr-only">
+                {t("settings.schedules.collections.enabled", { name })}
+              </span>
+            </Switch.Content>
+          </Switch>
+        </>
       }>
-      {editing ? (
+      <p className="text-xs text-muted">
+        {t(`settings.schedules.collections.${job}.description`)}
+      </p>
+      <EditorModal
+        title={name}
+        isOpen={editing}
+        onClose={() => setEditing(false)}>
         <CollectionEditor view={view} onDone={() => setEditing(false)} />
-      ) : (
-        <p className="text-xs text-muted">
-          {t(`settings.schedules.collections.${job}.description`)}
-        </p>
-      )}
+      </EditorModal>
       {error ? (
         <ErrorAlert
           title={t("settings.schedules.collections.collect-failed")}

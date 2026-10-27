@@ -216,7 +216,7 @@ export function TradingSettings() {
 
   return (
     <>
-      <Section title={t("settings.sections.trading")}>
+      <Section title={t("settings.sections.orders")}>
         <SettingsList>
           <BrokerRow
             broker={data.broker}
