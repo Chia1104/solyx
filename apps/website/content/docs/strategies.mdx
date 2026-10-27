@@ -1,11 +1,17 @@
 ---
 title: Your strategies
-description: Write a strategy in any language, run it in the backtest panel and through the agent, and allow each version of its code before it runs.
+description: Write a strategy in any language, keep it on the strategies page, run it in the backtest panel and through the agent, and allow each version of its code before it runs.
 ---
 
 A strategy is code you write that works out lines from a listing's bars, and rules over those lines that Solyx's engine trades on. The code can be in any language your computer runs. The engine fills, prices and costs every trade, as it does for a [template](/docs/backtests), so a strategy is measured exactly as a template is.
 
 Strategies live in `strategies/` in the [config folder](/docs/files#the-config-folder), one folder each. Solyx reads them afresh every time, so an edit shows the next time you look.
+
+## The strategies page
+
+**Strategies**, beside **Settings** in the title bar, lists every strategy you wrote: what it buys and sells on, the numbers it takes, whether its version may run here and why not, and the last backtest the panel kept of it. From there you backtest one on a listing you hold, watch or type, which opens that listing's backtest panel with it, or have the agent write or change one. It also names the folders in `strategies/` that don't read as a strategy, with the reason, and what a strategy's code finds to run on where it runs.
+
+A strategy's own page adds its files, the versions you allowed, every run the panel kept of it on any listing, and buttons to allow its version, take back every version, open its folder or move it to the Trash, which takes back its versions too, so one put back asks again. **Trade on its signals** drafts a request for the agent to set up [a scheduled task](#running-one) that trades on it. A paired browser reads both pages and runs backtests; the rest stays with the computer. The agent never deletes a strategy.
 
 ## Writing one
 
@@ -49,7 +55,7 @@ A rule compares one of the strategy's lines only with another of its lines or wi
 
 ## Writing one with the agent
 
-Ask the agent for a strategy in words, or start from the backtest panel: **Write one with the agent** under **My strategies** while you have none, or **Keep as my strategy** beside a run of a template or written rules. The `/strategy` skill has the agent:
+Ask the agent for a strategy in words, or start from the strategies page's **Write one with the agent**, or from the backtest panel: the same button under **My strategies** while you have none, or **Keep as my strategy** beside a run of a template or written rules. The `/strategy` skill has the agent:
 
 - settle the idea and the range of each number with you before it reads any result;
 - check what the code can run on where it would run: the interpreters on the `PATH`, and which of numpy, pandas, polars, scipy and TA-Lib its Python has;
@@ -166,7 +172,7 @@ A strategy's folder may hold up to 1,000 files and 32 MB, and no links, since wh
 
 ## Allowing a version
 
-A version is what the strategy's files hold: any change to any file is another version, and each runs only once allowed. **Backtest** under a listing's chart shows a version not yet allowed with **Read what changed**, which shows each file's lines added and removed since the version allowed before, and **Allow this version**. A paired browser leaves allowing to the computer.
+A version is what the strategy's files hold: any change to any file is another version, and each runs only once allowed. The strategy's page, and **Backtest** under a listing's chart, show a version not yet allowed with **Read what changed**, which shows each file's lines added and removed since the version allowed before, and **Allow this version**. A paired browser leaves allowing to the computer.
 
 When the agent runs a version not yet allowed, its call asks you first and its card shows the same changes. In a conversation set to **Allow for me**, the decisions model judges the code: a version runs unasked only when every risk it scores is unlikely, that the code touches files outside its own, reaches the network, reads secrets or starts other programs.
 
