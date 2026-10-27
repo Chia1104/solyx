@@ -12,6 +12,7 @@ import {
 } from "@solyx/agent/attachment";
 import type { ReadAttachment } from "@solyx/agent/attachment";
 import type { AgentAttachment } from "@solyx/agent/runtime";
+import { isErrnoError } from "@solyx/utils/error";
 
 import type { PdfReader } from "./pdf-threads.ts";
 
@@ -192,7 +193,21 @@ export async function attachmentText(workspace: string, path: string) {
   }
 
   const name = basename(path);
-  const attachment = readAttachment(name, await readKept(workspace, path));
+
+  let bytes: Uint8Array;
+
+  try {
+    bytes = await readKept(workspace, path);
+  } catch (error) {
+    if (!isErrnoError(error, "ENOENT")) throw error;
+
+    // Said without the folder's path, which would name the user's home to the model's provider.
+    throw new Error(
+      `${name} is no longer kept in this conversation, since it was removed after it was attached; ask the user to attach it again`
+    );
+  }
+
+  const attachment = readAttachment(name, bytes);
 
   if (attachment.kind !== AttachmentKind.Text) {
     throw new Error(`${name} holds no text kept for the agent to read`);

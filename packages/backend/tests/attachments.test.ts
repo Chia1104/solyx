@@ -236,4 +236,13 @@ test("read_attachment reads only text kept at a kept file's place", async () => 
   await expect(
     attachmentText(workspace, "attachments/5/../../../.ssh/id_ed25519")
   ).rejects.toThrow("is not where a message's file is kept");
+
+  // A file a command removed is said to be gone, without the folder's path.
+  await rm(join(workspace, "attachments", "5", "fills.csv"));
+
+  await expect(
+    attachmentText(workspace, "attachments/5/fills.csv")
+  ).rejects.toThrow(
+    /^fills\.csv is no longer kept in this conversation, since it was removed after it was attached; ask the user to attach it again$/
+  );
 });
