@@ -27,7 +27,7 @@ import {
 import type { AgentView } from "@solyx/agent/wire";
 import { ScreenKind } from "@solyx/api/agent";
 import type { AgentScreen } from "@solyx/api/agent";
-import type { AgentSettings } from "@solyx/api/settings";
+import type { AgentModelOption, AgentSettings } from "@solyx/api/settings";
 import { SettingsSection } from "@solyx/api/settings-section";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -137,14 +137,17 @@ function sentScreen(
  */
 function ComposerNotes({
   unavailable,
+  blind,
   unreadable,
   refused,
   nothingOld,
   errors,
 }: {
   unavailable: ComponentProps<typeof ModelUnavailable> | null;
-  /** The model that sees no images the message carries, by its name. */
-  unreadable: string | null;
+  /** The model the message goes to by its name, where it sees no images. */
+  blind: string | null;
+  /** The message carries images that model would not see. */
+  unreadable: boolean;
   refused: readonly RefusedFile[];
   nothingOld: boolean;
   errors: readonly { title: string; error: Error | null }[];
@@ -154,9 +157,9 @@ function ComposerNotes({
   return (
     <>
       {unavailable ? <ModelUnavailable {...unavailable} /> : null}
-      {unreadable ? (
+      {unreadable && blind ? (
         <p className="px-1 text-xs text-warning">
-          {t("agent.attachments.no-images", { model: unreadable })}
+          {t("agent.attachments.no-images", { model: blind })}
         </p>
       ) : null}
       {refused.map(({ name, reason }) => (
@@ -237,6 +240,23 @@ function menuKey(
   return false;
 }
 
+/** The settings' option for the model a run would use, once both are known. */
+function optionOf(
+  settings: AgentSettings | undefined,
+  model: AgentModelRef | undefined
+) {
+  return (
+    model &&
+    settings?.models.find(
+      (each) => each.provider === model.provider && each.id === model.id
+    )
+  );
+}
+
+/** The model's name where it sees no images, which then keep a message from going. */
+const blindName = (option: AgentModelOption | undefined) =>
+  option && !option.images ? option.name : null;
+
 /**
  * What the conversation on screen runs on and how it asks, or what a new one would, and the way to
  * change either. A new conversation is created by its first message (`session`), on what was
@@ -314,19 +334,14 @@ function useConversationSetup(sessionId: string | null) {
   }
 
   // The next run's model, whose window the context has to fit and which may see no images.
-  const option =
-    settings &&
-    model &&
-    settings.models.find(
-      (each) => each.provider === model.provider && each.id === model.id
-    );
+  const option = optionOf(settings, model);
 
   return {
     settings,
     pick,
     contextWindow: option?.contextWindow,
     /** The next run's model by its name where it sees no images; until the settings load, it is taken to. */
-    blind: option && !option.images ? option.name : null,
+    blind: blindName(option),
     // Until the settings load, the model is taken to run rather than flash the notice.
     unavailable:
       settings && model && !isModelReady(settings, model)
@@ -393,15 +408,10 @@ export function AgentComposer({
   const [caret, setCaret] = useCaret(input);
 
   const files = useComposerFiles({
+    blind: blind !== null,
     insertText: (words) =>
       form.setValue("text", text.slice(0, caret) + words + text.slice(caret)),
   });
-
-  const unreadable = files.holdsImages && blind !== null;
-
-  // What keeps a message from going besides a run under way: a model that cannot run or see its
-  // images, or files still being read.
-  const held = unavailable !== null || unreadable || files.reading;
 
   // The token Escape closed the menu on, which stays closed until the caret leaves it.
   const [dismissed, setDismissed] = useState<number | null>(null);
@@ -459,6 +469,10 @@ export function AgentComposer({
 
   const compacting = progress.data?.compacting === true || compact.isPending;
   const busy = running || compacting;
+
+  // What keeps a message from going besides a run under way: a model that cannot run, or files it
+  // cannot carry yet.
+  const held = unavailable !== null || !files.ready;
 
   const send = useMutation({
     onMutate: () => compact.reset(),
@@ -548,7 +562,7 @@ export function AgentComposer({
         getDropOperation={(types) =>
           types.has(DIRECTORY_DRAG_TYPE) ? "cancel" : "copy"
         }
-        onDrop={(event) => void files.drop(event.items)}
+        onDrop={files.drop}
         className="relative rounded-board border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus data-drop-target:border-accent">
         <MessageAttachments
           focus={focus}
@@ -592,11 +606,7 @@ export function AgentComposer({
                   onBlur={field.onBlur}
                   onKeyDown={onKeyDown}
                   // A screenshot pasted rides with the message rather than as its name.
-                  onPaste={(event) => {
-                    if (files.paste(event.clipboardData)) {
-                      event.preventDefault();
-                    }
-                  }}
+                  onPaste={files.paste}
                 />
               </TextField>
             </Autocomplete>
@@ -604,10 +614,7 @@ export function AgentComposer({
         />
         <div className="flex items-center justify-between gap-2 px-2 pb-2">
           <div className="flex min-w-0 items-center gap-1">
-            <AttachButton
-              accepts={ACCEPTED_FILES}
-              onPick={(picked) => void files.add(picked)}
-            />
+            <AttachButton accepts={ACCEPTED_FILES} onPick={files.pick} />
             {/* A browser's messages ask before every call, whatever the mode the computer set. */}
             {inWindow ? (
               <ApprovalModeMenu
@@ -667,7 +674,8 @@ export function AgentComposer({
       </DropZone>
       <ComposerNotes
         unavailable={unavailable}
-        unreadable={unreadable ? blind : null}
+        blind={blind}
+        unreadable={files.unreadable}
         refused={files.refused}
         nothingOld={
           compact.data === CompactionOutcome.NothingOld &&

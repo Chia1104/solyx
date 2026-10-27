@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import type { ClipboardEvent } from "react";
 
 import type { DropItem } from "react-aria-components";
 
@@ -56,8 +57,11 @@ async function read(
  * the composer or pasted; text dropped goes to `insertText`.
  */
 export function useComposerFiles({
+  blind,
   insertText,
 }: {
+  /** The conversation's model sees no images, so a message holding one cannot go. */
+  blind: boolean;
   insertText: (text: string) => void;
 }) {
   // The files as the last change left them, which a change still reading files builds on.
@@ -105,7 +109,7 @@ export function useComposerFiles({
     }
   }
 
-  async function drop(items: readonly DropItem[]) {
+  async function drop({ items }: { items: readonly DropItem[] }) {
     const dropped = await Promise.all(
       items.flatMap((item) => (item.kind === "file" ? [item.getFile()] : []))
     );
@@ -123,23 +127,28 @@ export function useComposerFiles({
     if (item?.kind === "text") insertText(await item.getText("text/plain"));
   }
 
+  const unreadable =
+    blind &&
+    files.some((pending) => pending.attachment.kind === AttachmentKind.Image);
+
   return {
     files,
     refused,
-    holdsImages: files.some(
-      (pending) => pending.attachment.kind === AttachmentKind.Image
-    ),
-    /** Files are still being read, so what the message carries is not settled yet. */
-    reading: reading > 0,
-    add,
-    drop,
-    /** Takes the files a paste carries, saying whether it carried any, in which case it writes nothing. */
-    paste: (clipboard: DataTransfer) => {
-      const pasted = [...clipboard.files];
+    /** The message holds images the conversation's model would not see. */
+    unreadable,
+    /** Nothing is still being read and the model sees everything, so the message may go. */
+    ready: reading === 0 && !unreadable,
+    /** Takes files the user picked, as `add` does without waiting for it. */
+    pick: (picked: File[]) => void add(picked),
+    drop: (event: { items: readonly DropItem[] }) => void drop(event),
+    /** Takes the files a paste carries, in place of writing their names. */
+    paste: (event: ClipboardEvent<HTMLElement>) => {
+      const pasted = [...event.clipboardData.files];
 
-      if (pasted.length > 0) void add(pasted);
+      if (pasted.length === 0) return;
 
-      return pasted.length > 0;
+      event.preventDefault();
+      void add(pasted);
     },
     remove: (id: string) =>
       hold(held.current.filter((pending) => pending.id !== id)),
