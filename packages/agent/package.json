@@ -20,6 +20,7 @@
     "./prompt": "./src/prompt.ts",
     "./providers": "./src/providers.ts",
     "./quotes": "./src/quotes.ts",
+    "./read-attachment": "./src/read-attachment.ts",
     "./research": "./src/research.ts",
     "./runtime": "./src/runtime.ts",
     "./sandbox": "./src/sandbox.ts",

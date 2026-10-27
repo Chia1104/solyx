@@ -53,7 +53,7 @@ import {
   createApprovalGate,
 } from "./approval.ts";
 import type { ToolGuards } from "./approval.ts";
-import { AttachmentKind } from "./attachment.ts";
+import { AttachmentKind, MAX_TEXT_ATTACHMENT_BYTES } from "./attachment.ts";
 import type { ReadAttachment } from "./attachment.ts";
 import type {
   AgentModelPick,
@@ -129,8 +129,22 @@ export interface AgentRuntimeOptions {
   images?: ImageProcessor;
 }
 
-/** A file a message carries, where the host keeps it in the conversation's folder. */
-export type AgentAttachment = ReadAttachment & { path: string };
+/**
+ * A file a message carries, where the host keeps it in the conversation's folder. A PDF comes as
+ * the text the host read of it, with how many pages it has.
+ */
+export type AgentAttachment = Exclude<
+  ReadAttachment,
+  { kind: typeof AttachmentKind.Pdf }
+> & { path: string; pages?: number };
+
+const encoder = new TextEncoder();
+
+/** Text short enough to carry inside its message, or else how long it is, for `read_attachment`. */
+const carriedText = (text: string) =>
+  encoder.encode(text).byteLength <= MAX_TEXT_ATTACHMENT_BYTES
+    ? { text }
+    : { characters: text.length };
 
 export interface AgentTurn {
   text: string;
@@ -544,7 +558,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
           path,
           mimeType,
           size,
-          text: attachment.text,
+          pages: attachment.pages,
+          ...carriedText(attachment.text),
         });
 
         continue;

@@ -48,6 +48,11 @@ const photonWasm = createRequire(
   import.meta.resolve("@earendil-works/pi-durable/images")
 ).resolve("@silvia-odwyer/photon/photon_rs_bg.wasm");
 
+// A PDF's thread reads pdf.js's CMaps, for fonts that name one, from beside the backend.
+const pdfCmaps = fileURLToPath(
+  new URL("cmaps", import.meta.resolve("pdfjs-dist/package.json"))
+);
+
 // The kernel's process loads its native build from beside its bundle.
 const kernelBuild = fileURLToPath(
   new URL("solyx-kernel.node", import.meta.resolve("@solyx/kernel/kernel"))
@@ -143,7 +148,8 @@ export default defineConfig({
       outDir: "dist/utility",
       format: "esm",
       // drizzle's migrator reads SQL files, the agent's scripts QuickJS's wasm, the images' worker
-      // Photon's and the kernel's process its native build at runtime, so they ship beside the bundles.
+      // Photon's, the PDFs' worker pdf.js's CMaps and the kernel's process its native build at
+      // runtime, so they ship beside the bundles.
       copy: [
         {
           from: "../../packages/db/migrations/cache",
@@ -172,6 +178,7 @@ export default defineConfig({
         },
         { from: quickjsWasm, to: "dist/utility" },
         { from: photonWasm, to: "dist/utility" },
+        { from: pdfCmaps, to: "dist/utility", rename: "cmaps" },
         { from: kernelBuild, to: "dist/utility" },
         ...(process.platform === "linux"
           ? [{ from: seccompFilters, to: "dist/utility/vendor" }]
@@ -190,6 +197,7 @@ export default defineConfig({
         images: fileURLToPath(
           import.meta.resolve("@solyx/backend/worker/images")
         ),
+        pdf: fileURLToPath(import.meta.resolve("@solyx/backend/worker/pdf")),
       },
       outDir: "dist/worker",
       format: "esm",

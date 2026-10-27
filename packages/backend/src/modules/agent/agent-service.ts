@@ -1,5 +1,5 @@
 import { lstat, readdir, rm } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { Tracer } from "@opentelemetry/api";
@@ -20,6 +20,7 @@ import { AppPlace, formatContext } from "@solyx/agent/prompt";
 import type { AgentModelPick } from "@solyx/agent/providers";
 import { createQuoteTools } from "@solyx/agent/quotes";
 import type { QuoteToolsOptions } from "@solyx/agent/quotes";
+import { createAttachmentTools } from "@solyx/agent/read-attachment";
 import { createResearch } from "@solyx/agent/research";
 import { createAgentRuntime } from "@solyx/agent/runtime";
 import type { Sandbox } from "@solyx/agent/sandbox";
@@ -85,10 +86,15 @@ import { createAgentModels } from "./agent-models.ts";
 import type { AgentModelsOptions } from "./agent-models.ts";
 import { createAgentSetup } from "./agent-setup.ts";
 import type { AgentSetupSources } from "./agent-setup.ts";
-import { keepAttachments, keptAttachment } from "./attachments.ts";
+import {
+  attachmentText,
+  keepAttachments,
+  keptAttachment,
+} from "./attachments.ts";
 import { createImageThreads } from "./image-threads.ts";
 import type { McpServers } from "./mcp-servers.ts";
 import { messageContext, screenContext } from "./message-context.ts";
+import { createPdfThreads } from "./pdf-threads.ts";
 import { loginShellPath } from "./shell-path.ts";
 import { createWaitingCalls } from "./waiting-calls.ts";
 
@@ -169,6 +175,12 @@ const IMAGE_FILES = {
   worker: pathToFileURL(join(import.meta.dirname, "../worker/images.mjs")),
 };
 
+// And for pdf.js's CMaps, which a PDF a message carries may need for its CJK text.
+const PDF_FILES = {
+  cmaps: join(import.meta.dirname, "cmaps") + sep,
+  worker: pathToFileURL(join(import.meta.dirname, "../worker/pdf.mjs")),
+};
+
 // A scheduled task names no way to let every call run, so no run nobody watches is set to bypass.
 const UNATTENDED_MODE: Record<ScheduleApproval, ApprovalMode> = {
   [ScheduleApproval.Ask]: ApprovalMode.Ask,
@@ -238,6 +250,15 @@ export function createAgentService(options: AgentServiceOptions) {
 
     return join(options.workspaces, id);
   };
+
+  const pdfs = createPdfThreads(PDF_FILES);
+
+  const attachmentTools = createAttachmentTools({
+    reader: {
+      text: (conversationId, path) =>
+        attachmentText(workspace(String(conversationId)), path),
+    },
+  });
 
   const shell = createShell({
     workspace,
@@ -441,6 +462,7 @@ export function createAgentService(options: AgentServiceOptions) {
             : []),
           mcp.search,
           mcpScriptExtension(mcp, scripts),
+          attachmentTools,
           traces.extension,
         ],
         deferred: [mcp.tools],
@@ -514,7 +536,8 @@ export function createAgentService(options: AgentServiceOptions) {
     const kept = await keepAttachments(
       workspace(id),
       attachments,
-      now.getTime()
+      now.getTime(),
+      pdfs
     );
 
     const { mentions, skill } = await messageContext(text, {

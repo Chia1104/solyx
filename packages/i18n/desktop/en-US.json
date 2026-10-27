@@ -589,8 +589,7 @@
       "no-images": "{{model}} can't see images. Remove them, or pick a model that can.",
       "refused": {
         "too-large": "{{name}} is larger than 20 MB.",
-        "unsupported": "{{name}} isn't an image (PNG, JPEG, GIF, WebP) or a text file.",
-        "too-long": "{{name}} holds more than 100 KB of text.",
+        "unsupported": "{{name}} isn't an image (PNG, JPEG, GIF, WebP), a PDF or a text file.",
         "too-many-pixels": "{{name}} has more than 50 million pixels.",
         "secret": "{{name}} holds a private key or a certificate, so it can't be attached.",
         "too-many": "{{name}} wasn't attached: a message carries at most 5 files."
@@ -689,7 +688,8 @@
       "get_strategy": "Read a strategy",
       "allow_strategy": "Allowed a strategy to run",
       "save_strategy": "Wrote a strategy",
-      "get_runtimes": "Checked what a strategy's code can run on"
+      "get_runtimes": "Checked what a strategy's code can run on",
+      "read_attachment": "Read an attachment"
     },
     "doing": {
       "get_market_status": "Checking market status",
@@ -739,7 +739,8 @@
       "get_strategy": "Reading a strategy",
       "allow_strategy": "Allowing a strategy to run",
       "save_strategy": "Writing a strategy",
-      "get_runtimes": "Checking what a strategy's code can run on"
+      "get_runtimes": "Checking what a strategy's code can run on",
+      "read_attachment": "Reading an attachment"
     },
     "work": {
       "done_one": "{{count}} step",

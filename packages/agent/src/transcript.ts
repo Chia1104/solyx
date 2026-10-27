@@ -47,11 +47,17 @@ const CONTEXT_OPEN = "<app_context>";
 
 const CONTEXT_CLOSE = "</app_context>";
 
-/** A file as its user message carries it to the model. */
-export type MessageAttachment = Omit<AttachmentView, "name"> &
-  (
+/**
+ * A file as its user message carries it to the model: an image, text short enough to carry, or
+ * text too long to, which only its length stands for and `read_attachment` reads.
+ */
+export type MessageAttachment = Omit<AttachmentView, "name"> & {
+  /** A PDF's pages, which its text is set under. */
+  pages?: number;
+} & (
     | { kind: typeof AttachmentKind.Image; image: ImageContent }
     | { kind: typeof AttachmentKind.Text; text: string }
+    | { kind: typeof AttachmentKind.Text; characters: number }
   );
 
 const ATTACHMENT_CLOSE = "</attachment>";
@@ -63,10 +69,22 @@ const ATTACHMENT_TAG =
 function attachmentContent(
   attachment: MessageAttachment
 ): Exclude<UserMessage["content"], string> {
-  const tag = `<attachment path="${escape(attachment.path)}" type="${escape(attachment.mimeType)}" size="${attachment.size}"`;
+  const pages =
+    attachment.pages === undefined ? "" : ` pages="${attachment.pages}"`;
+
+  const tag = `<attachment path="${escape(attachment.path)}" type="${escape(attachment.mimeType)}" size="${attachment.size}"${pages}`;
 
   if (attachment.kind === AttachmentKind.Image) {
     return [{ type: "text", text: `${tag}/>` }, attachment.image];
+  }
+
+  if ("characters" in attachment) {
+    return [
+      {
+        type: "text",
+        text: `${tag} characters="${attachment.characters}"/>`,
+      },
+    ];
   }
 
   // A file that closes the tag itself would end its own data early.

@@ -170,6 +170,37 @@ test("a message lists the files it carried, and the thread shows only what the u
   );
 });
 
+test("a file too long to carry stands in its message for its length and pages alone", () => {
+  const message = {
+    role: "user" as const,
+    content: userContent("Summarize the report", "time: now", [
+      {
+        kind: AttachmentKind.Text,
+        path: "attachments/1/annual-report.pdf",
+        mimeType: "application/pdf",
+        size: 4_200_000,
+        pages: 180,
+        characters: 512_000,
+      },
+    ]),
+    timestamp: 1,
+  };
+
+  expect(message.content).toContainEqual({
+    type: "text",
+    text: '<attachment path="attachments/1/annual-report.pdf" type="application/pdf" size="4200000" pages="180" characters="512000"/>',
+  });
+  expect(userText(message)).toBe("Summarize the report");
+  expect(userAttachments(message)).toEqual([
+    {
+      path: "attachments/1/annual-report.pdf",
+      name: "annual-report.pdf",
+      mimeType: "application/pdf",
+      size: 4_200_000,
+    },
+  ]);
+});
+
 test("a finished conversation replays idle", () => {
   const view = foldEvents(
     transcriptEvents([user(1, "hi"), reply(2, "hello")], false)

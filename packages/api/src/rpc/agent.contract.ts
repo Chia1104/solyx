@@ -1,7 +1,11 @@
 import { asyncIteratorObject, oc, type } from "@orpc/contract";
 import * as z from "zod";
 
-import { MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES } from "@solyx/agent/attachment";
+import {
+  ATTACHMENT_PATH,
+  MAX_ATTACHMENTS,
+  MAX_ATTACHMENT_BYTES,
+} from "@solyx/agent/attachment";
 import { agentModelPickSchema } from "@solyx/agent/providers";
 import { agentSessionSetupSchema, approvalModeSchema } from "@solyx/agent/wire";
 import type {
@@ -21,10 +25,7 @@ const idSchema = z.string().min(1);
 
 const textSchema = z.string().trim().min(1).max(20_000);
 
-// Where the backend keeps a message's file in its conversation's folder, and nowhere else.
-const attachmentPathSchema = z
-  .string()
-  .regex(/^attachments\/\d+\/[^/\\.][^/\\]*$/);
+const attachmentPathSchema = z.string().regex(ATTACHMENT_PATH);
 
 export const agentContract = {
   /** Most recently active first. */

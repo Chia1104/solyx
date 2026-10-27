@@ -395,6 +395,47 @@ test("a message's files reach the model, and the thread lists them without what 
   await runtime.close();
 });
 
+test("text too long to carry reaches the model as its length, for read_attachment", async () => {
+  const { faux, runtime, ended } = setup();
+  const { id } = await runtime.create();
+  let seen = "";
+
+  faux.setResponses([
+    (context) => {
+      seen = JSON.stringify(
+        context.messages.findLast((message) => message.role === "user")
+      );
+
+      return fauxAssistantMessage("ok");
+    },
+  ]);
+
+  const text = "date,close\n".repeat(20_000);
+
+  await runtime.send(id, {
+    text: "Summarize it",
+    context: "",
+    attachments: [
+      {
+        kind: AttachmentKind.Text,
+        name: "fills.csv",
+        path: "attachments/1/fills.csv",
+        size: text.length,
+        mimeType: "text/csv",
+        text,
+      },
+    ],
+  });
+  await ended();
+
+  expect(seen).toContain(
+    `size=\\"${text.length}\\" characters=\\"${text.length}\\"/>`
+  );
+  expect(seen).not.toContain("date,close");
+
+  await runtime.close();
+});
+
 test("an image is refused for a model that reads none, and nothing of the message is kept", async () => {
   const prepare = vi.fn<ImageProcessor["prepare"]>();
 

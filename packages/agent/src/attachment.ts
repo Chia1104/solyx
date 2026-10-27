@@ -10,7 +10,10 @@ export const MAX_ATTACHMENTS = 5;
 /** The largest file a message carries, before an image is scaled to fit its model. */
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
-/** The most text a file adds to its message, since the model reads all of it with every request. */
+/**
+ * The most text a file carries inside its message, since the model reads all of it with every
+ * request; a longer file's text the agent reads a part at a time with `read_attachment`.
+ */
 export const MAX_TEXT_ATTACHMENT_BYTES = 100 * 1024;
 
 /**
@@ -33,6 +36,8 @@ export type AttachmentImageType =
 export const AttachmentKind = {
   Image: "image",
   Text: "text",
+  /** A PDF, which the host reads the text of. */
+  Pdf: "pdf",
 } as const;
 
 export type AttachmentKind =
@@ -49,7 +54,12 @@ export interface AttachmentView {
   size: number;
 }
 
-/** A file read for a message: an image the model sees, or text it reads. */
+export const PDF_TYPE = "application/pdf";
+
+/** Where the host keeps a file a message carried, in its conversation's folder, and nowhere else. */
+export const ATTACHMENT_PATH = /^attachments\/\d+\/[^/\\.][^/\\]*$/;
+
+/** A file read for a message: an image the model sees, text it reads, or a PDF whose text it reads. */
 export type ReadAttachment = {
   name: string;
   size: number;
@@ -60,15 +70,18 @@ export type ReadAttachment = {
       data: Uint8Array;
     }
   | { kind: typeof AttachmentKind.Text; mimeType: string; text: string }
+  | {
+      kind: typeof AttachmentKind.Pdf;
+      mimeType: typeof PDF_TYPE;
+      data: Uint8Array;
+    }
 );
 
 /** Why a file cannot ride with a message. */
 export const AttachmentRefusal = {
   TooLarge: "too-large",
-  /** Neither an image the model takes nor text. */
+  /** Neither an image the model takes, a PDF nor text. */
   Unsupported: "unsupported",
-  /** Text longer than a message holds. */
-  TooLong: "too-long",
   /** An image of more pixels than it is safe to decode. */
   TooManyPixels: "too-many-pixels",
   /** A private key or a certificate, which would be kept with the conversation and its backups. */
@@ -81,8 +94,7 @@ export type AttachmentRefusal =
 const REFUSAL_TEXT: Record<AttachmentRefusal, string> = {
   [AttachmentRefusal.TooLarge]: `is larger than ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB`,
   [AttachmentRefusal.Unsupported]:
-    "is neither a PNG, JPEG, GIF or WebP image nor text",
-  [AttachmentRefusal.TooLong]: `holds more than ${MAX_TEXT_ATTACHMENT_BYTES / 1024} KB of text`,
+    "is neither a PNG, JPEG, GIF or WebP image, a PDF nor text",
   [AttachmentRefusal.TooManyPixels]: `holds more than ${MAX_IMAGE_PIXELS / 1_000_000} million pixels`,
   [AttachmentRefusal.Secret]: "holds a private key or a certificate",
 };
@@ -230,15 +242,20 @@ const TEXT_TYPES = new Map([
 // What a path, a shell or the attachment's tag would read as more than a name.
 const UNSAFE = '"<>\\/:*?|';
 
-/** How much of a file too long to attach is read to tell text from the rest. */
-const SNIFF_BYTES = 4096;
+// A PDF's header may follow up to a kilobyte of anything.
+const PDF_HEADER = "%PDF-";
 
-/** Text in UTF-8 without a NUL, or `undefined`; `prefix` reads a beginning cut anywhere. */
-function textOf(bytes: Uint8Array, prefix = false) {
+const PDF_HEADER_WITHIN = 1024;
+
+const isPdf = (bytes: Uint8Array) =>
+  new TextDecoder("latin1")
+    .decode(bytes.subarray(0, PDF_HEADER_WITHIN))
+    .includes(PDF_HEADER);
+
+/** Text in UTF-8 without a NUL, or `undefined`. */
+function textOf(bytes: Uint8Array) {
   try {
-    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes, {
-      stream: prefix,
-    });
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 
     return text.includes("\0") ? undefined : text;
   } catch {
@@ -296,13 +313,14 @@ export function readAttachment(
     };
   }
 
-  if (bytes.byteLength > MAX_TEXT_ATTACHMENT_BYTES) {
-    throw new AttachmentRefused(
-      kept,
-      textOf(bytes.subarray(0, SNIFF_BYTES), true) === undefined
-        ? AttachmentRefusal.Unsupported
-        : AttachmentRefusal.TooLong
-    );
+  if (isPdf(bytes)) {
+    return {
+      kind: AttachmentKind.Pdf,
+      name: kept,
+      size: bytes.byteLength,
+      mimeType: PDF_TYPE,
+      data: bytes,
+    };
   }
 
   const text = textOf(bytes);
@@ -326,4 +344,18 @@ export function readAttachment(
     mimeType: TEXT_TYPES.get(extension) ?? "text/plain",
     text,
   };
+}
+
+// Some fonts map CJK characters to their radicals' code points (⽑ for 毛), which read the same but
+// match nothing a search or a quote holds.
+const RADICALS = /[\u2e80-\u2fdf]/g;
+
+/** A PDF's text as a message and `read_attachment` give it: each page under its number. */
+export function pdfText(pages: readonly string[]) {
+  return pages
+    .map(
+      (page, at) =>
+        `[page ${at + 1}]\n${page.replace(RADICALS, (radical) => radical.normalize("NFKC")).trim()}`
+    )
+    .join("\n\n");
 }

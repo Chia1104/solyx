@@ -8,6 +8,7 @@ import {
   MAX_TEXT_ATTACHMENT_BYTES,
   attachmentName,
   imageSize,
+  pdfText,
   readAttachment,
 } from "../src/attachment.ts";
 
@@ -163,11 +164,7 @@ test("a file is refused when the model could not read it or it holds a key", () 
 });
 
 test("a file past the limits is refused for the limit it passed", () => {
-  const long = new Uint8Array(MAX_TEXT_ATTACHMENT_BYTES + 1).fill(0x61);
-
-  expect(refusal("big.csv", long)).toBe(AttachmentRefusal.TooLong);
-
-  // An archive is no text however long, so it is refused as a kind the model cannot read.
+  // An archive is no text, so it is refused as a kind the model cannot read.
   const archive = new Uint8Array(MAX_TEXT_ATTACHMENT_BYTES + 1);
 
   expect(refusal("big.zip", archive)).toBe(AttachmentRefusal.Unsupported);
@@ -177,6 +174,37 @@ test("a file past the limits is refused for the limit it passed", () => {
   huge.set(png(1000, 1000));
 
   expect(refusal("huge.png", huge)).toBe(AttachmentRefusal.TooLarge);
+});
+
+test("text too long to carry inside its message is kept for the agent to read", () => {
+  const long = new Uint8Array(MAX_TEXT_ATTACHMENT_BYTES * 3).fill(0x61);
+
+  expect(readAttachment("fills.csv", long)).toMatchObject({
+    kind: AttachmentKind.Text,
+    size: MAX_TEXT_ATTACHMENT_BYTES * 3,
+  });
+});
+
+test("a PDF is told by its header, which may follow a little of anything", () => {
+  expect(
+    readAttachment("report", bytesOf(text("%PDF-1.7\n%âãÏÓ\n")))
+  ).toMatchObject({
+    kind: AttachmentKind.Pdf,
+    mimeType: "application/pdf",
+  });
+
+  expect(
+    readAttachment(
+      "report.pdf",
+      bytesOf(new Array(500).fill(0x20), text("%PDF-1.4\n"))
+    )
+  ).toMatchObject({ kind: AttachmentKind.Pdf });
+});
+
+test("a PDF's text sits under its pages, its radicals read as the characters they stand for", () => {
+  expect(pdfText(["台積電 ⽑利率 59.5%", "  第⼆⾴  "])).toBe(
+    "[page 1]\n台積電 毛利率 59.5%\n\n[page 2]\n第二頁"
+  );
 });
 
 test("a name keeps no folder and nothing the tag around it would read", () => {
