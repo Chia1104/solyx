@@ -74,8 +74,8 @@ export function UserMessage({ message }: { message: MessageView }) {
   );
 }
 
-/** Thinking folds away under the reply; it opens by itself only while nothing else has streamed. */
-function AgentThinking({ message }: { message: MessageView }) {
+/** A reply's thinking, folded away; it opens by itself only while nothing else of the reply has streamed. */
+export function AgentThinking({ message }: { message: MessageView }) {
   const { t } = useTranslation();
   const live = message.streaming && !message.text;
 
@@ -111,21 +111,25 @@ function AgentThinking({ message }: { message: MessageView }) {
   );
 }
 
-/** Its thinking with the agent's other activity, then the reply standing apart from it. */
-export function AssistantMessage({ message }: { message: MessageView }) {
+/**
+ * What a reply says, with when it was sent and what it cost once it ends; its thinking shows apart.
+ * Said between calls, it is part of the work and goes without them.
+ */
+export function AssistantReply({
+  message,
+  between = false,
+}: {
+  message: MessageView;
+  between?: boolean;
+}) {
   return (
-    <>
-      {message.thinking ? <AgentThinking message={message} /> : null}
-      {message.text ? (
-        <div className="group/message flex flex-col gap-1">
-          <AgentMarkdown text={message.text} streaming={message.streaming} />
-          {message.streaming ? null : (
-            <MessageMeta at={message.at} text={message.text}>
-              {message.usage ? <ReplyUsageMark usage={message.usage} /> : null}
-            </MessageMeta>
-          )}
-        </div>
-      ) : null}
-    </>
+    <div className="group/message flex flex-col gap-1">
+      <AgentMarkdown text={message.text} streaming={message.streaming} />
+      {message.streaming || between ? null : (
+        <MessageMeta at={message.at} text={message.text}>
+          {message.usage ? <ReplyUsageMark usage={message.usage} /> : null}
+        </MessageMeta>
+      )}
+    </div>
   );
 }

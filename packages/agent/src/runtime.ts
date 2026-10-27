@@ -196,8 +196,14 @@ interface Watch {
   log: AgentWireEvent[];
   /** Read `base` from storage, and turns what the stream stores since into events. */
   transcriber: Transcriber;
-  /** The reply streaming now, and the text and thinking already sent of it. */
-  streaming?: { id: string; content: Block[]; text: string; thinking: string };
+  /** The reply streaming now, the text and thinking already sent of it and the calls it drafted. */
+  streaming?: {
+    id: string;
+    content: Block[];
+    text: string;
+    thinking: string;
+    drafted: Set<string>;
+  };
   /** Why the run's input went unanswered, when it ended without a final reply. */
   failure?: RunEndEvent;
   /** The tokens last sent as the next request's context. */
@@ -263,6 +269,32 @@ function applyChanges(content: Block[], changes: readonly MessageChange[]) {
         break;
     }
   }
+}
+
+/**
+ * The calls a streaming reply began since the last look, each once its id and name have come, so a
+ * call shows as the model writes its arguments rather than only once it runs.
+ */
+function emitDrafts(streaming: { content: Block[]; drafted: Set<string> }) {
+  const drafts: AgentWireEvent[] = [];
+
+  for (const block of streaming.content) {
+    if (
+      block?.type === "toolCall" &&
+      block.id &&
+      block.name &&
+      !streaming.drafted.has(block.id)
+    ) {
+      streaming.drafted.add(block.id);
+      drafts.push({
+        type: AgentEventType.ToolDraft,
+        toolCallId: block.id,
+        toolName: block.name,
+      });
+    }
+  }
+
+  return drafts;
 }
 
 // The events after which the next request holds something else.
@@ -492,7 +524,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     const { transcriber } = watch;
     const emit = (event: AgentWireEvent) => publish(watch, sessionId, event);
 
-    const sendDeltas = () => {
+    const sendStreamed = () => {
       const { streaming } = watch;
 
       if (!streaming) return;
@@ -516,6 +548,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
           streaming[channel] = next[channel];
         }
       }
+
+      emitDrafts(streaming).forEach(emit);
     };
 
     // A run's end and why its input went unanswered arrive in one commit, the reason last.
@@ -545,12 +579,13 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
               content: structuredClone(event.message.content),
               text: "",
               thinking: "",
+              drafted: new Set(),
             };
             emit({
               type: AgentEventType.AssistantStart,
               messageId: watch.streaming.id,
             });
-            sendDeltas();
+            sendStreamed();
           }
 
           break;
@@ -558,7 +593,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         case "message_update":
           if (watch.streaming) {
             applyChanges(watch.streaming.content, event.changes);
-            sendDeltas();
+            sendStreamed();
           }
 
           break;
@@ -669,6 +704,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
           content: structuredClone(partial.content),
           text,
           thinking,
+          drafted: new Set(),
         };
         base.push(
           { type: AgentEventType.AssistantStart, messageId: id },
@@ -683,7 +719,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
             messageId: id,
             channel: DeltaChannel.Text,
             delta: text,
-          }
+          },
+          ...emitDrafts(created.streaming)
         );
       }
 

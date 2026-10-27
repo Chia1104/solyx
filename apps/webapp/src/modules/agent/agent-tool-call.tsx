@@ -20,8 +20,6 @@ import {
   changeSettingArgumentsSchema,
   changeWatchlistArgumentsSchema,
   forgetArgumentsSchema,
-  getSectorsDetailsSchema,
-  proposeOrderDetailsSchema,
   readPageArgumentsSchema,
   rememberArgumentsSchema,
   runTaskArgumentsSchema,
@@ -30,7 +28,6 @@ import {
   saveThemeArgumentsSchema,
   runAnalysisDetailsSchema,
   scriptArgumentsSchema,
-  submitForecastDetailsSchema,
   taskSchedule,
 } from "@solyx/agent/wire";
 import type { ToolCallView } from "@solyx/agent/wire";
@@ -71,6 +68,7 @@ import {
 } from "../strategies/strategy-changes.tsx";
 
 import { ActivityMark } from "./agent-activity.tsx";
+import { callCards } from "./agent-turns.ts";
 import { MagiPanel } from "./magi-panel.tsx";
 
 /** Shorter than the overview's, since the pane is narrower and the reply follows. */
@@ -93,7 +91,7 @@ const argumentsSchema = z.object({
  * What a call was about: a listing and its interval, an order's or a forecast's listing, a
  * playbook, a search, a page, a memory or a setting.
  */
-function Subject({ tool }: { tool: ToolCallView }) {
+export function Subject({ tool }: { tool: ToolCallView }) {
   const { t } = useTranslation();
   const args = argumentsSchema.safeParse(tool.args).data;
   const listing = args?.symbol ?? args?.order ?? args?.instrument;
@@ -124,8 +122,29 @@ function Subject({ tool }: { tool: ToolCallView }) {
   return text ? <span className="min-w-0 truncate">{text}</span> : null;
 }
 
+/**
+ * What a call does, in words for while it is written or runs, or for once it ended. A tool of an
+ * MCP server goes by its own name.
+ */
+export function toolLabel(t: TFunction, tool: ToolCallView) {
+  const live =
+    tool.status === ToolCallStatus.Drafting ||
+    tool.status === ToolCallStatus.Running;
+
+  if (!isEnumValue(AgentToolName, tool.toolName)) {
+    return live
+      ? t("agent.work.calling", { name: tool.toolName })
+      : tool.toolName;
+  }
+
+  return live
+    ? t(`agent.doing.${tool.toolName}`)
+    : t(`agent.tools.${tool.toolName}`);
+}
+
 function StatusIcon({ status }: { status: ToolCallStatus }) {
   switch (status) {
+    case ToolCallStatus.Drafting:
     case ToolCallStatus.Running:
       return <Spinner size="sm" color="current" className="size-3" />;
     case ToolCallStatus.AwaitingApproval:
@@ -643,26 +662,7 @@ export function AgentToolCall({
   tool: ToolCallView;
 }) {
   const { t } = useTranslation();
-
-  const proposal =
-    (tool.toolName === AgentToolName.ProposeOrder ||
-      tool.toolName === AgentToolName.ProposeExit) &&
-    tool.status === ToolCallStatus.Ok
-      ? proposeOrderDetailsSchema.safeParse(tool.details).data
-      : undefined;
-
-  const forecast =
-    tool.toolName === AgentToolName.SubmitForecast &&
-    tool.status === ToolCallStatus.Ok
-      ? submitForecastDetailsSchema.safeParse(tool.details).data
-      : undefined;
-
-  // The sectors as the call read them, not as they trade now, so the map agrees with the reply.
-  const sectors =
-    tool.toolName === AgentToolName.GetSectors &&
-    tool.status === ToolCallStatus.Ok
-      ? getSectorsDetailsSchema.safeParse(tool.details).data?.sectors
-      : undefined;
+  const { proposal, forecast, sectors } = callCards(tool);
 
   // A script's calls sit under it, in line with its name.
   return (
@@ -677,11 +677,7 @@ export function AgentToolCall({
           className={cn(tool.status === ToolCallStatus.Error && "text-danger")}>
           <StatusIcon status={tool.status} />
         </ActivityMark>
-        <span className="shrink-0 text-foreground">
-          {isEnumValue(AgentToolName, tool.toolName)
-            ? t(`agent.tools.${tool.toolName}`)
-            : tool.toolName}
-        </span>
+        <span className="shrink-0 text-foreground">{toolLabel(t, tool)}</span>
         <Subject tool={tool} />
         {tool.autoApproved ? (
           <span className="shrink-0">

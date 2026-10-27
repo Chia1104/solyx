@@ -536,6 +536,8 @@ export const AgentEventType = {
   AssistantStart: "assistant:start",
   AssistantDelta: "assistant:delta",
   AssistantEnd: "assistant:end",
+  /** The reply streaming began a call, whose arguments the model is still writing. */
+  ToolDraft: "tool:draft",
   ToolStart: "tool:start",
   ToolEnd: "tool:end",
   ApprovalRequest: "approval:request",
@@ -567,6 +569,8 @@ export const DeltaChannel = {
 export type DeltaChannel = (typeof DeltaChannel)[keyof typeof DeltaChannel];
 
 export const ToolCallStatus = {
+  /** The model is still writing the call's arguments, such as a report it files through it. */
+  Drafting: "drafting",
   Running: "running",
   /** Waits for the user to allow it before it runs. */
   AwaitingApproval: "awaiting-approval",
@@ -683,6 +687,11 @@ export type AgentWireEvent =
       usage?: ReplyUsage;
     }
   | {
+      type: typeof AgentEventType.ToolDraft;
+      toolCallId: string;
+      toolName: string;
+    }
+  | {
       type: typeof AgentEventType.ToolStart;
       toolCallId: string;
       toolName: string;
@@ -696,7 +705,9 @@ export type AgentWireEvent =
       toolName: string;
       status: Exclude<
         ToolCallStatus,
-        typeof ToolCallStatus.Running | typeof ToolCallStatus.AwaitingApproval
+        | typeof ToolCallStatus.Drafting
+        | typeof ToolCallStatus.Running
+        | typeof ToolCallStatus.AwaitingApproval
       >;
       /** The first line of what a failed call returned. */
       error?: string;
@@ -862,15 +873,24 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
 
       return { ...view, items };
 
-    case AgentEventType.AssistantStart:
-      items.push({
+    case AgentEventType.AssistantStart: {
+      // Every call a reply drafted starts before the next reply does, so one still drafted was
+      // drafted by an attempt that was given up.
+      const kept = items.filter(
+        (item) =>
+          item.kind !== AgentItemKind.Tool ||
+          item.status !== ToolCallStatus.Drafting
+      );
+
+      kept.push({
         kind: AgentItemKind.Assistant,
         messageId: event.messageId,
         text: "",
         streaming: true,
       });
 
-      return { ...view, items };
+      return { ...view, items: kept };
+    }
 
     case AgentEventType.AssistantDelta: {
       const index = findMessage(event.messageId);
@@ -905,6 +925,19 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
       return { ...view, items };
     }
 
+    case AgentEventType.ToolDraft:
+      if (findTool(event.toolCallId) !== -1) return view;
+
+      items.push({
+        kind: AgentItemKind.Tool,
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        args: undefined,
+        status: ToolCallStatus.Drafting,
+      });
+
+      return { ...view, items };
+
     case AgentEventType.ToolStart: {
       const { parentToolCallId } = event;
 
@@ -917,7 +950,8 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
         parentToolCallId,
       };
 
-      // A resumed round may start a call the replayed transcript already shows.
+      // A resumed round may start a call the replayed transcript already shows, and a drafted call
+      // starts where it was drafted.
       const index = findTool(event.toolCallId);
 
       if (index !== -1) {
@@ -992,7 +1026,8 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
       const settled = items.map((item): AgentViewItem => {
         if (
           item.kind === AgentItemKind.Tool &&
-          (item.status === ToolCallStatus.Running ||
+          (item.status === ToolCallStatus.Drafting ||
+            item.status === ToolCallStatus.Running ||
             item.status === ToolCallStatus.AwaitingApproval)
         ) {
           return { ...item, status: ToolCallStatus.Aborted };
