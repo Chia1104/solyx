@@ -1,6 +1,8 @@
 import {
+  chmod,
   mkdir,
   mkdtemp,
+  readFile,
   readdir,
   rm,
   symlink,
@@ -30,6 +32,7 @@ import {
   createStrategyApprovals,
 } from "../src/modules/strategies/strategy-approvals.ts";
 import {
+  draftStrategy,
   readStrategies,
   strategyFiles,
 } from "../src/modules/strategies/strategy-folder.ts";
@@ -477,6 +480,232 @@ describe("a strategy's review", () => {
   });
 });
 
+describe("a strategy's change", () => {
+  const change = (
+    files: { path: string; text: string }[],
+    remove: string[] = []
+  ) => ({ files, remove });
+
+  const written = [
+    { path: "STRATEGY.md", text: MANIFEST },
+    { path: "strategy.mjs", text: CROSSING },
+  ];
+
+  test("writes a new strategy's files, giving the version a read then finds", async () => {
+    const { strategies, changes } = setup();
+
+    await rm(folder, { recursive: true });
+    await expect(
+      strategies.save("crossing", "v1", change(written))
+    ).rejects.toThrow("No strategy is named crossing");
+
+    const version = await strategies.save(
+      "crossing",
+      undefined,
+      change(written)
+    );
+
+    const [read] = (await strategies.catalog()).strategies;
+
+    expect(read).toMatchObject({ name: "crossing", version, allowed: null });
+    expect(changes).toHaveLength(1);
+  });
+
+  test("keeps the files it is not given, removes those named, and leaves what tools keep alone", async () => {
+    await writeStrategy();
+    await mkdir(join(folder, "crossing", ".git"));
+    await writeFile(join(folder, "crossing", ".git", "HEAD"), "ref");
+    await writeFile(join(folder, "crossing", "notes.txt"), "kept");
+
+    const { strategies } = setup();
+    const [before] = (await strategies.catalog()).strategies;
+
+    await strategies.save(
+      "crossing",
+      before.version,
+      change([{ path: "lib/mean.mjs", text: "export {};\n" }], ["notes.txt"])
+    );
+
+    const [after] = (await strategies.catalog()).strategies;
+
+    expect(after.files.map((file) => file.path)).toEqual([
+      "STRATEGY.md",
+      "lib/mean.mjs",
+      "strategy.mjs",
+    ]);
+    expect(
+      await readFile(join(folder, "crossing", ".git", "HEAD"), "utf8")
+    ).toBe("ref");
+  });
+
+  test("is refused once the files have left the version read, but not once it was made already", async () => {
+    await writeStrategy();
+
+    const { strategies } = setup();
+    const [{ version }] = (await strategies.catalog()).strategies;
+    const edit = change([{ path: "strategy.mjs", text: "// edited\n" }]);
+
+    await expect(strategies.save("crossing", undefined, edit)).rejects.toThrow(
+      "crossing is a strategy already"
+    );
+
+    const saved = await strategies.save("crossing", version, edit);
+
+    // Made again, as a call the app's exit cut off is, it changes nothing and is not refused.
+    await expect(strategies.save("crossing", version, edit)).resolves.toBe(
+      saved
+    );
+
+    await writeFile(join(folder, "crossing", "strategy.mjs"), "// by hand\n");
+
+    await expect(
+      strategies.save(
+        "crossing",
+        saved,
+        change([{ path: "strategy.mjs", text: "// again\n" }])
+      )
+    ).rejects.toThrow("crossing's files changed since that version");
+  });
+
+  test("tells the version a read of the written files finds, whatever order their folders sort in", async () => {
+    const made = change([
+      ...written,
+      { path: "a.mjs", text: "1" },
+      { path: "a-b.mjs", text: "2" },
+      { path: "a/b.mjs", text: "3" },
+    ]);
+
+    const { draft } = await draftStrategy(folder, "crossing", made);
+    const { strategies } = setup();
+
+    expect(await strategies.save("crossing", undefined, made)).toBe(
+      draft.version
+    );
+  });
+
+  test("is refused where the strategy would not read, or its files would land on one another", async () => {
+    await writeStrategy();
+    await writeStrategy("broken", "", "no frontmatter");
+    await mkdir(join(folder, "notes"));
+
+    const { strategies } = setup();
+    const [{ version }] = (await strategies.catalog()).strategies;
+
+    const refusals: [
+      string,
+      string | undefined,
+      ReturnType<typeof change>,
+      string,
+    ][] = [
+      [
+        "fresh",
+        undefined,
+        change([{ path: "STRATEGY.md", text: MANIFEST }]),
+        'fresh/STRATEGY.md: name "crossing" does not match its folder "fresh"',
+      ],
+      [
+        "fresh",
+        undefined,
+        change([{ path: "strategy.mjs", text: CROSSING }]),
+        "fresh/STRATEGY.md: STRATEGY.md is gone",
+      ],
+      [
+        "crossing",
+        version,
+        change([{ path: "Strategy.mjs", text: "" }]),
+        "Strategy.mjs and strategy.mjs would be one file on macOS and Windows",
+      ],
+      [
+        "crossing",
+        version,
+        change([{ path: "strategy.mjs/inner.mjs", text: "" }]),
+        "strategy.mjs would be a file and a folder at once",
+      ],
+      [
+        "crossing",
+        version,
+        change([{ path: "x.mjs", text: "" }], ["x.mjs"]),
+        "x.mjs is named twice",
+      ],
+      [
+        "broken",
+        undefined,
+        change(written),
+        "broken's folder does not read as a strategy, which only the user can fix",
+      ],
+      [
+        "notes",
+        undefined,
+        change(written),
+        "The folder notes holds no STRATEGY.md",
+      ],
+    ];
+
+    for (const [name, basedOn, made, reason] of refusals) {
+      await expect(strategies.save(name, basedOn, made)).rejects.toThrow(
+        reason
+      );
+    }
+
+    await mkdir(join(folder, "crossing", "lib"));
+    await writeFile(join(folder, "crossing", "lib", "a.mjs"), "");
+
+    const [{ version: withLib }] = (await strategies.catalog()).strategies;
+
+    await expect(
+      strategies.save("crossing", withLib, change([], ["lib"]))
+    ).rejects.toThrow("lib is a folder; name each of its files to remove it");
+    await expect(
+      strategies.save(
+        "crossing",
+        withLib,
+        change(
+          Array.from({ length: 1001 }, (_, index) => ({
+            path: `data/${index}.txt`,
+            text: "",
+          }))
+        )
+      )
+    ).rejects.toThrow("crossing then holds more than 1000 files");
+  });
+
+  test("is reviewed beside the newest version allowed, or the files now where they are allowed", async () => {
+    const { strategies } = setup();
+    const edit = change([{ path: "strategy.mjs", text: "// edited\n" }]);
+
+    const fresh = await strategies.reviewDraft(
+      "crossing",
+      undefined,
+      change(written)
+    );
+
+    expect(fresh.previous).toBeNull();
+    expect(fresh.current.files.map((file) => file.text)).toEqual([
+      MANIFEST,
+      CROSSING,
+    ]);
+
+    await writeStrategy();
+
+    const [{ version: first }] = (await strategies.catalog()).strategies;
+
+    await strategies.approve("crossing", first, StrategyApprover.User);
+
+    expect(
+      (await strategies.reviewDraft("crossing", first, edit)).previous?.version
+    ).toBe(first);
+
+    await writeFile(join(folder, "crossing", "strategy.mjs"), "// by hand\n");
+
+    const [{ version: byHand }] = (await strategies.catalog()).strategies;
+    const review = await strategies.reviewDraft("crossing", byHand, edit);
+
+    // The hand edit was never allowed, so the review reaches back past it to what was.
+    expect(review.previous?.version).toBe(first);
+    expect(review.current.files[1].text).toBe("// edited\n");
+  });
+});
+
 describe("a strategy's run", () => {
   const strategy = async (code: string) => {
     await writeStrategy("crossing", code);
@@ -590,5 +819,81 @@ process.exit(diary === "refused" && own === "read" && network === "refused" ? 0 
         await box.close();
       }
     }
+  );
+
+  /** A folder of stand-ins for python3 and node, which say their versions and Python's numpy. */
+  async function interpreters() {
+    const bin = join(directory, "bin");
+
+    await mkdir(bin);
+    await writeFile(
+      join(bin, "python3"),
+      `#!/bin/bash\nif [ "$1" = --version ]; then echo "Python 3.12.1"; exit 0; fi\nprintf 'numpy\\t2.1.0\\n'\n`
+    );
+    await writeFile(join(bin, "node"), "#!/bin/bash\necho v22.0.0\n");
+    await chmod(join(bin, "python3"), 0o755);
+    await chmod(join(bin, "node"), 0o755);
+
+    return `${bin}:/usr/bin:/bin`;
+  }
+
+  const probed = [
+    {
+      command: "python3",
+      version: "Python 3.12.1",
+      packages: { numpy: "2.1.0" },
+    },
+    { command: "node", version: "v22.0.0", packages: {} },
+  ];
+
+  posix(
+    "probe names the interpreters on the PATH with their versions, and the first Python's packages",
+    async () => {
+      const path = await interpreters();
+
+      const runtimes = await createStrategyRunner({
+        runs: join(directory, "runs"),
+        sandbox: undefined,
+        sandboxed: () => false,
+        path: async () => path,
+      }).probe();
+
+      // The system's own folders on the PATH may hold other interpreters.
+      expect(
+        runtimes.filter((each) => ["python3", "node"].includes(each.command))
+      ).toEqual(probed);
+      expect(await readdir(join(directory, "runs"))).toEqual([]);
+    }
+  );
+
+  sandboxed(
+    "probe finds in the sandbox only interpreters it finds outside it, each with its version",
+    async () => {
+      const box = createSandbox({
+        home: join(directory, "home"),
+        appFolders: [join(directory, "config")],
+      });
+
+      const probe = (sandboxed: boolean) =>
+        createStrategyRunner({
+          runs: join(directory, "runs"),
+          sandbox: box,
+          sandboxed: () => sandboxed,
+          path: async () => process.env.PATH,
+        }).probe();
+
+      try {
+        const outside = (await probe(false)).map((each) => each.command);
+        const inside = await probe(true);
+
+        for (const runtime of inside) {
+          expect(outside).toContain(runtime.command);
+          expect(runtime.version).toMatch(/\d+\.\d+/);
+        }
+      } finally {
+        await box.close();
+      }
+    },
+    30_000
   );
 });

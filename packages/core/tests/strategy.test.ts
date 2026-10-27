@@ -13,6 +13,7 @@ import {
   strategyJobs,
   strategyManifestSchema,
   strategyParams,
+  strategyPathSchema,
 } from "../src/strategy.ts";
 
 const TSMC = { market: Market.TW, symbol: "2330" };
@@ -31,6 +32,35 @@ const MANIFEST = {
     stopLoss: 0.08,
   },
 };
+
+describe("a strategy's file path", () => {
+  test("runs from its folder, and never out of it, into what tools keep or onto a name Windows keeps", () => {
+    for (const path of [
+      "strategy.py",
+      "lib/indicators.py",
+      ".python-version",
+      "data_2026-10.csv",
+    ]) {
+      expect(strategyPathSchema.safeParse(path).success).toBe(true);
+    }
+
+    for (const path of [
+      "../other/strategy.py",
+      "/etc/hosts",
+      "lib//x.py",
+      "lib\\x.py",
+      "a b.py",
+      "./strategy.py",
+      ".git/hooks/pre-commit",
+      ".GIT/config",
+      "lib/__pycache__/x.pyc",
+      "nul.py",
+      "notes.",
+    ]) {
+      expect(strategyPathSchema.safeParse(path).success).toBe(false);
+    }
+  });
+});
 
 describe("a strategy's manifest", () => {
   test("reads the command, the numbers and the rules", () => {

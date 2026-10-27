@@ -17,15 +17,18 @@ import type {
   LookAheadAt,
   StrategyApproval,
   StrategyApprover,
+  StrategyChange,
   StrategyParams,
   StrategyReach,
 } from "@solyx/core/strategy";
 
 import type { StrategyApprovals } from "./strategy-approvals.ts";
 import {
+  draftStrategy,
   readStrategies,
   strategyFiles,
   strategyTexts,
+  writeStrategyChange,
 } from "./strategy-folder.ts";
 import type { Strategy } from "./strategy-folder.ts";
 import type { StrategyRunner } from "./strategy-runner.ts";
@@ -40,7 +43,7 @@ export interface StrategiesOptions {
   snapshots: StrategySnapshots;
   /** Where strategies' code would run now. */
   reach(): StrategyReach;
-  /** Each time a version is allowed or taken back. */
+  /** Each time a strategy is written, or a version allowed or taken back. */
   onChange(): void;
   /** @default () => new Date() */
   now?: () => Date;
@@ -115,6 +118,41 @@ export function createStrategies(options: StrategiesOptions) {
     throw new Error(problem ?? `No strategy is named ${name}`);
   }
 
+  /**
+   * What `name`'s folder holds now and would hold once `change` is made to the version `basedOn`,
+   * `undefined` for a strategy not yet written. A change to files that have left that version is
+   * refused, so it never writes over what its writer did not read; one that leaves them as they
+   * are is not, as when it was made already.
+   */
+  async function draft(
+    name: string,
+    basedOn: string | undefined,
+    change: StrategyChange
+  ) {
+    const drafted = await draftStrategy(options.folder, name, change);
+    const { current } = drafted;
+
+    if (current === null && basedOn !== undefined) {
+      throw new Error(
+        `No strategy is named ${name}; leave the version out to write a new one`
+      );
+    }
+
+    if (
+      current !== null &&
+      drafted.draft.version !== current.version &&
+      basedOn !== current.version
+    ) {
+      throw new Error(
+        basedOn === undefined
+          ? `${name} is a strategy already; read it and pass the version read to change it, or write a new one under another name`
+          : `${name}'s files changed since that version; read them again before changing them`
+      );
+    }
+
+    return drafted;
+  }
+
   return {
     /** Every strategy as its folder is now, each with the approval that lets it run where it would. */
     read,
@@ -164,6 +202,68 @@ export function createStrategies(options: StrategiesOptions) {
 
       return approval;
     },
+
+    draft,
+
+    /**
+     * What `change` would make of `name`'s files beside the newest version allowed, the files as
+     * they are now where those are one, so the user allowing the change reads all it would let run.
+     */
+    async reviewDraft(
+      name: string,
+      basedOn: string | undefined,
+      change: StrategyChange
+    ): Promise<StrategyReview> {
+      const { current, draft: drafted } = await draft(name, basedOn, change);
+
+      const approvals = (await options.approvals.list()).filter(
+        (each) => each.name === name
+      );
+
+      const newest = approvals.at(0);
+
+      const previous =
+        current && approvals.some((each) => each.version === current.version)
+          ? { version: current.version, files: strategyTexts(current) }
+          : newest
+            ? await options.snapshots.read(name, newest.version)
+            : null;
+
+      return {
+        name,
+        current: { version: drafted.version, files: strategyTexts(drafted) },
+        previous,
+      };
+    },
+
+    /**
+     * Makes `change` to the version `basedOn` of `name`'s files, as `draft` checks it, and gives the
+     * version they then are. Refused where something else changed them as they were written.
+     */
+    async save(
+      name: string,
+      basedOn: string | undefined,
+      change: StrategyChange
+    ) {
+      const { current, draft: drafted } = await draft(name, basedOn, change);
+
+      if (drafted.version === current?.version) return drafted.version;
+
+      const written = await writeStrategyChange(options.folder, name, change);
+
+      options.onChange();
+
+      if (written.version !== drafted.version) {
+        throw new Error(
+          `${name}'s files changed as they were written; read them again`
+        );
+      }
+
+      return written.version;
+    },
+
+    /** The interpreters a strategy's code finds where it would run now, with their versions. */
+    runtimes: (signal?: AbortSignal) => options.runner.probe(signal),
 
     async revoke(name: string) {
       await options.approvals.revoke(name);
