@@ -46,7 +46,7 @@ export function BacktestTrades({
         <span className="text-end">{t("backtests.report.trade.return")}</span>
         <span className="text-end">{t("backtests.report.trade.bars")}</span>
       </div>
-      <div className="h-56 overflow-y-auto rounded-lg border border-separator">
+      <div className="h-56 overflow-y-auto well">
         <Virtualizer
           layout={ListLayout}
           layoutOptions={{ estimatedRowSize: 40 }}>
@@ -59,7 +59,7 @@ export function BacktestTrades({
                 textValue={trade.entryTime}
                 className={cn(
                   ROW,
-                  "items-baseline border-b border-separator py-1.5 text-sm tabular-nums outline-none data-focus-visible:bg-default"
+                  "items-baseline py-1.5 text-sm tabular-nums outline-none data-focus-visible:bg-default"
                 )}>
                 <span className="flex flex-col">
                   {trade.entryTime}

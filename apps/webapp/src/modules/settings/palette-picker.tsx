@@ -124,7 +124,7 @@ export function PalettePicker({ editable = true }: { editable?: boolean }) {
                   <div
                     key={palette}
                     className={cn(
-                      "flex flex-col gap-2 rounded border border-border bg-surface p-4",
+                      "flex flex-col gap-2 well p-4",
                       editable && "pb-2"
                     )}>
                     <div className="flex justify-center gap-4">

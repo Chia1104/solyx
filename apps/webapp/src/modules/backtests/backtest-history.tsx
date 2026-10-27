@@ -169,7 +169,7 @@ function HistoryRow({
   const listing = record.request.setup.symbol;
 
   return (
-    <li className="flex items-start gap-3 border-b border-separator py-2">
+    <li className="flex items-start gap-3 py-2">
       {record.request.mode === BacktestMode.Run ? (
         <Checkbox
           aria-label={t("backtests.history.pick")}

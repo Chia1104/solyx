@@ -53,7 +53,7 @@ export function ValuationRange({
               }}
             />
             <i
-              className="absolute -top-[5px] h-3.5 w-0.5 -translate-x-px bg-foreground ring-2 ring-background"
+              className="absolute -top-[5px] h-3.5 w-0.5 -translate-x-px bg-foreground ring-2 ring-surface"
               style={{ left: cssPercent(place.at) }}
             />
           </div>

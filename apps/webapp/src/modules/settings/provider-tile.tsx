@@ -15,7 +15,7 @@ export const TileTone = {
 export type TileTone = (typeof TileTone)[keyof typeof TileTone];
 
 const TONES: Record<TileTone, string> = {
-  [TileTone.Quiet]: "border border-separator text-muted",
+  [TileTone.Quiet]: "well text-muted",
   [TileTone.Pencil]: "pencil",
   [TileTone.Ink]: "border border-border bg-surface",
 };
@@ -44,7 +44,7 @@ export function ProviderTile({
     <Tab
       id={id}
       className={cn(
-        "grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-3 rounded p-3 ring-offset-2 ring-offset-background outline-none",
+        "grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-3 rounded p-3 ring-offset-2 ring-offset-surface outline-none",
         TONES[tone],
         "data-focus-visible:ring-2 data-focus-visible:ring-focus not-data-selected:data-hovered:border-muted data-selected:ring-2 data-selected:not-data-focus-visible:ring-foreground"
       )}>

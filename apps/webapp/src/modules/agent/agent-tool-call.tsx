@@ -144,11 +144,7 @@ function ProposalCard({ id }: { id: string }) {
   const { data } = useQuery(proposalsQuery());
   const proposal = data?.find((candidate) => candidate.id === id);
 
-  return proposal ? (
-    <div className="rounded-sm border border-separator">
-      <ProposalItem proposal={proposal} />
-    </div>
-  ) : null;
+  return proposal ? <ProposalItem proposal={proposal} /> : null;
 }
 
 /** A memory the agent asks to save or forget, as the user would read it. */

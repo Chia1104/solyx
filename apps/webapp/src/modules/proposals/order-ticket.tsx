@@ -952,9 +952,7 @@ function Outcome({
       {proposal.status === ProposalStatus.AwaitingConfirmation ? (
         <p className="text-xs text-muted">{t("order-form.waiting")}</p>
       ) : null}
-      <div className="-mx-4 border-t border-separator">
-        <ProposalItem proposal={proposal} />
-      </div>
+      <ProposalItem proposal={proposal} />
     </div>
   );
 }

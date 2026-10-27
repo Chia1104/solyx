@@ -86,7 +86,7 @@ export function HeadlineList({ symbols }: { symbols: SymbolRef[] }) {
   }
 
   return (
-    <ul className="divide-y divide-separator">
+    <ul className="flex flex-col">
       {data.map((headline) => (
         <HeadlineRow
           key={`${headline.story.records[0].source}:${headline.story.records[0].item.id}`}

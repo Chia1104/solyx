@@ -74,7 +74,7 @@ export function CalibrationChart({
               <li key={bucket.from}>
                 <ChartMark
                   label={describe(bucket)}
-                  className="inset-auto -translate-x-1/2 translate-y-1/2 rounded-full bg-accent ring-2 ring-background hover:bg-accent focus-visible:bg-accent"
+                  className="inset-auto -translate-x-1/2 translate-y-1/2 rounded-full bg-accent ring-2 ring-surface hover:bg-accent focus-visible:bg-accent"
                   style={{
                     left: cssPercent((bucket.from + bucket.to) / 200),
                     bottom: cssPercent(bucket.held / bucket.scenarios),

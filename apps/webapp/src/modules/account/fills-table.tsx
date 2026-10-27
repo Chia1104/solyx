@@ -151,7 +151,7 @@ export function FillList() {
         <p className="px-4 pb-3 text-xs text-muted">{t("account.no-fills")}</p>
       ) : (
         <>
-          <ul className="divide-y divide-separator">
+          <ul className="flex flex-col">
             {data
               .toReversed()
               .slice(0, PANE_FILLS)
