@@ -21,6 +21,12 @@ import {
   paneId,
   useLayoutStore,
 } from "./layout-store.ts";
+import {
+  PEEK_DELAY,
+  peekSurface,
+  useFollowPeek,
+  usePeekStore,
+} from "./pane-peek.ts";
 import { useHeldPane, useLastPage, useSettingsOpen } from "./settings-open.ts";
 import { SettingsPane } from "./settings-pane.tsx";
 import { SymbolsPane } from "./symbols-pane.tsx";
@@ -38,8 +44,9 @@ const WIDTH_CLASS: Record<Pane, string> = {
 };
 
 /**
- * A side pane of the workspace, on the table beside the main view and the gap between them;
- * closed, it keeps its width so its content slides out whole.
+ * A side pane of the workspace, on the table beside the main view and the gap between them.
+ * Closed, it keeps its width so its content slides out whole, and floats over the page on a
+ * sheet of its own while it peeks.
  */
 function SidePane({
   pane,
@@ -62,6 +69,7 @@ function SidePane({
 
   const { width } = panes[pane];
   const open = shown[pane];
+  const peeking = usePeekStore((state) => state.pane === pane) && !open;
   const edge = PANE_EDGE[pane];
   const other = pane === Pane.Symbols ? Pane.Agent : Pane.Symbols;
 
@@ -82,13 +90,22 @@ function SidePane({
     <aside
       id={paneId(pane)}
       aria-label={label}
-      inert={!open}
+      inert={!open && !peeking}
       className="relative min-w-0">
       <div
+        {...peekSurface}
         className={cn(
           "absolute inset-y-0 overflow-y-auto",
           WIDTH_CLASS[pane],
-          edge === SplitterEdge.Start ? "right-2" : "left-2"
+          edge === SplitterEdge.Start ? "right-2" : "left-2",
+          !open &&
+            "z-30 floating p-2 transition-[translate,visibility] duration-200 ease-out-quint motion-reduce:transition-[opacity,visibility] [html[data-pane-at-once]_&]:transition-none",
+          !open && !peeking && "invisible motion-reduce:opacity-0",
+          // Out of the window while closed, it moves in over the gap at the window's edge.
+          peeking &&
+            (edge === SplitterEdge.Start
+              ? "translate-x-[calc(100%+--spacing(2))]"
+              : "-translate-x-[calc(100%+--spacing(2))]")
         )}>
         {children}
       </div>
@@ -111,6 +128,28 @@ function SidePane({
         />
       ) : null}
     </aside>
+  );
+}
+
+/** The gap at the window's edge beside a closed pane: resting the pointer there shows the pane over the page. */
+function PaneEdge({ pane }: { pane: Pane }) {
+  const peek = usePeekStore((state) => state.peek);
+  const leave = usePeekStore((state) => state.leave);
+
+  return (
+    <div
+      aria-hidden
+      data-peek={pane}
+      className={cn(
+        // Over the pane as it slides past, so the pointer resting here stays on the edge.
+        "absolute inset-y-0 z-40 w-2",
+        PANE_EDGE[pane] === SplitterEdge.Start ? "left-0" : "right-0"
+      )}
+      onPointerEnter={(event) => {
+        if (event.pointerType === "mouse") peek(pane, PEEK_DELAY);
+      }}
+      onPointerLeave={leave}
+    />
   );
 }
 
@@ -163,6 +202,7 @@ function Workspace() {
   const held = useHeldPane();
 
   useWorkspaceHotkeys(searchRef);
+  useFollowPeek();
 
   const shown = mapValues(panes, ({ open }, pane) => open || pane === held);
 
@@ -184,7 +224,7 @@ function Workspace() {
       <BrokerModeRule />
       <div
         ref={workspace}
-        className="grid min-h-0 flex-1 p-2 transition-[grid-template-columns] duration-200 ease-out-quint motion-reduce:transition-none [html[data-pane-at-once]_&]:transition-none [html[data-pane-resizing]_&]:transition-none"
+        className="relative grid min-h-0 flex-1 p-2 transition-[grid-template-columns] duration-200 ease-out-quint motion-reduce:transition-none [html[data-pane-at-once]_&]:transition-none [html[data-pane-resizing]_&]:transition-none"
         style={{
           ...widths,
           gridTemplateColumns: `${column(Pane.Symbols)} minmax(0, 1fr) ${column(Pane.Agent)}`,
@@ -207,6 +247,9 @@ function Workspace() {
           workspace={workspace}>
           <AgentPane />
         </SidePane>
+        {Object.values(Pane).map((pane) =>
+          shown[pane] ? null : <PaneEdge key={pane} pane={pane} />
+        )}
       </div>
     </div>
   );

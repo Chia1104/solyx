@@ -30,8 +30,9 @@ import { OrderLockToggle } from "../modules/proposals/order-lock.tsx";
 import { UpdateAction } from "../modules/updates/update-action.tsx";
 
 import { inWindow } from "./device.ts";
-import { BACK_HOTKEYS, PANE_HOTKEY } from "./hotkeys.ts";
+import { BACK_HOTKEYS, PANE_HOTKEY, toggleAtOnce } from "./hotkeys.ts";
 import { PANE_EDGE, Pane, paneId, useLayoutStore } from "./layout-store.ts";
+import { PEEK_DELAY, usePeekStore } from "./pane-peek.ts";
 import { useHeldPane, useSettingsOpen } from "./settings-open.ts";
 
 const TOOLTIP_DELAY = 600;
@@ -42,13 +43,19 @@ const PANE_ICON = {
   [SplitterEdge.End]: { closed: SidebarRightIcon, open: SidebarRight01Icon },
 };
 
+/** Opens or closes a side pane; resting on the toggle of a closed one shows it over the page. */
 function PaneToggle({ pane }: { pane: Pane }) {
   const { t } = useTranslation();
   const held = useHeldPane() === pane;
   const open = useLayoutStore((state) => state.panes[pane].open) || held;
   const toggle = useLayoutStore((state) => state.toggle);
+  const peeking = usePeekStore((state) => state.pane === pane) && !open;
+  const peek = usePeekStore((state) => state.peek);
+  const leave = usePeekStore((state) => state.leave);
 
-  const label = t("workspace.toggle", { pane: t(`workspace.${pane}`) });
+  const label = t(peeking ? "workspace.pin" : "workspace.toggle", {
+    pane: t(`workspace.${pane}`),
+  });
 
   return (
     <Tooltip delay={TOOLTIP_DELAY}>
@@ -60,7 +67,15 @@ function PaneToggle({ pane }: { pane: Pane }) {
         aria-expanded={open}
         aria-controls={paneId(pane)}
         isDisabled={held}
-        onPress={() => toggle(pane)}>
+        data-peek={pane}
+        onHoverStart={() => {
+          if (!open) peek(pane, PEEK_DELAY);
+        }}
+        onHoverEnd={leave}
+        // A pane shown over the page snaps into place rather than sliding in from the edge.
+        onPress={() =>
+          peeking ? toggleAtOnce(() => toggle(pane)) : toggle(pane)
+        }>
         <Icon icon={PANE_ICON[PANE_EDGE[pane]][open ? "open" : "closed"]} />
       </Button>
       <Tooltip.Content className="flex items-center gap-2">
