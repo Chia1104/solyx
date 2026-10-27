@@ -232,10 +232,8 @@ export function SymbolPage() {
       </ColumnHeader>
       <div ref={split} className="flex min-h-0 flex-1 flex-col">
         {/* The book stands beside the chart alone, so the news below runs the page's full width. */}
-        <div
-          ref={upper}
-          className="flex min-h-40 flex-1 border-b border-separator">
-          <div className="min-w-0 flex-1 p-3">
+        <div ref={upper} className="flex min-h-40 flex-1">
+          <div className="min-w-0 flex-1 sheet p-3">
             <SymbolChart
               symbol={symbol}
               interval={interval}
@@ -276,7 +274,7 @@ export function SymbolPage() {
               ref={book}
               id={BOOK_RAIL_ID}
               aria-label={t("depth.book")}
-              className="relative shrink-0 border-l border-separator"
+              className="relative shrink-0 pl-2"
               style={{ width: bookWidth }}>
               <PaneSplitter
                 edge={SplitterEdge.End}
@@ -298,7 +296,7 @@ export function SymbolPage() {
                 onCommit={setBookWidth}
                 onReset={() => setBookWidth(BOOK_WIDTH.default)}
               />
-              <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
+              <div className="flex h-full flex-col gap-4 overflow-y-auto sheet p-4">
                 <CatchBoundary
                   getResetKey={() => symbolKey(symbol)}
                   errorComponent={ErrorFallback}>
@@ -313,7 +311,7 @@ export function SymbolPage() {
         <div
           ref={news}
           id={NEWS_PANE_ID}
-          className="relative min-h-10"
+          className="relative min-h-12 pt-2"
           style={{ height: newsHeight }}>
           <PaneSplitter
             orientation={SplitterOrientation.Horizontal}
@@ -335,7 +333,9 @@ export function SymbolPage() {
             onCommit={setNewsHeight}
             onReset={() => setNewsHeight(NEWS_HEIGHT.default)}
           />
-          <LowerPanel view={lowerView} symbol={symbol} heading={lowerViews} />
+          <div className="h-full overflow-hidden sheet">
+            <LowerPanel view={lowerView} symbol={symbol} heading={lowerViews} />
+          </div>
         </div>
       </div>
     </div>

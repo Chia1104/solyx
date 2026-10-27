@@ -538,11 +538,11 @@ export function AgentComposer({
       ) : null}
       <div className="relative flex flex-col">
         {focus ? (
-          <div className="mx-2 rounded-t-sm border border-b-0 border-border bg-surface-secondary">
+          <div className="mx-3 rounded-t-sm border border-b-0 border-border bg-surface-secondary">
             <FocusAttachment focus={focus} />
           </div>
         ) : null}
-        <div className="rounded-sm border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus">
+        <div className="rounded-sheet border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus">
           <Controller
             control={form.control}
             name="text"

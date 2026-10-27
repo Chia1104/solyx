@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Tabs, cn } from "@heroui/react";
+import { Tabs } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { uniqBy } from "es-toolkit";
@@ -14,8 +14,8 @@ import { isEnumValue } from "@solyx/utils/is";
 
 import { orpc } from "../app/rpc.ts";
 import { LoadingState } from "../components/loading-state.tsx";
+import { Page } from "../components/page.tsx";
 import { Section } from "../components/section.tsx";
-import { RAILED_COLUMN, Sheet } from "../components/sheet.tsx";
 import { AccountSummary } from "../modules/account/account-summary.tsx";
 import { TradeReview } from "../modules/account/trade-review.tsx";
 import { CALENDAR_DAYS } from "../modules/calendar/calendar-query.ts";
@@ -213,36 +213,37 @@ export function OverviewPage() {
   };
 
   return (
-    <Sheet title={t("nav.overview")}>
-      <Tabs
-        variant="secondary"
-        selectedKey={tab}
-        onSelectionChange={(key) => {
-          if (isEnumValue(OverviewTab, key)) {
-            void navigate({ search: { tab: key }, replace: true });
-          }
-        }}
-        className="gap-0">
-        {/* HeroUI styles the list through its container as a direct child, so the rails go on the list. */}
-        <Tabs.ListContainer className="border-separator">
-          {/* A 40px row over its rule, like the agent pane's tabs, so the rules line up across columns. */}
-          <Tabs.List
-            aria-label={t("nav.overview")}
-            className={cn(RAILED_COLUMN, "flex min-w-0 gap-1 px-3")}>
-            {Object.values(OverviewTab).map((each) => (
-              <Tabs.Tab key={each} id={each} className="h-10 w-auto px-3">
-                {t(`overview.tabs.${each}`)}
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Tabs.ListContainer>
+    <Tabs
+      selectedKey={tab}
+      onSelectionChange={(key) => {
+        if (isEnumValue(OverviewTab, key)) {
+          void navigate({ search: { tab: key }, replace: true });
+        }
+      }}
+      className="gap-0">
+      <Page
+        title={t("nav.overview")}
+        header={
+          <Tabs.ListContainer>
+            <Tabs.List aria-label={t("nav.overview")}>
+              {Object.values(OverviewTab).map((each) => (
+                <Tabs.Tab key={each} id={each} className="h-7 w-auto px-3">
+                  {t(`overview.tabs.${each}`)}
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Tabs.ListContainer>
+        }>
         {Object.values(OverviewTab).map((each) => (
-          <Tabs.Panel key={each} id={each} className="mt-0 p-0">
+          <Tabs.Panel
+            key={each}
+            id={each}
+            className="mt-0 flex flex-col gap-2 p-0">
             {panels[each]}
           </Tabs.Panel>
         ))}
-      </Tabs>
-    </Sheet>
+      </Page>
+    </Tabs>
   );
 }

@@ -37,7 +37,10 @@ const WIDTH_CLASS: Record<Pane, string> = {
   [Pane.Agent]: "w-(--pane-agent)",
 };
 
-/** A side pane of the workspace; closed, it keeps its width so its content slides out whole. */
+/**
+ * A side pane of the workspace, on the table beside the main view and the gap between them;
+ * closed, it keeps its width so its content slides out whole.
+ */
 function SidePane({
   pane,
   label,
@@ -80,18 +83,12 @@ function SidePane({
       id={paneId(pane)}
       aria-label={label}
       inert={!open}
-      className={cn(
-        "relative min-w-0",
-        open &&
-          (edge === SplitterEdge.Start
-            ? "border-r border-separator"
-            : "border-l border-separator")
-      )}>
+      className="relative min-w-0">
       <div
         className={cn(
           "absolute inset-y-0 overflow-y-auto",
           WIDTH_CLASS[pane],
-          edge === SplitterEdge.Start ? "right-0" : "left-0"
+          edge === SplitterEdge.Start ? "right-2" : "left-2"
         )}>
         {children}
       </div>
@@ -169,8 +166,11 @@ function Workspace() {
 
   const shown = mapValues(panes, ({ open }, pane) => open || pane === held);
 
+  // A pane shown holds the gap beside it, so a closed one leaves none.
   const column = (pane: Pane) =>
-    shown[pane] ? `var(${WIDTH_VARIABLE[pane]})` : "0px";
+    shown[pane]
+      ? `calc(var(${WIDTH_VARIABLE[pane]}) + var(--spacing) * 2)`
+      : "0px";
 
   // Spread in, since CSSProperties does not list custom properties.
   const widths = {
@@ -184,7 +184,7 @@ function Workspace() {
       <BrokerModeRule />
       <div
         ref={workspace}
-        className="grid min-h-0 flex-1 transition-[grid-template-columns] duration-200 ease-out-quint motion-reduce:transition-none [html[data-pane-at-once]_&]:transition-none [html[data-pane-resizing]_&]:transition-none"
+        className="grid min-h-0 flex-1 p-2 transition-[grid-template-columns] duration-200 ease-out-quint motion-reduce:transition-none [html[data-pane-at-once]_&]:transition-none [html[data-pane-resizing]_&]:transition-none"
         style={{
           ...widths,
           gridTemplateColumns: `${column(Pane.Symbols)} minmax(0, 1fr) ${column(Pane.Agent)}`,

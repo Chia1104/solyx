@@ -45,8 +45,8 @@ export type AgendaView = (typeof AgendaView)[keyof typeof AgendaView];
 /** Dragging stops before the main view gets narrower than this. */
 export const MAIN_MIN_WIDTH = 480;
 
-/** The symbol page's news under its chart; at its least only the news's header row shows. */
-export const NEWS_HEIGHT = { min: 40, default: 256 };
+/** The symbol page's news under its chart and the gap above it; at its least only the news's header row shows. */
+export const NEWS_HEIGHT = { min: 48, default: 256 };
 
 /** The symbol page's book beside its chart; its most is also capped by the room the chart leaves. */
 export const BOOK_WIDTH = { min: 200, max: 400, default: 240 };

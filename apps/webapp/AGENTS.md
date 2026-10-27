@@ -6,7 +6,7 @@ The workspace's React app, which each of the desktop's windows loads and the bac
 
 - `modules/<module>/`: the module's TanStack Query options, built from `orpc.<module>.<procedure>` and keyed by `orpc.<module>.key()`, components, form schemas and hooks.
 - `pages/`: route components that only compose modules.
-- `components/`: module-neutral components composed from HeroUI, such as the error boundary fallback, the loading and error states every module renders, and the pane splitter, sheet, sections and symbol rows the workspace shares.
+- `components/`: module-neutral components composed from HeroUI, such as the error boundary fallback, the loading and error states every module renders, and the pane splitter, the page, its sections and the symbol rows the workspace shares.
 - `app/`: router, root layout, i18n, query client, theme and zod setup, and `rpc.ts`, the window's channel to the backend with its `client` and `orpc`, the client's TanStack Query utilities.
 
 ## Build
@@ -45,6 +45,7 @@ The workspace's React app, which each of the desktop's windows loads and the bac
 ## Design
 
 - The workspace is drawn in pencil and ink: hatching and dashed rules mark what is not real (paper trading, proposals awaiting confirmation), and the accent marks what is. Confirming a proposal is the only button that fills with ink, and only while it is held (`HoldButton`): letting go before it fills sends nothing, and only letting go ends a hold, since the page may reflow under a pointer that never moved.
+- The window is the table: the title bar and the side panes lie on it, and a page lays what it shows on sheets (`sheet`) a gap apart, with no rules between them. A sheet lies flat, without a shadow. A page's title and the controls beside it stay on the table, in a row as tall as the panes' headers (`ColumnHeader`), so the three columns' headers line up. What is open in a pane, such as the listing on screen or the settings' section, lies on a sheet of its own.
 - Routed pages respond to the `@container/main` width and the symbols pane's rows to `@container/symbols`, not the window's, since the panes are resized independently of it.
 - Motion answers a user's action or marks what changed. What is done often or by keyboard snaps, such as moving between listings or a pane shortcut. Curves are HeroUI's tokens: `--ease-out-quint` to enter or leave, `--ease-in-out-quart` to move on screen. Reduced motion drops movement but keeps fades and colour washes such as `highlight`.
 - Red and green mark direction alone: a price's, or a released figure's from its previous period, so no gauge uses them. Which one marks a rise follows each market's convention (Taiwan the opposite of the US) unless the user picks one for every market.

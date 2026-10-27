@@ -4,7 +4,7 @@ import { Button, cn } from "@heroui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { RailedColumn } from "../../components/sheet.tsx";
+import { PageColumn } from "../../components/page.tsx";
 import { WindowTitleBar } from "../../components/window-title-bar.tsx";
 import { BrokerModeRule } from "../account/broker-mode-chip.tsx";
 
@@ -87,46 +87,41 @@ export function OnboardingFlow({
         </Button>
       </WindowTitleBar>
       <BrokerModeRule />
-      <div className="@container/main min-h-0 flex-1 overflow-y-auto">
-        <div className="flex min-h-full flex-col">
-          <div className="border-b border-separator">
-            <RailedColumn className="px-6 py-3">
-              <OnboardingProgress current={step} />
-            </RailedColumn>
+      <div className="@container/main min-h-0 flex-1 overflow-y-auto p-2">
+        <PageColumn>
+          <div className="px-5 py-3">
+            <OnboardingProgress current={step} />
           </div>
           {children}
-          <div className="border-b border-separator">
-            <RailedColumn className="flex items-center gap-2 px-6 py-4">
-              {previous ? (
-                <Button variant="tertiary" onPress={() => go(previous)}>
-                  {t("onboarding.back")}
+          <div className="flex items-center gap-2 px-5 py-3">
+            {previous ? (
+              <Button variant="tertiary" onPress={() => go(previous)}>
+                {t("onboarding.back")}
+              </Button>
+            ) : null}
+            <div className="ml-auto flex items-center gap-2">
+              {next && !complete ? (
+                <Button variant="ghost" onPress={() => go(next)}>
+                  {t("onboarding.later")}
                 </Button>
               ) : null}
-              <div className="ml-auto flex items-center gap-2">
-                {next && !complete ? (
-                  <Button variant="ghost" onPress={() => go(next)}>
-                    {t("onboarding.later")}
-                  </Button>
-                ) : null}
-                {next ? (
-                  <Button
-                    variant="secondary"
-                    isDisabled={!complete}
-                    onPress={() => go(next)}>
-                    {step === OnboardingStep.Welcome
-                      ? t("onboarding.start")
-                      : t("onboarding.next")}
-                  </Button>
-                ) : (
-                  <Button variant="secondary" onPress={leave}>
-                    {t("onboarding.finish")}
-                  </Button>
-                )}
-              </div>
-            </RailedColumn>
+              {next ? (
+                <Button
+                  variant="secondary"
+                  isDisabled={!complete}
+                  onPress={() => go(next)}>
+                  {step === OnboardingStep.Welcome
+                    ? t("onboarding.start")
+                    : t("onboarding.next")}
+                </Button>
+              ) : (
+                <Button variant="secondary" onPress={leave}>
+                  {t("onboarding.finish")}
+                </Button>
+              )}
+            </div>
           </div>
-          <RailedColumn className="flex-1" />
-        </div>
+        </PageColumn>
       </div>
     </div>
   );

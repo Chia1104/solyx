@@ -45,17 +45,16 @@ export function AgentPane() {
 
   return (
     <Tabs
-      variant="secondary"
       selectedKey={tab}
       onSelectionChange={(key) => {
         if (isEnumValue(AgentTab, key)) showTab(key);
       }}
       className="relative flex h-full flex-col gap-0">
-      {/* The pane's header row is its tabs, as tall as every column's header so their rules line up. */}
-      <Tabs.ListContainer className="shrink-0 border-separator pr-20 pl-1">
+      {/* The pane's header row is its tabs, as tall as every column's header so they line up. */}
+      <Tabs.ListContainer className="my-1 shrink-0 self-start">
         <Tabs.List aria-label={t("agent.title")}>
           {Object.values(AgentTab).map((each: AgentTab) => (
-            <Tabs.Tab key={each} id={each} className="h-10.75 px-3">
+            <Tabs.Tab key={each} id={each} className="h-7 px-3">
               {t(`agent.tabs.${each}`)}
               {each === AgentTab.Proposals && awaiting > 0 ? (
                 <span className="ml-1 text-xs tabular-nums">{awaiting}</span>
@@ -66,7 +65,7 @@ export function AgentPane() {
         </Tabs.List>
       </Tabs.ListContainer>
       {tab === AgentTab.Chat ? (
-        <div className="absolute top-0 right-2 flex h-10.75 items-center">
+        <div className="absolute top-0 right-0 flex h-11 items-center">
           <AgentSessionControls sessionId={sessionId} />
         </div>
       ) : null}

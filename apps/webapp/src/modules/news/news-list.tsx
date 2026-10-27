@@ -183,8 +183,8 @@ export function NewsList({
     <section
       aria-label={t("news.title")}
       className="flex h-full flex-col overflow-hidden">
-      {/* 40px over its rule, so the news collapses to this row and its readout. */}
-      <div className="flex h-10 shrink-0 items-center gap-3 border-b border-separator px-6">
+      {/* 40px, so the news collapses to this row and its readout. */}
+      <div className="flex h-10 shrink-0 items-center gap-3 px-6">
         {heading ?? (
           <h2 className="shrink-0 text-sm font-medium">{t("news.title")}</h2>
         )}

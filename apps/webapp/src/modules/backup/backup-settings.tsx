@@ -23,7 +23,6 @@ import { LoadError, SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
-import { RailedColumn } from "../../components/sheet.tsx";
 import { matching } from "../settings/matching.ts";
 import { AppSecretRow, SecretsUnavailable } from "../settings/secret-row.tsx";
 import { SettingsList, SettingsRow } from "../settings/settings-list.tsx";
@@ -431,21 +430,19 @@ export function BackupSettings() {
   return (
     <>
       {data.restoredFrom === null ? null : (
-        <RailedColumn className="px-6 pt-5">
-          <Alert status="accent">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>
-                {t("settings.backup.restored.title", {
-                  time: clock.time(data.restoredFrom),
-                })}
-              </Alert.Title>
-              <Alert.Description>
-                {t("settings.backup.restored.body")}
-              </Alert.Description>
-            </Alert.Content>
-          </Alert>
-        </RailedColumn>
+        <Alert status="accent">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>
+              {t("settings.backup.restored.title", {
+                time: clock.time(data.restoredFrom),
+              })}
+            </Alert.Title>
+            <Alert.Description>
+              {t("settings.backup.restored.body")}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
       )}
       <BackupDestination />
       <BackupNow status={data} />

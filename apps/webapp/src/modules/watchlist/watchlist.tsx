@@ -136,7 +136,7 @@ export function Watchlist() {
 
   if (error) {
     return (
-      <div className="px-4">
+      <div className="px-2">
         <LoadError error={error} onRetry={() => void refetch()} />
       </div>
     );
@@ -146,7 +146,7 @@ export function Watchlist() {
 
   if (data.length === 0) {
     return (
-      <p className="mx-4 rounded-sm pencil px-3 py-3 text-xs text-muted">
+      <p className="mx-2 rounded-sm pencil px-3 py-3 text-xs text-muted">
         {t("watchlist.empty")}
       </p>
     );
@@ -167,7 +167,7 @@ export function Watchlist() {
           {({ symbol }) => (
             <GridListItem
               textValue={symbol.symbol}
-              className="group relative outline-none data-[dragging]:opacity-40 data-[focus-visible]:bg-default">
+              className="group relative outline-none data-[dragging]:opacity-40 data-[focus-visible]:[&>a]:bg-default">
               <Button
                 slot="drag"
                 className="absolute inset-y-0 left-0 flex w-4 cursor-grab items-center justify-center text-muted opacity-0 outline-none group-hover:opacity-100 data-[focus-visible]:text-accent data-[focus-visible]:opacity-100">
@@ -190,7 +190,7 @@ export function Watchlist() {
                   symbol: symbol.symbol,
                 })}
                 isDisabled={remove.isPending}
-                className="absolute top-1 right-2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none"
+                className="absolute top-1 right-3 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none"
                 onPress={() => remove.mutate(symbol)}
               />
             </GridListItem>
@@ -198,7 +198,7 @@ export function Watchlist() {
         </GridList>
       </Virtualizer>
       {actionError ? (
-        <div className="px-4 pt-2">
+        <div className="px-2 pt-2">
           <ErrorAlert
             title={t("watchlist.update-failed")}
             description={actionError.message}

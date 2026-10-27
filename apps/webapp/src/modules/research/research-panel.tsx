@@ -515,7 +515,7 @@ export function ResearchPanel({
     <section
       aria-label={t("research.title")}
       className="flex h-full flex-col overflow-hidden">
-      <div className="flex h-10 shrink-0 items-center gap-3 border-b border-separator px-6">
+      <div className="flex h-10 shrink-0 items-center gap-3 px-6">
         {heading}
         <div className="ml-auto flex">
           <DeepAnalysisButton symbol={symbol} />

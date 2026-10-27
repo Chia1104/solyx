@@ -1,6 +1,6 @@
 import { getRouteApi } from "@tanstack/react-router";
 
-import { Sheet } from "../components/sheet.tsx";
+import { Page } from "../components/page.tsx";
 import { StrategyDetail } from "../modules/strategies/strategy-detail.tsx";
 
 const route = getRouteApi("/strategies/$name");
@@ -10,8 +10,8 @@ export function StrategyPage() {
   const { name } = route.useParams();
 
   return (
-    <Sheet title={name}>
+    <Page title={name}>
       <StrategyDetail name={name} />
-    </Sheet>
+    </Page>
   );
 }

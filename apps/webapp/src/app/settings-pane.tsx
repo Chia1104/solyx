@@ -12,7 +12,7 @@ export function SettingsPane({ onLeave }: { onLeave: () => void }) {
 
   return (
     <div className="flex h-full flex-col">
-      <ColumnHeader>
+      <ColumnHeader className="px-5">
         {/* Pulled out by its padding, so its arrow sits over the sections' icons. */}
         <Button size="sm" variant="ghost" className="-ml-2.5" onPress={onLeave}>
           <Icon icon={ArrowLeft01Icon} />

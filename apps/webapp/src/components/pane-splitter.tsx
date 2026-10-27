@@ -32,8 +32,8 @@ const KEYS: Record<SplitterOrientation, { back: string; forward: string }> = {
 };
 
 /**
- * The hairline between a pane and the view beside it, dragged or moved with the arrow keys.
- * A drag previews sizes without rendering and commits once on release.
+ * The gap between a pane and the view beside it, which the pane keeps along that edge, dragged
+ * or moved with the arrow keys. A drag previews sizes without rendering and commits once on release.
  */
 export function PaneSplitter({
   orientation = SplitterOrientation.Vertical,
@@ -120,8 +120,8 @@ export function PaneSplitter({
         vertical
           ? "inset-y-0 w-2 cursor-col-resize justify-center"
           : "inset-x-0 h-2 cursor-row-resize items-center",
-        vertical && (edge === SplitterEdge.Start ? "-right-1" : "-left-1"),
-        !vertical && (edge === SplitterEdge.Start ? "-bottom-1" : "-top-1")
+        vertical && (edge === SplitterEdge.Start ? "right-0" : "left-0"),
+        !vertical && (edge === SplitterEdge.Start ? "bottom-0" : "top-0")
       )}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
@@ -158,8 +158,8 @@ export function PaneSplitter({
       onKeyDown={onKeyDown}>
       <div
         className={cn(
-          "transition-colors group-hover:bg-accent group-focus-visible:bg-accent group-active:bg-accent",
-          vertical ? "h-full w-0.5" : "h-0.5 w-full"
+          "rounded-full transition-colors group-hover:bg-accent group-focus-visible:bg-accent group-active:bg-accent",
+          vertical ? "my-3 w-0.5" : "mx-3 h-0.5 flex-1"
         )}
       />
     </div>
