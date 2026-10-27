@@ -248,7 +248,7 @@ test("a paired device is refused what its contract keeps for windows, before the
 });
 
 test("a paired device starts only conversations that ask, and its messages' runs ask every call", async () => {
-  const sent: { id: string; asksEveryCall: boolean }[] = [];
+  const sent: { id: string; asksEveryCall: boolean; files: string[] }[] = [];
 
   const agent: Partial<AgentService> = {
     createSession: async (setup) => ({
@@ -259,8 +259,20 @@ test("a paired device starts only conversations that ask, and its messages' runs
       ...setup,
       schedule: null,
     }),
-    send: async (id, _text, _screen, _locale, _timeZone, asksEveryCall) => {
-      sent.push({ id, asksEveryCall });
+    send: async (
+      id,
+      _text,
+      attachments,
+      _screen,
+      _locale,
+      _timeZone,
+      asksEveryCall
+    ) => {
+      sent.push({
+        id,
+        asksEveryCall,
+        files: attachments.map((file) => file.name),
+      });
     },
   };
 
@@ -288,9 +300,14 @@ test("a paired device starts only conversations that ask, and its messages' runs
     })
   ).resolves.toMatchObject({ approvalMode: ApprovalMode.Ask });
 
+  const attachments = [
+    new File(["date,close"], "收盤.csv", { type: "text/csv" }),
+  ];
+
   const message = {
     id: "s1",
     text: "How did 2330 close?",
+    attachments,
     screen: null,
     locale: "en-US",
     timeZone: "Asia/Taipei",
@@ -305,9 +322,10 @@ test("a paired device starts only conversations that ask, and its messages' runs
   await window.client.agent.send(message);
   window.close();
 
+  // A device's files arrive as a window's do.
   expect(sent).toEqual([
-    { id: "s1", asksEveryCall: true },
-    { id: "s1", asksEveryCall: false },
+    { id: "s1", asksEveryCall: true, files: ["收盤.csv"] },
+    { id: "s1", asksEveryCall: false, files: ["收盤.csv"] },
   ]);
 });
 

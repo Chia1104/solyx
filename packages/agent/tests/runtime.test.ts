@@ -22,12 +22,18 @@ import type {
   ToolRegistration,
 } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
+import { DEFAULT_IMAGE_LIMITS } from "@earendil-works/pi-durable/tools";
+import type { ImageProcessor } from "@earendil-works/pi-durable/tools";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import type { ToolGuards, UnaskedGuard } from "../src/approval.ts";
+import { AttachmentImageType, AttachmentKind } from "../src/attachment.ts";
 import { AgentThinking } from "../src/providers.ts";
 import { createAgentRuntime } from "../src/runtime.ts";
-import type { AgentConversationStore } from "../src/runtime.ts";
+import type {
+  AgentAttachment,
+  AgentConversationStore,
+} from "../src/runtime.ts";
 import {
   AgentEventType,
   AgentItemKind,
@@ -67,11 +73,13 @@ function setup({
   faux = fauxProvider(),
   settings,
   onReport,
+  images,
 }: {
   store?: AgentConversationStore;
   faux?: ReturnType<typeof fauxProvider>;
   settings?: HarnessSettings;
   onReport?: HarnessOptions["onReport"];
+  images?: ImageProcessor;
 } = {}) {
   const models = createModels();
 
@@ -107,6 +115,7 @@ function setup({
     onEvent: (_sessionId, event) => events.push(event),
     settings,
     onReport,
+    images,
   });
 
   /** Resolves once `count` runs have ended. */
@@ -300,6 +309,114 @@ test("the app's context reaches the model but not the thread", async () => {
     kind: "user",
     text: "hi",
   });
+
+  await runtime.close();
+});
+
+const CHART = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+const chart: AgentAttachment = {
+  kind: AttachmentKind.Image,
+  name: "chart.png",
+  path: "attachments/1/chart.png",
+  size: CHART.byteLength,
+  mimeType: AttachmentImageType.Png,
+  data: CHART,
+};
+
+test("a message's files reach the model, and the thread lists them without what they hold", async () => {
+  const prepare = vi.fn<ImageProcessor["prepare"]>(async () => ({
+    data: "c2NhbGVk",
+    mimeType: "image/jpeg",
+  }));
+
+  const { faux, runtime, ended } = setup({ images: { prepare } });
+  const { id } = await runtime.create();
+  let seen = "";
+
+  faux.setResponses([
+    (context) => {
+      seen = JSON.stringify(
+        context.messages.findLast((message) => message.role === "user")
+      );
+
+      return fauxAssistantMessage("ok");
+    },
+  ]);
+
+  await runtime.send(id, {
+    text: "What is this?",
+    context: "",
+    attachments: [
+      chart,
+      {
+        kind: AttachmentKind.Text,
+        name: "fills.csv",
+        path: "attachments/1/fills.csv",
+        size: 7,
+        mimeType: "text/csv",
+        text: "a,b\n1,2",
+      },
+    ],
+  });
+  await ended();
+
+  expect(prepare).toHaveBeenCalledWith(
+    CHART,
+    "image/png",
+    DEFAULT_IMAGE_LIMITS
+  );
+  expect(seen).toContain(
+    '{"type":"image","data":"c2NhbGVk","mimeType":"image/jpeg"}'
+  );
+  expect(seen).toContain("a,b\\n1,2");
+  expect(foldEvents(await runtime.transcript(id)).items[0]).toEqual({
+    kind: "user",
+    messageId: expect.any(String),
+    text: "What is this?",
+    attachments: [
+      {
+        path: "attachments/1/chart.png",
+        name: "chart.png",
+        mimeType: "image/png",
+        size: 8,
+      },
+      {
+        path: "attachments/1/fills.csv",
+        name: "fills.csv",
+        mimeType: "text/csv",
+        size: 7,
+      },
+    ],
+    at: expect.any(Number),
+    streaming: false,
+  });
+
+  await runtime.close();
+});
+
+test("an image is refused for a model that reads none, and nothing of the message is kept", async () => {
+  const prepare = vi.fn<ImageProcessor["prepare"]>();
+
+  const { runtime } = setup({
+    faux: fauxProvider({
+      models: [{ id: "words", name: "Words", input: ["text"] }],
+    }),
+    images: { prepare },
+  });
+
+  const { id } = await runtime.create();
+
+  await expect(
+    runtime.send(id, {
+      text: "What is this?",
+      context: "",
+      attachments: [chart],
+    })
+  ).rejects.toThrow("Words cannot read images");
+
+  expect(prepare).not.toHaveBeenCalled();
+  expect(foldEvents(await runtime.transcript(id)).items).toEqual([]);
 
   await runtime.close();
 });

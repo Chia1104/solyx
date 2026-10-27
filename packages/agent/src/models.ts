@@ -297,6 +297,8 @@ export interface AgentModelOption {
   reasoning: boolean;
   /** Tokens a request may hold, prompt and answer together. */
   contextWindow: number;
+  /** Whether it reads the images a message carries. */
+  images: boolean;
 }
 
 /**
@@ -490,12 +492,13 @@ export function createModelCatalog({
     async options(provider: AgentProvider): Promise<AgentModelOption[]> {
       const listed = await available(provider);
 
-      return listed.map(({ id, name, reasoning, contextWindow }) => ({
+      return listed.map(({ id, name, reasoning, contextWindow, input }) => ({
         provider,
         id,
         name,
         reasoning,
         contextWindow,
+        images: input.includes("image"),
       }));
     },
 

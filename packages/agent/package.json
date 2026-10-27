@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./analysis": "./src/analysis.ts",
+    "./attachment": "./src/attachment.ts",
     "./flows": "./src/flows.ts",
     "./macro": "./src/macro.ts",
     "./headlines": "./src/headlines.ts",

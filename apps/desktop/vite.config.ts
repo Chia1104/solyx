@@ -43,6 +43,11 @@ const quickjsWasm = createRequire(
   import.meta.resolve("@earendil-works/pi-codemode")
 ).resolve("quickjs-wasi/quickjs.wasm");
 
+// Photon scales the images a message carries in a worker, which reads its wasm from beside the backend.
+const photonWasm = createRequire(
+  import.meta.resolve("@earendil-works/pi-durable/images")
+).resolve("@silvia-odwyer/photon/photon_rs_bg.wasm");
+
 // The kernel's process loads its native build from beside its bundle.
 const kernelBuild = fileURLToPath(
   new URL("solyx-kernel.node", import.meta.resolve("@solyx/kernel/kernel"))
@@ -137,8 +142,8 @@ export default defineConfig({
       },
       outDir: "dist/utility",
       format: "esm",
-      // drizzle's migrator reads SQL files, the agent's scripts QuickJS's wasm and the kernel's
-      // process its native build at runtime, so they ship beside the bundles.
+      // drizzle's migrator reads SQL files, the agent's scripts QuickJS's wasm, the images' worker
+      // Photon's and the kernel's process its native build at runtime, so they ship beside the bundles.
       copy: [
         {
           from: "../../packages/db/migrations/cache",
@@ -166,6 +171,7 @@ export default defineConfig({
           rename: "user",
         },
         { from: quickjsWasm, to: "dist/utility" },
+        { from: photonWasm, to: "dist/utility" },
         { from: kernelBuild, to: "dist/utility" },
         ...(process.platform === "linux"
           ? [{ from: seccompFilters, to: "dist/utility/vendor" }]
@@ -180,6 +186,9 @@ export default defineConfig({
         ),
         backup: fileURLToPath(
           import.meta.resolve("@solyx/backend/worker/backup")
+        ),
+        images: fileURLToPath(
+          import.meta.resolve("@solyx/backend/worker/images")
         ),
       },
       outDir: "dist/worker",

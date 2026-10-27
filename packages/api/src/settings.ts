@@ -332,6 +332,8 @@ export interface AgentModelOption {
   reasoning: boolean;
   /** Tokens a request may hold, prompt and answer together. */
   contextWindow: number;
+  /** Whether it reads the images a message carries, without which none may be attached. */
+  images: boolean;
 }
 
 /** One provider as the settings page lists it. */

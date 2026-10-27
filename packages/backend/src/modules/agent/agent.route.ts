@@ -32,6 +32,7 @@ export const agentRouter = agent.router({
     context.agent.send(
       input.id,
       input.text,
+      input.attachments,
       input.screen,
       input.locale,
       input.timeZone,
