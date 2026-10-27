@@ -232,6 +232,11 @@ html[data-pane-resizing="horizontal"] {
     @apply rounded-full;
   }
 
+  /* A tab list's track nests its tabs' corners: theirs plus the padding around them. */
+  .tabs__list-container {
+    border-radius: calc(var(--radius) + var(--spacing));
+  }
+
   /* Overlays arrive and leave on a strong ease-out instead of HeroUI's plain ease. */
   :is(
     .popover,
