@@ -21,10 +21,13 @@ export const BACK_HOTKEYS: Hotkey[] = ["Mod+[", "Alt+ArrowLeft"];
 // The mouse's back button, which Chromium reports as button 3 and Electron leaves alone.
 const BACK_BUTTON = 3;
 
-/** Set on `<html>` for the frames that apply a pane toggled by keyboard, so the panes snap instead of sliding. */
+/**
+ * Set on `<html>` for the frames that apply a pane toggled by keyboard or kept open as it shows
+ * over the page, so the panes snap instead of sliding.
+ */
 const PANE_AT_ONCE_ATTRIBUTE = "data-pane-at-once";
 
-function toggleAtOnce(toggle: () => void) {
+export function toggleAtOnce(toggle: () => void) {
   const root = document.documentElement;
 
   root.setAttribute(PANE_AT_ONCE_ATTRIBUTE, "");

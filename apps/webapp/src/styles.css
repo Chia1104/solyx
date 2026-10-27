@@ -27,6 +27,7 @@
 
   --hatch: color-mix(in oklab, var(--muted) 40%, transparent);
   --sheet-edge: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --floating-shadow: var(--overlay-shadow);
 
   --radius: 0.375rem;
 }
@@ -34,6 +35,8 @@
 .dark,
 [data-theme="dark"] {
   --hatch: color-mix(in oklab, var(--muted) 35%, transparent);
+  /* HeroUI's dark overlays carry only a light edge, which leaves a sheet over sheets flat. */
+  --floating-shadow: var(--overlay-shadow), 0 20px 48px -16px rgb(0 0 0 / 0.6);
 }
 
 /* Clear until app/theme.ts writes the palette, so the window's background, already in it, shows. */
@@ -53,7 +56,7 @@ html:not([data-palette]) body {
 
 /*
  * One corner radius for controls and what sits inside a sheet, instead of HeroUI's scale up to
- * pills; form fields keep HeroUI's own. Only a sheet rounds wider.
+ * pills; form fields keep HeroUI's own. Only a sheet, and one floating over the page, rounds wider.
  */
 @theme inline {
   --radius-xs: var(--radius);
@@ -65,6 +68,7 @@ html:not([data-palette]) body {
   --radius-3xl: var(--radius);
   --radius-4xl: var(--radius);
   --radius-sheet: 0.625rem;
+  --radius-floating: 0.875rem;
 }
 
 @theme inline {
@@ -96,6 +100,12 @@ html:not([data-palette]) body {
   @apply rounded-sheet bg-surface;
   outline: 1px solid var(--sheet-edge);
   outline-offset: -1px;
+}
+
+/* A sheet lifted over the page, such as a closed pane shown while the pointer rests on it. */
+@utility floating {
+  @apply rounded-floating bg-overlay;
+  box-shadow: var(--floating-shadow);
 }
 
 /* Lets the user move the window by this area; controls inside it stay clickable. */
