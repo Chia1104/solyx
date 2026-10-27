@@ -69,6 +69,7 @@ export function UserMessage({
       {message.attachments?.length ? (
         <SentAttachments
           sessionId={sessionId}
+          messageId={message.messageId}
           attachments={message.attachments}
         />
       ) : null}

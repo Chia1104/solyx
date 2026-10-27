@@ -12,7 +12,7 @@ This policy covers the Solyx desktop app, its update feed and this website, `use
 
 Solyx keeps its data in two folders on your computer: a data folder (`~/Library/Application Support/Solyx` on macOS, `%APPDATA%\Solyx` on Windows) and a config folder, `~/.solyx`. **Settings → About** shows both. They hold:
 
-- **Your data:** the watchlist, proposals, orders and fills of the paper account, scheduled tasks, themes, the backtests you ran, conversations with the files you attach to them, the agent's memories, reports and forecasts, collected news, and cached market data.
+- **Your data:** the watchlist, proposals, orders and fills of the paper account, scheduled tasks, themes, the backtests you ran, conversations with what the agent read of the files you attach (images as scaled for the model, text files, and PDFs' text), the agent's memories, reports and forecasts, collected news, and cached market data.
 - **Your settings,** in `~/.solyx/config.json`, with your skills, strategies, `AGENTS.md` and `mcp.json` beside it. The config holds the account number orders go to once you pick a broker account.
 - **Keys, sign-ins, your trading mandate, the strategy versions you allowed and the browsers you paired,** encrypted by your operating system's secret store (Keychain on macOS, DPAPI on Windows, a keyring on Linux). They never reach the config file, a log or a backup.
 - **Logs of your broker's SDK.** Fubon's SDK writes its own logs into the data folder, and they can include your ID number and account details.

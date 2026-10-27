@@ -1,12 +1,5 @@
 import { existsSync } from "node:fs";
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  symlink,
-} from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,7 +11,6 @@ import { AttachmentKind } from "@solyx/agent/attachment";
 import {
   attachmentText,
   keepAttachments,
-  keptAttachment,
 } from "../src/modules/agent/attachments.ts";
 import { createPdfThreads } from "../src/modules/agent/pdf-threads.ts";
 
@@ -91,57 +83,50 @@ const PNG = new Uint8Array(
   )
 );
 
-test("a message's files are kept as attached, in a folder of the message's own", async () => {
+test("only what the agent reads of a message's files is kept: text, never an image", async () => {
   const kept = await keepAttachments(
     workspace,
     [
       new File([PNG], "image.png"),
-      new File([PNG], "image.png"),
       new File(["date,close\n"], "../收盤.csv"),
+      new File(["date,close\n1,2\n"], "../收盤.csv"),
     ],
     1_700_000_000_000,
     noPdfs
   );
 
   expect(kept.attachments).toMatchObject([
-    {
-      kind: AttachmentKind.Image,
-      name: "image.png",
-      path: "attachments/1700000000000/image.png",
-    },
-    { name: "image (2).png", path: "attachments/1700000000000/image (2).png" },
+    { kind: AttachmentKind.Image, name: "image.png", data: PNG },
     {
       kind: AttachmentKind.Text,
       name: "_收盤.csv",
       path: "attachments/1700000000000/_收盤.csv",
       text: "date,close\n",
     },
+    { name: "_收盤.csv", path: "attachments/1700000000000/_收盤 (2).csv" },
   ]);
+  expect(kept.attachments[0]).not.toHaveProperty("path");
 
+  // The image rides in its message alone, as scaled for the model.
   const folder = join(workspace, "attachments", "1700000000000");
 
   expect((await readdir(folder)).sort()).toEqual(
-    ["_收盤.csv", "image (2).png", "image.png"].sort()
+    ["_收盤 (2).csv", "_收盤.csv"].sort()
   );
-  expect(new Uint8Array(await readFile(join(folder, "image.png")))).toEqual(
-    PNG
-  );
-
-  const shown = await keptAttachment(
-    workspace,
-    "attachments/1700000000000/_收盤.csv"
-  );
-
-  expect([shown.name, shown.type, await shown.text()]).toEqual([
-    "_收盤.csv",
-    "text/csv",
-    "date,close\n",
-  ]);
+  expect(
+    await attachmentText(workspace, "attachments/1700000000000/_收盤.csv")
+  ).toBe("date,close\n");
 
   // A message that was not sent takes its files away again.
   await kept.remove();
 
   expect(existsSync(folder)).toBe(false);
+});
+
+test("a message of images alone keeps no folder", async () => {
+  await keepAttachments(workspace, [new File([PNG], "chart.png")], 2, noPdfs);
+
+  expect(await readdir(workspace)).toEqual([]);
 });
 
 test("a file that cannot ride with a message keeps none of them", async () => {
@@ -192,11 +177,11 @@ test("a kept file is read only where it really is in the conversation's folder",
   await symlink("/etc/hosts", join(workspace, "attachments", "2", "hosts.txt"));
 
   await expect(
-    keptAttachment(workspace, "attachments/2/hosts.txt")
+    attachmentText(workspace, "attachments/2/hosts.txt")
   ).rejects.toThrow("not in its conversation's folder");
 });
 
-test("a PDF is kept with the text read of it, Chinese set in a CMap'd font among it, which read_attachment reads back", async () => {
+test("a PDF keeps only the text read of it, Chinese set in a CMap'd font among it, which read_attachment reads back", async () => {
   const kept = await keepAttachments(
     workspace,
     [new File([REPORT], "法說會.pdf")],
@@ -208,7 +193,7 @@ test("a PDF is kept with the text read of it, Chinese set in a CMap'd font among
     {
       kind: AttachmentKind.Text,
       name: "法說會.pdf",
-      path: "attachments/3/法說會.pdf",
+      path: "attachments/3/法說會.pdf.txt",
       size: REPORT.byteLength,
       mimeType: "application/pdf",
       text: "[page 1]\n台積電",
@@ -216,15 +201,12 @@ test("a PDF is kept with the text read of it, Chinese set in a CMap'd font among
     },
   ]);
 
-  expect(await attachmentText(workspace, "attachments/3/法說會.pdf")).toBe(
+  expect(await readdir(join(workspace, "attachments", "3"))).toEqual([
+    "法說會.pdf.txt",
+  ]);
+  expect(await attachmentText(workspace, "attachments/3/法說會.pdf.txt")).toBe(
     "[page 1]\n台積電"
   );
-  expect(
-    await readFile(
-      join(workspace, "attachments", "3", ".text", "法說會.pdf.txt"),
-      "utf8"
-    )
-  ).toBe("[page 1]\n台積電");
 });
 
 test("a PDF with no text keeps nothing of its message, and says to attach its pages as images", async () => {
@@ -240,13 +222,10 @@ test("a PDF with no text keeps nothing of its message, and says to attach its pa
   expect(await readdir(workspace)).toEqual([]);
 });
 
-test("read_attachment reads a text file's own text, never an image or a path it was not handed", async () => {
+test("read_attachment reads only text kept at a kept file's place", async () => {
   await keepAttachments(
     workspace,
-    [
-      new File(["date,close\n1,2\n"], "fills.csv"),
-      new File([PNG], "chart.png"),
-    ],
+    [new File(["date,close\n1,2\n"], "fills.csv")],
     5,
     noPdfs
   );
@@ -255,9 +234,6 @@ test("read_attachment reads a text file's own text, never an image or a path it 
     "date,close\n1,2\n"
   );
   await expect(
-    attachmentText(workspace, "attachments/5/chart.png")
-  ).rejects.toThrow("is an image");
-  await expect(
-    attachmentText(workspace, "attachments/5/.text/fills.csv.txt")
+    attachmentText(workspace, "attachments/5/../../../.ssh/id_ed25519")
   ).rejects.toThrow("is not where a message's file is kept");
 });

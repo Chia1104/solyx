@@ -1,11 +1,7 @@
 import { asyncIteratorObject, oc, type } from "@orpc/contract";
 import * as z from "zod";
 
-import {
-  ATTACHMENT_PATH,
-  MAX_ATTACHMENTS,
-  MAX_ATTACHMENT_BYTES,
-} from "@solyx/agent/attachment";
+import { MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES } from "@solyx/agent/attachment";
 import { agentModelPickSchema } from "@solyx/agent/providers";
 import { agentSessionSetupSchema, approvalModeSchema } from "@solyx/agent/wire";
 import type {
@@ -24,8 +20,6 @@ import { changesContract } from "./changes.ts";
 const idSchema = z.string().min(1);
 
 const textSchema = z.string().trim().min(1).max(20_000);
-
-const attachmentPathSchema = z.string().regex(ATTACHMENT_PATH);
 
 export const agentContract = {
   /** Most recently active first. */
@@ -63,10 +57,23 @@ export const agentContract = {
       })
     )
     .output(type<void>()),
-  /** A file a message of the conversation carried, as it was attached, for the thread to show. */
-  attachment: oc
+  /**
+   * The image a message of the conversation carried as its `index`th file, as scaled for the
+   * model, which is the one copy the app keeps of it, for the thread to show.
+   */
+  attachmentImage: oc
     .meta(forDevices(true))
-    .input(z.object({ id: idSchema, path: attachmentPathSchema }))
+    .input(
+      z.object({
+        id: idSchema,
+        messageId: idSchema,
+        index: z
+          .number()
+          .int()
+          .min(0)
+          .max(MAX_ATTACHMENTS - 1),
+      })
+    )
     .output(type<File>()),
   abort: oc.meta(forDevices(true)).input(idSchema).output(type<void>()),
   /**

@@ -86,11 +86,7 @@ import { createAgentModels } from "./agent-models.ts";
 import type { AgentModelsOptions } from "./agent-models.ts";
 import { createAgentSetup } from "./agent-setup.ts";
 import type { AgentSetupSources } from "./agent-setup.ts";
-import {
-  attachmentText,
-  keepAttachments,
-  keptAttachment,
-} from "./attachments.ts";
+import { attachmentText, keepAttachments } from "./attachments.ts";
 import { createImageThreads } from "./image-threads.ts";
 import type { McpServers } from "./mcp-servers.ts";
 import { messageContext, screenContext } from "./message-context.ts";
@@ -665,8 +661,16 @@ export function createAgentService(options: AgentServiceOptions) {
         attachments,
       }),
 
-    attachment: (id: string, path: string) =>
-      keptAttachment(workspace(id), path),
+    /** The image a message carried as its `index`th file, as scaled for the model, for its thumbnail. */
+    async attachmentImage(id: string, messageId: string, index: number) {
+      const kept = await runtime.attachmentImage(id, messageId, index);
+
+      if (!kept) throw new Error(`Message ${messageId} carried no image there`);
+
+      return new File([Buffer.from(kept.image.data, "base64")], kept.name, {
+        type: kept.image.mimeType,
+      });
+    },
 
     /** Whether a run is going in the conversation; one since deleted has none. */
     busy: (id: string) => runtime.busy(id),

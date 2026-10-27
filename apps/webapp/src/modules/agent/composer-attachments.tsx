@@ -254,11 +254,19 @@ export function AttachButton({
   );
 }
 
-// A sent image, read from the conversation's folder as it was attached.
-function SentImage({ sessionId, path }: { sessionId: string; path: string }) {
+// A sent image as its message keeps it, scaled for the model, which is the one copy kept of it.
+function SentImage({
+  sessionId,
+  messageId,
+  index,
+}: {
+  sessionId: string;
+  messageId: string;
+  index: number;
+}) {
   const { data } = useQuery(
-    orpc.agent.attachment.queryOptions({
-      input: { id: sessionId, path },
+    orpc.agent.attachmentImage.queryOptions({
+      input: { id: sessionId, messageId, index },
       // What a message carried never changes.
       staleTime: Number.POSITIVE_INFINITY,
     })
@@ -270,9 +278,11 @@ function SentImage({ sessionId, path }: { sessionId: string; path: string }) {
 /** The files a sent message carried, as the composer showed them. */
 export function SentAttachments({
   sessionId,
+  messageId,
   attachments,
 }: {
   sessionId: string;
+  messageId: string;
   attachments: readonly AttachmentView[];
 }) {
   const { t } = useTranslation();
@@ -282,12 +292,17 @@ export function SentAttachments({
     <ul
       aria-label={t("agent.context.attachments")}
       className="flex max-w-[85%] flex-wrap justify-end gap-2">
-      {attachments.map((attachment) => (
+      {attachments.map((attachment, index) => (
         <AttachmentCard
-          key={attachment.path}
+          // A message's files never change, so where each stands among them names it.
+          key={index}
           media={
             sentKind(attachment.mimeType) === AttachmentKind.Image ? (
-              <SentImage sessionId={sessionId} path={attachment.path} />
+              <SentImage
+                sessionId={sessionId}
+                messageId={messageId}
+                index={index}
+              />
             ) : (
               <FileMedia kind={sentKind(attachment.mimeType)} />
             )

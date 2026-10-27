@@ -45,9 +45,12 @@ export type AttachmentKind =
 
 /** A file a user message carried, as the thread lists it. */
 export interface AttachmentView {
-  /** Where the conversation's folder keeps it as it was attached. */
-  path: string;
   name: string;
+  /**
+   * Where the conversation's folder keeps the text the agent reads of it, a text file's own or a
+   * PDF's; an image is kept only as its message carries it.
+   */
+  path?: string;
   /** The type the app read from its bytes. */
   mimeType: string;
   /** Bytes as attached, before an image was scaled to fit the model. */

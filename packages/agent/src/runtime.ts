@@ -63,6 +63,7 @@ import type {
 import { createToolsetLoader } from "./toolset.ts";
 import type { Toolset } from "./toolset.ts";
 import {
+  attachmentImage,
   createTranscriber,
   readTexts,
   replyText,
@@ -136,7 +137,11 @@ export interface AgentRuntimeOptions {
 export type AgentAttachment = Exclude<
   ReadAttachment,
   { kind: typeof AttachmentKind.Pdf }
-> & { path: string; pages?: number };
+> & {
+  /** Where the conversation's folder keeps its text; an image's one copy rides in its message. */
+  path?: string;
+  pages?: number;
+};
 
 const encoder = new TextEncoder();
 
@@ -550,11 +555,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
     // One image at a time, since each decodes every pixel it holds before it is scaled.
     for (const attachment of attachments) {
-      const { path, mimeType, size } = attachment;
+      const { name, path, mimeType, size } = attachment;
 
       if (attachment.kind === AttachmentKind.Text) {
         carried.push({
           kind: attachment.kind,
+          name,
           path,
           mimeType,
           size,
@@ -577,7 +583,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
       carried.push({
         kind: attachment.kind,
-        path,
+        name,
         mimeType,
         size,
         image: {
@@ -1012,6 +1018,30 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       await conversation.commit(async (tx) => {
         (await tx.doc(ApprovalDoc, conversation.id)).mode = mode;
       }, BACKGROUND_CONTEXT);
+    },
+
+    /**
+     * The image a user message carried as its `index`th file, as scaled for the model, which is
+     * the one copy kept of it; `undefined` where that file is no image.
+     */
+    async attachmentImage(sessionId: string, messageId: string, index: number) {
+      const conversation = await conversationOf(sessionId);
+      // SAFETY: a message's wire id is its entry's id written out, as `./transcript` writes it.
+      const id = Number(messageId) as EntryId;
+
+      const { items } = await conversation.entries(
+        { minEntryId: id, maxEntryId: id },
+        1,
+        undefined,
+        BACKGROUND_CONTEXT
+      );
+
+      const entry = items[0];
+      const [stored] = entry?.model ?? [];
+
+      return entry && UserEntry.is(entry) && stored?.role === "user"
+        ? attachmentImage(stored, index)
+        : undefined;
     },
 
     /** Everything a conversation's tools returned and its user wrote, oldest first, what a compaction no longer shows the model among it. */

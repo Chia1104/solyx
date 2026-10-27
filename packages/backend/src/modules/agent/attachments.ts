@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { mkdir, open, realpath, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, join, sep } from "node:path";
+import { basename, join, sep } from "node:path";
 
 import {
   ATTACHMENT_PATH,
@@ -15,14 +15,8 @@ import type { AgentAttachment } from "@solyx/agent/runtime";
 
 import type { PdfReader } from "./pdf-threads.ts";
 
-/** The folder of a conversation's folder that keeps the files its messages carried. */
+/** The folder of a conversation's folder that keeps the text its messages' files carried. */
 const ATTACHMENTS = "attachments";
-
-/**
- * The folder beside a message's files that keeps the text read of its PDFs, which no attached
- * file's name can take, since none begins with a dot.
- */
-const TEXTS = ".text";
 
 /**
  * Where `path` really is under `workspace`, which the conversation's commands may write in: a link
@@ -89,11 +83,12 @@ async function carried(
 
 /**
  * Reads the files a message carries, throwing as `readAttachment` does for one that cannot ride
- * with it and for a PDF whose text cannot be read, and keeps each as it was attached in a folder
- * of the message's own under its conversation's, where the shell's commands start, so they go
- * with the conversation's folder: into backups, and away with the conversation. A PDF's text is
- * kept beside it for `read_attachment`. `remove` takes them away again for a message that was not
- * sent.
+ * with it and for a PDF whose text cannot be read, and keeps of each only what the agent reads, so
+ * nothing of it is kept twice: an image only as its message carries it, scaled for the model, and
+ * a text file as attached and a PDF's text in a folder of the message's own under its
+ * conversation's, where `read_attachment` and the shell's commands find them. That folder goes
+ * into backups with the conversation and away with it. `remove` takes it away again for a message
+ * that was not sent.
  */
 export async function keepAttachments(
   workspace: string,
@@ -117,20 +112,33 @@ export async function keepAttachments(
   const folder = join(ATTACHMENTS, String(at));
   const taken = new Set<string>();
 
-  const kept = read.map(({ bytes }, index) => {
+  const kept = read.map(({ bytes, attachment: original }, index) => {
     const attachment = texts[index];
-    const name = unique(attachment.name, taken);
+
+    if (attachment.kind === AttachmentKind.Image) {
+      return { attachment, file: undefined };
+    }
+
+    // A PDF keeps the text read of it, which the shell then reads as text.
+    const pdfText = original.kind === AttachmentKind.Pdf;
+
+    const name = unique(
+      pdfText ? `${attachment.name}.txt` : attachment.name,
+      taken
+    );
 
     taken.add(name);
 
     // The model reads the path from where its commands start, which is the same on every system.
     return {
-      bytes,
-      attachment: { ...attachment, name, path: `${ATTACHMENTS}/${at}/${name}` },
+      attachment: { ...attachment, path: `${ATTACHMENTS}/${at}/${name}` },
+      file: { name, data: pdfText ? attachment.text : bytes },
     };
   });
 
-  if (kept.length > 0) {
+  const written = kept.flatMap(({ file }) => (file ? [file] : []));
+
+  if (written.length > 0) {
     await mkdir(join(workspace, ATTACHMENTS), { recursive: true });
 
     // A new folder and a new file each, so nothing already there, a link among it, is written
@@ -141,28 +149,11 @@ export async function keepAttachments(
 
     const real = await insideWorkspace(workspace, folder);
 
-    const pdfs = kept.flatMap(({ attachment }) =>
-      attachment.kind === AttachmentKind.Text && attachment.pages !== undefined
-        ? [attachment]
-        : []
+    await Promise.all(
+      written.map(({ name, data }) =>
+        writeFile(join(real, name), data, { flag: "wx" })
+      )
     );
-
-    if (pdfs.length > 0) await mkdir(join(real, TEXTS));
-
-    await Promise.all([
-      ...kept.map(({ bytes, attachment }) =>
-        writeFile(join(real, attachment.name), bytes, { flag: "wx" })
-      ),
-      ...pdfs.map((attachment) =>
-        writeFile(
-          join(real, TEXTS, `${attachment.name}.txt`),
-          attachment.text,
-          {
-            flag: "wx",
-          }
-        )
-      ),
-    ]);
   }
 
   return {
@@ -194,20 +185,7 @@ async function readKept(workspace: string, path: string) {
   }
 }
 
-/** A file a message carried, as `keepAttachments` kept it at `path` in the conversation's folder. */
-export async function keptAttachment(workspace: string, path: string) {
-  const bytes = await readKept(workspace, path);
-  const name = basename(path);
-
-  return new File([bytes], name, {
-    type: readAttachment(name, bytes).mimeType,
-  });
-}
-
-/**
- * The text `read_attachment` reads of a file a message carried: a text file's own, or what was
- * read of a PDF as it arrived.
- */
+/** The text `read_attachment` reads of a file a message carried, a text file's own or a PDF's. */
 export async function attachmentText(workspace: string, path: string) {
   if (!ATTACHMENT_PATH.test(path)) {
     throw new Error(`${path} is not where a message's file is kept`);
@@ -216,13 +194,9 @@ export async function attachmentText(workspace: string, path: string) {
   const name = basename(path);
   const attachment = readAttachment(name, await readKept(workspace, path));
 
-  if (attachment.kind === AttachmentKind.Text) return attachment.text;
-
-  if (attachment.kind === AttachmentKind.Image) {
-    throw new Error(`${name} is an image, which its message showed already`);
+  if (attachment.kind !== AttachmentKind.Text) {
+    throw new Error(`${name} holds no text kept for the agent to read`);
   }
 
-  return new TextDecoder().decode(
-    await readKept(workspace, join(dirname(path), TEXTS, `${name}.txt`))
-  );
+  return attachment.text;
 }

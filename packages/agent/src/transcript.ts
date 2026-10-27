@@ -51,7 +51,7 @@ const CONTEXT_CLOSE = "</app_context>";
  * A file as its user message carries it to the model: an image, text short enough to carry, or
  * text too long to, which only its length stands for and `read_attachment` reads.
  */
-export type MessageAttachment = Omit<AttachmentView, "name"> & {
+export type MessageAttachment = AttachmentView & {
   /** A PDF's pages, which its text is set under. */
   pages?: number;
 } & (
@@ -60,32 +60,33 @@ export type MessageAttachment = Omit<AttachmentView, "name"> & {
     | { kind: typeof AttachmentKind.Text; characters: number }
   );
 
+const ATTACHMENT_OPEN = "<attachment ";
+
 const ATTACHMENT_CLOSE = "</attachment>";
 
-// Opens each file the user attached, so the thread lists what a stored message carried.
-const ATTACHMENT_TAG =
-  /^<attachment path="([^"]*)" type="([^"]*)" size="(\d+)"/;
+const ATTRIBUTE = / ([a-z]+)="([^"]*)"/g;
 
 function attachmentContent(
   attachment: MessageAttachment
 ): Exclude<UserMessage["content"], string> {
-  const pages =
-    attachment.pages === undefined ? "" : ` pages="${attachment.pages}"`;
+  const attributes = Object.entries({
+    name: attachment.name,
+    path: attachment.path,
+    type: attachment.mimeType,
+    size: attachment.size,
+    pages: attachment.pages,
+    characters: "characters" in attachment ? attachment.characters : undefined,
+  }).flatMap(([key, value]) =>
+    value === undefined ? [] : [` ${key}="${escape(String(value))}"`]
+  );
 
-  const tag = `<attachment path="${escape(attachment.path)}" type="${escape(attachment.mimeType)}" size="${attachment.size}"${pages}`;
+  const tag = `${ATTACHMENT_OPEN.trimEnd()}${attributes.join("")}`;
 
   if (attachment.kind === AttachmentKind.Image) {
     return [{ type: "text", text: `${tag}/>` }, attachment.image];
   }
 
-  if ("characters" in attachment) {
-    return [
-      {
-        type: "text",
-        text: `${tag} characters="${attachment.characters}"/>`,
-      },
-    ];
-  }
+  if ("characters" in attachment) return [{ type: "text", text: `${tag}/>` }];
 
   // A file that closes the tag itself would end its own data early.
   const text = attachment.text.replaceAll(ATTACHMENT_CLOSE, "<\\/attachment>");
@@ -116,31 +117,58 @@ export function userText(message: UserMessage): string {
     .flatMap((part) =>
       part.type === "text" &&
       !part.text.startsWith(CONTEXT_OPEN) &&
-      !ATTACHMENT_TAG.test(part.text)
+      !part.text.startsWith(ATTACHMENT_OPEN)
         ? [part.text]
         : []
     )
     .join("\n");
 }
 
+/** A file as its tag names it. */
+function attachmentOf(tag: string): AttachmentView {
+  const opening = tag.slice(0, tag.indexOf(">") + 1);
+
+  const attributes = new Map(
+    [...opening.matchAll(ATTRIBUTE)].map(([, key, value]) => [
+      key,
+      unescape(value),
+    ])
+  );
+
+  return {
+    name: attributes.get("name") ?? "",
+    path: attributes.get("path"),
+    mimeType: attributes.get("type") ?? "",
+    size: Number(attributes.get("size") ?? 0),
+  };
+}
+
 /** The files a user message carried, as their tags name them. */
 export function userAttachments(message: UserMessage): AttachmentView[] {
-  return partsOf(message).flatMap((part) => {
-    const tag = part.type === "text" ? ATTACHMENT_TAG.exec(part.text) : null;
+  return partsOf(message).flatMap((part) =>
+    part.type === "text" && part.text.startsWith(ATTACHMENT_OPEN)
+      ? [attachmentOf(part.text)]
+      : []
+  );
+}
 
-    if (!tag) return [];
+/**
+ * The image a user message carried as its `index`th file, as scaled for the model, which is the
+ * one copy the app keeps of it.
+ */
+export function attachmentImage(message: UserMessage, index: number) {
+  const parts = partsOf(message);
 
-    const path = unescape(tag[1]);
+  const tags = parts.flatMap((part, at) =>
+    part.type === "text" && part.text.startsWith(ATTACHMENT_OPEN) ? [at] : []
+  );
 
-    return [
-      {
-        path,
-        name: path.slice(path.lastIndexOf("/") + 1),
-        mimeType: unescape(tag[2]),
-        size: Number(tag[3]),
-      },
-    ];
-  });
+  const at = tags[index];
+  const image = at === undefined ? undefined : parts[at + 1];
+
+  return image?.type === "image"
+    ? { name: userAttachments(message)[index]?.name ?? "", image }
+    : undefined;
 }
 
 /** The wire id of a stored message, live and replayed alike. */
