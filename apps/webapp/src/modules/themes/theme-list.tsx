@@ -125,7 +125,11 @@ function WatchGaps() {
       ].join(" ")}{" "}
       <Link
         to="/settings"
-        search={{ section: SettingsSection.Agent }}
+        search={{
+          section: searched
+            ? SettingsSection.Decisions
+            : SettingsSection.WebSearch,
+        }}
         className="text-foreground underline">
         {t("themes.settings")}
       </Link>

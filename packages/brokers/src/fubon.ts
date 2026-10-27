@@ -1301,7 +1301,7 @@ export function createFubonBroker({
   function picked(): string {
     if (account === null) {
       throw new Error(
-        "Choose the Fubon account orders go to in Settings → Trading"
+        "Choose the Fubon account orders go to in Settings → Orders"
       );
     }
 

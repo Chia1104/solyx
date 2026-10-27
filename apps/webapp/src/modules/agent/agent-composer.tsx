@@ -151,7 +151,7 @@ function ModelUnavailable({
       {t("agent.model-unavailable", { model: name, provider })}{" "}
       <Link
         to="/settings"
-        search={{ section: SettingsSection.Agent }}
+        search={{ section: SettingsSection.Models }}
         className="underline underline-offset-2">
         {t("agent.open-settings")}
       </Link>

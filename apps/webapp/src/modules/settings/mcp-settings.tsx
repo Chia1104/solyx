@@ -1,6 +1,6 @@
 import { Button, Chip, IconChevronRight } from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { McpServerState } from "@solyx/agent/mcp-config";
@@ -9,6 +9,7 @@ import type { McpServerSetting } from "@solyx/api/settings";
 import { SettingsSection } from "@solyx/api/settings-section";
 
 import { client } from "../../app/rpc.ts";
+import { EditorModal } from "../../components/editor-modal.tsx";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -20,7 +21,7 @@ import { SettingsList } from "./settings-list.tsx";
 import { mcpQuery } from "./settings-query.ts";
 
 /**
- * One server in the list, opening its page. A connected server shows what its tools may do; any
+ * One server in the list, opening it over the list. A connected server shows what its tools may do; any
  * other shows what it waits for.
  */
 function ServerRow({ server }: { server: McpServerSetting }) {
@@ -32,6 +33,7 @@ function ServerRow({ server }: { server: McpServerSetting }) {
       <Link
         to="/settings"
         search={{ section: SettingsSection.Mcp, server: server.name }}
+        replace
         className="-mx-3 flex items-center gap-4 rounded px-3 py-3 outline-none hover:bg-default/60 focus-visible:bg-default">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex items-center gap-2">
@@ -74,11 +76,12 @@ function ServerRow({ server }: { server: McpServerSetting }) {
 }
 
 /**
- * The MCP servers in mcp.json as a list, or the one `server` names with its secrets and what each
- * tool may do. Servers connect when this page or the agent first needs them.
+ * The MCP servers in mcp.json as a list, with the one `server` names opened over it: its secrets
+ * and what each tool may do. Servers connect when this page or the agent first needs them.
  */
 export function McpSettings({ server }: { server?: string }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { data, error, refetch } = useQuery(mcpQuery());
 
   const open = useMutation({
@@ -91,10 +94,8 @@ export function McpSettings({ server }: { server?: string }) {
 
   if (!data) return <LoadingState />;
 
-  // A server removed from mcp.json while its page is open falls back to the list.
+  // A server removed from mcp.json while it is open closes.
   const opened = data.servers.find((entry) => entry.name === server);
-
-  if (opened) return <McpServer server={opened} />;
 
   return (
     <Section
@@ -125,6 +126,18 @@ export function McpSettings({ server }: { server?: string }) {
           </Button>
         </div>
       </div>
+      <EditorModal
+        title={opened?.name}
+        isOpen={opened !== undefined}
+        onClose={() =>
+          void navigate({
+            to: "/settings",
+            search: { section: SettingsSection.Mcp },
+            replace: true,
+          })
+        }>
+        {opened ? <McpServer server={opened} /> : null}
+      </EditorModal>
     </Section>
   );
 }

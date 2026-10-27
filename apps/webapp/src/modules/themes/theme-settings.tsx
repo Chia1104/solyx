@@ -7,6 +7,7 @@ import {
   Form,
   Input,
   Label,
+  Modal,
   TextArea,
   TextField,
 } from "@heroui/react";
@@ -33,6 +34,7 @@ import { isEnumValue } from "@solyx/utils/is";
 
 import { useClock } from "../../app/clock.ts";
 import { client, orpc } from "../../app/rpc.ts";
+import { EditorFooter, EditorModal } from "../../components/editor-modal.tsx";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -170,111 +172,105 @@ function ThemeEditor({
   );
 
   const submit = form.handleSubmit((values) => save.mutate(values));
-  const pending = save.isPending || remove.isPending;
   const error = save.error ?? remove.error;
 
   return (
     <Form
       validationBehavior="aria"
-      className="flex flex-col gap-3"
+      className="contents"
       onSubmit={(event) => void submit(event)}>
-      <Controller
-        control={form.control}
-        name="title"
-        render={({ field, fieldState }) => (
-          <TextField isRequired autoFocus isInvalid={fieldState.invalid}>
-            <Label>{t("settings.theme-watch.name")}</Label>
-            <Input {...field} autoComplete="off" />
-            <FieldError>{fieldState.error?.message}</FieldError>
-          </TextField>
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="thesis"
-        render={({ field, fieldState }) => (
-          <TextField isRequired isInvalid={fieldState.invalid}>
-            <Label>{t("settings.theme-watch.thesis")}</Label>
-            <TextArea {...field} rows={3} />
-            <FieldError>{fieldState.error?.message}</FieldError>
-          </TextField>
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="queries"
-        render={({ field, fieldState }) => (
-          <TextField isRequired isInvalid={fieldState.invalid}>
-            <Label>{t("settings.theme-watch.queries")}</Label>
-            <TextArea {...field} rows={2} />
-            <Description>
-              {t("settings.theme-watch.queries-description", {
-                count: THEME_QUERIES,
-              })}
-            </Description>
-            <FieldError>{fieldState.error?.message}</FieldError>
-          </TextField>
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="signposts"
-        render={({ field, fieldState }) => (
-          <TextField isRequired isInvalid={fieldState.invalid}>
-            <Label>{t("settings.theme-watch.signposts")}</Label>
-            <TextArea {...field} rows={3} />
-            <Description>
-              {t("settings.theme-watch.signposts-description", {
-                count: THEME_SIGNPOSTS,
-              })}
-            </Description>
-            <FieldError>{fieldState.error?.message}</FieldError>
-          </TextField>
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="listings"
-        render={({ field, fieldState }) => (
-          <TextField isInvalid={fieldState.invalid}>
-            <Label>{t("settings.theme-watch.listings")}</Label>
-            <TextArea {...field} rows={2} />
-            <Description>
-              {t("settings.theme-watch.listings-description")}
-            </Description>
-            <FieldError>{fieldState.error?.message}</FieldError>
-          </TextField>
-        )}
-      />
-      <div className="flex gap-2">
-        <Button type="submit" variant="secondary" isPending={save.isPending}>
-          {t("settings.save")}
-        </Button>
-        <Button variant="tertiary" isDisabled={pending} onPress={onDone}>
-          {t("common.cancel")}
-        </Button>
-        {watch ? (
-          <Button
-            variant="tertiary"
-            className="ml-auto"
-            isPending={remove.isPending}
-            isDisabled={save.isPending}
-            onPress={() => remove.mutate(watch.theme.id)}>
-            {t("settings.theme-watch.delete")}
-          </Button>
-        ) : null}
-      </div>
-      {error ? (
-        <ErrorAlert
-          title={t("settings.theme-watch.change-failed")}
-          description={error.message}
+      <Modal.Body className="flex flex-col gap-3 text-foreground">
+        <Controller
+          control={form.control}
+          name="title"
+          render={({ field, fieldState }) => (
+            <TextField isRequired autoFocus isInvalid={fieldState.invalid}>
+              <Label>{t("settings.theme-watch.name")}</Label>
+              <Input {...field} autoComplete="off" />
+              <FieldError>{fieldState.error?.message}</FieldError>
+            </TextField>
+          )}
         />
-      ) : null}
+        <Controller
+          control={form.control}
+          name="thesis"
+          render={({ field, fieldState }) => (
+            <TextField isRequired isInvalid={fieldState.invalid}>
+              <Label>{t("settings.theme-watch.thesis")}</Label>
+              <TextArea {...field} rows={3} />
+              <FieldError>{fieldState.error?.message}</FieldError>
+            </TextField>
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="queries"
+          render={({ field, fieldState }) => (
+            <TextField isRequired isInvalid={fieldState.invalid}>
+              <Label>{t("settings.theme-watch.queries")}</Label>
+              <TextArea {...field} rows={2} />
+              <Description>
+                {t("settings.theme-watch.queries-description", {
+                  count: THEME_QUERIES,
+                })}
+              </Description>
+              <FieldError>{fieldState.error?.message}</FieldError>
+            </TextField>
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="signposts"
+          render={({ field, fieldState }) => (
+            <TextField isRequired isInvalid={fieldState.invalid}>
+              <Label>{t("settings.theme-watch.signposts")}</Label>
+              <TextArea {...field} rows={3} />
+              <Description>
+                {t("settings.theme-watch.signposts-description", {
+                  count: THEME_SIGNPOSTS,
+                })}
+              </Description>
+              <FieldError>{fieldState.error?.message}</FieldError>
+            </TextField>
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="listings"
+          render={({ field, fieldState }) => (
+            <TextField isInvalid={fieldState.invalid}>
+              <Label>{t("settings.theme-watch.listings")}</Label>
+              <TextArea {...field} rows={2} />
+              <Description>
+                {t("settings.theme-watch.listings-description")}
+              </Description>
+              <FieldError>{fieldState.error?.message}</FieldError>
+            </TextField>
+          )}
+        />
+        {error ? (
+          <ErrorAlert
+            title={t("settings.theme-watch.change-failed")}
+            description={error.message}
+          />
+        ) : null}
+      </Modal.Body>
+      <EditorFooter
+        saving={save.isPending}
+        onCancel={onDone}
+        remove={
+          watch && {
+            label: t("settings.theme-watch.delete"),
+            pending: remove.isPending,
+            onPress: () => remove.mutate(watch.theme.id),
+          }
+        }
+      />
     </Form>
   );
 }
 
-/** One theme: what it watches, when it was last searched and what that found, edited below the row. */
+/** One theme: what it watches, when it was last searched and what that found, edited in a modal. */
 function ThemeSettingsRow({ watch }: { watch: ThemeWatch }) {
   const { t } = useTranslation();
   const clock = useClock();
@@ -306,34 +302,34 @@ function ThemeSettingsRow({ watch }: { watch: ThemeWatch }) {
         </span>
       }
       actions={
-        editing ? null : (
-          <>
-            <Button
-              size="sm"
-              variant="tertiary"
-              isPending={check.isPending}
-              onPress={() => check.mutate()}>
-              {t("settings.theme-watch.check")}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onPress={() => {
-                check.reset();
-                setEditing(true);
-              }}>
-              {t("settings.edit")}
-            </Button>
-          </>
-        )
+        <>
+          <Button
+            size="sm"
+            variant="tertiary"
+            isPending={check.isPending}
+            onPress={() => check.mutate()}>
+            {t("settings.theme-watch.check")}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onPress={() => {
+              check.reset();
+              setEditing(true);
+            }}>
+            {t("settings.edit")}
+          </Button>
+        </>
       }>
-      {editing ? (
+      <p className="line-clamp-2 text-xs whitespace-pre-wrap text-muted">
+        {theme.thesis}
+      </p>
+      <EditorModal
+        title={theme.title}
+        isOpen={editing}
+        onClose={() => setEditing(false)}>
         <ThemeEditor watch={watch} onDone={() => setEditing(false)} />
-      ) : (
-        <p className="line-clamp-2 text-xs whitespace-pre-wrap text-muted">
-          {theme.thesis}
-        </p>
-      )}
+      </EditorModal>
       {check.error ? (
         <ErrorAlert
           title={t("settings.theme-watch.check-failed")}
@@ -373,16 +369,18 @@ export function ThemeSettings() {
             ))}
           </SettingsList>
         )}
-        {adding ? (
+        <Button
+          variant="secondary"
+          className="self-start"
+          onPress={() => setAdding(true)}>
+          {t("settings.theme-watch.add")}
+        </Button>
+        <EditorModal
+          title={t("settings.theme-watch.add")}
+          isOpen={adding}
+          onClose={() => setAdding(false)}>
           <ThemeEditor onDone={() => setAdding(false)} />
-        ) : (
-          <Button
-            variant="secondary"
-            className="self-start"
-            onPress={() => setAdding(true)}>
-            {t("settings.theme-watch.add")}
-          </Button>
-        )}
+        </EditorModal>
       </div>
     </Section>
   );

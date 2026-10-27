@@ -312,14 +312,12 @@ export const settingsRouter = settings.router({
   ),
 
   agentSkills: settings.agentSkills.handler(async ({ context }) => {
-    const { agent, config, home, skillFolders, instructionsFile } = context;
+    const { agent, home, skillFolders, instructionsFile } = context;
 
     const [catalog, instructions] = await Promise.all([
       agent.skills(),
       agent.instructions(),
     ]);
-
-    const sandbox = config.read().agent.shellSandbox;
 
     return {
       skills: catalog.skills.map(
@@ -339,12 +337,6 @@ export const settingsRouter = settings.router({
         shared: tildify(skillFolders.shared, home),
         instructions: tildify(instructionsFile, home),
       },
-      shell: config.read().agent.shell,
-      sandbox: {
-        supported: SANDBOX_SUPPORTED,
-        enabled: sandbox,
-        problems: SANDBOX_SUPPORTED && sandbox ? await sandboxProblems() : [],
-      },
     };
   }),
   setSharedSkill: settings.setSharedSkill.handler(({ context, input }) => {
@@ -356,6 +348,19 @@ export const settingsRouter = settings.router({
         ? uniq([...current, input.name])
         : current.filter((skill) => skill !== input.name)
     );
+  }),
+  codeExecution: settings.codeExecution.handler(async ({ context }) => {
+    const { shell, shellSandbox } = context.config.read().agent;
+
+    return {
+      shell,
+      sandbox: {
+        supported: SANDBOX_SUPPORTED,
+        enabled: shellSandbox,
+        problems:
+          SANDBOX_SUPPORTED && shellSandbox ? await sandboxProblems() : [],
+      },
+    };
   }),
   setAgentShell: settings.setAgentShell.handler(({ context, input }) => {
     context.config.set(["agent", "shell"], input);

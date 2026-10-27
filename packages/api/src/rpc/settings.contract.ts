@@ -48,6 +48,7 @@ import type {
   AgentSkills,
   AppInfo,
   Appearance,
+  CodeExecution,
   CrashReportSettings,
   DecisionsSettings,
   EmbeddingsSettings,
@@ -240,9 +241,10 @@ export const settingsContract = {
   setSharedSkill: oc
     .input(z.object({ name: z.string().min(1).max(64), enabled: z.boolean() }))
     .output(type<void>()),
+  codeExecution: oc.output(type<CodeExecution>()),
   /** Gives the agent the shell from its next run on, or takes it away. */
   setAgentShell: oc.input(z.boolean()).output(type<void>()),
-  /** Runs the shell's commands in the sandbox from the next one on, or with the user's access. */
+  /** Runs the shell's commands and the strategies' code in the sandbox from the next one on, or with the user's access. */
   setAgentShellSandbox: oc.input(z.boolean()).output(type<void>()),
   memory: oc.output(type<MemorySettings>()),
   /** Gives the agent its memories from its next run on, or takes them away; they stay saved. */

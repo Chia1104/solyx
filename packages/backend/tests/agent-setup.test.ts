@@ -167,16 +167,17 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
     ["General", "#/settings?section=general"],
     ["Market data", "#/settings?section=market-data"],
     ["Brokers", "#/settings?section=brokers"],
-    ["Trading", "#/settings?section=trading"],
-    ["Agent models", "#/settings?section=agent"],
-    ["Web search", "#/settings?section=agent"],
-    ["Decisions model", "#/settings?section=agent"],
-    ["Embeddings", "#/settings?section=agent"],
+    ["Orders", "#/settings?section=orders"],
+    ["Models", "#/settings?section=models"],
+    ["Web search", "#/settings?section=web-search"],
+    ["Decisions model", "#/settings?section=decisions"],
+    ["News grouping", "#/settings?section=embeddings"],
     ["Skills", "#/settings?section=skills"],
     ["Schedules", "#/settings?section=schedules"],
     ["Themes", "#/settings?section=themes"],
     ["Memory", "#/settings?section=memory"],
     ["MCP servers", "#/settings?section=mcp"],
+    ["Code execution", "#/settings?section=code-execution"],
     ["Storage", "#/settings?section=storage"],
     ["About", "#/settings?section=about"],
   ]);
@@ -184,13 +185,13 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
   expect(area(areas, "Market data").missing).toEqual([
     "Taiwan's charts, quotes and news have no source: fugle still needs a Fugle API key.",
   ]);
-  expect(area(areas, "Agent models").missing).toEqual([
+  expect(area(areas, "Models").missing).toEqual([
     "No provider switched on has a key saved, a subscription signed in or a server listing a model, so the agent cannot run.",
   ]);
   expect(area(areas, "Web search").missing).toHaveLength(1);
   expect(area(areas, "Decisions model").missing).toHaveLength(1);
   expect(area(areas, "General").missing).toEqual([]);
-  expect(area(areas, "Trading").settings).toMatchObject([
+  expect(area(areas, "Orders").settings).toMatchObject([
     { name: "trading.broker", value: "paper" },
     { name: "trading.account", value: "none" },
     {
@@ -214,7 +215,7 @@ test("a config entry carries the description its JSON Schema gives", async () =>
     description: "Where Taiwan charts come from.",
     accepts: "one of fugle, fubon",
   });
-  expect(setting(area(areas, "Agent models"), "agent.thinking")).toMatchObject({
+  expect(setting(area(areas, "Models"), "agent.thinking")).toMatchObject({
     description: "How long the model thinks before it answers.",
   });
 });
@@ -330,11 +331,11 @@ test("a setting the agent may change says what it takes; one only the user chang
 
   const areas = await port.read();
 
-  expect(setting(area(areas, "Agent models"), "agent.thinking")?.accepts).toBe(
+  expect(setting(area(areas, "Models"), "agent.thinking")?.accepts).toBe(
     "one of off, low, medium, high"
   );
   expect(
-    setting(area(areas, "Embeddings"), "embeddings.enabled")
+    setting(area(areas, "News grouping"), "embeddings.enabled")
   ).toMatchObject({
     value: "false",
     accepts: "one of true, false",
@@ -343,7 +344,7 @@ test("a setting the agent may change says what it takes; one only the user chang
     setting(area(areas, "Memory"), "agent.memory")?.accepts
   ).toBeUndefined();
   expect(
-    setting(area(areas, "Skills"), "agent.shell")?.accepts
+    setting(area(areas, "Code execution"), "agent.shell")?.accepts
   ).toBeUndefined();
   expect(
     setting(area(areas, "Market data"), "Fugle API key")?.accepts

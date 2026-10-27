@@ -872,7 +872,7 @@ describe("a Fubon broker placing an order", () => {
     const unpicked = broker(orderResult(), null);
 
     await expect(unpicked.getAccount()).rejects.toThrow(
-      "Choose the Fubon account orders go to in Settings → Trading"
+      "Choose the Fubon account orders go to in Settings → Orders"
     );
     await expect(unpicked.placeOrder(limit, "A1B2C3")).rejects.toThrow(
       "Choose the Fubon account"

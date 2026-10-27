@@ -13,8 +13,8 @@ description: 判讀主張、新聞與指令並以機率作答的模型，可用 
 沒有決策模型時，主張會保留但不經判讀，新聞沒有情緒評分，**自動判斷** 也會對每個 shell 指令先詢問。
 
 <Screenshot
-  file="settings/decisions.png"
-  alt="設定 → AI Agent → 決策模型，顯示使用中的供應商"
+  file="settings/research/decisions.png"
+  alt="設定 → 決策模型，顯示使用中的供應商"
 />
 
 <Tabs items={["TypeSafe", "Cloudflare Workers AI", "OpenAI"]}>
@@ -28,7 +28,7 @@ description: 判讀主張、新聞與指令並以機率作答的模型，可用 
         <Screenshot file="setup/typesafe-api-key.png" alt="在 TypeSafe console 建立 API 金鑰" />
       </Step>
       <Step>
-        **填入金鑰**：填在 **設定 → AI Agent → 決策模型 → TypeSafe**。除非你更改，模型是 `jev-1.13.0`。
+        **填入金鑰**：填在 **設定 → 決策模型 → TypeSafe**。除非你更改，模型是 `jev-1.13.0`。
       </Step>
     </Steps>
 
@@ -49,7 +49,7 @@ description: 判讀主張、新聞與指令並以機率作答的模型，可用 
         **複製 Account ID**：它顯示在同一頁，或帳號的總覽頁。
       </Step>
       <Step>
-        **兩者都填入**：在 **設定 → AI Agent → 決策模型 → Cloudflare Workers AI** 填入 **API 權杖** 與 **帳號 ID**。
+        **兩者都填入**：在 **設定 → 決策模型 → Cloudflare Workers AI** 填入 **API 權杖** 與 **帳號 ID**。
       </Step>
     </Steps>
 
@@ -60,7 +60,7 @@ description: 判讀主張、新聞與指令並以機率作答的模型，可用 
         **建立 API 金鑰**：到 [OpenAI 平台](https://platform.openai.com/api-keys)建立。用 ChatGPT 登入無法使用 Decisions API。
       </Step>
       <Step>
-        **填入金鑰**：填在 **設定 → AI Agent → 決策模型 → OpenAI**。除非你更改，模型是 `gpt-6-luna`。
+        **填入金鑰**：填在 **設定 → 決策模型 → OpenAI**。除非你更改，模型是 `gpt-6-luna`。
       </Step>
     </Steps>
   </Tab>

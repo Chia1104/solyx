@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   Label,
+  Modal,
   NumberField,
   Radio,
   RadioGroup,
@@ -29,6 +30,7 @@ import { Side } from "@solyx/core/order";
 
 import { useClock } from "../../app/clock.ts";
 import { orpc } from "../../app/rpc.ts";
+import { EditorFooter, EditorModal } from "../../components/editor-modal.tsx";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Section } from "../../components/section.tsx";
 import { numberFormats } from "../market/number-formats.ts";
@@ -171,140 +173,135 @@ function MandateForm({
     // Validation runs through the schema, so native browser messages never appear.
     <Form
       validationBehavior="aria"
-      className="grid grid-cols-2 gap-3"
+      className="contents"
       onSubmit={(event) => void submit(event)}>
-      <Controller
-        control={form.control}
-        name="codes"
-        render={({ field, fieldState }) => (
-          <TextField
-            isRequired
-            className="col-span-2"
-            isInvalid={fieldState.invalid}>
-            <Label>{t("mandate.listings")}</Label>
-            <Input {...field} placeholder="2330, 0050" />
-            <Description>{t("mandate.listings-hint")}</Description>
-            <FieldError>{fieldState.error?.message}</FieldError>
-          </TextField>
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="sides"
-        render={({ field }) => (
-          <RadioGroup
-            className="col-span-2"
-            orientation="horizontal"
-            value={field.value}
-            onChange={field.onChange}>
-            <Label>{t("mandate.sides")}</Label>
-            {Object.values(Sides).map((option) => (
-              <Radio key={option} value={option}>
-                <Radio.Content>
-                  <Radio.Control>
-                    <Radio.Indicator />
-                  </Radio.Control>
-                  {t(`mandate.side-options.${option}`)}
-                </Radio.Content>
-              </Radio>
-            ))}
-          </RadioGroup>
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="maxOrderValue"
-        render={({ field, fieldState }) => (
-          <AmountField
-            label={t("mandate.max-order-value", { currency: Currency.TWD })}
-            value={field.value}
-            error={fieldState.error?.message}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-          />
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="maxDayValue"
-        render={({ field, fieldState }) => (
-          <AmountField
-            label={t("mandate.max-day-value", { currency: Currency.TWD })}
-            value={field.value}
-            error={fieldState.error?.message}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-          />
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="maxDayOrders"
-        render={({ field, fieldState }) => (
-          <AmountField
-            label={t("mandate.max-day-orders")}
-            value={field.value}
-            error={fieldState.error?.message}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-          />
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="days"
-        render={({ field, fieldState }) => (
-          <AmountField
-            label={t("mandate.days", { max: MAX_MANDATE_DAYS })}
-            value={field.value}
-            error={fieldState.error?.message}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-          />
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="shadow"
-        render={({ field }) => (
-          <Switch
-            className="col-span-2"
-            isSelected={field.value}
-            onChange={field.onChange}>
-            <Switch.Content>
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-              <span className="flex flex-col">
-                <span className="text-sm">{t("mandate.shadow")}</span>
-                <span className="text-xs text-muted">
-                  {t("mandate.shadow-description")}
+      <Modal.Body className="grid grid-cols-2 gap-3 text-foreground">
+        <Controller
+          control={form.control}
+          name="codes"
+          render={({ field, fieldState }) => (
+            <TextField
+              isRequired
+              className="col-span-2"
+              isInvalid={fieldState.invalid}>
+              <Label>{t("mandate.listings")}</Label>
+              <Input {...field} placeholder="2330, 0050" />
+              <Description>{t("mandate.listings-hint")}</Description>
+              <FieldError>{fieldState.error?.message}</FieldError>
+            </TextField>
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="sides"
+          render={({ field }) => (
+            <RadioGroup
+              className="col-span-2"
+              orientation="horizontal"
+              value={field.value}
+              onChange={field.onChange}>
+              <Label>{t("mandate.sides")}</Label>
+              {Object.values(Sides).map((option) => (
+                <Radio key={option} value={option}>
+                  <Radio.Content>
+                    <Radio.Control>
+                      <Radio.Indicator />
+                    </Radio.Control>
+                    {t(`mandate.side-options.${option}`)}
+                  </Radio.Content>
+                </Radio>
+              ))}
+            </RadioGroup>
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="maxOrderValue"
+          render={({ field, fieldState }) => (
+            <AmountField
+              label={t("mandate.max-order-value", { currency: Currency.TWD })}
+              value={field.value}
+              error={fieldState.error?.message}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+            />
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="maxDayValue"
+          render={({ field, fieldState }) => (
+            <AmountField
+              label={t("mandate.max-day-value", { currency: Currency.TWD })}
+              value={field.value}
+              error={fieldState.error?.message}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+            />
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="maxDayOrders"
+          render={({ field, fieldState }) => (
+            <AmountField
+              label={t("mandate.max-day-orders")}
+              value={field.value}
+              error={fieldState.error?.message}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+            />
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="days"
+          render={({ field, fieldState }) => (
+            <AmountField
+              label={t("mandate.days", { max: MAX_MANDATE_DAYS })}
+              value={field.value}
+              error={fieldState.error?.message}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+            />
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="shadow"
+          render={({ field }) => (
+            <Switch
+              className="col-span-2"
+              isSelected={field.value}
+              onChange={field.onChange}>
+              <Switch.Content>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+                <span className="flex flex-col">
+                  <span className="text-sm">{t("mandate.shadow")}</span>
+                  <span className="text-xs text-muted">
+                    {t("mandate.shadow-description")}
+                  </span>
                 </span>
-              </span>
-            </Switch.Content>
-          </Switch>
-        )}
+              </Switch.Content>
+            </Switch>
+          )}
+        />
+        {save.error ? (
+          <div className="col-span-2">
+            <ErrorAlert
+              title={t("settings.save-failed")}
+              description={save.error.message}
+            />
+          </div>
+        ) : null}
+      </Modal.Body>
+      <EditorFooter
+        saving={save.isPending}
+        onCancel={onDone}
+        saveLabel={t("mandate.save")}
       />
-      {save.error ? (
-        <div className="col-span-2">
-          <ErrorAlert
-            title={t("settings.save-failed")}
-            description={save.error.message}
-          />
-        </div>
-      ) : null}
-      <div className="col-span-2 flex gap-2">
-        <Button
-          type="submit"
-          size="sm"
-          variant="secondary"
-          isPending={save.isPending}>
-          {t("mandate.save")}
-        </Button>
-        <Button size="sm" variant="tertiary" onPress={onDone}>
-          {t("mandate.cancel")}
-        </Button>
-      </div>
     </Form>
   );
 }
@@ -381,19 +378,22 @@ export function MandateSettings({ trading }: { trading: string }) {
 
   return (
     <Section title={t("mandate.title")} description={t("mandate.description")}>
-      {editing || mandate === null ? (
-        editing ? (
-          <MandateForm mandate={mandate} onDone={() => setEditing(false)} />
-        ) : (
-          <div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onPress={() => setEditing(true)}>
-              {t("mandate.set")}
-            </Button>
-          </div>
-        )
+      <EditorModal
+        title={t("mandate.title")}
+        description={t("mandate.description")}
+        isOpen={editing}
+        onClose={() => setEditing(false)}>
+        <MandateForm mandate={mandate} onDone={() => setEditing(false)} />
+      </EditorModal>
+      {mandate === null ? (
+        <div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onPress={() => setEditing(true)}>
+            {t("mandate.set")}
+          </Button>
+        </div>
       ) : (
         <div className="flex flex-col gap-3">
           <MandateSummary mandate={mandate} trading={trading} />

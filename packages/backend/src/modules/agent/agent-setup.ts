@@ -229,8 +229,8 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     const { broker, account, locked, maxDailyLoss } = config.read().trading;
 
     return {
-      name: "Trading",
-      link: settingsLink(SettingsSection.Trading),
+      name: "Orders",
+      link: settingsLink(SettingsSection.Orders),
       missing: [],
       settings: [
         entry(["trading", "broker"], broker),
@@ -373,7 +373,6 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
 
     const decisions = options.decisions.settings();
     const embeddings = options.embeddings.settings();
-    const link = settingsLink(SettingsSection.Agent);
 
     const providerText = models.providers
       .filter((each) => each.listed)
@@ -438,8 +437,8 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
 
     return [
       {
-        name: "Agent models",
-        link,
+        name: "Models",
+        link: settingsLink(SettingsSection.Models),
         missing: [
           ...(models.ready
             ? []
@@ -479,7 +478,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       },
       {
         name: "Web search",
-        link,
+        link: settingsLink(SettingsSection.WebSearch),
         missing: isWebSearchReady(webSearch)
           ? []
           : [
@@ -495,7 +494,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       },
       {
         name: "Decisions model",
-        link,
+        link: settingsLink(SettingsSection.Decisions),
         missing: isDecisionsReady(decisions, secretsStatus)
           ? []
           : [
@@ -528,8 +527,8 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         ],
       },
       {
-        name: "Embeddings",
-        link,
+        name: "News grouping",
+        link: settingsLink(SettingsSection.Embeddings),
         missing: embeddingsMissing,
         settings: [
           entry(["embeddings", "enabled"], String(embeddings.enabled)),
@@ -545,8 +544,6 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       options.skills(),
       options.instructions(),
     ]);
-
-    const shell = config.read().agent.shell;
 
     return {
       name: "Skills",
@@ -573,6 +570,18 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
             ? `${instructions.length} characters`
             : "none written",
         },
+      ],
+    };
+  }
+
+  function codeExecution(): SetupArea {
+    const { shell, shellSandbox } = config.read().agent;
+
+    return {
+      name: "Code execution",
+      link: settingsLink(SettingsSection.CodeExecution),
+      missing: [],
+      settings: [
         entry(
           ["agent", "shell"],
           shell && !options.shellOn()
@@ -582,8 +591,8 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         entry(
           ["agent", "shellSandbox"],
           SANDBOX_SUPPORTED
-            ? String(config.read().agent.shellSandbox)
-            : "this system has no sandbox, so commands run with the user's access"
+            ? String(shellSandbox)
+            : "this system has no sandbox, so commands and strategies run with the user's access"
         ),
       ],
     };
@@ -995,6 +1004,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         themes(),
         memory(),
         mcpArea,
+        codeExecution(),
         storageArea,
         about(),
       ].map((area) => ({

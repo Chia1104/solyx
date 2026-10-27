@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 
 import { Switch } from "@heroui/react";
+import ollama from "@lobehub/icons-static-svg/icons/ollama.svg?no-inline";
+import openai from "@lobehub/icons-static-svg/icons/openai.svg?no-inline";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +18,8 @@ import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { SectionLoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
+import { LogoMark } from "../../components/logo-mark.tsx";
+import type { Logo } from "../../components/logo-mark.tsx";
 import { OptionSelect } from "../../components/option-select.tsx";
 import { Section } from "../../components/section.tsx";
 import { LocalModelRow } from "../embeddings/local-model-row.tsx";
@@ -25,6 +29,11 @@ import { AppSecretRow, SecretsUnavailable } from "./secret-row.tsx";
 import { SettingsList, SettingsRow } from "./settings-list.tsx";
 import { embeddingsSettingsQuery, secretsQuery } from "./settings-query.ts";
 import { TextSettingRow } from "./text-setting-row.tsx";
+
+const LOGOS: Record<EmbeddingsProvider, Logo> = {
+  [EmbeddingsProvider.Local]: { src: ollama, colored: false },
+  [EmbeddingsProvider.OpenAI]: { src: openai, colored: false },
+};
 
 /** Experimental: news grouping that also joins items whose vectors read alike. */
 export function EmbeddingsSettings() {
@@ -103,10 +112,15 @@ export function EmbeddingsSettings() {
                 className="w-44"
                 value={provider}
                 isDisabled={save.isPending}
-                options={Object.values(EmbeddingsProvider).map((each) => ({
-                  id: each,
-                  label: t(`settings.embeddings.providers.${each}`),
-                }))}
+                options={Object.values(EmbeddingsProvider).map((each) => {
+                  const label = t(`settings.embeddings.providers.${each}`);
+
+                  return {
+                    id: each,
+                    label,
+                    icon: <LogoMark logo={LOGOS[each]} name={label} />,
+                  };
+                })}
                 onChange={(next) => {
                   if (!isEnumValue(EmbeddingsProvider, next)) return;
 
