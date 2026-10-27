@@ -86,6 +86,10 @@ catalogs:
     "@opentelemetry/sdk-logs": 3.0.0
     "@opentelemetry/sdk-trace": 3.0.0
     "@opentelemetry/semantic-conventions": 1.43.0
+  pdf:
+    # unpdf bundles pdf.js 6.4.299, whose CMaps for CJK text ship from the same release of pdfjs-dist.
+    pdfjs-dist: 6.4.299
+    unpdf: 1.9.1
   pi:
     "@earendil-works/chord": 1.4.0
     "@earendil-works/pi-ai": 1.4.0
@@ -150,6 +154,10 @@ allowBuilds:
   esbuild: false
   protobufjs: false
   workerd: false
+
+# pdfjs-dist is read only for its CMaps, never to render, so its native canvas is not installed.
+ignoredOptionalDependencies:
+  - "@napi-rs/canvas"
 
 # Vitest takes the OpenTelemetry API as an optional peer, so each version of it in the graph makes
 # another copy of Vite+, and a test that imports another package's module would reach one whose

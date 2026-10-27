@@ -22,6 +22,7 @@
     "./services": "./src/services.ts",
     "./worker/backup": "./src/worker/backup.ts",
     "./worker/images": "./src/worker/images.ts",
+    "./worker/pdf": "./src/worker/pdf.ts",
     "./worker/script": "./src/worker/script.ts"
   },
   "scripts": {
@@ -62,6 +63,7 @@
     "@solyx/web-search": "workspace:*",
     "es-toolkit": "catalog:",
     "hono": "catalog:server",
+    "unpdf": "catalog:pdf",
     "ws": "catalog:server",
     "yaml": "catalog:utils",
     "zod": "catalog:"
@@ -69,6 +71,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/ws": "catalog:server",
+    "pdfjs-dist": "catalog:pdf",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
   }

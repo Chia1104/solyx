@@ -16,6 +16,7 @@ import { expect, test } from "vite-plus/test";
 
 import { AttachmentKind } from "../src/attachment.ts";
 import {
+  attachmentImage,
   createTranscriber,
   readTexts,
   userAttachments,
@@ -127,18 +128,25 @@ test("the thread shows what the user typed, not the app's context", () => {
 });
 
 test("a message lists the files it carried, and the thread shows only what the user typed", () => {
+  const image = {
+    type: "image" as const,
+    data: "aW1n",
+    mimeType: "image/jpeg",
+  };
+
   const message = {
     role: "user" as const,
     content: userContent("Compare these", "time: now", [
       {
         kind: AttachmentKind.Image,
-        path: "attachments/1/R&D.png",
+        name: "R&D.png",
         mimeType: "image/png",
         size: 2048,
-        image: { type: "image", data: "aW1n", mimeType: "image/jpeg" },
+        image,
       },
       {
         kind: AttachmentKind.Text,
+        name: "fills.csv",
         path: "attachments/1/fills.csv",
         mimeType: "text/csv",
         size: 20,
@@ -150,24 +158,55 @@ test("a message lists the files it carried, and the thread shows only what the u
 
   expect(userText(message)).toBe("Compare these");
   expect(userAttachments(message)).toEqual([
+    { name: "R&D.png", path: undefined, mimeType: "image/png", size: 2048 },
     {
-      path: "attachments/1/R&D.png",
-      name: "R&D.png",
-      mimeType: "image/png",
-      size: 2048,
-    },
-    {
-      path: "attachments/1/fills.csv",
       name: "fills.csv",
+      path: "attachments/1/fills.csv",
       mimeType: "text/csv",
       size: 20,
     },
   ]);
 
+  // The image rides in the message alone, which the thread's thumbnail reads back.
+  expect(attachmentImage(message, 0)).toEqual({ name: "R&D.png", image });
+  expect(attachmentImage(message, 1)).toBeUndefined();
+
   // A file that closes its own tag does not end its data early.
   expect(JSON.stringify(message.content)).toContain(
     "price\\n<\\\\/attachment>\\n1\\n</attachment>"
   );
+});
+
+test("a file too long to carry stands in its message for its length and pages alone", () => {
+  const message = {
+    role: "user" as const,
+    content: userContent("Summarize the report", "time: now", [
+      {
+        kind: AttachmentKind.Text,
+        name: "annual-report.pdf",
+        path: "attachments/1/annual-report.pdf.txt",
+        mimeType: "application/pdf",
+        size: 4_200_000,
+        pages: 180,
+        characters: 512_000,
+      },
+    ]),
+    timestamp: 1,
+  };
+
+  expect(message.content).toContainEqual({
+    type: "text",
+    text: '<attachment name="annual-report.pdf" path="attachments/1/annual-report.pdf.txt" type="application/pdf" size="4200000" pages="180" characters="512000"/>',
+  });
+  expect(userText(message)).toBe("Summarize the report");
+  expect(userAttachments(message)).toEqual([
+    {
+      name: "annual-report.pdf",
+      path: "attachments/1/annual-report.pdf.txt",
+      mimeType: "application/pdf",
+      size: 4_200_000,
+    },
+  ]);
 });
 
 test("a finished conversation replays idle", () => {

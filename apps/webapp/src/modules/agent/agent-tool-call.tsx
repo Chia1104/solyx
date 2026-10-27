@@ -85,11 +85,12 @@ const argumentsSchema = z.object({
   url: z.string().optional(),
   description: z.string().optional(),
   setting: z.string().optional(),
+  path: z.string().optional(),
 });
 
 /**
  * What a call was about: a listing and its interval, an order's or a forecast's listing, a
- * playbook, a search, a page, a memory or a setting.
+ * playbook, a search, a page, a memory, a setting or a file a message carried.
  */
 export function Subject({ tool }: { tool: ToolCallView }) {
   const { t } = useTranslation();
@@ -117,7 +118,8 @@ export function Subject({ tool }: { tool: ToolCallView }) {
     args?.query ??
     args?.url ??
     args?.description ??
-    args?.setting;
+    args?.setting ??
+    args?.path?.slice(args.path.lastIndexOf("/") + 1);
 
   return text ? <span className="min-w-0 truncate">{text}</span> : null;
 }

@@ -5,13 +5,18 @@ import { Button, CloseButton, ScrollShadow, cn } from "@heroui/react";
 import {
   ChartCandlestickIcon,
   File02Icon,
+  Pdf02Icon,
   PlusSignIcon,
 } from "@hugeicons/core-free-icons";
 import { useQuery } from "@tanstack/react-query";
 import { FileTrigger } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
-import { AttachmentImageType, AttachmentKind } from "@solyx/agent/attachment";
+import {
+  AttachmentImageType,
+  AttachmentKind,
+  PDF_TYPE,
+} from "@solyx/agent/attachment";
 import type { AttachmentView } from "@solyx/agent/attachment";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -147,6 +152,7 @@ const TYPE_LABELS = new Map([
   ["text/tab-separated-values", "TSV"],
   ["text/markdown", "Markdown"],
   ["application/json", "JSON"],
+  [PDF_TYPE, "PDF"],
 ]);
 
 /** What a file is and how large, as its card says it: "CSV · 12 kB". */
@@ -157,16 +163,30 @@ function useFileDescription() {
     `${TYPE_LABELS.get(mimeType) ?? t("agent.attachments.text")} · ${formatBytes(size, i18n.language)}`;
 }
 
-// Shown the image itself, or the page of text a text file is.
+// Shown the image itself, or a page for a PDF or a text file.
 function FileMedia({ kind, blob }: { kind: AttachmentKind; blob?: Blob }) {
   const source = useBlobSource(blob);
 
-  return kind === AttachmentKind.Image ? (
-    <img ref={source} alt="" className="size-full object-cover" />
-  ) : (
-    <Icon icon={File02Icon} className="size-4" />
+  if (kind === AttachmentKind.Image) {
+    return <img ref={source} alt="" className="size-full object-cover" />;
+  }
+
+  return (
+    <Icon
+      icon={kind === AttachmentKind.Pdf ? Pdf02Icon : File02Icon}
+      className="size-4"
+    />
   );
 }
+
+/** What a sent file is, from the type its message names. */
+const sentKind = (mimeType: string): AttachmentKind => {
+  if (mimeType === PDF_TYPE) return AttachmentKind.Pdf;
+
+  return mimeType.startsWith("image/")
+    ? AttachmentKind.Image
+    : AttachmentKind.Text;
+};
 
 // A card added to the end of a row that has scrolled comes into view.
 const reveal = (card: HTMLLIElement | null) =>
@@ -234,11 +254,19 @@ export function AttachButton({
   );
 }
 
-// A sent image, read from the conversation's folder as it was attached.
-function SentImage({ sessionId, path }: { sessionId: string; path: string }) {
+// A sent image as its message keeps it, scaled for the model, which is the one copy kept of it.
+function SentImage({
+  sessionId,
+  messageId,
+  index,
+}: {
+  sessionId: string;
+  messageId: string;
+  index: number;
+}) {
   const { data } = useQuery(
-    orpc.agent.attachment.queryOptions({
-      input: { id: sessionId, path },
+    orpc.agent.attachmentImage.queryOptions({
+      input: { id: sessionId, messageId, index },
       // What a message carried never changes.
       staleTime: Number.POSITIVE_INFINITY,
     })
@@ -250,9 +278,11 @@ function SentImage({ sessionId, path }: { sessionId: string; path: string }) {
 /** The files a sent message carried, as the composer showed them. */
 export function SentAttachments({
   sessionId,
+  messageId,
   attachments,
 }: {
   sessionId: string;
+  messageId: string;
   attachments: readonly AttachmentView[];
 }) {
   const { t } = useTranslation();
@@ -262,14 +292,19 @@ export function SentAttachments({
     <ul
       aria-label={t("agent.context.attachments")}
       className="flex max-w-[85%] flex-wrap justify-end gap-2">
-      {attachments.map((attachment) => (
+      {attachments.map((attachment, index) => (
         <AttachmentCard
-          key={attachment.path}
+          // A message's files never change, so where each stands among them names it.
+          key={index}
           media={
-            attachment.mimeType.startsWith("image/") ? (
-              <SentImage sessionId={sessionId} path={attachment.path} />
+            sentKind(attachment.mimeType) === AttachmentKind.Image ? (
+              <SentImage
+                sessionId={sessionId}
+                messageId={messageId}
+                index={index}
+              />
             ) : (
-              <FileMedia kind={AttachmentKind.Text} />
+              <FileMedia kind={sentKind(attachment.mimeType)} />
             )
           }
           title={attachment.name}

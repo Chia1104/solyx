@@ -21,11 +21,6 @@ const idSchema = z.string().min(1);
 
 const textSchema = z.string().trim().min(1).max(20_000);
 
-// Where the backend keeps a message's file in its conversation's folder, and nowhere else.
-const attachmentPathSchema = z
-  .string()
-  .regex(/^attachments\/\d+\/[^/\\.][^/\\]*$/);
-
 export const agentContract = {
   /** Most recently active first. */
   sessions: oc.meta(forDevices(true)).output(type<AgentSession[]>()),
@@ -62,10 +57,23 @@ export const agentContract = {
       })
     )
     .output(type<void>()),
-  /** A file a message of the conversation carried, as it was attached, for the thread to show. */
-  attachment: oc
+  /**
+   * The image a message of the conversation carried as its `index`th file, as scaled for the
+   * model, which is the one copy the app keeps of it, for the thread to show.
+   */
+  attachmentImage: oc
     .meta(forDevices(true))
-    .input(z.object({ id: idSchema, path: attachmentPathSchema }))
+    .input(
+      z.object({
+        id: idSchema,
+        messageId: idSchema,
+        index: z
+          .number()
+          .int()
+          .min(0)
+          .max(MAX_ATTACHMENTS - 1),
+      })
+    )
     .output(type<File>()),
   abort: oc.meta(forDevices(true)).input(idSchema).output(type<void>()),
   /**

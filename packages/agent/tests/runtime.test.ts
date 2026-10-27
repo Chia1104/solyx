@@ -318,7 +318,6 @@ const CHART = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const chart: AgentAttachment = {
   kind: AttachmentKind.Image,
   name: "chart.png",
-  path: "attachments/1/chart.png",
   size: CHART.byteLength,
   mimeType: AttachmentImageType.Png,
   data: CHART,
@@ -370,20 +369,17 @@ test("a message's files reach the model, and the thread lists them without what 
     '{"type":"image","data":"c2NhbGVk","mimeType":"image/jpeg"}'
   );
   expect(seen).toContain("a,b\\n1,2");
-  expect(foldEvents(await runtime.transcript(id)).items[0]).toEqual({
+  const [message] = foldEvents(await runtime.transcript(id)).items;
+
+  expect(message).toEqual({
     kind: "user",
     messageId: expect.any(String),
     text: "What is this?",
     attachments: [
+      { name: "chart.png", path: undefined, mimeType: "image/png", size: 8 },
       {
-        path: "attachments/1/chart.png",
-        name: "chart.png",
-        mimeType: "image/png",
-        size: 8,
-      },
-      {
-        path: "attachments/1/fills.csv",
         name: "fills.csv",
+        path: "attachments/1/fills.csv",
         mimeType: "text/csv",
         size: 7,
       },
@@ -391,6 +387,56 @@ test("a message's files reach the model, and the thread lists them without what 
     at: expect.any(Number),
     streaming: false,
   });
+
+  // The image's one copy is the scaled one its message keeps, which the thread's thumbnail reads.
+  const messageId = message?.kind === "user" ? message.messageId : "";
+
+  expect(await runtime.attachmentImage(id, messageId, 0)).toEqual({
+    name: "chart.png",
+    image: { type: "image", data: "c2NhbGVk", mimeType: "image/jpeg" },
+  });
+  expect(await runtime.attachmentImage(id, messageId, 1)).toBeUndefined();
+
+  await runtime.close();
+});
+
+test("text too long to carry reaches the model as its length, for read_attachment", async () => {
+  const { faux, runtime, ended } = setup();
+  const { id } = await runtime.create();
+  let seen = "";
+
+  faux.setResponses([
+    (context) => {
+      seen = JSON.stringify(
+        context.messages.findLast((message) => message.role === "user")
+      );
+
+      return fauxAssistantMessage("ok");
+    },
+  ]);
+
+  const text = "date,close\n".repeat(20_000);
+
+  await runtime.send(id, {
+    text: "Summarize it",
+    context: "",
+    attachments: [
+      {
+        kind: AttachmentKind.Text,
+        name: "fills.csv",
+        path: "attachments/1/fills.csv",
+        size: text.length,
+        mimeType: "text/csv",
+        text,
+      },
+    ],
+  });
+  await ended();
+
+  expect(seen).toContain(
+    `size=\\"${text.length}\\" characters=\\"${text.length}\\"/>`
+  );
+  expect(seen).not.toContain("date,close");
 
   await runtime.close();
 });

@@ -27,6 +27,7 @@
     "electron-builder": "catalog:electron",
     "electron-updater": "catalog:electron",
     "es-toolkit": "catalog:",
+    "pdfjs-dist": "catalog:pdf",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",

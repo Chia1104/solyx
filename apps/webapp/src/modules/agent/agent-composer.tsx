@@ -15,7 +15,7 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { AttachmentImageType } from "@solyx/agent/attachment";
+import { AttachmentImageType, PDF_TYPE } from "@solyx/agent/attachment";
 import type { AgentModelPick, AgentModelRef } from "@solyx/agent/providers";
 import {
   AgentCommand,
@@ -68,6 +68,8 @@ import { ComposerTokenKind, replaceToken, tokenAt } from "./composer-token.ts";
 // What the file picker offers; whatever is picked or dropped is read by its bytes all the same.
 const ACCEPTED_FILES = [
   ...Object.values(AttachmentImageType),
+  PDF_TYPE,
+  ".pdf",
   "text/*",
   ".csv",
   ".tsv",

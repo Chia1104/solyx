@@ -236,6 +236,7 @@ export const AgentToolName = {
   AllowStrategy: "allow_strategy",
   SaveStrategy: "save_strategy",
   GetRuntimes: "get_runtimes",
+  ReadAttachment: "read_attachment",
   /** pi-durable's name for the shell tool, whatever shell runs it. */
   Bash: "bash",
 } as const;
