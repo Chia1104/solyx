@@ -6,6 +6,7 @@
   "exports": {
     "./announcements": "./src/announcements.ts",
     "./insider-transfers": "./src/insider-transfers.ts",
+    "./longbridge-content": "./src/longbridge-content.ts",
     "./longbridge-filings": "./src/longbridge-filings.ts",
     "./ptt": "./src/ptt.ts",
     "./web": "./src/web.ts"

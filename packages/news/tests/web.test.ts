@@ -69,6 +69,10 @@ const found = (url: string, published: WebResult["published"] = null) => ({
   published,
 });
 
+test("searches articles for Taiwan listings alone, since a US listing's come from Longbridge", () => {
+  expect(createWebNews(fakeWeb()).markets).toEqual([Market.TW]);
+});
+
 test("samples Threads posts by name in Taiwan, dated by their codes, leaving out other pages", async () => {
   const web = fakeWeb([
     // Made 2026-04-15 05:05 UTC, as its code says.
