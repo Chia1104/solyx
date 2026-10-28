@@ -173,11 +173,16 @@ function setup(candles: Candle[] = dailyBars(80)) {
 
   const figures = vi.fn<TradingToolPorts["figures"]>(async () => []);
 
+  const searchListings = vi.fn<TradingToolPorts["searchListings"]>(
+    async () => ({ matches: [], unread: [] })
+  );
+
   const ports = {
     marketData,
     watchlist: () => [TSMC],
     news,
     tradingDays,
+    searchListings,
     calendar,
     figures,
     desk,
@@ -217,6 +222,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     marketData,
     news,
     tradingDays,
+    searchListings,
     calendar,
     figures,
   };
@@ -1322,6 +1328,60 @@ test("without a decisions model, news is listed unscored", async () => {
     "  只知道日期 snippet",
     `  ${newsItem("只知道日期", null).url}`,
   ]);
+});
+
+test("search_listings lists what the app's search finds, with each name once", async () => {
+  const { run, ports } = setup();
+
+  vi.mocked(ports.searchListings).mockResolvedValue({
+    matches: [
+      {
+        symbol: { market: Market.US, symbol: "AAPL" },
+        name: "蘋果",
+        englishName: "Apple Inc.",
+      },
+      {
+        symbol: { market: Market.TW, symbol: "2330" },
+        name: "台積電",
+        englishName: null,
+      },
+      {
+        symbol: { market: Market.US, symbol: "RKLB" },
+        name: "Rocket Lab",
+        englishName: "Rocket Lab",
+      },
+    ],
+    unread: [],
+  });
+
+  expect((await run(AgentToolName.SearchListings, { query: "a" })).text).toBe(
+    "US AAPL 蘋果 Apple Inc.\nTW 2330 台積電\nUS RKLB Rocket Lab"
+  );
+  expect(ports.searchListings).toHaveBeenCalledWith("a", null);
+
+  vi.mocked(ports.searchListings).mockResolvedValue({
+    matches: [],
+    unread: [],
+  });
+
+  expect(
+    (
+      await run(AgentToolName.SearchListings, {
+        query: "Apple",
+        market: Market.US,
+      })
+    ).text
+  ).toContain('No listing matches "Apple"');
+
+  // A market it could not read is said, so its missing matches are not taken for none.
+  vi.mocked(ports.searchListings).mockResolvedValue({
+    matches: [],
+    unread: [Market.TW],
+  });
+
+  expect((await run(AgentToolName.SearchListings, { query: "台積" })).text)
+    .toBe(`TW listings could not be read just now, so any matches there are missing.
+No listing matches "台積" among the rest. US listings are found only while the user's Longbridge sign-in works.`);
 });
 
 test("sessions since a story leave out the exchange's holidays, or count every weekday when they cannot be read", async () => {

@@ -273,13 +273,22 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
         : ["the API key"]),
     ].join(", ");
 
-    const marketMissing = isMarketDataReady(status)
-      ? []
-      : [
-          source === MarketDataSource.Fubon
-            ? `Taiwan's charts, quotes and news have no source: Fubon's sign-in, set up under Brokers, still needs ${fubonNeeds}.`
-            : `Taiwan's charts, quotes and news have no source: ${source} still needs a Fugle API key.`,
-        ];
+    const usReady = status.markets[Market.US].ready;
+
+    const marketMissing = [
+      ...(isMarketDataReady(status)
+        ? []
+        : [
+            source === MarketDataSource.Fubon
+              ? `Taiwan's charts, quotes and news have no source: Fubon's sign-in, set up under Brokers, still needs ${fubonNeeds}.`
+              : `Taiwan's charts, quotes and news have no source: ${source} still needs a Fugle API key.`,
+          ]),
+      ...(usReady
+        ? []
+        : [
+            "US charts, quotes and search have no source: the user signs in to Longbridge on this tab, which a paper login without a securities account is enough for.",
+          ]),
+    ];
 
     const brokersMissing =
       fubon.session.state === FubonSessionState.Failed
@@ -312,7 +321,11 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
           entry(["marketData", Market.TW], source),
           {
             name: "US market data",
-            value: "no source in the app covers it yet",
+            value: usReady
+              ? "from Longbridge, signed in"
+              : "from Longbridge, once the user signs in",
+            description:
+              "Bars, quotes, the best bid and ask, names and the US trading days, on the user's own Longbridge sign-in. Without a securities account the bars are the latest thousand of each interval, about four years of days.",
           },
           {
             name: "Fugle API key",

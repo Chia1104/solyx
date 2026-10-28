@@ -5,7 +5,7 @@ import { intervalSchema } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { marketSchema, symbolRefSchema } from "@solyx/core/market";
 import type { Market } from "@solyx/core/market";
-import type { Depth, Listing } from "@solyx/core/market-data";
+import type { Depth, Listing, ListingSearch } from "@solyx/core/market-data";
 import type { SessionQuote } from "@solyx/core/quote";
 import type { PriceBand } from "@solyx/core/risk";
 import {
@@ -20,11 +20,7 @@ import type {
 import type { SectorQuote } from "@solyx/core/sectors";
 import type { Session } from "@solyx/core/session";
 
-import type {
-  CandleSet,
-  ListingSearch,
-  ListingRotationView,
-} from "../market.ts";
+import type { CandleSet, ListingRotationView } from "../market.ts";
 
 import { forDevices } from "./access.ts";
 import { changesContract } from "./changes.ts";

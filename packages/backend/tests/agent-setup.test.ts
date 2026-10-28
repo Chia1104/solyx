@@ -63,12 +63,13 @@ afterEach(() => rm(home, { recursive: true, force: true }));
 
 function marketStatus(
   source: TaiwanMarketDataSource,
-  ready: boolean
+  ready: boolean,
+  usReady = false
 ): MarketDataStatus {
   return {
     markets: {
       TW: { source, ready },
-      US: { source: MarketDataSource.Longbridge, ready: false },
+      US: { source: MarketDataSource.Longbridge, ready: usReady },
     },
     fugle: { plan: FuglePlan.Basic, plans: Object.values(FUGLE_PLANS) },
     fubon: {
@@ -190,7 +191,11 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
 
   expect(area(areas, "Market data").missing).toEqual([
     "Taiwan's charts, quotes and news have no source: fugle still needs a Fugle API key.",
+    "US charts, quotes and search have no source: the user signs in to Longbridge on this tab, which a paper login without a securities account is enough for.",
   ]);
+  expect(setting(area(areas, "Market data"), "US market data")?.value).toBe(
+    "from Longbridge, once the user signs in"
+  );
   expect(area(areas, "Models").missing).toEqual([
     "No provider switched on has a key saved, a subscription signed in or a server listing a model, so the agent cannot run.",
   ]);
@@ -208,6 +213,21 @@ test("a fresh install reads as missing what first-time setup asks for, each on i
     { name: "trading.maxDailyLoss.TWD", value: "no limit" },
     { name: "trading.maxDailyLoss.USD", value: "no limit" },
   ]);
+});
+
+test("US market data reads as Longbridge's once the user signs in to it", async () => {
+  const { port, marketData } = setup();
+
+  marketData.status.mockResolvedValue(
+    marketStatus(MarketDataSource.Fugle, true, true)
+  );
+
+  const market = area(await port.read(), "Market data");
+
+  expect(market.missing).toEqual([]);
+  expect(setting(market, "US market data")?.value).toBe(
+    "from Longbridge, signed in"
+  );
 });
 
 test("a config entry carries the description its JSON Schema gives", async () => {
@@ -232,7 +252,7 @@ test("a saved key reads only as saved, never as its value", async () => {
   await secrets.save(Secret.FugleApiKey, "fugle-key-value");
   await secrets.save(Secret.FinMindToken, "finmind-token-value");
   marketData.status.mockResolvedValue(
-    marketStatus(MarketDataSource.Fugle, true)
+    marketStatus(MarketDataSource.Fugle, true, true)
   );
 
   const areas = await port.read();
@@ -254,9 +274,9 @@ test("Fubon names what it still needs under Brokers, and a failed sign-in that w
 
   await secrets.save(Secret.FubonApiKey, "fubon-key");
   marketData.status.mockResolvedValue({
-    ...marketStatus(MarketDataSource.Fubon, false),
+    ...marketStatus(MarketDataSource.Fubon, false, true),
     fubon: {
-      ...marketStatus(MarketDataSource.Fubon, false).fubon,
+      ...marketStatus(MarketDataSource.Fubon, false, true).fubon,
       session: { state: FubonSessionState.Failed, message: "wrong password" },
     },
   });

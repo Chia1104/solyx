@@ -291,6 +291,7 @@ async function runRequest(request: StrategyRequest) {
     watchlist: () => [],
     news: { collect: unavailable("News") },
     tradingDays: async () => weekdays,
+    searchListings: async () => ({ matches: [], unread: [] }),
     calendar: async () => ({
       events: [],
       research: [],

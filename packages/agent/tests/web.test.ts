@@ -117,6 +117,7 @@ function setup(vendor = fakeVendor()) {
     watchlist: () => [],
     news: fakeNews(),
     tradingDays: async () => weekdays,
+    searchListings: async () => ({ matches: [], unread: [] }),
     calendar: async () => ({
       events: [],
       research: [],

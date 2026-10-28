@@ -120,7 +120,9 @@ export function createMarketData({
 
     if (!provider) {
       throw new Error(
-        `No market data for ${market}: no source covers it or its settings are incomplete`
+        market === Market.US
+          ? "No market data for US: the user has not signed in to Longbridge in Settings → Market data"
+          : `No market data for ${market}: its source's settings are incomplete in Settings → Market data`
       );
     }
 

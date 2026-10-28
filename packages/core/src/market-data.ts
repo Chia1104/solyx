@@ -19,6 +19,20 @@ export interface Listing {
   englishName: string | null;
 }
 
+/** A listing a search found, named as its market knows it. */
+export interface ListingMatch {
+  symbol: SymbolRef;
+  name: string;
+  /** `null` where the source gives none, as Taiwan's exchanges do. */
+  englishName: string | null;
+}
+
+/** What a search found, best first, and the markets it asked whose listings could not be read, whose matches are missing. */
+export interface ListingSearch {
+  matches: ListingMatch[];
+  unread: Market[];
+}
+
 /** A listing's or an index's trading in its newest session so far, as the exchange reports it. */
 export const quoteSchema = z.object({
   /** The session's exchange-local date, `YYYY-MM-DD`. */
