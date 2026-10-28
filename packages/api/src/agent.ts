@@ -2,7 +2,7 @@ import * as z from "zod";
 
 import type { AgentWireEvent } from "@solyx/agent/wire";
 import { intervalSchema } from "@solyx/core/candles";
-import { symbolRefSchema } from "@solyx/core/market";
+import { marketSchema, symbolRefSchema } from "@solyx/core/market";
 import { strategyNameSchema } from "@solyx/core/strategy";
 
 import { backtestSetupSchema } from "./backtests.ts";
@@ -32,7 +32,12 @@ export const agentScreenSchema = z.discriminatedUnion("kind", [
     /** The single backtest the panel under its chart shows, as the panel ran it. */
     backtest: backtestSetupSchema.optional(),
   }),
-  z.object({ kind: z.literal(ScreenKind.Overview), tab: overviewTabSchema }),
+  z.object({
+    kind: z.literal(ScreenKind.Overview),
+    tab: overviewTabSchema,
+    /** The market the tab keeps to, as its address names it. */
+    market: marketSchema.optional(),
+  }),
   z.object({
     kind: z.literal(ScreenKind.Settings),
     section: settingsSectionSchema,

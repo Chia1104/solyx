@@ -189,6 +189,13 @@ const PDF_FILES = {
   worker: pathToFileURL(join(import.meta.dirname, "../worker/pdf.mjs")),
 };
 
+const TAB_OF_PLACE: Record<AppPlace, OverviewTab> = {
+  [AppPlace.Moves]: OverviewTab.Today,
+  [AppPlace.Headlines]: OverviewTab.News,
+  [AppPlace.Calendar]: OverviewTab.Calendar,
+  [AppPlace.Market]: OverviewTab.Market,
+};
+
 // A scheduled task names no way to let every call run, so no run nobody watches is set to bypass.
 const UNATTENDED_MODE: Record<ScheduleApproval, ApprovalMode> = {
   [ScheduleApproval.Ask]: ApprovalMode.Ask,
@@ -320,12 +327,7 @@ export function createAgentService(options: AgentServiceOptions) {
     magi,
     links: {
       listing: symbolLink,
-      overview: {
-        [AppPlace.Moves]: overviewLink(OverviewTab.Today),
-        [AppPlace.Headlines]: overviewLink(OverviewTab.News),
-        [AppPlace.Calendar]: overviewLink(OverviewTab.Calendar),
-        [AppPlace.Market]: overviewLink(OverviewTab.Market),
-      },
+      overview: (place, market) => overviewLink(TAB_OF_PLACE[place], market),
       strategy: strategiesLink,
     },
     // A skill's folder is told only while the shell that could run its scripts is on.

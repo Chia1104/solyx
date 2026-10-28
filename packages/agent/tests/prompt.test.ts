@@ -112,8 +112,11 @@ test("the context says what the user had on screen: a listing's chart, or a page
   expect(
     viewing({ focus, chart: { interval: Interval.OneDay, indicators: [] } })
   ).toEqual(["viewing: TW 2317 (鴻海) on a 1d chart"]);
-  expect(viewing({ place: AppPlace.Market })).toEqual([
-    "viewing: the overview, the market's sectors and flows",
+  expect(viewing({ place: AppPlace.Headlines })).toEqual([
+    "viewing: the overview, the headlines",
+  ]);
+  expect(viewing({ place: AppPlace.Market, placeMarket: Market.US })).toEqual([
+    "viewing: the overview, the market's sectors and flows, kept to US",
   ]);
   expect(viewing({ settings: "market data" })).toEqual([
     "viewing: the settings, market data",

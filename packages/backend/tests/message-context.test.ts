@@ -120,6 +120,16 @@ test("the screen reaches the context as a listing with its chart, or as the page
   ).toEqual({ place: AppPlace.Headlines });
   expect(
     screenContext(
+      { kind: ScreenKind.Overview, tab: OverviewTab.News, market: Market.US },
+      NOW
+    )
+  ).toEqual({ place: AppPlace.Headlines, placeMarket: Market.US });
+  // The market tab keeps to Taiwan while the address names no market.
+  expect(
+    screenContext({ kind: ScreenKind.Overview, tab: OverviewTab.Market }, NOW)
+  ).toEqual({ place: AppPlace.Market, placeMarket: Market.TW });
+  expect(
+    screenContext(
       { kind: ScreenKind.Settings, section: SettingsSection.MarketData },
       NOW
     )

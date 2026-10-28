@@ -7,7 +7,7 @@ import { ScreenKind } from "@solyx/api/agent";
 import type { AgentScreen } from "@solyx/api/agent";
 import type { BacktestSetup } from "@solyx/api/backtests";
 import { ChartIndicator } from "@solyx/api/chart-indicator";
-import { OverviewTab } from "@solyx/api/overview-tab";
+import { OverviewTab, overviewMarket } from "@solyx/api/overview-tab";
 import { yearsBefore } from "@solyx/core/candles";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
@@ -71,7 +71,13 @@ export function screenContext(
   now: Date
 ): Pick<
   TurnContext,
-  "focus" | "chart" | "backtest" | "place" | "settings" | "strategies"
+  | "focus"
+  | "chart"
+  | "backtest"
+  | "place"
+  | "placeMarket"
+  | "settings"
+  | "strategies"
 > {
   switch (screen?.kind) {
     case ScreenKind.Listing:
@@ -86,7 +92,10 @@ export function screenContext(
         backtest: screen.backtest && backtestCall(screen.backtest, now),
       };
     case ScreenKind.Overview:
-      return { place: PLACE_OF_TAB[screen.tab] };
+      return {
+        place: PLACE_OF_TAB[screen.tab],
+        placeMarket: overviewMarket(screen.tab, screen.market) ?? undefined,
+      };
     case ScreenKind.Settings:
       return { settings: screen.section.replaceAll("-", " ") };
     case ScreenKind.Strategies:

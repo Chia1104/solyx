@@ -194,12 +194,8 @@ const skills = async () =>
 const LINKS = {
   listing: ({ market, symbol }: SymbolRef, interval: Interval) =>
     `#/symbol/${market}/${symbol}?interval=${interval}`,
-  overview: {
-    moves: "#/?tab=today",
-    headlines: "#/?tab=news",
-    calendar: "#/?tab=calendar",
-    market: "#/?tab=market",
-  },
+  overview: (place: string, market?: string) =>
+    `#/?tab=${place}${market ? `&market=${market}` : ""}`,
   strategy: (name: string) => `#/strategies/${name}`,
 };
 

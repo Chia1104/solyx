@@ -30,7 +30,8 @@ export type AppPlace = (typeof AppPlace)[keyof typeof AppPlace];
 export interface AppLinks {
   /** A listing's page, its chart on `interval`. */
   listing(symbol: SymbolRef, interval: Interval): string;
-  overview: Record<AppPlace, string>;
+  /** A page of the overview, kept to `market`'s listings where one is given. */
+  overview(place: AppPlace, market?: Market): string;
   /** A strategy the user wrote, with its files, the versions allowed and its backtests. */
   strategy(name: string): string;
 }
@@ -125,10 +126,11 @@ function placesText({ listing, overview, strategy }: AppLinks): string {
   return `# Places in the app
 A markdown link whose address starts with #/ opens that place in the app when the user presses it.
 - A listing's page with its chart: ${listing(example, Interval.OneDay)} is ${symbolLabel(example)} on daily bars. Put the listing's market and code and the interval in their places; the intervals are ${Object.values(Interval).join(", ")}.
-- Today's moves of what the user holds and watches, which get_quotes reads: ${overview[AppPlace.Moves]}
-- The headlines about them, which get_headlines reads: ${overview[AppPlace.Headlines]}
-- The dates ahead, which get_calendar reads: ${overview[AppPlace.Calendar]}
-- The market's sectors and who trades it, which get_sectors and get_flows read: ${overview[AppPlace.Market]}
+- Today's moves of what the user holds and watches, which get_quotes reads: ${overview(AppPlace.Moves)}
+- The headlines about them, which get_headlines reads: ${overview(AppPlace.Headlines)}
+- The dates ahead, which get_calendar reads: ${overview(AppPlace.Calendar)}
+- The market's sectors and who trades it, which get_sectors and get_flows read: ${overview(AppPlace.Market)}
+- Each overview page keeps to one market's listings with the market in its address, as ${overview(AppPlace.Moves, Market.US)} for US listings alone. The market page always shows one market, Taiwan's unless the address names another.
 - A strategy the user wrote, with its files, the versions allowed and its backtests: ${strategy("atr-breakout")} is atr-breakout's. Put the strategy's name in its place.
 Link a listing's code to its page the first time a reply names it, on the interval the reply is about, a strategy to its page once you saved it or the first time a reply names it, and the place a reply's figures show where the user may want to look. Write no other #/ address but a settings tab's from get_setup: one the app does not know opens an empty page.`;
 }
@@ -205,6 +207,8 @@ export interface TurnContext {
   backtest?: string;
   /** The page of the overview the user has open instead, if any. */
   place?: AppPlace;
+  /** The market that page keeps to, where it keeps to one. */
+  placeMarket?: Market;
   /** The settings section the user has open instead, by its name. */
   settings?: string;
   /** The strategies page the user has open instead, and the strategy whose page it is, where one is. */
@@ -241,6 +245,7 @@ function viewingText({
   focus,
   chart,
   place,
+  placeMarket,
   settings,
   strategies,
 }: TurnContext): string | undefined {
@@ -253,7 +258,11 @@ function viewingText({
     return `${listingText(focus)} on a ${chart.interval} chart${drawn}`;
   }
 
-  if (place) return `the overview, ${PLACE_NAME[place]}`;
+  if (place) {
+    const kept = placeMarket ? `, kept to ${placeMarket}` : "";
+
+    return `the overview, ${PLACE_NAME[place]}${kept}`;
+  }
 
   if (strategies) {
     return strategies.name === undefined
