@@ -25,6 +25,7 @@ import {
   isWebSearchReady,
   mcpSecretKey,
   timeZonePreferenceSchema,
+  taiwanMarketDataSourceSchema,
 } from "@solyx/api/settings";
 import { SettingsSection, settingsLink } from "@solyx/api/settings-section";
 import { DecisionMode } from "@solyx/core/council";
@@ -258,7 +259,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       secrets.states(),
     ]);
 
-    const source = status.markets[Market.TW]?.source ?? MarketDataSource.Fugle;
+    const source = status.markets[Market.TW].source;
     const { fubon } = status;
 
     const fubonNeeds = [
@@ -877,7 +878,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
       ],
       [
         "marketData.TW",
-        choice(Object.values(MarketDataSource), (source) =>
+        choice(taiwanMarketDataSourceSchema.options, (source) =>
           config.set(["marketData", Market.TW], source)
         ),
       ],

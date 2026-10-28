@@ -55,6 +55,7 @@ import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
 import { createInbox } from "./modules/inbox/inbox.ts";
 import { createKernel } from "./modules/kernel/kernel-client.ts";
 import { createMacro } from "./modules/macro/macro.ts";
+import { createLongbridgeAccess } from "./modules/market/longbridge-access.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
 import { createRotations } from "./modules/market/rotations.ts";
@@ -261,6 +262,10 @@ export function createServices(config: ConfigFile, host: Host) {
     fubonLogDir: join(userDataDir, "fubon"),
     openFubonProcess: host.openFubonProcess,
     tradesFubon,
+    longbridge: createLongbridgeAccess({
+      secrets,
+      openExternal: host.openExternal,
+    }),
   });
 
   const marketData = createMarketData({
@@ -388,7 +393,10 @@ export function createServices(config: ConfigFile, host: Host) {
   });
 
   const tradingDays = createTradingCalendar({
-    providers: [finMind],
+    provider: async (market) =>
+      [finMind, await marketDataSources.longbridgeCalendar()].find((provider) =>
+        provider?.markets.includes(market)
+      ),
     answers: cache.answers,
   });
 

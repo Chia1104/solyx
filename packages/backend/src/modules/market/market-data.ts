@@ -1,3 +1,4 @@
+import type { Locale } from "@solyx/api/settings";
 import {
   Interval,
   isCalendarInterval,
@@ -223,6 +224,12 @@ export function createMarketData({
     status: () => sources.status(),
 
     signInFubon: () => sources.signInFubon(),
+
+    signInLongbridge: (locale: Locale) => sources.signInLongbridge(locale),
+
+    cancelLongbridgeSignIn: () => sources.cancelLongbridgeSignIn(),
+
+    signOutLongbridge: () => sources.signOutLongbridge(),
   };
 }
 

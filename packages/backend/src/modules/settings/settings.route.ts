@@ -60,7 +60,14 @@ export interface SettingsContext {
   config: ConfigFile;
   secrets: SecretStore;
   appearance: AppearanceSettings;
-  marketData: Pick<MarketDataModule, "status" | "signInFubon">;
+  marketData: Pick<
+    MarketDataModule,
+    | "status"
+    | "signInFubon"
+    | "signInLongbridge"
+    | "cancelLongbridgeSignIn"
+    | "signOutLongbridge"
+  >;
   agent: Pick<AgentService, "models" | "skills" | "instructions">;
   mcp: Pick<
     McpServers,
@@ -177,6 +184,15 @@ export const settingsRouter = settings.router({
   ),
   signInFubon: settings.signInFubon.handler(({ context }) =>
     context.marketData.signInFubon()
+  ),
+  signInLongbridge: settings.signInLongbridge.handler(({ context, input }) =>
+    context.marketData.signInLongbridge(input.locale)
+  ),
+  cancelLongbridgeSignIn: settings.cancelLongbridgeSignIn.handler(
+    ({ context }) => context.marketData.cancelLongbridgeSignIn()
+  ),
+  signOutLongbridge: settings.signOutLongbridge.handler(({ context }) =>
+    context.marketData.signOutLongbridge()
   ),
 
   agent: settings.agent.handler(({ context }) =>

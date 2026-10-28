@@ -12,8 +12,8 @@ import type { AnswerStores } from "@solyx/utils/fresh";
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
 export interface TradingCalendarOptions {
-  /** One per market at most; the first that covers a market answers for it. */
-  providers: readonly TradingCalendarProvider[];
+  /** What covers a market now, if anything, as a sign-in may come or go. */
+  provider: (market: Market) => Promise<TradingCalendarProvider | undefined>;
   /** Where each market's listed days are kept between runs. */
   answers: AnswerStores;
   /** @default () => new Date() */
@@ -36,7 +36,7 @@ interface Ask {
  * exchange day; a market none covers trades every weekday.
  */
 export function createTradingCalendar({
-  providers,
+  provider: coveredBy,
   answers,
   now = () => new Date(),
 }: TradingCalendarOptions) {
@@ -57,14 +57,14 @@ export function createTradingCalendar({
   });
 
   /** Rejects when its provider fails, and asks again on the next call. */
-  return (market: Market): Promise<TradingDays> => {
-    const provider = providers.find(({ markets }) => markets.includes(market));
+  return async (market: Market): Promise<TradingDays> => {
+    const provider = await coveredBy(market);
 
-    if (!provider) return Promise.resolve(weekdays);
+    if (!provider) return weekdays;
 
-    return listedDays({ market, provider }).then(({ since, listed }) =>
-      listedTradingDays(since, listed)
-    );
+    const { since, listed } = await listedDays({ market, provider });
+
+    return listedTradingDays(since, listed);
   };
 }
 

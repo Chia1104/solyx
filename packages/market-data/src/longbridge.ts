@@ -19,6 +19,7 @@ import type {
 } from "@solyx/core/session";
 import { createRateLimiter } from "@solyx/utils/rate-limit";
 
+import { longbridgeDataCenter } from "./longbridge-sign-in.ts";
 import {
   Command,
   PacketType,
@@ -140,9 +141,6 @@ interface Connection {
   close(): void;
 }
 
-// A token's prefix names the data center that holds the account; any but a US one is Asia-Pacific.
-const dataCenter = (token: string) => (token.startsWith("us_") ? "us" : "ap");
-
 /**
  * The quote server's connection for one sign-in. A request opens it when none is open, fetching a
  * one-time password with the access token and signing in with it; a connection that closes,
@@ -172,7 +170,7 @@ export function createLongbridgeSocket({
     const response = await api.get("v1/socket/token", {
       headers: {
         authorization: `Bearer ${token}`,
-        "x-dc-region": dataCenter(token),
+        "x-dc-region": longbridgeDataCenter(token),
       },
     });
 
@@ -200,7 +198,9 @@ export function createLongbridgeSocket({
     const token = await accessToken();
     const otp = await oneTimePassword(token);
 
-    const socket = connect(QUOTE_URL, { "x-dc-region": dataCenter(token) });
+    const socket = connect(QUOTE_URL, {
+      "x-dc-region": longbridgeDataCenter(token),
+    });
 
     const pending = new Map<
       number,

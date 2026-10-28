@@ -1659,9 +1659,12 @@
       "source-title": "台股行情來源",
       "description": "金鑰與登入資料由作業系統加密保存，儲存後不會再顯示。",
       "source-description": "台股圖表與即時 K 線的來源。",
+      "us-title": "美股行情來源",
+      "us-description": "美股圖表與報價的來源。",
       "sources": {
         "fugle": "富果",
-        "fubon": "富邦新一代 API"
+        "fubon": "富邦新一代 API",
+        "longbridge": "長橋"
       },
       "source-hints": {
         "fugle": "使用你自己的富果 API 金鑰。",
@@ -1674,6 +1677,12 @@
     "brokers": {
       "fubon": "富邦證券",
       "fubon-description": "以 API 金鑰和富邦網站匯出的憑證登入富邦證券。行情和下單共用這個登入；只開行情權限的金鑰無法下單。"
+    },
+    "longbridge": {
+      "label": "長橋帳號",
+      "hint": "在長橋的頁面登入。沒有開證券戶，用模擬帳戶也能取得美股即時報價。",
+      "sign-in": "使用長橋登入",
+      "sign-in-failed": "無法使用長橋登入"
     },
     "fundamentals": {
       "title": "財報",
@@ -2553,6 +2562,17 @@
       },
       "failed": {
         "title": "MCP server 沒有連接成功",
+        "body": "請回到 Solyx 再登入一次。"
+      }
+    },
+    "longbridge": {
+      "label": "使用長橋登入",
+      "signed-in": {
+        "title": "已將授權交給 Solyx",
+        "body": "可以關閉這個分頁，回到 Solyx。"
+      },
+      "failed": {
+        "title": "長橋沒有連接成功",
         "body": "請回到 Solyx 再登入一次。"
       }
     }

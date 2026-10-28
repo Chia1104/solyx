@@ -13,7 +13,10 @@ import {
   Secret,
   mcpSecretKey,
 } from "@solyx/api/settings";
-import type { MarketDataStatus } from "@solyx/api/settings";
+import type {
+  MarketDataStatus,
+  TaiwanMarketDataSource,
+} from "@solyx/api/settings";
 import type { StorageUsage } from "@solyx/api/storage";
 import { EVERY_CHANGE } from "@solyx/core/changes";
 import { Market } from "@solyx/core/market";
@@ -59,11 +62,14 @@ const USAGE: StorageUsage = {
 afterEach(() => rm(home, { recursive: true, force: true }));
 
 function marketStatus(
-  source: MarketDataSource,
+  source: TaiwanMarketDataSource,
   ready: boolean
 ): MarketDataStatus {
   return {
-    markets: { TW: { source, ready }, US: null },
+    markets: {
+      TW: { source, ready },
+      US: { source: MarketDataSource.Longbridge, ready: false },
+    },
     fugle: { plan: FuglePlan.Basic, plans: Object.values(FUGLE_PLANS) },
     fubon: {
       plan: FUGLE_PLANS[FuglePlan.Basic],

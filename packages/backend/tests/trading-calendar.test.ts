@@ -26,7 +26,7 @@ function setup() {
   };
 
   const tradingDays = createTradingCalendar({
-    providers: [provider],
+    provider: async (market) => (market === Market.TW ? provider : undefined),
     answers: memoryAnswers(),
     now: () => new Date(clock.now),
   });

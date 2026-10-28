@@ -108,6 +108,9 @@ function setup() {
     marketData: {
       status: vi.fn(),
       signInFubon: vi.fn(),
+      signInLongbridge: vi.fn(),
+      cancelLongbridgeSignIn: vi.fn(),
+      signOutLongbridge: vi.fn(),
     },
     agent: {
       models: createAgentModels({

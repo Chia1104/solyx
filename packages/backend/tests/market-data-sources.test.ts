@@ -7,6 +7,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import {
   FubonFile,
   FubonSessionState,
+  LONGBRIDGE_SIGN_IN_SECRET,
   MarketDataSource,
   Secret,
   agentKeySecret,
@@ -16,8 +17,10 @@ import type { FubonSessionOptions } from "@solyx/brokers/fubon";
 import { Market } from "@solyx/core/market";
 import { openCache } from "@solyx/db/cache";
 import { FuglePlan } from "@solyx/market-data/fugle";
+import { DAY_MS } from "@solyx/utils/date";
 
 import type { FubonProcess } from "../src/modules/market/fubon-client.ts";
+import { createLongbridgeAccess } from "../src/modules/market/longbridge-access.ts";
 import { createMarketDataSources } from "../src/modules/market/market-data-sources.ts";
 import { createConfigFile } from "../src/modules/settings/config-file.ts";
 import { createSecretStore } from "../src/modules/settings/secret-store.ts";
@@ -99,6 +102,7 @@ function setup({ tradesFubon = false } = {}) {
     fubonLogDir: join(directory, "fubon"),
     openFubonProcess,
     tradesFubon,
+    longbridge: createLongbridgeAccess({ secrets, openExternal: vi.fn() }),
   });
 
   // Everything Fubon signs in with, and Fubon as Taiwan's source.
@@ -118,14 +122,62 @@ test("Taiwan charts come from Fugle by default, once its key is saved", async ()
 
   expect((await sources.status()).markets).toEqual({
     [Market.TW]: { source: MarketDataSource.Fugle, ready: false },
-    [Market.US]: null,
+    [Market.US]: { source: MarketDataSource.Longbridge, ready: false },
   });
   expect(await sources.provider(Market.TW)).toBeUndefined();
 
   await secrets.save(Secret.FugleApiKey, "fugle-key");
 
-  expect((await sources.status()).markets[Market.TW]?.ready).toBe(true);
+  expect((await sources.status()).markets[Market.TW].ready).toBe(true);
   expect((await sources.provider(Market.TW))?.id).toBe("fugle");
+  expect(await sources.provider(Market.US)).toBeUndefined();
+});
+
+test("US charts and trading days come from Longbridge once signed in, on one connection per sign-in", async () => {
+  const { secrets, sources } = setup();
+
+  expect(await sources.provider(Market.US)).toBeUndefined();
+  expect(await sources.longbridgeCalendar()).toBeUndefined();
+
+  const signIn = {
+    clientId: "client-1",
+    redirectUri: "http://127.0.0.1:50000/callback/x",
+    registration: null,
+    accessToken: "hk_access",
+    refreshToken: "hk_refresh",
+    expiresAt: Date.now() + DAY_MS,
+  };
+
+  await secrets.save(LONGBRIDGE_SIGN_IN_SECRET, JSON.stringify(signIn));
+
+  expect((await sources.status()).markets[Market.US]).toEqual({
+    source: MarketDataSource.Longbridge,
+    ready: true,
+  });
+
+  const provider = await sources.provider(Market.US);
+
+  expect(provider?.id).toBe("longbridge");
+  expect((await sources.longbridgeCalendar())?.markets).toEqual([Market.US]);
+
+  // A refresh keeps the client, and so the provider.
+  await secrets.save(
+    LONGBRIDGE_SIGN_IN_SECRET,
+    JSON.stringify({ ...signIn, accessToken: "hk_access_2" })
+  );
+
+  expect(await sources.provider(Market.US)).toBe(provider);
+
+  // A new sign-in opens another.
+  await secrets.save(
+    LONGBRIDGE_SIGN_IN_SECRET,
+    JSON.stringify({ ...signIn, clientId: "client-2" })
+  );
+
+  expect(await sources.provider(Market.US)).not.toBe(provider);
+
+  await secrets.delete(LONGBRIDGE_SIGN_IN_SECRET);
+
   expect(await sources.provider(Market.US)).toBeUndefined();
 });
 

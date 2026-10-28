@@ -2,9 +2,9 @@ import { Description, Radio, RadioGroup } from "@heroui/react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { MarketDataSource } from "@solyx/api/settings";
+import { taiwanMarketDataSourceSchema } from "@solyx/api/settings";
+import type { TaiwanMarketDataSource } from "@solyx/api/settings";
 import { Market } from "@solyx/core/market";
-import { isEnumValue } from "@solyx/utils/is";
 
 import { client } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
@@ -14,13 +14,13 @@ export function MarketDataSourceSelect({
   source,
   label,
 }: {
-  source: MarketDataSource;
+  source: TaiwanMarketDataSource;
   label: string;
 }) {
   const { t } = useTranslation();
 
   const save = useMutation({
-    mutationFn: (next: MarketDataSource) =>
+    mutationFn: (next: TaiwanMarketDataSource) =>
       client.settings.setMarketDataSource({ market: Market.TW, source: next }),
   });
 
@@ -31,11 +31,12 @@ export function MarketDataSourceSelect({
         value={source}
         isDisabled={save.isPending}
         onChange={(next) => {
-          if (isEnumValue(MarketDataSource, next) && next !== source) {
-            save.mutate(next);
-          }
+          const picked = taiwanMarketDataSourceSchema.safeParse(next);
+
+          if (picked.success && picked.data !== source)
+            save.mutate(picked.data);
         }}>
-        {Object.values(MarketDataSource).map((option) => (
+        {taiwanMarketDataSourceSchema.options.map((option) => (
           <Radio key={option} value={option}>
             <Radio.Content>
               <Radio.Control>
