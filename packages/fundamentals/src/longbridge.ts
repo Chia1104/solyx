@@ -97,6 +97,9 @@ const actionsSchema = z.object({ items: z.array(z.unknown()) });
 /** The action that dates a quarter's results being released. */
 const RESULTS_RELEASED = "FinancialReport";
 
+/** The action that dates a quarter's results expected out. */
+const RESULTS_EXPECTED = "ReportDate";
+
 /** The action whose days, announcement first, belong to one distribution. */
 const DISTRIBUTION = "DividendExDate";
 
@@ -414,6 +417,18 @@ export function createLongbridgeFundamentals({
     },
 
     getMonthlyRevenue: async () => [],
+
+    async getReportDates(symbol): Promise<string[]> {
+      const expected = (await actions(symbol)).flatMap(({ action, date }) => {
+        const expectedOn = day(date);
+
+        return action === RESULTS_EXPECTED && expectedOn !== null
+          ? [expectedOn]
+          : [];
+      });
+
+      return [...new Set(expected)].toSorted();
+    },
 
     async getDividends(symbol, since): Promise<Dividend[]> {
       const what = `the distributions of ${symbol.symbol}`;

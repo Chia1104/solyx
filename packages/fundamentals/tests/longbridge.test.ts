@@ -390,6 +390,25 @@ test("a distribution pays the cash its description names, announced on the first
   ]);
 });
 
+test("the days a company's coming results are expected come from its corporate actions, soonest first", async () => {
+  const { longbridge } = fakeLongbridge({
+    actions: {
+      items: [
+        action("e2", "ReportDate", "20270128"),
+        action("e1", "ReportDate", "20261030"),
+        action("e1", "ReportDate", "20261030"),
+        // Results already out date no expected release.
+        action("r1", "FinancialReport", "20260730"),
+      ],
+    },
+  });
+
+  expect(await longbridge.getReportDates(APPLE)).toEqual([
+    "2026-10-30",
+    "2027-01-28",
+  ]);
+});
+
 test("a US listing has no monthly revenue", async () => {
   const { longbridge, asked } = fakeLongbridge({});
 

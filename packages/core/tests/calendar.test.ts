@@ -41,6 +41,7 @@ function dividend(patch: Partial<Dividend>): Dividend {
 
 const NONE: ListingFilings = {
   statements: [],
+  reportDates: [],
   monthlyRevenue: [],
   dividends: [],
   restrictions: [],
@@ -268,6 +269,85 @@ test("outside Taiwan no rules set a filing deadline", () => {
       "2026-11-30"
     ).map(({ kind }) => kind)
   ).toEqual([ListingEventKind.ExDividend]);
+});
+
+test("outside Taiwan a quarter's results come around the days the source expects, naming the quarter by the month it ended in", () => {
+  const apple = { market: Market.US, symbol: "AAPL" };
+
+  expect(
+    upcomingEvents(
+      apple,
+      {
+        ...NONE,
+        // A fiscal quarter ending on the last Saturday of June.
+        statements: [quarter("2026-06-27")],
+        // The day gone by, one given twice, and two ahead.
+        reportDates: ["2027-01-29", "2026-07-30", "2026-10-30", "2026-10-30"],
+      },
+      "2026-10-28",
+      "2027-02-28"
+    )
+  ).toEqual([
+    {
+      symbol: apple,
+      kind: ListingEventKind.QuarterlyReport,
+      date: "2026-10-30",
+      timing: EventTiming.Expected,
+      subject: "2026-09-30",
+      amount: null,
+      until: null,
+    },
+    {
+      symbol: apple,
+      kind: ListingEventKind.QuarterlyReport,
+      date: "2027-01-29",
+      timing: EventTiming.Expected,
+      subject: "2026-12-31",
+      amount: null,
+      until: null,
+    },
+  ]);
+});
+
+test("an expected release names its own quarter while the source's statements lag, and a listing that files none has none", () => {
+  const apple = { market: Market.US, symbol: "AAPL" };
+
+  expect(
+    upcomingEvents(
+      apple,
+      {
+        ...NONE,
+        statements: [quarter("2026-03-28")],
+        reportDates: ["2026-10-30"],
+      },
+      "2026-10-28",
+      "2026-11-30"
+    ).map(({ subject }) => subject)
+  ).toEqual(["2026-09-30"]);
+
+  expect(
+    upcomingEvents(
+      { market: Market.US, symbol: "SPY" },
+      { ...NONE, reportDates: ["2026-10-30"] },
+      "2026-10-28",
+      "2026-11-30"
+    )
+  ).toEqual([]);
+});
+
+test("in Taiwan a quarter is due by its deadline whatever day a source expects", () => {
+  expect(
+    upcomingEvents(
+      TSMC,
+      {
+        ...NONE,
+        statements: [quarter("2026-06-30")],
+        reportDates: ["2026-10-16"],
+      },
+      "2026-10-08",
+      "2026-11-30"
+    ).map(({ date, timing }) => ({ date, timing }))
+  ).toEqual([{ date: "2026-11-14", timing: EventTiming.Deadline }]);
 });
 
 test("a report's dates come soonest first, from today through the last day asked for", () => {

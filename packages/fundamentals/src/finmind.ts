@@ -465,6 +465,9 @@ export function createFinMind(
         .toSorted((a, b) => a.month.localeCompare(b.month));
     },
 
+    // Taiwan's rules set the day each quarter is due by, which the calendar works out itself.
+    getReportDates: async () => [],
+
     async getDividends(symbol, since) {
       // FinMind dates a distribution after it goes ex, so asking from `since` finds every one announced since.
       const distributions = await rows(

@@ -231,6 +231,10 @@ export function createFundamentals({
       )
     ),
 
+    reportDates: fresh("report-dates", (provider, symbol) =>
+      provider.getReportDates(symbol)
+    ),
+
     dividends: fresh("dividends", (provider, symbol, today) =>
       provider.getDividends(
         symbol,

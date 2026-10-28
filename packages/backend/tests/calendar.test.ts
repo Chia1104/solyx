@@ -50,6 +50,7 @@ function consumerPrices(date: string, period: string): MacroRelease {
 function setup(dividends: Record<string, Dividend[]>) {
   const fundamentals = {
     statements: async () => [],
+    reportDates: async () => [],
     monthlyRevenue: async () => [],
     restrictions: vi.fn<Fundamentals["restrictions"]>(async () => []),
     exNotices: vi.fn<Fundamentals["exNotices"]>(async () => []),

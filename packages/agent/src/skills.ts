@@ -173,7 +173,7 @@ const BUILT_IN_SKILLS: readonly AgentSkill[] = [
       "- Settlement is T+1.",
       "- FINRA replaced the pattern day trader rule and its $25,000 minimum with intraday margin from 2026-06-04, which brokers may phase in until 2027-10-20, so a margin account's day trades follow its broker's rules. Paper trading is not affected.",
       "- US data comes from the user's Longbridge sign-in: without a securities account, bars are the latest thousand of each interval, about four years of days, get_fundamentals has its quarterly statements, cash flows and distributions but no monthly revenue or current ratio, and get_flows and get_sectors have nothing for the US.",
-      "- Earnings and major data releases often gap the price outside any stop. get_calendar has a US listing's ex-dividend and payment days but no earnings dates yet, so check the web, with sources, before proposing across one."
+      "- Earnings and major data releases often gap the price outside any stop. get_calendar has a US listing's results around the day Longbridge expects them, which a company may move, so confirm the day on the web, with sources, before proposing across one."
     ),
   },
   {
