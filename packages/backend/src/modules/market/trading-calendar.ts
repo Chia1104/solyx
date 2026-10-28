@@ -1,6 +1,7 @@
 import { Market, exchangeDate } from "@solyx/core/market";
 import { getSession, listedTradingDays, weekdays } from "@solyx/core/session";
 import type {
+  ExchangeDays,
   Session,
   TradingCalendarProvider,
   TradingDays,
@@ -22,7 +23,7 @@ export interface TradingCalendarOptions {
 /** The days a market's provider listed from `since`, a year back from the exchange day they were read on. */
 interface ListedDays {
   since: string;
-  listed: string[];
+  listed: ExchangeDays;
 }
 
 interface Ask {
@@ -40,7 +41,7 @@ export function createTradingCalendar({
   now = () => new Date(),
 }: TradingCalendarOptions) {
   const listedDays = keepFresh<Ask, ListedDays>({
-    store: answers("trading-days"),
+    store: answers("exchange-days"),
     id: ({ market }) => market,
     async ask({ market, provider }) {
       const since = Temporal.PlainDate.from(exchangeDate(market, now()))

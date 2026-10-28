@@ -121,8 +121,10 @@ test("a time kept to a market's trading days skips the days it is closed", () =>
   );
 
   // The exchange's own calendar decides, not the weekday.
-  const closedMonday = (date: string) =>
-    weekdays(date) && date !== "2026-10-12";
+  const closedMonday = Object.assign(
+    (date: string) => weekdays(date) && date !== "2026-10-12",
+    { closesEarly: () => false }
+  );
 
   expect(
     nextRun(briefing, saturday + HOUR_MS, {

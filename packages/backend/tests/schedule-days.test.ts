@@ -8,8 +8,10 @@ import { createScheduleDays } from "../src/modules/market/schedule-days.ts";
 import type { MarketDays } from "../src/modules/market/trading-calendar.ts";
 
 function setup() {
-  const closedMonday = (date: string) =>
-    weekdays(date) && date !== "2026-10-12";
+  const closedMonday = Object.assign(
+    (date: string) => weekdays(date) && date !== "2026-10-12",
+    { closesEarly: () => false }
+  );
 
   const marketDays = vi.fn<MarketDays>(async () => closedMonday);
 

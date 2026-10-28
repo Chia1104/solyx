@@ -19,11 +19,10 @@ function setup() {
   const provider = {
     markets: [Market.TW],
     // Friday 2026-10-09 is a holiday.
-    tradingDays: vi.fn<TradingCalendarProvider["tradingDays"]>(async () => [
-      "2026-10-07",
-      "2026-10-08",
-      "2026-10-12",
-    ]),
+    tradingDays: vi.fn<TradingCalendarProvider["tradingDays"]>(async () => ({
+      trading: ["2026-10-07", "2026-10-08", "2026-10-12"],
+      earlyCloses: [],
+    })),
   };
 
   const tradingDays = createTradingCalendar({

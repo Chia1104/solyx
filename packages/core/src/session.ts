@@ -58,37 +58,74 @@ const SESSION_WINDOWS: Record<Market, SessionWindow[]> = {
   ],
 };
 
-/** Whether a market trades on an exchange-local `YYYY-MM-DD` day. */
-export type TradingDays = (date: string) => boolean;
+const US_EARLY_REGULAR = sessionWindow(Session.Regular, "09:30", "13:00");
 
-/** Every weekday trades: the rule for a market whose holidays are not known. */
-export const weekdays: TradingDays = (date) =>
-  Temporal.PlainDate.from(date).dayOfWeek < SATURDAY;
+/** A day whose regular session closes early, in a market that has such days: that session and all the day's. */
+const EARLY_CLOSES: Partial<
+  Record<Market, { regular: SessionWindow; sessions: SessionWindow[] }>
+> = {
+  [Market.US]: {
+    regular: US_EARLY_REGULAR,
+    sessions: [
+      sessionWindow(Session.Pre, "04:00", "09:30"),
+      US_EARLY_REGULAR,
+      sessionWindow(Session.Post, "13:00", "17:00"),
+    ],
+  },
+};
+
+/** Which exchange-local `YYYY-MM-DD` days a market trades. */
+export interface TradingDays {
+  (date: string): boolean;
+  /** Whether the day's regular session closes early, as the US market's does before some holidays. */
+  closesEarly(date: string): boolean;
+}
+
+/** Every weekday trades in full: the rule for a market whose holidays are not known. */
+export const weekdays: TradingDays = Object.assign(
+  (date: string) => Temporal.PlainDate.from(date).dayOfWeek < SATURDAY,
+  { closesEarly: () => false }
+);
+
+function earlyClose(market: Market, date: string, trades: TradingDays) {
+  return trades.closesEarly(date) ? EARLY_CLOSES[market] : undefined;
+}
 
 /**
  * The session a market is in, closed all day on a day `trades` says it does not trade. It knows
- * no closure called on the day, as for a typhoon, and no early close.
+ * no closure called on the day, as for a typhoon.
  */
 export function getSession(
   market: Market,
   at: Date = new Date(),
   trades: TradingDays = weekdays
 ): Session {
-  if (!trades(exchangeDate(market, at))) return Session.Closed;
+  const date = exchangeDate(market, at);
+
+  if (!trades(date)) return Session.Closed;
 
   const { hour, minute } = exchangeClock(market, at);
   const minutes = hour * 60 + minute;
 
+  const windows =
+    earlyClose(market, date, trades)?.sessions ?? SESSION_WINDOWS[market];
+
   return (
-    SESSION_WINDOWS[market].find((w) => minutes >= w.start && minutes < w.end)
-      ?.session ?? Session.Closed
+    windows.find((w) => minutes >= w.start && minutes < w.end)?.session ??
+    Session.Closed
   );
 }
 
 /** The UTC seconds at which the regular session of `date`, exchange-local `YYYY-MM-DD`, opens and closes. */
-export function regularHours(market: Market, date: string) {
+export function regularHours(
+  market: Market,
+  date: string,
+  trades: TradingDays = weekdays
+) {
   const midnight = exchangeMidnight(market, date);
-  const { start, end } = REGULAR_WINDOWS[market];
+
+  const { start, end } =
+    earlyClose(market, date, trades)?.regular ?? REGULAR_WINDOWS[market];
 
   return { open: midnight + start * 60, close: midnight + end * 60 };
 }
@@ -119,33 +156,43 @@ export function sessionDayAt(
   const today = exchangeDate(market, at);
 
   return trades(today) &&
-    at.getTime() < regularHours(market, today).close * 1000
+    at.getTime() < regularHours(market, today, trades).close * 1000
     ? today
     : nextTradingDay(today, trades);
 }
 
+/** The days an exchange has set a market to trade, ascending, and those of them its regular session closes early. */
+export interface ExchangeDays {
+  trading: string[];
+  earlyCloses: string[];
+}
+
 /**
- * The days an exchange set from `since` on, `listed` ascending: through the last of them a day
- * trades only when listed, and outside that span every weekday does.
+ * The days an exchange set from `since` on: through the last of them a day trades only when
+ * listed, and outside that span every weekday trades in full.
  */
 export function listedTradingDays(
   since: string,
-  listed: readonly string[]
+  { trading, earlyCloses }: ExchangeDays
 ): TradingDays {
-  const days = new Set(listed);
-  const last = listed.at(-1);
+  const days = new Set(trading);
+  const early = new Set(earlyCloses);
+  const last = trading.at(-1);
 
-  return (date) =>
-    last !== undefined && date >= since && date <= last
-      ? days.has(date)
-      : weekdays(date);
+  const listed = (date: string) =>
+    last !== undefined && date >= since && date <= last;
+
+  return Object.assign(
+    (date: string) => (listed(date) ? days.has(date) : weekdays(date)),
+    { closesEarly: (date: string) => listed(date) && early.has(date) }
+  );
 }
 
 /** Where a market's trading days come from, as far ahead as its exchange has set them. */
 export interface TradingCalendarProvider {
   readonly markets: readonly Market[];
-  /** Every exchange-local day the market trades from `since` on, ascending. */
-  tradingDays(market: Market, since: string): Promise<string[]>;
+  /** The days the market trades from `since` on, exchange-local. */
+  tradingDays(market: Market, since: string): Promise<ExchangeDays>;
 }
 
 /** A weekday an exchange has set its market closed, with what it calls the day. */
@@ -181,7 +228,7 @@ export function sessionsBetween(
   ) {
     if (!trades(date)) continue;
 
-    const { open, close } = regularHours(market, date);
+    const { open, close } = regularHours(market, date, trades);
 
     if (close * 1000 > from.getTime() && open * 1000 < to.getTime()) {
       sessions += 1;

@@ -616,7 +616,7 @@ export function createFinMind(
     },
 
     async tradingDays(market, since) {
-      if (market !== Market.TW) return [];
+      if (market !== Market.TW) return { trading: [], earlyCloses: [] };
 
       const days = await data(
         "TaiwanStockTradingDate",
@@ -624,7 +624,11 @@ export function createFinMind(
         tradingDateRowSchema
       );
 
-      return days.map(({ date }) => date).toSorted();
+      // The Taiwan Stock Exchange closes no session early.
+      return {
+        trading: days.map(({ date }) => date).toSorted(),
+        earlyCloses: [],
+      };
     },
   };
 }

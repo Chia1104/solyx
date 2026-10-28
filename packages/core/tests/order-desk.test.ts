@@ -272,7 +272,9 @@ test("an order on a day the exchange does not trade is checked against a closed 
   const { desk, tradingDays } = setup();
 
   // The session's hours, on a holiday.
-  tradingDays.mockResolvedValue(() => false);
+  tradingDays.mockResolvedValue(
+    Object.assign(() => false, { closesEarly: () => false })
+  );
 
   expect(await desk.check(order)).toEqual([
     { code: RiskViolationCode.SessionNotAllowed, session: Session.Closed },

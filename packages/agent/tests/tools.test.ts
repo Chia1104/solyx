@@ -1333,7 +1333,10 @@ test("sessions since a story leave out the exchange's holidays, or count every w
 
   // Tuesday 2026-09-29 is a holiday.
   tradingDays.mockResolvedValueOnce(
-    listedTradingDays("2026-09-28", ["2026-09-28", "2026-09-30"])
+    listedTradingDays("2026-09-28", {
+      trading: ["2026-09-28", "2026-09-30"],
+      earlyCloses: [],
+    })
   );
 
   const holiday = await getNews(ports, { symbol: TSMC });
@@ -1421,7 +1424,9 @@ test("the market status reads a market as closed all day on a day its exchange d
     "TW: regular"
   );
 
-  tradingDays.mockResolvedValue(() => false);
+  tradingDays.mockResolvedValue(
+    Object.assign(() => false, { closesEarly: () => false })
+  );
 
   expect((await run(AgentToolName.GetMarketStatus, {})).text).toContain(
     "TW: closed"
