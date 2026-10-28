@@ -25,7 +25,7 @@ import {
   subscribeRequest,
   unsubscribeRequest,
 } from "./longbridge-wire.ts";
-import type { QuotePush, Trade } from "./longbridge-wire.ts";
+import type { BookEntry, QuotePush, Trade } from "./longbridge-wire.ts";
 import { INVALID_SYMBOL, LongbridgeError } from "./longbridge.ts";
 import type { LongbridgeSocket } from "./longbridge.ts";
 
@@ -149,6 +149,8 @@ interface MinuteWatch extends Subscription<MinuteListener> {
 interface BookWatch extends Subscription<(depth: Depth) => void> {
   /** Read before subscribing, since a quote push carries no close before it. */
   depth: Depth | undefined;
+  /** Each side's levels by position as pushed, since a push carries only the levels that changed. */
+  levels: { bids: Map<number, BookEntry>; asks: Map<number, BookEntry> };
 }
 
 interface Watched {
@@ -268,7 +270,10 @@ export function createLongbridgeStream({
       return false;
     }
 
+    // Subscribing pushes the whole book first, which the levels start from.
     watch.depth = depth;
+    watch.levels.bids.clear();
+    watch.levels.asks.clear();
 
     return subscribe(entry, Channel.Book, watch);
   }
@@ -439,24 +444,30 @@ export function createLongbridgeStream({
   // Pushes carry no time of their own for a book, so a change is timed as it arrives.
   const arrived = (depth: Depth) => Math.max(depth.time, now().getTime());
 
+  // Longbridge leaves a figure out of a push when it did not change, which holds within a session.
   function quoted(depth: Depth, push: QuotePush): Depth {
     const date = exchangeDate(Market.US, new Date(push.timestamp * 1000));
+    const same = date === depth.date;
+
+    const figure = (text: string, before: number | null) =>
+      price(text) || (same ? before : null);
+
+    const volume = push.volume || (same ? depth.volume : 0);
     const turnover = price(push.turnover);
+    const average = turnover && volume > 0 ? turnover / volume : null;
 
     return {
       ...depth,
       date,
       time: arrived(depth),
       // A new session's move counts from the last price of the one before it.
-      reference:
-        date === depth.date ? depth.reference : (depth.last ?? depth.reference),
-      open: price(push.open),
-      high: price(push.high),
-      low: price(push.low),
-      last: price(push.lastDone),
-      average:
-        turnover !== null && push.volume > 0 ? turnover / push.volume : null,
-      volume: push.volume,
+      reference: same ? depth.reference : (depth.last ?? depth.reference),
+      open: figure(push.open, depth.open),
+      high: figure(push.high, depth.high),
+      low: figure(push.low, depth.low),
+      last: price(push.lastDone) || depth.last,
+      average: average ?? (same ? depth.average : null),
+      volume,
     };
   }
 
@@ -474,13 +485,23 @@ export function createLongbridgeStream({
     if (
       !watch?.depth ||
       push.endOfDay ||
-      push.tradeSession !== TradeSession.Regular ||
-      price(push.lastDone) === null
+      push.tradeSession !== TradeSession.Regular
     ) {
       return;
     }
 
     publish(watch, quoted(watch.depth, push));
+  }
+
+  /** A side's levels with a push's changes; the read's side stands until a push has given one. */
+  function side(
+    levels: Map<number, BookEntry>,
+    changed: readonly BookEntry[],
+    read: Depth["bids"]
+  ): Depth["bids"] {
+    for (const entry of changed) levels.set(entry.position, entry);
+
+    return levels.size > 0 ? bookSide([...levels.values()]) : read;
   }
 
   function onBook(body: Uint8Array) {
@@ -492,8 +513,8 @@ export function createLongbridgeStream({
     publish(watch, {
       ...watch.depth,
       time: arrived(watch.depth),
-      bids: bookSide(push.bids),
-      asks: bookSide(push.asks),
+      bids: side(watch.levels.bids, push.bids, watch.depth.bids),
+      asks: side(watch.levels.asks, push.asks, watch.depth.asks),
     });
   }
 
@@ -561,6 +582,7 @@ export function createLongbridgeStream({
       const watch: BookWatch = entry.book ?? {
         ...subscriptionOf<(depth: Depth) => void>(),
         depth: undefined,
+        levels: { bids: new Map(), asks: new Map() },
       };
 
       entry.book = watch;

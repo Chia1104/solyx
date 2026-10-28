@@ -152,38 +152,47 @@ function trades(symbol: string, sales: SaleFields[]) {
   return writer.finish();
 }
 
+/** A quote push; Longbridge leaves out each figure that did not change. */
 function quotePush({
-  last,
-  high,
-  volume,
+  last = "",
+  open = "",
+  high = "",
+  low = "",
+  volume = 0,
+  turnover = "",
   timestamp,
   session = 0,
   tag = 0,
 }: {
-  last: string;
-  high: string;
-  volume: number;
+  last?: string;
+  open?: string;
+  high?: string;
+  low?: string;
+  volume?: number;
+  turnover?: string;
   timestamp: number;
   session?: number;
   tag?: number;
 }) {
-  return new BinaryWriter()
+  const writer = new BinaryWriter()
     .tag(1, WireType.LengthDelimited)
-    .string("AAPL.US")
-    .tag(3, WireType.LengthDelimited)
-    .string(last)
-    .tag(4, WireType.LengthDelimited)
-    .string("100")
-    .tag(5, WireType.LengthDelimited)
-    .string(high)
-    .tag(6, WireType.LengthDelimited)
-    .string("99")
-    .tag(7, WireType.Varint)
-    .int64(timestamp)
-    .tag(8, WireType.Varint)
-    .int64(volume)
-    .tag(9, WireType.LengthDelimited)
-    .string(String(volume * 101))
+    .string("AAPL.US");
+
+  for (const [field, text] of [
+    [3, last],
+    [4, open],
+    [5, high],
+    [6, low],
+    [9, turnover],
+  ] as const) {
+    if (text !== "") writer.tag(field, WireType.LengthDelimited).string(text);
+  }
+
+  writer.tag(7, WireType.Varint).int64(timestamp);
+
+  if (volume > 0) writer.tag(8, WireType.Varint).int64(volume);
+
+  return writer
     .tag(11, WireType.Varint)
     .int32(session)
     .tag(14, WireType.Varint)
@@ -191,25 +200,43 @@ function quotePush({
     .finish();
 }
 
-function depthPush(bid: string, ask: string) {
-  const level = (price: string, volume: number) =>
-    new BinaryWriter()
-      .tag(1, WireType.Varint)
-      .int32(1)
-      .tag(2, WireType.LengthDelimited)
-      .string(price)
-      .tag(3, WireType.Varint)
-      .int64(volume)
-      .finish();
+interface Level {
+  position: number;
+  price: string;
+  volume: number;
+}
 
-  return new BinaryWriter()
+/** A book push carrying the levels that changed. */
+function depthPush({
+  bids = [],
+  asks = [],
+}: {
+  bids?: Level[];
+  asks?: Level[];
+}) {
+  const writer = new BinaryWriter()
     .tag(1, WireType.LengthDelimited)
-    .string("AAPL.US")
-    .tag(3, WireType.LengthDelimited)
-    .bytes(level(ask, 300))
-    .tag(4, WireType.LengthDelimited)
-    .bytes(level(bid, 200))
-    .finish();
+    .string("AAPL.US");
+
+  for (const [field, levels] of [
+    [3, asks],
+    [4, bids],
+  ] as const) {
+    for (const { position, price, volume } of levels) {
+      writer
+        .tag(field, WireType.LengthDelimited)
+        .fork()
+        .tag(1, WireType.Varint)
+        .int32(position)
+        .tag(2, WireType.LengthDelimited)
+        .string(price)
+        .tag(3, WireType.Varint)
+        .int64(volume)
+        .join();
+    }
+  }
+
+  return writer.finish();
 }
 
 const bar = (time: number, price: number, volume: number): Candle => ({
@@ -409,36 +436,31 @@ test("a book starts from its read and changes with each push, its session figure
     { symbols: ["AAPL.US"], types: [1, 2], first: true },
   ]);
 
-  push(Push.Depth, depthPush("100.7", "100.9"));
+  push(
+    Push.Depth,
+    depthPush({
+      bids: [{ position: 1, price: "100.7", volume: 200 }],
+      asks: [{ position: 1, price: "100.9", volume: 300 }],
+    })
+  );
   push(
     Push.Quote,
     quotePush({
       last: "100.8",
       high: "102",
       volume: 2_000,
+      turnover: "202000",
       timestamp: at("10:35:00"),
     })
   );
   // After hours, and the day restated as it ends, leave the session's figures.
   push(
     Push.Quote,
-    quotePush({
-      last: "90",
-      high: "90",
-      volume: 9,
-      timestamp: at("16:30:00"),
-      session: 2,
-    })
+    quotePush({ last: "90", volume: 9, timestamp: at("16:30:00"), session: 2 })
   );
   push(
     Push.Quote,
-    quotePush({
-      last: "80",
-      high: "80",
-      volume: 8,
-      timestamp: at("16:31:00"),
-      tag: 1,
-    })
+    quotePush({ last: "80", volume: 8, timestamp: at("16:31:00"), tag: 1 })
   );
 
   expect(books).toHaveLength(2);
@@ -450,10 +472,8 @@ test("a book starts from its read and changes with each push, its session figure
   expect(books[1]).toMatchObject({
     date: "2026-10-28",
     reference: 98,
-    open: 100,
-    high: 102,
-    low: 99,
     last: 100.8,
+    high: 102,
     average: 101,
     volume: 2_000,
     bids: [{ price: 100.7, shares: 200 }],
@@ -461,7 +481,47 @@ test("a book starts from its read and changes with each push, its session figure
   expect(books[1].time).toBeGreaterThanOrEqual(books[0].time);
 });
 
-test("a new session's quote counts its move from the last price before it", async () => {
+test("a push carries only what changed, so the session's other figures and the book's other levels stand", async () => {
+  const { stream, push } = setup();
+  const books: Depth[] = [];
+
+  stream.watchDepth(APPLE, (depth) => books.push(depth));
+  await settled();
+
+  push(
+    Push.Depth,
+    depthPush({
+      bids: [
+        { position: 1, price: "100.4", volume: 100 },
+        { position: 2, price: "100.3", volume: 50 },
+      ],
+      asks: [{ position: 1, price: "100.6", volume: 100 }],
+    })
+  );
+  push(
+    Push.Depth,
+    depthPush({ bids: [{ position: 2, price: "100.2", volume: 70 }] })
+  );
+  push(Push.Quote, quotePush({ volume: 1_010, timestamp: at("10:35:02") }));
+
+  expect(books.at(-2)).toMatchObject({
+    bids: [
+      { price: 100.4, shares: 100 },
+      { price: 100.2, shares: 70 },
+    ],
+    asks: [{ price: 100.6, shares: 100 }],
+  });
+  expect(books.at(-1)).toMatchObject({
+    open: 100,
+    high: 101,
+    low: 99,
+    last: 100.5,
+    average: 100.2,
+    volume: 1_010,
+  });
+});
+
+test("a new session's quote counts its move from the last price before it, and keeps none of its figures", async () => {
   const { stream, push } = setup({
     depth: { ...DEPTH, date: "2026-10-27", last: 97.5 },
   });
@@ -472,10 +532,25 @@ test("a new session's quote counts its move from the last price before it", asyn
   await settled();
   push(
     Push.Quote,
-    quotePush({ last: "99", high: "99", volume: 10, timestamp: at("09:30:01") })
+    quotePush({
+      last: "99",
+      open: "99",
+      volume: 10,
+      turnover: "990",
+      timestamp: at("09:30:01"),
+    })
   );
 
-  expect(books[0]).toMatchObject({ date: "2026-10-28", reference: 97.5 });
+  expect(books[0]).toMatchObject({
+    date: "2026-10-28",
+    reference: 97.5,
+    open: 99,
+    high: null,
+    low: null,
+    last: 99,
+    average: 99,
+    volume: 10,
+  });
 });
 
 test("a dropped connection is subscribed again, each watch started afresh", async () => {

@@ -377,7 +377,7 @@ export const decodeQuotes = (body: Uint8Array): SecurityQuote[] =>
   }));
 
 /** A level of a book as Longbridge numbers it, its price in decimal text. */
-interface BookEntry {
+export interface BookEntry {
   position: number;
   price: string;
   volume: number;
@@ -444,7 +444,7 @@ export function decodeTradeDays(body: Uint8Array) {
   return { trading: texts(fields, 1), halfDays: texts(fields, 2) };
 }
 
-/** A quote's change, in the session `tradeSession` names; it carries no close before it. */
+/** A quote's change, in the session `tradeSession` names: a figure left empty or zero did not change, and it carries no close before it. */
 export interface QuotePush extends Omit<SecurityQuote, "prevClose"> {
   tradeSession: number;
   /** Restates the day as a session ends rather than changing it. */
@@ -468,7 +468,7 @@ export function decodeQuotePush(body: Uint8Array): QuotePush {
   };
 }
 
-/** A book's change, each side whole. */
+/** A book's change: the levels that changed, each by its position. */
 export function decodeDepthPush(body: Uint8Array) {
   const fields = readFields(body);
 
