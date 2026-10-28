@@ -34,6 +34,12 @@ export interface KeepFreshOptions<Key, Answer> {
   id: (key: Key) => string;
   ask: (key: Key) => Promise<Answer>;
   fresh: Freshness<Key>;
+  /**
+   * Serves the answer last kept, however old, when an ask fails, so a source that fails for a
+   * while leaves its last answer; a key never answered still fails.
+   * @default false
+   */
+  keepOnFailure?: boolean;
   /** @default Date.now */
   now?: () => number;
 }
@@ -54,6 +60,7 @@ export function keepFresh<Key, Answer>({
   id,
   ask,
   fresh,
+  keepOnFailure = false,
   now = Date.now,
 }: KeepFreshOptions<Key, Answer>): KeptFresh<Key, Answer> {
   const asking = new Map<string, Promise<Answer>>();
@@ -78,6 +85,12 @@ export function keepFresh<Key, Answer>({
         if (forgets === before) store.write(under, { askedAt: at, answer });
 
         return answer;
+      })
+      .catch((error) => {
+        // An answer kept before a `forget` is gone with it.
+        if (keepOnFailure && held && forgets === before) return held.answer;
+
+        throw error;
       })
       .finally(() => {
         if (asking.get(under) === answer) asking.delete(under);

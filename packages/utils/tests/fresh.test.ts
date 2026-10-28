@@ -44,6 +44,38 @@ test("a failure keeps nothing, so the next read asks again", async () => {
   expect(ask).toHaveBeenCalledTimes(2);
 });
 
+test("kept on failure, a stale answer serves while asking fails, and a key never answered still fails", async () => {
+  const clock = { now: 0 };
+  const ask = vi.fn(async (key: string) => `${key} at ${clock.now}`);
+
+  const read = keepFresh({
+    store: memoryAnswers()<string>("greetings"),
+    id: (key: string) => key,
+    ask,
+    fresh: freshFor(HOUR_MS),
+    keepOnFailure: true,
+    now: () => clock.now,
+  });
+
+  expect(await read("hello")).toBe("hello at 0");
+
+  clock.now = HOUR_MS;
+  ask.mockRejectedValue(new Error("offline"));
+
+  expect(await read("hello")).toBe("hello at 0");
+  // Each read past the answer's freshness asks again, so the source is read once it answers.
+  expect(ask).toHaveBeenCalledTimes(2);
+  await expect(read("bye")).rejects.toThrow("offline");
+
+  read.forget();
+
+  await expect(read("hello")).rejects.toThrow("offline");
+
+  ask.mockImplementation(async (key: string) => `${key} at ${clock.now}`);
+
+  expect(await read("hello")).toBe(`hello at ${HOUR_MS}`);
+});
+
 test("readers that come while an ask is under way share it", async () => {
   const { ask, read } = setup();
 

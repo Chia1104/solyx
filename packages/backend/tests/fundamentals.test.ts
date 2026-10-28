@@ -285,6 +285,26 @@ test("a listing's restrictions are its own among those its market's exchanges li
   expect(lists.getRestrictions).toHaveBeenCalledTimes(2);
 });
 
+test("a list that fails to read again stands as last read, as when the exchange's CDN answers in another format", async () => {
+  const { clock, lists, fundamentals } = setup();
+
+  expect(await fundamentals.restrictions(TSMC)).toEqual([
+    SHORT_SALE,
+    DISPOSITION,
+  ]);
+
+  clock.now += HOUR_MS;
+  lists.getRestrictions.mockRejectedValue(
+    new Error("TWSE: exchangeReport/TWTAWU did not answer a list of rows")
+  );
+
+  expect(await fundamentals.restrictions(TSMC)).toEqual([
+    SHORT_SALE,
+    DISPOSITION,
+  ]);
+  expect(lists.getRestrictions).toHaveBeenCalledTimes(2);
+});
+
 test("a market no source lists has no restrictions", async () => {
   const { lists, fundamentals } = setup();
 

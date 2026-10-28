@@ -86,6 +86,9 @@ export function createFundamentals({
       id: ({ provider, market }) => `${provider.id}:${market}`,
       ask: ({ provider, market }) => ask(provider, market),
       fresh: freshFor(freshMs),
+      // The exchanges' CDN can answer a list in another format, such as CSV, for hours, so a
+      // list that fails to read again stands as last read.
+      keepOnFailure: true,
       now: () => now().getTime(),
     });
 
