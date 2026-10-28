@@ -487,7 +487,9 @@ test("the stream covers each market a source covers, and none while no source do
 test("a Longbridge sign-in or sign-out changes the stream, while a refresh keeps it", async () => {
   const { secrets, sources } = setup();
   const changes = vi.fn();
-  const told = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  const told = (times: number) =>
+    vi.waitFor(() => expect(changes).toHaveBeenCalledTimes(times));
 
   sources.onStreamChange(changes);
 
@@ -495,15 +497,14 @@ test("a Longbridge sign-in or sign-out changes the stream, while a refresh keeps
     LONGBRIDGE_SIGN_IN_SECRET,
     JSON.stringify(LONGBRIDGE_SIGN_IN)
   );
-  await told();
-
-  expect(changes).toHaveBeenCalledTimes(1);
+  await told(1);
 
   await secrets.save(
     LONGBRIDGE_SIGN_IN_SECRET,
     JSON.stringify({ ...LONGBRIDGE_SIGN_IN, accessToken: "hk_access_2" })
   );
-  await told();
+  // A wait too short only lets this pass, never fails it.
+  await new Promise((resolve) => setTimeout(resolve, 50));
 
   expect(changes).toHaveBeenCalledTimes(1);
 
@@ -511,11 +512,9 @@ test("a Longbridge sign-in or sign-out changes the stream, while a refresh keeps
     LONGBRIDGE_SIGN_IN_SECRET,
     JSON.stringify({ ...LONGBRIDGE_SIGN_IN, clientId: "client-2" })
   );
-  await told();
+  await told(2);
   await secrets.delete(LONGBRIDGE_SIGN_IN_SECRET);
-  await told();
-
-  expect(changes).toHaveBeenCalledTimes(3);
+  await told(3);
 });
 
 test("a hand edit of Taiwan's source changes the stream once", async () => {
