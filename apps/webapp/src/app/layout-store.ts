@@ -3,6 +3,9 @@ import * as z from "zod";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { marketSchema } from "@solyx/core/market";
+import type { Market } from "@solyx/core/market";
+
 import { SplitterEdge } from "../components/pane-splitter.tsx";
 
 import { persistOptions } from "./persist.ts";
@@ -63,6 +66,8 @@ interface LayoutState {
   agendaView: AgendaView;
   /** Whether the symbol page shows its quote, book and position beside the chart. */
   tradeRail: boolean;
+  /** The market the symbols pane keeps to; `null` for every market, each under its own heading. */
+  symbolsMarket: Market | null;
 }
 
 interface LayoutActions {
@@ -74,6 +79,7 @@ interface LayoutActions {
   setBookWidth: (width: number) => void;
   setAgendaView: (view: AgendaView) => void;
   toggleTradeRail: () => void;
+  setSymbolsMarket: (market: Market | null) => void;
 }
 
 type LayoutStore = LayoutState & LayoutActions;
@@ -100,6 +106,7 @@ const defaultState: LayoutState = {
   bookWidth: BOOK_WIDTH.default,
   agendaView: AgendaView.Week,
   tradeRail: true,
+  symbolsMarket: null,
 };
 
 // Limits can change between versions, so saved widths are clamped as they load.
@@ -117,6 +124,7 @@ const persistedLayoutSchema = z.object({
   bookWidth: z.number().transform(clampBookWidth).catch(BOOK_WIDTH.default),
   agendaView: z.enum(AgendaView).catch(AgendaView.Week),
   tradeRail: z.boolean().catch(true),
+  symbolsMarket: marketSchema.nullable().catch(null),
 });
 
 export const useLayoutStore = create<LayoutStore>()(
@@ -151,6 +159,7 @@ export const useLayoutStore = create<LayoutStore>()(
       setBookWidth: (width) => set({ bookWidth: clampBookWidth(width) }),
       setAgendaView: (agendaView) => set({ agendaView }),
       toggleTradeRail: () => set((state) => ({ tradeRail: !state.tradeRail })),
+      setSymbolsMarket: (symbolsMarket) => set({ symbolsMarket }),
     }),
     persistOptions<LayoutStore>("workspace-layout", persistedLayoutSchema)
   )

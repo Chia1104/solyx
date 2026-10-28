@@ -42,6 +42,10 @@
     "TW": "台股",
     "US": "美股"
   },
+  "market-filter": {
+    "label": "市場",
+    "every": "全部"
+  },
   "session": {
     "pre": "盤前",
     "regular": "盤中",
@@ -79,6 +83,7 @@
     "shares": "股數",
     "avg-price": "均價",
     "no-positions": "尚無庫存",
+    "no-positions-market": "尚無{{market}}庫存",
     "cash": "現金",
     "cash-unknown": "讀不到",
     "unrealized-gain": "未實現損益",
@@ -132,7 +137,9 @@
   },
   "watchlist": {
     "title": "自選",
+    "market-list": "{{market}}自選",
     "empty": "搜尋代號後，在圖表上方加入自選。",
+    "empty-market": "自選裡還沒有{{market}}。",
     "add": "加入自選",
     "remove": "移出自選",
     "remove-symbol": "將 {{symbol}} 移出自選",
@@ -350,8 +357,6 @@
   "search": {
     "trigger": "搜尋代號或名稱",
     "title": "搜尋商品",
-    "markets": "市場",
-    "every-market": "全部",
     "results": "找到的商品",
     "recent": "最近開啟",
     "hint": "可以用代號或名稱搜尋台股和美股。",

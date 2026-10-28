@@ -1,14 +1,13 @@
 import type { ReactNode } from "react";
 
 import { Link } from "@tanstack/react-router";
-import { useTranslation } from "react-i18next";
 
 import type { SymbolRef } from "@solyx/core/market";
 
 /**
  * A listing in a side list that opens its chart; the open one lies on a sheet of its own. The
  * code, name and price share the first line, and a chart runs the width of the second beside
- * its detail. The market gives way first when the symbols pane is narrow, then the name.
+ * its detail. The name gives way when the symbols pane is narrow.
  */
 export function SymbolRow({
   symbol,
@@ -26,8 +25,6 @@ export function SymbolRow({
   /** A figure at the second line's end, such as the change since the last close. */
   detail?: ReactNode;
 }) {
-  const { t } = useTranslation();
-
   return (
     <Link
       to="/symbol/$market/$symbol"
@@ -41,9 +38,6 @@ export function SymbolRow({
       <span className="flex min-w-0 items-baseline gap-2 text-sm">
         <span className="shrink-0 font-medium">{symbol.symbol}</span>
         {name}
-        <span className="hidden shrink-0 text-xs text-muted @min-[14rem]/symbols:inline">
-          {t(`market.${symbol.market}`)}
-        </span>
         {price ? (
           <span className="ml-auto shrink-0 pl-1 tabular-nums">{price}</span>
         ) : null}
