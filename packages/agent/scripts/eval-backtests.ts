@@ -436,6 +436,7 @@ async function runRequest(request: BacktestRequest): Promise<Run> {
     watchlist: () => [],
     news: { collect: unavailable("News") },
     tradingDays: async () => weekdays,
+    searchListings: async () => ({ matches: [], unread: [] }),
     calendar: async () => ({
       events: [],
       research: [],

@@ -55,6 +55,10 @@ import { createFundamentals } from "./modules/fundamentals/fundamentals.ts";
 import { createInbox } from "./modules/inbox/inbox.ts";
 import { createKernel } from "./modules/kernel/kernel-client.ts";
 import { createMacro } from "./modules/macro/macro.ts";
+import {
+  marketDirectories,
+  searchListings,
+} from "./modules/market/listing-search.ts";
 import { createLongbridgeAccess } from "./modules/market/longbridge-access.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
@@ -507,6 +511,8 @@ export function createServices(config: ConfigFile, host: Host) {
     conversations: openAgentStore(join(userDataDir, "agent.sqlite")),
     diagnostics,
     marketData,
+    searchListings: (input) =>
+      searchListings(input, marketDirectories({ fundamentals, marketData })),
     watchlist,
     news,
     headlines: (symbols, since, limit) => news.headlines(symbols, since, limit),

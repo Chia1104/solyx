@@ -70,7 +70,7 @@ export function createWatchlistTools({
 
         if (!listing) {
           throw new Error(
-            `No market data source lists ${symbolLabel(symbol)}, so it cannot be told from a mistyped code. Check the code and its market.`
+            `No market data source lists ${symbolLabel(symbol)}, so it cannot be told from a mistyped code. Check the code and its market, with search_listings, and for a US listing that the user's Longbridge sign-in works (get_setup).`
           );
         }
 

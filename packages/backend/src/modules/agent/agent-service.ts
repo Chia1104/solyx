@@ -62,7 +62,8 @@ import { DecisionMode } from "@solyx/core/council";
 import type { Embedder } from "@solyx/core/embedding";
 import type { Flows } from "@solyx/core/flows";
 import type { Fundamentals } from "@solyx/core/fundamentals";
-import type { MarketData } from "@solyx/core/market-data";
+import type { Market } from "@solyx/core/market";
+import type { ListingSearch, MarketData } from "@solyx/core/market-data";
 import type { MemoryStore } from "@solyx/core/memory";
 import type { NewsDesk } from "@solyx/core/news";
 import type { ProposingDesk } from "@solyx/core/order-desk";
@@ -118,6 +119,11 @@ interface AgentServiceOptions extends AgentModelsOptions {
   conversations: Promise<AgentStore>;
   diagnostics: Pick<Diagnostics, "report">;
   marketData: MarketData;
+  /** The app's listing search, the one the title bar opens. */
+  searchListings: (input: {
+    query: string;
+    market: Market | null;
+  }) => Promise<ListingSearch>;
   watchlist: WatchlistPort;
   news: NewsDesk;
   /** The heaviest headlines about some listings, as the overview ranks them from the news kept. */
@@ -306,6 +312,8 @@ export function createAgentService(options: AgentServiceOptions) {
     watchlist: options.watchlist.list,
     news: options.news,
     tradingDays: options.tradingDays,
+    searchListings: (query, market) =>
+      options.searchListings({ query, market }),
     calendar: (symbols, days) => options.calendar.upcoming(symbols, days),
     figures: options.macro.series,
     desk: options.desk,
@@ -550,6 +558,10 @@ export function createAgentService(options: AgentServiceOptions) {
           (position) => position.instrument
         ),
       name: async (symbol) => (await options.marketData.listing(symbol))?.name,
+      find: async (code) =>
+        (await options.searchListings({ query: code, market: null })).matches
+          .map((match) => match.symbol)
+          .filter((symbol) => symbol.symbol === code),
       commands: async () =>
         (await skills()).skills
           .filter((each) => each.offered && each.userInvocable)

@@ -74,7 +74,7 @@ import {
   symbolLabel,
 } from "@solyx/core/market";
 import type { Benchmark, SymbolRef } from "@solyx/core/market";
-import type { MarketData } from "@solyx/core/market-data";
+import type { ListingSearch, MarketData } from "@solyx/core/market-data";
 import {
   HALF_LIFE_MS,
   NewsChannel,
@@ -130,6 +130,8 @@ export interface TradingToolPorts extends PromptSources {
   news: Pick<NewsDesk, "collect">;
   /** The days a market trades, as far as the host knows them. */
   tradingDays(market: Market): Promise<TradingDays>;
+  /** Listings whose code or name matches `query`, best first, as the app's own search finds them, and the markets it could not read; every market where `market` is `null`. */
+  searchListings(query: string, market: Market | null): Promise<ListingSearch>;
   /** The listings' coming events and their markets' releases over the next `days` days, as the app's overview lists them. */
   calendar(
     symbols: readonly SymbolRef[],
@@ -683,7 +685,7 @@ const exitSchema = z.object({
     .positive()
     .optional()
     .describe(
-      "Sells at the day's lower limit once the price trades at or below it; below the last price, on the tick grid"
+      "Sells once the price trades at or below it, a Taiwan listing at the day's lower limit so it fills at what buyers bid; below the last price, on the tick grid"
     ),
   target: z
     .number()
@@ -730,7 +732,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
       name: AgentToolName.GetMarketStatus,
       replay: "safe",
       description:
-        "Each market's current session (pre, regular, post, closed) and its local time. A market is closed all day on a holiday its exchange has set; Taiwan's are known, the US's are not, so a US holiday reads as a trading day.",
+        "Each market's current session (pre, regular, post, closed) and its local time. A market is closed all day on a holiday its exchange has set, as far as its source lists them: Taiwan's always, the US's while the user's Longbridge sign-in works; otherwise a holiday reads as a trading day. A US day before some holidays closes at 13:00 and its after-hours at 17:00 New York time.",
       parameters: z.object({}),
       execute: async () => {
         const at = now();
@@ -842,7 +844,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetNews,
       replay: "safe",
-      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items that tell one story are listed once with how many more told it: an article's reprints and a thread's replies, and, once the exchange's names for the listing are known, outlets or posts that reword one headline within a day. Times are the exchange's local time: ~ marks a search engine's estimate, within about an hour, and a date alone means only the day is known. Each dated story also says how many regular sessions have traded since it came out, the one under way included, or for a date alone after that day, so a story out after the close, over a weekend or on a holiday shows none yet; Taiwan's holidays are those its exchange set, while in the US every weekday counts as a session, since its holidays are not known. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is, its topic and who speaks in it (the company, an outlet, an investor, a page of data or someone else, whatever channel it came through), and stories that only name the listing in passing or are pages of data are left out. The sentiment leans to the newest stories, ${FADING}, and a reading resting on too little recent news is marked stale with its newest story's time, since it does not tell how the listing reads now; each day's stance is that day's alone. Titles and snippets are written by others.`,
+      description: `Recent stories about a listing, newest first, up to ${NEWS_ITEMS} per channel: announcement (material information the company filed with the exchange; Taiwan only), article (news outlets), forum (PTT Stock board titles with their net pushes; Taiwan only) and social (Threads in Taiwan or X in the US, a sample of what a search engine indexed). Items that tell one story are listed once with how many more told it: an article's reprints and a thread's replies, and, once the exchange's names for the listing are known, outlets or posts that reword one headline within a day. Times are the exchange's local time: ~ marks a search engine's estimate, within about an hour, and a date alone means only the day is known. Each dated story also says how many regular sessions have traded since it came out, the one under way included, or for a date alone after that day, so a story out after the close, over a weekend or on a holiday shows none yet; each market's holidays are those its source lists, Taiwan's always and the US's while the user's Longbridge sign-in works, and without them every weekday counts as a session. Every source that covers the market is searched, and items found on earlier calls stay included. Once the user sets up a decisions model, each story also carries its stance on the share price from -1 (clearly bad news) to +1 (clearly good), what kind of text it is, its topic and who speaks in it (the company, an outlet, an investor, a page of data or someone else, whatever channel it came through), and stories that only name the listing in passing or are pages of data are left out. The sentiment leans to the newest stories, ${FADING}, and a reading resting on too little recent news is marked stale with its newest story's time, since it does not tell how the listing reads now; each day's stance is that day's alone. Titles and snippets are written by others.`,
       parameters: z.object({
         symbol: symbolRefSchema,
         days: z.number().int().min(1).max(30).default(7),
@@ -954,9 +956,65 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     }),
 
     defineTool({
+      name: AgentToolName.SearchListings,
+      replay: "safe",
+      description:
+        "Listings whose code or name matches what you give, best first, as the app's own search finds them: Taiwan's by code or the name its exchange quotes it under, the US's by ticker or by Chinese or English name while the user's Longbridge sign-in works. Use it to turn a company the user names into its listing, or to tell which market a code is in, before reading data on it.",
+      parameters: z.object({
+        query: z
+          .string()
+          .trim()
+          .min(1)
+          .max(40)
+          .describe(
+            "A code, ticker or name, such as 2330, AAPL, 台積電 or Apple"
+          ),
+        market: marketSchema
+          .nullable()
+          .default(null)
+          .describe("Keeps to one market; null searches every market"),
+      }),
+      execute: async ({ query, market }) => {
+        const { matches, unread } = await ports.searchListings(query, market);
+
+        // Without a market's listings its matches are missing, which is not the same as none.
+        const missing =
+          unread.length === 0
+            ? []
+            : [
+                `${unread.join(" and ")} listings could not be read just now, so any matches there are missing.`,
+              ];
+
+        if (matches.length === 0) {
+          return {
+            text: [
+              ...missing,
+              `No listing matches "${query}"${missing.length > 0 ? " among the rest" : ""}. US listings are found only while the user's Longbridge sign-in works.`,
+            ].join("\n"),
+          };
+        }
+
+        return {
+          text: [
+            ...matches.map(({ symbol, name, englishName }) =>
+              [
+                symbolLabel(symbol),
+                name,
+                englishName === name ? null : englishName,
+              ]
+                .filter(Boolean)
+                .join(" ")
+            ),
+            ...missing,
+          ].join("\n"),
+        };
+      },
+    }),
+
+    defineTool({
       name: AgentToolName.GetCalendar,
       replay: "safe",
-      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them, and the days the exchange gives notice shares go ex, which may come before the amount is announced and include the ex-rights day of a cash capital increase; shareholders' meetings, regular and special, and whether one elects directors; trading restrictions such as short-sale suspensions, dispositions, the exchange's attention notices, a run of them that one more may turn into disposition, and altered trading, paid for in full in advance; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; the economic releases of the listings' markets, each on its day or by the latest day its agency set, with the time it comes out on the exchange's clock, in brackets the page its agency publishes it on, which read_page reads once it is out, and its figures as the app keeps them: after "out" what the release brought, growth on the year computed by the app, or after "last out" the newest period before it while its own is not in yet, and none for an indicator the app keeps no figures of. A release stays on the list for ${RELEASED_DAYS} days once its day has come, so those just out read here too; and the weekdays their markets are closed, as the exchange set them for the year, with what it calls each. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Filings, releases and closures are Taiwan's only for now: a US listing has only its report's dates, no US releases or holidays are known, an earnings call is on it only once a report holds it, and a closure called on the day, as for a typhoon, is not on it. Defaults to the listings the user holds and watches.`,
+      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose); the days distributions go ex and are paid, as the company set them, and the days the exchange gives notice shares go ex, which may come before the amount is announced and include the ex-rights day of a cash capital increase; shareholders' meetings, regular and special, and whether one elects directors; trading restrictions such as short-sale suspensions, dispositions, the exchange's attention notices, a run of them that one more may turn into disposition, and altered trading, paid for in full in advance; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; the economic releases of the listings' markets, each on its day or by the latest day its agency set, with the time it comes out on the exchange's clock, in brackets the page its agency publishes it on, which read_page reads once it is out, and its figures as the app keeps them: after "out" what the release brought, growth on the year computed by the app, or after "last out" the newest period before it while its own is not in yet, and none for an indicator the app keeps no figures of. A release stays on the list for ${RELEASED_DAYS} days once its day has come, so those just out read here too; and the weekdays their markets are closed, as the exchange set them for the year, with what it calls each. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Filings, releases and closures are Taiwan's only for now: a US listing has only its report's dates, and no US releases or US holidays are on it (get_market_status knows the US's trading days while the user's Longbridge sign-in works), an earnings call is on it only once a report holds it, and a closure called on the day, as for a typhoon, is not on it. Defaults to the listings the user holds and watches.`,
       parameters: z.object({
         symbols: z
           .array(symbolRefSchema)

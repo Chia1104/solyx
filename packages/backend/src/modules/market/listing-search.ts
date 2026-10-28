@@ -1,7 +1,13 @@
-import type { ListingMatch, ListingSearch } from "@solyx/api/market";
+import type { Fundamentals } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import type { Listing } from "@solyx/core/market-data";
+import type {
+  Listing,
+  ListingMatch,
+  ListingSearch,
+} from "@solyx/core/market-data";
+
+import type { MarketDataModule } from "./market-data.ts";
 
 /** The most listings a search returns. */
 const MAX_MATCHES = 20;
@@ -21,6 +27,26 @@ export interface ListingSearchSources {
   directory: (market: Market) => Promise<ListingEntry[]>;
   /** One listing by its code, for a US ticker its market's directory does not hold. */
   listing: (symbol: SymbolRef) => Promise<Listing | null>;
+}
+
+/** Each market's listings as the app keeps them: Taiwan's from its exchanges' names, the US's from its source's list. */
+export function marketDirectories({
+  fundamentals,
+  marketData,
+}: {
+  fundamentals: Pick<Fundamentals, "listingNames">;
+  marketData: Pick<MarketDataModule, "listingDirectory" | "listing">;
+}): ListingSearchSources {
+  return {
+    directory: async (market) =>
+      market === Market.TW
+        ? (await fundamentals.listingNames(market)).map((listed) => ({
+            ...listed,
+            englishName: null,
+          }))
+        : marketData.listingDirectory(market),
+    listing: (symbol) => marketData.listing(symbol),
+  };
 }
 
 interface Ranked {

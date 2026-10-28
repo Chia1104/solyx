@@ -104,6 +104,8 @@ export interface MessageContextSources {
   holdings(): Promise<readonly SymbolRef[]>;
   /** The exchange's name for a listing, when its source knows it. */
   name(symbol: SymbolRef): Promise<string | undefined>;
+  /** Listings in any market whose code is `code`, as the app's search finds them, for one the rest miss. */
+  find(code: string): Promise<readonly SymbolRef[]>;
   /** The skills the user may ask for with `/name`. */
   commands(): Promise<readonly string[]>;
 }
@@ -131,10 +133,17 @@ export async function messageContext(
     ? await sources.holdings().catch(() => [])
     : [];
 
-  const symbols = uniqBy(
-    codes.flatMap((code) => named([...near, ...held], code) ?? []),
-    symbolKey
+  const known = [...near, ...held];
+
+  const found = await Promise.all(
+    codes.map(async (code) => {
+      const listing = named(known, code);
+
+      return listing ? [listing] : await sources.find(code).catch(() => []);
+    })
   );
+
+  const symbols = uniqBy(found.flat(), symbolKey);
 
   const focusKey = sources.focus && symbolKey(sources.focus.symbol);
 

@@ -30,6 +30,9 @@ function sources(change: Partial<MessageContextSources> = {}) {
       symbol.symbol === "2330" ? "台積電" : undefined
     ),
     commands: vi.fn(async () => ["deep-analysis"]),
+    find: vi.fn(async (code: string) =>
+      code === "AAPL" ? [listing(Market.US, "AAPL")] : []
+    ),
     ...change,
   } satisfies MessageContextSources;
 }
@@ -49,6 +52,19 @@ test("codes resolve against the screen and the watchlist without reading the acc
   });
   expect(from.holdings).not.toHaveBeenCalled();
   expect(from.name).not.toHaveBeenCalledWith(listing(Market.TW, "2317"));
+});
+
+test("a code the screen, the watchlist and the account miss is found by the app's search, in any market", async () => {
+  const from = sources();
+
+  expect(await messageContext("看 @aapl 跟 @2330", from)).toEqual({
+    mentions: [
+      { symbol: listing(Market.US, "AAPL") },
+      { symbol: listing(Market.TW, "2330"), name: "台積電" },
+    ],
+    skill: undefined,
+  });
+  expect(from.find).toHaveBeenCalledExactlyOnceWith("AAPL");
 });
 
 test("a code only the account holds is read from it, and one nobody knows stays text", async () => {
