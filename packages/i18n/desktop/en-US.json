@@ -354,9 +354,11 @@
     "every-market": "All",
     "results": "Listings found",
     "recent": "Opened recently",
-    "hint": "Type a symbol or a name.",
-    "none": "No listing matches.",
-    "us-signed-out": "US listings show once you sign in to Longbridge in Settings."
+    "hint": "Search Taiwan and US listings by code or name.",
+    "none": "No listing matches “{{query}}”.",
+    "us-signed-out": "Sign in to Longbridge to find US listings.",
+    "unread": "{{markets}} listings can't be read right now. Try again shortly.",
+    "open-settings": "Open settings"
   },
   "depth": {
     "title": "Quote",

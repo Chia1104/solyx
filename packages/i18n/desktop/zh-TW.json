@@ -354,9 +354,11 @@
     "every-market": "全部",
     "results": "找到的商品",
     "recent": "最近開啟",
-    "hint": "輸入代號或名稱。",
-    "none": "沒有符合的商品。",
-    "us-signed-out": "在設定登入長橋後，才搜尋得到美股。"
+    "hint": "可以用代號或名稱搜尋台股和美股。",
+    "none": "找不到符合「{{query}}」的商品。",
+    "us-signed-out": "登入長橋後才找得到美股。",
+    "unread": "{{markets}}的商品清單暫時讀不到，請稍後再試。",
+    "open-settings": "前往設定"
   },
   "depth": {
     "title": "報價",

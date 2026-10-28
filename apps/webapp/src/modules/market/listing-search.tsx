@@ -11,14 +11,16 @@ import { formatForDisplay } from "@tanstack/react-hotkeys";
 import type { Hotkey } from "@tanstack/react-hotkeys";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Autocomplete, Button } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
+import { SettingsSection } from "@solyx/api/settings-section";
 import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { isEnumValue } from "@solyx/utils/is";
 
+import { inWindow } from "../../app/device.ts";
 import { orpc } from "../../app/rpc.ts";
 import { Icon } from "../../components/icon.tsx";
 import { useMarketSources } from "../settings/settings-query.ts";
@@ -57,9 +59,8 @@ export function ListingSearchButton({ hotkey }: { hotkey: Hotkey }) {
 }
 
 /**
- * Finds a listing by its code or name, in every market or the one picked, and opens its page. A
- * US listing is found by its full ticker; before anything is typed it offers the listings last
- * opened from it.
+ * Finds a listing by its code or name, in every market or the one picked, and opens its page;
+ * before anything is typed it offers the listings last opened from it.
  */
 export function ListingSearchDialog() {
   const { t } = useTranslation();
@@ -103,12 +104,14 @@ function useFound(typed: string, empty: boolean) {
             ? [{ symbol, name: recentNames[index] }]
             : []
         )
-      : (search.data ?? []).map((match) => ({
+      : (search.data?.matches ?? []).map((match) => ({
           symbol: match.symbol,
           name: listingName(match, i18n.language),
         }));
 
-  return { found, search };
+  const unread = typed === "" ? [] : (search.data?.unread ?? []);
+
+  return { found, unread, search };
 }
 
 function MarketFilter() {
@@ -195,22 +198,39 @@ function useTyped() {
   };
 }
 
+/** Says which markets' listings could not be read, as "台股" or "台股和美股"; `null` for none. */
+function useUnreadText(unread: readonly Market[]): string | null {
+  const { t, i18n } = useTranslation();
+
+  if (unread.length === 0) return null;
+
+  const markets = new Intl.ListFormat(i18n.language, {
+    type: "conjunction",
+  }).format(unread.map((market) => t(`market.${market}`)));
+
+  return t("search.unread", { markets });
+}
+
 /** Why nothing is listed; nothing is said while a search is due, since its answer replaces the last one's. */
 function Nothing({
   query,
   waiting,
   error,
+  unread,
 }: {
   query: string;
   waiting: boolean;
   error: Error | null;
+  unread: readonly Market[];
 }) {
   const { t } = useTranslation();
+  const unreadText = useUnreadText(unread);
 
   const said =
     query === ""
       ? t("search.hint")
-      : (error?.message ?? (waiting ? null : t("search.none")));
+      : (error?.message ??
+        (waiting ? null : (unreadText ?? t("search.none", { query }))));
 
   return <p className="py-6 text-center text-sm text-muted">{said}</p>;
 }
@@ -220,12 +240,30 @@ function UsSignedOut() {
   const { t } = useTranslation();
   const sources = useMarketSources();
   const market = useListingSearchStore((state) => state.market);
+  const close = useListingSearchStore((state) => state.close);
 
   if (market === Market.TW || sources.data?.[Market.US].ready !== false) {
     return null;
   }
 
-  return <p className="text-xs text-muted">{t("search.us-signed-out")}</p>;
+  return (
+    <p className="text-xs text-muted">
+      {t("search.us-signed-out")}
+      {/* A paired browser has no settings to open. */}
+      {inWindow ? (
+        <>
+          {" "}
+          <Link
+            to="/settings"
+            search={{ section: SettingsSection.MarketData }}
+            className="text-accent underline underline-offset-2"
+            onClick={close}>
+            {t("search.open-settings")}
+          </Link>
+        </>
+      ) : null}
+    </p>
+  );
 }
 
 /** What is found, or why nothing is, and where US listings stand. */
@@ -239,7 +277,8 @@ function Results({
   onOpen: (symbol: SymbolRef) => void;
 }) {
   const { t } = useTranslation();
-  const { found, search } = useFound(typed, query === "");
+  const { found, unread, search } = useFound(typed, query === "");
+  const unreadText = useUnreadText(unread);
 
   return (
     <>
@@ -247,12 +286,18 @@ function Results({
         <p className="text-xs text-muted">{t("search.recent")}</p>
       ) : null}
       {found.length > 0 ? (
-        <FoundList found={found} onOpen={onOpen} />
+        <>
+          <FoundList found={found} onOpen={onOpen} />
+          {unreadText ? (
+            <p className="text-xs text-muted">{unreadText}</p>
+          ) : null}
+        </>
       ) : (
         <Nothing
           query={query}
           waiting={typed !== query || search.isFetching}
           error={search.error}
+          unread={unread}
         />
       )}
       <UsSignedOut />

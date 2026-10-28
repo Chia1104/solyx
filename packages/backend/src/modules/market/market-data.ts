@@ -16,12 +16,13 @@ import type { SessionQuote } from "@solyx/core/quote";
 import { TW_SECTOR_INDICES } from "@solyx/core/sectors";
 import type { SectorQuote } from "@solyx/core/sectors";
 import { Session, getSession } from "@solyx/core/session";
-import { MINUTE_MS } from "@solyx/utils/date";
+import { DAY_MS, MINUTE_MS } from "@solyx/utils/date";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
 
 import type { Diagnostics } from "../telemetry/diagnostics.ts";
 
+import type { ListingEntry } from "./listing-search.ts";
 import { createLiveCandles } from "./live-candles.ts";
 import { createLiveDepth } from "./live-depth.ts";
 import { createLiveStream } from "./live-stream.ts";
@@ -96,6 +97,21 @@ export function createMarketData({
         }))
       ),
     fresh: freshFor(SECTORS_FRESH_MS),
+    now: () => now().getTime(),
+  });
+
+  // Longbridge adds and drops listings as they list and delist, which a day's list keeps up with.
+  const usListings = keepFresh<"longbridge", ListingEntry[]>({
+    store: answers("market:us-listings"),
+    id: (source) => source,
+    async ask() {
+      const listed = await sources.usListings();
+
+      if (!listed) throw new Error("Sign in to Longbridge for US listings");
+
+      return listed;
+    },
+    fresh: freshFor(DAY_MS),
     now: () => now().getTime(),
   });
 
@@ -195,6 +211,16 @@ export function createMarketData({
     /** The id of the source covering `market`; `null` while none does. */
     sourceId: async (market: Market) =>
       (await sources.provider(market))?.id ?? null,
+
+    /**
+     * Every listing of `market` its source lists, with its names, for search; none where the
+     * source lists none, as Taiwan's do, or while it is signed out.
+     */
+    async listingDirectory(market: Market): Promise<ListingEntry[]> {
+      if (market !== Market.US || !(await sources.provider(market))) return [];
+
+      return usListings("longbridge");
+    },
 
     /** Kept for the session once found, since news groups a listing's stories by its names on every read. */
     async listing(symbol: SymbolRef): Promise<Listing | null> {

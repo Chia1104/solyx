@@ -22,7 +22,7 @@ import type { Session } from "@solyx/core/session";
 
 import type {
   CandleSet,
-  ListingMatch,
+  ListingSearch,
   ListingRotationView,
 } from "../market.ts";
 
@@ -43,7 +43,8 @@ export const marketContract = {
     .output(type<Listing | null>()),
   /**
    * Listings whose code or name matches `query`, best first, in `market` or in every market where
-   * it is `null`. A US listing is found by its full ticker, once its source is signed in.
+   * it is `null`, with the markets whose listings could not be read. US listings are found once
+   * their source is signed in; signed out, the US is not counted unread.
    */
   search: oc
     .meta(forDevices(true))
@@ -53,7 +54,7 @@ export const marketContract = {
         market: marketSchema.nullable(),
       })
     )
-    .output(type<ListingMatch[]>()),
+    .output(type<ListingSearch>()),
   /**
    * Bars oldest first: the interval's lookback window, or with `before` the page of history
    * before the bar opening then, which is empty once the source has nothing older.

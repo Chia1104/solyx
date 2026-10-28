@@ -1,3 +1,4 @@
+import { Market } from "@solyx/core/market";
 import { sessionBand } from "@solyx/core/risk";
 
 import { contractOS } from "../../rpc/context.ts";
@@ -16,7 +17,14 @@ export const marketRouter = market.router({
   ),
   search: market.search.handler(({ context, input }) =>
     searchListings(input, {
-      names: (market) => context.fundamentals.listingNames(market),
+      // Taiwan's names come from its exchanges' lists, the US's from its source's.
+      directory: async (market) =>
+        market === Market.TW
+          ? (await context.fundamentals.listingNames(market)).map((listed) => ({
+              ...listed,
+              englishName: null,
+            }))
+          : context.marketData.listingDirectory(market),
       listing: (symbol) => context.marketData.listing(symbol),
     })
   ),

@@ -14,7 +14,7 @@ import type {
 } from "@solyx/core/market-data";
 import { SectorGroup, TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
 import { weekdays } from "@solyx/core/session";
-import { MINUTE_MS } from "@solyx/utils/date";
+import { DAY_MS, MINUTE_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
 import type { MarketDataSources } from "../src/modules/market/market-data-sources.ts";
@@ -70,6 +70,9 @@ function setup() {
     status: vi.fn<MarketDataSources["status"]>(),
     signInFubon: vi.fn<MarketDataSources["signInFubon"]>(),
     longbridgeCalendar: async () => undefined,
+    usListings: vi.fn<MarketDataSources["usListings"]>(async () => [
+      { symbol: "AAPL", name: "蘋果", englishName: "Apple Inc." },
+    ]),
     signInLongbridge: vi.fn<MarketDataSources["signInLongbridge"]>(),
     cancelLongbridgeSignIn:
       vi.fn<MarketDataSources["cancelLongbridgeSignIn"]>(),
@@ -108,6 +111,7 @@ function setup() {
   return {
     marketData,
     provider,
+    sources,
     streams,
     onSourcesChanged,
     changeStream,
@@ -201,6 +205,40 @@ test("bars from a day on reach back to it where it lies before the lookback, and
     ],
     [{ symbol: TSMC, interval: Interval.OneDay, ...lookback }],
   ]);
+});
+
+test("the US directory is read once a day while US data is signed in, and not at all while signed out", async () => {
+  const { marketData, sources, clock } = setup();
+
+  expect(await marketData.listingDirectory(Market.US)).toEqual([]);
+  expect(sources.usListings).not.toHaveBeenCalled();
+
+  const us: MarketDataProvider = {
+    id: "longbridge",
+    markets: [Market.US],
+    getCandles: async () => [],
+    getListing: async () => null,
+    getQuote: async () => null,
+    getDepth: async () => null,
+  };
+
+  sources.provider = async (market) => (market === Market.US ? us : undefined);
+
+  const listed = [{ symbol: "AAPL", name: "蘋果", englishName: "Apple Inc." }];
+
+  expect(await marketData.listingDirectory(Market.US)).toEqual(listed);
+
+  clock.now = new Date(NOW.getTime() + DAY_MS - 1);
+  await marketData.listingDirectory(Market.US);
+
+  expect(sources.usListings).toHaveBeenCalledOnce();
+
+  clock.now = new Date(NOW.getTime() + DAY_MS);
+  await marketData.listingDirectory(Market.US);
+
+  expect(sources.usListings).toHaveBeenCalledTimes(2);
+  // Taiwan's names come from its exchanges' lists instead.
+  expect(await marketData.listingDirectory(Market.TW)).toEqual([]);
 });
 
 test("sectors quote each sector index once", async () => {

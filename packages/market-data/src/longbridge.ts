@@ -97,6 +97,86 @@ const envelopeSchema = z.object({
   data: z.object({ otp: z.string() }).nullish(),
 });
 
+const securityListSchema = z.object({
+  code: z.number(),
+  message: z.string(),
+  data: z
+    .object({
+      list: z.array(
+        z.object({
+          symbol: z.string(),
+          name_hk: z.string().nullish(),
+          name_en: z.string().nullish(),
+        })
+      ),
+    })
+    .nullish(),
+});
+
+/** A US listing as Longbridge's list names it. */
+export interface LongbridgeSecurity {
+  /** The exchange's ticker, as a `SymbolRef` writes it. */
+  symbol: string;
+  /** In traditional Chinese, or English where Longbridge gives no Chinese name. */
+  name: string;
+  englishName: string | null;
+}
+
+const US_SUFFIX = ".US";
+
+/**
+ * Every US listing Longbridge trades overnight, the US's exchange-listed stocks and ETFs, with
+ * their names. It is the one list Longbridge documents for US listings.
+ */
+export async function readLongbridgeSecurities(
+  accessToken: string,
+  { fetch }: { fetch?: typeof globalThis.fetch } = {}
+): Promise<LongbridgeSecurity[]> {
+  const response = await ky.get(`${API_URL}/v1/quote/get_security_list`, {
+    searchParams: { market: Market.US, category: "Overnight" },
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      "x-dc-region": longbridgeDataCenter(accessToken),
+    },
+    fetch,
+    retry: { maxRetryAfter: MAX_RETRY_AFTER_MS },
+    throwHttpErrors: false,
+  });
+
+  const answer = securityListSchema.safeParse(
+    await response.json().catch(() => null)
+  );
+
+  if (!answer.success) {
+    throw new LongbridgeError(
+      `Longbridge answered its list of US listings with HTTP ${response.status}`
+    );
+  }
+
+  const { code, message, data } = answer.data;
+
+  if (code !== 0 || !data) {
+    throw new LongbridgeError(
+      `Longbridge refused its list of US listings: ${message}`,
+      code
+    );
+  }
+
+  return data.list.flatMap(({ symbol, name_hk, name_en }) => {
+    const name = name_hk || name_en;
+
+    return symbol.endsWith(US_SUFFIX) && name
+      ? [
+          {
+            symbol: symbol.slice(0, -US_SUFFIX.length),
+            name,
+            englishName: name_en || null,
+          },
+        ]
+      : [];
+  });
+}
+
 /** The WebSocket surface the client uses, so tests can drive it without a server. */
 export interface LongbridgeWebSocket {
   send(data: Uint8Array): void;
