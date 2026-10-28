@@ -22,6 +22,15 @@ import { directionOf } from "./quote-figures.tsx";
 const BOOK_LEVELS = 5;
 
 /**
+ * How many rows a side of the ladder shows: Taiwan's exchanges publish five prices a side, while
+ * a US book holds as many as the user's Longbridge quotes give, one on its free quotes.
+ */
+const bookRows = (market: Market, depth: Depth) =>
+  market === Market.TW
+    ? BOOK_LEVELS
+    : Math.min(BOOK_LEVELS, Math.max(1, depth.asks.length, depth.bids.length));
+
+/**
  * The listing's session so far and its best bids and asks, as `useDepth` follows them; a price
  * in the book is handed to `onPick`. The last price heads the page instead.
  */
@@ -212,8 +221,9 @@ function Figure({
 }
 
 /**
- * The best five asks above the best five bids, each side's sizes drawn against the largest in the
- * colour its level's price takes against the reference.
+ * The best asks above the best bids, five a side or as many as the book holds, each side's sizes
+ * drawn against the largest in the colour its level's price takes against the reference. A book
+ * of one price a side is the best bid and ask, which need no totals.
  */
 function DepthLadder({
   symbol,
@@ -228,8 +238,9 @@ function DepthLadder({
   const format = numberFormats(i18n.language);
   const direction = useDirectionColors(symbol.market);
 
-  const asks = padded(depth.asks).toReversed();
-  const bids = padded(depth.bids);
+  const rows = bookRows(symbol.market, depth);
+  const asks = padded(depth.asks, rows).toReversed();
+  const bids = padded(depth.bids, rows);
 
   const largest = Math.max(
     1,
@@ -297,7 +308,11 @@ function DepthLadder({
   };
 
   return (
-    <section aria-label={t("depth.book")} className="flex flex-col gap-1.5">
+    <section
+      aria-label={
+        rows === 1 ? t("depth.best") : t(`depth.book.${symbol.market}`)
+      }
+      className="flex flex-col gap-1.5">
       <table className="w-full text-xs tabular-nums">
         <thead className="text-muted">
           <tr>
@@ -311,16 +326,25 @@ function DepthLadder({
           {bids.map((level, index) => row(level, "bid", index))}
         </tbody>
       </table>
-      <p className="flex justify-between text-xs text-muted tabular-nums">
-        <span>{t("depth.bids-total", { total: total(depth.bids) })}</span>
-        <span>{t(`depth.unit.${symbol.market}`)}</span>
-        <span>{t("depth.asks-total", { total: total(depth.asks) })}</span>
-      </p>
+      {rows === 1 ? (
+        <p className="text-center text-xs text-muted">
+          {t(`depth.unit.${symbol.market}`)}
+        </p>
+      ) : (
+        <p className="flex justify-between text-xs text-muted tabular-nums">
+          <span>{t("depth.bids-total", { total: total(depth.bids) })}</span>
+          <span>{t(`depth.unit.${symbol.market}`)}</span>
+          <span>{t("depth.asks-total", { total: total(depth.asks) })}</span>
+        </p>
+      )}
     </section>
   );
 }
 
-/** Every side as five rows, so the ladder keeps its height as levels come and go. */
-function padded(levels: DepthLevel[]): (DepthLevel | undefined)[] {
-  return Array.from({ length: BOOK_LEVELS }, (_, index) => levels[index]);
+/** A side as `rows` rows, empty where the book holds fewer prices. */
+function padded(
+  levels: DepthLevel[],
+  rows: number
+): (DepthLevel | undefined)[] {
+  return Array.from({ length: rows }, (_, index) => levels[index]);
 }

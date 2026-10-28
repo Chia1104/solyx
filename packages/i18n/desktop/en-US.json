@@ -393,7 +393,11 @@
   },
   "depth": {
     "title": "Quote",
-    "book": "Order book",
+    "book": {
+      "TW": "Order book",
+      "US": "Order book"
+    },
+    "best": "Best bid and ask",
     "none": "The market data source has no quote or order book for this listing.",
     "trial": "Trial match",
     "open": "Open",

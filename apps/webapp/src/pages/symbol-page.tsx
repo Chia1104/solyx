@@ -220,12 +220,14 @@ export function SymbolPage() {
               <ToggleButton
                 isIconOnly
                 id={ChartTool.Book}
-                aria-label={t("depth.book")}
+                aria-label={t(`depth.book.${symbol.market}`)}
                 aria-controls={BOOK_RAIL_ID}>
                 <ToggleButtonGroup.Separator />
                 <Icon icon={BarChartHorizontalIcon} />
               </ToggleButton>
-              <Tooltip.Content>{t("depth.book")}</Tooltip.Content>
+              <Tooltip.Content>
+                {t(`depth.book.${symbol.market}`)}
+              </Tooltip.Content>
             </Tooltip>
           </ToggleButtonGroup>
         </div>
@@ -273,7 +275,7 @@ export function SymbolPage() {
             <aside
               ref={book}
               id={BOOK_RAIL_ID}
-              aria-label={t("depth.book")}
+              aria-label={t(`depth.book.${symbol.market}`)}
               className="relative shrink-0 pl-2"
               style={{ width: bookWidth }}>
               <PaneSplitter
