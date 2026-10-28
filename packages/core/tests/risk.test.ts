@@ -136,11 +136,10 @@ describe("a market order is sized at the session's limit-up", () => {
 
 describe("the band of the session an order goes to", () => {
   // The limits set after Thursday 2026-10-08, with Friday a holiday.
-  const trades = listedTradingDays("2026-10-01", [
-    "2026-10-08",
-    "2026-10-12",
-    "2026-10-13",
-  ]);
+  const trades = listedTradingDays("2026-10-01", {
+    trading: ["2026-10-08", "2026-10-12", "2026-10-13"],
+    earlyCloses: [],
+  });
 
   const band = { low: 882, high: 1070 };
   const limits = { after: "2026-10-08", band };

@@ -6,6 +6,7 @@ import {
   getSession,
   listedTradingDays,
   nextTradingDay,
+  regularHours,
   sessionDayAt,
   sessionsBetween,
   weekdays,
@@ -26,7 +27,11 @@ describe("TW sessions (Asia/Taipei)", () => {
 
 test("a market is closed all day on a day its exchange does not trade", () => {
   // Friday 2026-10-09 is a holiday in Taipei.
-  const trades = listedTradingDays("2026-10-01", ["2026-10-08", "2026-10-12"]);
+  const trades = listedTradingDays("2026-10-01", {
+    trading: ["2026-10-08", "2026-10-12"],
+    earlyCloses: [],
+  });
+
   const midSession = (date: string) => new Date(`${date}T10:00:00+08:00`);
 
   expect(getSession(Market.TW, midSession("2026-10-08"), trades)).toBe(
@@ -49,6 +54,46 @@ describe("US sessions follow New York daylight saving", () => {
     ["2026-12-02T01:00:00Z", Session.Closed],
   ])("%s is %s", (iso, session) => {
     expect(getSession(Market.US, new Date(iso))).toBe(session);
+  });
+});
+
+describe("a US day that closes early", () => {
+  // Thursday 2026-11-26 is Thanksgiving, and Friday 2026-11-27 closes at 13:00 in New York.
+  const trades = listedTradingDays("2026-11-02", {
+    trading: ["2026-11-25", "2026-11-27", "2026-11-30"],
+    earlyCloses: ["2026-11-27"],
+  });
+
+  test.each([
+    ["2026-11-27T14:29:00Z", Session.Pre],
+    ["2026-11-27T17:59:00Z", Session.Regular],
+    ["2026-11-27T18:00:00Z", Session.Post],
+    ["2026-11-27T21:59:00Z", Session.Post],
+    ["2026-11-27T22:00:00Z", Session.Closed],
+    // A full day's regular session runs to 16:00.
+    ["2026-11-25T20:59:00Z", Session.Regular],
+  ])("%s is %s", (iso, session) => {
+    expect(getSession(Market.US, new Date(iso), trades)).toBe(session);
+  });
+
+  test("ends its regular session at 13:00", () => {
+    expect(regularHours(Market.US, "2026-11-27", trades)).toEqual({
+      open: Date.parse("2026-11-27T14:30:00Z") / 1000,
+      close: Date.parse("2026-11-27T18:00:00Z") / 1000,
+    });
+  });
+
+  test("hands its orders to the next session once it closes", () => {
+    expect(
+      sessionDayAt(Market.US, new Date("2026-11-27T18:30:00Z"), trades)
+    ).toBe("2026-11-30");
+  });
+
+  test("closes early only where the exchange set it", () => {
+    expect(trades.closesEarly("2026-11-27")).toBe(true);
+    expect(trades.closesEarly("2026-11-25")).toBe(false);
+    // Past the listed span no day is known to close early.
+    expect(trades.closesEarly("2026-12-24")).toBe(false);
   });
 });
 
@@ -75,14 +120,17 @@ describe("sessions between two times count each one traded, the one under way in
 
 describe("an exchange's listed days", () => {
   // Monday 2026-09-28 is a holiday; the exchange has set its days through Friday 2026-10-02.
-  const trades = listedTradingDays("2026-09-24", [
-    "2026-09-24",
-    "2026-09-25",
-    "2026-09-29",
-    "2026-09-30",
-    "2026-10-01",
-    "2026-10-02",
-  ]);
+  const trades = listedTradingDays("2026-09-24", {
+    trading: [
+      "2026-09-24",
+      "2026-09-25",
+      "2026-09-29",
+      "2026-09-30",
+      "2026-10-01",
+      "2026-10-02",
+    ],
+    earlyCloses: [],
+  });
 
   test.each([
     ["2026-09-25", true],
@@ -109,17 +157,20 @@ describe("an exchange's listed days", () => {
   });
 
   test("none listed leaves every weekday trading", () => {
-    expect(listedTradingDays("2026-09-24", [])("2026-09-28")).toBe(true);
+    expect(
+      listedTradingDays("2026-09-24", { trading: [], earlyCloses: [] })(
+        "2026-09-28"
+      )
+    ).toBe(true);
   });
 });
 
 describe("the session an order goes to", () => {
   // Friday 2026-10-09 is a holiday in Taipei.
-  const trades = listedTradingDays("2026-10-01", [
-    "2026-10-07",
-    "2026-10-08",
-    "2026-10-12",
-  ]);
+  const trades = listedTradingDays("2026-10-01", {
+    trading: ["2026-10-07", "2026-10-08", "2026-10-12"],
+    earlyCloses: [],
+  });
 
   test.each([
     // Before the close it is the session of the day.

@@ -441,7 +441,7 @@ export function weekUnderWay(
 
   if (
     trades(today) &&
-    at.getTime() / 1000 < regularHours(market, today).close
+    at.getTime() / 1000 < regularHours(market, today, trades).close
   ) {
     return week;
   }

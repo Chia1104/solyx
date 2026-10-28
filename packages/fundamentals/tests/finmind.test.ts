@@ -428,10 +428,10 @@ test("reads the days Taiwan's exchange trades from a day on, for every listing a
     },
   });
 
-  expect(await finmind.tradingDays(Market.TW, "2026-09-25")).toEqual([
-    "2026-09-25",
-    "2026-09-29",
-  ]);
+  expect(await finmind.tradingDays(Market.TW, "2026-09-25")).toEqual({
+    trading: ["2026-09-25", "2026-09-29"],
+    earlyCloses: [],
+  });
   expect(Object.fromEntries(new URL(sent[0]).searchParams)).toEqual({
     dataset: "TaiwanStockTradingDate",
     start_date: "2026-09-25",
@@ -445,7 +445,10 @@ test("outside Taiwan there is nothing to read, and it costs no request", async (
   expect(await finmind.getStatements(apple, "2025-01-01")).toEqual([]);
   expect(await finmind.getMonthlyRevenue(apple, "2025-01")).toEqual([]);
   expect(await finmind.getDividends(apple, "2025-01-01")).toEqual([]);
-  expect(await finmind.tradingDays(Market.US, "2025-01-01")).toEqual([]);
+  expect(await finmind.tradingDays(Market.US, "2025-01-01")).toEqual({
+    trading: [],
+    earlyCloses: [],
+  });
   expect(await finmind.getListingFlows(apple, "2025-01-01")).toEqual({
     trades: [],
     margin: [],

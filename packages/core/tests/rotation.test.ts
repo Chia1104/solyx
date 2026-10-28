@@ -310,7 +310,10 @@ describe("weekUnderWay", () => {
 
   test("closes the week with its last trading day's session", () => {
     // The Friday is a holiday, so Thursday's close ends the week.
-    const trades = (date: string) => date !== "2026-10-23" && weekdays(date);
+    const trades = Object.assign(
+      (date: string) => date !== "2026-10-23" && weekdays(date),
+      { closesEarly: () => false }
+    );
 
     expect(
       weekUnderWay(Market.TW, at("2026-10-22T14:00:00"), trades)
