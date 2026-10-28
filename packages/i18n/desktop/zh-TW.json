@@ -156,6 +156,7 @@
       "description": "每格是一個上市類股指數，面積是今日成交值。顏色是指數漲跌幅，±3% 為最深。點分類名稱或格子可放大該分類。",
       "figures": {
         "index": "指數",
+        "fund": "基金",
         "change": "漲跌",
         "value": "成交值",
         "share": "成交比重"
@@ -230,7 +231,10 @@
     "groups": {
       "electronics": "電子",
       "finance": "金融",
-      "other": "傳產與其他"
+      "other": "傳產與其他",
+      "cyclical": "景氣循環",
+      "sensitive": "景氣敏感",
+      "defensive": "防禦"
     },
     "names": {
       "cement": "水泥",
@@ -263,7 +267,18 @@
       "green-energy": "綠能環保",
       "digital-cloud": "數位雲端",
       "sports": "運動休閒",
-      "home-living": "居家生活"
+      "home-living": "居家生活",
+      "technology": "科技",
+      "financials": "金融",
+      "health-care": "醫療保健",
+      "consumer-discretionary": "非必需消費",
+      "consumer-staples": "必需消費",
+      "communication-services": "通訊服務",
+      "industrials": "工業",
+      "energy": "能源",
+      "materials": "原物料",
+      "utilities": "公用事業",
+      "real-estate": "房地產"
     }
   },
   "chart": {

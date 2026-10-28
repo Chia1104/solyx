@@ -30,8 +30,8 @@ export const marketRouter = market.router({
   quote: market.quote.handler(({ context, input }) =>
     context.marketData.quote(input)
   ),
-  sectors: market.sectors.handler(({ context }) =>
-    context.marketData.sectors()
+  sectors: market.sectors.handler(({ context, input }) =>
+    context.marketData.sectors(input.market)
   ),
   rotations: market.rotations.handler(({ context, input }) =>
     context.rotations.sectorHistory(input.benchmark)

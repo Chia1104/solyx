@@ -34,7 +34,7 @@ export function callCards(tool: ToolCallView) {
   // The sectors as the call read them, not as they trade now, so the map agrees with the reply.
   const sectors =
     ok && tool.toolName === AgentToolName.GetSectors
-      ? getSectorsDetailsSchema.safeParse(tool.details).data?.sectors
+      ? getSectorsDetailsSchema.safeParse(tool.details).data
       : undefined;
 
   const backtests =

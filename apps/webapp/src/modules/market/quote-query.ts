@@ -17,7 +17,7 @@ import { marketSessionsQuery } from "./market-sessions-query.ts";
 /** Every listing's quote costs a request of the plan's budget, so they refresh at this pace. */
 const QUOTE_REFRESH_MS = 2 * MINUTE_MS;
 
-/** The sectors cost a request per index. */
+/** The sectors cost a request per index or fund. */
 const SECTORS_REFRESH_MS = 5 * MINUTE_MS;
 
 /** Sessions change with the clock rather than with any write. */
@@ -34,9 +34,12 @@ export const quoteQuery = (symbol: SymbolRef) =>
     staleTime: Infinity,
   });
 
-/** Taiwan's sector indices, which `followQuotes` refreshes only while something shows them. */
-export const sectorsQuery = () =>
-  orpc.market.sectors.queryOptions({ staleTime: Infinity });
+/** A market's sector indices or funds, which `followQuotes` refreshes only while something shows them. */
+export const sectorsQuery = (market: Market) =>
+  orpc.market.sectors.queryOptions({
+    input: { market },
+    staleTime: Infinity,
+  });
 
 /**
  * The sector indices' rotation, read from daily bars, so a session moves it little until it
@@ -92,8 +95,10 @@ export function followQuotes(queryClient: QueryClient) {
   }, QUOTE_REFRESH_MS);
 
   setInterval(() => {
-    if (sessions?.[Market.TW] === Session.Regular) {
-      refresh(orpc.market.sectors.key());
+    for (const market of Object.values(Market)) {
+      if (sessions?.[market] === Session.Regular) {
+        refresh(orpc.market.sectors.key({ input: { market } }));
+      }
     }
   }, SECTORS_REFRESH_MS);
 
@@ -116,13 +121,11 @@ export function followQuotes(queryClient: QueryClient) {
       }
 
       refresh(marketQuotes(market));
+      refresh(orpc.market.sectors.key({ input: { market } }));
       refresh(orpc.market.listingRotations.key());
       refresh(orpc.market.listingRotation.key());
 
-      if (market === Market.TW) {
-        refresh(orpc.market.sectors.key());
-        refresh(orpc.market.rotations.key());
-      }
+      if (market === Market.TW) refresh(orpc.market.rotations.key());
     }
   });
 }

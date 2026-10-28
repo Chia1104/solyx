@@ -19,7 +19,7 @@ import { createPaperBroker } from "@solyx/brokers/paper";
 import { BrokerMode } from "@solyx/core/broker";
 import { Interval } from "@solyx/core/candles";
 import { changesSince, watchesListings } from "@solyx/core/changes";
-import { Currency, symbolKey, symbolLabel } from "@solyx/core/market";
+import { Currency, Market, symbolKey, symbolLabel } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderDesk, ProposalStatus } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
@@ -408,7 +408,7 @@ export function createServices(config: ConfigFile, host: Host) {
       marketData.candlesBetween(symbol, Interval.OneDay, from, to),
     sourceId: (market) => marketData.sourceId(market),
     company: (symbol) => fundamentals.company(symbol),
-    sectorQuotes: () => marketData.sectors(),
+    sectorQuotes: () => marketData.sectors(Market.TW),
   });
 
   const tradingDays = createTradingCalendar({
@@ -551,7 +551,7 @@ export function createServices(config: ConfigFile, host: Host) {
     fundamentals,
     flows,
     macro,
-    sectors: () => marketData.sectors(),
+    sectors: (market) => marketData.sectors(market),
     rotations: (through, benchmark) => rotations.sectors(through, benchmark),
     listingRotations: (symbols, options) =>
       rotations.listings(symbols, options),

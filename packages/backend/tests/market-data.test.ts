@@ -12,7 +12,13 @@ import type {
   MarketDataProvider,
   MarketDataStream,
 } from "@solyx/core/market-data";
-import { SectorGroup, TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
+import {
+  SectorGroup,
+  TW_SECTOR_INDICES,
+  TwSector,
+  US_SECTOR_FUNDS,
+  UsSector,
+} from "@solyx/core/sectors";
 import { weekdays } from "@solyx/core/session";
 import { DAY_MS, MINUTE_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
@@ -250,7 +256,7 @@ test("sectors quote each sector index once", async () => {
       : null
   );
 
-  const sectors = await marketData.sectors();
+  const sectors = await marketData.sectors(Market.TW);
 
   expect(provider.getQuote).toHaveBeenCalledTimes(TW_SECTOR_INDICES.length);
   expect(sectors?.find((each) => each.symbol === "IX0028")).toEqual({
@@ -269,17 +275,53 @@ test("sectors quote each sector index once", async () => {
 test("sectors read within a minute share one read of the indices", async () => {
   const { marketData, provider, clock } = setup();
 
-  await marketData.sectors();
+  await marketData.sectors(Market.TW);
 
   clock.now = new Date(NOW.getTime() + MINUTE_MS - 1);
-  await marketData.sectors();
+  await marketData.sectors(Market.TW);
 
   expect(provider.getQuote).toHaveBeenCalledTimes(TW_SECTOR_INDICES.length);
 
   clock.now = new Date(NOW.getTime() + MINUTE_MS);
-  await marketData.sectors();
+  await marketData.sectors(Market.TW);
 
   expect(provider.getQuote).toHaveBeenCalledTimes(2 * TW_SECTOR_INDICES.length);
+});
+
+test("the US's sectors are its sector funds, quoted from its own source and kept apart from Taiwan's", async () => {
+  const { marketData, sources, provider } = setup();
+
+  expect(await marketData.sectors(Market.US)).toBeNull();
+
+  const us: MarketDataProvider = {
+    id: "longbridge",
+    markets: [Market.US],
+    getCandles: async () => [],
+    getListing: async () => null,
+    getQuote: vi.fn<MarketDataProvider["getQuote"]>(async ({ symbol }) =>
+      symbol === "XLK"
+        ? { date: "2026-09-29", last: 250, reference: 245, tradeValue: 3e9 }
+        : null
+    ),
+    getDepth: async () => null,
+  };
+
+  sources.provider = async (market) => (market === Market.US ? us : provider);
+
+  await marketData.sectors(Market.TW);
+  const sectors = await marketData.sectors(Market.US);
+
+  expect(us.getQuote).toHaveBeenCalledTimes(US_SECTOR_FUNDS.length);
+  expect(vi.mocked(us.getQuote).mock.calls.map(([symbol]) => symbol)).toEqual(
+    US_SECTOR_FUNDS.map(({ symbol }) => ({ market: Market.US, symbol }))
+  );
+  expect(provider.getQuote).toHaveBeenCalledTimes(TW_SECTOR_INDICES.length);
+  expect(sectors?.find((each) => each.symbol === "XLK")).toEqual({
+    sector: UsSector.Technology,
+    group: SectorGroup.Sensitive,
+    symbol: "XLK",
+    quote: { date: "2026-09-29", last: 250, reference: 245, tradeValue: 3e9 },
+  });
 });
 
 test("weekly bars merge whole weeks of the source's daily bars", async () => {

@@ -9,6 +9,7 @@ import {
   Market,
   currencyOf,
   exchangeTime,
+  marketSchema,
   symbolLabel,
   symbolRefSchema,
 } from "@solyx/core/market";
@@ -31,9 +32,9 @@ import type {
   SectorRotation,
 } from "@solyx/core/rotation";
 import {
-  SectorGroup,
+  SECTOR_GROUPS,
+  SECTOR_INDICES,
   SECTOR_MOVERS,
-  TW_SECTOR_INDICES,
   TwSector,
   sectorMoves,
 } from "@solyx/core/sectors";
@@ -52,8 +53,8 @@ import { AgentToolName } from "./wire.ts";
 import type { GetSectorsDetails } from "./wire.ts";
 
 export interface SectorToolsOptions {
-  /** Every Taiwan sector index's session so far, as the overview's map reads them; `null` while no source covers Taiwan. */
-  sectors(): Promise<SectorQuote[] | null>;
+  /** Every sector index's or fund's session so far in `market`, as the overview's map reads them; `null` while no source covers it. */
+  sectors(market: Market): Promise<SectorQuote[] | null>;
   /** Which of a sector's companies moved its market value most over the exchange's last session, as the overview lists them. */
   movers(sector: TwSector): Promise<SectorMovers | null>;
   /** Every Taiwan sector index's rotation against the TAIEX, or a TWSE benchmark that qualifies, as of `through` or the newest session, as the overview's chart reads it; `null` while no source covers Taiwan. */
@@ -76,6 +77,24 @@ export interface SectorToolsOptions {
 }
 
 const MARKET = Market.TW;
+
+/** The city whose clock each market's times are told on. */
+const CITY: Record<Market, string> = {
+  [Market.TW]: "Taipei",
+  [Market.US]: "New York",
+};
+
+/** A market as a sentence names it. */
+const MARKET_NAME: Record<Market, string> = {
+  [Market.TW]: "Taiwan",
+  [Market.US]: "the US",
+};
+
+/** What a market's sectors are, as the call's answer heads them. */
+const SECTORS_NAME: Record<Market, string> = {
+  [Market.TW]: "Taiwan's listed sectors",
+  [Market.US]: "The S&P 500's sectors through their Select Sector funds",
+};
 
 /** How many listings one call may read, each a daily-bar request. */
 const MAX_ROTATION_LISTINGS = 20;
@@ -217,8 +236,8 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
   const now = options.now ?? (() => new Date());
 
   /** The market's own index over its newest daily bar, which is the session under way once it trades. */
-  async function benchmarkText(): Promise<string> {
-    const { symbol, name } = BENCHMARK[MARKET];
+  async function benchmarkText(market: Market): Promise<string> {
+    const { symbol, name } = BENCHMARK[market];
     const bars = await options.marketData.candles(symbol, Interval.OneDay);
     const last = bars.at(-1);
     const before = bars.at(-2);
@@ -226,7 +245,7 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
 
     if (!last || !before) return `${heading}: no bars to measure it from`;
 
-    return `${heading} on ${candleDate(MARKET, last.time)}: ${last.close}, ${percentChange(last.close / before.close - 1)} on the session before`;
+    return `${heading} on ${candleDate(market, last.time)}: ${last.close}, ${percentChange(last.close / before.close - 1)} on the session before`;
   }
 
   return defineExtension({
@@ -235,14 +254,18 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
       defineTool({
         name: AgentToolName.GetSectors,
         replay: "safe",
-        description: `Taiwan's market by sector in its newest session, computed by the app from what the overview's sector map shows: the ${BENCHMARK[MARKET].name}'s last value and move, then each of the Taiwan Stock Exchange's ${TW_SECTOR_INDICES.length} industry indices with its last value, its move from the reference price in points and percent, the value its listings traded and that value's share of what all the sectors traded, largest rise first, with how many rose and fell and each group's share of the trading: electronics, finance, and other, which is the traditional industries and the rest. While the session is open these are the session so far, and an index has no row until it trades. The indices cover TWSE listings only, not the TPEx, and say nothing of which listings moved them: read those listings before naming any. An index's symbol reads as a listing's does, so get_candles and get_indicators take it, as TW IX0028, for its bars over days and weeks. The app draws these sectors as a map under this call, so do not draw them again. Taiwan only. Cite these rather than work them out again.`,
-        parameters: z.object({}),
-        async execute() {
-          const sectors = await options.sectors();
+        description: `One market's sectors in their newest session, Taiwan's unless the call names the US, computed by the app from what the overview's sector map shows: the market's index's last value and move (the ${BENCHMARK[Market.TW].name}; ${BENCHMARK[Market.US].name} in the US), then each sector with its last value, its move from the reference price in points and percent, the value traded and that value's share of what all the sectors traded, largest rise first, with how many rose and fell and each group's share of the trading. Taiwan's are the Taiwan Stock Exchange's ${SECTOR_INDICES[Market.TW].length} industry indices, grouped ${SECTOR_GROUPS[Market.TW].join(", ")}, the last the traditional industries and the rest; they cover TWSE listings only, not the TPEx. The US has no sector index a source quotes, so its ${SECTOR_INDICES[Market.US].length} are the S&P 500's sectors as State Street's Select Sector funds hold them, grouped ${SECTOR_GROUPS[Market.US].join(", ")} by how the economy moves them; what each traded is the fund's own, not its sector's, so its share is of the funds' trading alone. While the session is open these are the session so far, and a sector has no row until it trades. They say nothing of which listings moved them: read those listings before naming any. An index's or fund's symbol reads as a listing's does, so get_candles and get_indicators take it, as TW IX0028 or US XLK, for its bars over days and weeks, and get_rotation reads the US's funds given as symbols. The app draws these sectors as a map under this call, so do not draw them again. Cite these rather than work them out again.`,
+        parameters: z.object({
+          market: marketSchema
+            .default(Market.TW)
+            .describe("TW for Taiwan's sectors, US for the S&P 500's"),
+        }),
+        async execute({ market }) {
+          const sectors = await options.sectors(market);
 
           if (!sectors) {
             return {
-              text: "No sector indices: no market data source covers Taiwan yet. get_setup says what is missing.",
+              text: `No sectors: no market data source covers ${MARKET_NAME[market]} yet. get_setup says what is missing.`,
             };
           }
 
@@ -258,11 +281,12 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
             .toSorted()
             .at(-1);
 
-          const details: GetSectorsDetails = { sectors };
+          const details: GetSectorsDetails = { market, sectors };
+          const asOf = `as_of ${exchangeTime(market, now())} ${CITY[market]}`;
 
           if (session === undefined) {
             return {
-              text: `Taiwan's listed sectors as_of ${exchangeTime(MARKET, now())} Taipei: no sector index has traded yet in this session.\n${await benchmarkText()}`,
+              text: `${SECTORS_NAME[market]} ${asOf}: no sector has traded yet in this session.\n${await benchmarkText(market)}`,
               details,
             };
           }
@@ -271,10 +295,10 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
 
           return {
             text: [
-              `Taiwan's listed sectors as_of ${exchangeTime(MARKET, now())} Taipei, session ${session}; value in ${currencyOf(MARKET)} millions, share of what all the sectors traded`,
-              await benchmarkText(),
+              `${SECTORS_NAME[market]} ${asOf}, session ${session}; value in ${currencyOf(market)} millions, share of what all the sectors traded`,
+              await benchmarkText(market),
               `${moves.filter((move) => move.change > 0).length} sectors up, ${moves.filter((move) => move.change < 0).length} down, ${moves.filter((move) => move.change === 0).length} unchanged`,
-              `Share of the trading by group: ${Object.values(SectorGroup)
+              `Share of the trading by group: ${SECTOR_GROUPS[market]
                 .map(
                   (group) =>
                     `${group} ${percent(
@@ -285,7 +309,7 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
                     )}`
                 )
                 .join(", ")}`,
-              "sector,group,index,last,change,percent,value,share",
+              `sector,group,${market === Market.TW ? "index" : "fund"},last,change,percent,value,share`,
               ...moves.map((move) =>
                 [
                   named(move.sector),
@@ -354,7 +378,7 @@ export function createSectorTools(options: SectorToolsOptions): Extension {
       defineTool({
         name: AgentToolName.GetRotation,
         replay: "safe",
-        description: `Where listings stand on a relative rotation graph against their market's index, as the app computes it from daily bars: by default every Taiwan sector index against the ${BENCHMARK[MARKET].name}, the same chart the overview draws, so do not draw it again, as it stands now or as it stood at the close of a session you name; or, given symbols, each listing against its market's index (the ${BENCHMARK[Market.TW].name} in Taiwan, ${BENCHMARK[Market.US].name} in the US), against its own sector's index, or against one benchmark you name, on prices adjusted for splits and what went ex. Each reading is standardized over a period of sessions, or of closed weeks, and the last ${ROTATION_TRAIL} bars are its trail, so a reading takes twice the period of bars. The level is not a return against the index and the momentum not the index's: read the legend the call returns. It changes nothing.`,
+        description: `Where listings stand on a relative rotation graph against their market's index, as the app computes it from daily bars: by default every Taiwan sector index against the ${BENCHMARK[MARKET].name}, the same chart the overview draws, so do not draw it again, as it stands now or as it stood at the close of a session you name; or, given symbols, each listing against its market's index (the ${BENCHMARK[Market.TW].name} in Taiwan, ${BENCHMARK[Market.US].name} in the US), against its own sector's index, or against one benchmark you name, on prices adjusted for splits and what went ex. The US's sectors are funds rather than indices, so read them as symbols against the market's index: ${SECTOR_INDICES[Market.US].map(({ symbol }) => `US ${symbol}`).join(", ")}, the chart the overview draws for the US. Each reading is standardized over a period of sessions, or of closed weeks, and the last ${ROTATION_TRAIL} bars are its trail, so a reading takes twice the period of bars. The level is not a return against the index and the momentum not the index's: read the legend the call returns. It changes nothing.`,
         parameters: rotationArgumentsSchema,
         async execute({
           interval,

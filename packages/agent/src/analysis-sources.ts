@@ -15,7 +15,12 @@ import {
   statementMetrics,
 } from "@solyx/core/fundamentals";
 import type { Fundamentals } from "@solyx/core/fundamentals";
-import { symbolKey, symbolRefSchema } from "@solyx/core/market";
+import {
+  Market,
+  marketSchema,
+  symbolKey,
+  symbolRefSchema,
+} from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { quoteChange } from "@solyx/core/quote";
 import type { SessionQuote } from "@solyx/core/quote";
@@ -28,8 +33,8 @@ import { scriptFunction } from "./script-runner.ts";
 export interface AnalysisSources {
   /** A listing's newest session against the close before it, as the app's overview reads it; `null` when no source covers its market or has bars for it. */
   quote(symbol: SymbolRef): Promise<SessionQuote | null>;
-  /** Every Taiwan sector index's session so far, as the overview's map reads them; `null` while no source covers Taiwan. */
-  sectors(): Promise<SectorQuote[] | null>;
+  /** Every sector index's or fund's session so far in `market`, as the overview's map reads them; `null` while no source covers it. */
+  sectors(market: Market): Promise<SectorQuote[] | null>;
   flows: Pick<Flows, "listing">;
   fundamentals: Pick<
     Fundamentals,
@@ -241,18 +246,16 @@ export function sourceFunctions(
     scriptFunction({
       name: "market.sectors",
       description:
-        "Taiwan's sector indices that have traded in their newest session, as get_sectors gives them: each index's symbol, which tools.candles takes, its move as a fraction, what its listings traded in TWD and that as a fraction of what all the sectors traded.",
+        "A market's sectors that have traded in their newest session, Taiwan's unless the US is named, as get_sectors gives them: each index's or, in the US, Select Sector fund's symbol, which tools.candles takes, its move as a fraction, what it traded in the market's currency and that as a fraction of what all the sectors traded. A US fund's value traded is the fund's own, not its sector's.",
       spread: true,
-      signature: "(): Promise<Sector[]>",
-      input: z.tuple([]),
+      signature: '(market?: "TW" | "US"): Promise<Sector[]>',
+      input: z.tuple([marketSchema.optional()]),
       output: z.array(sectorSchema),
-      async run() {
-        const sectors = await sources.sectors();
+      async run([market = Market.TW]) {
+        const sectors = await sources.sectors(market);
 
         if (!sectors) {
-          throw new Error(
-            "No sector indices: no market data source covers Taiwan"
-          );
+          throw new Error(`No sectors: no market data source covers ${market}`);
         }
 
         return sectorMoves(sectors).map(({ quote, ...move }) => ({
