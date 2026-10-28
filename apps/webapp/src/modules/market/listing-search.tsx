@@ -1,5 +1,3 @@
-import { useDeferredValue } from "react";
-
 import {
   Kbd,
   ListBox,
@@ -11,6 +9,7 @@ import {
 import { Search01Icon } from "@hugeicons/core-free-icons";
 import { formatForDisplay } from "@tanstack/react-hotkeys";
 import type { Hotkey } from "@tanstack/react-hotkeys";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Autocomplete, Button } from "react-aria-components";
@@ -29,6 +28,9 @@ import { useListingSearchStore } from "./listing-search-store.ts";
 
 // The filter that leaves every market in.
 const EVERY_MARKET = "all";
+
+// A search goes out once typing pauses this long, rather than on every key.
+const SEARCH_WAIT_MS = 200;
 
 interface Found {
   symbol: SymbolRef;
@@ -81,7 +83,7 @@ export function ListingSearchDialog() {
 }
 
 /** What the search offers: the listings matching what was typed, or before anything is, those opened last. */
-function useFound(typed: string) {
+function useFound(typed: string, empty: boolean) {
   const { i18n } = useTranslation();
   const market = useListingSearchStore((state) => state.market);
   const recent = useListingSearchStore((state) => state.recent);
@@ -93,9 +95,10 @@ function useFound(typed: string) {
     placeholderData: keepPreviousData,
   });
 
+  // A field with text in it never offers the recent listings, so Enter cannot open one of them.
   const found: Found[] =
     typed === ""
-      ? recent.flatMap((symbol, index) =>
+      ? (empty ? recent : []).flatMap((symbol, index) =>
           market === null || symbol.market === market
             ? [{ symbol, name: recentNames[index] }]
             : []
@@ -174,37 +177,85 @@ function FoundList({
   );
 }
 
-/** What is found, or why nothing is, and where US listings stand. */
-function Results({ onOpen }: { onOpen: (symbol: SymbolRef) => void }) {
+/**
+ * What a search goes out for: what is typed once typing pauses, or at once nothing as the field
+ * is cleared, so the recent listings come back without waiting. `flush` sends it without waiting.
+ */
+function useTyped() {
+  const query = useListingSearchStore((state) => state.query.trim());
+
+  const [settled, debouncer] = useDebouncedValue(query, {
+    wait: SEARCH_WAIT_MS,
+  });
+
+  return {
+    query,
+    typed: query === "" ? "" : settled,
+    flush: () => debouncer.flush(),
+  };
+}
+
+/** Why nothing is listed; nothing is said while a search is due, since its answer replaces the last one's. */
+function Nothing({
+  query,
+  waiting,
+  error,
+}: {
+  query: string;
+  waiting: boolean;
+  error: Error | null;
+}) {
+  const { t } = useTranslation();
+
+  const said =
+    query === ""
+      ? t("search.hint")
+      : (error?.message ?? (waiting ? null : t("search.none")));
+
+  return <p className="py-6 text-center text-sm text-muted">{said}</p>;
+}
+
+/** Says US listings wait for the Longbridge sign-in, while the search reaches the US. */
+function UsSignedOut() {
   const { t } = useTranslation();
   const sources = useMarketSources();
-  const query = useListingSearchStore((state) => state.query);
   const market = useListingSearchStore((state) => state.market);
-  const typed = useDeferredValue(query.trim());
-  const { found, search } = useFound(typed);
-  const recent = typed === "";
 
-  // Nothing is said while a search is under way, since its answer replaces the last one's.
-  const nothing = recent
-    ? t("search.hint")
-    : (search.error?.message ?? (search.isFetching ? null : t("search.none")));
+  if (market === Market.TW || sources.data?.[Market.US].ready !== false) {
+    return null;
+  }
 
-  const usSignedOut =
-    market !== Market.TW && sources.data?.[Market.US].ready === false;
+  return <p className="text-xs text-muted">{t("search.us-signed-out")}</p>;
+}
+
+/** What is found, or why nothing is, and where US listings stand. */
+function Results({
+  query,
+  typed,
+  onOpen,
+}: {
+  query: string;
+  typed: string;
+  onOpen: (symbol: SymbolRef) => void;
+}) {
+  const { t } = useTranslation();
+  const { found, search } = useFound(typed, query === "");
 
   return (
     <>
-      {recent && found.length > 0 ? (
+      {query === "" && found.length > 0 ? (
         <p className="text-xs text-muted">{t("search.recent")}</p>
       ) : null}
       {found.length > 0 ? (
         <FoundList found={found} onOpen={onOpen} />
       ) : (
-        <p className="py-6 text-center text-sm text-muted">{nothing}</p>
+        <Nothing
+          query={query}
+          waiting={typed !== query || search.isFetching}
+          error={search.error}
+        />
       )}
-      {usSignedOut ? (
-        <p className="text-xs text-muted">{t("search.us-signed-out")}</p>
-      ) : null}
+      <UsSignedOut />
     </>
   );
 }
@@ -216,6 +267,7 @@ function ListingSearch() {
   const setQuery = useListingSearchStore((state) => state.setQuery);
   const remember = useListingSearchStore((state) => state.remember);
   const close = useListingSearchStore((state) => state.close);
+  const typing = useTyped();
 
   function open(symbol: SymbolRef) {
     remember(symbol);
@@ -229,7 +281,12 @@ function ListingSearch() {
 
   return (
     <Autocomplete inputValue={query} onInputChange={setQuery}>
-      <SearchField autoFocus aria-label={t("search.title")} className="w-full">
+      {/* Enter before any match is listed searches at once rather than after the pause. */}
+      <SearchField
+        autoFocus
+        aria-label={t("search.title")}
+        className="w-full"
+        onSubmit={typing.flush}>
         <SearchField.Group>
           <SearchField.SearchIcon />
           <SearchField.Input placeholder={t("chart.search-placeholder")} />
@@ -237,7 +294,7 @@ function ListingSearch() {
         </SearchField.Group>
       </SearchField>
       <MarketFilter />
-      <Results onOpen={open} />
+      <Results query={typing.query} typed={typing.typed} onOpen={open} />
     </Autocomplete>
   );
 }

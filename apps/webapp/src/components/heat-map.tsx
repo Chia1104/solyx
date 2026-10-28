@@ -3,9 +3,9 @@ import type { CSSProperties, ReactNode, RefObject } from "react";
 
 import { Tooltip, cn } from "@heroui/react";
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
+import { useDebouncedCallback } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
 import { hierarchy, treemap, treemapSquarify } from "d3-hierarchy";
-import { debounce } from "es-toolkit";
 import { Button, Focusable } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
@@ -66,15 +66,16 @@ interface Datum {
 function useWidth(ref: RefObject<HTMLElement | null>) {
   const [size, setSize] = useState({ width: 0, resizing: true });
 
+  // Cancelled as the component unmounts.
+  const settle = useDebouncedCallback(
+    () => setSize((current) => ({ ...current, resizing: false })),
+    { wait: RESIZE_SETTLE_MS }
+  );
+
   useLayoutEffect(() => {
     const element = ref.current;
 
     if (!element) return;
-
-    const settle = debounce(
-      () => setSize((current) => ({ ...current, resizing: false })),
-      RESIZE_SETTLE_MS
-    );
 
     const observer = new ResizeObserver(([entry]) => {
       setSize({ width: entry.contentRect.width, resizing: true });
@@ -83,11 +84,8 @@ function useWidth(ref: RefObject<HTMLElement | null>) {
 
     observer.observe(element);
 
-    return () => {
-      observer.disconnect();
-      settle.cancel();
-    };
-  }, [ref]);
+    return () => observer.disconnect();
+  }, [ref, settle]);
 
   return size;
 }
