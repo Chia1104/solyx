@@ -67,8 +67,14 @@ export const marketContract = {
     .meta(forDevices(true))
     .input(symbolRefSchema)
     .output(type<SessionQuote | null>()),
-  /** Every Taiwan sector index's session so far, one request each; `null` when no source covers Taiwan. */
-  sectors: oc.meta(forDevices(true)).output(type<SectorQuote[] | null>()),
+  /**
+   * Every sector index's session so far in the market, Taiwan's exchange's or the US's sector
+   * funds, one request each; `null` when no source covers the market.
+   */
+  sectors: oc
+    .meta(forDevices(true))
+    .input(z.object({ market: marketSchema }))
+    .output(type<SectorQuote[] | null>()),
   /**
    * Every Taiwan sector index's rotation against the TAIEX across the sessions it may be played
    * back over, daily-bar requests each: once, or over the newest year and then whole where the

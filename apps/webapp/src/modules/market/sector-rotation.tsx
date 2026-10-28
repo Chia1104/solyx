@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { BENCHMARK, Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { SectorGroup } from "@solyx/core/sectors";
+import { SECTOR_GROUPS, SectorGroup } from "@solyx/core/sectors";
 
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
@@ -16,11 +16,14 @@ import { ListingName } from "./listing-name.tsx";
 import { rotationsQuery } from "./quote-query.ts";
 import { RotationGraph } from "./rotation-graph.tsx";
 
-/** One colour per group of sectors, none of them a price's. */
+/** One colour per group of a market's sectors, none of them a price's. */
 const GROUP_COLORS: Record<SectorGroup, string> = {
   [SectorGroup.Electronics]: LINE_COLORS.fast,
   [SectorGroup.Finance]: LINE_COLORS.slow,
   [SectorGroup.Other]: LINE_COLORS.oscillator,
+  [SectorGroup.Cyclical]: LINE_COLORS.fast,
+  [SectorGroup.Sensitive]: LINE_COLORS.slow,
+  [SectorGroup.Defensive]: LINE_COLORS.oscillator,
 };
 
 /** A TWSE code to read the sectors against in the TAIEX's place, taken as it is entered or left. */
@@ -110,7 +113,7 @@ export function SectorRotation() {
           group,
           paths,
         }))}
-        groups={Object.values(SectorGroup).map((group) => ({
+        groups={SECTOR_GROUPS[Market.TW].map((group) => ({
           id: group,
           label: t(`sectors.groups.${group}`),
           color: GROUP_COLORS[group],

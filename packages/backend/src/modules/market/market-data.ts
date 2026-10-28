@@ -13,7 +13,7 @@ import type { SymbolRef } from "@solyx/core/market";
 import type { Listing, MarketDataProvider } from "@solyx/core/market-data";
 import { sessionQuote } from "@solyx/core/quote";
 import type { SessionQuote } from "@solyx/core/quote";
-import { TW_SECTOR_INDICES } from "@solyx/core/sectors";
+import { SECTOR_INDICES } from "@solyx/core/sectors";
 import type { SectorQuote } from "@solyx/core/sectors";
 import { Session, getSession } from "@solyx/core/session";
 import { DAY_MS, MINUTE_MS } from "@solyx/utils/date";
@@ -83,17 +83,18 @@ export function createMarketData({
     diagnostics,
   });
 
-  const sectorQuotes = keepFresh<MarketDataProvider, SectorQuote[]>({
+  // Kept per market and per the provider that read them, so another source reads its own.
+  const sectorQuotes = keepFresh<
+    { provider: MarketDataProvider; market: Market },
+    SectorQuote[]
+  >({
     store: answers("market:sectors"),
-    id: (provider) => provider.id,
-    ask: (provider) =>
+    id: ({ provider, market }) => `${market}:${provider.id}`,
+    ask: ({ provider, market }) =>
       Promise.all(
-        TW_SECTOR_INDICES.map(async (index) => ({
+        SECTOR_INDICES[market].map(async (index) => ({
           ...index,
-          quote: await provider.getQuote({
-            market: Market.TW,
-            symbol: index.symbol,
-          }),
+          quote: await provider.getQuote({ market, symbol: index.symbol }),
         }))
       ),
     fresh: freshFor(SECTORS_FRESH_MS),
@@ -203,11 +204,11 @@ export function createMarketData({
       );
     },
 
-    /** Every Taiwan sector index's session so far; `null` when no source covers Taiwan. */
-    async sectors(): Promise<SectorQuote[] | null> {
-      const provider = await sources.provider(Market.TW);
+    /** Every sector index's or fund's session so far in `market`; `null` when no source covers it. */
+    async sectors(market: Market): Promise<SectorQuote[] | null> {
+      const provider = await sources.provider(market);
 
-      return provider ? sectorQuotes(provider) : null;
+      return provider ? sectorQuotes({ provider, market }) : null;
     },
 
     /** The id of the source covering `market`; `null` while none does. */

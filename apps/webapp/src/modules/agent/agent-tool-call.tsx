@@ -701,7 +701,11 @@ export function AgentToolCall({
         <ForecastCard symbol={forecast.symbol} id={forecast.forecastId} />
       ) : null}
       {sectors ? (
-        <SectorMap sectors={sectors} height={SECTOR_MAP_HEIGHT} />
+        <SectorMap
+          market={sectors.market}
+          sectors={sectors.sectors}
+          height={SECTOR_MAP_HEIGHT}
+        />
       ) : null}
     </div>
   );

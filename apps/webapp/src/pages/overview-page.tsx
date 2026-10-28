@@ -154,7 +154,7 @@ function MarketTab({ market }: { market: Market }) {
       <Section
         title={t("heat-map.sectors.title")}
         description={t("heat-map.sectors.description")}>
-        <SectorHeatMap />
+        <SectorHeatMap market={market} />
       </Section>
       <Section
         title={t("heat-map.movers.title")}

@@ -21,7 +21,12 @@ import type {
   RotationSet,
   SectorRotation,
 } from "@solyx/core/rotation";
-import { TW_SECTOR_INDICES, TwSector } from "@solyx/core/sectors";
+import {
+  TW_SECTOR_INDICES,
+  TwSector,
+  US_SECTOR_FUNDS,
+  UsSector,
+} from "@solyx/core/sectors";
 import type { SectorMovers, SectorQuote } from "@solyx/core/sectors";
 
 import { createSectorTools } from "../src/sectors.ts";
@@ -78,6 +83,8 @@ function setup(
     candles: vi.fn<MarketData["candles"]>(async () => TAIEX),
   };
 
+  const sectorsRead = vi.fn(async (_market: Market) => sectors);
+
   const listingRotations = vi.fn(
     async (
       symbols: readonly SymbolRef[],
@@ -113,7 +120,7 @@ function setup(
 
   const [tool, moversTool, rotationTool] =
     createSectorTools({
-      sectors: async () => sectors,
+      sectors: sectorsRead,
       movers: async () => movers,
       rotations: rotationsRead,
       listingRotations,
@@ -149,6 +156,7 @@ function setup(
     runMovers,
     runRotation,
     marketData,
+    sectorsRead,
     listingRotations,
     rotationsRead,
   };
@@ -183,7 +191,7 @@ test("lists the market's index and each traded sector, largest rise first, as th
   expect(lines[9]).toBe("shipping,other,IX0037,190,-10.00,-5.00%,50000,5.0%");
   expect(lines[10]).toMatch(/^Not traded yet: .*glass \(IX0022\)/);
   expect(lines).toHaveLength(11);
-  expect(details).toEqual({ sectors });
+  expect(details).toEqual({ market: Market.TW, sectors });
 });
 
 test("says so before any sector has traded", async () => {
@@ -193,10 +201,10 @@ test("says so before any sector has traded", async () => {
   const { text, details } = await run({});
 
   expect(text.split("\n")).toEqual([
-    "Taiwan's listed sectors as_of 2026-10-13 10:42 Taipei: no sector index has traded yet in this session.",
+    "Taiwan's listed sectors as_of 2026-10-13 10:42 Taipei: no sector has traded yet in this session.",
     "TAIEX (TW IX0001) on 2026-10-13: 23230, +1.00% on the session before",
   ]);
-  expect(details).toEqual({ sectors });
+  expect(details).toEqual({ market: Market.TW, sectors });
 });
 
 test("says no source covers Taiwan rather than fail", async () => {
@@ -205,10 +213,42 @@ test("says no source covers Taiwan rather than fail", async () => {
   const { text, details } = await run({});
 
   expect(text).toBe(
-    "No sector indices: no market data source covers Taiwan yet. get_setup says what is missing."
+    "No sectors: no market data source covers Taiwan yet. get_setup says what is missing."
   );
   expect(details).toBeUndefined();
   expect(marketData.candles).not.toHaveBeenCalled();
+});
+
+test("reads the US's sectors from its Select Sector funds against SPY, each fund's own trading its value", async () => {
+  const sectors: SectorQuote[] = US_SECTOR_FUNDS.map((fund) => ({
+    ...fund,
+    quote:
+      fund.sector === UsSector.Technology
+        ? { date: "2026-10-12", last: 250, reference: 245, tradeValue: 3e9 }
+        : fund.sector === UsSector.Utilities
+          ? { date: "2026-10-12", last: 80, reference: 81, tradeValue: 1e9 }
+          : null,
+  }));
+
+  const { run, marketData, sectorsRead } = setup(sectors);
+
+  const { text, details } = await run({ market: Market.US });
+
+  expect(sectorsRead).toHaveBeenCalledWith(Market.US);
+  expect(marketData.candles).toHaveBeenCalledWith(
+    { market: Market.US, symbol: "SPY" },
+    Interval.OneDay
+  );
+  expect(text.split("\n").slice(0, 7)).toEqual([
+    "The S&P 500's sectors through their Select Sector funds as_of 2026-10-12 22:42 New York, session 2026-10-12; value in USD millions, share of what all the sectors traded",
+    "S&P 500 (SPY) (US SPY) on 2026-10-12: 23230, +1.00% on the session before",
+    "1 sectors up, 1 down, 0 unchanged",
+    "Share of the trading by group: cyclical 0.0%, sensitive 75.0%, defensive 25.0%",
+    "sector,group,fund,last,change,percent,value,share",
+    "technology,sensitive,XLK,250,+5.00,+2.04%,3000,75.0%",
+    "utilities,defensive,XLU,80,-1.00,-1.23%,1000,25.0%",
+  ]);
+  expect(details).toEqual({ market: Market.US, sectors });
 });
 
 test("names the companies that moved a sector's market value most over the exchange's last session, and sums the rest", async () => {

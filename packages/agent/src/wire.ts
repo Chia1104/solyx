@@ -303,8 +303,9 @@ export const submitForecastDetailsSchema = z.object({
 
 export type SubmitForecastDetails = z.infer<typeof submitForecastDetailsSchema>;
 
-/** The sectors a call read, so its thread maps them as the agent saw them. */
+/** The sectors a call read and their market, so its thread maps them as the agent saw them. */
 export const getSectorsDetailsSchema = z.object({
+  market: marketSchema,
   sectors: z.array(sectorQuoteSchema),
 });
 

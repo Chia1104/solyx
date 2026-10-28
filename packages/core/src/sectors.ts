@@ -4,15 +4,37 @@ import * as z from "zod";
 import type { Company, Listed } from "./fundamentals.ts";
 import { quoteSchema } from "./market-data.ts";
 import type { Quote } from "./market-data.ts";
+import { Market } from "./market.ts";
 
-/** The buckets the Taiwan Stock Exchange reports its sector indices in. */
+/**
+ * The buckets a market's sectors are reported in: Taiwan's as its exchange reports its sector
+ * indices, the US's as the economy moves them, the cyclical ones with it, the sensitive ones a
+ * step behind it and the defensive ones least.
+ */
 export const SectorGroup = {
   Electronics: "electronics",
   Finance: "finance",
   Other: "other",
+  Cyclical: "cyclical",
+  Sensitive: "sensitive",
+  Defensive: "defensive",
 } as const;
 
 export type SectorGroup = (typeof SectorGroup)[keyof typeof SectorGroup];
+
+/** Each market's groups, in the order its sectors are shown. */
+export const SECTOR_GROUPS: Record<Market, readonly SectorGroup[]> = {
+  [Market.TW]: [
+    SectorGroup.Electronics,
+    SectorGroup.Finance,
+    SectorGroup.Other,
+  ],
+  [Market.US]: [
+    SectorGroup.Cyclical,
+    SectorGroup.Sensitive,
+    SectorGroup.Defensive,
+  ],
+};
 
 /** Industries of the Taiwan Stock Exchange's current classification that have a price index. */
 export const TwSector = {
@@ -51,24 +73,47 @@ export const TwSector = {
 
 export type TwSector = (typeof TwSector)[keyof typeof TwSector];
 
-export interface SectorIndex {
-  sector: TwSector;
+/** The S&P 500's sectors, the eleven of the Global Industry Classification Standard. */
+export const UsSector = {
+  Technology: "technology",
+  Financials: "financials",
+  HealthCare: "health-care",
+  ConsumerDiscretionary: "consumer-discretionary",
+  ConsumerStaples: "consumer-staples",
+  CommunicationServices: "communication-services",
+  Industrials: "industrials",
+  Energy: "energy",
+  Materials: "materials",
+  Utilities: "utilities",
+  RealEstate: "real-estate",
+} as const;
+
+export type UsSector = (typeof UsSector)[keyof typeof UsSector];
+
+/** A sector of any market. */
+export const Sector = { ...TwSector, ...UsSector } as const;
+
+export type Sector = (typeof Sector)[keyof typeof Sector];
+
+/** What a sector's moves are read from: its exchange's index, or a listed fund that holds the sector. */
+export interface SectorIndex<S extends Sector = Sector> {
+  sector: S;
   group: SectorGroup;
-  /** The index's symbol, as the exchange codes it. */
+  /** The index's or fund's symbol, as the exchange codes it. */
   symbol: string;
 }
 
-const sector = (
+const sector = <S extends Sector>(
   group: SectorGroup,
-  entries: [TwSector, string][]
-): SectorIndex[] =>
+  entries: [S, string][]
+): SectorIndex<S>[] =>
   entries.map(([each, symbol]) => ({ sector: each, group, symbol }));
 
 /**
  * Each listed industry's own index. Indices that add industries up, such as the electronics or
  * chemical and biotech ones, are left out, so no listing counts twice.
  */
-export const TW_SECTOR_INDICES: readonly SectorIndex[] = [
+export const TW_SECTOR_INDICES: readonly SectorIndex<TwSector>[] = [
   ...sector(SectorGroup.Electronics, [
     [TwSector.Semiconductors, "IX0028"],
     [TwSector.Computers, "IX0029"],
@@ -106,9 +151,39 @@ export const TW_SECTOR_INDICES: readonly SectorIndex[] = [
   ]),
 ];
 
-/** A sector index and its session so far. */
+/**
+ * The S&P 500's sectors as State Street's Select Sector funds hold them, since the US has no
+ * index of its sectors a source quotes. A fund's value traded is the fund's own, not its sector's.
+ */
+export const US_SECTOR_FUNDS: readonly SectorIndex<UsSector>[] = [
+  ...sector(SectorGroup.Cyclical, [
+    [UsSector.ConsumerDiscretionary, "XLY"],
+    [UsSector.Financials, "XLF"],
+    [UsSector.Materials, "XLB"],
+    [UsSector.RealEstate, "XLRE"],
+  ]),
+  ...sector(SectorGroup.Sensitive, [
+    [UsSector.Technology, "XLK"],
+    [UsSector.CommunicationServices, "XLC"],
+    [UsSector.Industrials, "XLI"],
+    [UsSector.Energy, "XLE"],
+  ]),
+  ...sector(SectorGroup.Defensive, [
+    [UsSector.HealthCare, "XLV"],
+    [UsSector.ConsumerStaples, "XLP"],
+    [UsSector.Utilities, "XLU"],
+  ]),
+];
+
+/** What each market's sectors are read from. */
+export const SECTOR_INDICES: Record<Market, readonly SectorIndex[]> = {
+  [Market.TW]: TW_SECTOR_INDICES,
+  [Market.US]: US_SECTOR_FUNDS,
+};
+
+/** A sector index or fund and its session so far. */
 export const sectorQuoteSchema = z.object({
-  sector: z.enum(TwSector),
+  sector: z.enum(Sector),
   group: z.enum(SectorGroup),
   symbol: z.string(),
   /** `null` until the index has traded. */

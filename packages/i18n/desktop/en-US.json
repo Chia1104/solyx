@@ -156,6 +156,7 @@
       "description": "Each tile is a TWSE sector index, sized by the value traded today. The colour is how far the index moved; it is full at ±3%. Press a group or a tile to zoom into that group.",
       "figures": {
         "index": "Index",
+        "fund": "Fund",
         "change": "Change",
         "value": "Value traded",
         "share": "Share of trading"
@@ -230,7 +231,10 @@
     "groups": {
       "electronics": "Electronics",
       "finance": "Finance",
-      "other": "Other industries"
+      "other": "Other industries",
+      "cyclical": "Cyclical",
+      "sensitive": "Sensitive",
+      "defensive": "Defensive"
     },
     "names": {
       "cement": "Cement",
@@ -263,7 +267,18 @@
       "green-energy": "Green energy",
       "digital-cloud": "Digital and cloud",
       "sports": "Sports and leisure",
-      "home-living": "Home and living"
+      "home-living": "Home and living",
+      "technology": "Technology",
+      "financials": "Financials",
+      "health-care": "Health care",
+      "consumer-discretionary": "Consumer discretionary",
+      "consumer-staples": "Consumer staples",
+      "communication-services": "Communication services",
+      "industrials": "Industrials",
+      "energy": "Energy",
+      "materials": "Materials",
+      "utilities": "Utilities",
+      "real-estate": "Real estate"
     }
   },
   "chart": {

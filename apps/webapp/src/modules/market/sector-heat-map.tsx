@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { Market } from "@solyx/core/market";
-import { SectorGroup, sectorMoves } from "@solyx/core/sectors";
+import { SECTOR_GROUPS, sectorMoves } from "@solyx/core/sectors";
 import type { SectorQuote } from "@solyx/core/sectors";
 
 import { HeatMap } from "../../components/heat-map.tsx";
@@ -20,16 +20,18 @@ const FULL_COLOUR_MOVE = 0.03;
 /** Taller than a list's map, since a few sectors trade most of the value and the rest share little room. */
 const HEIGHT = 320;
 
-/** One read of Taiwan's listed sectors, sized by value traded and coloured by their index's move. */
+/** One read of a market's sectors, sized by value traded and coloured by their index's or fund's move. */
 export function SectorMap({
+  market,
   sectors,
   height = HEIGHT,
 }: {
+  market: Market;
   sectors: readonly SectorQuote[];
   height?: number;
 }) {
   const { t, i18n } = useTranslation();
-  const direction = useDirectionColors(Market.TW);
+  const direction = useDirectionColors(market);
   const format = numberFormats(i18n.language);
 
   const moves = new Map(
@@ -42,7 +44,7 @@ export function SectorMap({
   return (
     <HeatMap
       height={height}
-      groups={Object.values(SectorGroup).map((group) => ({
+      groups={SECTOR_GROUPS[market].map((group) => ({
         id: group,
         label: t(`sectors.groups.${group}`),
         tiles: sectors
@@ -63,7 +65,11 @@ export function SectorMap({
                 : 0,
               figures: move && [
                 {
-                  label: t("heat-map.sectors.figures.index"),
+                  label: t(
+                    market === Market.TW
+                      ? "heat-map.sectors.figures.index"
+                      : "heat-map.sectors.figures.fund"
+                  ),
                   value: format.quotePrice.format(move.quote.last),
                 },
                 {
@@ -86,10 +92,10 @@ export function SectorMap({
   );
 }
 
-/** The sectors as they trade today, which `followQuotes` keeps up with the session. */
-export function SectorHeatMap() {
+/** A market's sectors as they trade today, which `followQuotes` keeps up with the session. */
+export function SectorHeatMap({ market }: { market: Market }) {
   const { t } = useTranslation();
-  const { data, error, refetch } = useQuery(sectorsQuery());
+  const { data, error, refetch } = useQuery(sectorsQuery(market));
 
   if (error) return <LoadError error={error} onRetry={() => void refetch()} />;
 
@@ -101,5 +107,5 @@ export function SectorHeatMap() {
     );
   }
 
-  return <SectorMap sectors={data} />;
+  return <SectorMap market={market} sectors={data} />;
 }
