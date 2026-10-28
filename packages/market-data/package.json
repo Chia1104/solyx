@@ -8,7 +8,8 @@
     "./fubon": "./src/fubon.ts",
     "./fugle": "./src/fugle.ts",
     "./longbridge": "./src/longbridge.ts",
-    "./longbridge-sign-in": "./src/longbridge-sign-in.ts"
+    "./longbridge-sign-in": "./src/longbridge-sign-in.ts",
+    "./longbridge-stream": "./src/longbridge-stream.ts"
   },
   "scripts": {
     "test": "vp test"

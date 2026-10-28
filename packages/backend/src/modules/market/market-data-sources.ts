@@ -21,11 +21,12 @@ import {
 } from "@solyx/brokers/fubon";
 import type { FubonRealtime, FubonSessionOptions } from "@solyx/brokers/fubon";
 import { Market } from "@solyx/core/market";
+import type { SymbolRef } from "@solyx/core/market";
 import type {
   MarketDataProvider,
   MarketDataStream,
 } from "@solyx/core/market-data";
-import type { TradingCalendarProvider } from "@solyx/core/session";
+import type { TradingCalendarProvider, TradingDays } from "@solyx/core/session";
 import type { CandleStore } from "@solyx/db/cache";
 import { withCandleCache } from "@solyx/market-data/candle-cache";
 import {
@@ -48,6 +49,7 @@ import type {
   LongbridgeSecurity,
   LongbridgeSocket,
 } from "@solyx/market-data/longbridge";
+import { createLongbridgeStream } from "@solyx/market-data/longbridge-stream";
 import { errorMessage } from "@solyx/utils/error";
 
 import type { ConfigFile } from "../settings/config-file.ts";
@@ -92,6 +94,8 @@ interface MarketDataSourcesOptions {
   /** The order desk trades through Fubon, so its session stays while charts come from elsewhere. */
   tradesFubon: boolean;
   longbridge: LongbridgeAccess;
+  /** The days each market trades, which tell a live bar when its session closes. */
+  tradingDays: (market: Market) => Promise<TradingDays>;
 }
 
 /** One Longbridge sign-in's connection, the provider over it, and that provider with the candle cache. */
@@ -100,6 +104,24 @@ interface LongbridgeConnection {
   socket: LongbridgeSocket;
   data: MarketDataProvider & TradingCalendarProvider;
   provider: MarketDataProvider;
+}
+
+/** One stream over several, each listing watched on the one that covers its market. */
+function eachMarket(streams: readonly MarketDataStream[]): MarketDataStream {
+  const covering = (symbol: SymbolRef) =>
+    streams.find((stream) => stream.markets.includes(symbol.market));
+
+  return {
+    id: streams.map((stream) => stream.id).join("+"),
+    markets: streams.flatMap((stream) => stream.markets),
+    watchMinutes: (symbol, listener) =>
+      covering(symbol)?.watchMinutes(symbol, listener),
+    watchDepth: (symbol, listener) =>
+      covering(symbol)?.watchDepth(symbol, listener),
+    close() {
+      for (const stream of streams) stream.close();
+    },
+  };
 }
 
 /**
@@ -117,6 +139,7 @@ export function createMarketDataSources({
   openFubonProcess,
   tradesFubon,
   longbridge,
+  tradingDays,
 }: MarketDataSourcesOptions) {
   let fugle:
     | { apiKey: string; plan: FuglePlan; provider: MarketDataProvider }
@@ -125,6 +148,9 @@ export function createMarketDataSources({
   let fubon: FubonSignIn | undefined;
 
   let longbridgeConnection: LongbridgeConnection | undefined;
+
+  // The sign-in's client the stream follows, so a refresh, which keeps it, leaves the stream be.
+  let streamedClient: string | undefined;
 
   const streamListeners = new Set<() => void>();
 
@@ -179,7 +205,14 @@ export function createMarketDataSources({
     }
 
     // A sign-out closes the connection now rather than at the next request.
-    if (secret === LONGBRIDGE_SIGN_IN_SECRET) void longbridgeData();
+    if (secret === LONGBRIDGE_SIGN_IN_SECRET) {
+      void longbridgeData().then((connection) => {
+        if (connection?.clientId === streamedClient) return;
+
+        streamedClient = connection?.clientId;
+        streamChanged();
+      });
+    }
   });
 
   // A refresh keeps the client and its connection; a new sign-in, maybe of another account, opens another.
@@ -329,6 +362,37 @@ export function createMarketDataSources({
         };
   }
 
+  // A failed Fubon sign-in shows where charts load instead.
+  async function taiwanStream(): Promise<MarketDataStream | undefined> {
+    if (twSource() === MarketDataSource.Fubon) {
+      const connection = await fubonConnection().catch(() => undefined);
+
+      return connection && createFubonStream({ realtime: connection.realtime });
+    }
+
+    const apiKey = await secrets.get(Secret.FugleApiKey);
+
+    return apiKey === undefined
+      ? undefined
+      : createFugleStream({ apiKey, plan: fuglePlan() });
+  }
+
+  // Pushes share the sign-in's one connection with its requests, since Longbridge allows one.
+  async function usStream(): Promise<MarketDataStream | undefined> {
+    const connection = await longbridgeData().catch(() => undefined);
+
+    streamedClient = connection?.clientId;
+
+    return (
+      connection &&
+      createLongbridgeStream({
+        socket: connection.socket,
+        provider: connection.provider,
+        tradingDays: () => tradingDays(Market.US),
+      })
+    );
+  }
+
   async function fugleProvider(): Promise<MarketDataProvider | undefined> {
     const apiKey = await secrets.get(Secret.FugleApiKey);
 
@@ -362,21 +426,13 @@ export function createMarketDataSources({
       return fugleProvider();
     },
 
-    /** The stream for Taiwan listings; a failed Fubon sign-in shows where charts load instead. */
+    /** The stream for every market a source covers; `undefined` while none does. */
     async openStream(): Promise<MarketDataStream | undefined> {
-      if (twSource() === MarketDataSource.Fubon) {
-        const connection = await fubonConnection().catch(() => undefined);
+      const streams = await Promise.all([taiwanStream(), usStream()]);
 
-        return (
-          connection && createFubonStream({ realtime: connection.realtime })
-        );
-      }
+      const opened = streams.filter((stream) => stream !== undefined);
 
-      const apiKey = await secrets.get(Secret.FugleApiKey);
-
-      return apiKey === undefined
-        ? undefined
-        : createFugleStream({ apiKey, plan: fuglePlan() });
+      return opened.length > 0 ? eachMarket(opened) : undefined;
     },
 
     /** Calls `listener` whenever the stream `openStream` gives would differ from the last one's. */
