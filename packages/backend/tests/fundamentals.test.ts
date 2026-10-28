@@ -167,6 +167,12 @@ function setup(answers = memoryAnswers()) {
         { symbol: "2303", date: "2026-10-06", close: 50, change: -1 },
       ]
     ),
+    getListingNames: vi.fn<ExchangeListsProvider["getListingNames"]>(
+      async () => [
+        { symbol: "2330", name: "台積電" },
+        { symbol: "0050", name: "元大台灣50" },
+      ]
+    ),
   };
 
   const reports = {

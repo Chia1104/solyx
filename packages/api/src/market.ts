@@ -10,6 +10,14 @@ export interface CandleSet {
   candles: Candle[];
 }
 
+/** A listing a search found, named as its market knows it. */
+export interface ListingMatch {
+  symbol: SymbolRef;
+  name: string;
+  /** `null` where the source gives none, as Taiwan's exchanges do. */
+  englishName: string | null;
+}
+
 /** One listing on the rotation graph: against its market's index, and against its own sector's index where it has one. */
 export interface ListingRotationView {
   index: { name: string; readings: RotationReading[] };

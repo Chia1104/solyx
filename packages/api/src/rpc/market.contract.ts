@@ -3,7 +3,7 @@ import * as z from "zod";
 
 import { intervalSchema } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
-import { symbolRefSchema } from "@solyx/core/market";
+import { marketSchema, symbolRefSchema } from "@solyx/core/market";
 import type { Market } from "@solyx/core/market";
 import type { Depth, Listing } from "@solyx/core/market-data";
 import type { SessionQuote } from "@solyx/core/quote";
@@ -20,7 +20,11 @@ import type {
 import type { SectorQuote } from "@solyx/core/sectors";
 import type { Session } from "@solyx/core/session";
 
-import type { CandleSet, ListingRotationView } from "../market.ts";
+import type {
+  CandleSet,
+  ListingMatch,
+  ListingRotationView,
+} from "../market.ts";
 
 import { forDevices } from "./access.ts";
 import { changesContract } from "./changes.ts";
@@ -37,6 +41,19 @@ export const marketContract = {
     .meta(forDevices(true))
     .input(symbolRefSchema)
     .output(type<Listing | null>()),
+  /**
+   * Listings whose code or name matches `query`, best first, in `market` or in every market where
+   * it is `null`. A US listing is found by its full ticker, once its source is signed in.
+   */
+  search: oc
+    .meta(forDevices(true))
+    .input(
+      z.object({
+        query: z.string().trim().min(1).max(40),
+        market: marketSchema.nullable(),
+      })
+    )
+    .output(type<ListingMatch[]>()),
   /**
    * Bars oldest first: the interval's lookback window, or with `before` the page of history
    * before the bar opening then, which is empty once the source has nothing older.

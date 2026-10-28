@@ -164,6 +164,13 @@ export function createFundamentals({
     DAILY_LIST_FRESH_MS
   );
 
+  const listingNames = listed(
+    "listing-names",
+    exchanges,
+    (provider, market) => provider.getListingNames(market),
+    DAILY_LIST_FRESH_MS
+  );
+
   /** `ask`'s answer per listing, kept under `scope`. */
   function fresh<Answer>(
     scope: string,
@@ -306,5 +313,7 @@ export function createFundamentals({
     },
 
     priceLimits: async (symbol) => (await priceLimits.of(symbol)).at(0) ?? null,
+
+    listingNames: listingNames.all,
   };
 }
