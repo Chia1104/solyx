@@ -6,6 +6,7 @@ import type {
   MacroFiguresProvider,
 } from "@solyx/core/macro";
 import { Market } from "@solyx/core/market";
+import type { YieldCurveProvider } from "@solyx/core/yields";
 import { HOUR_MS } from "@solyx/utils/date";
 import { memoryAnswers } from "@solyx/utils/fresh";
 
@@ -35,15 +36,21 @@ function setup() {
     })),
   };
 
+  const treasury = {
+    id: "fake-treasury",
+    curves: vi.fn<YieldCurveProvider["curves"]>(async () => []),
+  };
+
   const macro = createMacro({
     calendars: [calendar],
     figures: [database],
     exchangeRates: rates,
+    yieldCurves: treasury,
     answers: memoryAnswers(),
     now: () => new Date(clock.now),
   });
 
-  return { clock, calendar, database, rates, macro };
+  return { clock, calendar, database, rates, treasury, macro };
 }
 
 test("a market's schedule is read from a week back, so releases just out stay on it, and twice a day at most", async () => {
@@ -128,4 +135,17 @@ test("the exchange rate is read every three hours at most, and the last one read
   });
 
   expect(rates.latest).toHaveBeenCalledTimes(2);
+});
+
+test("the yield curve is read from about three months back on New York's calendar, once an hour at most", async () => {
+  const { clock, treasury, macro } = setup();
+
+  await macro.yields();
+
+  expect(treasury.curves).toHaveBeenCalledExactlyOnceWith("2026-07-08");
+
+  clock.now += HOUR_MS - 1;
+  await macro.yields();
+
+  expect(treasury.curves).toHaveBeenCalledTimes(1);
 });

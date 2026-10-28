@@ -39,6 +39,7 @@ import { createCbc } from "@solyx/macro/cbc";
 import { createDgbas } from "@solyx/macro/dgbas";
 import { createLongbridgeMacro } from "@solyx/macro/longbridge";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
+import { createTreasury } from "@solyx/macro/treasury";
 import { createLongbridgeApi } from "@solyx/market-data/longbridge-api";
 
 import type { Host } from "./host.ts";
@@ -452,6 +453,7 @@ export function createServices(config: ConfigFile, host: Host) {
     calendars: [createStatGovTw({ fetch: host.chromiumFetch }), usMacro],
     figures: [createDgbas(), usMacro],
     exchangeRates: createCbc(),
+    yieldCurves: createTreasury(),
     answers: cache.answers,
   });
 

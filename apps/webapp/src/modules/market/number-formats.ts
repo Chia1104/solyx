@@ -18,7 +18,7 @@ export const numberFormats = memoize((locale: string) => ({
     signDisplay: "exceptZero",
     maximumFractionDigits: 2,
   }),
-  /** A rate set in eighths of a point, such as a central bank's. */
+  /** A rate in percent to the thousandth of a point, such as a central bank's, set in eighths, or a yield. */
   rate: new Intl.NumberFormat(locale, {
     style: "percent",
     maximumFractionDigits: 3,

@@ -29,6 +29,7 @@ import { SectorFundRotation } from "../modules/market/sector-fund-rotation.tsx";
 import { SectorHeatMap } from "../modules/market/sector-heat-map.tsx";
 import { SectorMovers } from "../modules/market/sector-movers.tsx";
 import { SectorRotation } from "../modules/market/sector-rotation.tsx";
+import { UsRates } from "../modules/market/us-rates.tsx";
 import { HeadlineList } from "../modules/news/headline-list.tsx";
 import { HEADLINE_DAYS } from "../modules/news/news-query.ts";
 import { ThemeList } from "../modules/themes/theme-list.tsx";
@@ -160,6 +161,11 @@ function MarketTab({ market }: { market: Market }) {
           title={t("heat-map.index-funds.title")}
           description={t("heat-map.index-funds.description")}>
           <IndexFunds symbols={US_INDEX_FUNDS} />
+        </Section>
+        <Section
+          title={t("heat-map.rates.title")}
+          description={t("heat-map.rates.description")}>
+          <UsRates />
         </Section>
         <Section
           title={t("heat-map.us-sectors.title")}

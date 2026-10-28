@@ -7,4 +7,7 @@ export const macroRouter = contractOS.macro.router({
   exchangeRate: contractOS.macro.exchangeRate.handler(({ context }) =>
     context.macro.exchangeRate()
   ),
+  yields: contractOS.macro.yields.handler(({ context }) =>
+    context.macro.yields()
+  ),
 });
