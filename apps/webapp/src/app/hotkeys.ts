@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import type { RefObject } from "react";
 
 import { useHotkeys } from "@tanstack/react-hotkeys";
 import type { Hotkey } from "@tanstack/react-hotkeys";
@@ -13,7 +12,7 @@ export const PANE_HOTKEY: Record<Pane, Hotkey> = {
   [Pane.Agent]: "Mod+I",
 };
 
-const SEARCH_HOTKEY: Hotkey = "Mod+K";
+export const SEARCH_HOTKEY: Hotkey = "Mod+K";
 
 /** ⌘[ as on macOS and Alt+← as on Windows and Linux, both bound everywhere. */
 export const BACK_HOTKEYS: Hotkey[] = ["Mod+[", "Alt+ArrowLeft"];
@@ -43,9 +42,7 @@ export function toggleAtOnce(toggle: () => void) {
  * fast; the title bar's buttons slide the panes. The back shortcuts and the mouse's back button
  * go back a page.
  */
-export function useWorkspaceHotkeys(
-  search: RefObject<HTMLInputElement | null>
-) {
+export function useWorkspaceHotkeys(openSearch: () => void) {
   const toggle = useLayoutStore((state) => state.toggle);
   const held = useHeldPane();
   const { history } = useRouter();
@@ -55,7 +52,7 @@ export function useWorkspaceHotkeys(
   };
 
   useHotkeys([
-    { hotkey: SEARCH_HOTKEY, callback: () => search.current?.focus() },
+    { hotkey: SEARCH_HOTKEY, callback: openSearch },
     ...Object.values(Pane).map((pane) => ({
       hotkey: PANE_HOTKEY[pane],
       callback: () => {

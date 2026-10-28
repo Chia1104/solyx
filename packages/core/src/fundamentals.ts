@@ -245,6 +245,11 @@ export interface GovernanceRecord {
   pledged: number | null;
 }
 
+/** The name the exchanges quote a listing under, such as 台積電. */
+export interface ListingName {
+  name: string;
+}
+
 /** A listed company as its exchange lists it. */
 export interface Company {
   industry: Industry;
@@ -302,6 +307,8 @@ export interface ExchangeListsProvider {
   getMeetings(market: Market): Promise<Listed<ShareholdersMeeting>[]>;
   /** Every listed company, with the industry the exchanges class it in and the shares it has issued. */
   getCompanies(market: Market): Promise<Listed<Company>[]>;
+  /** Every listing the exchanges quoted in the last session, warrants aside, with its name there. */
+  getListingNames(market: Market): Promise<Listed<ListingName>[]>;
   /** Every listing's price limits as the exchanges set them after the last session. */
   getPriceLimits(market: Market): Promise<Listed<PriceLimits>[]>;
   /** The last session's close of every listing the market's sector indices are drawn from. */
@@ -360,6 +367,8 @@ export interface Fundamentals {
   governance(symbol: SymbolRef): Promise<GovernanceRecord[]>;
   /** Its price limits as its exchange set them after the last session; `null` for a listing no source lists them for. */
   priceLimits(symbol: SymbolRef): Promise<PriceLimits | null>;
+  /** Every listing a market's exchanges quoted in their last session, with its name; none while no source lists its market's. */
+  listingNames(market: Market): Promise<Listed<ListingName>[]>;
 }
 
 function standing(

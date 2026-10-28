@@ -1,5 +1,3 @@
-import type { Ref } from "react";
-
 import { Button, Kbd, Tooltip, cn } from "@heroui/react";
 import {
   ArrowLeft01Icon,
@@ -24,13 +22,18 @@ import { Icon } from "../components/icon.tsx";
 import { SplitterEdge } from "../components/pane-splitter.tsx";
 import { WindowTitleBar } from "../components/window-title-bar.tsx";
 import { BrokerModeChip } from "../modules/account/broker-mode-chip.tsx";
+import { ListingSearchButton } from "../modules/market/listing-search.tsx";
 import { MarketSessions } from "../modules/market/market-sessions.tsx";
-import { SymbolSearch } from "../modules/market/symbol-search.tsx";
 import { OrderLockToggle } from "../modules/proposals/order-lock.tsx";
 import { UpdateAction } from "../modules/updates/update-action.tsx";
 
 import { inWindow } from "./device.ts";
-import { BACK_HOTKEYS, PANE_HOTKEY, toggleAtOnce } from "./hotkeys.ts";
+import {
+  BACK_HOTKEYS,
+  PANE_HOTKEY,
+  SEARCH_HOTKEY,
+  toggleAtOnce,
+} from "./hotkeys.ts";
 import { PANE_EDGE, Pane, paneId, useLayoutStore } from "./layout-store.ts";
 import { PEEK_DELAY, usePeekStore } from "./pane-peek.ts";
 import { useHeldPane, useSettingsOpen } from "./settings-open.ts";
@@ -160,7 +163,7 @@ function SettingsButton() {
 }
 
 /** The workspace's title bar: the pane toggles, back, search, a waiting update, market sessions, the strategies and settings. */
-export function TitleBar({ searchRef }: { searchRef: Ref<HTMLInputElement> }) {
+export function TitleBar() {
   const { t } = useTranslation();
 
   return (
@@ -170,7 +173,7 @@ export function TitleBar({ searchRef }: { searchRef: Ref<HTMLInputElement> }) {
       <Link to="/" title={t("nav.overview")} className="text-sm font-semibold">
         Solyx
       </Link>
-      <SymbolSearch inputRef={searchRef} />
+      <ListingSearchButton hotkey={SEARCH_HOTKEY} />
       <div className="ml-auto flex items-center gap-4">
         {inWindow ? <UpdateAction /> : null}
         <MarketSessions />

@@ -151,12 +151,19 @@ function QuoteBoard({ symbol, depth }: { symbol: SymbolRef; depth: Depth }) {
         <Figure label={t(`depth.volume.${symbol.market}`)}>
           {format.amount.format(sizeOf(symbol.market, depth.volume))}
         </Figure>
-        <Figure label={t("depth.limit-up")} className={direction.rise.text}>
-          {price(band?.high)}
-        </Figure>
-        <Figure label={t("depth.limit-down")} className={direction.fall.text}>
-          {price(band?.low)}
-        </Figure>
+        {/* The US sets no daily price limits. */}
+        {symbol.market === Market.TW ? (
+          <>
+            <Figure label={t("depth.limit-up")} className={direction.rise.text}>
+              {price(band?.high)}
+            </Figure>
+            <Figure
+              label={t("depth.limit-down")}
+              className={direction.fall.text}>
+              {price(band?.low)}
+            </Figure>
+          </>
+        ) : null}
       </dl>
       <DayRange depth={depth} band={band} direction={direction} />
       {matched > 0 ? (

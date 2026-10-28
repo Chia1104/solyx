@@ -30,6 +30,7 @@
     "@solyx/web-search": "workspace:*",
     "@streamdown/cjk": "catalog:markdown",
     "@tanstack/react-hotkeys": "catalog:tanstack",
+    "@tanstack/react-pacer": "catalog:tanstack",
     "@tanstack/react-query": "catalog:tanstack",
     "@tanstack/react-query-devtools": "catalog:tanstack",
     "@tanstack/react-router": "catalog:tanstack",

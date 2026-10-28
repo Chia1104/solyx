@@ -12,6 +12,7 @@ import type {
   Company,
   GovernanceRecord,
   Listed,
+  ListingName,
   ShareholdersMeeting,
   TradingRestriction,
 } from "@solyx/core/fundamentals";
@@ -610,6 +611,24 @@ const tpexLimitSchema = z
     )
   );
 
+// A listing's name in an exchange's quotes of its last session.
+const twseNameSchema = z
+  .object({ Code: listingCodeSchema, Name: textSchema.min(1) })
+  .transform((row): Listed<ListingName> => ({
+    symbol: row.Code,
+    name: row.Name,
+  }));
+
+const tpexNameSchema = z
+  .object({
+    SecuritiesCompanyCode: listingCodeSchema,
+    CompanyName: textSchema.min(1),
+  })
+  .transform((row): Listed<ListingName> => ({
+    symbol: row.SecuritiesCompanyCode,
+    name: row.CompanyName,
+  }));
+
 // A listing's close of TWSE's last session; one that did not trade has no close and is left out.
 const twseCloseSchema = z
   .object({
@@ -936,6 +955,17 @@ export function createTwExchanges(
         ),
         ...tpexLimits,
       ];
+    },
+
+    async getListingNames(market) {
+      if (market !== Market.TW) return [];
+
+      const lists = await Promise.all([
+        list(twse, "exchangeReport/STOCK_DAY_ALL", twseNameSchema),
+        list(tpex, "tpex_mainboard_daily_close_quotes", tpexNameSchema),
+      ]);
+
+      return lists.flat();
     },
 
     // The sector indices are TWSE's, so only its listings' closes are read.

@@ -342,6 +342,7 @@ function setup(councils?: Council[], read?: string[], watched = false) {
     sectorMovers: async () => null,
     governance: async () => filed.governance ?? [],
     priceLimits: async () => null,
+    listingNames: async () => [],
   };
 
   const desk = new ResearchDesk({

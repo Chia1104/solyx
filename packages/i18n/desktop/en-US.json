@@ -261,8 +261,7 @@
   },
   "chart": {
     "loading-older": "Loading older bars",
-    "search-label": "Symbol",
-    "search-placeholder": "Symbol, e.g. 2330",
+    "search-placeholder": "Symbol or name, e.g. 2330, AAPL",
     "no-data": "No candles in this range.",
     "intervals-label": "Interval",
     "intervals": {
@@ -347,6 +346,17 @@
     "session": "Intraday",
     "reference": "Reference",
     "tools": "Chart tools"
+  },
+  "search": {
+    "trigger": "Search symbols",
+    "title": "Search listings",
+    "markets": "Markets",
+    "every-market": "All",
+    "results": "Listings found",
+    "recent": "Opened recently",
+    "hint": "Type a symbol or a name.",
+    "none": "No listing matches.",
+    "us-signed-out": "US listings show once you sign in to Longbridge in Settings."
   },
   "depth": {
     "title": "Quote",

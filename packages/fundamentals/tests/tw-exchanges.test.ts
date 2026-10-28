@@ -943,6 +943,53 @@ test("reads the limits both exchanges set for the next session, a listing withou
   ]);
 });
 
+test("reads every listing's name from both exchanges' quotes of their last session, warrants aside", async () => {
+  const { sent, exchanges } = fakeExchanges({
+    [`${TWSE}exchangeReport/STOCK_DAY_ALL`]: [
+      {
+        Date: "1151016",
+        Code: "2330",
+        Name: "範例電子",
+        ClosingPrice: "2420.00",
+      },
+      // A listing that did not trade keeps its name.
+      { Date: "1151016", Code: "0050", Name: "範例台灣50", ClosingPrice: "" },
+      {
+        Date: "1151016",
+        Code: "053040",
+        Name: "範例購01",
+        ClosingPrice: "0.80",
+      },
+    ],
+    [`${TPEX}tpex_mainboard_daily_close_quotes`]: [
+      // TPEx pads names.
+      {
+        Date: "1151016",
+        SecuritiesCompanyCode: "5483",
+        CompanyName: "範例矽晶   ",
+        Close: "150.00",
+      },
+      {
+        Date: "1151016",
+        SecuritiesCompanyCode: "712345",
+        CompanyName: "範例購02",
+        Close: "0.50",
+      },
+    ],
+  });
+
+  expect(await exchanges.getListingNames(Market.TW)).toEqual([
+    { symbol: "2330", name: "範例電子" },
+    { symbol: "0050", name: "範例台灣50" },
+    { symbol: "5483", name: "範例矽晶" },
+  ]);
+  expect(await exchanges.getListingNames(Market.US)).toEqual([]);
+  expect(sent.toSorted()).toEqual([
+    `${TWSE}exchangeReport/STOCK_DAY_ALL`,
+    `${TPEX}tpex_mainboard_daily_close_quotes`,
+  ]);
+});
+
 test("reads the closes of TWSE's last session, leaving out a listing that did not trade", async () => {
   const { sent, exchanges } = fakeExchanges({
     [`${TWSE}exchangeReport/STOCK_DAY_ALL`]: [

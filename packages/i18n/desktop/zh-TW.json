@@ -261,8 +261,7 @@
   },
   "chart": {
     "loading-older": "正在載入更早的 K 線",
-    "search-label": "代號",
-    "search-placeholder": "代號，例如 2330",
+    "search-placeholder": "代號或名稱，例如 2330、AAPL",
     "no-data": "這段期間沒有 K 線資料。",
     "intervals-label": "週期",
     "intervals": {
@@ -347,6 +346,17 @@
     "session": "分時",
     "reference": "參考價",
     "tools": "圖表工具"
+  },
+  "search": {
+    "trigger": "搜尋代號或名稱",
+    "title": "搜尋商品",
+    "markets": "市場",
+    "every-market": "全部",
+    "results": "找到的商品",
+    "recent": "最近開啟",
+    "hint": "輸入代號或名稱。",
+    "none": "沒有符合的商品。",
+    "us-signed-out": "在設定登入長橋後，才搜尋得到美股。"
   },
   "depth": {
     "title": "報價",
