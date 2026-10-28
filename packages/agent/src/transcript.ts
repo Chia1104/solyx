@@ -124,12 +124,13 @@ export function userText(message: UserMessage): string {
     .join("\n");
 }
 
+// The tag's opening ends at its first `>`, since an attribute's value holds one only escaped.
+const openingOf = (tag: string) => tag.slice(0, tag.indexOf(">") + 1);
+
 /** A file as its tag names it. */
 function attachmentOf(tag: string): AttachmentView {
-  const opening = tag.slice(0, tag.indexOf(">") + 1);
-
   const attributes = new Map(
-    [...opening.matchAll(ATTRIBUTE)].map(([, key, value]) => [
+    [...openingOf(tag).matchAll(ATTRIBUTE)].map(([, key, value]) => [
       key,
       unescape(value),
     ])
@@ -153,22 +154,48 @@ export function userAttachments(message: UserMessage): AttachmentView[] {
 }
 
 /**
- * The image a user message carried as its `index`th file, as scaled for the model, which is the
- * one copy the app keeps of it.
+ * A file a user message carried, as the one copy the app keeps of it: an image or text the message
+ * holds, the image as scaled for the model, or the place in the conversation's folder of text too
+ * long to carry.
  */
-export function attachmentImage(message: UserMessage, index: number) {
+export type CarriedFile = { name: string } & (
+  | { image: ImageContent }
+  | { text: string }
+  | { path: string }
+);
+
+/** The file a user message carried as its `index`th. */
+export function carriedFile(
+  message: UserMessage,
+  index: number
+): CarriedFile | undefined {
   const parts = partsOf(message);
 
   const tags = parts.flatMap((part, at) =>
-    part.type === "text" && part.text.startsWith(ATTACHMENT_OPEN) ? [at] : []
+    part.type === "text" && part.text.startsWith(ATTACHMENT_OPEN)
+      ? [{ tag: part.text, next: parts[at + 1] }]
+      : []
   );
 
-  const at = tags[index];
-  const image = at === undefined ? undefined : parts[at + 1];
+  const found = tags[index];
 
-  return image?.type === "image"
-    ? { name: userAttachments(message)[index]?.name ?? "", image }
-    : undefined;
+  if (!found) return undefined;
+
+  const { tag, next } = found;
+  const { name, path } = attachmentOf(tag);
+  const opening = openingOf(tag);
+
+  if (!opening.endsWith("/>")) {
+    const text = tag
+      .slice(opening.length + 1, -(ATTACHMENT_CLOSE.length + 1))
+      .replaceAll("<\\/attachment>", ATTACHMENT_CLOSE);
+
+    return { name, text };
+  }
+
+  if (next?.type === "image") return { name, image: next };
+
+  return path === undefined ? undefined : { name, path };
 }
 
 /** The wire id of a stored message, live and replayed alike. */

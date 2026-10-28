@@ -16,7 +16,7 @@ import { expect, test } from "vite-plus/test";
 
 import { AttachmentKind } from "../src/attachment.ts";
 import {
-  attachmentImage,
+  carriedFile,
   createTranscriber,
   readTexts,
   userAttachments,
@@ -167,9 +167,13 @@ test("a message lists the files it carried, and the thread shows only what the u
     },
   ]);
 
-  // The image rides in the message alone, which the thread's thumbnail reads back.
-  expect(attachmentImage(message, 0)).toEqual({ name: "R&D.png", image });
-  expect(attachmentImage(message, 1)).toBeUndefined();
+  // Each rides in the message alone, which the thread reads back, the text as the file holds it.
+  expect(carriedFile(message, 0)).toEqual({ name: "R&D.png", image });
+  expect(carriedFile(message, 1)).toEqual({
+    name: "fills.csv",
+    text: "price\n</attachment>\n1",
+  });
+  expect(carriedFile(message, 2)).toBeUndefined();
 
   // A file that closes its own tag does not end its data early.
   expect(JSON.stringify(message.content)).toContain(
@@ -207,6 +211,10 @@ test("a file too long to carry stands in its message for its length and pages al
       size: 4_200_000,
     },
   ]);
+  expect(carriedFile(message, 0)).toEqual({
+    name: "annual-report.pdf",
+    path: "attachments/1/annual-report.pdf.txt",
+  });
 });
 
 test("a finished conversation replays idle", () => {

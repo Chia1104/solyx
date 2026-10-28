@@ -42,6 +42,12 @@ export const agentRouter = agent.router({
   attachmentImage: agent.attachmentImage.handler(({ context, input }) =>
     context.agent.attachmentImage(input.id, input.messageId, input.index)
   ),
+  attachmentText: agent.attachmentText.handler(({ context, input }) =>
+    context.agent.attachmentText(input.id, input.messageId, input.index)
+  ),
+  fileText: agent.fileText.handler(({ context, input }) =>
+    context.agent.fileText(input)
+  ),
   abort: agent.abort.handler(({ context, input }) =>
     context.agent.abort(input)
   ),

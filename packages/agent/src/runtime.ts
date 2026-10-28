@@ -63,7 +63,7 @@ import type {
 import { createToolsetLoader } from "./toolset.ts";
 import type { Toolset } from "./toolset.ts";
 import {
-  attachmentImage,
+  carriedFile,
   createTranscriber,
   readTexts,
   replyText,
@@ -1020,11 +1020,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       }, BACKGROUND_CONTEXT);
     },
 
-    /**
-     * The image a user message carried as its `index`th file, as scaled for the model, which is
-     * the one copy kept of it; `undefined` where that file is no image.
-     */
-    async attachmentImage(sessionId: string, messageId: string, index: number) {
+    /** The file a user message carried as its `index`th, as the one copy kept of it. */
+    async carriedFile(sessionId: string, messageId: string, index: number) {
       const conversation = await conversationOf(sessionId);
       // SAFETY: a message's wire id is its entry's id written out, as `./transcript` writes it.
       const id = Number(messageId) as EntryId;
@@ -1040,7 +1037,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       const [stored] = entry?.model ?? [];
 
       return entry && UserEntry.is(entry) && stored?.role === "user"
-        ? attachmentImage(stored, index)
+        ? carriedFile(stored, index)
         : undefined;
     },
 

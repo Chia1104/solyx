@@ -11,7 +11,7 @@ import type {
 } from "@solyx/agent/wire";
 
 import { agentScreenSchema } from "../agent.ts";
-import type { AgentUpdate } from "../agent.ts";
+import type { AgentUpdate, FileText } from "../agent.ts";
 import { localeSchema, timeZoneSchema } from "../settings.ts";
 
 import { forDevices } from "./access.ts";
@@ -20,6 +20,17 @@ import { changesContract } from "./changes.ts";
 const idSchema = z.string().min(1);
 
 const textSchema = z.string().trim().min(1).max(20_000);
+
+/** A file a message of a conversation carried, by where it stands among the message's files. */
+const carriedFileSchema = z.object({
+  id: idSchema,
+  messageId: idSchema,
+  index: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_ATTACHMENTS - 1),
+});
 
 export const agentContract = {
   /** Most recently active first. */
@@ -63,18 +74,22 @@ export const agentContract = {
    */
   attachmentImage: oc
     .meta(forDevices(true))
-    .input(
-      z.object({
-        id: idSchema,
-        messageId: idSchema,
-        index: z
-          .number()
-          .int()
-          .min(0)
-          .max(MAX_ATTACHMENTS - 1),
-      })
-    )
+    .input(carriedFileSchema)
     .output(type<File>()),
+  /**
+   * The text a message of the conversation carried as its `index`th file, a text file's own or
+   * what was read of a PDF, for the thread to preview; `null` once the conversation's folder no
+   * longer keeps it, as when a command removed it.
+   */
+  attachmentText: oc
+    .meta(forDevices(true))
+    .input(carriedFileSchema)
+    .output(type<FileText | null>()),
+  /** The text `send` would read of a file, a PDF's among them, for the composer to preview. */
+  fileText: oc
+    .meta(forDevices(true))
+    .input(z.file().max(MAX_ATTACHMENT_BYTES))
+    .output(type<FileText>()),
   abort: oc.meta(forDevices(true)).input(idSchema).output(type<void>()),
   /**
    * Runs a run the app's exits parked again from where it stopped. Only a window may, since a

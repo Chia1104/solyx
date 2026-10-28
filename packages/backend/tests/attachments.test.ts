@@ -10,7 +10,9 @@ import { AttachmentKind } from "@solyx/agent/attachment";
 
 import {
   attachmentText,
+  fileText,
   keepAttachments,
+  keptText,
 } from "../src/modules/agent/attachments.ts";
 import { createPdfThreads } from "../src/modules/agent/pdf-threads.ts";
 
@@ -245,4 +247,23 @@ test("read_attachment reads only text kept at a kept file's place", async () => 
   ).rejects.toThrow(
     /^fills\.csv is no longer kept in this conversation, since it was removed after it was attached; ask the user to attach it again$/
   );
+  // The thread's preview says so in the app's own words.
+  expect(await keptText(workspace, "attachments/5/fills.csv")).toBeUndefined();
+});
+
+test("the composer previews the text the agent would read of a file, keeping nothing of it", async () => {
+  expect(await fileText(new File([REPORT], "法說會.pdf"), pdfs)).toBe(
+    "[page 1]\n台積電"
+  );
+  expect(await fileText(new File(["a,b\n"], "fills.csv"), noPdfs)).toBe(
+    "a,b\n"
+  );
+  await expect(fileText(new File([SCAN], "scan.pdf"), pdfs)).rejects.toThrow(
+    "scan.pdf holds no text to read"
+  );
+  await expect(fileText(new File([PNG], "chart.png"), noPdfs)).rejects.toThrow(
+    "chart.png is an image"
+  );
+
+  expect(await readdir(workspace)).toEqual([]);
 });

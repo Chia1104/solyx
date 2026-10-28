@@ -51,3 +51,17 @@ export interface AgentUpdate {
   sessionId: string;
   event: AgentWireEvent;
 }
+
+/** The most of a file's text a preview shows, since a file may hold far more than a page draws at once. */
+export const PREVIEW_CHARACTERS = 100_000;
+
+/** A file's text as a preview shows it: its first `PREVIEW_CHARACTERS`, and how many it holds. */
+export interface FileText {
+  text: string;
+  characters: number;
+}
+
+export const previewText = (text: string): FileText => ({
+  text: text.slice(0, PREVIEW_CHARACTERS),
+  characters: text.length,
+});
