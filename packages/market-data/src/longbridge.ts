@@ -1,4 +1,4 @@
-import { limitAsync, noop } from "es-toolkit";
+import { chunk, limitAsync, noop, retry } from "es-toolkit";
 import ky from "ky";
 import * as z from "zod";
 
@@ -37,6 +37,7 @@ import {
   candlesticksRequest,
   decodeCandlesticks,
   decodeClose,
+  decodeCommandRates,
   decodeDepth,
   decodeError,
   decodePacket,
@@ -49,17 +50,36 @@ import {
   securitiesRequest,
   tradeDaysRequest,
 } from "./longbridge-wire.ts";
-import type { Candlestick, Packet, SecurityQuote } from "./longbridge-wire.ts";
+import type {
+  Candlestick,
+  CommandRate,
+  Packet,
+  SecurityQuote,
+} from "./longbridge-wire.ts";
 
 const API_URL = "https://openapi.longbridge.com";
 
 const QUOTE_URL =
   "wss://openapi-quote.longbridge.com/v2?version=1&codec=1&platform=9";
 
-// Longbridge takes ten quote requests a second, five at once.
+// Longbridge documents ten quote requests a second, five at once, and tells each connection what
+// it takes of each command, which counts in place of the ten for that command.
 const REQUESTS_PER_SECOND = 10;
 
 const CONCURRENT_REQUESTS = 5;
+
+// The server counts requests as they arrive, which the network may bunch, so each second is
+// counted a little longer here.
+const RATE_WINDOW_MS = 1100;
+
+/** The code Longbridge refuses a request with when its command came too fast. */
+const RATE_LIMITED = 301_606;
+
+// A request refused as too fast is asked again after a pause that grows, a few times, as
+// Longbridge's own SDK holds a request back rather than failing it.
+const RATE_LIMITED_RETRIES = 3;
+
+const RATE_LIMITED_PAUSE_MS = 1000;
 
 // What the server waits before it answers a request with a timeout; silence past it and a grace
 // means the connection is gone.
@@ -75,6 +95,9 @@ const MAX_REQUEST_ID = 0xffffffff;
 
 /** The code Longbridge answers a symbol it does not list with. */
 export const INVALID_SYMBOL = 301_600;
+
+/** The most symbols one quote request takes. */
+const MAX_QUOTE_SYMBOLS = 500;
 
 /** The most bars one request returns: the latest ones, since the range query needs a history quota. */
 const MAX_CANDLES = 1000;
@@ -213,10 +236,30 @@ export function createLongbridgeSocket({
 }: LongbridgeSocketOptions): LongbridgeSocket {
   const api = ky.create({ baseUrl: API_URL, fetch, ...LONGBRIDGE_RETRIES });
 
-  const budget = createRateLimiter({
-    limit: REQUESTS_PER_SECOND,
-    windowMs: 1000,
-  });
+  // Each command's pace, as the server last told a connection of this sign-in.
+  const paces = new Map<
+    number,
+    { limit: number; pace: ReturnType<typeof createRateLimiter> }
+  >();
+
+  function paceFor(command: number, limit: number) {
+    const kept = paces.get(command);
+
+    if (kept?.limit === limit) return kept.pace;
+
+    const pace = createRateLimiter({ limit, windowMs: RATE_WINDOW_MS });
+
+    paces.set(command, { limit, pace });
+
+    return pace;
+  }
+
+  // A burst below the rate caps it, since more than the burst may not come at once.
+  function setRates(rates: readonly CommandRate[]) {
+    for (const { command, limit, burst } of rates) {
+      if (limit > 0) paceFor(command, Math.min(limit, burst || limit));
+    }
+  }
 
   let current: Promise<Connection> | undefined;
   let closed = false;
@@ -407,6 +450,16 @@ export function createLongbridgeSocket({
         authRequest(otp, { "accept-language": "en" }),
         "the sign-in"
       );
+
+      setRates(
+        decodeCommandRates(
+          await call(
+            Command.QueryUserQuoteProfile,
+            new Uint8Array(),
+            "the quote profile"
+          )
+        )
+      );
     } catch (error) {
       if (error instanceof Error) drop(error);
 
@@ -457,11 +510,15 @@ export function createLongbridgeSocket({
     return current;
   }
 
-  const send = limitAsync(
-    async (command: Command, body: Uint8Array) =>
-      (await connection()).call(command, body),
-    CONCURRENT_REQUESTS
-  );
+  // A request counts against its command's pace as it goes out, not as it waits for a turn, so
+  // requests held back by the five at once never go out together past the pace.
+  const send = limitAsync(async (command: Command, body: Uint8Array) => {
+    const open = await connection();
+
+    return (paces.get(command)?.pace ?? paceFor(command, REQUESTS_PER_SECOND))(
+      () => open.call(command, body)
+    );
+  }, CONCURRENT_REQUESTS);
 
   function listen<Listener>(listeners: Set<Listener>, listener: Listener) {
     listeners.add(listener);
@@ -472,7 +529,13 @@ export function createLongbridgeSocket({
   }
 
   return {
-    request: (command, body) => budget(() => send(command, body)),
+    request: (command, body) =>
+      retry(() => send(command, body), {
+        retries: RATE_LIMITED_RETRIES,
+        delay: (attempts) => RATE_LIMITED_PAUSE_MS * (attempts + 1),
+        shouldRetry: (error) =>
+          error instanceof LongbridgeError && error.code === RATE_LIMITED,
+      }),
 
     onPush: (listener) => listen(pushListeners, listener),
 
@@ -563,6 +626,60 @@ export interface LongbridgeMarketDataOptions {
  * since a login without an account has no quota for older ranges, and the days the US market
  * trades as Longbridge lists them, those closing early among them.
  */
+/**
+ * Quotes asked for within one turn of the event loop, read together in requests of up to
+ * `MAX_QUOTE_SYMBOLS`, so a market's sector funds cost one request rather than one each. `read`
+ * answers `null` where Longbridge does not list a symbol asked for, which fails the request whole,
+ * so then each is asked alone; a symbol it lists no quote of has none.
+ */
+function batchQuotes(
+  read: (codes: readonly string[]) => Promise<SecurityQuote[] | null>
+) {
+  let waiting:
+    | { codes: Set<string>; answer: Promise<Map<string, SecurityQuote>> }
+    | undefined;
+
+  async function quotes(
+    codes: readonly string[]
+  ): Promise<Map<string, SecurityQuote>> {
+    const found = await read(codes);
+
+    if (found) return new Map(found.map((quote) => [quote.symbol, quote]));
+
+    if (codes.length === 1) return new Map();
+
+    const each = await Promise.all(codes.map((one) => quotes([one])));
+
+    return new Map(each.flatMap((one) => [...one]));
+  }
+
+  return async (code: string): Promise<SecurityQuote | null> => {
+    if (!waiting) {
+      const codes = new Set<string>();
+
+      waiting = {
+        codes,
+        // Read once every caller of this turn has named its symbol.
+        answer: new Promise((resolve) => setTimeout(resolve, 0)).then(
+          async () => {
+            waiting = undefined;
+
+            const each = await Promise.all(
+              chunk([...codes], MAX_QUOTE_SYMBOLS).map(quotes)
+            );
+
+            return new Map(each.flatMap((one) => [...one]));
+          }
+        ),
+      };
+    }
+
+    waiting.codes.add(code);
+
+    return (await waiting.answer).get(code) ?? null;
+  };
+}
+
 export function createLongbridgeMarketData(
   socket: LongbridgeSocket,
   { now = () => new Date() }: LongbridgeMarketDataOptions = {}
@@ -594,16 +711,14 @@ export function createLongbridgeMarketData(
     }
   }
 
+  const quoteOf = batchQuotes((codes) =>
+    listed(Command.QuerySecurityQuote, securitiesRequest(codes), decodeQuotes)
+  );
+
   async function securityQuote(
     symbol: SymbolRef
   ): Promise<SecurityQuote | null> {
-    const quote = (
-      await listed(
-        Command.QuerySecurityQuote,
-        securitiesRequest([code(symbol)]),
-        decodeQuotes
-      )
-    )?.[0];
+    const quote = await quoteOf(code(symbol));
 
     return quote && price(quote.lastDone) !== null ? quote : null;
   }

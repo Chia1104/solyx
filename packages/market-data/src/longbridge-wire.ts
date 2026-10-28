@@ -11,6 +11,7 @@ export const Command = {
   Close: 0,
   Heartbeat: 1,
   Auth: 2,
+  QueryUserQuoteProfile: 4,
   Subscribe: 6,
   Unsubscribe: 7,
   QueryMarketTradeDay: 9,
@@ -234,6 +235,21 @@ export function authRequest(
 
   return writer.finish();
 }
+
+/** How many requests of one command the server takes each second, and how many it lets come at once. */
+export interface CommandRate {
+  command: number;
+  limit: number;
+  burst: number;
+}
+
+/** `UserQuoteProfileResponse`'s rates, by which the server paces each command of this sign-in's connection. */
+export const decodeCommandRates = (body: Uint8Array): CommandRate[] =>
+  messages(readFields(body), 5).map((rate) => ({
+    command: integer(rate, 1),
+    limit: integer(rate, 2),
+    burst: integer(rate, 3),
+  }));
 
 /** `MultiSecurityRequest`, or `SecurityRequest` for one symbol: the same field. */
 export function securitiesRequest(symbols: readonly string[]): Uint8Array {

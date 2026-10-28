@@ -1,6 +1,7 @@
 import { gzipSync } from "node:zlib";
 
 import { BinaryReader, BinaryWriter, WireType } from "@bufbuild/protobuf/wire";
+import { noop } from "es-toolkit";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { Interval } from "@solyx/core/candles";
@@ -97,6 +98,35 @@ function requestFields(body: Uint8Array) {
   return fields;
 }
 
+// The sign-in and the quote profile, which every connection asks before anything else.
+const HANDSHAKE = new Set([2, 4]);
+
+/** What a connection asked once it was open, past the sign-in and the profile. */
+const askedOf = (socket: FakeSocket) =>
+  socket.requests.filter(({ command }) => !HANDSHAKE.has(command));
+
+/** `UserQuoteProfileResponse` with how fast the server takes each command. */
+function quoteProfile(
+  rates: { command: number; limit: number; burst: number }[]
+) {
+  const writer = new BinaryWriter();
+
+  for (const { command, limit, burst } of rates) {
+    writer
+      .tag(5, WireType.LengthDelimited)
+      .fork()
+      .tag(1, WireType.Varint)
+      .int32(command)
+      .tag(2, WireType.Varint)
+      .int32(limit)
+      .tag(3, WireType.Varint)
+      .int32(burst)
+      .join();
+  }
+
+  return writer.finish();
+}
+
 /** Plays Longbridge's quote server over fake sockets. */
 class FakeSocket implements LongbridgeWebSocket {
   readonly requests: SentRequest[] = [];
@@ -108,10 +138,16 @@ class FakeSocket implements LongbridgeWebSocket {
 
   readonly headers: Record<string, string>;
   private readonly answer: Handler;
+  private readonly profile: Uint8Array;
 
-  constructor(headers: Record<string, string>, answer: Handler) {
+  constructor(
+    headers: Record<string, string>,
+    answer: Handler,
+    profile: Uint8Array
+  ) {
     this.headers = headers;
     this.answer = answer;
+    this.profile = profile;
     queueMicrotask(() => this.emit("open"));
   }
 
@@ -127,8 +163,9 @@ class FakeSocket implements LongbridgeWebSocket {
 
     this.requests.push(request);
 
-    const answer =
-      request.command === 2 ? ok(new Uint8Array()) : this.answer(request);
+    const answer = HANDSHAKE.has(request.command)
+      ? ok(request.command === 4 ? this.profile : new Uint8Array())
+      : this.answer(request);
 
     if (answer) {
       queueMicrotask(() =>
@@ -154,7 +191,12 @@ function setup(
   {
     envelope = { code: 0, message: "success", data: { otp: "otp-1" } },
     now = new Date("2026-10-28T14:00:00Z"),
-  }: { envelope?: unknown; now?: Date } = {}
+    rates = [],
+  }: {
+    envelope?: unknown;
+    now?: Date;
+    rates?: { command: number; limit: number; burst: number }[];
+  } = {}
 ) {
   const sockets: FakeSocket[] = [];
   const passwords: { url: string; headers: Headers }[] = [];
@@ -169,7 +211,7 @@ function setup(
       return Response.json(envelope);
     },
     connect: (_url, headers) => {
-      const fake = new FakeSocket(headers, answer);
+      const fake = new FakeSocket(headers, answer, quoteProfile(rates));
 
       sockets.push(fake);
 
@@ -200,10 +242,12 @@ function staticInfo(symbol: string, nameEn: string, nameHk: string) {
 }
 
 function quote({
+  symbol = "AAPL.US",
   last,
   previous,
   timestamp,
 }: {
+  symbol?: string;
   last: string;
   previous: string;
   timestamp: number;
@@ -212,7 +256,7 @@ function quote({
     .tag(1, WireType.LengthDelimited)
     .fork()
     .tag(1, WireType.LengthDelimited)
-    .string("AAPL.US")
+    .string(symbol)
     .tag(2, WireType.LengthDelimited)
     .string(last)
     .tag(3, WireType.LengthDelimited)
@@ -320,10 +364,11 @@ test("signs in with a one-time password before its first request, and keeps the 
   expect(sockets).toHaveLength(1);
   expect(sockets[0].headers).toEqual({ "x-dc-region": "ap" });
 
-  const [auth, ...asked] = sockets[0].requests;
+  const [auth, profile, ...asked] = sockets[0].requests;
 
   expect(auth.command).toBe(2);
   expect(requestFields(auth.body).get(1)).toEqual(["otp-1"]);
+  expect(profile.command).toBe(4);
   expect(asked.map(({ command }) => command)).toEqual([10, 10]);
   expect(requestFields(asked[0].body).get(1)).toEqual(["AAPL.US"]);
 });
@@ -337,7 +382,7 @@ test("names a listing in traditional Chinese, with its English name beside, and 
     name: "伯克希爾哈撒韋-B",
     englishName: "Berkshire Hathaway B",
   });
-  expect(requestFields(sockets[0].requests[1].body).get(1)).toEqual([
+  expect(requestFields(askedOf(sockets[0])[0].body).get(1)).toEqual([
     "BRK.B.US",
   ]);
 });
@@ -420,7 +465,7 @@ test("serves the latest bars within the range asked for, oldest first, as traded
     },
   ]);
 
-  const [traded, adjusted] = sockets[0].requests.slice(1);
+  const [traded, adjusted] = askedOf(sockets[0]);
 
   expect(traded.command).toBe(19);
   // Daily bars, the latest thousand, as traded, regular session only; then forward-adjusted.
@@ -497,7 +542,7 @@ test("bars shorter than a day carry no reference, asked for as traded alone", as
   });
 
   expect(
-    sockets[0].requests.slice(1).map(({ body }) => requestFields(body).get(4))
+    askedOf(sockets[0]).map(({ body }) => requestFields(body).get(4))
   ).toEqual([[0]]);
 });
 
@@ -511,7 +556,7 @@ test("asks for minute bars by their period", async () => {
     to: "2026-10-28",
   });
 
-  expect(requestFields(sockets[0].requests[1].body).get(2)).toEqual([15]);
+  expect(requestFields(askedOf(sockets[0])[0].body).get(2)).toEqual([15]);
 });
 
 test("a quote measures the session from the close before it, on New York's date", async () => {
@@ -611,7 +656,7 @@ test("reads the days the US trades a month at a time, early closes among them, u
     earlyCloses: ["2026-11-27", "2026-12-24"],
   });
 
-  const asked = sockets[0].requests.slice(1).map(({ body }) => {
+  const asked = askedOf(sockets[0]).map(({ body }) => {
     const fields = requestFields(body);
 
     return [fields.get(2)?.[0], fields.get(3)?.[0]];
@@ -644,14 +689,172 @@ test("refuses a listing in another market", async () => {
 });
 
 test("a refused request names Longbridge and the reason it gives", async () => {
-  const { longbridge } = setup(() => refused(3, 301_606, "rate limited"));
+  const { longbridge } = setup(() => refused(7, 301_604, "no quote access"));
 
   const failure = longbridge.getQuote(APPLE);
 
   await expect(failure).rejects.toThrow(
-    "Longbridge refused the request: rate limited"
+    "Longbridge refused the request: no quote access"
   );
-  await expect(failure).rejects.toMatchObject({ code: 301_606 });
+  await expect(failure).rejects.toMatchObject({ code: 301_604 });
+});
+
+/** One answer of several quotes, as protobuf merges messages' repeated fields. */
+function quotes(...each: Uint8Array[]) {
+  const body = new Uint8Array(each.reduce((size, one) => size + one.length, 0));
+
+  each.reduce((at, one) => {
+    body.set(one, at);
+
+    return at + one.length;
+  }, 0);
+
+  return body;
+}
+
+const NVIDIA = { market: Market.US, symbol: "NVDA" };
+
+const UNLISTED = { market: Market.US, symbol: "ZZZZ" };
+
+const lastOf = (symbol: string, last: string) =>
+  quote({
+    symbol,
+    last,
+    previous: "100.000",
+    timestamp: Date.parse("2026-10-27T20:00:00Z") / 1000,
+  });
+
+describe("quotes asked for together", () => {
+  test("go out as one request, each answered with its own", async () => {
+    const { longbridge, sockets } = setup(() =>
+      ok(quotes(lastOf("AAPL.US", "347.100"), lastOf("NVDA.US", "190.500")))
+    );
+
+    const [apple, nvidia] = await Promise.all([
+      longbridge.getQuote(APPLE),
+      longbridge.getQuote(NVIDIA),
+    ]);
+
+    expect(apple?.last).toBe(347.1);
+    expect(nvidia?.last).toBe(190.5);
+
+    const asked = askedOf(sockets[0]);
+
+    expect(asked.map(({ command }) => command)).toEqual([11]);
+    expect(requestFields(asked[0].body).get(1)).toEqual(["AAPL.US", "NVDA.US"]);
+  });
+
+  test("are asked one by one where Longbridge does not list one of them, which fails them all", async () => {
+    const { longbridge, sockets } = setup(({ body }) => {
+      const symbols = requestFields(body).get(1) ?? [];
+
+      return symbols.includes("ZZZZ.US")
+        ? notListed()
+        : ok(lastOf(String(symbols[0]), "347.100"));
+    });
+
+    const [apple, unlisted] = await Promise.all([
+      longbridge.getQuote(APPLE),
+      longbridge.getQuote(UNLISTED),
+    ]);
+
+    expect(apple?.last).toBe(347.1);
+    expect(unlisted).toBeNull();
+    expect(
+      askedOf(sockets[0]).map(({ body }) => requestFields(body).get(1))
+    ).toEqual([["AAPL.US", "ZZZZ.US"], ["AAPL.US"], ["ZZZZ.US"]]);
+  });
+});
+
+describe("pacing", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // `expect.poll` moves a fake clock as it waits, so these wait on the real event loop instead.
+  async function untilAsked(sockets: FakeSocket[], count: number) {
+    while ((sockets[0] ? askedOf(sockets[0]).length : 0) < count) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  }
+
+  const fakeClock = () =>
+    vi.useFakeTimers({
+      toFake: [
+        "setTimeout",
+        "clearTimeout",
+        "setInterval",
+        "clearInterval",
+        "Date",
+      ],
+    });
+
+  test("a command goes out no faster than the server tells the connection it takes, counted as each goes out", async () => {
+    fakeClock();
+
+    const { longbridge, sockets } = setup(
+      () => ok(staticInfo("AAPL.US", "Apple", "蘋果")),
+      { rates: [{ command: 10, limit: 2, burst: 5 }] }
+    );
+
+    const listings = Promise.all(
+      ["AAPL", "MSFT", "NVDA"].map((symbol) =>
+        longbridge.getListing({ market: Market.US, symbol })
+      )
+    );
+
+    await untilAsked(sockets, 2);
+
+    // The server counts as requests arrive, so its second is counted a little longer here.
+    await vi.advanceTimersByTimeAsync(1099);
+    expect(askedOf(sockets[0])).toHaveLength(2);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await listings;
+    expect(askedOf(sockets[0])).toHaveLength(3);
+  });
+
+  test("a request refused as too fast is asked again after a pause", async () => {
+    fakeClock();
+
+    let refusals = 1;
+
+    const { longbridge, sockets } = setup(() =>
+      refusals-- > 0
+        ? refused(3, 301_606, "request rate limit")
+        : ok(staticInfo("AAPL.US", "Apple", "蘋果"))
+    );
+
+    const listing = longbridge.getListing(APPLE);
+
+    await untilAsked(sockets, 1);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(askedOf(sockets[0])).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(await listing).toMatchObject({ name: "蘋果" });
+    expect(askedOf(sockets[0])).toHaveLength(2);
+  });
+
+  test("one still refused after a few pauses fails, naming why", async () => {
+    fakeClock();
+
+    const { longbridge, sockets } = setup(() =>
+      refused(3, 301_606, "request rate limit")
+    );
+
+    const listing = longbridge.getListing(APPLE);
+
+    void listing.catch(noop);
+    await untilAsked(sockets, 1);
+    await vi.advanceTimersByTimeAsync(1000 + 2000 + 3000);
+
+    await expect(listing).rejects.toThrow(
+      "Longbridge refused the request: request rate limit"
+    );
+    expect(askedOf(sockets[0])).toHaveLength(4);
+  });
 });
 
 test("a sign-in Longbridge refuses names its reason", async () => {
@@ -678,7 +881,7 @@ test("a connection that closes fails what it was asked, and the next request ope
 
   const lost = longbridge.getListing(APPLE);
 
-  await expect.poll(() => sockets[0]?.requests.length).toBe(2);
+  await expect.poll(() => sockets[0]?.requests.length).toBe(3);
   sockets[0].close();
 
   await expect(lost).rejects.toThrow("Longbridge closed the quote connection");
@@ -696,7 +899,7 @@ describe("the server closing the connection", () => {
 
     const lost = longbridge.getListing(APPLE);
 
-    await expect.poll(() => sockets[0]?.requests.length).toBe(2);
+    await expect.poll(() => sockets[0]?.requests.length).toBe(3);
 
     const reason = new BinaryWriter()
       .tag(1, WireType.Varint)
@@ -794,7 +997,7 @@ describe("pushes and drops", () => {
     await vi.advanceTimersByTimeAsync(30_000);
 
     expect(sockets[0].requests.map(({ command }) => command)).toEqual([
-      2, 10, 1,
+      2, 4, 10, 1,
     ]);
     expect(drops).not.toHaveBeenCalled();
 

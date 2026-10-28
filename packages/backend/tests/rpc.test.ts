@@ -174,6 +174,36 @@ test("a window is told the main process's own message for a failure", async () =
   close();
 });
 
+test("a stream that fails as it is read tells its own message too", async () => {
+  const rotations: Pick<RpcContext["rotations"], "sectorHistory"> = {
+    async *sectorHistory() {
+      yield null;
+      throw new Error("Longbridge refused the request: request rate limit");
+    },
+  };
+
+  const { client, close } = connect({
+    // SAFETY: the procedure reads only the sectors' history.
+    rotations: rotations as RpcContext["rotations"],
+  });
+
+  const read: unknown[] = [];
+
+  const failure = (async () => {
+    for await (const history of await client.market.rotations({})) {
+      read.push(history);
+    }
+  })();
+
+  await expect(failure).rejects.toMatchObject({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "Longbridge refused the request: request rate limit",
+  });
+  expect(read).toEqual([null]);
+
+  close();
+});
+
 test("input that does not parse is refused in words before the desk is reached", async () => {
   const { link, close } = connect({});
 
