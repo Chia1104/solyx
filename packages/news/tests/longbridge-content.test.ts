@@ -144,6 +144,37 @@ test("a post's tags of listings and mentions read as the names they show", async
   });
 });
 
+test("a code stays one segment of the path, whatever it holds", async () => {
+  const { api, asked } = fakeLongbridge([]);
+
+  await createLongbridgeNews({ api }).search({
+    symbol: { market: Market.US, symbol: "../../v1/asset/account?x=" },
+    listing: null,
+    since: new Date(0),
+    limit: 10,
+  });
+
+  const url = new URL(asked[0].url);
+
+  expect(url.pathname).toBe(
+    "/v1/content/..%2F..%2Fv1%2Fasset%2Faccount%3Fx%3D.US/news"
+  );
+  expect(url.search).toBe("");
+});
+
+test("a dotted ticker keeps its dot", async () => {
+  const { api, asked } = fakeLongbridge([]);
+
+  await createLongbridgeTopics({ api }).search({
+    symbol: { market: Market.US, symbol: "BRK.B" },
+    listing: null,
+    since: new Date(0),
+    limit: 10,
+  });
+
+  expect(new URL(asked[0].url).pathname).toBe("/v1/content/BRK.B.US/topics");
+});
+
 test("an entry that does not read is dropped, but a feed none of whose entries read fails", async () => {
   const kept = fakeLongbridge([
     entry("1", "可讀", "2026-10-28T15:00:00Z"),

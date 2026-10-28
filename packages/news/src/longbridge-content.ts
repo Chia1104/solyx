@@ -72,8 +72,9 @@ function feed(
   async function entries(symbol: string): Promise<Entry[]> {
     const what = `the ${path} of ${symbol}`;
 
+    // The code is one segment of the path whatever it holds, so it reaches no other endpoint.
     const { items } = await api.read(
-      `v1/content/${symbol}.US/${path}`,
+      `v1/content/${encodeURIComponent(`${symbol}.US`)}/${path}`,
       {},
       contentSchema,
       what
