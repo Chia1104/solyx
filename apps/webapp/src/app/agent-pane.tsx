@@ -54,7 +54,12 @@ export function AgentPane() {
       <Tabs.ListContainer className="my-1 shrink-0 self-start">
         <Tabs.List aria-label={t("agent.title")}>
           {Object.values(AgentTab).map((each: AgentTab) => (
-            <Tabs.Tab key={each} id={each} className="h-7 px-3">
+            // HeroUI shares the row out evenly, which would break a label with a count between
+            // its characters; one that needs more room takes it from the others.
+            <Tabs.Tab
+              key={each}
+              id={each}
+              className="h-7 px-3 whitespace-nowrap">
               {t(`agent.tabs.${each}`)}
               {each === AgentTab.Proposals && awaiting > 0 ? (
                 <span className="ml-1 text-xs tabular-nums">{awaiting}</span>
