@@ -15,6 +15,7 @@ import {
 import { FUBON_SDK_VERSIONS } from "@solyx/brokers/fubon";
 import type { FubonSessionOptions } from "@solyx/brokers/fubon";
 import { Market } from "@solyx/core/market";
+import { weekdays } from "@solyx/core/session";
 import { openCache } from "@solyx/db/cache";
 import { FuglePlan } from "@solyx/market-data/fugle";
 import { DAY_MS } from "@solyx/utils/date";
@@ -103,6 +104,7 @@ function setup({ tradesFubon = false } = {}) {
     openFubonProcess,
     tradesFubon,
     longbridge: createLongbridgeAccess({ secrets, openExternal: vi.fn() }),
+    tradingDays: async () => weekdays,
   });
 
   // Everything Fubon signs in with, and Fubon as Taiwan's source.
@@ -133,20 +135,22 @@ test("Taiwan charts come from Fugle by default, once its key is saved", async ()
   expect(await sources.provider(Market.US)).toBeUndefined();
 });
 
+const LONGBRIDGE_SIGN_IN = {
+  clientId: "client-1",
+  redirectUri: "http://127.0.0.1:50000/callback/x",
+  registration: null,
+  accessToken: "hk_access",
+  refreshToken: "hk_refresh",
+  expiresAt: Date.now() + DAY_MS,
+};
+
 test("US charts and trading days come from Longbridge once signed in, on one connection per sign-in", async () => {
   const { secrets, sources } = setup();
 
   expect(await sources.provider(Market.US)).toBeUndefined();
   expect(await sources.longbridgeCalendar()).toBeUndefined();
 
-  const signIn = {
-    clientId: "client-1",
-    redirectUri: "http://127.0.0.1:50000/callback/x",
-    registration: null,
-    accessToken: "hk_access",
-    refreshToken: "hk_refresh",
-    expiresAt: Date.now() + DAY_MS,
-  };
+  const signIn = LONGBRIDGE_SIGN_IN;
 
   await secrets.save(LONGBRIDGE_SIGN_IN_SECRET, JSON.stringify(signIn));
 
@@ -455,6 +459,63 @@ test("the stream changes with its own source's settings and keys, never with ano
   config.set(["providers", "fubon", FubonFile.Certificate], "/cert.pfx");
 
   expect(changes).toHaveBeenCalledTimes(5);
+});
+
+test("the stream covers each market a source covers, and none while no source does", async () => {
+  const { secrets, sources } = setup();
+
+  expect(await sources.openStream()).toBeUndefined();
+
+  await secrets.save(
+    LONGBRIDGE_SIGN_IN_SECRET,
+    JSON.stringify(LONGBRIDGE_SIGN_IN)
+  );
+
+  const us = await sources.openStream();
+
+  expect(us?.markets).toEqual([Market.US]);
+  us?.close();
+
+  await secrets.save(Secret.FugleApiKey, "fugle-key");
+
+  const both = await sources.openStream();
+
+  expect(both?.markets).toEqual([Market.TW, Market.US]);
+  both?.close();
+});
+
+test("a Longbridge sign-in or sign-out changes the stream, while a refresh keeps it", async () => {
+  const { secrets, sources } = setup();
+  const changes = vi.fn();
+  const told = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  sources.onStreamChange(changes);
+
+  await secrets.save(
+    LONGBRIDGE_SIGN_IN_SECRET,
+    JSON.stringify(LONGBRIDGE_SIGN_IN)
+  );
+  await told();
+
+  expect(changes).toHaveBeenCalledTimes(1);
+
+  await secrets.save(
+    LONGBRIDGE_SIGN_IN_SECRET,
+    JSON.stringify({ ...LONGBRIDGE_SIGN_IN, accessToken: "hk_access_2" })
+  );
+  await told();
+
+  expect(changes).toHaveBeenCalledTimes(1);
+
+  await secrets.save(
+    LONGBRIDGE_SIGN_IN_SECRET,
+    JSON.stringify({ ...LONGBRIDGE_SIGN_IN, clientId: "client-2" })
+  );
+  await told();
+  await secrets.delete(LONGBRIDGE_SIGN_IN_SECRET);
+  await told();
+
+  expect(changes).toHaveBeenCalledTimes(3);
 });
 
 test("a hand edit of Taiwan's source changes the stream once", async () => {

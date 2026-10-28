@@ -2,20 +2,49 @@ import { gunzipSync } from "node:zlib";
 
 import { BinaryReader, BinaryWriter, WireType } from "@bufbuild/protobuf/wire";
 
+import type { DepthLevel } from "@solyx/core/market-data";
+
 // Field numbers follow Longbridge's quote protocol as its docs and its SDK (MIT OR Apache-2.0) set
 // them; only the messages this client sends or reads are written out.
 
 export const Command = {
   Close: 0,
+  Heartbeat: 1,
   Auth: 2,
+  Subscribe: 6,
+  Unsubscribe: 7,
   QueryMarketTradeDay: 9,
   QuerySecurityStaticInfo: 10,
   QuerySecurityQuote: 11,
   QueryDepth: 14,
   QueryCandlestick: 19,
+  PushQuote: 101,
+  PushDepth: 102,
+  PushTrade: 104,
 } as const;
 
 export type Command = (typeof Command)[keyof typeof Command];
+
+/** What a subscription pushes about its symbols. */
+export const SubType = {
+  Quote: 1,
+  Depth: 2,
+  Trade: 4,
+} as const;
+
+export type SubType = (typeof SubType)[keyof typeof SubType];
+
+export const TradeSession = {
+  Regular: 0,
+  PreMarket: 1,
+  AfterHours: 2,
+  Overnight: 3,
+} as const;
+
+export type TradeSession = (typeof TradeSession)[keyof typeof TradeSession];
+
+/** A quote push the server sends as a session ends, restating the day, which changes nothing. */
+const END_OF_DAY_TAG = 1;
 
 export const PacketType = {
   Request: 1,
@@ -241,6 +270,41 @@ export function candlesticksRequest({
     .finish();
 }
 
+/** The symbols and the packed types that a subscribe and an unsubscribe both start with. */
+function subscription(
+  symbols: readonly string[],
+  types: readonly SubType[]
+): BinaryWriter {
+  const writer = new BinaryWriter();
+
+  for (const symbol of symbols) {
+    writer.tag(1, WireType.LengthDelimited).string(symbol);
+  }
+
+  writer.tag(2, WireType.LengthDelimited).fork();
+
+  for (const type of types) writer.int32(type);
+
+  return writer.join();
+}
+
+/** With `firstPush`, the server pushes a quote and depth subscribed as they stand now; it pushes no trades so. */
+export const subscribeRequest = (
+  symbols: readonly string[],
+  types: readonly SubType[],
+  firstPush: boolean
+): Uint8Array =>
+  subscription(symbols, types).tag(3, WireType.Varint).bool(firstPush).finish();
+
+export const unsubscribeRequest = (
+  symbols: readonly string[],
+  types: readonly SubType[]
+): Uint8Array => subscription(symbols, types).finish();
+
+/** `timestamp` is UTC milliseconds. */
+export const heartbeatRequest = (timestamp: number): Uint8Array =>
+  new BinaryWriter().tag(1, WireType.Varint).int64(timestamp).finish();
+
 /** Days are `YYYYMMDD`, at most a month apart and within the last year. */
 export function tradeDaysRequest(
   market: string,
@@ -312,18 +376,40 @@ export const decodeQuotes = (body: Uint8Array): SecurityQuote[] =>
     turnover: text(quote, 9),
   }));
 
-export interface DepthLevel {
+/** A level of a book as Longbridge numbers it, its price in decimal text. */
+interface BookEntry {
   position: number;
   price: string;
   volume: number;
 }
 
-const depthLevels = (fields: Fields, field: number): DepthLevel[] =>
+const depthLevels = (fields: Fields, field: number): BookEntry[] =>
   messages(fields, field).map((level) => ({
     position: integer(level, 1),
     price: text(level, 2),
     volume: integer(level, 3),
   }));
+
+/** A price as Longbridge writes it; `null` for the empty text it sends for none. */
+export function price(text: string): number | null {
+  if (text === "") return null;
+
+  const value = Number(text);
+
+  return Number.isFinite(value) ? value : null;
+}
+
+/** One side of a book, best first, without the empty levels Longbridge pads it with. */
+export const bookSide = (levels: readonly BookEntry[]): DepthLevel[] =>
+  levels
+    .toSorted((a, b) => a.position - b.position)
+    .flatMap(({ price: text, volume }) => {
+      const value = price(text);
+
+      return value === null || volume === 0
+        ? []
+        : [{ price: value, shares: volume }];
+    });
 
 export function decodeDepth(body: Uint8Array) {
   const fields = readFields(body);
@@ -356,4 +442,65 @@ export function decodeTradeDays(body: Uint8Array) {
   const fields = readFields(body);
 
   return { trading: texts(fields, 1), halfDays: texts(fields, 2) };
+}
+
+/** A quote's change, in the session `tradeSession` names; it carries no close before it. */
+export interface QuotePush extends Omit<SecurityQuote, "prevClose"> {
+  tradeSession: number;
+  /** Restates the day as a session ends rather than changing it. */
+  endOfDay: boolean;
+}
+
+export function decodeQuotePush(body: Uint8Array): QuotePush {
+  const fields = readFields(body);
+
+  return {
+    symbol: text(fields, 1),
+    lastDone: text(fields, 3),
+    open: text(fields, 4),
+    high: text(fields, 5),
+    low: text(fields, 6),
+    timestamp: integer(fields, 7),
+    volume: integer(fields, 8),
+    turnover: text(fields, 9),
+    tradeSession: integer(fields, 11),
+    endOfDay: integer(fields, 14) === END_OF_DAY_TAG,
+  };
+}
+
+/** A book's change, each side whole. */
+export function decodeDepthPush(body: Uint8Array) {
+  const fields = readFields(body);
+
+  return {
+    symbol: text(fields, 1),
+    asks: depthLevels(fields, 3),
+    bids: depthLevels(fields, 4),
+  };
+}
+
+export interface Trade {
+  /** Decimal text. */
+  price: string;
+  volume: number;
+  /** UTC seconds. */
+  timestamp: number;
+  /** The sale condition the exchange reported it with; empty for a regular sale. */
+  tradeType: string;
+  tradeSession: number;
+}
+
+export function decodeTradePush(body: Uint8Array) {
+  const fields = readFields(body);
+
+  return {
+    symbol: text(fields, 1),
+    trades: messages(fields, 3).map((trade): Trade => ({
+      price: text(trade, 1),
+      volume: integer(trade, 2),
+      timestamp: integer(trade, 3),
+      tradeType: text(trade, 4),
+      tradeSession: integer(trade, 6),
+    })),
+  };
 }

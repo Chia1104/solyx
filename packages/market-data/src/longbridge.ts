@@ -1,4 +1,4 @@
-import { limitAsync } from "es-toolkit";
+import { limitAsync, noop } from "es-toolkit";
 import ky from "ky";
 import * as z from "zod";
 
@@ -26,6 +26,7 @@ import {
   Period,
   ResponseStatus,
   authRequest,
+  bookSide,
   candlesticksRequest,
   decodeCandlesticks,
   decodeClose,
@@ -36,6 +37,8 @@ import {
   decodeStaticInfo,
   decodeTradeDays,
   encodeRequest,
+  heartbeatRequest,
+  price,
   securitiesRequest,
   tradeDaysRequest,
 } from "./longbridge-wire.ts";
@@ -57,13 +60,17 @@ const REQUEST_TIMEOUT_MS = 10_000;
 
 const ANSWER_GRACE_MS = 5_000;
 
+// The runtime's WebSocket hides the server's pings, so a heartbeat this often finds a connection
+// that died quietly, as one does across a sleep, within a request's timeout of it.
+const HEARTBEAT_MS = 30_000;
+
 const MAX_REQUEST_ID = 0xffffffff;
 
 // A 429 means something else shares the sign-in's budget; retry briefly rather than hang the chart.
 const MAX_RETRY_AFTER_MS = 10_000;
 
 /** The code Longbridge answers a symbol it does not list with. */
-const INVALID_SYMBOL = 301_600;
+export const INVALID_SYMBOL = 301_600;
 
 /** The most bars one request returns: the latest ones, since the range query needs a history quota. */
 const MAX_CANDLES = 1000;
@@ -209,10 +216,20 @@ export interface LongbridgeSocketOptions {
   connect?: LongbridgeConnect;
 }
 
+/** A push the server sent: its command and its body. */
+export type LongbridgePushListener = (
+  command: number,
+  body: Uint8Array
+) => void;
+
 /** One sign-in's connection to Longbridge's quote server, opened on the first request. */
 export interface LongbridgeSocket {
   /** Sends a request once the connection is open and signed in; resolves with the answer's body. */
   request(command: Command, body: Uint8Array): Promise<Uint8Array>;
+  /** Hears every push on every connection; returns a function that stops. */
+  onPush(listener: LongbridgePushListener): () => void;
+  /** Hears a signed-in connection drop, which takes its subscriptions with it; returns a function that stops. */
+  onDrop(listener: () => void): () => void;
   close(): void;
 }
 
@@ -245,6 +262,8 @@ export function createLongbridgeSocket({
 
   let current: Promise<Connection> | undefined;
   let closed = false;
+  const pushListeners = new Set<LongbridgePushListener>();
+  const dropListeners = new Set<() => void>();
 
   async function oneTimePassword(token: string): Promise<string> {
     const response = await api.get("v1/socket/token", {
@@ -274,7 +293,10 @@ export function createLongbridgeSocket({
     return data.otp;
   }
 
-  async function open(onDrop: () => void): Promise<Connection> {
+  /** `onDrop` hears whether the connection had signed in when it dropped. */
+  async function open(
+    onDrop: (signedIn: boolean) => void
+  ): Promise<Connection> {
     const token = await accessToken();
     const otp = await oneTimePassword(token);
 
@@ -294,11 +316,14 @@ export function createLongbridgeSocket({
     let nextId = 1;
     let dropped: Error | undefined;
     let refuseOpening: ((reason: Error) => void) | undefined;
+    let signedIn = false;
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
 
     function drop(reason: Error) {
       if (dropped) return;
 
       dropped = reason;
+      clearInterval(heartbeat);
 
       for (const { reject, timer } of pending.values()) {
         clearTimeout(timer);
@@ -308,7 +333,7 @@ export function createLongbridgeSocket({
       pending.clear();
       refuseOpening?.(reason);
       socket.close();
-      onDrop();
+      onDrop(signedIn);
     }
 
     function settle(
@@ -376,10 +401,7 @@ export function createLongbridgeSocket({
       if (packet?.type === PacketType.Response) {
         settle(packet, purposes.get(packet.id) ?? "the request");
         purposes.delete(packet.id);
-      } else if (
-        packet?.type === PacketType.Push &&
-        packet.command === Command.Close
-      ) {
+      } else if (packet?.command === Command.Close) {
         const { reason } = decodeClose(packet.body);
 
         drop(
@@ -387,6 +409,10 @@ export function createLongbridgeSocket({
             `Longbridge closed the quote connection: ${reason}`
           )
         );
+      } else if (packet && !dropped) {
+        for (const listener of pushListeners) {
+          listener(packet.command, packet.body);
+        }
       }
     });
 
@@ -425,6 +451,20 @@ export function createLongbridgeSocket({
       throw error;
     }
 
+    // The server may close the connection on the answer's heels.
+    if (dropped) throw dropped;
+
+    signedIn = true;
+
+    // An unanswered heartbeat drops the connection as any unanswered request does.
+    heartbeat = setInterval(() => {
+      call(
+        Command.Heartbeat,
+        heartbeatRequest(Date.now()),
+        "the heartbeat"
+      ).catch(noop);
+    }, HEARTBEAT_MS);
+
     return {
       call,
       close: () =>
@@ -440,8 +480,10 @@ export function createLongbridgeSocket({
     }
 
     if (!current) {
-      const opening: Promise<Connection> = open(() => {
+      const opening: Promise<Connection> = open((signedIn) => {
         if (current === opening) current = undefined;
+
+        if (signedIn) for (const listener of dropListeners) listener();
       });
 
       current = opening;
@@ -459,8 +501,20 @@ export function createLongbridgeSocket({
     CONCURRENT_REQUESTS
   );
 
+  function listen<Listener>(listeners: Set<Listener>, listener: Listener) {
+    listeners.add(listener);
+
+    return () => {
+      listeners.delete(listener);
+    };
+  }
+
   return {
     request: (command, body) => budget(() => send(command, body)),
+
+    onPush: (listener) => listen(pushListeners, listener),
+
+    onDrop: (listener) => listen(dropListeners, listener),
 
     close() {
       closed = true;
@@ -468,15 +522,6 @@ export function createLongbridgeSocket({
       current = undefined;
     },
   };
-}
-
-/** A price as Longbridge writes it; `null` for the empty text it sends for none. */
-function price(text: string): number | null {
-  if (text === "") return null;
-
-  const value = Number(text);
-
-  return Number.isFinite(value) ? value : null;
 }
 
 const toDate = (day: string) =>
@@ -643,17 +688,6 @@ export function createLongbridgeMarketData(
 
       const turnover = price(quote.turnover);
 
-      const levels = (side: typeof book.bids) =>
-        side
-          .toSorted((a, b) => a.position - b.position)
-          .flatMap(({ price: text, volume }) => {
-            const value = price(text);
-
-            return value === null || volume === 0
-              ? []
-              : [{ price: value, shares: volume }];
-          });
-
       return {
         date: exchangeDate(Market.US, new Date(quote.timestamp * 1000)),
         time: quote.timestamp * 1000,
@@ -670,8 +704,8 @@ export function createLongbridgeMarketData(
         // Longbridge does not split the volume by the side it traded on.
         volumeAtBid: 0,
         volumeAtAsk: 0,
-        bids: levels(book.bids),
-        asks: levels(book.asks),
+        bids: bookSide(book.bids),
+        asks: bookSide(book.asks),
         trial: false,
       };
     },

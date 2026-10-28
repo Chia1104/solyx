@@ -1,7 +1,7 @@
 import { gzipSync } from "node:zlib";
 
 import { BinaryReader, BinaryWriter, WireType } from "@bufbuild/protobuf/wire";
-import { describe, expect, test } from "vite-plus/test";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { Interval } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
@@ -645,6 +645,92 @@ describe("the server closing the connection", () => {
     await expect(lost).rejects.toThrow(
       "Longbridge closed the quote connection: session expired"
     );
+    expect(sockets[0].closed).toBe(true);
+  });
+});
+
+/** A push packet: type, command and length, then the body. */
+function pushPacket(command: number, body: Uint8Array) {
+  const packet = new Uint8Array(5 + body.length);
+
+  packet[0] = 0x03;
+  packet[1] = command;
+  packet[2] = (body.length >> 16) & 0xff;
+  packet[3] = (body.length >> 8) & 0xff;
+  packet[4] = body.length & 0xff;
+  packet.set(body, 5);
+
+  return packet.buffer;
+}
+
+describe("pushes and drops", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("every push reaches the listeners, and a signed-in connection dropping tells them", async () => {
+    const { socket, longbridge, sockets } = setup(() =>
+      ok(staticInfo("AAPL.US", "Apple", "蘋果"))
+    );
+
+    const pushes: [number, number[]][] = [];
+    const drops = vi.fn();
+
+    socket.onPush((command, body) => pushes.push([command, [...body]]));
+    socket.onDrop(drops);
+    await longbridge.getListing(APPLE);
+
+    sockets[0].emit("message", pushPacket(104, new Uint8Array([8, 1])));
+
+    expect(pushes).toEqual([[104, [8, 1]]]);
+    expect(drops).not.toHaveBeenCalled();
+
+    sockets[0].close();
+
+    expect(drops).toHaveBeenCalledTimes(1);
+  });
+
+  test("a connection that never signed in drops without telling them, as it held no subscriptions", async () => {
+    const { socket, longbridge } = setup(() => undefined, {
+      envelope: { code: 401, message: "token expired", data: null },
+    });
+
+    const drops = vi.fn();
+
+    socket.onDrop(drops);
+
+    await expect(longbridge.getListing(APPLE)).rejects.toThrow("token expired");
+    expect(drops).not.toHaveBeenCalled();
+  });
+
+  test("a heartbeat goes every half a minute, and one left unanswered drops the connection", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+
+    let answering = true;
+
+    const { socket, longbridge, sockets } = setup((request) =>
+      request.command !== 1 || answering
+        ? ok(staticInfo("AAPL.US", "Apple", "蘋果"))
+        : undefined
+    );
+
+    const drops = vi.fn();
+
+    socket.onDrop(drops);
+    await longbridge.getListing(APPLE);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(sockets[0].requests.map(({ command }) => command)).toEqual([
+      2, 10, 1,
+    ]);
+    expect(drops).not.toHaveBeenCalled();
+
+    answering = false;
+    await vi.advanceTimersByTimeAsync(30_000 + 15_000);
+
+    expect(drops).toHaveBeenCalledTimes(1);
     expect(sockets[0].closed).toBe(true);
   });
 });

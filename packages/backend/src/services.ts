@@ -270,6 +270,7 @@ export function createServices(config: ConfigFile, host: Host) {
       secrets,
       openExternal: host.openExternal,
     }),
+    tradingDays: (market) => marketDays(market),
   });
 
   const marketData = createMarketData({
