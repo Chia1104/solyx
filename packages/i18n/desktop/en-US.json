@@ -479,7 +479,7 @@
   },
   "calendar": {
     "title": "Coming up",
-    "description": "Dates over the next {{days}} days for what you hold and watch: dividends, shareholders' meetings, filing deadlines, trading restrictions, dates the agent's reports hold, economic releases and market holidays. Filings, releases and holidays are Taiwan's only for now.",
+    "description": "Dates over the next {{days}} days for what you hold and watch: dividends, shareholders' meetings, filing deadlines, trading restrictions, dates the agent's reports hold, economic releases and market holidays. US releases come from Longbridge a few weeks ahead; holidays are Taiwan's only for now.",
     "unfollowed": "Hold or watch listings to see their dividends, filings and report dates here, with their markets' economic releases.",
     "empty": "Nothing on the calendar in the next {{days}} days.",
     "unread": "Couldn't read the fundamentals of {{symbols}}, so their dates may be missing.",
@@ -519,7 +519,8 @@
       "last": "Last, {{period}}: {{figure}}",
       "pending": "Reading figures…",
       "trend": "{{from}} to {{to}}",
-      "trend-growth": "Year-on-year growth, {{from}} to {{to}}"
+      "trend-growth": "Year-on-year growth, {{from}} to {{to}}",
+      "expected": "Expected: {{figure}}"
     },
     "figures": {
       "consumer-prices": "{{yoy}} on the year",
@@ -529,7 +530,20 @@
       "export-orders": "{{value}}, {{yoy}} on the year",
       "industrial-production": "{{yoy}} on the year",
       "business-signal": "{{value}} points",
-      "gdp-growth": "{{value}} on the year"
+      "gdp-growth": "{{value}} on the year",
+      "gdp-annualized": "{{value}} annualized on the quarter",
+      "policy-rate": "{{value}}, the middle of the target range",
+      "payrolls-added": "payrolls {{value}}",
+      "unemployment": "unemployment {{value}}",
+      "hourly-earnings": "hourly earnings {{yoy}} on the year",
+      "pce-prices": "{{yoy}} on the year",
+      "core-pce-prices": "core {{yoy}} on the year",
+      "retail-sales": "{{value}} on the month",
+      "producer-prices": "{{yoy}} on the year",
+      "manufacturing-pmi": "{{value}}",
+      "services-pmi": "{{value}}",
+      "initial-claims": "{{value}} claims",
+      "consumer-sentiment": "{{value}}"
     },
     "no-figure": "n/a",
     "figures-unread": "Couldn't read the economic figures of {{markets}}, so their releases show without any.",
@@ -547,7 +561,16 @@
       "export-orders": "Export orders",
       "industrial-production": "Industrial production",
       "business-signal": "Business monitoring signal",
-      "purchasing-managers": "Purchasing managers' index"
+      "purchasing-managers": "Purchasing managers' index",
+      "manufacturing-survey": "ISM manufacturing index",
+      "services-survey": "ISM services index",
+      "policy-rate": "Rate decision",
+      "employment": "Employment report",
+      "personal-income": "Personal income and outlays",
+      "retail-sales": "Retail sales",
+      "producer-prices": "Producer price index",
+      "jobless-claims": "Initial jobless claims",
+      "consumer-sentiment": "Consumer sentiment"
     },
     "until": "until {{date}}",
     "view": "View",

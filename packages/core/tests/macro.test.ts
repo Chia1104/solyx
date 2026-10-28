@@ -5,6 +5,7 @@ import {
   MacroIndicator,
   MacroUnit,
   macroReadings,
+  releaseExpectations,
   releaseReadings,
 } from "../src/macro.ts";
 import type { MacroSeries } from "../src/macro.ts";
@@ -16,11 +17,12 @@ const PRICES: MacroSeries = {
   figure: MacroFigure.ConsumerPrices,
   unit: MacroUnit.Index,
   observations: [
-    { period: "2025-08", value: 100 },
-    { period: "2025-09", value: 100 },
-    { period: "2026-08", value: 102 },
-    { period: "2026-09", value: 102.5 },
+    { period: "2025-08", value: 100, forecast: null },
+    { period: "2025-09", value: 100, forecast: null },
+    { period: "2026-08", value: 102, forecast: null },
+    { period: "2026-09", value: 102.5, forecast: null },
   ],
+  expected: null,
 };
 
 const SIGNAL: MacroSeries = {
@@ -29,10 +31,11 @@ const SIGNAL: MacroSeries = {
   figure: MacroFigure.BusinessSignal,
   unit: MacroUnit.Points,
   observations: [
-    { period: "2025-09", value: 30 },
-    { period: "2026-08", value: 41 },
-    { period: "2026-09", value: 39 },
+    { period: "2025-09", value: 30, forecast: null },
+    { period: "2026-08", value: 41, forecast: null },
+    { period: "2026-09", value: 39, forecast: null },
   ],
+  expected: null,
 };
 
 test("each period reads against the one before it and the same one a year before", () => {
@@ -44,6 +47,7 @@ test("each period reads against the one before it and the same one a year before
     period: "2025-08",
     value: 100,
     previous: null,
+    forecast: null,
     yoy: null,
   });
   expect(
@@ -68,6 +72,7 @@ test("a score has no growth on the year, only the period before", () => {
     period: "2026-09",
     value: 39,
     previous: 41,
+    forecast: null,
     yoy: null,
   });
 });
@@ -122,4 +127,49 @@ test("a release has no readings where no series is its indicator's or its market
   ).toEqual([]);
   // Nothing was out yet for a period before the series begins.
   expect(releaseReadings(prices("2025-07"), [PRICES])).toEqual([]);
+});
+
+const US_PRICES: MacroSeries = {
+  market: Market.US,
+  indicator: MacroIndicator.ConsumerPrices,
+  figure: MacroFigure.ConsumerPrices,
+  unit: MacroUnit.GrowthOnYear,
+  observations: [
+    { period: "2026-08", value: 3.4, forecast: null },
+    { period: "2026-09", value: 3.7, forecast: 3.6 },
+  ],
+  expected: { period: "2026-10", forecast: 3.8 },
+};
+
+test("a figure its source gives as growth on the year reads as that growth, with what was expected of it", () => {
+  expect(macroReadings(US_PRICES).at(-1)).toEqual({
+    figure: MacroFigure.ConsumerPrices,
+    unit: MacroUnit.GrowthOnYear,
+    period: "2026-09",
+    value: 3.7,
+    previous: 3.4,
+    forecast: 3.6,
+    yoy: expect.closeTo(0.037),
+  });
+});
+
+test("what the market expects of a release is its own period's, and nothing once a period other than the expected one is asked", () => {
+  const release = {
+    market: Market.US,
+    indicator: MacroIndicator.ConsumerPrices,
+  };
+
+  expect(
+    releaseExpectations({ ...release, period: "2026-10" }, [US_PRICES, PRICES])
+  ).toEqual([
+    {
+      figure: MacroFigure.ConsumerPrices,
+      unit: MacroUnit.GrowthOnYear,
+      period: "2026-10",
+      forecast: 3.8,
+    },
+  ]);
+  expect(
+    releaseExpectations({ ...release, period: "2026-09" }, [US_PRICES])
+  ).toEqual([]);
 });

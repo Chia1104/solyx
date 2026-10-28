@@ -19,6 +19,24 @@ export const MacroIndicator = {
   BusinessSignal: "business-signal",
   /** A month's purchasing managers' indices of manufacturing and services. */
   PurchasingManagers: "purchasing-managers",
+  /** A month's survey of manufacturing's purchasing managers alone. */
+  ManufacturingSurvey: "manufacturing-survey",
+  /** A month's survey of the purchasing managers of services alone. */
+  ServicesSurvey: "services-survey",
+  /** A central bank's decision on its policy rate. */
+  PolicyRate: "policy-rate",
+  /** A month's report on jobs and pay. */
+  Employment: "employment",
+  /** A month's personal income and spending, with the prices of what households bought. */
+  PersonalIncome: "personal-income",
+  /** A month's retail sales. */
+  RetailSales: "retail-sales",
+  /** A month's producer prices. */
+  ProducerPrices: "producer-prices",
+  /** A week's new claims for unemployment benefits. */
+  JoblessClaims: "jobless-claims",
+  /** A month's survey of how consumers feel about their finances and the economy. */
+  ConsumerSentiment: "consumer-sentiment",
 } as const;
 
 export type MacroIndicator =
@@ -33,7 +51,7 @@ export interface MacroRelease {
   /** The time of day it comes out, `HH:mm` on the exchange's clock; `null` where the schedule gives none. */
   time: string | null;
   timing: EventTiming;
-  /** The period it covers, the latest where it covers several: a month `YYYY-MM`, a quarter `YYYY-Qn` or a year `YYYY`. */
+  /** The period it covers, the latest where it covers several: a month `YYYY-MM`, a quarter `YYYY-Qn`, a year `YYYY`, or a day `YYYY-MM-DD`, a decision's or a week's last. */
   period: string | null;
   /** The agency's page the release comes out on, an https address; `null` where the schedule links none. */
   page: string | null;
@@ -54,6 +72,25 @@ export const MacroFigure = {
   BusinessSignal: "business-signal",
   /** Real output's growth on the year. */
   GdpGrowth: "gdp-growth",
+  /** Real output's growth on the quarter before, at an annual rate. */
+  GdpAnnualized: "gdp-annualized",
+  /** The rate a central bank set, the middle of its range where it sets one. */
+  PolicyRate: "policy-rate",
+  /** Jobs added outside farms over the month. */
+  PayrollsAdded: "payrolls-added",
+  Unemployment: "unemployment",
+  HourlyEarnings: "hourly-earnings",
+  /** The prices of what households bought. */
+  PcePrices: "pce-prices",
+  /** Those prices without food and energy. */
+  CorePcePrices: "core-pce-prices",
+  /** Retail sales' change from the month before. */
+  RetailSales: "retail-sales",
+  ProducerPrices: "producer-prices",
+  ManufacturingPmi: "manufacturing-pmi",
+  ServicesPmi: "services-pmi",
+  InitialClaims: "initial-claims",
+  ConsumerSentiment: "consumer-sentiment",
 } as const;
 
 export type MacroFigure = (typeof MacroFigure)[keyof typeof MacroFigure];
@@ -68,14 +105,28 @@ export const MacroUnit = {
   Points: "points",
   /** Percent, as a rate of growth already is. */
   Percent: "percent",
+  /** Percent that is a level rather than a change, as unemployment's and a policy rate are. */
+  Rate: "rate",
+  /** Percent growth on the same period a year before, as a source that reports no level gives it. */
+  GrowthOnYear: "growth-on-year",
+  /** Thousands, of people or of claims. */
+  Thousands: "thousands",
 } as const;
 
 export type MacroUnit = (typeof MacroUnit)[keyof typeof MacroUnit];
 
 export interface MacroObservation {
-  /** A month `YYYY-MM` or a quarter `YYYY-Qn`. */
+  /** A month `YYYY-MM`, a quarter `YYYY-Qn`, or a day `YYYY-MM-DD`, a decision's or a week's last. */
   period: string;
   value: number;
+  /** What the market expected it to come out at; `null` where the source gives none. */
+  forecast: number | null;
+}
+
+/** A period not out yet, with what the market expects it to come out at. */
+export interface MacroExpectation {
+  period: string;
+  forecast: number;
 }
 
 /** One figure of an indicator, period by period, as its agency's database holds it. */
@@ -86,6 +137,8 @@ export interface MacroSeries {
   unit: MacroUnit;
   /** Oldest first, every period from the first asked for through the newest already out. */
   observations: MacroObservation[];
+  /** The next period, while the market's expectation of it is known; `null` otherwise. */
+  expected: MacroExpectation | null;
 }
 
 /** A figure at one period against the periods before it. */
@@ -96,6 +149,8 @@ export interface MacroReading {
   value: number;
   /** The period before's; `null` where the series does not reach it. */
   previous: number | null;
+  /** What the market expected; `null` where the source gives none. */
+  forecast: number | null;
   /**
    * Its growth on the same period a year before, as a share; `null` for a rate or a score, which
    * growth says nothing of, and where the series does not reach a year back.
@@ -119,7 +174,7 @@ export function macroReadings({
     observations.map(({ period, value }) => [period, value])
   );
 
-  return observations.map(({ period, value }, index) => {
+  return observations.map(({ period, value, forecast }, index) => {
     const yearAgo = byPeriod.get(yearBefore(period));
 
     return {
@@ -128,10 +183,13 @@ export function macroReadings({
       period,
       value,
       previous: observations[index - 1]?.value ?? null,
+      forecast,
       yoy:
-        GROWS.includes(unit) && yearAgo !== undefined && yearAgo > 0
-          ? value / yearAgo - 1
-          : null,
+        unit === MacroUnit.GrowthOnYear
+          ? value / 100
+          : GROWS.includes(unit) && yearAgo !== undefined && yearAgo > 0
+            ? value / yearAgo - 1
+            : null,
     };
   });
 }
@@ -157,6 +215,30 @@ export function releaseReadings(
 
       return reading ? [reading] : [];
     });
+}
+
+/** A release's figure whose period is not out yet, with what the market expects of it. */
+export interface ExpectedFigure extends MacroExpectation {
+  figure: MacroFigure;
+  unit: MacroUnit;
+}
+
+/** What the market expects of a release's figures where its own period is not out yet, an indicator's headline first. */
+export function releaseExpectations(
+  {
+    market,
+    indicator,
+    period,
+  }: Pick<MacroRelease, "market" | "indicator" | "period">,
+  series: readonly MacroSeries[]
+): ExpectedFigure[] {
+  return series.flatMap((each) =>
+    each.market === market &&
+    each.indicator === indicator &&
+    each.expected?.period === period
+      ? [{ figure: each.figure, unit: each.unit, ...each.expected }]
+      : []
+  );
 }
 
 /** Where a market's schedule of economic releases comes from. */

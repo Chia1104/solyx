@@ -127,49 +127,49 @@ test("reads each followed figure from its table through the newest period out, a
       MacroIndicator.ConsumerPrices,
       MacroFigure.ConsumerPrices,
       MacroUnit.Index,
-      { period: "2026-09", value: 102.5 },
+      { period: "2026-09", value: 102.5, forecast: null },
     ],
     [
       MacroIndicator.ConsumerPrices,
       MacroFigure.CoreConsumerPrices,
       MacroUnit.Index,
-      { period: "2026-08", value: 101 },
+      { period: "2026-08", value: 101, forecast: null },
     ],
     [
       MacroIndicator.AdvanceGdp,
       MacroFigure.GdpGrowth,
       MacroUnit.Percent,
-      { period: "2026-Q2", value: 2.9 },
+      { period: "2026-Q2", value: 2.9, forecast: null },
     ],
     [
       MacroIndicator.Trade,
       MacroFigure.Exports,
       MacroUnit.UsdMillions,
-      { period: "2026-09", value: 52000 },
+      { period: "2026-09", value: 52000, forecast: null },
     ],
     [
       MacroIndicator.Trade,
       MacroFigure.Imports,
       MacroUnit.UsdMillions,
-      { period: "2026-09", value: 38000 },
+      { period: "2026-09", value: 38000, forecast: null },
     ],
     [
       MacroIndicator.ExportOrders,
       MacroFigure.ExportOrders,
       MacroUnit.UsdMillions,
-      { period: "2026-08", value: 60000 },
+      { period: "2026-08", value: 60000, forecast: null },
     ],
     [
       MacroIndicator.IndustrialProduction,
       MacroFigure.IndustrialProduction,
       MacroUnit.Index,
-      { period: "2026-08", value: 110 },
+      { period: "2026-08", value: 110, forecast: null },
     ],
     [
       MacroIndicator.BusinessSignal,
       MacroFigure.BusinessSignal,
       MacroUnit.Points,
-      { period: "2026-08", value: 41 },
+      { period: "2026-08", value: 41, forecast: null },
     ],
   ]);
   expect(series[0].observations.map(({ period }) => period)).toEqual([
@@ -180,10 +180,10 @@ test("reads each followed figure from its table through the newest period out, a
   ]);
   // A zero before the newest period out is a figure, as a quarter without growth is.
   expect(series[2].observations).toEqual([
-    { period: "2025-Q3", value: 3.1 },
-    { period: "2025-Q4", value: 0 },
-    { period: "2026-Q1", value: 2.4 },
-    { period: "2026-Q2", value: 2.9 },
+    { period: "2025-Q3", value: 3.1, forecast: null },
+    { period: "2025-Q4", value: 0, forecast: null },
+    { period: "2026-Q1", value: 2.4, forecast: null },
+    { period: "2026-Q2", value: 2.9, forecast: null },
   ]);
   expect(sent.toSorted()).toEqual(
     [
@@ -284,7 +284,7 @@ test("asks again when the database leaves a request hanging", async () => {
       (await series)
         .find(({ figure }) => figure === MacroFigure.Exports)
         ?.observations.at(-1)
-    ).toEqual({ period: "2026-09", value: 52000 });
+    ).toEqual({ period: "2026-09", value: 52000, forecast: null });
     expect(sent.filter((code) => code === "A081201010")).toHaveLength(2);
   } finally {
     vi.useRealTimers();

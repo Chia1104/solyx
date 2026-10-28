@@ -18,6 +18,11 @@ export const numberFormats = memoize((locale: string) => ({
     signDisplay: "exceptZero",
     maximumFractionDigits: 2,
   }),
+  /** A rate set in eighths of a point, such as a central bank's. */
+  rate: new Intl.NumberFormat(locale, {
+    style: "percent",
+    maximumFractionDigits: 3,
+  }),
   /** A share of a whole, such as a likelihood. */
   percent: new Intl.NumberFormat(locale, {
     style: "percent",

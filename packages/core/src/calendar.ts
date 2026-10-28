@@ -11,7 +11,7 @@ import type {
   ShareholdersMeeting,
   TradingRestriction,
 } from "./fundamentals.ts";
-import type { MacroReading, MacroRelease } from "./macro.ts";
+import type { ExpectedFigure, MacroReading, MacroRelease } from "./macro.ts";
 import { Market } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import type { Report, ReportEvent } from "./report.ts";
@@ -86,6 +86,8 @@ export interface ReleaseEvent extends MacroRelease {
    * at the newest period out before it. None for an indicator no source has figures of.
    */
   readings: MacroReading[];
+  /** What the market expects of its figures while its own period is not out, which `releaseExpectations` finds. */
+  expected: ExpectedFigure[];
 }
 
 /** A date a listing's report holds: what the agent found with its source, never a filing of the exchange or the company. */

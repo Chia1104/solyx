@@ -61,7 +61,7 @@ import {
   yearRange,
 } from "@solyx/core/levels";
 import type { PriceRange } from "@solyx/core/levels";
-import { releaseReadings } from "@solyx/core/macro";
+import { releaseExpectations, releaseReadings } from "@solyx/core/macro";
 import type { MacroSeries } from "@solyx/core/macro";
 import type { MandateVerdict } from "@solyx/core/mandate";
 import {
@@ -119,7 +119,7 @@ import { normalizeSpace, truncate, counted } from "@solyx/utils/text";
 
 import { figure, percent, signed, signedFigure } from "./figures.ts";
 import { rememberAddresses } from "./found-addresses.ts";
-import { rateText, readingText } from "./macro-text.ts";
+import { expectedText, rateText, readingText } from "./macro-text.ts";
 import { councilText, durableBallotBox, orderMotion } from "./magi.ts";
 import type { MagiPort } from "./magi.ts";
 import { promptSections } from "./prompt.ts";
@@ -493,16 +493,21 @@ const describeClosure = ({ market, date, name }: MarketClosure) =>
   `${date} ${market} closed (${name})`;
 
 /** A release's figures: those it brought once its period is out, or else the newest out before it, said as such. */
-function releaseFigures({ period, readings }: ReleaseEvent): string {
+function releaseFigures({ period, readings, expected }: ReleaseEvent): string {
   const [headline] = readings;
 
-  if (!headline) return "";
+  const expecting =
+    expected.length > 0
+      ? `; expected: ${expected.map(expectedText).join("; ")}`
+      : "";
+
+  if (!headline) return expecting;
 
   const figures = readings.map(readingText).join("; ");
 
   return headline.period === period
     ? `; out: ${figures}`
-    : `; last out, for ${headline.period}: ${figures}`;
+    : `; last out, for ${headline.period}: ${figures}${expecting}`;
 }
 
 function describeRelease(release: ReleaseEvent): string {
@@ -1052,7 +1057,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
     defineTool({
       name: AgentToolName.GetCalendar,
       replay: "safe",
-      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, for a Taiwan listing by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose), and for a US listing its results around the day Longbridge expects them, the quarter named by the month it ended in; the days distributions go ex and are paid, as the company set them, and the days the exchange gives notice shares go ex, which may come before the amount is announced and include the ex-rights day of a cash capital increase; shareholders' meetings, regular and special, and whether one elects directors; trading restrictions such as short-sale suspensions, dispositions, the exchange's attention notices, a run of them that one more may turn into disposition, and altered trading, paid for in full in advance; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; the economic releases of the listings' markets, each on its day or by the latest day its agency set, with the time it comes out on the exchange's clock, in brackets the page its agency publishes it on, which read_page reads once it is out, and its figures as the app keeps them: after "out" what the release brought, growth on the year computed by the app, or after "last out" the newest period before it while its own is not in yet, and none for an indicator the app keeps no figures of. A release stays on the list for ${RELEASED_DAYS} days once its day has come, so those just out read here too; and the weekdays their markets are closed, as the exchange set them for the year, with what it calls each. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Releases and closures are Taiwan's only for now: a US listing has its expected results, distributions and its report's dates, while the user's Longbridge sign-in works, and no US releases or US holidays are on it (get_market_status knows the US's trading days then), an earnings call is on it only as its expected results or once a report holds it, and a closure called on the day, as for a typhoon, is not on it. Defaults to the listings the user holds and watches.`,
+      description: `The dates ahead for listings, the same list the app's overview shows: each quarter's statements and month's revenue not out yet, for a Taiwan listing by the latest day Taiwan's rules allow (a company may well report earlier; the app does not know the day it chose), and for a US listing its results around the day Longbridge expects them, the quarter named by the month it ended in; the days distributions go ex and are paid, as the company set them, and the days the exchange gives notice shares go ex, which may come before the amount is announced and include the ex-rights day of a cash capital increase; shareholders' meetings, regular and special, and whether one elects directors; trading restrictions such as short-sale suspensions, dispositions, the exchange's attention notices, a run of them that one more may turn into disposition, and altered trading, paid for in full in advance; the dates the listings' reports hold, which are what you found and kept with revise_report, each with its source; the economic releases of the listings' markets, each on its day or by the latest day its agency set, with the time it comes out on the exchange's clock, in brackets the page its agency publishes it on, which read_page reads once it is out, and its figures as the app keeps them: after "out" what the release brought, growth on the year computed by the app and, for the US's, what the market expected, or after "last out" the newest period before it while its own is not in yet, then after "expected" the market's consensus for it where known, and none for an indicator the app keeps no figures of. A release stays on the list for ${RELEASED_DAYS} days once its day has come, so those just out read here too; and the weekdays their markets are closed, as the exchange set them for the year, with what it calls each. Dates are YYYY-MM-DD on each market's exchange calendar, "by" marks a latest day and "around" a day a source only expects. Taiwan's releases are its agencies' for the year ahead; the US's are the Fed's decisions and the figures get_macro lists, from Longbridge while the user is signed in to it, which schedules them only a few weeks ahead, so a release further out is not on it yet. Closures are Taiwan's only for now: a US listing has its expected results, distributions and its report's dates, while the user's Longbridge sign-in works, and no US holidays are on it (get_market_status knows the US's trading days then), an earnings call is on it only as its expected results or once a report holds it, and a closure called on the day, as for a typhoon, is not on it. Defaults to the listings the user holds and watches.`,
       parameters: z.object({
         symbols: z
           .array(symbolRefSchema)
@@ -1124,6 +1129,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
                   describeRelease({
                     ...release,
                     readings: releaseReadings(release, series),
+                    expected: releaseExpectations(release, series),
                   })
                 )
               : ["None."]),
