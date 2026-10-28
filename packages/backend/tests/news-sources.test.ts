@@ -11,7 +11,7 @@ function longbridge(signedIn: boolean) {
   };
 }
 
-test("US filings are searched only while the user is signed in to Longbridge", async () => {
+test("a US listing's filings, news and community posts are searched only while the user is signed in to Longbridge", async () => {
   const signedOut = await createNewsSources(
     async () => undefined,
     longbridge(false)
@@ -32,6 +32,8 @@ test("US filings are searched only while the user is signed in to Longbridge", a
     "mops-announcements",
     "insider-transfers",
     "longbridge-filings",
+    "longbridge-news",
     "ptt-stock",
+    "longbridge-topics",
   ]);
 });

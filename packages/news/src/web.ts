@@ -97,12 +97,15 @@ function posted(network: SocialNetwork, id: string): Published | null {
   return { at: new Date(at), precision: TimePrecision.Minute };
 }
 
-/** News outlets' articles about the listing, through whichever web search the user set up. */
+/**
+ * News outlets' articles about a Taiwan listing, through whichever web search the user set up. A
+ * US listing's come from Longbridge's news, which spends none of the user's searches.
+ */
 export function createWebNews(web: WebSearch): NewsSource {
   return {
     id: "web-article",
     channel: NewsChannel.Article,
-    markets: Object.values(Market),
+    markets: [Market.TW],
 
     async search(query: NewsQuery) {
       const results = await web.search(
