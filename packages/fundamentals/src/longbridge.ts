@@ -1,4 +1,3 @@
-import ky, { isHTTPError } from "ky";
 import * as z from "zod";
 
 import type {
@@ -10,29 +9,14 @@ import type {
 } from "@solyx/core/fundamentals";
 import { Market, exchangeDate } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { longbridgeDataCenter } from "@solyx/market-data/longbridge-sign-in";
-import { createRateLimiter } from "@solyx/utils/rate-limit";
+import type { LongbridgeApi } from "@solyx/market-data/longbridge-api";
 
 import { readRows } from "./rows.ts";
-
-const API_URL = "https://openapi.longbridge.com";
-
-// Longbridge sets no limit for its fundamentals, but refuses more than one request each 0.2 seconds.
-const REQUESTS_PER_SECOND = 5;
-
-// A 429 means something else shares the sign-in's budget, so it is tried again a few times, as
-// Longbridge's own SDK does, rather than failing a read or hanging it.
-const RATE_LIMIT_RETRIES = 5;
-
-const MAX_RETRY_AFTER_MS = 10_000;
 
 // The latest a quarter's figures are due, a 10-Q's for the smallest filers, and a fiscal year's 10-K.
 const QUARTER_DUE_DAYS = 45;
 
 const YEAR_DUE_DAYS = 90;
-
-// Its descriptions, a distribution's among them, in traditional Chinese, as the app names US listings.
-const LANGUAGE = "zh-HK";
 
 /** Which of a quarter's statements a request reads. */
 const ReportKind = {
@@ -45,12 +29,6 @@ type ReportKind = (typeof ReportKind)[keyof typeof ReportKind];
 
 // Each quarter alone, as Longbridge reports them.
 const QUARTERS_REPORT = "qf";
-
-const envelopeSchema = z.object({
-  code: z.number(),
-  message: z.string(),
-  data: z.unknown(),
-});
 
 /** One line's figure for a period: its fiscal label, its last day as UTC seconds and the figure as decimal text, empty for none. */
 const periodValueSchema = z.object({
@@ -104,10 +82,8 @@ const RESULTS_EXPECTED = "ReportDate";
 const DISTRIBUTION = "DividendExDate";
 
 export interface LongbridgeFundamentalsOptions {
-  /** The signed-in user's OAuth access token, which the caller refreshes; rejects while signed out. */
-  accessToken: () => Promise<string>;
-  /** @default globalThis.fetch */
-  fetch?: typeof fetch;
+  /** The sign-in's HTTP API, whose budget its other readers share. */
+  api: LongbridgeApi;
 }
 
 /** A figure as Longbridge writes it; `null` for the empty text it sends for none. */
@@ -200,82 +176,14 @@ function cashOf(description: string): number | null {
  * investments, so those are empty, and the US reports no monthly revenue.
  */
 export function createLongbridgeFundamentals({
-  accessToken,
-  fetch,
+  api,
 }: LongbridgeFundamentalsOptions): FundamentalsProvider {
-  // Only a 429 throws, which is what has ky try it again; any other answer is read for its reason.
-  const api = ky.create({
-    baseUrl: API_URL,
-    fetch,
-    retry: { limit: RATE_LIMIT_RETRIES, maxRetryAfter: MAX_RETRY_AFTER_MS },
-    throwHttpErrors: (status) => status === 429,
-  });
-
-  const budget = createRateLimiter({
-    limit: REQUESTS_PER_SECOND,
-    windowMs: 1000,
-  });
-
   function code(symbol: SymbolRef): string {
     if (symbol.market !== Market.US) {
       throw new Error(`Longbridge has no fundamentals for ${symbol.market}`);
     }
 
     return `${symbol.symbol}.US`;
-  }
-
-  async function read<Schema extends z.ZodType>(
-    path: string,
-    searchParams: Record<string, string>,
-    schema: Schema,
-    what: string
-  ): Promise<z.infer<Schema>> {
-    const token = await accessToken();
-
-    let response: Response;
-
-    try {
-      response = await budget(() =>
-        api.get(path, {
-          searchParams,
-          headers: {
-            authorization: `Bearer ${token}`,
-            "x-dc-region": longbridgeDataCenter(token),
-            "accept-language": LANGUAGE,
-          },
-        })
-      );
-    } catch (error) {
-      if (!isHTTPError(error)) throw error;
-
-      const reason =
-        envelopeSchema.safeParse(error.data).data?.message ??
-        `HTTP ${error.response.status}`;
-
-      throw new Error(`Longbridge refused ${what}: ${reason}`, {
-        cause: error,
-      });
-    }
-
-    const envelope = envelopeSchema.safeParse(
-      await response.json().catch(() => null)
-    );
-
-    if (!envelope.success) {
-      throw new Error(
-        `Longbridge answered ${what} with HTTP ${response.status}`
-      );
-    }
-
-    if (envelope.data.code !== 0) {
-      throw new Error(`Longbridge refused ${what}: ${envelope.data.message}`);
-    }
-
-    const data = schema.safeParse(envelope.data.data);
-
-    if (!data.success) throw new Error(`Longbridge's ${what} did not read`);
-
-    return data.data;
   }
 
   async function quarters(
@@ -285,7 +193,7 @@ export function createLongbridgeFundamentals({
   ): Promise<Quarter[]> {
     const what = `the statements of ${symbol.symbol}`;
 
-    const { list } = await read(
+    const { list } = await api.read(
       "v1/quote/financial-reports",
       { symbol: code(symbol), kind, report: QUARTERS_REPORT },
       reportsSchema,
@@ -311,7 +219,7 @@ export function createLongbridgeFundamentals({
   async function actions(symbol: SymbolRef): Promise<Action[]> {
     const what = `the corporate actions of ${symbol.symbol}`;
 
-    const { items } = await read(
+    const { items } = await api.read(
       "v1/quote/company-act",
       { symbol: code(symbol), req_type: "1", version: "3" },
       actionsSchema,
@@ -434,7 +342,7 @@ export function createLongbridgeFundamentals({
       const what = `the distributions of ${symbol.symbol}`;
 
       const [{ list }, taken] = await Promise.all([
-        read(
+        api.read(
           "v1/quote/dividends",
           { symbol: code(symbol) },
           dividendsSchema,

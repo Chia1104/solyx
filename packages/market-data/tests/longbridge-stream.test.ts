@@ -13,8 +13,8 @@ import type {
 import { weekdays } from "@solyx/core/session";
 import type { TradingDays } from "@solyx/core/session";
 
+import { LongbridgeError } from "../src/longbridge-api.ts";
 import { createLongbridgeStream } from "../src/longbridge-stream.ts";
-import { LongbridgeError } from "../src/longbridge.ts";
 import type {
   LongbridgePushListener,
   LongbridgeSocket,

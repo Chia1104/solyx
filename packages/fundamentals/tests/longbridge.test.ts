@@ -1,6 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
 import { Market, exchangeMidnight } from "@solyx/core/market";
+import { createLongbridgeApi } from "@solyx/market-data/longbridge-api";
 
 import { createLongbridgeFundamentals } from "../src/longbridge.ts";
 
@@ -104,8 +105,7 @@ function fakeLongbridge(answers: Answers, { limited = 0 } = {}) {
   return {
     asked,
     longbridge: createLongbridgeFundamentals({
-      accessToken: async () => TOKEN,
-      fetch,
+      api: createLongbridgeApi({ accessToken: async () => TOKEN, fetch }),
     }),
   };
 }
@@ -486,11 +486,13 @@ test("a row that does not read is dropped, but an answer none of whose rows read
 
 test("a read while signed out fails with the sign-in's reason", async () => {
   const longbridge = createLongbridgeFundamentals({
-    accessToken: async () => {
-      throw new Error(
-        "Sign in to Longbridge in Settings for US quotes and fundamentals"
-      );
-    },
+    api: createLongbridgeApi({
+      accessToken: async () => {
+        throw new Error(
+          "Sign in to Longbridge in Settings for US quotes and fundamentals"
+        );
+      },
+    }),
   });
 
   await expect(longbridge.getStatements(APPLE, "2026-01-01")).rejects.toThrow(
