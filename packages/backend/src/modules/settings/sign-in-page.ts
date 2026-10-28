@@ -68,6 +68,7 @@ export const SignInFlow = {
   ChatGPT: "chatgpt",
   OpenRouter: "openrouter",
   Mcp: "mcp",
+  Longbridge: "longbridge",
 } as const;
 
 export type SignInFlow = (typeof SignInFlow)[keyof typeof SignInFlow];

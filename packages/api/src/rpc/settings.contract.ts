@@ -35,8 +35,8 @@ import {
   fubonFileSchema,
   languagePreferenceSchema,
   localeSchema,
-  marketDataSourceSchema,
   priceColorsSchema,
+  taiwanMarketDataSourceSchema,
   themeSchema,
   mandateDraftSchema,
   timeZonePreferenceSchema,
@@ -125,7 +125,7 @@ export const settingsContract = {
     .input(
       z.object({
         market: z.literal(Market.TW),
-        source: marketDataSourceSchema,
+        source: taiwanMarketDataSourceSchema,
       })
     )
     .output(type<void>()),
@@ -135,6 +135,16 @@ export const settingsContract = {
   chooseFubonFile: oc.input(fubonFileSchema).output(type<string | null>()),
   /** Signs in to Fubon again with the saved settings; the market data status reports the outcome. */
   signInFubon: oc.output(type<void>()),
+  /**
+   * Signs in to Longbridge in the browser for US quotes, resolving once the sign-in is saved or
+   * cancelled; it replaces the one saved. The page the browser lands on is written in `locale`.
+   */
+  signInLongbridge: oc
+    .input(z.object({ locale: localeSchema }))
+    .output(type<void>()),
+  cancelLongbridgeSignIn: oc.output(type<void>()),
+  /** Forgets the sign-in and takes it off the user's Longbridge account. */
+  signOutLongbridge: oc.output(type<void>()),
   agent: oc.meta(forDevices(true)).output(type<AgentSettings>()),
   /** Lets conversations pick the provider's models, or stops offering them. */
   setAgentProviderEnabled: oc

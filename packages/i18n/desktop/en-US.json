@@ -1659,9 +1659,12 @@
       "source-title": "Taiwan market data",
       "description": "Keys and sign-ins are encrypted by your operating system and never shown again.",
       "source-description": "Where charts and live bars for Taiwan listings come from.",
+      "us-title": "US market data",
+      "us-description": "Where charts and quotes for US listings come from.",
       "sources": {
         "fugle": "Fugle",
-        "fubon": "Fubon Neo"
+        "fubon": "Fubon Neo",
+        "longbridge": "Longbridge"
       },
       "source-hints": {
         "fugle": "With your own Fugle API key.",
@@ -1674,6 +1677,12 @@
     "brokers": {
       "fubon": "Fubon Securities",
       "fubon-description": "Signs in to Fubon Securities with an API key and the certificate exported from Fubon's website. Market data and orders share this sign-in; a key limited to market data can't place orders."
+    },
+    "longbridge": {
+      "label": "Longbridge account",
+      "hint": "Signs in on Longbridge's page. A paper account gets real-time US quotes without opening a brokerage account.",
+      "sign-in": "Sign in with Longbridge",
+      "sign-in-failed": "Couldn't sign in with Longbridge"
     },
     "fundamentals": {
       "title": "Fundamentals",
@@ -2553,6 +2562,17 @@
       },
       "failed": {
         "title": "The MCP server was not connected",
+        "body": "Return to Solyx and try signing in again."
+      }
+    },
+    "longbridge": {
+      "label": "Sign in with Longbridge",
+      "signed-in": {
+        "title": "Authorization sent to Solyx",
+        "body": "You can close this tab and return to Solyx."
+      },
+      "failed": {
+        "title": "Longbridge was not connected",
         "body": "Return to Solyx and try signing in again."
       }
     }

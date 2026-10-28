@@ -2,6 +2,7 @@ import { isEqual } from "es-toolkit";
 
 import {
   FubonSessionState,
+  LONGBRIDGE_SIGN_IN_SECRET,
   MarketDataSource,
   Secret,
   SecretState,
@@ -9,7 +10,9 @@ import {
 import type {
   FubonFile,
   FubonSessionStatus,
+  Locale,
   MarketDataStatus,
+  TaiwanMarketDataSource,
 } from "@solyx/api/settings";
 import {
   FUBON_SDK_VERSIONS,
@@ -22,6 +25,7 @@ import type {
   MarketDataProvider,
   MarketDataStream,
 } from "@solyx/core/market-data";
+import type { TradingCalendarProvider } from "@solyx/core/session";
 import type { CandleStore } from "@solyx/db/cache";
 import { withCandleCache } from "@solyx/market-data/candle-cache";
 import {
@@ -35,12 +39,18 @@ import {
   createFugleStream,
 } from "@solyx/market-data/fugle";
 import type { FuglePlan } from "@solyx/market-data/fugle";
+import {
+  createLongbridgeMarketData,
+  createLongbridgeSocket,
+} from "@solyx/market-data/longbridge";
+import type { LongbridgeSocket } from "@solyx/market-data/longbridge";
 import { errorMessage } from "@solyx/utils/error";
 
 import type { ConfigFile } from "../settings/config-file.ts";
 import type { SecretStore } from "../settings/secret-store.ts";
 
 import type { FubonProcess } from "./fubon-client.ts";
+import type { LongbridgeAccess } from "./longbridge-access.ts";
 
 interface FubonConnection {
   session: FubonProcess;
@@ -50,8 +60,8 @@ interface FubonConnection {
 
 type FubonOutcome = { connection: FubonConnection } | { failure: unknown };
 
-// What each source's stream signs in with.
-const STREAM_SECRETS: Record<MarketDataSource, readonly Secret[]> = {
+// What each Taiwan source's stream signs in with.
+const STREAM_SECRETS: Record<TaiwanMarketDataSource, readonly Secret[]> = {
   [MarketDataSource.Fugle]: [Secret.FugleApiKey],
   [MarketDataSource.Fubon]: [
     Secret.FubonPersonalId,
@@ -77,6 +87,15 @@ interface MarketDataSourcesOptions {
   openFubonProcess: (options: FubonSessionOptions) => Promise<FubonProcess>;
   /** The order desk trades through Fubon, so its session stays while charts come from elsewhere. */
   tradesFubon: boolean;
+  longbridge: LongbridgeAccess;
+}
+
+/** One Longbridge sign-in's connection, the provider over it, and that provider with the candle cache. */
+interface LongbridgeConnection {
+  clientId: string;
+  socket: LongbridgeSocket;
+  data: MarketDataProvider & TradingCalendarProvider;
+  provider: MarketDataProvider;
 }
 
 /**
@@ -93,12 +112,15 @@ export function createMarketDataSources({
   fubonLogDir,
   openFubonProcess,
   tradesFubon,
+  longbridge,
 }: MarketDataSourcesOptions) {
   let fugle:
     | { apiKey: string; plan: FuglePlan; provider: MarketDataProvider }
     | undefined;
 
   let fubon: FubonSignIn | undefined;
+
+  let longbridgeConnection: LongbridgeConnection | undefined;
 
   const streamListeners = new Set<() => void>();
 
@@ -151,7 +173,39 @@ export function createMarketDataSources({
     if (STREAM_SECRETS[twSource()].some((read) => read === secret)) {
       streamChanged();
     }
+
+    // A sign-out closes the connection now rather than at the next request.
+    if (secret === LONGBRIDGE_SIGN_IN_SECRET) void longbridgeData();
   });
+
+  // A refresh keeps the client and its connection; a new sign-in, maybe of another account, opens another.
+  async function longbridgeData(): Promise<LongbridgeConnection | undefined> {
+    const clientId = await longbridge.clientId();
+
+    if (longbridgeConnection?.clientId === clientId) {
+      return longbridgeConnection;
+    }
+
+    longbridgeConnection?.socket.close();
+    longbridgeConnection = undefined;
+
+    if (clientId === undefined) return undefined;
+
+    const socket = createLongbridgeSocket({
+      accessToken: () => longbridge.accessToken(),
+    });
+
+    const data = createLongbridgeMarketData(socket);
+
+    longbridgeConnection = {
+      clientId,
+      socket,
+      data,
+      provider: withCandleCache(data, candles),
+    };
+
+    return longbridgeConnection;
+  }
 
   /** Everything Fubon signs in with, or `undefined` until all of it is saved. */
   async function fubonSettings(): Promise<FubonSessionOptions | undefined> {
@@ -295,7 +349,7 @@ export function createMarketDataSources({
   return {
     /** The market's provider, or `undefined` when none covers it or its settings are incomplete. */
     async provider(market: Market): Promise<MarketDataProvider | undefined> {
-      if (market !== Market.TW) return undefined;
+      if (market === Market.US) return (await longbridgeData())?.provider;
 
       if (twSource() === MarketDataSource.Fubon) {
         return (await fubonConnection())?.provider;
@@ -355,7 +409,13 @@ export function createMarketDataSources({
           : (await secrets.state(Secret.FugleApiKey)) === SecretState.Saved;
 
       return {
-        markets: { [Market.TW]: { source, ready }, [Market.US]: null },
+        markets: {
+          [Market.TW]: { source, ready },
+          [Market.US]: {
+            source: MarketDataSource.Longbridge,
+            ready: await longbridge.signedIn(),
+          },
+        },
         fugle: { plan: fuglePlan(), plans: Object.values(FUGLE_PLANS) },
         fubon: {
           plan: FUBON_PLAN,
@@ -383,6 +443,17 @@ export function createMarketDataSources({
 
       return connection.session;
     },
+
+    /** The US market's trading days, read through the Longbridge sign-in; `undefined` while signed out. */
+    async longbridgeCalendar(): Promise<TradingCalendarProvider | undefined> {
+      return (await longbridgeData())?.data;
+    },
+
+    signInLongbridge: (locale: Locale) => longbridge.signIn(locale),
+
+    cancelLongbridgeSignIn: () => longbridge.cancelSignIn(),
+
+    signOutLongbridge: () => longbridge.signOut(),
 
     /** Signs in again with the saved settings, even after a failure; the stream follows the new session. */
     async signInFubon(): Promise<void> {

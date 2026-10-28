@@ -69,6 +69,11 @@ function setup() {
     openStream: async () => streams.at(-1)?.stream,
     status: vi.fn<MarketDataSources["status"]>(),
     signInFubon: vi.fn<MarketDataSources["signInFubon"]>(),
+    longbridgeCalendar: async () => undefined,
+    signInLongbridge: vi.fn<MarketDataSources["signInLongbridge"]>(),
+    cancelLongbridgeSignIn:
+      vi.fn<MarketDataSources["cancelLongbridgeSignIn"]>(),
+    signOutLongbridge: vi.fn<MarketDataSources["signOutLongbridge"]>(),
     fubonSession: vi.fn<MarketDataSources["fubonSession"]>(),
     onStreamChange(listener) {
       streamListeners.add(listener);

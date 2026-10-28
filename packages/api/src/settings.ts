@@ -111,6 +111,12 @@ export function webSearchKeySecret(
 }
 
 /**
+ * The user's Longbridge sign-in for US quotes: the client it registered and its OAuth tokens,
+ * which the main process saves and refreshes.
+ */
+export const LONGBRIDGE_SIGN_IN_SECRET = "longbridge-sign-in";
+
+/**
  * The user's trading mandate, sealed with the secrets so no edit of the app's files can forge
  * one; the renderer reads it back through its own procedures, never as a secret.
  */
@@ -137,6 +143,7 @@ export type SecretKey =
   | WebSearchKeySecret
   | McpSecretKey
   | McpSignInKey
+  | typeof LONGBRIDGE_SIGN_IN_SECRET
   | typeof MANDATE_SECRET
   | typeof PAIRED_DEVICES_SECRET
   | typeof STRATEGY_APPROVALS_SECRET;
@@ -254,12 +261,21 @@ export function resolveTimeZone(
 export const MarketDataSource = {
   Fugle: "fugle",
   Fubon: "fubon",
+  /** US listings, on the user's Longbridge sign-in. */
+  Longbridge: "longbridge",
 } as const;
 
 export type MarketDataSource =
   (typeof MarketDataSource)[keyof typeof MarketDataSource];
 
-export const marketDataSourceSchema = z.enum(MarketDataSource);
+/** The sources Taiwan's charts may come from, of which the user picks one. */
+export const taiwanMarketDataSourceSchema = z
+  .enum(MarketDataSource)
+  .exclude(["Longbridge"]);
+
+export type TaiwanMarketDataSource = z.infer<
+  typeof taiwanMarketDataSourceSchema
+>;
 
 /** Files Fubon sign-in reads, saved as paths in the config file. */
 export const FubonFile = {
@@ -274,8 +290,10 @@ export type FubonFile = (typeof FubonFile)[keyof typeof FubonFile];
 export const fubonFileSchema = z.enum(FubonFile);
 
 /** A market's source and whether everything it connects with is saved. */
-export interface MarketSource {
-  source: MarketDataSource;
+export interface MarketSource<
+  Source extends MarketDataSource = MarketDataSource,
+> {
+  source: Source;
   ready: boolean;
 }
 
@@ -301,8 +319,11 @@ export type FubonSessionStatus =
   | { state: typeof FubonSessionState.Failed; message: string };
 
 export interface MarketDataStatus {
-  /** `null` where no source covers the market yet. */
-  markets: Record<Market, MarketSource | null>;
+  /** Taiwan's comes from the source the user picked, and the US's from Longbridge once signed in. */
+  markets: {
+    [Market.TW]: MarketSource<TaiwanMarketDataSource>;
+    [Market.US]: MarketSource<typeof MarketDataSource.Longbridge>;
+  };
   /** The plans Fugle sells, in its order, and the one the user holds. */
   fugle: { plan: FuglePlan; plans: MarketDataPlan<FuglePlan>[] };
   fubon: {
@@ -320,7 +341,7 @@ export interface MarketDataStatus {
 
 /** Whether Taiwan market data has everything its source connects with saved. */
 export function isMarketDataReady(status: MarketDataStatus | undefined) {
-  return status?.markets[Market.TW]?.ready === true;
+  return status?.markets[Market.TW].ready === true;
 }
 
 /** A model the agent can run on, from its provider's catalog. */

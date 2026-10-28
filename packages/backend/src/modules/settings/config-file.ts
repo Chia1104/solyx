@@ -38,7 +38,7 @@ import {
   TimeZonePreference,
   TradingBroker,
   languagePreferenceSchema,
-  marketDataSourceSchema,
+  taiwanMarketDataSourceSchema,
   priceColorsSchema,
   themeSchema,
   tradingBrokerSchema,
@@ -230,7 +230,7 @@ const configSchema = section(
     ),
     marketData: section(
       z.looseObject({
-        TW: marketDataSourceSchema
+        TW: taiwanMarketDataSourceSchema
           .catch(MarketDataSource.Fugle)
           .meta({ description: "Where Taiwan charts come from." }),
       })
