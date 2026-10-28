@@ -21,6 +21,7 @@ import { createRateLimiter } from "@solyx/utils/rate-limit";
 
 import { longbridgeDataCenter } from "./longbridge-sign-in.ts";
 import {
+  AdjustType,
   Command,
   PacketType,
   Period,
@@ -42,7 +43,7 @@ import {
   securitiesRequest,
   tradeDaysRequest,
 } from "./longbridge-wire.ts";
-import type { Packet, SecurityQuote } from "./longbridge-wire.ts";
+import type { Candlestick, Packet, SecurityQuote } from "./longbridge-wire.ts";
 
 const API_URL = "https://openapi.longbridge.com";
 
@@ -524,6 +525,68 @@ export function createLongbridgeSocket({
   };
 }
 
+/** A bar as traded; none where Longbridge left a price out. */
+function tradedBar(bar: Candlestick): Candle[] {
+  const open = price(bar.open);
+  const high = price(bar.high);
+  const low = price(bar.low);
+  const close = price(bar.close);
+
+  return open === null || high === null || low === null || close === null
+    ? []
+    : [{ time: bar.timestamp, open, high, low, close, volume: bar.volume }];
+}
+
+/** A forward-adjusted close, and how far its rounding may have moved it, as a fraction of it. */
+interface AdjustedClose {
+  close: number;
+  error: number;
+}
+
+function adjustedCloses(
+  adjusted: readonly Candlestick[]
+): Map<number, AdjustedClose> {
+  return new Map(
+    adjusted.flatMap((bar): [number, AdjustedClose][] => {
+      const close = price(bar.close);
+      const decimals = bar.close.split(".")[1]?.length ?? 0;
+
+      return close === null || close <= 0
+        ? []
+        : [[bar.timestamp, { close, error: (0.5 * 10 ** -decimals) / close }]];
+    })
+  );
+}
+
+/**
+ * Daily bars with the reference each session's move counts from, which Longbridge gives only as
+ * its forward-adjusted bars: the close before, carried by how much the adjustment changed from that
+ * day to this, as a split or a payout changes it. A change within the adjusted closes' rounding
+ * moved nothing, so the reference is the close before itself.
+ */
+function withReferences(
+  bars: readonly Candle[],
+  adjusted: readonly Candlestick[]
+): Candle[] {
+  const closes = adjustedCloses(adjusted);
+
+  return bars.map((bar, index) => {
+    const previous = index > 0 ? bars[index - 1] : undefined;
+    const now = closes.get(bar.time);
+    const before = previous && closes.get(previous.time);
+
+    if (!previous || !now || !before) return bar;
+
+    const step = before.close / previous.close / (now.close / bar.close);
+    const moved = Math.abs(step - 1) > before.error + now.error;
+
+    return {
+      ...bar,
+      reference: moved ? previous.close * step : previous.close,
+    };
+  });
+}
+
 const toDate = (day: string) =>
   `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}`;
 
@@ -603,40 +666,35 @@ export function createLongbridgeMarketData(
       from,
       to,
     }: CandleRequest): Promise<Candle[]> {
-      const bars = await listed(
-        Command.QueryCandlestick,
-        candlesticksRequest({
-          symbol: code(symbol),
-          period: PERIOD[interval],
-          count: MAX_CANDLES,
-        }),
-        decodeCandlesticks
-      );
+      const read = (adjust: AdjustType) =>
+        listed(
+          Command.QueryCandlestick,
+          candlesticksRequest({
+            symbol: code(symbol),
+            period: PERIOD[interval],
+            count: MAX_CANDLES,
+            adjust,
+          }),
+          decodeCandlesticks
+        );
 
-      return (bars ?? [])
-        .flatMap((bar): Candle[] => {
-          const open = price(bar.open);
-          const high = price(bar.high);
-          const low = price(bar.low);
-          const close = price(bar.close);
-          const date = candleDate(Market.US, bar.timestamp);
+      // Daily bars carry the references the backtests and rotations read splits and payouts from.
+      const [traded, adjusted] = await Promise.all([
+        read(AdjustType.None),
+        interval === Interval.OneDay ? read(AdjustType.Forward) : null,
+      ]);
 
-          if (
-            open === null ||
-            high === null ||
-            low === null ||
-            close === null ||
-            date < from ||
-            date > to
-          ) {
-            return [];
-          }
-
-          return [
-            { time: bar.timestamp, open, high, low, close, volume: bar.volume },
-          ];
-        })
+      const bars = (traded ?? [])
+        .flatMap(tradedBar)
         .toSorted((a, b) => a.time - b.time);
+
+      return (adjusted ? withReferences(bars, adjusted) : bars).filter(
+        (bar) => {
+          const date = candleDate(Market.US, bar.time);
+
+          return date >= from && date <= to;
+        }
+      );
     },
 
     async getListing(symbol: SymbolRef): Promise<Listing | null> {
