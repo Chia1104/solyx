@@ -127,6 +127,7 @@ function setup(vendor = fakeVendor()) {
       unreadMarkets: [],
     }),
     figures: async () => [],
+    exchangeRate: async () => ({ date: "2026-10-07", twdPerUsd: 32.5 }),
     desk: {
       check: vi.fn<OrderDesk["check"]>(async () => []),
       propose: vi.fn<OrderDesk["propose"]>(),

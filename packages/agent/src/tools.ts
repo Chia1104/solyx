@@ -9,7 +9,7 @@ import type {
   ToolExecutionApi,
   ToolRegistration,
 } from "@earendil-works/pi-durable";
-import { maxBy, omit, takeRight, uniq, uniqBy } from "es-toolkit";
+import { maxBy, omit, sumBy, takeRight, uniq, uniqBy } from "es-toolkit";
 import * as z from "zod";
 
 import type { BrokerOrder } from "@solyx/core/broker";
@@ -34,6 +34,8 @@ import {
 import type { Candle, IntradayInterval } from "@solyx/core/candles";
 import { CouncilOutcome, councilOutcome } from "@solyx/core/council";
 import type { Council } from "@solyx/core/council";
+import { inTwd } from "@solyx/core/exchange-rate";
+import type { ExchangeRate } from "@solyx/core/exchange-rate";
 import {
   MOVING_AVERAGE_PERIODS,
   RELATIVE_STRENGTH_PERIODS,
@@ -64,7 +66,9 @@ import type { MacroSeries } from "@solyx/core/macro";
 import type { MandateVerdict } from "@solyx/core/mandate";
 import {
   BENCHMARK,
+  Currency,
   Market,
+  currencyOf,
   exchangeDate,
   exchangeMidnight,
   exchangeTime,
@@ -90,7 +94,7 @@ import type {
   SentimentReading,
 } from "@solyx/core/news";
 import { OrderType, exitLegs, sideSchema } from "@solyx/core/order";
-import type { Exit, OrderRequest } from "@solyx/core/order";
+import type { AccountSnapshot, Exit, OrderRequest } from "@solyx/core/order";
 import {
   MandateSending,
   ProposalSource,
@@ -115,7 +119,7 @@ import { normalizeSpace, truncate, counted } from "@solyx/utils/text";
 
 import { figure, percent, signed, signedFigure } from "./figures.ts";
 import { rememberAddresses } from "./found-addresses.ts";
-import { readingText } from "./macro-text.ts";
+import { rateText, readingText } from "./macro-text.ts";
 import { councilText, durableBallotBox, orderMotion } from "./magi.ts";
 import type { MagiPort } from "./magi.ts";
 import { promptSections } from "./prompt.ts";
@@ -139,6 +143,8 @@ export interface TradingToolPorts extends PromptSources {
   ): Promise<UpcomingEvents>;
   /** A market's indicators' figures, as the host keeps them; none for a market no source covers. */
   figures(market: Market): Promise<MacroSeries[]>;
+  /** The newest close of the US dollar in Taiwan dollars, as the host keeps it. */
+  exchangeRate(): Promise<ExchangeRate>;
   desk: ProposingDesk;
   /** Puts each order proposal to a vote while the user has decisions go to the MAGI. */
   magi?: MagiPort;
@@ -505,6 +511,34 @@ function describeRelease(release: ReleaseEvent): string {
   const page = release.page === null ? "" : ` [${release.page}]`;
 
   return `${eventDay(release.date, release.timing)}${time} ${release.market} ${release.indicator.replaceAll("-", " ")}${period}${page}${releaseFigures(release)}`;
+}
+
+/** The rate US dollars read in Taiwan dollars at, with the cash in all at it while every currency's is known. */
+async function rateLine(
+  ports: Pick<TradingToolPorts, "exchangeRate">,
+  cash: AccountSnapshot["cash"]
+): Promise<string> {
+  let rate: ExchangeRate;
+
+  try {
+    rate = await ports.exchangeRate();
+  } catch (error) {
+    return `USD/TWD could not be read (${errorMessage(error)}).`;
+  }
+
+  const held = Object.values(Currency).filter(
+    (currency) => cash[currency] !== undefined
+  );
+
+  if (held.some((currency) => cash[currency] === null)) {
+    return `${rateText(rate)}.`;
+  }
+
+  const total = sumBy(held, (currency) =>
+    inTwd(cash[currency] ?? 0, currency, rate)
+  );
+
+  return `${rateText(rate)}; cash in all at it: TWD ${figure(total, 0)}.`;
 }
 
 /** A market's trading days, or every weekday and the reason they could not be read. */
@@ -1117,7 +1151,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
       name: AgentToolName.GetAccount,
       replay: "safe",
       description:
-        "Cash per currency and open positions with their average price, in the account the app trades, the orders of today's market days that may still fill, the exits the broker watches, and how its closed round trips went by the stance of the report each was opened under.",
+        "Cash per currency and open positions with their average price, in the account the app trades, the orders of today's market days that may still fill, the exits the broker watches, and how its closed round trips went by the stance of the report each was opened under. Where the account holds US dollars, it also gives the US dollar's newest close in Taiwan dollars and the cash in all at it, for reading the two currencies together; orders, the risk limits and the trading mandate each stay in their own currency.",
       parameters: z.object({}),
       execute: async () => {
         const [account, fills, working] = await Promise.all([
@@ -1138,6 +1172,14 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
             `${symbolLabel(position.instrument)}: ${position.quantity} shares @ ${position.avgPrice}`
         );
 
+        const holdsUsd =
+          Currency.USD in account.cash ||
+          account.positions.some(
+            ({ instrument }) => currencyOf(instrument.market) === Currency.USD
+          );
+
+        const rate = holdsUsd ? await rateLine(ports, account.cash) : null;
+
         const records = recordsByStance(
           roundTrips(fills, ports.desk.list(), account.positions)
         );
@@ -1146,6 +1188,7 @@ function createTradingTools(ports: TradingToolPorts): ToolRegistration[] {
           text: [
             `account: ${ports.desk.mode}`,
             `cash: ${cash.join(", ") || "none"}`,
+            ...(rate ? [rate] : []),
             "positions:",
             ...(positions.length > 0 ? positions : ["none"]),
             "working orders:",

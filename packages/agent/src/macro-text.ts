@@ -1,3 +1,4 @@
+import type { ExchangeRate } from "@solyx/core/exchange-rate";
 import { MacroUnit } from "@solyx/core/macro";
 import type { MacroReading } from "@solyx/core/macro";
 
@@ -18,3 +19,7 @@ const UNIT_TEXT: Record<MacroUnit, (reading: MacroReading) => string> = {
 /** A reading in words, as the app worked it out. */
 export const readingText = (reading: MacroReading) =>
   `${named(reading.figure)} ${UNIT_TEXT[reading.unit](reading)}`;
+
+/** The rate a US dollar amount is read in Taiwan dollars at, with the day it closed. */
+export const rateText = ({ twdPerUsd, date }: ExchangeRate) =>
+  `USD/TWD ${twdPerUsd}, the interbank close of ${date} as Taiwan's central bank published it`;

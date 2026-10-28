@@ -1,6 +1,6 @@
 # `@solyx/macro`
 
-Schedules of economic releases and the figures they bring, one module per source, each implementing `MacroCalendarProvider` or `MacroFiguresProvider` from `@solyx/core/macro`. `./stat-gov-tw` reads Taiwan's schedule from the national statistics portal's release calendar, which lists each agency's releases for the coming twelve months. `./dgbas` reads Taiwan's figures from the macro database of the Directorate-General of Budget, Accounting and Statistics, which gathers the other agencies' too and whose API needs no key.
+Schedules of economic releases and the figures they bring, and the rate between the app's two currencies, one module per source, each implementing `MacroCalendarProvider` or `MacroFiguresProvider` from `@solyx/core/macro` or `ExchangeRateProvider` from `@solyx/core/exchange-rate`. `./stat-gov-tw` reads Taiwan's schedule from the national statistics portal's release calendar, which lists each agency's releases for the coming twelve months. `./dgbas` reads Taiwan's figures from the macro database of the Directorate-General of Budget, Accounting and Statistics, which gathers the other agencies' too and whose API needs no key. `./cbc` reads the US dollar's rate in Taiwan dollars from the central bank's open data, each business day's close of the interbank market, whose API needs no key and answers every close since 2008 at once, since it takes no range.
 
 ## Boundaries
 

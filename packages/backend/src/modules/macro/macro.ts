@@ -1,5 +1,9 @@
 import { RELEASED_DAYS } from "@solyx/core/calendar";
 import type {
+  ExchangeRate,
+  ExchangeRateProvider,
+} from "@solyx/core/exchange-rate";
+import type {
   MacroCalendarProvider,
   MacroFiguresProvider,
   MacroRelease,
@@ -17,6 +21,9 @@ const SCHEDULE_FRESH_MS = 12 * HOUR_MS;
 // A figure comes out at its release's time of day, so a market's are read once an hour at most.
 const SERIES_FRESH_MS = HOUR_MS;
 
+// A rate closes once a business day, and what it is read for takes one from the day before.
+const RATE_FRESH_MS = 3 * HOUR_MS;
+
 // Two years and the months a release lags its period, so each of the last thirteen periods has the one a year before it.
 const SERIES_MONTHS = 26;
 
@@ -25,7 +32,9 @@ export interface MacroOptions {
   calendars: readonly MacroCalendarProvider[];
   /** The sources of the indicators' figures, one per market at most. */
   figures: readonly MacroFiguresProvider[];
-  /** Where each market's schedule and figures are kept between runs. */
+  /** The source of the US dollar's rate in Taiwan dollars. */
+  exchangeRates: ExchangeRateProvider;
+  /** Where each market's schedule and figures, and the rate, are kept between runs. */
   answers: AnswerStores;
   /** @default () => new Date() */
   now?: () => Date;
@@ -39,11 +48,13 @@ interface Ask<Provider> {
 /**
  * Each market's schedule of economic releases, from `RELEASED_DAYS` back so those just out stay
  * on it, and its indicators' figures over the last two years, each from the source that covers
- * the market and none for a market no source does.
+ * the market and none for a market no source does, and the newest rate between the app's two
+ * currencies.
  */
 export function createMacro({
   calendars,
   figures,
+  exchangeRates,
   answers,
   now = () => new Date(),
 }: MacroOptions) {
@@ -74,6 +85,16 @@ export function createMacro({
     now: () => now().getTime(),
   });
 
+  const rate = keepFresh<ExchangeRateProvider, ExchangeRate>({
+    store: answers("macro:exchange-rate"),
+    id: ({ id }) => id,
+    ask: (provider) => provider.latest(),
+    fresh: freshFor(RATE_FRESH_MS),
+    // A rate carries its day, so the last one read still reads for what it is.
+    keepOnFailure: true,
+    now: () => now().getTime(),
+  });
+
   return {
     schedule(market: Market): Promise<MacroRelease[]> {
       const provider = calendars.find(({ markets }) =>
@@ -87,6 +108,10 @@ export function createMacro({
       const provider = figures.find(({ markets }) => markets.includes(market));
 
       return provider ? kept({ market, provider }) : Promise.resolve([]);
+    },
+
+    exchangeRate(): Promise<ExchangeRate> {
+      return rate(exchangeRates);
     },
   };
 }

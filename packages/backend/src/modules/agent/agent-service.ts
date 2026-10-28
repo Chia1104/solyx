@@ -148,7 +148,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   fundamentals: Fundamentals;
   flows: Flows;
   /** Each market's indicators' figures, for the agent's own read of them. */
-  macro: Pick<Macro, "series">;
+  macro: Pick<Macro, "series" | "exchangeRate">;
   /** Taiwan's sector indices, as the overview's map reads them. */
   sectors: SectorToolsOptions["sectors"];
   /** Those indices' rotation against the TAIEX, as the overview's chart reads it. */
@@ -323,6 +323,7 @@ export function createAgentService(options: AgentServiceOptions) {
       options.searchListings({ query, market }),
     calendar: (symbols, days) => options.calendar.upcoming(symbols, days),
     figures: options.macro.series,
+    exchangeRate: options.macro.exchangeRate,
     desk: options.desk,
     magi,
     links: {
@@ -361,6 +362,7 @@ export function createAgentService(options: AgentServiceOptions) {
     marketData: options.marketData,
     watchlist: options.watchlist.list,
     desk: options.desk,
+    exchangeRate: options.macro.exchangeRate,
   });
 
   const web = createWebTools({ vendor: options.web });
