@@ -1,4 +1,4 @@
-import type { ListingMatch } from "@solyx/api/market";
+import type { ListingMatch, ListingSearch } from "@solyx/api/market";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Listing } from "@solyx/core/market-data";
@@ -86,32 +86,28 @@ async function searchMarket(
 
 /**
  * Listings matching `query`, best first, in `market` or in every market where it is `null`. A
- * market whose source fails leaves the others' matches standing; rejects only when every market
- * asked fails.
+ * market whose listings cannot be read is named unread, and the others' matches stand.
  */
 export async function searchListings(
   { query, market }: { query: string; market: Market | null },
   sources: ListingSearchSources
-): Promise<ListingMatch[]> {
+): Promise<ListingSearch> {
+  const markets = market === null ? Object.values(Market) : [market];
+
   const settled = await Promise.allSettled(
-    (market === null ? Object.values(Market) : [market]).map((each) =>
-      searchMarket(each, query, sources)
-    )
+    markets.map((each) => searchMarket(each, query, sources))
   );
 
-  const failure = settled.find((result) => result.status === "rejected");
-
-  if (failure && settled.every((result) => result.status === "rejected")) {
-    throw failure.reason;
-  }
-
-  return settled
-    .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
-    .toSorted(
-      (a, b) =>
-        a.order - b.order ||
-        a.match.symbol.symbol.localeCompare(b.match.symbol.symbol)
-    )
-    .slice(0, MAX_MATCHES)
-    .map(({ match }) => match);
+  return {
+    matches: settled
+      .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+      .toSorted(
+        (a, b) =>
+          a.order - b.order ||
+          a.match.symbol.symbol.localeCompare(b.match.symbol.symbol)
+      )
+      .slice(0, MAX_MATCHES)
+      .map(({ match }) => match),
+    unread: markets.filter((_, index) => settled[index].status === "rejected"),
+  };
 }

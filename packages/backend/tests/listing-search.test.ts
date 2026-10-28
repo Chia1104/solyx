@@ -50,7 +50,7 @@ function sources() {
   };
 }
 
-const codes = (matches: { symbol: SymbolRef }[]) =>
+const codes = ({ matches }: { matches: { symbol: SymbolRef }[] }) =>
   matches.map(({ symbol }) => `${symbol.market}:${symbol.symbol}`);
 
 const search = async (query: string, market: Market | null = null) =>
@@ -99,12 +99,12 @@ test("keeps to the market asked for", async () => {
 
   expect(
     await searchListings({ query: "AAPL", market: Market.TW }, asked)
-  ).toEqual([]);
+  ).toEqual({ matches: [], unread: [] });
   expect(asked.directory.mock.calls).toEqual([[Market.TW]]);
   expect(asked.listing).not.toHaveBeenCalled();
 });
 
-test("a market whose source fails leaves the other's matches, and fails only when every market asked does", async () => {
+test("a market whose listings cannot be read is named unread, and the other's matches stand", async () => {
   const failing = sources();
 
   failing.directory.mockImplementation(async (market) => {
@@ -115,11 +115,15 @@ test("a market whose source fails leaves the other's matches, and fails only whe
     return DIRECTORY[market];
   });
 
-  expect(
-    codes(await searchListings({ query: "台積", market: null }, failing))
-  ).toEqual(["TW:2330"]);
+  const both = await searchListings({ query: "台積", market: null }, failing);
 
-  await expect(
-    searchListings({ query: "AAPL", market: Market.US }, failing)
-  ).rejects.toThrow("Longbridge closed the quote connection");
+  expect(codes(both)).toEqual(["TW:2330"]);
+  expect(both.unread).toEqual([Market.US]);
+
+  expect(
+    await searchListings({ query: "AAPL", market: Market.US }, failing)
+  ).toEqual({ matches: [], unread: [Market.US] });
+  expect(
+    (await searchListings({ query: "台積", market: Market.TW }, failing)).unread
+  ).toEqual([]);
 });
