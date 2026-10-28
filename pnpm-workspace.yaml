@@ -125,6 +125,7 @@ catalogs:
     # react-start pins the router exactly; upgrade the two together.
     "@tanstack/react-start": 1.169.4
   utils:
+    "@bufbuild/protobuf": 2.16.0
     fast-xml-parser: 5.11.2
     tar: 7.5.22
     yaml: 2.9.1

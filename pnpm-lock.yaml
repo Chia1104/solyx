@@ -445,6 +445,9 @@ catalogs:
       specifier: 1.169.4
       version: 1.169.4
   utils:
+    '@bufbuild/protobuf':
+      specifier: 2.16.0
+      version: 2.16.0
     fast-xml-parser:
       specifier: 5.11.2
       version: 5.11.2
@@ -1371,6 +1374,9 @@ importers:
 
   packages/market-data:
     dependencies:
+      '@bufbuild/protobuf':
+        specifier: catalog:utils
+        version: 2.16.0
       '@solyx/brokers':
         specifier: workspace:*
         version: link:../brokers
@@ -1858,6 +1864,9 @@ packages:
 
   '@blazediff/core@1.10.0':
     resolution: {integrity: sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ==}
+
+  '@bufbuild/protobuf@2.16.0':
+    resolution: {integrity: sha512-FWa0sPlqYGJgpTs6OxBRcL/AW4JT0OIO+W1ajerluoTVh8CV0B7XM1qsNCRgnkSCkRCgOICKHRQlY17jrsm0+Q==}
 
   '@chiastack/oxlint@1.1.0':
     resolution: {integrity: sha512-QNy3jXnTOKmjnSQfMpvZEWq6R0pmROW3SvkTV2F8qzJDW67zgcWo27gkcpRQPBfeEf0if+3caqpd4ujDziqZFA==}
@@ -10412,6 +10421,8 @@ snapshots:
   '@better-fetch/fetch@1.3.2': {}
 
   '@blazediff/core@1.10.0': {}
+
+  '@bufbuild/protobuf@2.16.0': {}
 
   '@chiastack/oxlint@1.1.0(oxlint@1.89.0(oxlint-tsgolint@7.0.2004)(vite-plus@1.4.0(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/ui@5.0.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)))':
     dependencies:

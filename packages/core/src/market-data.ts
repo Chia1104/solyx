@@ -14,7 +14,7 @@ export interface CandleRequest {
 
 /** How the exchange names a listing. */
 export interface Listing {
-  /** The exchange's own name, such as 台積電. */
+  /** The exchange's own name, such as 台積電, or for a listing abroad the source's traditional Chinese one. */
   name: string;
   englishName: string | null;
 }
