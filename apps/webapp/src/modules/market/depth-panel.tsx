@@ -1,11 +1,9 @@
-import { useState } from "react";
-
 import { cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
-import { Market, symbolKey } from "@solyx/core/market";
+import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Depth, DepthLevel } from "@solyx/core/market-data";
 import type { PriceBand } from "@solyx/core/risk";
@@ -25,25 +23,12 @@ const BOOK_LEVELS = 5;
 
 /**
  * How many rows a side of the ladder shows: Taiwan's exchanges publish five prices a side, while
- * a US book holds as many as the user's Longbridge quotes give, one on its free quotes, so it
- * shows as many as the listing's book has held, at most five, and never fewer while it shows, so
- * the ladder keeps its height as levels come and go.
+ * a US book holds as many as the user's Longbridge quotes give, one on its free quotes.
  */
-function useBookRows(symbol: SymbolRef, depth: Depth): number {
-  const key = symbolKey(symbol);
-
-  const held = Math.min(
-    BOOK_LEVELS,
-    Math.max(1, depth.asks.length, depth.bids.length)
-  );
-
-  const [most, setMost] = useState({ key, rows: held });
-  const rows = most.key === key ? Math.max(most.rows, held) : held;
-
-  if (most.key !== key || most.rows !== rows) setMost({ key, rows });
-
-  return symbol.market === Market.TW ? BOOK_LEVELS : rows;
-}
+const bookRows = (market: Market, depth: Depth) =>
+  market === Market.TW
+    ? BOOK_LEVELS
+    : Math.min(BOOK_LEVELS, Math.max(1, depth.asks.length, depth.bids.length));
 
 /**
  * The listing's session so far and its best bids and asks, as `useDepth` follows them; a price
@@ -253,7 +238,7 @@ function DepthLadder({
   const format = numberFormats(i18n.language);
   const direction = useDirectionColors(symbol.market);
 
-  const rows = useBookRows(symbol, depth);
+  const rows = bookRows(symbol.market, depth);
   const asks = padded(depth.asks, rows).toReversed();
   const bids = padded(depth.bids, rows);
 
