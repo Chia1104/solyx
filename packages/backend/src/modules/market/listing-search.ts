@@ -1,91 +1,102 @@
 import type { ListingMatch } from "@solyx/api/market";
-import type { Listed, ListingName } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { Listing } from "@solyx/core/market-data";
 
-/** The most Taiwan listings a search returns. */
+/** The most listings a search returns. */
 const MAX_MATCHES = 20;
 
 // A US ticker is letters, with a dot or a hyphen before a class of shares, as in BRK.B.
 const US_TICKER = /^[A-Z][A-Z.-]{0,9}$/;
 
+/** A listing a market's directory holds, with the names a search matches. */
+export interface ListingEntry {
+  symbol: string;
+  name: string;
+  englishName: string | null;
+}
+
 export interface ListingSearchSources {
-  /** Every listing of a market with the name its exchanges quote it under. */
-  names: (market: Market) => Promise<Listed<ListingName>[]>;
+  /** Every listing of a market the search matches against. */
+  directory: (market: Market) => Promise<ListingEntry[]>;
+  /** One listing by its code, for a US ticker its market's directory does not hold. */
   listing: (symbol: SymbolRef) => Promise<Listing | null>;
 }
 
-/** How well a listing matches what was typed, best at 0: its code, then the start of its name, then anywhere in it. */
-function rank(code: string, name: string, query: string): number | undefined {
-  const upper = query.toUpperCase();
+interface Ranked {
+  /** Best at 0: the code typed whole, then the start of a code, the start of a name, a name holding it. */
+  order: number;
+  match: ListingMatch;
+}
 
-  if (code === upper) return 0;
+function rank({ symbol, name, englishName }: ListingEntry, query: string) {
+  const code = query.toUpperCase();
 
-  if (code.startsWith(upper)) return 1;
+  if (symbol === code) return 0;
 
-  const lower = name.toLowerCase();
+  if (symbol.startsWith(code)) return 1;
+
   const typed = query.toLowerCase();
 
-  if (lower.startsWith(typed)) return 2;
+  const names = [name, englishName ?? ""].map((each) => each.toLowerCase());
 
-  return lower.includes(typed) ? 3 : undefined;
+  if (names.some((each) => each.startsWith(typed))) return 2;
+
+  return names.some((each) => each.includes(typed)) ? 3 : undefined;
 }
 
-async function taiwan(
+async function searchMarket(
+  market: Market,
   query: string,
-  { names }: ListingSearchSources
-): Promise<ListingMatch[]> {
-  return (await names(Market.TW))
-    .flatMap(({ symbol, name }) => {
-      const order = rank(symbol, name, query);
+  { directory, listing }: ListingSearchSources
+): Promise<Ranked[]> {
+  const ranked = (await directory(market)).flatMap((entry): Ranked[] => {
+    const order = rank(entry, query);
 
-      return order === undefined ? [] : [{ order, symbol, name }];
-    })
-    .toSorted((a, b) => a.order - b.order || a.symbol.localeCompare(b.symbol))
-    .slice(0, MAX_MATCHES)
-    .map(({ symbol, name }) => ({
-      symbol: { market: Market.TW, symbol },
-      name,
-      englishName: null,
-    }));
-}
+    return order === undefined
+      ? []
+      : [
+          {
+            order,
+            match: {
+              symbol: { market, symbol: entry.symbol },
+              name: entry.name,
+              englishName: entry.englishName,
+            },
+          },
+        ];
+  });
 
-// The US source names a listing only by its full ticker, so a US search finds one or none.
-async function us(
-  query: string,
-  { listing }: ListingSearchSources
-): Promise<ListingMatch[]> {
   const ticker = query.toUpperCase();
 
-  if (!US_TICKER.test(ticker)) return [];
+  // A US listing the directory lacks, as one traded over the counter, is found by its whole ticker.
+  if (
+    market === Market.US &&
+    US_TICKER.test(ticker) &&
+    !ranked.some(({ order }) => order === 0)
+  ) {
+    const symbol = { market, symbol: ticker };
+    const found = await listing(symbol);
 
-  const symbol = { market: Market.US, symbol: ticker };
-  const found = await listing(symbol);
+    if (found) ranked.push({ order: 0, match: { symbol, ...found } });
+  }
 
-  return found ? [{ symbol, ...found }] : [];
+  return ranked;
 }
 
 /**
- * Listings matching `query`, the US one first since a full ticker matches it exactly: in `market`,
- * or in every market where it is `null`. A market whose source fails leaves the other's matches
- * standing; rejects only when every market asked fails.
+ * Listings matching `query`, best first, in `market` or in every market where it is `null`. A
+ * market whose source fails leaves the others' matches standing; rejects only when every market
+ * asked fails.
  */
 export async function searchListings(
   { query, market }: { query: string; market: Market | null },
   sources: ListingSearchSources
 ): Promise<ListingMatch[]> {
-  const searches = [
-    ...(market === null || market === Market.US ? [us(query, sources)] : []),
-    ...(market === null || market === Market.TW
-      ? [taiwan(query, sources)]
-      : []),
-  ];
-
-  const settled = await Promise.allSettled(searches);
-
-  const found = settled.flatMap((result) =>
-    result.status === "fulfilled" ? result.value : []
+  const settled = await Promise.allSettled(
+    (market === null ? Object.values(Market) : [market]).map((each) =>
+      searchMarket(each, query, sources)
+    )
   );
 
   const failure = settled.find((result) => result.status === "rejected");
@@ -94,5 +105,13 @@ export async function searchListings(
     throw failure.reason;
   }
 
-  return found;
+  return settled
+    .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+    .toSorted(
+      (a, b) =>
+        a.order - b.order ||
+        a.match.symbol.symbol.localeCompare(b.match.symbol.symbol)
+    )
+    .slice(0, MAX_MATCHES)
+    .map(({ match }) => match);
 }

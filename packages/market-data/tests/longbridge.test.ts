@@ -10,6 +10,7 @@ import {
   LongbridgeError,
   createLongbridgeMarketData,
   createLongbridgeSocket,
+  readLongbridgeSecurities,
 } from "../src/longbridge.ts";
 import type { LongbridgeWebSocket } from "../src/longbridge.ts";
 
@@ -656,4 +657,83 @@ test("nothing is asked once the connection is closed for good", async () => {
   await expect(longbridge.getListing(APPLE)).rejects.toThrow(
     "The Longbridge connection closed"
   );
+});
+
+describe("the list of US listings", () => {
+  test("names each in traditional Chinese with its English name beside, its ticker without the market", async () => {
+    const sent: Request[] = [];
+
+    const listed = await readLongbridgeSecurities(TOKEN, {
+      fetch: async (input, init) => {
+        sent.push(new Request(input, init));
+
+        return Response.json({
+          code: 0,
+          message: "success",
+          data: {
+            list: [
+              {
+                symbol: "AAPL.US",
+                name_cn: "苹果",
+                name_hk: "蘋果",
+                name_en: "Apple Inc.",
+              },
+              {
+                symbol: "BRK.B.US",
+                name_hk: "伯克希爾哈撒韋-B",
+                name_en: "Berkshire Hathaway Inc.",
+              },
+              {
+                symbol: "RKLB.US",
+                name_hk: "",
+                name_en: "Rocket Lab Corporation",
+              },
+              { symbol: "700.HK", name_hk: "騰訊控股", name_en: "Tencent" },
+              { symbol: "ZZZZ.US", name_hk: "", name_en: "" },
+            ],
+          },
+        });
+      },
+    });
+
+    expect(listed).toEqual([
+      { symbol: "AAPL", name: "蘋果", englishName: "Apple Inc." },
+      {
+        symbol: "BRK.B",
+        name: "伯克希爾哈撒韋-B",
+        englishName: "Berkshire Hathaway Inc.",
+      },
+      {
+        symbol: "RKLB",
+        name: "Rocket Lab Corporation",
+        englishName: "Rocket Lab Corporation",
+      },
+    ]);
+
+    const url = new URL(sent[0].url);
+
+    expect(url.origin + url.pathname).toBe(
+      "https://openapi.longbridge.com/v1/quote/get_security_list"
+    );
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      market: "US",
+      category: "Overnight",
+    });
+    expect(sent[0].headers.get("authorization")).toBe(`Bearer ${TOKEN}`);
+    expect(sent[0].headers.get("x-dc-region")).toBe("ap");
+  });
+
+  test("a refused read names Longbridge and its reason", async () => {
+    await expect(
+      readLongbridgeSecurities(TOKEN, {
+        fetch: async () =>
+          Response.json(
+            { code: 401_003, message: "token expired", data: null },
+            { status: 401 }
+          ),
+      })
+    ).rejects.toThrow(
+      "Longbridge refused its list of US listings: token expired"
+    );
+  });
 });

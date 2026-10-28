@@ -42,8 +42,12 @@ import type { FuglePlan } from "@solyx/market-data/fugle";
 import {
   createLongbridgeMarketData,
   createLongbridgeSocket,
+  readLongbridgeSecurities,
 } from "@solyx/market-data/longbridge";
-import type { LongbridgeSocket } from "@solyx/market-data/longbridge";
+import type {
+  LongbridgeSecurity,
+  LongbridgeSocket,
+} from "@solyx/market-data/longbridge";
 import { errorMessage } from "@solyx/utils/error";
 
 import type { ConfigFile } from "../settings/config-file.ts";
@@ -447,6 +451,13 @@ export function createMarketDataSources({
     /** The US market's trading days, read through the Longbridge sign-in; `undefined` while signed out. */
     async longbridgeCalendar(): Promise<TradingCalendarProvider | undefined> {
       return (await longbridgeData())?.data;
+    },
+
+    /** Every US listing Longbridge lists, with its names; `undefined` while signed out. */
+    async usListings(): Promise<LongbridgeSecurity[] | undefined> {
+      if (!(await longbridge.signedIn())) return undefined;
+
+      return readLongbridgeSecurities(await longbridge.accessToken());
     },
 
     signInLongbridge: (locale: Locale) => longbridge.signIn(locale),

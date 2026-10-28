@@ -57,9 +57,8 @@ export function ListingSearchButton({ hotkey }: { hotkey: Hotkey }) {
 }
 
 /**
- * Finds a listing by its code or name, in every market or the one picked, and opens its page. A
- * US listing is found by its full ticker; before anything is typed it offers the listings last
- * opened from it.
+ * Finds a listing by its code or name, in every market or the one picked, and opens its page;
+ * before anything is typed it offers the listings last opened from it.
  */
 export function ListingSearchDialog() {
   const { t } = useTranslation();

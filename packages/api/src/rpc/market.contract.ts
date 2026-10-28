@@ -43,7 +43,7 @@ export const marketContract = {
     .output(type<Listing | null>()),
   /**
    * Listings whose code or name matches `query`, best first, in `market` or in every market where
-   * it is `null`. A US listing is found by its full ticker, once its source is signed in.
+   * it is `null`. US listings are found once their source is signed in.
    */
   search: oc
     .meta(forDevices(true))
