@@ -163,6 +163,16 @@
       },
       "unavailable": "Set up a market data source in Settings to see the sectors."
     },
+    "index-funds": {
+      "title": "Index funds",
+      "description": "The funds that track the US's broad indices: the S&P 500, the Nasdaq-100, the Dow Jones Industrial Average and the Russell 2000."
+    },
+    "us-sectors": {
+      "title": "S&P 500 sectors",
+      "description": "Each tile is a Select Sector fund, which holds one S&P 500 sector, sized by what the fund itself traded today, not its sector. The colour is how far the fund moved; it is full at ±3%. Press a group or a tile to zoom into that group.",
+      "unavailable": "Sign in to Longbridge in Settings to see the US's sectors.",
+      "rotation-description": "Each Select Sector fund against SPY, on prices adjusted for splits and what went ex, standardized over the period: across, how far the ratio of the two stands from its own mean, in standard deviations; up, how far that level's latest change stands from its mean. The line is the last {{trail}} sessions and the dot the newest. A level above zero is a ratio above its own recent mean, not a gain on SPY."
+    },
     "movers": {
       "title": "Sector movers",
       "description": "The companies that moved a sector's market value most in the exchange's last session: each one's shares times its change. Listed companies only, as the sector indices are.",
@@ -186,6 +196,7 @@
       "crossed-from": "{{date}}, from {{from}}",
       "mark": "{{name}}: {{quadrant}}, level {{level}}, momentum {{momentum}}",
       "none": "Too few sessions of bars for a reading yet.",
+      "unavailable": "Set up this market's data source in Settings to see its rotation.",
       "older": "Reading the older years of bars; the longer periods fill in shortly.",
       "quadrants": {
         "leading": "Leading",

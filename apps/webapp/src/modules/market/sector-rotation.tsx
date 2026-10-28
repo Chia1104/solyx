@@ -17,7 +17,7 @@ import { rotationsQuery } from "./quote-query.ts";
 import { RotationGraph } from "./rotation-graph.tsx";
 
 /** One colour per group of a market's sectors, none of them a price's. */
-const GROUP_COLORS: Record<SectorGroup, string> = {
+export const GROUP_COLORS: Record<SectorGroup, string> = {
   [SectorGroup.Electronics]: LINE_COLORS.fast,
   [SectorGroup.Finance]: LINE_COLORS.slow,
   [SectorGroup.Other]: LINE_COLORS.oscillator,

@@ -6,7 +6,7 @@ import { getRouteApi } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { OverviewTab, overviewMarket } from "@solyx/api/overview-tab";
-import { Market, symbolKey } from "@solyx/core/market";
+import { Market, US_INDEX_FUNDS, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { ROTATION_TRAIL } from "@solyx/core/rotation";
 import { isEnumValue } from "@solyx/utils/is";
@@ -23,7 +23,9 @@ import { UpcomingEvents } from "../modules/calendar/upcoming-events.tsx";
 import { MarketFlows } from "../modules/flows/market-flows.tsx";
 import { InboxSection } from "../modules/inbox/inbox-section.tsx";
 import { FollowedRotation } from "../modules/market/followed-rotation.tsx";
+import { IndexFunds } from "../modules/market/index-funds.tsx";
 import { QuoteHeatMap } from "../modules/market/quote-heat-map.tsx";
+import { SectorFundRotation } from "../modules/market/sector-fund-rotation.tsx";
 import { SectorHeatMap } from "../modules/market/sector-heat-map.tsx";
 import { SectorMovers } from "../modules/market/sector-movers.tsx";
 import { SectorRotation } from "../modules/market/sector-rotation.tsx";
@@ -133,7 +135,11 @@ function FollowedSection({
   );
 }
 
-/** How one market trades: its sectors and who trades it, where the app reads them, and what the user follows in it. */
+/**
+ * How one market trades: Taiwan's sector indices, the companies that moved them and who traded,
+ * or the US's index and sector funds, since the app reads no US flows or movers; and what the
+ * user follows in it.
+ */
 function MarketTab({ market }: { market: Market }) {
   const { t } = useTranslation();
 
@@ -147,7 +153,30 @@ function MarketTab({ market }: { market: Market }) {
     </Section>
   );
 
-  if (market !== Market.TW) return followed;
+  if (market === Market.US) {
+    return (
+      <>
+        <Section
+          title={t("heat-map.index-funds.title")}
+          description={t("heat-map.index-funds.description")}>
+          <IndexFunds symbols={US_INDEX_FUNDS} />
+        </Section>
+        <Section
+          title={t("heat-map.us-sectors.title")}
+          description={t("heat-map.us-sectors.description")}>
+          <SectorHeatMap market={market} />
+        </Section>
+        <Section
+          title={t("heat-map.rotation.title")}
+          description={t("heat-map.us-sectors.rotation-description", {
+            trail: ROTATION_TRAIL,
+          })}>
+          <SectorFundRotation market={market} />
+        </Section>
+        {followed}
+      </>
+    );
+  }
 
   return (
     <>

@@ -103,7 +103,13 @@ export function SectorHeatMap({ market }: { market: Market }) {
 
   if (data === null) {
     return (
-      <p className="text-sm text-muted">{t("heat-map.sectors.unavailable")}</p>
+      <p className="text-sm text-muted">
+        {t(
+          market === Market.TW
+            ? "heat-map.sectors.unavailable"
+            : "heat-map.us-sectors.unavailable"
+        )}
+      </p>
     );
   }
 

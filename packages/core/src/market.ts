@@ -52,6 +52,17 @@ export const BENCHMARK: Record<Market, Benchmark> = {
   },
 };
 
+/**
+ * The funds that track the US's broad indices, the S&P 500, the Nasdaq-100, the Dow Jones
+ * Industrial Average and the Russell 2000, since no source the app reads quotes the indices.
+ */
+export const US_INDEX_FUNDS: readonly SymbolRef[] = [
+  "SPY",
+  "QQQ",
+  "DIA",
+  "IWM",
+].map((symbol) => ({ market: Market.US, symbol }));
+
 /** A listing as text written for a person or a model reads it, `TW 2330`. */
 export const symbolLabel = ({ market, symbol }: SymbolRef) =>
   `${market} ${symbol}`;
