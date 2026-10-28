@@ -1300,6 +1300,9 @@ importers:
       '@solyx/core':
         specifier: workspace:*
         version: link:../core
+      '@solyx/market-data':
+        specifier: workspace:*
+        version: link:../market-data
       '@solyx/utils':
         specifier: workspace:*
         version: link:../utils

@@ -24,6 +24,8 @@ import { weekdays } from "@solyx/core/session";
 import type { ClosuresProvider } from "@solyx/core/session";
 import { shiftDate } from "@solyx/utils/date";
 
+import { readRows } from "./rows.ts";
+
 const TWSE_API_URL = "https://openapi.twse.com.tw/v1/";
 
 const TPEX_API_URL = "https://www.tpex.org.tw/openapi/v1/";
@@ -756,19 +758,7 @@ async function list<Row>(
     .map((row) => mapKeys(row, (_, key) => key.trim()))
     .filter((row) => !unsetSchema.safeParse(row[code]).success);
 
-  const read = rows.flatMap((row) => {
-    const parsed = schema.safeParse(row);
-
-    return parsed.success ? [parsed.data] : [];
-  });
-
-  if (rows.length > 0 && read.length === 0) {
-    throw new Error(
-      `${name}: none of the ${rows.length} rows of ${path} read as expected`
-    );
-  }
-
-  return read;
+  return readRows(rows, schema, name, path);
 }
 
 export interface TwExchangesOptions {

@@ -32,6 +32,7 @@ import { openNews } from "@solyx/db/news";
 import { openResearch } from "@solyx/db/research";
 import { openUserData } from "@solyx/db/user";
 import { createFinMind } from "@solyx/fundamentals/finmind";
+import { createLongbridgeFundamentals } from "@solyx/fundamentals/longbridge";
 import { createSitca } from "@solyx/fundamentals/sitca";
 import { createTwExchanges } from "@solyx/fundamentals/tw-exchanges";
 import { createDgbas } from "@solyx/macro/dgbas";
@@ -259,6 +260,12 @@ export function createServices(config: ConfigFile, host: Host) {
     onChange: () => void windowEvents.publish("devices:changed", {}),
   });
 
+  // One Longbridge sign-in serves US quotes and fundamentals alike.
+  const longbridge = createLongbridgeAccess({
+    secrets,
+    openExternal: host.openExternal,
+  });
+
   const marketDataSources = createMarketDataSources({
     config,
     secrets,
@@ -266,10 +273,7 @@ export function createServices(config: ConfigFile, host: Host) {
     fubonLogDir: join(userDataDir, "fubon"),
     openFubonProcess: host.openFubonProcess,
     tradesFubon,
-    longbridge: createLongbridgeAccess({
-      secrets,
-      openExternal: host.openExternal,
-    }),
+    longbridge,
     tradingDays: (market) => marketDays(market),
   });
 
@@ -381,7 +385,12 @@ export function createServices(config: ConfigFile, host: Host) {
   const twExchanges = createTwExchanges();
 
   const fundamentals = createFundamentals({
-    providers: [finMind],
+    providers: [
+      finMind,
+      createLongbridgeFundamentals({
+        accessToken: () => longbridge.accessToken(),
+      }),
+    ],
     exchanges: [twExchanges],
     fundReports: [createSitca()],
     answers: cache.answers,
