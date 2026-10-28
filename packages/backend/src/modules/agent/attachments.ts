@@ -186,8 +186,25 @@ async function readKept(workspace: string, path: string) {
   }
 }
 
-/** The text `read_attachment` reads of a file a message carried, a text file's own or a PDF's. */
-export async function attachmentText(workspace: string, path: string) {
+/** The text the agent would read of a file, a text file's own or a PDF's, before it is sent. */
+export async function fileText(file: File, pdf: PdfReader) {
+  const attachment = await carried(
+    readAttachment(file.name, new Uint8Array(await file.arrayBuffer())),
+    pdf
+  );
+
+  if (attachment.kind !== AttachmentKind.Text) {
+    throw new Error(`${file.name} is an image, which holds no text to read`);
+  }
+
+  return attachment.text;
+}
+
+/**
+ * The text kept at `path` for the agent to read, a text file's own or a PDF's; `undefined` once
+ * it is gone, as when a command removed it.
+ */
+export async function keptText(workspace: string, path: string) {
   if (!ATTACHMENT_PATH.test(path)) {
     throw new Error(`${path} is not where a message's file is kept`);
   }
@@ -201,10 +218,7 @@ export async function attachmentText(workspace: string, path: string) {
   } catch (error) {
     if (!isErrnoError(error, "ENOENT")) throw error;
 
-    // Said without the folder's path, which would name the user's home to the model's provider.
-    throw new Error(
-      `${name} is no longer kept in this conversation, since it was removed after it was attached; ask the user to attach it again`
-    );
+    return undefined;
   }
 
   const attachment = readAttachment(name, bytes);
@@ -214,4 +228,18 @@ export async function attachmentText(workspace: string, path: string) {
   }
 
   return attachment.text;
+}
+
+/** The text `read_attachment` reads of a file a message carried, a text file's own or a PDF's. */
+export async function attachmentText(workspace: string, path: string) {
+  const text = await keptText(workspace, path);
+
+  if (text === undefined) {
+    // Said without the folder's path, which would name the user's home to the model's provider.
+    throw new Error(
+      `${basename(path)} is no longer kept in this conversation, since it was removed after it was attached; ask the user to attach it again`
+    );
+  }
+
+  return text;
 }

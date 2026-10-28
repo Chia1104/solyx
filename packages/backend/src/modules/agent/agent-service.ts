@@ -48,6 +48,7 @@ import type {
   AgentSessionSetup,
   AgentWireEvent,
 } from "@solyx/agent/wire";
+import { previewText } from "@solyx/api/agent";
 import type { AgentScreen, AgentUpdate } from "@solyx/api/agent";
 import { OverviewTab, overviewLink } from "@solyx/api/overview-tab";
 import type { Locale, TimeZone } from "@solyx/api/settings";
@@ -86,7 +87,12 @@ import { createAgentModels } from "./agent-models.ts";
 import type { AgentModelsOptions } from "./agent-models.ts";
 import { createAgentSetup } from "./agent-setup.ts";
 import type { AgentSetupSources } from "./agent-setup.ts";
-import { attachmentText, keepAttachments } from "./attachments.ts";
+import {
+  attachmentText,
+  fileText,
+  keepAttachments,
+  keptText,
+} from "./attachments.ts";
 import { createImageThreads } from "./image-threads.ts";
 import type { McpServers } from "./mcp-servers.ts";
 import { messageContext, screenContext } from "./message-context.ts";
@@ -663,14 +669,37 @@ export function createAgentService(options: AgentServiceOptions) {
 
     /** The image a message carried as its `index`th file, as scaled for the model, for its thumbnail. */
     async attachmentImage(id: string, messageId: string, index: number) {
-      const kept = await runtime.attachmentImage(id, messageId, index);
+      const kept = await runtime.carriedFile(id, messageId, index);
 
-      if (!kept) throw new Error(`Message ${messageId} carried no image there`);
+      if (!kept || !("image" in kept)) {
+        throw new Error(`Message ${messageId} carried no image there`);
+      }
 
       return new File([Buffer.from(kept.image.data, "base64")], kept.name, {
         type: kept.image.mimeType,
       });
     },
+
+    /**
+     * The text a message carried as its `index`th file, as the message holds it or, where too long
+     * for that, as its conversation's folder keeps it, for the thread to preview; `null` once the
+     * folder no longer keeps it.
+     */
+    async attachmentText(id: string, messageId: string, index: number) {
+      const kept = await runtime.carriedFile(id, messageId, index);
+
+      if (!kept || "image" in kept) {
+        throw new Error(`Message ${messageId} carried no text there`);
+      }
+
+      const text =
+        "text" in kept ? kept.text : await keptText(workspace(id), kept.path);
+
+      return text === undefined ? null : previewText(text);
+    },
+
+    /** The text `send` would read of a file, a PDF's as its worker reads it, for the composer to preview. */
+    fileText: async (file: File) => previewText(await fileText(file, pdfs)),
 
     /** Whether a run is going in the conversation; one since deleted has none. */
     busy: (id: string) => runtime.busy(id),

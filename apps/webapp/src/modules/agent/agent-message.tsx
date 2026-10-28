@@ -14,8 +14,8 @@ import { ActivityMark } from "./agent-activity.tsx";
 import { AgentMarkdown } from "./agent-markdown.tsx";
 import { CopyAction, EditAction } from "./agent-message-actions.tsx";
 import { ReplyUsageMark } from "./agent-usage.tsx";
-import { SentAttachments } from "./composer-attachments.tsx";
 import { MessageText } from "./message-text.tsx";
+import { SentAttachments } from "./sent-attachments.tsx";
 
 // Taller messages fold down to this until the user opens them.
 const USER_MESSAGE_MAX_HEIGHT = 240;

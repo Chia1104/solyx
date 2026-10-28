@@ -388,14 +388,18 @@ test("a message's files reach the model, and the thread lists them without what 
     streaming: false,
   });
 
-  // The image's one copy is the scaled one its message keeps, which the thread's thumbnail reads.
+  // Each file's one copy is what its message keeps, the image as scaled, which the thread reads.
   const messageId = message?.kind === "user" ? message.messageId : "";
 
-  expect(await runtime.attachmentImage(id, messageId, 0)).toEqual({
+  expect(await runtime.carriedFile(id, messageId, 0)).toEqual({
     name: "chart.png",
     image: { type: "image", data: "c2NhbGVk", mimeType: "image/jpeg" },
   });
-  expect(await runtime.attachmentImage(id, messageId, 1)).toBeUndefined();
+  expect(await runtime.carriedFile(id, messageId, 1)).toEqual({
+    name: "fills.csv",
+    text: "a,b\n1,2",
+  });
+  expect(await runtime.carriedFile(id, messageId, 2)).toBeUndefined();
 
   await runtime.close();
 });

@@ -1,26 +1,16 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode, Ref } from "react";
 
 import { Button, CloseButton, ScrollShadow, cn } from "@heroui/react";
-import {
-  ChartCandlestickIcon,
-  File02Icon,
-  Pdf02Icon,
-  PlusSignIcon,
-} from "@hugeicons/core-free-icons";
+import { ChartCandlestickIcon, PlusSignIcon } from "@hugeicons/core-free-icons";
 import { useQuery } from "@tanstack/react-query";
-import { FileTrigger } from "react-aria-components";
+import { FileTrigger, Pressable } from "react-aria-components";
 import { useTranslation } from "react-i18next";
 
-import {
-  AttachmentImageType,
-  AttachmentKind,
-  PDF_TYPE,
-} from "@solyx/agent/attachment";
-import type { AttachmentView } from "@solyx/agent/attachment";
+import { AttachmentKind } from "@solyx/agent/attachment";
+import { previewText } from "@solyx/api/agent";
 import { symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { formatBytes } from "@solyx/utils/format";
 
 import { orpc } from "../../app/rpc.ts";
 import { Icon } from "../../components/icon.tsx";
@@ -29,6 +19,14 @@ import { QuoteLine } from "../market/quote-figures.tsx";
 import { quoteQuery } from "../market/quote-query.ts";
 
 import { useAgentStore } from "./agent-store.ts";
+import {
+  AttachmentPreview,
+  FileMedia,
+  ImagePreview,
+  PreviewQuery,
+  TextPreview,
+  useFileDescription,
+} from "./attachment-preview.tsx";
 import type { PendingFile } from "./composer-files.ts";
 
 /**
@@ -79,8 +77,9 @@ function ComposerAttachments({ children }: { children: ReactNode }) {
 }
 
 /**
- * One thing a message carries: its picture, its name and what it is, and the one thing the user
- * may do with it, which waits for the pointer unless it is all the card offers.
+ * One thing a message carries: its picture, its name and what it is, which open it where it can
+ * be opened, and the one thing the user may do with it, which waits for the pointer unless it is
+ * all the card offers.
  */
 function AttachmentCard({
   ref,
@@ -90,6 +89,7 @@ function AttachmentCard({
   warning,
   action,
   detached = false,
+  onOpen,
 }: {
   ref?: Ref<HTMLLIElement>;
   /** A thumbnail or an icon, which fills the square the card opens with. */
@@ -101,14 +101,13 @@ function AttachmentCard({
   action?: ReactNode;
   /** The message will be sent without it. */
   detached?: boolean;
+  /** Opens what it is, as a preview. */
+  onOpen?: () => void;
 }) {
-  return (
-    <li
-      ref={ref}
-      className={cn(
-        "group flex w-56 shrink-0 items-center gap-2.5 sheet p-1 pr-2",
-        detached && "text-muted"
-      )}>
+  const { t } = useTranslation();
+
+  const face = (
+    <>
       <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-surface-secondary text-muted">
         {media}
       </span>
@@ -122,71 +121,33 @@ function AttachmentCard({
           {warning ?? description}
         </span>
       </span>
+    </>
+  );
+
+  return (
+    <li
+      ref={ref}
+      className={cn(
+        "group flex w-56 shrink-0 items-center gap-2.5 sheet p-1 pr-2",
+        detached && "text-muted"
+      )}>
+      {onOpen ? (
+        <Pressable onPress={onOpen}>
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={t("agent.attachments.preview", { name: title })}
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            {face}
+          </span>
+        </Pressable>
+      ) : (
+        face
+      )}
       {action}
     </li>
   );
 }
-
-/** Shows `blob` in the image it is the ref of, for as long as that image shows it. */
-function useBlobSource(blob: Blob | undefined) {
-  return useCallback(
-    (image: HTMLImageElement | null) => {
-      if (!image || !blob) return;
-
-      const url = URL.createObjectURL(blob);
-
-      image.src = url;
-
-      return () => URL.revokeObjectURL(url);
-    },
-    [blob]
-  );
-}
-
-const TYPE_LABELS = new Map([
-  [AttachmentImageType.Png, "PNG"],
-  [AttachmentImageType.Jpeg, "JPEG"],
-  [AttachmentImageType.Gif, "GIF"],
-  [AttachmentImageType.Webp, "WebP"],
-  ["text/csv", "CSV"],
-  ["text/tab-separated-values", "TSV"],
-  ["text/markdown", "Markdown"],
-  ["application/json", "JSON"],
-  [PDF_TYPE, "PDF"],
-]);
-
-/** What a file is and how large, as its card says it: "CSV · 12 kB". */
-function useFileDescription() {
-  const { t, i18n } = useTranslation();
-
-  return (mimeType: string, size: number) =>
-    `${TYPE_LABELS.get(mimeType) ?? t("agent.attachments.text")} · ${formatBytes(size, i18n.language)}`;
-}
-
-// Shown the image itself, or a page for a PDF or a text file.
-function FileMedia({ kind, blob }: { kind: AttachmentKind; blob?: Blob }) {
-  const source = useBlobSource(blob);
-
-  if (kind === AttachmentKind.Image) {
-    return <img ref={source} alt="" className="size-full object-cover" />;
-  }
-
-  return (
-    <Icon
-      icon={kind === AttachmentKind.Pdf ? Pdf02Icon : File02Icon}
-      className="size-4"
-    />
-  );
-}
-
-/** What a sent file is, from the type its message names. */
-const sentKind = (mimeType: string): AttachmentKind => {
-  if (mimeType === PDF_TYPE) return AttachmentKind.Pdf;
-
-  return mimeType.startsWith("image/")
-    ? AttachmentKind.Image
-    : AttachmentKind.Text;
-};
 
 // A card added to the end of a row that has scrolled comes into view.
 const reveal = (card: HTMLLIElement | null) =>
@@ -194,7 +155,7 @@ const reveal = (card: HTMLLIElement | null) =>
 
 /** A file the next message carries, which the user may take off it. */
 function FileAttachment({
-  pending: { file, attachment },
+  pending,
   unreadable,
   onRemove,
 }: {
@@ -205,23 +166,73 @@ function FileAttachment({
 }) {
   const { t } = useTranslation();
   const describe = useFileDescription();
+  const [previewing, setPreviewing] = useState(false);
+
+  const { file, attachment } = pending;
+  const description = describe(attachment.mimeType, attachment.size);
 
   return (
-    <AttachmentCard
-      ref={reveal}
-      media={<FileMedia kind={attachment.kind} blob={file} />}
-      title={attachment.name}
-      description={describe(attachment.mimeType, attachment.size)}
-      warning={unreadable ? t("agent.attachments.unreadable") : undefined}
-      action={
-        <CloseButton
-          aria-label={t("agent.attachments.remove", { name: attachment.name })}
-          className="size-5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none pointer-coarse:opacity-100"
-          onPress={onRemove}
-        />
-      }
-    />
+    <>
+      <AttachmentCard
+        ref={reveal}
+        media={<FileMedia kind={attachment.kind} blob={file} />}
+        title={attachment.name}
+        description={description}
+        warning={unreadable ? t("agent.attachments.unreadable") : undefined}
+        onOpen={() => setPreviewing(true)}
+        action={
+          <CloseButton
+            aria-label={t("agent.attachments.remove", {
+              name: attachment.name,
+            })}
+            className="size-5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none pointer-coarse:opacity-100"
+            onPress={onRemove}
+          />
+        }
+      />
+      <AttachmentPreview
+        name={attachment.name}
+        description={description}
+        isOpen={previewing}
+        onClose={() => setPreviewing(false)}>
+        <PendingPreview pending={pending} />
+      </AttachmentPreview>
+    </>
   );
+}
+
+// A PDF's text is read by the backend as sending it reads it, so the preview is what the agent gets.
+function PendingPdfPreview({ id, file }: { id: string; file: File }) {
+  const query = useQuery(
+    orpc.agent.fileText.queryOptions({
+      input: file,
+      // A file is no key of its own, since every file hashes alike.
+      queryKey: [...orpc.agent.fileText.key(), id],
+      staleTime: Number.POSITIVE_INFINITY,
+    })
+  );
+
+  return (
+    <PreviewQuery query={query}>
+      {(text) => <TextPreview {...text} pdf />}
+    </PreviewQuery>
+  );
+}
+
+/** A file the next message carries, as the preview shows it: the image, or the text the agent reads. */
+function PendingPreview({
+  pending: { id, file, attachment },
+}: {
+  pending: PendingFile;
+}) {
+  switch (attachment.kind) {
+    case AttachmentKind.Image:
+      return <ImagePreview blob={file} name={attachment.name} />;
+    case AttachmentKind.Text:
+      return <TextPreview {...previewText(attachment.text)} />;
+    case AttachmentKind.Pdf:
+      return <PendingPdfPreview id={id} file={file} />;
+  }
 }
 
 /** Picks files from the computer for the next message. */
@@ -251,67 +262,6 @@ export function AttachButton({
         <Icon icon={PlusSignIcon} />
       </Button>
     </FileTrigger>
-  );
-}
-
-// A sent image as its message keeps it, scaled for the model, which is the one copy kept of it.
-function SentImage({
-  sessionId,
-  messageId,
-  index,
-}: {
-  sessionId: string;
-  messageId: string;
-  index: number;
-}) {
-  const { data } = useQuery(
-    orpc.agent.attachmentImage.queryOptions({
-      input: { id: sessionId, messageId, index },
-      // What a message carried never changes.
-      staleTime: Number.POSITIVE_INFINITY,
-    })
-  );
-
-  return <FileMedia kind={AttachmentKind.Image} blob={data} />;
-}
-
-/** The files a sent message carried, as the composer showed them. */
-export function SentAttachments({
-  sessionId,
-  messageId,
-  attachments,
-}: {
-  sessionId: string;
-  messageId: string;
-  attachments: readonly AttachmentView[];
-}) {
-  const { t } = useTranslation();
-  const describe = useFileDescription();
-
-  return (
-    <ul
-      aria-label={t("agent.context.attachments")}
-      className="flex max-w-[85%] flex-wrap justify-end gap-2">
-      {attachments.map((attachment, index) => (
-        <AttachmentCard
-          // A message's files never change, so where each stands among them names it.
-          key={index}
-          media={
-            sentKind(attachment.mimeType) === AttachmentKind.Image ? (
-              <SentImage
-                sessionId={sessionId}
-                messageId={messageId}
-                index={index}
-              />
-            ) : (
-              <FileMedia kind={sentKind(attachment.mimeType)} />
-            )
-          }
-          title={attachment.name}
-          description={describe(attachment.mimeType, attachment.size)}
-        />
-      ))}
-    </ul>
   );
 }
 
