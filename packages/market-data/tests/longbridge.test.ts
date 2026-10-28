@@ -398,6 +398,7 @@ test("serves the latest bars within the range asked for, oldest first, as traded
     to: "2026-10-28",
   });
 
+  // The forward-adjusted bars match these, so nothing split or paid out: each counts from the close before.
   expect(bars).toEqual([
     {
       time: Date.parse("2026-10-26T04:00:00Z") / 1000,
@@ -406,6 +407,7 @@ test("serves the latest bars within the range asked for, oldest first, as traded
       low: 341.03,
       close: 343.91,
       volume: 42_743_575,
+      reference: 347.725,
     },
     {
       time: Date.parse("2026-10-27T04:00:00Z") / 1000,
@@ -414,20 +416,89 @@ test("serves the latest bars within the range asked for, oldest first, as traded
       low: 342.39,
       close: 347.1,
       volume: 39_984_395,
+      reference: 343.91,
     },
   ]);
 
-  const asked = requestFields(sockets[0].requests[1].body);
+  const [traded, adjusted] = sockets[0].requests.slice(1);
 
-  expect(sockets[0].requests[1].command).toBe(19);
-  // Daily bars, the latest thousand, as traded, regular session only.
-  expect(Object.fromEntries(asked)).toEqual({
+  expect(traded.command).toBe(19);
+  // Daily bars, the latest thousand, as traded, regular session only; then forward-adjusted.
+  expect(Object.fromEntries(requestFields(traded.body))).toEqual({
     1: ["AAPL.US"],
     2: [1000],
     3: [1000],
     4: [0],
     5: [0],
   });
+  expect(requestFields(adjusted.body).get(4)).toEqual([1]);
+});
+
+test("a daily bar counts from the close before, carried over a split or a payout as the forward-adjusted bars step", async () => {
+  const day = (date: string, close: string) => ({
+    time: `${date}T04:00:00Z`,
+    open: close,
+    high: close,
+    low: close,
+    close,
+    volume: 1_000,
+  });
+
+  // A ten-for-one split on the 21st and 0.50 paid out on the 23rd, which the adjusted bars carry back.
+  const traded = [
+    day("2026-10-20", "1000.000"),
+    day("2026-10-21", "102.000"),
+    day("2026-10-22", "104.000"),
+    day("2026-10-23", "101.000"),
+    day("2026-10-26", "103.000"),
+  ];
+
+  const adjusted = [
+    day("2026-10-20", "99.519"),
+    day("2026-10-21", "101.510"),
+    day("2026-10-22", "103.500"),
+    day("2026-10-23", "101.000"),
+    day("2026-10-26", "103.000"),
+  ];
+
+  const { longbridge } = setup((request) =>
+    ok(
+      candlesticks(
+        requestFields(request.body).get(4)?.[0] === 1 ? adjusted : traded
+      )
+    )
+  );
+
+  const bars = await longbridge.getCandles({
+    symbol: APPLE,
+    interval: Interval.OneDay,
+    from: "2026-10-20",
+    to: "2026-10-26",
+  });
+
+  const references = bars.map(({ reference }) => reference);
+
+  expect(references[0]).toBeUndefined();
+  expect(references[1]).toBeCloseTo(100, 2);
+  // The adjusted closes' rounding alone moved the 22nd's step, so it counts from the close before.
+  expect(references[2]).toBe(102);
+  expect(references[3]).toBeCloseTo(103.5, 6);
+  expect(references[4]).toBe(101);
+});
+
+test("bars shorter than a day carry no reference, asked for as traded alone", async () => {
+  const { longbridge, sockets } = setup(() => ok(candlesticks([])));
+
+  await longbridge.getCandles({
+    symbol: APPLE,
+    interval: Interval.FiveMinutes,
+    from: "2026-10-28",
+    to: "2026-10-28",
+  });
+
+  expect(
+    sockets[0].requests.slice(1).map(({ body }) => requestFields(body).get(4))
+  ).toEqual([[0]]);
 });
 
 test("asks for minute bars by their period", async () => {

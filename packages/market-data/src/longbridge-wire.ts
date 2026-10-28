@@ -246,16 +246,28 @@ export function securitiesRequest(symbols: readonly string[]): Uint8Array {
   return writer.finish();
 }
 
+/** How a request's bars are priced. */
+export const AdjustType = {
+  /** As traded. */
+  None: 0,
+  /** Every earlier bar carried to the newest one's terms, over each split and each payout. */
+  Forward: 1,
+} as const;
+
+export type AdjustType = (typeof AdjustType)[keyof typeof AdjustType];
+
 export function candlesticksRequest({
   symbol,
   period,
   count,
+  adjust,
 }: {
   symbol: string;
   period: Period;
   count: number;
+  adjust: AdjustType;
 }): Uint8Array {
-  // Adjust type 0 keeps prices as traded, and trade session 0 keeps the regular session alone.
+  // Trade session 0 keeps the regular session alone.
   return new BinaryWriter()
     .tag(1, WireType.LengthDelimited)
     .string(symbol)
@@ -264,7 +276,7 @@ export function candlesticksRequest({
     .tag(3, WireType.Varint)
     .int32(count)
     .tag(4, WireType.Varint)
-    .int32(0)
+    .int32(adjust)
     .tag(5, WireType.Varint)
     .int32(0)
     .finish();
