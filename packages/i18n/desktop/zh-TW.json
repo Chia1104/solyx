@@ -163,6 +163,16 @@
       },
       "unavailable": "到設定完成行情來源後，這裡會顯示上市類股。"
     },
+    "index-funds": {
+      "title": "大盤 ETF",
+      "description": "追蹤美股主要指數的 ETF：S&P 500、那斯達克 100、道瓊工業指數與羅素 2000。"
+    },
+    "us-sectors": {
+      "title": "S&P 500 類股",
+      "description": "每格是一檔 SPDR 類股 ETF，各持有一個 S&P 500 類股；面積是這檔 ETF 今日的成交值，不是整個類股的。顏色是 ETF 漲跌幅，±3% 為最深。點分類名稱或格子可放大該分類。",
+      "unavailable": "到設定登入長橋後，這裡會顯示美股類股。",
+      "rotation-description": "每檔 SPDR 類股 ETF 對 SPY，用還原價計算，依期間標準化：橫軸是兩者比值離自身平均幾個標準差，縱軸是這個位置的最新變化離其平均幾個標準差。線是最近 {{trail}} 個交易日，點是最新一日。橫軸大於零是比值高於自身近期平均，不代表贏過 SPY。"
+    },
     "movers": {
       "title": "產業主力",
       "description": "上一個交易日推動產業市值最多的公司：各自的已發行股數乘以漲跌。和類股指數一樣只算上市公司。",
@@ -186,6 +196,7 @@
       "crossed-from": "{{date}}，自{{from}}",
       "mark": "{{name}}：{{quadrant}}，相對位置 {{level}}，動能 {{momentum}}",
       "none": "交易日還不夠，尚無法讀出位置。",
+      "unavailable": "到設定完成這個市場的行情來源後，這裡會顯示輪動。",
       "older": "較早的 K 線讀取中，較長的期間稍後補齊。",
       "quadrants": {
         "leading": "領先",
