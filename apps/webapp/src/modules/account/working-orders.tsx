@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { SignedActionKind } from "@solyx/api/devices";
 import type { BrokerOrder } from "@solyx/core/broker";
 import { symbolKey } from "@solyx/core/market";
-import type { SymbolRef } from "@solyx/core/market";
+import type { Market, SymbolRef } from "@solyx/core/market";
 import { OrderType } from "@solyx/core/order";
 
 import { inWindow } from "../../app/device.ts";
@@ -77,9 +77,12 @@ function OrderSummary({ working: { order } }: { working: BrokerOrder }) {
  */
 export function WorkingOrders({
   symbol,
+  market,
   showEmpty = false,
 }: {
   symbol?: SymbolRef;
+  /** The market whose orders it shows, where it keeps to one. */
+  market?: Market | null;
   showEmpty?: boolean;
 }) {
   const { t, i18n } = useTranslation();
@@ -88,11 +91,11 @@ export function WorkingOrders({
   const { data } = useQuery({
     ...orpc.account.working.queryOptions(),
     select: (orders) =>
-      symbol
-        ? orders.filter(
-            ({ order }) => symbolKey(order.instrument) === symbolKey(symbol)
-          )
-        : orders,
+      orders.filter(
+        ({ order: { instrument } }) =>
+          (!symbol || symbolKey(instrument) === symbolKey(symbol)) &&
+          (!market || instrument.market === market)
+      ),
   });
 
   if (!data || (data.length === 0 && !showEmpty)) return null;

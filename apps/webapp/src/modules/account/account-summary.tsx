@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import { pick } from "es-toolkit";
 import { useTranslation } from "react-i18next";
+
+import { currencyOf } from "@solyx/core/market";
+import type { Market } from "@solyx/core/market";
 
 import { orpc } from "../../app/rpc.ts";
 import { LoadError } from "../../components/load-error.tsx";
@@ -10,12 +14,23 @@ import { numberFormats } from "../market/number-formats.ts";
 import { PositionsTable } from "./positions-table.tsx";
 import { WorkingOrders } from "./working-orders.tsx";
 
-export function AccountSummary() {
+/** The account's cash, positions and working orders, only `market`'s and its currency's where one is picked. */
+export function AccountSummary({ market }: { market: Market | null }) {
   const { t, i18n } = useTranslation();
 
-  const { data, error, refetch } = useQuery(
-    orpc.account.summary.queryOptions()
-  );
+  const { data, error, refetch } = useQuery({
+    ...orpc.account.summary.queryOptions(),
+    select: (summary) =>
+      market
+        ? {
+            ...summary,
+            cash: pick(summary.cash, [currencyOf(market)]),
+            positions: summary.positions.filter(
+              ({ instrument }) => instrument.market === market
+            ),
+          }
+        : summary,
+  });
 
   const format = numberFormats(i18n.language);
 
@@ -40,7 +55,7 @@ export function AccountSummary() {
             ))}
           </dl>
           <PositionsTable positions={data.positions} />
-          <WorkingOrders />
+          <WorkingOrders market={market} />
         </div>
       ) : (
         <LoadingState />

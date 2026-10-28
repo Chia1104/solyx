@@ -2,6 +2,7 @@ import { Table } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import type { Market } from "@solyx/core/market";
 import { recordsByStance } from "@solyx/core/review";
 import type { CurrencyRecord, TradeRecord } from "@solyx/core/review";
 
@@ -83,13 +84,17 @@ function RecordTable({ currency, all, stances }: CurrencyRecord) {
   );
 }
 
-/** How the account's closed round trips went, by the research they were opened under. */
-export function TradeReview() {
+/** How the account's closed round trips went, only `market`'s where one is picked, by the research they were opened under. */
+export function TradeReview({ market }: { market: Market | null }) {
   const { t } = useTranslation();
 
-  const { data, error, refetch } = useQuery(
-    orpc.account.roundTrips.queryOptions()
-  );
+  const { data, error, refetch } = useQuery({
+    ...orpc.account.roundTrips.queryOptions(),
+    select: (trips) =>
+      market
+        ? trips.filter(({ instrument }) => instrument.market === market)
+        : trips,
+  });
 
   const records = data && recordsByStance(data);
 

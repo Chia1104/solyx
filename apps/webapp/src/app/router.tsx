@@ -14,7 +14,7 @@ import {
   settingsSectionSchema,
 } from "@solyx/api/settings-section";
 import { Interval, intervalSchema } from "@solyx/core/candles";
-import { symbolRefSchema } from "@solyx/core/market";
+import { marketSchema, symbolRefSchema } from "@solyx/core/market";
 import { strategyNameSchema } from "@solyx/core/strategy";
 
 import { ErrorFallback } from "../components/error-fallback.tsx";
@@ -86,9 +86,10 @@ const onboardingRoute = createRoute({
 const overviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  // An unknown tab falls back to the first rather than failing the page.
+  // An unknown tab falls back to the first, and an unknown market to every market, rather than failing the page.
   validateSearch: z.object({
     tab: overviewTabSchema.default(OverviewTab.Today).catch(OverviewTab.Today),
+    market: marketSchema.optional().catch(undefined),
   }),
   component: OverviewPage,
 });

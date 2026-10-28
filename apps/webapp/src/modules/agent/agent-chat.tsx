@@ -79,7 +79,13 @@ function useScreen(): AgentScreen | null {
     };
   }
 
-  if (overview) return { kind: ScreenKind.Overview, tab: overview.search.tab };
+  if (overview) {
+    return {
+      kind: ScreenKind.Overview,
+      tab: overview.search.tab,
+      market: overview.search.market,
+    };
+  }
 
   if (strategy)
     return { kind: ScreenKind.Strategies, name: strategy.params.name };

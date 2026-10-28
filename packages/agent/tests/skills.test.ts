@@ -273,4 +273,5 @@ test("the prompt names the app's own addresses, as the host builds them", async 
     "the intervals are 1m, 5m, 15m, 30m, 1h, 1d, 1w, 1mo."
   );
   expect(text).toContain("which get_sectors and get_flows read: #/?tab=market");
+  expect(text).toContain("as #/?tab=today&market=US for US listings alone");
 });

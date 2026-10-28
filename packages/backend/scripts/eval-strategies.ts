@@ -305,12 +305,8 @@ async function runRequest(request: StrategyRequest) {
     links: {
       listing: ({ market, symbol }, interval) =>
         `#/symbol/${market}/${symbol}?interval=${interval}`,
-      overview: {
-        moves: "#/?tab=today",
-        headlines: "#/?tab=news",
-        calendar: "#/?tab=calendar",
-        market: "#/?tab=market",
-      },
+      overview: (place, market) =>
+        `#/?tab=${place}${market ? `&market=${market}` : ""}`,
       strategy: (name) => `#/strategies/${name}`,
     },
     skills,
