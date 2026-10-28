@@ -1,4 +1,4 @@
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue } from "react";
 
 import {
   Kbd,
@@ -25,7 +25,7 @@ import { Icon } from "../../components/icon.tsx";
 import { useMarketSources } from "../settings/settings-query.ts";
 
 import { listingName, useListingNames } from "./listing-name.tsx";
-import { useRecentListings } from "./recent-listings.ts";
+import { useListingSearchStore } from "./listing-search-store.ts";
 
 // The filter that leaves every market in.
 const EVERY_MARKET = "all";
@@ -36,20 +36,15 @@ interface Found {
 }
 
 /** Where the title bar's search sits: it opens the search over the page. */
-export function ListingSearchButton({
-  hotkey,
-  onPress,
-}: {
-  hotkey: Hotkey;
-  onPress: () => void;
-}) {
+export function ListingSearchButton({ hotkey }: { hotkey: Hotkey }) {
   const { t } = useTranslation();
+  const open = useListingSearchStore((state) => state.open);
 
   return (
     <Button
       aria-label={t("search.title")}
       className="flex h-9 w-56 items-center gap-2 rounded-field bg-field px-3 text-sm text-field-placeholder shadow-field outline-none hover:bg-field-hover focus-visible:status-focused-field"
-      onPress={onPress}>
+      onPress={open}>
       <Icon icon={Search01Icon} />
       <span className="flex-1 truncate text-left">{t("search.trigger")}</span>
       <Kbd>
@@ -64,25 +59,21 @@ export function ListingSearchButton({
  * US listing is found by its full ticker; before anything is typed it offers the listings last
  * opened from it.
  */
-export function ListingSearchDialog({
-  isOpen,
-  onClose,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-}) {
+export function ListingSearchDialog() {
   const { t } = useTranslation();
+  const isOpen = useListingSearchStore((state) => state.isOpen);
+  const close = useListingSearchStore((state) => state.close);
 
   return (
     <Modal.Backdrop
       isOpen={isOpen}
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) close();
       }}>
       <Modal.Container size="md">
         <Modal.Dialog aria-label={t("search.title")} className="gap-3">
-          {/* Mounted only while open, so each search starts empty. */}
-          {isOpen ? <ListingSearch onOpened={onClose} /> : null}
+          {/* Mounted only while open, so its field takes focus each time. */}
+          {isOpen ? <ListingSearch /> : null}
         </Modal.Dialog>
       </Modal.Container>
     </Modal.Backdrop>
@@ -90,9 +81,10 @@ export function ListingSearchDialog({
 }
 
 /** What the search offers: the listings matching what was typed, or before anything is, those opened last. */
-function useFound(typed: string, market: Market | null) {
+function useFound(typed: string) {
   const { i18n } = useTranslation();
-  const recent = useRecentListings((state) => state.listings);
+  const market = useListingSearchStore((state) => state.market);
+  const recent = useListingSearchStore((state) => state.recent);
   const recentNames = useListingNames(recent);
 
   const search = useQuery({
@@ -116,14 +108,10 @@ function useFound(typed: string, market: Market | null) {
   return { found, search };
 }
 
-function MarketFilter({
-  market,
-  onChange,
-}: {
-  market: Market | null;
-  onChange: (market: Market | null) => void;
-}) {
+function MarketFilter() {
   const { t } = useTranslation();
+  const market = useListingSearchStore((state) => state.market);
+  const setMarket = useListingSearchStore((state) => state.setMarket);
 
   return (
     <ToggleButtonGroup
@@ -135,7 +123,7 @@ function MarketFilter({
       onSelectionChange={(keys) => {
         const [key] = keys;
 
-        onChange(isEnumValue(Market, key) ? key : null);
+        setMarket(isEnumValue(Market, key) ? key : null);
       }}>
       <ToggleButton id={EVERY_MARKET} variant="ghost">
         {t("search.every-market")}
@@ -187,18 +175,13 @@ function FoundList({
 }
 
 /** What is found, or why nothing is, and where US listings stand. */
-function Results({
-  typed,
-  market,
-  onOpen,
-}: {
-  typed: string;
-  market: Market | null;
-  onOpen: (symbol: SymbolRef) => void;
-}) {
+function Results({ onOpen }: { onOpen: (symbol: SymbolRef) => void }) {
   const { t } = useTranslation();
   const sources = useMarketSources();
-  const { found, search } = useFound(typed, market);
+  const query = useListingSearchStore((state) => state.query);
+  const market = useListingSearchStore((state) => state.market);
+  const typed = useDeferredValue(query.trim());
+  const { found, search } = useFound(typed);
   const recent = typed === "";
 
   // Nothing is said while a search is under way, since its answer replaces the last one's.
@@ -226,13 +209,13 @@ function Results({
   );
 }
 
-function ListingSearch({ onOpened }: { onOpened: () => void }) {
+function ListingSearch() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [market, setMarket] = useState<Market | null>(null);
-  const typed = useDeferredValue(query.trim());
-  const remember = useRecentListings((state) => state.remember);
+  const query = useListingSearchStore((state) => state.query);
+  const setQuery = useListingSearchStore((state) => state.setQuery);
+  const remember = useListingSearchStore((state) => state.remember);
+  const close = useListingSearchStore((state) => state.close);
 
   function open(symbol: SymbolRef) {
     remember(symbol);
@@ -241,7 +224,7 @@ function ListingSearch({ onOpened }: { onOpened: () => void }) {
       params: { market: symbol.market, symbol: symbol.symbol },
       search: true,
     });
-    onOpened();
+    close();
   }
 
   return (
@@ -253,8 +236,8 @@ function ListingSearch({ onOpened }: { onOpened: () => void }) {
           <SearchField.ClearButton />
         </SearchField.Group>
       </SearchField>
-      <MarketFilter market={market} onChange={setMarket} />
-      <Results typed={typed} market={market} onOpen={open} />
+      <MarketFilter />
+      <Results onOpen={open} />
     </Autocomplete>
   );
 }

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import type { ReactNode, RefObject } from "react";
 
 import { cn } from "@heroui/react";
@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 
 import { PaneSplitter, SplitterEdge } from "../components/pane-splitter.tsx";
 import { BrokerModeRule } from "../modules/account/broker-mode-chip.tsx";
+import { useListingSearchStore } from "../modules/market/listing-search-store.ts";
 import { ListingSearchDialog } from "../modules/market/listing-search.tsx";
 
 import { AgentPane } from "./agent-pane.tsx";
@@ -197,12 +198,12 @@ function SymbolsPaneViews() {
 function Workspace() {
   const { t } = useTranslation();
   const workspace = useRef<HTMLDivElement>(null);
-  const [searching, setSearching] = useState(false);
+  const openSearch = useListingSearchStore((state) => state.open);
   const panes = useLayoutStore((state) => state.panes);
   const settings = useSettingsOpen();
   const held = useHeldPane();
 
-  useWorkspaceHotkeys(() => setSearching(true));
+  useWorkspaceHotkeys(openSearch);
   useFollowPeek();
 
   const shown = mapValues(panes, ({ open }, pane) => open || pane === held);
@@ -221,11 +222,8 @@ function Workspace() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden text-sm">
-      <TitleBar onSearch={() => setSearching(true)} />
-      <ListingSearchDialog
-        isOpen={searching}
-        onClose={() => setSearching(false)}
-      />
+      <TitleBar />
+      <ListingSearchDialog />
       <BrokerModeRule />
       <div
         ref={workspace}

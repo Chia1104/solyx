@@ -163,7 +163,7 @@ function SettingsButton() {
 }
 
 /** The workspace's title bar: the pane toggles, back, search, a waiting update, market sessions, the strategies and settings. */
-export function TitleBar({ onSearch }: { onSearch: () => void }) {
+export function TitleBar() {
   const { t } = useTranslation();
 
   return (
@@ -173,7 +173,7 @@ export function TitleBar({ onSearch }: { onSearch: () => void }) {
       <Link to="/" title={t("nav.overview")} className="text-sm font-semibold">
         Solyx
       </Link>
-      <ListingSearchButton hotkey={SEARCH_HOTKEY} onPress={onSearch} />
+      <ListingSearchButton hotkey={SEARCH_HOTKEY} />
       <div className="ml-auto flex items-center gap-4">
         {inWindow ? <UpdateAction /> : null}
         <MarketSessions />
