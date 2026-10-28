@@ -6,6 +6,7 @@
   "exports": {
     "./announcements": "./src/announcements.ts",
     "./insider-transfers": "./src/insider-transfers.ts",
+    "./longbridge-filings": "./src/longbridge-filings.ts",
     "./ptt": "./src/ptt.ts",
     "./web": "./src/web.ts"
   },
@@ -14,6 +15,7 @@
   },
   "dependencies": {
     "@solyx/core": "workspace:*",
+    "@solyx/market-data": "workspace:*",
     "@solyx/utils": "workspace:*",
     "es-toolkit": "catalog:",
     "ky": "catalog:",

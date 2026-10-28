@@ -6,8 +6,8 @@ import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 import { Interval } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
 
+import { LongbridgeError, createLongbridgeApi } from "../src/longbridge-api.ts";
 import {
-  LongbridgeError,
   createLongbridgeMarketData,
   createLongbridgeSocket,
   readLongbridgeSecurities,
@@ -816,6 +816,10 @@ test("nothing is asked once the connection is closed for good", async () => {
   );
 });
 
+/** The sign-in's HTTP API over `fetch`, as the backend hands the list's reader one. */
+const listApi = (fetch: typeof globalThis.fetch) =>
+  createLongbridgeApi({ accessToken: async () => TOKEN, fetch });
+
 describe("the list of US listings", () => {
   test("a refusal as too frequent is tried again, and one refused every time names its reason", async () => {
     const limited = "已達到 1S 區間調用上限，請 0.2 秒後重試";
@@ -840,23 +844,21 @@ describe("the list of US listings", () => {
           });
     };
 
-    expect(
-      await readLongbridgeSecurities(TOKEN, { fetch: answer(2) })
-    ).toHaveLength(1);
+    expect(await readLongbridgeSecurities(listApi(answer(2)))).toHaveLength(1);
 
     asked = 0;
 
-    await expect(
-      readLongbridgeSecurities(TOKEN, { fetch: answer(99) })
-    ).rejects.toThrow(`Longbridge refused its list of US listings: ${limited}`);
+    await expect(readLongbridgeSecurities(listApi(answer(99)))).rejects.toThrow(
+      `Longbridge refused its list of US listings: ${limited}`
+    );
     expect(asked).toBe(6);
   });
 
   test("names each in traditional Chinese with its English name beside, its ticker without the market", async () => {
     const sent: Request[] = [];
 
-    const listed = await readLongbridgeSecurities(TOKEN, {
-      fetch: async (input, init) => {
+    const listed = await readLongbridgeSecurities(
+      listApi(async (input, init) => {
         sent.push(new Request(input, init));
 
         return Response.json({
@@ -885,8 +887,8 @@ describe("the list of US listings", () => {
             ],
           },
         });
-      },
-    });
+      })
+    );
 
     expect(listed).toEqual([
       { symbol: "AAPL", name: "蘋果", englishName: "Apple Inc." },
@@ -917,13 +919,14 @@ describe("the list of US listings", () => {
 
   test("a refused read names Longbridge and its reason", async () => {
     await expect(
-      readLongbridgeSecurities(TOKEN, {
-        fetch: async () =>
+      readLongbridgeSecurities(
+        listApi(async () =>
           Response.json(
             { code: 401_003, message: "token expired", data: null },
             { status: 401 }
-          ),
-      })
+          )
+        )
+      )
     ).rejects.toThrow(
       "Longbridge refused its list of US listings: token expired"
     );

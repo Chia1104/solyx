@@ -37,6 +37,7 @@ import { createSitca } from "@solyx/fundamentals/sitca";
 import { createTwExchanges } from "@solyx/fundamentals/tw-exchanges";
 import { createDgbas } from "@solyx/macro/dgbas";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
+import { createLongbridgeApi } from "@solyx/market-data/longbridge-api";
 
 import type { Host } from "./host.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
@@ -260,10 +261,15 @@ export function createServices(config: ConfigFile, host: Host) {
     onChange: () => void windowEvents.publish("devices:changed", {}),
   });
 
-  // One Longbridge sign-in serves US quotes and fundamentals alike.
+  // One Longbridge sign-in serves US quotes, fundamentals and filings alike, its HTTP API's
+  // budget shared by everything that reads it.
   const longbridge = createLongbridgeAccess({
     secrets,
     openExternal: host.openExternal,
+  });
+
+  const longbridgeApi = createLongbridgeApi({
+    accessToken: () => longbridge.accessToken(),
   });
 
   const marketDataSources = createMarketDataSources({
@@ -274,6 +280,7 @@ export function createServices(config: ConfigFile, host: Host) {
     openFubonProcess: host.openFubonProcess,
     tradesFubon,
     longbridge,
+    longbridgeApi,
     tradingDays: (market) => marketDays(market),
   });
 
@@ -364,7 +371,10 @@ export function createServices(config: ConfigFile, host: Host) {
 
   const news = createNews({
     diagnostics,
-    sources: createNewsSources(() => webSearch.vendor()),
+    sources: createNewsSources(() => webSearch.vendor(), {
+      signedIn: () => longbridge.signedIn(),
+      api: longbridgeApi,
+    }),
     store: newsData.store,
     scorer: () => decisions.scorer(),
     embedder: () => embeddings.embedder(),
@@ -385,12 +395,7 @@ export function createServices(config: ConfigFile, host: Host) {
   const twExchanges = createTwExchanges();
 
   const fundamentals = createFundamentals({
-    providers: [
-      finMind,
-      createLongbridgeFundamentals({
-        accessToken: () => longbridge.accessToken(),
-      }),
-    ],
+    providers: [finMind, createLongbridgeFundamentals({ api: longbridgeApi })],
     exchanges: [twExchanges],
     fundReports: [createSitca()],
     answers: cache.answers,

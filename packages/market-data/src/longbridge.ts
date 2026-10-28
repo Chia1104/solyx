@@ -1,5 +1,5 @@
 import { limitAsync, noop } from "es-toolkit";
-import ky, { isHTTPError } from "ky";
+import ky from "ky";
 import * as z from "zod";
 
 import { Interval, candleDate } from "@solyx/core/candles";
@@ -19,6 +19,12 @@ import type {
 } from "@solyx/core/session";
 import { createRateLimiter } from "@solyx/utils/rate-limit";
 
+import {
+  LONGBRIDGE_RETRIES,
+  LongbridgeError,
+  longbridgeAnswer,
+} from "./longbridge-api.ts";
+import type { LongbridgeApi } from "./longbridge-api.ts";
 import { longbridgeDataCenter } from "./longbridge-sign-in.ts";
 import {
   AdjustType,
@@ -67,34 +73,6 @@ const HEARTBEAT_MS = 30_000;
 
 const MAX_REQUEST_ID = 0xffffffff;
 
-// A 429 means something else shares the sign-in's budget, so it is tried again a few times, as
-// Longbridge's own SDK does, rather than failing the chart or hanging it. Only a 429 throws, which
-// is what has ky try it again; any other answer is read for its reason.
-const RETRIES = {
-  retry: { limit: 5, maxRetryAfter: 10_000 },
-  throwHttpErrors: (status: number) => status === 429,
-};
-
-const reasonSchema = z.object({ message: z.string() });
-
-/** `request`'s response; a 429 still refused once its retries are spent fails naming Longbridge's reason. */
-async function answered(
-  request: () => Promise<Response>,
-  what: string
-): Promise<Response> {
-  try {
-    return await request();
-  } catch (error) {
-    if (!isHTTPError(error)) throw error;
-
-    const reason =
-      reasonSchema.safeParse(error.data).data?.message ??
-      `HTTP ${error.response.status}`;
-
-    throw new LongbridgeError(`Longbridge refused ${what}: ${reason}`);
-  }
-}
-
 /** The code Longbridge answers a symbol it does not list with. */
 export const INVALID_SYMBOL = 301_600;
 
@@ -113,17 +91,6 @@ const PERIOD: Record<BarInterval, Period> = {
   [Interval.OneDay]: Period.Day,
 };
 
-/** A failure Longbridge reported, with its own code where it gave one. */
-export class LongbridgeError extends Error {
-  readonly code: number | null;
-
-  constructor(message: string, code: number | null = null) {
-    super(message);
-    this.name = "LongbridgeError";
-    this.code = code;
-  }
-}
-
 const envelopeSchema = z.object({
   code: z.number(),
   message: z.string(),
@@ -131,19 +98,13 @@ const envelopeSchema = z.object({
 });
 
 const securityListSchema = z.object({
-  code: z.number(),
-  message: z.string(),
-  data: z
-    .object({
-      list: z.array(
-        z.object({
-          symbol: z.string(),
-          name_hk: z.string().nullish(),
-          name_en: z.string().nullish(),
-        })
-      ),
+  list: z.array(
+    z.object({
+      symbol: z.string(),
+      name_hk: z.string().nullish(),
+      name_en: z.string().nullish(),
     })
-    .nullish(),
+  ),
 });
 
 /** A US listing as Longbridge's list names it. */
@@ -162,41 +123,14 @@ const US_SUFFIX = ".US";
  * their names. It is the one list Longbridge documents for US listings.
  */
 export async function readLongbridgeSecurities(
-  accessToken: string,
-  { fetch }: { fetch?: typeof globalThis.fetch } = {}
+  api: LongbridgeApi
 ): Promise<LongbridgeSecurity[]> {
-  const response = await answered(
-    () =>
-      ky.get(`${API_URL}/v1/quote/get_security_list`, {
-        searchParams: { market: Market.US, category: "Overnight" },
-        headers: {
-          authorization: `Bearer ${accessToken}`,
-          "x-dc-region": longbridgeDataCenter(accessToken),
-        },
-        fetch,
-        ...RETRIES,
-      }),
+  const data = await api.read(
+    "v1/quote/get_security_list",
+    { market: Market.US, category: "Overnight" },
+    securityListSchema,
     "its list of US listings"
   );
-
-  const answer = securityListSchema.safeParse(
-    await response.json().catch(() => null)
-  );
-
-  if (!answer.success) {
-    throw new LongbridgeError(
-      `Longbridge answered its list of US listings with HTTP ${response.status}`
-    );
-  }
-
-  const { code, message, data } = answer.data;
-
-  if (code !== 0 || !data) {
-    throw new LongbridgeError(
-      `Longbridge refused its list of US listings: ${message}`,
-      code
-    );
-  }
 
   return data.list.flatMap(({ symbol, name_hk, name_en }) => {
     const name = name_hk || name_en;
@@ -277,7 +211,7 @@ export function createLongbridgeSocket({
   fetch,
   connect = openWebSocket,
 }: LongbridgeSocketOptions): LongbridgeSocket {
-  const api = ky.create({ baseUrl: API_URL, fetch, ...RETRIES });
+  const api = ky.create({ baseUrl: API_URL, fetch, ...LONGBRIDGE_RETRIES });
 
   const budget = createRateLimiter({
     limit: REQUESTS_PER_SECOND,
@@ -290,7 +224,7 @@ export function createLongbridgeSocket({
   const dropListeners = new Set<() => void>();
 
   async function oneTimePassword(token: string): Promise<string> {
-    const response = await answered(
+    const response = await longbridgeAnswer(
       () =>
         api.get("v1/socket/token", {
           headers: {

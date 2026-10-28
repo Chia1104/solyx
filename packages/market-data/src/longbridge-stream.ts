@@ -13,6 +13,7 @@ import type {
 import { regularHours, weekdays } from "@solyx/core/session";
 import type { TradingDays } from "@solyx/core/session";
 
+import { LongbridgeError } from "./longbridge-api.ts";
 import {
   Command,
   SubType,
@@ -26,7 +27,7 @@ import {
   unsubscribeRequest,
 } from "./longbridge-wire.ts";
 import type { BookEntry, QuotePush, Trade } from "./longbridge-wire.ts";
-import { INVALID_SYMBOL, LongbridgeError } from "./longbridge.ts";
+import { INVALID_SYMBOL } from "./longbridge.ts";
 import type { LongbridgeSocket } from "./longbridge.ts";
 
 /** What one sign-in holds subscribed at once, every listing's bars and books between them. */

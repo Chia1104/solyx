@@ -49,6 +49,7 @@ import type {
   LongbridgeSecurity,
   LongbridgeSocket,
 } from "@solyx/market-data/longbridge";
+import type { LongbridgeApi } from "@solyx/market-data/longbridge-api";
 import { createLongbridgeStream } from "@solyx/market-data/longbridge-stream";
 import { errorMessage } from "@solyx/utils/error";
 
@@ -94,6 +95,8 @@ interface MarketDataSourcesOptions {
   /** The order desk trades through Fubon, so its session stays while charts come from elsewhere. */
   tradesFubon: boolean;
   longbridge: LongbridgeAccess;
+  /** The sign-in's HTTP API, whose budget the fundamentals and filings share. */
+  longbridgeApi: LongbridgeApi;
   /** The days each market trades, which tell a live bar when its session closes. */
   tradingDays: (market: Market) => Promise<TradingDays>;
 }
@@ -139,6 +142,7 @@ export function createMarketDataSources({
   openFubonProcess,
   tradesFubon,
   longbridge,
+  longbridgeApi,
   tradingDays,
 }: MarketDataSourcesOptions) {
   let fugle:
@@ -513,7 +517,7 @@ export function createMarketDataSources({
     async usListings(): Promise<LongbridgeSecurity[] | undefined> {
       if (!(await longbridge.signedIn())) return undefined;
 
-      return readLongbridgeSecurities(await longbridge.accessToken());
+      return readLongbridgeSecurities(longbridgeApi);
     },
 
     signInLongbridge: (locale: Locale) => longbridge.signIn(locale),

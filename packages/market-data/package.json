@@ -8,6 +8,7 @@
     "./fubon": "./src/fubon.ts",
     "./fugle": "./src/fugle.ts",
     "./longbridge": "./src/longbridge.ts",
+    "./longbridge-api": "./src/longbridge-api.ts",
     "./longbridge-sign-in": "./src/longbridge-sign-in.ts",
     "./longbridge-stream": "./src/longbridge-stream.ts"
   },
