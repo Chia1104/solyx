@@ -1,11 +1,4 @@
-import {
-  Kbd,
-  ListBox,
-  Modal,
-  SearchField,
-  ToggleButton,
-  ToggleButtonGroup,
-} from "@heroui/react";
+import { Kbd, ListBox, Modal, SearchField } from "@heroui/react";
 import { Search01Icon } from "@hugeicons/core-free-icons";
 import { formatForDisplay } from "@tanstack/react-hotkeys";
 import type { Hotkey } from "@tanstack/react-hotkeys";
@@ -18,18 +11,15 @@ import { useTranslation } from "react-i18next";
 import { SettingsSection } from "@solyx/api/settings-section";
 import { Market, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import { isEnumValue } from "@solyx/utils/is";
 
 import { inWindow } from "../../app/device.ts";
 import { orpc } from "../../app/rpc.ts";
 import { Icon } from "../../components/icon.tsx";
+import { MarketFilter } from "../../components/market-filter.tsx";
 import { useMarketSources } from "../settings/settings-query.ts";
 
 import { listingName, useListingNames } from "./listing-name.tsx";
 import { useListingSearchStore } from "./listing-search-store.ts";
-
-// The filter that leaves every market in.
-const EVERY_MARKET = "all";
 
 // A search goes out once typing pauses this long, rather than on every key.
 const SEARCH_WAIT_MS = 200;
@@ -112,35 +102,6 @@ function useFound(typed: string, empty: boolean) {
   const unread = typed === "" ? [] : (search.data?.unread ?? []);
 
   return { found, unread, search };
-}
-
-function MarketFilter() {
-  const { t } = useTranslation();
-  const market = useListingSearchStore((state) => state.market);
-  const setMarket = useListingSearchStore((state) => state.setMarket);
-
-  return (
-    <ToggleButtonGroup
-      aria-label={t("search.markets")}
-      selectionMode="single"
-      disallowEmptySelection
-      size="sm"
-      selectedKeys={[market ?? EVERY_MARKET]}
-      onSelectionChange={(keys) => {
-        const [key] = keys;
-
-        setMarket(isEnumValue(Market, key) ? key : null);
-      }}>
-      <ToggleButton id={EVERY_MARKET} variant="ghost">
-        {t("search.every-market")}
-      </ToggleButton>
-      {Object.values(Market).map((each) => (
-        <ToggleButton key={each} id={each} variant="ghost">
-          {t(`market.${each}`)}
-        </ToggleButton>
-      ))}
-    </ToggleButtonGroup>
-  );
 }
 
 function FoundList({
@@ -312,6 +273,8 @@ function ListingSearch() {
   const setQuery = useListingSearchStore((state) => state.setQuery);
   const remember = useListingSearchStore((state) => state.remember);
   const close = useListingSearchStore((state) => state.close);
+  const market = useListingSearchStore((state) => state.market);
+  const setMarket = useListingSearchStore((state) => state.setMarket);
   const typing = useTyped();
 
   function open(symbol: SymbolRef) {
@@ -338,7 +301,7 @@ function ListingSearch() {
           <SearchField.ClearButton />
         </SearchField.Group>
       </SearchField>
-      <MarketFilter />
+      <MarketFilter value={market} onChange={setMarket} />
       <Results query={typing.query} typed={typing.typed} onOpen={open} />
     </Autocomplete>
   );

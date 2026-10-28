@@ -42,6 +42,10 @@
     "TW": "Taiwan",
     "US": "US"
   },
+  "market-filter": {
+    "label": "Markets",
+    "every": "All"
+  },
   "session": {
     "pre": "Pre-market",
     "regular": "Regular",
@@ -79,6 +83,7 @@
     "shares": "Shares",
     "avg-price": "Avg. price",
     "no-positions": "No positions",
+    "no-positions-market": "No {{market}} positions",
     "cash": "Cash",
     "cash-unknown": "Unknown",
     "unrealized-gain": "Unrealized gain",
@@ -132,7 +137,9 @@
   },
   "watchlist": {
     "title": "Watchlist",
+    "market-list": "{{market}} watchlist",
     "empty": "Search a symbol, then add it from above its chart.",
+    "empty-market": "No {{market}} listings in the watchlist.",
     "add": "Add to watchlist",
     "remove": "Remove from watchlist",
     "remove-symbol": "Remove {{symbol}} from watchlist",
@@ -350,8 +357,6 @@
   "search": {
     "trigger": "Search symbols",
     "title": "Search listings",
-    "markets": "Markets",
-    "every-market": "All",
     "results": "Listings found",
     "recent": "Opened recently",
     "hint": "Search Taiwan and US listings by code or name.",
