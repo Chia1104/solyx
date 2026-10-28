@@ -24,6 +24,7 @@ export interface CalendarOptions {
   fundamentals: Pick<
     Fundamentals,
     | "statements"
+    | "reportDates"
     | "monthlyRevenue"
     | "dividends"
     | "restrictions"
@@ -120,6 +121,7 @@ export function createCalendar({
           symbols.map(async (symbol) => {
             const [
               statements,
+              reportDates,
               monthlyRevenue,
               dividends,
               restrictions,
@@ -127,6 +129,7 @@ export function createCalendar({
               meetings,
             ] = await Promise.allSettled([
               fundamentals.statements(symbol),
+              fundamentals.reportDates(symbol),
               fundamentals.monthlyRevenue(symbol),
               fundamentals.dividends(symbol),
               fundamentals.restrictions(symbol),
@@ -139,6 +142,7 @@ export function createCalendar({
             return {
               whole: [
                 statements,
+                reportDates,
                 monthlyRevenue,
                 dividends,
                 restrictions,
@@ -149,6 +153,7 @@ export function createCalendar({
                 symbol,
                 {
                   statements: readOrNone(statements),
+                  reportDates: readOrNone(reportDates),
                   monthlyRevenue: readOrNone(monthlyRevenue),
                   dividends: readOrNone(dividends),
                   restrictions: readOrNone(restrictions),

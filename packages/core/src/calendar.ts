@@ -61,7 +61,8 @@ export interface ListingEvent {
   date: string;
   timing: EventTiming;
   /**
-   * What it is about: a quarter's last day, a month (`YYYY-MM`), a distribution's period or a
+   * What it is about: a quarter's last day, or the last of its last month where its results are
+   * only expected, a month (`YYYY-MM`), a distribution's period or a
    * restriction's note; empty for a meeting, and for shares going ex that only the exchange's
    * notice tells of.
    */
@@ -115,6 +116,8 @@ export interface UpcomingEvents {
 /** What a listing's events are derived from, as `Fundamentals` serves it. */
 export interface ListingFilings {
   statements: readonly QuarterStatement[];
+  /** The days its source expects its coming results out, where the market's rules set no deadline. */
+  reportDates: readonly string[];
   monthlyRevenue: readonly MonthlyRevenue[];
   dividends: readonly Dividend[];
   restrictions: readonly TradingRestriction[];
@@ -156,17 +159,46 @@ function duePeriods(
 }
 
 /**
+ * Each day from `today` on that a listing's results are expected out, with the quarter they
+ * report: the newest to end before that day, counted on from the newest one out, so a release
+ * whose statements are not in yet still names its own quarter. None before the first quarter is
+ * out, since a listing that files none, such as an ETF, reports none.
+ */
+function expectedReports(
+  newest: string | undefined,
+  dates: readonly string[],
+  today: string
+): { period: string; date: string }[] {
+  if (newest === undefined) return [];
+
+  return [...new Set(dates)]
+    .filter((date) => date >= today)
+    .toSorted()
+    .map((date) => {
+      let period = newest;
+
+      for (let steps = 1; quarterEnd(newest, steps) < date; steps++) {
+        period = quarterEnd(newest, steps);
+      }
+
+      return { period, date };
+    });
+}
+
+/**
  * A listing's events from `today` through `until` (`YYYY-MM-DD` on the exchange's calendar),
  * soonest first: each quarter's statements and month's revenue not out yet, by the day they are
  * due, the days its distributions go ex and are paid, the days its exchange gives notice its shares
  * go ex where no distribution tells of them, its shareholders' meetings, and its restrictions,
  * those in force today among them. Only Taiwan's rules set filing deadlines, so elsewhere a
- * listing has no filings.
+ * quarter's statements come on the day its source expects its results, at the end of a month
+ * near enough to name the quarter.
  */
 export function upcomingEvents(
   symbol: SymbolRef,
   {
     statements,
+    reportDates,
     monthlyRevenue,
     dividends,
     restrictions,
@@ -208,7 +240,17 @@ export function upcomingEvents(
             until: null,
           })),
         ]
-      : [];
+      : expectedReports(statements.at(-1)?.periodEnd, reportDates, today).map(
+          ({ period, date }) => ({
+            symbol,
+            kind: ListingEventKind.QuarterlyReport,
+            date,
+            timing: EventTiming.Expected,
+            subject: period,
+            amount: null,
+            until: null,
+          })
+        );
 
   const distributions = dividends.flatMap((dividend) =>
     [

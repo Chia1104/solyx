@@ -133,7 +133,7 @@ test("has no token while signed out", async () => {
 
   expect(await access.signedIn()).toBe(false);
   await expect(access.accessToken()).rejects.toThrow(
-    "Sign in to Longbridge in Settings for US quotes"
+    "Sign in to Longbridge in Settings for US quotes and fundamentals"
   );
 });
 

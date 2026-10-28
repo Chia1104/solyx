@@ -36,7 +36,7 @@ export interface LongbridgeAccessOptions {
 }
 
 /**
- * The user's Longbridge sign-in for US quotes, sealed with the secrets. Each sign-in registers a
+ * The user's Longbridge sign-in for US quotes and fundamentals, sealed with the secrets. Each sign-in registers a
  * client of its own, whose browser returns to a loopback listener open only while it waits, and
  * replacing or ending a sign-in deletes its client, which takes it off the user's account.
  */
@@ -76,7 +76,9 @@ export function createLongbridgeAccess({
       const signIn = await saved();
 
       if (!signIn) {
-        throw new Error("Sign in to Longbridge in Settings for US quotes");
+        throw new Error(
+          "Sign in to Longbridge in Settings for US quotes and fundamentals"
+        );
       }
 
       if (signIn.expiresAt - now() > REFRESH_AHEAD_MS) {

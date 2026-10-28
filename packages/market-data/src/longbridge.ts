@@ -1,5 +1,5 @@
 import { limitAsync, noop } from "es-toolkit";
-import ky from "ky";
+import ky, { isHTTPError } from "ky";
 import * as z from "zod";
 
 import { Interval, candleDate } from "@solyx/core/candles";
@@ -67,8 +67,33 @@ const HEARTBEAT_MS = 30_000;
 
 const MAX_REQUEST_ID = 0xffffffff;
 
-// A 429 means something else shares the sign-in's budget; retry briefly rather than hang the chart.
-const MAX_RETRY_AFTER_MS = 10_000;
+// A 429 means something else shares the sign-in's budget, so it is tried again a few times, as
+// Longbridge's own SDK does, rather than failing the chart or hanging it. Only a 429 throws, which
+// is what has ky try it again; any other answer is read for its reason.
+const RETRIES = {
+  retry: { limit: 5, maxRetryAfter: 10_000 },
+  throwHttpErrors: (status: number) => status === 429,
+};
+
+const reasonSchema = z.object({ message: z.string() });
+
+/** `request`'s response; a 429 still refused once its retries are spent fails naming Longbridge's reason. */
+async function answered(
+  request: () => Promise<Response>,
+  what: string
+): Promise<Response> {
+  try {
+    return await request();
+  } catch (error) {
+    if (!isHTTPError(error)) throw error;
+
+    const reason =
+      reasonSchema.safeParse(error.data).data?.message ??
+      `HTTP ${error.response.status}`;
+
+    throw new LongbridgeError(`Longbridge refused ${what}: ${reason}`);
+  }
+}
 
 /** The code Longbridge answers a symbol it does not list with. */
 export const INVALID_SYMBOL = 301_600;
@@ -140,16 +165,19 @@ export async function readLongbridgeSecurities(
   accessToken: string,
   { fetch }: { fetch?: typeof globalThis.fetch } = {}
 ): Promise<LongbridgeSecurity[]> {
-  const response = await ky.get(`${API_URL}/v1/quote/get_security_list`, {
-    searchParams: { market: Market.US, category: "Overnight" },
-    headers: {
-      authorization: `Bearer ${accessToken}`,
-      "x-dc-region": longbridgeDataCenter(accessToken),
-    },
-    fetch,
-    retry: { maxRetryAfter: MAX_RETRY_AFTER_MS },
-    throwHttpErrors: false,
-  });
+  const response = await answered(
+    () =>
+      ky.get(`${API_URL}/v1/quote/get_security_list`, {
+        searchParams: { market: Market.US, category: "Overnight" },
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          "x-dc-region": longbridgeDataCenter(accessToken),
+        },
+        fetch,
+        ...RETRIES,
+      }),
+    "its list of US listings"
+  );
 
   const answer = securityListSchema.safeParse(
     await response.json().catch(() => null)
@@ -249,12 +277,7 @@ export function createLongbridgeSocket({
   fetch,
   connect = openWebSocket,
 }: LongbridgeSocketOptions): LongbridgeSocket {
-  const api = ky.create({
-    baseUrl: API_URL,
-    fetch,
-    retry: { maxRetryAfter: MAX_RETRY_AFTER_MS },
-    throwHttpErrors: false,
-  });
+  const api = ky.create({ baseUrl: API_URL, fetch, ...RETRIES });
 
   const budget = createRateLimiter({
     limit: REQUESTS_PER_SECOND,
@@ -267,12 +290,16 @@ export function createLongbridgeSocket({
   const dropListeners = new Set<() => void>();
 
   async function oneTimePassword(token: string): Promise<string> {
-    const response = await api.get("v1/socket/token", {
-      headers: {
-        authorization: `Bearer ${token}`,
-        "x-dc-region": longbridgeDataCenter(token),
-      },
-    });
+    const response = await answered(
+      () =>
+        api.get("v1/socket/token", {
+          headers: {
+            authorization: `Bearer ${token}`,
+            "x-dc-region": longbridgeDataCenter(token),
+          },
+        }),
+      "the sign-in"
+    );
 
     const envelope = envelopeSchema.safeParse(await response.json());
 

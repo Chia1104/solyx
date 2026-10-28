@@ -314,6 +314,7 @@ function setup(councils?: Council[], read?: string[], watched = false) {
       return filed.months;
     },
     dividends: async () => filed.dividends,
+    reportDates: async () => [],
     restrictions: async () => [],
     fund: async () => {
       if (filed.fundFailure) throw new Error(filed.fundFailure);

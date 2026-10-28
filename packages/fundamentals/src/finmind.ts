@@ -28,6 +28,8 @@ import type { TradingCalendarProvider } from "@solyx/core/session";
 import { HOUR_MS } from "@solyx/utils/date";
 import { createRateLimiter } from "@solyx/utils/rate-limit";
 
+import { readRows } from "./rows.ts";
+
 const FINMIND_API_URL = "https://api.finmindtrade.com/api/v4/";
 
 // What FinMind allows an hour without a token, whatever the plan.
@@ -305,21 +307,12 @@ export function createFinMind(
         .json()
     );
 
-    const answered = responseSchema.parse(response).data;
-
-    const read = answered.flatMap((row) => {
-      const parsed = schema.safeParse(row);
-
-      return parsed.success ? [parsed.data] : [];
-    });
-
-    if (answered.length > 0 && read.length === 0) {
-      throw new Error(
-        `FinMind: none of the ${answered.length} rows of ${dataset} read as expected`
-      );
-    }
-
-    return read;
+    return readRows(
+      responseSchema.parse(response).data,
+      schema,
+      "FinMind",
+      dataset
+    );
   }
 
   /** A dataset's rows for one listing from `since` on. */
@@ -471,6 +464,9 @@ export function createFinMind(
         .filter(({ month }) => month >= since)
         .toSorted((a, b) => a.month.localeCompare(b.month));
     },
+
+    // Taiwan's rules set the day each quarter is due by, which the calendar works out itself.
+    getReportDates: async () => [],
 
     async getDividends(symbol, since) {
       // FinMind dates a distribution after it goes ex, so asking from `since` finds every one announced since.

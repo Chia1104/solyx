@@ -1233,6 +1233,46 @@ test("the calendar names a market whose figures cannot be read, and lists its re
   );
 });
 
+test("the calendar words a quarter's results a source expects apart from statements due by a deadline", async () => {
+  const { run, calendar } = setup();
+  const apple = { market: Market.US, symbol: "AAPL" };
+
+  calendar.mockResolvedValue({
+    events: [
+      {
+        symbol: apple,
+        kind: ListingEventKind.QuarterlyReport,
+        date: "2026-10-30",
+        timing: EventTiming.Expected,
+        subject: "2026-09-30",
+        amount: null,
+        until: null,
+      },
+      {
+        symbol: TSMC,
+        kind: ListingEventKind.QuarterlyReport,
+        date: "2026-11-14",
+        timing: EventTiming.Deadline,
+        subject: "2026-09-30",
+        amount: null,
+        until: null,
+      },
+    ],
+    research: [],
+    unread: [],
+    releases: [],
+    closures: [],
+    unreadMarkets: [],
+  });
+
+  const { text } = await run(AgentToolName.GetCalendar, { days: 30 });
+
+  expect(text).toContain(
+    "around 2026-10-30 US AAPL Q3 2026 results expected\n"
+  );
+  expect(text).toContain("by 2026-11-14 TW 2330 Q3 2026 statements due\n");
+});
+
 test("skills are read by name", async () => {
   const { run } = setup();
 

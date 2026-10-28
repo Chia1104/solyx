@@ -817,6 +817,41 @@ test("nothing is asked once the connection is closed for good", async () => {
 });
 
 describe("the list of US listings", () => {
+  test("a refusal as too frequent is tried again, and one refused every time names its reason", async () => {
+    const limited = "已達到 1S 區間調用上限，請 0.2 秒後重試";
+    let asked = 0;
+
+    const answer = (refusals: number) => async () => {
+      asked += 1;
+
+      return asked <= refusals
+        ? Response.json(
+            { code: 429_001, message: limited, data: null },
+            { status: 429, headers: { "retry-after": "0" } }
+          )
+        : Response.json({
+            code: 0,
+            message: "success",
+            data: {
+              list: [
+                { symbol: "AAPL.US", name_hk: "蘋果", name_en: "Apple Inc." },
+              ],
+            },
+          });
+    };
+
+    expect(
+      await readLongbridgeSecurities(TOKEN, { fetch: answer(2) })
+    ).toHaveLength(1);
+
+    asked = 0;
+
+    await expect(
+      readLongbridgeSecurities(TOKEN, { fetch: answer(99) })
+    ).rejects.toThrow(`Longbridge refused its list of US listings: ${limited}`);
+    expect(asked).toBe(6);
+  });
+
   test("names each in traditional Chinese with its English name beside, its ticker without the market", async () => {
     const sent: Request[] = [];
 

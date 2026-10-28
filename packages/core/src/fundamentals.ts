@@ -131,6 +131,11 @@ export interface FundamentalsProvider {
   ): Promise<MonthlyRevenue[]>;
   /** Distributions announced on or after `since` (`YYYY-MM-DD`), or dated so by the provider where none says when, oldest first, those still to go ex among them. */
   getDividends(symbol: SymbolRef, since: string): Promise<Dividend[]>;
+  /**
+   * The days (`YYYY-MM-DD`) the provider expects the company's coming results out, soonest
+   * first; none where the market's rules set the days instead, as Taiwan's deadlines do.
+   */
+  getReportDates(symbol: SymbolRef): Promise<string[]>;
 }
 
 /** What a fund is, as its exchange lists it. */
@@ -343,6 +348,8 @@ export interface Fundamentals {
   monthlyRevenue(symbol: SymbolRef): Promise<MonthlyRevenue[]>;
   /** As many years of distributions as of quarters. */
   dividends(symbol: SymbolRef): Promise<Dividend[]>;
+  /** The days its source expects its coming results out, soonest first. */
+  reportDates(symbol: SymbolRef): Promise<string[]>;
   /** What its exchange lists today, oldest first: the restrictions in force and those announced; none while no source lists its market's. */
   restrictions(symbol: SymbolRef): Promise<TradingRestriction[]>;
   /** What the listing is as a fund; `null` for one no source lists as a fund, which a stock is and a fund its exchange publishes no list of may be. */

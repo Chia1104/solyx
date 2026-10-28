@@ -95,6 +95,9 @@ function setup(answers = memoryAnswers()) {
       async () => []
     ),
     getDividends: vi.fn<FundamentalsProvider["getDividends"]>(async () => []),
+    getReportDates: vi.fn<FundamentalsProvider["getReportDates"]>(
+      async () => []
+    ),
   };
 
   const lists = {
