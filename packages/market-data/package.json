@@ -6,12 +6,14 @@
   "exports": {
     "./candle-cache": "./src/candle-cache.ts",
     "./fubon": "./src/fubon.ts",
-    "./fugle": "./src/fugle.ts"
+    "./fugle": "./src/fugle.ts",
+    "./longbridge": "./src/longbridge.ts"
   },
   "scripts": {
     "test": "vp test"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "catalog:utils",
     "@solyx/brokers": "workspace:*",
     "@solyx/core": "workspace:*",
     "@solyx/db": "workspace:*",
