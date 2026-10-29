@@ -6,22 +6,19 @@ import { UpdateAction } from "../modules/updates/update-action.tsx";
 import { inWindow } from "./device.ts";
 
 /**
- * The window's bottom row, under every column, for what holds wherever the user is: whether
- * orders are paper or real and locked, each market's session, and an update waiting.
+ * The window's bottom row, under every column, for what holds wherever the user is: each
+ * market's session, and at its end an update waiting and whether orders are paper or real and
+ * locked.
  */
 export function StatusBar() {
   return (
-    <footer className="flex h-8 shrink-0 items-center gap-4 border-t border-separator px-2">
-      <div className="flex items-center gap-1">
+    <footer className="flex h-8 shrink-0 items-center gap-4 border-t border-separator px-3">
+      <MarketSessions />
+      <div className="ml-auto flex items-center gap-2">
+        {inWindow ? <UpdateAction /> : null}
         <BrokerModeChip />
         {inWindow ? <OrderLockToggle /> : null}
       </div>
-      <MarketSessions />
-      {inWindow ? (
-        <div className="ml-auto">
-          <UpdateAction />
-        </div>
-      ) : null}
     </footer>
   );
 }

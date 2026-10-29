@@ -11,6 +11,7 @@ import { ListingSearchButton } from "../modules/market/listing-search.tsx";
 
 import { SEARCH_HOTKEY } from "./hotkeys.ts";
 import { CategoryLists } from "./symbol-categories.tsx";
+import { SymbolsPaneFoot } from "./symbols-pane-foot.tsx";
 
 /**
  * Where the workspace goes, the search and the overview and strategies pages, over the listings
@@ -39,6 +40,7 @@ export function SymbolsPane() {
         </Link>
       </nav>
       <CategoryLists />
+      <SymbolsPaneFoot />
     </div>
   );
 }

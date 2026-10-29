@@ -6,6 +6,7 @@ import { ProposalStatus } from "@solyx/core/order-desk";
 import { isEnumValue } from "@solyx/utils/is";
 
 import { ColumnHeader } from "../components/column-header.tsx";
+import { SEGMENT } from "../components/segment.ts";
 import { FillList } from "../modules/account/fills-table.tsx";
 import { ProfitLoss } from "../modules/account/profit-loss.tsx";
 import { WorkingOrderList } from "../modules/account/working-orders.tsx";
@@ -60,10 +61,7 @@ export function AgentPane() {
             {Object.values(AgentTab).map((each: AgentTab) => (
               // HeroUI shares the row out evenly, which would break a label with a count between
               // its characters; one that needs more room takes it from the others.
-              <Tabs.Tab
-                key={each}
-                id={each}
-                className="h-7 px-3 whitespace-nowrap">
+              <Tabs.Tab key={each} id={each} className={SEGMENT}>
                 {t(`agent.tabs.${each}`)}
                 {each === AgentTab.Proposals && awaiting > 0 ? (
                   <span className="ml-1 text-xs tabular-nums">{awaiting}</span>

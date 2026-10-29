@@ -11,7 +11,21 @@
     "toggle": "Show or hide {{pane}}",
     "pin": "Keep {{pane}} open",
     "resize": "Resize {{pane}}",
-    "categories": "Categories"
+    "categories": "Categories",
+    "category-menu": "Category options",
+    "category-icon": "Icon",
+    "category-icons": {
+      "dot": "Dot",
+      "star": "Star",
+      "chart": "Chart",
+      "briefcase": "Briefcase",
+      "globe": "Globe",
+      "flag": "Flag",
+      "flame": "Flame",
+      "bookmark": "Bookmark",
+      "rocket": "Rocket",
+      "diamond": "Diamond"
+    }
   },
   "overview": {
     "tabs": {

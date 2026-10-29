@@ -2,7 +2,7 @@ import { useRef } from "react";
 import type { ReactNode, RefObject } from "react";
 
 import { cn } from "@heroui/react";
-import { Outlet, useMatchRoute, useNavigate } from "@tanstack/react-router";
+import { Outlet, useMatchRoute } from "@tanstack/react-router";
 import { clamp, mapValues } from "es-toolkit";
 import { I18nProvider } from "react-aria-components";
 import { useTranslation } from "react-i18next";
@@ -30,10 +30,9 @@ import {
   useFollowPeek,
   usePeekStore,
 } from "./pane-peek.ts";
-import { useHeldPane, useLastPage, useSettingsOpen } from "./settings-open.ts";
+import { useHeldPane, useSettingsOpen } from "./settings-open.ts";
 import { SettingsPane } from "./settings-pane.tsx";
 import { StatusBar } from "./status-bar.tsx";
-import { SymbolsPaneFoot } from "./symbols-pane-foot.tsx";
 import { SymbolsPane } from "./symbols-pane.tsx";
 import { WindowControls } from "./window-controls.tsx";
 
@@ -181,14 +180,12 @@ const PANE_VIEW =
   "absolute inset-0 px-2 transition-[translate,opacity,visibility] duration-200 ease-out-quint motion-reduce:translate-x-0 motion-reduce:transition-[opacity,visibility]";
 
 /**
- * What the symbols pane shows between its header and its foot: the listings, or the settings
- * page's sections while it is open. Both stay mounted, so the listings keep their scroll, and one
- * slides aside as the other arrives.
+ * What the symbols pane shows under its header: the listings, or the settings page's sections
+ * while it is open. Both stay mounted, so the listings keep their scroll, and one slides aside as
+ * the other arrives.
  */
 function SymbolsPaneViews() {
   const settings = useSettingsOpen();
-  const navigate = useNavigate();
-  const lastPage = useLastPage();
 
   return (
     <div className="flex h-full flex-col">
@@ -212,14 +209,9 @@ function SymbolsPaneViews() {
               PANE_VIEW,
               !settings && "invisible translate-x-6 opacity-0"
             )}>
-            <SettingsPane
-              onLeave={() => void navigate({ href: lastPage.current })}
-            />
+            <SettingsPane />
           </div>
         ) : null}
-      </div>
-      <div className="px-2">
-        <SymbolsPaneFoot />
       </div>
     </div>
   );

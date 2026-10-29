@@ -45,6 +45,22 @@ export const AgendaView = {
 
 export type AgendaView = (typeof AgendaView)[keyof typeof AgendaView];
 
+/** What the symbols pane draws a watchlist category's dot as, which the user picks for it. */
+export const CategoryIcon = {
+  Dot: "dot",
+  Star: "star",
+  Chart: "chart",
+  Briefcase: "briefcase",
+  Globe: "globe",
+  Flag: "flag",
+  Flame: "flame",
+  Bookmark: "bookmark",
+  Rocket: "rocket",
+  Diamond: "diamond",
+} as const;
+
+export type CategoryIcon = (typeof CategoryIcon)[keyof typeof CategoryIcon];
+
 /** Dragging stops before the main view gets narrower than this. */
 export const MAIN_MIN_WIDTH = 480;
 
@@ -68,6 +84,8 @@ interface LayoutState {
   tradeRail: boolean;
   /** The market the symbols pane keeps to; `null` for every market, each under its own heading. */
   symbolsMarket: Market | null;
+  /** The icon picked for each watchlist category, by its key; one not here is a dot. */
+  categoryIcons: Record<string, CategoryIcon>;
 }
 
 interface LayoutActions {
@@ -80,6 +98,7 @@ interface LayoutActions {
   setAgendaView: (view: AgendaView) => void;
   toggleTradeRail: () => void;
   setSymbolsMarket: (market: Market | null) => void;
+  setCategoryIcon: (category: string, icon: CategoryIcon) => void;
 }
 
 type LayoutStore = LayoutState & LayoutActions;
@@ -107,6 +126,7 @@ const defaultState: LayoutState = {
   agendaView: AgendaView.Week,
   tradeRail: true,
   symbolsMarket: null,
+  categoryIcons: {},
 };
 
 // Limits can change between versions, so saved widths are clamped as they load.
@@ -125,6 +145,7 @@ const persistedLayoutSchema = z.object({
   agendaView: z.enum(AgendaView).catch(AgendaView.Week),
   tradeRail: z.boolean().catch(true),
   symbolsMarket: marketSchema.nullable().catch(null),
+  categoryIcons: z.record(z.string(), z.enum(CategoryIcon)).catch({}),
 });
 
 export const useLayoutStore = create<LayoutStore>()(
@@ -160,6 +181,10 @@ export const useLayoutStore = create<LayoutStore>()(
       setAgendaView: (agendaView) => set({ agendaView }),
       toggleTradeRail: () => set((state) => ({ tradeRail: !state.tradeRail })),
       setSymbolsMarket: (symbolsMarket) => set({ symbolsMarket }),
+      setCategoryIcon: (category, icon) =>
+        set((state) => ({
+          categoryIcons: { ...state.categoryIcons, [category]: icon },
+        })),
     }),
     persistOptions<LayoutStore>("workspace-layout", persistedLayoutSchema)
   )

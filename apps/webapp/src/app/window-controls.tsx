@@ -7,7 +7,7 @@ import {
   SidebarRightIcon,
 } from "@hugeicons/core-free-icons";
 import { formatForDisplay } from "@tanstack/react-hotkeys";
-import { useCanGoBack, useRouter } from "@tanstack/react-router";
+import { useCanGoBack, useNavigate, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { Icon } from "../components/icon.tsx";
@@ -16,7 +16,7 @@ import { SplitterEdge } from "../components/pane-splitter.tsx";
 import { BACK_HOTKEYS, PANE_HOTKEY, toggleAtOnce } from "./hotkeys.ts";
 import { PANE_EDGE, Pane, paneId, useLayoutStore } from "./layout-store.ts";
 import { PEEK_DELAY, usePeekStore } from "./pane-peek.ts";
-import { useHeldPane } from "./settings-open.ts";
+import { useHeldPane, useSettingsOpen } from "./settings-open.ts";
 
 const TOOLTIP_DELAY = 600;
 
@@ -71,11 +71,17 @@ function PaneToggle({ pane }: { pane: Pane }) {
   );
 }
 
-/** Goes back a page; switching a chart's interval or a settings section is not a page. */
+/**
+ * Goes back a page; switching a chart's interval or a settings section is not a page. Settings
+ * opened with no page behind it, as when the window opens on it, leaves to the overview, since
+ * this is the way out of settings.
+ */
 function BackButton() {
   const { t } = useTranslation();
   const { history } = useRouter();
+  const navigate = useNavigate();
   const canGoBack = useCanGoBack();
+  const settings = useSettingsOpen();
 
   return (
     <Tooltip delay={TOOLTIP_DELAY}>
@@ -84,8 +90,10 @@ function BackButton() {
         size="sm"
         variant="ghost"
         aria-label={t("nav.back")}
-        isDisabled={!canGoBack}
-        onPress={() => history.back()}>
+        isDisabled={!canGoBack && !settings}
+        onPress={() =>
+          canGoBack ? history.back() : void navigate({ to: "/" })
+        }>
         <Icon icon={ArrowLeft01Icon} />
       </Button>
       <Tooltip.Content className="flex items-center gap-2">
