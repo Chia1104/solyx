@@ -46,7 +46,7 @@ export function StanceHistory({
       count: spell.sessions,
       change: percentChange.format(spell.change),
       benchmark: percentChange.format(spell.benchmark),
-      index: BENCHMARK[market].name,
+      index: BENCHMARK[market].totalReturn,
     });
 
   return (
@@ -97,7 +97,7 @@ export function StanceHistory({
         <span>{spells[0].from}</span>
         <span>
           {t("research.report.stance-history-caption", {
-            index: BENCHMARK[market].name,
+            index: BENCHMARK[market].totalReturn,
           })}
         </span>
         <span>{spells.at(-1)?.until ?? t("research.report.stance-now")}</span>

@@ -270,7 +270,7 @@ function forecastViolationText(
 const argumentText = (argument: Argument) =>
   `- ${argument.point}\n  rests on: ${argument.text} [${argument.source}: "${argument.quote}"]`;
 
-/** How each stretch of one stance did against the market's index, the standing one last. */
+/** How each stretch of one stance did against the market's index on total return, the standing one last. */
 function stancesText(
   market: Market,
   stances: readonly StanceSpell[]
@@ -278,7 +278,7 @@ function stancesText(
   if (stances.length === 0) return [];
 
   return [
-    `Stance against ${BENCHMARK[market].name}, each stretch the report kept one, on closes as they traded:`,
+    `Stance against ${BENCHMARK[market].totalReturn}, each stretch the report kept one, the listing on total return too, splits and capital reductions made up for:`,
     ...stances.map(
       (spell) =>
         `- ${spell.stance} from ${spell.from} (revision ${spell.revision}) ${spell.until === null ? "and standing" : `to ${spell.until}`}, ${counted(spell.sessions, "session")}: ${percentChange(spell.change, 1)} against the index's ${percentChange(spell.benchmark, 1)}, ${points(spell.change - spell.benchmark)}`

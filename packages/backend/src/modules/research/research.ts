@@ -3,7 +3,7 @@ import type { FactReader } from "@solyx/core/forecast";
 import type { Fundamentals } from "@solyx/core/fundamentals";
 import { Market, exchangeDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import type { MarketData } from "@solyx/core/market-data";
+import type { MarketData, MarketReturns } from "@solyx/core/market-data";
 import type { NewsStore } from "@solyx/core/news";
 import type { ClaimAuditor } from "@solyx/core/report";
 import { ResearchDesk } from "@solyx/core/research";
@@ -37,6 +37,7 @@ export function createResearch(
     ...sources
   }: {
     marketData: Pick<MarketData, "candles">;
+    marketReturns: Pick<MarketReturns, "closes">;
     fundamentals: Pick<Fundamentals, "statements">;
     auditor: () => Promise<ClaimAuditor | undefined>;
     reader: () => Promise<FactReader | undefined>;

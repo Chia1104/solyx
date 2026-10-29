@@ -8,6 +8,7 @@ import type {
 import { expect, test } from "vite-plus/test";
 
 import { EventTiming } from "@solyx/core/calendar";
+import { candleDate } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { MagiUnit, MagiVote, resolveCouncil } from "@solyx/core/council";
 import type { Council } from "@solyx/core/council";
@@ -356,9 +357,19 @@ function setup(councils?: Council[], read?: string[], watched = false) {
     listingNames: async () => [],
   };
 
+  // The fake index's closes are the listing's own, so the two return alike.
+  const marketReturns = {
+    closes: async () =>
+      bars.daily.map((bar) => ({
+        date: candleDate(Market.TW, bar.time),
+        close: bar.close,
+      })),
+  };
+
   const desk = new ResearchDesk({
     store,
     marketData,
+    marketReturns,
     fundamentals,
     // A decisions model and a model on this computer, so the falsifiers are read against the news.
     ...(watched && {
@@ -693,12 +704,11 @@ test("research says how the report's stance has done against the index since it 
   clock.now = AFTER_HORIZON;
   bars.daily = [ANCHOR_BAR, ...LATER_BARS];
 
-  // The fake source answers the index with the listing's own bars, so the two moved alike.
   expect(
     (await run(AgentToolName.GetResearch, { symbol: TSMC })).text
   ).toContain(
     [
-      "Stance against TAIEX, each stretch the report kept one, on closes as they traded:",
+      "Stance against TAIEX total return, each stretch the report kept one, the listing on total return too, splits and capital reductions made up for:",
       "- bullish from 2026-09-29 (revision 1) and standing, 2 sessions: +4.5% against the index's +4.5%, 0.0 points",
     ].join("\n")
   );

@@ -92,6 +92,27 @@ export interface MarketDataProvider {
   getDepth(symbol: SymbolRef): Promise<Depth | null>;
 }
 
+/** A market index's close at one session on total return, with what its members paid out reinvested. */
+export interface ReturnClose {
+  /** The session's exchange-local date, `YYYY-MM-DD`. */
+  date: string;
+  close: number;
+}
+
+/** One implementation per source of a market's index on total return, which no market data source serves the history of. */
+export interface TotalReturnProvider {
+  readonly id: string;
+  readonly markets: readonly Market[];
+  /** Each session's close from `since` (`YYYY-MM-DD`) on, oldest first; none for a market it does not cover. */
+  getTotalReturn(market: Market, since: string): Promise<ReturnClose[]>;
+}
+
+/** Each market's index on total return, from the source that covers it. */
+export interface MarketReturns {
+  /** Each session's close over the daily bars' lookback, oldest first; rejects while no source covers the market. */
+  closes(market: Market): Promise<ReturnClose[]>;
+}
+
 /** Bars and names in every market, from the source the user picked for it. */
 export interface MarketData {
   /** Bars over the interval's lookback, oldest first; rejects while no source covers the market. */

@@ -438,6 +438,30 @@ test("reads the days Taiwan's exchange trades from a day on, for every listing a
   });
 });
 
+test("reads the TAIEX's total return index from a day on, oldest first", async () => {
+  const { sent, finmind } = fakeFinMind({
+    body: {
+      msg: "success",
+      status: 200,
+      data: [
+        { date: "2026-10-29", stock_id: "TAIEX", price: 107221.75 },
+        { date: "2026-10-28", stock_id: "TAIEX", price: 108763.96 },
+        { date: "unset", stock_id: "TAIEX", price: 1 },
+      ],
+    },
+  });
+
+  expect(await finmind.getTotalReturn(Market.TW, "2026-10-28")).toEqual([
+    { date: "2026-10-28", close: 108763.96 },
+    { date: "2026-10-29", close: 107221.75 },
+  ]);
+  expect(Object.fromEntries(new URL(sent[0]).searchParams)).toEqual({
+    dataset: "TaiwanStockTotalReturnIndex",
+    data_id: "TAIEX",
+    start_date: "2026-10-28",
+  });
+});
+
 test("outside Taiwan there is nothing to read, and it costs no request", async () => {
   const { sent, finmind } = fakeFinMind();
   const apple = { market: Market.US, symbol: "AAPL" };
@@ -459,6 +483,7 @@ test("outside Taiwan there is nothing to read, and it costs no request", async (
     margin: [],
     futures: [],
   });
+  expect(await finmind.getTotalReturn(Market.US, "2025-01-01")).toEqual([]);
   expect(sent).toEqual([]);
 });
 

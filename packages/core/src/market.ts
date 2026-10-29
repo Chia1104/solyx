@@ -38,6 +38,8 @@ export type SymbolRef = z.infer<typeof symbolRefSchema>;
 export interface Benchmark {
   symbol: SymbolRef;
   name: string;
+  /** Its index on total return, which a report's stance is measured against. */
+  totalReturn: string;
 }
 
 /** Taiwan's capitalization-weighted index, and an S&P 500 fund for the US. */
@@ -45,10 +47,12 @@ export const BENCHMARK: Record<Market, Benchmark> = {
   [Market.TW]: {
     symbol: { market: Market.TW, symbol: "IX0001" },
     name: "TAIEX",
+    totalReturn: "TAIEX total return",
   },
   [Market.US]: {
     symbol: { market: Market.US, symbol: "SPY" },
     name: "S&P 500 (SPY)",
+    totalReturn: "S&P 500 (SPY) total return",
   },
 };
 

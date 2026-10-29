@@ -3,8 +3,9 @@ import * as z from "zod";
 import { sentences } from "@solyx/utils/search";
 
 import { EventTiming } from "./calendar.ts";
-import { candleDate } from "./candles.ts";
+import { adjustedCandles, candleDate } from "./candles.ts";
 import type { Candle } from "./candles.ts";
+import type { ReturnClose } from "./market-data.ts";
 import { Market, exchangeDate, symbolRefSchema } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { holdsSecret } from "./memory.ts";
@@ -406,7 +407,7 @@ export function reportPassages(report: Report): string[] {
   ];
 }
 
-/** A stretch over which a listing's report kept one stance, and what the price did against its market's index through it. */
+/** A stretch over which a listing's report kept one stance, and what the listing returned against its market's index through it. */
 export interface StanceSpell {
   stance: ReportStance;
   /** The revision that took the stance. */
@@ -416,53 +417,59 @@ export interface StanceSpell {
   until: string | null;
   /** Sessions traded after the day it was taken, through its end or the newest bar. */
   sessions: number;
-  /** How far the listing's close and the index's moved over them, as shares of where each stood. */
+  /** What the listing and the index returned over them, as shares of where each stood. */
   change: number;
   benchmark: number;
 }
 
 /**
  * Each stretch a listing's report kept one stance, oldest first, from its `revisions` in the order
- * they were kept, measured on the listing's daily bars against its market's index's, as they
- * traded. A stretch taken before the bars begin, or with no session after it yet, is left out,
+ * they were kept, on total return: the listing's daily bars carried over what went ex, split or was
+ * reduced, from their references, against `benchmark`, its market's index on total return. A
+ * stretch ends no later than the newest session the index has, which may come out after the
+ * listing's. A stretch taken before the bars begin, or with no session after it yet, is left out,
  * since there is nothing to measure it by.
  */
 export function stanceSpells(
   revisions: readonly Report[],
   daily: readonly Candle[],
-  benchmark: readonly Candle[]
+  benchmark: readonly ReturnClose[]
 ): StanceSpell[] {
   const taken = revisions.filter(
     (report, index) => report.stance !== revisions[index - 1]?.stance
   );
 
+  const newest = benchmark.at(-1)?.date;
+
+  if (taken.length === 0 || newest === undefined) return [];
+
+  const { market } = taken[0].symbol;
+  const days = daily.map((bar) => candleDate(market, bar.time));
+  const adjusted = adjustedCandles(daily);
+
+  const dayKept = ({ revisedAt }: Report) =>
+    exchangeDate(market, new Date(revisedAt));
+
+  /** The newest session on or before a day, which is the close a stance taken that day stood on. */
+  const sessionBy = (day: string) => days.findLastIndex((each) => each <= day);
+
+  const indexBy = (day: string) =>
+    benchmark.findLast((close) => close.date <= day);
+
   return taken.flatMap((report, index): StanceSpell[] => {
-    const { market } = report.symbol;
-    const dayOf = (bar: Candle) => candleDate(market, bar.time);
-
-    const dayKept = ({ revisedAt }: Report) =>
-      exchangeDate(market, new Date(revisedAt));
-
-    /** The newest bar on or before a day, which is the close a stance taken that day stood on. */
-    const closeBy = (bars: readonly Candle[], day: string) =>
-      bars.findLast((bar) => dayOf(bar) <= day);
-
     const from = dayKept(report);
     const next = taken.at(index + 1);
     const until = next ? dayKept(next) : null;
-    const start = closeBy(daily, from);
-    const end = until === null ? daily.at(-1) : closeBy(daily, until);
+    const start = sessionBy(from);
+    const end = sessionBy(until !== null && until < newest ? until : newest);
+    const sessions = end - start;
 
-    if (!start || !end) return [];
+    if (start === -1 || sessions <= 0) return [];
 
-    const sessions = daily.filter(
-      (bar) => bar.time > start.time && bar.time <= end.time
-    ).length;
+    const indexStart = indexBy(days[start]);
+    const indexEnd = indexBy(days[end]);
 
-    const indexStart = closeBy(benchmark, dayOf(start));
-    const indexEnd = closeBy(benchmark, dayOf(end));
-
-    if (sessions === 0 || !indexStart || !indexEnd) return [];
+    if (!indexStart || !indexEnd) return [];
 
     return [
       {
@@ -471,7 +478,7 @@ export function stanceSpells(
         from,
         until,
         sessions,
-        change: end.close / start.close - 1,
+        change: adjusted[end].close / adjusted[start].close - 1,
         benchmark: indexEnd.close / indexStart.close - 1,
       },
     ];

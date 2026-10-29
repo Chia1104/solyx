@@ -23,6 +23,7 @@ import type {
 } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
+import type { TotalReturnProvider } from "@solyx/core/market-data";
 import { TW_BOARD_LOT, twFilingDeadline } from "@solyx/core/rules/tw";
 import type { TradingCalendarProvider } from "@solyx/core/session";
 import { HOUR_MS } from "@solyx/utils/date";
@@ -101,6 +102,14 @@ const dividendRowSchema = z.object({
 });
 
 const tradingDateRowSchema = z.object({ date: z.iso.date() });
+
+// The Taiwan Stock Exchange's capitalization-weighted index with what its members paid out reinvested.
+const TOTAL_RETURN_INDEX = "TAIEX";
+
+const totalReturnRowSchema = z.object({
+  date: z.iso.date(),
+  price: z.number().positive(),
+});
 
 // One group's buying and selling in a session: of a listing in shares, or of the whole market in New Taiwan dollars.
 const tradesRowSchema = z.object({
@@ -231,11 +240,15 @@ export interface FinMindOptions {
 
 /**
  * Taiwan listings' quarterly statements, monthly revenue and dividends, who trades them and the
- * market, and the days the exchange trades, from FinMind on the user's token and plan or none.
+ * market, the days the exchange trades and its index on total return, from FinMind on the user's
+ * token and plan or none.
  */
 export function createFinMind(
   options: FinMindOptions = {}
-): FundamentalsProvider & FlowsProvider & TradingCalendarProvider {
+): FundamentalsProvider &
+  FlowsProvider &
+  TradingCalendarProvider &
+  TotalReturnProvider {
   const api = ky.create({
     baseUrl: FINMIND_API_URL,
     fetch: options.fetch,
@@ -625,6 +638,20 @@ export function createFinMind(
         trading: days.map(({ date }) => date).toSorted(),
         earlyCloses: [],
       };
+    },
+
+    async getTotalReturn(market, since) {
+      if (market !== Market.TW) return [];
+
+      const closes = await data(
+        "TaiwanStockTotalReturnIndex",
+        { data_id: TOTAL_RETURN_INDEX, start_date: since },
+        totalReturnRowSchema
+      );
+
+      return closes
+        .map(({ date, price }) => ({ date, close: price }))
+        .toSorted(byDate);
     },
   };
 }
