@@ -1,5 +1,6 @@
 import { Button, cn } from "@heroui/react";
 import { useQueries, useQuery } from "@tanstack/react-query";
+import type { UseQueryResult } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { groupBy, mapValues, partition, sortBy, uniq } from "es-toolkit";
 import type { TFunction } from "i18next";
@@ -19,12 +20,11 @@ import {
 } from "@solyx/core/macro";
 import type { MacroFigure, MacroRelease, MacroSeries } from "@solyx/core/macro";
 import { exchangeDate, symbolKey } from "@solyx/core/market";
-import type { SymbolRef } from "@solyx/core/market";
+import type { Market, SymbolRef } from "@solyx/core/market";
 import type { MarketClosure } from "@solyx/core/session";
 import { shiftDate } from "@solyx/utils/date";
 
 import { useClock } from "../../app/clock.ts";
-import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 import { Sparkline } from "../../components/sparkline.tsx";
 import { macroSeriesQuery } from "../macro/macro-query.ts";
@@ -34,7 +34,13 @@ import { useDirectionColors } from "../market/price-colors.ts";
 import { directionOf } from "../market/quote-figures.tsx";
 
 import { Agenda } from "./agenda.tsx";
-import { CALENDAR_DAYS, upcomingEventsQuery } from "./calendar-query.ts";
+import {
+  CALENDAR_DAYS,
+  closuresQuery,
+  listingEventsQuery,
+  releasesQuery,
+  researchEventsQuery,
+} from "./calendar-query.ts";
 
 /** What an event is, in words: the period a filing covers, a distribution's amount, or how long a restriction lasts and why. */
 function EventLabel({ event }: { event: ListingEvent }) {
@@ -466,26 +472,131 @@ function ClosureRow({ closure }: { closure: MarketClosure }) {
   );
 }
 
+/** Each part of the calendar as read so far, with what is still being read and what could not be. */
+function useCalendarReads(symbols: SymbolRef[], markets: Market[]) {
+  const { t } = useTranslation();
+
+  const listings = useQueries({
+    queries: symbols.map((symbol) => listingEventsQuery(symbol)),
+    combine: (results) => ({
+      events: results.flatMap(({ data }) => data?.events ?? []),
+      reading: symbols.filter((_, index) => results[index]?.isPending),
+      unread: symbols.filter(
+        (_, index) =>
+          results[index]?.isError || results[index]?.data?.whole === false
+      ),
+    }),
+  });
+
+  const research = useQuery(researchEventsQuery(symbols));
+
+  /** A market's part as read so far, each market named by what its rows are labelled. */
+  const marketPart =
+    (label: string) =>
+    <Answer,>(results: UseQueryResult<Answer[]>[]) => ({
+      read: results.flatMap(({ data }) => data ?? []),
+      reading: markets.flatMap((market, index) =>
+        results[index]?.isPending ? [`${t(`market.${market}`)} ${label}`] : []
+      ),
+      unread: markets.filter((_, index) => results[index]?.isError),
+    });
+
+  const releases = useQueries({
+    queries: markets.map((market) => releasesQuery(market)),
+    combine: marketPart(t("calendar.economy")),
+  });
+
+  const closures = useQueries({
+    queries: markets.map((market) => closuresQuery(market)),
+    combine: marketPart(t("calendar.exchange")),
+  });
+
+  const reading = [
+    ...listings.reading.map(({ symbol }) => symbol),
+    ...releases.reading,
+    ...closures.reading,
+  ];
+
+  return {
+    events: listings.events,
+    research: research.data ?? [],
+    releases: releases.read,
+    closures: closures.read,
+    reading,
+    still: reading.length > 0 || research.isPending,
+    unread: listings.unread,
+    researchUnread: research.isError,
+    unreadMarkets: uniq([...releases.unread, ...closures.unread]),
+  };
+}
+
+/** What is still being read, and the listings and markets whose dates or figures could not be. */
+function CalendarNotes({
+  reading,
+  unread,
+  researchUnread,
+  unreadFigures,
+  unreadMarkets,
+}: {
+  reading: string[];
+  unread: SymbolRef[];
+  researchUnread: boolean;
+  unreadFigures: Market[];
+  unreadMarkets: Market[];
+}) {
+  const { t } = useTranslation();
+
+  const named = (markets: Market[]) =>
+    markets.map((market) => t(`market.${market}`)).join(", ");
+
+  return (
+    <>
+      {reading.length === 0 ? null : (
+        <p className="text-xs text-muted">
+          {t("calendar.still-reading", { names: reading.join(", ") })}
+        </p>
+      )}
+      {unread.length === 0 ? null : (
+        <p className="text-xs text-warning">
+          {t("calendar.unread", {
+            symbols: unread.map(({ symbol }) => symbol).join(", "),
+          })}
+        </p>
+      )}
+      {researchUnread ? (
+        <p className="text-xs text-warning">{t("calendar.research-unread")}</p>
+      ) : null}
+      {unreadFigures.length === 0 ? null : (
+        <p className="text-xs text-warning">
+          {t("calendar.figures-unread", { markets: named(unreadFigures) })}
+        </p>
+      )}
+      {unreadMarkets.length === 0 ? null : (
+        <p className="text-xs text-warning">
+          {t("calendar.schedule-unread", { markets: named(unreadMarkets) })}
+        </p>
+      )}
+    </>
+  );
+}
+
 /**
  * The listings' coming filings and distributions, the dates their reports hold and their markets'
  * economic releases and closures, on an agenda that shows a week or a month of them soonest
  * first, with the listings and markets whose dates could not be read. The releases whose day has
  * come stay above it for a while, newest first, so the figures they brought are read at a glance.
- * Each market's figures are read apart from the dates, which show while they are still coming.
+ * Each listing, each market's releases and closures and each market's figures are read apart, so
+ * what came shows while a source slow to answer or out of its limit is still being read.
  */
 export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
   const { t } = useTranslation();
   const clock = useClock();
-  const { data, error, refetch } = useQuery(upcomingEventsQuery(symbols));
   const markets = uniq(symbols.map(({ market }) => market));
+  const read = useCalendarReads(symbols, markets);
 
   const figures = useQueries({
     queries: markets.map((market) => macroSeriesQuery(market)),
   });
-
-  if (error) return <LoadError error={error} onRetry={() => void refetch()} />;
-
-  if (!data) return <LoadingState />;
 
   const today = Temporal.Now.plainDateISO(clock.timeZone).toString();
 
@@ -495,17 +606,15 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
     ...markets.map((market) => exchangeDate(market)),
   ].toSorted();
 
-  const series = figures.flatMap(({ data: read }) => read ?? []);
+  const series = figures.flatMap(({ data }) => data ?? []);
 
   const pending = new Set(
     markets.filter((_, index) => figures[index]?.isPending)
   );
 
-  const unreadFigures = markets.filter((_, index) => figures[index]?.isError);
-
   // A release whose day is behind every calendar in view is out, and no longer ahead on the agenda.
   const [ahead, released] = partition(
-    data.releases.map((release): ReleaseEvent => ({
+    read.releases.map((release): ReleaseEvent => ({
       ...release,
       readings: releaseReadings(release, series),
       expected: releaseExpectations(release, series),
@@ -515,7 +624,7 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
 
   const rows = sortBy(
     [
-      ...data.events.map((event) => ({
+      ...read.events.map((event) => ({
         date: event.date,
         timing: event.timing,
         row: (
@@ -525,7 +634,7 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
           />
         ),
       })),
-      ...data.research.map((event) => ({
+      ...read.research.map((event) => ({
         date: event.date,
         timing: event.timing,
         row: (
@@ -535,7 +644,7 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
           />
         ),
       })),
-      ...data.closures.map((closure) => ({
+      ...read.closures.map((closure) => ({
         date: closure.date,
         timing: EventTiming.Set,
         row: (
@@ -576,6 +685,10 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
     )
   );
 
+  if (read.still && rows.length === 0 && released.length === 0) {
+    return <LoadingState />;
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {released.length === 0 ? null : (
@@ -595,11 +708,7 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
           </ul>
         </section>
       )}
-      {rows.length === 0 ? (
-        <p className="rounded-sm pencil px-3 py-3 text-xs text-muted">
-          {t("calendar.empty", { days: CALENDAR_DAYS })}
-        </p>
-      ) : (
+      {rows.length > 0 ? (
         <Agenda
           from={running.at(0) ?? today}
           to={shiftDate(running.at(-1) ?? today, CALENDAR_DAYS)}
@@ -633,32 +742,18 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
             );
           }}
         </Agenda>
-      )}
-      {data.unread.length === 0 ? null : (
-        <p className="text-xs text-warning">
-          {t("calendar.unread", {
-            symbols: data.unread.map(({ symbol }) => symbol).join(", "),
-          })}
+      ) : read.still ? null : (
+        <p className="rounded-sm pencil px-3 py-3 text-xs text-muted">
+          {t("calendar.empty", { days: CALENDAR_DAYS })}
         </p>
       )}
-      {unreadFigures.length === 0 ? null : (
-        <p className="text-xs text-warning">
-          {t("calendar.figures-unread", {
-            markets: unreadFigures
-              .map((market) => t(`market.${market}`))
-              .join(", "),
-          })}
-        </p>
-      )}
-      {data.unreadMarkets.length === 0 ? null : (
-        <p className="text-xs text-warning">
-          {t("calendar.schedule-unread", {
-            markets: data.unreadMarkets
-              .map((market) => t(`market.${market}`))
-              .join(", "),
-          })}
-        </p>
-      )}
+      <CalendarNotes
+        reading={read.reading}
+        unread={read.unread}
+        researchUnread={read.researchUnread}
+        unreadFigures={markets.filter((_, index) => figures[index]?.isError)}
+        unreadMarkets={read.unreadMarkets}
+      />
     </div>
   );
 }

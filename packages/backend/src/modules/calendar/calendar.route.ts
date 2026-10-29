@@ -1,7 +1,16 @@
 import { contractOS } from "../../rpc/context.ts";
 
 export const calendarRouter = contractOS.calendar.router({
-  upcoming: contractOS.calendar.upcoming.handler(({ context, input }) =>
-    context.calendar.upcoming(input.symbols, input.days)
+  listing: contractOS.calendar.listing.handler(({ context, input }) =>
+    context.calendar.listing(input.symbol, input.days)
+  ),
+  research: contractOS.calendar.research.handler(({ context, input }) =>
+    context.calendar.research(input.symbols, input.days)
+  ),
+  releases: contractOS.calendar.releases.handler(({ context, input }) =>
+    context.calendar.releases(input.market, input.days)
+  ),
+  closures: contractOS.calendar.closures.handler(({ context, input }) =>
+    context.calendar.closures(input.market, input.days)
   ),
 });

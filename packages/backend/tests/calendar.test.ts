@@ -306,3 +306,31 @@ test("a schedule that cannot be read names its market, and the listings' events 
 
   expect(again.unreadMarkets).toEqual([]);
 });
+
+test("each part reads on its own: a market whose schedule cannot be read fails its releases alone", async () => {
+  const { calendar, macro } = setup({
+    [symbolKey(TSMC)]: [cash(7, "2026-10-20")],
+  });
+
+  macro.schedule.mockRejectedValueOnce(new Error("stat.gov.tw answered 503"));
+
+  await expect(calendar.releases(Market.TW, 30)).rejects.toThrow(
+    "stat.gov.tw answered 503"
+  );
+  expect(await calendar.closures(Market.TW, 30)).toEqual([
+    { market: Market.TW, date: "2026-10-09", name: "國慶日" },
+  ]);
+  expect(await calendar.listing(TSMC, 30)).toEqual({
+    whole: true,
+    events: [
+      expect.objectContaining({
+        kind: ListingEventKind.ExDividend,
+        date: "2026-10-20",
+      }),
+    ],
+  });
+  expect(await calendar.listing(MEDIATEK, 30)).toEqual({
+    whole: false,
+    events: [],
+  });
+});
