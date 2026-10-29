@@ -17,7 +17,7 @@ export const researchCoverageQuery = (symbol: SymbolRef) =>
 /**
  * Refetches research whenever the agent revises a report, its falsifiers are read against the
  * news, a forecast is made or settled, an exchange's day turns or its session opens or closes, or
- * it is cleared, and the calendar with it, which shows the dates reports hold; and research alone whenever a setting changes, since its coverage tells what
+ * it is cleared, and the calendar's dates reports hold with it; and research alone whenever a setting changes, since its coverage tells what
  * settings keep the falsifiers from being read.
  */
 export function followResearchChanges(queryClient: QueryClient) {
@@ -27,6 +27,8 @@ export function followResearchChanges(queryClient: QueryClient) {
 
   void forEachEvent(client.research.changes(), () => {
     void queryClient.invalidateQueries({ queryKey: orpc.research.key() });
-    void queryClient.invalidateQueries({ queryKey: orpc.calendar.key() });
+    void queryClient.invalidateQueries({
+      queryKey: orpc.calendar.research.key(),
+    });
   });
 }

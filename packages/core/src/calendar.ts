@@ -95,8 +95,16 @@ export interface ResearchEvent extends ReportEvent {
   symbol: SymbolRef;
 }
 
+/** A listing's coming events as a host's calendar serves them. */
+export interface ListingEvents {
+  /** Soonest first. */
+  events: ListingEvent[];
+  /** Whether every source of its events was read, so none of them is missing. */
+  whole: boolean;
+}
+
 /**
- * Some listings' coming events and their markets' releases, as a host's calendar serves them. The
+ * Some listings' coming events and their markets' releases at once, as the agent reads them. The
  * releases come without figures, which a market's series are read for apart, so a database slow to
  * answer never holds up the dates.
  */

@@ -508,6 +508,8 @@
     "unfollowed": "Hold or watch listings to see their dividends, filings and report dates here, with their markets' economic releases.",
     "empty": "Nothing on the calendar in the next {{days}} days.",
     "unread": "Couldn't read the fundamentals of {{symbols}}, so their dates may be missing.",
+    "still-reading": "Still reading {{names}}…",
+    "research-unread": "Couldn't read the dates your reports hold, so some may be missing.",
     "by": "by {{date}}",
     "around": "~{{date}}",
     "deadline-hint": "The latest day the rules allow; the company may well report earlier.",
